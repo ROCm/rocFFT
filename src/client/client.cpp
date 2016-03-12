@@ -1,8 +1,11 @@
 
 #define __HIPCC__
 
+
 #include <iostream>
 #include <fftw3.h>
+
+#include <hip_runtime.h>
 #include "rocfft.h"
 
 
@@ -54,12 +57,12 @@ int main()
 
 	// Create fft buffer
 	rocfft_buffer buffer = NULL;
-	rocfft_hip_mem_create(&buffer, x);
+	rocfft_buffer_create_with_ptr(&buffer, x);
 
 	// Create plan
 	rocfft_plan plan = NULL;
 	size_t length = N;
-	rocfft_plan_create(&plan, ROCFFT_TRANSFORM_TYPE_COMPLEX_FORWARD, ROCFFT_PRECISION_SINGLE, 1, &length, 1, NULL);
+	rocfft_plan_create(&plan, rocfft_transform_type_complex_forward, rocfft_precision_single, 1, &length, 1, NULL);
 
 	// Execute plan
 	rocfft_execute(plan, &buffer, NULL, NULL);
@@ -76,7 +79,7 @@ int main()
 		std::cout << y[i].x << ", " << y[i].y << std::endl;
 	}
 
-	rocfft_free(buffer);
+	rocfft_buffer_destroy(buffer);
 }
 
 

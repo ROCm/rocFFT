@@ -1,6 +1,7 @@
 
 #define __HIPCC__
 
+#include <hip_runtime.h>
 #include "rocfft.h"
 
 struct rocfft_plan_t
@@ -20,7 +21,7 @@ struct rocfft_buffer_t
 rocfft_status rocfft_plan_create(	rocfft_plan *plan,
 					rocfft_transform_type transform_type, rocfft_precision precision,
 					size_t dimensions, const size_t *lengths, size_t number_of_transforms,
-					const rocfft_description description )
+					const rocfft_description *description )
 {
 	rocfft_plan p = new rocfft_plan_t;
 	p->rank = dimensions;
@@ -32,26 +33,26 @@ rocfft_status rocfft_plan_create(	rocfft_plan *plan,
 
 	*plan = p;
 
-	return ROCFFT_STATUS_SUCCESS;
+	return rocfft_status_success;
 }
 
 rocfft_status rocfft_plan_destroy( rocfft_plan plan )
 {
 	delete plan;
 
-	return ROCFFT_STATUS_SUCCESS;	
+	return rocfft_status_success;	
 }
 
-rocfft_status rocfft_malloc( rocfft_buffer *buffer, rocfft_element_type element_type, size_t size_in_elements )
+rocfft_status rocfft_buffer_create_with_alloc( rocfft_buffer *buffer, rocfft_element_type element_type, size_t size_in_elements )
 {
 	rocfft_buffer b = new rocfft_buffer_t;
 
 	switch(element_type)
 	{
-	case ROCFFT_ELEMENT_TYPE_COMPLEX_SINGLE: 	b->elementSize =  8; break;
-	case ROCFFT_ELEMENT_TYPE_COMPLEX_DOUBLE:	b->elementSize = 16; break;
-	case ROCFFT_ELEMENT_TYPE_SINGLE:		b->elementSize =  4; break;
-	case ROCFFT_ELEMENT_TYPE_DOUBLE:		b->elementSize =  8; break;	
+	case rocfft_element_type_complex_single: 	b->elementSize =  8; break;
+	case rocfft_element_type_complex_double:	b->elementSize = 16; break;
+	case rocfft_element_type_single:		b->elementSize =  4; break;
+	case rocfft_element_type_double:		b->elementSize =  8; break;	
 	default:					b->elementSize =  1; break;
 	}
 
@@ -59,20 +60,20 @@ rocfft_status rocfft_malloc( rocfft_buffer *buffer, rocfft_element_type element_
 	b->deviceAlloc = true;
 	*buffer = b;
 
-	return ROCFFT_STATUS_SUCCESS;
+	return rocfft_status_success;
 }
 
-rocfft_status rocfft_free( rocfft_buffer buffer )
+rocfft_status rocfft_buffer_destroy( rocfft_buffer buffer )
 {
 	if(buffer->deviceAlloc)
 		hipFree(buffer->p);
 
 	delete buffer;
 
-	return ROCFFT_STATUS_SUCCESS;
+	return rocfft_status_success;
 }
 
-rocfft_status rocfft_hip_mem_create( rocfft_buffer *buffer, void *p )
+rocfft_status rocfft_buffer_create_with_ptr( rocfft_buffer *buffer, void *p )
 {
 	rocfft_buffer b = new rocfft_buffer_t;
 	b->p = p;
@@ -80,13 +81,13 @@ rocfft_status rocfft_hip_mem_create( rocfft_buffer *buffer, void *p )
 	b->elementSize =  1;
 	*buffer = b;
 
-	return ROCFFT_STATUS_SUCCESS;	
+	return rocfft_status_success;	
 }
 
-rocfft_status rocfft_hip_mem_get_ptr( rocfft_buffer buffer, void **p )
+rocfft_status rocfft_buffer_get_ptr( rocfft_buffer buffer, void **p )
 {
 	*p = buffer->p;
-	return ROCFFT_STATUS_SUCCESS;
+	return rocfft_status_success;
 }
 
 // ===============================================================
@@ -254,7 +255,7 @@ rocfft_status rocfft_execute(	rocfft_plan plan,
 	hipLaunchKernel(HIP_KERNEL_NAME(fft_fwd), dim3(blocks), dim3(threadsPerBlock), 0, 0, (float2 *)(in_buffer[0]->p), tw);
 
 
-	return ROCFFT_STATUS_SUCCESS;
+	return rocfft_status_success;
 }
 
 

@@ -16,59 +16,59 @@ typedef struct rocfft_execution_info_t *rocfft_execution_info;
 // Status & error message
 typedef enum rocfft_status_e
 {
-	rocfft_status_success,
-	rocfft_status_failure,
+        rocfft_status_success,
+        rocfft_status_failure,
 } rocfft_status;
 
 // Type of transform
 typedef enum rocfft_transform_type_e
 {
-	rocfft_transform_type_complex_forward,
-	rocfft_transform_type_complex_inverse,
-	rocfft_transform_type_real_forward,
-	rocfft_transform_type_real_inverse,	
+        rocfft_transform_type_complex_forward,
+        rocfft_transform_type_complex_inverse,
+        rocfft_transform_type_real_forward,
+        rocfft_transform_type_real_inverse,        
 } rocfft_transform_type;
 
 // Precision
 typedef enum rocfft_precision_e
 {
-	rocfft_precision_single,
-	rocfft_precision_double,
+        rocfft_precision_single,
+        rocfft_precision_double,
 } rocfft_precision;
 
 // Element type
 typedef enum rocfft_element_type_e
 {
-	rocfft_element_type_complex_single,
-	rocfft_element_type_complex_double,
-	rocfft_element_type_single,
-	rocfft_element_type_double,
-	rocfft_element_type_byte,	
+        rocfft_element_type_complex_single,
+        rocfft_element_type_complex_double,
+        rocfft_element_type_single,
+        rocfft_element_type_double,
+        rocfft_element_type_byte,        
 } rocfft_element_type;
 
 // Result placement
 typedef enum rocfft_result_placement_e
 {
-	rocfft_placement_inplace,
-	rocfft_placement_notinplace,	
+        rocfft_placement_inplace,
+        rocfft_placement_notinplace,        
 } rocfft_result_placement;
 
 // Array type
 typedef enum rocfft_array_type_e
 {
-	rocfft_array_type_complex_interleaved,
-	rocfft_array_type_complex_planar,
-	rocfft_array_type_real,
-	rocfft_array_type_hermitian_interleaved,
-	rocfft_array_type_hermitian_planar,	
+        rocfft_array_type_complex_interleaved,
+        rocfft_array_type_complex_planar,
+        rocfft_array_type_real,
+        rocfft_array_type_hermitian_interleaved,
+        rocfft_array_type_hermitian_planar,        
 } rocfft_array_type;
 
 // Execution mode
 typedef enum rocfft_execution_mode_e
 {
-	rocfft_exec_mode_nonblocking,
-	rocfft_exec_mode_nonblocking_with_flush,
-	rocfft_exec_mode_blocking,
+        rocfft_exec_mode_nonblocking,
+        rocfft_exec_mode_nonblocking_with_flush,
+        rocfft_exec_mode_blocking,
 } rocfft_execution_mode;
 
 
@@ -85,24 +85,24 @@ rocfft_status rocfft_buffer_create_with_alloc( rocfft_buffer *buffer, rocfft_ele
 rocfft_status rocfft_buffer_destroy( rocfft_buffer buffer );
 
 // create buffer, use device memory space already allocated
-rocfft_status rocfft_buffer_create_with_ptr(rocfft_buffer *buffer, void *p);
+rocfft_status rocfft_buffer_create_with_ptr( rocfft_buffer *buffer, void *p );
 
 // retrieve raw device pointer from buffer
-rocfft_status rocfft_buffer_get_ptr(rocfft_buffer buffer, void **p);
+rocfft_status rocfft_buffer_get_ptr( rocfft_buffer buffer, void **p );
 
 
 // plan creation in a single step
-rocfft_status rocfft_plan_create(	rocfft_plan *plan,
-									rocfft_transform_type transform_type, rocfft_precision precision,
-									size_t dimensions, const size_t *lengths, size_t number_of_transforms,
-									const rocfft_description *description );
+rocfft_status rocfft_plan_create(       rocfft_plan *plan,
+                                        rocfft_transform_type transform_type, rocfft_precision precision,
+                                        size_t dimensions, const size_t *lengths, size_t number_of_transforms,
+                                        const rocfft_description *description );
 
 
 // plan execution
-rocfft_status rocfft_execute(	const rocfft_plan plan,
-								rocfft_buffer *in_buffer,
-								rocfft_buffer *out_buffer,
-								rocfft_execution_info info );
+rocfft_status rocfft_execute(   const rocfft_plan plan,
+                                rocfft_buffer *in_buffer,
+                                rocfft_buffer *out_buffer,
+                                rocfft_execution_info info );
 
 // plan destruction
 rocfft_status rocfft_plan_destroy( rocfft_plan plan );
@@ -112,16 +112,16 @@ rocfft_status rocfft_plan_destroy( rocfft_plan plan );
 rocfft_status rocfft_description_set_scale_float( rocfft_description *description, float scale );
 rocfft_status rocfft_description_set_scale_double( rocfft_description *description, double scale );
 
-rocfft_status rocfft_description_set_data_outline( rocfft_description *description,
-							rocfft_result_placement placement,
-							rocfft_array_type in_array_type, rocfft_array_type out_array_type,
-							const size_t *in_offsets, const size_t *out_offsets );
+rocfft_status rocfft_description_set_data_outline(      rocfft_description *description,
+                                                        rocfft_result_placement placement,
+                                                        rocfft_array_type in_array_type, rocfft_array_type out_array_type,
+                                                        const size_t *in_offsets, const size_t *out_offsets );
 
-rocfft_status rocfft_description_set_data_layout( rocfft_description *description,
-							const size_t *in_strides, size_t in_distance,
-							const size_t *out_strides, size_t out_distance );
+rocfft_status rocfft_description_set_data_layout(       rocfft_description *description,
+                                                        const size_t *in_strides, size_t in_distance,
+                                                        const size_t *out_strides, size_t out_distance );
 
-rocfft_status rocfft_description_set_devices(rocfft_description description, void *devices, size_t number_of_devices);
+rocfft_status rocfft_description_set_devices( rocfft_description description, void *devices, size_t number_of_devices );
 
 
 // get plan information
@@ -129,15 +129,15 @@ rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *
 
 
 // functions to create and destroy execution_info objects 
-rocfft_status rocfft_execution_info_create(rocfft_execution_info *info);
-rocfft_status rocfft_execution_info_destroy(rocfft_execution_info info);
+rocfft_status rocfft_execution_info_create( rocfft_execution_info *info );
+rocfft_status rocfft_execution_info_destroy( rocfft_execution_info info );
 
 // execution info set/get functions to control execution and retrieve event/other information
 rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution_info info, rocfft_buffer work_buffer );
 rocfft_status rocfft_execution_info_set_mode( rocfft_execution_info info, rocfft_execution_mode mode );
-rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info, void *stream);
+rocfft_status rocfft_execution_info_set_stream( rocfft_execution_info info, void *stream );
 
-rocfft_status rocfft_execution_info_get_events(const rocfft_execution_info info, void **events, size_t number_of_events);
+rocfft_status rocfft_execution_info_get_events( const rocfft_execution_info info, void **events, size_t number_of_events );
 
 
 
@@ -147,9 +147,4 @@ rocfft_status rocfft_execution_info_get_events(const rocfft_execution_info info,
 
 
 #endif // __ROCFFT_H__
-			
-					
-
-					
-				  
 
