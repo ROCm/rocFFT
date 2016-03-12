@@ -99,7 +99,8 @@ rocfft_status rocfft_execution_info_get_events(const rocfft_execution_info info,
 
 In the function 'rocfft_execution_info_set_mode' shown above, the execution_info object is used to control the execution mode. Appropriate enumeration value can be specified to control blocking/non-blocking behavior. It serves as an input to the library and has to be called before a call to the rocfft_execute function. This is applicable to all of the **set** functions shown above. The function 'rocfft_execution_info_set_work_buffer' can be used to pass buffers created by the user to the library if for any reason user does not prefer library allocating/freeing device memory from inside 'rocfft_execute' function. The function 'rocfft_execution_info_set_stream' can be used to set the underlying device queue/stream where the library computations would be inserted. The library assumes user has created such a stream in the program and merely assigns work to the stream. The function 'rocfft_execution_info_get_events' can be used to get handles to events the library created around one or more kernel launches inside the library. Needless to say, this function and other **get** functions are called after a call to 'rocfft_execute'. 
 
-## Enumeration types and values. Documentation is TBD.
+## Enumeration types and values
+Documentation is TBD.
 
 ```c
 
