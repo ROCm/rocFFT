@@ -18,7 +18,9 @@ In this document, I attempt to explain the rationale behind the design of rocFFT
 As in FFTW, rocFFT defines its own memory allocation and free functions. This helps the library to have control over memory it has to use. It is strongly recommended for users to allocate and release memory using these functions. These functions allocate/free memory space on the **device**.
 
 ```c
-rocfft_status rocfft_buffer_create_with_alloc( rocfft_buffer *buffer, rocfft_element_type element_type, size_t size_in_elements );
+rocfft_status rocfft_buffer_create_with_alloc(  rocfft_buffer *buffer,
+                                                rocfft_element_type element_type,
+                                                size_t size_in_elements );
 rocfft_status rocfft_buffer_destroy( rocfft_buffer buffer );
 ```
 
@@ -38,10 +40,10 @@ The function 'rocfft_buffer_create_with_ptr' is to create a rocfft_buffer object
 There is a single step (as opposed to 2 steps in clFFT) to create a plan object in rocFFT.
 
 ```c
-rocfft_status rocfft_plan_create(	rocfft_plan *plan,
-									rocfft_transform_type transform_type, rocfft_precision precision,
-									size_t dimensions, const size_t *lengths, size_t number_of_transforms,
-									const rocfft_description *description );
+rocfft_status rocfft_plan_create(       rocfft_plan *plan,
+                                        rocfft_transform_type transform_type, rocfft_precision precision,
+                                        size_t dimensions, const size_t *lengths, size_t number_of_transforms,
+                                        const rocfft_description *description );
 ```
 
 Here, 'plan' parameter is a pointer to an internal object created by library that holds plan information. The parameters 'transform_type' and 'precision' specify the fundamental type and precision of the transform. 'dimensions' specify the number of dimensions in the data. Valid values are 1, 2 and 3. The 'lengths' array specifies size in each dimension. Unless custom strides are specified, the data is assumed to be packed. It is important to note that lengths[0] specifies the size of the dimension where consecutive elements are contiguous in memory. The lengths[1], if applicable, is the next higher dimension and so on. The 'number_of_transforms' parameter specifies how many transforms (of the same kind) needs to be computed. By specifying a value greater than 1, an array of transforms can be computed. The 'description' parameter can be set to NULL if no further specification is necessary. Or a description object, set up using other api functions, can be passed in to specify more plan properties.
@@ -50,24 +52,27 @@ Here, 'plan' parameter is a pointer to an internal object created by library tha
 By default results are written back to the input buffer, an in-place result placement. To specify not in-place result placement, the following function can be used to set up the description object to be passed subsequently to 'rocfft_plan_create'. This function can be used to specify input and output array types. Not all combinations of array types are supported and error code will be returned for unsupported cases. Additionally, input and output buffer offsets can be specified using this function.
 
 ```c
-rocfft_status rocfft_description_set_data_outline( rocfft_description *description,
-							rocfft_result_placement placement,
-							rocfft_array_type in_array_type, rocfft_array_type out_array_type,
-							const size_t *in_offsets, const size_t *out_offsets );
+rocfft_status rocfft_description_set_data_outline(      rocfft_description *description,
+                                                        rocfft_result_placement placement,
+                                                        rocfft_array_type in_array_type, rocfft_array_type out_array_type,
+                                                        const size_t *in_offsets, const size_t *out_offsets );
 ```
 
 The following function can be used to specify custom layout of data, with the ability to specify stride between consecutive elements in all dimensions. Also, distance between transform array members can be specified, and they take meaning if the 'number_of_transforms' parameter in 'rocfft_plan_create' is greater than 1.
 
 ```c
-rocfft_status rocfft_description_set_data_layout( rocfft_description *description,
-							const size_t *in_strides, size_t in_distance,
-							const size_t *out_strides, size_t out_distance );									
+rocfft_status rocfft_description_set_data_layout(       rocfft_description *description,
+                                                        const size_t *in_strides, size_t in_distance,
+                                                        const size_t *out_strides, size_t out_distance );
+
 ```
 
 The following function can be used to change the default device or add a set of devices for which the plan has to be created.
 
 ```c
-rocfft_status rocfft_description_set_devices( rocfft_description description, void *devices, size_t number_of_devices );
+rocfft_status rocfft_description_set_devices(   rocfft_description description,
+                                                void *devices,
+                                                size_t number_of_devices );
 ```
 
 To destruct a plan after it is no longer needed, the following function can be used.
@@ -80,10 +85,10 @@ rocfft_status rocfft_plan_destroy( rocfft_plan plan );
 After a plan is created, the library can be instructed to execute that plan on input/output data using the function shown below. If the transform is in-place, only the input buffer is needed and the output buffer parameter can be set to NULL. For not in-place transforms, output buffers have to be specified. The final parameter in this function is an execution_info object. This parameter serves as both a way for the user to control execution related things, as well as for the library to pass any information back to the user.
 
 ```c
-rocfft_status rocfft_execute(	const rocfft_plan plan,
-								rocfft_buffer *in_buffer,
-								rocfft_buffer *out_buffer,
-								rocfft_execution_info info );
+rocfft_status rocfft_execute(   const rocfft_plan plan,
+                                rocfft_buffer *in_buffer,
+                                rocfft_buffer *out_buffer,
+                                rocfft_execution_info info );
 ```
 
 The following functions can be used to create and destroy execution_info objects.
@@ -100,7 +105,9 @@ rocfft_status rocfft_execution_info_set_mode( rocfft_execution_info info, rocfft
 rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution_info info, rocfft_buffer work_buffer );
 rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info, void *stream);
 
-rocfft_status rocfft_execution_info_get_events(const rocfft_execution_info info, void **events, size_t number_of_events);
+rocfft_status rocfft_execution_info_get_events( const rocfft_execution_info info,
+                                                void **events,
+                                                size_t number_of_events);
 ```
 
 In the function 'rocfft_execution_info_set_mode' shown above, the execution_info object is used to control the execution mode. Appropriate enumeration value can be specified to control blocking/non-blocking behavior. It serves as an input to the library and has to be called before a call to the rocfft_execute function. This is applicable to all of the **set** functions shown above. The function 'rocfft_execution_info_set_work_buffer' can be used to pass buffers created by the user to the library if for any reason user does not prefer library allocating/freeing device memory from inside 'rocfft_execute' function. The function 'rocfft_execution_info_set_stream' can be used to set the underlying device queue/stream where the library computations would be inserted. The library assumes user has created such a stream in the program and merely assigns work to the stream. The function 'rocfft_execution_info_get_events' can be used to get handles to events the library created around one or more kernel launches inside the library. Needless to say, this function and other **get** functions are called after a call to 'rocfft_execute'. 
