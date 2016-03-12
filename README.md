@@ -1,2 +1,3 @@
-# rocFFT-proto
-rocFFT-proto
+# rocFFT
+
+Radeon Open Compute FFT library
