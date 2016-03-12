@@ -104,6 +104,7 @@ Documentation is TBD.
 
 ```c
 
+// Status & error message
 typedef enum rocfft_status_e
 {
 	rocfft_status_success,
