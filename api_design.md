@@ -58,10 +58,16 @@ rocfft_status rocfft_description_set_data_outline( rocfft_description *descripti
 
 The following function can be used to specify custom layout of data, with the ability to specify stride between consecutive elements in all dimensions. Also, distance between transform array members can be specified, and they take meaning if the 'number_of_transforms' parameter in 'rocfft_plan_create' is greater than 1.
 
-```c							
+```c
 rocfft_status rocfft_description_set_data_layout( rocfft_description *description,
 							const size_t *in_strides, size_t in_distance,
 							const size_t *out_strides, size_t out_distance );									
+```
+
+The following function can be used to change the default device or add a set of devices for which the plan has to be created.
+
+```c
+rocfft_status rocfft_description_set_devices( rocfft_description description, void *devices, size_t number_of_devices );
 ```
 
 To destruct a plan after it is no longer needed, the following function can be used.
