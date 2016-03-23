@@ -1,0 +1,10 @@
+/* ************************************************************************
+ * Copyright 2016 Advanced Micro Devices, Inc.
+ * ************************************************************************ */
+
+/* the configured version and settings
+ */
+#define rocfft_version_major @rocfft_VERSION_MAJOR@
+#define rocfft_version_minor @rocfft_VERSION_MINOR@
+#define rocfft_version_patch @rocfft_VERSION_PATCH@
+#define rocfft_version_tweak @rocfft_VERSION_TWEAK@
