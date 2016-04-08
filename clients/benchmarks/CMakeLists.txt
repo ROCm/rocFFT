@@ -26,7 +26,7 @@ set( CPACK_PACKAGE_VERSION_MAJOR ${rocBLAS-clients_VERSION_MAJOR} )
 set( CPACK_PACKAGE_VERSION_MINOR ${rocBLAS-clients_VERSION_MINOR} )
 set( CPACK_PACKAGE_VERSION_PATCH ${rocBLAS-clients_VERSION_PATCH} )
 set( CPACK_PACKAGE_VERSION_TWEAK ${rocBLAS-clients_VERSION_TWEAK} )
-set( CPACK_PACKAGE_DESCRIPTION_SUMMARY "Radeon Open Compute BLAS library package")
+set( CPACK_PACKAGE_DESCRIPTION_SUMMARY "Radeon Open Compute FFT library package")
 set( CPACK_PACKAGE_VENDOR "AMD")
 set( CPACK_SOURCE_IGNORE_FILES "/\\\\.git/;/\\\\.hg/;/\\\\.svn/;" )
 
