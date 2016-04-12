@@ -72,28 +72,7 @@ if( WIN32 AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT )
 endif( )
 
 include( cmake/build-options.cmake )
-
-# These variables are meant to contain string which should be appended to the installation paths
-# of library and executable binaries, respectively.  They are meant to be user configurable/overridable.
-set( SUFFIX_LIB_DEFAULT "" )
-set( SUFFIX_BIN_DEFAULT "" )
-
-# Modify the global find property to help us find libraries like Boost in the correct paths for 64-bit
-# Essentially, find_library calls will look for /lib64 instead of /lib; works for windows and linux
-if( BUILD_64 )
-	set_property( GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS TRUE )
-	message( STATUS "64bit build - FIND_LIBRARY_USE_LIB64_PATHS TRUE" )
-
-	if( NOT APPLE )
-		set( SUFFIX_LIB_DEFAULT "64" )
-	endif( )
-else( )
-	set_property( GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS FALSE )
-	message( STATUS "32bit build - FIND_LIBRARY_USE_LIB64_PATHS FALSE" )
-endif( )
-
-set( SUFFIX_LIB ${SUFFIX_LIB_DEFAULT} CACHE STRING "String to append to 'lib' install path" )
-set( SUFFIX_BIN ${SUFFIX_BIN_DEFAULT} CACHE STRING "String to append to 'bin' install path" )
+include( GNUInstallDirs )
 
 # Set common compile and link options
 if( MSVC )
@@ -139,10 +118,9 @@ source_group( "Header Files\\Public" FILES ${rocfft_headers_public} )
 # Build into subdirectories
 add_subdirectory( library )
 
-install( FILES
-		${rocfft_headers_public}
+install( FILES ${rocfft_headers_public}
 	DESTINATION
-		"include" )
+		${CMAKE_INSTALL_INCLUDEDIR} )
 
 # Depending on whether we are building for 64 or 32 bit, construct common paths and names that subdirectories can reference for their use
 if( BUILD_64 )

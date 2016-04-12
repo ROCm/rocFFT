@@ -85,6 +85,7 @@ endif( )
 # This tells cmake to create a compile_commands.json file that can be used with clang tooling or vim
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 
+find_package( FFTW 3.0 REQUIRED COMPONENTS FLOAT )
 find_package( rocfft REQUIRED CONFIG )
 
 # Build into subdirectories

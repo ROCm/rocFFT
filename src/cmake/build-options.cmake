@@ -33,7 +33,7 @@ if( BUILD_LIBRARY_UNICODE AND WIN32 )
 endif( )
 
 if( NOT BUILD_LIBRARY_TYPE )
-	set( BUILD_LIBRARY_TYPE "SHARED" CACHE STRING "Build the rocfft library as SHARED or STATIC build types" )
+	set( BUILD_LIBRARY_TYPE "STATIC" CACHE STRING "Build the rocfft library as SHARED or STATIC build types" )
 	set_property( CACHE BUILD_LIBRARY_TYPE PROPERTY STRINGS SHARED STATIC )
 endif( )
 

@@ -62,8 +62,8 @@ GENERATE_EXPORT_HEADER( rocfft EXPORT_FILE_NAME rocfft-export.h )
 # https://cmake.org/cmake/help/v3.0/module/CMakePackageConfigHelpers.html
 include( CMakePackageConfigHelpers )
 
-set( LIB_INSTALL_DIR lib${SUFFIX_LIB} )
-set( INCLUDE_INSTALL_DIR include )
+set( LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR} )
+set( INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR} )
 set( config_package_location ${LIB_INSTALL_DIR}/cmake/rocfft )
 
 configure_package_config_file(
@@ -81,9 +81,9 @@ write_basic_package_version_file(
 
 install( TARGETS rocfft
   EXPORT rocfft-targets
-  RUNTIME DESTINATION bin${SUFFIX_BIN}
-  LIBRARY DESTINATION lib${SUFFIX_LIB}
-  ARCHIVE DESTINATION lib${SUFFIX_LIB}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
 install( EXPORT rocfft-targets
@@ -100,5 +100,5 @@ install( FILES
 install( FILES
   ${CMAKE_CURRENT_BINARY_DIR}/rocfft-export.h
   DESTINATION
-    include
+    ${CMAKE_INSTALL_INCLUDEDIR}
 )
