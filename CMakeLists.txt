@@ -36,6 +36,14 @@ set_property( CACHE HOST_TOOLCHAIN_NAME PROPERTY STRINGS clang gcc )
 set( DEVICE_TOOLCHAIN_NAME "hipcc" CACHE STRING "Compiler toolchain for library: (hcc hipcc)" )
 set_property( CACHE DEVICE_TOOLCHAIN_NAME PROPERTY STRINGS hcc hipcc )
 
+set( PLATFORM_NAME "AMD" CACHE STRING "Device platform: (AMD NVIDIA)")
+set_property( CACHE PLATFORM_NAME PROPERTY STRINGS AMD NVIDIA)
+
+MESSAGE(STATUS "PLATFORM NAME is set to be ${PLATFORM_NAME}")
+
+set( BUILD_LIBRARY_TYPE "STATIC" CACHE STRING "Build the rocfft library as SHARED or STATIC build types" )
+set_property( CACHE BUILD_LIBRARY_TYPE PROPERTY STRINGS SHARED STATIC )
+
 # set( rocfft_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} )
 set( rocfft_INSTALL_DIR "${PROJECT_BINARY_DIR}/rocfft-package" )
 
@@ -77,14 +85,17 @@ set( BASE_CMAKE_ARGS
 if( NOT CMAKE_CONFIGURATION_TYPES )
 	list( APPEND BASE_CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} )
 endif( )
-
+#message("hip_root = ${HIP_ROOT}")
 if( BUILD_LIBRARY )
   include( src/cmake/build-options.cmake )
 
 	set( LIBRARY_CMAKE_ARGS
 	 ${BASE_CMAKE_ARGS}
 	-DCMAKE_TOOLCHAIN_FILE=${DEVICE_TOOLCHAIN_FILE}
-	-DBUILD_LIBRARY_UNICODE=${BUILD_LIBRARY_UNICODE} )
+	-DBUILD_LIBRARY_UNICODE=${BUILD_LIBRARY_UNICODE}
+        -DPLATFORM_NAME=${PLATFORM_NAME}
+        -DHIP_ROOT=${HIP_ROOT} 
+        -DBUILD_LIBRARY_TYPE=${BUILD_LIBRARY_TYPE})
 
   # Build the library as an external project
   ExternalProject_Add( rocfft
