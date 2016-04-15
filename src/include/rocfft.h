@@ -1,7 +1,7 @@
 #ifndef __ROCFFT_H__
 #define __ROCFFT_H__
 
-
+#define DLL_PUBLIC __attribute__ ((visibility ("default")))
 #ifdef __cplusplus
 extern "C"
 {
@@ -74,70 +74,70 @@ typedef enum rocfft_execution_mode_e
 
 
 // library setup function, called once in program at the start of library use
-rocfft_status rocfft_setup();
+DLL_PUBLIC rocfft_status rocfft_setup();
 
 // library cleanup function, called once in program after end of library use
-rocfft_status rocfft_cleanup();
+DLL_PUBLIC rocfft_status rocfft_cleanup();
 
 
 // library specific malloc and free routines to create device buffers
-rocfft_status rocfft_buffer_create_with_alloc( rocfft_buffer *buffer, rocfft_element_type element_type, size_t size_in_elements );
-rocfft_status rocfft_buffer_destroy( rocfft_buffer buffer );
+DLL_PUBLIC rocfft_status rocfft_buffer_create_with_alloc( rocfft_buffer *buffer, rocfft_element_type element_type, size_t size_in_elements );
+DLL_PUBLIC rocfft_status rocfft_buffer_destroy( rocfft_buffer buffer );
 
 // create buffer, use device memory space already allocated
-rocfft_status rocfft_buffer_create_with_ptr( rocfft_buffer *buffer, void *p );
+DLL_PUBLIC rocfft_status rocfft_buffer_create_with_ptr( rocfft_buffer *buffer, void *p );
 
 // retrieve raw device pointer from buffer
-rocfft_status rocfft_buffer_get_ptr( rocfft_buffer buffer, void **p );
+DLL_PUBLIC rocfft_status rocfft_buffer_get_ptr( rocfft_buffer buffer, void **p );
 
 
 // plan creation in a single step
-rocfft_status rocfft_plan_create(       rocfft_plan *plan,
+DLL_PUBLIC rocfft_status rocfft_plan_create(       rocfft_plan *plan,
                                         rocfft_transform_type transform_type, rocfft_precision precision,
                                         size_t dimensions, const size_t *lengths, size_t number_of_transforms,
                                         const rocfft_description *description );
 
 
 // plan execution
-rocfft_status rocfft_execute(   const rocfft_plan plan,
+DLL_PUBLIC rocfft_status rocfft_execute(   const rocfft_plan plan,
                                 rocfft_buffer *in_buffer,
                                 rocfft_buffer *out_buffer,
                                 rocfft_execution_info info );
 
 // plan destruction
-rocfft_status rocfft_plan_destroy( rocfft_plan plan );
+DLL_PUBLIC rocfft_status rocfft_plan_destroy( rocfft_plan plan );
 
 
 // plan description funtions to specify optional additional plan properties
-rocfft_status rocfft_description_set_scale_float( rocfft_description *description, float scale );
-rocfft_status rocfft_description_set_scale_double( rocfft_description *description, double scale );
+DLL_PUBLIC rocfft_status rocfft_description_set_scale_float( rocfft_description *description, float scale );
+DLL_PUBLIC rocfft_status rocfft_description_set_scale_double( rocfft_description *description, double scale );
 
-rocfft_status rocfft_description_set_data_outline(      rocfft_description *description,
+DLL_PUBLIC rocfft_status rocfft_description_set_data_outline(      rocfft_description *description,
                                                         rocfft_result_placement placement,
                                                         rocfft_array_type in_array_type, rocfft_array_type out_array_type,
                                                         const size_t *in_offsets, const size_t *out_offsets );
 
-rocfft_status rocfft_description_set_data_layout(       rocfft_description *description,
+DLL_PUBLIC rocfft_status rocfft_description_set_data_layout(       rocfft_description *description,
                                                         const size_t *in_strides, size_t in_distance,
                                                         const size_t *out_strides, size_t out_distance );
 
-rocfft_status rocfft_description_set_devices( rocfft_description description, void *devices, size_t number_of_devices );
+DLL_PUBLIC rocfft_status rocfft_description_set_devices( rocfft_description description, void *devices, size_t number_of_devices );
 
 
 // get plan information
-rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *size_in_bytes );
+DLL_PUBLIC rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *size_in_bytes );
 
 
 // functions to create and destroy execution_info objects 
-rocfft_status rocfft_execution_info_create( rocfft_execution_info *info );
-rocfft_status rocfft_execution_info_destroy( rocfft_execution_info info );
+DLL_PUBLIC rocfft_status rocfft_execution_info_create( rocfft_execution_info *info );
+DLL_PUBLIC rocfft_status rocfft_execution_info_destroy( rocfft_execution_info info );
 
 // execution info set/get functions to control execution and retrieve event/other information
-rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution_info info, rocfft_buffer work_buffer );
-rocfft_status rocfft_execution_info_set_mode( rocfft_execution_info info, rocfft_execution_mode mode );
-rocfft_status rocfft_execution_info_set_stream( rocfft_execution_info info, void *stream );
+DLL_PUBLIC rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution_info info, rocfft_buffer work_buffer );
+DLL_PUBLIC rocfft_status rocfft_execution_info_set_mode( rocfft_execution_info info, rocfft_execution_mode mode );
+DLL_PUBLIC rocfft_status rocfft_execution_info_set_stream( rocfft_execution_info info, void *stream );
 
-rocfft_status rocfft_execution_info_get_events( const rocfft_execution_info info, void **events, size_t number_of_events );
+DLL_PUBLIC rocfft_status rocfft_execution_info_get_events( const rocfft_execution_info info, void **events, size_t number_of_events );
 
 
 

@@ -30,12 +30,14 @@ endif( )
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 message("hiproot = ${HIP_ROOT}")
 message("BUILD_LIBRARY_TYPE = ${BUILD_LIBRARY_TYPE}")
+message("relative_rocfft_headers_public = ${relative_rocfft_headers_public}")
 if(PLATFORM_NAME STREQUAL "AMD")
     add_library( rocfft ${BUILD_LIBRARY_TYPE}
       ${rocfft_source}
       ${relative_rocfft_headers_public}
     )
 elseif(PLATFORM_NAME STREQUAL "NVIDIA")
+    set(CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
     set(hip_include_dir ${HIP_ROOT}/include)
     set(extra_cuda_include_dir ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc)
     CUDA_INCLUDE_DIRECTORIES(${hip_include_dir}
