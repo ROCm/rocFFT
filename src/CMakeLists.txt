@@ -25,9 +25,9 @@ endif()
 # rocfft becomes the name of the project with a particular version
 if( POLICY CMP0048 )
 	cmake_policy( SET CMP0048 NEW )
-	project( rocfft VERSION 0.0.0.1 LANGUAGES CXX )
+	project( rocfft VERSION 0.0.0.1 LANGUAGES CXX C )
 else( )
-	project( rocfft CXX )
+	project( rocfft CXX C )
 	# Define a version for the code
 	if( NOT DEFINED rocfft_VERSION_MAJOR )
 		set( rocfft_VERSION_MAJOR 0 )
@@ -46,6 +46,10 @@ else( )
 	endif( )
 
 	set( rocfft_VERSION "${rocfft_VERSION_MAJOR}.${rocfft_VERSION_MINOR}.${rocfft_VERSION_PATCH}.${rocfft_VERSION_TWEAK}")
+endif( )
+
+if(PLATFORM_NAME STREQUAL "NVIDIA")
+    find_package(CUDA REQUIRED)
 endif( )
 
 # MACOSX_RPATH is enabled by default policy

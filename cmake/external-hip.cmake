@@ -12,17 +12,33 @@ endif( )
 set( hip_git_repository "https://github.com/GPUOpen-ProfessionalCompute-Tools/HIP.git" CACHE STRING "URL to download hip from" )
 set( hip_git_tag "master" CACHE STRING "URL to download hip from" )
 
+
 # Master branch has a new structure that combines googletest with googlemock
-ExternalProject_Add(
-  hip
-  GIT_REPOSITORY ${hip_git_repository}
-  GIT_TAG ${hip_git_tag}
-  PREFIX ${CMAKE_BINARY_DIR}/extern/hip
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND HIPCC_FLAGS=-fPIC make
-  BUILD_IN_SOURCE 1
-  INSTALL_COMMAND ""
-)
+if( PLATFORM_NAME STREQUAL "AMD" )
+    ExternalProject_Add(
+      hip
+      GIT_REPOSITORY ${hip_git_repository}
+      GIT_TAG ${hip_git_tag}
+      PREFIX ${CMAKE_BINARY_DIR}/extern/hip
+      CONFIGURE_COMMAND ""
+      BUILD_COMMAND HIPCC_FLAGS=-fPIC make
+      BUILD_IN_SOURCE 1
+      INSTALL_COMMAND ""
+    )
+elseif(PLATFORM_NAME STREQUAL "NVIDIA")
+    ExternalProject_Add(
+      hip
+      GIT_REPOSITORY ${hip_git_repository}
+      GIT_TAG ${hip_git_tag}
+      PREFIX ${CMAKE_BINARY_DIR}/extern/hip
+      CONFIGURE_COMMAND ""
+      BUILD_COMMAND ""
+      BUILD_IN_SOURCE 1
+      INSTALL_COMMAND ""
+    )
+else( )
+    MESSAGE("PLEASE specify PLATFORM_NAME to either AMD or NVIDIA")
+endif( )
 
 ExternalProject_Get_Property( hip source_dir )
 

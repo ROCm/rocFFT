@@ -32,9 +32,10 @@ if( BUILD_LIBRARY_UNICODE AND WIN32 )
 	add_definitions( "/DUNICODE /D_UNICODE" )
 endif( )
 
-if( NOT BUILD_LIBRARY_TYPE )
-	set( BUILD_LIBRARY_TYPE "STATIC" CACHE STRING "Build the rocfft library as SHARED or STATIC build types" )
-	set_property( CACHE BUILD_LIBRARY_TYPE PROPERTY STRINGS SHARED STATIC )
-endif( )
+#message("curr BUILD_LIBRARY_TYPE = ${BUILD_LIBRARY_TYPE}")
+#if( NOT BUILD_LIBRARY_TYPE )
+#	set( BUILD_LIBRARY_TYPE "STATIC" CACHE STRING "Build the rocfft library as SHARED or STATIC build types" )
+#	set_property( CACHE BUILD_LIBRARY_TYPE PROPERTY STRINGS SHARED STATIC )
+#endif( )
 
-# option( BUILD_LIBRARY_DEPENDENCY_COBALT "Build cobalt kernel library" ON )
+

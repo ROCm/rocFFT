@@ -13,20 +13,40 @@ function( prepend_path prefix source_list_of_files return_list_of_files )
   endforeach( )
   set( ${return_list_of_files} ${new_list} PARENT_SCOPE )
 endfunction( )
-
 include( GenerateExportHeader )
 add_compiler_export_flags( )
 
-set( rocfft_blas3_source
-  rocfft.cpp
-)
-
+if(PLATFORM_NAME STREQUAL "AMD")
+    set( rocfft_source
+      rocfft.cpp
+    )
+elseif(PLATFORM_NAME STREQUAL "NVIDIA")
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/rocfft.cpp DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/src)
+    file(RENAME ${CMAKE_CURRENT_BINARY_DIR}/src/rocfft.cpp ${CMAKE_CURRENT_BINARY_DIR}/src/rocfft.cu)
+    set( rocfft_source
+         ${CMAKE_CURRENT_BINARY_DIR}/src/rocfft.cu
+       )
+endif( )
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
-
-add_library( rocfft ${BUILD_LIBRARY_TYPE}
-  ${rocfft_blas3_source}
-  ${relative_rocfft_headers_public}
-)
+message("hiproot = ${HIP_ROOT}")
+message("BUILD_LIBRARY_TYPE = ${BUILD_LIBRARY_TYPE}")
+if(PLATFORM_NAME STREQUAL "AMD")
+    add_library( rocfft ${BUILD_LIBRARY_TYPE}
+      ${rocfft_source}
+      ${relative_rocfft_headers_public}
+    )
+elseif(PLATFORM_NAME STREQUAL "NVIDIA")
+    set(hip_include_dir ${HIP_ROOT}/include)
+    set(extra_cuda_include_dir ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc)
+    CUDA_INCLUDE_DIRECTORIES(${hip_include_dir}
+                             ${extra_cuda_include_dir}                            
+                             ${CMAKE_SOURCE_DIR}/include)
+    CUDA_ADD_LIBRARY( rocfft ${BUILD_LIBRARY_TYPE}
+      ${rocfft_source}
+      ${relative_rocfft_headers_public}
+    )
+endif( )
+MESSAGE("CUDA_root = ${CUDA_TOOLKIT_ROOT_DIR}")
 
 # Try to test for specific compiler features if cmake version is recent enough
 if( CMAKE_VERSION VERSION_GREATER "3.0" )

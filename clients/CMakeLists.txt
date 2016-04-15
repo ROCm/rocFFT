@@ -10,7 +10,7 @@ cmake_minimum_required( VERSION 2.8.12 )
 # endif( )
 
 # This project may compile dependencies for clients
-project( rocfft-clients CXX )
+project( rocfft-clients CXX C )
 
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
@@ -24,7 +24,7 @@ if( BUILD_CLIENTS_DEPENDENCY_GTEST )
   include( external-gtest )
 endif( )
 
-if( BUILD_CLIENTS_DEPENDENCY_LAPACK )
+if( BUILD_CLIENTS_DEPENDENCY_FFTW )
   include( external-fftw )
 endif( )
 
@@ -48,6 +48,8 @@ if( BUILD_CLIENTS_SAMPLES )
         ${CLIENTS_CMAKE_ARGS}
         -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}
         -DCMAKE_MODULE_PATH:PATH=${CMAKE_MODULE_PATH}
+        -DPLATFORM_NAME=${PLATFORM_NAME}
+        -DHIP_ROOT=${HIP_ROOT}
   	)
 
   ExternalProject_Add( samples
@@ -78,11 +80,11 @@ endif( )
 if( BUILD_CLIENTS_TESTS )
   set( TESTS_CMAKE_ARGS
         ${CLIENTS_CMAKE_ARGS}
-        -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}^^${BOOST_ROOT}^^${GTEST_ROOT}^^${LAPACK_ROOT}
+        -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}^^${BOOST_ROOT}^^${GTEST_ROOT}^^${FFTW_ROOT}
   	)
 
   ExternalProject_Add( tests
-    DEPENDS googletest lapack
+    DEPENDS googletest fftw
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/tests
     BINARY_DIR tests-build
     CMAKE_ARGS ${TESTS_CMAKE_ARGS}
