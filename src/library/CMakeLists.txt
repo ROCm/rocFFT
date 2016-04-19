@@ -18,13 +18,17 @@ add_compiler_export_flags( )
 
 if(PLATFORM_NAME STREQUAL "AMD")
     set( rocfft_source
-      rocfft.cpp
+         rocfft.cpp
+         rocfft_transpose.cpp
     )
 elseif(PLATFORM_NAME STREQUAL "NVIDIA")
     file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/rocfft.cpp DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/src)
     file(RENAME ${CMAKE_CURRENT_BINARY_DIR}/src/rocfft.cpp ${CMAKE_CURRENT_BINARY_DIR}/src/rocfft.cu)
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/rocfft_transpose.cpp DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/src)
+    file(RENAME ${CMAKE_CURRENT_BINARY_DIR}/src/rocfft_transpose.cpp ${CMAKE_CURRENT_BINARY_DIR}/src/rocfft_transpose.cu)
     set( rocfft_source
          ${CMAKE_CURRENT_BINARY_DIR}/src/rocfft.cu
+         ${CMAKE_CURRENT_BINARY_DIR}/src/rocfft_transpose.cu
        )
 endif( )
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
