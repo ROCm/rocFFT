@@ -57,13 +57,6 @@ int main()
     else
        std::cout << "input_matrix_device copy host to device was unsuccessful" << std::endl;
 
-    //create rocfft transpose buffer
-    rocfft_transpose_buffer input_buffer = NULL;
-    rocfft_transpose_buffer_create_with_ptr(&input_buffer, input_matrix_device);
-   
-    rocfft_transpose_buffer output_buffer = NULL;
-    rocfft_transpose_buffer_create_with_ptr(&output_buffer, output_matrix_device);
-
     //create transpose only plan
     rocfft_transpose_plan plan = NULL;
     std::vector<size_t> lengths = {(size_t)input_col_size, (size_t)input_row_size};
@@ -71,7 +64,7 @@ int main()
                                  lengths.size(), lengths.data(), batch_size, NULL);
 
     //execute plan
-    rocfft_transpose_status status = rocfft_transpose_execute(plan, &input_buffer, &output_buffer, NULL);
+    rocfft_transpose_status status = rocfft_transpose_execute(plan, input_matrix_device, output_matrix_device, NULL);
     if(status == rocfft_transpose_status_success)
        std::cout << "rocfft_transpose_execute was successful" << std::endl;
     else
@@ -90,6 +83,4 @@ int main()
 
     hipFree(input_matrix_device);
     hipFree(output_matrix_device);
-    rocfft_transpose_buffer_destroy(input_buffer);
-    rocfft_transpose_buffer_destroy(output_buffer);
 }

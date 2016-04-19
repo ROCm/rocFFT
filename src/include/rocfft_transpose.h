@@ -9,7 +9,6 @@ extern "C"
 
 // Opaque pointer types to library internal data structures 
 typedef struct rocfft_transpose_plan_t *rocfft_transpose_plan;
-typedef struct rocfft_transpose_buffer_t *rocfft_transpose_buffer;
 typedef struct rocfft_transpose_description_t *rocfft_transpose_description;
 typedef struct rocfft_transpose_execution_info_t *rocfft_transpose_execution_info;
 
@@ -64,26 +63,6 @@ typedef enum rocfft_transpose_execution_mode_e
         rocfft_transpose_exec_mode_blocking,
 } rocfft_transpose_execution_mode;
 
-
-
-// library setup function, called once in program at the start of library use
-DLL_PUBLIC rocfft_transpose_status rocfft_transpose_setup();
-
-// library cleanup function, called once in program after end of library use
-DLL_PUBLIC rocfft_transpose_status rocfft_transpose_cleanup();
-
-
-// library specific malloc and free routines to create device buffers
-DLL_PUBLIC rocfft_transpose_status rocfft_transpose_buffer_create_with_alloc( rocfft_transpose_buffer *buffer, rocfft_transpose_element_type element_type, size_t size_in_elements );
-DLL_PUBLIC rocfft_transpose_status rocfft_transpose_buffer_destroy( rocfft_transpose_buffer buffer );
-
-// create buffer, use device memory space already allocated
-DLL_PUBLIC rocfft_transpose_status rocfft_transpose_buffer_create_with_ptr( rocfft_transpose_buffer *buffer, void *p );
-
-// retrieve raw device pointer from buffer
-DLL_PUBLIC rocfft_transpose_status rocfft_transpose_buffer_get_ptr( rocfft_transpose_buffer buffer, void **p );
-
-
 // plan creation in a single step
 DLL_PUBLIC rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *plan,
                                                                  rocfft_transpose_precision precision, rocfft_transpose_array_type array_type,
@@ -94,37 +73,12 @@ DLL_PUBLIC rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpos
 
 // plan execution
 DLL_PUBLIC rocfft_transpose_status rocfft_transpose_execute( const rocfft_transpose_plan plan,
-                                                             rocfft_transpose_buffer *in_buffer,
-                                                             rocfft_transpose_buffer *out_buffer,
+                                                             void *in_buffer,
+                                                             void *out_buffer,
                                                              rocfft_transpose_execution_info info );
 
 // plan destruction
 DLL_PUBLIC rocfft_transpose_status rocfft_transpose_plan_destroy( rocfft_transpose_plan plan );
-
-
-// plan description funtions to specify optional additional plan properties
-DLL_PUBLIC rocfft_transpose_status rocfft_transpose_description_set_scale_float( rocfft_transpose_description *description, float scale );
-DLL_PUBLIC rocfft_transpose_status rocfft_transpose_description_set_scale_double( rocfft_transpose_description *description, double scale );
-
-DLL_PUBLIC rocfft_transpose_status rocfft_transpose_description_set_devices( rocfft_transpose_description description, void *devices, size_t number_of_devices );
-
-
-// get plan information
-DLL_PUBLIC rocfft_transpose_status rocfft_transpose_plan_get_work_buffer_size( const rocfft_transpose_plan plan, size_t *size_in_bytes );
-
-
-// functions to create and destroy execution_info objects 
-DLL_PUBLIC rocfft_transpose_status rocfft_transpose_execution_info_create( rocfft_transpose_execution_info *info );
-DLL_PUBLIC rocfft_transpose_status rocfft_transpose_execution_info_destroy( rocfft_transpose_execution_info info );
-
-// execution info set/get functions to control execution and retrieve event/other information
-DLL_PUBLIC rocfft_transpose_status rocfft_execution_info_set_work_buffer( rocfft_transpose_execution_info info, rocfft_transpose_buffer work_buffer );
-DLL_PUBLIC rocfft_transpose_status rocfft_execution_info_set_mode( rocfft_transpose_execution_info info, rocfft_transpose_execution_mode mode );
-DLL_PUBLIC rocfft_transpose_status rocfft_execution_info_set_stream( rocfft_transpose_execution_info info, void *stream );
-
-DLL_PUBLIC rocfft_transpose_status rocfft_execution_info_get_events( const rocfft_transpose_execution_info info, void **events, size_t number_of_events );
-
-
 
 #ifdef __cplusplus
 }

@@ -19,24 +19,6 @@ struct rocfft_transpose_plan_t
 };
 
 
-struct rocfft_transpose_buffer_t
-{
-	bool deviceAlloc;
-	size_t elementSize;
-	void *p;
-};
-
-rocfft_transpose_status rocfft_transpose_buffer_create_with_ptr( rocfft_transpose_buffer *buffer, void *p )
-{
-	rocfft_transpose_buffer b = new rocfft_transpose_buffer_t;
-	b->p = p;
-	b->deviceAlloc = false;
-	b->elementSize =  1;
-	*buffer = b;
-
-	return rocfft_transpose_status_success;	
-}
-
 rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *plan,
                                                                  rocfft_transpose_precision precision, rocfft_transpose_array_type array_type,
                                                                  rocfft_transpose_placement placement,
@@ -47,8 +29,8 @@ rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *pla
 }
 
 rocfft_transpose_status rocfft_transpose_execute( const rocfft_transpose_plan plan,
-                                                             rocfft_transpose_buffer *in_buffer,
-                                                             rocfft_transpose_buffer *out_buffer,
+                                                             void *in_buffer,
+                                                             void *out_buffer,
                                                              rocfft_transpose_execution_info info )
 {
         return rocfft_transpose_status_not_implemented;
@@ -57,14 +39,4 @@ rocfft_transpose_status rocfft_transpose_execute( const rocfft_transpose_plan pl
 rocfft_transpose_status rocfft_transpose_plan_destroy( rocfft_transpose_plan plan )
 {
         return rocfft_transpose_status_not_implemented;
-}
-
-rocfft_transpose_status rocfft_transpose_buffer_destroy( rocfft_transpose_buffer buffer )
-{
-	if(buffer->deviceAlloc)
-		hipFree(buffer->p);
-
-	delete buffer;
-
-	return rocfft_transpose_status_success;
 }
