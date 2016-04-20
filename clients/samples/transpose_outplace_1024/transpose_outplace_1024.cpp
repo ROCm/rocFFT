@@ -34,6 +34,18 @@ int main()
         }
     }
 
+
+    //print some input matrix
+    std::cout << "print some input values: " << std::endl;
+    for(int i = 0; i < 16; i++)
+    {
+        for(int j = 0; j < 16; j++)
+        {
+            std::cout << input_matrix[i * input_col_size + j + 0*input_col_size*input_row_size] << " ";
+        }
+        std::cout << std::endl;
+    }
+
     hipError_t err;
     //create device memory
     float *input_matrix_device, *output_matrix_device;
@@ -58,13 +70,18 @@ int main()
        std::cout << "input_matrix_device copy host to device was unsuccessful" << std::endl;
 
     //create transpose only plan
+    rocfft_transpose_status status;
     rocfft_transpose_plan plan = NULL;
     std::vector<size_t> lengths = {(size_t)input_col_size, (size_t)input_row_size};
-    rocfft_transpose_plan_create(&plan, rocfft_transpose_precision_single, rocfft_transpose_array_type_real, rocfft_transpose_placement_notinplace,
+    status = rocfft_transpose_plan_create(&plan, rocfft_transpose_precision_single, rocfft_transpose_array_type_real, rocfft_transpose_placement_notinplace,
                                  lengths.size(), lengths.data(), batch_size, NULL);
+    if(status == rocfft_transpose_status_success)
+       std::cout << "rocfft_transpose_plan_create was successful" << std::endl;
+    else
+       std::cout << "rocfft_transpose_plan_create was unsuccessful" << std::endl;
 
     //execute plan
-    rocfft_transpose_status status = rocfft_transpose_execute(plan, input_matrix_device, output_matrix_device, NULL);
+    status = rocfft_transpose_execute(plan, input_matrix_device, output_matrix_device, NULL);
     if(status == rocfft_transpose_status_success)
        std::cout << "rocfft_transpose_execute was successful" << std::endl;
     else
@@ -72,7 +89,11 @@ int main()
 
 
     //destroy plan
-    rocfft_transpose_plan_destroy(plan);
+    status = rocfft_transpose_plan_destroy(plan);
+    if(status == rocfft_transpose_status_success)
+       std::cout << "rocfft_transpose_plan_destroy was successful" << std::endl;
+    else
+       std::cout << "rocfft_transpose_plan_destroy was unsuccessful" << std::endl;
     
     //copy data from device to host
     err = hipMemcpy(output_matrix.data(), output_matrix_device, batch_size * output_row_size * output_col_size * sizeof(float), hipMemcpyDeviceToHost);
@@ -80,6 +101,38 @@ int main()
        std::cout << "output_matrix_device copy device to host was successful" << std::endl;
     else
        std::cout << "output_matrix_device copy device to host was unsuccessful" << std::endl;
+
+    //print output matrix
+    std::cout << "print some output values: " << std::endl;
+    for(int i = 0; i < 16; i++)
+    {
+        for(int j = 0; j < 16; j++)
+        {
+            std::cout << output_matrix[i * output_col_size + j + 0*input_col_size*input_row_size] << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    //check result
+    bool passed = true;
+    for(int b = 0; b < batch_size; b++)
+    {
+        for(int i = 0; i < input_row_size; i++)
+        {
+            for(int j = 0; j < input_col_size; j++)
+            {
+                if(input_matrix[b * input_col_size*input_row_size + i * input_col_size + j] != output_matrix[b * input_col_size*input_row_size + j * input_row_size + i])
+                {
+                    passed = false;
+                    break;
+                }
+            }
+        }
+    }
+    if(passed)
+       std::cout << "correctness PASSED" << std::endl;
+    else
+       std::cout << "correctness FAILED" << std::endl;
 
     hipFree(input_matrix_device);
     hipFree(output_matrix_device);

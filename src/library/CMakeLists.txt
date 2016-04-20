@@ -32,6 +32,9 @@ elseif(PLATFORM_NAME STREQUAL "NVIDIA")
        )
 endif( )
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
+
+set(internal_include_dirs ${CMAKE_CURRENT_SOURCE_DIR}/internal_include)
+set(internal_include_src ${internal_include_dirs}/rocfft_transpose_kernel.h)
 message("hiproot = ${HIP_ROOT}")
 message("BUILD_LIBRARY_TYPE = ${BUILD_LIBRARY_TYPE}")
 message("relative_rocfft_headers_public = ${relative_rocfft_headers_public}")
@@ -46,10 +49,13 @@ elseif(PLATFORM_NAME STREQUAL "NVIDIA")
     set(extra_cuda_include_dir ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc)
     CUDA_INCLUDE_DIRECTORIES(${hip_include_dir}
                              ${extra_cuda_include_dir}                            
-                             ${CMAKE_SOURCE_DIR}/include)
+                             ${CMAKE_SOURCE_DIR}/include
+                             ${internal_include_dirs}
+                            )
     CUDA_ADD_LIBRARY( rocfft ${BUILD_LIBRARY_TYPE}
       ${rocfft_source}
       ${relative_rocfft_headers_public}
+      ${internal_include_src}
     )
 endif( )
 MESSAGE("CUDA_root = ${CUDA_TOOLKIT_ROOT_DIR}")

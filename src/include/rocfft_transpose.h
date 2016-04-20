@@ -28,15 +28,6 @@ typedef enum rocfft_transpose_precision_e
         rocfft_transpose_precision_double,
 } rocfft_transpose_precision;
 
-// Element type
-typedef enum rocfft_transpose_element_type_e
-{
-        rocfft_transpose_element_type_complex_single,
-        rocfft_transpose_element_type_complex_double,
-        rocfft_transpose_element_type_single,
-        rocfft_transpose_element_type_double,
-        rocfft_transpose_element_type_byte,        
-} rocfft_transpose_element_type;
 
 // Result placement
 typedef enum rocfft_transpose_placement_e
