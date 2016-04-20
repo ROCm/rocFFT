@@ -52,6 +52,7 @@ rocfft_transpose_status rocfft_transpose_outplace_real(const rocfft_transpose_pl
     const int block_size_8 = 8;
     const int block_size_1 = 1;
     const int micro_tile_size_1 = 1;
+    const int micro_tile_size_2 = 2;
     const int micro_tile_size_4 = 4;
     int input_row_size = plan->lengths[1];
     int input_col_size = plan->lengths[0];
@@ -61,10 +62,14 @@ rocfft_transpose_status rocfft_transpose_outplace_real(const rocfft_transpose_pl
     {
         hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_4,micro_tile_size_4,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_4/block_size_16 * batch_size, input_row_size/micro_tile_size_4/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, batch_size );
     }
+    else if(input_row_size % (block_size_16*micro_tile_size_2) == 0 && input_col_size % (block_size_16*micro_tile_size_2) == 0)
+    {
+        hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_2,micro_tile_size_2,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_2/block_size_16 * batch_size, input_row_size/micro_tile_size_2/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, batch_size );
+    }
     else if(input_row_size % (block_size_1*micro_tile_size_1) == 0 && input_col_size % (block_size_1*micro_tile_size_1) == 0)
     {
-    // the kernel should be able to work on any size with no guarantee of performance 
-    hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, batch_size );
+        // the kernel should be able to work on any size with no guarantee of performance 
+        hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, batch_size );
     }
     else
     {
