@@ -65,6 +65,9 @@ if( BUILD_CLIENTS_BENCHMARKS )
     set( BENCH_CMAKE_ARGS
           ${CLIENTS_CMAKE_ARGS}
           -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}^^${BOOST_ROOT}
+          -DCMAKE_MODULE_PATH:PATH=${CMAKE_MODULE_PATH}
+          -DPLATFORM_NAME=${PLATFORM_NAME}
+          -DHIP_ROOT=${HIP_ROOT}
       )
 
   ExternalProject_Add( benchmarks
@@ -81,10 +84,13 @@ if( BUILD_CLIENTS_TESTS )
   set( TESTS_CMAKE_ARGS
         ${CLIENTS_CMAKE_ARGS}
         -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}^^${BOOST_ROOT}^^${GTEST_ROOT}^^${FFTW_ROOT}
+        -DCMAKE_MODULE_PATH:PATH=${CMAKE_MODULE_PATH}
+        -DPLATFORM_NAME=${PLATFORM_NAME}
+        -DHIP_ROOT=${HIP_ROOT}
   	)
 
   ExternalProject_Add( tests
-    DEPENDS googletest fftw
+    DEPENDS #googletest fftw
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/tests
     BINARY_DIR tests-build
     CMAKE_ARGS ${TESTS_CMAKE_ARGS}

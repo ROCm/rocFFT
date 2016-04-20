@@ -7,7 +7,7 @@
 ///
 
 #include <iostream>
-#include <cblas.h>
+#include <fftw3.h>
 #include <gtest/gtest.h>
 // #include <boost/program_options.hpp>
 
