@@ -48,17 +48,31 @@ rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *pla
 
 rocfft_transpose_status rocfft_transpose_outplace_real(const rocfft_transpose_plan plan, void *in_buffer, void *out_buffer)
 {
-    int block_size = 16;//dim3(input_row_size/16/4, input_col_size/16/4, 1)
-    const int micro_tile_size = 64;
+    const int block_size_16 = 16;//dim3(input_row_size/16/4, input_col_size/16/4, 1)
+    const int block_size_8 = 8;
+    const int block_size_1 = 1;
+    const int micro_tile_size_1 = 1;
+    const int micro_tile_size_4 = 4;
     int input_row_size = plan->lengths[1];
     int input_col_size = plan->lengths[0];
     int batch_size = plan->batch;
-    //this is hip bug that I have to reverse the dim3 values
-    hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size,micro_tile_size>), dim3(input_col_size/micro_tile_size * batch_size, input_row_size/micro_tile_size), dim3(block_size, block_size, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, batch_size );
+    
+    if(input_row_size % (block_size_16*micro_tile_size_4) == 0 && input_col_size % (block_size_16*micro_tile_size_4) == 0)
+    {
+        hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_4,micro_tile_size_4,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_4/block_size_16 * batch_size, input_row_size/micro_tile_size_4/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, batch_size );
+    }
+    else if(input_row_size % (block_size_1*micro_tile_size_1) == 0 && input_col_size % (block_size_1*micro_tile_size_1) == 0)
+    {
+    // the kernel should be able to work on any size with no guarantee of performance 
+    hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, batch_size );
+    }
+    else
+    {
+        return rocfft_transpose_status_not_implemented;
+    }    
+    
     hipDeviceSynchronize();
-
-
-   return rocfft_transpose_status_success;
+    return rocfft_transpose_status_success;
 }
 
 rocfft_transpose_status rocfft_transpose_execute( const rocfft_transpose_plan plan,
