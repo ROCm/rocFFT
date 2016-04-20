@@ -12,5 +12,5 @@ __global__ void transpose_kernel_outplace_check_boundary(hipLaunchParm lp, T *in
 
 //include the definations of kernel templates here
 #include "rocfft_transpose_kernel.cu"
-#include "rotfft_transpose_kernel_check_boundary.cu"
+#include "rocfft_transpose_kernel_check_boundary.cu"
 #endif
