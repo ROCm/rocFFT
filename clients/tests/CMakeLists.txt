@@ -110,8 +110,12 @@ if(PLATFORM_NAME STREQUAL "NVIDIA")
     find_package(CUDA REQUIRED)
 
 endif( )
-
-add_executable( rocfft-test main.cpp )
+set(rocfft_test_source 
+    gtest_main.cpp
+    accuracy_test_transpose.cpp)
+set(rocfft_test_includes
+    accuracy_test_common.h)
+add_executable( rocfft-test ${rocfft_test_source} ${rocfft_test_includes} )
 
 # Try to test for specific compiler features if cmake version is recent enough
 if( CMAKE_VERSION VERSION_GREATER "3.0" )
@@ -125,6 +129,8 @@ else( )
 		target_compile_options( rocfft-test PRIVATE -std=c++11 -pthread )
   endif( )
 endif( )
+
+set(GTEST_INCLUDE_DIRS ${GTEST_ROOT}/include)
 
 target_compile_definitions( rocfft-test PRIVATE GTEST_USE_OWN_TR1_TUPLE=1 )
 target_include_directories( rocfft-test
