@@ -11,13 +11,6 @@ struct rocfft_plan_t
 	size_t batch;
 };
 
-struct rocfft_buffer_t
-{
-	bool deviceAlloc;
-	size_t elementSize;
-	void *p;
-};
-
 rocfft_status rocfft_plan_create(	rocfft_plan *plan,
 					rocfft_transform_type transform_type, rocfft_precision precision,
 					size_t dimensions, const size_t *lengths, size_t number_of_transforms,
@@ -43,52 +36,6 @@ rocfft_status rocfft_plan_destroy( rocfft_plan plan )
 	return rocfft_status_success;	
 }
 
-rocfft_status rocfft_buffer_create_with_alloc( rocfft_buffer *buffer, rocfft_element_type element_type, size_t size_in_elements )
-{
-	rocfft_buffer b = new rocfft_buffer_t;
-
-	switch(element_type)
-	{
-	case rocfft_element_type_complex_single: 	b->elementSize =  8; break;
-	case rocfft_element_type_complex_double:	b->elementSize = 16; break;
-	case rocfft_element_type_single:		b->elementSize =  4; break;
-	case rocfft_element_type_double:		b->elementSize =  8; break;	
-	default:					b->elementSize =  1; break;
-	}
-
-	hipMalloc(&(b->p), size_in_elements*(b->elementSize));
-	b->deviceAlloc = true;
-	*buffer = b;
-
-	return rocfft_status_success;
-}
-
-rocfft_status rocfft_buffer_destroy( rocfft_buffer buffer )
-{
-	if(buffer->deviceAlloc)
-		hipFree(buffer->p);
-
-	delete buffer;
-
-	return rocfft_status_success;
-}
-
-rocfft_status rocfft_buffer_create_with_ptr( rocfft_buffer *buffer, void *p )
-{
-	rocfft_buffer b = new rocfft_buffer_t;
-	b->p = p;
-	b->deviceAlloc = false;
-	b->elementSize =  1;
-	*buffer = b;
-
-	return rocfft_status_success;	
-}
-
-rocfft_status rocfft_buffer_get_ptr( rocfft_buffer buffer, void **p )
-{
-	*p = buffer->p;
-	return rocfft_status_success;
-}
 
 // ===============================================================
 
@@ -215,8 +162,8 @@ __global__ void fft_fwd(hipLaunchParm lp, float2 *gb, float2 *twiddles)
 
 
 rocfft_status rocfft_execute(	rocfft_plan plan,
-				rocfft_buffer *in_buffer,
-				rocfft_buffer *out_buffer,
+				void **in_buffer,
+				void **out_buffer,
 				rocfft_execution_info info )
 {
 
@@ -252,7 +199,7 @@ rocfft_status rocfft_execute(	rocfft_plan plan,
 	const unsigned threadsPerBlock = 4;
 
 	// Launch HIP kernel
-	hipLaunchKernel(HIP_KERNEL_NAME(fft_fwd), dim3(blocks), dim3(threadsPerBlock), 0, 0, (float2 *)(in_buffer[0]->p), tw);
+	hipLaunchKernel(HIP_KERNEL_NAME(fft_fwd), dim3(blocks), dim3(threadsPerBlock), 0, 0, (float2 *)(in_buffer[0]), tw);
 
 
 	return rocfft_status_success;

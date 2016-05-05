@@ -9,7 +9,6 @@ extern "C"
 
 // Opaque pointer types to library internal data structures 
 typedef struct rocfft_plan_t *rocfft_plan;
-typedef struct rocfft_buffer_t *rocfft_buffer;
 typedef struct rocfft_description_t *rocfft_description;
 typedef struct rocfft_execution_info_t *rocfft_execution_info;
 
@@ -35,16 +34,6 @@ typedef enum rocfft_precision_e
         rocfft_precision_single,
         rocfft_precision_double,
 } rocfft_precision;
-
-// Element type
-typedef enum rocfft_element_type_e
-{
-        rocfft_element_type_complex_single,
-        rocfft_element_type_complex_double,
-        rocfft_element_type_single,
-        rocfft_element_type_double,
-        rocfft_element_type_byte,        
-} rocfft_element_type;
 
 // Result placement
 typedef enum rocfft_result_placement_e
@@ -80,17 +69,6 @@ rocfft_status rocfft_setup();
 rocfft_status rocfft_cleanup();
 
 
-// library specific malloc and free routines to create device buffers
-rocfft_status rocfft_buffer_create_with_alloc( rocfft_buffer *buffer, rocfft_element_type element_type, size_t size_in_elements );
-rocfft_status rocfft_buffer_destroy( rocfft_buffer buffer );
-
-// create buffer, use device memory space already allocated
-rocfft_status rocfft_buffer_create_with_ptr( rocfft_buffer *buffer, void *p );
-
-// retrieve raw device pointer from buffer
-rocfft_status rocfft_buffer_get_ptr( rocfft_buffer buffer, void **p );
-
-
 // plan creation in a single step
 rocfft_status rocfft_plan_create(       rocfft_plan *plan,
                                         rocfft_transform_type transform_type, rocfft_precision precision,
@@ -100,8 +78,8 @@ rocfft_status rocfft_plan_create(       rocfft_plan *plan,
 
 // plan execution
 rocfft_status rocfft_execute(   const rocfft_plan plan,
-                                rocfft_buffer *in_buffer,
-                                rocfft_buffer *out_buffer,
+                                void **in_buffer,
+                                void **out_buffer,
                                 rocfft_execution_info info );
 
 // plan destruction
@@ -133,7 +111,7 @@ rocfft_status rocfft_execution_info_create( rocfft_execution_info *info );
 rocfft_status rocfft_execution_info_destroy( rocfft_execution_info info );
 
 // execution info set/get functions to control execution and retrieve event/other information
-rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution_info info, rocfft_buffer work_buffer );
+rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution_info info, void *work_buffer );
 rocfft_status rocfft_execution_info_set_mode( rocfft_execution_info info, rocfft_execution_mode mode );
 rocfft_status rocfft_execution_info_set_stream( rocfft_execution_info info, void *stream );
 
