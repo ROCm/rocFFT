@@ -72,9 +72,9 @@ size_t batch_size;
 
 class transpose_test : public testing::TestWithParam<
         std::tuple<
-        size_t, //input row size
-        size_t, //input column size
-        size_t  //batch size
+        int, //input row size
+        int, //input column size
+        int  //batch size
         > > 
 {
 public:

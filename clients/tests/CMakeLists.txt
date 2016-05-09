@@ -24,9 +24,9 @@ endif()
 # rocfft becomes the name of the project with a particular version
 if( POLICY CMP0048 )
 	cmake_policy( SET CMP0048 NEW )
-	project( rocfft-test VERSION 0.0.0.1 LANGUAGES C CXX )
+	project( rocfft-test-correctness VERSION 0.0.0.1 LANGUAGES C CXX )
 else( )
-	project( rocfft-test CXX C )
+	project( rocfft-test-correctness CXX C )
 	# Define a version for the code
 	if( NOT DEFINED rocfft_VERSION_MAJOR )
 		set( rocfft-test_VERSION_MAJOR 0 )
@@ -118,25 +118,26 @@ set(rocfft_test_includes
     accuracy_test_common.h
     misc/include/test_exception.h)
 
-add_executable( rocfft-test ${rocfft_test_source} ${rocfft_test_includes} )
+add_executable( rocfft-test-correctness ${rocfft_test_source} ${rocfft_test_includes} )
 
 # Try to test for specific compiler features if cmake version is recent enough
 if( CMAKE_VERSION VERSION_GREATER "3.0" )
-  target_compile_features( rocfft-test PRIVATE cxx_static_assert cxx_nullptr cxx_lambdas cxx_auto_type )
+  target_compile_features( rocfft-test-correctness PRIVATE cxx_static_assert cxx_nullptr cxx_lambdas cxx_auto_type )
 else( )
   # Otherwise, just try to compile the library with a standards flag
   if( CMAKE_COMPILER_IS_GNUCXX OR ( CMAKE_CXX_COMPILER_ID MATCHES "Clang" ) )
 		# ::gets removed from std++14, but g++4.8 still uses it
 		# http://clang-developers.42468.n3.nabble.com/libc-gets-removed-from-C11-td4032945.html
     # target_compile_options( rocfft-test PRIVATE -std=c++14 )
-		target_compile_options( rocfft-test PRIVATE -std=c++11 -pthread )
+		target_compile_options( rocfft-test-correctness PRIVATE -std=c++11 -pthread )
   endif( )
 endif( )
 
 set(GTEST_INCLUDE_DIRS ${GTEST_ROOT}/include)
+#message("GTEST_INCLUDE_DIRS = ${GTEST_INCLUDE_DIRS}")
 set(TEST_MISC_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/misc/include)
-target_compile_definitions( rocfft-test PRIVATE GTEST_USE_OWN_TR1_TUPLE=1 )
-target_include_directories( rocfft-test
+target_compile_definitions( rocfft-test-correctness PRIVATE GTEST_USE_OWN_TR1_TUPLE=1 )
+target_include_directories( rocfft-test-correctness
   PRIVATE
 #		$<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${GTEST_INCLUDE_DIRS}>
@@ -147,14 +148,14 @@ target_include_directories( rocfft-test
 )
 
 #target_link_libraries( rocfft-test rocfft ${GTEST_LIBRARIES} ${Boost_LIBRARIES} )
-target_link_libraries( rocfft-test rocfft ${GTEST_LIBRARIES} ${FFTW_LIBRARIES} )
+target_link_libraries( rocfft-test-correctness rocfft ${GTEST_LIBRARIES} ${FFTW_LIBRARIES} )
 
 # Ubuntu systems need to explicitely link to pthreads lib because of --as-needed
 # https://github.com/google/googletest/issues/391#issuecomment-125645879
 # No easy way to filter to Ubuntu
 if( UNIX )
-	target_link_libraries( rocfft-test pthread )
+	target_link_libraries( rocfft-test-correctness pthread )
 endif( )
 
-set_target_properties( rocfft-test PROPERTIES DEBUG_POSTFIX "-d" )
-set_target_properties( rocfft-test PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+set_target_properties( rocfft-test-correctness PROPERTIES DEBUG_POSTFIX "-d" )
+set_target_properties( rocfft-test-correctness PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
