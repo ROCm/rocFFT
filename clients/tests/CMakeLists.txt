@@ -112,9 +112,12 @@ if(PLATFORM_NAME STREQUAL "NVIDIA")
 endif( )
 set(rocfft_test_source 
     gtest_main.cpp
-    accuracy_test_transpose.cpp)
+    accuracy_test_transpose.cpp
+    misc/source/test_exception.cpp)
 set(rocfft_test_includes
-    accuracy_test_common.h)
+    accuracy_test_common.h
+    misc/include/test_exception.h)
+
 add_executable( rocfft-test ${rocfft_test_source} ${rocfft_test_includes} )
 
 # Try to test for specific compiler features if cmake version is recent enough
@@ -131,7 +134,7 @@ else( )
 endif( )
 
 set(GTEST_INCLUDE_DIRS ${GTEST_ROOT}/include)
-
+set(TEST_MISC_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/misc/include)
 target_compile_definitions( rocfft-test PRIVATE GTEST_USE_OWN_TR1_TUPLE=1 )
 target_include_directories( rocfft-test
   PRIVATE
@@ -140,6 +143,7 @@ target_include_directories( rocfft-test
     $<BUILD_INTERFACE:${FFTW_INCLUDES}>
     $<BUILD_INTERFACE:${hip_include_dir}>
     $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${TEST_MISC_INCLUDE_DIRS}>
 )
 
 #target_link_libraries( rocfft-test rocfft ${GTEST_LIBRARIES} ${Boost_LIBRARIES} )

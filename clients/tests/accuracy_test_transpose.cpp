@@ -1,7 +1,17 @@
 #include <gtest/gtest.h>
 #include <math.h>
 #include "accuracy_test_common.h"
+#include "test_exception.h"
 #include <iostream>
+#include <vector>
+
+namespace transpose_test_namespace
+{
+
+const int matrix_size_small_pow2_range[] = {128, 256};
+const int batch_size_small_range[] = {1, 3};
+const int matrix_size_middle_pow2_range[] = {512, 1024};
+const int matrix_size_middle_range[] = {520, 999};
 
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
@@ -25,12 +35,13 @@ protected:
 	}
 };
 
-namespace transpose_test_namespace
-{
-
 template<typename T>
 void normal_2d_out_place_real_to_real(size_t input_row_size, size_t input_col_size, size_t batch_size)
 {
+    if(input_row_size < 1 || input_col_size < 1 || batch_size < 1)
+    {
+        throw std::runtime_error("matrix size and batch size cannot be smaller than 1");
+    }
     //allocate host memory
     std::vector<T> input_matrix(input_row_size * input_col_size * batch_size);
     std::vector<T> output_matrix(input_row_size * input_col_size * batch_size, 0);
@@ -53,16 +64,72 @@ void normal_2d_out_place_real_to_real(size_t input_row_size, size_t input_col_si
     EXPECT_EQ(reference_output_matrix, output_matrix);
 }
 
-TEST_F(accuracy_test_transpose_single, normal_2D_outplace_real_to_real_1024_1024_1)
+typedef struct TestParams{
+size_t row_size;
+size_t column_size;
+size_t batch_size;
+}TestParams;
+
+class transpose_test : public testing::TestWithParam<
+        std::tuple<
+        size_t, //input row size
+        size_t, //input column size
+        size_t  //batch size
+        > > 
 {
-    normal_2d_out_place_real_to_real<float>(1024, 1024, 1);
-    //catch(const std::exception& err) {handle_exception(err);}
+public:
+    void getParams(TestParams *params)
+    {
+        memset(params, 0, sizeof(TestParams));
+        params->row_size = row_size;
+        params->column_size = column_size;
+        params->batch_size = batch_size;
+    }
+protected:
+    virtual void SetUp()
+    {
+        row_size = std::get<0>(GetParam());
+        column_size = std::get<1>(GetParam());
+        batch_size = std::get<2>(GetParam());
+    }
+private:
+    size_t row_size;
+    size_t column_size;
+    size_t batch_size;
+};
+
+INSTANTIATE_TEST_CASE_P(accuracy_test_transpose_small_pow2_range, transpose_test, testing::Combine(
+    testing::ValuesIn(matrix_size_small_pow2_range), testing::ValuesIn(matrix_size_small_pow2_range), testing::ValuesIn(batch_size_small_range)));
+
+INSTANTIATE_TEST_CASE_P(accuracy_test_transpose_middle_pow2_range, transpose_test, testing::Combine(
+    testing::ValuesIn(matrix_size_middle_pow2_range), testing::ValuesIn(matrix_size_middle_pow2_range), testing::ValuesIn(batch_size_small_range)));
+
+INSTANTIATE_TEST_CASE_P(accuracy_test_transpose_middle_range, transpose_test, testing::Combine(
+    testing::ValuesIn(matrix_size_middle_range), testing::ValuesIn(matrix_size_middle_range), testing::ValuesIn(batch_size_small_range)));
+
+
+TEST_P(transpose_test, outplace_transpose_single)
+{
+    TestParams params;
+    getParams(&params);
+    try{ normal_2d_out_place_real_to_real<float>(params.row_size, params.column_size, params.batch_size); }
+    catch(const std::exception &err) { handle_exception(err); }
 }
 
-TEST_F(accuracy_test_transpose_double, normal_2D_outplace_real_to_real_1024_1024_1)
+TEST_P(transpose_test, outplace_transpose_double)
 {
-    normal_2d_out_place_real_to_real<double>(1024, 1024, 1);
-    //catch(const std::exception& err) {handle_exception(err);}
+    TestParams params;
+    getParams(&params);
+    try{ normal_2d_out_place_real_to_real<double>(params.row_size, params.column_size, params.batch_size); }
+    catch(const std::exception &err) { handle_exception(err); }
+}
+
+//add some special cases if needed
+
+TEST_F(accuracy_test_transpose_single, normal_2d_outplace_real_to_real_192_192_1)
+{
+    try{ normal_2d_out_place_real_to_real<float>(192, 192, 1); }
+    catch(const std::exception &err) { handle_exception(err); }
 }
 
 }
