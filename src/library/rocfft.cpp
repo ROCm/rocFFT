@@ -1,6 +1,10 @@
 
 #define __HIPCC__
 
+#if defined(__NVCC__)
+#include "helper_math.h"
+#endif
+
 #include <hip_runtime.h>
 #include "rocfft.h"
 
@@ -51,7 +55,11 @@ __device__ void FwdRad4B1(float2 *R0, float2 *R2, float2 *R1, float2 *R3)
 
 	(*R2) = (*R0) - (*R2);
 	(*R0) = 2.0f * (*R0) - (*R2);
-	(*R3) = (*R1) + float2(-(*R3).y, (*R3).x);
+
+        float2 Temp;
+        Temp.x = -(*R3).y;
+        Temp.y = (*R3).x;
+	(*R3) = (*R1) + Temp;
 	(*R1) = 2.0f * (*R1) - (*R3);
 
 	T = (*R1); (*R1) = (*R2); (*R2) = T;

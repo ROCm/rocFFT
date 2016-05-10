@@ -47,6 +47,8 @@ else( )
 	set( rocfft-samples_VERSION "${rocfft-samples_VERSION_MAJOR}.${rocfft-samples_VERSION_MINOR}.${rocfft-samples_VERSION_PATCH}.${rocfft-samples_VERSION_TWEAK}")
 endif( )
 
+message("sample PLATFORM_NAME = ${PLATFORM_NAME}")
+
 # Modify the global find property to help us find libraries like Boost in the correct paths for 64-bit
 # Essentially, find_library calls will look for /lib64 instead of /lib; works for windows and linux
 if( BUILD_64 )
@@ -90,3 +92,4 @@ find_package( rocfft REQUIRED CONFIG )
 
 # Build into subdirectories
 add_subdirectory( fixed-16 )
+add_subdirectory( transpose_outplace_1024 )

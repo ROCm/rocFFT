@@ -1,7 +1,8 @@
 
-if( FFTW_FIND_VERSION VERSION_LESS "3" )
-    message( FATAL_ERROR "FindFFTW can not configure versions less than FFTW 3.0.0" )
-endif( )
+#if( FFTW_FIND_VERSION VERSION_LESS "3" )
+#    message( FFTW_FIND_VERION is ${FFTW_FIND_VERSION})
+#    message( FATAL_ERROR "FindFFTW can not configure versions less than FFTW 3.0.0" )
+#endif( )
 
 find_path(FFTW_INCLUDE_DIRS
     NAMES fftw3.h
@@ -26,6 +27,7 @@ else( )
 endif( )
 
 set( FFTW_LIBRARIES "" )
+set( FFTW_FIND_REQUIRED_FLOAT TRUE)
 if( FFTW_FIND_REQUIRED_FLOAT OR FFTW_FIND_REQUIRED_SINGLE )
   find_library( FFTW_LIBRARIES_SINGLE
       NAMES fftw3f fftw3f-3
@@ -35,6 +37,7 @@ if( FFTW_FIND_REQUIRED_FLOAT OR FFTW_FIND_REQUIRED_SINGLE )
       PATHS
           /usr/lib
           /usr/local/lib
+          /usr/lib/x86_64-linux-gnu
       PATH_SUFFIXES
           x86_64-linux-gnu
       DOC "FFTW dynamic library"

@@ -26,7 +26,7 @@ if( POLICY CMP0048 )
 	cmake_policy( SET CMP0048 NEW )
 	project( rocfft-test VERSION 0.0.0.1 LANGUAGES C CXX )
 else( )
-	project( rocfft-test CXX )
+	project( rocfft-test CXX C )
 	# Define a version for the code
 	if( NOT DEFINED rocfft_VERSION_MAJOR )
 		set( rocfft-test_VERSION_MAJOR 0 )
@@ -46,6 +46,7 @@ else( )
 
 	set( rocfft-test_VERSION "${rocfft-test_VERSION_MAJOR}.${rocfft-test_VERSION_MINOR}.${rocfft-test_VERSION_PATCH}.${rocfft-test_VERSION_TWEAK}")
 endif( )
+
 
 # Modify the global find property to help us find libraries like Boost in the correct paths for 64-bit
 # Essentially, find_library calls will look for /lib64 instead of /lib; works for windows and linux
@@ -81,6 +82,8 @@ else( )
 	message( AUTHOR_WARNING "Compiler not recognized.  Using default flags." )
 endif( )
 
+#CMAKE_MODULE_PATH should point to the dir contains Find*.cmake
+
 # This option only works for make/nmake and the ninja generators, but no reason it shouldn't be on all the time
 # This tells cmake to create a compile_commands.json file that can be used with clang tooling or vim
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
@@ -100,6 +103,13 @@ endif( )
 find_package( GTest REQUIRED )
 find_package( FFTW REQUIRED	)
 find_package( rocfft REQUIRED CONFIG )
+
+if(PLATFORM_NAME STREQUAL "NVIDIA")
+    set(hip_include_dir ${HIP_ROOT}/include)
+    add_definitions(-D__NVCC__)
+    find_package(CUDA REQUIRED)
+
+endif( )
 
 add_executable( rocfft-test main.cpp )
 
@@ -121,7 +131,9 @@ target_include_directories( rocfft-test
   PRIVATE
 #		$<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${GTEST_INCLUDE_DIRS}>
-		$<BUILD_INTERFACE:${FFTW_INCLUDES}>
+    $<BUILD_INTERFACE:${FFTW_INCLUDES}>
+    $<BUILD_INTERFACE:${hip_include_dir}>
+    $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
 )
 
 #target_link_libraries( rocfft-test rocfft ${GTEST_LIBRARIES} ${Boost_LIBRARIES} )
