@@ -81,7 +81,7 @@ int main()
        std::cout << "rocfft_transpose_plan_create was unsuccessful" << std::endl;
 
     //execute plan
-    status = rocfft_transpose_execute(plan, input_matrix_device, output_matrix_device, NULL);
+    status = rocfft_transpose_execute(plan, (void**)&input_matrix_device, (void**)&output_matrix_device, NULL);
     if(status == rocfft_transpose_status_success)
        std::cout << "rocfft_transpose_execute was successful" << std::endl;
     else

@@ -107,15 +107,15 @@ rocfft_transpose_status rocfft_transpose_outplace_real(const rocfft_transpose_pl
 }
 
 rocfft_transpose_status rocfft_transpose_execute( const rocfft_transpose_plan plan,
-                                                             void *in_buffer,
-                                                             void *out_buffer,
+                                                             void **in_buffer,
+                                                             void **out_buffer,
                                                              rocfft_transpose_execution_info info )
 {
     if(plan->placement == rocfft_transpose_placement_inplace)        
         return rocfft_transpose_status_not_implemented;
     if(plan->array_type != rocfft_transpose_array_type_real)
         return rocfft_transpose_status_not_implemented;
-    return rocfft_transpose_outplace_real(plan, in_buffer, out_buffer);
+    return rocfft_transpose_outplace_real(plan, *in_buffer, *out_buffer);
 }
 
 

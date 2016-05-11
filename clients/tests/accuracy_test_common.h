@@ -60,7 +60,7 @@ void real_transpose_test(size_t input_row_size, size_t input_col_size, size_t ba
     std::vector<size_t> lengths = {(size_t)input_col_size, (size_t)input_row_size};
     
     status = create_transpose_plan_test<T>(plan, rocfft_transpose_array_type_real, rocfft_transpose_placement_notinplace, lengths, batch_size);
-    status = rocfft_transpose_execute(plan, input_matrix_device, output_matrix_device, NULL);
+    status = rocfft_transpose_execute(plan, (void**)&input_matrix_device, (void**)&output_matrix_device, NULL);
     
     //destroy plan
     status = rocfft_transpose_plan_destroy(plan);

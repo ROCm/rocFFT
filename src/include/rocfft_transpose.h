@@ -64,8 +64,8 @@ DLL_PUBLIC rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpos
 
 // plan execution
 DLL_PUBLIC rocfft_transpose_status rocfft_transpose_execute( const rocfft_transpose_plan plan,
-                                                             void *in_buffer,
-                                                             void *out_buffer,
+                                                             void **in_buffer,
+                                                             void **out_buffer,
                                                              rocfft_transpose_execution_info info );
 
 // plan destruction
