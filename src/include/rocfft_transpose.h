@@ -39,9 +39,11 @@ typedef enum rocfft_transpose_placement_e
 // Array type
 typedef enum rocfft_transpose_array_type_e
 {
-        rocfft_transpose_array_type_complex_interleaved,
-        rocfft_transpose_array_type_complex_planar,
-        rocfft_transpose_array_type_real,
+        rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved,
+        rocfft_transpose_array_type_complex_interleaved_to_complex_planar,
+        rocfft_transpose_array_type_complex_planar_to_complex_planar,
+        rocfft_transpose_array_type_complex_planar_to_complex_interleaved,
+        rocfft_transpose_array_type_real_to_real,
         rocfft_transpose_array_type_hermitian_interleaved,
         rocfft_transpose_array_type_hermitian_planar,        
 } rocfft_transpose_array_type;
