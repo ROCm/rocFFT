@@ -16,6 +16,9 @@ int main()
     
     size_t output_row_size = input_col_size;
     size_t output_col_size = input_row_size;
+
+    size_t input_leading_dim_size = input_col_size;
+    size_t output_leading_dim_size = output_col_size;
     
     //allocate host memory
     std::vector<float> input_matrix(input_row_size * input_col_size * batch_size);
@@ -73,8 +76,9 @@ int main()
     rocfft_transpose_status status;
     rocfft_transpose_plan plan = NULL;
     std::vector<size_t> lengths = {(size_t)input_col_size, (size_t)input_row_size};
+    std::vector<size_t> LD = {(size_t)input_leading_dim_size, (size_t)output_leading_dim_size};
     status = rocfft_transpose_plan_create(&plan, rocfft_transpose_precision_single, rocfft_transpose_array_type_real_to_real, rocfft_transpose_placement_notinplace,
-                                 lengths.size(), lengths.data(), batch_size, NULL);
+                                 lengths.size(), lengths.data(), LD.data(), batch_size, NULL);
     if(status == rocfft_transpose_status_success)
        std::cout << "rocfft_transpose_plan_create was successful" << std::endl;
     else

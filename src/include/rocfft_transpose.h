@@ -58,9 +58,13 @@ typedef enum rocfft_transpose_execution_mode_e
 
 // plan creation in a single step
 DLL_PUBLIC rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *plan,
-                                                                 rocfft_transpose_precision precision, rocfft_transpose_array_type array_type,
-                                                                 rocfft_transpose_placement placement,
-                                                                 size_t dimensions, const size_t *lengths, size_t number_of_transforms,
+                                                                 rocfft_transpose_precision precision, 
+                                                                 rocfft_transpose_array_type array_type,
+                                                                 rocfft_transpose_placement placement,// inplace or outplace
+                                                                 size_t dimensions, // dimension of input and output matrix
+                                                                 const size_t *lengths, // sizes for each dimension of input matrix
+                                                                 const size_t *LD, // leading dimension size for input matrix and output matrix
+                                                                 size_t number_of_transforms, // number of batches
                                                                  const rocfft_transpose_description *description );
 
 

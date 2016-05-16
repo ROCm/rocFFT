@@ -36,16 +36,16 @@ protected:
 };
 
 template<typename T>
-void normal_2d_out_place_real_to_real(size_t input_row_size, size_t input_col_size, size_t batch_size)
+void normal_2d_out_place_real_to_real(size_t input_row_size, size_t input_col_size, size_t input_leading_dim_size, size_t output_leading_dim_size,  size_t batch_size)
 {
     if(input_row_size < 1 || input_col_size < 1 || batch_size < 1)
     {
         throw std::runtime_error("matrix size and batch size cannot be smaller than 1");
     }
     //allocate host memory
-    std::vector<T> input_matrix(input_row_size * input_col_size * batch_size);
-    std::vector<T> output_matrix(input_row_size * input_col_size * batch_size, 0);
-    std::vector<T> reference_output_matrix(input_row_size * input_col_size * batch_size, 0);
+    std::vector<T> input_matrix(input_row_size * input_leading_dim_size * batch_size);
+    std::vector<T> output_matrix(output_leading_dim_size * input_col_size * batch_size, 0);
+    std::vector<T> reference_output_matrix(output_leading_dim_size * input_col_size * batch_size, 0);
     //init the input matrix
     for(int b = 0; b < batch_size; b++)
     {
@@ -53,28 +53,28 @@ void normal_2d_out_place_real_to_real(size_t input_row_size, size_t input_col_si
         {
             for(int j = 0; j < input_col_size; j++)
             {
-                input_matrix[b * input_row_size * input_col_size + i * input_col_size + j] = 
+                input_matrix[b * input_row_size * input_leading_dim_size + i * input_leading_dim_size + j] = 
                 (T)(b * input_row_size * input_col_size + i * input_col_size +j);
             } 
         }
     }
     
-    real_transpose_test<T>(input_row_size, input_col_size, batch_size, input_matrix.data(), output_matrix.data());
+    real_transpose_test<T>(input_row_size, input_col_size, input_leading_dim_size, output_leading_dim_size, batch_size, input_matrix.data(), output_matrix.data());
     transpose_reference<T>(input_row_size, input_col_size, batch_size, input_matrix.data(), reference_output_matrix.data());
     EXPECT_EQ(reference_output_matrix, output_matrix);
 }
 
 template<typename T, rocfft_transpose_array_type array_type>
-void normal_2d_out_place_complex_to_complex(size_t input_row_size, size_t input_col_size, size_t batch_size)
+void normal_2d_out_place_complex_to_complex(size_t input_row_size, size_t input_col_size, size_t input_leading_dim_size, size_t output_leading_dim_size, size_t batch_size)
 {
     if(input_row_size < 1 || input_col_size < 1 || batch_size < 1)
     {
         throw std::runtime_error("matrix size and batch size cannot be smaller than 1");
     }
-    //allocate host memory
-    std::vector<std::complex<T> > input_matrix(input_row_size * input_col_size * batch_size);
-    std::vector<std::complex<T> > output_matrix(input_row_size * input_col_size * batch_size, 0);
-    std::vector<std::complex<T> > reference_output_matrix(input_row_size * input_col_size * batch_size, 0);
+    //allocate host memory in row major
+    std::vector<std::complex<T> > input_matrix(input_row_size * input_leading_dim_size * batch_size);
+    std::vector<std::complex<T> > output_matrix(output_leading_dim_size * input_col_size * batch_size, 0);
+    std::vector<std::complex<T> > reference_output_matrix(output_leading_dim_size * input_col_size * batch_size, 0);
     //init the input matrix
     for(int b = 0; b < batch_size; b++)
     {
@@ -82,13 +82,13 @@ void normal_2d_out_place_complex_to_complex(size_t input_row_size, size_t input_
         {
             for(int j = 0; j < input_col_size; j++)
             {
-                input_matrix[b * input_row_size * input_col_size + i * input_col_size + j] =
+                input_matrix[b * input_row_size * input_leading_dim_size + i * input_leading_dim_size + j] =
                 (std::complex<T>)(b * input_row_size * input_col_size + i * input_col_size +j, b * input_row_size * input_col_size + i * input_col_size +j);
             }
         }
     }
     
-    complex_transpose_test<std::complex<T>, array_type>(input_row_size, input_col_size, batch_size, input_matrix.data(), output_matrix.data());
+    complex_transpose_test<std::complex<T>, array_type>(input_row_size, input_col_size, input_leading_dim_size, output_leading_dim_size, batch_size, input_matrix.data(), output_matrix.data());
     transpose_reference<std::complex<T> >(input_row_size, input_col_size, batch_size, input_matrix.data(), reference_output_matrix.data());
     EXPECT_EQ(reference_output_matrix, output_matrix);
 }
@@ -142,7 +142,7 @@ TEST_P(transpose_test, outplace_transpose_single)
 {
     TestParams params;
     getParams(&params);
-    try{ normal_2d_out_place_real_to_real<float>(params.row_size, params.column_size, params.batch_size); }
+    try{ normal_2d_out_place_real_to_real<float>(params.row_size, params.column_size, params.column_size, params.row_size, params.batch_size); }
     catch(const std::exception &err) { handle_exception(err); }
 }
 
@@ -150,7 +150,7 @@ TEST_P(transpose_test, outplace_transpose_double)
 {
     TestParams params;
     getParams(&params);
-    try{ normal_2d_out_place_real_to_real<double>(params.row_size, params.column_size, params.batch_size); }
+    try{ normal_2d_out_place_real_to_real<double>(params.row_size, params.column_size, params.column_size, params.row_size, params.batch_size); }
     catch(const std::exception &err) { handle_exception(err); }
 }
 
@@ -158,7 +158,7 @@ TEST_P(transpose_test, outplace_transpose_single_complex_interleaved_to_interlea
 {
     TestParams params;
     getParams(&params);
-    try{ normal_2d_out_place_complex_to_complex<float, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved>(params.row_size, params.column_size, params.batch_size); }
+    try{ normal_2d_out_place_complex_to_complex<float, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved>(params.row_size, params.column_size, params.column_size, params.row_size, params.batch_size); }
     catch(const std::exception &err) { handle_exception(err); }
 }
 
@@ -167,13 +167,14 @@ TEST_P(transpose_test, outplace_transpose_single_complex_interleaved_to_interlea
 
 TEST_F(accuracy_test_transpose_single, normal_2d_outplace_real_to_real_192_192_1)
 {
-    try{ normal_2d_out_place_real_to_real<float>(192, 192, 1); }
+    try{ normal_2d_out_place_real_to_real<float>(192, 192, 192, 192, 1); }
     catch(const std::exception &err) { handle_exception(err); }
 }
 
 TEST_F(accuracy_test_transpose_single, normal_2d_outplace_complex_interleaved_to_complex_interleaved_192_192_1)
 {
-    try{ normal_2d_out_place_complex_to_complex<float, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved>(192, 192, 1); }
+    std::cout << "im here" << std::endl;
+    try{ normal_2d_out_place_complex_to_complex<float, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved>(192, 192, 192, 192, 1); }
     catch(const std::exception &err) { handle_exception(err); }
 }
 

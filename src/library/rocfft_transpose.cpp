@@ -13,6 +13,8 @@ struct rocfft_transpose_plan_t
     size_t rank;
     size_t lengths[2];
     size_t batch;
+    size_t LD_in;//leading dimension size for input matrix
+    size_t LD_out;//leading dimesnsion size for output matrix
 
     rocfft_transpose_precision precision;
     rocfft_transpose_array_type array_type;
@@ -23,7 +25,8 @@ struct rocfft_transpose_plan_t
 rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *plan,
                                                                  rocfft_transpose_precision precision, rocfft_transpose_array_type array_type,
                                                                  rocfft_transpose_placement placement,
-                                                                 size_t dimensions, const size_t *lengths, size_t number_of_transforms,
+                                                                 size_t dimensions, const size_t *lengths, const size_t *LD,
+                                                                 size_t number_of_transforms,
                                                                  const rocfft_transpose_description *description )
 {
     if(dimensions != 2)
@@ -37,6 +40,12 @@ rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *pla
     p->rank = dimensions;
     p->lengths[0] = lengths[0];
     p->lengths[1] = lengths[1];
+    p->LD_in = LD[0];
+    p->LD_out = LD[1];
+    if(p->LD_in < p->lengths[0])
+        return rocfft_transpose_status_failure;
+    if(p->LD_out < p->lengths[1])
+        return rocfft_transpose_status_failure;
     p->batch = number_of_transforms;
     p->precision = precision;
     p->array_type = array_type;
