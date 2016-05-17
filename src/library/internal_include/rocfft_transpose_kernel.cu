@@ -1,7 +1,7 @@
 #include "hip_runtime.h"
 
 template<typename T, int micro_tile_col_size, int micro_tile_row_size, int wg_col_size, int wg_row_size>
-__global__ void transpose_kernel_outplace(hipLaunchParm lp, T *input_matrix, T *output_matrix, size_t input_row_size, size_t input_col_size, size_t batch_size)
+__global__ void transpose_kernel_outplace(hipLaunchParm lp, T *input_matrix, T *output_matrix, size_t input_row_size, size_t input_col_size, size_t input_leading_dim_size, size_t output_leading_dim_size, size_t batch_size)
 {
     // WG size can be assumed to be 16 by 16
     size_t local_idx_0 = hipThreadIdx_x;// 0-15
@@ -25,10 +25,10 @@ __global__ void transpose_kernel_outplace(hipLaunchParm lp, T *input_matrix, T *
     size_t blocks_per_batch = grid_dim_0 / batch_size;
     batch_idx += (block_idx_0) / blocks_per_batch;
 
-    input_matrix += batch_idx * input_col_size * input_row_size;
+    input_matrix += batch_idx * input_leading_dim_size * input_row_size;
 
     size_t input_offset = 0;
-    input_offset += input_col_size * block_idx_1 * macro_tile_row_size;// each WG works on 64 by 64 block or 32 by 32
+    input_offset += input_leading_dim_size * block_idx_1 * macro_tile_row_size;// each WG works on 64 by 64 block or 32 by 32
     input_offset += (block_idx_0 % blocks_per_batch) * macro_tile_col_size;
 
     input_matrix += input_offset;
@@ -39,14 +39,14 @@ __global__ void transpose_kernel_outplace(hipLaunchParm lp, T *input_matrix, T *
         size_t subblock_idx_0 = local_idx_0 + (local_idx_1 % reshape_factor) * block_dim_0; // local_idx_0 + (local_idx_1 % 4) * 16
         size_t subblock_idx_1 = local_idx_1 / reshape_factor + i * (block_dim_1 / reshape_factor);
         //transpose happened here
-        lds[subblock_idx_0][subblock_idx_1] = input_matrix[subblock_idx_1 * input_col_size + subblock_idx_0];
+        lds[subblock_idx_0][subblock_idx_1] = input_matrix[subblock_idx_1 * input_leading_dim_size + subblock_idx_0];
     }
 
     __syncthreads();
 
-    output_matrix += batch_idx * input_col_size * input_row_size;
+    output_matrix += batch_idx * input_col_size * output_leading_dim_size;
     size_t output_offset = 0;
-    output_offset += input_row_size * (block_idx_0 % blocks_per_batch) * macro_tile_row_size;//input_row_size == ouput_col_size
+    output_offset += output_leading_dim_size * (block_idx_0 % blocks_per_batch) * macro_tile_row_size;//input_row_size == ouput_col_size
     output_offset += block_idx_1 * macro_tile_col_size;
 
     output_matrix += output_offset;
@@ -56,7 +56,7 @@ __global__ void transpose_kernel_outplace(hipLaunchParm lp, T *input_matrix, T *
         size_t subblock_idx_0 = local_idx_0 + (local_idx_1 % reshape_factor) * block_dim_0;// 0-63
         size_t subblock_idx_1 = local_idx_1 / reshape_factor + i * (block_dim_1 / reshape_factor);// 0-3, 4-7 ... 60-63
         T  temp = lds[subblock_idx_1][subblock_idx_0];
-        output_matrix[subblock_idx_1 * input_row_size + subblock_idx_0] = temp;//lds[subblock_idx_1][subblock_idx_0];
+        output_matrix[subblock_idx_1 * output_leading_dim_size + subblock_idx_0] = temp;//lds[subblock_idx_1][subblock_idx_0];
     }
 
 }

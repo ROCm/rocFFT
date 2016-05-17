@@ -8,7 +8,7 @@
 #include <hip_runtime.h>
 
 template<typename T>
-void transpose_reference(size_t input_row_size, size_t input_col_size, size_t batch_size, T *input_matrix, T *output_matrix)
+void transpose_reference(size_t input_row_size, size_t input_col_size, size_t input_leading_dim_size, size_t output_leading_dim_size, size_t batch_size, T *input_matrix, T *output_matrix)
 {
     //transpose per batch
     for(size_t b = 0; b < batch_size; b++)
@@ -17,7 +17,7 @@ void transpose_reference(size_t input_row_size, size_t input_col_size, size_t ba
         {
             for(int j = 0; j < input_col_size; j++)
             {
-                output_matrix[b*input_row_size*input_col_size + j*input_row_size + i] = input_matrix[b*input_row_size*input_col_size + i*input_col_size + j];
+                output_matrix[b*input_col_size*output_leading_dim_size + j*output_leading_dim_size + i] = input_matrix[b*input_row_size*input_leading_dim_size + i*input_leading_dim_size + j];
             }
         }
     }
@@ -58,10 +58,10 @@ void real_transpose_test(size_t input_row_size, size_t input_col_size, size_t in
     //create device memory
     T *input_matrix_device, *output_matrix_device;
 
-    err = hipMalloc(&input_matrix_device, batch_size * input_row_size * input_col_size * sizeof(T));
-    err = hipMalloc(&output_matrix_device, batch_size * output_row_size * output_col_size * sizeof(T));
+    err = hipMalloc(&input_matrix_device, batch_size * input_row_size * input_leading_dim_size * sizeof(T));
+    err = hipMalloc(&output_matrix_device, batch_size * output_row_size * output_leading_dim_size * sizeof(T));
     //copy data to device
-    err = hipMemcpy(input_matrix_device, input_matrix, batch_size * input_row_size * input_col_size * sizeof(T), hipMemcpyHostToDevice);
+    err = hipMemcpy(input_matrix_device, input_matrix, batch_size * input_row_size * input_leading_dim_size * sizeof(T), hipMemcpyHostToDevice);
     
     //create transpose only plan
     rocfft_transpose_status status;
@@ -76,7 +76,7 @@ void real_transpose_test(size_t input_row_size, size_t input_col_size, size_t in
     status = rocfft_transpose_plan_destroy(plan);
 
     //copy data from device to host
-    err = hipMemcpy(output_matrix, output_matrix_device, batch_size * output_row_size * output_col_size * sizeof(T), hipMemcpyDeviceToHost);
+    err = hipMemcpy(output_matrix, output_matrix_device, batch_size * output_row_size * output_leading_dim_size * sizeof(T), hipMemcpyDeviceToHost);
 
     hipFree(input_matrix_device);
     hipFree(output_matrix_device);
@@ -96,10 +96,10 @@ void complex_transpose_test<std::complex<float>, rocfft_transpose_array_type_com
     //create device memory
     float2 *input_matrix_device, *output_matrix_device;
 
-    err = hipMalloc(&input_matrix_device, batch_size * input_row_size * input_col_size * sizeof(float2));
-    err = hipMalloc(&output_matrix_device, batch_size * output_row_size * output_col_size * sizeof(float2));
+    err = hipMalloc(&input_matrix_device, batch_size * input_row_size * input_leading_dim_size * sizeof(float2));
+    err = hipMalloc(&output_matrix_device, batch_size * output_row_size * output_leading_dim_size * sizeof(float2));
     //copy data to device
-    err = hipMemcpy(input_matrix_device, input_matrix, batch_size * input_row_size * input_col_size * sizeof(float2), hipMemcpyHostToDevice);
+    err = hipMemcpy(input_matrix_device, input_matrix, batch_size * input_row_size * input_leading_dim_size * sizeof(float2), hipMemcpyHostToDevice);
 
     //create transpose only plan
     rocfft_transpose_status status;
@@ -114,7 +114,7 @@ void complex_transpose_test<std::complex<float>, rocfft_transpose_array_type_com
     status = rocfft_transpose_plan_destroy(plan);
 
     //copy data from device to host
-    err = hipMemcpy(output_matrix, output_matrix_device, batch_size * output_row_size * output_col_size * sizeof(float2), hipMemcpyDeviceToHost);
+    err = hipMemcpy(output_matrix, output_matrix_device, batch_size * output_row_size * output_leading_dim_size * sizeof(float2), hipMemcpyDeviceToHost);
 
     hipFree(input_matrix_device);
     hipFree(output_matrix_device);
