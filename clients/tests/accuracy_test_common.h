@@ -24,27 +24,27 @@ void transpose_reference(size_t input_row_size, size_t input_col_size, size_t in
 }
 
 template<typename T>
-rocfft_transpose_status create_transpose_plan_test(rocfft_transpose_plan &plan, rocfft_transpose_array_type array_type, rocfft_transpose_placement placement, std::vector<size_t> lengths, std::vector<size_t> LD, size_t batch_size);
+rocfft_transpose_status create_transpose_plan_test(rocfft_transpose_plan &plan, rocfft_transpose_array_type array_type, rocfft_transpose_placement placement, std::vector<size_t> lengths, std::vector<size_t> in_stride, std::vector<size_t> out_stride, size_t in_dist, size_t out_dist, size_t batch_size);
 
 template<>
-rocfft_transpose_status create_transpose_plan_test<float>(rocfft_transpose_plan &plan, rocfft_transpose_array_type array_type, rocfft_transpose_placement placement, std::vector<size_t> lengths, std::vector<size_t> LD, size_t batch_size)
+rocfft_transpose_status create_transpose_plan_test<float>(rocfft_transpose_plan &plan, rocfft_transpose_array_type array_type, rocfft_transpose_placement placement, std::vector<size_t> lengths, std::vector<size_t> in_stride, std::vector<size_t> out_stride, size_t in_dist, size_t out_dist, size_t batch_size)
 {
     return rocfft_transpose_plan_create(&plan, rocfft_transpose_precision_single, array_type, placement,
-                                 lengths.size(), lengths.data(), LD.data(), batch_size, NULL);
+                                 lengths.size(), lengths.data(), in_stride.data(), out_stride.data(), in_dist, out_dist, batch_size, NULL);
 }
 
 template<>
-rocfft_transpose_status create_transpose_plan_test<double>(rocfft_transpose_plan &plan, rocfft_transpose_array_type array_type, rocfft_transpose_placement placement, std::vector<size_t> lengths, std::vector<size_t> LD, size_t batch_size)
+rocfft_transpose_status create_transpose_plan_test<double>(rocfft_transpose_plan &plan, rocfft_transpose_array_type array_type, rocfft_transpose_placement placement, std::vector<size_t> lengths, std::vector<size_t> in_stride, std::vector<size_t> out_stride, size_t in_dist, size_t out_dist, size_t batch_size)
 {
     return rocfft_transpose_plan_create(&plan, rocfft_transpose_precision_double, array_type, placement,
-                                 lengths.size(), lengths.data(), LD.data(), batch_size, NULL);
+                                 lengths.size(), lengths.data(), in_stride.data(), out_stride.data(), in_dist, out_dist, batch_size, NULL);
 }
 
 template<>
-rocfft_transpose_status create_transpose_plan_test<float2>(rocfft_transpose_plan &plan, rocfft_transpose_array_type array_type, rocfft_transpose_placement placement, std::vector<size_t> lengths, std::vector<size_t> LD, size_t batch_size)
+rocfft_transpose_status create_transpose_plan_test<float2>(rocfft_transpose_plan &plan, rocfft_transpose_array_type array_type, rocfft_transpose_placement placement, std::vector<size_t> lengths, std::vector<size_t> in_stride, std::vector<size_t> out_stride, size_t in_dist, size_t out_dist, size_t batch_size)
 {
     return rocfft_transpose_plan_create(&plan, rocfft_transpose_precision_single, array_type, placement,
-                                 lengths.size(), lengths.data(), LD.data(), batch_size, NULL);
+                                 lengths.size(), lengths.data(), in_stride.data(), out_stride.data(), in_dist, out_dist, batch_size, NULL);
 }
 
 
@@ -67,9 +67,12 @@ void real_transpose_test(size_t input_row_size, size_t input_col_size, size_t in
     rocfft_transpose_status status;
     rocfft_transpose_plan plan = NULL;
     std::vector<size_t> lengths = {(size_t)input_col_size, (size_t)input_row_size};
-    std::vector<size_t> LD = {(size_t)input_leading_dim_size, (size_t)output_leading_dim_size};
+    std::vector<size_t> in_stride = {1, input_leading_dim_size};
+    std::vector<size_t> out_stride = {1, output_leading_dim_size};
+    size_t in_dist = input_row_size * input_leading_dim_size;
+    size_t out_dist = input_col_size * output_leading_dim_size;
     
-    status = create_transpose_plan_test<T>(plan, rocfft_transpose_array_type_real_to_real, rocfft_transpose_placement_notinplace, lengths, LD, batch_size);
+    status = create_transpose_plan_test<T>(plan, rocfft_transpose_array_type_real_to_real, rocfft_transpose_placement_notinplace, lengths, in_stride, out_stride, in_dist, out_dist, batch_size);
     status = rocfft_transpose_execute(plan, (void**)&input_matrix_device, (void**)&output_matrix_device, NULL);
     
     //destroy plan
@@ -105,9 +108,12 @@ void complex_transpose_test<std::complex<float>, rocfft_transpose_array_type_com
     rocfft_transpose_status status;
     rocfft_transpose_plan plan = NULL;
     std::vector<size_t> lengths = {(size_t)input_col_size, (size_t)input_row_size};
-    std::vector<size_t> LD = {(size_t)input_leading_dim_size, (size_t)output_leading_dim_size};    
+    std::vector<size_t> in_stride = {1, input_leading_dim_size};
+    std::vector<size_t> out_stride = {1, output_leading_dim_size};
+    size_t in_dist = input_row_size * input_leading_dim_size;
+    size_t out_dist = output_row_size * output_leading_dim_size;
 
-    status = create_transpose_plan_test<float2>(plan, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved, rocfft_transpose_placement_notinplace, lengths, LD, batch_size);
+    status = create_transpose_plan_test<float2>(plan, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved, rocfft_transpose_placement_notinplace, lengths, in_stride, out_stride, in_dist, out_dist, batch_size);
     status = rocfft_transpose_execute(plan, (void**)&input_matrix_device, (void**)&output_matrix_device, NULL);
 
     //destroy plan

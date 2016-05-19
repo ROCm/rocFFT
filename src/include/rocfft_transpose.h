@@ -63,7 +63,10 @@ DLL_PUBLIC rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpos
                                                                  rocfft_transpose_placement placement,// inplace or outplace
                                                                  size_t dimensions, // dimension of input and output matrix
                                                                  const size_t *lengths, // sizes for each dimension of input matrix
-                                                                 const size_t *LD, // leading dimension size for input matrix and output matrix
+                                                                 const size_t *in_stride, // input matrix stride
+                                                                 const size_t *out_stride, // output matrix stide
+                                                                 const size_t in_dist, // input distance between batches
+                                                                 const size_t out_dist, // output distance between batches
                                                                  size_t number_of_transforms, // number of batches
                                                                  const rocfft_transpose_description *description );
 

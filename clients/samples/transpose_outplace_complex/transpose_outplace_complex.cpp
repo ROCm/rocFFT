@@ -76,9 +76,13 @@ int main()
     rocfft_transpose_status status;
     rocfft_transpose_plan plan = NULL;
     std::vector<size_t> lengths = {(size_t)input_col_size, (size_t)input_row_size};
-    std::vector<size_t> LD = {(size_t)input_leading_dim_size, (size_t)output_leading_dim_size};
+    std::vector<size_t> in_stride = {1, input_col_size};
+    std::vector<size_t> out_stride = {1, output_col_size};
+    size_t in_dist = input_col_size * input_row_size;
+    size_t out_dist = output_col_size * output_row_size;
+    
     status = rocfft_transpose_plan_create(&plan, rocfft_transpose_precision_single, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved, rocfft_transpose_placement_notinplace,
-                                 lengths.size(), lengths.data(), LD.data(), batch_size, NULL);
+                                 lengths.size(), lengths.data(), in_stride.data(), out_stride.data(), in_dist, out_dist, batch_size, NULL);
     if(status == rocfft_transpose_status_success)
        std::cout << "rocfft_transpose_plan_create was successful" << std::endl;
     else

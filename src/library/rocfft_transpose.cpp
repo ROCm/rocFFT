@@ -3,6 +3,7 @@
 #if defined(__NVCC__)
 #include "helper_math.h"
 #endif
+#include <vector>
 #include <iostream>
 #include <hip_runtime.h>
 #include "rocfft_transpose.h"
@@ -11,10 +12,12 @@
 struct rocfft_transpose_plan_t
 {
     size_t rank;
-    size_t lengths[2];
+    std::vector<size_t> *lengths;
+    std::vector<size_t> *in_stride;
+    std::vector<size_t> *out_stride;
+    size_t in_dist;
+    size_t out_dist;
     size_t batch;
-    size_t LD_in;//leading dimension size for input matrix
-    size_t LD_out;//leading dimesnsion size for output matrix
 
     rocfft_transpose_precision precision;
     rocfft_transpose_array_type array_type;
@@ -23,13 +26,19 @@ struct rocfft_transpose_plan_t
 
 
 rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *plan,
-                                                                 rocfft_transpose_precision precision, rocfft_transpose_array_type array_type,
-                                                                 rocfft_transpose_placement placement,
-                                                                 size_t dimensions, const size_t *lengths, const size_t *LD,
-                                                                 size_t number_of_transforms,
-                                                                 const rocfft_transpose_description *description )
+                                                      rocfft_transpose_precision precision, 
+                                                      rocfft_transpose_array_type array_type,
+                                                      rocfft_transpose_placement placement,
+                                                      size_t dimensions, 
+                                                      const size_t *lengths, 
+                                                      const size_t *in_stride,
+                                                      const size_t *out_stride,
+                                                      const size_t in_dist,
+                                                      const size_t out_dist,
+                                                      size_t number_of_transforms,
+                                                      const rocfft_transpose_description *description )
 {
-    if(dimensions != 2)
+    if(dimensions != 2) // only support 2 dimension for now
         return rocfft_transpose_status_not_implemented;
     if(lengths == NULL)
         return rocfft_transpose_status_failure;
@@ -38,14 +47,12 @@ rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *pla
 
     rocfft_transpose_plan p = new rocfft_transpose_plan_t;
     p->rank = dimensions;
-    p->lengths[0] = lengths[0];
-    p->lengths[1] = lengths[1];
-    p->LD_in = LD[0];
-    p->LD_out = LD[1];
-    if(p->LD_in < p->lengths[0])
-        return rocfft_transpose_status_failure;
-    if(p->LD_out < p->lengths[1])
-        return rocfft_transpose_status_failure;
+    p->lengths = new std::vector<size_t>(lengths, lengths + dimensions);
+    p->in_stride = new std::vector<size_t>(in_stride, in_stride + dimensions);
+    p->out_stride = new std::vector<size_t>(out_stride, out_stride + dimensions);
+
+    p->in_dist = in_dist;
+    p->out_dist = out_dist;
     p->batch = number_of_transforms;
     p->precision = precision;
     p->array_type = array_type;
@@ -63,10 +70,10 @@ rocfft_transpose_status rocfft_transpose_outplace_real(const rocfft_transpose_pl
     const int micro_tile_size_1 = 1;
     const int micro_tile_size_2 = 2;
     const int micro_tile_size_4 = 4;
-    int input_row_size = plan->lengths[1];
-    int input_col_size = plan->lengths[0];
-    int ld_in = plan->LD_in;
-    int ld_out = plan->LD_out;
+    int input_row_size = plan->lengths->at(1);
+    int input_col_size = plan->lengths->at(0);
+    int ld_in = plan->in_stride->at(1);
+    int ld_out = plan->out_stride->at(1);
     int batch_size = plan->batch;
     
 
@@ -130,10 +137,10 @@ rocfft_transpose_status rocfft_transpose_outplace_complex_interleaved_to_complex
     const int micro_tile_size_1 = 1;
     const int micro_tile_size_2 = 2;
     const int micro_tile_size_4 = 4;
-    int input_row_size = plan->lengths[1];
-    int input_col_size = plan->lengths[0];
-    int ld_in = plan->LD_in;
-    int ld_out = plan->LD_out;
+    int input_row_size = plan->lengths->at(1);
+    int input_col_size = plan->lengths->at(0);
+    int ld_in = plan->in_stride->at(1);
+    int ld_out = plan->out_stride->at(1);
     int batch_size = plan->batch;
     
 
@@ -185,7 +192,10 @@ rocfft_transpose_status rocfft_transpose_execute( const rocfft_transpose_plan pl
 
 
 rocfft_transpose_status rocfft_transpose_plan_destroy( rocfft_transpose_plan plan )
-{
+{ 
+        delete plan->out_stride;
+        delete plan->in_stride;
+        delete plan->lengths;
         delete plan;
         return rocfft_transpose_status_success;
 }
