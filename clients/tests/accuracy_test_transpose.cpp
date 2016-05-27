@@ -164,7 +164,7 @@ TEST_P(transpose_test, outplace_transpose_single_complex_interleaved_to_interlea
 
 
 //add some special cases if needed
-
+/*
 TEST_F(accuracy_test_transpose_single, normal_2d_outplace_real_to_real_192_192_193_194_1)
 {
     try{ normal_2d_out_place_real_to_real<float>(192, 192, 193, 194, 1); }
@@ -176,6 +176,6 @@ TEST_F(accuracy_test_transpose_single, normal_2d_outplace_complex_interleaved_to
     try{ normal_2d_out_place_complex_to_complex<float, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved>(192, 192, 193, 194, 1); }
     catch(const std::exception &err) { handle_exception(err); }
 }
-
+*/
 
 }

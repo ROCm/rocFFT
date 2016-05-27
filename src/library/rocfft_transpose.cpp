@@ -24,6 +24,22 @@ struct rocfft_transpose_plan_t
     rocfft_transpose_placement placement;
 };
 
+static void isTransposeDataPacked(const rocfft_transpose_plan &plan, bool &packed_data_in, bool &packed_data_out)
+{
+   //input data
+   packed_data_in = true;
+   packed_data_out = true;
+   
+   size_t packed_data_size = 1;
+   for(int i = 0; i < plan->rank; i++)
+   {
+       packed_data_size *= (plan->lengths)->at(i);
+   }
+   if(plan->in_dist > packed_data_size)
+       packed_data_in = false;
+   if(plan->out_dist > packed_data_size)
+       packed_data_out = false;
+}
 
 rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *plan,
                                                       rocfft_transpose_precision precision, 
@@ -76,50 +92,57 @@ rocfft_transpose_status rocfft_transpose_outplace_real(const rocfft_transpose_pl
     int ld_out = plan->out_stride->at(1);
     int batch_size = plan->batch;
     
-
-    if(plan->precision == rocfft_transpose_precision_single)
-    {
-        if(input_row_size % (block_size_16*micro_tile_size_4) == 0 && input_col_size % (block_size_16*micro_tile_size_4) == 0)
-        {
-            hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_4,micro_tile_size_4,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_4/block_size_16 * batch_size, input_row_size/micro_tile_size_4/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
-        }
-        else if(input_row_size % (block_size_16*micro_tile_size_2) == 0 && input_col_size % (block_size_16*micro_tile_size_2) == 0)
-        {
-            hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_2,micro_tile_size_2,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_2/block_size_16 * batch_size, input_row_size/micro_tile_size_2/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
-        }
-        else if(input_row_size % (block_size_1*micro_tile_size_1) == 0 && input_col_size % (block_size_1*micro_tile_size_1) == 0)
-        {
-            // the kernel should be able to work on any size with no guarantee of performance 
-            hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
-        }
-        else
-        {
-            return rocfft_transpose_status_not_implemented;
-        }
-    }
-    else if(plan->precision == rocfft_transpose_precision_double)
-    {
-        if(input_row_size % (block_size_16*micro_tile_size_4) == 0 && input_col_size % (block_size_16*micro_tile_size_4) == 0)
-        {
-            hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<double,micro_tile_size_4,micro_tile_size_4,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_4/block_size_16 * batch_size, input_row_size/micro_tile_size_4/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (double*)in_buffer, (double*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
-        }
-        else if(input_row_size % (block_size_16*micro_tile_size_2) == 0 && input_col_size % (block_size_16*micro_tile_size_2) == 0)
-        {
-            hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<double,micro_tile_size_2,micro_tile_size_2,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_2/block_size_16 * batch_size, input_row_size/micro_tile_size_2/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (double*)in_buffer, (double*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
-        }
-        else if(input_row_size % (block_size_1*micro_tile_size_1) == 0 && input_col_size % (block_size_1*micro_tile_size_1) == 0)
-        {
-            // the kernel should be able to work on any size with no guarantee of performance
-            hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<double,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (double*)in_buffer, (double*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
-        }
-        else
-        {
-            return rocfft_transpose_status_not_implemented;
-        }
-    }    
-    else
-        return rocfft_transpose_status_not_implemented;
+    bool packed_data_in = false;// whether the input data is packed
+    bool packed_data_out = false;// whether the output data is packed
+    isTransposeDataPacked(plan, packed_data_in, packed_data_out);
     
+    if(packed_data_in && packed_data_out)
+    {
+        if(plan->precision == rocfft_transpose_precision_single)
+        {
+            if(input_row_size % (block_size_16*micro_tile_size_4) == 0 && input_col_size % (block_size_16*micro_tile_size_4) == 0)
+            {
+                hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_4,micro_tile_size_4,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_4/block_size_16 * batch_size, input_row_size/micro_tile_size_4/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
+            }
+            else if(input_row_size % (block_size_16*micro_tile_size_2) == 0 && input_col_size % (block_size_16*micro_tile_size_2) == 0)
+            {
+                hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_2,micro_tile_size_2,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_2/block_size_16 * batch_size, input_row_size/micro_tile_size_2/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
+            }
+            else if(input_row_size % (block_size_1*micro_tile_size_1) == 0 && input_col_size % (block_size_1*micro_tile_size_1) == 0)
+            {
+                // the kernel should be able to work on any size with no guarantee of performance 
+                hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
+            }
+            else
+            {
+                return rocfft_transpose_status_not_implemented;
+            }
+        }
+        else if(plan->precision == rocfft_transpose_precision_double)
+        {
+            if(input_row_size % (block_size_16*micro_tile_size_4) == 0 && input_col_size % (block_size_16*micro_tile_size_4) == 0)
+            {
+                hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<double,micro_tile_size_4,micro_tile_size_4,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_4/block_size_16 * batch_size, input_row_size/micro_tile_size_4/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (double*)in_buffer, (double*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
+            }
+            else if(input_row_size % (block_size_16*micro_tile_size_2) == 0 && input_col_size % (block_size_16*micro_tile_size_2) == 0)
+            {
+                hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<double,micro_tile_size_2,micro_tile_size_2,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_2/block_size_16 * batch_size, input_row_size/micro_tile_size_2/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (double*)in_buffer, (double*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
+            }
+            else if(input_row_size % (block_size_1*micro_tile_size_1) == 0 && input_col_size % (block_size_1*micro_tile_size_1) == 0)
+            {
+                // the kernel should be able to work on any size with no guarantee of performance
+                hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<double,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (double*)in_buffer, (double*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
+            }
+            else
+            {
+                return rocfft_transpose_status_not_implemented;
+            }
+        }    
+        else//not single or double precision
+            return rocfft_transpose_status_not_implemented;
+        }
+        else//not packed data
+           return rocfft_transpose_status_not_implemented;
     hipDeviceSynchronize();
     return rocfft_transpose_status_success;
 }
@@ -143,28 +166,34 @@ rocfft_transpose_status rocfft_transpose_outplace_complex_interleaved_to_complex
     int ld_out = plan->out_stride->at(1);
     int batch_size = plan->batch;
     
-
-    if(plan->precision == rocfft_transpose_precision_single)
+    bool packed_data_in = false;
+    bool packed_data_out = false;
+    isTransposeDataPacked(plan, packed_data_in, packed_data_out);   
+    
+    if(packed_data_in && packed_data_out)
     {
-        if(input_row_size % (block_size_16*micro_tile_size_4) == 0 && input_col_size % (block_size_16*micro_tile_size_4) == 0)
+        if(plan->precision == rocfft_transpose_precision_single)
         {
-
-            hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float2,micro_tile_size_4,micro_tile_size_4,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_4/block_size_16 * batch_size, input_row_size/micro_tile_size_4/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (float2*)in_buffer, (float2*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
-
+            if(input_row_size  % (block_size_16*micro_tile_size_4) == 0 && input_col_size % (block_size_16*micro_tile_size_4) == 0)
+            {
+                hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float2,micro_tile_size_4,micro_tile_size_4,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_4/block_size_16 * batch_size, input_row_size/micro_tile_size_4/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (float2*)in_buffer, (float2*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
+            }
+            else if(input_row_size % (block_size_16*micro_tile_size_2) == 0 && input_col_size % (block_size_16*micro_tile_size_2) == 0)
+            {
+                hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float2,micro_tile_size_2,micro_tile_size_2,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_2/block_size_16 * batch_size, input_row_size/micro_tile_size_2/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (float2*)in_buffer, (float2*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
+            }
+            else if(input_row_size % (block_size_1*micro_tile_size_1) == 0 && input_col_size % (block_size_1*micro_tile_size_1) == 0)
+            {
+                // the kernel should be able to work on any size with no guarantee of performance 
+                hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float2,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (float2*)in_buffer, (float2*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
+            }
+            else
+                 return rocfft_transpose_status_not_implemented;
         }
-        else if(input_row_size % (block_size_16*micro_tile_size_2) == 0 && input_col_size % (block_size_16*micro_tile_size_2) == 0)
-        {
-            hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float2,micro_tile_size_2,micro_tile_size_2,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_2/block_size_16 * batch_size, input_row_size/micro_tile_size_2/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (float2*)in_buffer, (float2*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
-        }
-        else if(input_row_size % (block_size_1*micro_tile_size_1) == 0 && input_col_size % (block_size_1*micro_tile_size_1) == 0)
-        {
-            // the kernel should be able to work on any size with no guarantee of performance 
-            hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float2,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (float2*)in_buffer, (float2*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
-        }
-        else
-             return rocfft_transpose_status_not_implemented;
-    }
-    else
+	else//not single precision
+            return rocfft_transpose_status_not_implemented;
+	}
+    else// not packed data
         return rocfft_transpose_status_not_implemented;
 
     hipDeviceSynchronize();
@@ -178,16 +207,22 @@ rocfft_transpose_status rocfft_transpose_execute( const rocfft_transpose_plan pl
 {
     if(plan->placement == rocfft_transpose_placement_inplace)        
         return rocfft_transpose_status_not_implemented;
+ 
     if(plan->array_type != rocfft_transpose_array_type_real_to_real
        && plan->array_type != rocfft_transpose_array_type_complex_planar_to_complex_planar
        && plan->array_type != rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved)
         return rocfft_transpose_status_not_implemented;
+
     if(plan->array_type == rocfft_transpose_array_type_real_to_real)
         return rocfft_transpose_outplace_real(plan, *in_buffer, *out_buffer);
+
     if(plan->array_type == rocfft_transpose_array_type_complex_planar_to_complex_planar)
         return rocfft_transpose_outplace_complex_planar_to_complex_planar(plan, in_buffer[0], in_buffer[1], out_buffer[0], out_buffer[1]);
+
     if(plan->array_type == rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved)
         return rocfft_transpose_outplace_complex_interleaved_to_complex_interleaved(plan, *in_buffer, *out_buffer);
+
+    return rocfft_transpose_status_not_implemented;
 }
 
 
