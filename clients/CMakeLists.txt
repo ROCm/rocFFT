@@ -87,6 +87,7 @@ if( BUILD_CLIENTS_TESTS )
         -DCMAKE_MODULE_PATH:PATH=${CMAKE_MODULE_PATH}
         -DPLATFORM_NAME=${PLATFORM_NAME}
         -DHIP_ROOT=${HIP_ROOT}
+        -DGTEST_ROOT=${GTEST_ROOT}
   	)
 
   ExternalProject_Add( tests
