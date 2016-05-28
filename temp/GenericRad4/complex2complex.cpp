@@ -2,7 +2,7 @@
 #include "./common.h"
 
 #define NEAR_ZERO_TOLERATE true
-#define KERN_NAME "fft_fwd"
+#define KERN_NAME "fft_fwd_8"
 
 #define WGS 256
 
@@ -25,9 +25,6 @@ int main(int argc, char ** argv)
 
 	size_t B = atoi(argv[2]);
 	size_t N = atoi(argv[3]);
-	size_t T = atoi(argv[4]);
-
-	size_t NT = (N >= 1024) ? 1 : 1024 / N;
 
 	// 1. Get a platform.
 	cl_platform_id platform;
@@ -156,7 +153,9 @@ int main(int argc, char ** argv)
 	cl_mem bufferCplx = clCreateBuffer( context, CL_MEM_READ_WRITE, N*B * sizeof(ClType2), NULL, NULL );
 #endif
 
-	cl_mem dbg = clCreateBuffer( context, CL_MEM_READ_WRITE, N*B * sizeof(cl_uint), NULL, NULL );
+	cl_mem radix = clCreateBuffer(context, CL_MEM_READ_ONLY, 8*sizeof(cl_uint), NULL, NULL);
+
+	cl_mem dbg = clCreateBuffer( context, CL_MEM_READ_WRITE, N*B * sizeof(ClType2), NULL, NULL );
 
 	// Fill buffers for FFT
 #ifndef FORMAT_INTERLEAVED
@@ -165,6 +164,8 @@ int main(int argc, char ** argv)
 #else
 	clEnqueueWriteBuffer( queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL );
 #endif
+
+	size_t NT = WGS/(N/8);
 
 	// 6. Launch the kernel
 	size_t global_work_size[1];
@@ -180,17 +181,108 @@ int main(int argc, char ** argv)
 	clSetKernelArg(kernel, 0, sizeof(bufferCplx), (void*) &bufferCplx);
 #endif
 
+	cl_uint radixp[8] = { 1,1,1,1,1,1,1,1 };
+	size_t T = 1;
+
+	switch (N)
+	{
+	case 4096:	T = 4;
+
+		radixp[0] = 8;
+		radixp[1] = 8;
+		radixp[2] = 8;
+		radixp[3] = 8;
+
+		break;
+	case 2048:	T = 4;
+
+		radixp[0] = 8;
+		radixp[1] = 8;
+		radixp[2] = 8;
+		radixp[3] = 4;
+
+		break;
+	case 1024:	T = 4;
+
+		radixp[0] = 8;
+		radixp[1] = 8;
+		radixp[2] = 4;
+		radixp[3] = 4;
+
+		break;
+	case 512:	T = 3;
+
+		radixp[0] = 8;
+		radixp[1] = 8;
+		radixp[2] = 8;
+
+		break;
+	case 256:	T = 3;
+
+		radixp[0] = 8;
+		radixp[1] = 8;
+		radixp[2] = 4;
+
+		break;
+	case 128:	T = 3;
+
+		radixp[0] = 8;
+		radixp[1] = 4;
+		radixp[2] = 4;
+
+		break;
+	case 64:	T = 2;
+
+		radixp[0] = 8;
+		radixp[1] = 8;
+
+		break;
+	case 32:	T = 2;
+
+		radixp[0] = 8;
+		radixp[1] = 4;
+
+		break;
+	case 16:	T = 2;
+
+		radixp[0] = 4;
+		radixp[1] = 4;
+
+		break;
+	case 8:		T = 1;
+
+		radixp[0] = 8;
+
+		break;
+	case 4:		T = 1;
+
+		radixp[0] = 4;
+
+		break;
+
+	default:
+		break;
+	}
+
 	unsigned int k_count = B;
 	unsigned int k_N = N;
 	unsigned int k_T = T;
 	unsigned int k_NT = NT;
+	unsigned int k_TWGS = (N / 8);
+
+	
+
+
+	clEnqueueWriteBuffer(queue, radix, CL_TRUE, 0, 8*sizeof(cl_uint), (void *)radixp, 0, NULL, NULL);
 
 	clSetKernelArg(kernel, 1, sizeof(unsigned int), &k_count);
-	clSetKernelArg(kernel, 2, sizeof(unsigned int), &k_N);
-	clSetKernelArg(kernel, 3, sizeof(unsigned int), &k_T);
-	clSetKernelArg(kernel, 4, sizeof(unsigned int), &k_NT);
+	clSetKernelArg(kernel, 2, sizeof(unsigned int), &k_NT);
+	clSetKernelArg(kernel, 3, sizeof(unsigned int), &k_TWGS);
+	clSetKernelArg(kernel, 4, sizeof(unsigned int), &k_N);
+	clSetKernelArg(kernel, 5, sizeof(unsigned int), &k_T);
+	clSetKernelArg(kernel, 6, sizeof(radix), (void*)&radix);
 
-	//clSetKernelArg(kernel, 5, sizeof(dbg), (void*) &dbg);
+	//clSetKernelArg(kernel, 6, sizeof(dbg), (void*) &dbg);
 
 	std::cout << "count: " << k_count << std::endl;
 	std::cout << "N: " << k_N << std::endl;
@@ -200,15 +292,19 @@ int main(int argc, char ** argv)
 	std::cout << "localws: " << local_work_size[0] << std::endl;
 
 	clFinish( queue );
+	for(uint i=0; i<10; i++)
+	{
+		err = clEnqueueNDRangeKernel( queue, kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, NULL);
+		clFinish( queue );
+	}
+
+	clEnqueueWriteBuffer(queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL);
 
 	cl_event ev;
 	Timer tr;
 	tr.Start();
-	for(uint i=0; i<1; i++)
-	{
-		clEnqueueNDRangeKernel( queue, kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, &ev);
-		clFinish( queue );
-	}
+	err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, &ev);
+	clFinish(queue);
 	double time = tr.Sample();
 
 	cl_int ks;
