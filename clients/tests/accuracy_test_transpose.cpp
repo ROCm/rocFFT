@@ -162,6 +162,14 @@ TEST_P(transpose_test, outplace_transpose_single_complex_interleaved_to_interlea
     catch(const std::exception &err) { handle_exception(err); }
 }
 
+TEST_P(transpose_test, outplace_transpose_double_complex_interleaved_to_interleaved)
+{
+    TestParams params;
+    getParams(&params);
+    try{ normal_2d_out_place_complex_to_complex<double, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved>(params.row_size, params.column_size, params.column_size, params.row_size, params.batch_size); }
+    catch(const std::exception &err) { handle_exception(err); }
+}
+
 
 //add some special cases if needed
 /*
