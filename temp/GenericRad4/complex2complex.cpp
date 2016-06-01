@@ -2,9 +2,8 @@
 #include "./common.h"
 
 #define NEAR_ZERO_TOLERATE true
-#define KERN_NAME "fft_fwd_8"
 
-#define WGS 256
+
 
 #define FORMAT_INTERLEAVED
 //#define DoublePrecision
@@ -60,6 +59,25 @@ int main(int argc, char ** argv)
 		return -1;
 
 	}
+
+	const char *KERN_NAME = NULL;
+
+	switch (N)
+	{
+	case 4096: KERN_NAME = "fft_4096"; break;
+	case 2048: KERN_NAME = "fft_2048"; break;
+	case 1024: KERN_NAME = "fft_1024"; break;
+	case 512:  KERN_NAME = "fft_512";  break;
+	case 256:  KERN_NAME = "fft_256";  break;
+	case 128:  KERN_NAME = "fft_128";  break;
+	case 64:   KERN_NAME = "fft_64";   break;
+	case 32:   KERN_NAME = "fft_32";   break;
+	case 16:   KERN_NAME = "fft_16";   break;
+	case 8:    KERN_NAME = "fft_8";    break;
+	case 4:    KERN_NAME = "fft_4";    break;
+	case 2:    KERN_NAME = "fft_2";    break;
+	}
+
 	cl_kernel kernel = clCreateKernel( program, KERN_NAME, NULL );
 
 	// Start FFT
@@ -165,14 +183,7 @@ int main(int argc, char ** argv)
 	clEnqueueWriteBuffer( queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL );
 #endif
 
-	size_t NT = WGS/(N/8);
 
-	// 6. Launch the kernel
-	size_t global_work_size[1];
-	size_t local_work_size[1];
-	size_t gw = (B%NT) ? 1 + (B/NT) : (B/NT);
-	global_work_size[0] = WGS * gw;
-	local_work_size[0] = WGS;
 
 #ifndef FORMAT_INTERLEAVED
 	clSetKernelArg(kernel, 0, sizeof(bufferReal), (void*) &bufferReal);
@@ -183,10 +194,12 @@ int main(int argc, char ** argv)
 
 	cl_uint radixp[8] = { 1,1,1,1,1,1,1,1 };
 	size_t T = 1;
+	size_t WGS = 64;
+	size_t NT = 1;
 
 	switch (N)
 	{
-	case 4096:	T = 4;
+	case 4096:	T = 4; WGS = 256; NT = 1;
 
 		radixp[0] = 8;
 		radixp[1] = 8;
@@ -194,7 +207,7 @@ int main(int argc, char ** argv)
 		radixp[3] = 8;
 
 		break;
-	case 2048:	T = 4;
+	case 2048:	T = 4; WGS = 256; NT = 1;
 
 		radixp[0] = 8;
 		radixp[1] = 8;
@@ -202,7 +215,7 @@ int main(int argc, char ** argv)
 		radixp[3] = 4;
 
 		break;
-	case 1024:	T = 4;
+	case 1024:	T = 4; WGS = 128; NT = 1;
 
 		radixp[0] = 8;
 		radixp[1] = 8;
@@ -210,53 +223,62 @@ int main(int argc, char ** argv)
 		radixp[3] = 4;
 
 		break;
-	case 512:	T = 3;
+	case 512:	T = 3; WGS = 64; NT = 1;
 
 		radixp[0] = 8;
 		radixp[1] = 8;
 		radixp[2] = 8;
 
 		break;
-	case 256:	T = 3;
+	case 256:	T = 4; WGS = 64; NT = 1;
 
-		radixp[0] = 8;
-		radixp[1] = 8;
+		radixp[0] = 4;
+		radixp[1] = 4;
+		radixp[2] = 4;
 		radixp[2] = 4;
 
 		break;
-	case 128:	T = 3;
+	case 128:	T = 3; WGS = 64; NT = 4;
 
 		radixp[0] = 8;
 		radixp[1] = 4;
 		radixp[2] = 4;
 
 		break;
-	case 64:	T = 2;
+	case 64:	T = 3; WGS = 64; NT = 4;
 
-		radixp[0] = 8;
-		radixp[1] = 8;
+		radixp[0] = 4;
+		radixp[1] = 4;
+		radixp[2] = 4;
 
 		break;
-	case 32:	T = 2;
+	case 32:	T = 2; WGS = 64; NT = 16;
 
 		radixp[0] = 8;
 		radixp[1] = 4;
 
 		break;
-	case 16:	T = 2;
+	case 16:	T = 2; WGS = 64; NT = 16;
 
 		radixp[0] = 4;
 		radixp[1] = 4;
 
 		break;
-	case 8:		T = 1;
-
-		radixp[0] = 8;
-
-		break;
-	case 4:		T = 1;
+	case 8:		T = 2; WGS = 64; NT = 32;
 
 		radixp[0] = 4;
+		radixp[1] = 2;
+
+		break;
+	case 4:		T = 2; WGS = 64; NT = 32;
+
+		radixp[0] = 2;
+		radixp[1] = 2;
+
+		break;
+	case 2:		T = 1; WGS = 64; NT = 64;
+
+		radixp[0] = 2;
 
 		break;
 
@@ -264,30 +286,29 @@ int main(int argc, char ** argv)
 		break;
 	}
 
-	unsigned int k_count = B;
-	unsigned int k_N = N;
-	unsigned int k_T = T;
-	unsigned int k_NT = NT;
-	unsigned int k_TWGS = (N / 8);
+	clEnqueueWriteBuffer(queue, radix, CL_TRUE, 0, 8 * sizeof(cl_uint), (void *)radixp, 0, NULL, NULL);
 
+	// 6. Launch the kernel
+	size_t global_work_size[1];
+	size_t local_work_size[1];
+	size_t gw = (B%NT) ? 1 + (B / NT) : (B / NT);
+	global_work_size[0] = WGS * gw;
+	local_work_size[0] = WGS;
+
+
+	cl_uint k_count = B;
+	cl_int dir = -1;
 	
+	clSetKernelArg(kernel, 1, sizeof(cl_uint), &k_count);
+	clSetKernelArg(kernel, 2, sizeof(cl_int), &dir);
 
-
-	clEnqueueWriteBuffer(queue, radix, CL_TRUE, 0, 8*sizeof(cl_uint), (void *)radixp, 0, NULL, NULL);
-
-	clSetKernelArg(kernel, 1, sizeof(unsigned int), &k_count);
-	clSetKernelArg(kernel, 2, sizeof(unsigned int), &k_NT);
-	clSetKernelArg(kernel, 3, sizeof(unsigned int), &k_TWGS);
-	clSetKernelArg(kernel, 4, sizeof(unsigned int), &k_N);
-	clSetKernelArg(kernel, 5, sizeof(unsigned int), &k_T);
-	clSetKernelArg(kernel, 6, sizeof(radix), (void*)&radix);
 
 	//clSetKernelArg(kernel, 6, sizeof(dbg), (void*) &dbg);
 
 	std::cout << "count: " << k_count << std::endl;
-	std::cout << "N: " << k_N << std::endl;
-	std::cout << "T: " << k_T << std::endl;
-	std::cout << "NT: " << k_NT << std::endl;
+	std::cout << "N: " << N << std::endl;
+	std::cout << "T: " << T << std::endl;
+	std::cout << "NT: " << NT << std::endl;
 	std::cout << "globalws: " << global_work_size[0] << std::endl;
 	std::cout << "localws: " << local_work_size[0] << std::endl;
 
