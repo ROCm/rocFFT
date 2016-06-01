@@ -155,6 +155,7 @@ void complex_transpose_test<std::complex<float>, rocfft_transpose_array_type_com
     size_t out_dist = output_row_size * output_leading_dim_size;
 
     status = create_transpose_plan_test<float2>(plan, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved, rocfft_transpose_placement_notinplace, lengths, in_stride, out_stride, in_dist, out_dist, batch_size);
+
     status = rocfft_transpose_execute(plan, (void**)&input_matrix_device, (void**)&output_matrix_device, NULL);
 
     //destroy plan
@@ -166,4 +167,93 @@ void complex_transpose_test<std::complex<float>, rocfft_transpose_array_type_com
     hipFree(input_matrix_device);
     hipFree(output_matrix_device);
 }
+
+template<>
+void complex_transpose_test<std::complex<double>, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved>(size_t input_row_size, size_t input_col_size, size_t input_leading_dim_size, size_t output_leading_dim_size, size_t batch_size, std::complex<double> *input_matrix, std::complex<double> *output_matrix)
+{
+
+    size_t output_row_size = input_col_size;
+    size_t output_col_size = input_row_size;
+
+    hipError_t err;
+    //create device memory
+    double2 *input_matrix_device, *output_matrix_device;
+
+    err = hipMalloc(&input_matrix_device, batch_size * input_row_size * input_leading_dim_size * sizeof(double2));
+    err = hipMalloc(&output_matrix_device, batch_size * output_row_size * output_leading_dim_size * sizeof(double2));
+    //copy data to device
+    err = hipMemcpy(input_matrix_device, input_matrix, batch_size * input_row_size * input_leading_dim_size * sizeof(double2), hipMemcpyHostToDevice);
+
+    //create transpose only plan
+    rocfft_transpose_status status;
+    rocfft_transpose_plan plan = NULL;
+    std::vector<size_t> lengths = {(size_t)input_col_size, (size_t)input_row_size};
+    std::vector<size_t> in_stride = {1, input_leading_dim_size};
+    std::vector<size_t> out_stride = {1, output_leading_dim_size};
+    size_t in_dist = input_row_size * input_leading_dim_size;
+    size_t out_dist = output_row_size * output_leading_dim_size;
+
+    status = create_transpose_plan_test<double2>(plan, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved, rocfft_transpose_placement_notinplace, lengths, in_stride, out_stride, in_dist, out_dist, batch_size);
+    status = rocfft_transpose_execute(plan, (void**)&input_matrix_device, (void**)&output_matrix_device, NULL);
+
+    //destroy plan
+    status = rocfft_transpose_plan_destroy(plan);
+
+    //copy data from device to host
+    err = hipMemcpy(output_matrix, output_matrix_device, batch_size * output_row_size * output_leading_dim_size * sizeof(double2), hipMemcpyDeviceToHost);
+
+    hipFree(input_matrix_device);
+    hipFree(output_matrix_device);
+
+}
+
+template<typename T>
+void complex_planar_to_planar_transpose_test(size_t input_row_size, size_t input_col_size, size_t input_leading_dim_size, size_t output_leading_dim_size, size_t batch_size, T *input_matrix_real, T *input_matrix_imag, T *output_matrix_real, T *output_matrix_imag)
+{
+    size_t output_row_size = input_col_size;
+    size_t output_col_size = input_row_size;
+
+    hipError_t err;
+    //create device memory
+    T *input_matrix_real_device, *input_matrix_imag_device, *output_matrix_real_device, *output_matrix_imag_device;
+
+    err = hipMalloc(&input_matrix_real_device, batch_size * input_row_size * input_leading_dim_size * sizeof(T));
+    err = hipMalloc(&input_matrix_imag_device, batch_size * input_row_size * input_leading_dim_size * sizeof(T));
+
+    err = hipMalloc(&output_matrix_real_device, batch_size * output_row_size * output_leading_dim_size * sizeof(T));
+    err = hipMalloc(&output_matrix_imag_device, batch_size * output_row_size * output_leading_dim_size * sizeof(T));
+    //copy data to device
+    err = hipMemcpy(input_matrix_real_device, input_matrix_real, batch_size * input_row_size * input_leading_dim_size * sizeof(T), hipMemcpyHostToDevice);
+    err = hipMemcpy(input_matrix_imag_device, input_matrix_imag, batch_size * input_row_size * input_leading_dim_size * sizeof(T), hipMemcpyHostToDevice);
+
+    //create transpose only plan
+    rocfft_transpose_status status;
+    rocfft_transpose_plan plan = NULL;
+    std::vector<size_t> lengths = {(size_t)input_col_size, (size_t)input_row_size};
+    std::vector<size_t> in_stride = {1, input_leading_dim_size};
+    std::vector<size_t> out_stride = {1, output_leading_dim_size};
+    size_t in_dist = input_row_size * input_leading_dim_size;
+    size_t out_dist = output_row_size * output_leading_dim_size;
+
+    status = create_transpose_plan_test<T>(plan, rocfft_transpose_array_type_complex_planar_to_complex_planar, rocfft_transpose_placement_notinplace, lengths, in_stride, out_stride, in_dist, out_dist, batch_size);
+    
+    T *input_matrix_ptr[2] = {input_matrix_real_device, input_matrix_imag_device};
+    T *output_matrix_ptr[2] = {output_matrix_real_device, output_matrix_imag_device};
+    status = rocfft_transpose_execute(plan, (void**)input_matrix_ptr, (void**)output_matrix_ptr, NULL);
+
+    //destroy plan
+    status = rocfft_transpose_plan_destroy(plan);
+
+    //copy data from device to host
+    err = hipMemcpy(output_matrix_real, output_matrix_real_device, batch_size * output_row_size * output_leading_dim_size * sizeof(T), hipMemcpyDeviceToHost);
+    err = hipMemcpy(output_matrix_imag, output_matrix_imag_device, batch_size * output_row_size * output_leading_dim_size * sizeof(T), hipMemcpyDeviceToHost);
+
+    hipFree(input_matrix_real_device);
+    hipFree(input_matrix_imag_device);
+    hipFree(output_matrix_real_device);
+    hipFree(output_matrix_imag_device);
+
+
+}
+
 #endif
