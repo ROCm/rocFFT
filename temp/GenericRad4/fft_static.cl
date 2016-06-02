@@ -4292,33 +4292,33 @@ void fft_4(__global float2 *buffer, const uint count, const int dir)
 	__global float2 *lwb = buffer + (batch*32 + (me/2))*4;
 	__local  float *ldsp = lds + (me/2)*4;
 	
-	uint met = me % 2;
+	me = me % 2;
 
 	if(rw)
 	{	
-		X0 = lwb[met + 0];
-		X1 = lwb[met + 2];	
+		X0 = lwb[me + 0];
+		X1 = lwb[me + 2];	
 	}
 	
 	Rad2(&X0, &X1);
 
-	ldsp[met*2 + 0] = X0.x;
-	ldsp[met*2 + 1] = X1.x;
+	ldsp[me*2 + 0] = X0.x;
+	ldsp[me*2 + 1] = X1.x;
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
 	
-	X0.x = ldsp[met + 0];
-	X1.x = ldsp[met + 2];
+	X0.x = ldsp[me + 0];
+	X1.x = ldsp[me + 2];
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
 	
-	ldsp[met*2 + 0] = X0.y;
-	ldsp[met*2 + 1] = X1.y;
+	ldsp[me*2 + 0] = X0.y;
+	ldsp[me*2 + 1] = X1.y;
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
 	
-	X0.y = ldsp[met + 0];
-	X1.y = ldsp[met + 2];
+	X0.y = ldsp[me + 0];
+	X1.y = ldsp[me + 2];
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -4327,7 +4327,7 @@ void fft_4(__global float2 *buffer, const uint count, const int dir)
 		float2 W;
 		float TR, TI;
 		
-		W = twiddles[1024 * (met%2)];
+		W = twiddles[1024 * (me%2)];
 		TR = (W.x * X1.x) - (W.y * X1.y);
 		TI = (W.y * X1.x) + (W.x * X1.y);
 		X1.x = TR;
@@ -4338,7 +4338,7 @@ void fft_4(__global float2 *buffer, const uint count, const int dir)
 		float2 W;
 		float TR, TI;
 		
-		W = twiddles[1024 * (met%2)];
+		W = twiddles[1024 * (me%2)];
 		TR =  (W.x * X1.x) + (W.y * X1.y);
 		TI = -(W.y * X1.x) + (W.x * X1.y);
 		X1.x = TR;
@@ -4349,8 +4349,8 @@ void fft_4(__global float2 *buffer, const uint count, const int dir)
 	
 	if(rw)
 	{	
-		lwb[met + 0] = X0;
-		lwb[met + 2] = X1;	
+		lwb[me + 0] = X0;
+		lwb[me + 2] = X1;	
 	}
 }
 
@@ -4370,14 +4370,14 @@ void fft_8(__global float2 *buffer, const uint count, const int dir)
 	__global float2 *lwb = buffer + (batch*32 + (me/2))*8;
 	__local  float *ldsp = lds + (me/2)*8;
 	
-	uint met = me % 2;
+	me = me % 2;
 
 	if(rw)
 	{	
-		X0 = lwb[met + 0];
-		X1 = lwb[met + 2];	
-		X2 = lwb[met + 4];
-		X3 = lwb[met + 6];		
+		X0 = lwb[me + 0];
+		X1 = lwb[me + 2];	
+		X2 = lwb[me + 4];
+		X3 = lwb[me + 6];		
 	}
 	
 	if(dir == -1)
@@ -4386,31 +4386,31 @@ void fft_8(__global float2 *buffer, const uint count, const int dir)
 		InvRad4(&X0, &X1, &X2, &X3);
 		
 
-	ldsp[met*4 + 0] = X0.x;
-	ldsp[met*4 + 1] = X1.x;
-	ldsp[met*4 + 2] = X2.x;
-	ldsp[met*4 + 3] = X3.x;
+	ldsp[me*4 + 0] = X0.x;
+	ldsp[me*4 + 1] = X1.x;
+	ldsp[me*4 + 2] = X2.x;
+	ldsp[me*4 + 3] = X3.x;
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
 	
-	X0.x = ldsp[met*2 + 0 + 0];
-	X1.x = ldsp[met*2 + 0 + 4];	
-	X2.x = ldsp[met*2 + 1 + 0];
-	X3.x = ldsp[met*2 + 1 + 4];
+	X0.x = ldsp[me*2 + 0 + 0];
+	X1.x = ldsp[me*2 + 0 + 4];	
+	X2.x = ldsp[me*2 + 1 + 0];
+	X3.x = ldsp[me*2 + 1 + 4];
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
 	
-	ldsp[met*4 + 0] = X0.y;
-	ldsp[met*4 + 1] = X1.y;
-	ldsp[met*4 + 2] = X2.y;
-	ldsp[met*4 + 3] = X3.y;
+	ldsp[me*4 + 0] = X0.y;
+	ldsp[me*4 + 1] = X1.y;
+	ldsp[me*4 + 2] = X2.y;
+	ldsp[me*4 + 3] = X3.y;
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
 	
-	X0.y = ldsp[met*2 + 0 + 0];
-	X1.y = ldsp[met*2 + 0 + 4];	
-	X2.y = ldsp[met*2 + 1 + 0];
-	X3.y = ldsp[met*2 + 1 + 4];
+	X0.y = ldsp[me*2 + 0 + 0];
+	X1.y = ldsp[me*2 + 0 + 4];	
+	X2.y = ldsp[me*2 + 1 + 0];
+	X3.y = ldsp[me*2 + 1 + 4];
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -4419,13 +4419,13 @@ void fft_8(__global float2 *buffer, const uint count, const int dir)
 		float2 W;
 		float TR, TI;
 		
-		W = twiddles[512 * ((2*met+0)%4)];
+		W = twiddles[512 * ((2*me+0)%4)];
 		TR = (W.x * X1.x) - (W.y * X1.y);
 		TI = (W.y * X1.x) + (W.x * X1.y);
 		X1.x = TR;
 		X1.y = TI;
 		
-		W = twiddles[512 * ((2*met+1)%4)];
+		W = twiddles[512 * ((2*me+1)%4)];
 		TR = (W.x * X3.x) - (W.y * X3.y);
 		TI = (W.y * X3.x) + (W.x * X3.y);
 		X3.x = TR;
@@ -4436,13 +4436,13 @@ void fft_8(__global float2 *buffer, const uint count, const int dir)
 		float2 W;
 		float TR, TI;
 		
-		W = twiddles[512 * ((2*met+0)%4)];
+		W = twiddles[512 * ((2*me+0)%4)];
 		TR =  (W.x * X1.x) + (W.y * X1.y);
 		TI = -(W.y * X1.x) + (W.x * X1.y);
 		X1.x = TR;
 		X1.y = TI;	
 		
-		W = twiddles[512 * ((2*met+1)%4)];
+		W = twiddles[512 * ((2*me+1)%4)];
 		TR =  (W.x * X3.x) + (W.y * X3.y);
 		TI = -(W.y * X3.x) + (W.x * X3.y);
 		X3.x = TR;
@@ -4453,14 +4453,335 @@ void fft_8(__global float2 *buffer, const uint count, const int dir)
 	Rad2(&X2, &X3);
 	
 	if(rw)
-	{	
-		lwb[2*met + 0 + 0] = X0;
-		lwb[2*met + 0 + 4] = X1;	
-		lwb[2*met + 1 + 0] = X2;
-		lwb[2*met + 1 + 4] = X3;		
+	{
+		__global float4 *lwbv = lwb;	
+		lwbv[me + 0] = (float4)(X0,X2);
+		lwbv[me + 2] = (float4)(X1,X3);	
 	}
 }
 
+
+
+__kernel __attribute__((reqd_work_group_size (64,1,1)))
+void fft_16(__global float2 *buffer, const uint count, const int dir)
+{
+	uint me = get_local_id(0);
+	uint batch = get_group_id(0);
+
+	__local float lds[256];
+	float2 X0, X1, X2, X3;
+
+	uint rw = (me < (count - batch*16)*4) ? 1 : 0;
+
+	__global float2 *lwb = buffer + (batch*16 + (me/4))*16;
+	__local  float *ldsp = lds + (me/4)*16;
+	
+	me = me % 4;
+
+	if(rw)
+	{	
+		X0 = lwb[me + 0];
+		X1 = lwb[me + 4];	
+		X2 = lwb[me + 8];
+		X3 = lwb[me + 12];		
+	}
+	
+	if(dir == -1)
+		FwdRad4(&X0, &X1, &X2, &X3);
+	else
+		InvRad4(&X0, &X1, &X2, &X3);
+		
+
+	ldsp[me*4 + 0] = X0.x;
+	ldsp[me*4 + 1] = X1.x;
+	ldsp[me*4 + 2] = X2.x;
+	ldsp[me*4 + 3] = X3.x;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	X0.x = ldsp[me + 0];
+	X1.x = ldsp[me + 4];	
+	X2.x = ldsp[me + 8];
+	X3.x = ldsp[me + 12];
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	ldsp[me*4 + 0] = X0.y;
+	ldsp[me*4 + 1] = X1.y;
+	ldsp[me*4 + 2] = X2.y;
+	ldsp[me*4 + 3] = X3.y;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	X0.y = ldsp[me + 0];
+	X1.y = ldsp[me + 4];	
+	X2.y = ldsp[me + 8];
+	X3.y = ldsp[me + 12];
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+	if(dir == -1)
+	{
+		float2 W;
+		float TR, TI;
+		
+		W = twiddles[256 * (me%4) * 1];
+		TR = (W.x * X1.x) - (W.y * X1.y);
+		TI = (W.y * X1.x) + (W.x * X1.y);
+		X1.x = TR;
+		X1.y = TI;
+		
+		W = twiddles[256 * (me%4) * 2];
+		TR = (W.x * X2.x) - (W.y * X2.y);
+		TI = (W.y * X2.x) + (W.x * X2.y);
+		X2.x = TR;
+		X2.y = TI;		
+		
+		W = twiddles[256 * (me%4) * 3];
+		TR = (W.x * X3.x) - (W.y * X3.y);
+		TI = (W.y * X3.x) + (W.x * X3.y);
+		X3.x = TR;
+		X3.y = TI;		
+	}
+	else
+	{
+		float2 W;
+		float TR, TI;
+		
+		W = twiddles[256 * (me%4) * 1];
+		TR =  (W.x * X1.x) + (W.y * X1.y);
+		TI = -(W.y * X1.x) + (W.x * X1.y);
+		X1.x = TR;
+		X1.y = TI;	
+		
+		W = twiddles[256 * (me%4) * 2];
+		TR =  (W.x * X2.x) + (W.y * X2.y);
+		TI = -(W.y * X2.x) + (W.x * X2.y);
+		X2.x = TR;
+		X2.y = TI;
+		
+		W = twiddles[256 * (me%4) * 3];
+		TR =  (W.x * X3.x) + (W.y * X3.y);
+		TI = -(W.y * X3.x) + (W.x * X3.y);
+		X3.x = TR;
+		X3.y = TI;			
+	}
+	
+	if(dir == -1)
+		FwdRad4(&X0, &X1, &X2, &X3);
+	else
+		InvRad4(&X0, &X1, &X2, &X3);
+	
+	if(rw)
+	{	
+		lwb[me + 0]  = X0;
+		lwb[me + 4]  = X1;	
+		lwb[me + 8]  = X2;
+		lwb[me + 12] = X3;		
+	}
+}
+
+
+__kernel __attribute__((reqd_work_group_size (64,1,1)))
+void fft_64(__global float2 *buffer, const uint count, const int dir)
+{
+	uint me = get_local_id(0);
+	uint batch = get_group_id(0);
+
+	__local float lds[256];
+	float2 X0, X1, X2, X3;
+
+	uint rw = (me < (count - batch*4)*16) ? 1 : 0;
+
+	__global float2 *lwb = buffer + (batch*4 + (me/16))*64;
+	__local  float *ldsp = lds + (me/16)*64;
+	
+	me = me % 16;
+
+	if(rw)
+	{	
+		X0 = lwb[me + 0];
+		X1 = lwb[me + 16];	
+		X2 = lwb[me + 32];
+		X3 = lwb[me + 48];		
+	}
+	
+	if(dir == -1)
+		FwdRad4(&X0, &X1, &X2, &X3);
+	else
+		InvRad4(&X0, &X1, &X2, &X3);
+		
+
+	ldsp[me*4 + 0] = X0.x;
+	ldsp[me*4 + 1] = X1.x;
+	ldsp[me*4 + 2] = X2.x;
+	ldsp[me*4 + 3] = X3.x;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	X0.x = ldsp[me + 0];
+	X1.x = ldsp[me + 16];	
+	X2.x = ldsp[me + 32];
+	X3.x = ldsp[me + 48];
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	ldsp[me*4 + 0] = X0.y;
+	ldsp[me*4 + 1] = X1.y;
+	ldsp[me*4 + 2] = X2.y;
+	ldsp[me*4 + 3] = X3.y;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	X0.y = ldsp[me + 0];
+	X1.y = ldsp[me + 16];	
+	X2.y = ldsp[me + 32];
+	X3.y = ldsp[me + 48];
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+	if(dir == -1)
+	{
+		float2 W;
+		float TR, TI;
+		
+		W = twiddles[256 * (me%4) * 1];
+		TR = (W.x * X1.x) - (W.y * X1.y);
+		TI = (W.y * X1.x) + (W.x * X1.y);
+		X1.x = TR;
+		X1.y = TI;
+		
+		W = twiddles[256 * (me%4) * 2];
+		TR = (W.x * X2.x) - (W.y * X2.y);
+		TI = (W.y * X2.x) + (W.x * X2.y);
+		X2.x = TR;
+		X2.y = TI;		
+		
+		W = twiddles[256 * (me%4) * 3];
+		TR = (W.x * X3.x) - (W.y * X3.y);
+		TI = (W.y * X3.x) + (W.x * X3.y);
+		X3.x = TR;
+		X3.y = TI;		
+	}
+	else
+	{
+		float2 W;
+		float TR, TI;
+		
+		W = twiddles[256 * (me%4) * 1];
+		TR =  (W.x * X1.x) + (W.y * X1.y);
+		TI = -(W.y * X1.x) + (W.x * X1.y);
+		X1.x = TR;
+		X1.y = TI;	
+		
+		W = twiddles[256 * (me%4) * 2];
+		TR =  (W.x * X2.x) + (W.y * X2.y);
+		TI = -(W.y * X2.x) + (W.x * X2.y);
+		X2.x = TR;
+		X2.y = TI;
+		
+		W = twiddles[256 * (me%4) * 3];
+		TR =  (W.x * X3.x) + (W.y * X3.y);
+		TI = -(W.y * X3.x) + (W.x * X3.y);
+		X3.x = TR;
+		X3.y = TI;			
+	}
+	
+	if(dir == -1)
+		FwdRad4(&X0, &X1, &X2, &X3);
+	else
+		InvRad4(&X0, &X1, &X2, &X3);
+	
+	
+	ldsp[(me/4)*16 + me%4 +  0] = X0.x;
+	ldsp[(me/4)*16 + me%4 +  4] = X1.x;
+	ldsp[(me/4)*16 + me%4 +  8] = X2.x;
+	ldsp[(me/4)*16 + me%4 + 12] = X3.x;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	X0.x = ldsp[me + 0];
+	X1.x = ldsp[me + 16];	
+	X2.x = ldsp[me + 32];
+	X3.x = ldsp[me + 48];
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	ldsp[(me/4)*16 + me%4 +  0] = X0.y;
+	ldsp[(me/4)*16 + me%4 +  4] = X1.y;
+	ldsp[(me/4)*16 + me%4 +  8] = X2.y;
+	ldsp[(me/4)*16 + me%4 + 12] = X3.y;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	X0.y = ldsp[me + 0];
+	X1.y = ldsp[me + 16];	
+	X2.y = ldsp[me + 32];
+	X3.y = ldsp[me + 48];
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+	if(dir == -1)
+	{
+		float2 W;
+		float TR, TI;
+		
+		W = twiddles[64 * (me%16) * 1];
+		TR = (W.x * X1.x) - (W.y * X1.y);
+		TI = (W.y * X1.x) + (W.x * X1.y);
+		X1.x = TR;
+		X1.y = TI;
+		
+		W = twiddles[64 * (me%16) * 2];
+		TR = (W.x * X2.x) - (W.y * X2.y);
+		TI = (W.y * X2.x) + (W.x * X2.y);
+		X2.x = TR;
+		X2.y = TI;		
+		
+		W = twiddles[64 * (me%16) * 3];
+		TR = (W.x * X3.x) - (W.y * X3.y);
+		TI = (W.y * X3.x) + (W.x * X3.y);
+		X3.x = TR;
+		X3.y = TI;		
+	}
+	else
+	{
+		float2 W;
+		float TR, TI;
+		
+		W = twiddles[64 * (me%16) * 1];
+		TR =  (W.x * X1.x) + (W.y * X1.y);
+		TI = -(W.y * X1.x) + (W.x * X1.y);
+		X1.x = TR;
+		X1.y = TI;	
+		
+		W = twiddles[64 * (me%16) * 2];
+		TR =  (W.x * X2.x) + (W.y * X2.y);
+		TI = -(W.y * X2.x) + (W.x * X2.y);
+		X2.x = TR;
+		X2.y = TI;
+		
+		W = twiddles[64 * (me%16) * 3];
+		TR =  (W.x * X3.x) + (W.y * X3.y);
+		TI = -(W.y * X3.x) + (W.x * X3.y);
+		X3.x = TR;
+		X3.y = TI;			
+	}
+	
+	if(dir == -1)
+		FwdRad4(&X0, &X1, &X2, &X3);
+	else
+		InvRad4(&X0, &X1, &X2, &X3);
+
+		
+	if(rw)
+	{	
+		lwb[me + 0]  = X0;
+		lwb[me + 16] = X1;	
+		lwb[me + 32] = X2;
+		lwb[me + 48] = X3;		
+	}
+}
 
 
 __attribute__((always_inline)) void 
@@ -4957,14 +5278,6 @@ void fft_128(__global float2 *buffer, const uint count, const int dir)
 }
 
 __kernel __attribute__((reqd_work_group_size (64,1,1)))
-void fft_64(__global float2 *buffer, const uint count, const int dir)
-{
-	__local float lds[256];
-	const uint radix[3] = {4,4,4};
-	fft_fwd_generic_4(lds, buffer, count, 4, 16, 64, 3);
-}
-
-__kernel __attribute__((reqd_work_group_size (64,1,1)))
 void fft_32(__global float2 *buffer, const uint count, const int dir)
 {
 	__local float lds[512];
@@ -4972,11 +5285,5 @@ void fft_32(__global float2 *buffer, const uint count, const int dir)
 	fft_fwd_generic_8(lds, buffer, count, 16, 4, 32, 2, radix);
 }
 
-__kernel __attribute__((reqd_work_group_size (64,1,1)))
-void fft_16(__global float2 *buffer, const uint count, const int dir)
-{
-	__local float lds[2048];
-	const uint radix[2] = {4,4};
-	fft_fwd_generic_4(lds, buffer, count, 16, 4, 16, 2);
-}
+
 
