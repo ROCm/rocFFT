@@ -134,6 +134,19 @@ void normal_2d_out_place_complex_planar_to_complex_planar(size_t input_row_size,
 
 }
 
+template<typename T>
+void normal_2d_out_place_complex_planar_to_complex_interleaved(size_t input_row_size, size_t input_col_size, size_t input_leading_dim_size, size_t output_leading_dim_size, size_t batch_size)
+{
+    if(input_row_size < 1 || input_col_size < 1 || batch_size < 1)
+    {
+        throw std::runtime_error("matrix size and batch size cannot be smaller than 1");
+    }
+    //allocate host memory in row major
+    std::vector<T> input_matrix_real(input_row_size * input_leading_dim_size * batch_size, 0);
+    std::vector<T> input_matrix_imag(input_row_size * input_leading_dim_size * batch_size, 0);
+
+
+}
 
 typedef struct TestParams{
 size_t row_size;
