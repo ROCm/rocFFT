@@ -45,7 +45,7 @@ void normal_2d_out_place_real_to_real(size_t input_row_size, size_t input_col_si
     //allocate host memory
     std::vector<T> input_matrix(input_row_size * input_leading_dim_size * batch_size);
     std::vector<T> output_matrix(output_leading_dim_size * input_col_size * batch_size, 0);
-    std::vector<T> reference_output_matrix(output_leading_dim_size * input_col_size * batch_size, 0);
+    std::vector<T> reference_output_matrix(output_leading_dim_size * input_col_size * batch_size, 1);
     //init the input matrix
     for(int b = 0; b < batch_size; b++)
     {
@@ -72,9 +72,9 @@ void normal_2d_out_place_complex_to_complex(size_t input_row_size, size_t input_
         throw std::runtime_error("matrix size and batch size cannot be smaller than 1");
     }
     //allocate host memory in row major
-    std::vector<std::complex<T> > input_matrix(input_row_size * input_leading_dim_size * batch_size, 0);
-    std::vector<std::complex<T> > output_matrix(output_leading_dim_size * input_col_size * batch_size, 0);
-    std::vector<std::complex<T> > reference_output_matrix(output_leading_dim_size * input_col_size * batch_size, 0);
+    std::vector<std::complex<T> > input_matrix(input_row_size * input_leading_dim_size * batch_size, std::complex<T>(0, 0));
+    std::vector<std::complex<T> > output_matrix(output_leading_dim_size * input_col_size * batch_size, std::complex<T>(0, 0));
+    std::vector<std::complex<T> > reference_output_matrix(output_leading_dim_size * input_col_size * batch_size, std::complex<T>(1, 1));
     //init the input matrix
     for(int b = 0; b < batch_size; b++)
     {
@@ -108,8 +108,8 @@ void normal_2d_out_place_complex_planar_to_complex_planar(size_t input_row_size,
     std::vector<T> output_matrix_real(output_leading_dim_size * input_col_size * batch_size, 0);
     std::vector<T> output_matrix_imag(output_leading_dim_size * input_col_size * batch_size, 0);
 
-    std::vector<T> reference_output_matrix_real(output_leading_dim_size * input_col_size * batch_size, 0);
-    std::vector<T> reference_output_matrix_imag(output_leading_dim_size * input_col_size * batch_size, 0);
+    std::vector<T> reference_output_matrix_real(output_leading_dim_size * input_col_size * batch_size, 1);
+    std::vector<T> reference_output_matrix_imag(output_leading_dim_size * input_col_size * batch_size, 1);
     //init the input matrix
     for(int b = 0; b < batch_size; b++)
     {
@@ -145,7 +145,28 @@ void normal_2d_out_place_complex_planar_to_complex_interleaved(size_t input_row_
     std::vector<T> input_matrix_real(input_row_size * input_leading_dim_size * batch_size, 0);
     std::vector<T> input_matrix_imag(input_row_size * input_leading_dim_size * batch_size, 0);
 
-
+    std::vector<std::complex<T>> output_matrix(output_leading_dim_size * input_col_size * batch_size, std::complex<T>(0, 0));
+    std::vector<std::complex<T>> reference_output_matrix(output_leading_dim_size * input_col_size * batch_size, std::complex<T>(0,0));
+    
+    //init the input matrix
+    for(int b = 0; b < batch_size; b++)
+    {
+        for(int i = 0; i < input_row_size; i++)
+        {
+            for(int j = 0; j < input_col_size; j++)
+            {
+                input_matrix_real[b * input_row_size * input_leading_dim_size + i * input_leading_dim_size + j] =
+                static_cast<T>(b * input_row_size * input_col_size + i * input_col_size +j);
+                input_matrix_imag[b * input_row_size * input_leading_dim_size + i * input_leading_dim_size + j] =
+                static_cast<T>(b * input_row_size * input_col_size + i * input_col_size +j);
+            }
+        }
+    }
+    
+    complex_planar_to_interleaved_transpose_test<T>(input_row_size, input_col_size, input_leading_dim_size, output_leading_dim_size, batch_size, input_matrix_real.data(), input_matrix_imag.data(), output_matrix.data());
+    transpose_complex_planar_to_complex_interleaved_reference<T>(input_row_size, input_col_size, input_leading_dim_size, output_leading_dim_size, batch_size, input_matrix_real.data(), input_matrix_imag.data(), reference_output_matrix.data());
+    
+    EXPECT_EQ(reference_output_matrix, output_matrix);
 }
 
 typedef struct TestParams{
@@ -232,7 +253,7 @@ TEST_P(transpose_test, outplace_transpose_single_complex_planar_to_planar)
     try{ normal_2d_out_place_complex_planar_to_complex_planar<float>(params.row_size, params.column_size, params.column_size, params.row_size, params.batch_size); }
     catch(const std::exception &err) { handle_exception(err); }
 }
-
+// complex planar to complex planar double tests
 TEST_P(transpose_test, outplace_transpose_double_complex_planar_to_planar)
 {
     TestParams params;
@@ -240,6 +261,24 @@ TEST_P(transpose_test, outplace_transpose_double_complex_planar_to_planar)
     try{ normal_2d_out_place_complex_planar_to_complex_planar<double>(params.row_size, params.column_size, params.column_size, params.row_size, params.batch_size); }
     catch(const std::exception &err) { handle_exception(err); }
 }
+
+//complex planar to complex interleaved single tests
+TEST_P(transpose_test, outplace_transpose_single_complex_planar_to_interleaved)
+{
+    TestParams params;
+    getParams(&params);
+    try{ normal_2d_out_place_complex_planar_to_complex_interleaved<float>(params.row_size, params.column_size, params.column_size, params.row_size, params.batch_size); }
+    catch(const std::exception &err) { handle_exception(err); }
+}
+//complex planar to complex interleaved double tests
+TEST_P(transpose_test, outplace_transpose_double_complex_planar_to_interleaved)
+{
+    TestParams params;
+    getParams(&params);
+    try{ normal_2d_out_place_complex_planar_to_complex_interleaved<double>(params.row_size, params.column_size, params.column_size, params.row_size, params.batch_size); }
+    catch(const std::exception &err) { handle_exception(err); }
+}
+
 
 //add some special cases if needed
 /*

@@ -319,6 +319,21 @@ rocfft_transpose_status rocfft_transpose_outplace_complex_planar_to_complex_inte
             else
                 return rocfft_transpose_status_not_implemented;
         }
+        else if(plan->precision == rocfft_transpose_precision_double)
+        {
+            if(input_row_size % (block_size_16*micro_tile_size_2) == 0 && input_col_size % (block_size_16*micro_tile_size_2) == 0)
+            {
+                hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace_complex_planar_to_complex_interleaved<double,double2,micro_tile_size_2,micro_tile_size_2,block_size_16,block_size_16>), dim3(input_col_size/micro_tile_size_2/block_size_16 * batch_size, input_row_size/micro_tile_size_2/block_size_16), dim3(block_size_16, block_size_16, 1), 0, 0, (double*)in_buffer_real, (double*)in_buffer_imag, (double2*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
+            }
+            else if(input_row_size % (block_size_1*micro_tile_size_1) == 0 && input_col_size % (block_size_1*micro_tile_size_1) == 0)
+            {
+                // the kernel should be able to work on any size with no guarantee of performance
+                hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace_complex_planar_to_complex_interleaved<double,double2,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (double*)in_buffer_real, (double*)in_buffer_imag, (double2*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
+            }
+            else
+                return rocfft_transpose_status_not_implemented;
+
+        }
         else
             return rocfft_transpose_status_not_implemented;
     }
