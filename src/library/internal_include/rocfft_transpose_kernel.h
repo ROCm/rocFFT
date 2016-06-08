@@ -50,6 +50,6 @@ __global__ void transpose_kernel_outplace_complex_interleaved_to_complex_planar(
 #include "rocfft_transpose_kernel.cu"
 #include "rocfft_transpose_kernel_check_boundary.cu"
 #include "rocfft_transpose_complex_planar_kernel.cu"
-#include "rocfft_transpose_complex_planar_to_interleavd_kernel.cu"
+#include "rocfft_transpose_complex_planar_to_interleaved_kernel.cu"
 #include "rocfft_transpose_complex_interleaved_to_planar_kernel.cu"
 #endif
