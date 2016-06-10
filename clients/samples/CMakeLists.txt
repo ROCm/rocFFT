@@ -22,11 +22,14 @@ endif()
 
 # Check if cmake supports the new VERSION tag for project() commands
 # rocfft becomes the name of the project with a particular version
+
+# In order for CMAKE_LIBRARY_ARCHITECTURE to be set, we have to also build as a 'C' project
+
 if( POLICY CMP0048 )
 	cmake_policy( SET CMP0048 NEW )
 	project( rocfft-samples VERSION 0.0.0.1 LANGUAGES C CXX )
 else( )
-	project( rocfft-samples CXX )
+	project( rocfft-samples C CXX )
 	# Define a version for the code
 	if( NOT DEFINED rocfft_VERSION_MAJOR )
 		set( rocfft-samples_VERSION_MAJOR 0 )
@@ -86,11 +89,13 @@ endif( )
 # This option only works for make/nmake and the ninja generators, but no reason it shouldn't be on all the time
 # This tells cmake to create a compile_commands.json file that can be used with clang tooling or vim
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
+# message( STATUS "<<=====>> CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+# message( STATUS "<<=====>> CMAKE_LIBRARY_ARCHITECTURE: ${CMAKE_LIBRARY_ARCHITECTURE}" )
 
 find_package( FFTW 3.0 REQUIRED COMPONENTS FLOAT )
 find_package( rocfft REQUIRED CONFIG )
 
 # Build into subdirectories
-#add_subdirectory( fixed-16 )
+add_subdirectory( fixed-16 )
 add_subdirectory( transpose_outplace_1024 )
 add_subdirectory( transpose_outplace_complex )

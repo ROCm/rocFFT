@@ -23,10 +23,10 @@ function( cuda_rename_source source_list_of_files return_list_of_files )
 
   # This loop copies each file in source_list_of_files to CMAKE_CURRENT_BINARY_DIR
   # Then it replaces .cpp extentions with .cu
-  foreach( file ${${source_list_of_files}} )
-    configure_file( "${file}" "${file}" COPYONLY )
-    string(REGEX REPLACE "\\.cpp$" ".cu" file ${file} )
-    list( APPEND cuda_file_list ${file} )
+  foreach( cpp_file ${${source_list_of_files}} )
+    string(REGEX REPLACE "\\.cpp$" ".cu" cu_file ${cpp_file} )
+    configure_file( "${cpp_file}" "${cu_file}" COPYONLY )
+    list( APPEND cuda_file_list ${cu_file} )
   endforeach( )
 
   # This prepends the CMAKE_CURRENT_BINARY_DIR path to the list of generated files
@@ -49,20 +49,26 @@ set( rocfft_source
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 
+if( ${BUILD_SHARED_LIBS} )
+  message( STATUS "Library Type: SHARED" )
+else( )
+  message( STATUS "Library Type: STATIC" )
+endif( )
+
 set(internal_include_dirs ${CMAKE_CURRENT_SOURCE_DIR}/internal_include)
 set(internal_include_src ${internal_include_dirs}/rocfft_transpose_kernel.h)
 
-message("BUILD_LIBRARY_TYPE = ${BUILD_LIBRARY_TYPE}")
-
 if(PLATFORM_NAME STREQUAL "AMD")
-  add_library( rocfft ${BUILD_LIBRARY_TYPE}
+  add_library( rocfft
     ${rocfft_source}
     ${relative_rocfft_headers_public}
     ${internal_include_src}
   )
+  set_target_properties( rocfft PROPERTIES OUTPUT_NAME "rocfft-hcc" )
 elseif(PLATFORM_NAME STREQUAL "NVIDIA")
+  message("CUDA_root = ${CUDA_TOOLKIT_ROOT_DIR}")
   cuda_rename_source( rocfft_source rocfft_source )
-  #message("rocfft_source_cuda = ${rocfft_source}")
+  #message("rocfft_source = ${rocfft_source}")
 
   set(CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
   set(hip_include_dir ${HIP_ROOT}/include)
@@ -72,13 +78,12 @@ elseif(PLATFORM_NAME STREQUAL "NVIDIA")
                            ${CMAKE_SOURCE_DIR}/include
                            ${internal_include_dirs}
                           )
-  CUDA_ADD_LIBRARY( rocfft ${BUILD_LIBRARY_TYPE}
+  CUDA_ADD_LIBRARY( rocfft
     ${rocfft_source}
     ${relative_rocfft_headers_public}
     ${internal_include_src}
   )
-
-  message("CUDA_root = ${CUDA_TOOLKIT_ROOT_DIR}")
+  set_target_properties( rocfft PROPERTIES OUTPUT_NAME "rocfft-cuda" )
 endif( )
 
 # Try to test for specific compiler features if cmake version is recent enough
@@ -104,7 +109,7 @@ set_target_properties( rocfft PROPERTIES DEBUG_POSTFIX "-d" )
 set_target_properties( rocfft PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
 
 # Following Boost conventions of prefixing 'lib' on static built libraries, across all platforms
-if( ${BUILD_LIBRARY_TYPE} STREQUAL "STATIC" )
+if( NOT ${BUILD_SHARED_LIBS} )
   set_target_properties( rocfft PROPERTIES PREFIX "lib" )
 endif( )
 

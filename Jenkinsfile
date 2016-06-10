@@ -8,7 +8,7 @@ node('rocm') {
     }
     dir("${build_dir}") {
       stage 'Configure'
-        sh "cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_LIBRARY=ON ${scm_dir}"
+        sh "cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_LIBRARY=ON -DBUILD_CLIENTS=ON -DBUILD_CLIENTS_DEPENDENCY_BOOST=ON -DBUILD_CLIENTS_DEPENDENCY_GTEST=ON -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON ${scm_dir}"
       stage 'Build'
         sh 'make -j 8'
       stage 'Package'

@@ -16,23 +16,30 @@ set( HOST_TOOLCHAIN_FILE "${PROJECT_SOURCE_DIR}/cmake/${HOST_TOOLCHAIN_NAME}-too
 
 set( hip_cmake_args -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>/package -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${HOST_TOOLCHAIN_FILE} )
 
+if( ${BUILD_SHARED_LIBS} )
+  message( STATUS "Compiling HIP as SHARED library")
+  # list( APPEND hip_cmake_args -DHIP_USE_SHARED_LIBRARY=1 )
+  list( APPEND hip_cmake_args -DCMAKE_CXX_FLAGS=-fPIC )
+endif()
+
 # Master branch has a new structure that combines googletest with googlemock
 if( PLATFORM_NAME STREQUAL "AMD" )
   ExternalProject_Add(
     HIP
     PREFIX ${CMAKE_BINARY_DIR}/extern/hip
-    DOWNLOAD_COMMAND git clone --depth 1 --branch ${hip_git_tag} ${hip_git_repository}
+    GIT_REPOSITORY ${hip_git_repository}
+    GIT_TAG ${hip_git_tag}
     CMAKE_ARGS ${hip_cmake_args}
-    LOG_BUILD 1
-    LOG_INSTALL 1
+    # LOG_BUILD 1
+    # LOG_INSTALL 1
   )
 elseif(PLATFORM_NAME STREQUAL "NVIDIA")
   ExternalProject_Add(
     HIP
     PREFIX ${CMAKE_BINARY_DIR}/extern/hip
-    DOWNLOAD_COMMAND git clone --depth 1 --branch ${hip_git_tag} ${hip_git_repository}
+    GIT_REPOSITORY ${hip_git_repository}
+    GIT_TAG ${hip_git_tag}
     CMAKE_ARGS ${hip_cmake_args}
-    CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
     INSTALL_COMMAND ""
     LOG_BUILD 1

@@ -21,11 +21,18 @@ if( NOT CMAKE_CONFIGURATION_TYPES )
   set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
 
+if( DEFINED HOST_TOOLCHAIN_FILE )
+endif( )
+
+if( DEFINED DEVICE_TOOLCHAIN_FILE )
+	set( CMAKE_TOOLCHAIN_FILE "${DEVICE_TOOLCHAIN_FILE}" )
+endif( )
+
 # Check if cmake supports the new VERSION tag for project() commands
 # rocfft becomes the name of the project with a particular version
 if( POLICY CMP0048 )
 	cmake_policy( SET CMP0048 NEW )
-	project( rocfft VERSION 0.0.0.2 LANGUAGES CXX C )
+	project( rocfft VERSION 0.0.2.0 LANGUAGES CXX C )
 else( )
 	project( rocfft CXX C )
 	# Define a version for the code
@@ -38,11 +45,11 @@ else( )
 	endif( )
 
 	if( NOT DEFINED rocfft_VERSION_PATCH )
-		set( rocfft_VERSION_PATCH 0 )
+		set( rocfft_VERSION_PATCH 2 )
 	endif( )
 
 	if( NOT DEFINED rocfft_VERSION_TWEAK )
-		set( rocfft_VERSION_TWEAK 2 )
+		set( rocfft_VERSION_TWEAK 0 )
 	endif( )
 
 	set( rocfft_VERSION "${rocfft_VERSION_MAJOR}.${rocfft_VERSION_MINOR}.${rocfft_VERSION_PATCH}.${rocfft_VERSION_TWEAK}")

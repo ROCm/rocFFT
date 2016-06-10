@@ -1,4 +1,5 @@
 # Trivial toolchain file to help project pick up appropriate compilers
 if( PLATFORM_NAME STREQUAL "AMD")
-    set( CMAKE_CXX_COMPILER @HIP_ROOT@/bin/hipcc )
+  set( CMAKE_C_COMPILER @HOST_TOOLCHAIN_NAME@ )
+  set( CMAKE_CXX_COMPILER @HIP_ROOT@/bin/hipcc )
 endif( )

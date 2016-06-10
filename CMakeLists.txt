@@ -22,6 +22,7 @@ project( rocfft-superbuild NONE )
 # Everything is initially off, so that cache is not initialized until user elects to build
 option( BUILD_LIBRARY "Build rocFFT library" OFF )
 option( BUILD_CLIENTS "Build rocFFT clients" OFF )
+option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" OFF )
 
 # Determine whether to build 64-bit (default) or 32-bit
 if( MSVC_IDE )
@@ -39,10 +40,7 @@ set_property( CACHE DEVICE_TOOLCHAIN_NAME PROPERTY STRINGS hcc hipcc )
 set( PLATFORM_NAME "AMD" CACHE STRING "Device platform: (AMD NVIDIA)")
 set_property( CACHE PLATFORM_NAME PROPERTY STRINGS AMD NVIDIA)
 
-MESSAGE(STATUS "PLATFORM NAME is set to be ${PLATFORM_NAME}")
-
-set( BUILD_LIBRARY_TYPE "STATIC" CACHE STRING "Build the rocfft library as SHARED or STATIC build types" )
-set_property( CACHE BUILD_LIBRARY_TYPE PROPERTY STRINGS SHARED STATIC )
+message( STATUS "PLATFORM NAME is set to be ${PLATFORM_NAME}")
 
 # set( rocfft_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} )
 set( rocfft_INSTALL_DIR "${PROJECT_BINARY_DIR}/rocfft-package" )
@@ -91,14 +89,16 @@ if( BUILD_LIBRARY )
 
   set( LIBRARY_CMAKE_ARGS
     ${BASE_CMAKE_ARGS}
-    -DCMAKE_TOOLCHAIN_FILE=${DEVICE_TOOLCHAIN_FILE}
+    -DHOST_TOOLCHAIN_FILE=${HOST_TOOLCHAIN_FILE}
+    -DDEVICE_TOOLCHAIN_FILE=${DEVICE_TOOLCHAIN_FILE}
     -DBUILD_LIBRARY_UNICODE=${BUILD_LIBRARY_UNICODE}
     -DPLATFORM_NAME=${PLATFORM_NAME}
     -DHIP_ROOT=${HIP_ROOT}
-    -DBUILD_LIBRARY_TYPE=${BUILD_LIBRARY_TYPE})
+    -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS})
 
   # Build the library as an external project
   ExternalProject_Add( rocfft
+    DEPENDS HIP
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/src
     BINARY_DIR rocfft-build
     INSTALL_DIR ${rocfft_INSTALL_DIR}
@@ -116,14 +116,14 @@ if( BUILD_CLIENTS )
     ${BASE_CMAKE_ARGS}
     -DBUILD_CLIENTS_DEPENDENCY_BOOST=${BUILD_CLIENTS_DEPENDENCY_BOOST}
     -DBUILD_CLIENTS_DEPENDENCY_GTEST=${BUILD_CLIENTS_DEPENDENCY_GTEST}
-    -DBUILD_CLIENTS_DEPENDENCY_LAPACK=${BUILD_CLIENTS_DEPENDENCY_LAPACK}
+    -DBUILD_CLIENTS_DEPENDENCY_FFTW=${BUILD_CLIENTS_DEPENDENCY_FFTW}
     -DBUILD_CLIENTS_SAMPLES=${BUILD_CLIENTS_SAMPLES}
     -DBUILD_CLIENTS_BENCHMARKS=${BUILD_CLIENTS_BENCHMARKS}
     -DBUILD_CLIENTS_TESTS=${BUILD_CLIENTS_TESTS}
     -DCMAKE_TOOLCHAIN_FILE=${PROJECT_SOURCE_DIR}/cmake/${HOST_TOOLCHAIN_NAME}-toolchain.cmake
     -DDEVICE_TOOLCHAIN_FILE=${DEVICE_TOOLCHAIN_FILE}
-                -DPLATFORM_NAME=${PLATFORM_NAME}
-                -DHIP_ROOT=${HIP_ROOT}
+    -DPLATFORM_NAME=${PLATFORM_NAME}
+    -DHIP_ROOT=${HIP_ROOT}
     )
 
     if( BUILD_LIBRARY )
@@ -134,6 +134,7 @@ if( BUILD_CLIENTS )
   # Clients are set up as an external project to take advantage of specifying toolchain files.
   # We want cmake to go through it's usual discovery process
   ExternalProject_Add( rocfft-clients
+    DEPENDS HIP rocfft
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/clients
     BINARY_DIR rocfft-clients-build
     INSTALL_DIR rocfft-clients-package

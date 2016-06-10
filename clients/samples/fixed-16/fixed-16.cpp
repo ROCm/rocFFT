@@ -32,7 +32,7 @@ int main()
 	}
 
 
-	fftwf_execute(p); 
+	fftwf_execute(p);
 
 	for (size_t i = 0; i < N; i++)
 	{
@@ -51,13 +51,9 @@ int main()
 	// Create HIP device object.
 	float2 *x;
 	hipMalloc(&x, Nbytes);
-	
+
 	//  Copy data to device
 	hipMemcpy(x, &cx[0], Nbytes, hipMemcpyHostToDevice);
-
-	// Create fft buffer
-	rocfft_buffer buffer = NULL;
-	rocfft_buffer_create_with_ptr(&buffer, x);
 
 	// Create plan
 	rocfft_plan plan = NULL;
@@ -65,7 +61,7 @@ int main()
 	rocfft_plan_create(&plan, rocfft_transform_type_complex_forward, rocfft_precision_single, 1, &length, 1, NULL);
 
 	// Execute plan
-	rocfft_execute(plan, &buffer, NULL, NULL);
+	rocfft_execute(plan, (void**) &x, NULL, NULL);
 
 	// Destroy plan
 	rocfft_plan_destroy(plan);
@@ -78,14 +74,4 @@ int main()
 	{
 		std::cout << y[i].x << ", " << y[i].y << std::endl;
 	}
-
-	rocfft_buffer_destroy(buffer);
 }
-
-
-
-
-
-
-
-
