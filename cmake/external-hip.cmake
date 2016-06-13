@@ -30,8 +30,8 @@ if( PLATFORM_NAME STREQUAL "AMD" )
     GIT_REPOSITORY ${hip_git_repository}
     GIT_TAG ${hip_git_tag}
     CMAKE_ARGS ${hip_cmake_args}
-    # LOG_BUILD 1
-    # LOG_INSTALL 1
+    LOG_BUILD 1
+    LOG_INSTALL 1
   )
 elseif(PLATFORM_NAME STREQUAL "NVIDIA")
   ExternalProject_Add(
