@@ -7,7 +7,7 @@ cmake_minimum_required( VERSION 2.8.12 )
 
 # On windows, it's convenient to change the default install prefix such that it does NOT point to 'program files'
 if( WIN32 AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT )
-	set( CMAKE_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/rocfft-package" CACHE PATH "Install path prefix, prepended onto install directories" FORCE )
+  set( CMAKE_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/rocfft-package" CACHE PATH "Install path prefix, prepended onto install directories" FORCE )
 endif( )
 
 # This has to be initialized before the project() command appears
@@ -22,12 +22,13 @@ project( rocfft-superbuild NONE )
 # Everything is initially off, so that cache is not initialized until user elects to build
 option( BUILD_LIBRARY "Build rocFFT library" OFF )
 option( BUILD_CLIENTS "Build rocFFT clients" OFF )
+option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" OFF )
 
 # Determine whether to build 64-bit (default) or 32-bit
 if( MSVC_IDE )
-	set( BUILD_64 ${CMAKE_CL_64} )
+  set( BUILD_64 ${CMAKE_CL_64} )
 else()
-	option( BUILD_64 "Build a 64-bit product" ON )
+  option( BUILD_64 "Build a 64-bit product" ON )
 endif()
 
 set( HOST_TOOLCHAIN_NAME "clang" CACHE STRING "Compiler toolchain: (clang gcc)" )
@@ -39,10 +40,7 @@ set_property( CACHE DEVICE_TOOLCHAIN_NAME PROPERTY STRINGS hcc hipcc )
 set( PLATFORM_NAME "AMD" CACHE STRING "Device platform: (AMD NVIDIA)")
 set_property( CACHE PLATFORM_NAME PROPERTY STRINGS AMD NVIDIA)
 
-MESSAGE(STATUS "PLATFORM NAME is set to be ${PLATFORM_NAME}")
-
-set( BUILD_LIBRARY_TYPE "STATIC" CACHE STRING "Build the rocfft library as SHARED or STATIC build types" )
-set_property( CACHE BUILD_LIBRARY_TYPE PROPERTY STRINGS SHARED STATIC )
+message( STATUS "PLATFORM NAME is set to be ${PLATFORM_NAME}")
 
 # set( rocfft_INSTALL_DIR ${CMAKE_INSTALL_PREFIX} )
 set( rocfft_INSTALL_DIR "${PROJECT_BINARY_DIR}/rocfft-package" )
@@ -65,40 +63,42 @@ set( DEVICE_TOOLCHAIN_FILE "" )
 # If our toolchain is using hip, we need to download hip and generate a toolchain file so we can find it
 # since the tools are not in the standard system path
 if( DEVICE_TOOLCHAIN_NAME STREQUAL "hipcc" )
-	include( cmake/external-hip.cmake )
+  include( cmake/external-hip.cmake )
 
-	# configure toolchain file to find the hip compiler with the hip we just downloaded
-	configure_file( "${PROJECT_SOURCE_DIR}/cmake/${DEVICE_TOOLCHAIN_NAME}-toolchain.cmake.in"
-			"${PROJECT_BINARY_DIR}/cmake/${DEVICE_TOOLCHAIN_NAME}-toolchain.cmake" )
+  # configure toolchain file to find the hip compiler with the hip we just downloaded
+  configure_file( "${PROJECT_SOURCE_DIR}/cmake/${DEVICE_TOOLCHAIN_NAME}-toolchain.cmake.in"
+      "${PROJECT_BINARY_DIR}/cmake/${DEVICE_TOOLCHAIN_NAME}-toolchain.cmake" )
 
-	set( DEVICE_TOOLCHAIN_FILE "${PROJECT_BINARY_DIR}/cmake/${DEVICE_TOOLCHAIN_NAME}-toolchain.cmake" )
+  set( DEVICE_TOOLCHAIN_FILE "${PROJECT_BINARY_DIR}/cmake/${DEVICE_TOOLCHAIN_NAME}-toolchain.cmake" )
 else( )
-	set( DEVICE_TOOLCHAIN_FILE "${PROJECT_SOURCE_DIR}/cmake/${DEVICE_TOOLCHAIN_NAME}-toolchain.cmake" )
+  set( DEVICE_TOOLCHAIN_FILE "${PROJECT_SOURCE_DIR}/cmake/${DEVICE_TOOLCHAIN_NAME}-toolchain.cmake" )
 endif( )
 
 # Default arguments that get passed down into all external projects
 set( BASE_CMAKE_ARGS
-	-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-	-DBUILD_64=${BUILD_64} )
+  -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+  -DBUILD_64=${BUILD_64} )
 
 # CMAKE_BUILD_TYPE only applies to single configuration build systems
 if( NOT CMAKE_CONFIGURATION_TYPES )
-	list( APPEND BASE_CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} )
+  list( APPEND BASE_CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} )
 endif( )
 #message("hip_root = ${HIP_ROOT}")
 if( BUILD_LIBRARY )
   include( src/cmake/build-options.cmake )
 
-	set( LIBRARY_CMAKE_ARGS
-	 ${BASE_CMAKE_ARGS}
-	-DCMAKE_TOOLCHAIN_FILE=${DEVICE_TOOLCHAIN_FILE}
-	-DBUILD_LIBRARY_UNICODE=${BUILD_LIBRARY_UNICODE}
-        -DPLATFORM_NAME=${PLATFORM_NAME}
-        -DHIP_ROOT=${HIP_ROOT} 
-        -DBUILD_LIBRARY_TYPE=${BUILD_LIBRARY_TYPE})
+  set( LIBRARY_CMAKE_ARGS
+    ${BASE_CMAKE_ARGS}
+    -DHOST_TOOLCHAIN_FILE=${HOST_TOOLCHAIN_FILE}
+    -DDEVICE_TOOLCHAIN_FILE=${DEVICE_TOOLCHAIN_FILE}
+    -DBUILD_LIBRARY_UNICODE=${BUILD_LIBRARY_UNICODE}
+    -DPLATFORM_NAME=${PLATFORM_NAME}
+    -DHIP_ROOT=${HIP_ROOT}
+    -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS})
 
   # Build the library as an external project
   ExternalProject_Add( rocfft
+    DEPENDS HIP
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/src
     BINARY_DIR rocfft-build
     INSTALL_DIR ${rocfft_INSTALL_DIR}
@@ -109,35 +109,36 @@ endif()
 
 # Build clients of the library
 if( BUILD_CLIENTS )
-	include( clients/cmake/build-options.cmake )
+  include( clients/cmake/build-options.cmake )
 
-	# Default arguments that get passed down into all external projects
-	set( CLIENTS_CMAKE_ARGS
-	  ${BASE_CMAKE_ARGS}
-		-DBUILD_CLIENTS_DEPENDENCY_BOOST=${BUILD_CLIENTS_DEPENDENCY_BOOST}
-		-DBUILD_CLIENTS_DEPENDENCY_GTEST=${BUILD_CLIENTS_DEPENDENCY_GTEST}
-		-DBUILD_CLIENTS_DEPENDENCY_LAPACK=${BUILD_CLIENTS_DEPENDENCY_LAPACK}
-		-DBUILD_CLIENTS_SAMPLES=${BUILD_CLIENTS_SAMPLES}
-		-DBUILD_CLIENTS_BENCHMARKS=${BUILD_CLIENTS_BENCHMARKS}
-		-DBUILD_CLIENTS_TESTS=${BUILD_CLIENTS_TESTS}
-		-DCMAKE_TOOLCHAIN_FILE=${PROJECT_SOURCE_DIR}/cmake/${HOST_TOOLCHAIN_NAME}-toolchain.cmake
-		-DDEVICE_TOOLCHAIN_FILE=${DEVICE_TOOLCHAIN_FILE}
-                -DPLATFORM_NAME=${PLATFORM_NAME}
-                -DHIP_ROOT=${HIP_ROOT}
-	  )
+  # Default arguments that get passed down into all external projects
+  set( CLIENTS_CMAKE_ARGS
+    ${BASE_CMAKE_ARGS}
+    -DBUILD_CLIENTS_DEPENDENCY_BOOST=${BUILD_CLIENTS_DEPENDENCY_BOOST}
+    -DBUILD_CLIENTS_DEPENDENCY_GTEST=${BUILD_CLIENTS_DEPENDENCY_GTEST}
+    -DBUILD_CLIENTS_DEPENDENCY_FFTW=${BUILD_CLIENTS_DEPENDENCY_FFTW}
+    -DBUILD_CLIENTS_SAMPLES=${BUILD_CLIENTS_SAMPLES}
+    -DBUILD_CLIENTS_BENCHMARKS=${BUILD_CLIENTS_BENCHMARKS}
+    -DBUILD_CLIENTS_TESTS=${BUILD_CLIENTS_TESTS}
+    -DCMAKE_TOOLCHAIN_FILE=${PROJECT_SOURCE_DIR}/cmake/${HOST_TOOLCHAIN_NAME}-toolchain.cmake
+    -DDEVICE_TOOLCHAIN_FILE=${DEVICE_TOOLCHAIN_FILE}
+    -DPLATFORM_NAME=${PLATFORM_NAME}
+    -DHIP_ROOT=${HIP_ROOT}
+    )
 
-		if( BUILD_LIBRARY )
-			ExternalProject_Get_Property( rocfft install_dir )
-			list( APPEND CLIENTS_CMAKE_ARGS -DCMAKE_PREFIX_PATH=${install_dir} )
-		endif( )
+    if( BUILD_LIBRARY )
+      ExternalProject_Get_Property( rocfft install_dir )
+      list( APPEND CLIENTS_CMAKE_ARGS -DCMAKE_PREFIX_PATH=${install_dir} )
+    endif( )
 
-	# Clients are set up as an external project to take advantage of specifying toolchain files.
-	# We want cmake to go through it's usual discovery process
+  # Clients are set up as an external project to take advantage of specifying toolchain files.
+  # We want cmake to go through it's usual discovery process
   ExternalProject_Add( rocfft-clients
+    DEPENDS HIP rocfft
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/clients
     BINARY_DIR rocfft-clients-build
     INSTALL_DIR rocfft-clients-package
     CMAKE_ARGS ${CLIENTS_CMAKE_ARGS}
-		INSTALL_COMMAND ""
+    INSTALL_COMMAND ""
   )
 endif( )

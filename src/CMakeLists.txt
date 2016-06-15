@@ -17,15 +17,22 @@ endif( )
 
 # This has to be initialized before the project() command appears
 # Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
-if( NOT MSVC_IDE AND NOT CMAKE_BUILD_TYPE )
+if( NOT CMAKE_CONFIGURATION_TYPES )
   set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
+
+if( DEFINED HOST_TOOLCHAIN_FILE )
+endif( )
+
+if( DEFINED DEVICE_TOOLCHAIN_FILE )
+	set( CMAKE_TOOLCHAIN_FILE "${DEVICE_TOOLCHAIN_FILE}" )
+endif( )
 
 # Check if cmake supports the new VERSION tag for project() commands
 # rocfft becomes the name of the project with a particular version
 if( POLICY CMP0048 )
 	cmake_policy( SET CMP0048 NEW )
-	project( rocfft VERSION 0.0.0.1 LANGUAGES CXX C )
+	project( rocfft VERSION 0.0.2.0 LANGUAGES CXX C )
 else( )
 	project( rocfft CXX C )
 	# Define a version for the code
@@ -38,11 +45,11 @@ else( )
 	endif( )
 
 	if( NOT DEFINED rocfft_VERSION_PATCH )
-		set( rocfft_VERSION_PATCH 0 )
+		set( rocfft_VERSION_PATCH 2 )
 	endif( )
 
 	if( NOT DEFINED rocfft_VERSION_TWEAK )
-		set( rocfft_VERSION_TWEAK 1 )
+		set( rocfft_VERSION_TWEAK 0 )
 	endif( )
 
 	set( rocfft_VERSION "${rocfft_VERSION_MAJOR}.${rocfft_VERSION_MINOR}.${rocfft_VERSION_PATCH}.${rocfft_VERSION_TWEAK}")
@@ -129,9 +136,9 @@ install( FILES ${rocfft_headers_public}
 
 # Depending on whether we are building for 64 or 32 bit, construct common paths and names that subdirectories can reference for their use
 if( BUILD_64 )
-	set( CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${rocfft_VERSION}-${CMAKE_HOST_SYSTEM_NAME}-x64" )
+	set( CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}-amd64" )
 else( )
-	set( CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${rocfft_VERSION}-${CMAKE_HOST_SYSTEM_NAME}-x32" )
+	set( CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}-i686" )
 endif( )
 
 # The following code is setting variables to control the behavior of CPack to generate our
@@ -140,17 +147,22 @@ if( WIN32 )
 	set( CPACK_GENERATOR "ZIP" )
 else( )
 	set( CPACK_SOURCE_GENERATOR "TGZ" )
-	set( CPACK_GENERATOR "TGZ" )
+
+	set( CPACK_GENERATOR "DEB" )
+	set( CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64" )
+	set( CPACK_DEBIAN_COMPRESSION_TYPE "xz" )
+	# set( CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON )
 endif( )
 
-set( CPACK_SOURCE_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${rocfft_VERSION}-${CMAKE_HOST_SYSTEM_NAME}-Source")
+set( CPACK_PACKAGE_CONTACT "Kent Knox <kent.knox@amd.com>" )
+set( CPACK_PACKAGE_DESCRIPTION_SUMMARY "Radeon Open Compute FFT library")
 set( CPACK_PACKAGE_VERSION_MAJOR ${rocfft_VERSION_MAJOR} )
 set( CPACK_PACKAGE_VERSION_MINOR ${rocfft_VERSION_MINOR} )
 set( CPACK_PACKAGE_VERSION_PATCH ${rocfft_VERSION_PATCH} )
 set( CPACK_PACKAGE_VERSION_TWEAK ${rocfft_VERSION_TWEAK} )
-set( CPACK_PACKAGE_DESCRIPTION_SUMMARY "Radeon Open Compute BLAS library package")
+set( CPACK_PACKAGE_VERSION ${rocfft_VERSION} )
 set( CPACK_PACKAGE_VENDOR "AMD")
-set( CPACK_SOURCE_IGNORE_FILES "/\\\\.git/;/\\\\.hg/;/\\\\.svn/;" )
+set( CPACK_SOURCE_IGNORE_FILES "/\\\\.git/" )
 
 # Define all variables that influence CPack before including CPack, such as install targets
 include( CPack )

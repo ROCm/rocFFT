@@ -91,7 +91,7 @@ if( BUILD_CLIENTS_TESTS )
   	)
 
   ExternalProject_Add( tests
-    DEPENDS #googletest fftw
+    DEPENDS boost googletest
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/tests
     BINARY_DIR tests-build
     CMAKE_ARGS ${TESTS_CMAKE_ARGS}

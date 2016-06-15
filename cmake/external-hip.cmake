@@ -12,38 +12,45 @@ endif( )
 set( hip_git_repository "https://github.com/GPUOpen-ProfessionalCompute-Tools/HIP.git" CACHE STRING "URL to download hip from" )
 set( hip_git_tag "master" CACHE STRING "URL to download hip from" )
 
+set( HOST_TOOLCHAIN_FILE "${PROJECT_SOURCE_DIR}/cmake/${HOST_TOOLCHAIN_NAME}-toolchain.cmake" )
+
+set( hip_cmake_args -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>/package -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${HOST_TOOLCHAIN_FILE} )
+
+if( ${BUILD_SHARED_LIBS} )
+  message( STATUS "Compiling HIP as SHARED library")
+  # list( APPEND hip_cmake_args -DHIP_USE_SHARED_LIBRARY=1 )
+  list( APPEND hip_cmake_args -DCMAKE_CXX_FLAGS=-fPIC )
+endif()
 
 # Master branch has a new structure that combines googletest with googlemock
 if( PLATFORM_NAME STREQUAL "AMD" )
-    ExternalProject_Add(
-      hip
-      GIT_REPOSITORY ${hip_git_repository}
-      GIT_TAG ${hip_git_tag}
-      PREFIX ${CMAKE_BINARY_DIR}/extern/hip
-      CONFIGURE_COMMAND ""
-      BUILD_COMMAND HIPCC_FLAGS=-fPIC make
-      BUILD_IN_SOURCE 1
-      INSTALL_COMMAND ""
-    )
+  ExternalProject_Add(
+    HIP
+    PREFIX ${CMAKE_BINARY_DIR}/extern/hip
+    GIT_REPOSITORY ${hip_git_repository}
+    GIT_TAG ${hip_git_tag}
+    CMAKE_ARGS ${hip_cmake_args}
+    LOG_BUILD 1
+    LOG_INSTALL 1
+  )
 elseif(PLATFORM_NAME STREQUAL "NVIDIA")
-    ExternalProject_Add(
-      hip
-      GIT_REPOSITORY ${hip_git_repository}
-      GIT_TAG ${hip_git_tag}
-      PREFIX ${CMAKE_BINARY_DIR}/extern/hip
-      CONFIGURE_COMMAND ""
-      BUILD_COMMAND ""
-      BUILD_IN_SOURCE 1
-      INSTALL_COMMAND ""
-    )
+  ExternalProject_Add(
+    HIP
+    PREFIX ${CMAKE_BINARY_DIR}/extern/hip
+    GIT_REPOSITORY ${hip_git_repository}
+    GIT_TAG ${hip_git_tag}
+    CMAKE_ARGS ${hip_cmake_args}
+    BUILD_COMMAND ""
+    INSTALL_COMMAND ""
+    LOG_BUILD 1
+    LOG_INSTALL 1
+  )
 else( )
     MESSAGE("PLEASE specify PLATFORM_NAME to either AMD or NVIDIA")
 endif( )
 
-ExternalProject_Get_Property( hip source_dir )
-
-set_property( TARGET hip PROPERTY FOLDER "extern")
-ExternalProject_Get_Property( hip source_dir )
+set_property( TARGET HIP PROPERTY FOLDER "extern")
+ExternalProject_Get_Property( HIP install_dir )
 
 # For use by the user of external-hip.cmake
-set( HIP_ROOT ${source_dir} )
+set( HIP_ROOT ${install_dir}/package )
