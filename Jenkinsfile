@@ -9,7 +9,7 @@ node('rocm') {
     }
     dir("${build_dir_debug}") {
       stage 'Configure Debug'
-        sh "cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_LIBRARY=ON -DBUILD_CLIENTS=ON -DBUILD_CLIENTS_DEPENDENCY_BOOST=ON -DBUILD_CLIENTS_DEPENDENCY_GTEST=ON -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON ${scm_dir}"
+        sh "cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_LIBRARY=ON -DBUILD_CLIENTS=ON -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBOOST_ROOT=~/lib/boost/clang ${scm_dir}"
       stage 'Build'
         sh 'make -j 8'
       stage 'Package Debian'
