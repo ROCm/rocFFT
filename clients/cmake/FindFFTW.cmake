@@ -1,3 +1,6 @@
+# ########################################################################
+# Copyright 2016 Advanced Micro Devices, Inc.
+# ########################################################################
 
 #if( FFTW_FIND_VERSION VERSION_LESS "3" )
 #    message( FFTW_FIND_VERION is ${FFTW_FIND_VERSION})

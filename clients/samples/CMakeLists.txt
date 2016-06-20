@@ -50,7 +50,7 @@ else( )
 	set( rocfft-samples_VERSION "${rocfft-samples_VERSION_MAJOR}.${rocfft-samples_VERSION_MINOR}.${rocfft-samples_VERSION_PATCH}.${rocfft-samples_VERSION_TWEAK}")
 endif( )
 
-message("sample PLATFORM_NAME = ${PLATFORM_NAME}")
+include ( build-bitness )
 
 # Modify the global find property to help us find libraries like Boost in the correct paths for 64-bit
 # Essentially, find_library calls will look for /lib64 instead of /lib; works for windows and linux
@@ -71,19 +71,6 @@ if( MSVC )
 	string( REGEX REPLACE "/STACK:[0-9]+" "" CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}" )
 	string( REGEX REPLACE "/STACK:[0-9]+" "" CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}" )
 	string( REGEX REPLACE "/STACK:[0-9]+" "" CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}" )
-
-elseif( CMAKE_COMPILER_IS_GNUCXX OR ( CMAKE_CXX_COMPILER_ID MATCHES "Clang" ) )
-	message( STATUS "Detected GNU or Clang compiler collection" )
-
-	if( BUILD_64 )
-		set( CMAKE_CXX_FLAGS "-m64 ${CMAKE_CXX_FLAGS}" )
-		set( CMAKE_C_FLAGS "-m64 ${CMAKE_C_FLAGS}" )
-	else( )
-		set( CMAKE_CXX_FLAGS "-m32 ${CMAKE_CXX_FLAGS}" )
-		set( CMAKE_C_FLAGS "-m32 ${CMAKE_C_FLAGS}" )
-	endif( )
-else( )
-	message( AUTHOR_WARNING "Compiler not recognized.  Using default flags." )
 endif( )
 
 # This option only works for make/nmake and the ninja generators, but no reason it shouldn't be on all the time
@@ -92,7 +79,7 @@ set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 # message( STATUS "<<=====>> CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
 # message( STATUS "<<=====>> CMAKE_LIBRARY_ARCHITECTURE: ${CMAKE_LIBRARY_ARCHITECTURE}" )
 
-find_package( FFTW 3.0 REQUIRED COMPONENTS FLOAT )
+find_package( FFTW 3.0 REQUIRED MODULE COMPONENTS FLOAT )
 find_package( rocfft REQUIRED CONFIG )
 
 # Build into subdirectories

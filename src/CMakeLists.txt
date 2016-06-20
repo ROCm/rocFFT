@@ -82,9 +82,6 @@ if( WIN32 AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT )
 	set( CMAKE_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/package" CACHE PATH "Install path prefix, prepended onto install directories" FORCE )
 endif( )
 
-include( cmake/build-options.cmake )
-include( GNUInstallDirs )
-
 # Set common compile and link options
 if( MSVC )
 	# Following options for nMake
@@ -94,20 +91,9 @@ if( MSVC )
 	string( REGEX REPLACE "/STACK:[0-9]+" "" CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}" )
 	string( REGEX REPLACE "/STACK:[0-9]+" "" CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}" )
 	string( REGEX REPLACE "/STACK:[0-9]+" "" CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}" )
-
-elseif( CMAKE_COMPILER_IS_GNUCXX OR ( CMAKE_CXX_COMPILER_ID MATCHES "Clang" ) )
-	message( STATUS "Detected GNU or Clang compiler collection" )
-
-	if( BUILD_64 )
-		set( CMAKE_CXX_FLAGS "-m64 ${CMAKE_CXX_FLAGS}" )
-		set( CMAKE_C_FLAGS "-m64 ${CMAKE_C_FLAGS}" )
-	else( )
-		set( CMAKE_CXX_FLAGS "-m32 ${CMAKE_CXX_FLAGS}" )
-		set( CMAKE_C_FLAGS "-m32 ${CMAKE_C_FLAGS}" )
-	endif( )
-else( )
-	message( AUTHOR_WARNING "Compiler not recognized.  Using default flags." )
 endif( )
+
+include ( build-bitness )
 
 # Print out compiler flags for viewing/debug
 message( STATUS "CMAKE_CXX_COMPILER flags: " ${CMAKE_CXX_FLAGS} )
@@ -115,6 +101,8 @@ message( STATUS "CMAKE_CXX_COMPILER debug flags: " ${CMAKE_CXX_FLAGS_DEBUG} )
 message( STATUS "CMAKE_CXX_COMPILER release flags: " ${CMAKE_CXX_FLAGS_RELEASE} )
 message( STATUS "CMAKE_CXX_COMPILER relwithdebinfo flags: " ${CMAKE_CXX_FLAGS_RELWITHDEBINFO} )
 message( STATUS "CMAKE_EXE_LINKER link flags: " ${CMAKE_EXE_LINKER_FLAGS} )
+
+include( GNUInstallDirs )
 
 # configure a header file to pass the CMake version settings to the source, and package the header files in the output archive
 configure_file( "${PROJECT_SOURCE_DIR}/include/rocfft-version.h.in" "${PROJECT_BINARY_DIR}/include/rocfft-version.h" )

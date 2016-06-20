@@ -15,22 +15,43 @@ project( rocfft-clients CXX C )
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
 include( build-options )
+include ( build-bitness )
 
-if( BUILD_CLIENTS_DEPENDENCY_BOOST )
+# This captures all of the dependencies cmake builds itself
+set( rocfft_clients_dependencies )
+
+# If the user does not explicitely specify BOOST_ROOT, build our
+# own on the fly
+if( NOT DEFINED BOOST_ROOT )
   include( external-boost )
+  list( APPEND rocfft_clients_dependencies boost )
 endif( )
 
-if( BUILD_CLIENTS_DEPENDENCY_GTEST )
+if( NOT DEFINED GTEST_ROOT )
   include( external-gtest )
+  list( APPEND rocfft_clients_dependencies googletest )
 endif( )
 
-if( BUILD_CLIENTS_DEPENDENCY_FFTW )
+if( NOT DEFINED FFTW_ROOT )
   include( external-fftw )
+  list( APPEND rocfft_clients_dependencies fftw )
 endif( )
+
+list( APPEND CMAKE_PREFIX_PATH ${HIP_ROOT} )
+
+# WARNING: do not surround CMAKE_PREFIX_PATH with quotes, it breaks
+# Replace all occurances of ; with ^^, which we elect to use a path seperator
+string(REGEX REPLACE ";" "^^" CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" )
+string(REGEX REPLACE ";" "^^" CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" )
+string(REGEX REPLACE ";" "^^" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}" )
+string(REGEX REPLACE ";" "^^" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}" )
 
 set( CLIENTS_CMAKE_ARGS
 	-DCMAKE_TOOLCHAIN_FILE=${DEVICE_TOOLCHAIN_FILE}
-	-DBUILD_64=${BUILD_64}
+  -DCMAKE_MODULE_PATH=${CMAKE_MODULE_PATH}
+  -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
+  -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
+  -DPLATFORM_NAME=${PLATFORM_NAME}
 	)
 
 if( NOT CMAKE_CONFIGURATION_TYPES )
@@ -41,16 +62,13 @@ if( BUILD_CLIENTS_SAMPLES OR BUILD_CLIENTS_BENCHMARKS OR BUILD_CLIENTS_TESTS )
   include( ExternalProject )
 endif( )
 
-# WARNING: do not surround CMAKE_PREFIX_PATH with quotes, it breaks CMAKE_PREFIX_PATH use
-# DO NOT: -DCMAKE_PREFIX_PATH:PATH="${CMAKE_PREFIX_PATH}"
 if( BUILD_CLIENTS_SAMPLES )
   set( SAMPLES_CMAKE_ARGS
         ${CLIENTS_CMAKE_ARGS}
-        -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}
-        -DCMAKE_MODULE_PATH:PATH=${CMAKE_MODULE_PATH}
-        -DPLATFORM_NAME=${PLATFORM_NAME}
-        -DHIP_ROOT=${HIP_ROOT}
+        -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}^^${FFTW_ROOT}
   	)
+
+  message( STATUS "<<===>> SAMPLES_CMAKE_ARGS: ${SAMPLES_CMAKE_ARGS}" )
 
   ExternalProject_Add( samples
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/samples
@@ -64,14 +82,11 @@ endif( )
 if( BUILD_CLIENTS_BENCHMARKS )
     set( BENCH_CMAKE_ARGS
           ${CLIENTS_CMAKE_ARGS}
-          -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}^^${BOOST_ROOT}
-          -DCMAKE_MODULE_PATH:PATH=${CMAKE_MODULE_PATH}
-          -DPLATFORM_NAME=${PLATFORM_NAME}
-          -DHIP_ROOT=${HIP_ROOT}
+          -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}^^${BOOST_ROOT}
       )
 
   ExternalProject_Add( benchmarks
-    DEPENDS boost
+    DEPENDS ${rocfft_clients_dependencies}
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/benchmarks
     BINARY_DIR benchmarks-build
     CMAKE_ARGS ${BENCH_CMAKE_ARGS}
@@ -83,15 +98,11 @@ endif( )
 if( BUILD_CLIENTS_TESTS )
   set( TESTS_CMAKE_ARGS
         ${CLIENTS_CMAKE_ARGS}
-        -DCMAKE_PREFIX_PATH:PATH=${CMAKE_PREFIX_PATH}^^${BOOST_ROOT}^^${GTEST_ROOT}^^${FFTW_ROOT}
-        -DCMAKE_MODULE_PATH:PATH=${CMAKE_MODULE_PATH}
-        -DPLATFORM_NAME=${PLATFORM_NAME}
-        -DHIP_ROOT=${HIP_ROOT}
-        -DGTEST_ROOT=${GTEST_ROOT}
+        -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}^^${BOOST_ROOT}^^${GTEST_ROOT}^^${FFTW_ROOT}
   	)
 
   ExternalProject_Add( tests
-    DEPENDS boost googletest
+    DEPENDS ${rocfft_clients_dependencies} googletest
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/tests
     BINARY_DIR tests-build
     CMAKE_ARGS ${TESTS_CMAKE_ARGS}
