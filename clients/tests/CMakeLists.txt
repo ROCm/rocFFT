@@ -91,7 +91,7 @@ find_package( FFTW 3.0 REQUIRED MODULE COMPONENTS FLOAT )
 find_package( rocfft REQUIRED CONFIG )
 
 if(PLATFORM_NAME STREQUAL "NVIDIA")
-    set(hip_include_dir ${HIP_ROOT}/include)
+    set(hip_include_dir ${HIP_SRC_ROOT}/src/HIP/include)
     add_definitions(-D__NVCC__)
     find_package(CUDA REQUIRED)
 endif( )

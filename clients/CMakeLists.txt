@@ -37,7 +37,7 @@ if( NOT DEFINED FFTW_ROOT )
   list( APPEND rocfft_clients_dependencies fftw )
 endif( )
 
-list( APPEND CMAKE_PREFIX_PATH ${HIP_ROOT} )
+list( APPEND CMAKE_PREFIX_PATH ${HIP_ROOT})
 
 # WARNING: do not surround CMAKE_PREFIX_PATH with quotes, it breaks
 # Replace all occurances of ; with ^^, which we elect to use a path seperator
@@ -66,6 +66,7 @@ if( BUILD_CLIENTS_SAMPLES )
   set( SAMPLES_CMAKE_ARGS
         ${CLIENTS_CMAKE_ARGS}
         -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}^^${FFTW_ROOT}
+        -DHIP_SRC_ROOT=${HIP_SRC_ROOT}
   	)
 
   message( STATUS "<<===>> SAMPLES_CMAKE_ARGS: ${SAMPLES_CMAKE_ARGS}" )
@@ -83,6 +84,7 @@ if( BUILD_CLIENTS_BENCHMARKS )
     set( BENCH_CMAKE_ARGS
           ${CLIENTS_CMAKE_ARGS}
           -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}^^${BOOST_ROOT}
+          -DHIP_SRC_ROOT=${HIP_SRC_ROOT}
       )
 
   ExternalProject_Add( benchmarks
@@ -99,6 +101,7 @@ if( BUILD_CLIENTS_TESTS )
   set( TESTS_CMAKE_ARGS
         ${CLIENTS_CMAKE_ARGS}
         -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}^^${BOOST_ROOT}^^${GTEST_ROOT}^^${FFTW_ROOT}
+        -DHIP_SRC_ROOT=${HIP_SRC_ROOT}
   	)
 
   ExternalProject_Add( tests

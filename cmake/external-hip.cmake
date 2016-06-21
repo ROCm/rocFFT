@@ -54,3 +54,4 @@ ExternalProject_Get_Property( HIP install_dir )
 
 # For use by the user of external-hip.cmake
 set( HIP_ROOT ${install_dir}/package )
+set( HIP_SRC_ROOT ${install_dir})

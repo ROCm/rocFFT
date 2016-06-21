@@ -68,10 +68,8 @@ if(PLATFORM_NAME STREQUAL "AMD")
 elseif(PLATFORM_NAME STREQUAL "NVIDIA")
   message("CUDA_root = ${CUDA_TOOLKIT_ROOT_DIR}")
   cuda_rename_source( rocfft_source rocfft_source )
-  #message("rocfft_source = ${rocfft_source}")
-
   set(CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
-  set(hip_include_dir ${HIP_ROOT}/include)
+  set(hip_include_dir ${HIP_SRC_ROOT}/src/HIP/include)
   set(extra_cuda_include_dir ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc)
   CUDA_INCLUDE_DIRECTORIES(${hip_include_dir}
                            ${extra_cuda_include_dir}
