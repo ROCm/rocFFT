@@ -235,7 +235,7 @@ int main(int argc, char ** argv)
 		radixp[0] = 4;
 		radixp[1] = 4;
 		radixp[2] = 4;
-		radixp[2] = 4;
+		radixp[3] = 4;
 
 		break;
 	case 128:	T = 3; WGS = 64; NT = 4;
