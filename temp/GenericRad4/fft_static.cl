@@ -4099,6 +4099,27 @@ __constant float2 twiddles[4096] = {
 };
 
 
+#define TWIDDLE_MUL_FWD(INDEX, REG) \
+	{ \
+		float2 W = twiddles[INDEX]; \
+		float TR, TI; \
+		TR = (W.x * REG.x) - (W.y * REG.y); \
+		TI = (W.y * REG.x) + (W.x * REG.y); \
+		REG.x = TR; \
+		REG.y = TI; \
+	}
+
+#define TWIDDLE_MUL_INV(INDEX, REG) \
+{ \
+	float2 W = twiddles[INDEX]; \
+	float TR, TI; \
+	TR =  (W.x * REG.x) + (W.y * REG.y); \
+	TI = -(W.y * REG.x) + (W.x * REG.y); \
+	REG.x = TR; \
+	REG.y = TI; \
+}
+
+
 __attribute__((always_inline)) void 
 Rad2(float2 *R0, float2 *R1)
 {
@@ -4324,25 +4345,11 @@ void fft_4(__global float2 *buffer, const uint count, const int dir)
 
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[1024 * (me%2)];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
+		TWIDDLE_MUL_FWD(1024 * (me%2), X1)
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[1024 * (me%2)];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;	
+		TWIDDLE_MUL_INV(1024 * (me%2), X1)
 	}
 	
 	Rad2(&X0, &X1);
@@ -4416,37 +4423,13 @@ void fft_8(__global float2 *buffer, const uint count, const int dir)
 
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[512 * ((2*me+0)%4)];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-		
-		W = twiddles[512 * ((2*me+1)%4)];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;		
+		TWIDDLE_MUL_FWD(512 * ((2*me+0)%4), X1)	
+		TWIDDLE_MUL_FWD(512 * ((2*me+1)%4), X3)	
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[512 * ((2*me+0)%4)];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;	
-		
-		W = twiddles[512 * ((2*me+1)%4)];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;			
+		TWIDDLE_MUL_INV(512 * ((2*me+0)%4), X1)	
+		TWIDDLE_MUL_INV(512 * ((2*me+1)%4), X3)			
 	}
 	
 	Rad2(&X0, &X1);
@@ -4522,49 +4505,15 @@ void fft_16(__global float2 *buffer, const uint count, const int dir)
 
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[256 * (me%4) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-		
-		W = twiddles[256 * (me%4) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;		
-		
-		W = twiddles[256 * (me%4) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;		
+		TWIDDLE_MUL_FWD(256 * (me%4) * 1, X1)		
+		TWIDDLE_MUL_FWD(256 * (me%4) * 2, X2)
+		TWIDDLE_MUL_FWD(256 * (me%4) * 3, X3)
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[256 * (me%4) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;	
-		
-		W = twiddles[256 * (me%4) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-		
-		W = twiddles[256 * (me%4) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;			
+		TWIDDLE_MUL_INV(256 * (me%4) * 1, X1)		
+		TWIDDLE_MUL_INV(256 * (me%4) * 2, X2)
+		TWIDDLE_MUL_INV(256 * (me%4) * 3, X3)	
 	}
 	
 	if(dir == -1)
@@ -4668,85 +4617,23 @@ void fft_32(__global float2 *buffer, const uint count, const int dir)
 	
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
+		TWIDDLE_MUL_FWD(128 * ((2*me + 0)%8) * 1, X1)
+		TWIDDLE_MUL_FWD(128 * ((2*me + 0)%8) * 2, X2)
+		TWIDDLE_MUL_FWD(128 * ((2*me + 0)%8) * 3, X3)
 		
-		W = twiddles[128 * ((2*me + 0)%8) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-
-		W = twiddles[128 * ((2*me + 0)%8) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[128 * ((2*me + 0)%8) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;				
-		
-		W = twiddles[128 * ((2*me + 1)%8) * 1];
-		TR = (W.x * X5.x) - (W.y * X5.y);
-		TI = (W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[128 * ((2*me + 1)%8) * 2];
-		TR = (W.x * X6.x) - (W.y * X6.y);
-		TI = (W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[128 * ((2*me + 1)%8) * 3];
-		TR = (W.x * X7.x) - (W.y * X7.y);
-		TI = (W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;
+		TWIDDLE_MUL_FWD(128 * ((2*me + 1)%8) * 1, X5)
+		TWIDDLE_MUL_FWD(128 * ((2*me + 1)%8) * 2, X6)
+		TWIDDLE_MUL_FWD(128 * ((2*me + 1)%8) * 3, X7)		
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
+		TWIDDLE_MUL_INV(128 * ((2*me + 0)%8) * 1, X1)
+		TWIDDLE_MUL_INV(128 * ((2*me + 0)%8) * 2, X2)
+		TWIDDLE_MUL_INV(128 * ((2*me + 0)%8) * 3, X3)
 		
-		W = twiddles[128 * ((2*me + 0)%8) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-
-		W = twiddles[128 * ((2*me + 0)%8) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[128 * ((2*me + 0)%8) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;				
-		
-		W = twiddles[128 * ((2*me + 1)%8) * 1];
-		TR =  (W.x * X5.x) + (W.y * X5.y);
-		TI = -(W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[128 * ((2*me + 1)%8) * 2];
-		TR =  (W.x * X6.x) + (W.y * X6.y);
-		TI = -(W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[128 * ((2*me + 1)%8) * 3];
-		TR =  (W.x * X7.x) + (W.y * X7.y);
-		TI = -(W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;	
+		TWIDDLE_MUL_INV(128 * ((2*me + 1)%8) * 1, X5)
+		TWIDDLE_MUL_INV(128 * ((2*me + 1)%8) * 2, X6)
+		TWIDDLE_MUL_INV(128 * ((2*me + 1)%8) * 3, X7)	
 	}
 	
 
@@ -4834,49 +4721,15 @@ void fft_64(__global float2 *buffer, const uint count, const int dir)
 
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[256 * (me%4) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-		
-		W = twiddles[256 * (me%4) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;		
-		
-		W = twiddles[256 * (me%4) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;		
+		TWIDDLE_MUL_FWD(256 * (me%4) * 1, X1)	
+		TWIDDLE_MUL_FWD(256 * (me%4) * 2, X2)	
+		TWIDDLE_MUL_FWD(256 * (me%4) * 3, X3)			
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[256 * (me%4) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;	
-		
-		W = twiddles[256 * (me%4) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-		
-		W = twiddles[256 * (me%4) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;			
+		TWIDDLE_MUL_INV(256 * (me%4) * 1, X1)	
+		TWIDDLE_MUL_INV(256 * (me%4) * 2, X2)	
+		TWIDDLE_MUL_INV(256 * (me%4) * 3, X3)				
 	}
 	
 	if(dir == -1)
@@ -4915,49 +4768,15 @@ void fft_64(__global float2 *buffer, const uint count, const int dir)
 
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[64 * (me%16) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-		
-		W = twiddles[64 * (me%16) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;		
-		
-		W = twiddles[64 * (me%16) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;		
+		TWIDDLE_MUL_FWD(64 * (me%16) * 1, X1)	
+		TWIDDLE_MUL_FWD(64 * (me%16) * 2, X2)	
+		TWIDDLE_MUL_FWD(64 * (me%16) * 3, X3)			
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[64 * (me%16) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;	
-		
-		W = twiddles[64 * (me%16) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-		
-		W = twiddles[64 * (me%16) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;			
+		TWIDDLE_MUL_INV(64 * (me%16) * 1, X1)	
+		TWIDDLE_MUL_INV(64 * (me%16) * 2, X2)	
+		TWIDDLE_MUL_INV(64 * (me%16) * 3, X3)				
 	}
 	
 	if(dir == -1)
@@ -5058,85 +4877,23 @@ void fft_128(__global float2 *buffer, const uint count, const int dir)
 
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[128 * ((2*me + 0)%8) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
+		TWIDDLE_MUL_FWD(128 * ((2*me + 0)%8) * 1, X1)
+		TWIDDLE_MUL_FWD(128 * ((2*me + 0)%8) * 2, X2)
+		TWIDDLE_MUL_FWD(128 * ((2*me + 0)%8) * 3, X3)	
 
-		W = twiddles[128 * ((2*me + 0)%8) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[128 * ((2*me + 0)%8) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;				
-		
-		W = twiddles[128 * ((2*me + 1)%8) * 1];
-		TR = (W.x * X5.x) - (W.y * X5.y);
-		TI = (W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[128 * ((2*me + 1)%8) * 2];
-		TR = (W.x * X6.x) - (W.y * X6.y);
-		TI = (W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[128 * ((2*me + 1)%8) * 3];
-		TR = (W.x * X7.x) - (W.y * X7.y);
-		TI = (W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;
+		TWIDDLE_MUL_FWD(128 * ((2*me + 1)%8) * 1, X5)
+		TWIDDLE_MUL_FWD(128 * ((2*me + 1)%8) * 2, X6)
+		TWIDDLE_MUL_FWD(128 * ((2*me + 1)%8) * 3, X7)			
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[128 * ((2*me + 0)%8) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
+		TWIDDLE_MUL_INV(128 * ((2*me + 0)%8) * 1, X1)
+		TWIDDLE_MUL_INV(128 * ((2*me + 0)%8) * 2, X2)
+		TWIDDLE_MUL_INV(128 * ((2*me + 0)%8) * 3, X3)	
 
-		W = twiddles[128 * ((2*me + 0)%8) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[128 * ((2*me + 0)%8) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;				
-		
-		W = twiddles[128 * ((2*me + 1)%8) * 1];
-		TR =  (W.x * X5.x) + (W.y * X5.y);
-		TI = -(W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[128 * ((2*me + 1)%8) * 2];
-		TR =  (W.x * X6.x) + (W.y * X6.y);
-		TI = -(W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[128 * ((2*me + 1)%8) * 3];
-		TR =  (W.x * X7.x) + (W.y * X7.y);
-		TI = -(W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;	
+		TWIDDLE_MUL_INV(128 * ((2*me + 1)%8) * 1, X5)
+		TWIDDLE_MUL_INV(128 * ((2*me + 1)%8) * 2, X6)
+		TWIDDLE_MUL_INV(128 * ((2*me + 1)%8) * 3, X7)		
 	}
 	
 
@@ -5202,85 +4959,23 @@ void fft_128(__global float2 *buffer, const uint count, const int dir)
 	
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[32 * ((2*me + 0)%32) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
+		TWIDDLE_MUL_FWD(32 * ((2*me + 0)%32) * 1, X1)
+		TWIDDLE_MUL_FWD(32 * ((2*me + 0)%32) * 2, X2)
+		TWIDDLE_MUL_FWD(32 * ((2*me + 0)%32) * 3, X3)	
 
-		W = twiddles[32 * ((2*me + 0)%32) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[32 * ((2*me + 0)%32) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;				
-		
-		W = twiddles[32 * ((2*me + 1)%32) * 1];
-		TR = (W.x * X5.x) - (W.y * X5.y);
-		TI = (W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[32 * ((2*me + 1)%32) * 2];
-		TR = (W.x * X6.x) - (W.y * X6.y);
-		TI = (W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[32 * ((2*me + 1)%32) * 3];
-		TR = (W.x * X7.x) - (W.y * X7.y);
-		TI = (W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;
+		TWIDDLE_MUL_FWD(32 * ((2*me + 1)%32) * 1, X5)
+		TWIDDLE_MUL_FWD(32 * ((2*me + 1)%32) * 2, X6)
+		TWIDDLE_MUL_FWD(32 * ((2*me + 1)%32) * 3, X7)
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[32 * ((2*me + 0)%32) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
+		TWIDDLE_MUL_INV(32 * ((2*me + 0)%32) * 1, X1)
+		TWIDDLE_MUL_INV(32 * ((2*me + 0)%32) * 2, X2)
+		TWIDDLE_MUL_INV(32 * ((2*me + 0)%32) * 3, X3)	
 
-		W = twiddles[32 * ((2*me + 0)%32) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[32 * ((2*me + 0)%32) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;				
-		
-		W = twiddles[32 * ((2*me + 1)%32) * 1];
-		TR =  (W.x * X5.x) + (W.y * X5.y);
-		TI = -(W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[32 * ((2*me + 1)%32) * 2];
-		TR =  (W.x * X6.x) + (W.y * X6.y);
-		TI = -(W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[32 * ((2*me + 1)%32) * 3];
-		TR =  (W.x * X7.x) + (W.y * X7.y);
-		TI = -(W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;	
+		TWIDDLE_MUL_INV(32 * ((2*me + 1)%32) * 1, X5)
+		TWIDDLE_MUL_INV(32 * ((2*me + 1)%32) * 2, X6)
+		TWIDDLE_MUL_INV(32 * ((2*me + 1)%32) * 3, X7)
 	}	
 	
 	if(dir == -1)
@@ -5360,49 +5055,15 @@ void fft_256(__global float2 *buffer, const uint count, const int dir)
 	
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[256 * (me%4) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-		
-		W = twiddles[256 * (me%4) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;		
-		
-		W = twiddles[256 * (me%4) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;		
+		TWIDDLE_MUL_FWD(256 * (me%4) * 1, X1)	
+		TWIDDLE_MUL_FWD(256 * (me%4) * 2, X2)	
+		TWIDDLE_MUL_FWD(256 * (me%4) * 3, X3)			
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[256 * (me%4) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;	
-		
-		W = twiddles[256 * (me%4) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-		
-		W = twiddles[256 * (me%4) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;			
+		TWIDDLE_MUL_INV(256 * (me%4) * 1, X1)	
+		TWIDDLE_MUL_INV(256 * (me%4) * 2, X2)	
+		TWIDDLE_MUL_INV(256 * (me%4) * 3, X3)		
 	}
 
 	if(dir == -1)
@@ -5441,49 +5102,15 @@ void fft_256(__global float2 *buffer, const uint count, const int dir)
 
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[64 * (me%16) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-		
-		W = twiddles[64 * (me%16) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;		
-		
-		W = twiddles[64 * (me%16) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;		
+		TWIDDLE_MUL_FWD(64 * (me%16) * 1, X1)	
+		TWIDDLE_MUL_FWD(64 * (me%16) * 2, X2)	
+		TWIDDLE_MUL_FWD(64 * (me%16) * 3, X3)	
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[64 * (me%16) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;	
-		
-		W = twiddles[64 * (me%16) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-		
-		W = twiddles[64 * (me%16) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;			
+		TWIDDLE_MUL_INV(64 * (me%16) * 1, X1)	
+		TWIDDLE_MUL_INV(64 * (me%16) * 2, X2)	
+		TWIDDLE_MUL_INV(64 * (me%16) * 3, X3)			
 	}
 	
 	if(dir == -1)
@@ -5522,49 +5149,15 @@ void fft_256(__global float2 *buffer, const uint count, const int dir)
 	
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[16 * me * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-		
-		W = twiddles[16 * me * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;		
-		
-		W = twiddles[16 * me * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;		
+		TWIDDLE_MUL_FWD(16 * me * 1, X1)	
+		TWIDDLE_MUL_FWD(16 * me * 2, X2)	
+		TWIDDLE_MUL_FWD(16 * me * 3, X3)		
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[16 * me * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;	
-		
-		W = twiddles[16 * me * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-		
-		W = twiddles[16 * me * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;			
+		TWIDDLE_MUL_INV(16 * me * 1, X1)	
+		TWIDDLE_MUL_INV(16 * me * 2, X2)	
+		TWIDDLE_MUL_INV(16 * me * 3, X3)			
 	}
 	
 	if(dir == -1)
@@ -5667,96 +5260,23 @@ void fft_512(__global float2 *buffer, const uint count, const int dir)
 		float2 W;
 		float TR, TI;
 		
-		W = twiddles[64 * (me%8) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-
-		W = twiddles[64 * (me%8) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[64 * (me%8) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;
-
-		W = twiddles[64 * (me%8) * 4];
-		TR = (W.x * X4.x) - (W.y * X4.y);
-		TI = (W.y * X4.x) + (W.x * X4.y);
-		X4.x = TR;
-		X4.y = TI;
-
-		W = twiddles[64 * (me%8) * 5];
-		TR = (W.x * X5.x) - (W.y * X5.y);
-		TI = (W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[64 * (me%8) * 6];
-		TR = (W.x * X6.x) - (W.y * X6.y);
-		TI = (W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[64 * (me%8) * 7];
-		TR = (W.x * X7.x) - (W.y * X7.y);
-		TI = (W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;				
-
+		TWIDDLE_MUL_FWD(64 * (me%8) * 1, X1)			
+		TWIDDLE_MUL_FWD(64 * (me%8) * 2, X2)	
+		TWIDDLE_MUL_FWD(64 * (me%8) * 3, X3)	
+		TWIDDLE_MUL_FWD(64 * (me%8) * 4, X4)	
+		TWIDDLE_MUL_FWD(64 * (me%8) * 5, X5)	
+		TWIDDLE_MUL_FWD(64 * (me%8) * 6, X6)	
+		TWIDDLE_MUL_FWD(64 * (me%8) * 7, X7)			
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[64 * (me%8) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-
-		W = twiddles[64 * (me%8) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[64 * (me%8) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;
-
-		W = twiddles[64 * (me%8) * 4];
-		TR =  (W.x * X4.x) + (W.y * X4.y);
-		TI = -(W.y * X4.x) + (W.x * X4.y);
-		X4.x = TR;
-		X4.y = TI;
-
-		W = twiddles[64 * (me%8) * 5];
-		TR =  (W.x * X5.x) + (W.y * X5.y);
-		TI = -(W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[64 * (me%8) * 6];
-		TR =  (W.x * X6.x) + (W.y * X6.y);
-		TI = -(W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[64 * (me%8) * 7];
-		TR =  (W.x * X7.x) + (W.y * X7.y);
-		TI = -(W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;				
-
+		TWIDDLE_MUL_INV(64 * (me%8) * 1, X1)			
+		TWIDDLE_MUL_INV(64 * (me%8) * 2, X2)	
+		TWIDDLE_MUL_INV(64 * (me%8) * 3, X3)	
+		TWIDDLE_MUL_INV(64 * (me%8) * 4, X4)	
+		TWIDDLE_MUL_INV(64 * (me%8) * 5, X5)	
+		TWIDDLE_MUL_INV(64 * (me%8) * 6, X6)	
+		TWIDDLE_MUL_INV(64 * (me%8) * 7, X7)
 	}
 	
 	if(dir == -1)
@@ -5819,99 +5339,23 @@ void fft_512(__global float2 *buffer, const uint count, const int dir)
 
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[8 * me * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-
-		W = twiddles[8 * me * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[8 * me * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;
-
-		W = twiddles[8 * me * 4];
-		TR = (W.x * X4.x) - (W.y * X4.y);
-		TI = (W.y * X4.x) + (W.x * X4.y);
-		X4.x = TR;
-		X4.y = TI;
-
-		W = twiddles[8 * me * 5];
-		TR = (W.x * X5.x) - (W.y * X5.y);
-		TI = (W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[8 * me * 6];
-		TR = (W.x * X6.x) - (W.y * X6.y);
-		TI = (W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[8 * me * 7];
-		TR = (W.x * X7.x) - (W.y * X7.y);
-		TI = (W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;				
-
+		TWIDDLE_MUL_FWD(8 * me * 1, X1)			
+		TWIDDLE_MUL_FWD(8 * me * 2, X2)	
+		TWIDDLE_MUL_FWD(8 * me * 3, X3)	
+		TWIDDLE_MUL_FWD(8 * me * 4, X4)	
+		TWIDDLE_MUL_FWD(8 * me * 5, X5)	
+		TWIDDLE_MUL_FWD(8 * me * 6, X6)	
+		TWIDDLE_MUL_FWD(8 * me * 7, X7)
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[8 * me * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-
-		W = twiddles[8 * me * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[8 * me * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;
-
-		W = twiddles[8 * me * 4];
-		TR =  (W.x * X4.x) + (W.y * X4.y);
-		TI = -(W.y * X4.x) + (W.x * X4.y);
-		X4.x = TR;
-		X4.y = TI;
-
-		W = twiddles[8 * me * 5];
-		TR =  (W.x * X5.x) + (W.y * X5.y);
-		TI = -(W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[8 * me * 6];
-		TR =  (W.x * X6.x) + (W.y * X6.y);
-		TI = -(W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[8 * me * 7];
-		TR =  (W.x * X7.x) + (W.y * X7.y);
-		TI = -(W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;				
-
+		TWIDDLE_MUL_INV(8 * me * 1, X1)			
+		TWIDDLE_MUL_INV(8 * me * 2, X2)	
+		TWIDDLE_MUL_INV(8 * me * 3, X3)	
+		TWIDDLE_MUL_INV(8 * me * 4, X4)	
+		TWIDDLE_MUL_INV(8 * me * 5, X5)	
+		TWIDDLE_MUL_INV(8 * me * 6, X6)	
+		TWIDDLE_MUL_INV(8 * me * 7, X7)
 	}
 	
 	if(dir == -1)
@@ -6014,99 +5458,23 @@ void fft_1024(__global float2 *buffer, const uint count, const int dir)
 			
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[64 * (me%8) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-
-		W = twiddles[64 * (me%8) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[64 * (me%8) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;
-
-		W = twiddles[64 * (me%8) * 4];
-		TR = (W.x * X4.x) - (W.y * X4.y);
-		TI = (W.y * X4.x) + (W.x * X4.y);
-		X4.x = TR;
-		X4.y = TI;
-
-		W = twiddles[64 * (me%8) * 5];
-		TR = (W.x * X5.x) - (W.y * X5.y);
-		TI = (W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[64 * (me%8) * 6];
-		TR = (W.x * X6.x) - (W.y * X6.y);
-		TI = (W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[64 * (me%8) * 7];
-		TR = (W.x * X7.x) - (W.y * X7.y);
-		TI = (W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;				
-
+		TWIDDLE_MUL_FWD(64 * (me%8) * 1, X1)			
+		TWIDDLE_MUL_FWD(64 * (me%8) * 2, X2)	
+		TWIDDLE_MUL_FWD(64 * (me%8) * 3, X3)	
+		TWIDDLE_MUL_FWD(64 * (me%8) * 4, X4)	
+		TWIDDLE_MUL_FWD(64 * (me%8) * 5, X5)	
+		TWIDDLE_MUL_FWD(64 * (me%8) * 6, X6)	
+		TWIDDLE_MUL_FWD(64 * (me%8) * 7, X7)
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[64 * (me%8) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-
-		W = twiddles[64 * (me%8) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[64 * (me%8) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;
-
-		W = twiddles[64 * (me%8) * 4];
-		TR =  (W.x * X4.x) + (W.y * X4.y);
-		TI = -(W.y * X4.x) + (W.x * X4.y);
-		X4.x = TR;
-		X4.y = TI;
-
-		W = twiddles[64 * (me%8) * 5];
-		TR =  (W.x * X5.x) + (W.y * X5.y);
-		TI = -(W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[64 * (me%8) * 6];
-		TR =  (W.x * X6.x) + (W.y * X6.y);
-		TI = -(W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[64 * (me%8) * 7];
-		TR =  (W.x * X7.x) + (W.y * X7.y);
-		TI = -(W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;				
-
+		TWIDDLE_MUL_INV(64 * (me%8) * 1, X1)			
+		TWIDDLE_MUL_INV(64 * (me%8) * 2, X2)	
+		TWIDDLE_MUL_INV(64 * (me%8) * 3, X3)	
+		TWIDDLE_MUL_INV(64 * (me%8) * 4, X4)	
+		TWIDDLE_MUL_INV(64 * (me%8) * 5, X5)	
+		TWIDDLE_MUL_INV(64 * (me%8) * 6, X6)	
+		TWIDDLE_MUL_INV(64 * (me%8) * 7, X7)
 	}
 	
 	if(dir == -1)
@@ -6171,85 +5539,23 @@ void fft_1024(__global float2 *buffer, const uint count, const int dir)
 
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[16 * ((2*me + 0)%64) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
+		TWIDDLE_MUL_FWD(16 * ((2*me + 0)%64) * 1, X1)
+		TWIDDLE_MUL_FWD(16 * ((2*me + 0)%64) * 2, X2)
+		TWIDDLE_MUL_FWD(16 * ((2*me + 0)%64) * 3, X3)	
 
-		W = twiddles[16 * ((2*me + 0)%64) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[16 * ((2*me + 0)%64) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;				
-		
-		W = twiddles[16 * ((2*me + 1)%64) * 1];
-		TR = (W.x * X5.x) - (W.y * X5.y);
-		TI = (W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[16 * ((2*me + 1)%64) * 2];
-		TR = (W.x * X6.x) - (W.y * X6.y);
-		TI = (W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[16 * ((2*me + 1)%64) * 3];
-		TR = (W.x * X7.x) - (W.y * X7.y);
-		TI = (W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;
+		TWIDDLE_MUL_FWD(16 * ((2*me + 1)%64) * 1, X5)
+		TWIDDLE_MUL_FWD(16 * ((2*me + 1)%64) * 2, X6)
+		TWIDDLE_MUL_FWD(16 * ((2*me + 1)%64) * 3, X7)
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[16 * ((2*me + 0)%64) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
+		TWIDDLE_MUL_INV(16 * ((2*me + 0)%64) * 1, X1)
+		TWIDDLE_MUL_INV(16 * ((2*me + 0)%64) * 2, X2)
+		TWIDDLE_MUL_INV(16 * ((2*me + 0)%64) * 3, X3)	
 
-		W = twiddles[16 * ((2*me + 0)%64) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[16 * ((2*me + 0)%64) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;				
-		
-		W = twiddles[16 * ((2*me + 1)%64) * 1];
-		TR =  (W.x * X5.x) + (W.y * X5.y);
-		TI = -(W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[16 * ((2*me + 1)%64) * 2];
-		TR =  (W.x * X6.x) + (W.y * X6.y);
-		TI = -(W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[16 * ((2*me + 1)%64) * 3];
-		TR =  (W.x * X7.x) + (W.y * X7.y);
-		TI = -(W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;	
+		TWIDDLE_MUL_INV(16 * ((2*me + 1)%64) * 1, X5)
+		TWIDDLE_MUL_INV(16 * ((2*me + 1)%64) * 2, X6)
+		TWIDDLE_MUL_INV(16 * ((2*me + 1)%64) * 3, X7)	
 	}	
 	
 	
@@ -6323,85 +5629,23 @@ void fft_1024(__global float2 *buffer, const uint count, const int dir)
 
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[4 * ((2*me + 0)%256) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
+		TWIDDLE_MUL_FWD(4 * ((2*me + 0)%256) * 1, X1)
+		TWIDDLE_MUL_FWD(4 * ((2*me + 0)%256) * 2, X2)
+		TWIDDLE_MUL_FWD(4 * ((2*me + 0)%256) * 3, X3)	
 
-		W = twiddles[4 * ((2*me + 0)%256) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[4 * ((2*me + 0)%256) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;				
-		
-		W = twiddles[4 * ((2*me + 1)%256) * 1];
-		TR = (W.x * X5.x) - (W.y * X5.y);
-		TI = (W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[4 * ((2*me + 1)%256) * 2];
-		TR = (W.x * X6.x) - (W.y * X6.y);
-		TI = (W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[4 * ((2*me + 1)%256) * 3];
-		TR = (W.x * X7.x) - (W.y * X7.y);
-		TI = (W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;
+		TWIDDLE_MUL_FWD(4 * ((2*me + 1)%256) * 1, X5)
+		TWIDDLE_MUL_FWD(4 * ((2*me + 1)%256) * 2, X6)
+		TWIDDLE_MUL_FWD(4 * ((2*me + 1)%256) * 3, X7)
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[4 * ((2*me + 0)%256) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
+		TWIDDLE_MUL_INV(4 * ((2*me + 0)%256) * 1, X1)
+		TWIDDLE_MUL_INV(4 * ((2*me + 0)%256) * 2, X2)
+		TWIDDLE_MUL_INV(4 * ((2*me + 0)%256) * 3, X3)	
 
-		W = twiddles[4 * ((2*me + 0)%256) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[4 * ((2*me + 0)%256) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;				
-		
-		W = twiddles[4 * ((2*me + 1)%256) * 1];
-		TR =  (W.x * X5.x) + (W.y * X5.y);
-		TI = -(W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[4 * ((2*me + 1)%256) * 2];
-		TR =  (W.x * X6.x) + (W.y * X6.y);
-		TI = -(W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[4 * ((2*me + 1)%256) * 3];
-		TR =  (W.x * X7.x) + (W.y * X7.y);
-		TI = -(W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;	
+		TWIDDLE_MUL_INV(4 * ((2*me + 1)%256) * 1, X5)
+		TWIDDLE_MUL_INV(4 * ((2*me + 1)%256) * 2, X6)
+		TWIDDLE_MUL_INV(4 * ((2*me + 1)%256) * 3, X7)
 	}	
 	
 	if(dir == -1)
@@ -6425,6 +5669,7 @@ void fft_1024(__global float2 *buffer, const uint count, const int dir)
 }
 
 
+	
 __kernel __attribute__((reqd_work_group_size (256,1,1)))
 void fft_2048(__global float2 *buffer, const uint count, const int dir)
 {
@@ -6508,98 +5753,23 @@ void fft_2048(__global float2 *buffer, const uint count, const int dir)
 			
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[64 * (me%8) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-
-		W = twiddles[64 * (me%8) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[64 * (me%8) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;
-
-		W = twiddles[64 * (me%8) * 4];
-		TR = (W.x * X4.x) - (W.y * X4.y);
-		TI = (W.y * X4.x) + (W.x * X4.y);
-		X4.x = TR;
-		X4.y = TI;
-
-		W = twiddles[64 * (me%8) * 5];
-		TR = (W.x * X5.x) - (W.y * X5.y);
-		TI = (W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[64 * (me%8) * 6];
-		TR = (W.x * X6.x) - (W.y * X6.y);
-		TI = (W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[64 * (me%8) * 7];
-		TR = (W.x * X7.x) - (W.y * X7.y);
-		TI = (W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;				
-
+		TWIDDLE_MUL_FWD(64 * (me%8) * 1, X1)
+		TWIDDLE_MUL_FWD(64 * (me%8) * 2, X2)
+		TWIDDLE_MUL_FWD(64 * (me%8) * 3, X3)
+		TWIDDLE_MUL_FWD(64 * (me%8) * 4, X4)
+		TWIDDLE_MUL_FWD(64 * (me%8) * 5, X5)
+		TWIDDLE_MUL_FWD(64 * (me%8) * 6, X6)
+		TWIDDLE_MUL_FWD(64 * (me%8) * 7, X7)
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[64 * (me%8) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-
-		W = twiddles[64 * (me%8) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[64 * (me%8) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;
-
-		W = twiddles[64 * (me%8) * 4];
-		TR =  (W.x * X4.x) + (W.y * X4.y);
-		TI = -(W.y * X4.x) + (W.x * X4.y);
-		X4.x = TR;
-		X4.y = TI;
-
-		W = twiddles[64 * (me%8) * 5];
-		TR =  (W.x * X5.x) + (W.y * X5.y);
-		TI = -(W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[64 * (me%8) * 6];
-		TR =  (W.x * X6.x) + (W.y * X6.y);
-		TI = -(W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[64 * (me%8) * 7];
-		TR =  (W.x * X7.x) + (W.y * X7.y);
-		TI = -(W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;				
+		TWIDDLE_MUL_INV(64 * (me%8) * 1, X1)
+		TWIDDLE_MUL_INV(64 * (me%8) * 2, X2)
+		TWIDDLE_MUL_INV(64 * (me%8) * 3, X3)
+		TWIDDLE_MUL_INV(64 * (me%8) * 4, X4)
+		TWIDDLE_MUL_INV(64 * (me%8) * 5, X5)
+		TWIDDLE_MUL_INV(64 * (me%8) * 6, X6)
+		TWIDDLE_MUL_INV(64 * (me%8) * 7, X7)				
 
 	}
 	
@@ -6663,99 +5833,24 @@ void fft_2048(__global float2 *buffer, const uint count, const int dir)
 
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[8 * (me%64) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-
-		W = twiddles[8 * (me%64) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[8 * (me%64) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;
-
-		W = twiddles[8 * (me%64) * 4];
-		TR = (W.x * X4.x) - (W.y * X4.y);
-		TI = (W.y * X4.x) + (W.x * X4.y);
-		X4.x = TR;
-		X4.y = TI;
-
-		W = twiddles[8 * (me%64) * 5];
-		TR = (W.x * X5.x) - (W.y * X5.y);
-		TI = (W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[8 * (me%64) * 6];
-		TR = (W.x * X6.x) - (W.y * X6.y);
-		TI = (W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[8 * (me%64) * 7];
-		TR = (W.x * X7.x) - (W.y * X7.y);
-		TI = (W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;				
+		TWIDDLE_MUL_FWD(8 * (me%64) * 1, X1)
+		TWIDDLE_MUL_FWD(8 * (me%64) * 2, X2)
+		TWIDDLE_MUL_FWD(8 * (me%64) * 3, X3)
+		TWIDDLE_MUL_FWD(8 * (me%64) * 4, X4)
+		TWIDDLE_MUL_FWD(8 * (me%64) * 5, X5)
+		TWIDDLE_MUL_FWD(8 * (me%64) * 6, X6)
+		TWIDDLE_MUL_FWD(8 * (me%64) * 7, X7)			
 
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[8 * (me%64) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
-
-		W = twiddles[8 * (me%64) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[8 * (me%64) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;
-
-		W = twiddles[8 * (me%64) * 4];
-		TR =  (W.x * X4.x) + (W.y * X4.y);
-		TI = -(W.y * X4.x) + (W.x * X4.y);
-		X4.x = TR;
-		X4.y = TI;
-
-		W = twiddles[8 * (me%64) * 5];
-		TR =  (W.x * X5.x) + (W.y * X5.y);
-		TI = -(W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[8 * (me%64) * 6];
-		TR =  (W.x * X6.x) + (W.y * X6.y);
-		TI = -(W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[8 * (me%64) * 7];
-		TR =  (W.x * X7.x) + (W.y * X7.y);
-		TI = -(W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;				
-
+		TWIDDLE_MUL_INV(8 * (me%64) * 1, X1)
+		TWIDDLE_MUL_INV(8 * (me%64) * 2, X2)
+		TWIDDLE_MUL_INV(8 * (me%64) * 3, X3)
+		TWIDDLE_MUL_INV(8 * (me%64) * 4, X4)
+		TWIDDLE_MUL_INV(8 * (me%64) * 5, X5)
+		TWIDDLE_MUL_INV(8 * (me%64) * 6, X6)
+		TWIDDLE_MUL_INV(8 * (me%64) * 7, X7)
 	}
 	
 	if(dir == -1)
@@ -6805,7 +5900,7 @@ void fft_2048(__global float2 *buffer, const uint count, const int dir)
 			
 		
 	X0.y = lds[(2*me + 0) +    0];
-	X1.y = lds[(2*me + 0) +  512];
+	X1.y = lds[(2*me + 0) +  512]; 
 	X2.y = lds[(2*me + 0) + 1024];
 	X3.y = lds[(2*me + 0) + 1536];
 
@@ -6820,85 +5915,23 @@ void fft_2048(__global float2 *buffer, const uint count, const int dir)
 
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[2 * ((2*me + 0)%512) * 1];
-		TR = (W.x * X1.x) - (W.y * X1.y);
-		TI = (W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
+		TWIDDLE_MUL_FWD(2 * ((2*me + 0)%512) * 1, X1)
+		TWIDDLE_MUL_FWD(2 * ((2*me + 0)%512) * 2, X2)
+		TWIDDLE_MUL_FWD(2 * ((2*me + 0)%512) * 3, X3)
 
-		W = twiddles[2 * ((2*me + 0)%512) * 2];
-		TR = (W.x * X2.x) - (W.y * X2.y);
-		TI = (W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[2 * ((2*me + 0)%512) * 3];
-		TR = (W.x * X3.x) - (W.y * X3.y);
-		TI = (W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;				
-		
-		W = twiddles[2 * ((2*me + 1)%512) * 1];
-		TR = (W.x * X5.x) - (W.y * X5.y);
-		TI = (W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[2 * ((2*me + 1)%512) * 2];
-		TR = (W.x * X6.x) - (W.y * X6.y);
-		TI = (W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[2 * ((2*me + 1)%512) * 3];
-		TR = (W.x * X7.x) - (W.y * X7.y);
-		TI = (W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;
+		TWIDDLE_MUL_FWD(2 * ((2*me + 1)%512) * 1, X5)
+		TWIDDLE_MUL_FWD(2 * ((2*me + 1)%512) * 2, X6)
+		TWIDDLE_MUL_FWD(2 * ((2*me + 1)%512) * 3, X7)
 	}
 	else
 	{
-		float2 W;
-		float TR, TI;
-		
-		W = twiddles[2 * ((2*me + 0)%512) * 1];
-		TR =  (W.x * X1.x) + (W.y * X1.y);
-		TI = -(W.y * X1.x) + (W.x * X1.y);
-		X1.x = TR;
-		X1.y = TI;
+		TWIDDLE_MUL_INV(2 * ((2*me + 0)%512) * 1, X1)
+		TWIDDLE_MUL_INV(2 * ((2*me + 0)%512) * 2, X2)
+		TWIDDLE_MUL_INV(2 * ((2*me + 0)%512) * 3, X3)
 
-		W = twiddles[2 * ((2*me + 0)%512) * 2];
-		TR =  (W.x * X2.x) + (W.y * X2.y);
-		TI = -(W.y * X2.x) + (W.x * X2.y);
-		X2.x = TR;
-		X2.y = TI;
-
-		W = twiddles[2 * ((2*me + 0)%512) * 3];
-		TR =  (W.x * X3.x) + (W.y * X3.y);
-		TI = -(W.y * X3.x) + (W.x * X3.y);
-		X3.x = TR;
-		X3.y = TI;				
-		
-		W = twiddles[2 * ((2*me + 1)%512) * 1];
-		TR =  (W.x * X5.x) + (W.y * X5.y);
-		TI = -(W.y * X5.x) + (W.x * X5.y);
-		X5.x = TR;
-		X5.y = TI;
-
-		W = twiddles[2 * ((2*me + 1)%512) * 2];
-		TR =  (W.x * X6.x) + (W.y * X6.y);
-		TI = -(W.y * X6.x) + (W.x * X6.y);
-		X6.x = TR;
-		X6.y = TI;
-
-		W = twiddles[2 * ((2*me + 1)%512) * 3];
-		TR =  (W.x * X7.x) + (W.y * X7.y);
-		TI = -(W.y * X7.x) + (W.x * X7.y);
-		X7.x = TR;
-		X7.y = TI;	
+		TWIDDLE_MUL_INV(2 * ((2*me + 1)%512) * 1, X5)
+		TWIDDLE_MUL_INV(2 * ((2*me + 1)%512) * 2, X6)
+		TWIDDLE_MUL_INV(2 * ((2*me + 1)%512) * 3, X7)	
 	}	
 	
 	if(dir == -1)
@@ -6920,19 +5953,4 @@ void fft_2048(__global float2 *buffer, const uint count, const int dir)
 		lwbv[me + 768] = (float4)(X3,X7);			
 	}
 }
-		
-	
-				
-
-
-
-
-
-
-
-
-
-
-
-
 
