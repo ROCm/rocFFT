@@ -206,11 +206,11 @@ int main()
          
          fftwf_destroy_plan(p);
 
-//	std::cout << "fftw output: " << std::endl;
-//	for(size_t i=0; i<N; i++)
-//	{
-//		std::cout << out[i][0] << ", " << out[i][1] << std::endl;
-//	}		
+	std::cout << "fftw output: " << std::endl;
+	for(size_t i=0; i<N; i++)
+	{
+		std::cout << out[i][0] << ", " << out[i][1] << std::endl;
+	}		
 
 
 	const unsigned blocks = 1*B;
@@ -234,11 +234,11 @@ int main()
 
 	hipMemcpy(hy, x, Nbytes, hipMemcpyDeviceToHost);
 
-//	std::cout << "output: " << std::endl;
-//	for(size_t i=0; i<N; i++)
-//	{
-//		std::cout << hy[i].x << ", " << hy[i].y << std::endl;
-//	}		
+	std::cout << "output: " << std::endl;
+	for(size_t i=0; i<N; i++)
+	{
+		std::cout << hy[i].x << ", " << hy[i].y << std::endl;
+	}		
 
 	double rmse = 0;
 	for(size_t i=0; i<N; i++)
