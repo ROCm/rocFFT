@@ -61,7 +61,21 @@ void normal_2d_out_place_real_to_real(size_t input_row_size, size_t input_col_si
     
     real_transpose_test<T>(input_row_size, input_col_size, input_leading_dim_size, output_leading_dim_size, batch_size, input_matrix.data(), output_matrix.data());
     transpose_reference<T>(input_row_size, input_col_size, input_leading_dim_size, output_leading_dim_size, batch_size, input_matrix.data(), reference_output_matrix.data());
-    EXPECT_EQ(reference_output_matrix, output_matrix);
+    if(input_leading_dim_size == input_col_size && output_leading_dim_size == input_row_size)
+        EXPECT_EQ(reference_output_matrix, output_matrix);
+    else
+    {
+        for(int b = 0; b < batch_size; b++)
+        {
+            for(int i = 0; i < input_row_size; i++)//output_col_size
+            {
+                for(int j = 0; j < input_col_size; j++)//output_row_size
+                {
+                    EXPECT_EQ(reference_output_matrix[b * input_col_size * output_leading_dim_size + j * output_leading_dim_size + i], output_matrix[b * input_col_size * output_leading_dim_size + j * output_leading_dim_size + i]);
+                }
+            }
+        } 
+    }
 }
 
 template<typename T, rocfft_transpose_array_type array_type>
@@ -334,18 +348,12 @@ TEST_P(transpose_test, outplace_transpose_double_complex_interleaved_to_complex_
 
 
 //add some special cases if needed
-/*
+//padded data in and padded data out
+
 TEST_F(accuracy_test_transpose_single, normal_2d_outplace_real_to_real_192_192_193_194_1)
 {
     try{ normal_2d_out_place_real_to_real<float>(192, 192, 193, 194, 1); }
     catch(const std::exception &err) { handle_exception(err); }
 }
-
-TEST_F(accuracy_test_transpose_single, normal_2d_outplace_complex_interleaved_to_complex_interleaved_192_192_193_194_1)
-{
-    try{ normal_2d_out_place_complex_to_complex<float, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved>(192, 192, 193, 194, 1); }
-    catch(const std::exception &err) { handle_exception(err); }
-}
-*/
 
 }
