@@ -92,11 +92,14 @@ rocfft_transpose_status rocfft_transpose_outplace_real(const rocfft_transpose_pl
     int ld_out = plan->out_stride->at(1);
     int batch_size = plan->batch;
     
+    if(plan->rank > 2)
+        return rocfft_transpose_status_not_implemented;
+
     bool packed_data_in = false;// whether the input data is packed
     bool packed_data_out = false;// whether the output data is packed
     isTransposeDataPacked(plan, packed_data_in, packed_data_out);
     
-    if(packed_data_in && packed_data_out)
+    if( (packed_data_in && packed_data_out) || (plan->in_stride->at(0) == 1 && plan->out_stride->at(0) == 1) )//below kernels handles packed data or first dim padded
     {
         if(plan->precision == rocfft_transpose_precision_single)
         {
