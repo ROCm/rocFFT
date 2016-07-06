@@ -73,3 +73,15 @@ A subset of transpose has been implemented. In general,
 Kernels are written with HIP language. `rocFFT/src/library/internal_include/rocfft_transpose_kernel.h` declares the templated kernels. In general, there are five template parameters to each kernel:
 `template<typename T, int micro_tile_col_size, int micro_tile_row_size, int wg_col_size, int wg_row_size>`
 , where `T` states the data type (`float` or `double`, sometimes `T2` is also needed for `float2` and `double2`), `micro_tile_col_size` and `micro_tile_row_size` are the sizes of micro tile for different dimensions. `wg_col_size` and `wg_row_size` depicts the work-group size.
+
+## Samples
+
+Samples can be found under `rocFFT/clients/samples/`. `transpose_outplace_1024` contains the sample code of conducting a real-to-real transposition while `transpose_outplace_complex` contains the sample code of conducting a complex-interleaved-to-complex-interleaved transposition. Both samples print out a subblock of original matrix and transposed matrix as well as verify the correctness.
+
+## Tests
+
+The correctness of transposition are directly tested with the GTEST framework. Testing code can be found at `rocFFT/clients/tests/`. All supported transpose cases described in Limitation are tested.
+
+For packed data, the matrix sizes are selected from `matrix_size_small_pow2_range`, `matrix_size_middle_pow2_range` and `matrix_size_middle_range`. Batch sizes are selected from `batch_size_small_range`.
+
+The templated testing host code and reference code are declared and defined in `rocFFT/clients/tests/accuracy_test_common.h`.
