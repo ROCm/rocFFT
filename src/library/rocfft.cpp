@@ -18,7 +18,7 @@ struct rocfft_plan_t
 rocfft_status rocfft_plan_create(	rocfft_plan *plan,
 					rocfft_transform_type transform_type, rocfft_precision precision,
 					size_t dimensions, const size_t *lengths, size_t number_of_transforms,
-					const rocfft_description *description )
+					const rocfft_description description )
 {
 	rocfft_plan p = new rocfft_plan_t;
 	p->rank = dimensions;
