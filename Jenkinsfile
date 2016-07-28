@@ -9,11 +9,11 @@ node('rocm') {
     }
     dir("${build_dir_debug}") {
       stage 'Configure Debug'
-        sh "cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_LIBRARY=ON -DBUILD_CLIENTS=ON -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBOOST_ROOT=~/lib/boost/clang ${scm_dir}"
+        sh "cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_LIBRARY=ON -DBUILD_CLIENTS=ON -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBOOST_ROOT=~/lib/boost/clang -DFFTW_ROOT=/usr/lib ${scm_dir}"
       stage 'Build'
         sh 'make -j 8'
       stage 'Package Debian'
-        sh 'cd rocfft-build; make package'
-        archive includes: 'rocfft-build/*.deb'
+        sh 'cd library-build; make package'
+        archive includes: 'library-build/*.deb'
     }
 }
