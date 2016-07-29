@@ -1,4 +1,3 @@
-
 #include <vector>
 #include <assert.h>
 #include <iostream>
@@ -6,6 +5,7 @@
 #include "rocfft.h"
 
 #define nullptr NULL
+
 size_t Large1DThreshold = 4096;
 
 static inline bool IsPo2(size_t u) {
@@ -24,6 +24,7 @@ inline size_t PrecisionWidth(rocfft_precision_e pr)
 
 enum OperatingBuffer
 {
+	OB_UNINIT,
 	OB_USER_IN,
 	OB_USER_OUT,
 	OB_TEMP
@@ -40,11 +41,13 @@ enum ComputeScheme
 	CA_L1D_CRT,
 };
 
+
+
 class TreeNode
 {
 private:
 	// disallow public creation
-	TreeNode(TreeNode *p) : parent(p), scheme(CA_NONE)
+	TreeNode(TreeNode *p) : parent(p), scheme(CA_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT)
 	{}
 
 public:
@@ -80,19 +83,23 @@ public:
 	TreeNode(const TreeNode &) = delete;			// disallow copy constructor
 	TreeNode& operator=(const TreeNode&) = delete;	// disallow assignment operator
 
+	// create node (user level) using this function
 	static TreeNode* CreateNode(TreeNode *parentNode = nullptr)
 	{
 		return new TreeNode(parentNode);
 	}
 
-	~TreeNode()
+	// destroy node by calling this function
+	static void DeleteNode(TreeNode *node)
 	{
 		std::vector<TreeNode *>::iterator children_p;
-		for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
-			delete (*children_p); // recursively delete allocated nodes
+		for (children_p = node->childNodes.begin(); children_p != node->childNodes.end(); children_p++)
+			DeleteNode(*children_p); // recursively delete allocated nodes
+
+		delete node;
 	}
 
-	// logic A - using out-of-place transposes & padding
+	// logic A - using out-of-place transposes & complex-to-complex & with padding
 	void RecursiveBuildTreeLogicA()
 	{
 		switch (dimension)
@@ -152,7 +159,7 @@ public:
 						size_t in_x = 0;
 						size_t len = length[0];
 
-						while(len != 1) { len >>= 1; in_x++; }
+						while (len != 1) { len >>= 1; in_x++; }
 
 						in_x /= 2;
 						divLength1 = (size_t)1 << in_x;
@@ -398,7 +405,7 @@ public:
 
 	}
 
-	void TraverseTreeLogicA(OperatingBuffer &flipIn, OperatingBuffer &flipOut)
+	void TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, OperatingBuffer &flipOut)
 	{
 		if (parent == nullptr)
 		{
@@ -409,7 +416,9 @@ public:
 		if (scheme == CA_L1D_TRTRT)
 		{
 			if (parent == nullptr)
-				childNodes[0]->obIn = OB_USER_IN;
+			{
+				childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
+			}
 			else
 				childNodes[0]->obIn = flipIn;
 
@@ -420,8 +429,14 @@ public:
 			flipIn = flipOut;
 			flipOut = t;
 
-			if(childNodes[1]->childNodes.size())
-				childNodes[1]->TraverseTreeLogicA(flipIn, flipOut);
+			if (childNodes[1]->childNodes.size())
+			{
+				childNodes[1]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
+
+				size_t cs = childNodes[1]->childNodes.size();
+				childNodes[1]->obIn = childNodes[1]->childNodes[0]->obIn;
+				childNodes[1]->obOut = childNodes[1]->childNodes[cs-1]->obOut;
+			}
 			else
 			{
 				childNodes[1]->obIn = flipIn;
@@ -458,12 +473,15 @@ public:
 				childNodes[4]->obIn = OB_TEMP;
 				childNodes[4]->obOut = OB_USER_OUT;
 			}
+
+			obIn = childNodes[0]->obIn;
+			obOut = childNodes[4]->obOut;
 		}
 		else if(scheme == CA_L1D_CC)
 		{
 			if (parent == nullptr)
 			{
-				childNodes[0]->obIn = OB_USER_IN;
+				childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
 				childNodes[0]->obOut = OB_TEMP;
 
 				childNodes[1]->obIn = OB_TEMP;
@@ -477,12 +495,15 @@ public:
 				childNodes[1]->obIn = flipOut;
 				childNodes[1]->obOut = flipIn;
 			}
+
+			obIn = childNodes[0]->obIn;
+			obOut = childNodes[1]->obOut;
 		}
 		else if (scheme == CA_L1D_CRT)
 		{
 			if (parent == nullptr)
 			{
-				childNodes[0]->obIn = OB_USER_IN;
+				childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
 				childNodes[0]->obOut = OB_TEMP;
 
 				childNodes[1]->obIn = OB_TEMP;
@@ -502,12 +523,15 @@ public:
 				childNodes[2]->obIn = flipOut;
 				childNodes[2]->obOut = flipIn;
 			}
+
+			obIn = childNodes[0]->obIn;
+			obOut = childNodes[2]->obOut;
 		}
 		else
 		{
 			if (parent == nullptr)
 			{
-				obIn = OB_USER_IN;
+				obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
 				obOut = OB_USER_OUT;
 			}
 			else
@@ -523,31 +547,55 @@ public:
 
 		}
 	}
-
-	void Print()
+	
+	void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq)
 	{
 		if (childNodes.size() == 0)
 		{
-			std::cout << scheme << std::endl;
-			if (obIn == OB_USER_IN) std::cout << "A -> ";
-			else if(obIn == OB_USER_OUT) std::cout << "B -> ";
-			else if (obIn == OB_TEMP) std::cout << "T -> ";
-			else std::cout << "ERR -> ";
-
-			if (obOut == OB_USER_IN) std::cout << "A";
-			else if (obOut == OB_USER_OUT) std::cout << "B";
-			else if (obOut == OB_TEMP) std::cout << "T";
-			else std::cout << "ERR";
-
-			std::cout << std::endl << std::endl;
+			seq.push_back(this);
 		}
-
-		std::vector<TreeNode *>::iterator children_p;
-		for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
+		else
 		{
-			(*children_p)->Print();
+			std::vector<TreeNode *>::iterator children_p;
+			for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
+			{
+				(*children_p)->TraverseTreeCollectLeafsLogicA(seq);
+			}
 		}
+	}
 
+
+	void Print(int indent = 0)
+	{
+		std::string indentStr;
+		int i = indent;
+		while (i--) indentStr += "    ";
+
+		std::cout << std::endl << indentStr.c_str();
+		std::cout << "length: ";
+		for (size_t i = 0; i < length.size(); i++)
+			std::cout << length[i] << ", ";
+		std::cout << std::endl << indentStr.c_str() << "scheme: " << scheme << std::endl << indentStr.c_str();
+		if (obIn == OB_USER_IN) std::cout << "A -> ";
+		else if (obIn == OB_USER_OUT) std::cout << "B -> ";
+		else if (obIn == OB_TEMP) std::cout << "T -> ";
+		else std::cout << "ERR -> ";
+
+		if (obOut == OB_USER_IN) std::cout << "A";
+		else if (obOut == OB_USER_OUT) std::cout << "B";
+		else if (obOut == OB_TEMP) std::cout << "T";
+		else std::cout << "ERR";
+
+		std::cout << std::endl;
+	
+		if(childNodes.size())
+		{
+			std::vector<TreeNode *>::iterator children_p;
+			for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
+			{
+				(*children_p)->Print(indent+1);
+			}
+		}
 	}
 
 	// logic B - using in-place transposes, todo
@@ -559,29 +607,50 @@ public:
 
 };
 
+// bake plan
 void BakePlan()
 {
+	for (size_t i = 1; i <= 45; i++)
+	{
+		size_t N = (size_t)1 << i;
+		TreeNode *rootPlan = TreeNode::CreateNode();
 
-	TreeNode *rootPlan = TreeNode::CreateNode();
+		rootPlan->dimension = 1;
+		rootPlan->length.push_back(N);
 
-	rootPlan->dimension = 1;
-	rootPlan->length.push_back(1048576);
-	rootPlan->inStride.push_back(1);
-	rootPlan->outStride.push_back(1);
-	//rootPlan->iDist = rootPlan->oDist = 1048576;
+		rootPlan->inStride.push_back(1);
+		rootPlan->outStride.push_back(1);
+		rootPlan->iDist = rootPlan->oDist = N;
 
-	rootPlan->placement = rocfft_placement_inplace;
-	rootPlan->precision = rocfft_precision_single;
+		rootPlan->placement = rocfft_placement_inplace;
+		rootPlan->precision = rocfft_precision_single;
 
-	rootPlan->RecursiveBuildTreeLogicA();
+		rootPlan->RecursiveBuildTreeLogicA();
 
-	OperatingBuffer flipIn, flipOut;
-	rootPlan->TraverseTreeLogicA(flipIn, flipOut);
-	rootPlan->Print();
+		OperatingBuffer flipIn, flipOut;
+		rootPlan->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
 
-	// invokes recurse to let tree create itself
-	// navigates the tree to create sequence, temp buffers & placement 
+		std::vector<TreeNode *> execSeq;
+		rootPlan->TraverseTreeCollectLeafsLogicA(execSeq);
+
+		if (execSeq.size() > 1)
+		{
+			std::vector<TreeNode *>::iterator prev_p = execSeq.begin();
+			std::vector<TreeNode *>::iterator curr_p = prev_p + 1;
+			while (curr_p != execSeq.end())
+			{
+				if ((*prev_p)->obOut != (*curr_p)->obIn)
+					std::cout << "error in buffer assignments" << std::endl;
+
+				prev_p = curr_p;
+				curr_p++;
+			}
+		}
+
+		rootPlan->Print();
+
+		TreeNode::DeleteNode(rootPlan);
+	}
 
 }
-
 
