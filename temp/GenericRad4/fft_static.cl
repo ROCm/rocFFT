@@ -8284,7 +8284,7 @@ InvRad4(float2 *R0, float2 *R2, float2 *R1, float2 *R3)
 	
 }
 
-#define C8Q  0.70710678118654752440084436210485f
+#define C8Q  0.707106781186547573f
 
 __attribute__((always_inline)) void 
 FwdRad8(float2 *R0, float2 *R4, float2 *R2, float2 *R6, float2 *R1, float2 *R5, float2 *R3, float2 *R7)
@@ -10068,4 +10068,465 @@ void fft_2048(__global float2 *buffer, const uint count, const int dir)
 		lwbv[me + 768] = (float4)(X3,X7);			
 	}
 }
+
+__kernel __attribute__((reqd_work_group_size (256,1,1)))
+void fft_4096(__global float2 *buffer, const uint count, const int dir)
+{
+	uint me = get_local_id(0);
+	uint batch = get_group_id(0);
+
+	float2 X0, X1, X2, X3, X4, X5, X6, X7;
+	float2 X8, X9, X10, X11, X12, X13, X14, X15;
+	
+	__local float lds[4096];
+	__global float2 *lwb = buffer + batch*4096;
+	
+
+	X0  = lwb[2*me + 0 +    0];
+	X8  = lwb[2*me + 1 +    0];	
+	X1  = lwb[2*me + 0 +  512];
+	X9  = lwb[2*me + 1 +  512];	
+	X2  = lwb[2*me + 0 + 1024];
+	X10 = lwb[2*me + 1 + 1024];	
+	X3  = lwb[2*me + 0 + 1536];
+	X11 = lwb[2*me + 1 + 1536];	
+	X4  = lwb[2*me + 0 + 2048];
+	X12 = lwb[2*me + 1 + 2048];	
+	X5  = lwb[2*me + 0 + 2560];
+	X13 = lwb[2*me + 1 + 2560];	
+	X6  = lwb[2*me + 0 + 3072];
+	X14 = lwb[2*me + 1 + 3072];	
+	X7  = lwb[2*me + 0 + 3584];
+	X15 = lwb[2*me + 1 + 3584];
+	
+	if(dir == -1)
+	{
+		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8(&X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+	else
+	{
+		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8(&X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+	
+	
+
+	lds[(2*me + 0)*8 + 0] = X0.x;
+	lds[(2*me + 0)*8 + 1] = X1.x;
+	lds[(2*me + 0)*8 + 2] = X2.x;
+	lds[(2*me + 0)*8 + 3] = X3.x;
+	lds[(2*me + 0)*8 + 4] = X4.x;
+	lds[(2*me + 0)*8 + 5] = X5.x;
+	lds[(2*me + 0)*8 + 6] = X6.x;
+	lds[(2*me + 0)*8 + 7] = X7.x;
+	
+	lds[(2*me + 1)*8 + 0] =  X8.x;
+	lds[(2*me + 1)*8 + 1] =  X9.x;
+	lds[(2*me + 1)*8 + 2] = X10.x;
+	lds[(2*me + 1)*8 + 3] = X11.x;
+	lds[(2*me + 1)*8 + 4] = X12.x;
+	lds[(2*me + 1)*8 + 5] = X13.x;
+	lds[(2*me + 1)*8 + 6] = X14.x;
+	lds[(2*me + 1)*8 + 7] = X15.x;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	 X0.x = lds[2*me + 0 +    0];
+	 X8.x = lds[2*me + 1 +    0];	
+	 X1.x = lds[2*me + 0 +  512];
+	 X9.x = lds[2*me + 1 +  512];	
+	 X2.x = lds[2*me + 0 + 1024];
+	X10.x = lds[2*me + 1 + 1024];	
+	 X3.x = lds[2*me + 0 + 1536];
+	X11.x = lds[2*me + 1 + 1536];	
+	 X4.x = lds[2*me + 0 + 2048];
+	X12.x = lds[2*me + 1 + 2048];	
+	 X5.x = lds[2*me + 0 + 2560];
+	X13.x = lds[2*me + 1 + 2560];	
+	 X6.x = lds[2*me + 0 + 3072];
+	X14.x = lds[2*me + 1 + 3072];	
+	 X7.x = lds[2*me + 0 + 3584];
+	X15.x = lds[2*me + 1 + 3584];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[(2*me + 0)*8 + 0] = X0.y;
+	lds[(2*me + 0)*8 + 1] = X1.y;
+	lds[(2*me + 0)*8 + 2] = X2.y;
+	lds[(2*me + 0)*8 + 3] = X3.y;
+	lds[(2*me + 0)*8 + 4] = X4.y;
+	lds[(2*me + 0)*8 + 5] = X5.y;
+	lds[(2*me + 0)*8 + 6] = X6.y;
+	lds[(2*me + 0)*8 + 7] = X7.y;
+	
+	lds[(2*me + 1)*8 + 0] =  X8.y;
+	lds[(2*me + 1)*8 + 1] =  X9.y;
+	lds[(2*me + 1)*8 + 2] = X10.y;
+	lds[(2*me + 1)*8 + 3] = X11.y;
+	lds[(2*me + 1)*8 + 4] = X12.y;
+	lds[(2*me + 1)*8 + 5] = X13.y;
+	lds[(2*me + 1)*8 + 6] = X14.y;
+	lds[(2*me + 1)*8 + 7] = X15.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	 X0.y = lds[2*me + 0 +    0];
+	 X8.y = lds[2*me + 1 +    0];	
+	 X1.y = lds[2*me + 0 +  512];
+	 X9.y = lds[2*me + 1 +  512];	
+	 X2.y = lds[2*me + 0 + 1024];
+	X10.y = lds[2*me + 1 + 1024];	
+	 X3.y = lds[2*me + 0 + 1536];
+	X11.y = lds[2*me + 1 + 1536];	
+	 X4.y = lds[2*me + 0 + 2048];
+	X12.y = lds[2*me + 1 + 2048];	
+	 X5.y = lds[2*me + 0 + 2560];
+	X13.y = lds[2*me + 1 + 2560];	
+	 X6.y = lds[2*me + 0 + 3072];
+	X14.y = lds[2*me + 1 + 3072];	
+	 X7.y = lds[2*me + 0 + 3584];
+	X15.y = lds[2*me + 1 + 3584];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+
+			
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 0)%8) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 0)%8) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 0)%8) + 2, X3)
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 0)%8) + 3, X4)
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 0)%8) + 4, X5)
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 0)%8) + 5, X6)
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 0)%8) + 6, X7)
+		
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 1)%8) + 0,  X9)
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 1)%8) + 1, X10)
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 1)%8) + 2, X11)
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 1)%8) + 3, X12)
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 1)%8) + 4, X13)
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 1)%8) + 5, X14)
+		TWIDDLE_MUL_FWD(twiddles_4096, 7 + 7*((2*me + 1)%8) + 6, X15)		
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 0)%8) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 0)%8) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 0)%8) + 2, X3)
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 0)%8) + 3, X4)
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 0)%8) + 4, X5)
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 0)%8) + 5, X6)
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 0)%8) + 6, X7)
+		
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 1)%8) + 0,  X9)
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 1)%8) + 1, X10)
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 1)%8) + 2, X11)
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 1)%8) + 3, X12)
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 1)%8) + 4, X13)
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 1)%8) + 5, X14)
+		TWIDDLE_MUL_INV(twiddles_4096, 7 + 7*((2*me + 1)%8) + 6, X15)			
+
+	}
+	
+	if(dir == -1)
+	{
+		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8(&X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+	else
+	{
+		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8(&X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+
+
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) +  0] = X0.x;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) +  8] = X1.x;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) + 16] = X2.x;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) + 24] = X3.x;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) + 32] = X4.x;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) + 40] = X5.x;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) + 48] = X6.x;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) + 56] = X7.x;
+	
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) +  0] =  X8.x;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) +  8] =  X9.x;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) + 16] = X10.x;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) + 24] = X11.x;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) + 32] = X12.x;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) + 40] = X13.x;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) + 48] = X14.x;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) + 56] = X15.x;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	 X0.x = lds[2*me + 0 +    0];
+	 X8.x = lds[2*me + 1 +    0];	
+	 X1.x = lds[2*me + 0 +  512];
+	 X9.x = lds[2*me + 1 +  512];	
+	 X2.x = lds[2*me + 0 + 1024];
+	X10.x = lds[2*me + 1 + 1024];	
+	 X3.x = lds[2*me + 0 + 1536];
+	X11.x = lds[2*me + 1 + 1536];	
+	 X4.x = lds[2*me + 0 + 2048];
+	X12.x = lds[2*me + 1 + 2048];	
+	 X5.x = lds[2*me + 0 + 2560];
+	X13.x = lds[2*me + 1 + 2560];	
+	 X6.x = lds[2*me + 0 + 3072];
+	X14.x = lds[2*me + 1 + 3072];	
+	 X7.x = lds[2*me + 0 + 3584];
+	X15.x = lds[2*me + 1 + 3584];
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) +  0] = X0.y;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) +  8] = X1.y;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) + 16] = X2.y;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) + 24] = X3.y;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) + 32] = X4.y;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) + 40] = X5.y;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) + 48] = X6.y;
+	lds[((2*me + 0)/8)*64 + ((2*me + 0)%8) + 56] = X7.y;
+	
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) +  0] =  X8.y;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) +  8] =  X9.y;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) + 16] = X10.y;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) + 24] = X11.y;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) + 32] = X12.y;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) + 40] = X13.y;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) + 48] = X14.y;
+	lds[((2*me + 1)/8)*64 + ((2*me + 1)%8) + 56] = X15.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	 X0.y = lds[2*me + 0 +    0];
+	 X8.y = lds[2*me + 1 +    0];	
+	 X1.y = lds[2*me + 0 +  512];
+	 X9.y = lds[2*me + 1 +  512];	
+	 X2.y = lds[2*me + 0 + 1024];
+	X10.y = lds[2*me + 1 + 1024];	
+	 X3.y = lds[2*me + 0 + 1536];
+	X11.y = lds[2*me + 1 + 1536];	
+	 X4.y = lds[2*me + 0 + 2048];
+	X12.y = lds[2*me + 1 + 2048];	
+	 X5.y = lds[2*me + 0 + 2560];
+	X13.y = lds[2*me + 1 + 2560];	
+	 X6.y = lds[2*me + 0 + 3072];
+	X14.y = lds[2*me + 1 + 3072];	
+	 X7.y = lds[2*me + 0 + 3584];
+	X15.y = lds[2*me + 1 + 3584];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 0)%64) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 0)%64) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 0)%64) + 2, X3)
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 0)%64) + 3, X4)
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 0)%64) + 4, X5)
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 0)%64) + 5, X6)
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 0)%64) + 6, X7)
+		
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 1)%64) + 0,  X9)
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 1)%64) + 1, X10)
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 1)%64) + 2, X11)
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 1)%64) + 3, X12)
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 1)%64) + 4, X13)
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 1)%64) + 5, X14)
+		TWIDDLE_MUL_FWD(twiddles_4096, 63 + 7*((2*me + 1)%64) + 6, X15)
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 0)%64) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 0)%64) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 0)%64) + 2, X3)
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 0)%64) + 3, X4)
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 0)%64) + 4, X5)
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 0)%64) + 5, X6)
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 0)%64) + 6, X7)
+		
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 1)%64) + 0,  X9)
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 1)%64) + 1, X10)
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 1)%64) + 2, X11)
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 1)%64) + 3, X12)
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 1)%64) + 4, X13)
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 1)%64) + 5, X14)
+		TWIDDLE_MUL_INV(twiddles_4096, 63 + 7*((2*me + 1)%64) + 6, X15)
+	}
+	
+	if(dir == -1)
+	{
+		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8(&X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+	else
+	{
+		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8(&X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+
+
+		
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) +   0] = X0.x;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) +  64] = X1.x;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) + 128] = X2.x;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) + 192] = X3.x;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) + 256] = X4.x;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) + 320] = X5.x;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) + 384] = X6.x;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) + 448] = X7.x;
+	
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) +   0] =  X8.x;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) +  64] =  X9.x;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) + 128] = X10.x;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) + 192] = X11.x;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) + 256] = X12.x;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) + 320] = X13.x;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) + 384] = X14.x;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) + 448] = X15.x;	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	 X0.x = lds[2*me + 0 +    0];
+	 X8.x = lds[2*me + 1 +    0];	
+	 X1.x = lds[2*me + 0 +  512];
+	 X9.x = lds[2*me + 1 +  512];	
+	 X2.x = lds[2*me + 0 + 1024];
+	X10.x = lds[2*me + 1 + 1024];	
+	 X3.x = lds[2*me + 0 + 1536];
+	X11.x = lds[2*me + 1 + 1536];	
+	 X4.x = lds[2*me + 0 + 2048];
+	X12.x = lds[2*me + 1 + 2048];	
+	 X5.x = lds[2*me + 0 + 2560];
+	X13.x = lds[2*me + 1 + 2560];	
+	 X6.x = lds[2*me + 0 + 3072];
+	X14.x = lds[2*me + 1 + 3072];	
+	 X7.x = lds[2*me + 0 + 3584];
+	X15.x = lds[2*me + 1 + 3584];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) +   0] = X0.y;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) +  64] = X1.y;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) + 128] = X2.y;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) + 192] = X3.y;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) + 256] = X4.y;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) + 320] = X5.y;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) + 384] = X6.y;
+	lds[((2*me + 0)/64)*512 + ((2*me + 0)%64) + 448] = X7.y;
+	
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) +   0] =  X8.y;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) +  64] =  X9.y;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) + 128] = X10.y;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) + 192] = X11.y;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) + 256] = X12.y;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) + 320] = X13.y;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) + 384] = X14.y;
+	lds[((2*me + 1)/64)*512 + ((2*me + 1)%64) + 448] = X15.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	 X0.y = lds[2*me + 0 +    0];
+	 X8.y = lds[2*me + 1 +    0];	
+	 X1.y = lds[2*me + 0 +  512];
+	 X9.y = lds[2*me + 1 +  512];	
+	 X2.y = lds[2*me + 0 + 1024];
+	X10.y = lds[2*me + 1 + 1024];	
+	 X3.y = lds[2*me + 0 + 1536];
+	X11.y = lds[2*me + 1 + 1536];	
+	 X4.y = lds[2*me + 0 + 2048];
+	X12.y = lds[2*me + 1 + 2048];	
+	 X5.y = lds[2*me + 0 + 2560];
+	X13.y = lds[2*me + 1 + 2560];	
+	 X6.y = lds[2*me + 0 + 3072];
+	X14.y = lds[2*me + 1 + 3072];	
+	 X7.y = lds[2*me + 0 + 3584];
+	X15.y = lds[2*me + 1 + 3584];
+
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 0)%512) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 0)%512) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 0)%512) + 2, X3)
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 0)%512) + 3, X4)
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 0)%512) + 4, X5)
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 0)%512) + 5, X6)
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 0)%512) + 6, X7)
+		
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 1)%512) + 0,  X9)
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 1)%512) + 1, X10)
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 1)%512) + 2, X11)
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 1)%512) + 3, X12)
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 1)%512) + 4, X13)
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 1)%512) + 5, X14)
+		TWIDDLE_MUL_FWD(twiddles_4096, 511 + 7*((2*me + 1)%512) + 6, X15)		
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 0)%512) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 0)%512) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 0)%512) + 2, X3)
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 0)%512) + 3, X4)
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 0)%512) + 4, X5)
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 0)%512) + 5, X6)
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 0)%512) + 6, X7)
+		
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 1)%512) + 0,  X9)
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 1)%512) + 1, X10)
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 1)%512) + 2, X11)
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 1)%512) + 3, X12)
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 1)%512) + 4, X13)
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 1)%512) + 5, X14)
+		TWIDDLE_MUL_INV(twiddles_4096, 511 + 7*((2*me + 1)%512) + 6, X15)	
+	}	
+	
+	if(dir == -1)
+	{
+		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8(&X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+	else
+	{
+		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8(&X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+		
+	{
+		__global float4 *lwbv = lwb;	
+		lwbv[me +    0] = (float4)(X0, X8);
+		lwbv[me +  256] = (float4)(X1, X9);	
+		lwbv[me +  512] = (float4)(X2,X10);
+		lwbv[me +  768] = (float4)(X3,X11);		
+		lwbv[me + 1024] = (float4)(X4,X12);
+		lwbv[me + 1280] = (float4)(X5,X13);	
+		lwbv[me + 1536] = (float4)(X6,X14);
+		lwbv[me + 1792] = (float4)(X7,X15);	
+	}
+}
+
 
