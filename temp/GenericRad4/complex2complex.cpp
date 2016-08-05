@@ -76,6 +76,7 @@ int main(int argc, char ** argv)
 	case 8:    KERN_NAME = "fft_8";    break;
 	case 4:    KERN_NAME = "fft_4";    break;
 	case 2:    KERN_NAME = "fft_2";    break;
+	case 1:    KERN_NAME = "fft_1";    break;
 	}
 
 	cl_kernel kernel = clCreateKernel( program, KERN_NAME, NULL );
