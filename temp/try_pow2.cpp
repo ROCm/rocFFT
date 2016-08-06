@@ -8,7 +8,6 @@
 #include <time.h>
 #include <math.h>
 
-#include "twiddles_4096.h"
 #include "fft_pow2_hip.h"
 
 struct Timer
@@ -28,23 +27,50 @@ public:
 };
 
 
+void CopyTwiddles(float2 *tw, size_t N)
+{
+
+#include "twiddles_pow2.h"
+
+	switch (N)
+	{
+	case 4096: hipMemcpy(tw, &twiddles_4096[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 2048: hipMemcpy(tw, &twiddles_2048[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 1024: hipMemcpy(tw, &twiddles_1024[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 512:  hipMemcpy(tw, &twiddles_512[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 256:  hipMemcpy(tw, &twiddles_256[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 128:  hipMemcpy(tw, &twiddles_128[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 64:   hipMemcpy(tw, &twiddles_64[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 32:   hipMemcpy(tw, &twiddles_32[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 16:   hipMemcpy(tw, &twiddles_16[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 8:    hipMemcpy(tw, &twiddles_8[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 4:    hipMemcpy(tw, &twiddles_4[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 2:    hipMemcpy(tw, &twiddles_2[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 1: break;
+
+	default:
+		std::cout << "Twiddle error" << std::endl;
+		break;
+	}
+}
+
 void LaunchKernel(size_t N, unsigned blocks, unsigned threadsPerBlock, float2 *twiddles, float2 *buffer, unsigned count, int dir)
 {
 	switch (N)
 	{
-	//case 4096:	hipLaunchKernel(HIP_KERNEL_NAME(fft_4096), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
+	case 4096:	hipLaunchKernel(HIP_KERNEL_NAME(fft_4096), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
 	case 2048:	hipLaunchKernel(HIP_KERNEL_NAME(fft_2048), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
 	case 1024:	hipLaunchKernel(HIP_KERNEL_NAME(fft_1024), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
-	case 512:	hipLaunchKernel(HIP_KERNEL_NAME(fft_512), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
-	case 256:	hipLaunchKernel(HIP_KERNEL_NAME(fft_256), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
-	case 128:	hipLaunchKernel(HIP_KERNEL_NAME(fft_128), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
-	case 64:	hipLaunchKernel(HIP_KERNEL_NAME(fft_64), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
-	case 32:	hipLaunchKernel(HIP_KERNEL_NAME(fft_32), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
-	case 16:	hipLaunchKernel(HIP_KERNEL_NAME(fft_16), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
-	case 8:		hipLaunchKernel(HIP_KERNEL_NAME(fft_8), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
-	case 4:		hipLaunchKernel(HIP_KERNEL_NAME(fft_4), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
-	case 2:		hipLaunchKernel(HIP_KERNEL_NAME(fft_2), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
-	case 1:		hipLaunchKernel(HIP_KERNEL_NAME(fft_1), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
+	case 512:	hipLaunchKernel(HIP_KERNEL_NAME(fft_512),  dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
+	case 256:	hipLaunchKernel(HIP_KERNEL_NAME(fft_256),  dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
+	case 128:	hipLaunchKernel(HIP_KERNEL_NAME(fft_128),  dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
+	case 64:	hipLaunchKernel(HIP_KERNEL_NAME(fft_64),   dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
+	case 32:	hipLaunchKernel(HIP_KERNEL_NAME(fft_32),   dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
+	case 16:	hipLaunchKernel(HIP_KERNEL_NAME(fft_16),   dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
+	case 8:		hipLaunchKernel(HIP_KERNEL_NAME(fft_8),    dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
+	case 4:		hipLaunchKernel(HIP_KERNEL_NAME(fft_4),    dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
+	case 2:		hipLaunchKernel(HIP_KERNEL_NAME(fft_2),    dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
+	case 1:		hipLaunchKernel(HIP_KERNEL_NAME(fft_1),    dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
 
 	default:
 		std::cout << "Launch error" << std::endl;
@@ -66,16 +92,12 @@ int main(int argc, char **argv)
 	size_t B = atoi(argv[1]);
 	size_t N = atoi(argv[2]);
 
-	float2 twiddles[] = {
-		TWIDDLE_4096
-	};
-
 	size_t Nbytes = B * N * sizeof(float2);
 
 	float2 *tw, *x;
-	hipMalloc(&tw, 4096 * sizeof(float2));
+	hipMalloc(&tw, Nbytes);
 	hipMalloc(&x, Nbytes);
-	hipMemcpy(tw, &twiddles[0], 4096 * sizeof(float2), hipMemcpyHostToDevice);
+	CopyTwiddles(tw, N);
 
 	float2 *hy = new float2[N*B];
 	float2 *hx = new float2[N*B];
