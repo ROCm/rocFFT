@@ -67,6 +67,9 @@ int main(int argc, char ** argv)
 
 	switch (N)
 	{
+	case 32768:	KERN_NAME_1 = "fft_32768_1";
+				KERN_NAME_2 = "fft_32768_2";
+				break;
 	case 16384:	KERN_NAME_1 = "fft_16384_1";
 				KERN_NAME_2 = "fft_16384_2";
 				break;
@@ -94,6 +97,7 @@ int main(int argc, char ** argv)
 
 	switch (N)
 	{
+	case 32768:
 	case 16384:
 	case 8192:	kernel_1 = clCreateKernel(program, KERN_NAME_1, NULL);
 				kernel_2 = clCreateKernel(program, KERN_NAME_2, NULL);
@@ -227,6 +231,7 @@ int main(int argc, char ** argv)
 #else
 	switch (N)
 	{
+	case 32768:
 	case 16384:
 	case 8192:	clSetKernelArg(kernel_1, 0, sizeof(bufferCplx), (void*)&bufferCplx);
 				clSetKernelArg(kernel_1, 1, sizeof(bufferTemp), (void*)&bufferTemp);
@@ -366,6 +371,15 @@ int main(int argc, char ** argv)
 
 	switch (N)
 	{
+	case 32768:
+	{
+		local_work_size_1[0] = 128;
+		global_work_size_1[0] = local_work_size_1[0] * 32 * B;
+
+		local_work_size_2[0] = 256;
+		global_work_size_2[0] = local_work_size_2[0] * 16 * B;
+	}
+	break;
 	case 16384:
 		{
 			local_work_size_1[0] = 128;
@@ -420,6 +434,7 @@ int main(int argc, char ** argv)
 
 	switch (N)
 	{
+	case 32768:
 	case 16384:
 	case 8192:
 		{
