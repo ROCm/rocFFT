@@ -43,7 +43,7 @@ int main(int argc, char ** argv)
 	flines = file_lines_get(argv[1], &ps);
 	cl_program program = clCreateProgramWithSource( context, flines, (const char **)ps, NULL, NULL );
 	file_lines_clear(flines, ps);
-	cl_int err = clBuildProgram( program, 1, &device, NULL, NULL, NULL );
+	cl_int err = clBuildProgram( program, 1, &device, "-I.", NULL, NULL );
 	if(err != CL_SUCCESS)
 	{
 		char *build_log = new char[BUILD_LOG_SIZE];
@@ -62,8 +62,14 @@ int main(int argc, char ** argv)
 
 	const char *KERN_NAME = NULL;
 
+	const char *KERN_NAME_1 = NULL;
+	const char *KERN_NAME_2 = NULL;
+
 	switch (N)
 	{
+	case 8192:	KERN_NAME_1 = "fft_8192_1";
+				KERN_NAME_2 = "fft_8192_2";
+				break;
 	case 4096: KERN_NAME = "fft_4096"; break;
 	case 2048: KERN_NAME = "fft_2048"; break;
 	case 1024: KERN_NAME = "fft_1024"; break;
@@ -79,8 +85,29 @@ int main(int argc, char ** argv)
 	case 1:    KERN_NAME = "fft_1";    break;
 	}
 
-	cl_kernel kernel = clCreateKernel( program, KERN_NAME, NULL );
+	cl_kernel kernel;
+	cl_kernel kernel_1;
+	cl_kernel kernel_2;
 
+	switch (N)
+	{
+	case 8192:	kernel_1 = clCreateKernel(program, KERN_NAME_1, NULL);
+				kernel_2 = clCreateKernel(program, KERN_NAME_2, NULL);
+				break;
+	case 4096: 
+	case 2048: 
+	case 1024: 
+	case 512:  
+	case 256:  
+	case 128:  
+	case 64:   
+	case 32:   
+	case 16:   
+	case 8:    
+	case 4:    
+	case 2:    
+	case 1:    kernel = clCreateKernel(program, KERN_NAME, NULL);
+	}
 	// Start FFT
 
 	Type *yr, *yi, *xr, *xi, *refr, *refi;
@@ -148,9 +175,9 @@ int main(int argc, char ** argv)
 	
 #ifdef LIST_RESULT
 	std::cout << "**** REF ****" << std::endl;
-	for(uint j=0; j<B; j++)
+	for (uint j = 0; j < B; j++)
 	{
-		for(uint i=0; i<N; i++)
+		for (uint i = 0; i < N; i++)
 		{
 #ifndef SEE_HEX
 			std::cout << "(" << refr[j*N + i] << ", " << refi[j*N + i] << ") " << std::endl;
@@ -166,31 +193,54 @@ int main(int argc, char ** argv)
 
 
 #ifndef FORMAT_INTERLEAVED
-	cl_mem bufferReal = clCreateBuffer( context, CL_MEM_READ_WRITE, N*B * sizeof(ClType), NULL, NULL );
-	cl_mem bufferImag = clCreateBuffer( context, CL_MEM_READ_WRITE, N*B * sizeof(ClType), NULL, NULL );
+	cl_mem bufferReal = clCreateBuffer(context, CL_MEM_READ_WRITE, N*B * sizeof(ClType), NULL, NULL);
+	cl_mem bufferImag = clCreateBuffer(context, CL_MEM_READ_WRITE, N*B * sizeof(ClType), NULL, NULL);
 #else
-	cl_mem bufferCplx = clCreateBuffer( context, CL_MEM_READ_WRITE, N*B * sizeof(ClType2), NULL, NULL );
+	cl_mem bufferCplx = clCreateBuffer(context, CL_MEM_READ_WRITE, N*B * sizeof(ClType2), NULL, NULL);
+	cl_mem bufferTemp = clCreateBuffer(context, CL_MEM_READ_WRITE, N*B * sizeof(ClType2), NULL, NULL);
 #endif
 
-	cl_mem radix = clCreateBuffer(context, CL_MEM_READ_ONLY, 8*sizeof(cl_uint), NULL, NULL);
+	cl_mem radix = clCreateBuffer(context, CL_MEM_READ_ONLY, 8 * sizeof(cl_uint), NULL, NULL);
 
-	cl_mem dbg = clCreateBuffer( context, CL_MEM_READ_WRITE, N*B * sizeof(ClType2), NULL, NULL );
+	cl_mem dbg = clCreateBuffer(context, CL_MEM_READ_WRITE, N*B * sizeof(ClType2), NULL, NULL);
 
 	// Fill buffers for FFT
 #ifndef FORMAT_INTERLEAVED
-	clEnqueueWriteBuffer( queue, bufferReal, CL_TRUE, 0, N*B * sizeof(ClType), (void *)xr, 0, NULL, NULL );
-	clEnqueueWriteBuffer( queue, bufferImag, CL_TRUE, 0, N*B * sizeof(ClType), (void *)xi, 0, NULL, NULL );
+	clEnqueueWriteBuffer(queue, bufferReal, CL_TRUE, 0, N*B * sizeof(ClType), (void *)xr, 0, NULL, NULL);
+	clEnqueueWriteBuffer(queue, bufferImag, CL_TRUE, 0, N*B * sizeof(ClType), (void *)xi, 0, NULL, NULL);
 #else
-	clEnqueueWriteBuffer( queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL );
+	clEnqueueWriteBuffer(queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL);
 #endif
 
 
 
 #ifndef FORMAT_INTERLEAVED
-	clSetKernelArg(kernel, 0, sizeof(bufferReal), (void*) &bufferReal);
-	clSetKernelArg(kernel, 1, sizeof(bufferImag), (void*) &bufferImag);
+	clSetKernelArg(kernel, 0, sizeof(bufferReal), (void*)&bufferReal);
+	clSetKernelArg(kernel, 1, sizeof(bufferImag), (void*)&bufferImag);
 #else
-	clSetKernelArg(kernel, 0, sizeof(bufferCplx), (void*) &bufferCplx);
+	switch (N)
+	{
+	case 8192:	clSetKernelArg(kernel_1, 0, sizeof(bufferCplx), (void*)&bufferCplx);
+				clSetKernelArg(kernel_1, 1, sizeof(bufferTemp), (void*)&bufferTemp);
+
+				clSetKernelArg(kernel_2, 0, sizeof(bufferTemp), (void*)&bufferTemp);
+				clSetKernelArg(kernel_2, 1, sizeof(bufferCplx), (void*)&bufferCplx);
+		break;
+	case 4096:
+	case 2048:
+	case 1024:
+	case 512:
+	case 256:
+	case 128:
+	case 64:
+	case 32:
+	case 16:
+	case 8:
+	case 4:
+	case 2:
+	case 1:    clSetKernelArg(kernel, 0, sizeof(bufferCplx), (void*)&bufferCplx);
+	}
+
 #endif
 
 	cl_uint radixp[8] = { 1,1,1,1,1,1,1,1 };
@@ -292,16 +342,56 @@ int main(int argc, char ** argv)
 	// 6. Launch the kernel
 	size_t global_work_size[1];
 	size_t local_work_size[1];
-	size_t gw = (B%NT) ? 1 + (B / NT) : (B / NT);
-	global_work_size[0] = WGS * gw;
-	local_work_size[0] = WGS;
 
+	size_t global_work_size_1[1];
+	size_t local_work_size_1[1];
+	size_t global_work_size_2[1];
+	size_t local_work_size_2[1];
 
 	cl_uint k_count = B;
 	cl_int dir = -1;
-	
-	clSetKernelArg(kernel, 1, sizeof(cl_uint), &k_count);
-	clSetKernelArg(kernel, 2, sizeof(cl_int), &dir);
+
+	switch (N)
+	{
+	case 8192:
+		{
+			local_work_size_1[0] = 128;
+			global_work_size_1[0] = local_work_size_1[0] * 8 * B;
+
+			local_work_size_2[0] = 128;
+			global_work_size_2[0] = local_work_size_2[0] * 8 * B;
+
+			clSetKernelArg(kernel_1, 2, sizeof(cl_uint), &k_count);
+			clSetKernelArg(kernel_1, 3, sizeof(cl_int), &dir);
+
+			clSetKernelArg(kernel_2, 2, sizeof(cl_uint), &k_count);
+			clSetKernelArg(kernel_2, 3, sizeof(cl_int), &dir);
+		}
+		break;
+	case 4096:
+	case 2048:
+	case 1024:
+	case 512:
+	case 256:
+	case 128:
+	case 64:
+	case 32:
+	case 16:
+	case 8:
+	case 4:
+	case 2:
+	case 1:
+		{
+			clSetKernelArg(kernel, 1, sizeof(cl_uint), &k_count);
+			clSetKernelArg(kernel, 2, sizeof(cl_int), &dir);
+
+			size_t gw = (B%NT) ? 1 + (B / NT) : (B / NT);
+			global_work_size[0] = WGS * gw;
+			local_work_size[0] = WGS;
+		}
+	}
+
+
 
 
 	//clSetKernelArg(kernel, 6, sizeof(dbg), (void*) &dbg);
@@ -313,33 +403,97 @@ int main(int argc, char ** argv)
 	std::cout << "globalws: " << global_work_size[0] << std::endl;
 	std::cout << "localws: " << local_work_size[0] << std::endl;
 
-	clFinish( queue );
-	for(uint i=0; i<10; i++)
+	clFinish(queue);
+	double tev = 0, time = 0;
+
+	switch (N)
 	{
-		err = clEnqueueNDRangeKernel( queue, kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, NULL);
-		clFinish( queue );
+	case 8192:
+		{
+			for (uint i = 0; i < 10; i++)
+			{
+				err = clEnqueueNDRangeKernel(queue, kernel_1, 1, NULL, global_work_size_1, local_work_size_1, 0, NULL, NULL);
+				clFinish(queue);
+				err = clEnqueueNDRangeKernel(queue, kernel_2, 1, NULL, global_work_size_2, local_work_size_2, 0, NULL, NULL);
+				clFinish(queue);
+			}
+
+			clEnqueueWriteBuffer(queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL);
+
+			cl_event ev1, ev2;
+			Timer tr;
+			tr.Start();
+			err = clEnqueueNDRangeKernel(queue, kernel_1, 1, NULL, global_work_size_1, local_work_size_1, 0, NULL, &ev1);
+			err = clEnqueueNDRangeKernel(queue, kernel_2, 1, NULL, global_work_size_2, local_work_size_2, 1, &ev1, &ev2);
+			clFinish(queue);
+			time = tr.Sample();
+
+			cl_int ks;
+			clGetEventInfo(ev1, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
+			if (ks != CL_COMPLETE)
+				std::cout << "kernel 1 execution not complete" << std::endl;
+			clGetEventInfo(ev2, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
+			if (ks != CL_COMPLETE)
+				std::cout << "kernel 2 execution not complete" << std::endl;
+
+			cl_ulong kbeg1, kbeg2;
+			cl_ulong kend1, kend2;
+			clGetEventProfilingInfo(ev1, CL_PROFILING_COMMAND_START, sizeof(kbeg1), &kbeg1, NULL);
+			clGetEventProfilingInfo(ev1, CL_PROFILING_COMMAND_END, sizeof(kend1), &kend1, NULL);
+			clGetEventProfilingInfo(ev2, CL_PROFILING_COMMAND_START, sizeof(kbeg2), &kbeg2, NULL);
+			clGetEventProfilingInfo(ev2, CL_PROFILING_COMMAND_END, sizeof(kend2), &kend2, NULL);
+
+			tev = (double)(kend1 - kbeg1);
+			tev += (double)(kend2 - kbeg2);
+		}
+
+		break;
+	case 4096:
+	case 2048:
+	case 1024:
+	case 512:
+	case 256:
+	case 128:
+	case 64:
+	case 32:
+	case 16:
+	case 8:
+	case 4:
+	case 2:
+	case 1:
+		{
+			for (uint i = 0; i < 10; i++)
+			{
+				err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, NULL);
+				clFinish(queue);
+			}
+
+			clEnqueueWriteBuffer(queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL);
+
+			cl_event ev;
+			Timer tr;
+			tr.Start();
+			err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, &ev);
+			clFinish(queue);
+			time = tr.Sample();
+
+			cl_int ks;
+			clGetEventInfo(ev, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
+			if (ks != CL_COMPLETE)
+				std::cout << "kernel execution not complete" << std::endl;
+
+			cl_ulong kbeg;
+			cl_ulong kend;
+			clGetEventProfilingInfo(ev, CL_PROFILING_COMMAND_START, sizeof(kbeg), &kbeg, NULL);
+			clGetEventProfilingInfo(ev, CL_PROFILING_COMMAND_END, sizeof(kend), &kend, NULL);
+
+			tev = (double)(kend - kbeg);
+		}
 	}
 
-	clEnqueueWriteBuffer(queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL);
 
-	cl_event ev;
-	Timer tr;
-	tr.Start();
-	err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, &ev);
-	clFinish(queue);
-	double time = tr.Sample();
 
-	cl_int ks;
-	clGetEventInfo(ev, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
-	if(ks != CL_COMPLETE)
-		std::cout << "kernel execution not complete" << std::endl;
 
-	cl_ulong kbeg;
-    cl_ulong kend;
-	clGetEventProfilingInfo(ev, CL_PROFILING_COMMAND_START, sizeof(kbeg), &kbeg, NULL);
-	clGetEventProfilingInfo(ev, CL_PROFILING_COMMAND_END,   sizeof(kend), &kend, NULL);
-
-	double tev = (double)(kend - kbeg);
 	std::cout << "gpu event time (milliseconds): " << tev/1000000.0 << std::endl;
 	double opsconst = 5.0 * (double)N * log((double)N) / log(2.0);
 	std::cout << "gflops: " << ((double)B * opsconst)/tev << std::endl;
