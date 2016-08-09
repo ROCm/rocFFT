@@ -67,6 +67,9 @@ int main(int argc, char ** argv)
 
 	switch (N)
 	{
+	case 16384:	KERN_NAME_1 = "fft_16384_1";
+				KERN_NAME_2 = "fft_16384_2";
+				break;
 	case 8192:	KERN_NAME_1 = "fft_8192_1";
 				KERN_NAME_2 = "fft_8192_2";
 				break;
@@ -91,8 +94,10 @@ int main(int argc, char ** argv)
 
 	switch (N)
 	{
+	case 16384:
 	case 8192:	kernel_1 = clCreateKernel(program, KERN_NAME_1, NULL);
 				kernel_2 = clCreateKernel(program, KERN_NAME_2, NULL);
+
 				break;
 	case 4096: 
 	case 2048: 
@@ -213,6 +218,8 @@ int main(int argc, char ** argv)
 #endif
 
 
+	cl_uint k_count = B;
+	cl_int dir = -1;
 
 #ifndef FORMAT_INTERLEAVED
 	clSetKernelArg(kernel, 0, sizeof(bufferReal), (void*)&bufferReal);
@@ -220,11 +227,18 @@ int main(int argc, char ** argv)
 #else
 	switch (N)
 	{
+	case 16384:
 	case 8192:	clSetKernelArg(kernel_1, 0, sizeof(bufferCplx), (void*)&bufferCplx);
 				clSetKernelArg(kernel_1, 1, sizeof(bufferTemp), (void*)&bufferTemp);
 
 				clSetKernelArg(kernel_2, 0, sizeof(bufferTemp), (void*)&bufferTemp);
 				clSetKernelArg(kernel_2, 1, sizeof(bufferCplx), (void*)&bufferCplx);
+
+				clSetKernelArg(kernel_1, 2, sizeof(cl_uint), &k_count);
+				clSetKernelArg(kernel_1, 3, sizeof(cl_int), &dir);
+
+				clSetKernelArg(kernel_2, 2, sizeof(cl_uint), &k_count);
+				clSetKernelArg(kernel_2, 3, sizeof(cl_int), &dir);
 		break;
 	case 4096:
 	case 2048:
@@ -348,11 +362,19 @@ int main(int argc, char ** argv)
 	size_t global_work_size_2[1];
 	size_t local_work_size_2[1];
 
-	cl_uint k_count = B;
-	cl_int dir = -1;
+
 
 	switch (N)
 	{
+	case 16384:
+		{
+			local_work_size_1[0] = 128;
+			global_work_size_1[0] = local_work_size_1[0] * 16 * B;
+
+			local_work_size_2[0] = 256;
+			global_work_size_2[0] = local_work_size_2[0] * 8 * B;
+		}
+		break;
 	case 8192:
 		{
 			local_work_size_1[0] = 128;
@@ -360,12 +382,6 @@ int main(int argc, char ** argv)
 
 			local_work_size_2[0] = 128;
 			global_work_size_2[0] = local_work_size_2[0] * 8 * B;
-
-			clSetKernelArg(kernel_1, 2, sizeof(cl_uint), &k_count);
-			clSetKernelArg(kernel_1, 3, sizeof(cl_int), &dir);
-
-			clSetKernelArg(kernel_2, 2, sizeof(cl_uint), &k_count);
-			clSetKernelArg(kernel_2, 3, sizeof(cl_int), &dir);
 		}
 		break;
 	case 4096:
@@ -398,18 +414,21 @@ int main(int argc, char ** argv)
 
 	std::cout << "count: " << k_count << std::endl;
 	std::cout << "N: " << N << std::endl;
-	std::cout << "T: " << T << std::endl;
-	std::cout << "NT: " << NT << std::endl;
-	std::cout << "globalws: " << global_work_size[0] << std::endl;
-	std::cout << "localws: " << local_work_size[0] << std::endl;
 
 	clFinish(queue);
 	double tev = 0, time = 0;
 
 	switch (N)
 	{
+	case 16384:
 	case 8192:
 		{
+			std::cout << "globalws_1: " << global_work_size_1[0] << std::endl;
+			std::cout << "localws_1: " << local_work_size_1[0] << std::endl;
+
+			std::cout << "globalws_2: " << global_work_size_2[0] << std::endl;
+			std::cout << "localws_2: " << local_work_size_2[0] << std::endl;
+
 			for (uint i = 0; i < 10; i++)
 			{
 				err = clEnqueueNDRangeKernel(queue, kernel_1, 1, NULL, global_work_size_1, local_work_size_1, 0, NULL, NULL);
@@ -462,6 +481,11 @@ int main(int argc, char ** argv)
 	case 2:
 	case 1:
 		{
+			std::cout << "T: " << T << std::endl;
+			std::cout << "NT: " << NT << std::endl;
+			std::cout << "globalws: " << global_work_size[0] << std::endl;
+			std::cout << "localws: " << local_work_size[0] << std::endl;
+
 			for (uint i = 0; i < 10; i++)
 			{
 				err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, NULL);
@@ -557,7 +581,7 @@ int main(int argc, char ** argv)
 				continue;
 		}
 
-		if( abs(yr[i] -  refr[i]) > abs(0.01 * refr[i]) )
+		if( abs(yr[i] -  refr[i]) > abs(0.02 * refr[i]) )
 		{
 			std::cout << "FAIL" << std::endl;
 			std::cout << "B: " << (i/N) << " index: " << (i%N) << std::endl;
@@ -565,7 +589,7 @@ int main(int argc, char ** argv)
 			break;
 		}
 
-		if( abs(yi[i] -  refi[i]) > abs(0.01 * refi[i]) )
+		if( abs(yi[i] -  refi[i]) > abs(0.02 * refi[i]) )
 		{
 			std::cout << "FAIL" << std::endl;
 			std::cout << "B: " << (i/N) << " index: " << (i%N) << std::endl;
