@@ -67,6 +67,9 @@ int main(int argc, char ** argv)
 
 	switch (N)
 	{
+	case 65536:	KERN_NAME_1 = "fft_65536_1";
+				KERN_NAME_2 = "fft_65536_2";
+				break;
 	case 32768:	KERN_NAME_1 = "fft_32768_1";
 				KERN_NAME_2 = "fft_32768_2";
 				break;
@@ -97,6 +100,7 @@ int main(int argc, char ** argv)
 
 	switch (N)
 	{
+	case 65536:
 	case 32768:
 	case 16384:
 	case 8192:	kernel_1 = clCreateKernel(program, KERN_NAME_1, NULL);
@@ -231,6 +235,7 @@ int main(int argc, char ** argv)
 #else
 	switch (N)
 	{
+	case 65536:
 	case 32768:
 	case 16384:
 	case 8192:	clSetKernelArg(kernel_1, 0, sizeof(bufferCplx), (void*)&bufferCplx);
@@ -371,6 +376,15 @@ int main(int argc, char ** argv)
 
 	switch (N)
 	{
+	case 65536:
+	{
+		local_work_size_1[0] = 256;
+		global_work_size_1[0] = local_work_size_1[0] * 32 * B;
+
+		local_work_size_2[0] = 256;
+		global_work_size_2[0] = local_work_size_2[0] * 32 * B;
+	}
+	break;
 	case 32768:
 	{
 		local_work_size_1[0] = 128;
@@ -434,6 +448,7 @@ int main(int argc, char ** argv)
 
 	switch (N)
 	{
+	case 65536:
 	case 32768:
 	case 16384:
 	case 8192:
@@ -596,7 +611,7 @@ int main(int argc, char ** argv)
 				continue;
 		}
 
-		if( abs(yr[i] -  refr[i]) > abs(0.02 * refr[i]) )
+		if( abs(yr[i] -  refr[i]) > abs(0.03 * refr[i]) )
 		{
 			std::cout << "FAIL" << std::endl;
 			std::cout << "B: " << (i/N) << " index: " << (i%N) << std::endl;
@@ -604,7 +619,7 @@ int main(int argc, char ** argv)
 			break;
 		}
 
-		if( abs(yi[i] -  refi[i]) > abs(0.02 * refi[i]) )
+		if( abs(yi[i] -  refi[i]) > abs(0.03 * refi[i]) )
 		{
 			std::cout << "FAIL" << std::endl;
 			std::cout << "B: " << (i/N) << " index: " << (i%N) << std::endl;
