@@ -461,39 +461,48 @@ int main(int argc, char ** argv)
 
 			for (uint i = 0; i < 10; i++)
 			{
-				err = clEnqueueNDRangeKernel(queue, kernel_1, 1, NULL, global_work_size_1, local_work_size_1, 0, NULL, NULL);
-				clFinish(queue);
-				err = clEnqueueNDRangeKernel(queue, kernel_2, 1, NULL, global_work_size_2, local_work_size_2, 0, NULL, NULL);
+				clEnqueueWriteBuffer(queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL);
+
+				cl_event ev1, ev2;
+				Timer tr;
+				tr.Start();
+				err = clEnqueueNDRangeKernel(queue, kernel_1, 1, NULL, global_work_size_1, local_work_size_1, 0, NULL, &ev1);
+				err = clEnqueueNDRangeKernel(queue, kernel_2, 1, NULL, global_work_size_2, local_work_size_2, 1, &ev1, &ev2);
+				clWaitForEvents(1, &ev2);
+				double timep = tr.Sample();
+
+				time = time == 0 ? timep : time;
+				time = timep < time ? timep : time;
+
+				cl_int ks;
+				clGetEventInfo(ev1, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
+				if (ks != CL_COMPLETE)
+					std::cout << "kernel 1 execution not complete" << std::endl;
+				clGetEventInfo(ev2, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
+				if (ks != CL_COMPLETE)
+					std::cout << "kernel 2 execution not complete" << std::endl;
+
+				cl_ulong kbeg1, kbeg2;
+				cl_ulong kend1, kend2;
+				clGetEventProfilingInfo(ev1, CL_PROFILING_COMMAND_START, sizeof(kbeg1), &kbeg1, NULL);
+				clGetEventProfilingInfo(ev1, CL_PROFILING_COMMAND_END, sizeof(kend1), &kend1, NULL);
+				clGetEventProfilingInfo(ev2, CL_PROFILING_COMMAND_START, sizeof(kbeg2), &kbeg2, NULL);
+				clGetEventProfilingInfo(ev2, CL_PROFILING_COMMAND_END, sizeof(kend2), &kend2, NULL);
+
+				double tevp = 0, tev1 = 0, tev2 = 0;
+				tev1 = (double)(kend1 - kbeg1);
+				//std::cout << "gpu event1: " << tev1 << std::endl;
+				tev2 = (double)(kend2 - kbeg2);
+				//std::cout << "gpu event2: " << tev2 << std::endl;
+				tevp = tev1 + tev2;
+
+				tev = tev == 0 ? tevp : tev;
+				tev = tevp < tev ? tevp : tev;
+
+				clReleaseEvent(ev1);
+				clReleaseEvent(ev2);
 				clFinish(queue);
 			}
-
-			clEnqueueWriteBuffer(queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL);
-
-			cl_event ev1, ev2;
-			Timer tr;
-			tr.Start();
-			err = clEnqueueNDRangeKernel(queue, kernel_1, 1, NULL, global_work_size_1, local_work_size_1, 0, NULL, &ev1);
-			err = clEnqueueNDRangeKernel(queue, kernel_2, 1, NULL, global_work_size_2, local_work_size_2, 1, &ev1, &ev2);
-			clFinish(queue);
-			time = tr.Sample();
-
-			cl_int ks;
-			clGetEventInfo(ev1, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
-			if (ks != CL_COMPLETE)
-				std::cout << "kernel 1 execution not complete" << std::endl;
-			clGetEventInfo(ev2, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
-			if (ks != CL_COMPLETE)
-				std::cout << "kernel 2 execution not complete" << std::endl;
-
-			cl_ulong kbeg1, kbeg2;
-			cl_ulong kend1, kend2;
-			clGetEventProfilingInfo(ev1, CL_PROFILING_COMMAND_START, sizeof(kbeg1), &kbeg1, NULL);
-			clGetEventProfilingInfo(ev1, CL_PROFILING_COMMAND_END, sizeof(kend1), &kend1, NULL);
-			clGetEventProfilingInfo(ev2, CL_PROFILING_COMMAND_START, sizeof(kbeg2), &kbeg2, NULL);
-			clGetEventProfilingInfo(ev2, CL_PROFILING_COMMAND_END, sizeof(kend2), &kend2, NULL);
-
-			tev = (double)(kend1 - kbeg1);
-			tev += (double)(kend2 - kbeg2);
 		}
 
 		break;
@@ -516,32 +525,40 @@ int main(int argc, char ** argv)
 			std::cout << "globalws: " << global_work_size[0] << std::endl;
 			std::cout << "localws: " << local_work_size[0] << std::endl;
 
+
 			for (uint i = 0; i < 10; i++)
 			{
-				err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, NULL);
+				clEnqueueWriteBuffer(queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL);
+
+				cl_event ev;
+				Timer tr;
+				tr.Start();
+				err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, &ev);
+				clWaitForEvents(1, &ev);
+				double timep = tr.Sample();
+
+				time = time == 0 ? timep : time;
+				time = timep < time ? timep : time;
+
+				cl_int ks;
+				clGetEventInfo(ev, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
+				if (ks != CL_COMPLETE)
+					std::cout << "kernel execution not complete" << std::endl;
+
+				cl_ulong kbeg;
+				cl_ulong kend;
+				clGetEventProfilingInfo(ev, CL_PROFILING_COMMAND_START, sizeof(kbeg), &kbeg, NULL);
+				clGetEventProfilingInfo(ev, CL_PROFILING_COMMAND_END, sizeof(kend), &kend, NULL);
+
+				double tevp = 0;
+				tevp = (double)(kend - kbeg);
+
+				tev = tev == 0 ? tevp : tev;
+				tev = tevp < tev ? tevp : tev;
+
+				clReleaseEvent(ev);
 				clFinish(queue);
 			}
-
-			clEnqueueWriteBuffer(queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL);
-
-			cl_event ev;
-			Timer tr;
-			tr.Start();
-			err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global_work_size, local_work_size, 0, NULL, &ev);
-			clFinish(queue);
-			time = tr.Sample();
-
-			cl_int ks;
-			clGetEventInfo(ev, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
-			if (ks != CL_COMPLETE)
-				std::cout << "kernel execution not complete" << std::endl;
-
-			cl_ulong kbeg;
-			cl_ulong kend;
-			clGetEventProfilingInfo(ev, CL_PROFILING_COMMAND_START, sizeof(kbeg), &kbeg, NULL);
-			clGetEventProfilingInfo(ev, CL_PROFILING_COMMAND_END, sizeof(kend), &kend, NULL);
-
-			tev = (double)(kend - kbeg);
 		}
 	}
 
