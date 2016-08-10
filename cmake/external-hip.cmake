@@ -22,7 +22,6 @@ if( ${BUILD_SHARED_LIBS} )
   list( APPEND hip_cmake_args -DCMAKE_CXX_FLAGS=-fPIC )
 endif()
 
-# Master branch has a new structure that combines googletest with googlemock
 if( PLATFORM_NAME STREQUAL "AMD" )
   ExternalProject_Add(
     HIP

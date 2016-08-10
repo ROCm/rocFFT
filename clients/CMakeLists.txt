@@ -69,8 +69,6 @@ if( BUILD_CLIENTS_SAMPLES )
         -DHIP_SRC_ROOT=${HIP_SRC_ROOT}
   	)
 
-  message( STATUS "<<===>> SAMPLES_CMAKE_ARGS: ${SAMPLES_CMAKE_ARGS}" )
-
   ExternalProject_Add( samples
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/samples
     BINARY_DIR samples-build
