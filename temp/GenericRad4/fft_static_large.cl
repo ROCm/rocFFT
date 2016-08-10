@@ -54,6 +54,39 @@ TW3step_65536(size_t u)
 	return result;
 }
 
+__attribute__((always_inline)) float2
+TW3step_131072(size_t u)
+{
+	size_t j = u & 255;
+	float2 result = twiddle_dee_131072[0][j];
+	u >>= 8;
+	j = u & 255;
+	result = (float2) ((result.x * twiddle_dee_131072[1][j].x - result.y * twiddle_dee_131072[1][j].y),
+		(result.y * twiddle_dee_131072[1][j].x + result.x * twiddle_dee_131072[1][j].y));
+	u >>= 8;
+	j = u & 255;
+	result = (float2) ((result.x * twiddle_dee_131072[2][j].x - result.y * twiddle_dee_131072[2][j].y),
+		(result.y * twiddle_dee_131072[2][j].x + result.x * twiddle_dee_131072[2][j].y));
+	return result;
+}
+
+
+__attribute__((always_inline)) float2
+TW3step_262144(size_t u)
+{
+	size_t j = u & 255;
+	float2 result = twiddle_dee_262144[0][j];
+	u >>= 8;
+	j = u & 255;
+	result = (float2) ((result.x * twiddle_dee_262144[1][j].x - result.y * twiddle_dee_262144[1][j].y),
+		(result.y * twiddle_dee_262144[1][j].x + result.x * twiddle_dee_262144[1][j].y));
+	u >>= 8;
+	j = u & 255;
+	result = (float2) ((result.x * twiddle_dee_262144[2][j].x - result.y * twiddle_dee_262144[2][j].y),
+		(result.y * twiddle_dee_262144[2][j].x + result.x * twiddle_dee_262144[2][j].y));
+	return result;
+}
+
 
 __attribute__((always_inline)) void
 fft_64_8192(uint b, uint me, __local float2 *lds, const int dir)
@@ -1243,3 +1276,1106 @@ void fft_65536_2(__global const float2 * restrict gbIn, __global float2 * restri
 	}
 
 }
+
+__attribute__((always_inline)) void
+fft_64_131072(uint b, uint me, __local float2 *lds, const int dir)
+{
+	float2 X0, X1, X2, X3;
+	
+	
+	X0 = lds[me + 0];
+	X1 = lds[me + 16];	
+	X2 = lds[me + 32];
+	X3 = lds[me + 48];		
+
+	
+	if(dir == -1)
+		FwdRad4(&X0, &X1, &X2, &X3);
+	else
+		InvRad4(&X0, &X1, &X2, &X3);
+		
+
+	lds[me*4 + 0] = X0;
+	lds[me*4 + 1] = X1;
+	lds[me*4 + 2] = X2;
+	lds[me*4 + 3] = X3;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	X0 = lds[me + 0];
+	X1 = lds[me + 16];	
+	X2 = lds[me + 32];
+	X3 = lds[me + 48];
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_64, 3 + 3*(me%4) + 0, X1)	
+		TWIDDLE_MUL_FWD(twiddles_64, 3 + 3*(me%4) + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles_64, 3 + 3*(me%4) + 2, X3)			
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_64, 3 + 3*(me%4) + 0, X1)	
+		TWIDDLE_MUL_INV(twiddles_64, 3 + 3*(me%4) + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles_64, 3 + 3*(me%4) + 2, X3)				
+	}
+	
+	if(dir == -1)
+		FwdRad4(&X0, &X1, &X2, &X3);
+	else
+		InvRad4(&X0, &X1, &X2, &X3);
+	
+	
+	lds[(me/4)*16 + me%4 +  0] = X0;
+	lds[(me/4)*16 + me%4 +  4] = X1;
+	lds[(me/4)*16 + me%4 +  8] = X2;
+	lds[(me/4)*16 + me%4 + 12] = X3;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	X0 = lds[me + 0];
+	X1 = lds[me + 16];	
+	X2 = lds[me + 32];
+	X3 = lds[me + 48];
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_64, 15 + 3*(me%16) + 0, X1)	
+		TWIDDLE_MUL_FWD(twiddles_64, 15 + 3*(me%16) + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles_64, 15 + 3*(me%16) + 2, X3)			
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_64, 15 + 3*(me%16) + 0, X1)	
+		TWIDDLE_MUL_INV(twiddles_64, 15 + 3*(me%16) + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles_64, 15 + 3*(me%16) + 2, X3)				
+	}
+	
+	if(dir == -1)
+		FwdRad4(&X0, &X1, &X2, &X3);
+	else
+		InvRad4(&X0, &X1, &X2, &X3);
+
+
+	if(dir == -1)
+	{
+		TWIDDLE_3STEP_MUL_FWD(TW3step_131072, (me +  0)*b, X0)	
+		TWIDDLE_3STEP_MUL_FWD(TW3step_131072, (me + 16)*b, X1)	
+		TWIDDLE_3STEP_MUL_FWD(TW3step_131072, (me + 32)*b, X2)	
+		TWIDDLE_3STEP_MUL_FWD(TW3step_131072, (me + 48)*b, X3)			
+	}
+	else
+	{
+		TWIDDLE_3STEP_MUL_INV(TW3step_131072, (me +  0)*b, X0)	
+		TWIDDLE_3STEP_MUL_INV(TW3step_131072, (me + 16)*b, X1)	
+		TWIDDLE_3STEP_MUL_INV(TW3step_131072, (me + 32)*b, X2)	
+		TWIDDLE_3STEP_MUL_INV(TW3step_131072, (me + 48)*b, X3)				
+	}
+	
+	
+	lds[me + 0]  = X0;
+	lds[me + 16] = X1;	
+	lds[me + 32] = X2;
+	lds[me + 48] = X3;		
+
+}
+
+
+__attribute__((always_inline)) void
+fft_2048(uint me, __local float *lds, __global float2 *lwb, const int dir)
+{
+
+	float2 X0, X1, X2, X3, X4, X5, X6, X7;
+
+	X0 = lwb[me +    0];
+	X1 = lwb[me +  256];
+	X2 = lwb[me +  512];
+	X3 = lwb[me +  768];
+	X4 = lwb[me + 1024];
+	X5 = lwb[me + 1280];
+	X6 = lwb[me + 1536];
+	X7 = lwb[me + 1792];
+					
+	
+	if(dir == -1)
+		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+	else
+		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+	
+	
+
+	lds[me*8 + 0] = X0.x;
+	lds[me*8 + 1] = X1.x;
+	lds[me*8 + 2] = X2.x;
+	lds[me*8 + 3] = X3.x;
+	lds[me*8 + 4] = X4.x;
+	lds[me*8 + 5] = X5.x;
+	lds[me*8 + 6] = X6.x;
+	lds[me*8 + 7] = X7.x;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.x = lds[me +    0];
+	X1.x = lds[me +  256];
+	X2.x = lds[me +  512];
+	X3.x = lds[me +  768];
+	X4.x = lds[me + 1024];
+	X5.x = lds[me + 1280];
+	X6.x = lds[me + 1536];
+	X7.x = lds[me + 1792];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[me*8 + 0] = X0.y;
+	lds[me*8 + 1] = X1.y;
+	lds[me*8 + 2] = X2.y;
+	lds[me*8 + 3] = X3.y;
+	lds[me*8 + 4] = X4.y;
+	lds[me*8 + 5] = X5.y;
+	lds[me*8 + 6] = X6.y;
+	lds[me*8 + 7] = X7.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.y = lds[me +    0];
+	X1.y = lds[me +  256];
+	X2.y = lds[me +  512];
+	X3.y = lds[me +  768];
+	X4.y = lds[me + 1024];
+	X5.y = lds[me + 1280];
+	X6.y = lds[me + 1536];
+	X7.y = lds[me + 1792];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+
+			
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_2048, 7 + 7*(me%8) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles_2048, 7 + 7*(me%8) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles_2048, 7 + 7*(me%8) + 2, X3)
+		TWIDDLE_MUL_FWD(twiddles_2048, 7 + 7*(me%8) + 3, X4)
+		TWIDDLE_MUL_FWD(twiddles_2048, 7 + 7*(me%8) + 4, X5)
+		TWIDDLE_MUL_FWD(twiddles_2048, 7 + 7*(me%8) + 5, X6)
+		TWIDDLE_MUL_FWD(twiddles_2048, 7 + 7*(me%8) + 6, X7)
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_2048, 7 + 7*(me%8) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles_2048, 7 + 7*(me%8) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles_2048, 7 + 7*(me%8) + 2, X3)
+		TWIDDLE_MUL_INV(twiddles_2048, 7 + 7*(me%8) + 3, X4)
+		TWIDDLE_MUL_INV(twiddles_2048, 7 + 7*(me%8) + 4, X5)
+		TWIDDLE_MUL_INV(twiddles_2048, 7 + 7*(me%8) + 5, X6)
+		TWIDDLE_MUL_INV(twiddles_2048, 7 + 7*(me%8) + 6, X7)				
+
+	}
+	
+	if(dir == -1)
+		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+	else
+		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+
+
+	lds[(me/8)*64 + (me%8) +  0] = X0.x;
+	lds[(me/8)*64 + (me%8) +  8] = X1.x;
+	lds[(me/8)*64 + (me%8) + 16] = X2.x;
+	lds[(me/8)*64 + (me%8) + 24] = X3.x;
+	lds[(me/8)*64 + (me%8) + 32] = X4.x;
+	lds[(me/8)*64 + (me%8) + 40] = X5.x;
+	lds[(me/8)*64 + (me%8) + 48] = X6.x;
+	lds[(me/8)*64 + (me%8) + 56] = X7.x;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.x = lds[me +    0];
+	X1.x = lds[me +  256];
+	X2.x = lds[me +  512];
+	X3.x = lds[me +  768];
+	X4.x = lds[me + 1024];
+	X5.x = lds[me + 1280];
+	X6.x = lds[me + 1536];
+	X7.x = lds[me + 1792];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[(me/8)*64 + (me%8) +  0] = X0.y;
+	lds[(me/8)*64 + (me%8) +  8] = X1.y;
+	lds[(me/8)*64 + (me%8) + 16] = X2.y;
+	lds[(me/8)*64 + (me%8) + 24] = X3.y;
+	lds[(me/8)*64 + (me%8) + 32] = X4.y;
+	lds[(me/8)*64 + (me%8) + 40] = X5.y;
+	lds[(me/8)*64 + (me%8) + 48] = X6.y;
+	lds[(me/8)*64 + (me%8) + 56] = X7.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.y = lds[me +    0];
+	X1.y = lds[me +  256];
+	X2.y = lds[me +  512];
+	X3.y = lds[me +  768];
+	X4.y = lds[me + 1024];
+	X5.y = lds[me + 1280];
+	X6.y = lds[me + 1536];
+	X7.y = lds[me + 1792];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_2048, 63 + 7*(me%64) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles_2048, 63 + 7*(me%64) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles_2048, 63 + 7*(me%64) + 2, X3)
+		TWIDDLE_MUL_FWD(twiddles_2048, 63 + 7*(me%64) + 3, X4)
+		TWIDDLE_MUL_FWD(twiddles_2048, 63 + 7*(me%64) + 4, X5)
+		TWIDDLE_MUL_FWD(twiddles_2048, 63 + 7*(me%64) + 5, X6)
+		TWIDDLE_MUL_FWD(twiddles_2048, 63 + 7*(me%64) + 6, X7)			
+
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_2048, 63 + 7*(me%64) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles_2048, 63 + 7*(me%64) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles_2048, 63 + 7*(me%64) + 2, X3)
+		TWIDDLE_MUL_INV(twiddles_2048, 63 + 7*(me%64) + 3, X4)
+		TWIDDLE_MUL_INV(twiddles_2048, 63 + 7*(me%64) + 4, X5)
+		TWIDDLE_MUL_INV(twiddles_2048, 63 + 7*(me%64) + 5, X6)
+		TWIDDLE_MUL_INV(twiddles_2048, 63 + 7*(me%64) + 6, X7)
+	}
+	
+	if(dir == -1)
+		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+	else
+		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+
+		
+	lds[(me/64)*512 + (me%64) +   0] = X0.x;
+	lds[(me/64)*512 + (me%64) +  64] = X1.x;
+	lds[(me/64)*512 + (me%64) + 128] = X2.x;
+	lds[(me/64)*512 + (me%64) + 192] = X3.x;
+	lds[(me/64)*512 + (me%64) + 256] = X4.x;
+	lds[(me/64)*512 + (me%64) + 320] = X5.x;
+	lds[(me/64)*512 + (me%64) + 384] = X6.x;
+	lds[(me/64)*512 + (me%64) + 448] = X7.x;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.x = lds[(2*me + 0) +    0];
+	X1.x = lds[(2*me + 0) +  512];
+	X2.x = lds[(2*me + 0) + 1024];
+	X3.x = lds[(2*me + 0) + 1536];
+
+	X4.x = lds[(2*me + 1) +    0];
+	X5.x = lds[(2*me + 1) +  512];
+	X6.x = lds[(2*me + 1) + 1024];
+	X7.x = lds[(2*me + 1) + 1536];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[(me/64)*512 + (me%64) +   0] = X0.y;
+	lds[(me/64)*512 + (me%64) +  64] = X1.y;
+	lds[(me/64)*512 + (me%64) + 128] = X2.y;
+	lds[(me/64)*512 + (me%64) + 192] = X3.y;
+	lds[(me/64)*512 + (me%64) + 256] = X4.y;
+	lds[(me/64)*512 + (me%64) + 320] = X5.y;
+	lds[(me/64)*512 + (me%64) + 384] = X6.y;
+	lds[(me/64)*512 + (me%64) + 448] = X7.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.y = lds[(2*me + 0) +    0];
+	X1.y = lds[(2*me + 0) +  512]; 
+	X2.y = lds[(2*me + 0) + 1024];
+	X3.y = lds[(2*me + 0) + 1536];
+
+	X4.y = lds[(2*me + 1) +    0];
+	X5.y = lds[(2*me + 1) +  512];
+	X6.y = lds[(2*me + 1) + 1024];
+	X7.y = lds[(2*me + 1) + 1536];	
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_2048, 511 + 3*((2*me + 0)%512) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles_2048, 511 + 3*((2*me + 0)%512) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles_2048, 511 + 3*((2*me + 0)%512) + 2, X3)
+
+		TWIDDLE_MUL_FWD(twiddles_2048, 511 + 3*((2*me + 1)%512) + 0, X5)
+		TWIDDLE_MUL_FWD(twiddles_2048, 511 + 3*((2*me + 1)%512) + 1, X6)
+		TWIDDLE_MUL_FWD(twiddles_2048, 511 + 3*((2*me + 1)%512) + 2, X7)
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_2048, 511 + 3*((2*me + 0)%512) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles_2048, 511 + 3*((2*me + 0)%512) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles_2048, 511 + 3*((2*me + 0)%512) + 2, X3)
+
+		TWIDDLE_MUL_INV(twiddles_2048, 511 + 3*((2*me + 1)%512) + 0, X5)
+		TWIDDLE_MUL_INV(twiddles_2048, 511 + 3*((2*me + 1)%512) + 1, X6)
+		TWIDDLE_MUL_INV(twiddles_2048, 511 + 3*((2*me + 1)%512) + 2, X7)	
+	}	
+	
+	if(dir == -1)
+	{
+		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4(&X4, &X5, &X6, &X7);
+	}
+	else	
+	{
+		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4(&X4, &X5, &X6, &X7);
+	}	
+		
+	{
+		__global float4 *lwbv = lwb;	
+		lwbv[me +   0] = (float4)(X0,X4);
+		lwbv[me + 256] = (float4)(X1,X5);	
+		lwbv[me + 512] = (float4)(X2,X6);
+		lwbv[me + 768] = (float4)(X3,X7);			
+	}
+}
+
+__kernel __attribute__((reqd_work_group_size (128,1,1)))
+void fft_131072_1(__global const float2 * restrict gbIn, __global float2 * restrict gbOut, const uint count, const int dir)
+{
+	uint me = get_local_id(0);
+	uint batch = get_group_id(0);
+
+	__local float2 lds[1024];
+
+	uint iOffset;
+	uint oOffset;
+	__global float2 *lwbIn;
+	__global float2 *lwbOut;
+
+	float2 R0;
+
+	uint b = 0;
+
+	iOffset = (batch/128)*131072 + (batch%128)*16;
+	oOffset = (batch/128)*131072 + (batch%128)*16;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+
+	for(uint t=0; t<8; t++)
+	{
+		R0 = lwbIn[(me%16) + (me/16)*2048 + t*16384];
+		lds[t*8 + (me%16)*64 + (me/16)] = R0;
+	}
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+
+	for(uint t=0; t<2; t++)
+	{
+
+		b = (batch%128)*16 + t*8 + (me/16);
+
+		fft_64_131072(b, me%16, lds + t*512 + (me/16)*64, dir);
+
+		barrier(CLK_LOCAL_MEM_FENCE);
+
+	}
+
+
+	for(uint t=0; t<8; t++)
+	{
+		R0 = lds[t*8 + (me%16)*64 + (me/16)];
+		lwbOut[(me%16) + (me/16)*2048 + t*16384] = R0;
+	}
+}
+
+__kernel __attribute__((reqd_work_group_size (256,1,1)))
+void fft_131072_2(__global const float2 * restrict gb, const uint count, const int dir)
+{
+	uint me = get_local_id(0);
+	uint batch = get_group_id(0);
+	
+	__local float lds[2048];
+	uint ioOffset;
+	__global float2 *lwb;
+
+	ioOffset = (batch/64)*131072 + (batch%64)*2048;
+	lwb = gb + ioOffset;
+	
+	fft_2048(me, lds, lwb, dir);
+
+}
+
+
+// Local structure to embody/capture tile dimensions
+typedef struct tag_Tile
+{
+   size_t x;
+   size_t y;
+} Tile;
+
+__attribute__(( reqd_work_group_size( 16, 16, 1 ) ))
+kernel void
+transpose_131072( global float2* restrict pmComplexIn, global float2* restrict pmComplexOut, const uint count )
+{
+   const Tile localIndex = { get_local_id( 0 ), get_local_id( 1 ) }; 
+   const Tile localExtent = { get_local_size( 0 ), get_local_size( 1 ) }; 
+   const Tile groupIndex = { get_group_id( 0 ), get_group_id( 1 ) };
+   
+   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
+   // Transpose of input & output blocks happens with the Offset calculation
+   const size_t reShapeFactor = 4;
+   const size_t wgUnroll = 16;
+   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
+   const size_t numGroupsY_1 = 1;
+   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
+   local float2 lds[ 64 ][ 64 ];
+
+   size_t currDimIndex;
+   size_t rowSizeinUnits;
+
+   size_t iOffset = 0;
+   currDimIndex = groupIndex.y;
+   iOffset += (currDimIndex/numGroupsY_1)*131072;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 2048;
+   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
+   iOffset += groupIndex.x * wgTileExtent.x;
+   
+   global float2* tileIn = pmComplexIn + iOffset;
+   float2 tmp;
+   rowSizeinUnits = 2048;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
+         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tmp = tileIn[ gInd ];
+         // Transpose of Tile data happens here
+         lds[ xInd ][ yInd ] = tmp; 
+      }
+   
+   barrier( CLK_LOCAL_MEM_FENCE );
+   
+   size_t oOffset = 0;
+   currDimIndex = groupIndex.y;
+   oOffset += (currDimIndex/numGroupsY_1)*131072;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 64;
+   oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
+   oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
+   
+   global float2* tileOut = pmComplexOut + oOffset;
+
+   rowSizeinUnits = 64;
+   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
+   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
+         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
+         tmp = lds[ yInd ][ xInd ]; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tileOut[ gInd ] = tmp;
+      }
+}
+
+
+__attribute__((always_inline)) void
+fft_64_262144(uint b, uint me, __local float2 *lds, const int dir)
+{
+	float2 X0, X1, X2, X3;
+	
+	
+	X0 = lds[me + 0];
+	X1 = lds[me + 16];	
+	X2 = lds[me + 32];
+	X3 = lds[me + 48];		
+
+	
+	if(dir == -1)
+		FwdRad4(&X0, &X1, &X2, &X3);
+	else
+		InvRad4(&X0, &X1, &X2, &X3);
+		
+
+	lds[me*4 + 0] = X0;
+	lds[me*4 + 1] = X1;
+	lds[me*4 + 2] = X2;
+	lds[me*4 + 3] = X3;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	X0 = lds[me + 0];
+	X1 = lds[me + 16];	
+	X2 = lds[me + 32];
+	X3 = lds[me + 48];
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_64, 3 + 3*(me%4) + 0, X1)	
+		TWIDDLE_MUL_FWD(twiddles_64, 3 + 3*(me%4) + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles_64, 3 + 3*(me%4) + 2, X3)			
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_64, 3 + 3*(me%4) + 0, X1)	
+		TWIDDLE_MUL_INV(twiddles_64, 3 + 3*(me%4) + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles_64, 3 + 3*(me%4) + 2, X3)				
+	}
+	
+	if(dir == -1)
+		FwdRad4(&X0, &X1, &X2, &X3);
+	else
+		InvRad4(&X0, &X1, &X2, &X3);
+	
+	
+	lds[(me/4)*16 + me%4 +  0] = X0;
+	lds[(me/4)*16 + me%4 +  4] = X1;
+	lds[(me/4)*16 + me%4 +  8] = X2;
+	lds[(me/4)*16 + me%4 + 12] = X3;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	X0 = lds[me + 0];
+	X1 = lds[me + 16];	
+	X2 = lds[me + 32];
+	X3 = lds[me + 48];
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_64, 15 + 3*(me%16) + 0, X1)	
+		TWIDDLE_MUL_FWD(twiddles_64, 15 + 3*(me%16) + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles_64, 15 + 3*(me%16) + 2, X3)			
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_64, 15 + 3*(me%16) + 0, X1)	
+		TWIDDLE_MUL_INV(twiddles_64, 15 + 3*(me%16) + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles_64, 15 + 3*(me%16) + 2, X3)				
+	}
+	
+	if(dir == -1)
+		FwdRad4(&X0, &X1, &X2, &X3);
+	else
+		InvRad4(&X0, &X1, &X2, &X3);
+
+
+	if(dir == -1)
+	{
+		TWIDDLE_3STEP_MUL_FWD(TW3step_262144, (me +  0)*b, X0)	
+		TWIDDLE_3STEP_MUL_FWD(TW3step_262144, (me + 16)*b, X1)	
+		TWIDDLE_3STEP_MUL_FWD(TW3step_262144, (me + 32)*b, X2)	
+		TWIDDLE_3STEP_MUL_FWD(TW3step_262144, (me + 48)*b, X3)			
+	}
+	else
+	{
+		TWIDDLE_3STEP_MUL_INV(TW3step_262144, (me +  0)*b, X0)	
+		TWIDDLE_3STEP_MUL_INV(TW3step_262144, (me + 16)*b, X1)	
+		TWIDDLE_3STEP_MUL_INV(TW3step_262144, (me + 32)*b, X2)	
+		TWIDDLE_3STEP_MUL_INV(TW3step_262144, (me + 48)*b, X3)				
+	}
+	
+	
+	lds[me + 0]  = X0;
+	lds[me + 16] = X1;	
+	lds[me + 32] = X2;
+	lds[me + 48] = X3;		
+
+}
+
+
+__attribute__((always_inline)) void
+fft_4096(uint me, __local float *lds, __global float2 *lwb, const int dir)
+{
+	float2 X0, X1, X2, X3, X4, X5, X6, X7;
+	float2 X8, X9, X10, X11, X12, X13, X14, X15;
+	
+
+	 X0 = lwb[me +    0];
+	 X1 = lwb[me +  256];
+	 X2 = lwb[me +  512];
+	 X3 = lwb[me +  768];
+	 X4 = lwb[me + 1024];
+	 X5 = lwb[me + 1280];
+	 X6 = lwb[me + 1536];
+	 X7 = lwb[me + 1792];
+	 X8 = lwb[me + 2048];
+	 X9 = lwb[me + 2304];
+	X10 = lwb[me + 2560];
+	X11 = lwb[me + 2816];
+	X12 = lwb[me + 3072];
+	X13 = lwb[me + 3328];
+	X14 = lwb[me + 3584];
+	X15 = lwb[me + 3840];
+	
+	if(dir == -1)
+	{
+		FwdRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+	else
+	{
+		InvRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+	
+	
+
+	lds[me*16 +  0] =  X0.x;
+	lds[me*16 +  1] =  X1.x;
+	lds[me*16 +  2] =  X2.x;
+	lds[me*16 +  3] =  X3.x;
+	lds[me*16 +  4] =  X4.x;
+	lds[me*16 +  5] =  X5.x;
+	lds[me*16 +  6] =  X6.x;
+	lds[me*16 +  7] =  X7.x;
+	lds[me*16 +  8] =  X8.x;
+	lds[me*16 +  9] =  X9.x;
+	lds[me*16 + 10] = X10.x;
+	lds[me*16 + 11] = X11.x;
+	lds[me*16 + 12] = X12.x;
+	lds[me*16 + 13] = X13.x;
+	lds[me*16 + 14] = X14.x;
+	lds[me*16 + 15] = X15.x;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	 X0.x = lds[me +    0];
+	 X1.x = lds[me +  256];
+	 X2.x = lds[me +  512];
+	 X3.x = lds[me +  768];
+	 X4.x = lds[me + 1024];
+	 X5.x = lds[me + 1280];
+	 X6.x = lds[me + 1536];
+	 X7.x = lds[me + 1792];
+	 X8.x = lds[me + 2048];
+	 X9.x = lds[me + 2304];
+	X10.x = lds[me + 2560];
+	X11.x = lds[me + 2816];
+	X12.x = lds[me + 3072];
+	X13.x = lds[me + 3328];
+	X14.x = lds[me + 3584];
+	X15.x = lds[me + 3840];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[me*16 +  0] =  X0.y;
+	lds[me*16 +  1] =  X1.y;
+	lds[me*16 +  2] =  X2.y;
+	lds[me*16 +  3] =  X3.y;
+	lds[me*16 +  4] =  X4.y;
+	lds[me*16 +  5] =  X5.y;
+	lds[me*16 +  6] =  X6.y;
+	lds[me*16 +  7] =  X7.y;
+	lds[me*16 +  8] =  X8.y;
+	lds[me*16 +  9] =  X9.y;
+	lds[me*16 + 10] = X10.y;
+	lds[me*16 + 11] = X11.y;
+	lds[me*16 + 12] = X12.y;
+	lds[me*16 + 13] = X13.y;
+	lds[me*16 + 14] = X14.y;
+	lds[me*16 + 15] = X15.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	 X0.y = lds[me +    0];
+	 X1.y = lds[me +  256];
+	 X2.y = lds[me +  512];
+	 X3.y = lds[me +  768];
+	 X4.y = lds[me + 1024];
+	 X5.y = lds[me + 1280];
+	 X6.y = lds[me + 1536];
+	 X7.y = lds[me + 1792];
+	 X8.y = lds[me + 2048];
+	 X9.y = lds[me + 2304];
+	X10.y = lds[me + 2560];
+	X11.y = lds[me + 2816];
+	X12.y = lds[me + 3072];
+	X13.y = lds[me + 3328];
+	X14.y = lds[me + 3584];
+	X15.y = lds[me + 3840];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+
+			
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) +  0,  X1)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) +  1,  X2)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) +  2,  X3)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) +  3,  X4)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) +  4,  X5)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) +  5,  X6)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) +  6,  X7)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) +  7,  X8)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) +  8,  X9)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) +  9, X10)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) + 10, X11)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) + 11, X12)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) + 12, X13)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) + 13, X14)
+		TWIDDLE_MUL_FWD(twiddles_4096, 15 + 15*(me%16) + 14, X15)		
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) +  0,  X1)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) +  1,  X2)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) +  2,  X3)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) +  3,  X4)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) +  4,  X5)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) +  5,  X6)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) +  6,  X7)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) +  7,  X8)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) +  8,  X9)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) +  9, X10)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) + 10, X11)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) + 11, X12)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) + 12, X13)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) + 13, X14)
+		TWIDDLE_MUL_INV(twiddles_4096, 15 + 15*(me%16) + 14, X15)
+	}
+	
+	if(dir == -1)
+	{
+		FwdRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+	else
+	{
+		InvRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+
+
+	lds[(me/16)*256 + (me%16) +   0] =  X0.x;
+	lds[(me/16)*256 + (me%16) +  16] =  X1.x;
+	lds[(me/16)*256 + (me%16) +  32] =  X2.x;
+	lds[(me/16)*256 + (me%16) +  48] =  X3.x;
+	lds[(me/16)*256 + (me%16) +  64] =  X4.x;
+	lds[(me/16)*256 + (me%16) +  80] =  X5.x;
+	lds[(me/16)*256 + (me%16) +  96] =  X6.x;
+	lds[(me/16)*256 + (me%16) + 112] =  X7.x;
+	lds[(me/16)*256 + (me%16) + 128] =  X8.x;
+	lds[(me/16)*256 + (me%16) + 144] =  X9.x;
+	lds[(me/16)*256 + (me%16) + 160] = X10.x;
+	lds[(me/16)*256 + (me%16) + 176] = X11.x;
+	lds[(me/16)*256 + (me%16) + 192] = X12.x;
+	lds[(me/16)*256 + (me%16) + 208] = X13.x;
+	lds[(me/16)*256 + (me%16) + 224] = X14.x;
+	lds[(me/16)*256 + (me%16) + 240] = X15.x;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	 X0.x = lds[me +    0];
+	 X1.x = lds[me +  256];
+	 X2.x = lds[me +  512];
+	 X3.x = lds[me +  768];
+	 X4.x = lds[me + 1024];
+	 X5.x = lds[me + 1280];
+	 X6.x = lds[me + 1536];
+	 X7.x = lds[me + 1792];
+	 X8.x = lds[me + 2048];
+	 X9.x = lds[me + 2304];
+	X10.x = lds[me + 2560];
+	X11.x = lds[me + 2816];
+	X12.x = lds[me + 3072];
+	X13.x = lds[me + 3328];
+	X14.x = lds[me + 3584];
+	X15.x = lds[me + 3840];
+	
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[(me/16)*256 + (me%16) +   0] =  X0.y;
+	lds[(me/16)*256 + (me%16) +  16] =  X1.y;
+	lds[(me/16)*256 + (me%16) +  32] =  X2.y;
+	lds[(me/16)*256 + (me%16) +  48] =  X3.y;
+	lds[(me/16)*256 + (me%16) +  64] =  X4.y;
+	lds[(me/16)*256 + (me%16) +  80] =  X5.y;
+	lds[(me/16)*256 + (me%16) +  96] =  X6.y;
+	lds[(me/16)*256 + (me%16) + 112] =  X7.y;
+	lds[(me/16)*256 + (me%16) + 128] =  X8.y;
+	lds[(me/16)*256 + (me%16) + 144] =  X9.y;
+	lds[(me/16)*256 + (me%16) + 160] = X10.y;
+	lds[(me/16)*256 + (me%16) + 176] = X11.y;
+	lds[(me/16)*256 + (me%16) + 192] = X12.y;
+	lds[(me/16)*256 + (me%16) + 208] = X13.y;
+	lds[(me/16)*256 + (me%16) + 224] = X14.y;
+	lds[(me/16)*256 + (me%16) + 240] = X15.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	 X0.y = lds[me +    0];
+	 X1.y = lds[me +  256];
+	 X2.y = lds[me +  512];
+	 X3.y = lds[me +  768];
+	 X4.y = lds[me + 1024];
+	 X5.y = lds[me + 1280];
+	 X6.y = lds[me + 1536];
+	 X7.y = lds[me + 1792];
+	 X8.y = lds[me + 2048];
+	 X9.y = lds[me + 2304];
+	X10.y = lds[me + 2560];
+	X11.y = lds[me + 2816];
+	X12.y = lds[me + 3072];
+	X13.y = lds[me + 3328];
+	X14.y = lds[me + 3584];
+	X15.y = lds[me + 3840];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) +  0,  X1)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) +  1,  X2)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) +  2,  X3)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) +  3,  X4)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) +  4,  X5)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) +  5,  X6)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) +  6,  X7)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) +  7,  X8)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) +  8,  X9)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) +  9, X10)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) + 10, X11)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) + 11, X12)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) + 12, X13)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) + 13, X14)
+		TWIDDLE_MUL_FWD(twiddles_4096, 255 + 15*(me%256) + 14, X15)
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) +  0,  X1)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) +  1,  X2)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) +  2,  X3)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) +  3,  X4)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) +  4,  X5)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) +  5,  X6)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) +  6,  X7)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) +  7,  X8)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) +  8,  X9)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) +  9, X10)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) + 10, X11)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) + 11, X12)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) + 12, X13)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) + 13, X14)
+		TWIDDLE_MUL_INV(twiddles_4096, 255 + 15*(me%256) + 14, X15)
+	}
+	
+	if(dir == -1)
+	{
+		FwdRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+	else
+	{
+		InvRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+	}
+
+	lwb[me +    0] =  X0;
+	lwb[me +  256] =  X1;
+	lwb[me +  512] =  X2;
+	lwb[me +  768] =  X3;
+	lwb[me + 1024] =  X4;
+	lwb[me + 1280] =  X5;
+	lwb[me + 1536] =  X6;
+	lwb[me + 1792] =  X7;
+	lwb[me + 2048] =  X8;
+	lwb[me + 2304] =  X9;
+	lwb[me + 2560] = X10;
+	lwb[me + 2816] = X11;
+	lwb[me + 3072] = X12;
+	lwb[me + 3328] = X13;
+	lwb[me + 3584] = X14;
+	lwb[me + 3840] = X15;	
+
+}
+
+
+__kernel __attribute__((reqd_work_group_size (128,1,1)))
+void fft_262144_1(__global const float2 * restrict gbIn, __global float2 * restrict gbOut, const uint count, const int dir)
+{
+	uint me = get_local_id(0);
+	uint batch = get_group_id(0);
+
+	__local float2 lds[1024];
+
+	uint iOffset;
+	uint oOffset;
+	__global float2 *lwbIn;
+	__global float2 *lwbOut;
+
+	float2 R0;
+
+	uint b = 0;
+
+	iOffset = (batch/256)*262144 + (batch%256)*16;
+	oOffset = (batch/256)*262144 + (batch%256)*16;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+
+	for(uint t=0; t<8; t++)
+	{
+		R0 = lwbIn[(me%16) + (me/16)*4096 + t*32768];
+		lds[t*8 + (me%16)*64 + (me/16)] = R0;
+	}
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+
+	for(uint t=0; t<2; t++)
+	{
+
+		b = (batch%256)*16 + t*8 + (me/16);
+
+		fft_64_262144(b, me%16, lds + t*512 + (me/16)*64, dir);
+
+		barrier(CLK_LOCAL_MEM_FENCE);
+
+	}
+
+
+	for(uint t=0; t<8; t++)
+	{
+		R0 = lds[t*8 + (me%16)*64 + (me/16)];
+		lwbOut[(me%16) + (me/16)*4096 + t*32768] = R0;
+	}
+}
+
+__kernel __attribute__((reqd_work_group_size (256,1,1)))
+void fft_262144_2(__global const float2 * restrict gb, const uint count, const int dir)
+{
+	uint me = get_local_id(0);
+	uint batch = get_group_id(0);
+	
+	__local float lds[4096];
+	uint ioOffset;
+	__global float2 *lwb;
+
+	ioOffset = (batch/64)*262144 + (batch%64)*4096;
+	lwb = gb + ioOffset;
+	
+	fft_4096(me, lds, lwb, dir);
+
+}
+
+
+__attribute__(( reqd_work_group_size( 16, 16, 1 ) ))
+kernel void
+transpose_262144( global float2* restrict pmComplexIn, global float2* restrict pmComplexOut, const uint count )
+{
+   const Tile localIndex = { get_local_id( 0 ), get_local_id( 1 ) }; 
+   const Tile localExtent = { get_local_size( 0 ), get_local_size( 1 ) }; 
+   const Tile groupIndex = { get_group_id( 0 ), get_group_id( 1 ) };
+   
+   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
+   // Transpose of input & output blocks happens with the Offset calculation
+   const size_t reShapeFactor = 4;
+   const size_t wgUnroll = 16;
+   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
+   const size_t numGroupsY_1 = 1;
+   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
+   local float2 lds[ 64 ][ 64 ];
+
+   size_t currDimIndex;
+   size_t rowSizeinUnits;
+
+   size_t iOffset = 0;
+   currDimIndex = groupIndex.y;
+   iOffset += (currDimIndex/numGroupsY_1)*262144;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 4096;
+   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
+   iOffset += groupIndex.x * wgTileExtent.x;
+   
+   global float2* tileIn = pmComplexIn + iOffset;
+   float2 tmp;
+   rowSizeinUnits = 4096;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
+         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tmp = tileIn[ gInd ];
+         // Transpose of Tile data happens here
+         lds[ xInd ][ yInd ] = tmp; 
+      }
+   
+   barrier( CLK_LOCAL_MEM_FENCE );
+   
+   size_t oOffset = 0;
+   currDimIndex = groupIndex.y;
+   oOffset += (currDimIndex/numGroupsY_1)*262144;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 64;
+   oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
+   oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
+   
+   global float2* tileOut = pmComplexOut + oOffset;
+
+   rowSizeinUnits = 64;
+   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
+   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
+         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
+         tmp = lds[ yInd ][ xInd ]; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tileOut[ gInd ] = tmp;
+      }
+}
+
+
+
