@@ -105,6 +105,23 @@ TW3step_524288(size_t u)
 }
 
 
+__attribute__((always_inline)) float2
+TW3step_1048576(size_t u)
+{
+	size_t j = u & 255;
+	float2 result = twiddle_dee_1048576[0][j];
+	u >>= 8;
+	j = u & 255;
+	result = (float2) ((result.x * twiddle_dee_1048576[1][j].x - result.y * twiddle_dee_1048576[1][j].y),
+		(result.y * twiddle_dee_1048576[1][j].x + result.x * twiddle_dee_1048576[1][j].y));
+	u >>= 8;
+	j = u & 255;
+	result = (float2) ((result.x * twiddle_dee_1048576[2][j].x - result.y * twiddle_dee_1048576[2][j].y),
+		(result.y * twiddle_dee_1048576[2][j].x + result.x * twiddle_dee_1048576[2][j].y));
+	return result;
+}
+
+
 
 __attribute__((always_inline)) void
 fft_64_8192(uint b, uint me, __local float2 *lds, const int dir)
@@ -3013,7 +3030,15 @@ transpose_524288_2( global float2* restrict pmComplexIn, global float2* restrict
          tmp = tileIn[ gInd ];
          // Transpose of Tile data happens here
 		 
-		 TWIDDLE_3STEP_MUL_FWD(TW3step_524288, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)		 
+		 if(dir == -1)
+		 {
+			TWIDDLE_3STEP_MUL_FWD(TW3step_524288, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
+		 }
+		 else
+		 {
+			TWIDDLE_3STEP_MUL_INV(TW3step_524288, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
+		 }
+		 
          lds[ xInd ][ yInd ] = tmp; 
       }
    
@@ -3133,4 +3158,265 @@ transpose_524288_3( global float2* restrict pmComplexIn, global float2* restrict
          tileOut[ gInd ] = tmp;
       }
 }
+
+
+__attribute__(( reqd_work_group_size( 16, 16, 1 ) ))
+kernel void
+transpose_1048576_1( global float2* restrict pmComplexIn, global float2* restrict pmComplexOut, const uint count )
+{
+   const Tile localIndex = { get_local_id( 0 ), get_local_id( 1 ) }; 
+   const Tile localExtent = { get_local_size( 0 ), get_local_size( 1 ) }; 
+   const Tile groupIndex = { get_group_id( 0 ), get_group_id( 1 ) };
+   
+   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
+   // Transpose of input & output blocks happens with the Offset calculation
+   const size_t reShapeFactor = 4;
+   const size_t wgUnroll = 16;
+   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
+   const size_t numGroupsY_1 = 16;
+   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
+   local float2 lds[ 64 ][ 64 ];
+
+   size_t currDimIndex;
+   size_t rowSizeinUnits;
+
+   size_t iOffset = 0;
+   currDimIndex = groupIndex.y;
+   iOffset += (currDimIndex/numGroupsY_1)*1048576;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 1024;
+   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
+   iOffset += groupIndex.x * wgTileExtent.x;
+   
+   global float2* tileIn = pmComplexIn + iOffset;
+   float2 tmp;
+   rowSizeinUnits = 1024;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
+         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tmp = tileIn[ gInd ];
+         // Transpose of Tile data happens here
+         lds[ xInd ][ yInd ] = tmp; 
+      }
+   
+   barrier( CLK_LOCAL_MEM_FENCE );
+   
+   size_t oOffset = 0;
+   currDimIndex = groupIndex.y;
+   oOffset += (currDimIndex/numGroupsY_1)*1114112;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 1088;
+   oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
+   oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
+   
+   global float2* tileOut = pmComplexOut + oOffset;
+
+   rowSizeinUnits = 1088;
+   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
+   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
+         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
+         tmp = lds[ yInd ][ xInd ]; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tileOut[ gInd ] = tmp;
+      }
+}
+
+__kernel __attribute__((reqd_work_group_size (128,1,1)))
+void fft_1048576_1(__global const float2 * restrict gbIn, __global float2 * restrict gbOut, const uint count, const int dir)
+{
+	uint me = get_local_id(0);
+	uint batch = get_group_id(0);
+
+	__local float lds[1024];
+
+	uint iOffset;
+	uint oOffset;
+	__global float2 *lwbIn;
+	__global float2 *lwbOut;
+
+	iOffset = (batch/1024)*1114112 + (batch%1024)*1088;
+	oOffset = (batch/1024)*1048576 + (batch%1024)*1024;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+	fft_1024(me, lds, lwbIn, lwbOut, dir);
+}
+
+__attribute__(( reqd_work_group_size( 16, 16, 1 ) ))
+kernel void
+transpose_1048576_2( global float2* restrict pmComplexIn, global float2* restrict pmComplexOut, const uint count, const int dir )
+{
+   const Tile localIndex = { get_local_id( 0 ), get_local_id( 1 ) }; 
+   const Tile localExtent = { get_local_size( 0 ), get_local_size( 1 ) }; 
+   const Tile groupIndex = { get_group_id( 0 ), get_group_id( 1 ) };
+   
+   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
+   // Transpose of input & output blocks happens with the Offset calculation
+   const size_t reShapeFactor = 4;
+   const size_t wgUnroll = 16;
+   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
+   const size_t numGroupsY_1 = 16;
+   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
+   local float2 lds[ 64 ][ 64 ];
+
+   size_t currDimIndex;
+   size_t rowSizeinUnits;
+
+   size_t iOffset = 0;
+   currDimIndex = groupIndex.y;
+   iOffset += (currDimIndex/numGroupsY_1)*1048576;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 1024;
+   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
+   iOffset += groupIndex.x * wgTileExtent.x;
+   
+   global float2* tileIn = pmComplexIn + iOffset;
+   float2 tmp;
+   rowSizeinUnits = 1024;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
+         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tmp = tileIn[ gInd ];
+		 
+         // Transpose of Tile data happens here
+		 if(dir == -1)
+		 {
+			TWIDDLE_3STEP_MUL_FWD(TW3step_1048576, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)		 
+		 }
+		 else
+		 {
+			TWIDDLE_3STEP_MUL_INV(TW3step_1048576, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)		 
+		 }
+		 
+         lds[ xInd ][ yInd ] = tmp; 
+      }
+   
+   barrier( CLK_LOCAL_MEM_FENCE );
+   
+   size_t oOffset = 0;
+   currDimIndex = groupIndex.y;
+   oOffset += (currDimIndex/numGroupsY_1)*1114112;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 1088;
+   oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
+   oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
+   
+   global float2* tileOut = pmComplexOut + oOffset;
+
+   rowSizeinUnits = 1088;
+   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
+   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
+         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
+         tmp = lds[ yInd ][ xInd ]; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tileOut[ gInd ] = tmp;
+      }
+}
+
+__kernel __attribute__((reqd_work_group_size (128,1,1)))
+void fft_1048576_2(__global const float2 * restrict gb, const uint count, const int dir)
+{
+	uint me = get_local_id(0);
+	uint batch = get_group_id(0);
+
+	__local float lds[1024];
+
+	uint ioOffset;
+	__global float2 *lwb;
+
+	ioOffset = (batch/1024)*1114112 + (batch%1024)*1088;
+	lwb = gb + ioOffset;
+	
+	fft_1024(me, lds, lwb, lwb, dir);
+
+}
+
+__attribute__(( reqd_work_group_size( 16, 16, 1 ) ))
+kernel void
+transpose_1048576_3( global float2* restrict pmComplexIn, global float2* restrict pmComplexOut, const uint count )
+{
+   const Tile localIndex = { get_local_id( 0 ), get_local_id( 1 ) }; 
+   const Tile localExtent = { get_local_size( 0 ), get_local_size( 1 ) }; 
+   const Tile groupIndex = { get_group_id( 0 ), get_group_id( 1 ) };
+   
+   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
+   // Transpose of input & output blocks happens with the Offset calculation
+   const size_t reShapeFactor = 4;
+   const size_t wgUnroll = 16;
+   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
+   const size_t numGroupsY_1 = 16;
+   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
+   local float2 lds[ 64 ][ 64 ];
+
+   size_t currDimIndex;
+   size_t rowSizeinUnits;
+
+   size_t iOffset = 0;
+   currDimIndex = groupIndex.y;
+   iOffset += (currDimIndex/numGroupsY_1)*1114112;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 1088;
+   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * groupIndex.x;
+   iOffset += currDimIndex * wgTileExtent.x;
+   
+   global float2* tileIn = pmComplexIn + iOffset;
+   float2 tmp;
+   rowSizeinUnits = 1088;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
+         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tmp = tileIn[ gInd ];
+         // Transpose of Tile data happens here
+         lds[ xInd ][ yInd ] = tmp; 
+      }
+   
+   barrier( CLK_LOCAL_MEM_FENCE );
+   
+   size_t oOffset = 0;
+   currDimIndex = groupIndex.y;
+   oOffset += (currDimIndex/numGroupsY_1)*1048576;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 1024;
+   oOffset += rowSizeinUnits * wgTileExtent.x * currDimIndex;
+   oOffset += groupIndex.x * wgTileExtent.y * wgUnroll;
+   
+   global float2* tileOut = pmComplexOut + oOffset;
+
+   rowSizeinUnits = 1024;
+   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
+   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
+         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
+         tmp = lds[ yInd ][ xInd ]; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tileOut[ gInd ] = tmp;
+      }
+}
+
 

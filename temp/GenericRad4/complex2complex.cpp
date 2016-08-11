@@ -378,6 +378,30 @@ int main(int argc, char ** argv)
 
 	switch (N)
 	{
+	case 1048576:
+	{
+		local_work_size_1[0] = 16;
+		local_work_size_1[1] = 16;
+		global_work_size_1[0] = local_work_size_1[0] * 16;
+		global_work_size_1[1] = local_work_size_1[1] * 16 * B;
+
+		local_work_size_2[0] = 128;
+		global_work_size_2[0] = local_work_size_2[0] * 1024 * B;
+
+		local_work_size_3[0] = 16;
+		local_work_size_3[1] = 16;
+		global_work_size_3[0] = local_work_size_3[0] * 16;
+		global_work_size_3[1] = local_work_size_3[1] * 16 * B;
+
+		local_work_size_4[0] = 128;
+		global_work_size_4[0] = local_work_size_4[0] * 1024 * B;
+
+		local_work_size_5[0] = 16;
+		local_work_size_5[1] = 16;
+		global_work_size_5[0] = local_work_size_5[0] * 16;
+		global_work_size_5[1] = local_work_size_5[1] * 16 * B;
+	}
+	break;
 	case 524288:
 	{
 		local_work_size_1[0] = 16;
