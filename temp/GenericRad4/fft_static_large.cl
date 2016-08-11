@@ -88,6 +88,24 @@ TW3step_262144(size_t u)
 }
 
 
+__attribute__((always_inline)) float2
+TW3step_524288(size_t u)
+{
+	size_t j = u & 255;
+	float2 result = twiddle_dee_524288[0][j];
+	u >>= 8;
+	j = u & 255;
+	result = (float2) ((result.x * twiddle_dee_524288[1][j].x - result.y * twiddle_dee_524288[1][j].y),
+		(result.y * twiddle_dee_524288[1][j].x + result.x * twiddle_dee_524288[1][j].y));
+	u >>= 8;
+	j = u & 255;
+	result = (float2) ((result.x * twiddle_dee_524288[2][j].x - result.y * twiddle_dee_524288[2][j].y),
+		(result.y * twiddle_dee_524288[2][j].x + result.x * twiddle_dee_524288[2][j].y));
+	return result;
+}
+
+
+
 __attribute__((always_inline)) void
 fft_64_8192(uint b, uint me, __local float2 *lds, const int dir)
 {
@@ -2378,4 +2396,741 @@ transpose_262144( global float2* restrict pmComplexIn, global float2* restrict p
 }
 
 
+__attribute__((always_inline)) void
+fft_1024(uint me, __local float *lds, __global float2 *lwbIn, __global float2 *lwbOut, const int dir)
+{
+	float2 X0, X1, X2, X3, X4, X5, X6, X7;
+	
+	X0 = lwbIn[me +   0];
+	X1 = lwbIn[me + 128];
+	X2 = lwbIn[me + 256];
+	X3 = lwbIn[me + 384];
+	X4 = lwbIn[me + 512];
+	X5 = lwbIn[me + 640];
+	X6 = lwbIn[me + 768];
+	X7 = lwbIn[me + 896];
+					
+	
+	if(dir == -1)
+		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+	else
+		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+	
+	
+
+	lds[me*8 + 0] = X0.x;
+	lds[me*8 + 1] = X1.x;
+	lds[me*8 + 2] = X2.x;
+	lds[me*8 + 3] = X3.x;
+	lds[me*8 + 4] = X4.x;
+	lds[me*8 + 5] = X5.x;
+	lds[me*8 + 6] = X6.x;
+	lds[me*8 + 7] = X7.x;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.x = lds[me +   0];
+	X1.x = lds[me + 128];
+	X2.x = lds[me + 256];
+	X3.x = lds[me + 384];
+	X4.x = lds[me + 512];
+	X5.x = lds[me + 640];
+	X6.x = lds[me + 768];
+	X7.x = lds[me + 896];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[me*8 + 0] = X0.y;
+	lds[me*8 + 1] = X1.y;
+	lds[me*8 + 2] = X2.y;
+	lds[me*8 + 3] = X3.y;
+	lds[me*8 + 4] = X4.y;
+	lds[me*8 + 5] = X5.y;
+	lds[me*8 + 6] = X6.y;
+	lds[me*8 + 7] = X7.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.y = lds[me +   0];
+	X1.y = lds[me + 128];
+	X2.y = lds[me + 256];
+	X3.y = lds[me + 384];
+	X4.y = lds[me + 512];
+	X5.y = lds[me + 640];
+	X6.y = lds[me + 768];
+	X7.y = lds[me + 896];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+
+			
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_1024, 7 + 7*(me%8) + 0, X1)			
+		TWIDDLE_MUL_FWD(twiddles_1024, 7 + 7*(me%8) + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles_1024, 7 + 7*(me%8) + 2, X3)	
+		TWIDDLE_MUL_FWD(twiddles_1024, 7 + 7*(me%8) + 3, X4)	
+		TWIDDLE_MUL_FWD(twiddles_1024, 7 + 7*(me%8) + 4, X5)	
+		TWIDDLE_MUL_FWD(twiddles_1024, 7 + 7*(me%8) + 5, X6)	
+		TWIDDLE_MUL_FWD(twiddles_1024, 7 + 7*(me%8) + 6, X7)
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_1024, 7 + 7*(me%8) + 0, X1)			
+		TWIDDLE_MUL_INV(twiddles_1024, 7 + 7*(me%8) + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles_1024, 7 + 7*(me%8) + 2, X3)	
+		TWIDDLE_MUL_INV(twiddles_1024, 7 + 7*(me%8) + 3, X4)	
+		TWIDDLE_MUL_INV(twiddles_1024, 7 + 7*(me%8) + 4, X5)	
+		TWIDDLE_MUL_INV(twiddles_1024, 7 + 7*(me%8) + 5, X6)	
+		TWIDDLE_MUL_INV(twiddles_1024, 7 + 7*(me%8) + 6, X7)
+	}
+	
+	if(dir == -1)
+		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+	else
+		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+
+
+	lds[(me/8)*64 + (me%8) +  0] = X0.x;
+	lds[(me/8)*64 + (me%8) +  8] = X1.x;
+	lds[(me/8)*64 + (me%8) + 16] = X2.x;
+	lds[(me/8)*64 + (me%8) + 24] = X3.x;
+	lds[(me/8)*64 + (me%8) + 32] = X4.x;
+	lds[(me/8)*64 + (me%8) + 40] = X5.x;
+	lds[(me/8)*64 + (me%8) + 48] = X6.x;
+	lds[(me/8)*64 + (me%8) + 56] = X7.x;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.x = lds[(2*me + 0) +   0];
+	X1.x = lds[(2*me + 0) + 256];
+	X2.x = lds[(2*me + 0) + 512];
+	X3.x = lds[(2*me + 0) + 768];
+
+	X4.x = lds[(2*me + 1) +   0];
+	X5.x = lds[(2*me + 1) + 256];
+	X6.x = lds[(2*me + 1) + 512];
+	X7.x = lds[(2*me + 1) + 768];	
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[(me/8)*64 + (me%8) +  0] = X0.y;
+	lds[(me/8)*64 + (me%8) +  8] = X1.y;
+	lds[(me/8)*64 + (me%8) + 16] = X2.y;
+	lds[(me/8)*64 + (me%8) + 24] = X3.y;
+	lds[(me/8)*64 + (me%8) + 32] = X4.y;
+	lds[(me/8)*64 + (me%8) + 40] = X5.y;
+	lds[(me/8)*64 + (me%8) + 48] = X6.y;
+	lds[(me/8)*64 + (me%8) + 56] = X7.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.y = lds[(2*me + 0) +   0];
+	X1.y = lds[(2*me + 0) + 256];
+	X2.y = lds[(2*me + 0) + 512];
+	X3.y = lds[(2*me + 0) + 768];
+
+	X4.y = lds[(2*me + 1) +   0];
+	X5.y = lds[(2*me + 1) + 256];
+	X6.y = lds[(2*me + 1) + 512];
+	X7.y = lds[(2*me + 1) + 768];	
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_1024, 63 + 3*((2*me + 0)%64) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles_1024, 63 + 3*((2*me + 0)%64) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles_1024, 63 + 3*((2*me + 0)%64) + 2, X3)	
+
+		TWIDDLE_MUL_FWD(twiddles_1024, 63 + 3*((2*me + 1)%64) + 0, X5)
+		TWIDDLE_MUL_FWD(twiddles_1024, 63 + 3*((2*me + 1)%64) + 1, X6)
+		TWIDDLE_MUL_FWD(twiddles_1024, 63 + 3*((2*me + 1)%64) + 2, X7)
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_1024, 63 + 3*((2*me + 0)%64) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles_1024, 63 + 3*((2*me + 0)%64) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles_1024, 63 + 3*((2*me + 0)%64) + 2, X3)	
+
+		TWIDDLE_MUL_INV(twiddles_1024, 63 + 3*((2*me + 1)%64) + 0, X5)
+		TWIDDLE_MUL_INV(twiddles_1024, 63 + 3*((2*me + 1)%64) + 1, X6)
+		TWIDDLE_MUL_INV(twiddles_1024, 63 + 3*((2*me + 1)%64) + 2, X7)	
+	}	
+	
+	
+	if(dir == -1)
+	{
+		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4(&X4, &X5, &X6, &X7);
+	}
+	else	
+	{
+		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4(&X4, &X5, &X6, &X7);
+	}
+
+		
+	lds[((2*me + 0)/64)*256 + (2*me + 0)%64 +   0] = X0.x;
+	lds[((2*me + 0)/64)*256 + (2*me + 0)%64 +  64] = X1.x;
+	lds[((2*me + 0)/64)*256 + (2*me + 0)%64 + 128] = X2.x;
+	lds[((2*me + 0)/64)*256 + (2*me + 0)%64 + 192] = X3.x;
+	
+	lds[((2*me + 1)/64)*256 + (2*me + 1)%64 +   0] = X4.x;
+	lds[((2*me + 1)/64)*256 + (2*me + 1)%64 +  64] = X5.x;
+	lds[((2*me + 1)/64)*256 + (2*me + 1)%64 + 128] = X6.x;
+	lds[((2*me + 1)/64)*256 + (2*me + 1)%64 + 192] = X7.x;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.x = lds[(2*me + 0) +   0];
+	X1.x = lds[(2*me + 0) + 256];
+	X2.x = lds[(2*me + 0) + 512];
+	X3.x = lds[(2*me + 0) + 768];
+
+	X4.x = lds[(2*me + 1) +   0];
+	X5.x = lds[(2*me + 1) + 256];
+	X6.x = lds[(2*me + 1) + 512];
+	X7.x = lds[(2*me + 1) + 768];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[((2*me + 0)/64)*256 + (2*me + 0)%64 +   0] = X0.y;
+	lds[((2*me + 0)/64)*256 + (2*me + 0)%64 +  64] = X1.y;
+	lds[((2*me + 0)/64)*256 + (2*me + 0)%64 + 128] = X2.y;
+	lds[((2*me + 0)/64)*256 + (2*me + 0)%64 + 192] = X3.y;
+	
+	lds[((2*me + 1)/64)*256 + (2*me + 1)%64 +   0] = X4.y;
+	lds[((2*me + 1)/64)*256 + (2*me + 1)%64 +  64] = X5.y;
+	lds[((2*me + 1)/64)*256 + (2*me + 1)%64 + 128] = X6.y;
+	lds[((2*me + 1)/64)*256 + (2*me + 1)%64 + 192] = X7.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.y = lds[(2*me + 0) +   0];
+	X1.y = lds[(2*me + 0) + 256];
+	X2.y = lds[(2*me + 0) + 512];
+	X3.y = lds[(2*me + 0) + 768];
+
+	X4.y = lds[(2*me + 1) +   0];
+	X5.y = lds[(2*me + 1) + 256];
+	X6.y = lds[(2*me + 1) + 512];
+	X7.y = lds[(2*me + 1) + 768];	
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_1024, 255 + 3*((2*me + 0)%256) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles_1024, 255 + 3*((2*me + 0)%256) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles_1024, 255 + 3*((2*me + 0)%256) + 2, X3)	
+
+		TWIDDLE_MUL_FWD(twiddles_1024, 255 + 3*((2*me + 1)%256) + 0, X5)
+		TWIDDLE_MUL_FWD(twiddles_1024, 255 + 3*((2*me + 1)%256) + 1, X6)
+		TWIDDLE_MUL_FWD(twiddles_1024, 255 + 3*((2*me + 1)%256) + 2, X7)
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_1024, 255 + 3*((2*me + 0)%256) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles_1024, 255 + 3*((2*me + 0)%256) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles_1024, 255 + 3*((2*me + 0)%256) + 2, X3)	
+
+		TWIDDLE_MUL_INV(twiddles_1024, 255 + 3*((2*me + 1)%256) + 0, X5)
+		TWIDDLE_MUL_INV(twiddles_1024, 255 + 3*((2*me + 1)%256) + 1, X6)
+		TWIDDLE_MUL_INV(twiddles_1024, 255 + 3*((2*me + 1)%256) + 2, X7)
+	}	
+	
+	if(dir == -1)
+	{
+		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4(&X4, &X5, &X6, &X7);
+	}
+	else	
+	{
+		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4(&X4, &X5, &X6, &X7);
+	}	
+		
+	{
+		__global float4 *lwbv = lwbOut;	
+		lwbv[me +   0] = (float4)(X0,X4);
+		lwbv[me + 128] = (float4)(X1,X5);	
+		lwbv[me + 256] = (float4)(X2,X6);
+		lwbv[me + 384] = (float4)(X3,X7);			
+	}	
+}
+
+
+__attribute__((always_inline)) void
+fft_512(uint me, __local float *lds, __global float2 *lwb, const int dir)
+{
+	float2 X0, X1, X2, X3, X4, X5, X6, X7;
+
+	X0 = lwb[me +   0];
+	X1 = lwb[me +  64];
+	X2 = lwb[me + 128];
+	X3 = lwb[me + 192];
+	X4 = lwb[me + 256];
+	X5 = lwb[me + 320];
+	X6 = lwb[me + 384];
+	X7 = lwb[me + 448];
+					
+	
+	if(dir == -1)
+		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+	else
+		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+	
+	
+
+	lds[me*8 + 0] = X0.x;
+	lds[me*8 + 1] = X1.x;
+	lds[me*8 + 2] = X2.x;
+	lds[me*8 + 3] = X3.x;
+	lds[me*8 + 4] = X4.x;
+	lds[me*8 + 5] = X5.x;
+	lds[me*8 + 6] = X6.x;
+	lds[me*8 + 7] = X7.x;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.x = lds[me +   0];
+	X1.x = lds[me +  64];
+	X2.x = lds[me + 128];
+	X3.x = lds[me + 192];
+	X4.x = lds[me + 256];
+	X5.x = lds[me + 320];
+	X6.x = lds[me + 384];
+	X7.x = lds[me + 448];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[me*8 + 0] = X0.y;
+	lds[me*8 + 1] = X1.y;
+	lds[me*8 + 2] = X2.y;
+	lds[me*8 + 3] = X3.y;
+	lds[me*8 + 4] = X4.y;
+	lds[me*8 + 5] = X5.y;
+	lds[me*8 + 6] = X6.y;
+	lds[me*8 + 7] = X7.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.y = lds[me +   0];
+	X1.y = lds[me +  64];
+	X2.y = lds[me + 128];
+	X3.y = lds[me + 192];
+	X4.y = lds[me + 256];
+	X5.y = lds[me + 320];
+	X6.y = lds[me + 384];
+	X7.y = lds[me + 448];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+
+			
+	if(dir == -1)
+	{
+		float2 W;
+		float TR, TI;
+		
+		TWIDDLE_MUL_FWD(twiddles_512, 7 + 7*(me%8) + 0, X1)			
+		TWIDDLE_MUL_FWD(twiddles_512, 7 + 7*(me%8) + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles_512, 7 + 7*(me%8) + 2, X3)	
+		TWIDDLE_MUL_FWD(twiddles_512, 7 + 7*(me%8) + 3, X4)	
+		TWIDDLE_MUL_FWD(twiddles_512, 7 + 7*(me%8) + 4, X5)	
+		TWIDDLE_MUL_FWD(twiddles_512, 7 + 7*(me%8) + 5, X6)	
+		TWIDDLE_MUL_FWD(twiddles_512, 7 + 7*(me%8) + 6, X7)			
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_512, 7 + 7*(me%8) + 0, X1)			
+		TWIDDLE_MUL_INV(twiddles_512, 7 + 7*(me%8) + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles_512, 7 + 7*(me%8) + 2, X3)	
+		TWIDDLE_MUL_INV(twiddles_512, 7 + 7*(me%8) + 3, X4)	
+		TWIDDLE_MUL_INV(twiddles_512, 7 + 7*(me%8) + 4, X5)	
+		TWIDDLE_MUL_INV(twiddles_512, 7 + 7*(me%8) + 5, X6)	
+		TWIDDLE_MUL_INV(twiddles_512, 7 + 7*(me%8) + 6, X7)
+	}
+	
+	if(dir == -1)
+		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+	else
+		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+
+
+	lds[(me/8)*64 + (me%8) +  0] = X0.x;
+	lds[(me/8)*64 + (me%8) +  8] = X1.x;
+	lds[(me/8)*64 + (me%8) + 16] = X2.x;
+	lds[(me/8)*64 + (me%8) + 24] = X3.x;
+	lds[(me/8)*64 + (me%8) + 32] = X4.x;
+	lds[(me/8)*64 + (me%8) + 40] = X5.x;
+	lds[(me/8)*64 + (me%8) + 48] = X6.x;
+	lds[(me/8)*64 + (me%8) + 56] = X7.x;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.x = lds[me +   0];
+	X1.x = lds[me +  64];
+	X2.x = lds[me + 128];
+	X3.x = lds[me + 192];
+	X4.x = lds[me + 256];
+	X5.x = lds[me + 320];
+	X6.x = lds[me + 384];
+	X7.x = lds[me + 448];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	lds[(me/8)*64 + (me%8) +  0] = X0.y;
+	lds[(me/8)*64 + (me%8) +  8] = X1.y;
+	lds[(me/8)*64 + (me%8) + 16] = X2.y;
+	lds[(me/8)*64 + (me%8) + 24] = X3.y;
+	lds[(me/8)*64 + (me%8) + 32] = X4.y;
+	lds[(me/8)*64 + (me%8) + 40] = X5.y;
+	lds[(me/8)*64 + (me%8) + 48] = X6.y;
+	lds[(me/8)*64 + (me%8) + 56] = X7.y;
+	
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+			
+		
+	X0.y = lds[me +   0];
+	X1.y = lds[me +  64];
+	X2.y = lds[me + 128];
+	X3.y = lds[me + 192];
+	X4.y = lds[me + 256];
+	X5.y = lds[me + 320];
+	X6.y = lds[me + 384];
+	X7.y = lds[me + 448];
+
+		
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+
+	if(dir == -1)
+	{
+		TWIDDLE_MUL_FWD(twiddles_512, 63 + 7*me + 0, X1)			
+		TWIDDLE_MUL_FWD(twiddles_512, 63 + 7*me + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles_512, 63 + 7*me + 2, X3)	
+		TWIDDLE_MUL_FWD(twiddles_512, 63 + 7*me + 3, X4)	
+		TWIDDLE_MUL_FWD(twiddles_512, 63 + 7*me + 4, X5)	
+		TWIDDLE_MUL_FWD(twiddles_512, 63 + 7*me + 5, X6)	
+		TWIDDLE_MUL_FWD(twiddles_512, 63 + 7*me + 6, X7)
+	}
+	else
+	{
+		TWIDDLE_MUL_INV(twiddles_512, 63 + 7*me + 0, X1)			
+		TWIDDLE_MUL_INV(twiddles_512, 63 + 7*me + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles_512, 63 + 7*me + 2, X3)	
+		TWIDDLE_MUL_INV(twiddles_512, 63 + 7*me + 3, X4)	
+		TWIDDLE_MUL_INV(twiddles_512, 63 + 7*me + 4, X5)	
+		TWIDDLE_MUL_INV(twiddles_512, 63 + 7*me + 5, X6)	
+		TWIDDLE_MUL_INV(twiddles_512, 63 + 7*me + 6, X7)
+	}
+	
+	if(dir == -1)
+		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+	else
+		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+
+
+	lwb[me +   0] = X0;
+	lwb[me +  64] = X1;
+	lwb[me + 128] = X2;
+	lwb[me + 192] = X3;
+	lwb[me + 256] = X4;
+	lwb[me + 320] = X5;
+	lwb[me + 384] = X6;
+	lwb[me + 448] = X7;		
+		
+}
+
+
+
+__attribute__(( reqd_work_group_size( 16, 16, 1 ) ))
+kernel void
+transpose_524288_1( global float2* restrict pmComplexIn, global float2* restrict pmComplexOut, const uint count )
+{
+   const Tile localIndex = { get_local_id( 0 ), get_local_id( 1 ) }; 
+   const Tile localExtent = { get_local_size( 0 ), get_local_size( 1 ) }; 
+   const Tile groupIndex = { get_group_id( 0 ), get_group_id( 1 ) };
+   
+   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
+   // Transpose of input & output blocks happens with the Offset calculation
+   const size_t reShapeFactor = 4;
+   const size_t wgUnroll = 16;
+   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
+   const size_t numGroupsY_1 = 16;
+   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
+   local float2 lds[ 64 ][ 64 ];
+
+   size_t currDimIndex;
+   size_t rowSizeinUnits;
+
+   size_t iOffset = 0;
+   currDimIndex = groupIndex.y;
+   iOffset += (currDimIndex/numGroupsY_1)*524288;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 512;
+   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
+   iOffset += groupIndex.x * wgTileExtent.x;
+   
+   global float2* tileIn = pmComplexIn + iOffset;
+   float2 tmp;
+   rowSizeinUnits = 512;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
+         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tmp = tileIn[ gInd ];
+         // Transpose of Tile data happens here
+         lds[ xInd ][ yInd ] = tmp; 
+      }
+   
+   barrier( CLK_LOCAL_MEM_FENCE );
+   
+   size_t oOffset = 0;
+   currDimIndex = groupIndex.y;
+   oOffset += (currDimIndex/numGroupsY_1)*557056;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 1088;
+   oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
+   oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
+   
+   global float2* tileOut = pmComplexOut + oOffset;
+
+   rowSizeinUnits = 1088;
+   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
+   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
+         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
+         tmp = lds[ yInd ][ xInd ]; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tileOut[ gInd ] = tmp;
+      }
+}
+
+__kernel __attribute__((reqd_work_group_size (128,1,1)))
+void fft_524288_1(__global const float2 * restrict gbIn, __global float2 * restrict gbOut, const uint count, const int dir)
+{
+	uint me = get_local_id(0);
+	uint batch = get_group_id(0);
+
+	__local float lds[1024];
+
+	uint iOffset;
+	uint oOffset;
+	__global float2 *lwbIn;
+	__global float2 *lwbOut;
+
+	iOffset = (batch/512)*557056 + (batch%512)*1088;
+	oOffset = (batch/512)*524288 + (batch%512)*1024;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+	fft_1024(me, lds, lwbIn, lwbOut, dir);
+}
+
+__attribute__(( reqd_work_group_size( 16, 16, 1 ) ))
+kernel void
+transpose_524288_2( global float2* restrict pmComplexIn, global float2* restrict pmComplexOut, const uint count, const int dir )
+{
+   const Tile localIndex = { get_local_id( 0 ), get_local_id( 1 ) }; 
+   const Tile localExtent = { get_local_size( 0 ), get_local_size( 1 ) }; 
+   const Tile groupIndex = { get_group_id( 0 ), get_group_id( 1 ) };
+   
+   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
+   // Transpose of input & output blocks happens with the Offset calculation
+   const size_t reShapeFactor = 4;
+   const size_t wgUnroll = 16;
+   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
+   const size_t numGroupsY_1 = 8;
+   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
+   local float2 lds[ 64 ][ 64 ];
+
+   size_t currDimIndex;
+   size_t rowSizeinUnits;
+
+   size_t iOffset = 0;
+   currDimIndex = groupIndex.y;
+   iOffset += (currDimIndex/numGroupsY_1)*524288;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 1024;
+   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
+   iOffset += groupIndex.x * wgTileExtent.x;
+   
+   global float2* tileIn = pmComplexIn + iOffset;
+   float2 tmp;
+   rowSizeinUnits = 1024;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
+         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tmp = tileIn[ gInd ];
+         // Transpose of Tile data happens here
+		 
+		 TWIDDLE_3STEP_MUL_FWD(TW3step_524288, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)		 
+         lds[ xInd ][ yInd ] = tmp; 
+      }
+   
+   barrier( CLK_LOCAL_MEM_FENCE );
+   
+   size_t oOffset = 0;
+   currDimIndex = groupIndex.y;
+   oOffset += (currDimIndex/numGroupsY_1)*589824;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 576;
+   oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
+   oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
+   
+   global float2* tileOut = pmComplexOut + oOffset;
+
+   rowSizeinUnits = 576;
+   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
+   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
+         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
+         tmp = lds[ yInd ][ xInd ]; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tileOut[ gInd ] = tmp;
+      }
+}
+
+
+__kernel __attribute__((reqd_work_group_size (64,1,1)))
+void fft_524288_2(__global const float2 * restrict gb, const uint count, const int dir)
+{
+	uint me = get_local_id(0);
+	uint batch = get_group_id(0);
+
+	__local float lds[512];
+
+	uint ioOffset;
+	__global float2 *lwb;
+
+	ioOffset = (batch/1024)*589824 + (batch%1024)*576;
+	lwb = gb + ioOffset;
+
+	fft_512(me, lds, lwb, dir);
+
+}
+
+
+__attribute__(( reqd_work_group_size( 16, 16, 1 ) ))
+kernel void
+transpose_524288_3( global float2* restrict pmComplexIn, global float2* restrict pmComplexOut, const uint count )
+{
+   const Tile localIndex = { get_local_id( 0 ), get_local_id( 1 ) }; 
+   const Tile localExtent = { get_local_size( 0 ), get_local_size( 1 ) }; 
+   const Tile groupIndex = { get_group_id( 0 ), get_group_id( 1 ) };
+   
+   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
+   // Transpose of input & output blocks happens with the Offset calculation
+   const size_t reShapeFactor = 4;
+   const size_t wgUnroll = 16;
+   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
+   const size_t numGroupsY_1 = 8;
+   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
+   local float2 lds[ 64 ][ 64 ];
+
+   size_t currDimIndex;
+   size_t rowSizeinUnits;
+
+   size_t iOffset = 0;
+   currDimIndex = groupIndex.y;
+   iOffset += (currDimIndex/numGroupsY_1)*589824;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 576;
+   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * groupIndex.x;
+   iOffset += currDimIndex * wgTileExtent.x;
+   
+   global float2* tileIn = pmComplexIn + iOffset;
+   float2 tmp;
+   rowSizeinUnits = 576;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
+         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tmp = tileIn[ gInd ];
+         // Transpose of Tile data happens here
+         lds[ xInd ][ yInd ] = tmp; 
+      }
+   
+   barrier( CLK_LOCAL_MEM_FENCE );
+   
+   size_t oOffset = 0;
+   currDimIndex = groupIndex.y;
+   oOffset += (currDimIndex/numGroupsY_1)*524288;
+   currDimIndex = currDimIndex % numGroupsY_1;
+   rowSizeinUnits = 1024;
+   oOffset += rowSizeinUnits * wgTileExtent.x * currDimIndex;
+   oOffset += groupIndex.x * wgTileExtent.y * wgUnroll;
+   
+   global float2* tileOut = pmComplexOut + oOffset;
+
+   rowSizeinUnits = 1024;
+   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
+   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
+   
+
+      for( uint t=0; t < wgUnroll; t++ )
+      {
+         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
+         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
+         tmp = lds[ yInd ][ xInd ]; 
+         size_t gInd = xInd + rowSizeinUnits * yInd;
+         tileOut[ gInd ] = tmp;
+      }
+}
 

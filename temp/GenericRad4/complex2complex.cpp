@@ -41,7 +41,7 @@ int main(int argc, char ** argv)
 
 	// 4. Perform runtime source compilation, and obtain kernel entry point.
 	flines = file_lines_get(argv[1], &ps);
-	cl_program program = clCreateProgramWithSource( context, flines, (const char **)ps, NULL, NULL );
+	cl_program program = clCreateProgramWithSource( context, (cl_uint)flines, (const char **)ps, NULL, NULL );
 	file_lines_clear(flines, ps);
 	cl_int err = clBuildProgram( program, 1, &device, "-I.", NULL, NULL );
 	if(err != CL_SUCCESS)
@@ -65,9 +65,23 @@ int main(int argc, char ** argv)
 	const char *KERN_NAME_1 = NULL;
 	const char *KERN_NAME_2 = NULL;
 	const char *KERN_NAME_3 = NULL;
+	const char *KERN_NAME_4 = NULL;
+	const char *KERN_NAME_5 = NULL;
 
 	switch (N)
 	{
+	case 1048576:	KERN_NAME_1 = "transpose_1048576_1";
+					KERN_NAME_2 = "fft_1048576_1";
+					KERN_NAME_3 = "transpose_1048576_2";
+					KERN_NAME_4 = "fft_1048576_2";
+					KERN_NAME_5 = "transpose_1048576_3";
+					break;
+	case 524288:	KERN_NAME_1 = "transpose_524288_1";
+					KERN_NAME_2 = "fft_524288_1";
+					KERN_NAME_3 = "transpose_524288_2";
+					KERN_NAME_4 = "fft_524288_2";
+					KERN_NAME_5 = "transpose_524288_3";
+					break;
 	case 262144:	KERN_NAME_1 = "fft_262144_1";
 					KERN_NAME_2 = "fft_262144_2";
 					KERN_NAME_3 = "transpose_262144";
@@ -107,22 +121,24 @@ int main(int argc, char ** argv)
 	cl_kernel kernel_1;
 	cl_kernel kernel_2;
 	cl_kernel kernel_3;
+	cl_kernel kernel_4;
+	cl_kernel kernel_5;
 
 	switch (N)
 	{
+	case 1048576:
+	case 524288:
+				kernel_5 = clCreateKernel(program, KERN_NAME_5, NULL);
+				kernel_4 = clCreateKernel(program, KERN_NAME_4, NULL);
 	case 262144:
 	case 131072:
-				kernel_1 = clCreateKernel(program, KERN_NAME_1, NULL);
-				kernel_2 = clCreateKernel(program, KERN_NAME_2, NULL);
 				kernel_3 = clCreateKernel(program, KERN_NAME_3, NULL);
-				break;
 	case 65536:
 	case 32768:
 	case 16384:
 	case 8192:	
 				kernel_1 = clCreateKernel(program, KERN_NAME_1, NULL);
 				kernel_2 = clCreateKernel(program, KERN_NAME_2, NULL);
-
 				break;
 	case 4096: 
 	case 2048: 
@@ -182,7 +198,7 @@ int main(int argc, char ** argv)
 	outd = (Type *)out;
 
 #ifdef FFT_FWD
-	p = FftwPlanFn(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+	p = FftwPlanFn((int)N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
 #else
 	p = FftwPlanFn(N, in, out, FFTW_BACKWARD, FFTW_ESTIMATE);
 #endif
@@ -228,12 +244,10 @@ int main(int argc, char ** argv)
 	cl_mem bufferImag = clCreateBuffer(context, CL_MEM_READ_WRITE, N*B * sizeof(ClType), NULL, NULL);
 #else
 	cl_mem bufferCplx = clCreateBuffer(context, CL_MEM_READ_WRITE, N*B * sizeof(ClType2), NULL, NULL);
-	cl_mem bufferTemp = clCreateBuffer(context, CL_MEM_READ_WRITE, N*B * sizeof(ClType2), NULL, NULL);
+	cl_mem bufferTemp = clCreateBuffer(context, CL_MEM_READ_WRITE, 2*N*B * sizeof(ClType2), NULL, NULL);
 #endif
 
-	cl_mem radix = clCreateBuffer(context, CL_MEM_READ_ONLY, 8 * sizeof(cl_uint), NULL, NULL);
-
-	cl_mem dbg = clCreateBuffer(context, CL_MEM_READ_WRITE, N*B * sizeof(ClType2), NULL, NULL);
+	// cl_mem dbg = clCreateBuffer(context, CL_MEM_READ_WRITE, N*B * sizeof(ClType2), NULL, NULL);
 
 	// Fill buffers for FFT
 #ifndef FORMAT_INTERLEAVED
@@ -244,7 +258,7 @@ int main(int argc, char ** argv)
 #endif
 
 
-	cl_uint k_count = B;
+	cl_uint k_count = (cl_uint)B;
 	cl_int dir = -1;
 
 #ifndef FORMAT_INTERLEAVED
@@ -253,22 +267,43 @@ int main(int argc, char ** argv)
 #else
 	switch (N)
 	{
+	case 1048576:
+	case 524288:
+				clSetKernelArg(kernel_1, 0, sizeof(bufferCplx), (void*)&bufferCplx);
+				clSetKernelArg(kernel_1, 1, sizeof(bufferTemp), (void*)&bufferTemp);
+				clSetKernelArg(kernel_1, 2, sizeof(cl_uint), &k_count);
+
+				clSetKernelArg(kernel_2, 0, sizeof(bufferTemp), (void*)&bufferTemp);
+				clSetKernelArg(kernel_2, 1, sizeof(bufferCplx), (void*)&bufferCplx);
+				clSetKernelArg(kernel_2, 2, sizeof(cl_uint), &k_count);
+				clSetKernelArg(kernel_2, 3, sizeof(cl_int), &dir);
+
+				clSetKernelArg(kernel_3, 0, sizeof(bufferCplx), (void*)&bufferCplx);
+				clSetKernelArg(kernel_3, 1, sizeof(bufferTemp), (void*)&bufferTemp);
+				clSetKernelArg(kernel_3, 2, sizeof(cl_uint), &k_count);
+				clSetKernelArg(kernel_3, 3, sizeof(cl_int), &dir);
+
+				clSetKernelArg(kernel_4, 0, sizeof(bufferTemp), (void*)&bufferTemp);
+				clSetKernelArg(kernel_4, 1, sizeof(cl_uint), &k_count);
+				clSetKernelArg(kernel_4, 2, sizeof(cl_int), &dir);
+
+				clSetKernelArg(kernel_5, 0, sizeof(bufferTemp), (void*)&bufferTemp);
+				clSetKernelArg(kernel_5, 1, sizeof(bufferCplx), (void*)&bufferCplx);
+				clSetKernelArg(kernel_5, 2, sizeof(cl_uint), &k_count);
+		break;
 	case 262144:
 	case 131072:
 				clSetKernelArg(kernel_1, 0, sizeof(bufferCplx), (void*)&bufferCplx);
 				clSetKernelArg(kernel_1, 1, sizeof(bufferTemp), (void*)&bufferTemp);
-
 				clSetKernelArg(kernel_1, 2, sizeof(cl_uint), &k_count);
 				clSetKernelArg(kernel_1, 3, sizeof(cl_int), &dir);
 
 				clSetKernelArg(kernel_2, 0, sizeof(bufferTemp), (void*)&bufferTemp);
-
 				clSetKernelArg(kernel_2, 1, sizeof(cl_uint), &k_count);
 				clSetKernelArg(kernel_2, 2, sizeof(cl_int), &dir);
 
 				clSetKernelArg(kernel_3, 0, sizeof(bufferTemp), (void*)&bufferTemp);
 				clSetKernelArg(kernel_3, 1, sizeof(bufferCplx), (void*)&bufferCplx);
-
 				clSetKernelArg(kernel_3, 2, sizeof(cl_uint), &k_count);
 		break;
 	case 65536:
@@ -277,13 +312,11 @@ int main(int argc, char ** argv)
 	case 8192:	
 				clSetKernelArg(kernel_1, 0, sizeof(bufferCplx), (void*)&bufferCplx);
 				clSetKernelArg(kernel_1, 1, sizeof(bufferTemp), (void*)&bufferTemp);
-
 				clSetKernelArg(kernel_1, 2, sizeof(cl_uint), &k_count);
 				clSetKernelArg(kernel_1, 3, sizeof(cl_int), &dir);
 
 				clSetKernelArg(kernel_2, 0, sizeof(bufferTemp), (void*)&bufferTemp);
 				clSetKernelArg(kernel_2, 1, sizeof(bufferCplx), (void*)&bufferCplx);
-
 				clSetKernelArg(kernel_2, 2, sizeof(cl_uint), &k_count);
 				clSetKernelArg(kernel_2, 3, sizeof(cl_int), &dir);
 		break;
@@ -304,116 +337,71 @@ int main(int argc, char ** argv)
 
 #endif
 
-	cl_uint radixp[8] = { 1,1,1,1,1,1,1,1 };
-	size_t T = 1;
 	size_t WGS = 64;
 	size_t NT = 1;
 
 	switch (N)
 	{
-	case 4096:	T = 4; WGS = 256; NT = 1;
-
-		radixp[0] = 8;
-		radixp[1] = 8;
-		radixp[2] = 8;
-		radixp[3] = 8;
-
-		break;
-	case 2048:	T = 4; WGS = 256; NT = 1;
-
-		radixp[0] = 8;
-		radixp[1] = 8;
-		radixp[2] = 8;
-		radixp[3] = 4;
-
-		break;
-	case 1024:	T = 4; WGS = 128; NT = 1;
-
-		radixp[0] = 8;
-		radixp[1] = 8;
-		radixp[2] = 4;
-		radixp[3] = 4;
-
-		break;
-	case 512:	T = 3; WGS = 64; NT = 1;
-
-		radixp[0] = 8;
-		radixp[1] = 8;
-		radixp[2] = 8;
-
-		break;
-	case 256:	T = 4; WGS = 64; NT = 1;
-
-		radixp[0] = 4;
-		radixp[1] = 4;
-		radixp[2] = 4;
-		radixp[3] = 4;
-
-		break;
-	case 128:	T = 3; WGS = 64; NT = 4;
-
-		radixp[0] = 8;
-		radixp[1] = 4;
-		radixp[2] = 4;
-
-		break;
-	case 64:	T = 3; WGS = 64; NT = 4;
-
-		radixp[0] = 4;
-		radixp[1] = 4;
-		radixp[2] = 4;
-
-		break;
-	case 32:	T = 2; WGS = 64; NT = 16;
-
-		radixp[0] = 8;
-		radixp[1] = 4;
-
-		break;
-	case 16:	T = 2; WGS = 64; NT = 16;
-
-		radixp[0] = 4;
-		radixp[1] = 4;
-
-		break;
-	case 8:		T = 2; WGS = 64; NT = 32;
-
-		radixp[0] = 4;
-		radixp[1] = 2;
-
-		break;
-	case 4:		T = 2; WGS = 64; NT = 32;
-
-		radixp[0] = 2;
-		radixp[1] = 2;
-
-		break;
-	case 2:		T = 1; WGS = 64; NT = 64;
-
-		radixp[0] = 2;
-
-		break;
+	case 4096:	WGS = 256; NT =  1; break;
+	case 2048:	WGS = 256; NT =  1; break;
+	case 1024:	WGS = 128; NT =  1; break;
+	case 512:	WGS =  64; NT =  1; break;
+	case 256:	WGS =  64; NT =  1; break;
+	case 128:	WGS =  64; NT =  4; break;
+	case 64:	WGS =  64; NT =  4; break;
+	case 32:	WGS =  64; NT = 16; break;
+	case 16:	WGS =  64; NT = 16; break;
+	case 8:		WGS =  64; NT = 32; break;
+	case 4:		WGS =  64; NT = 32; break;
+	case 2:		WGS =  64; NT = 64; break;
+	case 1:		WGS =  64; NT = 64; break;
 
 	default:
 		break;
 	}
 
-	clEnqueueWriteBuffer(queue, radix, CL_TRUE, 0, 8 * sizeof(cl_uint), (void *)radixp, 0, NULL, NULL);
 
 	// 6. Launch the kernel
-	size_t global_work_size[1];
-	size_t local_work_size[1];
+	size_t global_work_size[3];
+	size_t local_work_size[3];
 
-	size_t global_work_size_1[1];
-	size_t local_work_size_1[1];
-	size_t global_work_size_2[1];
-	size_t local_work_size_2[1];
-	size_t global_work_size_3[2];
-	size_t local_work_size_3[2];
-
+	size_t global_work_size_1[3];
+	size_t local_work_size_1[3];
+	size_t global_work_size_2[3];
+	size_t local_work_size_2[3];
+	size_t global_work_size_3[3];
+	size_t local_work_size_3[3];
+	size_t global_work_size_4[3];
+	size_t local_work_size_4[3];
+	size_t global_work_size_5[3];
+	size_t local_work_size_5[3];
 
 	switch (N)
 	{
+	case 524288:
+	{
+		local_work_size_1[0] = 16;
+		local_work_size_1[1] = 16;
+		global_work_size_1[0] = local_work_size_1[0] * 8;
+		global_work_size_1[1] = local_work_size_1[1] * 16 * B;
+
+		local_work_size_2[0] = 128;
+		global_work_size_2[0] = local_work_size_2[0] * 512 * B;
+
+		local_work_size_3[0] = 16;
+		local_work_size_3[1] = 16;
+		global_work_size_3[0] = local_work_size_3[0] * 16;
+		global_work_size_3[1] = local_work_size_3[1] * 8 * B;
+
+		local_work_size_4[0] = 64;
+		global_work_size_4[0] = local_work_size_4[0] * 1024 * B;
+
+		local_work_size_5[0] = 16;
+		local_work_size_5[1] = 16;
+		global_work_size_5[0] = local_work_size_5[0] * 16;
+		global_work_size_5[1] = local_work_size_5[1] * 8 * B;
+	}
+	break;
 	case 262144:
 	{
 		local_work_size_1[0] = 128;
@@ -514,6 +502,96 @@ int main(int argc, char ** argv)
 
 	switch (N)
 	{
+	case 1048576:
+	case 524288:
+		{
+			std::cout << "globalws_1: " << global_work_size_1[0] << ", " << global_work_size_1[1] << std::endl;
+			std::cout << "localws_1: " << local_work_size_1[0] << ", " << local_work_size_1[1] << std::endl;
+
+			std::cout << "globalws_2: " << global_work_size_2[0] << std::endl;
+			std::cout << "localws_2: " << local_work_size_2[0] << std::endl;
+
+			std::cout << "globalws_3: " << global_work_size_3[0] << ", " << global_work_size_3[1] << std::endl;
+			std::cout << "localws_3: " << local_work_size_3[0] << ", " << local_work_size_3[1] << std::endl;
+
+			std::cout << "globalws_4: " << global_work_size_4[0] << std::endl;
+			std::cout << "localws_4: " << local_work_size_4[0] << std::endl;
+
+			std::cout << "globalws_5: " << global_work_size_5[0] << ", " << global_work_size_5[1] << std::endl;
+			std::cout << "localws_5: " << local_work_size_5[0] << ", " << local_work_size_5[1] << std::endl;
+
+			for (uint i = 0; i < 10; i++)
+			{
+				clEnqueueWriteBuffer(queue, bufferCplx, CL_TRUE, 0, N*B * sizeof(ClType2), (void *)xc, 0, NULL, NULL);
+
+				cl_event ev1, ev2, ev3, ev4, ev5;
+				Timer tr;
+				tr.Start();
+				err = clEnqueueNDRangeKernel(queue, kernel_1, 2, NULL, global_work_size_1, local_work_size_1, 0, NULL, &ev1);
+				err = clEnqueueNDRangeKernel(queue, kernel_2, 1, NULL, global_work_size_2, local_work_size_2, 1, &ev1, &ev2);
+				err = clEnqueueNDRangeKernel(queue, kernel_3, 2, NULL, global_work_size_3, local_work_size_3, 1, &ev2, &ev3);
+				err = clEnqueueNDRangeKernel(queue, kernel_4, 1, NULL, global_work_size_4, local_work_size_4, 1, &ev3, &ev4);
+				err = clEnqueueNDRangeKernel(queue, kernel_5, 2, NULL, global_work_size_5, local_work_size_5, 1, &ev4, &ev5);
+				clWaitForEvents(1, &ev5);
+				double timep = tr.Sample();
+
+				time = time == 0 ? timep : time;
+				time = timep < time ? timep : time;
+
+				cl_int ks;
+				clGetEventInfo(ev1, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
+				if (ks != CL_COMPLETE)
+					std::cout << "kernel 1 execution not complete" << std::endl;
+				clGetEventInfo(ev2, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
+				if (ks != CL_COMPLETE)
+					std::cout << "kernel 2 execution not complete" << std::endl;
+				clGetEventInfo(ev3, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
+				if (ks != CL_COMPLETE)
+					std::cout << "kernel 3 execution not complete" << std::endl;
+				clGetEventInfo(ev4, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
+				if (ks != CL_COMPLETE)
+					std::cout << "kernel 4 execution not complete" << std::endl;
+				clGetEventInfo(ev5, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(ks), &ks, NULL);
+				if (ks != CL_COMPLETE)
+					std::cout << "kernel 5 execution not complete" << std::endl;
+
+				cl_ulong kbeg1, kbeg2, kbeg3, kbeg4, kbeg5;
+				cl_ulong kend1, kend2, kend3, kend4, kend5;
+				clGetEventProfilingInfo(ev1, CL_PROFILING_COMMAND_START, sizeof(kbeg1), &kbeg1, NULL);
+				clGetEventProfilingInfo(ev1, CL_PROFILING_COMMAND_END, sizeof(kend1), &kend1, NULL);
+				clGetEventProfilingInfo(ev2, CL_PROFILING_COMMAND_START, sizeof(kbeg2), &kbeg2, NULL);
+				clGetEventProfilingInfo(ev2, CL_PROFILING_COMMAND_END, sizeof(kend2), &kend2, NULL);
+				clGetEventProfilingInfo(ev3, CL_PROFILING_COMMAND_START, sizeof(kbeg3), &kbeg3, NULL);
+				clGetEventProfilingInfo(ev3, CL_PROFILING_COMMAND_END, sizeof(kend3), &kend3, NULL);
+				clGetEventProfilingInfo(ev4, CL_PROFILING_COMMAND_START, sizeof(kbeg4), &kbeg4, NULL);
+				clGetEventProfilingInfo(ev4, CL_PROFILING_COMMAND_END, sizeof(kend4), &kend4, NULL);
+				clGetEventProfilingInfo(ev5, CL_PROFILING_COMMAND_START, sizeof(kbeg5), &kbeg5, NULL);
+				clGetEventProfilingInfo(ev5, CL_PROFILING_COMMAND_END, sizeof(kend5), &kend5, NULL);
+
+				double tevp = 0, tev1 = 0, tev2 = 0, tev3 = 0, tev4 = 0, tev5 = 0;
+				tev1 = (double)(kend1 - kbeg1);
+				//std::cout << "gpu event1: " << tev1 << std::endl;
+				tev2 = (double)(kend2 - kbeg2);
+				//std::cout << "gpu event2: " << tev2 << std::endl;
+				tev3 = (double)(kend3 - kbeg3);
+				tev4 = (double)(kend4 - kbeg4);
+				tev5 = (double)(kend5 - kbeg5);
+
+				tevp = tev1 + tev2 + tev3 + tev4 + tev5;
+
+				tev = tev == 0 ? tevp : tev;
+				tev = tevp < tev ? tevp : tev;
+
+				clReleaseEvent(ev1);
+				clReleaseEvent(ev2);
+				clReleaseEvent(ev3);
+				clReleaseEvent(ev4);
+				clReleaseEvent(ev5);
+				clFinish(queue);
+			}
+		}
+
+		break;
 	case 262144:
 	case 131072:
 		{
@@ -653,7 +731,6 @@ int main(int argc, char ** argv)
 	case 2:
 	case 1:
 		{
-			std::cout << "T: " << T << std::endl;
 			std::cout << "NT: " << NT << std::endl;
 			std::cout << "globalws: " << global_work_size[0] << std::endl;
 			std::cout << "localws: " << local_work_size[0] << std::endl;
@@ -713,7 +790,7 @@ int main(int argc, char ** argv)
 #endif
 
 	uint *dq = new uint[N*B];
-	clEnqueueReadBuffer( queue, dbg, CL_TRUE, 0, N*B * sizeof(cl_uint), (void *)dq, 0, NULL, NULL );
+	//clEnqueueReadBuffer( queue, dbg, CL_TRUE, 0, N*B * sizeof(cl_uint), (void *)dq, 0, NULL, NULL );
 	clFinish( queue );
 
 	//std::cout << "**** DQ ****" << std::endl;
@@ -751,32 +828,32 @@ int main(int argc, char ** argv)
 
 
 #ifdef CHECK_RESULT
-	for(uint i=0; i<N*B; i++)
+
+	double rmse_max = 0;
+	for (size_t j = 0; j < B; j++)
 	{
-		if(NEAR_ZERO_TOLERATE)
+		double rmse = 0;
+		double maxv = 0;
+
+		for (size_t i = 0; i < N; i++)
 		{
-			if( (abs(refr[i]) < 0.1f) && (abs(yr[i]) < 0.1f) )
-				continue;
-			if( (abs(refi[i]) < 0.1f) && (abs(yi[i]) < 0.1f) )
-				continue;
+			maxv = maxv > abs(refr[j*N + i]) ? maxv : abs(refr[j*N + i]);
+			maxv = maxv > abs(refi[j*N + i]) ? maxv : abs(refi[j*N + i]);
 		}
 
-		if( abs(yr[i] -  refr[i]) > abs(0.01 * refr[i]) )
+		for (size_t i = 0; i < N; i++)
 		{
-			std::cout << "FAIL" << std::endl;
-			std::cout << "B: " << (i/N) << " index: " << (i%N) << std::endl;
-			std::cout << "refr: " << refr[i] << " yr: " << yr[i] << std::endl;
-			break;
+			rmse += (yr[j*N + i] - refr[j*N + i])*(yr[j*N + i] - refr[j*N + i]);
+			rmse += (yi[j*N + i] - refi[j*N + i])*(yi[j*N + i] - refi[j*N + i]);
 		}
 
-		if( abs(yi[i] -  refi[i]) > abs(0.01 * refi[i]) )
-		{
-			std::cout << "FAIL" << std::endl;
-			std::cout << "B: " << (i/N) << " index: " << (i%N) << std::endl;
-			std::cout << "refi: " << refi[i] << " yi: " << yi[i] << std::endl;
-			break;
-		}
+		rmse = sqrt((rmse / maxv) / N);
+		rmse_max = rmse > rmse_max ? rmse : rmse_max;
 	}
+
+	std::cout << "rrmse: " << rmse_max << std::endl;
+
+
 #endif
 
 	FftwDestroy(p);
