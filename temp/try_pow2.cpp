@@ -357,20 +357,37 @@ int main(int argc, char **argv)
 
 
 	Timer t;
-	double elaps = 1000000000.0;
+	double elaps = 1e10;
+	double gpu_time = 1e10;
 	for(size_t p=0; p<10; p++)
 	{
 		hipMemcpy(x, hx, Nbytes, hipMemcpyHostToDevice);
+
+		hipEvent_t start, stop;
+		hipEventCreate(&start);
+		hipEventCreate(&stop);
+
 		t.Start();
 		// Launch HIP kernel
+		hipEventRecord(start);
 		LaunchKernel(N, tw, tw1, tw2, tw3, temp, x, B, -1);
-		hipDeviceSynchronize();
+		hipEventRecord(stop);
+		hipEventSynchronize(stop);
 		double tv = t.Sample();
-		elaps = tv < elaps ? tv : elaps;	
+
+		elaps = tv < elaps ? tv : elaps;
+
+		float ms;
+		hipEventElapsedTime(&ms, start, stop);
+		gpu_time = ms < gpu_time ? ms : gpu_time;
+
+		hipEventDestroy(start);
+		hipEventDestroy(stop);	
 	}
 
-	std::cout << "exec time: " << elaps << std::endl;
-	std::cout << "gflops: " << 5*B*N*log2(N)/(elaps * 1000000000.0) << std::endl;
+	std::cout << "exec time (milliseconds): " << elaps*1000.0 << std::endl;
+	std::cout << "gpu exec time (milliseconds): " << gpu_time << std::endl;
+	std::cout << "gflops: " << 5*B*N*log2(N)/(gpu_time * 1000000.0) << std::endl;
 
 	hipMemcpy(hy, x, Nbytes, hipMemcpyDeviceToHost);
 
