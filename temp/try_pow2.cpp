@@ -9,6 +9,7 @@
 #include <math.h>
 
 #include "fft_pow2_hip.h"
+#include "fft_pow2_large_hip.h"
 
 struct Timer
 {
@@ -26,38 +27,96 @@ public:
     }
 };
 
-
-void CopyTwiddles(float2 *tw, size_t N)
+void CreateAndCopyTwiddles(float2 **tw, float2 **tw1, float2 **tw2, float2 **tw3, size_t N)
 {
-
 #include "twiddles_pow2.h"
-
+#include "twiddles_pow2_large.h"
+	
+	float2 *twt1, *twt2, *twt3;	
+	
+	float2 *twt;
+	if(N <= 4096)
+	{
+		hipMalloc(&twt, N * sizeof(float2));
+		*tw = twt;
+	}
+	
 	switch (N)
 	{
-	case 4096: hipMemcpy(tw, &twiddles_4096[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 2048: hipMemcpy(tw, &twiddles_2048[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 1024: hipMemcpy(tw, &twiddles_1024[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 512:  hipMemcpy(tw, &twiddles_512[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 256:  hipMemcpy(tw, &twiddles_256[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 128:  hipMemcpy(tw, &twiddles_128[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 64:   hipMemcpy(tw, &twiddles_64[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 32:   hipMemcpy(tw, &twiddles_32[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 16:   hipMemcpy(tw, &twiddles_16[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 8:    hipMemcpy(tw, &twiddles_8[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 4:    hipMemcpy(tw, &twiddles_4[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 2:    hipMemcpy(tw, &twiddles_2[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 1: break;
+	case 8192:
+				hipMalloc(&twt1, 64*sizeof(float2));
+				hipMalloc(&twt2, 128*sizeof(float2));
+				hipMalloc(&twt3, 256*2*sizeof(float2));
+				
+				*tw1 = twt1;
+				*tw2 = twt2;
+				*tw3 = twt3;
+				
+				hipMemcpy(twt1, &twiddles_64[0], 64*sizeof(float2), hipMemcpyHostToDevice); break;
+				hipMemcpy(twt2, &twiddles_128[0], 128*sizeof(float2), hipMemcpyHostToDevice); break;
+				hipMemcpy(twt3, &twiddle_dee_8192[0][0], 256*2*sizeof(float2), hipMemcpyHostToDevice); break;
+				
+				break;
+				
+	case 4096: 	hipMemcpy(twt, &twiddles_4096[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 2048: 	hipMemcpy(twt, &twiddles_2048[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 1024: 	hipMemcpy(twt, &twiddles_1024[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 512:  	hipMemcpy(twt, &twiddles_512[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 256:  	hipMemcpy(twt, &twiddles_256[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 128:  	hipMemcpy(twt, &twiddles_128[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 64:   	hipMemcpy(twt, &twiddles_64[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 32:   	hipMemcpy(twt, &twiddles_32[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 16:   	hipMemcpy(twt, &twiddles_16[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 8:    	hipMemcpy(twt, &twiddles_8[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 4:    	hipMemcpy(twt, &twiddles_4[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 2:    	hipMemcpy(twt, &twiddles_2[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 1: 	break;
 
 	default:
 		std::cout << "Twiddle error" << std::endl;
-		break;
+		break;				
 	}
 }
 
-void LaunchKernel(size_t N, unsigned blocks, unsigned threadsPerBlock, float2 *twiddles, float2 *buffer, unsigned count, int dir)
+
+
+void LaunchKernel(size_t N, float2 *twiddles, float2 *twiddles1, float2 *twiddles2, float2 *twiddles3, float2 *temp, float2 *buffer, unsigned count, int dir)
 {
+	size_t WGS = 64;
+	size_t NT = 1;
+
 	switch (N)
 	{
+	case 4096:	WGS = 256; NT = 1; break;
+	case 2048:	WGS = 256; NT = 1; break;
+	case 1024:	WGS = 128; NT = 1; break;
+	case 512:	WGS = 64;  NT = 1; break;
+	case 256:	WGS = 64;  NT = 1; break;
+	case 128:	WGS = 64;  NT = 4; break;
+	case 64:	WGS = 64;  NT = 4; break;
+	case 32:	WGS = 64; NT = 16; break;
+	case 16:	WGS = 64; NT = 16; break;
+	case 8:		WGS = 64; NT = 32; break;
+	case 4:		WGS = 64; NT = 32; break;
+	case 2:		WGS = 64; NT = 64; break;
+	case 1:		WGS = 64; NT = 64; break;
+
+	default:
+		break;
+	}
+
+	const unsigned B = count;
+	const unsigned blocks = (B%NT) ? 1 + (B / NT) : (B / NT);
+	const unsigned threadsPerBlock = WGS;
+
+	
+	switch (N)
+	{
+	case 8192:
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_8192_1), dim3(8*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_8192_2), dim3(8*B), dim3(128), 0, 0, twiddles2, temp, buffer, count, dir);
+				break;
+		
 	case 4096:	hipLaunchKernel(HIP_KERNEL_NAME(fft_4096), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
 	case 2048:	hipLaunchKernel(HIP_KERNEL_NAME(fft_2048), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
 	case 1024:	hipLaunchKernel(HIP_KERNEL_NAME(fft_1024), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer, count, dir); break;
@@ -94,10 +153,13 @@ int main(int argc, char **argv)
 
 	size_t Nbytes = B * N * sizeof(float2);
 
-	float2 *tw, *x;
-	hipMalloc(&tw, Nbytes);
-	hipMalloc(&x, Nbytes);
-	CopyTwiddles(tw, N);
+	float2 *tw = 0;
+	float2 *tw1 = 0, *tw2 = 0, *tw3 = 0;	
+	CreateAndCopyTwiddles(&tw, &tw1, &tw2, &tw3, N);
+	
+	float2 *x = 0, *temp = 0;
+	hipMalloc(&x, Nbytes);	
+	hipMalloc(&temp, 2*Nbytes);
 
 	float2 *hy = new float2[N*B];
 	float2 *hx = new float2[N*B];
@@ -105,8 +167,10 @@ int main(int argc, char **argv)
 	for(size_t j=0; j<B; j++)
 	for(size_t i=0; i<N; i++)
 	{
-		hx[j*N + i].x = i*i - i;
-		hx[j*N + i].y = i*10;
+		hx[j*N + i].x = (rand() % 2) == 0 ? (float)(rand() % 17) : -(float)(rand() % 17);
+		hx[j*N + i].y = (rand() % 2) == 0 ? (float)(rand() % 17) : -(float)(rand() % 17);
+		//hx[j*N + i].x = i*i - i;
+		//hx[j*N + i].y = i*10;
 	}		
 
 
@@ -135,32 +199,7 @@ int main(int argc, char **argv)
 	}		
 #endif
 
-	size_t WGS = 64;
-	size_t NT = 1;
 
-	switch (N)
-	{
-	case 4096:	WGS = 256; NT = 1; break;
-	case 2048:	WGS = 256; NT = 1; break;
-	case 1024:	WGS = 128; NT = 1; break;
-	case 512:	WGS = 64;  NT = 1; break;
-	case 256:	WGS = 64;  NT = 1; break;
-	case 128:	WGS = 64;  NT = 4; break;
-	case 64:	WGS = 64;  NT = 4; break;
-	case 32:	WGS = 64; NT = 16; break;
-	case 16:	WGS = 64; NT = 16; break;
-	case 8:		WGS = 64; NT = 32; break;
-	case 4:		WGS = 64; NT = 32; break;
-	case 2:		WGS = 64; NT = 64; break;
-	case 1:		WGS = 64; NT = 64; break;
-
-	default:
-		break;
-	}
-
-
-	const unsigned blocks = (B%NT) ? 1 + (B / NT) : (B / NT);
-	const unsigned threadsPerBlock = WGS;
 
 	Timer t;
 	double elaps = 1000000000.0;
@@ -169,7 +208,7 @@ int main(int argc, char **argv)
 		hipMemcpy(x, hx, Nbytes, hipMemcpyHostToDevice);
 		t.Start();
 		// Launch HIP kernel
-		LaunchKernel(N, blocks, threadsPerBlock, tw, x, B, -1);
+		LaunchKernel(N, tw, tw1, tw2, tw3, temp, x, B, -1);
 		hipDeviceSynchronize();
 		double tv = t.Sample();
 		elaps = tv < elaps ? tv : elaps;	
@@ -188,13 +227,32 @@ int main(int argc, char **argv)
 	}		
 #endif
 
-	double rmse = 0;
-	for(size_t i=0; i<N; i++)
+
+	double rmse_max = 0;
+	for (size_t j = 0; j < B; j++)
 	{
-		rmse += (hy[i].x - out[i][0])*(hy[i].x - out[i][0]) + (hy[i].y - out[i][1])*(hy[i].y - out[i][1]);
-		rmse = sqrt(rmse/N);
+		double rmse = 0;
+		double maxv = 0;
+
+		for (size_t i = 0; i < N; i++)
+		{
+			maxv = maxv > fabs(out[j*N + i][0]) ? maxv : fabs(out[j*N + i][0]);
+			maxv = maxv > fabs(out[j*N + i][1]) ? maxv : fabs(out[j*N + i][1]);
+		}
+
+		for (size_t i = 0; i < N; i++)
+		{
+			rmse += (hy[j*N + i].x - out[j*N + i][0])*(hy[j*N + i].x - out[j*N + i][0]);
+			rmse += (hy[j*N + i].y - out[j*N + i][1])*(hy[j*N + i].y - out[j*N + i][1]);
+		}
+
+		rmse = sqrt((rmse / maxv) / N);
+		rmse_max = rmse > rmse_max ? rmse : rmse_max;
 	}
-	std::cout << "rmse: " << rmse << std::endl;
+
+	std::cout << "rrmse: " << rmse_max << std::endl;
+	
+	
 
 	delete[] hx;
 	delete[] hy;
@@ -202,8 +260,18 @@ int main(int argc, char **argv)
         fftwf_free(in); fftwf_free(out);
 	
 	hipFree(x);
-	hipFree(tw);
+	hipFree(temp);
+	
+	if(tw != 0)
+		hipFree(tw);
 
+	if(tw1 != 0)
+		hipFree(tw1);
+	if(tw2 != 0)
+		hipFree(tw2);
+	if(tw3 != 0)
+		hipFree(tw3);
+	
 	return 0;	
 }
 

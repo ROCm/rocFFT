@@ -1,324 +1,5 @@
 
-#define TWIDDLE_MUL_FWD(INDEX, REG) \
-{ \
-	float2 W = twiddles[INDEX]; \
-	float TR, TI; \
-	TR = (W.x * REG.x) - (W.y * REG.y); \
-	TI = (W.y * REG.x) + (W.x * REG.y); \
-	REG.x = TR; \
-	REG.y = TI; \
-}
-
-#define TWIDDLE_MUL_INV(INDEX, REG) \
-{ \
-	float2 W = twiddles[INDEX]; \
-	float TR, TI; \
-	TR =  (W.x * REG.x) + (W.y * REG.y); \
-	TI = -(W.y * REG.x) + (W.x * REG.y); \
-	REG.x = TR; \
-	REG.y = TI; \
-}
-
-
-__device__ void 
-Rad2(float2 *R0, float2 *R1)
-{
-
-	(*R1) = (*R0) - (*R1);
-	(*R0) = 2.0f * (*R0) - (*R1);
-	
-}
-
-__device__ void 
-FwdRad4(float2 *R0, float2 *R2, float2 *R1, float2 *R3)
-{
-
-	float2 T;
-
-	(*R1) = (*R0) - (*R1);
-	(*R0) = 2.0f * (*R0) - (*R1);
-	(*R3) = (*R2) - (*R3);
-	(*R2) = 2.0f * (*R2) - (*R3);
-	
-	(*R2) = (*R0) - (*R2);
-	(*R0) = 2.0f * (*R0) - (*R2);
-	(*R3) = (*R1) + float2(-(*R3).y, (*R3).x);
-	(*R1) = 2.0f * (*R1) - (*R3);
-	
-	T = (*R1); (*R1) = (*R2); (*R2) = T;
-	
-}
-
-__device__ void 
-InvRad4(float2 *R0, float2 *R2, float2 *R1, float2 *R3)
-{
-
-	float2 T;
-
-	(*R1) = (*R0) - (*R1);
-	(*R0) = 2.0f * (*R0) - (*R1);
-	(*R3) = (*R2) - (*R3);
-	(*R2) = 2.0f * (*R2) - (*R3);
-	
-	(*R2) = (*R0) - (*R2);
-	(*R0) = 2.0f * (*R0) - (*R2);
-	(*R3) = (*R1) + float2((*R3).y, -(*R3).x);
-	(*R1) = 2.0f * (*R1) - (*R3);
-	
-	T = (*R1); (*R1) = (*R2); (*R2) = T;
-	
-}
-
-#define C8Q  0.707106781186547573f
-
-__device__ void 
-FwdRad8(float2 *R0, float2 *R4, float2 *R2, float2 *R6, float2 *R1, float2 *R5, float2 *R3, float2 *R7)
-{
-
-	float2 T;
-
-	(*R1) = (*R0) - (*R1);
-	(*R0) = 2.0f * (*R0) - (*R1);
-	(*R3) = (*R2) - (*R3);
-	(*R2) = 2.0f * (*R2) - (*R3);
-	(*R5) = (*R4) - (*R5);
-	(*R4) = 2.0f * (*R4) - (*R5);
-	(*R7) = (*R6) - (*R7);
-	(*R6) = 2.0f * (*R6) - (*R7);
-	
-	(*R2) = (*R0) - (*R2);
-	(*R0) = 2.0f * (*R0) - (*R2);
-	(*R3) = (*R1) + float2(-(*R3).y, (*R3).x);
-	(*R1) = 2.0f * (*R1) - (*R3);
-	(*R6) = (*R4) - (*R6);
-	(*R4) = 2.0f * (*R4) - (*R6);
-	(*R7) = (*R5) + float2(-(*R7).y, (*R7).x);
-	(*R5) = 2.0f * (*R5) - (*R7);
-	
-	(*R4) = (*R0) - (*R4);
-	(*R0) = 2.0f * (*R0) - (*R4);
-	(*R5) = ((*R1) - C8Q * (*R5)) - C8Q * float2((*R5).y, -(*R5).x);
-	(*R1) = 2.0f * (*R1) - (*R5);
-	(*R6) = (*R2) + float2(-(*R6).y, (*R6).x);
-	(*R2) = 2.0f * (*R2) - (*R6);
-	(*R7) = ((*R3) + C8Q * (*R7)) - C8Q * float2((*R7).y, -(*R7).x);
-	(*R3) = 2.0f * (*R3) - (*R7);
-	
-	T = (*R1); (*R1) = (*R4); (*R4) = T;
-	T = (*R3); (*R3) = (*R6); (*R6) = T;
-	
-}
-
-__device__ void 
-InvRad8(float2 *R0, float2 *R4, float2 *R2, float2 *R6, float2 *R1, float2 *R5, float2 *R3, float2 *R7)
-{
-
-	float2 T;
-
-	(*R1) = (*R0) - (*R1);
-	(*R0) = 2.0f * (*R0) - (*R1);
-	(*R3) = (*R2) - (*R3);
-	(*R2) = 2.0f * (*R2) - (*R3);
-	(*R5) = (*R4) - (*R5);
-	(*R4) = 2.0f * (*R4) - (*R5);
-	(*R7) = (*R6) - (*R7);
-	(*R6) = 2.0f * (*R6) - (*R7);
-	
-	(*R2) = (*R0) - (*R2);
-	(*R0) = 2.0f * (*R0) - (*R2);
-	(*R3) = (*R1) + float2((*R3).y, -(*R3).x);
-	(*R1) = 2.0f * (*R1) - (*R3);
-	(*R6) = (*R4) - (*R6);
-	(*R4) = 2.0f * (*R4) - (*R6);
-	(*R7) = (*R5) + float2((*R7).y, -(*R7).x);
-	(*R5) = 2.0f * (*R5) - (*R7);
-	
-	(*R4) = (*R0) - (*R4);
-	(*R0) = 2.0f * (*R0) - (*R4);
-	(*R5) = ((*R1) - C8Q * (*R5)) + C8Q * float2((*R5).y, -(*R5).x);
-	(*R1) = 2.0f * (*R1) - (*R5);
-	(*R6) = (*R2) + float2((*R6).y, -(*R6).x);
-	(*R2) = 2.0f * (*R2) - (*R6);
-	(*R7) = ((*R3) + C8Q * (*R7)) + C8Q * float2((*R7).y, -(*R7).x);
-	(*R3) = 2.0f * (*R3) - (*R7);
-	
-	T = (*R1); (*R1) = (*R4); (*R4) = T;
-	T = (*R3); (*R3) = (*R6); (*R6) = T;
-	
-}
-
-#define C16A 0.923879532511286738f
-#define C16B 0.382683432365089837f
-
-__device__ void 
-FwdRad16(float2 *R0, float2 *R8, float2 *R4, float2 *R12, float2 *R2, float2 *R10, float2 *R6, float2 *R14, float2 *R1, float2 *R9, float2 *R5, float2 *R13, float2 *R3, float2 *R11, float2 *R7, float2 *R15)
-{
-
-	float2 T;
-
-	(*R1) = (*R0) - (*R1);
-	(*R0) = 2.0f * (*R0) - (*R1);
-	(*R3) = (*R2) - (*R3);
-	(*R2) = 2.0f * (*R2) - (*R3);
-	(*R5) = (*R4) - (*R5);
-	(*R4) = 2.0f * (*R4) - (*R5);
-	(*R7) = (*R6) - (*R7);
-	(*R6) = 2.0f * (*R6) - (*R7);
-	(*R9) = (*R8) - (*R9);
-	(*R8) = 2.0f * (*R8) - (*R9);
-	(*R11) = (*R10) - (*R11);
-	(*R10) = 2.0f * (*R10) - (*R11);
-	(*R13) = (*R12) - (*R13);
-	(*R12) = 2.0f * (*R12) - (*R13);
-	(*R15) = (*R14) - (*R15);
-	(*R14) = 2.0f * (*R14) - (*R15);
-	
-	(*R2) = (*R0) - (*R2);
-	(*R0) = 2.0f * (*R0) - (*R2);
-	(*R3) = (*R1) + float2(-(*R3).y, (*R3).x);
-	(*R1) = 2.0f * (*R1) - (*R3);
-	(*R6) = (*R4) - (*R6);
-	(*R4) = 2.0f * (*R4) - (*R6);
-	(*R7) = (*R5) + float2(-(*R7).y, (*R7).x);
-	(*R5) = 2.0f * (*R5) - (*R7);
-	(*R10) = (*R8) - (*R10);
-	(*R8) = 2.0f * (*R8) - (*R10);
-	(*R11) = (*R9) + float2(-(*R11).y, (*R11).x);
-	(*R9) = 2.0f * (*R9) - (*R11);
-	(*R14) = (*R12) - (*R14);
-	(*R12) = 2.0f * (*R12) - (*R14);
-	(*R15) = (*R13) + float2(-(*R15).y, (*R15).x);
-	(*R13) = 2.0f * (*R13) - (*R15);
-	
-	(*R4) = (*R0) - (*R4);
-	(*R0) = 2.0f * (*R0) - (*R4);
-	(*R5) = ((*R1) - C8Q * (*R5)) - C8Q * float2((*R5).y, -(*R5).x);
-	(*R1) = 2.0f * (*R1) - (*R5);
-	(*R6) = (*R2) + float2(-(*R6).y, (*R6).x);
-	(*R2) = 2.0f * (*R2) - (*R6);
-	(*R7) = ((*R3) + C8Q * (*R7)) - C8Q * float2((*R7).y, -(*R7).x);
-	(*R3) = 2.0f * (*R3) - (*R7);
-	(*R12) = (*R8) - (*R12);
-	(*R8) = 2.0f * (*R8) - (*R12);
-	(*R13) = ((*R9) - C8Q * (*R13)) - C8Q * float2((*R13).y, -(*R13).x);
-	(*R9) = 2.0f * (*R9) - (*R13);
-	(*R14) = (*R10) + float2(-(*R14).y, (*R14).x);
-	(*R10) = 2.0f * (*R10) - (*R14);
-	(*R15) = ((*R11) + C8Q * (*R15)) - C8Q * float2((*R15).y, -(*R15).x);
-	(*R11) = 2.0f * (*R11) - (*R15);
-	
-	(*R8) = (*R0) - (*R8);
-	(*R0) = 2.0f * (*R0) - (*R8);
-	(*R9) = ((*R1) - C16A * (*R9)) - C16B * float2((*R9).y, -(*R9).x);
-	T = (*R8);
-	(*R1) = 2.0f * (*R1) - (*R9);
-	
-	(*R10) = ((*R2) - C8Q * (*R10)) - C8Q * float2((*R10).y, -(*R10).x);
-	(*R2) = 2.0f * (*R2) - (*R10);
-	(*R11) = ((*R3) - C16B * (*R11)) - C16A * float2((*R11).y, -(*R11).x);
-	(*R3) = 2.0f * (*R3) - (*R11);
-	
-	(*R12) = (*R4) + float2(-(*R12).y, (*R12).x);
-	(*R4) = 2.0f * (*R4) - (*R12);
-	(*R13) = ((*R5) + C16B * (*R13)) - C16A * float2((*R13).y, -(*R13).x);
-	(*R5) = 2.0f * (*R5) - (*R13);
-	
-	(*R14) = ((*R6) + C8Q * (*R14)) - C8Q * float2((*R14).y, -(*R14).x);
-	(*R6) = 2.0f * (*R6) - (*R14);
-	(*R15) = ((*R7) + C16A * (*R15)) - C16B * float2((*R15).y, -(*R15).x);
-	(*R7) = 2.0f * (*R7) - (*R15);
-	
-	T = (*R1); (*R1) = (*R8); (*R8) = T;
-	T = (*R2); (*R2) = (*R4); (*R4) = T;
-	T = (*R3); (*R3) = (*R12); (*R12) = T;
-	T = (*R5); (*R5) = (*R10); (*R10) = T;
-	T = (*R7); (*R7) = (*R14); (*R14) = T;
-	T = (*R11); (*R11) = (*R13); (*R13) = T;
-	
-}
-
-__device__ void 
-InvRad16(float2 *R0, float2 *R8, float2 *R4, float2 *R12, float2 *R2, float2 *R10, float2 *R6, float2 *R14, float2 *R1, float2 *R9, float2 *R5, float2 *R13, float2 *R3, float2 *R11, float2 *R7, float2 *R15)
-{
-
-	float2 T;
-
-	(*R1) = (*R0) - (*R1);
-	(*R0) = 2.0f * (*R0) - (*R1);
-	(*R3) = (*R2) - (*R3);
-	(*R2) = 2.0f * (*R2) - (*R3);
-	(*R5) = (*R4) - (*R5);
-	(*R4) = 2.0f * (*R4) - (*R5);
-	(*R7) = (*R6) - (*R7);
-	(*R6) = 2.0f * (*R6) - (*R7);
-	(*R9) = (*R8) - (*R9);
-	(*R8) = 2.0f * (*R8) - (*R9);
-	(*R11) = (*R10) - (*R11);
-	(*R10) = 2.0f * (*R10) - (*R11);
-	(*R13) = (*R12) - (*R13);
-	(*R12) = 2.0f * (*R12) - (*R13);
-	(*R15) = (*R14) - (*R15);
-	(*R14) = 2.0f * (*R14) - (*R15);
-	
-	(*R2) = (*R0) - (*R2);
-	(*R0) = 2.0f * (*R0) - (*R2);
-	(*R3) = (*R1) + float2((*R3).y, -(*R3).x);
-	(*R1) = 2.0f * (*R1) - (*R3);
-	(*R6) = (*R4) - (*R6);
-	(*R4) = 2.0f * (*R4) - (*R6);
-	(*R7) = (*R5) + float2((*R7).y, -(*R7).x);
-	(*R5) = 2.0f * (*R5) - (*R7);
-	(*R10) = (*R8) - (*R10);
-	(*R8) = 2.0f * (*R8) - (*R10);
-	(*R11) = (*R9) + float2((*R11).y, -(*R11).x);
-	(*R9) = 2.0f * (*R9) - (*R11);
-	(*R14) = (*R12) - (*R14);
-	(*R12) = 2.0f * (*R12) - (*R14);
-	(*R15) = (*R13) + float2((*R15).y, -(*R15).x);
-	(*R13) = 2.0f * (*R13) - (*R15);
-	
-	(*R4) = (*R0) - (*R4);
-	(*R0) = 2.0f * (*R0) - (*R4);
-	(*R5) = ((*R1) - C8Q * (*R5)) + C8Q * float2((*R5).y, -(*R5).x);
-	(*R1) = 2.0f * (*R1) - (*R5);
-	(*R6) = (*R2) + float2((*R6).y, -(*R6).x);
-	(*R2) = 2.0f * (*R2) - (*R6);
-	(*R7) = ((*R3) + C8Q * (*R7)) + C8Q * float2((*R7).y, -(*R7).x);
-	(*R3) = 2.0f * (*R3) - (*R7);
-	(*R12) = (*R8) - (*R12);
-	(*R8) = 2.0f * (*R8) - (*R12);
-	(*R13) = ((*R9) - C8Q * (*R13)) + C8Q * float2((*R13).y, -(*R13).x);
-	(*R9) = 2.0f * (*R9) - (*R13);
-	(*R14) = (*R10) + float2((*R14).y, -(*R14).x);
-	(*R10) = 2.0f * (*R10) - (*R14);
-	(*R15) = ((*R11) + C8Q * (*R15)) + C8Q * float2((*R15).y, -(*R15).x);
-	(*R11) = 2.0f * (*R11) - (*R15);
-	
-	(*R8) = (*R0) - (*R8);
-	(*R0) = 2.0f * (*R0) - (*R8);
-	(*R9) = ((*R1) - C16A * (*R9)) + C16B * float2((*R9).y, -(*R9).x);
-	(*R1) = 2.0f * (*R1) - (*R9);
-	(*R10) = ((*R2) - C8Q * (*R10)) + C8Q * float2((*R10).y, -(*R10).x);
-	(*R2) = 2.0f * (*R2) - (*R10);
-	(*R11) = ((*R3) - C16B * (*R11)) + C16A * float2((*R11).y, -(*R11).x);
-	(*R3) = 2.0f * (*R3) - (*R11);
-	(*R12) = (*R4) + float2((*R12).y, -(*R12).x);
-	(*R4) = 2.0f * (*R4) - (*R12);
-	(*R13) = ((*R5) + C16B * (*R13)) + C16A * float2((*R13).y, -(*R13).x);
-	(*R5) = 2.0f * (*R5) - (*R13);
-	(*R14) = ((*R6) + C8Q * (*R14)) + C8Q * float2((*R14).y, -(*R14).x);
-	(*R6) = 2.0f * (*R6) - (*R14);
-	(*R15) = ((*R7) + C16A * (*R15)) + C16B * float2((*R15).y, -(*R15).x);
-	(*R7) = 2.0f * (*R7) - (*R15);
-	
-	T = (*R1); (*R1) = (*R8); (*R8) = T;
-	T = (*R2); (*R2) = (*R4); (*R4) = T;
-	T = (*R3); (*R3) = (*R12); (*R12) = T;
-	T = (*R5); (*R5) = (*R10); (*R10) = T;
-	T = (*R7); (*R7) = (*R14); (*R14) = T;
-	T = (*R11); (*R11) = (*R13); (*R13) = T;
-	
-}
+#include "butterfly.h"
 
 __global__
 void fft_1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
@@ -417,11 +98,11 @@ void fft_4(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count,
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(1 + (me%2), X1)
+		TWIDDLE_MUL_FWD(twiddles, 1 + (me%2), X1)
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(1 + (me%2), X1)
+		TWIDDLE_MUL_INV(twiddles, 1 + (me%2), X1)
 	}
 	
 	Rad2(&X0, &X1);
@@ -495,13 +176,13 @@ void fft_8(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count,
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(3 + ((2*me+0)%4), X1)	
-		TWIDDLE_MUL_FWD(3 + ((2*me+1)%4), X3)	
+		TWIDDLE_MUL_FWD(twiddles, 3 + ((2*me+0)%4), X1)	
+		TWIDDLE_MUL_FWD(twiddles, 3 + ((2*me+1)%4), X3)	
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(3 + ((2*me+0)%4), X1)	
-		TWIDDLE_MUL_INV(3 + ((2*me+1)%4), X3)			
+		TWIDDLE_MUL_INV(twiddles, 3 + ((2*me+0)%4), X1)	
+		TWIDDLE_MUL_INV(twiddles, 3 + ((2*me+1)%4), X3)			
 	}
 	
 	Rad2(&X0, &X1);
@@ -577,15 +258,15 @@ void fft_16(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(3 + 3*(me%4) + 0, X1)		
-		TWIDDLE_MUL_FWD(3 + 3*(me%4) + 1, X2)
-		TWIDDLE_MUL_FWD(3 + 3*(me%4) + 2, X3)
+		TWIDDLE_MUL_FWD(twiddles, 3 + 3*(me%4) + 0, X1)		
+		TWIDDLE_MUL_FWD(twiddles, 3 + 3*(me%4) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles, 3 + 3*(me%4) + 2, X3)
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(3 + 3*(me%4) + 0, X1)		
-		TWIDDLE_MUL_INV(3 + 3*(me%4) + 1, X2)
-		TWIDDLE_MUL_INV(3 + 3*(me%4) + 2, X3)	
+		TWIDDLE_MUL_INV(twiddles, 3 + 3*(me%4) + 0, X1)		
+		TWIDDLE_MUL_INV(twiddles, 3 + 3*(me%4) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles, 3 + 3*(me%4) + 2, X3)	
 	}
 	
 	if(dir == -1)
@@ -689,23 +370,23 @@ void fft_32(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count
 	
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(7 + 3*((2*me + 0)%8) + 0, X1)
-		TWIDDLE_MUL_FWD(7 + 3*((2*me + 0)%8) + 1, X2)
-		TWIDDLE_MUL_FWD(7 + 3*((2*me + 0)%8) + 2, X3)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 3*((2*me + 0)%8) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 3*((2*me + 0)%8) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 3*((2*me + 0)%8) + 2, X3)
 		
-		TWIDDLE_MUL_FWD(7 + 3*((2*me + 1)%8) + 0, X5)
-		TWIDDLE_MUL_FWD(7 + 3*((2*me + 1)%8) + 1, X6)
-		TWIDDLE_MUL_FWD(7 + 3*((2*me + 1)%8) + 2, X7)		
+		TWIDDLE_MUL_FWD(twiddles, 7 + 3*((2*me + 1)%8) + 0, X5)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 3*((2*me + 1)%8) + 1, X6)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 3*((2*me + 1)%8) + 2, X7)		
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(7 + 3*((2*me + 0)%8) + 0, X1)
-		TWIDDLE_MUL_INV(7 + 3*((2*me + 0)%8) + 1, X2)
-		TWIDDLE_MUL_INV(7 + 3*((2*me + 0)%8) + 2, X3)
+		TWIDDLE_MUL_INV(twiddles, 7 + 3*((2*me + 0)%8) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles, 7 + 3*((2*me + 0)%8) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles, 7 + 3*((2*me + 0)%8) + 2, X3)
 		
-		TWIDDLE_MUL_INV(7 + 3*((2*me + 1)%8) + 0, X5)
-		TWIDDLE_MUL_INV(7 + 3*((2*me + 1)%8) + 1, X6)
-		TWIDDLE_MUL_INV(7 + 3*((2*me + 1)%8) + 2, X7)	
+		TWIDDLE_MUL_INV(twiddles, 7 + 3*((2*me + 1)%8) + 0, X5)
+		TWIDDLE_MUL_INV(twiddles, 7 + 3*((2*me + 1)%8) + 1, X6)
+		TWIDDLE_MUL_INV(twiddles, 7 + 3*((2*me + 1)%8) + 2, X7)	
 	}
 	
 
@@ -793,15 +474,15 @@ void fft_64(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(3 + 3*(me%4) + 0, X1)	
-		TWIDDLE_MUL_FWD(3 + 3*(me%4) + 1, X2)	
-		TWIDDLE_MUL_FWD(3 + 3*(me%4) + 2, X3)			
+		TWIDDLE_MUL_FWD(twiddles, 3 + 3*(me%4) + 0, X1)	
+		TWIDDLE_MUL_FWD(twiddles, 3 + 3*(me%4) + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles, 3 + 3*(me%4) + 2, X3)			
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(3 + 3*(me%4) + 0, X1)	
-		TWIDDLE_MUL_INV(3 + 3*(me%4) + 1, X2)	
-		TWIDDLE_MUL_INV(3 + 3*(me%4) + 2, X3)				
+		TWIDDLE_MUL_INV(twiddles, 3 + 3*(me%4) + 0, X1)	
+		TWIDDLE_MUL_INV(twiddles, 3 + 3*(me%4) + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles, 3 + 3*(me%4) + 2, X3)				
 	}
 	
 	if(dir == -1)
@@ -840,15 +521,15 @@ void fft_64(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(15 + 3*(me%16) + 0, X1)	
-		TWIDDLE_MUL_FWD(15 + 3*(me%16) + 1, X2)	
-		TWIDDLE_MUL_FWD(15 + 3*(me%16) + 2, X3)			
+		TWIDDLE_MUL_FWD(twiddles, 15 + 3*(me%16) + 0, X1)	
+		TWIDDLE_MUL_FWD(twiddles, 15 + 3*(me%16) + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles, 15 + 3*(me%16) + 2, X3)			
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(15 + 3*(me%16) + 0, X1)	
-		TWIDDLE_MUL_INV(15 + 3*(me%16) + 1, X2)	
-		TWIDDLE_MUL_INV(15 + 3*(me%16) + 2, X3)				
+		TWIDDLE_MUL_INV(twiddles, 15 + 3*(me%16) + 0, X1)	
+		TWIDDLE_MUL_INV(twiddles, 15 + 3*(me%16) + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles, 15 + 3*(me%16) + 2, X3)				
 	}
 	
 	if(dir == -1)
@@ -949,23 +630,23 @@ void fft_128(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(7 + 3*((2*me + 0)%8) + 0, X1)
-		TWIDDLE_MUL_FWD(7 + 3*((2*me + 0)%8) + 1, X2)
-		TWIDDLE_MUL_FWD(7 + 3*((2*me + 0)%8) + 2, X3)	
+		TWIDDLE_MUL_FWD(twiddles, 7 + 3*((2*me + 0)%8) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 3*((2*me + 0)%8) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 3*((2*me + 0)%8) + 2, X3)	
 
-		TWIDDLE_MUL_FWD(7 + 3*((2*me + 1)%8) + 0, X5)
-		TWIDDLE_MUL_FWD(7 + 3*((2*me + 1)%8) + 1, X6)
-		TWIDDLE_MUL_FWD(7 + 3*((2*me + 1)%8) + 2, X7)			
+		TWIDDLE_MUL_FWD(twiddles, 7 + 3*((2*me + 1)%8) + 0, X5)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 3*((2*me + 1)%8) + 1, X6)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 3*((2*me + 1)%8) + 2, X7)			
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(7 + 3*((2*me + 0)%8) + 0, X1)
-		TWIDDLE_MUL_INV(7 + 3*((2*me + 0)%8) + 1, X2)
-		TWIDDLE_MUL_INV(7 + 3*((2*me + 0)%8) + 2, X3)	
+		TWIDDLE_MUL_INV(twiddles, 7 + 3*((2*me + 0)%8) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles, 7 + 3*((2*me + 0)%8) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles, 7 + 3*((2*me + 0)%8) + 2, X3)	
 
-		TWIDDLE_MUL_INV(7 + 3*((2*me + 1)%8) + 0, X5)
-		TWIDDLE_MUL_INV(7 + 3*((2*me + 1)%8) + 1, X6)
-		TWIDDLE_MUL_INV(7 + 3*((2*me + 1)%8) + 2, X7)		
+		TWIDDLE_MUL_INV(twiddles, 7 + 3*((2*me + 1)%8) + 0, X5)
+		TWIDDLE_MUL_INV(twiddles, 7 + 3*((2*me + 1)%8) + 1, X6)
+		TWIDDLE_MUL_INV(twiddles, 7 + 3*((2*me + 1)%8) + 2, X7)		
 	}
 	
 
@@ -1031,23 +712,23 @@ void fft_128(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 	
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(31 + 3*((2*me + 0)%32) + 0, X1)
-		TWIDDLE_MUL_FWD(31 + 3*((2*me + 0)%32) + 1, X2)
-		TWIDDLE_MUL_FWD(31 + 3*((2*me + 0)%32) + 2, X3)	
+		TWIDDLE_MUL_FWD(twiddles, 31 + 3*((2*me + 0)%32) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles, 31 + 3*((2*me + 0)%32) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles, 31 + 3*((2*me + 0)%32) + 2, X3)	
 
-		TWIDDLE_MUL_FWD(31 + 3*((2*me + 1)%32) + 0, X5)
-		TWIDDLE_MUL_FWD(31 + 3*((2*me + 1)%32) + 1, X6)
-		TWIDDLE_MUL_FWD(31 + 3*((2*me + 1)%32) + 2, X7)
+		TWIDDLE_MUL_FWD(twiddles, 31 + 3*((2*me + 1)%32) + 0, X5)
+		TWIDDLE_MUL_FWD(twiddles, 31 + 3*((2*me + 1)%32) + 1, X6)
+		TWIDDLE_MUL_FWD(twiddles, 31 + 3*((2*me + 1)%32) + 2, X7)
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(31 + 3*((2*me + 0)%32) + 0, X1)
-		TWIDDLE_MUL_INV(31 + 3*((2*me + 0)%32) + 1, X2)
-		TWIDDLE_MUL_INV(31 + 3*((2*me + 0)%32) + 2, X3)	
+		TWIDDLE_MUL_INV(twiddles, 31 + 3*((2*me + 0)%32) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles, 31 + 3*((2*me + 0)%32) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles, 31 + 3*((2*me + 0)%32) + 2, X3)	
 
-		TWIDDLE_MUL_INV(31 + 3*((2*me + 1)%32) + 0, X5)
-		TWIDDLE_MUL_INV(31 + 3*((2*me + 1)%32) + 1, X6)
-		TWIDDLE_MUL_INV(31 + 3*((2*me + 1)%32) + 2, X7)
+		TWIDDLE_MUL_INV(twiddles, 31 + 3*((2*me + 1)%32) + 0, X5)
+		TWIDDLE_MUL_INV(twiddles, 31 + 3*((2*me + 1)%32) + 1, X6)
+		TWIDDLE_MUL_INV(twiddles, 31 + 3*((2*me + 1)%32) + 2, X7)
 	}	
 	
 	if(dir == -1)
@@ -1127,15 +808,15 @@ void fft_256(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 	
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(3 + 3*(me%4) + 0, X1)	
-		TWIDDLE_MUL_FWD(3 + 3*(me%4) + 1, X2)	
-		TWIDDLE_MUL_FWD(3 + 3*(me%4) + 2, X3)			
+		TWIDDLE_MUL_FWD(twiddles, 3 + 3*(me%4) + 0, X1)	
+		TWIDDLE_MUL_FWD(twiddles, 3 + 3*(me%4) + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles, 3 + 3*(me%4) + 2, X3)			
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(3 + 3*(me%4) + 0, X1)	
-		TWIDDLE_MUL_INV(3 + 3*(me%4) + 1, X2)	
-		TWIDDLE_MUL_INV(3 + 3*(me%4) + 2, X3)		
+		TWIDDLE_MUL_INV(twiddles, 3 + 3*(me%4) + 0, X1)	
+		TWIDDLE_MUL_INV(twiddles, 3 + 3*(me%4) + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles, 3 + 3*(me%4) + 2, X3)		
 	}
 
 	if(dir == -1)
@@ -1174,15 +855,15 @@ void fft_256(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(15 + 3*(me%16) + 0, X1)	
-		TWIDDLE_MUL_FWD(15 + 3*(me%16) + 1, X2)	
-		TWIDDLE_MUL_FWD(15 + 3*(me%16) + 2, X3)	
+		TWIDDLE_MUL_FWD(twiddles, 15 + 3*(me%16) + 0, X1)	
+		TWIDDLE_MUL_FWD(twiddles, 15 + 3*(me%16) + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles, 15 + 3*(me%16) + 2, X3)	
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(15 + 3*(me%16) + 0, X1)	
-		TWIDDLE_MUL_INV(15 + 3*(me%16) + 1, X2)	
-		TWIDDLE_MUL_INV(15 + 3*(me%16) + 2, X3)			
+		TWIDDLE_MUL_INV(twiddles, 15 + 3*(me%16) + 0, X1)	
+		TWIDDLE_MUL_INV(twiddles, 15 + 3*(me%16) + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles, 15 + 3*(me%16) + 2, X3)			
 	}
 	
 	if(dir == -1)
@@ -1221,15 +902,15 @@ void fft_256(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 	
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(63 + 3*me + 0, X1)	
-		TWIDDLE_MUL_FWD(63 + 3*me + 1, X2)	
-		TWIDDLE_MUL_FWD(63 + 3*me + 2, X3)		
+		TWIDDLE_MUL_FWD(twiddles, 63 + 3*me + 0, X1)	
+		TWIDDLE_MUL_FWD(twiddles, 63 + 3*me + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles, 63 + 3*me + 2, X3)		
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(63 + 3*me + 0, X1)	
-		TWIDDLE_MUL_INV(63 + 3*me + 1, X2)	
-		TWIDDLE_MUL_INV(63 + 3*me + 2, X3)			
+		TWIDDLE_MUL_INV(twiddles, 63 + 3*me + 0, X1)	
+		TWIDDLE_MUL_INV(twiddles, 63 + 3*me + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles, 63 + 3*me + 2, X3)			
 	}
 	
 	if(dir == -1)
@@ -1332,23 +1013,23 @@ void fft_512(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 		float2 W;
 		float TR, TI;
 		
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 0, X1)			
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 1, X2)	
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 2, X3)	
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 3, X4)	
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 4, X5)	
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 5, X6)	
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 6, X7)			
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 0, X1)			
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 2, X3)	
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 3, X4)	
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 4, X5)	
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 5, X6)	
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 6, X7)			
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 0, X1)			
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 1, X2)	
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 2, X3)	
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 3, X4)	
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 4, X5)	
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 5, X6)	
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 6, X7)
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 0, X1)			
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 2, X3)	
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 3, X4)	
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 4, X5)	
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 5, X6)	
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 6, X7)
 	}
 	
 	if(dir == -1)
@@ -1411,23 +1092,23 @@ void fft_512(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(63 + 7*me + 0, X1)			
-		TWIDDLE_MUL_FWD(63 + 7*me + 1, X2)	
-		TWIDDLE_MUL_FWD(63 + 7*me + 2, X3)	
-		TWIDDLE_MUL_FWD(63 + 7*me + 3, X4)	
-		TWIDDLE_MUL_FWD(63 + 7*me + 4, X5)	
-		TWIDDLE_MUL_FWD(63 + 7*me + 5, X6)	
-		TWIDDLE_MUL_FWD(63 + 7*me + 6, X7)
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*me + 0, X1)			
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*me + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*me + 2, X3)	
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*me + 3, X4)	
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*me + 4, X5)	
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*me + 5, X6)	
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*me + 6, X7)
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(63 + 7*me + 0, X1)			
-		TWIDDLE_MUL_INV(63 + 7*me + 1, X2)	
-		TWIDDLE_MUL_INV(63 + 7*me + 2, X3)	
-		TWIDDLE_MUL_INV(63 + 7*me + 3, X4)	
-		TWIDDLE_MUL_INV(63 + 7*me + 4, X5)	
-		TWIDDLE_MUL_INV(63 + 7*me + 5, X6)	
-		TWIDDLE_MUL_INV(63 + 7*me + 6, X7)
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*me + 0, X1)			
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*me + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*me + 2, X3)	
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*me + 3, X4)	
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*me + 4, X5)	
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*me + 5, X6)	
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*me + 6, X7)
 	}
 	
 	if(dir == -1)
@@ -1530,23 +1211,23 @@ void fft_1024(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 			
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 0, X1)			
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 1, X2)	
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 2, X3)	
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 3, X4)	
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 4, X5)	
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 5, X6)	
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 6, X7)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 0, X1)			
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 1, X2)	
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 2, X3)	
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 3, X4)	
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 4, X5)	
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 5, X6)	
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 6, X7)
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 0, X1)			
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 1, X2)	
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 2, X3)	
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 3, X4)	
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 4, X5)	
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 5, X6)	
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 6, X7)
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 0, X1)			
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 1, X2)	
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 2, X3)	
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 3, X4)	
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 4, X5)	
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 5, X6)	
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 6, X7)
 	}
 	
 	if(dir == -1)
@@ -1611,23 +1292,23 @@ void fft_1024(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(63 + 3*((2*me + 0)%64) + 0, X1)
-		TWIDDLE_MUL_FWD(63 + 3*((2*me + 0)%64) + 1, X2)
-		TWIDDLE_MUL_FWD(63 + 3*((2*me + 0)%64) + 2, X3)	
+		TWIDDLE_MUL_FWD(twiddles, 63 + 3*((2*me + 0)%64) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles, 63 + 3*((2*me + 0)%64) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles, 63 + 3*((2*me + 0)%64) + 2, X3)	
 
-		TWIDDLE_MUL_FWD(63 + 3*((2*me + 1)%64) + 0, X5)
-		TWIDDLE_MUL_FWD(63 + 3*((2*me + 1)%64) + 1, X6)
-		TWIDDLE_MUL_FWD(63 + 3*((2*me + 1)%64) + 2, X7)
+		TWIDDLE_MUL_FWD(twiddles, 63 + 3*((2*me + 1)%64) + 0, X5)
+		TWIDDLE_MUL_FWD(twiddles, 63 + 3*((2*me + 1)%64) + 1, X6)
+		TWIDDLE_MUL_FWD(twiddles, 63 + 3*((2*me + 1)%64) + 2, X7)
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(63 + 3*((2*me + 0)%64) + 0, X1)
-		TWIDDLE_MUL_INV(63 + 3*((2*me + 0)%64) + 1, X2)
-		TWIDDLE_MUL_INV(63 + 3*((2*me + 0)%64) + 2, X3)	
+		TWIDDLE_MUL_INV(twiddles, 63 + 3*((2*me + 0)%64) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles, 63 + 3*((2*me + 0)%64) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles, 63 + 3*((2*me + 0)%64) + 2, X3)	
 
-		TWIDDLE_MUL_INV(63 + 3*((2*me + 1)%64) + 0, X5)
-		TWIDDLE_MUL_INV(63 + 3*((2*me + 1)%64) + 1, X6)
-		TWIDDLE_MUL_INV(63 + 3*((2*me + 1)%64) + 2, X7)	
+		TWIDDLE_MUL_INV(twiddles, 63 + 3*((2*me + 1)%64) + 0, X5)
+		TWIDDLE_MUL_INV(twiddles, 63 + 3*((2*me + 1)%64) + 1, X6)
+		TWIDDLE_MUL_INV(twiddles, 63 + 3*((2*me + 1)%64) + 2, X7)	
 	}	
 	
 	
@@ -1701,23 +1382,23 @@ void fft_1024(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(255 + 3*((2*me + 0)%256) + 0, X1)
-		TWIDDLE_MUL_FWD(255 + 3*((2*me + 0)%256) + 1, X2)
-		TWIDDLE_MUL_FWD(255 + 3*((2*me + 0)%256) + 2, X3)	
+		TWIDDLE_MUL_FWD(twiddles, 255 + 3*((2*me + 0)%256) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 3*((2*me + 0)%256) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 3*((2*me + 0)%256) + 2, X3)	
 
-		TWIDDLE_MUL_FWD(255 + 3*((2*me + 1)%256) + 0, X5)
-		TWIDDLE_MUL_FWD(255 + 3*((2*me + 1)%256) + 1, X6)
-		TWIDDLE_MUL_FWD(255 + 3*((2*me + 1)%256) + 2, X7)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 3*((2*me + 1)%256) + 0, X5)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 3*((2*me + 1)%256) + 1, X6)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 3*((2*me + 1)%256) + 2, X7)
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(255 + 3*((2*me + 0)%256) + 0, X1)
-		TWIDDLE_MUL_INV(255 + 3*((2*me + 0)%256) + 1, X2)
-		TWIDDLE_MUL_INV(255 + 3*((2*me + 0)%256) + 2, X3)	
+		TWIDDLE_MUL_INV(twiddles, 255 + 3*((2*me + 0)%256) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles, 255 + 3*((2*me + 0)%256) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles, 255 + 3*((2*me + 0)%256) + 2, X3)	
 
-		TWIDDLE_MUL_INV(255 + 3*((2*me + 1)%256) + 0, X5)
-		TWIDDLE_MUL_INV(255 + 3*((2*me + 1)%256) + 1, X6)
-		TWIDDLE_MUL_INV(255 + 3*((2*me + 1)%256) + 2, X7)
+		TWIDDLE_MUL_INV(twiddles, 255 + 3*((2*me + 1)%256) + 0, X5)
+		TWIDDLE_MUL_INV(twiddles, 255 + 3*((2*me + 1)%256) + 1, X6)
+		TWIDDLE_MUL_INV(twiddles, 255 + 3*((2*me + 1)%256) + 2, X7)
 	}	
 	
 	if(dir == -1)
@@ -1825,23 +1506,23 @@ void fft_2048(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 			
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 0, X1)
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 1, X2)
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 2, X3)
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 3, X4)
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 4, X5)
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 5, X6)
-		TWIDDLE_MUL_FWD(7 + 7*(me%8) + 6, X7)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 2, X3)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 3, X4)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 4, X5)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 5, X6)
+		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 6, X7)
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 0, X1)
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 1, X2)
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 2, X3)
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 3, X4)
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 4, X5)
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 5, X6)
-		TWIDDLE_MUL_INV(7 + 7*(me%8) + 6, X7)				
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 2, X3)
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 3, X4)
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 4, X5)
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 5, X6)
+		TWIDDLE_MUL_INV(twiddles, 7 + 7*(me%8) + 6, X7)				
 
 	}
 	
@@ -1905,24 +1586,24 @@ void fft_2048(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(63 + 7*(me%64) + 0, X1)
-		TWIDDLE_MUL_FWD(63 + 7*(me%64) + 1, X2)
-		TWIDDLE_MUL_FWD(63 + 7*(me%64) + 2, X3)
-		TWIDDLE_MUL_FWD(63 + 7*(me%64) + 3, X4)
-		TWIDDLE_MUL_FWD(63 + 7*(me%64) + 4, X5)
-		TWIDDLE_MUL_FWD(63 + 7*(me%64) + 5, X6)
-		TWIDDLE_MUL_FWD(63 + 7*(me%64) + 6, X7)			
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*(me%64) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*(me%64) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*(me%64) + 2, X3)
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*(me%64) + 3, X4)
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*(me%64) + 4, X5)
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*(me%64) + 5, X6)
+		TWIDDLE_MUL_FWD(twiddles, 63 + 7*(me%64) + 6, X7)			
 
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(63 + 7*(me%64) + 0, X1)
-		TWIDDLE_MUL_INV(63 + 7*(me%64) + 1, X2)
-		TWIDDLE_MUL_INV(63 + 7*(me%64) + 2, X3)
-		TWIDDLE_MUL_INV(63 + 7*(me%64) + 3, X4)
-		TWIDDLE_MUL_INV(63 + 7*(me%64) + 4, X5)
-		TWIDDLE_MUL_INV(63 + 7*(me%64) + 5, X6)
-		TWIDDLE_MUL_INV(63 + 7*(me%64) + 6, X7)
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*(me%64) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*(me%64) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*(me%64) + 2, X3)
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*(me%64) + 3, X4)
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*(me%64) + 4, X5)
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*(me%64) + 5, X6)
+		TWIDDLE_MUL_INV(twiddles, 63 + 7*(me%64) + 6, X7)
 	}
 	
 	if(dir == -1)
@@ -1987,23 +1668,23 @@ void fft_2048(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(511 + 3*((2*me + 0)%512) + 0, X1)
-		TWIDDLE_MUL_FWD(511 + 3*((2*me + 0)%512) + 1, X2)
-		TWIDDLE_MUL_FWD(511 + 3*((2*me + 0)%512) + 2, X3)
+		TWIDDLE_MUL_FWD(twiddles, 511 + 3*((2*me + 0)%512) + 0, X1)
+		TWIDDLE_MUL_FWD(twiddles, 511 + 3*((2*me + 0)%512) + 1, X2)
+		TWIDDLE_MUL_FWD(twiddles, 511 + 3*((2*me + 0)%512) + 2, X3)
 
-		TWIDDLE_MUL_FWD(511 + 3*((2*me + 1)%512) + 0, X5)
-		TWIDDLE_MUL_FWD(511 + 3*((2*me + 1)%512) + 1, X6)
-		TWIDDLE_MUL_FWD(511 + 3*((2*me + 1)%512) + 2, X7)
+		TWIDDLE_MUL_FWD(twiddles, 511 + 3*((2*me + 1)%512) + 0, X5)
+		TWIDDLE_MUL_FWD(twiddles, 511 + 3*((2*me + 1)%512) + 1, X6)
+		TWIDDLE_MUL_FWD(twiddles, 511 + 3*((2*me + 1)%512) + 2, X7)
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(511 + 3*((2*me + 0)%512) + 0, X1)
-		TWIDDLE_MUL_INV(511 + 3*((2*me + 0)%512) + 1, X2)
-		TWIDDLE_MUL_INV(511 + 3*((2*me + 0)%512) + 2, X3)
+		TWIDDLE_MUL_INV(twiddles, 511 + 3*((2*me + 0)%512) + 0, X1)
+		TWIDDLE_MUL_INV(twiddles, 511 + 3*((2*me + 0)%512) + 1, X2)
+		TWIDDLE_MUL_INV(twiddles, 511 + 3*((2*me + 0)%512) + 2, X3)
 
-		TWIDDLE_MUL_INV(511 + 3*((2*me + 1)%512) + 0, X5)
-		TWIDDLE_MUL_INV(511 + 3*((2*me + 1)%512) + 1, X6)
-		TWIDDLE_MUL_INV(511 + 3*((2*me + 1)%512) + 2, X7)	
+		TWIDDLE_MUL_INV(twiddles, 511 + 3*((2*me + 1)%512) + 0, X5)
+		TWIDDLE_MUL_INV(twiddles, 511 + 3*((2*me + 1)%512) + 1, X6)
+		TWIDDLE_MUL_INV(twiddles, 511 + 3*((2*me + 1)%512) + 2, X7)	
 	}	
 	
 	if(dir == -1)
@@ -2153,39 +1834,39 @@ void fft_4096(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 			
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) +  0,  X1)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) +  1,  X2)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) +  2,  X3)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) +  3,  X4)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) +  4,  X5)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) +  5,  X6)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) +  6,  X7)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) +  7,  X8)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) +  8,  X9)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) +  9, X10)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) + 10, X11)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) + 11, X12)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) + 12, X13)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) + 13, X14)
-		TWIDDLE_MUL_FWD(15 + 15*(me%16) + 14, X15)		
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) +  0,  X1)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) +  1,  X2)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) +  2,  X3)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) +  3,  X4)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) +  4,  X5)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) +  5,  X6)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) +  6,  X7)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) +  7,  X8)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) +  8,  X9)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) +  9, X10)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) + 10, X11)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) + 11, X12)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) + 12, X13)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) + 13, X14)
+		TWIDDLE_MUL_FWD(twiddles, 15 + 15*(me%16) + 14, X15)		
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(15 + 15*(me%16) +  0,  X1)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) +  1,  X2)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) +  2,  X3)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) +  3,  X4)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) +  4,  X5)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) +  5,  X6)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) +  6,  X7)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) +  7,  X8)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) +  8,  X9)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) +  9, X10)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) + 10, X11)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) + 11, X12)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) + 12, X13)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) + 13, X14)
-		TWIDDLE_MUL_INV(15 + 15*(me%16) + 14, X15)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) +  0,  X1)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) +  1,  X2)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) +  2,  X3)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) +  3,  X4)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) +  4,  X5)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) +  5,  X6)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) +  6,  X7)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) +  7,  X8)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) +  8,  X9)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) +  9, X10)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) + 10, X11)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) + 11, X12)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) + 12, X13)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) + 13, X14)
+		TWIDDLE_MUL_INV(twiddles, 15 + 15*(me%16) + 14, X15)
 	}
 	
 	if(dir == -1)
@@ -2283,39 +1964,39 @@ void fft_4096(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 
 	if(dir == -1)
 	{
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) +  0,  X1)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) +  1,  X2)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) +  2,  X3)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) +  3,  X4)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) +  4,  X5)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) +  5,  X6)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) +  6,  X7)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) +  7,  X8)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) +  8,  X9)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) +  9, X10)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) + 10, X11)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) + 11, X12)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) + 12, X13)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) + 13, X14)
-		TWIDDLE_MUL_FWD(255 + 15*(me%256) + 14, X15)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) +  0,  X1)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) +  1,  X2)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) +  2,  X3)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) +  3,  X4)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) +  4,  X5)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) +  5,  X6)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) +  6,  X7)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) +  7,  X8)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) +  8,  X9)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) +  9, X10)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) + 10, X11)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) + 11, X12)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) + 12, X13)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) + 13, X14)
+		TWIDDLE_MUL_FWD(twiddles, 255 + 15*(me%256) + 14, X15)
 	}
 	else
 	{
-		TWIDDLE_MUL_INV(255 + 15*(me%256) +  0,  X1)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) +  1,  X2)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) +  2,  X3)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) +  3,  X4)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) +  4,  X5)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) +  5,  X6)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) +  6,  X7)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) +  7,  X8)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) +  8,  X9)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) +  9, X10)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) + 10, X11)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) + 11, X12)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) + 12, X13)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) + 13, X14)
-		TWIDDLE_MUL_INV(255 + 15*(me%256) + 14, X15)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) +  0,  X1)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) +  1,  X2)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) +  2,  X3)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) +  3,  X4)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) +  4,  X5)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) +  5,  X6)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) +  6,  X7)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) +  7,  X8)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) +  8,  X9)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) +  9, X10)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) + 10, X11)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) + 11, X12)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) + 12, X13)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) + 13, X14)
+		TWIDDLE_MUL_INV(twiddles, 255 + 15*(me%256) + 14, X15)
 	}
 	
 	if(dir == -1)
