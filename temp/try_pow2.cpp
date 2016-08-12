@@ -52,9 +52,9 @@ void CreateAndCopyTwiddles(float2 **tw, float2 **tw1, float2 **tw2, float2 **tw3
 				*tw2 = twt2;
 				*tw3 = twt3;
 				
-				hipMemcpy(twt1, &twiddles_64[0], 64*sizeof(float2), hipMemcpyHostToDevice); break;
-				hipMemcpy(twt2, &twiddles_128[0], 128*sizeof(float2), hipMemcpyHostToDevice); break;
-				hipMemcpy(twt3, &twiddle_dee_8192[0][0], 256*2*sizeof(float2), hipMemcpyHostToDevice); break;
+				hipMemcpy(twt1, &twiddles_64[0], 64*sizeof(float2), hipMemcpyHostToDevice); 
+				hipMemcpy(twt2, &twiddles_128[0], 128*sizeof(float2), hipMemcpyHostToDevice);
+				hipMemcpy(twt3, &twiddle_dee_8192[0][0], 256*2*sizeof(float2), hipMemcpyHostToDevice);
 				
 				break;
 				
