@@ -306,31 +306,43 @@ int main(int argc, char **argv)
 
 	float2 *hy = new float2[N*B];
 	float2 *hx = new float2[N*B];
+	float2 *ref = new float2[N*B];
 
 	for(size_t j=0; j<B; j++)
+	{
 	for(size_t i=0; i<N; i++)
 	{
 		hx[j*N + i].x = (rand() % 2) == 0 ? (float)(rand() % 17) : -(float)(rand() % 17);
 		hx[j*N + i].y = (rand() % 2) == 0 ? (float)(rand() % 17) : -(float)(rand() % 17);
 		//hx[j*N + i].x = i*i - i;
 		//hx[j*N + i].y = i*10;
+	}
 	}		
 
 
          fftwf_complex *in, *out;
          fftwf_plan p;
          
-         in = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * N);
-         out = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * N);
+         in = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * N );
+         out = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * N );
          p = fftwf_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
         
-	 for(size_t i=0; i<N; i++)
+	 for(size_t j=0; j<B; j++)
 	 {
-		in[i][0] = hx[i].x;
-		in[i][1] = hx[i].y;
+		 for(size_t i=0; i<N; i++)
+		 {
+			in[i][0] = hx[j*N + i].x;
+			in[i][1] = hx[j*N + i].y;
+		 }
+
+	         fftwf_execute(p); /* repeat as needed */
+
+		 for(size_t i=0; i<N; i++)
+		 {
+			ref[j*N + i].x = out[i][0];
+			ref[j*N + i].y = out[i][1];
+		 }
 	 }
- 
-         fftwf_execute(p); /* repeat as needed */
          
          fftwf_destroy_plan(p);
 
@@ -379,14 +391,14 @@ int main(int argc, char **argv)
 
 		for (size_t i = 0; i < N; i++)
 		{
-			maxv = maxv > fabs(out[j*N + i][0]) ? maxv : fabs(out[j*N + i][0]);
-			maxv = maxv > fabs(out[j*N + i][1]) ? maxv : fabs(out[j*N + i][1]);
+			maxv = maxv > fabs(ref[j*N + i].x) ? maxv : fabs(ref[j*N + i].x);
+			maxv = maxv > fabs(ref[j*N + i].y) ? maxv : fabs(ref[j*N + i].y);
 		}
 
 		for (size_t i = 0; i < N; i++)
 		{
-			rmse += (hy[j*N + i].x - out[j*N + i][0])*(hy[j*N + i].x - out[j*N + i][0]);
-			rmse += (hy[j*N + i].y - out[j*N + i][1])*(hy[j*N + i].y - out[j*N + i][1]);
+			rmse += (hy[j*N + i].x - ref[j*N + i].x)*(hy[j*N + i].x - ref[j*N + i].x);
+			rmse += (hy[j*N + i].y - ref[j*N + i].y)*(hy[j*N + i].y - ref[j*N + i].y);
 		}
 
 		rmse = sqrt((rmse / maxv) / N);
@@ -399,6 +411,7 @@ int main(int argc, char **argv)
 
 	delete[] hx;
 	delete[] hy;
+	delete[] ref;
 	
         fftwf_free(in); fftwf_free(out);
 	
