@@ -43,6 +43,111 @@ void CreateAndCopyTwiddles(float2 **tw, float2 **tw1, float2 **tw2, float2 **tw3
 	
 	switch (N)
 	{
+	case 1048576:
+				hipMalloc(&twt1, 1024*sizeof(float2));
+				hipMalloc(&twt2, 1024*sizeof(float2));
+				hipMalloc(&twt3, 256*3*sizeof(float2));
+				
+				*tw1 = twt1;
+				*tw2 = twt2;
+				*tw3 = twt3;
+				
+				hipMemcpy(twt1, &twiddles_1024[0], 1024*sizeof(float2), hipMemcpyHostToDevice); 
+				hipMemcpy(twt2, &twiddles_1024[0], 1024*sizeof(float2), hipMemcpyHostToDevice);
+				hipMemcpy(twt3, &twiddle_dee_1048576[0][0], 256*3*sizeof(float2), hipMemcpyHostToDevice);
+				
+				break;
+				
+	case 524288:
+				hipMalloc(&twt1, 1024*sizeof(float2));
+				hipMalloc(&twt2, 512*sizeof(float2));
+				hipMalloc(&twt3, 256*3*sizeof(float2));
+				
+				*tw1 = twt1;
+				*tw2 = twt2;
+				*tw3 = twt3;
+				
+				hipMemcpy(twt1, &twiddles_1024[0], 1024*sizeof(float2), hipMemcpyHostToDevice); 
+				hipMemcpy(twt2, &twiddles_512[0], 512*sizeof(float2), hipMemcpyHostToDevice);
+				hipMemcpy(twt3, &twiddle_dee_524288[0][0], 256*3*sizeof(float2), hipMemcpyHostToDevice);
+				
+				break;
+				
+	case 262144:
+				hipMalloc(&twt1, 64*sizeof(float2));
+				hipMalloc(&twt2, 4096*sizeof(float2));
+				hipMalloc(&twt3, 256*3*sizeof(float2));
+				
+				*tw1 = twt1;
+				*tw2 = twt2;
+				*tw3 = twt3;
+				
+				hipMemcpy(twt1, &twiddles_64[0], 64*sizeof(float2), hipMemcpyHostToDevice); 
+				hipMemcpy(twt2, &twiddles_4096[0], 4096*sizeof(float2), hipMemcpyHostToDevice);
+				hipMemcpy(twt3, &twiddle_dee_262144[0][0], 256*3*sizeof(float2), hipMemcpyHostToDevice);
+				
+				break;
+				
+	case 131072:
+				hipMalloc(&twt1, 64*sizeof(float2));
+				hipMalloc(&twt2, 2048*sizeof(float2));
+				hipMalloc(&twt3, 256*3*sizeof(float2));
+				
+				*tw1 = twt1;
+				*tw2 = twt2;
+				*tw3 = twt3;
+				
+				hipMemcpy(twt1, &twiddles_64[0], 64*sizeof(float2), hipMemcpyHostToDevice); 
+				hipMemcpy(twt2, &twiddles_2048[0], 2048*sizeof(float2), hipMemcpyHostToDevice);
+				hipMemcpy(twt3, &twiddle_dee_131072[0][0], 256*3*sizeof(float2), hipMemcpyHostToDevice);
+				
+				break;
+				
+	case 65536:
+				hipMalloc(&twt1, 256*sizeof(float2));
+				hipMalloc(&twt2, 256*sizeof(float2));
+				hipMalloc(&twt3, 256*2*sizeof(float2));
+				
+				*tw1 = twt1;
+				*tw2 = twt2;
+				*tw3 = twt3;
+				
+				hipMemcpy(twt1, &twiddles_256[0], 256*sizeof(float2), hipMemcpyHostToDevice); 
+				hipMemcpy(twt2, &twiddles_256[0], 256*sizeof(float2), hipMemcpyHostToDevice);
+				hipMemcpy(twt3, &twiddle_dee_65536[0][0], 256*2*sizeof(float2), hipMemcpyHostToDevice);
+				
+				break;
+				
+	case 32768:
+				hipMalloc(&twt1, 128*sizeof(float2));
+				hipMalloc(&twt2, 256*sizeof(float2));
+				hipMalloc(&twt3, 256*2*sizeof(float2));
+				
+				*tw1 = twt1;
+				*tw2 = twt2;
+				*tw3 = twt3;
+				
+				hipMemcpy(twt1, &twiddles_128[0], 128*sizeof(float2), hipMemcpyHostToDevice); 
+				hipMemcpy(twt2, &twiddles_256[0], 256*sizeof(float2), hipMemcpyHostToDevice);
+				hipMemcpy(twt3, &twiddle_dee_32768[0][0], 256*2*sizeof(float2), hipMemcpyHostToDevice);
+				
+				break;
+				
+	case 16384:
+				hipMalloc(&twt1, 64*sizeof(float2));
+				hipMalloc(&twt2, 256*sizeof(float2));
+				hipMalloc(&twt3, 256*2*sizeof(float2));
+				
+				*tw1 = twt1;
+				*tw2 = twt2;
+				*tw3 = twt3;
+				
+				hipMemcpy(twt1, &twiddles_64[0], 64*sizeof(float2), hipMemcpyHostToDevice); 
+				hipMemcpy(twt2, &twiddles_256[0], 256*sizeof(float2), hipMemcpyHostToDevice);
+				hipMemcpy(twt3, &twiddle_dee_16384[0][0], 256*2*sizeof(float2), hipMemcpyHostToDevice);
+				
+				break;
+				
 	case 8192:
 				hipMalloc(&twt1, 64*sizeof(float2));
 				hipMalloc(&twt2, 128*sizeof(float2));
@@ -112,6 +217,44 @@ void LaunchKernel(size_t N, float2 *twiddles, float2 *twiddles1, float2 *twiddle
 	
 	switch (N)
 	{
+	case 1048576:
+				hipLaunchKernel(HIP_KERNEL_NAME(transpose_1048576_1), dim3(16,16*B), dim3(16,16), 0, 0, buffer, temp, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_1048576_1), dim3(1024*B), dim3(128), 0, 0, twiddles1, temp, buffer, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(transpose_1048576_2), dim3(16,16*B), dim3(16,16), 0, 0, twiddles3, buffer, temp, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_1048576_2), dim3(1024*B), dim3(128), 0, 0, twiddles2, temp, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(transpose_1048576_3), dim3(16,16*B), dim3(16,16), 0, 0, temp, buffer, count);
+				break;		
+	case 524288:
+				hipLaunchKernel(HIP_KERNEL_NAME(transpose_524288_1), dim3(8,16*B), dim3(16,16), 0, 0, buffer, temp, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_524288_1), dim3(512*B), dim3(128), 0, 0, twiddles1, temp, buffer, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(transpose_524288_2), dim3(16,8*B), dim3(16,16), 0, 0, twiddles3, buffer, temp, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_524288_2), dim3(1024*B), dim3(64), 0, 0, twiddles2, temp, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(transpose_524288_3), dim3(16,8*B), dim3(16,16), 0, 0, temp, buffer, count);
+				break;
+				
+	case 262144:
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_262144_1), dim3(256*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_262144_2), dim3(64*B), dim3(256), 0, 0, twiddles2, temp, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(transpose_262144), dim3(64,B), dim3(16,16), 0, 0, temp, buffer, count);
+				break;
+	case 131072:
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_131072_1), dim3(128*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_131072_2), dim3(64*B), dim3(256), 0, 0, twiddles2, temp, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(transpose_131072), dim3(32,B), dim3(16,16), 0, 0, temp, buffer, count);
+				break;
+				
+	case 65536:
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_65536_1), dim3(32*B), dim3(256), 0, 0, twiddles1, twiddles3, buffer, temp, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_65536_2), dim3(32*B), dim3(256), 0, 0, twiddles2, temp, buffer, count, dir);
+				break;		
+	case 32768:
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_32768_1), dim3(32*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_32768_2), dim3(16*B), dim3(256), 0, 0, twiddles2, temp, buffer, count, dir);
+				break;		
+	case 16384:
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_16384_1), dim3(16*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count, dir);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_16384_2), dim3(8*B), dim3(256), 0, 0, twiddles2, temp, buffer, count, dir);
+				break;		
 	case 8192:
 				hipLaunchKernel(HIP_KERNEL_NAME(fft_8192_1), dim3(8*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count, dir);
 				hipLaunchKernel(HIP_KERNEL_NAME(fft_8192_2), dim3(8*B), dim3(128), 0, 0, twiddles2, temp, buffer, count, dir);
