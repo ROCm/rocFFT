@@ -34,11 +34,20 @@ enum ComputeScheme
 {
 	CA_NONE,
 	CA_KERNEL_STOCKHAM,
-	CA_KERNEL_STOCKHAM_BLOCK,
+	CA_KERNEL_STOCKHAM_BLOCK_CC,
+	CA_KERNEL_STOCKHAM_BLOCK_RC,
 	CA_KERNEL_TRANSPOSE,
 	CA_L1D_TRTRT,
 	CA_L1D_CC,
 	CA_L1D_CRT,
+	CA_2D_RTRT,
+	CA_2D_RC,
+	CA_KERNEL_2D_STOCKHAM_BLOCK_CC,
+	CA_KERNEL_2D_SINGLE,
+	CA_3D_RTRT,
+	CA_3D_RC,
+	CA_KERNEL_3D_STOCKHAM_BLOCK_CC,
+	CA_KERNEL_3D_SINGLE
 };
 
 
@@ -47,7 +56,7 @@ class TreeNode
 {
 private:
 	// disallow public creation
-	TreeNode(TreeNode *p) : parent(p), scheme(CA_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT)
+	TreeNode(TreeNode *p) : parent(p), scheme(CA_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0)
 	{}
 
 public:
@@ -291,7 +300,7 @@ public:
 				col2colPlan->length.push_back(divLength1);
 				col2colPlan->length.push_back(divLength0);
 
-				col2colPlan->scheme = CA_KERNEL_STOCKHAM_BLOCK;
+				col2colPlan->scheme = CA_KERNEL_STOCKHAM_BLOCK_CC;
 				col2colPlan->dimension = 1;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -309,7 +318,7 @@ public:
 				row2colPlan->length.push_back(divLength0);
 				row2colPlan->length.push_back(divLength1);
 
-				row2colPlan->scheme = CA_KERNEL_STOCKHAM_BLOCK;
+				row2colPlan->scheme = CA_KERNEL_STOCKHAM_BLOCK_RC;
 				row2colPlan->dimension = 1;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -333,7 +342,7 @@ public:
 				col2colPlan->length.push_back(divLength1);
 				col2colPlan->length.push_back(divLength0);
 
-				col2colPlan->scheme = CA_KERNEL_STOCKHAM_BLOCK;
+				col2colPlan->scheme = CA_KERNEL_STOCKHAM_BLOCK_CC;
 				col2colPlan->dimension = 1;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -351,7 +360,7 @@ public:
 				row2rowPlan->length.push_back(divLength0);
 				row2rowPlan->length.push_back(divLength1);
 
-				row2rowPlan->scheme = CA_KERNEL_STOCKHAM_BLOCK;
+				row2rowPlan->scheme = CA_KERNEL_STOCKHAM;
 				row2rowPlan->dimension = 1;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -392,11 +401,275 @@ public:
 			if (scheme == CA_KERNEL_TRANSPOSE)
 				return;
 
+			// conditions to choose which scheme
+			if ((length[0] * length[1]) <= 2048)
+				scheme = CA_KERNEL_2D_SINGLE;
+			else if (length[1] <= 256)
+				scheme = CA_2D_RC;
+			else
+				scheme = CA_2D_RTRT;
+
+			switch (scheme)
+			{
+			case CA_2D_RTRT:
+			{
+				// first row fft
+				TreeNode *row1Plan = TreeNode::CreateNode(this);
+				row1Plan->precision = precision;
+				row1Plan->batchsize = batchsize;
+
+				row1Plan->length.push_back(length[0]);
+				row1Plan->dimension = 1;
+				row1Plan->length.push_back(length[1]);
+
+				for (size_t index = 2; index < length.size(); index++)
+				{
+					row1Plan->length.push_back(length[index]);
+				}
+
+				row1Plan->RecursiveBuildTreeLogicA();
+				childNodes.push_back(row1Plan);
+
+				// first transpose
+				TreeNode *trans1Plan = TreeNode::CreateNode(this);
+				trans1Plan->precision = precision;
+				trans1Plan->batchsize = batchsize;
+
+				trans1Plan->length.push_back(length[0]);
+				trans1Plan->length.push_back(length[1]);
+
+				trans1Plan->scheme = CA_KERNEL_TRANSPOSE;
+				trans1Plan->dimension = 2;
+
+				for (size_t index = 2; index < length.size(); index++)
+				{
+					trans1Plan->length.push_back(length[index]);
+				}
+
+				childNodes.push_back(trans1Plan);
+
+				// second row fft
+				TreeNode *row2Plan = TreeNode::CreateNode(this);
+				row2Plan->precision = precision;
+				row2Plan->batchsize = batchsize;
+
+				row2Plan->length.push_back(length[1]);
+				row2Plan->dimension = 1;
+				row2Plan->length.push_back(length[0]);
+
+				for (size_t index = 2; index < length.size(); index++)
+				{
+					row2Plan->length.push_back(length[index]);
+				}
+
+				row2Plan->RecursiveBuildTreeLogicA();
+				childNodes.push_back(row2Plan);
+
+				// second transpose
+				TreeNode *trans2Plan = TreeNode::CreateNode(this);
+				trans2Plan->precision = precision;
+				trans2Plan->batchsize = batchsize;
+
+				trans2Plan->length.push_back(length[1]);
+				trans2Plan->length.push_back(length[0]);
+
+				trans2Plan->scheme = CA_KERNEL_TRANSPOSE;
+				trans2Plan->dimension = 2;
+
+				for (size_t index = 2; index < length.size(); index++)
+				{
+					trans2Plan->length.push_back(length[index]);
+				}
+				
+				childNodes.push_back(trans2Plan);
+
+			}
+			break;
+			case CA_2D_RC:
+			{
+				// row fft
+				TreeNode *rowPlan = TreeNode::CreateNode(this);
+				rowPlan->precision = precision;
+				rowPlan->batchsize = batchsize;
+
+				rowPlan->length.push_back(length[0]);
+				rowPlan->dimension = 1;
+				rowPlan->length.push_back(length[1]);
+
+				for (size_t index = 2; index < length.size(); index++)
+				{
+					rowPlan->length.push_back(length[index]);
+				}
+
+				rowPlan->RecursiveBuildTreeLogicA();
+				childNodes.push_back(rowPlan);
+
+				// column fft
+				TreeNode *colPlan = TreeNode::CreateNode(this);
+				colPlan->precision = precision;
+				colPlan->batchsize = batchsize;
+
+				colPlan->length.push_back(length[1]);
+				colPlan->dimension = 1;
+				colPlan->length.push_back(length[0]);
+
+				for (size_t index = 2; index < length.size(); index++)
+				{
+					colPlan->length.push_back(length[index]);
+				}
+
+				colPlan->scheme = CA_KERNEL_2D_STOCKHAM_BLOCK_CC;
+				childNodes.push_back(colPlan);
+
+			}
+			break;
+			case CA_KERNEL_2D_SINGLE:
+			{
+
+			}
+			break;
+
+			default: assert(false);
+			}
+
 		}		
 		break;
 
 		case 3:
 		{
+			// conditions to choose which scheme
+			if ((length[0] * length[1] * length[2]) <= 2048)
+				scheme = CA_KERNEL_3D_SINGLE;
+			else if (length[2] <= 256)
+				scheme = CA_3D_RC;
+			else
+				scheme = CA_3D_RTRT;
+
+			switch (scheme)
+			{
+			case CA_3D_RTRT:
+			{
+				// 2d fft
+				TreeNode *xyPlan = TreeNode::CreateNode(this);
+				xyPlan->precision = precision;
+				xyPlan->batchsize = batchsize;
+
+				xyPlan->length.push_back(length[0]);
+				xyPlan->length.push_back(length[1]);
+				xyPlan->dimension = 2;
+				xyPlan->length.push_back(length[2]);
+
+				for (size_t index = 3; index < length.size(); index++)
+				{
+					xyPlan->length.push_back(length[index]);
+				}
+
+				xyPlan->RecursiveBuildTreeLogicA();
+				childNodes.push_back(xyPlan);
+
+				// first transpose
+				TreeNode *trans1Plan = TreeNode::CreateNode(this);
+				trans1Plan->precision = precision;
+				trans1Plan->batchsize = batchsize;
+
+				trans1Plan->length.push_back(length[0]*length[1]);
+				trans1Plan->length.push_back(length[2]);
+
+				trans1Plan->scheme = CA_KERNEL_TRANSPOSE;
+				trans1Plan->dimension = 2;
+
+				for (size_t index = 3; index < length.size(); index++)
+				{
+					trans1Plan->length.push_back(length[index]);
+				}
+
+				childNodes.push_back(trans1Plan);
+
+				// z fft
+				TreeNode *zPlan = TreeNode::CreateNode(this);
+				zPlan->precision = precision;
+				zPlan->batchsize = batchsize;
+
+				zPlan->length.push_back(length[2]);
+				zPlan->dimension = 1;
+				zPlan->length.push_back(length[0]);
+				zPlan->length.push_back(length[1]);
+
+				for (size_t index = 3; index < length.size(); index++)
+				{
+					zPlan->length.push_back(length[index]);
+				}
+
+				zPlan->RecursiveBuildTreeLogicA();
+				childNodes.push_back(zPlan);
+
+				// second transpose
+				TreeNode *trans2Plan = TreeNode::CreateNode(this);
+				trans2Plan->precision = precision;
+				trans2Plan->batchsize = batchsize;
+
+				trans2Plan->length.push_back(length[2]);
+				trans2Plan->length.push_back(length[0]*length[1]);
+
+				trans2Plan->scheme = CA_KERNEL_TRANSPOSE;
+				trans2Plan->dimension = 2;
+
+				for (size_t index = 3; index < length.size(); index++)
+				{
+					trans2Plan->length.push_back(length[index]);
+				}
+
+				childNodes.push_back(trans2Plan);
+			}
+			break;
+			case CA_3D_RC:
+			{
+				// 2d fft
+				TreeNode *xyPlan = TreeNode::CreateNode(this);
+				xyPlan->precision = precision;
+				xyPlan->batchsize = batchsize;
+
+				xyPlan->length.push_back(length[0]);
+				xyPlan->length.push_back(length[1]);
+				xyPlan->dimension = 2;
+				xyPlan->length.push_back(length[2]);
+
+				for (size_t index = 3; index < length.size(); index++)
+				{
+					xyPlan->length.push_back(length[index]);
+				}
+
+				xyPlan->RecursiveBuildTreeLogicA();
+				childNodes.push_back(xyPlan);
+
+				// z col fft
+				TreeNode *zPlan = TreeNode::CreateNode(this);
+				zPlan->precision = precision;
+				zPlan->batchsize = batchsize;
+
+				zPlan->length.push_back(length[2]);
+				zPlan->dimension = 1;
+				zPlan->length.push_back(length[0]);
+				zPlan->length.push_back(length[1]);
+
+				for (size_t index = 3; index < length.size(); index++)
+				{
+					zPlan->length.push_back(length[index]);
+				}
+
+				zPlan->scheme = CA_KERNEL_3D_STOCKHAM_BLOCK_CC;
+				childNodes.push_back(zPlan);
+
+			}
+			break;
+			case CA_KERNEL_3D_SINGLE:
+			{
+
+			}
+			break;
+
+			default: assert(false);
+			}
 		}
 		break;
 
@@ -451,69 +724,162 @@ public:
 				}
 			}
 
-			if (flipIn == OB_TEMP)
+			if ((obIn == OB_UNINIT) && (obOut == OB_UNINIT))
 			{
-				childNodes[2]->obIn = OB_TEMP;
-				childNodes[2]->obOut = OB_USER_OUT;
+				if (flipIn == OB_TEMP)
+				{
+					childNodes[2]->obIn = OB_TEMP;
+					childNodes[2]->obOut = OB_USER_OUT;
 
-				childNodes[3]->obIn = OB_USER_OUT;
-				childNodes[3]->obOut = OB_TEMP;
+					childNodes[3]->obIn = OB_USER_OUT;
+					childNodes[3]->obOut = OB_TEMP;
 
-				childNodes[4]->obIn = OB_TEMP;
-				childNodes[4]->obOut = OB_USER_OUT;
+					childNodes[4]->obIn = OB_TEMP;
+					childNodes[4]->obOut = OB_USER_OUT;
+				}
+				else
+				{
+					childNodes[2]->obIn = OB_USER_OUT;
+					childNodes[2]->obOut = OB_TEMP;
+
+					childNodes[3]->obIn = OB_TEMP;
+					childNodes[3]->obOut = OB_TEMP;
+
+					childNodes[4]->obIn = OB_TEMP;
+					childNodes[4]->obOut = OB_USER_OUT;
+				}
+
+				obIn = childNodes[0]->obIn;
+				obOut = childNodes[4]->obOut;
 			}
 			else
 			{
-				childNodes[2]->obIn = OB_USER_OUT;
-				childNodes[2]->obOut = OB_TEMP;
+				assert(obIn == obOut);
+				
+				if (obOut == OB_USER_OUT)
+				{
+					if (childNodes[1]->obOut == OB_TEMP)
+					{
+						childNodes[2]->obIn = OB_TEMP;
+						childNodes[2]->obOut = OB_USER_OUT;
 
-				childNodes[3]->obIn = OB_TEMP;
-				childNodes[3]->obOut = OB_TEMP;
+						childNodes[3]->obIn = OB_USER_OUT;
+						childNodes[3]->obOut = OB_TEMP;
 
-				childNodes[4]->obIn = OB_TEMP;
-				childNodes[4]->obOut = OB_USER_OUT;
+						childNodes[4]->obIn = OB_TEMP;
+						childNodes[4]->obOut = OB_USER_OUT;
+					}
+					else
+					{
+						childNodes[2]->obIn = OB_USER_OUT;
+						childNodes[2]->obOut = OB_TEMP;
+
+						childNodes[3]->obIn = OB_TEMP;
+						childNodes[3]->obOut = OB_TEMP;
+
+						childNodes[4]->obIn = OB_TEMP;
+						childNodes[4]->obOut = OB_USER_OUT;
+					}
+				}
+				else
+				{
+					if (childNodes[1]->obOut == OB_TEMP)
+					{
+						childNodes[2]->obIn = OB_TEMP;
+						childNodes[2]->obOut = OB_USER_OUT;
+
+						childNodes[3]->obIn = OB_USER_OUT;
+						childNodes[3]->obOut = OB_USER_OUT;
+
+						childNodes[4]->obIn = OB_USER_OUT;
+						childNodes[4]->obOut = OB_TEMP;
+					}
+					else
+					{
+						childNodes[2]->obIn = OB_USER_OUT;
+						childNodes[2]->obOut = OB_TEMP;
+
+						childNodes[3]->obIn = OB_TEMP;
+						childNodes[3]->obOut = OB_USER_OUT;
+
+						childNodes[4]->obIn = OB_USER_OUT;
+						childNodes[4]->obOut = OB_TEMP;
+					}
+				}
 			}
-
-			obIn = childNodes[0]->obIn;
-			obOut = childNodes[4]->obOut;
 		}
 		else if(scheme == CA_L1D_CC)
 		{
-			if (parent == nullptr)
+			if ((obIn == OB_UNINIT) && (obOut == OB_UNINIT))
 			{
-				childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
-				childNodes[0]->obOut = OB_TEMP;
+				if (parent == nullptr)
+				{
+					childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
+					childNodes[0]->obOut = OB_TEMP;
 
-				childNodes[1]->obIn = OB_TEMP;
-				childNodes[1]->obOut = OB_USER_OUT;
+					childNodes[1]->obIn = OB_TEMP;
+					childNodes[1]->obOut = OB_USER_OUT;
+				}
+				else
+				{
+					childNodes[0]->obIn = flipIn;
+					childNodes[0]->obOut = flipOut;
+
+					childNodes[1]->obIn = flipOut;
+					childNodes[1]->obOut = flipIn;
+				}
+
+				obIn = childNodes[0]->obIn;
+				obOut = childNodes[1]->obOut;
 			}
 			else
 			{
+				assert(obIn == flipIn);
+				assert(obIn == obOut);
+
 				childNodes[0]->obIn = flipIn;
 				childNodes[0]->obOut = flipOut;
 
 				childNodes[1]->obIn = flipOut;
 				childNodes[1]->obOut = flipIn;
 			}
-
-			obIn = childNodes[0]->obIn;
-			obOut = childNodes[1]->obOut;
+				
 		}
 		else if (scheme == CA_L1D_CRT)
 		{
-			if (parent == nullptr)
+			if ((obIn == OB_UNINIT) && (obOut == OB_UNINIT))
 			{
-				childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
-				childNodes[0]->obOut = OB_TEMP;
+				if (parent == nullptr)
+				{
+					childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
+					childNodes[0]->obOut = OB_TEMP;
 
-				childNodes[1]->obIn = OB_TEMP;
-				childNodes[1]->obOut = OB_TEMP;
+					childNodes[1]->obIn = OB_TEMP;
+					childNodes[1]->obOut = OB_TEMP;
 
-				childNodes[2]->obIn = OB_TEMP;
-				childNodes[2]->obOut = OB_USER_OUT;
+					childNodes[2]->obIn = OB_TEMP;
+					childNodes[2]->obOut = OB_USER_OUT;
+				}
+				else
+				{
+					childNodes[0]->obIn = flipIn;
+					childNodes[0]->obOut = flipOut;
+
+					childNodes[1]->obIn = flipOut;
+					childNodes[1]->obOut = flipOut;
+
+					childNodes[2]->obIn = flipOut;
+					childNodes[2]->obOut = flipIn;
+				}
+
+				obIn = childNodes[0]->obIn;
+				obOut = childNodes[2]->obOut;
 			}
 			else
 			{
+				assert(obIn == flipIn);
+				assert(obIn == obOut);
+
 				childNodes[0]->obIn = flipIn;
 				childNodes[0]->obOut = flipOut;
 
@@ -523,9 +889,54 @@ public:
 				childNodes[2]->obIn = flipOut;
 				childNodes[2]->obOut = flipIn;
 			}
+		}
+		else if ( (scheme == CA_2D_RTRT) || (scheme == CA_3D_RTRT) )
+		{
+			if (parent == nullptr)
+				childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
+			else
+				childNodes[0]->obIn = OB_USER_OUT;
+
+			childNodes[0]->obOut = OB_USER_OUT;
+
+			flipIn = OB_USER_OUT;
+			flipOut = OB_TEMP;
+			childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
+
+			childNodes[1]->obIn = OB_USER_OUT;
+			childNodes[1]->obOut = OB_TEMP;
+
+			childNodes[2]->obIn = OB_TEMP;
+			childNodes[2]->obOut = OB_TEMP;
+
+			flipIn = OB_TEMP;
+			flipOut = OB_USER_OUT;
+			childNodes[2]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
+
+			childNodes[3]->obIn = OB_TEMP;
+			childNodes[3]->obOut = OB_USER_OUT;
 
 			obIn = childNodes[0]->obIn;
-			obOut = childNodes[2]->obOut;
+			obOut = childNodes[3]->obOut;
+		}
+		else if ( (scheme == CA_2D_RC) || (scheme == CA_3D_RC) )
+		{
+			if (parent == nullptr)
+				childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
+			else
+				childNodes[0]->obIn = OB_USER_OUT;
+
+			childNodes[0]->obOut = OB_USER_OUT;
+
+			flipIn = OB_USER_OUT;
+			flipOut = OB_TEMP;
+			childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
+
+			childNodes[1]->obIn = OB_USER_OUT;
+			childNodes[1]->obOut = OB_USER_OUT;
+
+			obIn = childNodes[0]->obIn;
+			obOut = childNodes[1]->obOut;
 		}
 		else
 		{
@@ -536,15 +947,17 @@ public:
 			}
 			else
 			{
-				obIn = flipIn;
-				obOut = flipOut;
+				if( (obIn == OB_UNINIT) || (obOut == OB_UNINIT) )
+					assert(false);
 
-				OperatingBuffer t;
-				t = flipIn;
-				flipIn = flipOut;
-				flipOut = t;
+				if (obIn != obOut)
+				{
+					OperatingBuffer t;
+					t = flipIn;
+					flipIn = flipOut;
+					flipOut = t;
+				}
 			}
-
 		}
 	}
 	
@@ -953,9 +1366,56 @@ public:
 
 };
 
+void ProcessNode(TreeNode *rootPlan)
+{
+	assert(rootPlan->length.size() == rootPlan->dimension);
+
+	if (rootPlan->placement == rocfft_placement_inplace)
+		assert(rootPlan->inArrayType == rootPlan->outArrayType);
+
+	rootPlan->RecursiveBuildTreeLogicA();
+	OperatingBuffer flipIn, flipOut;
+	rootPlan->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
+	rootPlan->TraverseTreeAssignPlacementsLogicA(rootPlan->inArrayType, rootPlan->outArrayType);
+	rootPlan->TraverseTreeAssignParamsLogicA();
+
+	std::vector<TreeNode *> execSeq;
+	size_t workBufSize = 0;
+	rootPlan->TraverseTreeCollectLeafsLogicA(execSeq, workBufSize);
+	if (execSeq.size() > 1)
+	{
+		std::vector<TreeNode *>::iterator prev_p = execSeq.begin();
+		std::vector<TreeNode *>::iterator curr_p = prev_p + 1;
+		while (curr_p != execSeq.end())
+		{
+			if ((*curr_p)->placement == rocfft_placement_inplace)
+			{
+				for (size_t i = 0; i < ((*curr_p)->inStride.size()); i++)
+				{
+					if (((*curr_p)->inStride[i]) != ((*curr_p)->outStride[i]))
+						std::cout << "error in stride assignments" << std::endl;
+					if (((*curr_p)->iDist) != ((*curr_p)->oDist))
+						std::cout << "error in dist assignments" << std::endl;
+				}
+
+			}
+
+			if ((*prev_p)->obOut != (*curr_p)->obIn)
+				std::cout << "error in buffer assignments" << std::endl;
+
+			prev_p = curr_p;
+			curr_p++;
+		}
+	}
+
+	rootPlan->Print();
+}
+
 // bake plan
 void BakePlan()
 {
+	// 1 D
+#if 1 
 	for (size_t i = 1; i <= 45; i++)
 	{
 		size_t N = (size_t)1 << i;
@@ -975,48 +1435,86 @@ void BakePlan()
 		rootPlan->inArrayType  = rocfft_array_type_complex_interleaved;
 		rootPlan->outArrayType = rocfft_array_type_complex_interleaved;
 
-		if (rootPlan->placement == rocfft_placement_inplace)
-			assert(rootPlan->inArrayType == rootPlan->outArrayType);
-
-		rootPlan->RecursiveBuildTreeLogicA();
-		OperatingBuffer flipIn, flipOut;
-		rootPlan->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
-		rootPlan->TraverseTreeAssignPlacementsLogicA(rootPlan->inArrayType, rootPlan->outArrayType);
-		rootPlan->TraverseTreeAssignParamsLogicA();
-
-		std::vector<TreeNode *> execSeq;
-		size_t workBufSize = 0;
-		rootPlan->TraverseTreeCollectLeafsLogicA(execSeq, workBufSize);
-		if (execSeq.size() > 1)
-		{
-			std::vector<TreeNode *>::iterator prev_p = execSeq.begin();
-			std::vector<TreeNode *>::iterator curr_p = prev_p + 1;
-			while (curr_p != execSeq.end())
-			{
-				if ((*curr_p)->placement == rocfft_placement_inplace)
-				{
-					for (size_t i = 0; i < ((*curr_p)->inStride.size()); i++)
-					{
-						if( ((*curr_p)->inStride[i]) != ((*curr_p)->outStride[i]) )
-							std::cout << "error in stride assignments" << std::endl;
-						if (((*curr_p)->iDist) != ((*curr_p)->oDist))
-							std::cout << "error in dist assignments" << std::endl;
-					}
-
-				}
-
-				if ((*prev_p)->obOut != (*curr_p)->obIn)
-					std::cout << "error in buffer assignments" << std::endl;
-
-				prev_p = curr_p;
-				curr_p++;
-			}
-		}
-
-		rootPlan->Print();
+		ProcessNode(rootPlan);
 
 		TreeNode::DeleteNode(rootPlan);
 	}
+#endif
+
+	// 2 D
+#if 0
+	for (size_t j = 1; j <= 22; j++)
+	{
+		size_t N1 = (size_t)1 << j;
+		for (size_t i = 1; i <= 22; i++)
+		{
+			size_t N0 = (size_t)1 << i;
+			TreeNode *rootPlan = TreeNode::CreateNode();
+
+			rootPlan->dimension = 2;
+			rootPlan->batchsize = 1;
+			rootPlan->length.push_back(N0);
+			rootPlan->length.push_back(N1);
+
+			rootPlan->inStride.push_back(1);
+			rootPlan->inStride.push_back(N0);
+			rootPlan->outStride.push_back(1);
+			rootPlan->outStride.push_back(N0);
+			rootPlan->iDist = rootPlan->oDist = N0*N1;
+
+			rootPlan->placement = rocfft_placement_inplace;
+			rootPlan->precision = rocfft_precision_single;
+
+			rootPlan->inArrayType = rocfft_array_type_complex_interleaved;
+			rootPlan->outArrayType = rocfft_array_type_complex_interleaved;
+
+			ProcessNode(rootPlan);
+
+			TreeNode::DeleteNode(rootPlan);
+		}
+	}
+#endif
+
+	// 3 D
+#if 0
+	for (size_t k = 1; k <= 10; k++)
+	{
+		size_t N2 = (size_t)1 << k;
+		for (size_t j = 1; j <= 20; j++)
+		{
+			size_t N1 = (size_t)1 << j;
+			for (size_t i = 1; i <= 10; i++)
+			{
+				size_t N0 = (size_t)1 << i;
+				TreeNode *rootPlan = TreeNode::CreateNode();
+
+				rootPlan->dimension = 3;
+				rootPlan->batchsize = 1;
+				rootPlan->length.push_back(N0);
+				rootPlan->length.push_back(N1);
+				rootPlan->length.push_back(N2);
+
+				rootPlan->inStride.push_back(1);
+				rootPlan->inStride.push_back(N0);
+				rootPlan->inStride.push_back(N0*N1);
+				rootPlan->outStride.push_back(1);
+				rootPlan->outStride.push_back(N0);
+				rootPlan->outStride.push_back(N0*N1);
+				rootPlan->iDist = rootPlan->oDist = N0*N1*N2;
+
+				rootPlan->placement = rocfft_placement_inplace;
+				rootPlan->precision = rocfft_precision_single;
+
+				rootPlan->inArrayType = rocfft_array_type_complex_interleaved;
+				rootPlan->outArrayType = rocfft_array_type_complex_interleaved;
+
+				ProcessNode(rootPlan);
+
+				TreeNode::DeleteNode(rootPlan);
+			}
+		}
+	}
+#endif
 
 }
 
