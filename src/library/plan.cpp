@@ -32,26 +32,26 @@ enum OperatingBuffer
 
 enum ComputeScheme
 {
-	CA_NONE,
-	CA_KERNEL_STOCKHAM,
-	CA_KERNEL_STOCKHAM_BLOCK_CC,
-	CA_KERNEL_STOCKHAM_BLOCK_RC,
-	CA_KERNEL_TRANSPOSE,
-	CA_KERNEL_TRANSPOSE_XY_Z,
-	CA_KERNEL_TRANSPOSE_Z_XY,
-	CA_L1D_TRTRT,
-	CA_L1D_CC,
-	CA_L1D_CRT,
-	CA_2D_STRAIGHT,
-	CA_2D_RTRT,
-	CA_2D_RC,
-	CA_KERNEL_2D_STOCKHAM_BLOCK_CC,
-	CA_KERNEL_2D_SINGLE,
-	CA_3D_STRAIGHT,
-	CA_3D_RTRT,
-	CA_3D_RC,
-	CA_KERNEL_3D_STOCKHAM_BLOCK_CC,
-	CA_KERNEL_3D_SINGLE
+	CS_NONE,
+	CS_KERNEL_STOCKHAM,
+	CS_KERNEL_STOCKHAM_BLOCK_CC,
+	CS_KERNEL_STOCKHAM_BLOCK_RC,
+	CS_KERNEL_TRANSPOSE,
+	CS_KERNEL_TRANSPOSE_XY_Z,
+	CS_KERNEL_TRANSPOSE_Z_XY,
+	CS_L1D_TRTRT,
+	CS_L1D_CC,
+	CS_L1D_CRT,
+	CS_2D_STRAIGHT,
+	CS_2D_RTRT,
+	CS_2D_RC,
+	CS_KERNEL_2D_STOCKHAM_BLOCK_CC,
+	CS_KERNEL_2D_SINGLE,
+	CS_3D_STRAIGHT,
+	CS_3D_RTRT,
+	CS_3D_RC,
+	CS_KERNEL_3D_STOCKHAM_BLOCK_CC,
+	CS_KERNEL_3D_SINGLE
 };
 
 std::string PrintScheme(ComputeScheme cs)
@@ -60,27 +60,27 @@ std::string PrintScheme(ComputeScheme cs)
 
 	switch (cs)
 	{
-		case CA_KERNEL_STOCKHAM:					str += "CA_KERNEL_STOCKHAM				"; break;
-		case CA_KERNEL_STOCKHAM_BLOCK_CC:			str += "CA_KERNEL_STOCKHAM_BLOCK_CC		"; break;
-		case CA_KERNEL_STOCKHAM_BLOCK_RC:			str += "CA_KERNEL_STOCKHAM_BLOCK_RC		"; break;
-		case CA_KERNEL_TRANSPOSE:					str += "CA_KERNEL_TRANSPOSE				"; break;
-		case CA_KERNEL_TRANSPOSE_XY_Z:				str += "CA_KERNEL_TRANSPOSE_XY_Z		"; break;
-		case CA_KERNEL_TRANSPOSE_Z_XY:				str += "CA_KERNEL_TRANSPOSE_Z_XY		"; break;
-		case CA_L1D_TRTRT:							str += "CA_L1D_TRTRT					"; break;
-		case CA_L1D_CC:								str += "CA_L1D_CC						"; break;
-		case CA_L1D_CRT:							str += "CA_L1D_CRT						"; break;
-		case CA_2D_STRAIGHT:						str += "CA_2D_STRAIGHT					"; break;
-		case CA_2D_RTRT:							str += "CA_2D_RTRT						"; break;
-		case CA_2D_RC:								str += "CA_2D_RC						"; break;
-		case CA_KERNEL_2D_STOCKHAM_BLOCK_CC:		str += "CA_KERNEL_2D_STOCKHAM_BLOCK_CC	"; break;
-		case CA_KERNEL_2D_SINGLE:					str += "CA_KERNEL_2D_SINGLE				"; break;
-		case CA_3D_STRAIGHT:						str += "CA_3D_STRAIGHT					"; break;
-		case CA_3D_RTRT:							str += "CA_3D_RTRT						"; break;
-		case CA_3D_RC:								str += "CA_3D_RC						"; break;
-		case CA_KERNEL_3D_STOCKHAM_BLOCK_CC:		str += "CA_KERNEL_3D_STOCKHAM_BLOCK_CC	"; break;
-		case CA_KERNEL_3D_SINGLE:					str += "CA_KERNEL_3D_SINGLE				"; break;
+		case CS_KERNEL_STOCKHAM:					str += "CS_KERNEL_STOCKHAM				"; break;
+		case CS_KERNEL_STOCKHAM_BLOCK_CC:			str += "CS_KERNEL_STOCKHAM_BLOCK_CC		"; break;
+		case CS_KERNEL_STOCKHAM_BLOCK_RC:			str += "CS_KERNEL_STOCKHAM_BLOCK_RC		"; break;
+		case CS_KERNEL_TRANSPOSE:					str += "CS_KERNEL_TRANSPOSE				"; break;
+		case CS_KERNEL_TRANSPOSE_XY_Z:				str += "CS_KERNEL_TRANSPOSE_XY_Z		"; break;
+		case CS_KERNEL_TRANSPOSE_Z_XY:				str += "CS_KERNEL_TRANSPOSE_Z_XY		"; break;
+		case CS_L1D_TRTRT:							str += "CS_L1D_TRTRT					"; break;
+		case CS_L1D_CC:								str += "CS_L1D_CC						"; break;
+		case CS_L1D_CRT:							str += "CS_L1D_CRT						"; break;
+		case CS_2D_STRAIGHT:						str += "CS_2D_STRAIGHT					"; break;
+		case CS_2D_RTRT:							str += "CS_2D_RTRT						"; break;
+		case CS_2D_RC:								str += "CS_2D_RC						"; break;
+		case CS_KERNEL_2D_STOCKHAM_BLOCK_CC:		str += "CS_KERNEL_2D_STOCKHAM_BLOCK_CC	"; break;
+		case CS_KERNEL_2D_SINGLE:					str += "CS_KERNEL_2D_SINGLE				"; break;
+		case CS_3D_STRAIGHT:						str += "CS_3D_STRAIGHT					"; break;
+		case CS_3D_RTRT:							str += "CS_3D_RTRT						"; break;
+		case CS_3D_RC:								str += "CS_3D_RC						"; break;
+		case CS_KERNEL_3D_STOCKHAM_BLOCK_CC:		str += "CS_KERNEL_3D_STOCKHAM_BLOCK_CC	"; break;
+		case CS_KERNEL_3D_SINGLE:					str += "CS_KERNEL_3D_SINGLE				"; break;
 
-		default:									str += "CA_NONE							"; break;
+		default:									str += "CS_NONE							"; break;
 	}
 
 	return str;
@@ -92,7 +92,7 @@ class TreeNode
 {
 private:
 	// disallow public creation
-	TreeNode(TreeNode *p) : parent(p), scheme(CA_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0)
+	TreeNode(TreeNode *p) : parent(p), scheme(CS_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0)
 	{}
 
 public:
@@ -152,7 +152,7 @@ public:
 		{
 			if (length[0] <= Large1DThreshold)
 			{
-				scheme = CA_KERNEL_STOCKHAM;
+				scheme = CS_KERNEL_STOCKHAM;
 				return;
 			}
 
@@ -190,7 +190,7 @@ public:
 						}
 					}
 
-					scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CA_L1D_CC : CA_L1D_CRT;
+					scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CS_L1D_CC : CS_L1D_CRT;
 				}
 				else
 				{
@@ -209,7 +209,7 @@ public:
 						divLength1 = (size_t)1 << in_x;
 					}
 
-					scheme = CA_L1D_TRTRT;
+					scheme = CS_L1D_TRTRT;
 				}
 			}
 			else
@@ -220,7 +220,7 @@ public:
 
 			switch (scheme)
 			{
-			case CA_L1D_TRTRT:
+			case CS_L1D_TRTRT:
 			{
 				// first transpose
 				TreeNode *trans1Plan = TreeNode::CreateNode(this);
@@ -230,7 +230,7 @@ public:
 				trans1Plan->length.push_back(divLength0);
 				trans1Plan->length.push_back(divLength1);
 
-				trans1Plan->scheme = CA_KERNEL_TRANSPOSE;
+				trans1Plan->scheme = CS_KERNEL_TRANSPOSE;
 				trans1Plan->dimension = 2;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -251,7 +251,7 @@ public:
 				row1Plan->length.push_back(divLength1);
 				row1Plan->length.push_back(divLength0);
 
-				row1Plan->scheme = CA_KERNEL_STOCKHAM;
+				row1Plan->scheme = CS_KERNEL_STOCKHAM;
 				row1Plan->dimension = 1;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -270,7 +270,7 @@ public:
 				trans2Plan->length.push_back(divLength1);
 				trans2Plan->length.push_back(divLength0);
 
-				trans2Plan->scheme = CA_KERNEL_TRANSPOSE;
+				trans2Plan->scheme = CS_KERNEL_TRANSPOSE;
 				trans2Plan->dimension = 2;
 
 				trans2Plan->large1D = length[0];
@@ -290,7 +290,7 @@ public:
 				row2Plan->length.push_back(divLength0);
 				row2Plan->length.push_back(divLength1);
 
-				row2Plan->scheme = CA_KERNEL_STOCKHAM;
+				row2Plan->scheme = CS_KERNEL_STOCKHAM;
 				row2Plan->dimension = 1;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -311,7 +311,7 @@ public:
 				trans3Plan->length.push_back(divLength0);
 				trans3Plan->length.push_back(divLength1);
 
-				trans3Plan->scheme = CA_KERNEL_TRANSPOSE;
+				trans3Plan->scheme = CS_KERNEL_TRANSPOSE;
 				trans3Plan->dimension = 2;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -322,7 +322,7 @@ public:
 				childNodes.push_back(trans3Plan);
 			}
 			break;
-			case CA_L1D_CC:
+			case CS_L1D_CC:
 			{
 				// first plan, column-to-column
 				TreeNode *col2colPlan = TreeNode::CreateNode(this);
@@ -335,7 +335,7 @@ public:
 				col2colPlan->length.push_back(divLength1);
 				col2colPlan->length.push_back(divLength0);
 
-				col2colPlan->scheme = CA_KERNEL_STOCKHAM_BLOCK_CC;
+				col2colPlan->scheme = CS_KERNEL_STOCKHAM_BLOCK_CC;
 				col2colPlan->dimension = 1;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -353,7 +353,7 @@ public:
 				row2colPlan->length.push_back(divLength0);
 				row2colPlan->length.push_back(divLength1);
 
-				row2colPlan->scheme = CA_KERNEL_STOCKHAM_BLOCK_RC;
+				row2colPlan->scheme = CS_KERNEL_STOCKHAM_BLOCK_RC;
 				row2colPlan->dimension = 1;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -364,7 +364,7 @@ public:
 				childNodes.push_back(row2colPlan);
 			}
 			break;
-			case CA_L1D_CRT:
+			case CS_L1D_CRT:
 			{
 				// first plan, column-to-column
 				TreeNode *col2colPlan = TreeNode::CreateNode(this);
@@ -377,7 +377,7 @@ public:
 				col2colPlan->length.push_back(divLength1);
 				col2colPlan->length.push_back(divLength0);
 
-				col2colPlan->scheme = CA_KERNEL_STOCKHAM_BLOCK_CC;
+				col2colPlan->scheme = CS_KERNEL_STOCKHAM_BLOCK_CC;
 				col2colPlan->dimension = 1;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -395,7 +395,7 @@ public:
 				row2rowPlan->length.push_back(divLength0);
 				row2rowPlan->length.push_back(divLength1);
 
-				row2rowPlan->scheme = CA_KERNEL_STOCKHAM;
+				row2rowPlan->scheme = CS_KERNEL_STOCKHAM;
 				row2rowPlan->dimension = 1;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -413,7 +413,7 @@ public:
 				transPlan->length.push_back(divLength0);
 				transPlan->length.push_back(divLength1);
 
-				transPlan->scheme = CA_KERNEL_TRANSPOSE;
+				transPlan->scheme = CS_KERNEL_TRANSPOSE;
 				transPlan->dimension = 2;
 
 				for (size_t index = 1; index < length.size(); index++)
@@ -433,20 +433,20 @@ public:
 
 		case 2:
 		{
-			if (scheme == CA_KERNEL_TRANSPOSE)
+			if (scheme == CS_KERNEL_TRANSPOSE)
 				return;
 
 			// conditions to choose which scheme
 			if ((length[0] * length[1]) <= 2048)
-				scheme = CA_KERNEL_2D_SINGLE;
+				scheme = CS_KERNEL_2D_SINGLE;
 			else if (length[1] <= 256)
-				scheme = CA_2D_RC;
+				scheme = CS_2D_RC;
 			else
-				scheme = CA_2D_RTRT;
+				scheme = CS_2D_RTRT;
 
 			switch (scheme)
 			{
-			case CA_2D_RTRT:
+			case CS_2D_RTRT:
 			{
 				// first row fft
 				TreeNode *row1Plan = TreeNode::CreateNode(this);
@@ -473,7 +473,7 @@ public:
 				trans1Plan->length.push_back(length[0]);
 				trans1Plan->length.push_back(length[1]);
 
-				trans1Plan->scheme = CA_KERNEL_TRANSPOSE;
+				trans1Plan->scheme = CS_KERNEL_TRANSPOSE;
 				trans1Plan->dimension = 2;
 
 				for (size_t index = 2; index < length.size(); index++)
@@ -508,7 +508,7 @@ public:
 				trans2Plan->length.push_back(length[1]);
 				trans2Plan->length.push_back(length[0]);
 
-				trans2Plan->scheme = CA_KERNEL_TRANSPOSE;
+				trans2Plan->scheme = CS_KERNEL_TRANSPOSE;
 				trans2Plan->dimension = 2;
 
 				for (size_t index = 2; index < length.size(); index++)
@@ -520,7 +520,7 @@ public:
 
 			}
 			break;
-			case CA_2D_RC:
+			case CS_2D_RC:
 			{
 				// row fft
 				TreeNode *rowPlan = TreeNode::CreateNode(this);
@@ -553,12 +553,12 @@ public:
 					colPlan->length.push_back(length[index]);
 				}
 
-				colPlan->scheme = CA_KERNEL_2D_STOCKHAM_BLOCK_CC;
+				colPlan->scheme = CS_KERNEL_2D_STOCKHAM_BLOCK_CC;
 				childNodes.push_back(colPlan);
 
 			}
 			break;
-			case CA_KERNEL_2D_SINGLE:
+			case CS_KERNEL_2D_SINGLE:
 			{
 
 			}
@@ -574,15 +574,15 @@ public:
 		{
 			// conditions to choose which scheme
 			if ((length[0] * length[1] * length[2]) <= 2048)
-				scheme = CA_KERNEL_3D_SINGLE;
+				scheme = CS_KERNEL_3D_SINGLE;
 			else if (length[2] <= 256)
-				scheme = CA_3D_RC;
+				scheme = CS_3D_RC;
 			else
-				scheme = CA_3D_RTRT;
+				scheme = CS_3D_RTRT;
 
 			switch (scheme)
 			{
-			case CA_3D_RTRT:
+			case CS_3D_RTRT:
 			{
 				// 2d fft
 				TreeNode *xyPlan = TreeNode::CreateNode(this);
@@ -611,7 +611,7 @@ public:
 				trans1Plan->length.push_back(length[1]);
 				trans1Plan->length.push_back(length[2]);
 
-				trans1Plan->scheme = CA_KERNEL_TRANSPOSE_XY_Z;
+				trans1Plan->scheme = CS_KERNEL_TRANSPOSE_XY_Z;
 				trans1Plan->dimension = 2;
 
 				for (size_t index = 3; index < length.size(); index++)
@@ -648,7 +648,7 @@ public:
 				trans2Plan->length.push_back(length[0]);
 				trans2Plan->length.push_back(length[1]);
 
-				trans2Plan->scheme = CA_KERNEL_TRANSPOSE_Z_XY;
+				trans2Plan->scheme = CS_KERNEL_TRANSPOSE_Z_XY;
 				trans2Plan->dimension = 2;
 
 				for (size_t index = 3; index < length.size(); index++)
@@ -659,7 +659,7 @@ public:
 				childNodes.push_back(trans2Plan);
 			}
 			break;
-			case CA_3D_RC:
+			case CS_3D_RC:
 			{
 				// 2d fft
 				TreeNode *xyPlan = TreeNode::CreateNode(this);
@@ -694,12 +694,12 @@ public:
 					zPlan->length.push_back(length[index]);
 				}
 
-				zPlan->scheme = CA_KERNEL_3D_STOCKHAM_BLOCK_CC;
+				zPlan->scheme = CS_KERNEL_3D_STOCKHAM_BLOCK_CC;
 				childNodes.push_back(zPlan);
 
 			}
 			break;
-			case CA_KERNEL_3D_SINGLE:
+			case CS_KERNEL_3D_SINGLE:
 			{
 
 			}
@@ -724,7 +724,7 @@ public:
 			flipOut = OB_TEMP;
 		}
 
-		if (scheme == CA_L1D_TRTRT)
+		if (scheme == CS_L1D_TRTRT)
 		{
 			if (parent == nullptr)
 			{
@@ -846,7 +846,7 @@ public:
 				}
 			}
 		}
-		else if(scheme == CA_L1D_CC)
+		else if(scheme == CS_L1D_CC)
 		{
 			if ((obIn == OB_UNINIT) && (obOut == OB_UNINIT))
 			{
@@ -883,7 +883,7 @@ public:
 			}
 				
 		}
-		else if (scheme == CA_L1D_CRT)
+		else if (scheme == CS_L1D_CRT)
 		{
 			if ((obIn == OB_UNINIT) && (obOut == OB_UNINIT))
 			{
@@ -928,7 +928,7 @@ public:
 				childNodes[2]->obOut = flipIn;
 			}
 		}
-		else if ( (scheme == CA_2D_RTRT) || (scheme == CA_3D_RTRT) )
+		else if ( (scheme == CS_2D_RTRT) || (scheme == CS_3D_RTRT) )
 		{
 			if (parent == nullptr)
 				childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
@@ -957,7 +957,7 @@ public:
 			obIn = childNodes[0]->obIn;
 			obOut = childNodes[3]->obOut;
 		}
-		else if ( (scheme == CA_2D_RC) || (scheme == CA_3D_RC) )
+		else if ( (scheme == CS_2D_RC) || (scheme == CS_3D_RC) )
 		{
 			if (parent == nullptr)
 				childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
@@ -1034,7 +1034,7 @@ public:
 
 		switch (scheme)
 		{
-		case CA_L1D_TRTRT:
+		case CS_L1D_TRTRT:
 		{
 			size_t biggerDim = childNodes[0]->length[0] > childNodes[0]->length[1] ? childNodes[0]->length[0] : childNodes[0]->length[1];
 			size_t smallerDim = biggerDim == childNodes[0]->length[0] ? childNodes[0]->length[1] : childNodes[0]->length[0];
@@ -1067,7 +1067,7 @@ public:
 			}
 			else
 			{
-				if (parent->scheme == CA_L1D_TRTRT)
+				if (parent->scheme == CS_L1D_TRTRT)
 				{
 					trans1Plan->outStride.push_back(outStride[0]);
 					trans1Plan->outStride.push_back(outStride[0] * (trans1Plan->length[1]));
@@ -1135,7 +1135,7 @@ public:
 			}
 			else
 			{
-				if ( (parent == NULL) || (parent && (parent->scheme == CA_L1D_TRTRT)) )
+				if ( (parent == NULL) || (parent && (parent->scheme == CS_L1D_TRTRT)) )
 				{
 					trans2Plan->outStride.push_back(outStride[0]);
 					trans2Plan->outStride.push_back(outStride[0] * (trans2Plan->length[1]));
@@ -1180,7 +1180,7 @@ public:
 			}
 			else
 			{
-				if ((parent == NULL) || (parent && (parent->scheme == CA_L1D_TRTRT)))
+				if ((parent == NULL) || (parent && (parent->scheme == CS_L1D_TRTRT)))
 				{
 					row2Plan->outStride.push_back(outStride[0]);
 					row2Plan->outStride.push_back(outStride[0] * (row2Plan->length[0]));
@@ -1215,7 +1215,7 @@ public:
 
 		}
 		break;
-		case CA_L1D_CC:
+		case CS_L1D_CC:
 		{
 			TreeNode *col2colPlan = childNodes[0];
 			TreeNode *row2colPlan = childNodes[1];
@@ -1268,7 +1268,7 @@ public:
 
 				for (size_t index = 1; index < length.size(); index++) col2colPlan->inStride.push_back(inStride[index]);
 
-				if (parent->scheme == CA_L1D_TRTRT)
+				if (parent->scheme == CS_L1D_TRTRT)
 				{
 					col2colPlan->outStride.push_back(parent->outStride[0] * col2colPlan->length[1]);
 					col2colPlan->outStride.push_back(parent->outStride[0]);
@@ -1296,7 +1296,7 @@ public:
 				}
 
 				// B -> T
-				if (parent->scheme == CA_L1D_TRTRT)
+				if (parent->scheme == CS_L1D_TRTRT)
 				{
 					row2colPlan->inStride.push_back(parent->outStride[0]);
 					row2colPlan->inStride.push_back(parent->outStride[0] * row2colPlan->length[0]);
@@ -1327,7 +1327,7 @@ public:
 			}
 		}
 		break;
-		case CA_L1D_CRT:
+		case CS_L1D_CRT:
 		{
 			TreeNode *col2colPlan = childNodes[0];
 			TreeNode *row2rowPlan = childNodes[1];
@@ -1389,7 +1389,7 @@ public:
 
 				for (size_t index = 1; index < length.size(); index++) col2colPlan->inStride.push_back(inStride[index]);
 
-				if (parent->scheme == CA_L1D_TRTRT)
+				if (parent->scheme == CS_L1D_TRTRT)
 				{
 					col2colPlan->outStride.push_back(parent->outStride[0] * col2colPlan->length[1]);
 					col2colPlan->outStride.push_back(parent->outStride[0]);
@@ -1417,7 +1417,7 @@ public:
 				}
 
 				// B -> B
-				if (parent->scheme == CA_L1D_TRTRT)
+				if (parent->scheme == CS_L1D_TRTRT)
 				{
 					row2rowPlan->inStride.push_back(parent->outStride[0]);
 					row2rowPlan->inStride.push_back(parent->outStride[0] * row2rowPlan->length[0]);
@@ -1455,7 +1455,7 @@ public:
 			}
 		}
 		break;
-		case CA_2D_RTRT:
+		case CS_2D_RTRT:
 		{
 			TreeNode *row1Plan = childNodes[0];
 			TreeNode *trans1Plan = childNodes[1];
@@ -1513,8 +1513,8 @@ public:
 			trans2Plan->oDist = oDist;
 		}
 		break;
-		case CA_2D_RC:
-		case CA_2D_STRAIGHT:
+		case CS_2D_RC:
+		case CS_2D_STRAIGHT:
 		{
 			TreeNode *rowPlan = childNodes[0];
 			TreeNode *colPlan = childNodes[1];
@@ -1541,7 +1541,7 @@ public:
 			colPlan->oDist = colPlan->iDist;
 		};
 		break;
-		case CA_3D_RTRT:
+		case CS_3D_RTRT:
 		{
 			TreeNode *xyPlan = childNodes[0];
 			TreeNode *trans1Plan = childNodes[1];
@@ -1600,8 +1600,8 @@ public:
 			trans2Plan->oDist = oDist;
 		}
 		break;
-		case CA_3D_RC:
-		case CA_3D_STRAIGHT:
+		case CS_3D_RC:
+		case CS_3D_STRAIGHT:
 		{
 			TreeNode *xyPlan = childNodes[0];
 			TreeNode *zPlan = childNodes[1];
