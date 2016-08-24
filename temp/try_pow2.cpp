@@ -9,7 +9,7 @@
 #include <math.h>
 
 #include "fft_pow2_hip_entry.h"
-#include "fft_pow2_large_hip.h"
+#include "fft_pow2_large_hip_entry.h"
 
 struct Timer
 {
