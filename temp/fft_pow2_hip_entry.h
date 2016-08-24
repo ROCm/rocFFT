@@ -2,7 +2,7 @@
 #include "fft_pow2_hip.h"
 
 __global__
-void fft_1_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
+void fft_1_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -16,7 +16,7 @@ void fft_1_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint 
 
 
 __global__
-void fft_2_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
+void fft_2_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -31,7 +31,7 @@ void fft_2_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint 
 
 template <int dir>
 __global__
-void fft_4_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
+void fft_4_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -50,7 +50,7 @@ void fft_4_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint 
 
 template <int dir>
 __global__
-void fft_8_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
+void fft_8_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -69,7 +69,7 @@ void fft_8_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint 
 
 template <int dir>
 __global__
-void fft_16_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
+void fft_16_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -88,7 +88,7 @@ void fft_16_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint
 
 template <int dir>
 __global__
-void fft_32_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
+void fft_32_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -106,7 +106,7 @@ void fft_32_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint
 
 template <int dir>
 __global__
-void fft_64_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
+void fft_64_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -124,7 +124,7 @@ void fft_64_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint
 
 template <int dir>
 __global__
-void fft_128_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
+void fft_128_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -142,7 +142,7 @@ void fft_128_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uin
 
 template <int dir>
 __global__
-void fft_256_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
+void fft_256_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -157,7 +157,7 @@ void fft_256_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 
 template <int dir>
 __global__
-void fft_512_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
+void fft_512_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -172,7 +172,7 @@ void fft_512_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 
 template <int dir>
 __global__
-void fft_1024_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
+void fft_1024_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -188,7 +188,7 @@ void fft_1024_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 	
 template <int dir>
 __global__
-void fft_2048_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
+void fft_2048_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -202,7 +202,7 @@ void fft_2048_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 
 template <int dir>
 __global__
-void fft_4096_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
+void fft_4096_ip_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
