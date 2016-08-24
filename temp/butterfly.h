@@ -1,4 +1,10 @@
 
+enum StrideBin
+{
+	SB_UNIT,
+	SB_NONUNIT,
+};
+
 #define TWIDDLE_3STEP_MUL_FWD(TWFUNC, TWIDDLES, INDEX, REG) \
 	{ \
 		float2 W = TWFUNC(TWIDDLES, INDEX); \

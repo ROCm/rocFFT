@@ -1,18 +1,11 @@
 
 #include "butterfly.h"
 
-__global__
-void fft_1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+
+__device__
+void fft_1(float2 *lwb, const uint rw)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
 	float2 X0;
-
-	uint rw = (me < (count - batch*64)) ? 1 : 0;
-
-	float2 *lwb = buffer + (batch*64 + me)*2;
-	
 
 	if(rw)
 	{
@@ -21,78 +14,84 @@ void fft_1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count,
 	}
 }
 
-
-__global__
-void fft_2(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+template <StrideBin sb>
+__device__
+void fft_2(float2 *twiddles, float2 *lwb, const uint rw, const ulong stride)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
 	float2 X0, X1;
-
-	uint rw = (me < (count - batch*64)) ? 1 : 0;
-
-	float2 *lwb = buffer + (batch*64 + me)*2;
-	
 
 	if(rw)
 	{
+		if(sb == SB_UNIT)
+		{
 		X0 = lwb[0];
-		X1 = lwb[1];	
+		X1 = lwb[1];
+		}
+		else
+		{
+		X0 = lwb[0*stride];
+		X1 = lwb[1*stride];			
+		}
 	}
 	
 	Rad2(&X0, &X1);
 	
 	if(rw)
 	{
+		if(sb == SB_UNIT)
+		{
 		lwb[0] = X0;
-		lwb[1] = X1;	
+		lwb[1] = X1;
+		}
+		else
+		{
+		lwb[0*stride] = X0;
+		lwb[1*stride] = X1;			
+		}	
 	}
 }	
 
 
 
-__global__
-void fft_4(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+template <StrideBin sb, int dir>
+__device__
+void fft_4(float2 *twiddles, float2 *lwb, float *lds, const uint me, const uint rw, const ulong stride)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
-	__shared__ float lds[128];
 	float2 X0, X1;
-
-	uint rw = (me < (count - batch*32)*2) ? 1 : 0;
-
-	float2 *lwb = buffer + (batch*32 + (me/2))*4;
-	float *ldsp = lds + (me/2)*4;
-	
-	me = me % 2;
 
 	if(rw)
 	{	
+		if(sb == SB_UNIT)
+		{
 		X0 = lwb[me + 0];
 		X1 = lwb[me + 2];	
+		}
+		else
+		{
+		X0 = lwb[(me + 0)*stride];
+		X1 = lwb[(me + 2)*stride];			
+		}
 	}
 	
 	Rad2(&X0, &X1);
 
-	ldsp[me*2 + 0] = X0.x;
-	ldsp[me*2 + 1] = X1.x;
+	lds[me*2 + 0] = X0.x;
+	lds[me*2 + 1] = X1.x;
 	
 	__syncthreads();
 	
-	X0.x = ldsp[me + 0];
-	X1.x = ldsp[me + 2];
+	X0.x = lds[me + 0];
+	X1.x = lds[me + 2];
 	
 	__syncthreads();
 	
-	ldsp[me*2 + 0] = X0.y;
-	ldsp[me*2 + 1] = X1.y;
+	lds[me*2 + 0] = X0.y;
+	lds[me*2 + 1] = X1.y;
 	
 	__syncthreads();
 	
-	X0.y = ldsp[me + 0];
-	X1.y = ldsp[me + 2];
+	X0.y = lds[me + 0];
+	X1.y = lds[me + 2];
 	
 	__syncthreads();
 
@@ -109,35 +108,43 @@ void fft_4(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count,
 	
 	if(rw)
 	{	
+		if(sb == SB_UNIT)
+		{
 		lwb[me + 0] = X0;
 		lwb[me + 2] = X1;	
+		}
+		else
+		{
+		lwb[(me + 0)*stride] = X0;
+		lwb[(me + 2)*stride] = X1;			
+		}	
 	}
 }
 
 
 
-__global__
-void fft_8(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+template <StrideBin sb, int dir>
+__device__
+void fft_8(float2 *twiddles, float2 *lwb, float *lds, const uint me, const uint rw, const ulong stride)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
-	__shared__ float lds[256];
 	float2 X0, X1, X2, X3;
-
-	uint rw = (me < (count - batch*32)*2) ? 1 : 0;
-
-	float2 *lwb = buffer + (batch*32 + (me/2))*8;
-	float *ldsp = lds + (me/2)*8;
-	
-	me = me % 2;
 
 	if(rw)
 	{	
+		if(sb == SB_UNIT)
+		{
 		X0 = lwb[me + 0];
 		X1 = lwb[me + 2];	
 		X2 = lwb[me + 4];
-		X3 = lwb[me + 6];		
+		X3 = lwb[me + 6];	
+		}
+		else		
+		{
+		X0 = lwb[(me + 0)*stride];
+		X1 = lwb[(me + 2)*stride];	
+		X2 = lwb[(me + 4)*stride];
+		X3 = lwb[(me + 6)*stride];			
+		}
 	}
 	
 	if(dir == -1)
@@ -146,31 +153,31 @@ void fft_8(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count,
 		InvRad4(&X0, &X1, &X2, &X3);
 		
 
-	ldsp[me*4 + 0] = X0.x;
-	ldsp[me*4 + 1] = X1.x;
-	ldsp[me*4 + 2] = X2.x;
-	ldsp[me*4 + 3] = X3.x;
+	lds[me*4 + 0] = X0.x;
+	lds[me*4 + 1] = X1.x;
+	lds[me*4 + 2] = X2.x;
+	lds[me*4 + 3] = X3.x;
 	
 	__syncthreads();
 	
-	X0.x = ldsp[me*2 + 0 + 0];
-	X1.x = ldsp[me*2 + 0 + 4];	
-	X2.x = ldsp[me*2 + 1 + 0];
-	X3.x = ldsp[me*2 + 1 + 4];
+	X0.x = lds[me*2 + 0 + 0];
+	X1.x = lds[me*2 + 0 + 4];	
+	X2.x = lds[me*2 + 1 + 0];
+	X3.x = lds[me*2 + 1 + 4];
 	
 	__syncthreads();
 	
-	ldsp[me*4 + 0] = X0.y;
-	ldsp[me*4 + 1] = X1.y;
-	ldsp[me*4 + 2] = X2.y;
-	ldsp[me*4 + 3] = X3.y;
+	lds[me*4 + 0] = X0.y;
+	lds[me*4 + 1] = X1.y;
+	lds[me*4 + 2] = X2.y;
+	lds[me*4 + 3] = X3.y;
 	
 	__syncthreads();
 	
-	X0.y = ldsp[me*2 + 0 + 0];
-	X1.y = ldsp[me*2 + 0 + 4];	
-	X2.y = ldsp[me*2 + 1 + 0];
-	X3.y = ldsp[me*2 + 1 + 4];
+	X0.y = lds[me*2 + 0 + 0];
+	X1.y = lds[me*2 + 0 + 4];	
+	X2.y = lds[me*2 + 1 + 0];
+	X3.y = lds[me*2 + 1 + 4];
 	
 	__syncthreads();
 
@@ -190,36 +197,46 @@ void fft_8(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count,
 	
 	if(rw)
 	{
+		if(sb == SB_UNIT)
+		{		
 		float4 *lwbv = (float4 *)lwb;	
 		lwbv[me + 0] = float4(X0.x,X0.y,X2.x,X2.y);
-		lwbv[me + 2] = float4(X1.x,X1.y,X3.x,X3.y);	
+		lwbv[me + 2] = float4(X1.x,X1.y,X3.x,X3.y);
+		}		
+		else		
+		{
+		lwb[(me + 0)*stride] = X0;
+		lwb[(me + 2)*stride] = X1;	
+		lwb[(me + 4)*stride] = X2;
+		lwb[(me + 6)*stride] = X3;			
+		}		
 	}
 }
 
 
 
-__global__
-void fft_16(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+template <StrideBin sb, int dir>
+__device__
+void fft_16(float2 *twiddles, float2 *lwb, float *lds, const uint me, const uint rw, const ulong stride)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
-	__shared__ float lds[256];
 	float2 X0, X1, X2, X3;
-
-	uint rw = (me < (count - batch*16)*4) ? 1 : 0;
-
-	float2 *lwb = buffer + (batch*16 + (me/4))*16;
-	float *ldsp = lds + (me/4)*16;
-	
-	me = me % 4;
 
 	if(rw)
 	{	
+		if(sb == SB_UNIT)
+		{
 		X0 = lwb[me + 0];
 		X1 = lwb[me + 4];	
 		X2 = lwb[me + 8];
-		X3 = lwb[me + 12];		
+		X3 = lwb[me + 12];	
+		}
+		else
+		{
+		X0 = lwb[(me +  0)*stride];
+		X1 = lwb[(me +  4)*stride];	
+		X2 = lwb[(me +  8)*stride];
+		X3 = lwb[(me + 12)*stride];				
+		}
 	}
 	
 	if(dir == -1)
@@ -228,31 +245,31 @@ void fft_16(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count
 		InvRad4(&X0, &X1, &X2, &X3);
 		
 
-	ldsp[me*4 + 0] = X0.x;
-	ldsp[me*4 + 1] = X1.x;
-	ldsp[me*4 + 2] = X2.x;
-	ldsp[me*4 + 3] = X3.x;
+	lds[me*4 + 0] = X0.x;
+	lds[me*4 + 1] = X1.x;
+	lds[me*4 + 2] = X2.x;
+	lds[me*4 + 3] = X3.x;
 	
 	__syncthreads();
 	
-	X0.x = ldsp[me + 0];
-	X1.x = ldsp[me + 4];	
-	X2.x = ldsp[me + 8];
-	X3.x = ldsp[me + 12];
+	X0.x = lds[me + 0];
+	X1.x = lds[me + 4];	
+	X2.x = lds[me + 8];
+	X3.x = lds[me + 12];
 	
 	__syncthreads();
 	
-	ldsp[me*4 + 0] = X0.y;
-	ldsp[me*4 + 1] = X1.y;
-	ldsp[me*4 + 2] = X2.y;
-	ldsp[me*4 + 3] = X3.y;
+	lds[me*4 + 0] = X0.y;
+	lds[me*4 + 1] = X1.y;
+	lds[me*4 + 2] = X2.y;
+	lds[me*4 + 3] = X3.y;
 	
 	__syncthreads();
 	
-	X0.y = ldsp[me + 0];
-	X1.y = ldsp[me + 4];	
-	X2.y = ldsp[me + 8];
-	X3.y = ldsp[me + 12];
+	X0.y = lds[me + 0];
+	X1.y = lds[me + 4];	
+	X2.y = lds[me + 8];
+	X3.y = lds[me + 12];
 	
 	__syncthreads();
 
@@ -276,33 +293,35 @@ void fft_16(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count
 	
 	if(rw)
 	{	
+		if(sb == SB_UNIT)
+		{		
 		lwb[me + 0]  = X0;
 		lwb[me + 4]  = X1;	
 		lwb[me + 8]  = X2;
 		lwb[me + 12] = X3;		
+		}
+		else
+		{
+		lwb[(me +  0)*stride]  = X0;
+		lwb[(me +  4)*stride]  = X1;	
+		lwb[(me +  8)*stride]  = X2;
+		lwb[(me + 12)*stride] = X3;			
+		}
 	}
 }
 
 
 
-__global__
-void fft_32(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+template <StrideBin sb, int dir>
+__device__
+void fft_32(float2 *twiddles, float2 *lwb, float *lds, const uint me, const uint rw, const ulong stride)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
-	__shared__ float lds[512];
 	float2 X0, X1, X2, X3, X4, X5, X6, X7;
-
-	uint rw = (me < (count - batch*16)*4) ? 1 : 0;
-
-	float2 *lwb = buffer + (batch*16 + (me/4))*32;
-	float *ldsp = lds + (me/4)*32;
-	
-	me = me % 4;
 
 	if(rw)
 	{
+		if(sb == SB_UNIT)
+		{			
 		X0 = lwb[me +  0];
 		X1 = lwb[me +  4];
 		X2 = lwb[me +  8];
@@ -311,6 +330,18 @@ void fft_32(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count
 		X5 = lwb[me + 20];
 		X6 = lwb[me + 24];
 		X7 = lwb[me + 28];
+		}
+		else
+		{
+		X0 = lwb[(me +  0)*stride];
+		X1 = lwb[(me +  4)*stride];
+		X2 = lwb[(me +  8)*stride];
+		X3 = lwb[(me + 12)*stride];
+		X4 = lwb[(me + 16)*stride];
+		X5 = lwb[(me + 20)*stride];
+		X6 = lwb[(me + 24)*stride];
+		X7 = lwb[(me + 28)*stride];			
+		}
 	}				
 	
 	if(dir == -1)
@@ -319,52 +350,52 @@ void fft_32(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count
 		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 
 
-	ldsp[me*8 + 0] = X0.x;
-	ldsp[me*8 + 1] = X1.x;
-	ldsp[me*8 + 2] = X2.x;
-	ldsp[me*8 + 3] = X3.x;
-	ldsp[me*8 + 4] = X4.x;
-	ldsp[me*8 + 5] = X5.x;
-	ldsp[me*8 + 6] = X6.x;
-	ldsp[me*8 + 7] = X7.x;
+	lds[me*8 + 0] = X0.x;
+	lds[me*8 + 1] = X1.x;
+	lds[me*8 + 2] = X2.x;
+	lds[me*8 + 3] = X3.x;
+	lds[me*8 + 4] = X4.x;
+	lds[me*8 + 5] = X5.x;
+	lds[me*8 + 6] = X6.x;
+	lds[me*8 + 7] = X7.x;
 				
 	__syncthreads();
 
 	
-	X0.x = ldsp[(2*me + 0) +  0];
-	X1.x = ldsp[(2*me + 0) +  8];
-	X2.x = ldsp[(2*me + 0) + 16];
-	X3.x = ldsp[(2*me + 0) + 24];
+	X0.x = lds[(2*me + 0) +  0];
+	X1.x = lds[(2*me + 0) +  8];
+	X2.x = lds[(2*me + 0) + 16];
+	X3.x = lds[(2*me + 0) + 24];
 
-	X4.x = ldsp[(2*me + 1) +  0];
-	X5.x = ldsp[(2*me + 1) +  8];
-	X6.x = ldsp[(2*me + 1) + 16];
-	X7.x = ldsp[(2*me + 1) + 24];	
+	X4.x = lds[(2*me + 1) +  0];
+	X5.x = lds[(2*me + 1) +  8];
+	X6.x = lds[(2*me + 1) + 16];
+	X7.x = lds[(2*me + 1) + 24];	
 
 	__syncthreads();
 				
 
-	ldsp[me*8 + 0] = X0.y;
-	ldsp[me*8 + 1] = X1.y;
-	ldsp[me*8 + 2] = X2.y;
-	ldsp[me*8 + 3] = X3.y;
-	ldsp[me*8 + 4] = X4.y;
-	ldsp[me*8 + 5] = X5.y;
-	ldsp[me*8 + 6] = X6.y;
-	ldsp[me*8 + 7] = X7.y;
+	lds[me*8 + 0] = X0.y;
+	lds[me*8 + 1] = X1.y;
+	lds[me*8 + 2] = X2.y;
+	lds[me*8 + 3] = X3.y;
+	lds[me*8 + 4] = X4.y;
+	lds[me*8 + 5] = X5.y;
+	lds[me*8 + 6] = X6.y;
+	lds[me*8 + 7] = X7.y;
 				
 	__syncthreads();
 
 	
-	X0.y = ldsp[(2*me + 0) +  0];
-	X1.y = ldsp[(2*me + 0) +  8];
-	X2.y = ldsp[(2*me + 0) + 16];
-	X3.y = ldsp[(2*me + 0) + 24];
+	X0.y = lds[(2*me + 0) +  0];
+	X1.y = lds[(2*me + 0) +  8];
+	X2.y = lds[(2*me + 0) + 16];
+	X3.y = lds[(2*me + 0) + 24];
 
-	X4.y = ldsp[(2*me + 1) +  0];
-	X5.y = ldsp[(2*me + 1) +  8];
-	X6.y = ldsp[(2*me + 1) + 16];
-	X7.y = ldsp[(2*me + 1) + 24];	
+	X4.y = lds[(2*me + 1) +  0];
+	X5.y = lds[(2*me + 1) +  8];
+	X6.y = lds[(2*me + 1) + 16];
+	X7.y = lds[(2*me + 1) + 24];	
 
 	__syncthreads();
 	
@@ -404,38 +435,49 @@ void fft_32(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count
 		
 	if(rw)
 	{
+		if(sb == SB_UNIT)
+		{			
 		float4 *lwbv = (float4 *)lwb;	
 		lwbv[me +  0] = float4(X0.x,X0.y,X4.x,X4.y);
 		lwbv[me +  4] = float4(X1.x,X1.y,X5.x,X5.y);	
 		lwbv[me +  8] = float4(X2.x,X2.y,X6.x,X6.y);
 		lwbv[me + 12] = float4(X3.x,X3.y,X7.x,X7.y);			
+		}
+		else
+		{
+		lwb[(me +  0)*stride] = X0;
+		lwb[(me +  4)*stride] = X1;
+		lwb[(me +  8)*stride] = X2;
+		lwb[(me + 12)*stride] = X3;
+		lwb[(me + 16)*stride] = X4;
+		lwb[(me + 20)*stride] = X5;
+		lwb[(me + 24)*stride] = X6;
+		lwb[(me + 28)*stride] = X7;				
+		}
 	}			
 	
 }
 
 
-__global__
-void fft_64(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+template <StrideBin sb, int dir>
+__device__
+void fft_64(float2 *twiddles, float2 *lwb, float *lds, const uint me, const uint rw, const ulong stride)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
-	__shared__ float lds[256];
 	float2 X0, X1, X2, X3;
 
-	uint rw = (me < (count - batch*4)*16) ? 1 : 0;
-
-	float2 *lwb = buffer + (batch*4 + (me/16))*64;
-	float *ldsp = lds + (me/16)*64;
-	
-	me = me % 16;
-
 	if(rw)
-	{	
+	{
+		if(sb == SB_UNIT)
+		{
 		X0 = lwb[me + 0];
 		X1 = lwb[me + 16];	
 		X2 = lwb[me + 32];
-		X3 = lwb[me + 48];		
+		X3 = lwb[me + 48];	
+		}
+		else
+		{
+			
+		}
 	}
 	
 	if(dir == -1)
@@ -444,31 +486,31 @@ void fft_64(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count
 		InvRad4(&X0, &X1, &X2, &X3);
 		
 
-	ldsp[me*4 + 0] = X0.x;
-	ldsp[me*4 + 1] = X1.x;
-	ldsp[me*4 + 2] = X2.x;
-	ldsp[me*4 + 3] = X3.x;
+	lds[me*4 + 0] = X0.x;
+	lds[me*4 + 1] = X1.x;
+	lds[me*4 + 2] = X2.x;
+	lds[me*4 + 3] = X3.x;
 	
 	__syncthreads();
 	
-	X0.x = ldsp[me + 0];
-	X1.x = ldsp[me + 16];	
-	X2.x = ldsp[me + 32];
-	X3.x = ldsp[me + 48];
+	X0.x = lds[me + 0];
+	X1.x = lds[me + 16];	
+	X2.x = lds[me + 32];
+	X3.x = lds[me + 48];
 	
 	__syncthreads();
 	
-	ldsp[me*4 + 0] = X0.y;
-	ldsp[me*4 + 1] = X1.y;
-	ldsp[me*4 + 2] = X2.y;
-	ldsp[me*4 + 3] = X3.y;
+	lds[me*4 + 0] = X0.y;
+	lds[me*4 + 1] = X1.y;
+	lds[me*4 + 2] = X2.y;
+	lds[me*4 + 3] = X3.y;
 	
 	__syncthreads();
 	
-	X0.y = ldsp[me + 0];
-	X1.y = ldsp[me + 16];	
-	X2.y = ldsp[me + 32];
-	X3.y = ldsp[me + 48];
+	X0.y = lds[me + 0];
+	X1.y = lds[me + 16];	
+	X2.y = lds[me + 32];
+	X3.y = lds[me + 48];
 	
 	__syncthreads();
 
@@ -491,31 +533,31 @@ void fft_64(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count
 		InvRad4(&X0, &X1, &X2, &X3);
 	
 	
-	ldsp[(me/4)*16 + me%4 +  0] = X0.x;
-	ldsp[(me/4)*16 + me%4 +  4] = X1.x;
-	ldsp[(me/4)*16 + me%4 +  8] = X2.x;
-	ldsp[(me/4)*16 + me%4 + 12] = X3.x;
+	lds[(me/4)*16 + me%4 +  0] = X0.x;
+	lds[(me/4)*16 + me%4 +  4] = X1.x;
+	lds[(me/4)*16 + me%4 +  8] = X2.x;
+	lds[(me/4)*16 + me%4 + 12] = X3.x;
 	
 	__syncthreads();
 	
-	X0.x = ldsp[me + 0];
-	X1.x = ldsp[me + 16];	
-	X2.x = ldsp[me + 32];
-	X3.x = ldsp[me + 48];
+	X0.x = lds[me + 0];
+	X1.x = lds[me + 16];	
+	X2.x = lds[me + 32];
+	X3.x = lds[me + 48];
 	
 	__syncthreads();
 	
-	ldsp[(me/4)*16 + me%4 +  0] = X0.y;
-	ldsp[(me/4)*16 + me%4 +  4] = X1.y;
-	ldsp[(me/4)*16 + me%4 +  8] = X2.y;
-	ldsp[(me/4)*16 + me%4 + 12] = X3.y;
+	lds[(me/4)*16 + me%4 +  0] = X0.y;
+	lds[(me/4)*16 + me%4 +  4] = X1.y;
+	lds[(me/4)*16 + me%4 +  8] = X2.y;
+	lds[(me/4)*16 + me%4 + 12] = X3.y;
 	
 	__syncthreads();
 	
-	X0.y = ldsp[me + 0];
-	X1.y = ldsp[me + 16];	
-	X2.y = ldsp[me + 32];
-	X3.y = ldsp[me + 48];
+	X0.y = lds[me + 0];
+	X1.y = lds[me + 16];	
+	X2.y = lds[me + 32];
+	X3.y = lds[me + 48];
 	
 	__syncthreads();
 
@@ -540,32 +582,34 @@ void fft_64(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count
 		
 	if(rw)
 	{	
+		if(sb == SB_UNIT)
+		{
 		lwb[me + 0]  = X0;
 		lwb[me + 16] = X1;	
 		lwb[me + 32] = X2;
 		lwb[me + 48] = X3;		
+		}
+		else
+		{
+		lwb[(me +  0)*stride]  = X0;
+		lwb[(me + 16)*stride] = X1;	
+		lwb[(me + 32)*stride] = X2;
+		lwb[(me + 48)*stride] = X3;			
+		}
 	}
 }
 
 
-__global__
-void fft_128(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+template <StrideBin sb, int dir>
+__device__
+void fft_128(float2 *twiddles, float2 *lwb, float *lds, const uint me, const uint rw, const ulong stride)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
-	__shared__ float lds[512];
 	float2 X0, X1, X2, X3, X4, X5, X6, X7;
-
-	uint rw = (me < (count - batch*4)*16) ? 1 : 0;
-
-	float2 *lwb = buffer + (batch*4 + (me/16))*128;
-	float *ldsp = lds + (me/16)*128;
-	
-	me = me % 16;
 	
 	if(rw)
-	{				
+	{
+		if(sb == SB_UNIT)
+		{			
 		X0 = lwb[me + 0];
 		X1 = lwb[me + 16];
 		X2 = lwb[me + 32];
@@ -574,6 +618,18 @@ void fft_128(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 		X5 = lwb[me + 80];
 		X6 = lwb[me + 96];
 		X7 = lwb[me + 112];
+		}
+		else
+		{
+		X0 = lwb[(me +   0)*stride];
+		X1 = lwb[(me +  16)*stride];
+		X2 = lwb[(me +  32)*stride];
+		X3 = lwb[(me +  48)*stride];
+		X4 = lwb[(me +  64)*stride];
+		X5 = lwb[(me +  80)*stride];
+		X6 = lwb[(me +  96)*stride];
+		X7 = lwb[(me + 112)*stride];			
+		}
 	}
 	
 	if(dir == -1)
@@ -582,49 +638,49 @@ void fft_128(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 
 
-	ldsp[me*8 + 0] = X0.x;
-	ldsp[me*8 + 1] = X1.x;
-	ldsp[me*8 + 2] = X2.x;
-	ldsp[me*8 + 3] = X3.x;
-	ldsp[me*8 + 4] = X4.x;
-	ldsp[me*8 + 5] = X5.x;
-	ldsp[me*8 + 6] = X6.x;
-	ldsp[me*8 + 7] = X7.x;
+	lds[me*8 + 0] = X0.x;
+	lds[me*8 + 1] = X1.x;
+	lds[me*8 + 2] = X2.x;
+	lds[me*8 + 3] = X3.x;
+	lds[me*8 + 4] = X4.x;
+	lds[me*8 + 5] = X5.x;
+	lds[me*8 + 6] = X6.x;
+	lds[me*8 + 7] = X7.x;
 	
 	__syncthreads();
 	
-	X0.x = ldsp[(2*me + 0) +  0];
-	X1.x = ldsp[(2*me + 0) + 32];
-	X2.x = ldsp[(2*me + 0) + 64];
-	X3.x = ldsp[(2*me + 0) + 96];
+	X0.x = lds[(2*me + 0) +  0];
+	X1.x = lds[(2*me + 0) + 32];
+	X2.x = lds[(2*me + 0) + 64];
+	X3.x = lds[(2*me + 0) + 96];
 
-	X4.x = ldsp[(2*me + 1) +  0];
-	X5.x = ldsp[(2*me + 1) + 32];
-	X6.x = ldsp[(2*me + 1) + 64];
-	X7.x = ldsp[(2*me + 1) + 96];	
+	X4.x = lds[(2*me + 1) +  0];
+	X5.x = lds[(2*me + 1) + 32];
+	X6.x = lds[(2*me + 1) + 64];
+	X7.x = lds[(2*me + 1) + 96];	
 
 	__syncthreads();
 
-	ldsp[me*8 + 0] = X0.y;
-	ldsp[me*8 + 1] = X1.y;
-	ldsp[me*8 + 2] = X2.y;
-	ldsp[me*8 + 3] = X3.y;
-	ldsp[me*8 + 4] = X4.y;
-	ldsp[me*8 + 5] = X5.y;
-	ldsp[me*8 + 6] = X6.y;
-	ldsp[me*8 + 7] = X7.y;
+	lds[me*8 + 0] = X0.y;
+	lds[me*8 + 1] = X1.y;
+	lds[me*8 + 2] = X2.y;
+	lds[me*8 + 3] = X3.y;
+	lds[me*8 + 4] = X4.y;
+	lds[me*8 + 5] = X5.y;
+	lds[me*8 + 6] = X6.y;
+	lds[me*8 + 7] = X7.y;
 	
 	__syncthreads();
 	
-	X0.y = ldsp[(2*me + 0) +  0];
-	X1.y = ldsp[(2*me + 0) + 32];
-	X2.y = ldsp[(2*me + 0) + 64];
-	X3.y = ldsp[(2*me + 0) + 96];
+	X0.y = lds[(2*me + 0) +  0];
+	X1.y = lds[(2*me + 0) + 32];
+	X2.y = lds[(2*me + 0) + 64];
+	X3.y = lds[(2*me + 0) + 96];
 
-	X4.y = ldsp[(2*me + 1) +  0];
-	X5.y = ldsp[(2*me + 1) + 32];
-	X6.y = ldsp[(2*me + 1) + 64];
-	X7.y = ldsp[(2*me + 1) + 96];	
+	X4.y = lds[(2*me + 1) +  0];
+	X5.y = lds[(2*me + 1) + 32];
+	X6.y = lds[(2*me + 1) + 64];
+	X7.y = lds[(2*me + 1) + 96];	
 
 	__syncthreads();	
 
@@ -662,51 +718,51 @@ void fft_128(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 	}	
 	
 	
-	ldsp[((2*me + 0)/8)*32 + (2*me + 0)%8 +  0] = X0.x;
-	ldsp[((2*me + 0)/8)*32 + (2*me + 0)%8 +  8] = X1.x;
-	ldsp[((2*me + 0)/8)*32 + (2*me + 0)%8 + 16] = X2.x;
-	ldsp[((2*me + 0)/8)*32 + (2*me + 0)%8 + 24] = X3.x;
+	lds[((2*me + 0)/8)*32 + (2*me + 0)%8 +  0] = X0.x;
+	lds[((2*me + 0)/8)*32 + (2*me + 0)%8 +  8] = X1.x;
+	lds[((2*me + 0)/8)*32 + (2*me + 0)%8 + 16] = X2.x;
+	lds[((2*me + 0)/8)*32 + (2*me + 0)%8 + 24] = X3.x;
 	
-	ldsp[((2*me + 1)/8)*32 + (2*me + 1)%8 +  0] = X4.x;
-	ldsp[((2*me + 1)/8)*32 + (2*me + 1)%8 +  8] = X5.x;
-	ldsp[((2*me + 1)/8)*32 + (2*me + 1)%8 + 16] = X6.x;
-	ldsp[((2*me + 1)/8)*32 + (2*me + 1)%8 + 24] = X7.x;
-	
-	__syncthreads();
-	
-	X0.x = ldsp[(2*me + 0) +  0];
-	X1.x = ldsp[(2*me + 0) + 32];
-	X2.x = ldsp[(2*me + 0) + 64];
-	X3.x = ldsp[(2*me + 0) + 96];
-
-	X4.x = ldsp[(2*me + 1) +  0];
-	X5.x = ldsp[(2*me + 1) + 32];
-	X6.x = ldsp[(2*me + 1) + 64];
-	X7.x = ldsp[(2*me + 1) + 96];	
-
-	__syncthreads();
-
-	ldsp[((2*me + 0)/8)*32 + (2*me + 0)%8 +  0] = X0.y;
-	ldsp[((2*me + 0)/8)*32 + (2*me + 0)%8 +  8] = X1.y;
-	ldsp[((2*me + 0)/8)*32 + (2*me + 0)%8 + 16] = X2.y;
-	ldsp[((2*me + 0)/8)*32 + (2*me + 0)%8 + 24] = X3.y;
-	
-	ldsp[((2*me + 1)/8)*32 + (2*me + 1)%8 +  0] = X4.y;
-	ldsp[((2*me + 1)/8)*32 + (2*me + 1)%8 +  8] = X5.y;
-	ldsp[((2*me + 1)/8)*32 + (2*me + 1)%8 + 16] = X6.y;
-	ldsp[((2*me + 1)/8)*32 + (2*me + 1)%8 + 24] = X7.y;
+	lds[((2*me + 1)/8)*32 + (2*me + 1)%8 +  0] = X4.x;
+	lds[((2*me + 1)/8)*32 + (2*me + 1)%8 +  8] = X5.x;
+	lds[((2*me + 1)/8)*32 + (2*me + 1)%8 + 16] = X6.x;
+	lds[((2*me + 1)/8)*32 + (2*me + 1)%8 + 24] = X7.x;
 	
 	__syncthreads();
 	
-	X0.y = ldsp[(2*me + 0) +  0];
-	X1.y = ldsp[(2*me + 0) + 32];
-	X2.y = ldsp[(2*me + 0) + 64];
-	X3.y = ldsp[(2*me + 0) + 96];
+	X0.x = lds[(2*me + 0) +  0];
+	X1.x = lds[(2*me + 0) + 32];
+	X2.x = lds[(2*me + 0) + 64];
+	X3.x = lds[(2*me + 0) + 96];
 
-	X4.y = ldsp[(2*me + 1) +  0];
-	X5.y = ldsp[(2*me + 1) + 32];
-	X6.y = ldsp[(2*me + 1) + 64];
-	X7.y = ldsp[(2*me + 1) + 96];	
+	X4.x = lds[(2*me + 1) +  0];
+	X5.x = lds[(2*me + 1) + 32];
+	X6.x = lds[(2*me + 1) + 64];
+	X7.x = lds[(2*me + 1) + 96];	
+
+	__syncthreads();
+
+	lds[((2*me + 0)/8)*32 + (2*me + 0)%8 +  0] = X0.y;
+	lds[((2*me + 0)/8)*32 + (2*me + 0)%8 +  8] = X1.y;
+	lds[((2*me + 0)/8)*32 + (2*me + 0)%8 + 16] = X2.y;
+	lds[((2*me + 0)/8)*32 + (2*me + 0)%8 + 24] = X3.y;
+	
+	lds[((2*me + 1)/8)*32 + (2*me + 1)%8 +  0] = X4.y;
+	lds[((2*me + 1)/8)*32 + (2*me + 1)%8 +  8] = X5.y;
+	lds[((2*me + 1)/8)*32 + (2*me + 1)%8 + 16] = X6.y;
+	lds[((2*me + 1)/8)*32 + (2*me + 1)%8 + 24] = X7.y;
+	
+	__syncthreads();
+	
+	X0.y = lds[(2*me + 0) +  0];
+	X1.y = lds[(2*me + 0) + 32];
+	X2.y = lds[(2*me + 0) + 64];
+	X3.y = lds[(2*me + 0) + 96];
+
+	X4.y = lds[(2*me + 1) +  0];
+	X5.y = lds[(2*me + 1) + 32];
+	X6.y = lds[(2*me + 1) + 64];
+	X7.y = lds[(2*me + 1) + 96];	
 
 	__syncthreads();	
 	
@@ -745,32 +801,50 @@ void fft_128(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 		
 	if(rw)
 	{
+		if(sb == SB_UNIT)
+		{
 		float4 *lwbv = (float4 *)lwb;	
 		lwbv[me +  0] = float4(X0.x,X0.y,X4.x,X4.y);
 		lwbv[me + 16] = float4(X1.x,X1.y,X5.x,X5.y);	
 		lwbv[me + 32] = float4(X2.x,X2.y,X6.x,X6.y);
-		lwbv[me + 48] = float4(X3.x,X3.y,X7.x,X7.y);			
+		lwbv[me + 48] = float4(X3.x,X3.y,X7.x,X7.y);	
+		}
+		else
+		{
+		lwb[(me +   0)*stride] = X0;
+		lwb[(me +  16)*stride] = X1;
+		lwb[(me +  32)*stride] = X2;
+		lwb[(me +  48)*stride] = X3;
+		lwb[(me +  64)*stride] = X4;
+		lwb[(me +  80)*stride] = X5;
+		lwb[(me +  96)*stride] = X6;
+		lwb[(me + 112)*stride] = X7;			
+		}
 	}	
 	
 }
 
 
-__global__
-void fft_256(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+template <StrideBin sb, int dir>
+__device__
+void fft_256(float2 *twiddles, float2 *lwb, float *lds, const uint me, const ulong stride)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
-	__shared__ float lds[256];
 	float2 X0, X1, X2, X3;
 
-	float2 *lwb = buffer + batch*256;
-	
-
+	if(sb == SB_UNIT)
+	{
 	X0 = lwb[me +   0];
 	X1 = lwb[me +  64];	
 	X2 = lwb[me + 128];
-	X3 = lwb[me + 192];		
+	X3 = lwb[me + 192];	
+	}
+	else	
+	{
+	X0 = lwb[(me +   0)*stride];
+	X1 = lwb[(me +  64)*stride];	
+	X2 = lwb[(me + 128)*stride];
+	X3 = lwb[(me + 192)*stride];			
+	}
 	
 
 	if(dir == -1)
@@ -918,26 +992,32 @@ void fft_256(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 	else
 		InvRad4(&X0, &X1, &X2, &X3);
 		
-
+	if(sb == SB_UNIT)
+	{
 	lwb[me +   0] = X0;
 	lwb[me +  64] = X1;	
 	lwb[me + 128] = X2;
 	lwb[me + 192] = X3;		
+	}
+	else
+	{
+	lwb[(me +   0)*stride] = X0;
+	lwb[(me +  64)*stride] = X1;	
+	lwb[(me + 128)*stride] = X2;
+	lwb[(me + 192)*stride] = X3;		
+	}
 
 }
 
 
-__global__
-void fft_512(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+template <StrideBin sb, int dir>
+__device__
+void fft_512(float2 *twiddles, float2 *lwb, float *lds, const uint me, const ulong stride)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
 	float2 X0, X1, X2, X3, X4, X5, X6, X7;
-	__shared__ float lds[512];
-	float2 *lwb = buffer + batch*512;
 	
-
+	if(sb == SB_UNIT)
+	{
 	X0 = lwb[me +   0];
 	X1 = lwb[me +  64];
 	X2 = lwb[me + 128];
@@ -946,6 +1026,18 @@ void fft_512(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 	X5 = lwb[me + 320];
 	X6 = lwb[me + 384];
 	X7 = lwb[me + 448];
+	}
+	else
+	{
+	X0 = lwb[(me +   0)*stride];
+	X1 = lwb[(me +  64)*stride];
+	X2 = lwb[(me + 128)*stride];
+	X3 = lwb[(me + 192)*stride];
+	X4 = lwb[(me + 256)*stride];
+	X5 = lwb[(me + 320)*stride];
+	X6 = lwb[(me + 384)*stride];
+	X7 = lwb[(me + 448)*stride];		
+	}
 					
 	
 	if(dir == -1)
@@ -1116,7 +1208,8 @@ void fft_512(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 	else
 		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 
-
+	if(sb == SB_UNIT)
+	{
 	lwb[me +   0] = X0;
 	lwb[me +  64] = X1;
 	lwb[me + 128] = X2;
@@ -1125,20 +1218,30 @@ void fft_512(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint coun
 	lwb[me + 320] = X5;
 	lwb[me + 384] = X6;
 	lwb[me + 448] = X7;		
+	}
+	else
+	{
+	lwb[(me +   0)*stride] = X0;
+	lwb[(me +  64)*stride] = X1;
+	lwb[(me + 128)*stride] = X2;
+	lwb[(me + 192)*stride] = X3;
+	lwb[(me + 256)*stride] = X4;
+	lwb[(me + 320)*stride] = X5;
+	lwb[(me + 384)*stride] = X6;
+	lwb[(me + 448)*stride] = X7;			
+	}
 		
 }
 	
 
-__global__
-void fft_1024(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+template <StrideBin sb, int dir>
+__device__
+void fft_1024(float2 *twiddles, float2 *lwb, float *lds, const uint me, const ulong stride)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
 	float2 X0, X1, X2, X3, X4, X5, X6, X7;
-	__shared__ float lds[1024];
-	float2 *lwb = buffer + batch*1024;
 	
+	if(sb == SB_UNIT)
+	{
 	X0 = lwb[me +   0];
 	X1 = lwb[me + 128];
 	X2 = lwb[me + 256];
@@ -1147,6 +1250,18 @@ void fft_1024(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 	X5 = lwb[me + 640];
 	X6 = lwb[me + 768];
 	X7 = lwb[me + 896];
+	}
+	else
+	{
+	X0 = lwb[(me +   0)*stride];
+	X1 = lwb[(me + 128)*stride];
+	X2 = lwb[(me + 256)*stride];
+	X3 = lwb[(me + 384)*stride];
+	X4 = lwb[(me + 512)*stride];
+	X5 = lwb[(me + 640)*stride];
+	X6 = lwb[(me + 768)*stride];
+	X7 = lwb[(me + 896)*stride];		
+	}
 					
 	
 	if(dir == -1)
@@ -1411,7 +1526,8 @@ void fft_1024(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 		InvRad4(&X0, &X1, &X2, &X3);
 		InvRad4(&X4, &X5, &X6, &X7);
 	}	
-		
+	
+	if(sb == SB_UNIT)	
 	{
 		float4 *lwbv = (float4 *)lwb;	
 		lwbv[me +   0] = float4(X0.x,X0.y,X4.x,X4.y);
@@ -1419,21 +1535,29 @@ void fft_1024(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 		lwbv[me + 256] = float4(X2.x,X2.y,X6.x,X6.y);
 		lwbv[me + 384] = float4(X3.x,X3.y,X7.x,X7.y);			
 	}	
+	else
+	{
+		lwb[(me +   0)*stride] = X0;
+		lwb[(me + 128)*stride] = X1;
+		lwb[(me + 256)*stride] = X2;
+		lwb[(me + 384)*stride] = X3;
+		lwb[(me + 512)*stride] = X4;
+		lwb[(me + 640)*stride] = X5;
+		lwb[(me + 768)*stride] = X6;
+		lwb[(me + 896)*stride] = X7;		
+	}
 }
 
 
 	
-__global__
-void fft_2048(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+template <StrideBin sb, int dir>
+__device__
+void fft_2048(float2 *twiddles, float2 *lwb, float *lds, const uint me, const ulong stride)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
 	float2 X0, X1, X2, X3, X4, X5, X6, X7;
-	__shared__ float lds[2048];
-	float2 *lwb = buffer + batch*2048;
 	
-
+	if(sb == SB_UNIT)
+	{
 	X0 = lwb[me +    0];
 	X1 = lwb[me +  256];
 	X2 = lwb[me +  512];
@@ -1442,6 +1566,18 @@ void fft_2048(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 	X5 = lwb[me + 1280];
 	X6 = lwb[me + 1536];
 	X7 = lwb[me + 1792];
+	}
+	else
+	{
+	X0 = lwb[(me +    0)*stride];
+	X1 = lwb[(me +  256)*stride];
+	X2 = lwb[(me +  512)*stride];
+	X3 = lwb[(me +  768)*stride];
+	X4 = lwb[(me + 1024)*stride];
+	X5 = lwb[(me + 1280)*stride];
+	X6 = lwb[(me + 1536)*stride];
+	X7 = lwb[(me + 1792)*stride];		
+	}
 					
 	
 	if(dir == -1)
@@ -1698,6 +1834,7 @@ void fft_2048(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 		InvRad4(&X4, &X5, &X6, &X7);
 	}	
 		
+	if(sb == SB_UNIT)		
 	{
 		float4 *lwbv = (float4 *)lwb;	
 		lwbv[me +   0] = float4(X0.x,X0.y,X4.x,X4.y);
@@ -1705,21 +1842,28 @@ void fft_2048(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 		lwbv[me + 512] = float4(X2.x,X2.y,X6.x,X6.y);
 		lwbv[me + 768] = float4(X3.x,X3.y,X7.x,X7.y);			
 	}
+	else
+	{
+		lwb[(me +    0)*stride] = X0;
+		lwb[(me +  256)*stride] = X1;
+		lwb[(me +  512)*stride] = X2;
+		lwb[(me +  768)*stride] = X3;
+		lwb[(me + 1024)*stride] = X4;
+		lwb[(me + 1280)*stride] = X5;
+		lwb[(me + 1536)*stride] = X6;
+		lwb[(me + 1792)*stride] = X7;		
+	}
 }
 
-__global__
-void fft_4096(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const int dir)
+template <StrideBin sb, int dir>
+__device__
+void fft_4096(float2 *twiddles, float2 *lwb, float *lds, const uint me, const ulong stride)
 {
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
 	float2 X0, X1, X2, X3, X4, X5, X6, X7;
 	float2 X8, X9, X10, X11, X12, X13, X14, X15;
 	
-	__shared__ float lds[4096];
-	float2 *lwb = buffer + batch*4096;
-	
-
+	if(sb == SB_UNIT)
+	{
 	 X0 = lwb[me +    0];
 	 X1 = lwb[me +  256];
 	 X2 = lwb[me +  512];
@@ -1736,6 +1880,26 @@ void fft_4096(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 	X13 = lwb[me + 3328];
 	X14 = lwb[me + 3584];
 	X15 = lwb[me + 3840];
+	}
+	else
+	{
+	 X0 = lwb[(me +    0)*stride];
+	 X1 = lwb[(me +  256)*stride];
+	 X2 = lwb[(me +  512)*stride];
+	 X3 = lwb[(me +  768)*stride];
+	 X4 = lwb[(me + 1024)*stride];
+	 X5 = lwb[(me + 1280)*stride];
+	 X6 = lwb[(me + 1536)*stride];
+	 X7 = lwb[(me + 1792)*stride];
+	 X8 = lwb[(me + 2048)*stride];
+	 X9 = lwb[(me + 2304)*stride];
+	X10 = lwb[(me + 2560)*stride];
+	X11 = lwb[(me + 2816)*stride];
+	X12 = lwb[(me + 3072)*stride];
+	X13 = lwb[(me + 3328)*stride];
+	X14 = lwb[(me + 3584)*stride];
+	X15 = lwb[(me + 3840)*stride];		
+	}
 	
 	if(dir == -1)
 	{
@@ -2008,6 +2172,8 @@ void fft_4096(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 		InvRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
 	}
 
+	if(sb == SB_UNIT)
+	{		
 	lwb[me +    0] =  X0;
 	lwb[me +  256] =  X1;
 	lwb[me +  512] =  X2;
@@ -2024,6 +2190,26 @@ void fft_4096(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint cou
 	lwb[me + 3328] = X13;
 	lwb[me + 3584] = X14;
 	lwb[me + 3840] = X15;	
+	}
+	else
+	{
+	lwb[(me +    0)*stride] =  X0;
+	lwb[(me +  256)*stride] =  X1;
+	lwb[(me +  512)*stride] =  X2;
+	lwb[(me +  768)*stride] =  X3;
+	lwb[(me + 1024)*stride] =  X4;
+	lwb[(me + 1280)*stride] =  X5;
+	lwb[(me + 1536)*stride] =  X6;
+	lwb[(me + 1792)*stride] =  X7;
+	lwb[(me + 2048)*stride] =  X8;
+	lwb[(me + 2304)*stride] =  X9;
+	lwb[(me + 2560)*stride] = X10;
+	lwb[(me + 2816)*stride] = X11;
+	lwb[(me + 3072)*stride] = X12;
+	lwb[(me + 3328)*stride] = X13;
+	lwb[(me + 3584)*stride] = X14;
+	lwb[(me + 3840)*stride] = X15;		
+	}
 
 }
 
