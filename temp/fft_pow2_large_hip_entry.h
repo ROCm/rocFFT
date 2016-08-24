@@ -1,4 +1,6 @@
 
+#include "fft_pow2_large_hip.h"
+
 template<int dir>
 __global__
 void fft_8192_1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_8192, float2 * gbIn, float2 * gbOut, const uint count)
@@ -1041,7 +1043,7 @@ void fft_1048576_1(hipLaunchParm lp, float2 *twiddles_1024, float2 * gbIn, float
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	tfft_1024(twiddles_1024, me, lds, lwbIn, lwbOut);
+	fft_1024<SB_UNIT, dir>(twiddles_1024, lwbIn, lwbOut, lds, me, 1, 1);
 }
 
 
@@ -1127,6 +1129,7 @@ transpose_1048576_2( hipLaunchParm lp, float2 *twiddles_1048576, float2* pmCompl
 }
 
 
+template<int dir>
 __global__
 void fft_1048576_2(hipLaunchParm lp, float2 *twiddles_1024, float2 * gb, const uint count)
 {

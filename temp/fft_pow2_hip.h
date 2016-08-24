@@ -302,9 +302,9 @@ void fft_16(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const
 		}
 		else
 		{
-		lwb_out[(me +  0)*stride]  = X0;
-		lwb_out[(me +  4)*stride]  = X1;	
-		lwb_out[(me +  8)*stride]  = X2;
+		lwb_out[(me +  0)*stride_out] = X0;
+		lwb_out[(me +  4)*stride_out] = X1;	
+		lwb_out[(me +  8)*stride_out] = X2;
 		lwb_out[(me + 12)*stride_out] = X3;			
 		}
 	}
@@ -591,7 +591,7 @@ void fft_64(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const
 		}
 		else
 		{
-		lwb_out[(me +  0)*stride]  = X0;
+		lwb_out[(me +  0)*stride_out] = X0;
 		lwb_out[(me + 16)*stride_out] = X1;	
 		lwb_out[(me + 32)*stride_out] = X2;
 		lwb_out[(me + 48)*stride_out] = X3;			
