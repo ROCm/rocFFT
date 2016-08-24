@@ -15,7 +15,6 @@ void fft_1_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint 
 }
 
 
-template <int dir>
 __global__
 void fft_2_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count)
 {
