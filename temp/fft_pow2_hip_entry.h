@@ -11,7 +11,7 @@ void fft_1_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint 
 
 	float2 *lwb = buffer + (batch*64 + me)*1;
 	
-	fft_1(lwb, rw);
+	fft_1(lwb, lwb, rw);
 }
 
 
@@ -25,7 +25,7 @@ void fft_2_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint 
 
 	float2 *lwb = buffer + (batch*64 + me)*2;
 	
-	fft_2<SB_UNIT>(twiddles, lwb, rw, 1);
+	fft_2<SB_UNIT>(twiddles, lwb, lwb, rw, 1, 1);
 }	
 
 
@@ -43,7 +43,7 @@ void fft_4_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint 
 	float2 *lwb = buffer + (batch*32 + (me/2))*4;
 	float *ldsp = lds + (me/2)*4;
 	
-	fft_4<SB_UNIT, dir>(twiddles, lwb, ldsp, me%2, rw, 1);
+	fft_4<SB_UNIT, dir>(twiddles, lwb, lwb, ldsp, me%2, rw, 1, 1);
 }
 
 
@@ -62,7 +62,7 @@ void fft_8_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint 
 	float2 *lwb = buffer + (batch*32 + (me/2))*8;
 	float *ldsp = lds + (me/2)*8;
 	
-	fft_8<SB_UNIT, dir>(twiddles, lwb, ldsp, me%2, rw, 1);
+	fft_8<SB_UNIT, dir>(twiddles, lwb, lwb, ldsp, me%2, rw, 1, 1);
 }
 
 
@@ -81,7 +81,7 @@ void fft_16_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint
 	float2 *lwb = buffer + (batch*16 + (me/4))*16;
 	float *ldsp = lds + (me/4)*16;
 	
-	fft_16<SB_UNIT, dir>(twiddles, lwb, ldsp, me%4, rw, 1);	
+	fft_16<SB_UNIT, dir>(twiddles, lwb, lwb, ldsp, me%4, rw, 1, 1);	
 }
 
 
@@ -100,7 +100,7 @@ void fft_32_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint
 	float2 *lwb = buffer + (batch*16 + (me/4))*32;
 	float *ldsp = lds + (me/4)*32;
 	
-	fft_32<SB_UNIT, dir>(twiddles, lwb, ldsp, me%4, rw, 1);	
+	fft_32<SB_UNIT, dir>(twiddles, lwb, lwb, ldsp, me%4, rw, 1, 1);	
 }
 
 
@@ -118,7 +118,7 @@ void fft_64_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint
 	float2 *lwb = buffer + (batch*4 + (me/16))*64;
 	float *ldsp = lds + (me/16)*64;
 	
-	fft_64<SB_UNIT, dir>(twiddles, lwb, ldsp, me%16, rw, 1);	
+	fft_64<SB_UNIT, dir>(twiddles, lwb, lwb, ldsp, me%16, rw, 1, 1);	
 }
 
 
@@ -136,7 +136,7 @@ void fft_128_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uin
 	float2 *lwb = buffer + (batch*4 + (me/16))*128;
 	float *ldsp = lds + (me/16)*128;
 	
-	fft_128<SB_UNIT, dir>(twiddles, lwb, ldsp, me%16, rw, 1);
+	fft_128<SB_UNIT, dir>(twiddles, lwb, lwb, ldsp, me%16, rw, 1, 1);
 }
 
 
@@ -151,7 +151,7 @@ void fft_256_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 
 	float2 *lwb = buffer + batch*256;
 	
-	fft_256<SB_UNIT, dir>(twiddles, lwb, lds, me, 1);
+	fft_256<SB_UNIT, dir>(twiddles, lwb, lwb, lds, me, 1, 1);
 }
 
 
@@ -166,7 +166,7 @@ void fft_512_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 	
 	float2 *lwb = buffer + batch*512;
 	
-	fft_512<SB_UNIT, dir>(twiddles, lwb, lds, me, 1);
+	fft_512<SB_UNIT, dir>(twiddles, lwb, lwb, lds, me, 1, 1);
 }
 	
 
@@ -181,7 +181,7 @@ void fft_1024_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 	
 	float2 *lwb = buffer + batch*1024;
 	
-	fft_1024<SB_UNIT, dir>(twiddles, lwb, lds, me, 1);
+	fft_1024<SB_UNIT, dir>(twiddles, lwb, lwb, lds, me, 1, 1);
 }
 
 
@@ -197,7 +197,7 @@ void fft_2048_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 	
 	float2 *lwb = buffer + batch*2048;
 	
-	fft_2048<SB_UNIT, dir>(twiddles, lwb, lds, me, 1);
+	fft_2048<SB_UNIT, dir>(twiddles, lwb, lwb, lds, me, 1, 1);
 }
 
 template <int dir>
@@ -211,7 +211,7 @@ void fft_4096_d1_pk(hipLaunchParm lp, float2 *twiddles, float2 *buffer)
 	
 	float2 *lwb = buffer + batch*4096;
 	
-	fft_4096<SB_UNIT, dir>(twiddles, lwb, lds, me, 1);
+	fft_4096<SB_UNIT, dir>(twiddles, lwb, lwb, lds, me, 1, 1);
 }
 
 
