@@ -234,31 +234,31 @@ void LaunchKernel(size_t N, float2 *twiddles, float2 *twiddles1, float2 *twiddle
 				break;
 				
 	case 262144:
-				hipLaunchKernel(HIP_KERNEL_NAME(fft_262144_1<-1>), dim3(256*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count);
-				hipLaunchKernel(HIP_KERNEL_NAME(fft_262144_2<-1>), dim3(64*B), dim3(256), 0, 0, twiddles2, temp, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_64_4096_bcc_pk<-1>), dim3(256*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_4096_ip_d1_pk<-1>), dim3(64*B), dim3(256), 0, 0, twiddles2, temp);
 				hipLaunchKernel(HIP_KERNEL_NAME(transpose_262144), dim3(64,B), dim3(16,16), 0, 0, temp, buffer, count);
 				break;
 	case 131072:
-				hipLaunchKernel(HIP_KERNEL_NAME(fft_131072_1<-1>), dim3(128*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count);
-				hipLaunchKernel(HIP_KERNEL_NAME(fft_131072_2<-1>), dim3(64*B), dim3(256), 0, 0, twiddles2, temp, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_64_2048_bcc_pk<-1>), dim3(128*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_2048_ip_d1_pk<-1>), dim3(64*B), dim3(256), 0, 0, twiddles2, temp);
 				hipLaunchKernel(HIP_KERNEL_NAME(transpose_131072), dim3(32,B), dim3(16,16), 0, 0, temp, buffer, count);
 				break;
 				
 	case 65536:
-				hipLaunchKernel(HIP_KERNEL_NAME(fft_65536_1<-1>), dim3(32*B), dim3(256), 0, 0, twiddles1, twiddles3, buffer, temp, count);
-				hipLaunchKernel(HIP_KERNEL_NAME(fft_65536_2<-1>), dim3(32*B), dim3(256), 0, 0, twiddles2, temp, buffer, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_256_256_bcc_pk<-1>), dim3(32*B), dim3(256), 0, 0, twiddles1, twiddles3, buffer, temp, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_256_256_brc_pk<-1>), dim3(32*B), dim3(256), 0, 0, twiddles2, temp, buffer, count);
 				break;		
 	case 32768:
-				hipLaunchKernel(HIP_KERNEL_NAME(fft_32768_1<-1>), dim3(32*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count);
-				hipLaunchKernel(HIP_KERNEL_NAME(fft_32768_2<-1>), dim3(16*B), dim3(256), 0, 0, twiddles2, temp, buffer, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_128_256_bcc_pk<-1>), dim3(32*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_256_128_brc_pk<-1>), dim3(16*B), dim3(256), 0, 0, twiddles2, temp, buffer, count);
 				break;		
 	case 16384:
-				hipLaunchKernel(HIP_KERNEL_NAME(fft_16384_1<-1>), dim3(16*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count);
-				hipLaunchKernel(HIP_KERNEL_NAME(fft_16384_2<-1>), dim3(8*B), dim3(256), 0, 0, twiddles2, temp, buffer, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_64_256_bcc_pk<-1>), dim3(16*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_256_64_brc_pk<-1>), dim3(8*B), dim3(256), 0, 0, twiddles2, temp, buffer, count);
 				break;		
 	case 8192:
-				hipLaunchKernel(HIP_KERNEL_NAME(fft_8192_1<-1>), dim3(8*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count);
-				hipLaunchKernel(HIP_KERNEL_NAME(fft_8192_2<-1>), dim3(8*B), dim3(128), 0, 0, twiddles2, temp, buffer, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_64_128_bcc_pk<-1>), dim3(8*B), dim3(128), 0, 0, twiddles1, twiddles3, buffer, temp, count);
+				hipLaunchKernel(HIP_KERNEL_NAME(fft_128_64_brc_pk<-1>), dim3(8*B), dim3(128), 0, 0, twiddles2, temp, buffer, count);
 				break;
 		
 	case 4096:	hipLaunchKernel(HIP_KERNEL_NAME(fft_4096_ip_d1_pk<-1>), dim3(blocks), dim3(threadsPerBlock), 0, 0, twiddles, buffer); break;
