@@ -5,7 +5,7 @@
 
 template<int dir>
 __global__
-void fft_64_128_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_8192, float2 * gbIn, float2 * gbOut, const uint count)
+void fft_64_128_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_8192, float2 * gbIn, float2 * gbOut)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -55,7 +55,7 @@ void fft_64_128_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_8
 
 template<int dir>
 __global__
-void fft_128_64_brc_pk(hipLaunchParm lp, float2 *twiddles_128, float2 * gbIn, float2 * gbOut, const uint count)
+void fft_128_64_brc_pk(hipLaunchParm lp, float2 *twiddles_128, float2 * gbIn, float2 * gbOut)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -99,7 +99,7 @@ void fft_128_64_brc_pk(hipLaunchParm lp, float2 *twiddles_128, float2 * gbIn, fl
 
 template<int dir>
 __global__
-void fft_64_256_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_16384, float2 * gbIn, float2 * gbOut, const uint count)
+void fft_64_256_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_16384, float2 * gbIn, float2 * gbOut)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -150,7 +150,7 @@ void fft_64_256_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_1
 
 template<int dir>
 __global__
-void fft_256_64_brc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut, const uint count)
+void fft_256_64_brc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -198,7 +198,7 @@ void fft_256_64_brc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, fl
 
 template<int dir>
 __global__
-void fft_128_256_bcc_pk(hipLaunchParm lp, float2 *twiddles_128, float2 *twiddles_32768, float2 * gbIn, float2 * gbOut, const uint count)
+void fft_128_256_bcc_pk(hipLaunchParm lp, float2 *twiddles_128, float2 *twiddles_32768, float2 * gbIn, float2 * gbOut)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -246,7 +246,7 @@ void fft_128_256_bcc_pk(hipLaunchParm lp, float2 *twiddles_128, float2 *twiddles
 
 template<int dir>
 __global__
-void fft_256_128_brc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut, const uint count)
+void fft_256_128_brc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -295,7 +295,7 @@ void fft_256_128_brc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, f
 
 template<int dir>
 __global__
-void fft_256_256_bcc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 *twiddles_65536, float2 * gbIn, float2 * gbOut, const uint count)
+void fft_256_256_bcc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 *twiddles_65536, float2 * gbIn, float2 * gbOut)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -348,7 +348,7 @@ void fft_256_256_bcc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 *twiddles
 
 template<int dir>
 __global__
-void fft_256_256_brc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut, const uint count)
+void fft_256_256_brc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -397,7 +397,7 @@ void fft_256_256_brc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, f
 
 template<int dir>
 __global__
-void fft_64_2048_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_131072, float2 * gbIn, float2 * gbOut, const uint count)
+void fft_64_2048_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_131072, float2 * gbIn, float2 * gbOut)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -449,87 +449,9 @@ void fft_64_2048_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_
 
 
 
-// Local structure to embody/capture tile dimensions
-typedef struct tag_Tile
-{
-   size_t x;
-   size_t y;
-} Tile;
-
-__global__
-void
-transpose_131072( hipLaunchParm lp, float2* pmComplexIn, float2* pmComplexOut, const uint count )
-{
-   const Tile localIndex = { (size_t)hipThreadIdx_x, (size_t)hipThreadIdx_y }; 
-   const Tile localExtent = { (size_t)hipBlockDim_x, (size_t)hipBlockDim_y }; 
-   const Tile groupIndex = { (size_t)hipBlockIdx_x, (size_t)hipBlockIdx_y };
-   
-   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
-   // Transpose of input & output blocks happens with the Offset calculation
-   const size_t reShapeFactor = 4;
-   const size_t wgUnroll = 16;
-   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
-   const size_t numGroupsY_1 = 1;
-   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
-   __shared__ float2 lds[ 64 ][ 64 ];
-
-   size_t currDimIndex;
-   size_t rowSizeinUnits;
-
-   size_t iOffset = 0;
-   currDimIndex = groupIndex.y;
-   iOffset += (currDimIndex/numGroupsY_1)*131072;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 2048;
-   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
-   iOffset += groupIndex.x * wgTileExtent.x;
-   
-   float2* tileIn = pmComplexIn + iOffset;
-   float2 tmp;
-   rowSizeinUnits = 2048;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
-         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tmp = tileIn[ gInd ];
-         // Transpose of Tile data happens here
-         lds[ xInd ][ yInd ] = tmp; 
-      }
-   
-   __syncthreads();
-   
-   size_t oOffset = 0;
-   currDimIndex = groupIndex.y;
-   oOffset += (currDimIndex/numGroupsY_1)*131072;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 64;
-   oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
-   oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
-   
-   float2* tileOut = pmComplexOut + oOffset;
-
-   rowSizeinUnits = 64;
-   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
-   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
-         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
-         tmp = lds[ yInd ][ xInd ]; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tileOut[ gInd ] = tmp;
-      }
-}
-
-
 template<int dir>
 __global__
-void fft_64_4096_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_262144, float2 * gbIn, float2 * gbOut, const uint count)
+void fft_64_4096_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_262144, float2 * gbIn, float2 * gbOut)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -581,9 +503,26 @@ void fft_64_4096_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_
 
 
 
+
+
+// Local structure to embody/capture tile dimensions
+typedef struct tag_Tile
+{
+   size_t x;
+   size_t y;
+} Tile;
+
+enum TransTileDir
+{
+	TTD_IP_HOR,
+	TTD_IP_VER,
+};
+
+template<int dir, int twl, TransTileDir ttd>
 __global__
 void
-transpose_262144( hipLaunchParm lp, float2* pmComplexIn, float2* pmComplexOut, const uint count )
+transpose_var1( hipLaunchParm lp, float2 *twiddles_large, float2* pmComplexIn, float2* pmComplexOut,
+			const ulong numGroupsY,  const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
    const Tile localIndex = { (size_t)hipThreadIdx_x, (size_t)hipThreadIdx_y }; 
    const Tile localExtent = { (size_t)hipBlockDim_x, (size_t)hipBlockDim_y }; 
@@ -594,7 +533,7 @@ transpose_262144( hipLaunchParm lp, float2* pmComplexIn, float2* pmComplexOut, c
    const size_t reShapeFactor = 4;
    const size_t wgUnroll = 16;
    const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
-   const size_t numGroupsY_1 = 1;
+   const size_t numGroupsY_1 = numGroupsY;
    // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
    __shared__ float2 lds[ 64 ][ 64 ];
 
@@ -603,159 +542,23 @@ transpose_262144( hipLaunchParm lp, float2* pmComplexIn, float2* pmComplexOut, c
 
    size_t iOffset = 0;
    currDimIndex = groupIndex.y;
-   iOffset += (currDimIndex/numGroupsY_1)*262144;
+   iOffset += (currDimIndex/numGroupsY_1)*dist_i;
    currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 4096;
-   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
-   iOffset += groupIndex.x * wgTileExtent.x;
+   rowSizeinUnits = stride_i;
+   
+   if(ttd == TTD_IP_HOR)
+   {
+   	iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
+	iOffset += groupIndex.x * wgTileExtent.x;
+   }
+   else
+   {
+   	iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * groupIndex.x;
+   	iOffset += currDimIndex * wgTileExtent.x;
+   }
    
    float2* tileIn = pmComplexIn + iOffset;
    float2 tmp;
-   rowSizeinUnits = 4096;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
-         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tmp = tileIn[ gInd ];
-         // Transpose of Tile data happens here
-         lds[ xInd ][ yInd ] = tmp; 
-      }
-   
-   __syncthreads();
-   
-   size_t oOffset = 0;
-   currDimIndex = groupIndex.y;
-   oOffset += (currDimIndex/numGroupsY_1)*262144;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 64;
-   oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
-   oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
-   
-   float2* tileOut = pmComplexOut + oOffset;
-
-   rowSizeinUnits = 64;
-   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
-   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
-         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
-         tmp = lds[ yInd ][ xInd ]; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tileOut[ gInd ] = tmp;
-      }
-}
-
-
-
-__global__
-void
-transpose_524288_1( hipLaunchParm lp, float2* pmComplexIn, float2* pmComplexOut, const uint count )
-{
-   const Tile localIndex = { (size_t)hipThreadIdx_x, (size_t)hipThreadIdx_y }; 
-   const Tile localExtent = { (size_t)hipBlockDim_x, (size_t)hipBlockDim_y }; 
-   const Tile groupIndex = { (size_t)hipBlockIdx_x, (size_t)hipBlockIdx_y };
-   
-   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
-   // Transpose of input & output blocks happens with the Offset calculation
-   const size_t reShapeFactor = 4;
-   const size_t wgUnroll = 16;
-   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
-   const size_t numGroupsY_1 = 16;
-   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
-   __shared__ float2 lds[ 64 ][ 64 ];
-
-   size_t currDimIndex;
-   size_t rowSizeinUnits;
-
-   size_t iOffset = 0;
-   currDimIndex = groupIndex.y;
-   iOffset += (currDimIndex/numGroupsY_1)*524288;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 512;
-   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
-   iOffset += groupIndex.x * wgTileExtent.x;
-   
-   float2* tileIn = pmComplexIn + iOffset;
-   float2 tmp;
-   rowSizeinUnits = 512;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
-         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tmp = tileIn[ gInd ];
-         // Transpose of Tile data happens here
-         lds[ xInd ][ yInd ] = tmp; 
-      }
-   
-   __syncthreads();
-   
-   size_t oOffset = 0;
-   currDimIndex = groupIndex.y;
-   oOffset += (currDimIndex/numGroupsY_1)*557056;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 1088;
-   oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
-   oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
-   
-   float2* tileOut = pmComplexOut + oOffset;
-
-   rowSizeinUnits = 1088;
-   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
-   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
-         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
-         tmp = lds[ yInd ][ xInd ]; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tileOut[ gInd ] = tmp;
-      }
-}
-
-
-template<int dir>
-__global__
-void
-transpose_524288_2( hipLaunchParm lp, float2 *twiddles_524288, float2* pmComplexIn, float2* pmComplexOut, const uint count )
-{
-   const Tile localIndex = { (size_t)hipThreadIdx_x, (size_t)hipThreadIdx_y }; 
-   const Tile localExtent = { (size_t)hipBlockDim_x, (size_t)hipBlockDim_y }; 
-   const Tile groupIndex = { (size_t)hipBlockIdx_x, (size_t)hipBlockIdx_y };
-   
-   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
-   // Transpose of input & output blocks happens with the Offset calculation
-   const size_t reShapeFactor = 4;
-   const size_t wgUnroll = 16;
-   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
-   const size_t numGroupsY_1 = 8;
-   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
-   __shared__ float2 lds[ 64 ][ 64 ];
-
-   size_t currDimIndex;
-   size_t rowSizeinUnits;
-
-   size_t iOffset = 0;
-   currDimIndex = groupIndex.y;
-   iOffset += (currDimIndex/numGroupsY_1)*524288;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 1024;
-   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
-   iOffset += groupIndex.x * wgTileExtent.x;
-   
-   float2* tileIn = pmComplexIn + iOffset;
-   float2 tmp;
-   rowSizeinUnits = 1024;
    
 
       for( uint t=0; t < wgUnroll; t++ )
@@ -766,14 +569,17 @@ transpose_524288_2( hipLaunchParm lp, float2 *twiddles_524288, float2* pmComplex
          tmp = tileIn[ gInd ];
          // Transpose of Tile data happens here
 		 
+	 if(twl == 3)
+	 {
 		 if(dir == -1)
 		 {
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_524288, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
+			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
 		 }
 		 else
 		 {
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_524288, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
+			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
 		 }
+	 }
 		 
          lds[ xInd ][ yInd ] = tmp; 
       }
@@ -782,15 +588,23 @@ transpose_524288_2( hipLaunchParm lp, float2 *twiddles_524288, float2* pmComplex
    
    size_t oOffset = 0;
    currDimIndex = groupIndex.y;
-   oOffset += (currDimIndex/numGroupsY_1)*589824;
+   oOffset += (currDimIndex/numGroupsY_1)*dist_o;
    currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 576;
-   oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
-   oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
+   rowSizeinUnits = stride_o;
+
+   if(ttd == TTD_IP_HOR)
+   {
+   	oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
+   	oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
+   }
+   else
+   {
+   	oOffset += rowSizeinUnits * wgTileExtent.x * currDimIndex;
+   	oOffset += groupIndex.x * wgTileExtent.y * wgUnroll;
+   }
    
    float2* tileOut = pmComplexOut + oOffset;
 
-   rowSizeinUnits = 576;
    const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
    const size_t groupingPerY = wgUnroll / wgTileExtent.y;
    
@@ -805,301 +619,6 @@ transpose_524288_2( hipLaunchParm lp, float2 *twiddles_524288, float2* pmComplex
       }
 }
 
-
-
-__global__
-void
-transpose_524288_3( hipLaunchParm lp, float2* pmComplexIn, float2* pmComplexOut, const uint count )
-{
-   const Tile localIndex = { (size_t)hipThreadIdx_x, (size_t)hipThreadIdx_y }; 
-   const Tile localExtent = { (size_t)hipBlockDim_x, (size_t)hipBlockDim_y }; 
-   const Tile groupIndex = { (size_t)hipBlockIdx_x, (size_t)hipBlockIdx_y };
-   
-   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
-   // Transpose of input & output blocks happens with the Offset calculation
-   const size_t reShapeFactor = 4;
-   const size_t wgUnroll = 16;
-   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
-   const size_t numGroupsY_1 = 8;
-   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
-   __shared__ float2 lds[ 64 ][ 64 ];
-
-   size_t currDimIndex;
-   size_t rowSizeinUnits;
-
-   size_t iOffset = 0;
-   currDimIndex = groupIndex.y;
-   iOffset += (currDimIndex/numGroupsY_1)*589824;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 576;
-   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * groupIndex.x;
-   iOffset += currDimIndex * wgTileExtent.x;
-   
-   float2* tileIn = pmComplexIn + iOffset;
-   float2 tmp;
-   rowSizeinUnits = 576;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
-         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tmp = tileIn[ gInd ];
-         // Transpose of Tile data happens here
-         lds[ xInd ][ yInd ] = tmp; 
-      }
-   
-   __syncthreads();
-   
-   size_t oOffset = 0;
-   currDimIndex = groupIndex.y;
-   oOffset += (currDimIndex/numGroupsY_1)*524288;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 1024;
-   oOffset += rowSizeinUnits * wgTileExtent.x * currDimIndex;
-   oOffset += groupIndex.x * wgTileExtent.y * wgUnroll;
-   
-   float2* tileOut = pmComplexOut + oOffset;
-
-   rowSizeinUnits = 1024;
-   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
-   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
-         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
-         tmp = lds[ yInd ][ xInd ]; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tileOut[ gInd ] = tmp;
-      }
-}
-
-
-__global__
-void
-transpose_1048576_1( hipLaunchParm lp, float2* pmComplexIn, float2* pmComplexOut, const uint count )
-{
-   const Tile localIndex = { (size_t)hipThreadIdx_x, (size_t)hipThreadIdx_y }; 
-   const Tile localExtent = { (size_t)hipBlockDim_x, (size_t)hipBlockDim_y }; 
-   const Tile groupIndex = { (size_t)hipBlockIdx_x, (size_t)hipBlockIdx_y };
-   
-   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
-   // Transpose of input & output blocks happens with the Offset calculation
-   const size_t reShapeFactor = 4;
-   const size_t wgUnroll = 16;
-   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
-   const size_t numGroupsY_1 = 16;
-   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
-   __shared__ float2 lds[ 64 ][ 64 ];
-
-   size_t currDimIndex;
-   size_t rowSizeinUnits;
-
-   size_t iOffset = 0;
-   currDimIndex = groupIndex.y;
-   iOffset += (currDimIndex/numGroupsY_1)*1048576;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 1024;
-   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
-   iOffset += groupIndex.x * wgTileExtent.x;
-   
-   float2* tileIn = pmComplexIn + iOffset;
-   float2 tmp;
-   rowSizeinUnits = 1024;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
-         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tmp = tileIn[ gInd ];
-         // Transpose of Tile data happens here
-         lds[ xInd ][ yInd ] = tmp; 
-      }
-   
-   __syncthreads();
-   
-   size_t oOffset = 0;
-   currDimIndex = groupIndex.y;
-   oOffset += (currDimIndex/numGroupsY_1)*1114112;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 1088;
-   oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
-   oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
-   
-   float2* tileOut = pmComplexOut + oOffset;
-
-   rowSizeinUnits = 1088;
-   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
-   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
-         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
-         tmp = lds[ yInd ][ xInd ]; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tileOut[ gInd ] = tmp;
-      }
-}
-
-
-template<int dir>
-__global__
-void
-transpose_1048576_2( hipLaunchParm lp, float2 *twiddles_1048576, float2* pmComplexIn, float2* pmComplexOut, const uint count )
-{
-   const Tile localIndex = { (size_t)hipThreadIdx_x, (size_t)hipThreadIdx_y }; 
-   const Tile localExtent = { (size_t)hipBlockDim_x, (size_t)hipBlockDim_y }; 
-   const Tile groupIndex = { (size_t)hipBlockIdx_x, (size_t)hipBlockIdx_y };
-   
-   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
-   // Transpose of input & output blocks happens with the Offset calculation
-   const size_t reShapeFactor = 4;
-   const size_t wgUnroll = 16;
-   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
-   const size_t numGroupsY_1 = 16;
-   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
-   __shared__ float2 lds[ 64 ][ 64 ];
-
-   size_t currDimIndex;
-   size_t rowSizeinUnits;
-
-   size_t iOffset = 0;
-   currDimIndex = groupIndex.y;
-   iOffset += (currDimIndex/numGroupsY_1)*1048576;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 1024;
-   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * currDimIndex;
-   iOffset += groupIndex.x * wgTileExtent.x;
-   
-   float2* tileIn = pmComplexIn + iOffset;
-   float2 tmp;
-   rowSizeinUnits = 1024;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
-         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tmp = tileIn[ gInd ];
-		 
-         // Transpose of Tile data happens here
-		 if(dir == -1)
-		 {
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_1048576, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)		 
-		 }
-		 else
-		 {
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_1048576, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)		 
-		 }
-		 
-         lds[ xInd ][ yInd ] = tmp; 
-      }
-   
-   __syncthreads();
-   
-   size_t oOffset = 0;
-   currDimIndex = groupIndex.y;
-   oOffset += (currDimIndex/numGroupsY_1)*1114112;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 1088;
-   oOffset += rowSizeinUnits * wgTileExtent.x * groupIndex.x;
-   oOffset += currDimIndex * wgTileExtent.y * wgUnroll;
-   
-   float2* tileOut = pmComplexOut + oOffset;
-
-   rowSizeinUnits = 1088;
-   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
-   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
-         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
-         tmp = lds[ yInd ][ xInd ]; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tileOut[ gInd ] = tmp;
-      }
-}
-
-
-__global__
-void
-transpose_1048576_3( hipLaunchParm lp, float2* pmComplexIn, float2* pmComplexOut, const uint count )
-{
-   const Tile localIndex = { (size_t)hipThreadIdx_x, (size_t)hipThreadIdx_y }; 
-   const Tile localExtent = { (size_t)hipBlockDim_x, (size_t)hipBlockDim_y }; 
-   const Tile groupIndex = { (size_t)hipBlockIdx_x, (size_t)hipBlockIdx_y };
-   
-   // Calculate the unit address (in terms of datatype) of the beginning of the Tile for the WG block
-   // Transpose of input & output blocks happens with the Offset calculation
-   const size_t reShapeFactor = 4;
-   const size_t wgUnroll = 16;
-   const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
-   const size_t numGroupsY_1 = 16;
-   // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
-   __shared__ float2 lds[ 64 ][ 64 ];
-
-   size_t currDimIndex;
-   size_t rowSizeinUnits;
-
-   size_t iOffset = 0;
-   currDimIndex = groupIndex.y;
-   iOffset += (currDimIndex/numGroupsY_1)*1114112;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 1088;
-   iOffset += rowSizeinUnits * wgTileExtent.y * wgUnroll * groupIndex.x;
-   iOffset += currDimIndex * wgTileExtent.x;
-   
-   float2* tileIn = pmComplexIn + iOffset;
-   float2 tmp;
-   rowSizeinUnits = 1088;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % wgTileExtent.y ); 
-         size_t yInd = localIndex.y/wgTileExtent.y + t * wgTileExtent.y; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tmp = tileIn[ gInd ];
-         // Transpose of Tile data happens here
-         lds[ xInd ][ yInd ] = tmp; 
-      }
-   
-   __syncthreads();
-   
-   size_t oOffset = 0;
-   currDimIndex = groupIndex.y;
-   oOffset += (currDimIndex/numGroupsY_1)*1048576;
-   currDimIndex = currDimIndex % numGroupsY_1;
-   rowSizeinUnits = 1024;
-   oOffset += rowSizeinUnits * wgTileExtent.x * currDimIndex;
-   oOffset += groupIndex.x * wgTileExtent.y * wgUnroll;
-   
-   float2* tileOut = pmComplexOut + oOffset;
-
-   rowSizeinUnits = 1024;
-   const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
-   const size_t groupingPerY = wgUnroll / wgTileExtent.y;
-   
-
-      for( uint t=0; t < wgUnroll; t++ )
-      {
-         size_t xInd = localIndex.x + localExtent.x * ( localIndex.y % groupingPerY ); 
-         size_t yInd = localIndex.y/groupingPerY + t * (wgTileExtent.y * transposeRatio); 
-         tmp = lds[ yInd ][ xInd ]; 
-         size_t gInd = xInd + rowSizeinUnits * yInd;
-         tileOut[ gInd ] = tmp;
-      }
-}
 
 #endif // FFT_POW2_LARGE_ENTRY_HIP_H
 
