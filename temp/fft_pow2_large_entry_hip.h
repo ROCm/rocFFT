@@ -726,29 +726,6 @@ transpose_524288_1( hipLaunchParm lp, float2* pmComplexIn, float2* pmComplexOut,
 
 template<int dir>
 __global__
-void fft_524288_1(hipLaunchParm lp, float2 *twiddles_1024, float2 * gbIn, float2 * gbOut, const uint count)
-{
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
-	__shared__ float lds[1024];
-
-	uint iOffset;
-	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
-
-	iOffset = (batch/512)*557056 + (batch%512)*1088;
-	oOffset = (batch/512)*524288 + (batch%512)*1024;
-	lwbIn = gbIn + iOffset;
-	lwbOut = gbOut + oOffset;
-
-	fft_1024<SB_UNIT, dir>(twiddles_1024, lwbIn, lwbOut, lds, me, 1, 1);
-}
-
-
-template<int dir>
-__global__
 void
 transpose_524288_2( hipLaunchParm lp, float2 *twiddles_524288, float2* pmComplexIn, float2* pmComplexOut, const uint count )
 {
@@ -828,24 +805,6 @@ transpose_524288_2( hipLaunchParm lp, float2 *twiddles_524288, float2* pmComplex
       }
 }
 
-
-template<int dir>
-__global__
-void fft_524288_2(hipLaunchParm lp, float2 *twiddles_512, float2 * gb, const uint count)
-{
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
-	__shared__ float lds[512];
-
-	uint ioOffset;
-	float2 *lwb;
-
-	ioOffset = (batch/1024)*589824 + (batch%1024)*576;
-	lwb = gb + ioOffset;
-
-	fft_512<SB_UNIT, dir>(twiddles_512, lwb, lwb, lds, me, 1, 1);
-}
 
 
 __global__
@@ -992,29 +951,6 @@ transpose_1048576_1( hipLaunchParm lp, float2* pmComplexIn, float2* pmComplexOut
 
 template<int dir>
 __global__
-void fft_1048576_1(hipLaunchParm lp, float2 *twiddles_1024, float2 * gbIn, float2 * gbOut, const uint count)
-{
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
-	__shared__ float lds[1024];
-
-	uint iOffset;
-	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
-
-	iOffset = (batch/1024)*1114112 + (batch%1024)*1088;
-	oOffset = (batch/1024)*1048576 + (batch%1024)*1024;
-	lwbIn = gbIn + iOffset;
-	lwbOut = gbOut + oOffset;
-
-	fft_1024<SB_UNIT, dir>(twiddles_1024, lwbIn, lwbOut, lds, me, 1, 1);
-}
-
-
-template<int dir>
-__global__
 void
 transpose_1048576_2( hipLaunchParm lp, float2 *twiddles_1048576, float2* pmComplexIn, float2* pmComplexOut, const uint count )
 {
@@ -1094,24 +1030,6 @@ transpose_1048576_2( hipLaunchParm lp, float2 *twiddles_1048576, float2* pmCompl
       }
 }
 
-
-template<int dir>
-__global__
-void fft_1048576_2(hipLaunchParm lp, float2 *twiddles_1024, float2 * gb, const uint count)
-{
-	uint me = hipThreadIdx_x;
-	uint batch = hipBlockIdx_x;
-
-	__shared__ float lds[1024];
-
-	uint ioOffset;
-	float2 *lwb;
-
-	ioOffset = (batch/1024)*1114112 + (batch%1024)*1088;
-	lwb = gb + ioOffset;
-	
-	fft_1024<SB_UNIT, dir>(twiddles_1024, lwb, lwb, lds, me, 1, 1);
-}
 
 __global__
 void

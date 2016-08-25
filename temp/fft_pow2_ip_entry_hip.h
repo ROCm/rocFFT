@@ -431,5 +431,223 @@ void fft_4096_ip_d1_gn(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const
 	fft_4096<SB_NONUNIT, dir>(twiddles, lwb, lwb, lds, me, stride, stride);
 }
 
+
+/////////////////////////////////////////////////////////
+
+
+__global__
+void fft_1_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	uint rw = (me < (count*len - batch*64)) ? 1 : 0;
+
+	float2 *lwb = buffer + ((batch*64 + me)/len)*dist + ((batch*64 + me)%len)*stride;
+	
+	fft_1(lwb, lwb, rw);
+}
+
+
+__global__
+void fft_2_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	uint rw = (me < (count*len - batch*64)) ? 1 : 0;
+
+	float2 *lwb = buffer + ((batch*64 + me)/len)*dist + ((batch*64 + me)%len)*stride;
+	
+	fft_2<SB_UNIT>(twiddles, lwb, lwb, rw, 1, 1);
+}	
+
+
+template <int dir>
+__global__
+void fft_4_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	__shared__ float lds[128];
+
+	uint rw = (me < (count*len - batch*32)*2) ? 1 : 0;
+
+	float2 *lwb = buffer + ((batch*32 + (me/2))/len)*dist + ((batch*32 + (me/2))%len)*stride;
+	float *ldsp = lds + (me/2)*4;
+	
+	fft_4<SB_UNIT, dir>(twiddles, lwb, lwb, ldsp, me%2, rw, 1, 1);
+}
+
+
+
+template <int dir>
+__global__
+void fft_8_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	__shared__ float lds[256];
+
+	uint rw = (me < (count*len - batch*32)*2) ? 1 : 0;
+
+	float2 *lwb = buffer + ((batch*32 + (me/2))/len)*dist + ((batch*32 + (me/2))%len)*stride;
+	float *ldsp = lds + (me/2)*8;
+	
+	fft_8<SB_UNIT, dir>(twiddles, lwb, lwb, ldsp, me%2, rw, 1, 1);
+}
+
+
+
+template <int dir>
+__global__
+void fft_16_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	__shared__ float lds[256];
+
+	uint rw = (me < (count*len - batch*16)*4) ? 1 : 0;
+
+	float2 *lwb = buffer + ((batch*16 + (me/4))/len)*dist + ((batch*16 + (me/4))%len)*stride;
+	float *ldsp = lds + (me/4)*16;
+	
+	fft_16<SB_UNIT, dir>(twiddles, lwb, lwb, ldsp, me%4, rw, 1, 1);	
+}
+
+
+
+template <int dir>
+__global__
+void fft_32_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	__shared__ float lds[512];
+
+	uint rw = (me < (count*len - batch*16)*4) ? 1 : 0;
+
+	float2 *lwb = buffer + ((batch*16 + (me/4))/len)*dist + ((batch*16 + (me/4))%len)*stride;
+	float *ldsp = lds + (me/4)*32;
+	
+	fft_32<SB_UNIT, dir>(twiddles, lwb, lwb, ldsp, me%4, rw, 1, 1);	
+}
+
+
+template <int dir>
+__global__
+void fft_64_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	__shared__ float lds[256];
+
+	uint rw = (me < (count*len - batch*4)*16) ? 1 : 0;
+
+	float2 *lwb = buffer + ((batch*4 + (me/16))/len)*dist + ((batch*4 + (me/16))%len)*stride;
+	float *ldsp = lds + (me/16)*64;
+	
+	fft_64<SB_UNIT, dir>(twiddles, lwb, lwb, ldsp, me%16, rw, 1, 1);	
+}
+
+
+template <int dir>
+__global__
+void fft_128_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const uint count, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	__shared__ float lds[512];
+
+	uint rw = (me < (count*len - batch*4)*16) ? 1 : 0;
+
+	float2 *lwb = buffer + ((batch*4 + (me/16))/len)*dist + ((batch*4 + (me/16))%len)*stride;
+	float *ldsp = lds + (me/16)*128;
+	
+	fft_128<SB_UNIT, dir>(twiddles, lwb, lwb, ldsp, me%16, rw, 1, 1);
+}
+
+
+template <int dir>
+__global__
+void fft_256_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	__shared__ float lds[256];
+
+	float2 *lwb = buffer + (batch/len)*dist + (batch%len)*stride;
+	
+	fft_256<SB_UNIT, dir>(twiddles, lwb, lwb, lds, me, 1, 1);
+}
+
+
+template <int dir>
+__global__
+void fft_512_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	__shared__ float lds[512];
+	
+	float2 *lwb = buffer + (batch/len)*dist + (batch%len)*stride;
+	
+	fft_512<SB_UNIT, dir>(twiddles, lwb, lwb, lds, me, 1, 1);
+}
+	
+
+template <int dir>
+__global__
+void fft_1024_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	__shared__ float lds[1024];
+	
+	float2 *lwb = buffer + (batch/len)*dist + (batch%len)*stride;
+	
+	fft_1024<SB_UNIT, dir>(twiddles, lwb, lwb, lds, me, 1, 1);
+}
+
+
+	
+template <int dir>
+__global__
+void fft_2048_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	__shared__ float lds[2048];
+	
+	float2 *lwb = buffer + (batch/len)*dist + (batch%len)*stride;
+	
+	fft_2048<SB_UNIT, dir>(twiddles, lwb, lwb, lds, me, 1, 1);
+}
+
+template <int dir>
+__global__
+void fft_4096_ip_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer, const ulong len, const ulong stride, const ulong dist)
+{
+	uint me = hipThreadIdx_x;
+	uint batch = hipBlockIdx_x;
+
+	__shared__ float lds[4096];
+	
+	float2 *lwb = buffer + (batch/len)*dist + (batch%len)*stride;
+	
+	fft_4096<SB_UNIT, dir>(twiddles, lwb, lwb, lds, me, 1, 1);
+}
+
 #endif // FFT_POW2_IP_ENTRY_HIP_H
+
 
