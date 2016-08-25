@@ -532,7 +532,7 @@ lfft_256(float2 *twiddles_256, float2 *twiddles_large, float2 *lds, uint me, uin
 
 template<int dir>
 __device__
-void fft_64_128_bcc(float2 *twiddles_64, float2 *twiddles_8192, float2 * lwbIn, float2 * lwbOut)
+void fft_64_128_bcc(float2 *twiddles_64, float2 *twiddles_8192, float2 * lwbIn, float2 * lwbOut, const uint batch)
 {
 	uint me = hipThreadIdx_x;
 
@@ -603,7 +603,7 @@ void fft_128_64_brc(float2 *twiddles_128, float2 * lwbIn, float2 * lwbOut)
 
 template<int dir>
 __device__
-void fft_64_256_bcc(float2 *twiddles_64, float2 *twiddles_16384, float2 * lwbIn, float2 * lwbOut)
+void fft_64_256_bcc(float2 *twiddles_64, float2 *twiddles_16384, float2 * lwbIn, float2 * lwbOut, const uint batch)
 {
 	uint me = hipThreadIdx_x;
 
@@ -679,7 +679,7 @@ void fft_256_64_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut)
 
 template<int dir>
 __device__
-void fft_128_256_bcc(float2 *twiddles_128, float2 *twiddles_32768, float2 * lwbIn, float2 * lwbOut)
+void fft_128_256_bcc(float2 *twiddles_128, float2 *twiddles_32768, float2 * lwbIn, float2 * lwbOut, const uint batch)
 {
 	uint me = hipThreadIdx_x;
 
@@ -754,7 +754,7 @@ void fft_256_128_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut)
 
 template<int dir>
 __device__
-void fft_256_256_bcc(float2 *twiddles_256, float2 *twiddles_65536, float2 * lwbIn, float2 * lwbOut)
+void fft_256_256_bcc(float2 *twiddles_256, float2 *twiddles_65536, float2 * lwbIn, float2 * lwbOut, const uint batch)
 {
 	uint me = hipThreadIdx_x;
 
@@ -834,7 +834,7 @@ void fft_256_256_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut)
 
 template<int dir>
 __device__
-void fft_64_2048_bcc(float2 *twiddles_64, float2 *twiddles_131072, float2 * lwbIn, float2 * lwbOut)
+void fft_64_2048_bcc(float2 *twiddles_64, float2 *twiddles_131072, float2 * lwbIn, float2 * lwbOut, const uint batch)
 {
 	uint me = hipThreadIdx_x;
 
@@ -876,7 +876,7 @@ void fft_64_2048_bcc(float2 *twiddles_64, float2 *twiddles_131072, float2 * lwbI
 
 template<int dir>
 __device__
-void fft_64_4096_bcc(float2 *twiddles_64, float2 *twiddles_262144, float2 * lwbIn, float2 * lwbOut)
+void fft_64_4096_bcc(float2 *twiddles_64, float2 *twiddles_262144, float2 * lwbIn, float2 * lwbOut, const uint batch)
 {
 	uint me = hipThreadIdx_x;
 

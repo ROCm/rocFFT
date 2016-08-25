@@ -20,7 +20,7 @@ void fft_64_128_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddle
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_128_bcc<dir>(twiddles_64, twiddles_8192, lwbIn, lwbOut);
+	fft_64_128_bcc<dir>(twiddles_64, twiddles_8192, lwbIn, lwbOut, batch);
 }
 
 
@@ -60,7 +60,7 @@ void fft_64_256_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddle
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_256_bcc<dir>(twiddles_64, twiddles_16384, lwbIn, lwbOut);
+	fft_64_256_bcc<dir>(twiddles_64, twiddles_16384, lwbIn, lwbOut, batch);
 }
 
 
@@ -100,7 +100,7 @@ void fft_128_256_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_128, float2 *twidd
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_128_256_bcc<dir>(twiddles_128, twiddles_32768, lwbIn, lwbOut);
+	fft_128_256_bcc<dir>(twiddles_128, twiddles_32768, lwbIn, lwbOut, batch);
 }
 
 
@@ -140,7 +140,7 @@ void fft_256_256_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_256, float2 *twidd
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_256_256_bcc<dir>(twiddles_256, twiddles_65536, lwbIn, lwbOut);
+	fft_256_256_bcc<dir>(twiddles_256, twiddles_65536, lwbIn, lwbOut, batch);
 }
 
 
@@ -180,7 +180,7 @@ void fft_64_2048_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddl
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_2048_bcc<dir>(twiddles_64, twiddles_131072, lwbIn, lwbOut);
+	fft_64_2048_bcc<dir>(twiddles_64, twiddles_131072, lwbIn, lwbOut, batch);
 }
 
 
@@ -200,7 +200,7 @@ void fft_64_4096_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddl
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_4096_bcc<dir>(twiddles_64, twiddles_262144, lwbIn, lwbOut);
+	fft_64_4096_bcc<dir>(twiddles_64, twiddles_262144, lwbIn, lwbOut, batch);
 }
 
 
