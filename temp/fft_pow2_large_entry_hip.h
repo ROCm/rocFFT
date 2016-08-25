@@ -1,3 +1,5 @@
+#ifndef FFT_POW2_LARGE_ENTRY_HIP_H
+#define FFT_POW2_LARGE_ENTRY_HIP_H
 
 #include "fft_pow2_large_hip.h"
 
@@ -1217,4 +1219,5 @@ transpose_1048576_3( hipLaunchParm lp, float2* pmComplexIn, float2* pmComplexOut
       }
 }
 
+#endif // FFT_POW2_LARGE_ENTRY_HIP_H
 

@@ -1,4 +1,5 @@
-
+#ifndef FFT_POW2_LARGE_HIP_H
+#define FFT_POW2_LARGE_HIP_H
 
 __device__ float2
 TWLstep2(float2 *twiddles, size_t u)
@@ -525,4 +526,6 @@ lfft_256(float2 *twiddles_256, float2 *twiddles_large, float2 *lds, uint me, uin
 	lds[me + 192] = X3;		
 
 }
+
+#endif // FFT_POW2_LARGE_HIP_H
 

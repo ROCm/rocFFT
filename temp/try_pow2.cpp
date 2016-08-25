@@ -8,8 +8,9 @@
 #include <time.h>
 #include <math.h>
 
-#include "fft_pow2_hip_entry.h"
-#include "fft_pow2_large_hip_entry.h"
+#include "fft_pow2_ip_entry_hip.h"
+#include "fft_pow2_op_entry_hip.h"
+#include "fft_pow2_large_entry_hip.h"
 
 struct Timer
 {

@@ -1,3 +1,5 @@
+#ifndef BUTTERFLY_H
+#define BUTTERFLY_H
 
 enum StrideBin
 {
@@ -345,4 +347,6 @@ InvRad16(float2 *R0, float2 *R8, float2 *R4, float2 *R12, float2 *R2, float2 *R1
 	T = (*R11); (*R11) = (*R13); (*R13) = T;
 	
 }
+
+#endif // BUTTERFLY_H
 

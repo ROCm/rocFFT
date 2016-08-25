@@ -1,3 +1,5 @@
+#ifndef FFT_POW2_HIP_H
+#define FFT_POW2_HIP_H
 
 #include "butterfly.h"
 
@@ -2213,4 +2215,5 @@ void fft_4096(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 
 }
 
+#endif // FFT_POW2_HIP_H
 
