@@ -3,507 +3,208 @@
 
 #include "fft_pow2_large_hip.h"
 
+
 template<int dir>
 __global__
-void fft_64_128_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_8192, float2 * gbIn, float2 * gbOut)
+void fft_64_128_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_8192, float2 * gbIn, float2 * gbOut)
 {
-	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
-
-	__shared__ float2 lds[1024];
 
 	uint iOffset;
 	uint oOffset;
 	float2 *lwbIn;
 	float2 *lwbOut;
-
-	float2 R0;
-
-	uint b = 0;
 
 	iOffset = (batch/8)*8192 + (batch%8)*16;
 	oOffset = (batch/8)*8192 + (batch%8)*16;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lwbIn[(me%16) + (me/16)*128 + t*1024];
-		lds[t*8 + (me%16)*64 + (me/16)] = R0;
-	}
-
-	__syncthreads();
-
-	for(uint t=0; t<2; t++)
-	{
-		b = (batch%8)*16 + t*8 + (me/16);
-		
-		lfft_64<dir, 2>(twiddles_64, twiddles_8192, lds + t*512 + (me/16)*64, me%16, b);
-		
-		__syncthreads();
-	}
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lds[t*8 + (me%16)*64 + (me/16)];
-		lwbOut[(me%16) + (me/16)*128 + t*1024] = R0;
-	}
-
+	fft_64_128_bcc<dir>(twiddles_64, twiddles_8192, lwbIn, lwbOut);
 }
 
 
 template<int dir>
 __global__
-void fft_128_64_brc_pk(hipLaunchParm lp, float2 *twiddles_128, float2 * gbIn, float2 * gbOut)
+void fft_128_64_brc_d1_pk(hipLaunchParm lp, float2 *twiddles_128, float2 * gbIn, float2 * gbOut)
 {
-	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
-
-	__shared__ float2 lds[1024];
 
 	uint iOffset;
 	uint oOffset;
 	float2 *lwbIn;
 	float2 *lwbOut;
-
-	float2 R0;
 
 	iOffset = (batch/8)*8192 + (batch%8)*1024;
 	oOffset = (batch/8)*8192 + (batch%8)*8;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lwbIn[me + t*128];
-		lds[t*128 + me] = R0;
-	}
-
-	__syncthreads();
-
-	lfft_128<dir, 0>(twiddles_128, 0, lds + (me/16)*128, me%16, 0);
-
-	__syncthreads();
-
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lds[t*16 + (me%8)*128 + (me/8)];
-		lwbOut[(me%8) + (me/8)*64 + t*1024] = R0;
-	}
-
+	fft_128_64_brc<dir>(twiddles_128, lwbIn, lwbOut);
 }
 
 
 template<int dir>
 __global__
-void fft_64_256_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_16384, float2 * gbIn, float2 * gbOut)
+void fft_64_256_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_16384, float2 * gbIn, float2 * gbOut)
 {
-	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
-
-	__shared__ float2 lds[1024];
 
 	uint iOffset;
 	uint oOffset;
 	float2 *lwbIn;
 	float2 *lwbOut;
-
-	float2 R0;
-
-	uint b = 0;
 
 	iOffset = (batch/16)*16384 + (batch%16)*16;
 	oOffset = (batch/16)*16384 + (batch%16)*16;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lwbIn[(me%16) + (me/16)*256 + t*2048];
-		lds[t*8 + (me%16)*64 + (me/16)] = R0;
-	}
-
-	__syncthreads();
-
-	for(uint t=0; t<2; t++)
-	{
-		b = (batch%16)*16 + t*8 + (me/16);
-
-		lfft_64<dir, 2>(twiddles_64, twiddles_16384, lds + t*512 + (me/16)*64, me%16, b);
-
-		__syncthreads();
-	}
-
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lds[t*8 + (me%16)*64 + (me/16)];
-		lwbOut[(me%16) + (me/16)*256 + t*2048] = R0;
-	}
-
+	fft_64_256_bcc<dir>(twiddles_64, twiddles_16384, lwbIn, lwbOut);
 }
 
 
 template<int dir>
 __global__
-void fft_256_64_brc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut)
+void fft_256_64_brc_d1_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut)
 {
-	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
-
-	__shared__ float2 lds[2048];
 
 	uint iOffset;
 	uint oOffset;
 	float2 *lwbIn;
 	float2 *lwbOut;
-
-	float2 R0;
 
 	iOffset = (batch/8)*16384 + (batch%8)*2048;
 	oOffset = (batch/8)*16384 + (batch%8)*8;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
-
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lwbIn[me + t*256];
-		lds[t*256 + me] = R0;
-	}
-
-	__syncthreads();
-
-
-	for(uint t=0; t<2; t++)
-	{
-		lfft_256<dir, 0>(twiddles_256, 0, lds + t*1024 + (me/64)*256, me%64, 0);
-
-		__syncthreads();
-	}
-
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lds[t*32 + (me%8)*256 + (me/8)];
-		lwbOut[(me%8) + (me/8)*64 + t*2048] = R0;
-	}
-
+	
+	fft_256_64_brc<dir>(twiddles_256, lwbIn, lwbOut);
 }
 
 
 template<int dir>
 __global__
-void fft_128_256_bcc_pk(hipLaunchParm lp, float2 *twiddles_128, float2 *twiddles_32768, float2 * gbIn, float2 * gbOut)
+void fft_128_256_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_128, float2 *twiddles_32768, float2 * gbIn, float2 * gbOut)
 {
-	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
-
-	__shared__ float2 lds[1024];
 
 	uint iOffset;
 	uint oOffset;
 	float2 *lwbIn;
 	float2 *lwbOut;
-
-	float2 R0;
-
-	uint b = 0;
 
 	iOffset = (batch/32)*32768 + (batch%32)*8;
 	oOffset = (batch/32)*32768 + (batch%32)*8;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lwbIn[(me%8) + (me/8)*256 + t*4096];
-		lds[t*16 + (me%8)*128 + (me/8)] = R0;
-	}
-
-	__syncthreads();
-
-
-	b = (batch%32)*8 + (me/16);
-
-	lfft_128<dir, 2>(twiddles_128, twiddles_32768, lds + (me/16)*128, me%16, b);
-	
-	__syncthreads();
-
-	
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lds[t*16 + (me%8)*128 + (me/8)];
-		lwbOut[(me%8) + (me/8)*256 + t*4096] = R0;
-	}
+	fft_128_256_bcc<dir>(twiddles_128, twiddles_32768, lwbIn, lwbOut);
 }
 
 
 template<int dir>
 __global__
-void fft_256_128_brc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut)
+void fft_256_128_brc_d1_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut)
 {
-	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
-
-	__shared__ float2 lds[2048];
 
 	uint iOffset;
 	uint oOffset;
 	float2 *lwbIn;
 	float2 *lwbOut;
-
-	float2 R0;
 
 	iOffset = (batch/16)*32768 + (batch%16)*2048;
 	oOffset = (batch/16)*32768 + (batch%16)*8;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lwbIn[me + t*256];
-		lds[t*256 + me] = R0;
-	}
-
-	__syncthreads();
-
-
-	for(uint t=0; t<2; t++)
-	{
-		lfft_256<dir, 0>(twiddles_256, 0, lds + t*1024 + (me/64)*256, me%64, 0);
-
-		__syncthreads();
-
-	}
-
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lds[t*32 + (me%8)*256 + (me/8)];
-		lwbOut[(me%8) + (me/8)*128 + t*4096] = R0;
-	}
-
+	fft_256_128_brc<dir>(twiddles_256, lwbIn, lwbOut);
 }
 
 
 template<int dir>
 __global__
-void fft_256_256_bcc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 *twiddles_65536, float2 * gbIn, float2 * gbOut)
+void fft_256_256_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_256, float2 *twiddles_65536, float2 * gbIn, float2 * gbOut)
 {
-	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
-
-	__shared__ float2 lds[2048];
 
 	uint iOffset;
 	uint oOffset;
 	float2 *lwbIn;
 	float2 *lwbOut;
-
-	float2 R0;
-
-	uint b = 0;
 
 	iOffset = (batch/32)*65536 + (batch%32)*8;
 	oOffset = (batch/32)*65536 + (batch%32)*8;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lwbIn[(me%8) + (me/8)*256 + t*8192];
-		lds[t*32 + (me%8)*256 + (me/8)] = R0;
-	}
-
-	__syncthreads();
-
-
-	for(uint t=0; t<2; t++)
-	{
-
-		b = (batch%32)*8 + t*4 + (me/64);
-
-		lfft_256<dir, 2>(twiddles_256, twiddles_65536, lds + t*1024 + (me/64)*256, me%64, b);
-
-		__syncthreads();
-
-	}
-
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lds[t*32 + (me%8)*256 + (me/8)];
-		lwbOut[(me%8) + (me/8)*256 + t*8192] = R0;
-	}
+	fft_256_256_bcc<dir>(twiddles_256, twiddles_65536, lwbIn, lwbOut);
 }
 
 
 template<int dir>
 __global__
-void fft_256_256_brc_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut)
+void fft_256_256_brc_d1_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut)
 {
-	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
-
-	__shared__ float2 lds[2048];
 
 	uint iOffset;
 	uint oOffset;
 	float2 *lwbIn;
 	float2 *lwbOut;
-
-	float2 R0;
 
 	iOffset = (batch/32)*65536 + (batch%32)*2048;
 	oOffset = (batch/32)*65536 + (batch%32)*8;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lwbIn[me + t*256];
-		lds[t*256 + me] = R0;
-	}
-
-	__syncthreads();
-
-
-	for(uint t=0; t<2; t++)
-	{
-		lfft_256<dir, 0>(twiddles_256, 0, lds + t*1024 + (me/64)*256, me%64, 0);
-
-		__syncthreads();
-
-	}
-
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lds[t*32 + (me%8)*256 + (me/8)];
-		lwbOut[(me%8) + (me/8)*256 + t*8192] = R0;
-	}
-
+	fft_256_256_brc<dir>(twiddles_256, lwbIn, lwbOut);
 }
 
 
 template<int dir>
 __global__
-void fft_64_2048_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_131072, float2 * gbIn, float2 * gbOut)
+void fft_64_2048_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_131072, float2 * gbIn, float2 * gbOut)
 {
-	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
-
-	__shared__ float2 lds[1024];
 
 	uint iOffset;
 	uint oOffset;
 	float2 *lwbIn;
 	float2 *lwbOut;
-
-	float2 R0;
-
-	uint b = 0;
 
 	iOffset = (batch/128)*131072 + (batch%128)*16;
 	oOffset = (batch/128)*131072 + (batch%128)*16;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lwbIn[(me%16) + (me/16)*2048 + t*16384];
-		lds[t*8 + (me%16)*64 + (me/16)] = R0;
-	}
-
-	__syncthreads();
-
-
-	for(uint t=0; t<2; t++)
-	{
-
-		b = (batch%128)*16 + t*8 + (me/16);
-
-		lfft_64<dir, 3>(twiddles_64, twiddles_131072, lds + t*512 + (me/16)*64, me%16, b);
-
-		__syncthreads();
-
-	}
-
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lds[t*8 + (me%16)*64 + (me/16)];
-		lwbOut[(me%16) + (me/16)*2048 + t*16384] = R0;
-	}
+	fft_64_2048_bcc<dir>(twiddles_64, twiddles_131072, lwbIn, lwbOut);
 }
-
 
 
 template<int dir>
 __global__
-void fft_64_4096_bcc_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_262144, float2 * gbIn, float2 * gbOut)
+void fft_64_4096_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_262144, float2 * gbIn, float2 * gbOut)
 {
-	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
-
-	__shared__ float2 lds[1024];
 
 	uint iOffset;
 	uint oOffset;
 	float2 *lwbIn;
 	float2 *lwbOut;
 
-	float2 R0;
-
-	uint b = 0;
-
 	iOffset = (batch/256)*262144 + (batch%256)*16;
 	oOffset = (batch/256)*262144 + (batch%256)*16;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lwbIn[(me%16) + (me/16)*4096 + t*32768];
-		lds[t*8 + (me%16)*64 + (me/16)] = R0;
-	}
-
-	__syncthreads();
-
-
-	for(uint t=0; t<2; t++)
-	{
-
-		b = (batch%256)*16 + t*8 + (me/16);
-
-		lfft_64<dir, 3>(twiddles_64, twiddles_262144, lds + t*512 + (me/16)*64, me%16, b);
-
-		__syncthreads();
-
-	}
-
-
-	for(uint t=0; t<8; t++)
-	{
-		R0 = lds[t*8 + (me%16)*64 + (me/16)];
-		lwbOut[(me%16) + (me/16)*4096 + t*32768] = R0;
-	}
+	fft_64_4096_bcc<dir>(twiddles_64, twiddles_262144, lwbIn, lwbOut);
 }
 
 
-
-
+//////////////////////////////////////////////////////////////////////////
 
 // Local structure to embody/capture tile dimensions
 typedef struct tag_Tile
