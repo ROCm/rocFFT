@@ -530,9 +530,9 @@ lfft_256(float2 *twiddles_256, float2 *twiddles_large, float2 *lds, uint me, uin
 
 //////////////////////////////////////////
 
-template<int dir>
+template<StrideBin sb, int dir>
 __device__
-void fft_64_128_bcc(float2 *twiddles_64, float2 *twiddles_8192, float2 * lwbIn, float2 * lwbOut, const uint batch)
+void fft_64_128_bcc(float2 *twiddles_64, float2 *twiddles_8192, float2 * lwbIn, float2 * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
@@ -544,7 +544,11 @@ void fft_64_128_bcc(float2 *twiddles_64, float2 *twiddles_8192, float2 * lwbIn, 
 
 	for(uint t=0; t<8; t++)
 	{
-		R0 = lwbIn[(me%16) + (me/16)*128 + t*1024];
+		if(sb == SB_UNIT)
+			R0 = lwbIn[(me%16) + (me/16)*128 + t*1024];
+		else
+			R0 = lwbIn[((me%16) + (me/16)*128 + t*1024)*stride_i];
+
 		lds[t*8 + (me%16)*64 + (me/16)] = R0;
 	}
 
@@ -562,15 +566,20 @@ void fft_64_128_bcc(float2 *twiddles_64, float2 *twiddles_8192, float2 * lwbIn, 
 	for(uint t=0; t<8; t++)
 	{
 		R0 = lds[t*8 + (me%16)*64 + (me/16)];
-		lwbOut[(me%16) + (me/16)*128 + t*1024] = R0;
+		
+		if(sb == SB_UNIT)
+			lwbOut[(me%16) + (me/16)*128 + t*1024] = R0;
+		else
+			lwbOut[((me%16) + (me/16)*128 + t*1024)*stride_o] = R0;
+
 	}
 
 }
 
 
-template<int dir>
+template<StrideBin sb, int dir>
 __device__
-void fft_128_64_brc(float2 *twiddles_128, float2 * lwbIn, float2 * lwbOut)
+void fft_128_64_brc(float2 *twiddles_128, float2 * lwbIn, float2 * lwbOut, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
@@ -581,7 +590,11 @@ void fft_128_64_brc(float2 *twiddles_128, float2 * lwbIn, float2 * lwbOut)
 	
 	for(uint t=0; t<8; t++)
 	{
-		R0 = lwbIn[me + t*128];
+		if(sb == SB_UNIT)
+			R0 = lwbIn[me + t*128];
+		else
+			R0 = lwbIn[(me + t*128)*stride_i];
+
 		lds[t*128 + me] = R0;
 	}
 
@@ -595,15 +608,20 @@ void fft_128_64_brc(float2 *twiddles_128, float2 * lwbIn, float2 * lwbOut)
 	for(uint t=0; t<8; t++)
 	{
 		R0 = lds[t*16 + (me%8)*128 + (me/8)];
-		lwbOut[(me%8) + (me/8)*64 + t*1024] = R0;
+		
+		if(sb == SB_UNIT)
+			lwbOut[(me%8) + (me/8)*64 + t*1024] = R0;
+		else
+			lwbOut[((me%8) + (me/8)*64 + t*1024)*stride_o] = R0;
+
 	}
 
 }
 
 
-template<int dir>
+template<StrideBin sb, int dir>
 __device__
-void fft_64_256_bcc(float2 *twiddles_64, float2 *twiddles_16384, float2 * lwbIn, float2 * lwbOut, const uint batch)
+void fft_64_256_bcc(float2 *twiddles_64, float2 *twiddles_16384, float2 * lwbIn, float2 * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
@@ -615,7 +633,11 @@ void fft_64_256_bcc(float2 *twiddles_64, float2 *twiddles_16384, float2 * lwbIn,
 
 	for(uint t=0; t<8; t++)
 	{
-		R0 = lwbIn[(me%16) + (me/16)*256 + t*2048];
+		if(sb == SB_UNIT)
+			R0 = lwbIn[(me%16) + (me/16)*256 + t*2048];
+		else
+			R0 = lwbIn[((me%16) + (me/16)*256 + t*2048)*stride_i];
+
 		lds[t*8 + (me%16)*64 + (me/16)] = R0;
 	}
 
@@ -634,15 +656,20 @@ void fft_64_256_bcc(float2 *twiddles_64, float2 *twiddles_16384, float2 * lwbIn,
 	for(uint t=0; t<8; t++)
 	{
 		R0 = lds[t*8 + (me%16)*64 + (me/16)];
-		lwbOut[(me%16) + (me/16)*256 + t*2048] = R0;
+		
+		if(sb == SB_UNIT)
+			lwbOut[(me%16) + (me/16)*256 + t*2048] = R0;
+		else
+			lwbOut[((me%16) + (me/16)*256 + t*2048)*stride_o] = R0;
+
 	}
 
 }
 
 
-template<int dir>
+template<StrideBin sb, int dir>
 __device__
-void fft_256_64_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut)
+void fft_256_64_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
@@ -653,7 +680,11 @@ void fft_256_64_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut)
 
 	for(uint t=0; t<8; t++)
 	{
-		R0 = lwbIn[me + t*256];
+		if(sb == SB_UNIT)
+			R0 = lwbIn[me + t*256];
+		else
+			R0 = lwbIn[(me + t*256)*stride_i];
+
 		lds[t*256 + me] = R0;
 	}
 
@@ -671,15 +702,20 @@ void fft_256_64_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut)
 	for(uint t=0; t<8; t++)
 	{
 		R0 = lds[t*32 + (me%8)*256 + (me/8)];
-		lwbOut[(me%8) + (me/8)*64 + t*2048] = R0;
+		
+		if(sb == SB_UNIT)
+			lwbOut[(me%8) + (me/8)*64 + t*2048] = R0;
+		else
+			lwbOut[((me%8) + (me/8)*64 + t*2048)*stride_o] = R0;
+
 	}
 
 }
 
 
-template<int dir>
+template<StrideBin sb, int dir>
 __device__
-void fft_128_256_bcc(float2 *twiddles_128, float2 *twiddles_32768, float2 * lwbIn, float2 * lwbOut, const uint batch)
+void fft_128_256_bcc(float2 *twiddles_128, float2 *twiddles_32768, float2 * lwbIn, float2 * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
@@ -692,7 +728,11 @@ void fft_128_256_bcc(float2 *twiddles_128, float2 *twiddles_32768, float2 * lwbI
 
 	for(uint t=0; t<8; t++)
 	{
-		R0 = lwbIn[(me%8) + (me/8)*256 + t*4096];
+		if(sb == SB_UNIT)
+			R0 = lwbIn[(me%8) + (me/8)*256 + t*4096];
+		else
+			R0 = lwbIn[((me%8) + (me/8)*256 + t*4096)*stride_i];
+
 		lds[t*16 + (me%8)*128 + (me/8)] = R0;
 	}
 
@@ -709,14 +749,19 @@ void fft_128_256_bcc(float2 *twiddles_128, float2 *twiddles_32768, float2 * lwbI
 	for(uint t=0; t<8; t++)
 	{
 		R0 = lds[t*16 + (me%8)*128 + (me/8)];
-		lwbOut[(me%8) + (me/8)*256 + t*4096] = R0;
+		
+		if(sb == SB_UNIT)
+			lwbOut[(me%8) + (me/8)*256 + t*4096] = R0;
+		else
+			lwbOut[((me%8) + (me/8)*256 + t*4096)*stride_o] = R0;
+
 	}
 }
 
 
-template<int dir>
+template<StrideBin sb, int dir>
 __device__
-void fft_256_128_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut)
+void fft_256_128_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
@@ -727,7 +772,11 @@ void fft_256_128_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut)
 
 	for(uint t=0; t<8; t++)
 	{
-		R0 = lwbIn[me + t*256];
+		if(sb == SB_UNIT)
+			R0 = lwbIn[me + t*256];
+		else
+			R0 = lwbIn[(me + t*256)*stride_i];
+
 		lds[t*256 + me] = R0;
 	}
 
@@ -746,15 +795,20 @@ void fft_256_128_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut)
 	for(uint t=0; t<8; t++)
 	{
 		R0 = lds[t*32 + (me%8)*256 + (me/8)];
-		lwbOut[(me%8) + (me/8)*128 + t*4096] = R0;
+		
+		if(sb == SB_UNIT)
+			lwbOut[(me%8) + (me/8)*128 + t*4096] = R0;
+		else
+			lwbOut[((me%8) + (me/8)*128 + t*4096)*stride_o] = R0;
+
 	}
 
 }
 
 
-template<int dir>
+template<StrideBin sb, int dir>
 __device__
-void fft_256_256_bcc(float2 *twiddles_256, float2 *twiddles_65536, float2 * lwbIn, float2 * lwbOut, const uint batch)
+void fft_256_256_bcc(float2 *twiddles_256, float2 *twiddles_65536, float2 * lwbIn, float2 * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
@@ -767,7 +821,11 @@ void fft_256_256_bcc(float2 *twiddles_256, float2 *twiddles_65536, float2 * lwbI
 
 	for(uint t=0; t<8; t++)
 	{
-		R0 = lwbIn[(me%8) + (me/8)*256 + t*8192];
+		if(sb == SB_UNIT)
+			R0 = lwbIn[(me%8) + (me/8)*256 + t*8192];
+		else
+			R0 = lwbIn[((me%8) + (me/8)*256 + t*8192)*stride_i];
+
 		lds[t*32 + (me%8)*256 + (me/8)] = R0;
 	}
 
@@ -789,14 +847,19 @@ void fft_256_256_bcc(float2 *twiddles_256, float2 *twiddles_65536, float2 * lwbI
 	for(uint t=0; t<8; t++)
 	{
 		R0 = lds[t*32 + (me%8)*256 + (me/8)];
-		lwbOut[(me%8) + (me/8)*256 + t*8192] = R0;
+		
+		if(sb == SB_UNIT)
+			lwbOut[(me%8) + (me/8)*256 + t*8192] = R0;
+		else
+			lwbOut[((me%8) + (me/8)*256 + t*8192)*stride_o] = R0;
+
 	}
 }
 
 
-template<int dir>
+template<StrideBin sb, int dir>
 __device__
-void fft_256_256_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut)
+void fft_256_256_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
@@ -807,7 +870,11 @@ void fft_256_256_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut)
 
 	for(uint t=0; t<8; t++)
 	{
-		R0 = lwbIn[me + t*256];
+		if(sb == SB_UNIT)
+			R0 = lwbIn[me + t*256];
+		else
+			R0 = lwbIn[(me + t*256)*stride_i];
+
 		lds[t*256 + me] = R0;
 	}
 
@@ -826,15 +893,20 @@ void fft_256_256_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut)
 	for(uint t=0; t<8; t++)
 	{
 		R0 = lds[t*32 + (me%8)*256 + (me/8)];
-		lwbOut[(me%8) + (me/8)*256 + t*8192] = R0;
+		
+		if(sb == SB_UNIT)
+			lwbOut[(me%8) + (me/8)*256 + t*8192] = R0;
+		else
+			lwbOut[((me%8) + (me/8)*256 + t*8192)*stride_o] = R0;
+
 	}
 
 }
 
 
-template<int dir>
+template<StrideBin sb, int dir>
 __device__
-void fft_64_2048_bcc(float2 *twiddles_64, float2 *twiddles_131072, float2 * lwbIn, float2 * lwbOut, const uint batch)
+void fft_64_2048_bcc(float2 *twiddles_64, float2 *twiddles_131072, float2 * lwbIn, float2 * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
@@ -847,7 +919,11 @@ void fft_64_2048_bcc(float2 *twiddles_64, float2 *twiddles_131072, float2 * lwbI
 
 	for(uint t=0; t<8; t++)
 	{
-		R0 = lwbIn[(me%16) + (me/16)*2048 + t*16384];
+		if(sb == SB_UNIT)
+			R0 = lwbIn[(me%16) + (me/16)*2048 + t*16384];
+		else
+			R0 = lwbIn[((me%16) + (me/16)*2048 + t*16384)*stride_i];
+
 		lds[t*8 + (me%16)*64 + (me/16)] = R0;
 	}
 
@@ -869,14 +945,19 @@ void fft_64_2048_bcc(float2 *twiddles_64, float2 *twiddles_131072, float2 * lwbI
 	for(uint t=0; t<8; t++)
 	{
 		R0 = lds[t*8 + (me%16)*64 + (me/16)];
-		lwbOut[(me%16) + (me/16)*2048 + t*16384] = R0;
+		
+		if(sb == SB_UNIT)
+			lwbOut[(me%16) + (me/16)*2048 + t*16384] = R0;
+		else
+			lwbOut[((me%16) + (me/16)*2048 + t*16384)*stride_o] = R0;
+
 	}
 }
 
 
-template<int dir>
+template<StrideBin sb, int dir>
 __device__
-void fft_64_4096_bcc(float2 *twiddles_64, float2 *twiddles_262144, float2 * lwbIn, float2 * lwbOut, const uint batch)
+void fft_64_4096_bcc(float2 *twiddles_64, float2 *twiddles_262144, float2 * lwbIn, float2 * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
@@ -889,7 +970,11 @@ void fft_64_4096_bcc(float2 *twiddles_64, float2 *twiddles_262144, float2 * lwbI
 
 	for(uint t=0; t<8; t++)
 	{
-		R0 = lwbIn[(me%16) + (me/16)*4096 + t*32768];
+		if(sb == SB_UNIT)
+			R0 = lwbIn[(me%16) + (me/16)*4096 + t*32768];
+		else
+			R0 = lwbIn[((me%16) + (me/16)*4096 + t*32768)*stride_i];
+
 		lds[t*8 + (me%16)*64 + (me/16)] = R0;
 	}
 
@@ -911,7 +996,12 @@ void fft_64_4096_bcc(float2 *twiddles_64, float2 *twiddles_262144, float2 * lwbI
 	for(uint t=0; t<8; t++)
 	{
 		R0 = lds[t*8 + (me%16)*64 + (me/16)];
-		lwbOut[(me%16) + (me/16)*4096 + t*32768] = R0;
+		
+		if(sb == SB_UNIT)
+			lwbOut[(me%16) + (me/16)*4096 + t*32768] = R0;
+		else
+			lwbOut[((me%16) + (me/16)*4096 + t*32768)*stride_o] = R0;
+
 	}
 }
 
