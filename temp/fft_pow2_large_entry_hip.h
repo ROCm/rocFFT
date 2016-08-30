@@ -204,6 +204,245 @@ void fft_64_4096_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddl
 }
 
 
+template<int dir>
+__global__
+void fft_64_128_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_8192, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+{
+	uint batch = hipBlockIdx_x;
+
+	uint iOffset;
+	uint oOffset;
+	float2 *lwbIn;
+	float2 *lwbOut;
+
+	iOffset = (batch/(8*len))*dist_i;
+	oOffset = (batch/(8*len))*dist_o;
+	batch = batch%(8*len);
+
+	iOffset += (batch/8)*stride_i + (batch%8)*16;
+	oOffset += (batch/8)*stride_o + (batch%8)*16;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+	fft_64_128_bcc<SB_UNIT, dir>(twiddles_64, twiddles_8192, lwbIn, lwbOut, batch, 1, 1);
+}
+
+
+template<int dir>
+__global__
+void fft_128_64_brc_d2_s1(hipLaunchParm lp, float2 *twiddles_128, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+{
+	uint batch = hipBlockIdx_x;
+
+	uint iOffset;
+	uint oOffset;
+	float2 *lwbIn;
+	float2 *lwbOut;
+
+	iOffset = (batch/(8*len))*dist_i;
+	oOffset = (batch/(8*len))*dist_o;
+	batch = batch%(8*len);
+
+	iOffset += (batch/8)*stride_i + (batch%8)*1024;
+	oOffset += (batch/8)*stride_o + (batch%8)*8;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+	fft_128_64_brc<SB_UNIT, dir>(twiddles_128, lwbIn, lwbOut, 1, 1);
+}
+
+
+template<int dir>
+__global__
+void fft_64_256_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_16384, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+{
+	uint batch = hipBlockIdx_x;
+
+	uint iOffset;
+	uint oOffset;
+	float2 *lwbIn;
+	float2 *lwbOut;
+
+	iOffset = (batch/(16*len))*dist_i;
+	oOffset = (batch/(16*len))*dist_o;
+	batch = batch%(16*len);
+
+	iOffset += (batch/16)*stride_i + (batch%16)*16;
+	oOffset += (batch/16)*stride_o + (batch%16)*16;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+	fft_64_256_bcc<SB_UNIT, dir>(twiddles_64, twiddles_16384, lwbIn, lwbOut, batch, 1, 1);
+}
+
+
+template<int dir>
+__global__
+void fft_256_64_brc_d2_s1(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+{
+	uint batch = hipBlockIdx_x;
+
+	uint iOffset;
+	uint oOffset;
+	float2 *lwbIn;
+	float2 *lwbOut;
+
+	iOffset = (batch/(8*len))*dist_i;
+	oOffset = (batch/(8*len))*dist_o;
+	batch = batch%(8*len);
+
+	iOffset += (batch/8)*stride_i + (batch%8)*2048;
+	oOffset += (batch/8)*stride_o + (batch%8)*8;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+	
+	fft_256_64_brc<SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
+}
+
+
+template<int dir>
+__global__
+void fft_128_256_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_128, float2 *twiddles_32768, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+{
+	uint batch = hipBlockIdx_x;
+
+	uint iOffset;
+	uint oOffset;
+	float2 *lwbIn;
+	float2 *lwbOut;
+
+	iOffset = (batch/(32*len))*dist_i;
+	oOffset = (batch/(32*len))*dist_o;
+	batch = batch%(32*len);
+
+	iOffset += (batch/32)*stride_i + (batch%32)*8;
+	oOffset += (batch/32)*stride_o + (batch%32)*8;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+	fft_128_256_bcc<SB_UNIT, dir>(twiddles_128, twiddles_32768, lwbIn, lwbOut, batch, 1, 1);
+}
+
+
+template<int dir>
+__global__
+void fft_256_128_brc_d2_s1(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+{
+	uint batch = hipBlockIdx_x;
+
+	uint iOffset;
+	uint oOffset;
+	float2 *lwbIn;
+	float2 *lwbOut;
+
+	iOffset = (batch/(16*len))*dist_i;
+	oOffset = (batch/(16*len))*dist_o;
+	batch = batch%(16*len);
+
+	iOffset += (batch/16)*stride_i + (batch%16)*2048;
+	oOffset += (batch/16)*stride_o + (batch%16)*8;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+	fft_256_128_brc<SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
+}
+
+
+template<int dir>
+__global__
+void fft_256_256_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_256, float2 *twiddles_65536, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+{
+	uint batch = hipBlockIdx_x;
+
+	uint iOffset;
+	uint oOffset;
+	float2 *lwbIn;
+	float2 *lwbOut;
+
+	iOffset = (batch/(32*len))*dist_i;
+	oOffset = (batch/(32*len))*dist_o;
+	batch = batch%(32*len);
+
+	iOffset += (batch/32)*stride_i + (batch%32)*8;
+	oOffset += (batch/32)*stride_o + (batch%32)*8;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+	fft_256_256_bcc<SB_UNIT, dir>(twiddles_256, twiddles_65536, lwbIn, lwbOut, batch, 1, 1);
+}
+
+
+template<int dir>
+__global__
+void fft_256_256_brc_d2_s1(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+{
+	uint batch = hipBlockIdx_x;
+
+	uint iOffset;
+	uint oOffset;
+	float2 *lwbIn;
+	float2 *lwbOut;
+
+	iOffset = (batch/(32*len))*dist_i;
+	oOffset = (batch/(32*len))*dist_o;
+	batch = batch%(32*len);
+
+	iOffset += (batch/32)*stride_i + (batch%32)*2048;
+	oOffset += (batch/32)*stride_o + (batch%32)*8;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+	fft_256_256_brc<SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
+}
+
+
+template<int dir>
+__global__
+void fft_64_2048_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_131072, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+{
+	uint batch = hipBlockIdx_x;
+
+	uint iOffset;
+	uint oOffset;
+	float2 *lwbIn;
+	float2 *lwbOut;
+
+	iOffset = (batch/(128*len))*dist_i;
+	oOffset = (batch/(128*len))*dist_o;
+	batch = batch%(128*len);
+
+	iOffset += (batch/128)*stride_i + (batch%128)*16;
+	oOffset += (batch/128)*stride_o + (batch%128)*16;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+	fft_64_2048_bcc<SB_UNIT, dir>(twiddles_64, twiddles_131072, lwbIn, lwbOut, batch, 1, 1);
+}
+
+
+template<int dir>
+__global__
+void fft_64_4096_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_262144, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+{
+	uint batch = hipBlockIdx_x;
+
+	uint iOffset;
+	uint oOffset;
+	float2 *lwbIn;
+	float2 *lwbOut;
+
+	iOffset = (batch/(256*len))*dist_i;
+	oOffset = (batch/(256*len))*dist_o;
+	batch = batch%(256*len);
+
+	iOffset += (batch/256)*stride_i + (batch%256)*16;
+	oOffset += (batch/256)*stride_o + (batch%256)*16;
+	lwbIn = gbIn + iOffset;
+	lwbOut = gbOut + oOffset;
+
+	fft_64_4096_bcc<SB_UNIT, dir>(twiddles_64, twiddles_262144, lwbIn, lwbOut, batch, 1, 1);
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 // Local structure to embody/capture tile dimensions

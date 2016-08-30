@@ -41,141 +41,139 @@ void CreateAndCopyTwiddles(float2 **tw, float2 **tw1, float2 **tw2, float2 **tw3
 		hipMalloc(&twt, N * sizeof(float2));
 		*tw = twt;
 	}
+
+	const void *twtc1, *twtc2, *twtc3;
+	size_t n1, n2, n3;
 	
 	switch (N)
 	{
 	case 1048576:
-				hipMalloc(&twt1, 1024*sizeof(float2));
-				hipMalloc(&twt2, 1024*sizeof(float2));
-				hipMalloc(&twt3, 256*3*sizeof(float2));
+				n1 = 1024;
+				n2 = 1024;
+				n3 = 256*3;
 				
-				*tw1 = twt1;
-				*tw2 = twt2;
-				*tw3 = twt3;
-				
-				hipMemcpy(twt1, &twiddles_1024[0], 1024*sizeof(float2), hipMemcpyHostToDevice); 
-				hipMemcpy(twt2, &twiddles_1024[0], 1024*sizeof(float2), hipMemcpyHostToDevice);
-				hipMemcpy(twt3, &twiddle_dee_1048576[0][0], 256*3*sizeof(float2), hipMemcpyHostToDevice);
+				twtc1 = &twiddles_1024[0];
+				twtc2 = &twiddles_1024[0];
+				twtc3 = &twiddle_dee_1048576[0][0];
 				
 				break;
 				
 	case 524288:
-				hipMalloc(&twt1, 1024*sizeof(float2));
-				hipMalloc(&twt2, 512*sizeof(float2));
-				hipMalloc(&twt3, 256*3*sizeof(float2));
+				n1 = 1024;
+				n2 = 512;
+				n3 = 256*3;
 				
-				*tw1 = twt1;
-				*tw2 = twt2;
-				*tw3 = twt3;
-				
-				hipMemcpy(twt1, &twiddles_1024[0], 1024*sizeof(float2), hipMemcpyHostToDevice); 
-				hipMemcpy(twt2, &twiddles_512[0], 512*sizeof(float2), hipMemcpyHostToDevice);
-				hipMemcpy(twt3, &twiddle_dee_524288[0][0], 256*3*sizeof(float2), hipMemcpyHostToDevice);
+				twtc1 = &twiddles_1024[0];
+				twtc2 = &twiddles_512[0];
+				twtc3 = &twiddle_dee_524288[0][0];
 				
 				break;
 				
 	case 262144:
-				hipMalloc(&twt1, 64*sizeof(float2));
-				hipMalloc(&twt2, 4096*sizeof(float2));
-				hipMalloc(&twt3, 256*3*sizeof(float2));
+				n1 = 64;
+				n2 = 4096;
+				n3 = 256*3;
 				
-				*tw1 = twt1;
-				*tw2 = twt2;
-				*tw3 = twt3;
-				
-				hipMemcpy(twt1, &twiddles_64[0], 64*sizeof(float2), hipMemcpyHostToDevice); 
-				hipMemcpy(twt2, &twiddles_4096[0], 4096*sizeof(float2), hipMemcpyHostToDevice);
-				hipMemcpy(twt3, &twiddle_dee_262144[0][0], 256*3*sizeof(float2), hipMemcpyHostToDevice);
+				twtc1 = &twiddles_64[0];
+				twtc2 = &twiddles_4096[0];
+				twtc3 = &twiddle_dee_262144[0][0];
 				
 				break;
 				
 	case 131072:
-				hipMalloc(&twt1, 64*sizeof(float2));
-				hipMalloc(&twt2, 2048*sizeof(float2));
-				hipMalloc(&twt3, 256*3*sizeof(float2));
+				n1 = 64;
+				n2 = 2048;
+				n3 = 256*3;
 				
-				*tw1 = twt1;
-				*tw2 = twt2;
-				*tw3 = twt3;
-				
-				hipMemcpy(twt1, &twiddles_64[0], 64*sizeof(float2), hipMemcpyHostToDevice); 
-				hipMemcpy(twt2, &twiddles_2048[0], 2048*sizeof(float2), hipMemcpyHostToDevice);
-				hipMemcpy(twt3, &twiddle_dee_131072[0][0], 256*3*sizeof(float2), hipMemcpyHostToDevice);
+				twtc1 = &twiddles_64[0];
+				twtc2 = &twiddles_2048[0];
+				twtc3 = &twiddle_dee_131072[0][0];
 				
 				break;
 				
 	case 65536:
-				hipMalloc(&twt1, 256*sizeof(float2));
-				hipMalloc(&twt2, 256*sizeof(float2));
-				hipMalloc(&twt3, 256*2*sizeof(float2));
+				n1 = 256;
+				n2 = 256;
+				n3 = 256*2;
 				
-				*tw1 = twt1;
-				*tw2 = twt2;
-				*tw3 = twt3;
-				
-				hipMemcpy(twt1, &twiddles_256[0], 256*sizeof(float2), hipMemcpyHostToDevice); 
-				hipMemcpy(twt2, &twiddles_256[0], 256*sizeof(float2), hipMemcpyHostToDevice);
-				hipMemcpy(twt3, &twiddle_dee_65536[0][0], 256*2*sizeof(float2), hipMemcpyHostToDevice);
+				twtc1 = &twiddles_256[0];
+				twtc2 = &twiddles_256[0];
+				twtc3 = &twiddle_dee_65536[0][0];
 				
 				break;
 				
 	case 32768:
-				hipMalloc(&twt1, 128*sizeof(float2));
-				hipMalloc(&twt2, 256*sizeof(float2));
-				hipMalloc(&twt3, 256*2*sizeof(float2));
+				n1 = 128;
+				n2 = 256;
+				n3 = 256*2;
 				
-				*tw1 = twt1;
-				*tw2 = twt2;
-				*tw3 = twt3;
-				
-				hipMemcpy(twt1, &twiddles_128[0], 128*sizeof(float2), hipMemcpyHostToDevice); 
-				hipMemcpy(twt2, &twiddles_256[0], 256*sizeof(float2), hipMemcpyHostToDevice);
-				hipMemcpy(twt3, &twiddle_dee_32768[0][0], 256*2*sizeof(float2), hipMemcpyHostToDevice);
+				twtc1 = &twiddles_128[0];
+				twtc2 = &twiddles_256[0];
+				twtc3 = &twiddle_dee_32768[0][0];
 				
 				break;
 				
 	case 16384:
-				hipMalloc(&twt1, 64*sizeof(float2));
-				hipMalloc(&twt2, 256*sizeof(float2));
-				hipMalloc(&twt3, 256*2*sizeof(float2));
+				n1 = 64;
+				n2 = 256;
+				n3 = 256*2;
 				
-				*tw1 = twt1;
-				*tw2 = twt2;
-				*tw3 = twt3;
-				
-				hipMemcpy(twt1, &twiddles_64[0], 64*sizeof(float2), hipMemcpyHostToDevice); 
-				hipMemcpy(twt2, &twiddles_256[0], 256*sizeof(float2), hipMemcpyHostToDevice);
-				hipMemcpy(twt3, &twiddle_dee_16384[0][0], 256*2*sizeof(float2), hipMemcpyHostToDevice);
+				twtc1 = &twiddles_64[0];
+				twtc2 = &twiddles_256[0];
+				twtc3 = &twiddle_dee_16384[0][0];
 				
 				break;
 				
 	case 8192:
-				hipMalloc(&twt1, 64*sizeof(float2));
-				hipMalloc(&twt2, 128*sizeof(float2));
-				hipMalloc(&twt3, 256*2*sizeof(float2));
+				n1 = 64;
+				n2 = 128;
+				n3 = 256*2;
+				
+				twtc1 = &twiddles_64[0];
+				twtc2 = &twiddles_128[0];
+				twtc3 = &twiddle_dee_8192[0][0];
+				
+				break;
+	default:
+				break;
+	}
+				
+	switch (N)
+	{
+	case 1048576:
+	case 524288:
+	case 262144:
+	case 131072:
+	case 65536:
+	case 32768:
+	case 16384:
+	case 8192:
+				hipMalloc(&twt1, n1*sizeof(float2));
+				hipMalloc(&twt2, n2*sizeof(float2));
+				hipMalloc(&twt3, n3*sizeof(float2));
 				
 				*tw1 = twt1;
 				*tw2 = twt2;
 				*tw3 = twt3;
 				
-				hipMemcpy(twt1, &twiddles_64[0], 64*sizeof(float2), hipMemcpyHostToDevice); 
-				hipMemcpy(twt2, &twiddles_128[0], 128*sizeof(float2), hipMemcpyHostToDevice);
-				hipMemcpy(twt3, &twiddle_dee_8192[0][0], 256*2*sizeof(float2), hipMemcpyHostToDevice);
+				hipMemcpy(twt1, twtc1, n1*sizeof(float2), hipMemcpyHostToDevice); 
+				hipMemcpy(twt2, twtc2, n2*sizeof(float2), hipMemcpyHostToDevice);
+				hipMemcpy(twt3, twtc3, n3*sizeof(float2), hipMemcpyHostToDevice);
 				
 				break;
 				
 	case 4096: 	hipMemcpy(twt, &twiddles_4096[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
 	case 2048: 	hipMemcpy(twt, &twiddles_2048[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
 	case 1024: 	hipMemcpy(twt, &twiddles_1024[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 512:  	hipMemcpy(twt, &twiddles_512[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 256:  	hipMemcpy(twt, &twiddles_256[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 128:  	hipMemcpy(twt, &twiddles_128[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 64:   	hipMemcpy(twt, &twiddles_64[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 32:   	hipMemcpy(twt, &twiddles_32[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 16:   	hipMemcpy(twt, &twiddles_16[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 8:    	hipMemcpy(twt, &twiddles_8[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 4:    	hipMemcpy(twt, &twiddles_4[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-	case 2:    	hipMemcpy(twt, &twiddles_2[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 512:  	hipMemcpy(twt,  &twiddles_512[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 256:  	hipMemcpy(twt,  &twiddles_256[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 128:  	hipMemcpy(twt,  &twiddles_128[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 64:   	hipMemcpy(twt,   &twiddles_64[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 32:   	hipMemcpy(twt,   &twiddles_32[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 16:   	hipMemcpy(twt,   &twiddles_16[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 8:    	hipMemcpy(twt,    &twiddles_8[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 4:    	hipMemcpy(twt,    &twiddles_4[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+	case 2:    	hipMemcpy(twt,    &twiddles_2[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
 	case 1: 	break;
 
 	default:
