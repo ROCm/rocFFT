@@ -96,7 +96,7 @@ if(PLATFORM_NAME STREQUAL "NVIDIA")
 endif( )
 
 set(rocfft_rider_source
-    rider.cpp )
+    rider.cpp misc.cpp )
 
 set(rocfft_rider_includes
     )

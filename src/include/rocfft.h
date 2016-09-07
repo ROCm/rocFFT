@@ -17,6 +17,7 @@ typedef enum rocfft_status_e
 {
         rocfft_status_success,
         rocfft_status_failure,
+	rocfft_status_invalid_arg_value,
 } rocfft_status;
 
 // Type of transform
