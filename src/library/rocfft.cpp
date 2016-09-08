@@ -15,10 +15,74 @@ struct rocfft_plan_t
 	size_t batch;
 };
 
+// library setup function, called once in program at the start of library use
+rocfft_status rocfft_setup()
+{
+	return rocfft_status_success;
+}
+
+// library cleanup function, called once in program after end of library use
+rocfft_status rocfft_cleanup()
+{
+	return rocfft_status_success;
+}
+
+
+rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan_description description, float scale )
+{
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description description, double scale )
+{
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_description_set_data_outline(      rocfft_plan_description description,
+                                                        rocfft_result_placement placement,
+                                                        rocfft_array_type in_array_type, rocfft_array_type out_array_type,
+                                                        const size_t *in_offsets, const size_t *out_offsets )
+{
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_description_set_data_layout(       rocfft_plan_description description,
+                                                        const size_t *in_strides, size_t in_distance,
+                                                        const size_t *out_strides, size_t out_distance )
+{
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_description_create( rocfft_plan_description *description )
+{
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_description_destroy( rocfft_plan_description description )
+{
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_execution_info_create( rocfft_execution_info *info )
+{
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_execution_info_destroy( rocfft_execution_info info )
+{
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *size_in_bytes )
+{
+	return rocfft_status_success;
+}
+
+
 rocfft_status rocfft_plan_create(	rocfft_plan *plan,
 					rocfft_transform_type transform_type, rocfft_precision precision,
 					size_t dimensions, const size_t *lengths, size_t number_of_transforms,
-					const rocfft_description description )
+					const rocfft_plan_description description )
 {
 	rocfft_plan p = new rocfft_plan_t;
 	p->rank = dimensions;

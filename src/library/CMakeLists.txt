@@ -45,6 +45,7 @@ add_compiler_export_flags( )
 set( rocfft_source
      rocfft.cpp
      plan.cpp
+     transform.cpp
      rocfft_transpose.cpp
 )
 

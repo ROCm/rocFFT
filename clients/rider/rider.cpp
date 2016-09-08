@@ -40,10 +40,10 @@ std::basic_istream<_Elem, _Traits> & operator>> (std::basic_istream<_Elem, _Trai
 
 template < typename T >
 int transform( size_t* lengths, const size_t *inStrides, const size_t *outStrides, size_t batchSize,
+		const size_t *inOffset, const size_t *outOffset,
 		rocfft_array_type inArrType, rocfft_array_type outArrType,
 		rocfft_result_placement place, rocfft_precision precision, rocfft_transform_type transformType,
-		int deviceId, int platformId, bool printInfo,
-		unsigned profile_count
+		double scale, bool packed, int deviceId, int platformId, bool printInfo, unsigned profile_count
 		)
 {
 	//	Our command line does not specify what dimension FFT we wish to transform; we decode
@@ -150,7 +150,6 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 	{
 	case rocfft_array_type_complex_interleaved:
 		{
-			//	This call creates our openCL context and sets up our devices; expected to throw on error
 			size_of_input_buffers_in_bytes = fftBatchSize * sizeof( std::complex< T > );
 
 			setupBuffers( 
@@ -192,7 +191,6 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		break;
 	case rocfft_array_type_complex_planar:
 		{
-			//	This call creates our openCL context and sets up our devices; expected to throw on error
 			size_of_input_buffers_in_bytes = fftBatchSize * sizeof( T );
 
 			setupBuffers( 
@@ -236,7 +234,6 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		break;
 	case rocfft_array_type_hermitian_interleaved:
 		{
-			//	This call creates our openCL context and sets up our devices; expected to throw on error
 			size_of_input_buffers_in_bytes = fftBatchSize * sizeof( std::complex< T > );
 
 			setupBuffers( 
@@ -266,7 +263,6 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		break;
 	case rocfft_array_type_hermitian_planar:
 		{
-			//	This call creates our openCL context and sets up our devices; expected to throw on error
 			size_of_input_buffers_in_bytes = fftBatchSize * sizeof( T );
 
 			setupBuffers( 
@@ -299,7 +295,6 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		break;
 	case rocfft_array_type_real:
 		{
-			//	This call creates our openCL context and sets up our devices; expected to throw on error
 			size_of_input_buffers_in_bytes = fftBatchSize * sizeof( T );
 
 			setupBuffers( 
@@ -345,40 +340,51 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		break;
 	}
 
-#if 0
-	HIP_V_THROW( clfftSetup( setupData.get( ) ), "clfftSetup failed" );
-	HIP_V_THROW( clfftCreateDefaultPlan( &plan_handle, context, dim, lengths ), "clfftCreateDefaultPlan failed" );
 
-	//	Default plan creates a plan that expects an inPlace transform with interleaved complex numbers
-	HIP_V_THROW( clfftSetResultLocation( plan_handle, place ), "clfftSetResultLocation failed" );
-	HIP_V_THROW( clfftSetLayout( plan_handle, inArrType, outArrType ), "clfftSetLayout failed" );
-	HIP_V_THROW( clfftSetPlanBatchSize( plan_handle, batchSize ), "clfftSetPlanBatchSize failed" );
-	HIP_V_THROW( clfftSetPlanPrecision( plan_handle, precision ), "clfftSetPlanPrecision failed" );
+	LIB_V_THROW( rocfft_setup(), " rocfft_setup failed" );
 
-	HIP_V_THROW (clfftSetPlanInStride  ( plan_handle, dim, strides ), "clfftSetPlanInStride failed" );
-	HIP_V_THROW (clfftSetPlanOutStride ( plan_handle, dim, o_strides ), "clfftSetPlanOutStride failed" );
-	HIP_V_THROW (clfftSetPlanDistance  ( plan_handle, strides[ 3 ], o_strides[ 3 ]), "clfftSetPlanDistance failed" );
+	rocfft_plan plan = NULL;
+	rocfft_plan_description desc = NULL;
+	rocfft_execution_info info = NULL;
 
-	// Set backward scale factor to 1.0 for non real FFTs to do correct output checks
-	if(dir == CLFFT_BACKWARD && inArrType != rocfft_array_type_real && outArrType != rocfft_array_type_real)
-		HIP_V_THROW (clfftSetPlanScale( plan_handle, CLFFT_BACKWARD, (cl_float)1.0f ), "clfftSetPlanScale failed" );
+	if( (place == rocfft_placement_inplace) && packed && (scale == 1.0) &&
+		(inOffset[0] == 0) && (inOffset[1] == 0) && (outOffset[0] == 0) && (outOffset[1] == 0) ) 
+	{
+		LIB_V_THROW( rocfft_plan_create( &plan, transformType, precision, dim, lengths, batchSize, NULL  ), "rocfft_plan_create failed" );
+	}
+	else
+	{
+		LIB_V_THROW( rocfft_plan_description_create( &desc ), "rocfft_plan_description_create failed" );
 
-	HIP_V_THROW( clfftBakePlan( plan_handle, 1, &queue, NULL, NULL ), "clfftBakePlan failed" );
+		LIB_V_THROW( rocfft_plan_description_set_data_outline( desc, place, inArrType, outArrType, inOffset, outOffset ), "rocfft_plan_description_data_outline failed" );
+
+		if(!packed)
+			LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, strides, strides[3], o_strides, o_strides[3] ), "rocfft_plan_description_data_layout failed" ); 
+
+		if(scale != 1.0)
+		{
+			if(precision == rocfft_precision_single)
+				LIB_V_THROW( rocfft_plan_description_set_scale_float( desc, (float)scale ), "rocfft_plan_description_set_scale_float failed" );
+			else
+				LIB_V_THROW( rocfft_plan_description_set_scale_double( desc, scale ), "rocfft_plan_description_set_scale_double failed" );
+		}
+	
+		LIB_V_THROW( rocfft_plan_create( &plan, transformType, precision, dim, lengths, batchSize, desc ), "rocfft_plan_create failed" );
+	}
+
 
 	//get the buffersize
-	size_t buffersize=0;
-	HIP_V_THROW( clfftGetTmpBufSize(plan_handle, &buffersize ), "clfftGetTmpBufSize failed" );
+	size_t workBufferSize=0;
+	LIB_V_THROW( rocfft_plan_get_work_buffer_size( plan, &workBufferSize ), "rocfft_plan_get_work_buffer_size failed" );
 
 	//allocate the intermediate buffer
-	void *clMedBuffer=NULL;
+	void *workBuffer=NULL;
 
-	if (buffersize)
+	if (workBufferSize)
 	{
-		int medstatus;
-		clMedBuffer = clCreateBuffer ( context, CL_MEM_READ_WRITE, buffersize, 0, &medstatus);
-		HIP_V_THROW( medstatus, "Creating intmediate Buffer failed" );
+		HIP_V_THROW( hipMalloc(&workBuffer, workBufferSize), "Creating intmediate Buffer failed" );
 	}
-#endif
+
 
 	switch( inArrType )
 	{
@@ -706,6 +712,9 @@ int _tmain( int argc, _TCHAR* argv[] )
 
 	unsigned command_queue_flags = 0;
 	size_t batchSize = 1;
+	double scale = 1.0;
+	size_t iOffset[2] = {0,0};
+	size_t oOffset[2] = {0,0};
 
 	try
 	{
@@ -732,6 +741,11 @@ int _tmain( int argc, _TCHAR* argv[] )
 			( "osY",   po::value< size_t >( &oStrides[ 1 ] )->default_value( 0 ),	"Specify the output stride of the 2nd dimension of a test array" )
 			( "osZ",   po::value< size_t >( &oStrides[ 2 ] )->default_value( 0 ),	"Specify the output stride of the 3rd dimension of a test array" )
 			( "oD", po::value< size_t >( &oStrides[ 3 ] )->default_value( 0 ), "output distance between successive members when batch size > 1" )
+			( "scale",   po::value< double >( &scale )->default_value( 1.0 ), "Specify the scaling factor " )
+			( "iOff0",   po::value< size_t >( &iOffset[ 0 ] )->default_value( 0 ),	"Specify the offset for first/only input buffer" )
+			( "iOff1",   po::value< size_t >( &iOffset[ 1 ] )->default_value( 0 ),	"Specify the offset for second input buffer" )
+			( "oOff0",   po::value< size_t >( &oOffset[ 0 ] )->default_value( 0 ),	"Specify the offset for first/only output buffer" )
+			( "oOff1",   po::value< size_t >( &oOffset[ 1 ] )->default_value( 0 ),	"Specify the offset for second output buffer" )
 			( "batchSize,b",   po::value< size_t >( &batchSize )->default_value( 1 ), "If this value is greater than one, arrays will be used " )
 			( "profile,p",     po::value< unsigned >( &profile_count )->default_value( 1 ), "Time and report the kernel speed of the FFT (default: profiling off)" )
 			( "inArrType",      po::value< rocfft_array_type >( &inArrType )->default_value( rocfft_array_type_complex_interleaved ), "Array type of input data:\n0) interleaved\n1) planar\n2) hermitian interleaved\n3) hermitian planar\n4) real" )
@@ -799,6 +813,11 @@ int _tmain( int argc, _TCHAR* argv[] )
 
 		if(ioArrTypeSupport[inL][otL] == 0) throw std::runtime_error( "Invalid combination of Input/Output array type formats" );
 
+		bool packed = false;
+		if( (iStrides[0] == 1) && (iStrides[1] == 0) && (iStrides[2] == 0) && (iStrides[3] == 0) 
+		&&  (oStrides[0] == 1) && (oStrides[1] == 0) && (oStrides[2] == 0) && (oStrides[3] == 0) )
+			packed = true;
+
 		if( (transformType == rocfft_transform_type_complex_forward) || (transformType == rocfft_transform_type_complex_inverse) ) // Complex-Complex cases
 		{
 			iStrides[1] = iStrides[1] ? iStrides[1] : lengths[0] * iStrides[0];
@@ -858,9 +877,9 @@ int _tmain( int argc, _TCHAR* argv[] )
 		}
 		
 		if( precision == rocfft_precision_single )
-			transform<float>( lengths, iStrides, oStrides, batchSize, inArrType, outArrType, place, precision, transformType, deviceId, platformId, printInfo, profile_count );
+			transform<float>( lengths, iStrides, oStrides, batchSize, iOffset, oOffset, inArrType, outArrType, place, precision, transformType, scale, packed, deviceId, platformId, printInfo, profile_count );
 		else
-			transform<double>( lengths, iStrides, oStrides, batchSize, inArrType, outArrType, place, precision, transformType, deviceId, platformId, printInfo, profile_count ); 
+			transform<double>( lengths, iStrides, oStrides, batchSize, iOffset, oOffset, inArrType, outArrType, place, precision, transformType, scale, packed, deviceId, platformId, printInfo, profile_count ); 
 	}
 	catch( std::exception& e )
 	{

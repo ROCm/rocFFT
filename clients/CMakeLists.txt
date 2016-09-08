@@ -70,6 +70,7 @@ if( BUILD_CLIENTS_SAMPLES )
   	)
 
   ExternalProject_Add( samples
+    DEPENDS ${rocfft_clients_dependencies}
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/samples
     BINARY_DIR samples-build
     CMAKE_ARGS ${SAMPLES_CMAKE_ARGS}
@@ -86,6 +87,7 @@ if( BUILD_CLIENTS_RIDER )
   	)
 
   ExternalProject_Add( rider
+    DEPENDS ${rocfft_clients_dependencies}
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/rider
     BINARY_DIR rider-build
     CMAKE_ARGS ${RIDER_CMAKE_ARGS}

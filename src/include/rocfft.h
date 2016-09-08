@@ -9,7 +9,7 @@ extern "C"
 
 // Opaque pointer types to library internal data structures 
 typedef struct rocfft_plan_t *rocfft_plan;
-typedef struct rocfft_description_t *rocfft_description;
+typedef struct rocfft_plan_description_t *rocfft_plan_description;
 typedef struct rocfft_execution_info_t *rocfft_execution_info;
 
 // Status & error message
@@ -74,7 +74,7 @@ DLL_PUBLIC rocfft_status rocfft_cleanup();
 DLL_PUBLIC rocfft_status rocfft_plan_create(       rocfft_plan *plan,
                                         rocfft_transform_type transform_type, rocfft_precision precision,
                                         size_t dimensions, const size_t *lengths, size_t number_of_transforms,
-                                        const rocfft_description description );
+                                        const rocfft_plan_description description );
 
 
 // plan execution
@@ -88,19 +88,19 @@ DLL_PUBLIC rocfft_status rocfft_plan_destroy( rocfft_plan plan );
 
 
 // plan description funtions to specify optional additional plan properties
-DLL_PUBLIC rocfft_status rocfft_description_set_scale_float( rocfft_description description, float scale );
-DLL_PUBLIC rocfft_status rocfft_description_set_scale_double( rocfft_description description, double scale );
+DLL_PUBLIC rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan_description description, float scale );
+DLL_PUBLIC rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description description, double scale );
 
-DLL_PUBLIC rocfft_status rocfft_description_set_data_outline(      rocfft_description description,
+DLL_PUBLIC rocfft_status rocfft_plan_description_set_data_outline(      rocfft_plan_description description,
                                                         rocfft_result_placement placement,
                                                         rocfft_array_type in_array_type, rocfft_array_type out_array_type,
                                                         const size_t *in_offsets, const size_t *out_offsets );
 
-DLL_PUBLIC rocfft_status rocfft_description_set_data_layout(       rocfft_description description,
+DLL_PUBLIC rocfft_status rocfft_plan_description_set_data_layout(       rocfft_plan_description description,
                                                         const size_t *in_strides, size_t in_distance,
                                                         const size_t *out_strides, size_t out_distance );
 
-DLL_PUBLIC rocfft_status rocfft_description_set_devices( rocfft_description description, void *devices, size_t number_of_devices );
+DLL_PUBLIC rocfft_status rocfft_plan_description_set_devices( rocfft_plan_description description, void *devices, size_t number_of_devices );
 
 
 // get plan information
@@ -108,8 +108,8 @@ DLL_PUBLIC rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan pla
 
 
 // functions to create and destroy description and execution_info objects
-DLL_PUBLIC rocfft_status rocfft_description_create( rocfft_description *description );
-DLL_PUBLIC rocfft_status rocfft_description_destroy( rocfft_description description );
+DLL_PUBLIC rocfft_status rocfft_plan_description_create( rocfft_plan_description *description );
+DLL_PUBLIC rocfft_status rocfft_plan_description_destroy( rocfft_plan_description description );
 DLL_PUBLIC rocfft_status rocfft_execution_info_create( rocfft_execution_info *info );
 DLL_PUBLIC rocfft_status rocfft_execution_info_destroy( rocfft_execution_info info );
 
