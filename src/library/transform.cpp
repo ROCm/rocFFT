@@ -4,6 +4,7 @@
 #include <hip_runtime.h>
 #include "rocfft.h"
 
+/*
 rocfft_status rocfft_execute(   const rocfft_plan plan,
                                 void **in_buffer,
                                 void **out_buffer,
@@ -11,4 +12,5 @@ rocfft_status rocfft_execute(   const rocfft_plan plan,
 {
 	return rocfft_status_success;
 }
+*/
 
