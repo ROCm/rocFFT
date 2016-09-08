@@ -59,7 +59,7 @@ To destruct a plan after it is no longer needed, the following function can be u
 rocfft_status rocfft_plan_destroy( rocfft_plan plan );
 ```
 
-The following functions can be used to create and destroy plan_description objects.
+The following functions can be used to create and destroy description objects.
 
 ```c
 rocfft_status rocfft_plan_description_create(rocfft_plan_description *description);
@@ -195,7 +195,4 @@ status = rocfft_execution_info_destroy(execution_info);
 // destruct plan
 status = rocfft_plan_destroy(plan);
 
-// destruct buffers
-status = rocfft_buffer_destroy(buffer_a);
-status = rocfft_buffer_destroy(buffer_b);
 ```
