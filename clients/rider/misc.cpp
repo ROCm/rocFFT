@@ -22,17 +22,21 @@ void setupBuffers( std::vector< int > devices,
 }
 
 void clearBuffers(   
-			const unsigned numBuffersIn,
-                	void *buffersIn[],
-        	        const unsigned numBuffersOut,
+			void *buffersIn[],
                 	void *buffersOut[] )
 {
 
-	for(unsigned i=0; i<numBuffersIn; i++)
-		HIP_V_THROW( hipFree(buffersIn[i]), "hipFree failed" );
+	for(unsigned i=0; i<2; i++)
+	{
+		if(buffersIn[i] != NULL)
+			HIP_V_THROW( hipFree(buffersIn[i]), "hipFree failed" );
+	}
 
-	for(unsigned i=0; i<numBuffersOut; i++)
-		HIP_V_THROW( hipFree(buffersOut[i]), "hipFree failed" );
+	for(unsigned i=0; i<2; i++)
+	{
+		if(buffersOut[i] != NULL)
+			HIP_V_THROW( hipFree(buffersOut[i]), "hipFree failed" );
+	}
 
 }
 

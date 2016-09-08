@@ -458,37 +458,40 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 
 	void **BuffersOut = ( place == rocfft_placement_inplace ) ? NULL : &output_device_buffers[ 0 ];
 
-#if 0
+	LIB_V_THROW( rocfft_execution_info_create(&info), "rocfft_execution_info_create failed" );
+	if(workBuffer != NULL)
+		LIB_V_THROW( rocfft_execution_info_set_work_buffer(info, workBuffer), "rocfft_execution_info_set_work_buffer failed" );
+
 	// Execute once for basic functional test
-	HIP_V_THROW( clfftEnqueueTransform( plan_handle, dir, 1, &queue, 0, NULL, NULL,
-		&input_device_buffers[ 0 ], BuffersOut, clMedBuffer ),
-		"clfftEnqueueTransform failed" );
+	LIB_V_THROW( rocfft_execute( plan, input_device_buffers, BuffersOut, info ), "rocfft_execute failed" );
 
-	HIP_V_THROW( clFinish( queue ), "clFinish failed" );
+	HIP_V_THROW( hipDeviceSynchronize(), "hipDeviceSynchronize failed" );
 	
-
-	cl_event *outEvent = new cl_event[profile_count];
-	for( unsigned i = 0; i < profile_count; ++i ) outEvent[i] = 0;
 
 	if(profile_count > 1)
 	{
 		Timer tr;		
 		tr.Start();
+
+		hipEvent_t start, stop;
+		HIP_V_THROW( hipEventCreate(&start), "hipEventCreate failed" );
+		HIP_V_THROW( hipEventCreate(&stop), "hipEventCreate failed" );
+
 		for( unsigned i = 0; i < profile_count; ++i )
 		{
-			if( timer ) timer->Start( clFFTID );
-
-			HIP_V_THROW( clfftEnqueueTransform( plan_handle, dir, 1, &queue, 0, NULL, &outEvent[i],
-				&input_device_buffers[ 0 ], BuffersOut, clMedBuffer ),
-				"clfftEnqueueTransform failed" );
-
-			if( timer ) timer->Stop( clFFTID );
+			LIB_V_THROW( rocfft_execute( plan, input_device_buffers, BuffersOut, info ), "rocfft_execute failed" );
 		}
-		HIP_V_THROW( clWaitForEvents ( profile_count, outEvent ), "clWaitForEvents  failed" );
+
+		HIP_V_THROW( hipEventRecord(stop), "hipEventRecord failed" );
+		HIP_V_THROW( hipEventSynchronize(stop), "hipEventSynchronize failed" );
 
 		double wtime = tr.Sample()/((double)profile_count);
 
-		HIP_V_THROW( clFinish( queue ), "clFinish failed" );
+		float gpu_time;
+		hipEventElapsedTime(&gpu_time, start, stop);
+		gpu_time /= (float)profile_count;
+
+		HIP_V_THROW( hipDeviceSynchronize(), "hipDeviceSynchronize failed" );
 
 		size_t totalLen = 1;
 		for(int i=0; i<dim; i++) totalLen *= lengths[i];
@@ -502,32 +505,23 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		double opsconst = constMultiplier * (double)totalLen * log((double)totalLen) / log(2.0);
 
 
-		tout << "\nExecution wall time: " << 1000.0*wtime << " ms" << std::endl;
-		tout << "Execution gflops: " << ((double)batchSize * opsconst)/(1000000000.0*wtime) << std::endl;
+		tout << "\nExecution gpu time: " << gpu_time << " ms" << std::endl;
+		tout << "Execution wall time: " << 1000.0*wtime << " ms" << std::endl;
+		tout << "Execution gflops (wall time): " << ((double)batchSize * opsconst)/(1000000000.0*wtime) << std::endl;
 
 	}
 
-	if(clMedBuffer) clReleaseMemObject(clMedBuffer);
+	if(workBuffer)
+		HIP_V_THROW( hipFree(workBuffer), "hipFree failed" );
 
-	if( timer && (command_queue_flags & CL_QUEUE_PROFILING_ENABLE) )
-	{
-		//	Remove all timings that are outside of 2 stddev (keep 65% of samples); we ignore outliers to get a more consistent result
-		timer->pruneOutliers( 2.0 );
-		timer->Print( );
-		timer->Reset( );
-	}
+	if(desc != NULL)
+		LIB_V_THROW( rocfft_plan_description_destroy(desc), "rocfft_plan_description_destroy failed" );
 
-	/*****************/
-	FreeSharedLibrary( timerLibHandle );
+	if(info != NULL)
+		LIB_V_THROW( rocfft_execution_info_destroy(info), "rocfft_execution_info_destroy failed" );
 
-	for( unsigned i = 0; i < profile_count; ++i )
-	{
-		if(outEvent[i])
-			clReleaseEvent(outEvent[i]);
-	}
 
-	delete[] outEvent;
-#endif
+
 	// Read and check output data
 	// This check is not valid if the FFT is executed multiple times inplace.
 	//
@@ -673,18 +667,18 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 
 		if (checkflag)
 		{
-			std::cout << "\n\n\t\tInternal Client Test *****FAIL*****" << std::endl;
+			std::cout << "\n\n\t\tRider Test *****FAIL*****" << std::endl;
 		}
 		else
 		{
-			std::cout << "\n\n\t\tInternal Client Test *****PASS*****" << std::endl;
+			std::cout << "\n\n\t\tRider Test *****PASS*****" << std::endl;
 		}
 	}
 
-	// HIP_V_THROW( clfftDestroyPlan( &plan_handle ), "clfftDestroyPlan failed" );
-	// HIP_V_THROW( clfftTeardown( ), "clfftTeardown failed" );
+	LIB_V_THROW( rocfft_plan_destroy( plan ), "rocfft_plan_destroy failed" );
+	LIB_V_THROW( rocfft_cleanup( ), "rocfft_cleanup failed" );
 
-	clearBuffers( countOf( input_device_buffers ), input_device_buffers, countOf( output_device_buffers ), output_device_buffers );
+	clearBuffers( input_device_buffers, output_device_buffers );
 	return 0;
 }
 

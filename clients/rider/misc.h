@@ -16,9 +16,7 @@ void setupBuffers( std::vector< int > devices,
                      void *buffersOut[] );
 
 void clearBuffers(   
-			const unsigned numBuffersIn,
                 	void *buffersIn[],
-        	        const unsigned numBuffersOut,
                 	void *buffersOut[] );
 
 

@@ -78,6 +78,11 @@ rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *
 	return rocfft_status_success;
 }
 
+rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution_info info, void* work_buffer )
+{
+	return rocfft_status_success;
+}
+
 
 rocfft_status rocfft_plan_create(	rocfft_plan *plan,
 					rocfft_transform_type transform_type, rocfft_precision precision,
