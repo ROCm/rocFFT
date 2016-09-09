@@ -107,64 +107,68 @@ rocfft_status rocfft_plan_create(       rocfft_plan *plan,
                                         size_t dimensions, const size_t *lengths, size_t number_of_transforms,
                                         const rocfft_plan_description description )
 {
-	switch(transform_type)
+
+	if(description != nullptr)
 	{
-	case rocfft_transform_type_complex_forward:
-	case rocfft_transform_type_complex_inverse:
-	{
-		if(placement == rocfft_placement_inplace)
+		switch(transform_type)
 		{
-			if(description->inArrayType == rocfft_array_type_complex_interleaved)
+		case rocfft_transform_type_complex_forward:
+		case rocfft_transform_type_complex_inverse:
+		{
+			if(placement == rocfft_placement_inplace)
 			{
-				if(description->outArrayType != rocfft_array_type_complex_interleaved)
-					return rocfft_status_invalid_array_type;
-			}
-			else if(description->inArrayType == rocfft_array_type_complex_planar)
-			{
-				if(description->outArrayType != rocfft_array_type_complex_planar)
+				if(description->inArrayType == rocfft_array_type_complex_interleaved)
+				{
+					if(description->outArrayType != rocfft_array_type_complex_interleaved)
+						return rocfft_status_invalid_array_type;
+				}
+				else if(description->inArrayType == rocfft_array_type_complex_planar)
+				{
+					if(description->outArrayType != rocfft_array_type_complex_planar)
+						return rocfft_status_invalid_array_type;
+				}
+				else
 					return rocfft_status_invalid_array_type;
 			}
 			else
-				return rocfft_status_invalid_array_type;
-		}
-		else
-		{
-			if( (	(description->inArrayType == rocfft_array_type_complex_interleaved) ||
-				(description->inArrayType == rocfft_array_type_complex_planar) ) )
 			{
-				if( !(	(description->outArrayType == rocfft_array_type_complex_interleaved) ||
-					(description->outArrayType == rocfft_array_type_complex_planar) ) )
+				if( (	(description->inArrayType == rocfft_array_type_complex_interleaved) ||
+					(description->inArrayType == rocfft_array_type_complex_planar) ) )
+				{
+					if( !(	(description->outArrayType == rocfft_array_type_complex_interleaved) ||
+						(description->outArrayType == rocfft_array_type_complex_planar) ) )
+						return rocfft_status_invalid_array_type;
+				}
+				else
 					return rocfft_status_invalid_array_type;
 			}
-			else
-				return rocfft_status_invalid_array_type;
 		}
-	}
-	break;
-	case rocfft_transform_type_real_forward:
-	{
-	}
-	break;
-	case rocfft_transform_type_real_inverse:
-	{
-	}
-	break;
-	}
-
-
-	if( (placement == rocfft_placement_inplace) &&
-		((transform_type == rocfft_transform_type_complex_forward) || (transform_type == rocfft_transform_type_complex_inverse)) )
-	{
-		for(size_t i=0; i<3; i++)
-			if(description->inStrides[i] != description->outStrides[i])
-				return rocfft_status_invalid_strides;
-
-		if(description->inDist != description->outDist)
-			return rocfft_status_invalid_distance;
-
-		for(size_t i=0; i<2; i++)
-			if(description->inOffset[i] != description->outOffset[i])
-				return rocfft_status_invalid_offset;
+		break;
+		case rocfft_transform_type_real_forward:
+		{
+		}
+		break;
+		case rocfft_transform_type_real_inverse:
+		{
+		}
+		break;
+		}
+	
+	
+		if( (placement == rocfft_placement_inplace) &&
+			((transform_type == rocfft_transform_type_complex_forward) || (transform_type == rocfft_transform_type_complex_inverse)) )
+		{
+			for(size_t i=0; i<3; i++)
+				if(description->inStrides[i] != description->outStrides[i])
+					return rocfft_status_invalid_strides;
+	
+			if(description->inDist != description->outDist)
+				return rocfft_status_invalid_distance;
+	
+			for(size_t i=0; i<2; i++)
+				if(description->inOffset[i] != description->outOffset[i])
+					return rocfft_status_invalid_offset;
+		}
 	}
 
 	if(dimensions > 3)
@@ -179,6 +183,8 @@ rocfft_status rocfft_plan_create(       rocfft_plan *plan,
 
 	p->batch = number_of_transforms;
 	p->placement = placement;
+	p->precision = precision;
+	p->transformType = transform_type;
 
 	if(description != nullptr)
 		p->desc = *description;
@@ -200,16 +206,12 @@ rocfft_status rocfft_plan_create(       rocfft_plan *plan,
 
 	if(p->desc.inDist == 0)
 	{
-		p->desc.inDist = 1;
-		for(size_t i=0; i<(p->rank); i++)
-			p->desc.inDist *= p->lengths[i];
+		p->desc.inDist = p->lengths[p->rank - 1] * p->desc.inStrides[p->rank -1];
 	}
 
 	if(p->desc.outDist == 0)
 	{
-		p->desc.outDist = 1;
-		for(size_t i=0; i<(p->rank); i++)
-			p->desc.outDist *= p->lengths[i];
+		p->desc.outDist = p->lengths[p->rank - 1] * p->desc.outStrides[p->rank -1];
 	}
 
 
@@ -222,6 +224,93 @@ rocfft_status rocfft_plan_destroy( rocfft_plan plan )
 {
 	if(plan != nullptr)
 		delete plan;
+
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_get_print( const rocfft_plan plan )
+{
+	std::cout << std::endl;
+	std::cout << "precision: " << ((plan->precision == rocfft_precision_single) ? "single" : "double") << std::endl;
+
+	std::cout << "transform type: ";
+	switch(plan->transformType)
+	{
+        case rocfft_transform_type_complex_forward:	std::cout << "complex forward"; break;
+        case rocfft_transform_type_complex_inverse:	std::cout << "complex inverse"; break;
+        case rocfft_transform_type_real_forward:	std::cout << "real forward"; break;
+        case rocfft_transform_type_real_inverse:	std::cout << "real inverse"; break;
+	}
+	std::cout << std::endl;
+
+	std::cout << "result placement: ";
+	switch(plan->placement)
+	{
+        case rocfft_placement_inplace:		std::cout << "in-place"; break;
+        case rocfft_placement_notinplace:	std::cout << "not in-place"; break;
+	}
+	std::cout << std::endl;
+	std::cout << std::endl;
+
+	std::cout << "input array type: ";
+	switch(plan->desc.inArrayType)
+	{
+        case rocfft_array_type_complex_interleaved:	std::cout << "complex interleaved"; break;
+        case rocfft_array_type_complex_planar:		std::cout << "complex planar"; break;
+        case rocfft_array_type_real:			std::cout << "real"; break;
+        case rocfft_array_type_hermitian_interleaved:	std::cout << "hermitian interleaved"; break;
+        case rocfft_array_type_hermitian_planar:	std::cout << "hermitian planar"; break;
+	}
+	std::cout << std::endl;
+
+	std::cout << "output array type: ";
+	switch(plan->desc.outArrayType)
+	{
+        case rocfft_array_type_complex_interleaved:	std::cout << "complex interleaved"; break;
+        case rocfft_array_type_complex_planar:		std::cout << "comple planar"; break;
+        case rocfft_array_type_real:			std::cout << "real"; break;
+        case rocfft_array_type_hermitian_interleaved:	std::cout << "hermitian interleaved"; break;
+        case rocfft_array_type_hermitian_planar:	std::cout << "hermitian planar"; break;
+	}
+	std::cout << std::endl;
+	std::cout << std::endl;
+
+	std::cout << "dimensions: " << plan->rank << std::endl;
+
+	std::cout << "lengths: " << plan->lengths[0];
+	for (size_t i = 1; i < plan->rank; i++)
+		std::cout << ", " << plan->lengths[i];
+	std::cout << std::endl;
+	std::cout << "batch size: " << plan->batch << std::endl;
+	std::cout << std::endl;
+
+	std::cout << "input offset: " << plan->desc.inOffset[0];
+	if( (plan->desc.inArrayType == rocfft_array_type_complex_planar) || (plan->desc.inArrayType == rocfft_array_type_hermitian_planar) )
+		std::cout << ", " << plan->desc.inOffset[1];
+	std::cout << std::endl;
+
+	std::cout << "output offset: " << plan->desc.outOffset[0];
+	if( (plan->desc.outArrayType == rocfft_array_type_complex_planar) || (plan->desc.outArrayType == rocfft_array_type_hermitian_planar) )
+		std::cout << ", " << plan->desc.outOffset[1];
+	std::cout << std::endl;
+	std::cout << std::endl;
+
+	std::cout << "input strides: " << plan->desc.inStrides[0];
+	for (size_t i = 1; i < plan->rank; i++)
+		std::cout << ", " << plan->desc.inStrides[i];
+	std::cout << std::endl;
+
+	std::cout << "output strides: " << plan->desc.outStrides[0];
+	for (size_t i = 1; i < plan->rank; i++)
+		std::cout << ", " << plan->desc.outStrides[i];
+	std::cout << std::endl;
+
+	std::cout << "input distance: " << plan->desc.inDist << std::endl;
+	std::cout << "output distance: " << plan->desc.outDist << std::endl;
+	std::cout << std::endl;
+
+	std::cout << "scale: " << plan->desc.scale << std::endl;
+	std::cout << std::endl;
 
 	return rocfft_status_success;
 }

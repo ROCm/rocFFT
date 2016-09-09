@@ -145,6 +145,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		break;
 	}
 
+
 	// Fill the input buffers
 	switch( inArrType )
 	{
@@ -378,6 +379,8 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		LIB_V_THROW( rocfft_plan_create( &plan, place, transformType, precision, dim, lengths, batchSize, desc ), "rocfft_plan_create failed" );
 	}
 
+	// print
+	LIB_V_THROW( rocfft_plan_get_print( plan ), "rocfft_plan_get_print failed" );
 
 	//get the buffersize
 	size_t workBufferSize=0;

@@ -108,6 +108,7 @@ DLL_PUBLIC rocfft_status rocfft_plan_description_set_devices( rocfft_plan_descri
 
 // get plan information
 DLL_PUBLIC rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *size_in_bytes );
+DLL_PUBLIC rocfft_status rocfft_plan_get_print( const rocfft_plan plan );
 
 
 // functions to create and destroy description and execution_info objects
