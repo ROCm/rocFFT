@@ -5,9 +5,6 @@
 #include "rocfft.h"
 #include "./plan.h"
 
-#ifndef nullptr
-#define nullptr NULL
-#endif
 
 size_t Large1DThreshold = 4096;
 
@@ -44,30 +41,45 @@ rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description 
 rocfft_status rocfft_plan_description_set_data_layout(       rocfft_plan_description description,
                                                         rocfft_array_type in_array_type, rocfft_array_type out_array_type,
                                                         const size_t *in_offsets, const size_t *out_offsets,
-                                                        const size_t *in_strides, size_t in_distance,
-                                                        const size_t *out_strides, size_t out_distance )
+                                                        size_t in_strides_size, const size_t *in_strides, size_t in_distance,
+                                                        size_t out_strides_size, const size_t *out_strides, size_t out_distance )
 {
 	description->inArrayType = in_array_type;
 	description->outArrayType = out_array_type;
 
-	description->inOffset[0] = in_offsets[0];
-	if( (in_array_type == rocfft_array_type_complex_planar) || (in_array_type == rocfft_array_type_hermitian_planar) )
-		description->inOffset[1] = in_offsets[1];
+	if(in_offsets != nullptr)
+	{
+		description->inOffset[0] = in_offsets[0];
+		if( (in_array_type == rocfft_array_type_complex_planar) || (in_array_type == rocfft_array_type_hermitian_planar) )
+			description->inOffset[1] = in_offsets[1];
+	}
 
-	description->outOffset[0] = out_offsets[0];
-	if( (out_array_type == rocfft_array_type_complex_planar) || (out_array_type == rocfft_array_type_hermitian_planar) )
-		description->outOffset[1] = out_offsets[1];
+	if(out_offsets != nullptr)
+	{
+		description->outOffset[0] = out_offsets[0];
+		if( (out_array_type == rocfft_array_type_complex_planar) || (out_array_type == rocfft_array_type_hermitian_planar) )
+			description->outOffset[1] = out_offsets[1];
+	}
 
 
-	description->inStrides[0] = in_strides[0];
-	description->inStrides[1] = in_strides[1];
-	description->inStrides[2] = in_strides[2];
-	description->inStrides[3] = in_distance;
+	if(in_strides != nullptr)
+	{
+		for(size_t i=0; i<MIN(3, in_strides_size); i++)
+			description->inStrides[i] = in_strides[i];
+	}
 
-	description->outStrides[0] = out_strides[0];
-	description->outStrides[1] = out_strides[1];
-	description->outStrides[2] = out_strides[2];
-	description->outStrides[3] = out_distance;
+	if(in_distance != 0)
+		description->inDist = in_distance;
+
+	if(out_strides != nullptr)
+	{
+		for(size_t i=0; i<MIN(3, out_strides_size); i++)
+			description->outStrides[i] = out_strides[i];
+	}
+
+	if(out_distance != 0)
+		description->outDist = out_distance;
+
 
 	return rocfft_status_success;
 }
@@ -95,6 +107,70 @@ rocfft_status rocfft_plan_create(       rocfft_plan *plan,
                                         size_t dimensions, const size_t *lengths, size_t number_of_transforms,
                                         const rocfft_plan_description description )
 {
+	switch(transform_type)
+	{
+	case rocfft_transform_type_complex_forward:
+	case rocfft_transform_type_complex_inverse:
+	{
+		if(placement == rocfft_placement_inplace)
+		{
+			if(description->inArrayType == rocfft_array_type_complex_interleaved)
+			{
+				if(description->outArrayType != rocfft_array_type_complex_interleaved)
+					return rocfft_status_invalid_array_type;
+			}
+			else if(description->inArrayType == rocfft_array_type_complex_planar)
+			{
+				if(description->outArrayType != rocfft_array_type_complex_planar)
+					return rocfft_status_invalid_array_type;
+			}
+			else
+				return rocfft_status_invalid_array_type;
+		}
+		else
+		{
+			if( (	(description->inArrayType == rocfft_array_type_complex_interleaved) ||
+				(description->inArrayType == rocfft_array_type_complex_planar) ) )
+			{
+				if( !(	(description->outArrayType == rocfft_array_type_complex_interleaved) ||
+					(description->outArrayType == rocfft_array_type_complex_planar) ) )
+					return rocfft_status_invalid_array_type;
+			}
+			else
+				return rocfft_status_invalid_array_type;
+		}
+	}
+	break;
+	case rocfft_transform_type_real_forward:
+	{
+	}
+	break;
+	case rocfft_transform_type_real_inverse:
+	{
+	}
+	break;
+	}
+
+
+	if( (placement == rocfft_placement_inplace) &&
+		((transform_type == rocfft_transform_type_complex_forward) || (transform_type == rocfft_transform_type_complex_inverse)) )
+	{
+		for(size_t i=0; i<3; i++)
+			if(description->inStrides[i] != description->outStrides[i])
+				return rocfft_status_invalid_strides;
+
+		if(description->inDist != description->outDist)
+			return rocfft_status_invalid_distance;
+
+		for(size_t i=0; i<2; i++)
+			if(description->inOffset[i] != description->outOffset[i])
+				return rocfft_status_invalid_offset;
+	}
+
+	if(dimensions > 3)
+		return rocfft_status_invalid_dimensions;
+
+
 	rocfft_plan p = new rocfft_plan_t;
 	p->rank = dimensions;
 
@@ -106,6 +182,36 @@ rocfft_status rocfft_plan_create(       rocfft_plan *plan,
 
 	if(description != nullptr)
 		p->desc = *description;
+
+	if(p->desc.inStrides[0] == 0)
+	{
+		p->desc.inStrides[0] = 1;
+		for(size_t i=1; i<(p->rank); i++)
+			p->desc.inStrides[i] = p->lengths[i-1] * p->desc.inStrides[i-1];
+	}
+
+	if(p->desc.outStrides[0] == 0)
+	{
+		p->desc.outStrides[0] = 1;
+		for(size_t i=1; i<(p->rank); i++)
+			p->desc.outStrides[i] = p->lengths[i-1] * p->desc.outStrides[i-1];
+	}
+
+
+	if(p->desc.inDist == 0)
+	{
+		p->desc.inDist = 1;
+		for(size_t i=0; i<(p->rank); i++)
+			p->desc.inDist *= p->lengths[i];
+	}
+
+	if(p->desc.outDist == 0)
+	{
+		p->desc.outDist = 1;
+		for(size_t i=0; i<(p->rank); i++)
+			p->desc.outDist *= p->lengths[i];
+	}
+
 
 	*plan = p;
 

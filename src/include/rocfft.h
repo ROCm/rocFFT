@@ -18,6 +18,11 @@ typedef enum rocfft_status_e
         rocfft_status_success,
         rocfft_status_failure,
 	rocfft_status_invalid_arg_value,
+	rocfft_status_invalid_dimensions,
+	rocfft_status_invalid_array_type,
+	rocfft_status_invalid_strides,
+	rocfft_status_invalid_distance,
+	rocfft_status_invalid_offset,
 } rocfft_status;
 
 // Type of transform
@@ -95,8 +100,8 @@ DLL_PUBLIC rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_d
 DLL_PUBLIC rocfft_status rocfft_plan_description_set_data_layout(       rocfft_plan_description description,
                                                         rocfft_array_type in_array_type, rocfft_array_type out_array_type,
                                                         const size_t *in_offsets, const size_t *out_offsets,
-                                                        const size_t *in_strides, size_t in_distance,
-                                                        const size_t *out_strides, size_t out_distance );
+                                                        size_t in_strides_size, const size_t *in_strides, size_t in_distance,
+                                                        size_t out_strides_size, const size_t *out_strides, size_t out_distance );
 
 DLL_PUBLIC rocfft_status rocfft_plan_description_set_devices( rocfft_plan_description description, void *devices, size_t number_of_devices );
 

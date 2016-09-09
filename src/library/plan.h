@@ -2,18 +2,51 @@
 #ifndef PLAN_H
 #define PLAN_H
 
+#ifndef nullptr
+#define nullptr NULL
+#endif
+
+#define MIN(A,B) (((A) < (B)) ? (A) : (B))
+
 struct rocfft_plan_description_t
 {
 
 	rocfft_array_type inArrayType, outArrayType;
 
-	size_t inStrides[4];
-	size_t outStrides[4];
+	size_t inStrides[3];
+	size_t outStrides[3];
+
+	size_t inDist;
+	size_t outDist;
 
 	size_t inOffset[2];
 	size_t outOffset[2];
 
 	double scale;
+
+	rocfft_plan_description_t()
+	{
+		inArrayType  = rocfft_array_type_complex_interleaved;
+		outArrayType = rocfft_array_type_complex_interleaved;
+
+		inStrides[0] = 0;
+		inStrides[1] = 0;
+		inStrides[2] = 0;
+
+		outStrides[0] = 0;
+		outStrides[1] = 0;
+		outStrides[2] = 0;
+
+		inDist = 0;
+		outDist = 0;
+
+		inOffset[0]  = 0;
+		inOffset[1]  = 0;
+		outOffset[0] = 0;
+		outOffset[1] = 0;
+
+		scale = 1.0;
+	}
 };
 
 struct rocfft_plan_t
@@ -37,7 +70,7 @@ struct rocfft_plan_t
 	{
 		lengths[0] = 1;
 		lengths[1] = 1;
-		lengths[2] = 1;		
+		lengths[2] = 1;
 	}	
 };
 
