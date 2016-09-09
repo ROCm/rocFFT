@@ -72,6 +72,7 @@ DLL_PUBLIC rocfft_status rocfft_cleanup();
 
 // plan creation in a single step
 DLL_PUBLIC rocfft_status rocfft_plan_create(       rocfft_plan *plan,
+					rocfft_result_placement placement,
                                         rocfft_transform_type transform_type, rocfft_precision precision,
                                         size_t dimensions, const size_t *lengths, size_t number_of_transforms,
                                         const rocfft_plan_description description );
@@ -91,12 +92,9 @@ DLL_PUBLIC rocfft_status rocfft_plan_destroy( rocfft_plan plan );
 DLL_PUBLIC rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan_description description, float scale );
 DLL_PUBLIC rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description description, double scale );
 
-DLL_PUBLIC rocfft_status rocfft_plan_description_set_data_outline(      rocfft_plan_description description,
-                                                        rocfft_result_placement placement,
-                                                        rocfft_array_type in_array_type, rocfft_array_type out_array_type,
-                                                        const size_t *in_offsets, const size_t *out_offsets );
-
 DLL_PUBLIC rocfft_status rocfft_plan_description_set_data_layout(       rocfft_plan_description description,
+                                                        rocfft_array_type in_array_type, rocfft_array_type out_array_type,
+                                                        const size_t *in_offsets, const size_t *out_offsets,
                                                         const size_t *in_strides, size_t in_distance,
                                                         const size_t *out_strides, size_t out_distance );
 

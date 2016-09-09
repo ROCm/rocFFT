@@ -58,7 +58,7 @@ int main()
 	// Create plan
 	rocfft_plan plan = NULL;
 	size_t length = N;
-	rocfft_plan_create(&plan, rocfft_transform_type_complex_forward, rocfft_precision_single, 1, &length, 1, NULL);
+	rocfft_plan_create(&plan, rocfft_placement_inplace, rocfft_transform_type_complex_forward, rocfft_precision_single, 1, &length, 1, NULL);
 
 	// Execute plan
 	rocfft_execute(plan, (void**) &x, NULL, NULL);

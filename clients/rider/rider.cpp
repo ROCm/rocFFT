@@ -350,16 +350,22 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 	if( (place == rocfft_placement_inplace) && packed && (scale == 1.0) &&
 		(inOffset[0] == 0) && (inOffset[1] == 0) && (outOffset[0] == 0) && (outOffset[1] == 0) ) 
 	{
-		LIB_V_THROW( rocfft_plan_create( &plan, transformType, precision, dim, lengths, batchSize, NULL  ), "rocfft_plan_create failed" );
+		LIB_V_THROW( rocfft_plan_create( &plan, place, transformType, precision, dim, lengths, batchSize, NULL  ), "rocfft_plan_create failed" );
 	}
 	else
 	{
 		LIB_V_THROW( rocfft_plan_description_create( &desc ), "rocfft_plan_description_create failed" );
 
-		LIB_V_THROW( rocfft_plan_description_set_data_outline( desc, place, inArrType, outArrType, inOffset, outOffset ), "rocfft_plan_description_data_outline failed" );
-
 		if(!packed)
-			LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, strides, strides[3], o_strides, o_strides[3] ), "rocfft_plan_description_data_layout failed" ); 
+		{
+			LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, inArrType, outArrType, inOffset, outOffset, 
+						strides, strides[3], o_strides, o_strides[3] ), "rocfft_plan_description_data_layout failed" ); 
+		}
+		else
+		{
+			LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, inArrType, outArrType, inOffset, outOffset, 
+						NULL, 0, NULL, 0 ), "rocfft_plan_description_data_layout failed" ); 
+		}
 
 		if(scale != 1.0)
 		{
@@ -369,7 +375,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 				LIB_V_THROW( rocfft_plan_description_set_scale_double( desc, scale ), "rocfft_plan_description_set_scale_double failed" );
 		}
 	
-		LIB_V_THROW( rocfft_plan_create( &plan, transformType, precision, dim, lengths, batchSize, desc ), "rocfft_plan_create failed" );
+		LIB_V_THROW( rocfft_plan_create( &plan, place, transformType, precision, dim, lengths, batchSize, desc ), "rocfft_plan_create failed" );
 	}
 
 
@@ -704,7 +710,6 @@ int _tmain( int argc, _TCHAR* argv[] )
 	size_t oStrides[ 4 ] = {0,0,0,0};
 	unsigned profile_count = 0;
 
-	unsigned command_queue_flags = 0;
 	size_t batchSize = 1;
 	double scale = 1.0;
 	size_t iOffset[2] = {0,0};

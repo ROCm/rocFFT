@@ -3,8 +3,11 @@
 #include <iostream>
 
 #include "rocfft.h"
+#include "./plan.h"
 
+#ifndef nullptr
 #define nullptr NULL
+#endif
 
 size_t Large1DThreshold = 4096;
 
@@ -21,6 +24,102 @@ inline size_t PrecisionWidth(rocfft_precision pr)
 	default:		assert(false);	return 1;
 	}
 }
+
+
+
+rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan_description description, float scale )
+{
+	description->scale = scale;
+
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description description, double scale )
+{
+	description->scale = scale;
+
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_description_set_data_layout(       rocfft_plan_description description,
+                                                        rocfft_array_type in_array_type, rocfft_array_type out_array_type,
+                                                        const size_t *in_offsets, const size_t *out_offsets,
+                                                        const size_t *in_strides, size_t in_distance,
+                                                        const size_t *out_strides, size_t out_distance )
+{
+	description->inArrayType = in_array_type;
+	description->outArrayType = out_array_type;
+
+	description->inOffset[0] = in_offsets[0];
+	if( (in_array_type == rocfft_array_type_complex_planar) || (in_array_type == rocfft_array_type_hermitian_planar) )
+		description->inOffset[1] = in_offsets[1];
+
+	description->outOffset[0] = out_offsets[0];
+	if( (out_array_type == rocfft_array_type_complex_planar) || (out_array_type == rocfft_array_type_hermitian_planar) )
+		description->outOffset[1] = out_offsets[1];
+
+
+	description->inStrides[0] = in_strides[0];
+	description->inStrides[1] = in_strides[1];
+	description->inStrides[2] = in_strides[2];
+	description->inStrides[3] = in_distance;
+
+	description->outStrides[0] = out_strides[0];
+	description->outStrides[1] = out_strides[1];
+	description->outStrides[2] = out_strides[2];
+	description->outStrides[3] = out_distance;
+
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_description_create( rocfft_plan_description *description )
+{
+	rocfft_plan_description desc = new rocfft_plan_description_t;
+	*description = desc;
+
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_description_destroy( rocfft_plan_description description )
+{
+	if(description != nullptr)
+		delete description;
+
+	return rocfft_status_success;
+}
+
+
+rocfft_status rocfft_plan_create(       rocfft_plan *plan,
+					rocfft_result_placement placement,
+                                        rocfft_transform_type transform_type, rocfft_precision precision,
+                                        size_t dimensions, const size_t *lengths, size_t number_of_transforms,
+                                        const rocfft_plan_description description )
+{
+	rocfft_plan p = new rocfft_plan_t;
+	p->rank = dimensions;
+
+	for(size_t i=0; i<(p->rank); i++)
+		p->lengths[i] = lengths[i];
+
+	p->batch = number_of_transforms;
+	p->placement = placement;
+
+	if(description != nullptr)
+		p->desc = *description;
+
+	*plan = p;
+
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_destroy( rocfft_plan plan )
+{
+	if(plan != nullptr)
+		delete plan;
+
+	return rocfft_status_success;
+}
+
 
 enum OperatingBuffer
 {
