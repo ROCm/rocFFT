@@ -19,29 +19,23 @@ There is a single step (as opposed to 2 steps in clFFT) to create a plan object 
 
 ```c
 rocfft_status rocfft_plan_create(       rocfft_plan *plan,
+                                        rocfft_result_placement placement,
                                         rocfft_transform_type transform_type, rocfft_precision precision,
                                         size_t dimensions, const size_t *lengths, size_t number_of_transforms,
                                         const rocfft_plan_description description );
 ```
 
-Here, 'plan' parameter is a pointer to an internal object created by library that holds plan information. The parameters 'transform_type' and 'precision' specify the fundamental type and precision of the transform. 'dimensions' specify the number of dimensions in the data. Valid values are 1, 2 and 3. The 'lengths' array specifies size in each dimension. Unless custom strides are specified, the data is assumed to be packed. It is important to note that lengths[0] specifies the size of the dimension where consecutive elements are contiguous in memory. The lengths[1], if applicable, is the next higher dimension and so on. The 'number_of_transforms' parameter specifies how many transforms (of the same kind) needs to be computed. By specifying a value greater than 1, an array of transforms can be computed. The 'description' parameter can be set to NULL if no further specification is necessary. Or a description object, set up using other api functions, can be passed in to specify more plan properties.
+Here, 'plan' parameter is a pointer to an internal object created by library that holds plan information. The 'placement' parameter specific whether results are written back to the input buffer (in-place) or not (not in-place). The parameters 'transform_type' and 'precision' specify the fundamental type and precision of the transform. 'dimensions' specify the number of dimensions in the data. Valid values are 1, 2 and 3. The 'lengths' array specifies size in each dimension. Unless custom strides are specified, the data is assumed to be packed. It is important to note that lengths[0] specifies the size of the dimension where consecutive elements are contiguous in memory. The lengths[1], if applicable, is the next higher dimension and so on. The 'number_of_transforms' parameter specifies how many transforms (of the same kind) needs to be computed. By specifying a value greater than 1, an array of transforms can be computed. The 'description' parameter can be set to NULL if no further specification is necessary. Or a description object, set up using other api functions, can be passed in to specify more plan properties.
 
 
-By default results are written back to the input buffer, an in-place result placement. To specify not in-place result placement, the following function can be used to set up the description object to be passed subsequently to 'rocfft_plan_create'. This function can be used to specify input and output array types. Not all combinations of array types are supported and error code will be returned for unsupported cases. Additionally, input and output buffer offsets can be specified using this function.
-
-```c
-rocfft_status rocfft_plan_description_set_data_outline(      rocfft_plan_description description,
-                                                        rocfft_result_placement placement,
-                                                        rocfft_array_type in_array_type, rocfft_array_type out_array_type,
-                                                        const size_t *in_offsets, const size_t *out_offsets );
-```
-
-The following function can be used to specify custom layout of data, with the ability to specify stride between consecutive elements in all dimensions. Also, distance between transform array members can be specified, and they take meaning if the 'number_of_transforms' parameter in 'rocfft_plan_create' is greater than 1.
+To specify data layout in detail, the following function can be used to set up the description object to be passed subsequently to 'rocfft_plan_create'. This function can be used to specify input and output array types. Not all combinations of array types are supported and error code will be returned for unsupported cases. Additionally, input and output buffer offsets can be specified using this function. The function can be used to specify custom layout of data, with the ability to specify stride between consecutive elements in all dimensions. Also, distance between transform array members can be specified. The library will choose appropriate defaults if offsets/strides are set to NULL and/or distances set to 0. 
 
 ```c
 rocfft_status rocfft_plan_description_set_data_layout(       rocfft_plan_description description,
-                                                        const size_t *in_strides, size_t in_distance,
-                                                        const size_t *out_strides, size_t out_distance );
+                                                        rocfft_array_type in_array_type, rocfft_array_type out_array_type,
+                                                        const size_t *in_offsets, const size_t *out_offsets,
+                                                        size_t in_strides_size, const size_t *in_strides, size_t in_distance,
+                                                        size_t out_strides_size, const size_t *out_strides, size_t out_distance );
 
 ```
 
@@ -173,7 +167,7 @@ To give an idea of how the library API is intended to be used, the following seq
 // setup description if needed
 rocfft_plan_description description = NULL;
 status = rocfft_plan_description_create(&description);
-status = rocfft_plan_description_set_data_outline(&description, rocfft_placement_notinplace, ...);
+status = rocfft_plan_description_set_data_layout(&description, ...);
 
 // create plan
 status = rocfft_plan_create(&plan, ..., &description);
