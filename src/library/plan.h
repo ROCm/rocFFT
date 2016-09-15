@@ -2,6 +2,8 @@
 #ifndef PLAN_H
 #define PLAN_H
 
+#include <cstring>
+
 #ifndef nullptr
 #define nullptr NULL
 #endif
@@ -71,7 +73,116 @@ struct rocfft_plan_t
 		lengths[0] = 1;
 		lengths[1] = 1;
 		lengths[2] = 1;
-	}	
+	}
+
+
+	bool operator<(const rocfft_plan_t &b) const
+	{
+		const rocfft_plan_t &a = *this;
+
+		return (memcmp(&a, &b, sizeof(rocfft_plan_t)) < 0 ? true : false);
+	}
+};
+
+
+enum OperatingBuffer
+{
+	OB_UNINIT,
+	OB_USER_IN,
+	OB_USER_OUT,
+	OB_TEMP
+};
+
+enum ComputeScheme
+{
+	CS_NONE,
+	CS_KERNEL_STOCKHAM,
+	CS_KERNEL_STOCKHAM_BLOCK_CC,
+	CS_KERNEL_STOCKHAM_BLOCK_RC,
+	CS_KERNEL_TRANSPOSE,
+	CS_KERNEL_TRANSPOSE_XY_Z,
+	CS_KERNEL_TRANSPOSE_Z_XY,
+	CS_L1D_TRTRT,
+	CS_L1D_CC,
+	CS_L1D_CRT,
+	CS_2D_STRAIGHT,
+	CS_2D_RTRT,
+	CS_2D_RC,
+	CS_KERNEL_2D_STOCKHAM_BLOCK_CC,
+	CS_KERNEL_2D_SINGLE,
+	CS_3D_STRAIGHT,
+	CS_3D_RTRT,
+	CS_3D_RC,
+	CS_KERNEL_3D_STOCKHAM_BLOCK_CC,
+	CS_KERNEL_3D_SINGLE
+};
+
+
+class TreeNode
+{
+private:
+	// disallow public creation
+	TreeNode(TreeNode *p) : parent(p), scheme(CS_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0)
+	{}
+
+public:
+	size_t						batchsize;
+
+	// transform dimension - note this can be different from data dimension
+	size_t						dimension;
+
+	// length of the FFT in each dimension
+	std::vector< size_t >		length;
+
+	// stride of the FFT in each dimension
+	std::vector< size_t >		inStride, outStride;
+
+	// distance between consecutive batch members
+	size_t						iDist, oDist;
+
+	rocfft_result_placement	placement;
+	rocfft_precision			precision;
+	rocfft_array_type			inArrayType, outArrayType;
+
+	// extra twiddle multiplication for large 1D
+	size_t						large1D;
+
+	TreeNode					*parent;
+	std::vector<TreeNode *>		childNodes; 
+
+	ComputeScheme				scheme;
+	OperatingBuffer				obIn, obOut;
+
+public:
+
+	TreeNode(const TreeNode &) = delete;			// disallow copy constructor
+	TreeNode& operator=(const TreeNode&) = delete;	// disallow assignment operator
+
+	// create node (user level) using this function
+	static TreeNode* CreateNode(TreeNode *parentNode = nullptr)
+	{
+		return new TreeNode(parentNode);
+	}
+
+	// destroy node by calling this function
+	static void DeleteNode(TreeNode *node)
+	{
+		std::vector<TreeNode *>::iterator children_p;
+		for (children_p = node->childNodes.begin(); children_p != node->childNodes.end(); children_p++)
+			DeleteNode(*children_p); // recursively delete allocated nodes
+
+		delete node;
+	}
+
+	void RecursiveBuildTree();
+	void TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, OperatingBuffer &flipOut);
+	void TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn, rocfft_array_type rootOut);
+	void TraverseTreeAssignParamsLogicA();
+	void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size_t &workBufSize);
+	void Print(int indent);
+
+	// logic B - using in-place transposes, todo
+	void RecursiveBuildTreeLogicB();
 };
 
 

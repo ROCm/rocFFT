@@ -46,6 +46,8 @@ set( rocfft_source
      rocfft.cpp
      plan.cpp
      transform.cpp
+     repo.cpp
+     devicecall.cpp
      rocfft_transpose.cpp
 )
 
