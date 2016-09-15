@@ -4,6 +4,7 @@
 #include <hip_runtime.h>
 #include "rocfft.h"
 #include "./plan.h"
+#include "./repo.h"
 
 // ===============================================================
 
@@ -138,6 +139,11 @@ rocfft_status rocfft_execute(	rocfft_plan plan,
 				void **out_buffer,
 				rocfft_execution_info info )
 {
+
+	Repo &repo = Repo::GetRepo();
+	ExecPlan execPlan;
+	repo.GetPlan(plan, execPlan);
+	PrintNode(execPlan);
 
 	assert(plan->lengths[0] == 16);
 

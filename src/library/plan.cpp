@@ -1887,7 +1887,25 @@ void TreeNode::Print(int indent = 0)
 		std::cout << outStride[i] << ", ";
 	std::cout << oDist;
 
-	std::cout << std::endl << indentStr.c_str() << "format: " << placement << " " << inArrayType << " " << outArrayType;
+	std::cout << std::endl << indentStr.c_str();
+	std::cout << ((placement == rocfft_placement_inplace) ? "inplace" : "not inplace") << "  ";
+	switch(inArrayType)
+	{
+        case rocfft_array_type_complex_interleaved:	std::cout << "complex interleaved"; break;
+        case rocfft_array_type_complex_planar:		std::cout << "complex planar"; break;
+        case rocfft_array_type_real:			std::cout << "real"; break;
+        case rocfft_array_type_hermitian_interleaved:	std::cout << "hermitian interleaved"; break;
+        case rocfft_array_type_hermitian_planar:	std::cout << "hermitian planar"; break;
+	}
+	std::cout << " -> ";
+	switch(outArrayType)
+	{
+        case rocfft_array_type_complex_interleaved:	std::cout << "complex interleaved"; break;
+        case rocfft_array_type_complex_planar:		std::cout << "complex planar"; break;
+        case rocfft_array_type_real:			std::cout << "real"; break;
+        case rocfft_array_type_hermitian_interleaved:	std::cout << "hermitian interleaved"; break;
+        case rocfft_array_type_hermitian_planar:	std::cout << "hermitian planar"; break;
+	}
 	std::cout << std::endl << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str() << std::endl << indentStr.c_str();
 
 	if (obIn == OB_USER_IN) std::cout << "A -> ";
@@ -1915,8 +1933,6 @@ void TreeNode::Print(int indent = 0)
 
 void ProcessNode(ExecPlan &execPlan)
 {
-	std::cout << "*******************************************************************************" << std::endl;
-
 	assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->dimension);
 
 	if (execPlan.rootPlan->placement == rocfft_placement_inplace)
@@ -1929,6 +1945,12 @@ void ProcessNode(ExecPlan &execPlan)
 	execPlan.rootPlan->TraverseTreeAssignParamsLogicA();
 
 	execPlan.rootPlan->TraverseTreeCollectLeafsLogicA(execPlan.execSeq, execPlan.workBufSize);
+}
+
+
+void PrintNode(ExecPlan &execPlan)
+{
+	std::cout << "*******************************************************************************" << std::endl;
 
 	size_t N = 1;
 	for (size_t i = 0; i < execPlan.rootPlan->length.size(); i++) N *= execPlan.rootPlan->length[i];
@@ -1965,5 +1987,4 @@ void ProcessNode(ExecPlan &execPlan)
 
 	std::cout << "===============================================================================" << std::endl << std::endl;
 }
-
 

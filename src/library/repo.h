@@ -31,12 +31,13 @@ public:
 	}
 
 	void CreatePlan(rocfft_plan plan);
-	void GetPlan(rocfft_plan plan);
+	void GetPlan(rocfft_plan plan, ExecPlan &execPlan);
 	void DeletePlan(rocfft_plan plan);
 	
 };
 
 void ProcessNode(ExecPlan &execPlan);
+void PrintNode(ExecPlan &execPlan);
 
 #endif // REPO_H
 
