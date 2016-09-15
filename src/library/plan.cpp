@@ -231,6 +231,17 @@ rocfft_status rocfft_plan_destroy( rocfft_plan plan )
 	return rocfft_status_success;
 }
 
+rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *size_in_bytes )
+{
+	Repo &repo = Repo::GetRepo();
+	ExecPlan execPlan;
+	repo.GetPlan(plan, execPlan);
+
+	*size_in_bytes = execPlan.workBufSize;
+
+	return rocfft_status_success;
+}
+
 rocfft_status rocfft_plan_get_print( const rocfft_plan plan )
 {
 	std::cout << std::endl;
@@ -1987,4 +1998,5 @@ void PrintNode(ExecPlan &execPlan)
 
 	std::cout << "===============================================================================" << std::endl << std::endl;
 }
+
 

@@ -5,6 +5,7 @@
 #include "rocfft.h"
 #include "./plan.h"
 #include "./repo.h"
+#include "transform.h"
 
 // ===============================================================
 
@@ -134,6 +135,30 @@ __global__ void fft_fwd(hipLaunchParm lp, float2 *gb, float2 *twiddles)
 }
 
 
+rocfft_status rocfft_execution_info_create( rocfft_execution_info *info )
+{
+	rocfft_execution_info einfo = new rocfft_execution_info_t;
+	*info = einfo;
+
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_execution_info_destroy( rocfft_execution_info info )
+{
+	if(info != nullptr)
+		delete info;
+
+	return rocfft_status_success;
+}
+
+DLL_PUBLIC rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution_info info, void *work_buffer, size_t work_buffer_size )
+{
+	info->workBufferSize = work_buffer_size;
+	info->workBuffer = work_buffer;
+
+	return rocfft_status_success;
+}
+
 rocfft_status rocfft_execute(	rocfft_plan plan,
 				void **in_buffer,
 				void **out_buffer,
@@ -144,6 +169,9 @@ rocfft_status rocfft_execute(	rocfft_plan plan,
 	ExecPlan execPlan;
 	repo.GetPlan(plan, execPlan);
 	PrintNode(execPlan);
+
+	if(info != nullptr)
+		assert(info->workBufferSize >= execPlan.workBufSize);
 
 	assert(plan->lengths[0] == 16);
 

@@ -118,7 +118,7 @@ DLL_PUBLIC rocfft_status rocfft_execution_info_create( rocfft_execution_info *in
 DLL_PUBLIC rocfft_status rocfft_execution_info_destroy( rocfft_execution_info info );
 
 // execution info set/get functions to control execution and retrieve event/other information
-DLL_PUBLIC rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution_info info, void* work_buffer );
+DLL_PUBLIC rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution_info info, void *work_buffer, size_t work_buffer_size );
 DLL_PUBLIC rocfft_status rocfft_execution_info_set_mode( rocfft_execution_info info, rocfft_execution_mode mode );
 DLL_PUBLIC rocfft_status rocfft_execution_info_set_stream( rocfft_execution_info info, void *stream );
 

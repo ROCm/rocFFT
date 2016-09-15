@@ -469,7 +469,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 
 	LIB_V_THROW( rocfft_execution_info_create(&info), "rocfft_execution_info_create failed" );
 	if(workBuffer != NULL)
-		LIB_V_THROW( rocfft_execution_info_set_work_buffer(info, workBuffer), "rocfft_execution_info_set_work_buffer failed" );
+		LIB_V_THROW( rocfft_execution_info_set_work_buffer(info, workBuffer, workBufferSize), "rocfft_execution_info_set_work_buffer failed" );
 
 	// Execute once for basic functional test
 	LIB_V_THROW( rocfft_execute( plan, input_device_buffers, BuffersOut, info ), "rocfft_execute failed" );
