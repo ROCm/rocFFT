@@ -85,8 +85,8 @@ DLL_PUBLIC rocfft_status rocfft_plan_create(       rocfft_plan *plan,
 
 // plan execution
 DLL_PUBLIC rocfft_status rocfft_execute(   const rocfft_plan plan,
-                                void **in_buffer,
-                                void **out_buffer,
+                                void *in_buffer[],
+                                void *out_buffer[],
                                 rocfft_execution_info info );
 
 // plan destruction

@@ -1,14 +1,21 @@
-
+/*
 #define __HIPCC__
 
-#include <hip_runtime.h>
+#include <hip_runtime.h>*/
+
+#include <vector>
+#include <assert.h>
+#include <iostream>
+
 #include "rocfft.h"
 #include "./plan.h"
 #include "./repo.h"
-#include "transform.h"
+#include "./transform.h"
+#include "./devicecall.h"
 
 // ===============================================================
 
+#if 0
 __device__ void FwdRad4B1(float2 *R0, float2 *R2, float2 *R1, float2 *R3)
 {
 
@@ -133,7 +140,7 @@ __global__ void fft_fwd(hipLaunchParm lp, float2 *gb, float2 *twiddles)
 	FwdPass0(me, 0, 0, gb, lds, lds, &R0, &R1, &R2, &R3);
 	FwdPass1(me, 0, 0, gb, twiddles, &R0, &R1, &R2, &R3);
 }
-
+#endif
 
 rocfft_status rocfft_execution_info_create( rocfft_execution_info *info )
 {
@@ -159,10 +166,10 @@ DLL_PUBLIC rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution
 	return rocfft_status_success;
 }
 
-rocfft_status rocfft_execute(	rocfft_plan plan,
-				void **in_buffer,
-				void **out_buffer,
-				rocfft_execution_info info )
+rocfft_status rocfft_execute(   const rocfft_plan plan,
+                                void *in_buffer[],
+                                void *out_buffer[],
+                                rocfft_execution_info info )
 {
 
 	Repo &repo = Repo::GetRepo();
@@ -175,6 +182,16 @@ rocfft_status rocfft_execute(	rocfft_plan plan,
 
 	assert(plan->lengths[0] == 16);
 
+	DeviceCallIn data;
+	DeviceCallOut back;
+
+	data.node = execPlan.execSeq[0];
+	data.bufIn = in_buffer[0];
+	data.twiddles = nullptr;
+
+	FN_PRFX(dfn_sp_ip_ci_ci_stoc_16)(&data, &back);
+
+/*
 	size_t N = 16;
 	float2 twiddles[] = {
 		{1.0000000000000000000000000000000000e+00f, -0.0000000000000000000000000000000000e+00f},
@@ -206,7 +223,7 @@ rocfft_status rocfft_execute(	rocfft_plan plan,
 
 	// Launch HIP kernel
 	hipLaunchKernel(HIP_KERNEL_NAME(fft_fwd), dim3(blocks), dim3(threadsPerBlock), 0, 0, (float2 *)(in_buffer[0]), tw);
-
+*/
 
 	return rocfft_status_success;
 }
