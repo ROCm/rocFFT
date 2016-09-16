@@ -179,7 +179,7 @@ public:
 	void TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn, rocfft_array_type rootOut);
 	void TraverseTreeAssignParamsLogicA();
 	void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size_t &workBufSize);
-	void Print(int indent);
+	void Print(int indent = 0);
 
 	// logic B - using in-place transposes, todo
 	void RecursiveBuildTreeLogicB();

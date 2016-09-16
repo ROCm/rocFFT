@@ -1875,7 +1875,7 @@ void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size
 }
 
 
-void TreeNode::Print(int indent = 0)
+void TreeNode::Print(int indent)
 {
 	std::string indentStr;
 	int i = indent;

@@ -1,7 +1,4 @@
-/*
-#define __HIPCC__
 
-#include <hip_runtime.h>*/
 
 #include <vector>
 #include <assert.h>
@@ -166,6 +163,8 @@ DLL_PUBLIC rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution
 	return rocfft_status_success;
 }
 
+void *twiddles_fn();
+
 rocfft_status rocfft_execute(   const rocfft_plan plan,
                                 void *in_buffer[],
                                 void *out_buffer[],
@@ -187,7 +186,9 @@ rocfft_status rocfft_execute(   const rocfft_plan plan,
 
 	data.node = execPlan.execSeq[0];
 	data.bufIn = in_buffer[0];
-	data.twiddles = nullptr;
+	data.twiddles = twiddles_fn();
+
+	execPlan.execSeq[0]->Print();
 
 	FN_PRFX(dfn_sp_ip_ci_ci_stoc_16)(&data, &back);
 

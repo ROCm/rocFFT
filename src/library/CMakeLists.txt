@@ -48,6 +48,7 @@ set( rocfft_source
      transform.cpp
      repo.cpp
      devicecall.cpp
+     twiddles.cpp
      rocfft_transpose.cpp
 )
 
