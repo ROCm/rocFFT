@@ -126,7 +126,7 @@ private:
 	{}
 
 public:
-	size_t						batchsize;
+	size_t						batch;
 
 	// transform dimension - note this can be different from data dimension
 	size_t						dimension;

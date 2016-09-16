@@ -26,7 +26,7 @@ void FN_PRFX(dfn_sp_ip_ci_ci_stoc_16)(void *data_p, void *back_p)
 	size_t WGS = 64;
 	size_t NT = 16;
 
-	const unsigned B = data->node->batchsize;
+	const unsigned B = data->node->batch;
 	const unsigned blocks = (B%NT) ? 1 + (B / NT) : (B / NT);
 	const unsigned threadsPerBlock = WGS;
 

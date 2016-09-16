@@ -14,7 +14,7 @@ void Repo::CreatePlan(rocfft_plan plan)
 		TreeNode *rootPlan = TreeNode::CreateNode();
 
 		rootPlan->dimension = plan->rank;
-		rootPlan->batchsize = plan->batch;
+		rootPlan->batch = plan->batch;
 		for(size_t i=0; i<plan->rank; i++)
 		{
 			rootPlan->length.push_back(plan->lengths[i]);
