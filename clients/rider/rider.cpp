@@ -530,6 +530,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		LIB_V_THROW( rocfft_execution_info_destroy(info), "rocfft_execution_info_destroy failed" );
 
 
+	bool checkflag= false;
 
 	// Read and check output data
 	// This check is not valid if the FFT is executed multiple times inplace.
@@ -537,7 +538,6 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 	if (( place == rocfft_placement_notinplace )
 	||  ( profile_count == 1))
 	{
-		bool checkflag= false;
 		switch( outArrType )
 		{
 		case rocfft_array_type_hermitian_interleaved:
@@ -688,6 +688,10 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 	LIB_V_THROW( rocfft_cleanup( ), "rocfft_cleanup failed" );
 
 	clearBuffers( input_device_buffers, output_device_buffers );
+
+	if(checkflag)
+		return -1;
+
 	return 0;
 }
 
@@ -717,6 +721,8 @@ int _tmain( int argc, _TCHAR* argv[] )
 	double scale = 1.0;
 	size_t iOffset[2] = {0,0};
 	size_t oOffset[2] = {0,0};
+
+	int tret = 0;
 
 	try
 	{
@@ -879,9 +885,9 @@ int _tmain( int argc, _TCHAR* argv[] )
 		}
 		
 		if( precision == rocfft_precision_single )
-			transform<float>( lengths, iStrides, oStrides, batchSize, iOffset, oOffset, inArrType, outArrType, place, precision, transformType, scale, packed, deviceId, platformId, printInfo, profile_count );
+			tret = transform<float>( lengths, iStrides, oStrides, batchSize, iOffset, oOffset, inArrType, outArrType, place, precision, transformType, scale, packed, deviceId, platformId, printInfo, profile_count );
 		else
-			transform<double>( lengths, iStrides, oStrides, batchSize, iOffset, oOffset, inArrType, outArrType, place, precision, transformType, scale, packed, deviceId, platformId, printInfo, profile_count ); 
+			tret = transform<double>( lengths, iStrides, oStrides, batchSize, iOffset, oOffset, inArrType, outArrType, place, precision, transformType, scale, packed, deviceId, platformId, printInfo, profile_count ); 
 	}
 	catch( std::exception& e )
 	{
@@ -889,6 +895,6 @@ int _tmain( int argc, _TCHAR* argv[] )
 		return 1;
 	}
 
-	return 0;
+	return tret;
 }
 
