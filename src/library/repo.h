@@ -30,6 +30,17 @@ public:
 		return repo;
 	}
 
+	~Repo()
+	{
+		std::map<rocfft_plan_t, ExecPlan>::iterator it = planUnique.begin();
+		while(it != planUnique.end())
+		{
+			TreeNode::DeleteNode(it->second.rootPlan);
+			it->second.rootPlan = nullptr;
+			it++;
+		}
+	}
+
 	void CreatePlan(rocfft_plan plan);
 	void GetPlan(rocfft_plan plan, ExecPlan &execPlan);
 	void DeletePlan(rocfft_plan plan);

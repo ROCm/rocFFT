@@ -30,7 +30,7 @@ void FN_PRFX(dfn_sp_ip_ci_ci_stoc_16)(void *data_p, void *back_p)
 	const unsigned blocks = (B%NT) ? 1 + (B / NT) : (B / NT);
 	const unsigned threadsPerBlock = WGS;
 
-	hipLaunchKernel(HIP_KERNEL_NAME( fft_16_ip_d1_pk<-1>), dim3(blocks), dim3(threadsPerBlock), 0, 0, (float2 *)data->twiddles, (float2 *)data->bufIn, B);
+	hipLaunchKernel(HIP_KERNEL_NAME( fft_16_ip_d1_pk<-1>), dim3(blocks), dim3(threadsPerBlock), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn, B);
 
 }
 

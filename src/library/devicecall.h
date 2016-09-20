@@ -14,8 +14,6 @@ struct DeviceCallIn
 	TreeNode *node;
 	void *bufIn;
 	void *bufOut;
-	void *twiddles;
-	void *twiddles_large;
 };
 
 struct DeviceCallOut

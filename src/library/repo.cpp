@@ -6,6 +6,7 @@
 #include "./plan.h"
 #include "./repo.h"
 
+
 void Repo::CreatePlan(rocfft_plan plan)
 {
 	Repo &repo = Repo::GetRepo();
@@ -34,8 +35,16 @@ void Repo::CreatePlan(rocfft_plan plan)
 		ExecPlan execPlan;
 		execPlan.rootPlan = rootPlan;
 		ProcessNode(execPlan);
-		planUnique[*plan] = execPlan;
 
+		for(size_t i=0; i<execPlan.execSeq.size(); i++)
+		{
+			if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM)
+			{
+				execPlan.execSeq[i]->twiddles = twiddles_create(execPlan.execSeq[i]->length[0]);				
+			}
+		}	
+
+		planUnique[*plan] = execPlan;
 		execLookup[plan] = execPlan;
 	}
 }

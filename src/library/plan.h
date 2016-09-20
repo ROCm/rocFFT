@@ -117,12 +117,14 @@ enum ComputeScheme
 	CS_KERNEL_3D_SINGLE
 };
 
+void *twiddles_create(size_t N);
+void twiddles_delete(void *twt);
 
 class TreeNode
 {
 private:
 	// disallow public creation
-	TreeNode(TreeNode *p) : parent(p), scheme(CS_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0)
+	TreeNode(TreeNode *p) : parent(p), scheme(CS_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0), twiddles(nullptr), twiddles_large(nullptr)
 	{}
 
 public:
@@ -153,6 +155,9 @@ public:
 	ComputeScheme				scheme;
 	OperatingBuffer				obIn, obOut;
 
+	void		*twiddles;
+	void		*twiddles_large;
+
 public:
 
 	TreeNode(const TreeNode &) = delete;			// disallow copy constructor
@@ -167,9 +172,24 @@ public:
 	// destroy node by calling this function
 	static void DeleteNode(TreeNode *node)
 	{
+		if(!node)
+			return;
+
 		std::vector<TreeNode *>::iterator children_p;
 		for (children_p = node->childNodes.begin(); children_p != node->childNodes.end(); children_p++)
 			DeleteNode(*children_p); // recursively delete allocated nodes
+
+		if(node->twiddles)
+		{
+			twiddles_delete(node->twiddles);
+			node->twiddles = nullptr;
+		}
+		
+		if(node->twiddles_large)
+		{
+			twiddles_delete(node->twiddles_large);
+			node->twiddles_large = nullptr;
+		}
 
 		delete node;
 	}
