@@ -3,6 +3,7 @@
 #define PLAN_H
 
 #include <cstring>
+#include <vector>
 
 #ifndef nullptr
 #define nullptr NULL

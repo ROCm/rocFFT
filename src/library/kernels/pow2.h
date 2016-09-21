@@ -202,8 +202,8 @@ void fft_8(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const 
 		if(sb == SB_UNIT)
 		{		
 		float4 *lwbv = (float4 *)lwb_out;	
-		lwbv[me + 0] = float4(X0.x,X0.y,X2.x,X2.y);
-		lwbv[me + 2] = float4(X1.x,X1.y,X3.x,X3.y);
+		lwbv[me + 0] = MAKE_FLOAT4(X0.x,X0.y,X2.x,X2.y);
+		lwbv[me + 2] = MAKE_FLOAT4(X1.x,X1.y,X3.x,X3.y);
 		}		
 		else		
 		{
@@ -440,10 +440,10 @@ void fft_32(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const
 		if(sb == SB_UNIT)
 		{			
 		float4 *lwbv = (float4 *)lwb_out;	
-		lwbv[me +  0] = float4(X0.x,X0.y,X4.x,X4.y);
-		lwbv[me +  4] = float4(X1.x,X1.y,X5.x,X5.y);	
-		lwbv[me +  8] = float4(X2.x,X2.y,X6.x,X6.y);
-		lwbv[me + 12] = float4(X3.x,X3.y,X7.x,X7.y);			
+		lwbv[me +  0] = MAKE_FLOAT4(X0.x,X0.y,X4.x,X4.y);
+		lwbv[me +  4] = MAKE_FLOAT4(X1.x,X1.y,X5.x,X5.y);	
+		lwbv[me +  8] = MAKE_FLOAT4(X2.x,X2.y,X6.x,X6.y);
+		lwbv[me + 12] = MAKE_FLOAT4(X3.x,X3.y,X7.x,X7.y);			
 		}
 		else
 		{
@@ -806,10 +806,10 @@ void fft_128(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, cons
 		if(sb == SB_UNIT)
 		{
 		float4 *lwbv = (float4 *)lwb_out;	
-		lwbv[me +  0] = float4(X0.x,X0.y,X4.x,X4.y);
-		lwbv[me + 16] = float4(X1.x,X1.y,X5.x,X5.y);	
-		lwbv[me + 32] = float4(X2.x,X2.y,X6.x,X6.y);
-		lwbv[me + 48] = float4(X3.x,X3.y,X7.x,X7.y);	
+		lwbv[me +  0] = MAKE_FLOAT4(X0.x,X0.y,X4.x,X4.y);
+		lwbv[me + 16] = MAKE_FLOAT4(X1.x,X1.y,X5.x,X5.y);	
+		lwbv[me + 32] = MAKE_FLOAT4(X2.x,X2.y,X6.x,X6.y);
+		lwbv[me + 48] = MAKE_FLOAT4(X3.x,X3.y,X7.x,X7.y);	
 		}
 		else
 		{
@@ -1532,10 +1532,10 @@ void fft_1024(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 	if(sb == SB_UNIT)	
 	{
 		float4 *lwbv = (float4 *)lwb_out;	
-		lwbv[me +   0] = float4(X0.x,X0.y,X4.x,X4.y);
-		lwbv[me + 128] = float4(X1.x,X1.y,X5.x,X5.y);	
-		lwbv[me + 256] = float4(X2.x,X2.y,X6.x,X6.y);
-		lwbv[me + 384] = float4(X3.x,X3.y,X7.x,X7.y);			
+		lwbv[me +   0] = MAKE_FLOAT4(X0.x,X0.y,X4.x,X4.y);
+		lwbv[me + 128] = MAKE_FLOAT4(X1.x,X1.y,X5.x,X5.y);	
+		lwbv[me + 256] = MAKE_FLOAT4(X2.x,X2.y,X6.x,X6.y);
+		lwbv[me + 384] = MAKE_FLOAT4(X3.x,X3.y,X7.x,X7.y);			
 	}	
 	else
 	{
@@ -1839,10 +1839,10 @@ void fft_2048(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 	if(sb == SB_UNIT)		
 	{
 		float4 *lwbv = (float4 *)lwb_out;	
-		lwbv[me +   0] = float4(X0.x,X0.y,X4.x,X4.y);
-		lwbv[me + 256] = float4(X1.x,X1.y,X5.x,X5.y);	
-		lwbv[me + 512] = float4(X2.x,X2.y,X6.x,X6.y);
-		lwbv[me + 768] = float4(X3.x,X3.y,X7.x,X7.y);			
+		lwbv[me +   0] = MAKE_FLOAT4(X0.x,X0.y,X4.x,X4.y);
+		lwbv[me + 256] = MAKE_FLOAT4(X1.x,X1.y,X5.x,X5.y);	
+		lwbv[me + 512] = MAKE_FLOAT4(X2.x,X2.y,X6.x,X6.y);
+		lwbv[me + 768] = MAKE_FLOAT4(X3.x,X3.y,X7.x,X7.y);			
 	}
 	else
 	{

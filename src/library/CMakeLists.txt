@@ -61,6 +61,7 @@ else( )
   message( STATUS "Library Type: STATIC" )
 endif( )
 
+set(pwd_include_dir ${CMAKE_CURRENT_SOURCE_DIR})
 set(internal_include_dirs ${CMAKE_CURRENT_SOURCE_DIR}/internal_include)
 set(internal_include_src ${internal_include_dirs}/rocfft_transpose_kernel.h)
 
@@ -80,6 +81,7 @@ elseif(PLATFORM_NAME STREQUAL "NVIDIA")
   CUDA_INCLUDE_DIRECTORIES(${hip_include_dir}
                            ${extra_cuda_include_dir}
                            ${CMAKE_SOURCE_DIR}/include
+                           ${pwd_include_dir}
                            ${internal_include_dirs}
                           )
   CUDA_ADD_LIBRARY( rocfft

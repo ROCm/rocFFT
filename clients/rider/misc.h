@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <vector>
 
 #define countOf( arr ) ( sizeof( arr ) / sizeof( arr[ 0 ] ) )
 

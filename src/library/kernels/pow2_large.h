@@ -8,7 +8,7 @@ TWLstep2(float2 *twiddles, size_t u)
 	float2 result = twiddles[j];
 	u >>= 8;
 	j = u & 255;
-	result = float2((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+	result = MAKE_FLOAT2((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
 		(result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
 	return result;
 }
@@ -21,11 +21,11 @@ TWLstep3(float2 *twiddles, size_t u)
 	float2 result = twiddles[j];
 	u >>= 8;
 	j = u & 255;
-	result = float2((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+	result = MAKE_FLOAT2((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
 		(result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
 	u >>= 8;
 	j = u & 255;
-	result = float2((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
+	result = MAKE_FLOAT2((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
 		(result.y * twiddles[512 + j].x + result.x * twiddles[512 + j].y));
 	return result;
 }
@@ -358,10 +358,10 @@ lfft_128(float2 *twiddles_128, float2 *twiddles_large, float2 *lds, uint me, uin
 	
 	{
 		float4 *ldsv = (float4 *)lds;	
-		ldsv[me +  0] = float4(X0.x,X0.y,X4.x,X4.y);
-		ldsv[me + 16] = float4(X1.x,X1.y,X5.x,X5.y);	
-		ldsv[me + 32] = float4(X2.x,X2.y,X6.x,X6.y);
-		ldsv[me + 48] = float4(X3.x,X3.y,X7.x,X7.y);			
+		ldsv[me +  0] = MAKE_FLOAT4(X0.x,X0.y,X4.x,X4.y);
+		ldsv[me + 16] = MAKE_FLOAT4(X1.x,X1.y,X5.x,X5.y);	
+		ldsv[me + 32] = MAKE_FLOAT4(X2.x,X2.y,X6.x,X6.y);
+		ldsv[me + 48] = MAKE_FLOAT4(X3.x,X3.y,X7.x,X7.y);			
 	}	
 	
 }
