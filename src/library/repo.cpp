@@ -38,11 +38,20 @@ void Repo::CreatePlan(rocfft_plan plan)
 
 		for(size_t i=0; i<execPlan.execSeq.size(); i++)
 		{
-			if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM)
+			if(	(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM) ||
+				(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) ||
+				(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) )
 			{
 				execPlan.execSeq[i]->twiddles = twiddles_create(execPlan.execSeq[i]->length[0]);				
 			}
-		}	
+
+			if(execPlan.execSeq[i]->large1D != 0)
+			{
+				execPlan.execSeq[i]->twiddles_large = twiddles_create(execPlan.execSeq[i]->large1D);
+			}
+		}
+
+		PlanPow2(execPlan);	
 
 		planUnique[*plan] = execPlan;
 		execLookup[plan] = execPlan;

@@ -47,6 +47,7 @@ set( rocfft_source
      plan.cpp
      transform.cpp
      repo.cpp
+     pow2.cpp
      devicecall.cpp
      twiddles.cpp
      rocfft_transpose.cpp

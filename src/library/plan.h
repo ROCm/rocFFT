@@ -205,8 +205,6 @@ public:
 	void RecursiveBuildTreeLogicB();
 };
 
-
-
 #endif // PLAN_H
 
 
