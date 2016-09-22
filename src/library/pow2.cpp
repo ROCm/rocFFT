@@ -144,13 +144,50 @@ void PlanPow2(ExecPlan &execPlan)
 				}
 				else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM) && (execPlan.execSeq.size() == 3) )
 				{
+					gp.b_x = execPlan.execSeq[i]->length[1] * execPlan.execSeq[i]->batch;
+
 					switch(execPlan.execSeq[i]->length[0])
 					{
-					case 4096: 	gp.tpb_x = 256; gp.b_x = execPlan.execSeq[i]->length[1] * execPlan.execSeq[i]->batch;
+					case 4096: 	gp.tpb_x = 256;
 							ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_4096); break;
-					case 2048: 	gp.tpb_x = 256; gp.b_x = execPlan.execSeq[i]->length[1] * execPlan.execSeq[i]->batch;
+					case 2048: 	gp.tpb_x = 256;
 							ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_2048); break;
 					default: assert(false);
+					}
+				}
+				else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM) && (execPlan.execSeq.size() == 5) )
+				{
+					gp.b_x = execPlan.execSeq[i]->length[1] * execPlan.execSeq[i]->batch;
+
+					if(execPlan.execSeq[i]->placement == rocfft_placement_inplace)
+					{
+						switch(execPlan.execSeq[i]->length[0])
+						{
+						case 4096: 	gp.tpb_x = 256;
+								ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_4096); break;
+						case 2048: 	gp.tpb_x = 256;
+								ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_2048); break;
+						case 1024: 	gp.tpb_x = 128;
+								ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_1024); break;
+						case 512: 	gp.tpb_x = 64;
+								ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_512); break;
+						default: assert(false);
+						}
+					}
+					else
+					{
+						switch(execPlan.execSeq[i]->length[0])
+						{
+						case 4096: 	gp.tpb_x = 256;
+								ptr = &FN_PRFX(dfn_sp_op_ci_ci_stoc_2_4096); break;
+						case 2048: 	gp.tpb_x = 256;
+								ptr = &FN_PRFX(dfn_sp_op_ci_ci_stoc_2_2048); break;
+						case 1024: 	gp.tpb_x = 128;
+								ptr = &FN_PRFX(dfn_sp_op_ci_ci_stoc_2_1024); break;
+						case 512: 	gp.tpb_x = 64;
+								ptr = &FN_PRFX(dfn_sp_op_ci_ci_stoc_2_512); break;
+						default: assert(false);
+						}
 					}
 				}
 				else if(execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE)
