@@ -142,7 +142,7 @@ void PlanPow2(ExecPlan &execPlan)
 						gp.tpb_x = 128;
 					}
 				}
-				else if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM)
+				else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM) && (execPlan.execSeq.size() == 3) )
 				{
 					switch(execPlan.execSeq[i]->length[0])
 					{
@@ -155,11 +155,19 @@ void PlanPow2(ExecPlan &execPlan)
 				}
 				else if(execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE)
 				{
-					ptr = FN_PRFX(transpose_tmp);
+					ptr = FN_PRFX(transpose_var1);
 					gp.tpb_x = 16;
 					gp.tpb_y = 16;
-					gp.b_x = execPlan.execSeq[i]->length[0] / 64;
-					gp.b_y = execPlan.execSeq[i]->batch;
+					if(execPlan.execSeq[i]->transTileDir == TTD_IP_HOR)
+					{
+						gp.b_x = execPlan.execSeq[i]->length[0] / 64;
+						gp.b_y = (execPlan.execSeq[i]->length[1] / 64) * execPlan.execSeq[i]->batch;
+					}
+					else
+					{
+						gp.b_x = execPlan.execSeq[i]->length[1] / 64;
+						gp.b_y = (execPlan.execSeq[i]->length[0] / 64) * execPlan.execSeq[i]->batch;
+					}
 				}
 
 				execPlan.devFnCall.push_back(ptr);

@@ -53,7 +53,7 @@ void FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_64)(void *data_p, void *back_p);
 void FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_128)(void *data_p, void *back_p);
 void FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_256)(void *data_p, void *back_p);
 
-void FN_PRFX(transpose_tmp)(void *data_p, void *back_p);
+void FN_PRFX(transpose_var1)(void *data_p, void *back_p);
 
 }
 

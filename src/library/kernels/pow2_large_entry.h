@@ -452,11 +452,6 @@ typedef struct tag_Tile
    size_t y;
 } Tile;
 
-enum TransTileDir
-{
-	TTD_IP_HOR,
-	TTD_IP_VER,
-};
 
 template<int dir, int twl, TransTileDir ttd>
 __global__

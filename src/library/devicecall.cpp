@@ -86,12 +86,22 @@ POW2_LARGE_BRC_A(FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_128),fft_256_128_brc_d1_pk)
 POW2_LARGE_BRC_A(FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_256),fft_256_256_brc_d1_pk)
 
 
-void FN_PRFX(transpose_tmp)(void *data_p, void *back_p)
+void FN_PRFX(transpose_var1)(void *data_p, void *back_p)
 {
 	DeviceCallIn *data = (DeviceCallIn *)data_p;
 	DeviceCallOut *back = (DeviceCallOut *)back_p;
+
+	if(data->node->transTileDir == TTD_IP_HOR)
+	{
 	hipLaunchKernel(HIP_KERNEL_NAME( transpose_var1<-1,0,TTD_IP_HOR> ), dim3(data->gridParam.b_x, data->gridParam.b_y), dim3(data->gridParam.tpb_x, data->gridParam.tpb_x), 0, 0,
 				(float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],
-				1, data->node->inStride[1], data->node->outStride[1], data->node->iDist, data->node->oDist);
+				(data->node->length[1]/64), data->node->inStride[1], data->node->outStride[1], data->node->iDist, data->node->oDist);
+	}
+	else
+	{
+	hipLaunchKernel(HIP_KERNEL_NAME( transpose_var1<-1,0,TTD_IP_VER> ), dim3(data->gridParam.b_x, data->gridParam.b_y), dim3(data->gridParam.tpb_x, data->gridParam.tpb_x), 0, 0,
+				(float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],
+				(data->node->length[0]/64), data->node->inStride[1], data->node->outStride[1], data->node->iDist, data->node->oDist);
+	}
 }
 

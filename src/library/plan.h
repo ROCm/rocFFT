@@ -118,6 +118,12 @@ enum ComputeScheme
 	CS_KERNEL_3D_SINGLE
 };
 
+enum TransTileDir
+{
+	TTD_IP_HOR,
+	TTD_IP_VER,
+};
+
 void *twiddles_create(size_t N);
 void twiddles_delete(void *twt);
 
@@ -125,7 +131,8 @@ class TreeNode
 {
 private:
 	// disallow public creation
-	TreeNode(TreeNode *p) : parent(p), scheme(CS_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0), twiddles(nullptr), twiddles_large(nullptr)
+	TreeNode(TreeNode *p) : parent(p), scheme(CS_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0),
+				transTileDir(TTD_IP_HOR), twiddles(nullptr), twiddles_large(nullptr)
 	{}
 
 public:
@@ -155,6 +162,8 @@ public:
 
 	ComputeScheme				scheme;
 	OperatingBuffer				obIn, obOut;
+
+	TransTileDir	transTileDir;
 
 	void		*twiddles;
 	void		*twiddles_large;

@@ -1287,6 +1287,8 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
 		}
 		else
 		{
+			trans1Plan->transTileDir = TTD_IP_VER;
+
 			if (parent->scheme == CS_L1D_TRTRT)
 			{
 				trans1Plan->outStride.push_back(outStride[0]);
@@ -1355,6 +1357,8 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
 		}
 		else
 		{
+			trans2Plan->transTileDir = TTD_IP_VER;
+
 			if ( (parent == NULL) || (parent && (parent->scheme == CS_L1D_TRTRT)) )
 			{
 				trans2Plan->outStride.push_back(outStride[0]);
@@ -1423,6 +1427,8 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
 			}
 		}
 
+		if (trans3Plan->obOut != OB_TEMP)
+			trans3Plan->transTileDir = TTD_IP_VER;
 
 		trans3Plan->inStride = row2Plan->outStride;
 		trans3Plan->iDist = row2Plan->oDist;
