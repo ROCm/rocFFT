@@ -45,10 +45,15 @@ void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_256)(void *data_p, void *back_p);
 void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_128_256)(void *data_p, void *back_p);
 void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_256_256)(void *data_p, void *back_p);
 
+void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_2048)(void *data_p, void *back_p);
+void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_4096)(void *data_p, void *back_p);
+
 void FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_128_64)(void *data_p, void *back_p);
 void FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_64)(void *data_p, void *back_p);
 void FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_128)(void *data_p, void *back_p);
 void FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_256)(void *data_p, void *back_p);
+
+void FN_PRFX(transpose_tmp)(void *data_p, void *back_p);
 
 }
 

@@ -77,9 +77,21 @@ POW2_LARGE_BCC_A(FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_256),fft_64_256_bcc_d1_pk)
 POW2_LARGE_BCC_A(FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_128_256),fft_128_256_bcc_d1_pk)
 POW2_LARGE_BCC_A(FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_256_256),fft_256_256_bcc_d1_pk)
 
+POW2_LARGE_BCC_A(FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_2048),fft_64_2048_bcc_d1_pk)
+POW2_LARGE_BCC_A(FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_4096),fft_64_4096_bcc_d1_pk)
+
 POW2_LARGE_BRC_A(FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_128_64),fft_128_64_brc_d1_pk)
 POW2_LARGE_BRC_A(FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_64),fft_256_64_brc_d1_pk)
 POW2_LARGE_BRC_A(FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_128),fft_256_128_brc_d1_pk)
 POW2_LARGE_BRC_A(FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_256),fft_256_256_brc_d1_pk)
 
+
+void FN_PRFX(transpose_tmp)(void *data_p, void *back_p)
+{
+	DeviceCallIn *data = (DeviceCallIn *)data_p;
+	DeviceCallOut *back = (DeviceCallOut *)back_p;
+	hipLaunchKernel(HIP_KERNEL_NAME( transpose_var1<-1,0,TTD_IP_HOR> ), dim3(data->gridParam.b_x, data->gridParam.b_y), dim3(data->gridParam.tpb_x, data->gridParam.tpb_x), 0, 0,
+				(float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],
+				1, data->node->inStride[1], data->node->outStride[1], data->node->iDist, data->node->oDist);
+}
 

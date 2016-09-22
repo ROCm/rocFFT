@@ -6,6 +6,9 @@ struct rocfft_execution_info_t
 {
 	void *workBuffer;
 	size_t workBufferSize;
+
+	rocfft_execution_info_t() : workBuffer(nullptr), workBufferSize(0)
+	{}
 };
 
 void TransformPow2(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer[], rocfft_execution_info info);
