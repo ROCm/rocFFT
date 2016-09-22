@@ -166,17 +166,17 @@ void TransformPow2(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
 
 				switch(data.node->obIn)
 				{
-				case OB_USER_IN:	data.bufIn[0] = in_buffer[0];
-				case OB_USER_OUT:	data.bufIn[0] = out_buffer[0];
-				case OB_TEMP:		data.bufIn[0] = info->workBuffer;
+				case OB_USER_IN:	data.bufIn[0] = in_buffer[0]; break;
+				case OB_USER_OUT:	data.bufIn[0] = out_buffer[0]; break;
+				case OB_TEMP:		data.bufIn[0] = info->workBuffer; break;
 				default: assert(false);
 				}
 
 				switch(data.node->obOut)
 				{
-				case OB_USER_IN:	data.bufOut[0] = in_buffer[0];
-				case OB_USER_OUT:	data.bufOut[0] = out_buffer[0];
-				case OB_TEMP:		data.bufOut[0] = info->workBuffer;
+				case OB_USER_IN:	data.bufOut[0] = in_buffer[0]; break;
+				case OB_USER_OUT:	data.bufOut[0] = out_buffer[0]; break;
+				case OB_TEMP:		data.bufOut[0] = info->workBuffer; break;
 				default: assert(false);
 				}
 

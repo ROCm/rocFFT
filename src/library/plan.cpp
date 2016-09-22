@@ -237,7 +237,7 @@ rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *
 	ExecPlan execPlan;
 	repo.GetPlan(plan, execPlan);
 
-	*size_in_bytes = execPlan.workBufSize;
+	*size_in_bytes = execPlan.workBufSize * 2 * sizeof(float);
 
 	return rocfft_status_success;
 }
@@ -1861,7 +1861,7 @@ void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size
 		assert(length.size() == inStride.size());
 		assert(length.size() == outStride.size());
 
-		if (obOut == OB_TEMP) workBufSize = oDist > workBufSize ? oDist : workBufSize;
+		if (obOut == OB_TEMP) workBufSize = (oDist*batch) > workBufSize ? (oDist*batch) : workBufSize;
 		seq.push_back(this);
 	}
 	else
@@ -1883,6 +1883,8 @@ void TreeNode::Print(int indent)
 
 	std::cout << std::endl << indentStr.c_str();
 	std::cout << "dimension: " << dimension;
+	std::cout << std::endl << indentStr.c_str();
+	std::cout << "batch: " << batch;
 	std::cout << std::endl << indentStr.c_str();
 	std::cout << "length: " << length[0];
 	for (size_t i = 1; i < length.size(); i++)
@@ -1917,7 +1919,8 @@ void TreeNode::Print(int indent)
         case rocfft_array_type_hermitian_interleaved:	std::cout << "hermitian interleaved"; break;
         case rocfft_array_type_hermitian_planar:	std::cout << "hermitian planar"; break;
 	}
-	std::cout << std::endl << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str() << std::endl << indentStr.c_str();
+	std::cout << std::endl << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str();
+	std::cout << std::endl << indentStr.c_str() << "large1D: " << large1D << std::endl << indentStr.c_str();
 
 	if (obIn == OB_USER_IN) std::cout << "A -> ";
 	else if (obIn == OB_USER_OUT) std::cout << "B -> ";
