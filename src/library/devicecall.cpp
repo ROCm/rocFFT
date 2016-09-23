@@ -87,7 +87,7 @@ POW2_LARGE_BRC_A(FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_256),fft_256_256_brc_d1_pk)
 
 #define TRANSPOSE_CALL(NUM_Y,TWL,TTD)	hipLaunchKernel(HIP_KERNEL_NAME( transpose_var1<-1,TWL,TTD> ),\
 					dim3(data->gridParam.b_x, data->gridParam.b_y), dim3(data->gridParam.tpb_x, data->gridParam.tpb_x), 0, 0,\
-					(float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
+					(float2 *)data->node->twiddles_large, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
 					NUM_Y, data->node->inStride[1], data->node->outStride[1], data->node->iDist, data->node->oDist);
 
 void FN_PRFX(transpose_var1)(void *data_p, void *back_p)

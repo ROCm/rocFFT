@@ -1926,6 +1926,7 @@ void TreeNode::Print(int indent)
         case rocfft_array_type_hermitian_planar:	std::cout << "hermitian planar"; break;
 	}
 	std::cout << std::endl << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str();
+	std::cout << std::endl << indentStr.c_str() << "TTD: " << transTileDir;
 	std::cout << std::endl << indentStr.c_str() << "large1D: " << large1D << std::endl << indentStr.c_str();
 
 	if (obIn == OB_USER_IN) std::cout << "A -> ";
