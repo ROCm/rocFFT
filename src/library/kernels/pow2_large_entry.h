@@ -1,5 +1,5 @@
-#ifndef FFT_POW2_LARGE_ENTRY_HIP_H
-#define FFT_POW2_LARGE_ENTRY_HIP_H
+#ifndef POW2_LARGE_ENTRY_HIP_H
+#define POW2_LARGE_ENTRY_HIP_H
 
 #include "pow2_large.h"
 
@@ -508,11 +508,22 @@ transpose_var1( hipLaunchParm lp, float2 *twiddles_large, float2* pmComplexIn, f
 	 {
 		 if(dir == -1)
 		 {
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
 		 }
 		 else
 		 {
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
+		 }
+	 }
+	 else if(twl == 4)
+	 {
+		 if(dir == -1)
+		 {
+			TWIDDLE_STEP_MUL_FWD(TWLstep4, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
+		 }
+		 else
+		 {
+			TWIDDLE_STEP_MUL_INV(TWLstep4, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
 		 }
 	 }
 		 
@@ -555,5 +566,5 @@ transpose_var1( hipLaunchParm lp, float2 *twiddles_large, float2* pmComplexIn, f
 }
 
 
-#endif // FFT_POW2_LARGE_ENTRY_HIP_H
+#endif // POW2_LARGE_ENTRY_HIP_H
 

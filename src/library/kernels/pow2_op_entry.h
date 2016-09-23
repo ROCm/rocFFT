@@ -1,5 +1,5 @@
-#ifndef FFT_POW2_OP_ENTRY_HIP_H
-#define FFT_POW2_OP_ENTRY_HIP_H
+#ifndef POW2_OP_ENTRY_HIP_H
+#define POW2_OP_ENTRY_HIP_H
 
 #include "pow2.h"
 
@@ -688,5 +688,5 @@ void fft_4096_op_d2_s1(hipLaunchParm lp, float2 *twiddles, float2 *buffer_i, flo
 	fft_4096<SB_UNIT, dir>(twiddles, lwb_i, lwb_o, lds, me, 1, 1);
 }
 
-#endif // FFT_POW2_OP_ENTRY_HIP_H
+#endif // POW2_OP_ENTRY_HIP_H
 

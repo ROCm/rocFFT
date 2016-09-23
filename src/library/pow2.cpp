@@ -73,7 +73,7 @@ void PlanPow2(ExecPlan &execPlan)
 				DevFnCall ptr = nullptr;
 				GridParam gp;
 
-				if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) && (execPlan.execSeq.size() == 2) )
+				if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) && (execPlan.execSeq[i]->length.size() == 2) )
 				{
 					if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 128) )
 					{
@@ -99,8 +99,48 @@ void PlanPow2(ExecPlan &execPlan)
 						gp.b_x = 32 * execPlan.execSeq[i]->batch;
 						gp.tpb_x = 256;
 					}
+
+					if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 2048) )
+					{
+						ptr = FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_2048);
+						gp.b_x = 128 * execPlan.execSeq[i]->batch;
+						gp.tpb_x = 128;
+					}
+					if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 4096) )
+					{
+						ptr = FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_4096);
+						gp.b_x = 256 * execPlan.execSeq[i]->batch;
+						gp.tpb_x = 128;
+					}
 				}
-				else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) && (execPlan.execSeq.size() == 2) )
+				else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) && (execPlan.execSeq[i]->length.size() == 3) )
+				{
+					if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 128) )
+					{
+						ptr = FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_64_128);
+						gp.b_x = 8 * execPlan.execSeq[i]->length[2] * execPlan.execSeq[i]->batch;
+						gp.tpb_x = 128;
+					}
+					if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 256) )
+					{
+						ptr = FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_64_256);
+						gp.b_x = 16 * execPlan.execSeq[i]->length[2] * execPlan.execSeq[i]->batch;
+						gp.tpb_x = 128;
+					}
+					if( (execPlan.execSeq[i]->length[0] == 128) && (execPlan.execSeq[i]->length[1] == 256) )
+					{
+						ptr = FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_128_256);
+						gp.b_x = 32 * execPlan.execSeq[i]->length[2] * execPlan.execSeq[i]->batch;
+						gp.tpb_x = 128;
+					}
+					if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 256) )
+					{
+						ptr = FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_256_256);
+						gp.b_x = 32 * execPlan.execSeq[i]->length[2] * execPlan.execSeq[i]->batch;
+						gp.tpb_x = 256;
+					}
+				}
+				else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) && (execPlan.execSeq[i]->length.size() == 2) )
 				{
 					if( (execPlan.execSeq[i]->length[0] == 128) && (execPlan.execSeq[i]->length[1] == 64) )
 					{
@@ -127,19 +167,31 @@ void PlanPow2(ExecPlan &execPlan)
 						gp.tpb_x = 256;
 					}
 				}
-				else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) && (execPlan.execSeq.size() == 3) )
+				else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) && (execPlan.execSeq[i]->length.size() == 3) )
 				{
-					if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 2048) )
+					if( (execPlan.execSeq[i]->length[0] == 128) && (execPlan.execSeq[i]->length[1] == 64) )
 					{
-						ptr = FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_2048);
-						gp.b_x = 128 * execPlan.execSeq[i]->batch;
+						ptr = FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_128_64);
+						gp.b_x = 8 * execPlan.execSeq[i]->length[2] * execPlan.execSeq[i]->batch;
 						gp.tpb_x = 128;
 					}
-					if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 4096) )
+					if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 64) )
 					{
-						ptr = FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_4096);
-						gp.b_x = 256 * execPlan.execSeq[i]->batch;
-						gp.tpb_x = 128;
+						ptr = FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_64);
+						gp.b_x = 8 * execPlan.execSeq[i]->length[2] * execPlan.execSeq[i]->batch;
+						gp.tpb_x = 256;
+					}
+					if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 128) )
+					{
+						ptr = FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_128);
+						gp.b_x = 16 * execPlan.execSeq[i]->length[2] * execPlan.execSeq[i]->batch;
+						gp.tpb_x = 256;
+					}
+					if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 256) )
+					{
+						ptr = FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_256);
+						gp.b_x = 32 * execPlan.execSeq[i]->length[2] * execPlan.execSeq[i]->batch;
+						gp.tpb_x = 256;
 					}
 				}
 				else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM) && (execPlan.execSeq.size() == 3) )
@@ -155,7 +207,7 @@ void PlanPow2(ExecPlan &execPlan)
 					default: assert(false);
 					}
 				}
-				else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM) && (execPlan.execSeq.size() == 5) )
+				else if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM)
 				{
 					gp.b_x = execPlan.execSeq[i]->length[1] * execPlan.execSeq[i]->batch;
 

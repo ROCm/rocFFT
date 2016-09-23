@@ -63,6 +63,16 @@ void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_2048)(void *data_p, void *back_p);
 void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_1024)(void *data_p, void *back_p);
 void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_512)(void *data_p, void *back_p);
 
+void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_64_128)(void *data_p, void *back_p);
+void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_64_256)(void *data_p, void *back_p);
+void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_128_256)(void *data_p, void *back_p);
+void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_256_256)(void *data_p, void *back_p);
+
+void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_128_64)(void *data_p, void *back_p);
+void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_64)(void *data_p, void *back_p);
+void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_128)(void *data_p, void *back_p);
+void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_256)(void *data_p, void *back_p);
+
 void FN_PRFX(transpose_var1)(void *data_p, void *back_p);
 
 }

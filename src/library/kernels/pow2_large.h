@@ -1,5 +1,5 @@
-#ifndef FFT_POW2_LARGE_HIP_H
-#define FFT_POW2_LARGE_HIP_H
+#ifndef POW2_LARGE_HIP_H
+#define POW2_LARGE_HIP_H
 
 __device__ float2
 TWLstep2(float2 *twiddles, size_t u)
@@ -30,6 +30,26 @@ TWLstep3(float2 *twiddles, size_t u)
 	return result;
 }
 
+
+__device__ float2
+TWLstep4(float2 *twiddles, size_t u)
+{
+	size_t j = u & 255;
+	float2 result = twiddles[j];
+	u >>= 8;
+	j = u & 255;
+	result = MAKE_FLOAT2((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+		(result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
+	u >>= 8;
+	j = u & 255;
+	result = MAKE_FLOAT2((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
+		(result.y * twiddles[512 + j].x + result.x * twiddles[512 + j].y));
+	u >>= 8;
+	j = u & 255;
+	result = MAKE_FLOAT2((result.x * twiddles[768 + j].x - result.y * twiddles[768 + j].y),
+		(result.y * twiddles[768 + j].x + result.x * twiddles[768 + j].y));
+	return result;
+}
 
 
 
@@ -124,34 +144,34 @@ lfft_64(float2 *twiddles_64, float2 *twiddles_large, float2 *lds, uint me, uint 
 	{
 		if(dir == -1)
 		{
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, (me +  0)*b, X0)	
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, (me + 16)*b, X1)	
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, (me + 32)*b, X2)	
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, (me + 48)*b, X3)			
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, (me +  0)*b, X0)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, (me + 16)*b, X1)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, (me + 32)*b, X2)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, (me + 48)*b, X3)			
 		}
 		else
 		{
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, (me +  0)*b, X0)	
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, (me + 16)*b, X1)	
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, (me + 32)*b, X2)	
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, (me + 48)*b, X3)				
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, (me +  0)*b, X0)	
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, (me + 16)*b, X1)	
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, (me + 32)*b, X2)	
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, (me + 48)*b, X3)				
 		}
 	}
 	else if(twl == 3)
 	{
 		if(dir == -1)
 		{
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, (me +  0)*b, X0)	
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, (me + 16)*b, X1)	
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, (me + 32)*b, X2)	
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, (me + 48)*b, X3)			
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (me +  0)*b, X0)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (me + 16)*b, X1)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (me + 32)*b, X2)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (me + 48)*b, X3)			
 		}
 		else
 		{
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, (me +  0)*b, X0)	
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, (me + 16)*b, X1)	
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, (me + 32)*b, X2)	
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, (me + 48)*b, X3)				
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (me +  0)*b, X0)	
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (me + 16)*b, X1)	
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (me + 32)*b, X2)	
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (me + 48)*b, X3)				
 		}		
 	}
 	
@@ -304,54 +324,54 @@ lfft_128(float2 *twiddles_128, float2 *twiddles_large, float2 *lds, uint me, uin
 	{	
 		if(dir == -1)
 		{
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 0) +  0)*b, X0)
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 0) + 32)*b, X1)
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 0) + 64)*b, X2)
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 0) + 96)*b, X3)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 0) +  0)*b, X0)
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 0) + 32)*b, X1)
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 0) + 64)*b, X2)
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 0) + 96)*b, X3)	
 
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 1) +  0)*b, X4)
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 1) + 32)*b, X5)
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 1) + 64)*b, X6)
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 1) + 96)*b, X7)
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 1) +  0)*b, X4)
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 1) + 32)*b, X5)
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 1) + 64)*b, X6)
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, ((2*me + 1) + 96)*b, X7)
 		}
 		else
 		{
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 0) +  0)*b, X0)
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 0) + 32)*b, X1)
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 0) + 64)*b, X2)
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 0) + 96)*b, X3)	
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 0) +  0)*b, X0)
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 0) + 32)*b, X1)
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 0) + 64)*b, X2)
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 0) + 96)*b, X3)	
 
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 1) +  0)*b, X4)
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 1) + 32)*b, X5)
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 1) + 64)*b, X6)
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 1) + 96)*b, X7)
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 1) +  0)*b, X4)
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 1) + 32)*b, X5)
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 1) + 64)*b, X6)
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, ((2*me + 1) + 96)*b, X7)
 		}
 	}
 	else if(twl == 3)
 	{
 		if(dir == -1)
 		{
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 0) +  0)*b, X0)
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 0) + 32)*b, X1)
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 0) + 64)*b, X2)
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 0) + 96)*b, X3)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 0) +  0)*b, X0)
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 0) + 32)*b, X1)
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 0) + 64)*b, X2)
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 0) + 96)*b, X3)	
 
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 1) +  0)*b, X4)
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 1) + 32)*b, X5)
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 1) + 64)*b, X6)
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 1) + 96)*b, X7)
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 1) +  0)*b, X4)
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 1) + 32)*b, X5)
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 1) + 64)*b, X6)
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, ((2*me + 1) + 96)*b, X7)
 		}
 		else
 		{
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 0) +  0)*b, X0)
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 0) + 32)*b, X1)
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 0) + 64)*b, X2)
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 0) + 96)*b, X3)	
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 0) +  0)*b, X0)
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 0) + 32)*b, X1)
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 0) + 64)*b, X2)
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 0) + 96)*b, X3)	
 
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 1) +  0)*b, X4)
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 1) + 32)*b, X5)
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 1) + 64)*b, X6)
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 1) + 96)*b, X7)
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 1) +  0)*b, X4)
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 1) + 32)*b, X5)
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 1) + 64)*b, X6)
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, ((2*me + 1) + 96)*b, X7)
 		}		
 	}
 	
@@ -489,34 +509,34 @@ lfft_256(float2 *twiddles_256, float2 *twiddles_large, float2 *lds, uint me, uin
 	{
 		if(dir == -1)
 		{
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, (me +   0)*b, X0)	
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, (me +  64)*b, X1)	
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, (me + 128)*b, X2)	
-			TWIDDLE_3STEP_MUL_FWD(TWLstep2, twiddles_large, (me + 192)*b, X3)			
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, (me +   0)*b, X0)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, (me +  64)*b, X1)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, (me + 128)*b, X2)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, (me + 192)*b, X3)			
 		}
 		else
 		{
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, (me +   0)*b, X0)	
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, (me +  64)*b, X1)	
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, (me + 128)*b, X2)	
-			TWIDDLE_3STEP_MUL_INV(TWLstep2, twiddles_large, (me + 192)*b, X3)				
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, (me +   0)*b, X0)	
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, (me +  64)*b, X1)	
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, (me + 128)*b, X2)	
+			TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, (me + 192)*b, X3)				
 		}
 	}
 	else if(twl == 3)
 	{
 		if(dir == -1)
 		{
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, (me +   0)*b, X0)	
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, (me +  64)*b, X1)	
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, (me + 128)*b, X2)	
-			TWIDDLE_3STEP_MUL_FWD(TWLstep3, twiddles_large, (me + 192)*b, X3)			
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (me +   0)*b, X0)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (me +  64)*b, X1)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (me + 128)*b, X2)	
+			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (me + 192)*b, X3)			
 		}
 		else
 		{
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, (me +   0)*b, X0)	
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, (me +  64)*b, X1)	
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, (me + 128)*b, X2)	
-			TWIDDLE_3STEP_MUL_INV(TWLstep3, twiddles_large, (me + 192)*b, X3)				
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (me +   0)*b, X0)	
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (me +  64)*b, X1)	
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (me + 128)*b, X2)	
+			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (me + 192)*b, X3)				
 		}		
 	}
 	
@@ -1006,5 +1026,5 @@ void fft_64_4096_bcc(float2 *twiddles_64, float2 *twiddles_262144, float2 * lwbI
 }
 
 
-#endif // FFT_POW2_LARGE_HIP_H
+#endif // POW2_LARGE_HIP_H
 
