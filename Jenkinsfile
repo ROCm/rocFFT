@@ -36,7 +36,7 @@ node('rocm && fiji')
         stage("unit tests") {
           sh '''
               cd clients-build/tests-build/staging
-              ./rocfft-test-correctness-d --gtest_output=xml
+              ./rocfft-test-correctness-d --gtest_output=xml --gtest_filter=-accuracy_test_transpose_middle_range/*
           '''
           junit 'clients-build/tests-build/staging/*.xml'
         }
