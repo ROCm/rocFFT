@@ -1,3 +1,7 @@
+/*******************************************************************************
+ * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
+ ******************************************************************************/
+
 #ifndef __ROCFFT_TRANSPOSE_H__
 #define __ROCFFT_TRANSPOSE_H__
 

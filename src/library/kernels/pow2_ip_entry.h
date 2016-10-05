@@ -1,3 +1,7 @@
+/*******************************************************************************
+ * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
+ ******************************************************************************/
+
 #ifndef POW2_IP_ENTRY_HIP_H
 #define POW2_IP_ENTRY_HIP_H
 

@@ -1,3 +1,7 @@
+################################################################################
+# Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
+################################################################################
+
 
 __kernel __attribute__((reqd_work_group_size (256,1,1)))
 void fft_8192_2(__global const float2 * restrict gbIn, __global float2 * restrict gbOut, const uint count, const int dir)

@@ -1,3 +1,7 @@
+/*******************************************************************************
+ * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
+ ******************************************************************************/
+
 #include <gtest/gtest.h>
 #include <math.h>
 #include "accuracy_test_common.h"

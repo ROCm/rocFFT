@@ -1,3 +1,7 @@
+/*******************************************************************************
+ * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
+ ******************************************************************************/
+
 #ifndef ROCFFT_ACCURACY_TEST_COMMON_H
 #define ROCFFT_ACCURACY_TEST_COMMON_H
 

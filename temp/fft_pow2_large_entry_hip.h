@@ -1,3 +1,7 @@
+/*******************************************************************************
+ * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
+ ******************************************************************************/
+
 #ifndef FFT_POW2_LARGE_ENTRY_HIP_H
 #define FFT_POW2_LARGE_ENTRY_HIP_H
 
