@@ -2,10 +2,6 @@
 # Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
 ################################################################################
 
-# ########################################################################
-# Copyright 2016 Advanced Micro Devices, Inc.
-# ########################################################################
-
 # Depending on whether we are building for 64 or 32 bit, construct common paths and names that subdirectories can reference for their use
 if( rocBLAS_BUILD64 )
 	set( CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${rocBLAS-clients_VERSION}-${CMAKE_HOST_SYSTEM_NAME}-x64" )

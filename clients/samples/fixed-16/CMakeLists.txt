@@ -2,10 +2,6 @@
 # Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
 ################################################################################
 
-# ########################################################################
-# Copyright 2016 Advanced Micro Devices, Inc.
-# ########################################################################
-
 add_executable( fixed-16 fixed-16.cpp )
 
 if(PLATFORM_NAME STREQUAL "NVIDIA")

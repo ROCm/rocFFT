@@ -2,10 +2,6 @@
 # Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
 ################################################################################
 
-# ########################################################################
-# Copyright 2016 Advanced Micro Devices, Inc.
-# ########################################################################
-
 # This file is intended to be used in two ways; independently in a stand alone PROJECT
 # and as part of a superbuild.  If the file is included in a stand alone project, the
 # variables are not expected to be preset, and this will produce options() in the GUI

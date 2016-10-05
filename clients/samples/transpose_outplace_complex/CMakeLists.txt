@@ -2,10 +2,6 @@
 # Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
 ################################################################################
 
-# ########################################################################
-# Copyright 2016 Advanced Micro Devices, Inc.
-# ########################################################################
-
 add_executable( transpose_outplace_complex transpose_outplace_complex.cpp )
 
 include(CheckCXXCompilerFlag)

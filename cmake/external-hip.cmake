@@ -2,10 +2,6 @@
 # Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
 ################################################################################
 
-# ########################################################################
-# Copyright 2016 Advanced Micro Devices, Inc.
-# ########################################################################
-
 message( STATUS "Configuring hip external dependency" )
 include( ExternalProject )
 

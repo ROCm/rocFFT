@@ -2,10 +2,6 @@
 # Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
 ################################################################################
 
-# ########################################################################
-# Copyright 2016 Advanced Micro Devices, Inc.
-# ########################################################################
-
 #if( FFTW_FIND_VERSION VERSION_LESS "3" )
 #    message( FFTW_FIND_VERION is ${FFTW_FIND_VERSION})
 #    message( FATAL_ERROR "FindFFTW can not configure versions less than FFTW 3.0.0" )

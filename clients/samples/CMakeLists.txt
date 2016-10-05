@@ -2,9 +2,6 @@
 # Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
 ################################################################################
 
-# ########################################################################
-# Copyright 2016 Advanced Micro Devices, Inc.
-# ########################################################################
 # We require 2.8.12 for linking libraries we specify PRIVATE, INTERFACE and
 # PUBLIC keywords
 cmake_minimum_required( VERSION 2.8.12 )

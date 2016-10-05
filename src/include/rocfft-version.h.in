@@ -2,10 +2,6 @@
  * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
  ******************************************************************************/
 
-/* ************************************************************************
- * Copyright 2016 Advanced Micro Devices, Inc.
- * ************************************************************************ */
-
 /* the configured version and settings
  */
 #define rocfft_version_major @rocfft_VERSION_MAJOR@

@@ -2,10 +2,6 @@
 # Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
 ################################################################################
 
-# ########################################################################
-# Copyright 2016 Advanced Micro Devices, Inc.
-# ########################################################################
-
 # Natively available on including Ubuntu 14.04, OpenSUSE 13.2, CentOS 6.6
 cmake_minimum_required( VERSION 2.8.12 )
 
