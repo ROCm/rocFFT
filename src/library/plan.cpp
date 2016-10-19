@@ -105,7 +105,7 @@ rocfft_status rocfft_plan_description_destroy( rocfft_plan_description descripti
 }
 
 
-rocfft_status rocfft_plan_create(       rocfft_plan *plan,
+rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
 					rocfft_result_placement placement,
                                         rocfft_transform_type transform_type, rocfft_precision precision,
                                         size_t dimensions, const size_t *lengths, size_t number_of_transforms,
@@ -178,8 +178,7 @@ rocfft_status rocfft_plan_create(       rocfft_plan *plan,
 	if(dimensions > 3)
 		return rocfft_status_invalid_dimensions;
 
-
-	rocfft_plan p = new rocfft_plan_t;
+	rocfft_plan p = plan;
 	p->rank = dimensions;
 
 	for(size_t i=0; i<(p->rank); i++)
@@ -222,9 +221,23 @@ rocfft_status rocfft_plan_create(       rocfft_plan *plan,
 	Repo &repo = Repo::GetRepo();
 	repo.CreatePlan(p);
 
-	*plan = p;
-
 	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_allocate(rocfft_plan *plan)
+{
+	*plan = new rocfft_plan_t;
+	return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_create(       rocfft_plan *plan,
+					rocfft_result_placement placement,
+                                        rocfft_transform_type transform_type, rocfft_precision precision,
+                                        size_t dimensions, const size_t *lengths, size_t number_of_transforms,
+                                        const rocfft_plan_description description )
+{
+	rocfft_plan_allocate(plan);
+	return rocfft_plan_create_internal(*plan, placement, transform_type, precision, dimensions, lengths, number_of_transforms, description);
 }
 
 rocfft_status rocfft_plan_destroy( rocfft_plan plan )
