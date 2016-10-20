@@ -21,6 +21,10 @@ if( NOT BUILD_CLIENTS_RIDER )
   option( BUILD_CLIENTS_RIDER "Build rocFFT rider" OFF )
 endif( )
 
+if( NOT BUILD_CLIENTS_SELFTEST )
+  option( BUILD_CLIENTS_SELFTEST "Build rocFFT selftest" OFF )
+endif( )
+
 if( NOT BUILD_CLIENTS_SAMPLES )
   option( BUILD_CLIENTS_SAMPLES "Build rocFFT samples" OFF )
 endif( )

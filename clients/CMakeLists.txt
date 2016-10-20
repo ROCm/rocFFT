@@ -96,6 +96,23 @@ if( BUILD_CLIENTS_RIDER )
   )
 endif( )
 
+if( BUILD_CLIENTS_SELFTEST )
+  set( SELFTEST_CMAKE_ARGS
+        ${CLIENTS_CMAKE_ARGS}
+        -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}^^${BOOST_ROOT}^^${GTEST_ROOT}
+        -DHIP_SRC_ROOT=${HIP_SRC_ROOT}
+  	)
+
+  ExternalProject_Add( selftest
+    DEPENDS ${rocfft_clients_dependencies}
+    SOURCE_DIR ${PROJECT_SOURCE_DIR}/selftest
+    BINARY_DIR selftest-build
+    CMAKE_ARGS ${SELFTEST_CMAKE_ARGS}
+    LIST_SEPARATOR ^^
+    INSTALL_COMMAND ""
+  )
+endif( )
+
 if( BUILD_CLIENTS_BENCHMARKS )
     set( BENCH_CMAKE_ARGS
           ${CLIENTS_CMAKE_ARGS}
