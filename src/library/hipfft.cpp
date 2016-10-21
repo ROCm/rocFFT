@@ -14,7 +14,7 @@ struct hipfftHandle_t
 	rocfft_plan_t c2c_i;	
 };
 
-DLL_PUBLIC hipfftResult hipfftPlan1d(hipfftHandle *plan, 
+hipfftResult hipfftPlan1d(hipfftHandle *plan, 
                                  int nx, 
                                  hipfftType type, 
                                  int batch )
@@ -26,7 +26,7 @@ DLL_PUBLIC hipfftResult hipfftPlan1d(hipfftHandle *plan,
 	return hipfftMakePlan1d(*plan, nx, type, batch, nullptr);
 }
 
-DLL_PUBLIC hipfftResult hipfftPlan2d(hipfftHandle *plan, 
+hipfftResult hipfftPlan2d(hipfftHandle *plan, 
                                  int nx, int ny,
                                  hipfftType type)
 {
@@ -37,7 +37,7 @@ DLL_PUBLIC hipfftResult hipfftPlan2d(hipfftHandle *plan,
 	return hipfftMakePlan2d(*plan, nx, ny, type, nullptr);
 }
 
-DLL_PUBLIC hipfftResult hipfftPlan3d(hipfftHandle *plan, 
+hipfftResult hipfftPlan3d(hipfftHandle *plan, 
                                  int nx, int ny, int nz, 
                                  hipfftType type)
 {
@@ -54,7 +54,7 @@ DLL_PUBLIC hipfftResult hipfftPlan3d(hipfftHandle *plan,
 	return hipfftMakePlan3d(*plan, nx, ny, nz, type, nullptr);
 }
 
-DLL_PUBLIC hipfftResult hipfftPlanMany(hipfftHandle *plan,
+hipfftResult hipfftPlanMany(hipfftHandle *plan,
                                    int rank,
                                    int *n,
                                    int *inembed, int istride, int idist,
@@ -69,7 +69,7 @@ DLL_PUBLIC hipfftResult hipfftPlanMany(hipfftHandle *plan,
 	return hipfftMakePlanMany(*plan, rank, n, inembed, istride, idist, onembed, ostride, odist, type, batch, nullptr);
 }
                                    
-DLL_PUBLIC hipfftResult hipfftMakePlan1d(hipfftHandle plan, 
+hipfftResult hipfftMakePlan1d(hipfftHandle plan, 
                                      int nx, 
                                      hipfftType type, 
                                      int batch,
@@ -94,7 +94,7 @@ DLL_PUBLIC hipfftResult hipfftMakePlan1d(hipfftHandle plan,
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftMakePlan2d(hipfftHandle plan, 
+hipfftResult hipfftMakePlan2d(hipfftHandle plan, 
                                      int nx, int ny,
                                      hipfftType type,
                                      size_t *workSize)
@@ -119,7 +119,7 @@ DLL_PUBLIC hipfftResult hipfftMakePlan2d(hipfftHandle plan,
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftMakePlan3d(hipfftHandle plan, 
+hipfftResult hipfftMakePlan3d(hipfftHandle plan, 
                                      int nx, int ny, int nz, 
                                      hipfftType type,
                                      size_t *workSize)
@@ -145,7 +145,7 @@ DLL_PUBLIC hipfftResult hipfftMakePlan3d(hipfftHandle plan,
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftMakePlanMany(hipfftHandle plan,
+hipfftResult hipfftMakePlanMany(hipfftHandle plan,
                                        int rank,
                                        int *n,
                                        int *inembed, int istride, int idist,
@@ -242,7 +242,7 @@ DLL_PUBLIC hipfftResult hipfftMakePlanMany(hipfftHandle plan,
 	return HIPFFT_SUCCESS;
 }
                                       
-DLL_PUBLIC hipfftResult hipfftMakePlanMany64(hipfftHandle plan, 
+hipfftResult hipfftMakePlanMany64(hipfftHandle plan, 
                                          int rank, 
                                          long long int *n,
                                          long long int *inembed, 
@@ -257,7 +257,7 @@ DLL_PUBLIC hipfftResult hipfftMakePlanMany64(hipfftHandle plan,
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftGetSizeMany64(hipfftHandle plan,
+hipfftResult hipfftGetSizeMany64(hipfftHandle plan,
                                         int rank,
                                         long long int *n,
                                         long long int *inembed, 
@@ -274,7 +274,7 @@ DLL_PUBLIC hipfftResult hipfftGetSizeMany64(hipfftHandle plan,
                                          
                                       
                                    
-DLL_PUBLIC hipfftResult hipfftEstimate1d(int nx, 
+hipfftResult hipfftEstimate1d(int nx, 
                                      hipfftType type, 
                                      int batch,
                                      size_t *workSize)
@@ -282,21 +282,21 @@ DLL_PUBLIC hipfftResult hipfftEstimate1d(int nx,
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftEstimate2d(int nx, int ny,
+hipfftResult hipfftEstimate2d(int nx, int ny,
                                      hipfftType type,
                                      size_t *workSize)
 {
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftEstimate3d(int nx, int ny, int nz, 
+hipfftResult hipfftEstimate3d(int nx, int ny, int nz, 
                                      hipfftType type,
                                      size_t *workSize)
 {
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftEstimateMany(int rank,
+hipfftResult hipfftEstimateMany(int rank,
                                        int *n,
                                        int *inembed, int istride, int idist,
                                        int *onembed, int ostride, int odist,
@@ -307,7 +307,7 @@ DLL_PUBLIC hipfftResult hipfftEstimateMany(int rank,
 	return HIPFFT_SUCCESS;
 }
                                      
-DLL_PUBLIC hipfftResult hipfftCreate(hipfftHandle * handle)
+hipfftResult hipfftCreate(hipfftHandle * handle)
 {
 	hipfftHandle h = new hipfftHandle_t;
 
@@ -316,7 +316,7 @@ DLL_PUBLIC hipfftResult hipfftCreate(hipfftHandle * handle)
 	return HIPFFT_SUCCESS;
 }                                     
 
-DLL_PUBLIC hipfftResult hipfftGetSize1d(hipfftHandle handle, 
+hipfftResult hipfftGetSize1d(hipfftHandle handle, 
                                     int nx, 
                                     hipfftType type, 
                                     int batch,
@@ -325,7 +325,7 @@ DLL_PUBLIC hipfftResult hipfftGetSize1d(hipfftHandle handle,
 	return HIPFFT_SUCCESS;
 }
                                                                          
-DLL_PUBLIC hipfftResult hipfftGetSize2d(hipfftHandle handle, 
+hipfftResult hipfftGetSize2d(hipfftHandle handle, 
                                     int nx, int ny,
                                     hipfftType type,
                                     size_t *workSize)
@@ -333,7 +333,7 @@ DLL_PUBLIC hipfftResult hipfftGetSize2d(hipfftHandle handle,
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftGetSize3d(hipfftHandle handle,
+hipfftResult hipfftGetSize3d(hipfftHandle handle,
                                     int nx, int ny, int nz, 
                                     hipfftType type,
                                     size_t *workSize)
@@ -341,7 +341,7 @@ DLL_PUBLIC hipfftResult hipfftGetSize3d(hipfftHandle handle,
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftGetSizeMany(hipfftHandle handle, 
+hipfftResult hipfftGetSizeMany(hipfftHandle handle, 
                                       int rank, int *n,
                                       int *inembed, int istride, int idist,
                                       int *onembed, int ostride, int odist,
@@ -350,22 +350,22 @@ DLL_PUBLIC hipfftResult hipfftGetSizeMany(hipfftHandle handle,
 	return HIPFFT_SUCCESS;
 }
                                      
-DLL_PUBLIC hipfftResult hipfftGetSize(hipfftHandle handle, size_t *workSize)
+hipfftResult hipfftGetSize(hipfftHandle handle, size_t *workSize)
 {
 	return HIPFFT_SUCCESS;
 }
                                                
-DLL_PUBLIC hipfftResult hipfftSetWorkArea(hipfftHandle plan, void *workArea)
+hipfftResult hipfftSetWorkArea(hipfftHandle plan, void *workArea)
 {
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftSetAutoAllocation(hipfftHandle plan, int autoAllocate)
+hipfftResult hipfftSetAutoAllocation(hipfftHandle plan, int autoAllocate)
 {
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftExecC2C(hipfftHandle plan, 
+hipfftResult hipfftExecC2C(hipfftHandle plan, 
                                   hipfftComplex *idata,
                                   hipfftComplex *odata,
                                   int direction)
@@ -388,21 +388,21 @@ DLL_PUBLIC hipfftResult hipfftExecC2C(hipfftHandle plan,
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftExecR2C(hipfftHandle plan, 
+hipfftResult hipfftExecR2C(hipfftHandle plan, 
                                   hipfftReal *idata,
                                   hipfftComplex *odata)
 {
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftExecC2R(hipfftHandle plan, 
+hipfftResult hipfftExecC2R(hipfftHandle plan, 
                                   hipfftComplex *idata,
                                   hipfftReal *odata)
 {
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftExecZ2Z(hipfftHandle plan, 
+hipfftResult hipfftExecZ2Z(hipfftHandle plan, 
                                   hipfftDoubleComplex *idata,
                                   hipfftDoubleComplex *odata,
                                   int direction)
@@ -410,14 +410,14 @@ DLL_PUBLIC hipfftResult hipfftExecZ2Z(hipfftHandle plan,
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftExecD2Z(hipfftHandle plan, 
+hipfftResult hipfftExecD2Z(hipfftHandle plan, 
                                   hipfftDoubleReal *idata,
                                   hipfftDoubleComplex *odata)
 {
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftExecZ2D(hipfftHandle plan, 
+hipfftResult hipfftExecZ2D(hipfftHandle plan, 
                                   hipfftDoubleComplex *idata,
                                   hipfftDoubleReal *odata)
 {
@@ -426,21 +426,21 @@ DLL_PUBLIC hipfftResult hipfftExecZ2D(hipfftHandle plan,
                                   
 
 // utility functions
-DLL_PUBLIC hipfftResult hipfftSetStream(hipfftHandle plan,
+hipfftResult hipfftSetStream(hipfftHandle plan,
                                     hipStream_t stream)
 {
 	return HIPFFT_SUCCESS;
 }
 
 /*
-DLL_PUBLIC hipfftResult hipfftSetCompatibilityMode(hipfftHandle plan,
+hipfftResult hipfftSetCompatibilityMode(hipfftHandle plan,
                                                hipfftCompatibility mode)
 {
 	return HIPFFT_SUCCESS;
 }
 */
 
-DLL_PUBLIC hipfftResult hipfftDestroy(hipfftHandle plan)
+hipfftResult hipfftDestroy(hipfftHandle plan)
 {
 	if(plan != nullptr)
 		delete plan;
@@ -448,7 +448,7 @@ DLL_PUBLIC hipfftResult hipfftDestroy(hipfftHandle plan)
 	return HIPFFT_SUCCESS;
 }
 
-DLL_PUBLIC hipfftResult hipfftGetVersion(int *version)
+hipfftResult hipfftGetVersion(int *version)
 {
 	return HIPFFT_SUCCESS;
 }

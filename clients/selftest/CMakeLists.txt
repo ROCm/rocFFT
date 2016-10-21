@@ -97,7 +97,7 @@ if(PLATFORM_NAME STREQUAL "NVIDIA")
 endif( )
 
 set(rocfft_selftest_source
-    test_fft.cpp )
+    test_complex.cpp )
 
 set(rocfft_selftest_includes
     )

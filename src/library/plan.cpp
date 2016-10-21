@@ -7,6 +7,7 @@
 #include <iostream>
 
 #include "rocfft.h"
+#include "rocfft_private.h"
 #include "./plan.h"
 #include "./repo.h"
 
