@@ -9,7 +9,7 @@
 #define FFTWTRANSFORM_H
 
 #include <vector>
-#include "fftw3.h"
+#include <fftw3.h>
 #include "buffer.h"
 //only buffer interface need rocfft variable
 

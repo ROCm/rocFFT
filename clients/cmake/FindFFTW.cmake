@@ -19,7 +19,8 @@ find_path(FFTW_INCLUDE_DIRS
 mark_as_advanced( FFTW_INCLUDE_DIRS )
 
 # message( STATUS "FFTW_FIND_COMPONENTS: ${FFTW_FIND_COMPONENTS}" )
-# message( STATUS "FFTW_FIND_REQUIRED_FLOAT: ${FFTW_FIND_REQUIRED_FLOAT}" )
+message( STATUS "FFTW_FIND_REQUIRED_FLOAT: ${FFTW_FIND_REQUIRED_FLOAT}" )
+message( STATUS "FFTW_FIND_REQUIRED_DOUBLE: ${FFTW_FIND_REQUIRED_DOUBLE}" )
 
 # Print out the bit-ness search mode cmake is set too, to aid in debugging
 get_property( LIB64 GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS )
@@ -33,7 +34,7 @@ set( FFTW_LIBRARIES "" )
 set( FFTW_FIND_REQUIRED_FLOAT TRUE)
 if( FFTW_FIND_REQUIRED_FLOAT OR FFTW_FIND_REQUIRED_SINGLE )
   find_library( FFTW_LIBRARIES_SINGLE
-      NAMES fftw3f fftw3f-3
+      NAMES fftw3f fftw3f-3 fftw3
       HINTS
           ${FFTW_ROOT}/lib
           $ENV{FFTW_ROOT}/lib
@@ -47,6 +48,25 @@ if( FFTW_FIND_REQUIRED_FLOAT OR FFTW_FIND_REQUIRED_SINGLE )
   )
   mark_as_advanced( FFTW_LIBRARIES_SINGLE )
   list( APPEND FFTW_LIBRARIES ${FFTW_LIBRARIES_SINGLE} )
+endif( )
+
+set( FFTW_FIND_REQUIRED_DOUBLE TRUE)
+if( FFTW_FIND_REQUIRED_DOUBLE OR FFTW_FIND_REQUIRED_DOUBLE )
+  find_library( FFTW_LIBRARIES_DOUBLE
+      NAMES fftw3
+      HINTS
+          ${FFTW_ROOT}/lib
+          $ENV{FFTW_ROOT}/lib
+      PATHS
+          /usr/lib
+          /usr/local/lib
+          /usr/lib/x86_64-linux-gnu
+      PATH_SUFFIXES
+          x86_64-linux-gnu
+      DOC "FFTW dynamic library"
+  )
+  mark_as_advanced( FFTW_LIBRARIES_DOUBLE )
+  list( APPEND FFTW_LIBRARIES ${FFTW_LIBRARIES_DOUBLE} )
 endif( )
 
 include( FindPackageHandleStandardArgs )

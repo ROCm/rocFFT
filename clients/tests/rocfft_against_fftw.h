@@ -38,7 +38,9 @@ void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_t
 		in_array_type, out_array_type,
 		placeness );
 
+
 	fftw<T, fftw_T> reference( lengths.size(), &lengths[0], batch, c2c );
+
 
 	if( pattern == sawtooth )
 	{
@@ -57,8 +59,8 @@ void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_t
 	}
 	else if( pattern == erratic )
 	{
-		test_fft.set_input_to_random();
-		reference.set_data_to_random();
+		test_fft.set_input_to_random(); //TODO 
+		reference.set_data_to_random(); //TODO
 	}
 	else
 	{
@@ -67,6 +69,7 @@ void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_t
 
 	// if we're starting with unequal data, we're destined for failure
 	EXPECT_EQ( true, test_fft.input_buffer() == reference.input_buffer() );
+
 
 	if( transform_type  == rocfft_transform_type_complex_forward )
 	{

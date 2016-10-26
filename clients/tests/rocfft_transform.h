@@ -135,8 +135,6 @@ public:
 
         argument_check(); //TODO check transferred FFT argument valid or not
 
-    precision = rocfft_precision_single;
-
         for( int i = 0; i < max_dimension; i++ )
         {
             if( i < dim )
@@ -163,7 +161,6 @@ public:
         write_local_input_buffer_to_gpu();
 
         initialize_plan();
-
 
         /*****************************************************/
 
@@ -197,20 +194,20 @@ public:
 
         if( (_placement == rocfft_placement_inplace) && _forward_scale == 1.0 ){
             //TODO precision
-            LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, dim, (const size_t *)&lengths, batch_size, desc  ), "rocfft_plan_create failed" );
+            LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, dim, lengths.data(), batch_size, NULL  ), "rocfft_plan_create failed" );
         }
         else{//TODO
              set_layouts(_input_layout, _output_layout);
         }
 
-    //get the worksapce_size based on the plan 
+        //get the worksapce_size based on the plan 
 
-    LIB_V_THROW( rocfft_plan_get_work_buffer_size( plan, &device_workspace_size ), "rocfft_plan_get_work_buffer_size failed" );
-    //allocate the worksapce 
-    if (device_workspace_size)
-    {
-        HIP_V_THROW( hipMalloc(&device_workspace, device_workspace_size), "Creating intmediate Buffer failed" );
-    }
+        LIB_V_THROW( rocfft_plan_get_work_buffer_size( plan, &device_workspace_size ), "rocfft_plan_get_work_buffer_size failed" );
+        //allocate the worksapce 
+        if (device_workspace_size)
+        {
+            HIP_V_THROW( hipMalloc(&device_workspace, device_workspace_size), "Creating intmediate Buffer failed" );
+        }
 
     }
 
@@ -227,9 +224,9 @@ public:
 
         LIB_V_THROW( rocfft_execution_info_create(&info), "rocfft_execution_info_create failed" );
 
-    if(device_workspace != NULL) //if device_workspace is required 
-    {
-        LIB_V_THROW( rocfft_execution_info_set_work_buffer(info, device_workspace, device_workspace_size), 
+        if(device_workspace != NULL) //if device_workspace is required 
+        {
+            LIB_V_THROW( rocfft_execution_info_set_work_buffer(info, device_workspace, device_workspace_size), 
                       "rocfft_execution_info_set_work_buffer failed" );
         }
 
@@ -277,24 +274,24 @@ public:
     /*****************************************************/
     void forward_scale( T in ) {
 
-    _forward_scale = in;
-    if(precision == rocfft_precision_single){
+        _forward_scale = in;
+        if(precision == rocfft_precision_single){
             LIB_V_THROW( rocfft_plan_description_set_scale_float( desc, (float)in), "rocfft_plan_description_set_scale_float failed" );
         }
         else{
-        LIB_V_THROW( rocfft_plan_description_set_scale_double( desc, (double)in ), "rocfft_plan_description_set_scale_double failed" );
+            LIB_V_THROW( rocfft_plan_description_set_scale_double( desc, (double)in ), "rocfft_plan_description_set_scale_double failed" );
         }
     }
 
     /*****************************************************/
     void backward_scale( T in ) {
 
-    _backward_scale = in;
-    if(precision == rocfft_precision_single){
+        _backward_scale = in;
+        if(precision == rocfft_precision_single){
             LIB_V_THROW( rocfft_plan_description_set_scale_float( desc, (float)in), "rocfft_plan_description_set_scale_float failed" );
         }
         else{
-        LIB_V_THROW( rocfft_plan_description_set_scale_double( desc, (double)in ), "rocfft_plan_description_set_scale_double failed" );
+            LIB_V_THROW( rocfft_plan_description_set_scale_double( desc, (double)in ), "rocfft_plan_description_set_scale_double failed" );
         }
     }
 
@@ -364,29 +361,29 @@ public:
     /*****************************************************/
     ~rocfft()
     {
-    for(int i=0;i<2;i++)
-    {
+        for(int i=0;i<2;i++)
+        {
            if(input_device_buffers[i] != NULL) 
-       {
-        hipFree(input_device_buffers[i]);
-       }
+           {
+               hipFree(input_device_buffers[i]);
+           }
            if(output_device_buffers[i] != NULL) 
-       {
-        hipFree(output_device_buffers[i]);
-       }
-    }
+           {
+               hipFree(output_device_buffers[i]);
+           }
+	}
     
-    if(device_workspace != NULL) hipFree(device_workspace);
+        if(device_workspace != NULL) hipFree(device_workspace);
 
         LIB_V_THROW( rocfft_plan_destroy( plan ), "rocfft_plan_destroy failed" );
         LIB_V_THROW( rocfft_cleanup( ), "rocfft_cleanup failed" );
 
-    if(desc != NULL){
+        if(desc != NULL){
             LIB_V_THROW( rocfft_plan_description_destroy(desc), "rocfft_plan_description_destroy failed" );
         }
     
         if(info != NULL){
-        LIB_V_THROW( rocfft_execution_info_destroy(info), "rocfft_execution_info_destroy failed" );
+            LIB_V_THROW( rocfft_execution_info_destroy(info), "rocfft_execution_info_destroy failed" );
         }
     }
 
