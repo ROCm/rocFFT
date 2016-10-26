@@ -7,14 +7,23 @@
 ///
 
 #include <iostream>
-#include <fftw3.h>
 #include <gtest/gtest.h>
 // #include <boost/program_options.hpp>
 
-#include "hip_runtime.h"
+#include <hip_runtime.h>
 #include "rocfft.h"
-
+#include "test_constants.h"
 // namespace po = boost::program_options;
+
+size_t number_of_random_tests;
+time_t random_test_parameter_seed;
+float tolerance;
+double rmse_tolerance;
+bool verbose;
+
+// global for test use
+bool suppress_output = false;
+bool comparison_type = root_mean_square;
 
 int main( int argc, char* argv[] )
 {

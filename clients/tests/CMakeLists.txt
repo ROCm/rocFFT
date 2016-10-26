@@ -100,10 +100,16 @@ endif( )
 set(rocfft_test_source
     gtest_main.cpp
     accuracy_test_transpose.cpp
+    accuracy_test_pow2.cpp
     misc/source/test_exception.cpp)
 
 set(rocfft_test_includes
     accuracy_test_common.h
+    buffer_memory.h
+    buffer.h 
+    rocfft_transform.h
+    fftw_transform.h
+    rocfft_against_fftw.h
     misc/include/test_exception.h)
 
 add_executable( rocfft-test-correctness ${rocfft_test_source} ${rocfft_test_includes} )
