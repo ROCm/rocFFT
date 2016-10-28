@@ -58,6 +58,26 @@ rocfft_status rocfft_plan_create_template<double>(rocfft_plan *plan,
 }
 
 
+template<class T>
+rocfft_status rocfft_set_scale_template(
+                    const rocfft_plan_description description,
+                    const T scale );
+
+template<>
+rocfft_status rocfft_set_scale_template<float>(
+                    const rocfft_plan_description description,
+                    const float scale )
+{
+    return rocfft_plan_description_set_scale_float(description, scale);
+}
+
+template<>
+rocfft_status rocfft_set_scale_template<double>(
+                    const rocfft_plan_description description,
+                    const double scale )
+{
+    return rocfft_plan_description_set_scale_double(description, scale);
+}
 
 
  /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
@@ -70,7 +90,6 @@ private:
     rocfft_result_placement  _placement;
 
     size_t dim;    
-    size_t number_of_data_points;
 
     rocfft_plan plan;
     rocfft_plan_description desc; 
@@ -89,12 +108,15 @@ private:
     buffer<T> input;
     buffer<T> output;
 
+    size_t number_of_data_points;
+
     T _forward_scale, _backward_scale;
+
+    T scale; 
 
     size_t device_workspace_size;
     void *device_workspace;
 
-    rocfft_precision precision;
 
 public:
     /*****************************************************/
@@ -103,13 +125,15 @@ public:
             const size_t batch_size_in,
             const size_t input_distance_in, const size_t output_distance_in,
             const rocfft_array_type  input_layout_in, const rocfft_array_type  output_layout_in,
-            const rocfft_result_placement  placement_in )
+            const rocfft_result_placement  placement_in, 
+            const T scale_in )
         try
         : dim(dimensions_in)
         , batch_size (batch_size_in)
         , _input_layout( input_layout_in )
         , _output_layout( output_layout_in )
         , _placement( placement_in )
+        , scale (scale_in)
         , device_workspace_size(0)
         , input(    dimensions_in,
                     lengths_in,
@@ -135,6 +159,8 @@ public:
 
         argument_check(); //TODO check transferred FFT argument valid or not
 
+        verbose_output();
+        
         for( int i = 0; i < max_dimension; i++ )
         {
             if( i < dim )
@@ -144,22 +170,24 @@ public:
         }
 
     /********************create plan and perform the FFT transformation *********************************/
-                           
-        plan = NULL;
-        desc = NULL;
-        info = NULL;
-         
+
         input_device_buffers[0] = NULL;
         input_device_buffers[1] = NULL;
         output_device_buffers[0] = NULL;
         output_device_buffers[1] = NULL;
         device_workspace = NULL;
 
-        rocfft_setup();
-        initialize_resource(); //allocate and perform memory copy 
 
-        write_local_input_buffer_to_gpu();
+        initialize_resource(); //allocate
 
+        write_local_input_buffer_to_gpu(); // perform memory copy 
+
+        LIB_V_THROW( rocfft_setup(), "rocfft_setup failed");
+                           
+        plan = NULL;
+        desc = NULL;
+        info = NULL;
+         
         initialize_plan();
 
         /*****************************************************/
@@ -175,14 +203,14 @@ public:
 
         //size_in_butes is calculated in Class input buffer
         if( is_planar( _input_layout ) ) {
-            hipMalloc(&(input_device_buffers[0]), input.size_in_bytes());
-            hipMalloc(&(input_device_buffers[1]), input.size_in_bytes());
+            HIP_V_THROW( hipMalloc(&(input_device_buffers[0]), input.size_in_bytes()), "hipMalloc failed" );
+            HIP_V_THROW( hipMalloc(&(input_device_buffers[1]), input.size_in_bytes()), "hipMalloc failed" );
         }
         else if( is_interleaved( _input_layout ) ) {
-            hipMalloc(&(input_device_buffers[0]), input.size_in_bytes());
+            HIP_V_THROW( hipMalloc(&(input_device_buffers[0]), input.size_in_bytes()), "hipMalloc failed" );
         }
         else if( is_real( _input_layout ) ) {
-            hipMalloc(&(input_device_buffers[0]), input.size_in_bytes());
+            HIP_V_THROW( hipMalloc(&(input_device_buffers[0]), input.size_in_bytes()), "hipMalloc failed" );
         }
 
     }
@@ -192,14 +220,14 @@ public:
     void initialize_plan()
     {
 
-        if( (_placement == rocfft_placement_inplace) && _forward_scale == 1.0 ){
-            //TODO precision
+        if( (_placement == rocfft_placement_inplace) && scale == 1.0 ){
             LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, dim, lengths.data(), batch_size, NULL  ), "rocfft_plan_create failed" );
         }
         else{//TODO
-             set_layouts(_input_layout, _output_layout);
+            set_layouts(_input_layout, _output_layout);
         }
 
+        LIB_V_THROW( rocfft_plan_get_print ( plan ), "rocfft_plan_get_print failed");
         //get the worksapce_size based on the plan 
 
         LIB_V_THROW( rocfft_plan_get_work_buffer_size( plan, &device_workspace_size ), "rocfft_plan_get_work_buffer_size failed" );
@@ -214,8 +242,17 @@ public:
     /*****************************************************/
     void set_layouts( rocfft_array_type  new_input_layout, rocfft_array_type  new_output_layout )
     {
-       //TODO, deal with desc;
-       
+
+	LIB_V_THROW( rocfft_plan_description_create (&desc), "rocfft_plan_description_create failed");
+        // no offset, packed data
+	LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, new_input_layout, new_output_layout, 0, 0, 0, NULL, 0, 0, NULL, 0),
+                                                             "rocfft_plan_description_data_layout failed");
+
+
+        //TODO, In rocfft, scale must be set before plan create
+	LIB_V_THROW( rocfft_set_scale_template<T>(desc, scale), "rocfft_plan_descrption_set_scale failed");
+
+        LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, dim, lengths.data(), batch_size, desc  ), "rocfft_plan_create failed" );       
     }
 
 
@@ -236,10 +273,30 @@ public:
         void** BuffersOut = (_placement == rocfft_placement_inplace) ? NULL : &output_device_buffers[0];
         LIB_V_THROW( rocfft_execute( plan, input_device_buffers, BuffersOut, info ), "rocfft_execute failed" );
 
-        read_gpu_result_to_output_buffer();
+        HIP_V_THROW( hipDeviceSynchronize(), "hipDeviceSynchronize failed" );
 
+        if( _placement == rocfft_placement_inplace ){
+	    read_gpu_result_to_input_buffer();
+	}
+	else{
+            read_gpu_result_to_output_buffer();
+	}
+	
     }
 
+    /*****************************************************/
+    void verbose_output()
+    {
+
+            cout << "transform parameters as seen by rocfft:" << endl;
+
+            if( _placement == rocfft_placement_inplace ) cout << "in-place" << endl;
+            else cout << "out-of-place" << endl;
+
+            cout << "input buffer size " << input.size_in_bytes() << endl;
+            cout << "output buffer size " << output.size_in_bytes() << endl;
+
+    }
 
    /*****************************************************/
     bool is_real( const rocfft_array_type  layout )
@@ -275,24 +332,12 @@ public:
     void forward_scale( T in ) {
 
         _forward_scale = in;
-        if(precision == rocfft_precision_single){
-            LIB_V_THROW( rocfft_plan_description_set_scale_float( desc, (float)in), "rocfft_plan_description_set_scale_float failed" );
-        }
-        else{
-            LIB_V_THROW( rocfft_plan_description_set_scale_double( desc, (double)in ), "rocfft_plan_description_set_scale_double failed" );
-        }
     }
 
     /*****************************************************/
     void backward_scale( T in ) {
 
         _backward_scale = in;
-        if(precision == rocfft_precision_single){
-            LIB_V_THROW( rocfft_plan_description_set_scale_float( desc, (float)in), "rocfft_plan_description_set_scale_float failed" );
-        }
-        else{
-            LIB_V_THROW( rocfft_plan_description_set_scale_double( desc, (double)in ), "rocfft_plan_description_set_scale_double failed" );
-        }
     }
 
     /*****************************************************/
@@ -334,6 +379,7 @@ public:
     void set_input_to_random()
     {
         //input.set_all_to_random_data( 10, super_duper_global_seed );
+        input.set_all_to_impulse();
     }
 
     /*****************************************************/
@@ -375,9 +421,6 @@ public:
     
         if(device_workspace != NULL) hipFree(device_workspace);
 
-        LIB_V_THROW( rocfft_plan_destroy( plan ), "rocfft_plan_destroy failed" );
-        LIB_V_THROW( rocfft_cleanup( ), "rocfft_cleanup failed" );
-
         if(desc != NULL){
             LIB_V_THROW( rocfft_plan_description_destroy(desc), "rocfft_plan_description_destroy failed" );
         }
@@ -385,12 +428,16 @@ public:
         if(info != NULL){
             LIB_V_THROW( rocfft_execution_info_destroy(info), "rocfft_execution_info_destroy failed" );
         }
+
+        LIB_V_THROW( rocfft_plan_destroy( plan ), "rocfft_plan_destroy failed" );
+        LIB_V_THROW( rocfft_cleanup( ), "rocfft_cleanup failed" );
     }
 
 private:
 
     /*****************************************************/
     void write_local_input_buffer_to_gpu() {
+
 
         //size_in_bytes is calculated in input buffer
         if( is_planar( _input_layout ) ) {
@@ -408,17 +455,30 @@ private:
     void read_gpu_result_to_output_buffer() {
 
         if( is_planar( _output_layout ) ) {
-            hipMemcpy(output.real_ptr(), output_device_buffers[0], output.size_in_bytes(), hipMemcpyDeviceToHost);
-            hipMemcpy(output.imag_ptr(), output_device_buffers[1], output.size_in_bytes(), hipMemcpyDeviceToHost);
+            HIP_V_THROW( hipMemcpy(output.real_ptr(), output_device_buffers[0], output.size_in_bytes(), hipMemcpyDeviceToHost), "hipMemcpy failed");
+            HIP_V_THROW( hipMemcpy(output.imag_ptr(), output_device_buffers[1], output.size_in_bytes(), hipMemcpyDeviceToHost), "hipMemcpy failed");
         }
         else if( is_interleaved( _output_layout ) ) {
-            hipMemcpy(output.interleaved_ptr(), output_device_buffers[0], output.size_in_bytes(), hipMemcpyDeviceToHost);
+            HIP_V_THROW( hipMemcpy(output.interleaved_ptr(), output_device_buffers[0], output.size_in_bytes(), hipMemcpyDeviceToHost), "hipMemcpy failed");
         }
         else if( is_real( _output_layout ) ) {
-            hipMemcpy(output.real_ptr(), output_device_buffers[0], output.size_in_bytes(), hipMemcpyDeviceToHost);
+            HIP_V_THROW( hipMemcpy(output.real_ptr(), output_device_buffers[0], output.size_in_bytes(), hipMemcpyDeviceToHost), "hipMemcpy failed");
         }
     }
 
+    void read_gpu_result_to_input_buffer() {
+
+        if( is_planar( _input_layout ) ) {
+            HIP_V_THROW( hipMemcpy(input.real_ptr(), input_device_buffers[0], input.size_in_bytes(), hipMemcpyDeviceToHost), "hipMemcpy failed");
+            HIP_V_THROW( hipMemcpy(input.imag_ptr(), input_device_buffers[1], input.size_in_bytes(), hipMemcpyDeviceToHost), "hipMemcpy failed");
+        }
+        else if( is_interleaved( _input_layout ) ) {
+            HIP_V_THROW( hipMemcpy(input.interleaved_ptr(), input_device_buffers[0], input.size_in_bytes(), hipMemcpyDeviceToHost), "hipMemcpy failed");
+        }
+        else if( is_real( _input_layout ) ) {
+            HIP_V_THROW( hipMemcpy(input.real_ptr(), input_device_buffers[0], input.size_in_bytes(), hipMemcpyDeviceToHost), "hipMemcpy failed");
+        }
+    }
 
     void argument_check()
     {

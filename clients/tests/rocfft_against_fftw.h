@@ -36,7 +36,7 @@ void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_t
 		output_strides.empty() ? NULL : &output_strides[0],
 		batch, input_distance, output_distance,
 		in_array_type, out_array_type,
-		placeness );
+		placeness, scale );
 
 
 	fftw<T, fftw_T> reference( lengths.size(), &lengths[0], batch, c2c );
@@ -70,6 +70,7 @@ void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_t
 	// if we're starting with unequal data, we're destined for failure
 	EXPECT_EQ( true, test_fft.input_buffer() == reference.input_buffer() );
 
+        //TODO, In rocfft, scale must be set before plan create
 
 	if( transform_type  == rocfft_transform_type_complex_forward )
 	{
