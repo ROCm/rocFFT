@@ -80,7 +80,7 @@ set( Boost_USE_MULTITHREADED ON )
 set( Boost_DETAILED_FAILURE_MSG ON )
 set( Boost_ADDITIONAL_VERSIONS 1.60.0 1.60 )
 set( Boost_USE_STATIC_LIBS ON )
-find_package( Boost REQUIRED COMPONENTS program_options )
+find_package( Boost REQUIRED COMPONENTS program_options random )
 
 if( NOT Boost_FOUND )
 	set( Boost_USE_STATIC_LIBS OFF )
