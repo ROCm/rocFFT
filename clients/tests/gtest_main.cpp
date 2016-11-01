@@ -10,7 +10,6 @@
 #include <gtest/gtest.h>
 // #include <boost/program_options.hpp>
 
-#include <hip_runtime.h>
 #include "rocfft.h"
 #include "test_constants.h"
 // namespace po = boost::program_options;

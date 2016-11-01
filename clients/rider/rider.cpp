@@ -15,7 +15,7 @@
 #include "./rider.h"
 
 #define __HIPCC__
-#include <hip_runtime.h>
+#include <hip_runtime_api.h>
 
 #include "./misc.h"
 

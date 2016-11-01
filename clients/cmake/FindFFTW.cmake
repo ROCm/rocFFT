@@ -34,7 +34,7 @@ set( FFTW_LIBRARIES "" )
 set( FFTW_FIND_REQUIRED_FLOAT TRUE)
 if( FFTW_FIND_REQUIRED_FLOAT OR FFTW_FIND_REQUIRED_SINGLE )
   find_library( FFTW_LIBRARIES_SINGLE
-      NAMES fftw3f fftw3f-3 fftw3
+      NAMES fftw3f fftw3f-3 fftw3 fftw3-3
       HINTS
           ${FFTW_ROOT}/lib
           $ENV{FFTW_ROOT}/lib
