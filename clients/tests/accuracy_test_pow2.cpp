@@ -15,7 +15,7 @@
 #include "fftw_transform.h"
 
 #define REAL 0 // all real test are ea/disabled by #if REAL
-
+#define PLANAR 0 // 
 
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
@@ -47,6 +47,8 @@ namespace power2
 
 // *****************************************************
 // *****************************************************
+
+#if PLANAR
 template< class T, class fftw_T >
 void normal_1D_forward_in_place_complex_planar_to_complex_planar()
 {
@@ -78,7 +80,7 @@ TEST_F(accuracy_test_pow2_double, normal_1D_forward_in_place_complex_planar_to_c
     try { normal_1D_forward_in_place_complex_planar_to_complex_planar< double,  fftw_complex >(); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
-
+ 
 // *****************************************************
 // *****************************************************
 template< class T, class fftw_T >
@@ -111,6 +113,8 @@ TEST_F(accuracy_test_pow2_double, normal_1D_backward_in_place_complex_planar_to_
     try { normal_1D_backward_in_place_complex_planar_to_complex_planar< double,  fftw_complex >(); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
+
+#endif
 
 // *****************************************************
 // *****************************************************

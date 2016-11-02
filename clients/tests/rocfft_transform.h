@@ -108,10 +108,6 @@ private:
     buffer<T> input;
     buffer<T> output;
 
-    size_t number_of_data_points;
-
-    T _forward_scale, _backward_scale;
-
     T scale; 
 
     size_t device_workspace_size;
@@ -126,6 +122,7 @@ public:
             const size_t input_distance_in, const size_t output_distance_in,
             const rocfft_array_type  input_layout_in, const rocfft_array_type  output_layout_in,
             const rocfft_result_placement  placement_in, 
+            const rocfft_transform_type transform_type_in, 
             const T scale_in )
         try
         : dim(dimensions_in)
@@ -133,6 +130,7 @@ public:
         , _input_layout( input_layout_in )
         , _output_layout( output_layout_in )
         , _placement( placement_in )
+	, _transformation_direction (transform_type_in)
         , scale (scale_in)
         , device_workspace_size(0)
         , input(    dimensions_in,
@@ -151,13 +149,9 @@ public:
                     _output_layout,
                     _placement
                 )
-        , number_of_data_points (input.number_of_data_points())
-        , _forward_scale( 1.0f )
-        , _backward_scale ( 1.0f/ T(number_of_data_points) )
-        , _transformation_direction( rocfft_transform_type_complex_forward ) //TODO
     {
 
-        argument_check(); //TODO check transferred FFT argument valid or not
+        argument_check(); //TODO add more FFT argument check
 
         verbose_output();
         
@@ -179,8 +173,6 @@ public:
 
 
         initialize_resource(); //allocate
-
-        write_local_input_buffer_to_gpu(); // perform memory copy 
 
         LIB_V_THROW( rocfft_setup(), "rocfft_setup failed");
                            
@@ -220,11 +212,14 @@ public:
     void initialize_plan()
     {
 
-        if( (_placement == rocfft_placement_inplace) && scale == 1.0 ){
-            LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, dim, lengths.data(), batch_size, NULL  ), "rocfft_plan_create failed" );
+        if( _input_layout == rocfft_array_type_complex_interleaved && 
+            _output_layout == rocfft_array_type_complex_interleaved && 
+            scale == 1.0 ){
+            LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, 
+                         dim, lengths.data(), batch_size, NULL  ), "rocfft_plan_create failed" );
         }
-        else{//TODO
-            set_layouts(_input_layout, _output_layout);
+        else{
+            set_layouts();//explicitely set layout 
         }
 
         LIB_V_THROW( rocfft_plan_get_print ( plan ), "rocfft_plan_get_print failed");
@@ -240,16 +235,16 @@ public:
     }
 
     /*****************************************************/
-    void set_layouts( rocfft_array_type  new_input_layout, rocfft_array_type  new_output_layout )
+    void set_layouts()
     {
 
 	LIB_V_THROW( rocfft_plan_description_create (&desc), "rocfft_plan_description_create failed");
-        // no offset, packed data
-	LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, new_input_layout, new_output_layout, 0, 0, 0, NULL, 0, 0, NULL, 0),
+        // TODO offset non-packed data
+	LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, _input_layout, _output_layout, 0, 0, 0, NULL, 0, 0, NULL, 0),
                                                              "rocfft_plan_description_data_layout failed");
 
 
-        //TODO, In rocfft, scale must be set before plan create
+        // In rocfft, scale must be set before plan create
 	LIB_V_THROW( rocfft_set_scale_template<T>(desc, scale), "rocfft_plan_descrption_set_scale failed");
 
         LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, dim, lengths.data(), batch_size, desc  ), "rocfft_plan_create failed" );       
@@ -258,6 +253,8 @@ public:
 
     /*****************************************************/
     void transform(bool explicit_intermediate_buffer = use_explicit_intermediate_buffer) {
+ 
+        write_local_input_buffer_to_gpu(); // perform memory copy 
 
         LIB_V_THROW( rocfft_execution_info_create(&info), "rocfft_execution_info_create failed" );
 
@@ -326,28 +323,6 @@ public:
     bool is_hermitian( const rocfft_array_type  layout )
     {
         return (layout == rocfft_array_type_hermitian_interleaved || layout == rocfft_array_type_hermitian_planar);
-    }
-
-    /*****************************************************/
-    void forward_scale( T in ) {
-
-        _forward_scale = in;
-    }
-
-    /*****************************************************/
-    void backward_scale( T in ) {
-
-        _backward_scale = in;
-    }
-
-    /*****************************************************/
-    void set_forward_transform() {
-        _transformation_direction = rocfft_transform_type_complex_forward;
-    }
-
-    /*****************************************************/
-    void set_backward_transform() {
-        _transformation_direction = rocfft_transform_type_complex_inverse;
     }
 
 
@@ -441,14 +416,14 @@ private:
 
         //size_in_bytes is calculated in input buffer
         if( is_planar( _input_layout ) ) {
-            hipMemcpy(input_device_buffers[0], input.real_ptr(), input.size_in_bytes(), hipMemcpyHostToDevice);
-            hipMemcpy(input_device_buffers[1], input.imag_ptr(), input.size_in_bytes(), hipMemcpyHostToDevice);
+            HIP_V_THROW( hipMemcpy(input_device_buffers[0], input.real_ptr(), input.size_in_bytes(), hipMemcpyHostToDevice), "hipMemcpy failed");
+            HIP_V_THROW( hipMemcpy(input_device_buffers[1], input.imag_ptr(), input.size_in_bytes(), hipMemcpyHostToDevice), "hipMemcpy failed");
         }
         else if( is_interleaved( _input_layout ) ) {
-            hipMemcpy(input_device_buffers[0], input.interleaved_ptr(), input.size_in_bytes(), hipMemcpyHostToDevice);
+            HIP_V_THROW( hipMemcpy(input_device_buffers[0], input.interleaved_ptr(), input.size_in_bytes(), hipMemcpyHostToDevice), "hipMemcpy failed");
         }
         else if( is_real( _input_layout ) ) {
-            hipMemcpy(input_device_buffers[0], input.real_ptr(), input.size_in_bytes(), hipMemcpyHostToDevice);
+            HIP_V_THROW( hipMemcpy(input_device_buffers[0], input.real_ptr(), input.size_in_bytes(), hipMemcpyHostToDevice), "hipMemcpy failed");
         }
     }
 

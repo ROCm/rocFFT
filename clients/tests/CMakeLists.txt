@@ -84,7 +84,7 @@ find_package( Boost REQUIRED COMPONENTS program_options random )
 
 if( NOT Boost_FOUND )
 	set( Boost_USE_STATIC_LIBS OFF )
-	find_package( Boost REQUIRED COMPONENTS program_options )
+	find_package( Boost REQUIRED COMPONENTS program_options random)
 endif( )
 
 find_package( GTest REQUIRED )

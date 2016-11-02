@@ -22,7 +22,7 @@
 // dimension is inferred from lengths.size()
 // tightly packed is inferred from strides.empty()
 template< class T, class fftw_T >
-void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_type ,
+void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_type,
 	std::vector<size_t> lengths, size_t batch,
 	std::vector<size_t> input_strides, std::vector<size_t> output_strides,
 	size_t input_distance, size_t output_distance,
@@ -36,7 +36,7 @@ void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_t
 		output_strides.empty() ? NULL : &output_strides[0],
 		batch, input_distance, output_distance,
 		in_array_type, out_array_type,
-		placeness, scale );
+		placeness, transform_type, scale );
 
 
 	fftw<T, fftw_T> reference( lengths.size(), &lengths[0], batch, c2c );
@@ -70,21 +70,14 @@ void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_t
 	// if we're starting with unequal data, we're destined for failure
 	EXPECT_EQ( true, test_fft.input_buffer() == reference.input_buffer() );
 
-        //TODO, In rocfft, scale must be set before plan create
-
+        // scale is already set in plan create called in constructor of class rocfft
 	if( transform_type  == rocfft_transform_type_complex_forward )
 	{
-		test_fft.set_forward_transform();
-		test_fft.forward_scale( scale );
-
 		reference.set_forward_transform();
 		reference.forward_scale( scale );
 	}
 	else if( transform_type  == rocfft_transform_type_complex_inverse )
 	{
-		test_fft.set_backward_transform();
-		test_fft.backward_scale( scale );
-
 		reference.set_backward_transform();
 		reference.backward_scale( scale );
 	}
