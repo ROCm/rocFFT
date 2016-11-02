@@ -462,8 +462,6 @@ void TreeNode::RecursiveBuildTree()
 		{
 			// first transpose
 			TreeNode *trans1Plan = TreeNode::CreateNode(this);
-			trans1Plan->precision = precision;
-			trans1Plan->batch = batch;
 
 			trans1Plan->length.push_back(divLength0);
 			trans1Plan->length.push_back(divLength1);
@@ -480,8 +478,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// first row fft
 			TreeNode *row1Plan = TreeNode::CreateNode(this);
-			row1Plan->precision = precision;
-			row1Plan->batch = batch;
 
 			// twiddling is done in row2 or transpose2
 			row1Plan->large1D = 0;
@@ -502,8 +498,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// second transpose
 			TreeNode *trans2Plan = TreeNode::CreateNode(this);
-			trans2Plan->precision = precision;
-			trans2Plan->batch = batch;
 
 			trans2Plan->length.push_back(divLength1);
 			trans2Plan->length.push_back(divLength0);
@@ -522,8 +516,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// second row fft
 			TreeNode *row2Plan = TreeNode::CreateNode(this);
-			row2Plan->precision = precision;
-			row2Plan->batch = batch;
 
 			row2Plan->length.push_back(divLength0);
 			row2Plan->length.push_back(divLength1);
@@ -543,8 +535,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// third transpose
 			TreeNode *trans3Plan = TreeNode::CreateNode(this);
-			trans3Plan->precision = precision;
-			trans3Plan->batch = batch;
 
 			trans3Plan->length.push_back(divLength0);
 			trans3Plan->length.push_back(divLength1);
@@ -564,8 +554,6 @@ void TreeNode::RecursiveBuildTree()
 		{
 			// first plan, column-to-column
 			TreeNode *col2colPlan = TreeNode::CreateNode(this);
-			col2colPlan->precision = precision;
-			col2colPlan->batch = batch;
 
 			// large1D flag to confirm we need multiply twiddle factor
 			col2colPlan->large1D = length[0];
@@ -585,8 +573,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// second plan, row-to-column
 			TreeNode *row2colPlan = TreeNode::CreateNode(this);
-			row2colPlan->precision = precision;
-			row2colPlan->batch = batch;
 
 			row2colPlan->length.push_back(divLength0);
 			row2colPlan->length.push_back(divLength1);
@@ -606,8 +592,6 @@ void TreeNode::RecursiveBuildTree()
 		{
 			// first plan, column-to-column
 			TreeNode *col2colPlan = TreeNode::CreateNode(this);
-			col2colPlan->precision = precision;
-			col2colPlan->batch = batch;
 
 			// large1D flag to confirm we need multiply twiddle factor
 			col2colPlan->large1D = length[0];
@@ -627,8 +611,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// second plan, row-to-row
 			TreeNode *row2rowPlan = TreeNode::CreateNode(this);
-			row2rowPlan->precision = precision;
-			row2rowPlan->batch = batch;
 
 			row2rowPlan->length.push_back(divLength0);
 			row2rowPlan->length.push_back(divLength1);
@@ -645,8 +627,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// third plan, transpose
 			TreeNode *transPlan = TreeNode::CreateNode(this);
-			transPlan->precision = precision;
-			transPlan->batch = batch;
 
 			transPlan->length.push_back(divLength0);
 			transPlan->length.push_back(divLength1);
@@ -688,8 +668,6 @@ void TreeNode::RecursiveBuildTree()
 		{
 			// first row fft
 			TreeNode *row1Plan = TreeNode::CreateNode(this);
-			row1Plan->precision = precision;
-			row1Plan->batch = batch;
 
 			row1Plan->length.push_back(length[0]);
 			row1Plan->dimension = 1;
@@ -705,8 +683,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// first transpose
 			TreeNode *trans1Plan = TreeNode::CreateNode(this);
-			trans1Plan->precision = precision;
-			trans1Plan->batch = batch;
 
 			trans1Plan->length.push_back(length[0]);
 			trans1Plan->length.push_back(length[1]);
@@ -723,8 +699,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// second row fft
 			TreeNode *row2Plan = TreeNode::CreateNode(this);
-			row2Plan->precision = precision;
-			row2Plan->batch = batch;
 
 			row2Plan->length.push_back(length[1]);
 			row2Plan->dimension = 1;
@@ -740,8 +714,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// second transpose
 			TreeNode *trans2Plan = TreeNode::CreateNode(this);
-			trans2Plan->precision = precision;
-			trans2Plan->batch = batch;
 
 			trans2Plan->length.push_back(length[1]);
 			trans2Plan->length.push_back(length[0]);
@@ -762,8 +734,6 @@ void TreeNode::RecursiveBuildTree()
 		{
 			// row fft
 			TreeNode *rowPlan = TreeNode::CreateNode(this);
-			rowPlan->precision = precision;
-			rowPlan->batch = batch;
 
 			rowPlan->length.push_back(length[0]);
 			rowPlan->dimension = 1;
@@ -779,8 +749,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// column fft
 			TreeNode *colPlan = TreeNode::CreateNode(this);
-			colPlan->precision = precision;
-			colPlan->batch = batch;
 
 			colPlan->length.push_back(length[1]);
 			colPlan->dimension = 1;
@@ -824,8 +792,6 @@ void TreeNode::RecursiveBuildTree()
 		{
 			// 2d fft
 			TreeNode *xyPlan = TreeNode::CreateNode(this);
-			xyPlan->precision = precision;
-			xyPlan->batch = batch;
 
 			xyPlan->length.push_back(length[0]);
 			xyPlan->length.push_back(length[1]);
@@ -842,8 +808,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// first transpose
 			TreeNode *trans1Plan = TreeNode::CreateNode(this);
-			trans1Plan->precision = precision;
-			trans1Plan->batch = batch;
 
 			trans1Plan->length.push_back(length[0]);
 			trans1Plan->length.push_back(length[1]);
@@ -861,8 +825,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// z fft
 			TreeNode *zPlan = TreeNode::CreateNode(this);
-			zPlan->precision = precision;
-			zPlan->batch = batch;
 
 			zPlan->length.push_back(length[2]);
 			zPlan->dimension = 1;
@@ -879,8 +841,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// second transpose
 			TreeNode *trans2Plan = TreeNode::CreateNode(this);
-			trans2Plan->precision = precision;
-			trans2Plan->batch = batch;
 
 			trans2Plan->length.push_back(length[2]);
 			trans2Plan->length.push_back(length[0]);
@@ -901,8 +861,6 @@ void TreeNode::RecursiveBuildTree()
 		{
 			// 2d fft
 			TreeNode *xyPlan = TreeNode::CreateNode(this);
-			xyPlan->precision = precision;
-			xyPlan->batch = batch;
 
 			xyPlan->length.push_back(length[0]);
 			xyPlan->length.push_back(length[1]);
@@ -919,8 +877,6 @@ void TreeNode::RecursiveBuildTree()
 
 			// z col fft
 			TreeNode *zPlan = TreeNode::CreateNode(this);
-			zPlan->precision = precision;
-			zPlan->batch = batch;
 
 			zPlan->length.push_back(length[2]);
 			zPlan->dimension = 1;

@@ -137,7 +137,14 @@ private:
 	// disallow public creation
 	TreeNode(TreeNode *p) : parent(p), scheme(CS_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0),
 				transTileDir(TTD_IP_HOR), twiddles(nullptr), twiddles_large(nullptr)
-	{}
+	{
+		if(p != nullptr)
+		{
+			precision = p->precision;
+			batch = p->batch;
+			direction = p->direction;
+		}
+	}
 
 public:
 	size_t						batch;
@@ -154,7 +161,8 @@ public:
 	// distance between consecutive batch members
 	size_t						iDist, oDist;
 
-	rocfft_result_placement	placement;
+	size_t						direction;
+	rocfft_result_placement		placement;
 	rocfft_precision			precision;
 	rocfft_array_type			inArrayType, outArrayType;
 
