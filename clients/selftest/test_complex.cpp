@@ -237,7 +237,7 @@ const TrLen3D Test3DLengths[] =
 	{2, 3125, 3},
 };
 
-template <typename T, typename CT, typename P, rocfft_status (*exec_plan)(P, void *i[], void *o[], rocfft_execution_info), rocfft_status (*destruct_plan)(P)>
+template <typename T, typename CT>
 class BasicInterfaceBasisTest : public ::testing::Test
 {
 protected:
@@ -262,23 +262,39 @@ protected:
 		void *bufs[1];
 		bufs[0] = dev;
 
+		void *workBuffer = nullptr;
+		size_t workBufferSize = 0;
+		rocfft_plan_get_work_buffer_size(p, &workBufferSize);
+
+		rocfft_execution_info info = nullptr;
+		rocfft_execution_info_create(&info);
+
+		if(workBufferSize > 0)
+		{
+			hipMalloc(&workBuffer, workBufferSize);
+			rocfft_execution_info_set_work_buffer(info, workBuffer, workBufferSize);
+		}
+
 		hipMemcpy(dev, in, L*sizeof(CT), hipMemcpyHostToDevice);
-		exec_plan(p, bufs, NULL, NULL);
+		rocfft_execute(p, bufs, NULL, info);
+		hipDeviceSynchronize();
 		hipMemcpy(out, dev, L*sizeof(CT), hipMemcpyDeviceToHost);
 
-		ErrorCheck<T,CT>(L, ref, out);		
+		ErrorCheck<T,CT>(L, ref, out);
+
+		if(workBuffer)
+			hipFree(workBuffer);
+
+		rocfft_execution_info_destroy(info);
 	}
 
 	CT *in, *out, *ref, *dev;
-	P p;
+	rocfft_plan p;
 };
 
 
-template <typename T, typename CT, typename P,
-		rocfft_precision prec,
-		rocfft_status (*planner)(P *, rocfft_result_placement, rocfft_transform_type, rocfft_precision, size_t, const size_t *, size_t, const rocfft_plan_description), 
-		rocfft_status (*exec_plan)(P, void *i[], void *o[], rocfft_execution_info), rocfft_status (*destruct_plan)(P)>
-class BasicInterface1DBasisTest : public BasicInterfaceBasisTest<T, CT, P, exec_plan, destruct_plan>, public ::testing::WithParamInterface<TrLen1D>
+template <typename T, typename CT, rocfft_precision prec>
+class BasicInterface1DBasisTest : public BasicInterfaceBasisTest<T, CT>, public ::testing::WithParamInterface<TrLen1D>
 {
 protected:
 
@@ -291,23 +307,20 @@ protected:
 		bvm.RawPtrs(&this->in, &this->out, &this->dev);
 
 		if(dir == -1)
-			planner(&this->p, rocfft_placement_inplace, rocfft_transform_type_complex_forward, prec, 1, length, 1, NULL);
+			rocfft_plan_create(&this->p, rocfft_placement_inplace, rocfft_transform_type_complex_forward, prec, 1, length, 1, NULL);
 		else
-			planner(&this->p, rocfft_placement_inplace, rocfft_transform_type_complex_inverse, prec, 1, length, 1, NULL);
+			rocfft_plan_create(&this->p, rocfft_placement_inplace, rocfft_transform_type_complex_inverse, prec, 1, length, 1, NULL);
 
 		bvm.Generate(&this->in, &this->ref, dir);
 	
 		this->RunBvt(N);
 
-		destruct_plan(this->p);
+		rocfft_plan_destroy(this->p);
 	}
 };
 
-template <typename T, typename CT, typename P,
-		rocfft_precision prec,
-		rocfft_status (*planner)(P *, rocfft_result_placement, rocfft_transform_type, rocfft_precision, size_t, const size_t *, size_t, const rocfft_plan_description), 
-		rocfft_status (*exec_plan)(P, void *i[], void *o[], rocfft_execution_info), rocfft_status (*destruct_plan)(P)>
-class BasicInterface2DBasisTest : public BasicInterfaceBasisTest<T, CT, P, exec_plan, destruct_plan>, public ::testing::WithParamInterface<TrLen2D>
+template <typename T, typename CT, rocfft_precision prec>
+class BasicInterface2DBasisTest : public BasicInterfaceBasisTest<T, CT>, public ::testing::WithParamInterface<TrLen2D>
 {
 protected:
 
@@ -322,23 +335,20 @@ protected:
 		bvm.RawPtrs(&this->in, &this->out, &this->dev);
 
 		if(dir == -1)
-			planner(&this->p, rocfft_placement_inplace, rocfft_transform_type_complex_forward, prec, 2, length, 1, NULL);
+			rocfft_plan_create(&this->p, rocfft_placement_inplace, rocfft_transform_type_complex_forward, prec, 2, length, 1, NULL);
 		else
-			planner(&this->p, rocfft_placement_inplace, rocfft_transform_type_complex_inverse, prec, 2, length, 1, NULL);
+			rocfft_plan_create(&this->p, rocfft_placement_inplace, rocfft_transform_type_complex_inverse, prec, 2, length, 1, NULL);
 
 		bvm.Generate(&this->in, &this->ref, dir);
 	
 		this->RunBvt(L);
 
-		destruct_plan(this->p);
+		rocfft_plan_destroy(this->p);
 	}
 };
 
-template <typename T, typename CT, typename P,
-		rocfft_precision prec,
-		rocfft_status (*planner)(P *, rocfft_result_placement, rocfft_transform_type, rocfft_precision, size_t, const size_t *, size_t, const rocfft_plan_description), 
-		rocfft_status (*exec_plan)(P, void *i[], void *o[], rocfft_execution_info), rocfft_status (*destruct_plan)(P)>
-class BasicInterface3DBasisTest : public BasicInterfaceBasisTest<T, CT, P, exec_plan, destruct_plan>, public ::testing::WithParamInterface<TrLen3D>
+template <typename T, typename CT, rocfft_precision prec>
+class BasicInterface3DBasisTest : public BasicInterfaceBasisTest<T, CT>, public ::testing::WithParamInterface<TrLen3D>
 {
 protected:
 
@@ -354,26 +364,26 @@ protected:
 		bvm.RawPtrs(&this->in, &this->out, &this->dev);
 
 		if(dir == -1)
-			planner(&this->p, rocfft_placement_inplace, rocfft_transform_type_complex_forward, prec, 3, length, 1, NULL);
+			rocfft_plan_create(&this->p, rocfft_placement_inplace, rocfft_transform_type_complex_forward, prec, 3, length, 1, NULL);
 		else
-			planner(&this->p, rocfft_placement_inplace, rocfft_transform_type_complex_inverse, prec, 3, length, 1, NULL);	
+			rocfft_plan_create(&this->p, rocfft_placement_inplace, rocfft_transform_type_complex_inverse, prec, 3, length, 1, NULL);	
 
 		bvm.Generate(&this->in, &this->ref, dir);
 	
 		this->RunBvt(L);
 
-		destruct_plan(this->p);
+		rocfft_plan_destroy(this->p);
 	}
 };
 
 //complex to complex cases
-typedef BasicInterface1DBasisTest<double, complex_double, rocfft_plan, rocfft_precision_double, rocfft_plan_create, rocfft_execute, rocfft_plan_destroy> BasicInterfaceDouble1DBasisTest;
-typedef BasicInterface2DBasisTest<double, complex_double, rocfft_plan, rocfft_precision_double, rocfft_plan_create, rocfft_execute, rocfft_plan_destroy> BasicInterfaceDouble2DBasisTest;
-typedef BasicInterface3DBasisTest<double, complex_double, rocfft_plan, rocfft_precision_double, rocfft_plan_create, rocfft_execute, rocfft_plan_destroy> BasicInterfaceDouble3DBasisTest;
+typedef BasicInterface1DBasisTest<double, complex_double, rocfft_precision_double> BasicInterfaceDouble1DBasisTest;
+typedef BasicInterface2DBasisTest<double, complex_double, rocfft_precision_double> BasicInterfaceDouble2DBasisTest;
+typedef BasicInterface3DBasisTest<double, complex_double, rocfft_precision_double> BasicInterfaceDouble3DBasisTest;
 
-typedef BasicInterface1DBasisTest<float, complex_single, rocfft_plan, rocfft_precision_single, rocfft_plan_create, rocfft_execute, rocfft_plan_destroy> BasicInterfaceSingle1DBasisTest;
-typedef BasicInterface2DBasisTest<float, complex_single, rocfft_plan, rocfft_precision_single, rocfft_plan_create, rocfft_execute, rocfft_plan_destroy> BasicInterfaceSingle2DBasisTest;
-typedef BasicInterface3DBasisTest<float, complex_single, rocfft_plan, rocfft_precision_single, rocfft_plan_create, rocfft_execute, rocfft_plan_destroy> BasicInterfaceSingle3DBasisTest;
+typedef BasicInterface1DBasisTest<float, complex_single, rocfft_precision_single> BasicInterfaceSingle1DBasisTest;
+typedef BasicInterface2DBasisTest<float, complex_single, rocfft_precision_single> BasicInterfaceSingle2DBasisTest;
+typedef BasicInterface3DBasisTest<float, complex_single, rocfft_precision_single> BasicInterfaceSingle3DBasisTest;
 
 
 
