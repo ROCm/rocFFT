@@ -10,7 +10,7 @@
 typedef float complex_single[2];
 typedef double complex_double[2];
 
-inline bool clMathSupportedLength(size_t len)
+inline bool SupportedLength(size_t len)
 {
 	size_t p = len;
 	while(!(p%2)) p /= 2;
@@ -254,7 +254,7 @@ protected:
 	
 	virtual void RunBvt(size_t L)
 	{
-		if(!clMathSupportedLength(L))
+		if(!SupportedLength(L))
 		{
 			return;
 		}
@@ -584,7 +584,7 @@ protected:
 	
 	virtual void RunBvt(size_t L, size_t batch)
 	{
-		if(!clMathSupportedLength(L))
+		if(!SupportedLength(L))
 			return;
 
 		exec_plan(p);

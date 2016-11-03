@@ -182,8 +182,12 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
 	rocfft_plan p = plan;
 	p->rank = dimensions;
 
+	size_t prodLength = 1;
 	for(size_t i=0; i<(p->rank); i++)
+	{
+		prodLength *= lengths[i];
 		p->lengths[i] = lengths[i];
+	}
 
 	p->batch = number_of_transforms;
 	p->placement = placement;
@@ -218,6 +222,8 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
 		p->desc.outDist = p->lengths[p->rank - 1] * p->desc.outStrides[p->rank -1];
 	}
 
+	if(!SupportedLength(prodLength))
+		return rocfft_status_invalid_dimensions; 
 
 	Repo &repo = Repo::GetRepo();
 	repo.CreatePlan(p);
