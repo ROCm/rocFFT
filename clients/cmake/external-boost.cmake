@@ -59,9 +59,9 @@ else( )
 endif( )
 
 message( STATUS "ExternalBoost using ( " ${Cores} " ) cores to build with" )
-message( STATUS "ExternalBoost building [ program_options, serialization, filesystem, system, regex ] components" )
+message( STATUS "ExternalBoost building [ program_options, random, serialization, filesystem, system, regex ] components" )
 
-list( APPEND Boost.Command -j ${Cores} --with-program_options --with-serialization --with-filesystem --with-system --with-regex )
+list( APPEND Boost.Command -j ${Cores} --with-program_options --with-random --with-serialization --with-filesystem --with-system --with-regex )
 
 if( BUILD_64 )
   list( APPEND Boost.Command address-model=64 )

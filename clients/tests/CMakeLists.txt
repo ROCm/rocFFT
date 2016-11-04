@@ -80,11 +80,11 @@ set( Boost_USE_MULTITHREADED ON )
 set( Boost_DETAILED_FAILURE_MSG ON )
 set( Boost_ADDITIONAL_VERSIONS 1.60.0 1.60 )
 set( Boost_USE_STATIC_LIBS ON )
-find_package( Boost REQUIRED COMPONENTS program_options )
+find_package( Boost REQUIRED COMPONENTS program_options random )
 
 if( NOT Boost_FOUND )
 	set( Boost_USE_STATIC_LIBS OFF )
-	find_package( Boost REQUIRED COMPONENTS program_options )
+	find_package( Boost REQUIRED COMPONENTS program_options random)
 endif( )
 
 find_package( GTest REQUIRED )
@@ -100,10 +100,16 @@ endif( )
 set(rocfft_test_source
     gtest_main.cpp
     accuracy_test_transpose.cpp
+    accuracy_test_pow2.cpp
     misc/source/test_exception.cpp)
 
 set(rocfft_test_includes
     accuracy_test_common.h
+    buffer_memory.h
+    buffer.h 
+    rocfft_transform.h
+    fftw_transform.h
+    rocfft_against_fftw.h
     misc/include/test_exception.h)
 
 add_executable( rocfft-test-correctness ${rocfft_test_source} ${rocfft_test_includes} )
@@ -125,7 +131,7 @@ set(TEST_MISC_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/misc/include)
 target_compile_definitions( rocfft-test-correctness PRIVATE GTEST_USE_OWN_TR1_TUPLE=1 )
 target_include_directories( rocfft-test-correctness
   PRIVATE
-#		$<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${GTEST_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${FFTW_INCLUDES}>
     $<BUILD_INTERFACE:${hip_include_dir}>
@@ -133,7 +139,7 @@ target_include_directories( rocfft-test-correctness
     $<BUILD_INTERFACE:${TEST_MISC_INCLUDE_DIRS}>
 )
 
-target_link_libraries( rocfft-test-correctness rocfft ${GTEST_LIBRARIES} ${FFTW_LIBRARIES} ) # ${Boost_LIBRARIES}
+target_link_libraries( rocfft-test-correctness rocfft ${GTEST_LIBRARIES} ${FFTW_LIBRARIES} ${Boost_LIBRARIES} )
 
 # Ubuntu systems need to explicitely link to pthreads lib because of --as-needed
 # https://github.com/google/googletest/issues/391#issuecomment-125645879
