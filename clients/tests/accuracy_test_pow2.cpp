@@ -216,6 +216,7 @@ TEST_F(accuracy_test_pow2_double, normal_1D_backward_in_place_complex_interleave
 
 // *****************************************************
 // *****************************************************
+#if PLANAR
 template< class T, class fftw_T >
 void normal_1D_forward_out_of_place_complex_planar_to_complex_planar()
 {
@@ -279,7 +280,7 @@ TEST_F(accuracy_test_pow2_double, normal_1D_backward_out_of_place_complex_planar
     try { normal_1D_backward_out_of_place_complex_planar_to_complex_planar< double,  fftw_complex >(); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
-
+#endif
 // *****************************************************
 // *****************************************************
 template< class T, class fftw_T >
@@ -348,6 +349,7 @@ TEST_F(accuracy_test_pow2_double, normal_1D_backward_out_of_place_complex_interl
 
 // *****************************************************
 // *****************************************************
+#if PLANAR
 template< class T, class fftw_T >
 void normal_1D_forward_out_of_place_complex_planar_to_complex_interleaved()
 {
@@ -477,7 +479,7 @@ TEST_F(accuracy_test_pow2_double, normal_1D_backward_out_of_place_complex_interl
     try { normal_1D_backward_out_of_place_complex_interleaved_to_complex_planar< double,  fftw_complex >(); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
-
+#endif
 // *****************************************************
 // *****************************************************
 
@@ -675,6 +677,7 @@ TEST_F(accuracy_test_pow2_double, normal_1D_out_of_place_hermitian_planar_to_rea
 
 // *****************************************************
 // *****************************************************
+#if PLANAR
 template< class T, class fftw_T >
 void small_1D_forward_in_place_complex_planar_to_complex_planar()
 {
@@ -738,7 +741,7 @@ TEST_F(accuracy_test_pow2_double, small_1D_backward_in_place_complex_planar_to_c
     try { small_1D_backward_in_place_complex_planar_to_complex_planar< double,  fftw_complex >(); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
-
+#endif
 // *****************************************************
 // *****************************************************
 template< class T, class fftw_T >
@@ -807,6 +810,7 @@ TEST_F(accuracy_test_pow2_double, small_1D_backward_in_place_complex_interleaved
 
 // *****************************************************
 // *****************************************************
+#if PLANAR
 template< class T, class fftw_T >
 void small_1D_forward_out_of_place_complex_planar_to_complex_planar()
 {
@@ -870,7 +874,7 @@ TEST_F(accuracy_test_pow2_double, small_1D_backward_out_of_place_complex_planar_
     try { small_1D_backward_out_of_place_complex_planar_to_complex_planar< double,  fftw_complex >(); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
-
+#endif
 // *****************************************************
 // *****************************************************
 template< class T, class fftw_T >
@@ -939,6 +943,7 @@ TEST_F(accuracy_test_pow2_double, small_1D_backward_out_of_place_complex_interle
 
 // *****************************************************
 // *****************************************************
+#if PLANAR
 template< class T, class fftw_T >
 void small_1D_forward_out_of_place_complex_planar_to_complex_interleaved()
 {
@@ -1069,6 +1074,7 @@ TEST_F(accuracy_test_pow2_double, small_1D_backward_out_of_place_complex_interle
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
+#endif
 // *****************************************************
 // *****************************************************
 
