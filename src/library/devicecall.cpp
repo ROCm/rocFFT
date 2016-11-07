@@ -11,7 +11,7 @@
 #define __HIPCC__
 
 #include <iostream>
-#include <hip_runtime.h>
+#include "./rocfft_hip.h"
 
 #include "./kernels/pow2_ip_entry.h"
 #include "./kernels/pow2_op_entry.h"

@@ -9,7 +9,6 @@
 #endif
 #include <vector>
 #include <iostream>
-#include <hip_runtime.h>
 #include "rocfft_transpose.h"
 #include "rocfft_transpose_kernel.h"
 
