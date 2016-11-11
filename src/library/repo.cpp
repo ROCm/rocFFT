@@ -32,6 +32,10 @@ void Repo::CreatePlan(rocfft_plan plan)
 
 		rootPlan->placement = plan->placement;
 		rootPlan->precision = plan->precision;
+		if( (plan->transformType == rocfft_transform_type_complex_forward) || (plan->transformType == rocfft_transform_type_real_forward) )
+			rootPlan->direction = -1;
+		else
+			rootPlan->direction = 1;
 
 		rootPlan->inArrayType  = plan->desc.inArrayType;
 		rootPlan->outArrayType = plan->desc.outArrayType;

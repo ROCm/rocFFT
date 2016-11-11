@@ -44,6 +44,7 @@ add_compiler_export_flags( )
 # The following is a list of implementation files defining the library
 set( rocfft_source
      rocfft.cpp
+     hipfft.cpp
      plan.cpp
      transform.cpp
      repo.cpp

@@ -49,8 +49,11 @@ rocfft_status rocfft_execute(   const rocfft_plan plan,
 	repo.GetPlan(plan, execPlan);
 	PrintNode(execPlan);
 
-	if(info != nullptr)
+	if(execPlan.workBufSize > 0)
+	{
+		assert(info != nullptr);
 		assert(info->workBufferSize >= (execPlan.workBufSize * 2 * sizeof(float)));
+	}
 
 	if(plan->placement == rocfft_placement_inplace)
 		TransformPow2(execPlan, in_buffer, in_buffer, info);

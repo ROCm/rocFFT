@@ -3,13 +3,13 @@
  ******************************************************************************/
 
 
-#define __HIPCC__
+
 
 #if defined(__NVCC__)
 #include "helper_math.h"
 #endif
 
-#include <hip_runtime.h>
+#include "./rocfft_hip.h"
 #include "rocfft.h"
 #include "./plan.h"
 

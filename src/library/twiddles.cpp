@@ -3,9 +3,7 @@
  ******************************************************************************/
 
 
-#define __HIPCC__
-
-#include <hip_runtime.h>
+#include "./rocfft_hip.h"
 
 void *twiddles_create(size_t N)
 {

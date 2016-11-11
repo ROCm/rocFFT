@@ -8,8 +8,8 @@
 #include <gtest/gtest.h>
 #include <math.h>
 #include <complex>
-#include <rocfft_transpose.h>
 #include <hip_runtime.h>
+#include "rocfft_transpose.h"
 
 template<typename T>
 void transpose_complex_interleaved_to_complex_planar_reference(size_t input_row_size, size_t input_col_size, size_t input_leading_dim_size, size_t output_leading_dim_size, size_t batch_size, std::complex<T> *input_matrix, T *output_matrix_real, T *output_matrix_imag)

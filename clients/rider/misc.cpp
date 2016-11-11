@@ -3,9 +3,8 @@
  ******************************************************************************/
 
 
-#define __HIPCC__
+#include <stdexcept>
 
-#include <hip_runtime.h>
 #include "rocfft.h"
 #include "./misc.h"
 

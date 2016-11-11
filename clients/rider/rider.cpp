@@ -14,8 +14,6 @@
 #include "../../src/include/unicode.compatibility.h"
 #include "./rider.h"
 
-#define __HIPCC__
-#include <hip_runtime.h>
 
 #include "./misc.h"
 

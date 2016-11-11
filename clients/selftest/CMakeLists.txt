@@ -25,27 +25,27 @@ endif()
 # rocfft becomes the name of the project with a particular version
 if( POLICY CMP0048 )
 	cmake_policy( SET CMP0048 NEW )
-	project( rocfft-test-correctness VERSION 0.0.0.1 LANGUAGES C CXX )
+	project( rocfft-selftest VERSION 0.0.0.1 LANGUAGES C CXX )
 else( )
-	project( rocfft-test-correctness CXX C )
+	project( rocfft-selftest CXX C )
 	# Define a version for the code
 	if( NOT DEFINED rocfft_VERSION_MAJOR )
-		set( rocfft-test_VERSION_MAJOR 0 )
+		set( rocfft-selftest_VERSION_MAJOR 0 )
 	endif( )
 
 	if( NOT DEFINED rocfft_VERSION_MINOR )
-		set( rocfft-test_VERSION_MINOR 0 )
+		set( rocfft-selftest_VERSION_MINOR 0 )
 	endif( )
 
 	if( NOT DEFINED rocfft_VERSION_PATCH )
-		set( rocfft-test_VERSION_PATCH 0 )
+		set( rocfft-selftest_VERSION_PATCH 0 )
 	endif( )
 
 	if( NOT DEFINED rocfft_VERSION_TWEAK )
-		set( rocfft-test_VERSION_TWEAK 1 )
+		set( rocfft-selftest_VERSION_TWEAK 1 )
 	endif( )
 
-	set( rocfft-test_VERSION "${rocfft-test_VERSION_MAJOR}.${rocfft-test_VERSION_MINOR}.${rocfft-test_VERSION_PATCH}.${rocfft-test_VERSION_TWEAK}")
+	set( rocfft-selftest_VERSION "${rocfft-selftest_VERSION_MAJOR}.${rocfft-selftest_VERSION_MINOR}.${rocfft-selftest_VERSION_PATCH}.${rocfft-selftest_VERSION_TWEAK}")
 endif( )
 
 include ( build-bitness )
@@ -80,15 +80,14 @@ set( Boost_USE_MULTITHREADED ON )
 set( Boost_DETAILED_FAILURE_MSG ON )
 set( Boost_ADDITIONAL_VERSIONS 1.60.0 1.60 )
 set( Boost_USE_STATIC_LIBS ON )
-find_package( Boost REQUIRED COMPONENTS program_options random )
+find_package( Boost REQUIRED COMPONENTS program_options )
 
 if( NOT Boost_FOUND )
 	set( Boost_USE_STATIC_LIBS OFF )
-	find_package( Boost REQUIRED COMPONENTS program_options random)
+	find_package( Boost REQUIRED COMPONENTS program_options )
 endif( )
 
 find_package( GTest REQUIRED )
-find_package( FFTW 3.0 REQUIRED MODULE COMPONENTS FLOAT )
 find_package( rocfft REQUIRED CONFIG )
 
 if(PLATFORM_NAME STREQUAL "NVIDIA")
@@ -97,56 +96,43 @@ if(PLATFORM_NAME STREQUAL "NVIDIA")
     find_package(CUDA REQUIRED)
 endif( )
 
-set(rocfft_test_source
-    gtest_main.cpp
-    accuracy_test_transpose.cpp
-    accuracy_test_pow2.cpp
-    misc/source/test_exception.cpp)
+set(rocfft_selftest_source
+    test_complex.cpp )
 
-set(rocfft_test_includes
-    accuracy_test_common.h
-    buffer_memory.h
-    buffer.h 
-    rocfft_transform.h
-    fftw_transform.h
-    rocfft_against_fftw.h
-    misc/include/test_exception.h)
+set(rocfft_selftest_includes
+    )
 
-add_executable( rocfft-test-correctness ${rocfft_test_source} ${rocfft_test_includes} )
+add_executable( rocfft-selftest ${rocfft_selftest_source} ${rocfft_selftest_includes} )
 
 # Try to test for specific compiler features if cmake version is recent enough
 if( CMAKE_VERSION VERSION_GREATER "3.0" )
-  target_compile_features( rocfft-test-correctness PRIVATE cxx_static_assert cxx_nullptr cxx_lambdas cxx_auto_type )
+  target_compile_features( rocfft-selftest PRIVATE cxx_static_assert cxx_nullptr cxx_lambdas cxx_auto_type )
 else( )
   # Otherwise, just try to compile the library with a standards flag
   if( CMAKE_COMPILER_IS_GNUCXX OR ( CMAKE_CXX_COMPILER_ID MATCHES "Clang" ) )
 		# ::gets removed from std++14, but g++4.8 still uses it
 		# http://clang-developers.42468.n3.nabble.com/libc-gets-removed-from-C11-td4032945.html
-    # target_compile_options( rocfft-test PRIVATE -std=c++14 )
-		target_compile_options( rocfft-test-correctness PRIVATE -std=c++11 -pthread )
+		target_compile_options( rocfft-selftest PRIVATE -std=c++11 -pthread )
   endif( )
 endif( )
 
-set(TEST_MISC_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/misc/include)
-target_compile_definitions( rocfft-test-correctness PRIVATE GTEST_USE_OWN_TR1_TUPLE=1 )
-target_include_directories( rocfft-test-correctness
+target_compile_definitions( rocfft-selftest PRIVATE GTEST_USE_OWN_TR1_TUPLE=1 )
+target_include_directories( rocfft-selftest
   PRIVATE
-    $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${GTEST_INCLUDE_DIRS}>
-    $<BUILD_INTERFACE:${FFTW_INCLUDES}>
+    $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${hip_include_dir}>
     $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
-    $<BUILD_INTERFACE:${TEST_MISC_INCLUDE_DIRS}>
 )
 
-target_link_libraries( rocfft-test-correctness rocfft ${GTEST_LIBRARIES} ${FFTW_LIBRARIES} ${Boost_LIBRARIES} )
+target_link_libraries( rocfft-selftest rocfft ${GTEST_LIBRARIES} ${Boost_LIBRARIES} )
 
 # Ubuntu systems need to explicitely link to pthreads lib because of --as-needed
 # https://github.com/google/googletest/issues/391#issuecomment-125645879
 # No easy way to filter to Ubuntu
 if( UNIX )
-	target_link_libraries( rocfft-test-correctness pthread )
+	target_link_libraries( rocfft-selftest pthread )
 endif( )
 
-set_target_properties( rocfft-test-correctness PROPERTIES DEBUG_POSTFIX "-d" )
-set_target_properties( rocfft-test-correctness PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+set_target_properties( rocfft-selftest PROPERTIES DEBUG_POSTFIX "-d" )
+set_target_properties( rocfft-selftest PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )

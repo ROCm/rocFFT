@@ -1,4 +1,4 @@
-#include "hip_runtime.h"
+
 
 //works for complex planar to complex interleaved; T should be float or double; T2 should be float2 or double2 
 template<typename T, typename T2, int micro_tile_col_size, int micro_tile_row_size, int wg_col_size, int wg_row_size>

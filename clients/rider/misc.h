@@ -9,6 +9,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <hip_runtime_api.h>
 
 #define countOf( arr ) ( sizeof( arr ) / sizeof( arr[ 0 ] ) )
 

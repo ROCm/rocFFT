@@ -15,6 +15,19 @@
 
 #define MIN(A,B) (((A) < (B)) ? (A) : (B))
 
+inline bool SupportedLength(size_t len)
+{
+    size_t p = len;
+    while(!(p%2)) p /= 2;
+    //while(!(p%3)) p /= 3;
+    //while(!(p%5)) p /= 5;
+
+    if(p == 1)
+        return true;
+    else
+        return false;
+}
+
 struct rocfft_plan_description_t
 {
 
@@ -137,7 +150,14 @@ private:
 	// disallow public creation
 	TreeNode(TreeNode *p) : parent(p), scheme(CS_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0),
 				transTileDir(TTD_IP_HOR), twiddles(nullptr), twiddles_large(nullptr)
-	{}
+	{
+		if(p != nullptr)
+		{
+			precision = p->precision;
+			batch = p->batch;
+			direction = p->direction;
+		}
+	}
 
 public:
 	size_t						batch;
@@ -154,7 +174,8 @@ public:
 	// distance between consecutive batch members
 	size_t						iDist, oDist;
 
-	rocfft_result_placement	placement;
+	size_t						direction;
+	rocfft_result_placement		placement;
 	rocfft_precision			precision;
 	rocfft_array_type			inArrayType, outArrayType;
 
