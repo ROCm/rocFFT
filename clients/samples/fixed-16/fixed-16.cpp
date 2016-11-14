@@ -9,7 +9,8 @@
 #include <iostream>
 #include <fftw3.h>
 
-#include <hip_runtime.h>
+#include <hip/hip_runtime_api.h>
+#include <hip/hip_vector_types.h>
 #include "rocfft.h"
 
 

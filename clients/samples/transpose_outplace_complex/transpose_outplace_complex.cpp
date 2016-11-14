@@ -5,7 +5,8 @@
 #include <iostream>
 #include <vector>
 #include <complex>
-#include <hip_runtime.h>
+#include <hip/hip_runtime_api.h>
+#include <hip/hip_vector_types.h>
 #include "rocfft_transpose.h"
 
 
@@ -15,19 +16,19 @@ int main()
     size_t input_row_size = 1024;
     size_t input_col_size = 1024;
     size_t batch_size = 3;
-    
+
     std::cout << "input_row_size = " << input_row_size << ", input_col_size = " << input_col_size << std::endl;
     std::cout << "batch_size = " << batch_size << std::endl;
-    
+
     size_t output_row_size = input_col_size;
     size_t output_col_size = input_row_size;
-    
+
     size_t input_leading_dim_size = input_col_size;
     size_t output_leading_dim_size = output_col_size;
     //allocate host memory
     std::vector<std::complex<float> > input_matrix(input_row_size * input_col_size * batch_size);
     std::vector<std::complex<float> > output_matrix(output_row_size * output_col_size * batch_size, 0);
-    
+
     //init the input matrix
     for(int b = 0; b < batch_size; b++)
     {
@@ -35,9 +36,9 @@ int main()
         {
             for(int j = 0; j < input_col_size; j++)
             {
-                input_matrix[b * input_row_size * input_col_size + i * input_col_size + j] = 
+                input_matrix[b * input_row_size * input_col_size + i * input_col_size + j] =
                 std::complex<float>(b * input_row_size * input_col_size + i * input_col_size +j, b * input_row_size * input_col_size + i * input_col_size +j);
-            } 
+            }
         }
     }
 
@@ -68,7 +69,7 @@ int main()
        std::cout << "output_matrix_device allocation was successful" << std::endl;
     else
        std::cout << "output_matrix_device allocation was unsuccessful" << std::endl;
-    
+
     //copy data to device
     err = hipMemcpy(input_matrix_device, input_matrix.data(), batch_size * input_row_size * input_col_size * sizeof(float2), hipMemcpyHostToDevice);
     if(err == hipSuccess)
@@ -84,7 +85,7 @@ int main()
     std::vector<size_t> out_stride = {1, output_col_size};
     size_t in_dist = input_col_size * input_row_size;
     size_t out_dist = output_col_size * output_row_size;
-    
+
     status = rocfft_transpose_plan_create(&plan, rocfft_transpose_precision_single, rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved, rocfft_transpose_placement_notinplace,
                                  lengths.size(), lengths.data(), in_stride.data(), out_stride.data(), in_dist, out_dist, batch_size, NULL);
     if(status == rocfft_transpose_status_success)
@@ -106,7 +107,7 @@ int main()
        std::cout << "rocfft_transpose_plan_destroy was successful" << std::endl;
     else
        std::cout << "rocfft_transpose_plan_destroy was unsuccessful" << std::endl;
-    
+
     //copy data from device to host
     err = hipMemcpy(output_matrix.data(), output_matrix_device, batch_size * output_row_size * output_col_size * sizeof(float2), hipMemcpyDeviceToHost);
     if(err == hipSuccess)
