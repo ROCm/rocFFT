@@ -29,11 +29,11 @@ bool comparison_type = root_mean_square;
 int main( int argc, char* argv[] )
 {
     // Declare the supported options.
-    po::options_description desc( "clFFT Runtime Test command line options" );
+    po::options_description desc( "rocFFT Runtime Test command line options" );
     desc.add_options()
         ( "help,h",             "produces this help message" )
         ( "verbose,v",          "print out detailed information for the tests" )
-        ( "noVersion",          "Don't print version information from the clFFT library" )
+        ( "noVersion",          "Don't print version information from the rocFFT library" )
         ( "pointwise,p",        "Do a pointwise comparison to determine test correctness (default: use root mean square)" )
         ( "tolerance,t",        po::value< float >( &tolerance )->default_value( 0.001f ),   "tolerance level to use when determining test pass/fail" )
         ( "numRandom,r",        po::value< size_t >( &number_of_random_tests )->default_value( 2000 ),   "number of random tests to run" )

@@ -7,7 +7,7 @@
 
 #define __HIPCC__
 
-#include <hip_runtime.h>
+#include <hip/hip_runtime.h>
 
 #endif // __ROCFFT_HIP_H__
 

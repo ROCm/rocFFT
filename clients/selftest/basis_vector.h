@@ -8,7 +8,7 @@
 #include <iostream>
 
 #define __HIPCC__
-#include <hip_runtime.h>
+#include <hip/hip_runtime_api.h>
 
 enum FftBasisChoice
 {
@@ -32,7 +32,7 @@ class FftBasisVectorMixComplex
 	size_t N[3];
 	size_t L;
 
-	CT *mix;//time domain as input 
+	CT *mix;//time domain as input
 	CT *ref;//freq domain
 	CT *otp;//freq domain produced by the library to be tested against ref
 
@@ -63,8 +63,8 @@ public:
 
 
 		mix = (CT *)malloc(L * B * sizeof(CT));
-		ref = (CT *)malloc(L * B * sizeof(CT));		
-		otp = (CT *)malloc(L * B * sizeof(CT));	
+		ref = (CT *)malloc(L * B * sizeof(CT));
+		otp = (CT *)malloc(L * B * sizeof(CT));
 
 		hipMalloc(&dev, L * B * sizeof(CT));
 	}
@@ -116,7 +116,7 @@ public:
 			bvSpot[q][1] = b;
 			bvSpot[q][2] = c;
 		}
-		
+
 
 		for(size_t h=0; h<B; h++)
 		{
@@ -143,7 +143,7 @@ public:
 
 							T a = (T)cos(dr*(theta0 + theta1 + theta2));
 							T b = (T)sin(dr*(theta0 + theta1 + theta2));
-					
+
 							mix[h*L + idx2*N[1]*N[0] + idx1*N[0] + idx0][0] += (a*c - b*d);
 							mix[h*L + idx2*N[1]*N[0] + idx1*N[0] + idx0][1] += (b*c + a*d);
 						}
