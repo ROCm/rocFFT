@@ -25,16 +25,3 @@ rocfft_status rocfft_cleanup()
 {
 	return rocfft_status_success;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

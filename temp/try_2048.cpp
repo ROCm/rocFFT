@@ -6,7 +6,7 @@
 #define __HIPCC__
 
 #include <iostream>
-#include <hip_runtime.h>
+#include <hip/hip_runtime.h>
 #include <fftw3.h>
 
 #include <time.h>

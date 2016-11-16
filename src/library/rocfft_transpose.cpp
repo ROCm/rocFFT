@@ -32,7 +32,7 @@ static void isTransposeDataPacked(const rocfft_transpose_plan &plan, bool &packe
    //input data
    packed_data_in = true;
    packed_data_out = true;
-   
+
    size_t packed_data_size = 1;
    for(int i = 0; i < plan->rank; i++)
    {
@@ -45,11 +45,11 @@ static void isTransposeDataPacked(const rocfft_transpose_plan &plan, bool &packe
 }
 
 rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *plan,
-                                                      rocfft_transpose_precision precision, 
+                                                      rocfft_transpose_precision precision,
                                                       rocfft_transpose_array_type array_type,
                                                       rocfft_transpose_placement placement,
-                                                      size_t dimensions, 
-                                                      const size_t *lengths, 
+                                                      size_t dimensions,
+                                                      const size_t *lengths,
                                                       const size_t *in_stride,
                                                       const size_t *out_stride,
                                                       const size_t in_dist,
@@ -77,7 +77,7 @@ rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *pla
     p->array_type = array_type;
     p->placement = placement;
     *plan = p;
-    
+
     return rocfft_transpose_status_success;
 }
 
@@ -94,14 +94,14 @@ rocfft_transpose_status rocfft_transpose_outplace_real(const rocfft_transpose_pl
     int ld_in = plan->in_stride->at(1);
     int ld_out = plan->out_stride->at(1);
     int batch_size = plan->batch;
-    
+
     if(plan->rank > 2)
         return rocfft_transpose_status_not_implemented;
 
     bool packed_data_in = false;// whether the input data is packed
     bool packed_data_out = false;// whether the output data is packed
     isTransposeDataPacked(plan, packed_data_in, packed_data_out);
-    
+
     if( (packed_data_in && packed_data_out) || (plan->in_stride->at(0) == 1 && plan->out_stride->at(0) == 1) )//below kernels handles packed data or first dim padded
     {
         if(plan->precision == rocfft_transpose_precision_single)
@@ -116,7 +116,7 @@ rocfft_transpose_status rocfft_transpose_outplace_real(const rocfft_transpose_pl
             }
             else if(input_row_size % (block_size_1*micro_tile_size_1) == 0 && input_col_size % (block_size_1*micro_tile_size_1) == 0)
             {
-                // the kernel should be able to work on any size with no guarantee of performance 
+                // the kernel should be able to work on any size with no guarantee of performance
                 hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (float*)in_buffer, (float*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
             }
             else
@@ -143,7 +143,7 @@ rocfft_transpose_status rocfft_transpose_outplace_real(const rocfft_transpose_pl
             {
                 return rocfft_transpose_status_not_implemented;
             }
-        }    
+        }
         else//not single or double precision
             return rocfft_transpose_status_not_implemented;
         }
@@ -166,7 +166,7 @@ rocfft_transpose_status rocfft_transpose_outplace_complex_planar_to_complex_plan
     int ld_in = plan->in_stride->at(1);
     int ld_out = plan->out_stride->at(1);
     int batch_size = plan->batch;
-    
+
     bool packed_data_in = false;
     bool packed_data_out = false;
     isTransposeDataPacked(plan, packed_data_in, packed_data_out);
@@ -186,7 +186,7 @@ rocfft_transpose_status rocfft_transpose_outplace_complex_planar_to_complex_plan
             }
             else if(input_row_size % (block_size_1*micro_tile_size_1) == 0 && input_col_size % (block_size_1*micro_tile_size_1) == 0)
             {
-                // the kernel should be able to work on any size with no guarantee of performance 
+                // the kernel should be able to work on any size with no guarantee of performance
                 hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace_complex_planar_to_complex_planar<float,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (float*)in_buffer_real, (float*)in_buffer_imag, (float*)out_buffer_real, (float*)out_buffer_imag, input_row_size, input_col_size, ld_in, ld_out, batch_size );
             }
             else
@@ -233,11 +233,11 @@ rocfft_transpose_status rocfft_transpose_outplace_complex_interleaved_to_complex
     int ld_in = plan->in_stride->at(1);
     int ld_out = plan->out_stride->at(1);
     int batch_size = plan->batch;
-    
+
     bool packed_data_in = false;
     bool packed_data_out = false;
-    isTransposeDataPacked(plan, packed_data_in, packed_data_out);   
-    
+    isTransposeDataPacked(plan, packed_data_in, packed_data_out);
+
     if(packed_data_in && packed_data_out)
     {
         if(plan->precision == rocfft_transpose_precision_single)
@@ -252,7 +252,7 @@ rocfft_transpose_status rocfft_transpose_outplace_complex_interleaved_to_complex
             }
             else if(input_row_size % (block_size_1*micro_tile_size_1) == 0 && input_col_size % (block_size_1*micro_tile_size_1) == 0)
             {
-                // the kernel should be able to work on any size with no guarantee of performance 
+                // the kernel should be able to work on any size with no guarantee of performance
                 hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel_outplace<float2,micro_tile_size_1,micro_tile_size_1,block_size_1,block_size_1>), dim3(input_col_size/micro_tile_size_1/block_size_1 * batch_size, input_row_size/micro_tile_size_1/block_size_1), dim3(block_size_1, block_size_1, 1), 0, 0, (float2*)in_buffer, (float2*)out_buffer, input_row_size, input_col_size, ld_in, ld_out, batch_size );
             }
             else
@@ -304,7 +304,7 @@ rocfft_transpose_status rocfft_transpose_outplace_complex_planar_to_complex_inte
     bool packed_data_in = false;
     bool packed_data_out = false;
     isTransposeDataPacked(plan, packed_data_in, packed_data_out);
-    
+
     if(packed_data_in && packed_data_out)
     {
         if(plan->precision == rocfft_transpose_precision_single)
@@ -369,7 +369,7 @@ rocfft_transpose_status rocfft_transpose_outplace_complex_interleaved_to_complex
     bool packed_data_in = false;
     bool packed_data_out = false;
     isTransposeDataPacked(plan, packed_data_in, packed_data_out);
-    
+
     if(packed_data_in && packed_data_out)
     {
         if(plan->precision == rocfft_transpose_precision_single)
@@ -411,7 +411,7 @@ rocfft_transpose_status rocfft_transpose_outplace_complex_interleaved_to_complex
     }
     else
         return rocfft_transpose_status_not_implemented;
-    
+
     hipDeviceSynchronize();
     return rocfft_transpose_status_success;
 }
@@ -421,9 +421,9 @@ rocfft_transpose_status rocfft_transpose_execute( const rocfft_transpose_plan pl
                                                              void **out_buffer,
                                                              rocfft_transpose_execution_info info )
 {
-    if(plan->placement == rocfft_transpose_placement_inplace)        
+    if(plan->placement == rocfft_transpose_placement_inplace)
         return rocfft_transpose_status_not_implemented;
- 
+
     if(plan->array_type == rocfft_transpose_array_type_real_to_real)
         return rocfft_transpose_outplace_real(plan, *in_buffer, *out_buffer);
 
@@ -432,19 +432,19 @@ rocfft_transpose_status rocfft_transpose_execute( const rocfft_transpose_plan pl
 
     if(plan->array_type == rocfft_transpose_array_type_complex_interleaved_to_complex_interleaved)
         return rocfft_transpose_outplace_complex_interleaved_to_complex_interleaved(plan, *in_buffer, *out_buffer);
-    
+
     if(plan->array_type == rocfft_transpose_array_type_complex_planar_to_complex_interleaved)
         return rocfft_transpose_outplace_complex_planar_to_complex_interleaved(plan, in_buffer[0], in_buffer[1], out_buffer[0]);
-    
+
     if(plan->array_type == rocfft_transpose_array_type_complex_interleaved_to_complex_planar)
         return rocfft_transpose_outplace_complex_interleaved_to_complex_planar(plan, in_buffer[0], out_buffer[0], out_buffer[1]);
-    
+
     return rocfft_transpose_status_not_implemented;
 }
 
 
 rocfft_transpose_status rocfft_transpose_plan_destroy( rocfft_transpose_plan plan )
-{ 
+{
         delete plan->out_stride;
         delete plan->in_stride;
         delete plan->lengths;

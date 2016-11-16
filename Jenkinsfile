@@ -1,7 +1,7 @@
 #!/usr/bin/env groovy
 
 currentBuild.result = "SUCCESS"
-node('rocm && fiji')
+node('rocm-1.3 && fiji')
 {
   //     sh 'env | sort'
     def scm_dir = pwd()

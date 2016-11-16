@@ -218,5 +218,3 @@ DLL_PUBLIC hipfftResult hipfftGetVersion(int *version);
 
 
 #endif // __HIPFFT_H__
-
-

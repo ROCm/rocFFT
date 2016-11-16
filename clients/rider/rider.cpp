@@ -155,7 +155,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		{
 			size_of_input_buffers_in_bytes = fftBatchSize * sizeof( std::complex< T > );
 
-			setupBuffers( 
+			setupBuffers(
 				device_id,
 				size_of_input_buffers_in_bytes, 1, input_device_buffers,
 				size_of_output_buffers_in_bytes, number_of_output_buffers, output_device_buffers);
@@ -196,7 +196,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		{
 			size_of_input_buffers_in_bytes = fftBatchSize * sizeof( T );
 
-			setupBuffers( 
+			setupBuffers(
 				device_id,
 				size_of_input_buffers_in_bytes, 2, input_device_buffers,
 				size_of_output_buffers_in_bytes, number_of_output_buffers, output_device_buffers);
@@ -239,7 +239,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		{
 			size_of_input_buffers_in_bytes = fftBatchSize * sizeof( std::complex< T > );
 
-			setupBuffers( 
+			setupBuffers(
 				device_id,
 				size_of_input_buffers_in_bytes, 1, input_device_buffers,
 				size_of_output_buffers_in_bytes, number_of_output_buffers, output_device_buffers);
@@ -268,7 +268,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		{
 			size_of_input_buffers_in_bytes = fftBatchSize * sizeof( T );
 
-			setupBuffers( 
+			setupBuffers(
 				device_id,
 				size_of_input_buffers_in_bytes, 2, input_device_buffers,
 				size_of_output_buffers_in_bytes, number_of_output_buffers, output_device_buffers);
@@ -300,7 +300,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		{
 			size_of_input_buffers_in_bytes = fftBatchSize * sizeof( T );
 
-			setupBuffers( 
+			setupBuffers(
 				device_id,
 				size_of_input_buffers_in_bytes, 1, input_device_buffers,
 				size_of_output_buffers_in_bytes, number_of_output_buffers, output_device_buffers);
@@ -351,7 +351,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 	rocfft_execution_info info = NULL;
 
 	if( (place == rocfft_placement_inplace) && packed && (scale == 1.0) &&
-		(inOffset[0] == 0) && (inOffset[1] == 0) && (outOffset[0] == 0) && (outOffset[1] == 0) ) 
+		(inOffset[0] == 0) && (inOffset[1] == 0) && (outOffset[0] == 0) && (outOffset[1] == 0) )
 	{
 		LIB_V_THROW( rocfft_plan_create( &plan, place, transformType, precision, dim, lengths, batchSize, NULL  ), "rocfft_plan_create failed" );
 	}
@@ -361,13 +361,13 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 
 		if(!packed)
 		{
-			LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, inArrType, outArrType, inOffset, outOffset, 
-						3, strides, strides[3], 3, o_strides, o_strides[3] ), "rocfft_plan_description_data_layout failed" ); 
+			LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, inArrType, outArrType, inOffset, outOffset,
+						3, strides, strides[3], 3, o_strides, o_strides[3] ), "rocfft_plan_description_data_layout failed" );
 		}
 		else
 		{
-			LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, inArrType, outArrType, inOffset, outOffset, 
-						0, NULL, 0, 0, NULL, 0 ), "rocfft_plan_description_data_layout failed" ); 
+			LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, inArrType, outArrType, inOffset, outOffset,
+						0, NULL, 0, 0, NULL, 0 ), "rocfft_plan_description_data_layout failed" );
 		}
 
 		if(scale != 1.0)
@@ -377,7 +377,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 			else
 				LIB_V_THROW( rocfft_plan_description_set_scale_double( desc, scale ), "rocfft_plan_description_set_scale_double failed" );
 		}
-	
+
 		LIB_V_THROW( rocfft_plan_create( &plan, place, transformType, precision, dim, lengths, batchSize, desc ), "rocfft_plan_create failed" );
 	}
 
@@ -477,11 +477,11 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 	LIB_V_THROW( rocfft_execute( plan, input_device_buffers, BuffersOut, info ), "rocfft_execute failed" );
 
 	HIP_V_THROW( hipDeviceSynchronize(), "hipDeviceSynchronize failed" );
-	
+
 
 	if(profile_count > 1)
 	{
-		Timer tr;		
+		Timer tr;
 		tr.Start();
 
 		hipEvent_t start, stop;
@@ -779,7 +779,7 @@ int _tmain( int argc, _TCHAR* argv[] )
 			return 0;
 		}
 
-		
+
 		if( vm.count( "info" ) )
 		{
 			return 0;
@@ -824,7 +824,7 @@ int _tmain( int argc, _TCHAR* argv[] )
 		if(ioArrTypeSupport[inL][otL] == 0) throw std::runtime_error( "Invalid combination of Input/Output array type formats" );
 
 		bool packed = false;
-		if( (iStrides[0] == 1) && (iStrides[1] == 0) && (iStrides[2] == 0) && (iStrides[3] == 0) 
+		if( (iStrides[0] == 1) && (iStrides[1] == 0) && (iStrides[2] == 0) && (iStrides[3] == 0)
 		&&  (oStrides[0] == 1) && (oStrides[1] == 0) && (oStrides[2] == 0) && (oStrides[3] == 0) )
 			packed = true;
 
@@ -885,11 +885,11 @@ int _tmain( int argc, _TCHAR* argv[] )
 			cst[2] = cst[2] ? cst[2] : lengths[1] * cst[1];
 			cst[3] = cst[3] ? cst[3] : lengths[2] * cst[2];
 		}
-		
+
 		if( precision == rocfft_precision_single )
 			tret = transform<float>( lengths, iStrides, oStrides, batchSize, iOffset, oOffset, inArrType, outArrType, place, precision, transformType, scale, packed, deviceId, platformId, printInfo, profile_count );
 		else
-			tret = transform<double>( lengths, iStrides, oStrides, batchSize, iOffset, oOffset, inArrType, outArrType, place, precision, transformType, scale, packed, deviceId, platformId, printInfo, profile_count ); 
+			tret = transform<double>( lengths, iStrides, oStrides, batchSize, iOffset, oOffset, inArrType, outArrType, place, precision, transformType, scale, packed, deviceId, platformId, printInfo, profile_count );
 	}
 	catch( std::exception& e )
 	{
@@ -899,4 +899,3 @@ int _tmain( int argc, _TCHAR* argv[] )
 
 	return tret;
 }
-
