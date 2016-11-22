@@ -7,7 +7,7 @@ This file also describes the state of samples and test cases for `rocfft_transpo
 
 ## Interface
 
-The API for `rocfft_transpose` are declared in `rocfft_transpose.h` under `rocFFT/src/include/`. Only three functions can be called directly by the users.
+The API for `rocfft_transpose` are declared in `rocfft_transpose.h` under `rocFFT/library/include/`. Only three functions can be called directly by the users.
 
 ``````
 DLL_PUBLIC rocfft_transpose_status rocfft_transpose_plan_create( rocfft_transpose_plan *plan,
@@ -56,7 +56,7 @@ destroys the plan.
 * return parameter `rocfft_transpose_status` is a `enum` type that states whether the plan destruction was successful
 
 ## Implementation and Limitation
-The implementation for `rocfft_transpose` are defined in `rocfft_transpose.cpp` under `rocFFT/src/library/`. The kernels are defined in `.cu` files in `rocFFT/src/library/internal/include/`.
+The implementation for `rocfft_transpose` are defined in `rocfft_transpose.cpp` under `rocFFT/library/src`. The kernels are defined in `.cu` files in `rocFFT/src/library/internal/include/`.
 
 A subset of transpose has been implemented. In general,
 * the inplace transpose is not implemented.
@@ -70,7 +70,7 @@ A subset of transpose has been implemented. In general,
 * transpose is implemented if only the first dimension is padded
 * only two dimensional transpose is supported
 
-Kernels are written with HIP language. `rocFFT/src/library/internal_include/rocfft_transpose_kernel.h` declares the templated kernels. In general, there are five template parameters to each kernel:
+Kernels are written with HIP language. `rocFFT/library/src/internal_include/rocfft_transpose_kernel.h` declares the templated kernels. In general, there are five template parameters to each kernel:
 `template<typename T, int micro_tile_col_size, int micro_tile_row_size, int wg_col_size, int wg_row_size>`
 , where `T` states the data type (`float` or `double`, sometimes `T2` is also needed for `float2` and `double2`), `micro_tile_col_size` and `micro_tile_row_size` are the sizes of micro tile for different dimensions. `wg_col_size` and `wg_row_size` depicts the work-group size.
 

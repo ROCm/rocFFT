@@ -9,9 +9,8 @@
 #include "helper_math.h"
 #endif
 
-#include "./rocfft_hip.h"
+#include "rocfft_hip.h"
 #include "rocfft.h"
-#include "./plan.h"
 
 
 // library setup function, called once in program at the start of library use

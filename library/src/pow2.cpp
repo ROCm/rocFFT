@@ -8,10 +8,10 @@
 #include <iostream>
 
 #include "rocfft.h"
-#include "./plan.h"
-#include "./repo.h"
-#include "./transform.h"
-#include "./devicecall.h"
+#include "plan.h"
+#include "repo.h"
+#include "transform.h"
+#include "devicecall.h"
 
 void PlanPow2(ExecPlan &execPlan)
 {
@@ -21,7 +21,7 @@ void PlanPow2(ExecPlan &execPlan)
 			(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) ||
 			(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) )
 		{
-			execPlan.execSeq[i]->twiddles = twiddles_create(execPlan.execSeq[i]->length[0]);				
+			execPlan.execSeq[i]->twiddles = twiddles_create(execPlan.execSeq[i]->length[0]);
 		}
 
 		if(execPlan.execSeq[i]->large1D != 0)
@@ -44,7 +44,7 @@ void PlanPow2(ExecPlan &execPlan)
 				size_t WGS = 64;
 				size_t NT = 1;
 				DevFnCall ptr = nullptr;
-	
+
 				switch(execPlan.execSeq[0]->length[0])
 				{
 				case 4096: WGS = 256; NT = 1; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_4096); break;
@@ -61,7 +61,7 @@ void PlanPow2(ExecPlan &execPlan)
 				case 2:	   WGS = 64; NT = 64; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_2); break;
 				case 1:	   WGS = 64; NT = 64; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_1); break;
 				}
-	
+
 				execPlan.devFnCall.push_back(ptr);
 				GridParam gp;
 				size_t B = execPlan.execSeq[0]->batch;

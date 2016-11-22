@@ -4,19 +4,19 @@
 
 #include <iostream>
 #include "rocfft.h"
-#include "./rocfft_private.h"
+#include "private.h"
 #include "hipfft.h"
-#include "./plan.h"
+#include "plan.h"
 
 struct hipfftHandle_t
 {
 	rocfft_plan_t c2c_f;
-	rocfft_plan_t c2c_i;	
+	rocfft_plan_t c2c_i;
 };
 
-hipfftResult hipfftPlan1d(hipfftHandle *plan, 
-                                 int nx, 
-                                 hipfftType type, 
+hipfftResult hipfftPlan1d(hipfftHandle *plan,
+                                 int nx,
+                                 hipfftType type,
                                  int batch )
 {
 	hipfftHandle handle = nullptr;
@@ -26,7 +26,7 @@ hipfftResult hipfftPlan1d(hipfftHandle *plan,
 	return hipfftMakePlan1d(*plan, nx, type, batch, nullptr);
 }
 
-hipfftResult hipfftPlan2d(hipfftHandle *plan, 
+hipfftResult hipfftPlan2d(hipfftHandle *plan,
                                  int nx, int ny,
                                  hipfftType type)
 {
@@ -37,8 +37,8 @@ hipfftResult hipfftPlan2d(hipfftHandle *plan,
 	return hipfftMakePlan2d(*plan, nx, ny, type, nullptr);
 }
 
-hipfftResult hipfftPlan3d(hipfftHandle *plan, 
-                                 int nx, int ny, int nz, 
+hipfftResult hipfftPlan3d(hipfftHandle *plan,
+                                 int nx, int ny, int nz,
                                  hipfftType type)
 {
 	hipfftHandle handle = nullptr;
@@ -50,7 +50,7 @@ hipfftResult hipfftPlan3d(hipfftHandle *plan,
 	lengths[1] = ny;
 	lengths[2] = nx;
 	size_t number_of_transforms = 1;
-	
+
 	return hipfftMakePlan3d(*plan, nx, ny, nz, type, nullptr);
 }
 
@@ -68,10 +68,10 @@ hipfftResult hipfftPlanMany(hipfftHandle *plan,
 
 	return hipfftMakePlanMany(*plan, rank, n, inembed, istride, idist, onembed, ostride, odist, type, batch, nullptr);
 }
-                                   
-hipfftResult hipfftMakePlan1d(hipfftHandle plan, 
-                                     int nx, 
-                                     hipfftType type, 
+
+hipfftResult hipfftMakePlan1d(hipfftHandle plan,
+                                     int nx,
+                                     hipfftType type,
                                      int batch,
                                      size_t *workSize)
 {
@@ -94,7 +94,7 @@ hipfftResult hipfftMakePlan1d(hipfftHandle plan,
 	return HIPFFT_SUCCESS;
 }
 
-hipfftResult hipfftMakePlan2d(hipfftHandle plan, 
+hipfftResult hipfftMakePlan2d(hipfftHandle plan,
                                      int nx, int ny,
                                      hipfftType type,
                                      size_t *workSize)
@@ -103,7 +103,7 @@ hipfftResult hipfftMakePlan2d(hipfftHandle plan,
 	lengths[0] = ny;
 	lengths[1] = nx;
 	size_t number_of_transforms = 1;
-	
+
 	rocfft_plan_create_internal(	&plan->c2c_f,
 					rocfft_placement_inplace,
 					rocfft_transform_type_complex_forward,
@@ -119,8 +119,8 @@ hipfftResult hipfftMakePlan2d(hipfftHandle plan,
 	return HIPFFT_SUCCESS;
 }
 
-hipfftResult hipfftMakePlan3d(hipfftHandle plan, 
-                                     int nx, int ny, int nz, 
+hipfftResult hipfftMakePlan3d(hipfftHandle plan,
+                                     int nx, int ny, int nz,
                                      hipfftType type,
                                      size_t *workSize)
 {
@@ -129,7 +129,7 @@ hipfftResult hipfftMakePlan3d(hipfftHandle plan,
 	lengths[1] = ny;
 	lengths[2] = nx;
 	size_t number_of_transforms = 1;
-	
+
 	rocfft_plan_create_internal(	&plan->c2c_f,
 					rocfft_placement_inplace,
 					rocfft_transform_type_complex_forward,
@@ -172,7 +172,7 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
 						rocfft_placement_inplace,
 						rocfft_transform_type_complex_inverse,
 						rocfft_precision_single,
-						rank, lengths, number_of_transforms, nullptr);		
+						rank, lengths, number_of_transforms, nullptr);
 	}
 	else
 	{
@@ -186,7 +186,7 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
 		{
 			for(size_t i=1; i<rank; i++)
 				i_strides[i] = lengths[i-1]*i_strides[i-1];
-			
+
 		}
 		else
 		{
@@ -204,7 +204,7 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
 		{
 			for(size_t i=1; i<rank; i++)
 				o_strides[i] = lengths[i-1]*o_strides[i-1];
-			
+
 		}
 		else
 		{
@@ -217,10 +217,10 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
 			for(size_t i=1; i<rank; i++)
 				o_strides[i] = onembed_lengths[i-1]*o_strides[i-1];
 		}
-		
+
 		rocfft_plan_description_set_data_layout( desc,  rocfft_array_type_complex_interleaved,
 								rocfft_array_type_complex_interleaved,
-								0, 0, 
+								0, 0,
 								rank, i_strides, idist,
 								rank, o_strides, odist );
 
@@ -241,16 +241,16 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
 
 	return HIPFFT_SUCCESS;
 }
-                                      
-hipfftResult hipfftMakePlanMany64(hipfftHandle plan, 
-                                         int rank, 
+
+hipfftResult hipfftMakePlanMany64(hipfftHandle plan,
+                                         int rank,
                                          long long int *n,
-                                         long long int *inembed, 
-                                         long long int istride, 
+                                         long long int *inembed,
+                                         long long int istride,
                                          long long int idist,
-                                         long long int *onembed, 
+                                         long long int *onembed,
                                          long long int ostride, long long int odist,
-                                         hipfftType type, 
+                                         hipfftType type,
                                          long long int batch,
                                          size_t * workSize)
 {
@@ -260,9 +260,9 @@ hipfftResult hipfftMakePlanMany64(hipfftHandle plan,
 hipfftResult hipfftGetSizeMany64(hipfftHandle plan,
                                         int rank,
                                         long long int *n,
-                                        long long int *inembed, 
+                                        long long int *inembed,
                                         long long int istride, long long int idist,
-                                        long long int *onembed, 
+                                        long long int *onembed,
                                         long long int ostride, long long int odist,
                                         hipfftType type,
                                         long long int batch,
@@ -271,11 +271,11 @@ hipfftResult hipfftGetSizeMany64(hipfftHandle plan,
 	return HIPFFT_SUCCESS;
 }
 
-                                         
-                                      
-                                   
-hipfftResult hipfftEstimate1d(int nx, 
-                                     hipfftType type, 
+
+
+
+hipfftResult hipfftEstimate1d(int nx,
+                                     hipfftType type,
                                      int batch,
                                      size_t *workSize)
 {
@@ -289,7 +289,7 @@ hipfftResult hipfftEstimate2d(int nx, int ny,
 	return HIPFFT_SUCCESS;
 }
 
-hipfftResult hipfftEstimate3d(int nx, int ny, int nz, 
+hipfftResult hipfftEstimate3d(int nx, int ny, int nz,
                                      hipfftType type,
                                      size_t *workSize)
 {
@@ -306,26 +306,26 @@ hipfftResult hipfftEstimateMany(int rank,
 {
 	return HIPFFT_SUCCESS;
 }
-                                     
+
 hipfftResult hipfftCreate(hipfftHandle * handle)
 {
 	hipfftHandle h = new hipfftHandle_t;
 
 	*handle = h;
-	
-	return HIPFFT_SUCCESS;
-}                                     
 
-hipfftResult hipfftGetSize1d(hipfftHandle handle, 
-                                    int nx, 
-                                    hipfftType type, 
+	return HIPFFT_SUCCESS;
+}
+
+hipfftResult hipfftGetSize1d(hipfftHandle handle,
+                                    int nx,
+                                    hipfftType type,
                                     int batch,
                                     size_t *workSize )
 {
 	return HIPFFT_SUCCESS;
 }
-                                                                         
-hipfftResult hipfftGetSize2d(hipfftHandle handle, 
+
+hipfftResult hipfftGetSize2d(hipfftHandle handle,
                                     int nx, int ny,
                                     hipfftType type,
                                     size_t *workSize)
@@ -334,14 +334,14 @@ hipfftResult hipfftGetSize2d(hipfftHandle handle,
 }
 
 hipfftResult hipfftGetSize3d(hipfftHandle handle,
-                                    int nx, int ny, int nz, 
+                                    int nx, int ny, int nz,
                                     hipfftType type,
                                     size_t *workSize)
 {
 	return HIPFFT_SUCCESS;
 }
 
-hipfftResult hipfftGetSizeMany(hipfftHandle handle, 
+hipfftResult hipfftGetSizeMany(hipfftHandle handle,
                                       int rank, int *n,
                                       int *inembed, int istride, int idist,
                                       int *onembed, int ostride, int odist,
@@ -349,12 +349,12 @@ hipfftResult hipfftGetSizeMany(hipfftHandle handle,
 {
 	return HIPFFT_SUCCESS;
 }
-                                     
+
 hipfftResult hipfftGetSize(hipfftHandle handle, size_t *workSize)
 {
 	return HIPFFT_SUCCESS;
 }
-                                               
+
 hipfftResult hipfftSetWorkArea(hipfftHandle plan, void *workArea)
 {
 	return HIPFFT_SUCCESS;
@@ -365,7 +365,7 @@ hipfftResult hipfftSetAutoAllocation(hipfftHandle plan, int autoAllocate)
 	return HIPFFT_SUCCESS;
 }
 
-hipfftResult hipfftExecC2C(hipfftHandle plan, 
+hipfftResult hipfftExecC2C(hipfftHandle plan,
                                   hipfftComplex *idata,
                                   hipfftComplex *odata,
                                   int direction)
@@ -388,21 +388,21 @@ hipfftResult hipfftExecC2C(hipfftHandle plan,
 	return HIPFFT_SUCCESS;
 }
 
-hipfftResult hipfftExecR2C(hipfftHandle plan, 
+hipfftResult hipfftExecR2C(hipfftHandle plan,
                                   hipfftReal *idata,
                                   hipfftComplex *odata)
 {
 	return HIPFFT_SUCCESS;
 }
 
-hipfftResult hipfftExecC2R(hipfftHandle plan, 
+hipfftResult hipfftExecC2R(hipfftHandle plan,
                                   hipfftComplex *idata,
                                   hipfftReal *odata)
 {
 	return HIPFFT_SUCCESS;
 }
 
-hipfftResult hipfftExecZ2Z(hipfftHandle plan, 
+hipfftResult hipfftExecZ2Z(hipfftHandle plan,
                                   hipfftDoubleComplex *idata,
                                   hipfftDoubleComplex *odata,
                                   int direction)
@@ -410,20 +410,20 @@ hipfftResult hipfftExecZ2Z(hipfftHandle plan,
 	return HIPFFT_SUCCESS;
 }
 
-hipfftResult hipfftExecD2Z(hipfftHandle plan, 
+hipfftResult hipfftExecD2Z(hipfftHandle plan,
                                   hipfftDoubleReal *idata,
                                   hipfftDoubleComplex *odata)
 {
 	return HIPFFT_SUCCESS;
 }
 
-hipfftResult hipfftExecZ2D(hipfftHandle plan, 
+hipfftResult hipfftExecZ2D(hipfftHandle plan,
                                   hipfftDoubleComplex *idata,
                                   hipfftDoubleReal *odata)
 {
 	return HIPFFT_SUCCESS;
 }
-                                  
+
 
 // utility functions
 hipfftResult hipfftSetStream(hipfftHandle plan,

@@ -11,7 +11,7 @@
 
 #include <boost/program_options.hpp>
 #include "rocfft.h"
-#include "../../src/include/unicode.compatibility.h"
+#include "../../library/include/unicode.compatibility.h"
 #include "./rider.h"
 
 
