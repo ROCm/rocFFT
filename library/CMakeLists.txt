@@ -117,7 +117,7 @@ set( rocfft_headers_public
 source_group( "Header Files\\Public" FILES ${rocfft_headers_public} )
 
 # Build into subdirectories
-add_subdirectory( library )
+add_subdirectory( src )
 
 install( FILES ${rocfft_headers_public}
 	DESTINATION

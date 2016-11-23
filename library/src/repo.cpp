@@ -7,8 +7,8 @@
 #include <iostream>
 
 #include "rocfft.h"
-#include "./plan.h"
-#include "./repo.h"
+#include "plan.h"
+#include "repo.h"
 
 
 void Repo::CreatePlan(rocfft_plan plan)
@@ -23,7 +23,7 @@ void Repo::CreatePlan(rocfft_plan plan)
 		for(size_t i=0; i<plan->rank; i++)
 		{
 			rootPlan->length.push_back(plan->lengths[i]);
-			
+
 			rootPlan->inStride.push_back(plan->desc.inStrides[i]);
 			rootPlan->outStride.push_back(plan->desc.outStrides[i]);
 		}
@@ -44,7 +44,7 @@ void Repo::CreatePlan(rocfft_plan plan)
 		execPlan.rootPlan = rootPlan;
 		ProcessNode(execPlan);
 
-		PlanPow2(execPlan);	
+		PlanPow2(execPlan);
 
 		planUnique[*plan] = execPlan;
 		execLookup[plan] = execPlan;

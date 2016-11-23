@@ -103,7 +103,7 @@ if( BUILD_LIBRARY )
   # Build the library as an external project
   ExternalProject_Add( rocfft
     DEPENDS ${rocfft_dependencies}
-    SOURCE_DIR ${PROJECT_SOURCE_DIR}/src
+    SOURCE_DIR ${PROJECT_SOURCE_DIR}/library
     BINARY_DIR library-build
     INSTALL_DIR library-package
     CMAKE_ARGS ${LIBRARY_CMAKE_ARGS}

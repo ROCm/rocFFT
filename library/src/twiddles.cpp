@@ -3,7 +3,7 @@
  ******************************************************************************/
 
 
-#include "./rocfft_hip.h"
+#include "rocfft_hip.h"
 
 void *twiddles_create(size_t N)
 {
