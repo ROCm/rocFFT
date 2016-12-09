@@ -46,7 +46,6 @@ set( rocfft_source
      auxiliary.cpp
      plan.cpp
      transform.cpp
-     transpose.cpp
      hipfft.cpp
      repo.cpp
      pow2.cpp
@@ -63,14 +62,11 @@ else( )
 endif( )
 
 set(pwd_include_dir ${CMAKE_CURRENT_SOURCE_DIR})
-set(device_function_include_dirs ${CMAKE_CURRENT_SOURCE_DIR}/device_function_include)
-set(device_function_include_src ${device_function_include_dirs}/rocfft_transpose_kernel.h)
 
 if(PLATFORM_NAME STREQUAL "AMD")
   add_library( rocfft
     ${rocfft_source}
     ${relative_rocfft_headers_public}
-    ${device_function_include_src}
   )
   set_target_properties( rocfft PROPERTIES OUTPUT_NAME "rocfft-hcc" )
 elseif(PLATFORM_NAME STREQUAL "NVIDIA")
@@ -83,12 +79,10 @@ elseif(PLATFORM_NAME STREQUAL "NVIDIA")
                            ${extra_cuda_include_dir}
                            ${CMAKE_SOURCE_DIR}/include
                            ${pwd_include_dir}
-                           ${device_function_include_dirs}
                           )
   CUDA_ADD_LIBRARY( rocfft
     ${rocfft_source}
     ${relative_rocfft_headers_public}
-    ${device_function_include_src}
   )
   set_target_properties( rocfft PROPERTIES OUTPUT_NAME "rocfft-cuda" )
 endif( )
@@ -106,7 +100,6 @@ endif( )
 target_include_directories( rocfft
   PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device_function_include>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
           $<INSTALL_INTERFACE:include>

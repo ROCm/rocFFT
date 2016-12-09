@@ -110,7 +110,6 @@ configure_file( "${PROJECT_SOURCE_DIR}/include/rocfft-version.h.in" "${PROJECT_B
 set( rocfft_headers_public
   include/rocfft.h
   include/hipfft.h
-  include/rocfft_transpose.h
   ${PROJECT_BINARY_DIR}/include/rocfft-version.h
 )
 
