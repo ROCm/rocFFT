@@ -7,9 +7,9 @@
 #include <iostream>
 
 #include "rocfft.h"
-#include "rocfft_private.h"
-#include "./plan.h"
-#include "./repo.h"
+#include "private.h"
+#include "plan.h"
+#include "repo.h"
 
 size_t Large1DThreshold = 4096;
 
@@ -158,18 +158,18 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
 		}
 		break;
 		}
-	
-	
+
+
 		if( (placement == rocfft_placement_inplace) &&
 			((transform_type == rocfft_transform_type_complex_forward) || (transform_type == rocfft_transform_type_complex_inverse)) )
 		{
 			for(size_t i=0; i<3; i++)
 				if(description->inStrides[i] != description->outStrides[i])
 					return rocfft_status_invalid_strides;
-	
+
 			if(description->inDist != description->outDist)
 				return rocfft_status_invalid_distance;
-	
+
 			for(size_t i=0; i<2; i++)
 				if(description->inOffset[i] != description->outOffset[i])
 					return rocfft_status_invalid_offset;
@@ -223,7 +223,7 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
 	}
 
 	if(!SupportedLength(prodLength))
-		return rocfft_status_invalid_dimensions; 
+		return rocfft_status_invalid_dimensions;
 
 	Repo &repo = Repo::GetRepo();
 	repo.CreatePlan(p);
@@ -551,8 +551,8 @@ void TreeNode::RecursiveBuildTree()
 			for (size_t index = 1; index < length.size(); index++)
 			{
 				trans3Plan->length.push_back(length[index]);
-			}			
-			
+			}
+
 			childNodes.push_back(trans3Plan);
 		}
 		break;
@@ -731,7 +731,7 @@ void TreeNode::RecursiveBuildTree()
 			{
 				trans2Plan->length.push_back(length[index]);
 			}
-			
+
 			childNodes.push_back(trans2Plan);
 
 		}
@@ -779,7 +779,7 @@ void TreeNode::RecursiveBuildTree()
 		default: assert(false);
 		}
 
-	}		
+	}
 	break;
 
 	case 3:
@@ -915,7 +915,7 @@ void TreeNode::RecursiveBuildTree()
 
 }
 
-// logic A - using out-of-place transposes & complex-to-complex & with padding 
+// logic A - using out-of-place transposes & complex-to-complex & with padding
 void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, OperatingBuffer &flipOut)
 {
 	if (parent == nullptr)
@@ -993,7 +993,7 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, Operatin
 		else
 		{
 			assert(obIn == obOut);
-			
+
 			if (obOut == OB_USER_OUT)
 			{
 				if (childNodes[1]->obOut == OB_TEMP)
@@ -1081,7 +1081,7 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, Operatin
 			childNodes[1]->obIn = flipOut;
 			childNodes[1]->obOut = flipIn;
 		}
-			
+
 	}
 	else if (scheme == CS_L1D_CRT)
 	{
@@ -1412,7 +1412,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
 
 		trans3Plan->inStride = row2Plan->outStride;
 		trans3Plan->iDist = row2Plan->oDist;
-		
+
 		trans3Plan->outStride.push_back(outStride[0]);
 		trans3Plan->outStride.push_back(outStride[0] * (trans3Plan->length[1]));
 		trans3Plan->oDist = oDist;
@@ -1517,7 +1517,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
 				row2colPlan->inStride.push_back(1);
 				row2colPlan->inStride.push_back(row2colPlan->length[0]);
 				row2colPlan->iDist = row2colPlan->length[0] * row2colPlan->length[1];
-				
+
 				for (size_t index = 1; index < length.size(); index++)
 				{
 					row2colPlan->inStride.push_back(row2colPlan->iDist);
@@ -1676,7 +1676,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
 			padding = 64;
 
 		// B -> B
-		assert(row1Plan->obOut == OB_USER_OUT);			
+		assert(row1Plan->obOut == OB_USER_OUT);
 		row1Plan->inStride = inStride;
 		row1Plan->iDist = iDist;
 

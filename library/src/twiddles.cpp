@@ -3,7 +3,7 @@
  ******************************************************************************/
 
 
-#include "./rocfft_hip.h"
+#include "rocfft_hip.h"
 
 void *twiddles_create(size_t N)
 {
@@ -39,79 +39,79 @@ void *twiddles_create(size_t N)
 	size_t ns;
 	float2 *twts;
 	const void *twtc;
-	
+
 	switch (N)
 	{
-	case 134217728:		
+	case 134217728:
 				ns = 256*4;
 				twtc = &twiddle_dee_134217728[0][0];
 				break;
-				
+
 	case 67108864:
 				ns = 256*4;
-				twtc = &twiddle_dee_67108864[0][0];				
-				break;
-				
-	case 33554432:
-				ns = 256*4;
-				twtc = &twiddle_dee_33554432[0][0];				
+				twtc = &twiddle_dee_67108864[0][0];
 				break;
 
-	case 16777216:		
+	case 33554432:
+				ns = 256*4;
+				twtc = &twiddle_dee_33554432[0][0];
+				break;
+
+	case 16777216:
 				ns = 256*3;
 				twtc = &twiddle_dee_16777216[0][0];
 				break;
-				
+
 	case 8388608:
 				ns = 256*3;
-				twtc = &twiddle_dee_8388608[0][0];				
+				twtc = &twiddle_dee_8388608[0][0];
 				break;
-				
+
 	case 4194304:
 				ns = 256*3;
-				twtc = &twiddle_dee_4194304[0][0];				
+				twtc = &twiddle_dee_4194304[0][0];
 				break;
-				
+
 	case 2097152:
 				ns = 256*3;
 				twtc = &twiddle_dee_2097152[0][0];
 				break;
-				
+
 	case 1048576:
 				ns = 256*3;
 				twtc = &twiddle_dee_1048576[0][0];
 				break;
-				
+
 	case 524288:
 				ns = 256*3;
 				twtc = &twiddle_dee_524288[0][0];
 				break;
-				
+
 	case 262144:
 				ns = 256*3;
 				twtc = &twiddle_dee_262144[0][0];
 				break;
-				
+
 	case 131072:
 				ns = 256*3;
 				twtc = &twiddle_dee_131072[0][0];
 				break;
-				
+
 	case 65536:
 				ns = 256*2;
 				twtc = &twiddle_dee_65536[0][0];
 				break;
-				
+
 	case 32768:
 				ns = 256*2;
 				twtc = &twiddle_dee_32768[0][0];
 				break;
-				
+
 	case 16384:
 				ns = 256*2;
 				twtc = &twiddle_dee_16384[0][0];
 				break;
-				
+
 	case 8192:
 				ns = 256*2;
 				twtc = &twiddle_dee_8192[0][0];
@@ -119,7 +119,7 @@ void *twiddles_create(size_t N)
 	default:
 				assert(false); break;
 	}
-	
+
 
 	hipMalloc(&twts, ns*sizeof(float2));
 	hipMemcpy(twts, twtc, ns*sizeof(float2), hipMemcpyHostToDevice);
@@ -132,5 +132,3 @@ void twiddles_delete(void *twt)
 	if(twt)
 		hipFree(twt);
 }
-
-

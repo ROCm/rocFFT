@@ -12,7 +12,7 @@
 
 #include "rocfft.h"
 #include "test_constants.h"
-namespace po = boost::program_options;
+//namespace po = boost::program_options;
 
 // global for test use
 
@@ -28,20 +28,18 @@ bool comparison_type = root_mean_square;
 
 int main( int argc, char* argv[] )
 {
+
+#if 0
     // Declare the supported options.
-    po::options_description desc( "clFFT Runtime Test command line options" );
+    po::options_description desc( "rocFFT Runtime Test command line options" );
     desc.add_options()
         ( "help,h",             "produces this help message" )
         ( "verbose,v",          "print out detailed information for the tests" )
-        ( "noVersion",          "Don't print version information from the clFFT library" )
+        ( "noVersion",          "Don't print version information from the rocFFT library" )
         ( "pointwise,p",        "Do a pointwise comparison to determine test correctness (default: use root mean square)" )
         ( "tolerance,t",        po::value< float >( &tolerance )->default_value( 0.001f ),   "tolerance level to use when determining test pass/fail" )
         ( "numRandom,r",        po::value< size_t >( &number_of_random_tests )->default_value( 2000 ),   "number of random tests to run" )
         ;
-    // this rmse_tolerance is not absolute; it is for a 4096-point single precision transform
-    // the actual rmse tolerance is this value times sqrt(problem-size/4096)
-    rmse_tolerance = 0.00002;
-
 
     //    Parse the command line options, ignore unrecognized options and collect them into a vector of strings
     po::variables_map vm;
@@ -86,12 +84,21 @@ int main( int argc, char* argv[] )
 
     int myArgc    = static_cast< int >( myArgv.size( ) );
 
+#endif
+
+
+    tolerance = 0.001f;
+
+    // this rmse_tolerance is not absolute; it is for a 4096-point single precision transform
+    // the actual rmse tolerance is this value times sqrt(problem-size/4096)
+    rmse_tolerance = 0.00002;
+
     std::cout << "Result comparison tolerance is " << tolerance << std::endl;
     std::cout << "Result comparison RMSE relative tolerance is " << rmse_tolerance << std::endl;
 
-    ::testing::InitGoogleTest( &myArgc, const_cast< char** >( &myArgv[ 0 ] ) );
+    //::testing::InitGoogleTest( &myArgc, const_cast< char** >( &myArgv[ 0 ] ) );
 
-    // ::testing::InitGoogleTest( &argc, argv );
+    ::testing::InitGoogleTest( &argc, argv );
 
     return RUN_ALL_TESTS();
 

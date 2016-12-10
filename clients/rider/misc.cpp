@@ -24,7 +24,7 @@ void setupBuffers( std::vector< int > devices,
 
 }
 
-void clearBuffers(   
+void clearBuffers(
 			void *buffersIn[],
                 	void *buffersOut[] )
 {
@@ -42,5 +42,3 @@ void clearBuffers(
 	}
 
 }
-
-

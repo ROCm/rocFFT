@@ -14,7 +14,10 @@
 #include "rocfft_against_fftw.h"
 #include "fftw_transform.h"
 
-
+using ::testing::TestWithParam;
+using ::testing::Values;
+using ::testing::ValuesIn;
+using ::testing::Combine;
 
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
@@ -38,204 +41,67 @@ protected:
     }
 };
 
+size_t N_range[] = {small2, normal2, large2, dlarge2, 65536};
+
+size_t batch_range[] = {1}; 
+
+rocfft_result_placement placeness_range[] = {rocfft_placement_inplace};
+
+rocfft_transform_type transform_range[] = {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse};
+
+
 namespace power2
 {
-// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ //
-// ^^^^^^^^^^^^^^^^^^^^^^^ normal 1D ^^^^^^^^^^^^^^^^^^^^^^ //
-// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ //
 
-// *****************************************************
-// *****************************************************
+class accuracy_test_pow2: public :: TestWithParam < std::tuple<size_t, size_t, rocfft_result_placement, rocfft_transform_type >  >
+{
+    protected:
+        accuracy_test_pow2(){}
+        virtual ~accuracy_test_pow2(){}
+        virtual void SetUp(){}
+        virtual void TearDown(){}
+};
 
 
-// *****************************************************
-// *****************************************************
 template< class T, class fftw_T >
-void normal_1D_forward_in_place_complex_interleaved_to_complex_interleaved()
+void normal_1D_complex_interleaved_to_complex_interleaved(size_t N, size_t batch, rocfft_result_placement placeness, rocfft_transform_type  transform_type)
 {
     std::vector<size_t> lengths;
-    lengths.push_back( normal2 );
-    size_t batch = 1;
+    lengths.push_back( N );
     std::vector<size_t> input_strides;
     std::vector<size_t> output_strides;
     size_t input_distance = 0;
     size_t output_distance = 0;
     rocfft_array_type in_array_type = rocfft_array_type_complex_interleaved;
     rocfft_array_type out_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_result_placement placeness = rocfft_placement_inplace;
-    rocfft_transform_type transform_type = rocfft_transform_type_complex_forward;
 
     data_pattern pattern = sawtooth;
     complex_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, placeness );
 }
 
-TEST_F(accuracy_test_pow2_single, normal_1D_forward_in_place_complex_interleaved_to_complex_interleaved)
+TEST_P(accuracy_test_pow2, normal_1D_complex_interleaved_to_complex_interleaved)
 {
-    try { normal_1D_forward_in_place_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(); }
+    size_t N = std::get<0>(GetParam());
+    size_t batch = std::get<1>(GetParam());
+    rocfft_result_placement placeness = std::get<2>(GetParam());
+    rocfft_transform_type  transform_type = std::get<3>(GetParam());
+
+    try { normal_1D_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(N, batch, placeness, transform_type); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
 
-// *****************************************************
-// *****************************************************
-template< class T, class fftw_T >
-void len65536_1D_forward_in_place_complex_interleaved_to_complex_interleaved()
-{
-    std::vector<size_t> lengths;
-    lengths.push_back( 65536 );
-    size_t batch = 1;
-    std::vector<size_t> input_strides;
-    std::vector<size_t> output_strides;
-    size_t input_distance = 0;
-    size_t output_distance = 0;
-    rocfft_array_type in_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_array_type out_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_result_placement placeness = rocfft_placement_inplace;
-    rocfft_transform_type transform_type = rocfft_transform_type_complex_inverse;
-
-    data_pattern pattern = sawtooth;
-    complex_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, placeness );
-}
-
-TEST_F(accuracy_test_pow2_single, len65536_1D_forward_in_place_complex_interleaved_to_complex_interleaved)
-{
-    try { normal_1D_forward_in_place_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(); }
-    catch( const std::exception& err ) { handle_exception(err);    }
-}
-
-// *****************************************************
-// *****************************************************
-template< class T, class fftw_T >
-void normal_1D_backward_in_place_complex_interleaved_to_complex_interleaved()
-{
-    std::vector<size_t> lengths;
-    lengths.push_back( normal2 );
-    size_t batch = 1;
-    std::vector<size_t> input_strides;
-    std::vector<size_t> output_strides;
-    size_t input_distance = 0;
-    size_t output_distance = 0;
-    rocfft_array_type in_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_array_type out_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_result_placement placeness = rocfft_placement_inplace;
-    rocfft_transform_type transform_type = rocfft_transform_type_complex_inverse;
-
-    data_pattern pattern = sawtooth;
-    complex_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, placeness );
-}
-
-TEST_F(accuracy_test_pow2_single, normal_1D_backward_in_place_complex_interleaved_to_complex_interleaved)
-{
-    try { normal_1D_backward_in_place_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(); }
-    catch( const std::exception& err ) { handle_exception(err);    }
-}
-
-
-// *****************************************************
-// *****************************************************
-
-// *****************************************************
-// *****************************************************
-
-
-// *****************************************************
-// *****************************************************
-
-// *****************************************************
-// *****************************************************
+//Values is for a single item; ValuesIn is for an array
+//ValuesIn take each element (a vector) and combine them and feed them to test_p
+INSTANTIATE_TEST_CASE_P(rocfft_pow2,
+                        accuracy_test_pow2,
+                        Combine(
+                                  ValuesIn(N_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range)
+                               )
+);
 
 
 
-// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ //
-// ^^^^^^^^^^^^^^^^^^^^^^^ small 1D ^^^^^^^^^^^^^^^^^^^^^^^ //
-// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ //
-
-// *****************************************************
-// *****************************************************
-
-// *****************************************************
-// *****************************************************
-template< class T, class fftw_T >
-void small_1D_forward_in_place_complex_interleaved_to_complex_interleaved()
-{
-    std::vector<size_t> lengths;
-    lengths.push_back( small2 );
-    size_t batch = 1;
-    std::vector<size_t> input_strides;
-    std::vector<size_t> output_strides;
-    size_t input_distance = 0;
-    size_t output_distance = 0;
-    rocfft_array_type in_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_array_type out_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_result_placement placeness = rocfft_placement_inplace;
-    rocfft_transform_type transform_type = rocfft_transform_type_complex_forward;
-
-    data_pattern pattern = sawtooth;
-    complex_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, placeness );
-}
-
-TEST_F(accuracy_test_pow2_single, small_1D_forward_in_place_complex_interleaved_to_complex_interleaved)
-{
-    try { small_1D_forward_in_place_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(); }
-    catch( const std::exception& err ) { handle_exception(err);    }
-}
-
-
-// *****************************************************
-// *****************************************************
-template< class T, class fftw_T >
-void small_1D_backward_in_place_complex_interleaved_to_complex_interleaved()
-{
-    std::vector<size_t> lengths;
-    lengths.push_back( small2 );
-    size_t batch = 1;
-    std::vector<size_t> input_strides;
-    std::vector<size_t> output_strides;
-    size_t input_distance = 0;
-    size_t output_distance = 0;
-    rocfft_array_type in_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_array_type out_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_result_placement placeness = rocfft_placement_inplace;
-    rocfft_transform_type transform_type = rocfft_transform_type_complex_inverse;
-
-    data_pattern pattern = sawtooth;
-    complex_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, placeness );
-}
-
-TEST_F(accuracy_test_pow2_single, small_1D_backward_in_place_complex_interleaved_to_complex_interleaved)
-{
-    try { small_1D_backward_in_place_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(); }
-    catch( const std::exception& err ) { handle_exception(err);    }
-}
-
-
-// *****************************************************
-// *****************************************************
-
-// *****************************************************
-// *****************************************************
-
-// *****************************************************
-// *****************************************************
-
-// *****************************************************
-// *****************************************************
-
-// *****************************************************
-// *****************************************************
-
-
-
-// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ //
-// ^^^^^^^^^^^^^^^^^^^^^^^ large 1D ^^^^^^^^^^^^^^^^^^^^^^^ //
-// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ //
-
-// *****************************************************
-// *****************************************************
-
-// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ //
-// ^^^^^^^^^^^^^^^^^^^^^^^ huge 1D ^^^^^^^^^^^^^^^^^^^^^^^ //
-// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ //
 
 // *****************************************************
 // *****************************************************
@@ -322,86 +188,5 @@ DP_HUGE_TEST( DISABLED_large_dp_test_7, 4096*64, 17  )
 
 #endif
 
-// *****************************************************
-// *****************************************************
 
-// *****************************************************
-// *****************************************************
-template< class T, class fftw_T >
-void large_1D_forward_in_place_complex_interleaved_to_complex_interleaved()
-{
-    std::vector<size_t> lengths;
-    lengths.push_back( large2 );
-    size_t batch = 1;
-    std::vector<size_t> input_strides;
-    std::vector<size_t> output_strides;
-    size_t input_distance = 0;
-    size_t output_distance = 0;
-    rocfft_array_type in_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_array_type out_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_result_placement placeness = rocfft_placement_inplace;
-    rocfft_transform_type transform_type = rocfft_transform_type_complex_forward;
-
-    data_pattern pattern = sawtooth;
-    complex_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, placeness );
-}
-
-TEST_F(accuracy_test_pow2_single, large_1D_forward_in_place_complex_interleaved_to_complex_interleaved)
-{
-    try { large_1D_forward_in_place_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(); }
-    catch( const std::exception& err ) { handle_exception(err);    }
-}
-
-
-// *****************************************************
-// *****************************************************
-template< class T, class fftw_T >
-void large_1D_backward_in_place_complex_interleaved_to_complex_interleaved()
-{
-    std::vector<size_t> lengths;
-    lengths.push_back( large2 );
-    size_t batch = 1;
-    std::vector<size_t> input_strides;
-    std::vector<size_t> output_strides;
-    size_t input_distance = 0;
-    size_t output_distance = 0;
-    rocfft_array_type in_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_array_type out_array_type = rocfft_array_type_complex_interleaved;
-    rocfft_result_placement placeness = rocfft_placement_inplace;
-    rocfft_transform_type transform_type = rocfft_transform_type_complex_inverse;
-
-    data_pattern pattern = sawtooth;
-    complex_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, placeness );
-}
-
-TEST_F(accuracy_test_pow2_single, large_1D_backward_in_place_complex_interleaved_to_complex_interleaved)
-{
-    try { large_1D_backward_in_place_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(); }
-    catch( const std::exception& err ) { handle_exception(err);    }
-}
-
-
-// *****************************************************
-// *****************************************************
-
-// *****************************************************
-// *****************************************************
-
-
-// *****************************************************
-// *****************************************************
-
-
-// *****************************************************
-// *****************************************************
-
-
-// *****************************************************
-// *****************************************************
-
-// *****************************************************
-// *****************************************************
-
-// *****************************************************
-// *****************************************************
 } //namespace

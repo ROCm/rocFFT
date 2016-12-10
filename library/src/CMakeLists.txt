@@ -43,15 +43,14 @@ add_compiler_export_flags( )
 
 # The following is a list of implementation files defining the library
 set( rocfft_source
-     rocfft.cpp
-     hipfft.cpp
+     auxiliary.cpp
      plan.cpp
      transform.cpp
+     hipfft.cpp
      repo.cpp
      pow2.cpp
      devicecall.cpp
      twiddles.cpp
-     rocfft_transpose.cpp
 )
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
@@ -63,14 +62,11 @@ else( )
 endif( )
 
 set(pwd_include_dir ${CMAKE_CURRENT_SOURCE_DIR})
-set(internal_include_dirs ${CMAKE_CURRENT_SOURCE_DIR}/internal_include)
-set(internal_include_src ${internal_include_dirs}/rocfft_transpose_kernel.h)
 
 if(PLATFORM_NAME STREQUAL "AMD")
   add_library( rocfft
     ${rocfft_source}
     ${relative_rocfft_headers_public}
-    ${internal_include_src}
   )
   set_target_properties( rocfft PROPERTIES OUTPUT_NAME "rocfft-hcc" )
 elseif(PLATFORM_NAME STREQUAL "NVIDIA")
@@ -83,12 +79,10 @@ elseif(PLATFORM_NAME STREQUAL "NVIDIA")
                            ${extra_cuda_include_dir}
                            ${CMAKE_SOURCE_DIR}/include
                            ${pwd_include_dir}
-                           ${internal_include_dirs}
                           )
   CUDA_ADD_LIBRARY( rocfft
     ${rocfft_source}
     ${relative_rocfft_headers_public}
-    ${internal_include_src}
   )
   set_target_properties( rocfft PROPERTIES OUTPUT_NAME "rocfft-cuda" )
 endif( )
@@ -106,7 +100,7 @@ endif( )
 target_include_directories( rocfft
   PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/internal_include>
+          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
           $<INSTALL_INTERFACE:include>
 )

@@ -110,14 +110,13 @@ configure_file( "${PROJECT_SOURCE_DIR}/include/rocfft-version.h.in" "${PROJECT_B
 set( rocfft_headers_public
   include/rocfft.h
   include/hipfft.h
-  include/rocfft_transpose.h
   ${PROJECT_BINARY_DIR}/include/rocfft-version.h
 )
 
 source_group( "Header Files\\Public" FILES ${rocfft_headers_public} )
 
 # Build into subdirectories
-add_subdirectory( library )
+add_subdirectory( src )
 
 install( FILES ${rocfft_headers_public}
 	DESTINATION

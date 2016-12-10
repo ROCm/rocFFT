@@ -9,9 +9,9 @@
 #define FN_PRFX(X) rocfft_internal_ ## X
 
 #include "rocfft.h"
-#include "./plan.h"
-#include "./repo.h"
-#include "./transform.h"
+#include "plan.h"
+#include "repo.h"
+#include "transform.h"
 
 struct DeviceCallIn
 {

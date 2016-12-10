@@ -6,12 +6,12 @@
 #include <assert.h>
 #include <iostream>
 
-#include "./devicecall.h"
+#include "devicecall.h"
 
 #define __HIPCC__
 
 #include <iostream>
-#include "./rocfft_hip.h"
+#include "rocfft_hip.h"
 
 #include "./kernels/pow2_ip_entry.h"
 #include "./kernels/pow2_op_entry.h"
@@ -245,5 +245,3 @@ POW2_LARGE_BRC_3_A(FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_128_64),fft_128_64_brc_d2_s1)
 POW2_LARGE_BRC_3_A(FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_64),fft_256_64_brc_d2_s1)
 POW2_LARGE_BRC_3_A(FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_128),fft_256_128_brc_d2_s1)
 POW2_LARGE_BRC_3_A(FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_256),fft_256_256_brc_d2_s1)
-
-
