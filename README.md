@@ -38,7 +38,7 @@ int main()
         }
 
         //  Copy data to device
-        hipMemcpy(x, &cx[0], Nbytes, hipMemcpyHostToDevice);
+        hipMemcpy(x, cx.data(), Nbytes, hipMemcpyHostToDevice);
 
         // Create rocFFT plan
         rocfft_plan plan = NULL;
@@ -56,13 +56,16 @@ int main()
 
         // Copy result back to host
         std::vector<float2> y(N);
-        hipMemcpy(&y[0], x, Nbytes, hipMemcpyDeviceToHost);
+        hipMemcpy(y.data(), x, Nbytes, hipMemcpyDeviceToHost);
 
         // Print results
         for (size_t i = 0; i < N; i++)
         {
                 std::cout << y[i].x << ", " << y[i].y << std::endl;
         }
+
+        // Free device buffer
+        hipFree(x);
 
         return 0;
 }

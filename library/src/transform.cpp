@@ -47,7 +47,7 @@ rocfft_status rocfft_execute(   const rocfft_plan plan,
 	Repo &repo = Repo::GetRepo();
 	ExecPlan execPlan;
 	repo.GetPlan(plan, execPlan);
-	PrintNode(execPlan);
+	//PrintNode(execPlan);
 
 	if(execPlan.workBufSize > 0)
 	{
