@@ -30,6 +30,28 @@ struct DeviceCallOut
 extern "C"
 {
 
+    /* Naming convention 
+
+    dfn – device function caller (just a prefix, though actually GPU kernel function)
+
+    sp (dp) – single (double) precision
+
+    ip – in-place
+
+    op - out-of-place
+
+    ci – complex-interleaved (format of input buffer)
+
+    ci – complex-interleaved (format of output buffer)
+
+    stoc – stockham fft kernel
+
+    1(2) – one (two) dimension data
+
+    1024 – length of fft 
+
+    */
+
     //single precsion (sp)
     void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_4096)(void *data_p, void *back_p);
     void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_2048)(void *data_p, void *back_p);

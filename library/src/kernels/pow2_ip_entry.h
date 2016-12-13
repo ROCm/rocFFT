@@ -234,7 +234,7 @@ void fft_1_ip_d1_gn(hipLaunchParm lp, T *twiddles, T *buffer, const uint count, 
 
 	T *lwb = buffer + (batch*64 + me)*dist;
 	
-	fft_1(lwb, lwb, rw);
+	fft_1<T>(lwb, lwb, rw);
 }
 
 template<typename T>
@@ -451,7 +451,7 @@ void fft_1_ip_d2_s1(hipLaunchParm lp, T *twiddles, T *buffer, const uint count, 
 
 	T *lwb = buffer + ((batch*64 + me)/len)*dist + ((batch*64 + me)%len)*stride;
 	
-	fft_1(lwb, lwb, rw);
+	fft_1<T>(lwb, lwb, rw);
 }
 
 template<typename T>
