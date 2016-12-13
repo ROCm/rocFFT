@@ -49,6 +49,11 @@ void Repo::CreatePlan(rocfft_plan plan)
 		planUnique[*plan] = execPlan;
 		execLookup[plan] = execPlan;
 	}
+	else
+	{
+		ExecPlan execPlan = repo.planUnique[*plan];
+		execLookup[plan] = execPlan;
+	}
 }
 
 void Repo::GetPlan(rocfft_plan plan, ExecPlan &execPlan)
