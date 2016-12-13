@@ -5,63 +5,64 @@
 #ifndef POW2_LARGE_HIP_H
 #define POW2_LARGE_HIP_H
 
-__device__ float2
-TWLstep2(float2 *twiddles, size_t u)
+template <typename T>
+__device__ T
+TWLstep2(T *twiddles, size_t u)
 {
 	size_t j = u & 255;
-	float2 result = twiddles[j];
+	T result = twiddles[j];
 	u >>= 8;
 	j = u & 255;
-	result = MAKE_FLOAT2((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+	result = MAKE_COMPLEX((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
 		(result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
 	return result;
 }
 
-
-__device__ float2
-TWLstep3(float2 *twiddles, size_t u)
+template <typename T>
+__device__ T
+TWLstep3(T *twiddles, size_t u)
 {
 	size_t j = u & 255;
-	float2 result = twiddles[j];
+	T result = twiddles[j];
 	u >>= 8;
 	j = u & 255;
-	result = MAKE_FLOAT2((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+	result = MAKE_COMPLEX((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
 		(result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
 	u >>= 8;
 	j = u & 255;
-	result = MAKE_FLOAT2((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
+	result = MAKE_COMPLEX((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
 		(result.y * twiddles[512 + j].x + result.x * twiddles[512 + j].y));
 	return result;
 }
 
-
-__device__ float2
-TWLstep4(float2 *twiddles, size_t u)
+template <typename T>
+__device__ T
+TWLstep4(T *twiddles, size_t u)
 {
 	size_t j = u & 255;
-	float2 result = twiddles[j];
+	T result = twiddles[j];
 	u >>= 8;
 	j = u & 255;
-	result = MAKE_FLOAT2((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+	result = MAKE_COMPLEX((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
 		(result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
 	u >>= 8;
 	j = u & 255;
-	result = MAKE_FLOAT2((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
+	result = MAKE_COMPLEX((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
 		(result.y * twiddles[512 + j].x + result.x * twiddles[512 + j].y));
 	u >>= 8;
 	j = u & 255;
-	result = MAKE_FLOAT2((result.x * twiddles[768 + j].x - result.y * twiddles[768 + j].y),
+	result = MAKE_COMPLEX((result.x * twiddles[768 + j].x - result.y * twiddles[768 + j].y),
 		(result.y * twiddles[768 + j].x + result.x * twiddles[768 + j].y));
 	return result;
 }
 
 
 
-template<int dir, int twl>
+template<typename T, int dir, int twl>
 __device__ void
-lfft_64(float2 *twiddles_64, float2 *twiddles_large, float2 *lds, uint me, uint b)
+lfft_64(T *twiddles_64, T *twiddles_large, T *lds, uint me, uint b)
 {
-	float2 X0, X1, X2, X3;
+	T X0, X1, X2, X3;
 	
 	
 	X0 = lds[me + 0];
@@ -71,9 +72,9 @@ lfft_64(float2 *twiddles_64, float2 *twiddles_large, float2 *lds, uint me, uint 
 
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 		
 
 	lds[me*4 + 0] = X0;
@@ -105,9 +106,9 @@ lfft_64(float2 *twiddles_64, float2 *twiddles_large, float2 *lds, uint me, uint 
 	}
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 	
 	
 	lds[(me/4)*16 + me%4 +  0] = X0;
@@ -139,9 +140,9 @@ lfft_64(float2 *twiddles_64, float2 *twiddles_large, float2 *lds, uint me, uint 
 	}
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 
 
 	if(twl == 2)
@@ -187,11 +188,11 @@ lfft_64(float2 *twiddles_64, float2 *twiddles_large, float2 *lds, uint me, uint 
 }
 
 
-template<int dir, int twl>
+template<typename T, int dir, int twl>
 __device__ void
-lfft_128(float2 *twiddles_128, float2 *twiddles_large, float2 *lds, uint me, uint b)
+lfft_128(T *twiddles_128, T *twiddles_large, T *lds, uint me, uint b)
 {
-	float2 X0, X1, X2, X3, X4, X5, X6, X7;
+	T X0, X1, X2, X3, X4, X5, X6, X7;
 
 	X0 = lds[me + 0];
 	X1 = lds[me + 16];
@@ -204,9 +205,9 @@ lfft_128(float2 *twiddles_128, float2 *twiddles_large, float2 *lds, uint me, uin
 
 	
 	if(dir == -1)
-		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	else
-		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 
 
 	lds[me*8 + 0] = X0;
@@ -257,13 +258,13 @@ lfft_128(float2 *twiddles_128, float2 *twiddles_large, float2 *lds, uint me, uin
 
 	if(dir == -1)
 	{
-		FwdRad4(&X0, &X1, &X2, &X3);
-		FwdRad4(&X4, &X5, &X6, &X7);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X4, &X5, &X6, &X7);
 	}
 	else	
 	{
-		InvRad4(&X0, &X1, &X2, &X3);
-		InvRad4(&X4, &X5, &X6, &X7);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X4, &X5, &X6, &X7);
 	}	
 	
 	
@@ -314,13 +315,13 @@ lfft_128(float2 *twiddles_128, float2 *twiddles_large, float2 *lds, uint me, uin
 	
 	if(dir == -1)
 	{
-		FwdRad4(&X0, &X1, &X2, &X3);
-		FwdRad4(&X4, &X5, &X6, &X7);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X4, &X5, &X6, &X7);
 	}
 	else	
 	{
-		InvRad4(&X0, &X1, &X2, &X3);
-		InvRad4(&X4, &X5, &X6, &X7);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X4, &X5, &X6, &X7);
 	}	
 		
 	
@@ -381,21 +382,21 @@ lfft_128(float2 *twiddles_128, float2 *twiddles_large, float2 *lds, uint me, uin
 	
 	
 	{
-		float4 *ldsv = (float4 *)lds;	
-		ldsv[me +  0] = MAKE_FLOAT4(X0.x,X0.y,X4.x,X4.y);
-		ldsv[me + 16] = MAKE_FLOAT4(X1.x,X1.y,X5.x,X5.y);	
-		ldsv[me + 32] = MAKE_FLOAT4(X2.x,X2.y,X6.x,X6.y);
-		ldsv[me + 48] = MAKE_FLOAT4(X3.x,X3.y,X7.x,X7.y);			
+		vector4_type_t<T>  *ldsv = (vector4_type_t<T>  *)lds;	
+		ldsv[me +  0] = vector4_type_t<T>(  X0.x,X0.y,X4.x,X4.y);
+		ldsv[me + 16] = vector4_type_t<T>(  X1.x,X1.y,X5.x,X5.y);	
+		ldsv[me + 32] = vector4_type_t<T>(  X2.x,X2.y,X6.x,X6.y);
+		ldsv[me + 48] = vector4_type_t<T>(  X3.x,X3.y,X7.x,X7.y);			
 	}	
 	
 }
 
 
-template<int dir, int twl>
+template<typename T, int dir, int twl>
 __device__ void
-lfft_256(float2 *twiddles_256, float2 *twiddles_large, float2 *lds, uint me, uint b)
+lfft_256(T *twiddles_256, T *twiddles_large, T *lds, uint me, uint b)
 {
-	float2 X0, X1, X2, X3;
+	T X0, X1, X2, X3;
 
 	X0 = lds[me +   0];
 	X1 = lds[me +  64];	
@@ -404,9 +405,9 @@ lfft_256(float2 *twiddles_256, float2 *twiddles_large, float2 *lds, uint me, uin
 	
 
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 	
 	lds[me*4 + 0] = X0;
 	lds[me*4 + 1] = X1;
@@ -437,9 +438,9 @@ lfft_256(float2 *twiddles_256, float2 *twiddles_large, float2 *lds, uint me, uin
 	}
 
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 		
 		
 	lds[(me/4)*16 + me%4 +  0] = X0;
@@ -471,9 +472,9 @@ lfft_256(float2 *twiddles_256, float2 *twiddles_large, float2 *lds, uint me, uin
 	}
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 
 
 	lds[(me/16)*64 + me%16 +  0] = X0;
@@ -505,9 +506,9 @@ lfft_256(float2 *twiddles_256, float2 *twiddles_large, float2 *lds, uint me, uin
 	}
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 		
 	if(twl == 2)
 	{
@@ -554,15 +555,15 @@ lfft_256(float2 *twiddles_256, float2 *twiddles_large, float2 *lds, uint me, uin
 
 //////////////////////////////////////////
 
-template<StrideBin sb, int dir>
+template<typename T, StrideBin sb, int dir>
 __device__
-void fft_64_128_bcc(float2 *twiddles_64, float2 *twiddles_8192, float2 * lwbIn, float2 * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
+void fft_64_128_bcc(T *twiddles_64, T *twiddles_8192, T * lwbIn, T * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
-	__shared__ float2 lds[1024];
+	__shared__ T lds[1024];
 
-	float2 R0;
+	T R0;
 
 	uint b = 0;
 
@@ -582,7 +583,7 @@ void fft_64_128_bcc(float2 *twiddles_64, float2 *twiddles_8192, float2 * lwbIn, 
 	{
 		b = (batch%8)*16 + t*8 + (me/16);
 		
-		lfft_64<dir, 2>(twiddles_64, twiddles_8192, lds + t*512 + (me/16)*64, me%16, b);
+		lfft_64<T, dir, 2>(twiddles_64, twiddles_8192, lds + t*512 + (me/16)*64, me%16, b);
 		
 		__syncthreads();
 	}
@@ -601,15 +602,15 @@ void fft_64_128_bcc(float2 *twiddles_64, float2 *twiddles_8192, float2 * lwbIn, 
 }
 
 
-template<StrideBin sb, int dir>
+template<typename T, StrideBin sb, int dir>
 __device__
-void fft_128_64_brc(float2 *twiddles_128, float2 * lwbIn, float2 * lwbOut, const ulong stride_i, const ulong stride_o)
+void fft_128_64_brc(T *twiddles_128, T * lwbIn, T * lwbOut, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
-	__shared__ float2 lds[1024];
+	__shared__ T lds[1024];
 
-	float2 R0;
+	T R0;
 
 	
 	for(uint t=0; t<8; t++)
@@ -624,7 +625,7 @@ void fft_128_64_brc(float2 *twiddles_128, float2 * lwbIn, float2 * lwbOut, const
 
 	__syncthreads();
 
-	lfft_128<dir, 0>(twiddles_128, 0, lds + (me/16)*128, me%16, 0);
+	lfft_128<T, dir, 0>(twiddles_128, 0, lds + (me/16)*128, me%16, 0);
 
 	__syncthreads();
 
@@ -643,15 +644,15 @@ void fft_128_64_brc(float2 *twiddles_128, float2 * lwbIn, float2 * lwbOut, const
 }
 
 
-template<StrideBin sb, int dir>
+template<typename T, StrideBin sb, int dir>
 __device__
-void fft_64_256_bcc(float2 *twiddles_64, float2 *twiddles_16384, float2 * lwbIn, float2 * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
+void fft_64_256_bcc(T *twiddles_64, T *twiddles_16384, T * lwbIn, T * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
-	__shared__ float2 lds[1024];
+	__shared__ T lds[1024];
 
-	float2 R0;
+	T R0;
 
 	uint b = 0;
 
@@ -671,7 +672,7 @@ void fft_64_256_bcc(float2 *twiddles_64, float2 *twiddles_16384, float2 * lwbIn,
 	{
 		b = (batch%16)*16 + t*8 + (me/16);
 
-		lfft_64<dir, 2>(twiddles_64, twiddles_16384, lds + t*512 + (me/16)*64, me%16, b);
+		lfft_64<T, dir, 2>(twiddles_64, twiddles_16384, lds + t*512 + (me/16)*64, me%16, b);
 
 		__syncthreads();
 	}
@@ -691,15 +692,15 @@ void fft_64_256_bcc(float2 *twiddles_64, float2 *twiddles_16384, float2 * lwbIn,
 }
 
 
-template<StrideBin sb, int dir>
+template<typename T, StrideBin sb, int dir>
 __device__
-void fft_256_64_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut, const ulong stride_i, const ulong stride_o)
+void fft_256_64_brc(T *twiddles_256, T * lwbIn, T * lwbOut, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
-	__shared__ float2 lds[2048];
+	__shared__ T lds[2048];
 
-	float2 R0;
+	T R0;
 
 
 	for(uint t=0; t<8; t++)
@@ -717,7 +718,7 @@ void fft_256_64_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut, const
 
 	for(uint t=0; t<2; t++)
 	{
-		lfft_256<dir, 0>(twiddles_256, 0, lds + t*1024 + (me/64)*256, me%64, 0);
+		lfft_256<T, dir, 0>(twiddles_256, 0, lds + t*1024 + (me/64)*256, me%64, 0);
 
 		__syncthreads();
 	}
@@ -737,15 +738,15 @@ void fft_256_64_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut, const
 }
 
 
-template<StrideBin sb, int dir>
+template<typename T, StrideBin sb, int dir>
 __device__
-void fft_128_256_bcc(float2 *twiddles_128, float2 *twiddles_32768, float2 * lwbIn, float2 * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
+void fft_128_256_bcc(T *twiddles_128, T *twiddles_32768, T * lwbIn, T * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
-	__shared__ float2 lds[1024];
+	__shared__ T lds[1024];
 
-	float2 R0;
+	T R0;
 
 	uint b = 0;
 
@@ -765,7 +766,7 @@ void fft_128_256_bcc(float2 *twiddles_128, float2 *twiddles_32768, float2 * lwbI
 
 	b = (batch%32)*8 + (me/16);
 
-	lfft_128<dir, 2>(twiddles_128, twiddles_32768, lds + (me/16)*128, me%16, b);
+	lfft_128<T, dir, 2>(twiddles_128, twiddles_32768, lds + (me/16)*128, me%16, b);
 	
 	__syncthreads();
 
@@ -783,15 +784,15 @@ void fft_128_256_bcc(float2 *twiddles_128, float2 *twiddles_32768, float2 * lwbI
 }
 
 
-template<StrideBin sb, int dir>
+template<typename T, StrideBin sb, int dir>
 __device__
-void fft_256_128_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut, const ulong stride_i, const ulong stride_o)
+void fft_256_128_brc(T *twiddles_256, T * lwbIn, T * lwbOut, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
-	__shared__ float2 lds[2048];
+	__shared__ T lds[2048];
 
-	float2 R0;
+	T R0;
 
 
 	for(uint t=0; t<8; t++)
@@ -809,7 +810,7 @@ void fft_256_128_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut, cons
 
 	for(uint t=0; t<2; t++)
 	{
-		lfft_256<dir, 0>(twiddles_256, 0, lds + t*1024 + (me/64)*256, me%64, 0);
+		lfft_256<T, dir, 0>(twiddles_256, 0, lds + t*1024 + (me/64)*256, me%64, 0);
 
 		__syncthreads();
 
@@ -830,15 +831,15 @@ void fft_256_128_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut, cons
 }
 
 
-template<StrideBin sb, int dir>
+template<typename T, StrideBin sb, int dir>
 __device__
-void fft_256_256_bcc(float2 *twiddles_256, float2 *twiddles_65536, float2 * lwbIn, float2 * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
+void fft_256_256_bcc(T *twiddles_256, T *twiddles_65536, T * lwbIn, T * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
-	__shared__ float2 lds[2048];
+	__shared__ T lds[2048];
 
-	float2 R0;
+	T R0;
 
 	uint b = 0;
 
@@ -861,7 +862,7 @@ void fft_256_256_bcc(float2 *twiddles_256, float2 *twiddles_65536, float2 * lwbI
 
 		b = (batch%32)*8 + t*4 + (me/64);
 
-		lfft_256<dir, 2>(twiddles_256, twiddles_65536, lds + t*1024 + (me/64)*256, me%64, b);
+		lfft_256<T, dir, 2>(twiddles_256, twiddles_65536, lds + t*1024 + (me/64)*256, me%64, b);
 
 		__syncthreads();
 
@@ -881,15 +882,15 @@ void fft_256_256_bcc(float2 *twiddles_256, float2 *twiddles_65536, float2 * lwbI
 }
 
 
-template<StrideBin sb, int dir>
+template<typename T, StrideBin sb, int dir>
 __device__
-void fft_256_256_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut, const ulong stride_i, const ulong stride_o)
+void fft_256_256_brc(T *twiddles_256, T * lwbIn, T * lwbOut, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
-	__shared__ float2 lds[2048];
+	__shared__ T lds[2048];
 
-	float2 R0;
+	T R0;
 
 
 	for(uint t=0; t<8; t++)
@@ -907,7 +908,7 @@ void fft_256_256_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut, cons
 
 	for(uint t=0; t<2; t++)
 	{
-		lfft_256<dir, 0>(twiddles_256, 0, lds + t*1024 + (me/64)*256, me%64, 0);
+		lfft_256<T, dir, 0>(twiddles_256, 0, lds + t*1024 + (me/64)*256, me%64, 0);
 
 		__syncthreads();
 
@@ -928,15 +929,15 @@ void fft_256_256_brc(float2 *twiddles_256, float2 * lwbIn, float2 * lwbOut, cons
 }
 
 
-template<StrideBin sb, int dir>
+template<typename T, StrideBin sb, int dir>
 __device__
-void fft_64_2048_bcc(float2 *twiddles_64, float2 *twiddles_131072, float2 * lwbIn, float2 * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
+void fft_64_2048_bcc(T *twiddles_64, T *twiddles_131072, T * lwbIn, T * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
-	__shared__ float2 lds[1024];
+	__shared__ T lds[1024];
 
-	float2 R0;
+	T R0;
 
 	uint b = 0;
 
@@ -959,7 +960,7 @@ void fft_64_2048_bcc(float2 *twiddles_64, float2 *twiddles_131072, float2 * lwbI
 
 		b = (batch%128)*16 + t*8 + (me/16);
 
-		lfft_64<dir, 3>(twiddles_64, twiddles_131072, lds + t*512 + (me/16)*64, me%16, b);
+		lfft_64<T, dir, 3>(twiddles_64, twiddles_131072, lds + t*512 + (me/16)*64, me%16, b);
 
 		__syncthreads();
 
@@ -979,15 +980,15 @@ void fft_64_2048_bcc(float2 *twiddles_64, float2 *twiddles_131072, float2 * lwbI
 }
 
 
-template<StrideBin sb, int dir>
+template<typename T, StrideBin sb, int dir>
 __device__
-void fft_64_4096_bcc(float2 *twiddles_64, float2 *twiddles_262144, float2 * lwbIn, float2 * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
+void fft_64_4096_bcc(T *twiddles_64, T *twiddles_262144, T * lwbIn, T * lwbOut, const uint batch, const ulong stride_i, const ulong stride_o)
 {
 	uint me = hipThreadIdx_x;
 
-	__shared__ float2 lds[1024];
+	__shared__ T lds[1024];
 
-	float2 R0;
+	T R0;
 
 	uint b = 0;
 
@@ -1010,7 +1011,7 @@ void fft_64_4096_bcc(float2 *twiddles_64, float2 *twiddles_262144, float2 * lwbI
 
 		b = (batch%256)*16 + t*8 + (me/16);
 
-		lfft_64<dir, 3>(twiddles_64, twiddles_262144, lds + t*512 + (me/16)*64, me%16, b);
+		lfft_64<T, dir, 3>(twiddles_64, twiddles_262144, lds + t*512 + (me/16)*64, me%16, b);
 
 		__syncthreads();
 

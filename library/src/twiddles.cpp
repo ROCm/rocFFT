@@ -11,25 +11,25 @@ void *twiddles_create(size_t N)
 #include "./kernels/twiddles_pow2_large.h"
 
 
-	float2 *twt;
+	double2 *twt;
 	if(N <= 4096)
 	{
-		hipMalloc(&twt, N * sizeof(float2));
+		hipMalloc(&twt, N * sizeof(double2));
 
 		switch (N)
 		{
-		case 4096: 	hipMemcpy(twt, &twiddles_4096[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-		case 2048: 	hipMemcpy(twt, &twiddles_2048[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-		case 1024: 	hipMemcpy(twt, &twiddles_1024[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-		case 512:  	hipMemcpy(twt,  &twiddles_512[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-		case 256:  	hipMemcpy(twt,  &twiddles_256[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-		case 128:  	hipMemcpy(twt,  &twiddles_128[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-		case 64:   	hipMemcpy(twt,   &twiddles_64[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-		case 32:   	hipMemcpy(twt,   &twiddles_32[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-		case 16:   	hipMemcpy(twt,   &twiddles_16[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-		case 8:    	hipMemcpy(twt,    &twiddles_8[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-		case 4:    	hipMemcpy(twt,    &twiddles_4[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
-		case 2:    	hipMemcpy(twt,    &twiddles_2[0], N * sizeof(float2), hipMemcpyHostToDevice); break;
+		case 4096: 	hipMemcpy(twt, &twiddles_4096[0], N * sizeof(double2), hipMemcpyHostToDevice); break;
+		case 2048: 	hipMemcpy(twt, &twiddles_2048[0], N * sizeof(double2), hipMemcpyHostToDevice); break;
+		case 1024: 	hipMemcpy(twt, &twiddles_1024[0], N * sizeof(double2), hipMemcpyHostToDevice); break;
+		case 512:  	hipMemcpy(twt,  &twiddles_512[0], N * sizeof(double2), hipMemcpyHostToDevice); break;
+		case 256:  	hipMemcpy(twt,  &twiddles_256[0], N * sizeof(double2), hipMemcpyHostToDevice); break;
+		case 128:  	hipMemcpy(twt,  &twiddles_128[0], N * sizeof(double2), hipMemcpyHostToDevice); break;
+		case 64:   	hipMemcpy(twt,   &twiddles_64[0], N * sizeof(double2), hipMemcpyHostToDevice); break;
+		case 32:   	hipMemcpy(twt,   &twiddles_32[0], N * sizeof(double2), hipMemcpyHostToDevice); break;
+		case 16:   	hipMemcpy(twt,   &twiddles_16[0], N * sizeof(double2), hipMemcpyHostToDevice); break;
+		case 8:    	hipMemcpy(twt,    &twiddles_8[0], N * sizeof(double2), hipMemcpyHostToDevice); break;
+		case 4:    	hipMemcpy(twt,    &twiddles_4[0], N * sizeof(double2), hipMemcpyHostToDevice); break;
+		case 2:    	hipMemcpy(twt,    &twiddles_2[0], N * sizeof(double2), hipMemcpyHostToDevice); break;
 		case 1: 	break;
 		}
 
@@ -37,7 +37,7 @@ void *twiddles_create(size_t N)
 	}
 
 	size_t ns;
-	float2 *twts;
+	double2 *twts;
 	const void *twtc;
 
 	switch (N)
@@ -121,8 +121,8 @@ void *twiddles_create(size_t N)
 	}
 
 
-	hipMalloc(&twts, ns*sizeof(float2));
-	hipMemcpy(twts, twtc, ns*sizeof(float2), hipMemcpyHostToDevice);
+	hipMalloc(&twts, ns*sizeof(double2));
+	hipMemcpy(twts, twtc, ns*sizeof(double2), hipMemcpyHostToDevice);
 
 	return twts;
 }

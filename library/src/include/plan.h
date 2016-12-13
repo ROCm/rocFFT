@@ -78,6 +78,7 @@ struct rocfft_plan_t
 	rocfft_result_placement	placement;
 	rocfft_transform_type	transformType;
 	rocfft_precision	precision;
+    size_t data_size;
 
 	rocfft_plan_description_t desc;
 

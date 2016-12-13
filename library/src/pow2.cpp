@@ -11,7 +11,10 @@
 #include "plan.h"
 #include "repo.h"
 #include "transform.h"
-#include "devicecall.h"
+#include "kernel_launch.h"
+
+/* this function is called during creation of plan of pow 2: enqueue the HIP kernels by function pointers*/
+//TODO: add double precision
 
 void PlanPow2(ExecPlan &execPlan)
 {
@@ -248,7 +251,7 @@ void PlanPow2(ExecPlan &execPlan)
 				}
 				else if(execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE)
 				{
-					ptr = FN_PRFX(transpose_var1);
+					ptr = FN_PRFX(transpose_var1_sp);
 					gp.tpb_x = 16;
 					gp.tpb_y = 16;
 					if(execPlan.execSeq[i]->transTileDir == TTD_IP_HOR)
