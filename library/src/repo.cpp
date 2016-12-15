@@ -14,7 +14,8 @@
 void Repo::CreatePlan(rocfft_plan plan)
 {
 	Repo &repo = Repo::GetRepo();
-	if(repo.planUnique.find(*plan) == repo.planUnique.end())
+	std::map<rocfft_plan_t, ExecPlan>::const_iterator it = repo.planUnique.find(*plan);
+	if(it == repo.planUnique.end())
 	{
 		TreeNode *rootPlan = TreeNode::CreateNode();
 
@@ -51,8 +52,7 @@ void Repo::CreatePlan(rocfft_plan plan)
 	}
 	else
 	{
-		ExecPlan execPlan = repo.planUnique[*plan];
-		execLookup[plan] = execPlan;
+		execLookup[plan] = it->second;
 	}
 }
 
