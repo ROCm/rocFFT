@@ -49,7 +49,8 @@ set( rocfft_source
      hipfft.cpp
      repo.cpp
      pow2.cpp
-     devicecall.cpp
+     kernel_launch_single.cpp
+     kernel_launch_double.cpp
      twiddles.cpp
 )
 

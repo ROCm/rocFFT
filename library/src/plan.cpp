@@ -21,9 +21,9 @@ inline size_t PrecisionWidth(rocfft_precision pr)
 {
 	switch (pr)
 	{
-	case rocfft_precision_single:	return 1;
-	case rocfft_precision_double:	return 2;
-	default:		assert(false);	return 1;
+	    case rocfft_precision_single:	return 1;
+	    case rocfft_precision_double:	return 2;
+	    default:		assert(false);	return 1;
 	}
 }
 
@@ -107,7 +107,7 @@ rocfft_status rocfft_plan_description_destroy( rocfft_plan_description descripti
 
 
 rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
-					rocfft_result_placement placement,
+					                    rocfft_result_placement placement,
                                         rocfft_transform_type transform_type, rocfft_precision precision,
                                         size_t dimensions, const size_t *lengths, size_t number_of_transforms,
                                         const rocfft_plan_description description )
@@ -192,6 +192,12 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
 	p->batch = number_of_transforms;
 	p->placement = placement;
 	p->precision = precision;
+    if( precision == rocfft_precision_double ){
+        p->data_size = sizeof(double);
+    }
+    else{
+        p->data_size = sizeof(float);
+    }  
 	p->transformType = transform_type;
 
 	if(description != nullptr)
@@ -261,7 +267,7 @@ rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *
 	ExecPlan execPlan;
 	repo.GetPlan(plan, execPlan);
 
-	*size_in_bytes = execPlan.workBufSize * 2 * sizeof(float);
+	*size_in_bytes = execPlan.workBufSize * 2 * plan->data_size;
 
 	return rocfft_status_success;
 }

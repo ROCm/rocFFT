@@ -5,219 +5,220 @@
 #ifndef POW2_LARGE_ENTRY_HIP_H
 #define POW2_LARGE_ENTRY_HIP_H
 
+#include "common.h"
 #include "pow2_large.h"
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_64_128_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_8192, float2 * gbIn, float2 * gbOut)
+void fft_64_128_bcc_d1_pk(hipLaunchParm lp, T *twiddles_64, T *twiddles_8192, T * gbIn, T * gbOut)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/8)*8192 + (batch%8)*16;
 	oOffset = (batch/8)*8192 + (batch%8)*16;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_128_bcc<SB_UNIT, dir>(twiddles_64, twiddles_8192, lwbIn, lwbOut, batch, 1, 1);
+	fft_64_128_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_8192, lwbIn, lwbOut, batch, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_128_64_brc_d1_pk(hipLaunchParm lp, float2 *twiddles_128, float2 * gbIn, float2 * gbOut)
+void fft_128_64_brc_d1_pk(hipLaunchParm lp, T *twiddles_128, T * gbIn, T * gbOut)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/8)*8192 + (batch%8)*1024;
 	oOffset = (batch/8)*8192 + (batch%8)*8;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_128_64_brc<SB_UNIT, dir>(twiddles_128, lwbIn, lwbOut, 1, 1);
+	fft_128_64_brc<T, SB_UNIT, dir>(twiddles_128, lwbIn, lwbOut, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_64_256_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_16384, float2 * gbIn, float2 * gbOut)
+void fft_64_256_bcc_d1_pk(hipLaunchParm lp, T *twiddles_64, T *twiddles_16384, T * gbIn, T * gbOut)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/16)*16384 + (batch%16)*16;
 	oOffset = (batch/16)*16384 + (batch%16)*16;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_256_bcc<SB_UNIT, dir>(twiddles_64, twiddles_16384, lwbIn, lwbOut, batch, 1, 1);
+	fft_64_256_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_16384, lwbIn, lwbOut, batch, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_256_64_brc_d1_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut)
+void fft_256_64_brc_d1_pk(hipLaunchParm lp, T *twiddles_256, T * gbIn, T * gbOut)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/8)*16384 + (batch%8)*2048;
 	oOffset = (batch/8)*16384 + (batch%8)*8;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 	
-	fft_256_64_brc<SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
+	fft_256_64_brc<T, SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_128_256_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_128, float2 *twiddles_32768, float2 * gbIn, float2 * gbOut)
+void fft_128_256_bcc_d1_pk(hipLaunchParm lp, T *twiddles_128, T *twiddles_32768, T * gbIn, T * gbOut)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/32)*32768 + (batch%32)*8;
 	oOffset = (batch/32)*32768 + (batch%32)*8;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_128_256_bcc<SB_UNIT, dir>(twiddles_128, twiddles_32768, lwbIn, lwbOut, batch, 1, 1);
+	fft_128_256_bcc<T, SB_UNIT, dir>(twiddles_128, twiddles_32768, lwbIn, lwbOut, batch, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_256_128_brc_d1_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut)
+void fft_256_128_brc_d1_pk(hipLaunchParm lp, T *twiddles_256, T * gbIn, T * gbOut)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/16)*32768 + (batch%16)*2048;
 	oOffset = (batch/16)*32768 + (batch%16)*8;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_256_128_brc<SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
+	fft_256_128_brc<T, SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_256_256_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_256, float2 *twiddles_65536, float2 * gbIn, float2 * gbOut)
+void fft_256_256_bcc_d1_pk(hipLaunchParm lp, T *twiddles_256, T *twiddles_65536, T * gbIn, T * gbOut)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/32)*65536 + (batch%32)*8;
 	oOffset = (batch/32)*65536 + (batch%32)*8;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_256_256_bcc<SB_UNIT, dir>(twiddles_256, twiddles_65536, lwbIn, lwbOut, batch, 1, 1);
+	fft_256_256_bcc<T, SB_UNIT, dir>(twiddles_256, twiddles_65536, lwbIn, lwbOut, batch, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_256_256_brc_d1_pk(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut)
+void fft_256_256_brc_d1_pk(hipLaunchParm lp, T *twiddles_256, T * gbIn, T * gbOut)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/32)*65536 + (batch%32)*2048;
 	oOffset = (batch/32)*65536 + (batch%32)*8;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_256_256_brc<SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
+	fft_256_256_brc<T, SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_64_2048_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_131072, float2 * gbIn, float2 * gbOut)
+void fft_64_2048_bcc_d1_pk(hipLaunchParm lp, T *twiddles_64, T *twiddles_131072, T * gbIn, T * gbOut)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/128)*131072 + (batch%128)*16;
 	oOffset = (batch/128)*131072 + (batch%128)*16;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_2048_bcc<SB_UNIT, dir>(twiddles_64, twiddles_131072, lwbIn, lwbOut, batch, 1, 1);
+	fft_64_2048_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_131072, lwbIn, lwbOut, batch, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_64_4096_bcc_d1_pk(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_262144, float2 * gbIn, float2 * gbOut)
+void fft_64_4096_bcc_d1_pk(hipLaunchParm lp, T *twiddles_64, T *twiddles_262144, T * gbIn, T * gbOut)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/256)*262144 + (batch%256)*16;
 	oOffset = (batch/256)*262144 + (batch%256)*16;
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_4096_bcc<SB_UNIT, dir>(twiddles_64, twiddles_262144, lwbIn, lwbOut, batch, 1, 1);
+	fft_64_4096_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_262144, lwbIn, lwbOut, batch, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_64_128_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_8192, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+void fft_64_128_bcc_d2_s1(hipLaunchParm lp, T *twiddles_64, T *twiddles_8192, T * gbIn, T * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/(8*len))*dist_i;
 	oOffset = (batch/(8*len))*dist_o;
@@ -228,20 +229,20 @@ void fft_64_128_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddle
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_128_bcc<SB_UNIT, dir>(twiddles_64, twiddles_8192, lwbIn, lwbOut, batch, 1, 1);
+	fft_64_128_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_8192, lwbIn, lwbOut, batch, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_128_64_brc_d2_s1(hipLaunchParm lp, float2 *twiddles_128, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+void fft_128_64_brc_d2_s1(hipLaunchParm lp, T *twiddles_128, T * gbIn, T * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/(8*len))*dist_i;
 	oOffset = (batch/(8*len))*dist_o;
@@ -252,20 +253,20 @@ void fft_128_64_brc_d2_s1(hipLaunchParm lp, float2 *twiddles_128, float2 * gbIn,
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_128_64_brc<SB_UNIT, dir>(twiddles_128, lwbIn, lwbOut, 1, 1);
+	fft_128_64_brc<T, SB_UNIT, dir>(twiddles_128, lwbIn, lwbOut, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_64_256_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_16384, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+void fft_64_256_bcc_d2_s1(hipLaunchParm lp, T *twiddles_64, T *twiddles_16384, T * gbIn, T * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/(16*len))*dist_i;
 	oOffset = (batch/(16*len))*dist_o;
@@ -276,20 +277,20 @@ void fft_64_256_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddle
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_256_bcc<SB_UNIT, dir>(twiddles_64, twiddles_16384, lwbIn, lwbOut, batch, 1, 1);
+	fft_64_256_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_16384, lwbIn, lwbOut, batch, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_256_64_brc_d2_s1(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+void fft_256_64_brc_d2_s1(hipLaunchParm lp, T *twiddles_256, T * gbIn, T * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/(8*len))*dist_i;
 	oOffset = (batch/(8*len))*dist_o;
@@ -300,20 +301,20 @@ void fft_256_64_brc_d2_s1(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn,
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 	
-	fft_256_64_brc<SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
+	fft_256_64_brc<T, SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_128_256_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_128, float2 *twiddles_32768, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+void fft_128_256_bcc_d2_s1(hipLaunchParm lp, T *twiddles_128, T *twiddles_32768, T * gbIn, T * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/(32*len))*dist_i;
 	oOffset = (batch/(32*len))*dist_o;
@@ -324,20 +325,20 @@ void fft_128_256_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_128, float2 *twidd
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_128_256_bcc<SB_UNIT, dir>(twiddles_128, twiddles_32768, lwbIn, lwbOut, batch, 1, 1);
+	fft_128_256_bcc<T, SB_UNIT, dir>(twiddles_128, twiddles_32768, lwbIn, lwbOut, batch, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_256_128_brc_d2_s1(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+void fft_256_128_brc_d2_s1(hipLaunchParm lp, T *twiddles_256, T * gbIn, T * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/(16*len))*dist_i;
 	oOffset = (batch/(16*len))*dist_o;
@@ -348,20 +349,20 @@ void fft_256_128_brc_d2_s1(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_256_128_brc<SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
+	fft_256_128_brc<T, SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_256_256_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_256, float2 *twiddles_65536, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+void fft_256_256_bcc_d2_s1(hipLaunchParm lp, T *twiddles_256, T *twiddles_65536, T * gbIn, T * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/(32*len))*dist_i;
 	oOffset = (batch/(32*len))*dist_o;
@@ -372,20 +373,20 @@ void fft_256_256_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_256, float2 *twidd
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_256_256_bcc<SB_UNIT, dir>(twiddles_256, twiddles_65536, lwbIn, lwbOut, batch, 1, 1);
+	fft_256_256_bcc<T, SB_UNIT, dir>(twiddles_256, twiddles_65536, lwbIn, lwbOut, batch, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_256_256_brc_d2_s1(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+void fft_256_256_brc_d2_s1(hipLaunchParm lp, T *twiddles_256, T * gbIn, T * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/(32*len))*dist_i;
 	oOffset = (batch/(32*len))*dist_o;
@@ -396,20 +397,20 @@ void fft_256_256_brc_d2_s1(hipLaunchParm lp, float2 *twiddles_256, float2 * gbIn
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_256_256_brc<SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
+	fft_256_256_brc<T, SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_64_2048_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_131072, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+void fft_64_2048_bcc_d2_s1(hipLaunchParm lp, T *twiddles_64, T *twiddles_131072, T * gbIn, T * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/(128*len))*dist_i;
 	oOffset = (batch/(128*len))*dist_o;
@@ -420,20 +421,20 @@ void fft_64_2048_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddl
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_2048_bcc<SB_UNIT, dir>(twiddles_64, twiddles_131072, lwbIn, lwbOut, batch, 1, 1);
+	fft_64_2048_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_131072, lwbIn, lwbOut, batch, 1, 1);
 }
 
 
-template<int dir>
+template<typename T,  int dir>
 __global__
-void fft_64_4096_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddles_262144, float2 * gbIn, float2 * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+void fft_64_4096_bcc_d2_s1(hipLaunchParm lp, T *twiddles_64, T *twiddles_262144, T * gbIn, T * gbOut, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
 	uint batch = hipBlockIdx_x;
 
 	uint iOffset;
 	uint oOffset;
-	float2 *lwbIn;
-	float2 *lwbOut;
+	T *lwbIn;
+	T *lwbOut;
 
 	iOffset = (batch/(256*len))*dist_i;
 	oOffset = (batch/(256*len))*dist_o;
@@ -444,7 +445,7 @@ void fft_64_4096_bcc_d2_s1(hipLaunchParm lp, float2 *twiddles_64, float2 *twiddl
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_4096_bcc<SB_UNIT, dir>(twiddles_64, twiddles_262144, lwbIn, lwbOut, batch, 1, 1);
+	fft_64_4096_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_262144, lwbIn, lwbOut, batch, 1, 1);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -457,10 +458,10 @@ typedef struct tag_Tile
 } Tile;
 
 
-template<int dir, int twl, TransTileDir ttd>
+template<typename T, int dir, int twl, TransTileDir ttd>
 __global__
 void
-transpose_var1( hipLaunchParm lp, float2 *twiddles_large, float2* pmComplexIn, float2* pmComplexOut,
+transpose_var1( hipLaunchParm lp, T *twiddles_large, T* pmComplexIn, T* pmComplexOut,
 			const ulong numGroupsY,  const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
    const Tile localIndex = { (size_t)hipThreadIdx_x, (size_t)hipThreadIdx_y }; 
@@ -474,7 +475,7 @@ transpose_var1( hipLaunchParm lp, float2 *twiddles_large, float2* pmComplexIn, f
    const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
    const size_t numGroupsY_1 = numGroupsY;
    // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
-   __shared__ float2 lds[ 64 ][ 64 ];
+   __shared__ T lds[ 64 ][ 64 ];
 
    size_t currDimIndex;
    size_t rowSizeinUnits;
@@ -496,8 +497,8 @@ transpose_var1( hipLaunchParm lp, float2 *twiddles_large, float2* pmComplexIn, f
    	iOffset += currDimIndex * wgTileExtent.x;
    }
    
-   float2* tileIn = pmComplexIn + iOffset;
-   float2 tmp;
+   T* tileIn = pmComplexIn + iOffset;
+   T tmp;
    
 
       for( uint t=0; t < wgUnroll; t++ )
@@ -553,7 +554,7 @@ transpose_var1( hipLaunchParm lp, float2 *twiddles_large, float2* pmComplexIn, f
    	oOffset += groupIndex.x * wgTileExtent.y * wgUnroll;
    }
    
-   float2* tileOut = pmComplexOut + oOffset;
+   T* tileOut = pmComplexOut + oOffset;
 
    const size_t transposeRatio = wgTileExtent.x / ( wgTileExtent.y * wgUnroll );
    const size_t groupingPerY = wgUnroll / wgTileExtent.y;

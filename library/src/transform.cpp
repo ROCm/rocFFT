@@ -52,7 +52,7 @@ rocfft_status rocfft_execute(   const rocfft_plan plan,
 	if(execPlan.workBufSize > 0)
 	{
 		assert(info != nullptr);
-		assert(info->workBufferSize >= (execPlan.workBufSize * 2 * sizeof(float)));
+		assert(info->workBufferSize >= (execPlan.workBufSize * 2 * plan->data_size ));
 	}
 
 	if(plan->placement == rocfft_placement_inplace)

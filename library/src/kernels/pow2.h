@@ -5,13 +5,14 @@
 #ifndef POW2_HIP_H
 #define POW2_HIP_H
 
+#include "common.h"
 #include "butterfly.h"
 
-
+template <typename T>
 __device__
-void fft_1(float2 *lwb_in, float2 *lwb_out, const uint rw)
+void fft_1(T *lwb_in, T *lwb_out, const uint rw)
 {
-	float2 X0;
+	T X0;
 
 	if(rw)
 	{
@@ -20,66 +21,66 @@ void fft_1(float2 *lwb_in, float2 *lwb_out, const uint rw)
 	}
 }
 
-template <StrideBin sb>
+template <typename T, StrideBin sb>
 __device__
-void fft_2(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, const uint rw, const ulong stride_in, const ulong stride_out)
+void fft_2(T *twiddles, T *lwb_in, T *lwb_out, const uint rw, const ulong stride_in, const ulong stride_out)
 {
-	float2 X0, X1;
+	T X0, X1;
 
 	if(rw)
 	{
 		if(sb == SB_UNIT)
 		{
-		X0 = lwb_in[0];
-		X1 = lwb_in[1];
+		    X0 = lwb_in[0];
+		    X1 = lwb_in[1];
 		}
 		else
 		{
-		X0 = lwb_in[0*stride_in];
-		X1 = lwb_in[1*stride_in];			
+		    X0 = lwb_in[0*stride_in];
+		    X1 = lwb_in[1*stride_in];			
 		}
 	}
 	
-	Rad2(&X0, &X1);
+	Rad2<T>(&X0, &X1);
 	
 	if(rw)
 	{
 		if(sb == SB_UNIT)
 		{
-		lwb_out[0] = X0;
-		lwb_out[1] = X1;
+		    lwb_out[0] = X0;
+		    lwb_out[1] = X1;
 		}
 		else
 		{
-		lwb_out[0*stride_out] = X0;
-		lwb_out[1*stride_out] = X1;			
+		    lwb_out[0*stride_out] = X0;
+		    lwb_out[1*stride_out] = X1;			
 		}	
 	}
 }	
 
 
 
-template <StrideBin sb, int dir>
+template <typename T, StrideBin sb, int dir>
 __device__
-void fft_4(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const uint me, const uint rw, const ulong stride_in, const ulong stride_out)
+void fft_4(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uint me, const uint rw, const ulong stride_in, const ulong stride_out)
 {
-	float2 X0, X1;
+	T X0, X1;
 
 	if(rw)
 	{	
 		if(sb == SB_UNIT)
 		{
-		X0 = lwb_in[me + 0];
-		X1 = lwb_in[me + 2];	
+		    X0 = lwb_in[me + 0];
+		    X1 = lwb_in[me + 2];	
 		}
 		else
 		{
-		X0 = lwb_in[(me + 0)*stride_in];
-		X1 = lwb_in[(me + 2)*stride_in];			
+		    X0 = lwb_in[(me + 0)*stride_in];
+		    X1 = lwb_in[(me + 2)*stride_in];			
 		}
 	}
 	
-	Rad2(&X0, &X1);
+	Rad2<T>(&X0, &X1);
 
 	lds[me*2 + 0] = X0.x;
 	lds[me*2 + 1] = X1.x;
@@ -110,53 +111,53 @@ void fft_4(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const 
 		TWIDDLE_MUL_INV(twiddles, 1 + (me%2), X1)
 	}
 	
-	Rad2(&X0, &X1);
+	Rad2<T>(&X0, &X1);
 	
 	if(rw)
 	{	
 		if(sb == SB_UNIT)
 		{
-		lwb_out[me + 0] = X0;
-		lwb_out[me + 2] = X1;	
+		    lwb_out[me + 0] = X0;
+		    lwb_out[me + 2] = X1;	
 		}
 		else
 		{
-		lwb_out[(me + 0)*stride_out] = X0;
-		lwb_out[(me + 2)*stride_out] = X1;			
+		    lwb_out[(me + 0)*stride_out] = X0;
+		    lwb_out[(me + 2)*stride_out] = X1;			
 		}	
 	}
 }
 
 
 
-template <StrideBin sb, int dir>
+template <typename T, StrideBin sb, int dir>
 __device__
-void fft_8(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const uint me, const uint rw, const ulong stride_in, const ulong stride_out)
+void fft_8(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uint me, const uint rw, const ulong stride_in, const ulong stride_out)
 {
-	float2 X0, X1, X2, X3;
+	T X0, X1, X2, X3;
 
 	if(rw)
 	{	
 		if(sb == SB_UNIT)
 		{
-		X0 = lwb_in[me + 0];
-		X1 = lwb_in[me + 2];	
-		X2 = lwb_in[me + 4];
-		X3 = lwb_in[me + 6];	
+		    X0 = lwb_in[me + 0];
+		    X1 = lwb_in[me + 2];	
+		    X2 = lwb_in[me + 4];
+		    X3 = lwb_in[me + 6];	
 		}
 		else		
 		{
-		X0 = lwb_in[(me + 0)*stride_in];
-		X1 = lwb_in[(me + 2)*stride_in];	
-		X2 = lwb_in[(me + 4)*stride_in];
-		X3 = lwb_in[(me + 6)*stride_in];			
+		    X0 = lwb_in[(me + 0)*stride_in];
+		    X1 = lwb_in[(me + 2)*stride_in];	
+		    X2 = lwb_in[(me + 4)*stride_in];
+		    X3 = lwb_in[(me + 6)*stride_in];			
 		}
 	}
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 		
 
 	lds[me*4 + 0] = X0.x;
@@ -198,57 +199,57 @@ void fft_8(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const 
 		TWIDDLE_MUL_INV(twiddles, 3 + ((2*me+1)%4), X3)			
 	}
 	
-	Rad2(&X0, &X1);
-	Rad2(&X2, &X3);
+	Rad2<T>(&X0, &X1);
+	Rad2<T>(&X2, &X3);
 	
 	if(rw)
 	{
 		if(sb == SB_UNIT)
 		{		
-		float4 *lwbv = (float4 *)lwb_out;	
-		lwbv[me + 0] = MAKE_FLOAT4(X0.x,X0.y,X2.x,X2.y);
-		lwbv[me + 2] = MAKE_FLOAT4(X1.x,X1.y,X3.x,X3.y);
+		    vector4_type_t<T>  *lwbv = (vector4_type_t<T>  *)lwb_out;	
+		    lwbv[me + 0] = vector4_type_t<T>(  X0.x,X0.y,X2.x,X2.y);
+		    lwbv[me + 2] = vector4_type_t<T>(  X1.x,X1.y,X3.x,X3.y);
 		}		
 		else		
 		{
-		lwb_out[(me + 0)*stride_out] = X0;
-		lwb_out[(me + 2)*stride_out] = X1;	
-		lwb_out[(me + 4)*stride_out] = X2;
-		lwb_out[(me + 6)*stride_out] = X3;			
+		    lwb_out[(me + 0)*stride_out] = X0;
+		    lwb_out[(me + 2)*stride_out] = X1;	
+		    lwb_out[(me + 4)*stride_out] = X2;
+		    lwb_out[(me + 6)*stride_out] = X3;			
 		}		
 	}
 }
 
 
 
-template <StrideBin sb, int dir>
+template <typename T, StrideBin sb, int dir>
 __device__
-void fft_16(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const uint me, const uint rw, const ulong stride_in, const ulong stride_out)
+void fft_16(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uint me, const uint rw, const ulong stride_in, const ulong stride_out)
 {
-	float2 X0, X1, X2, X3;
+	T X0, X1, X2, X3;
 
 	if(rw)
 	{	
 		if(sb == SB_UNIT)
 		{
-		X0 = lwb_in[me + 0];
-		X1 = lwb_in[me + 4];	
-		X2 = lwb_in[me + 8];
-		X3 = lwb_in[me + 12];	
+		    X0 = lwb_in[me + 0];
+		    X1 = lwb_in[me + 4];	
+		    X2 = lwb_in[me + 8];
+		    X3 = lwb_in[me + 12];	
 		}
 		else
 		{
-		X0 = lwb_in[(me +  0)*stride_in];
-		X1 = lwb_in[(me +  4)*stride_in];	
-		X2 = lwb_in[(me +  8)*stride_in];
-		X3 = lwb_in[(me + 12)*stride_in];				
+		    X0 = lwb_in[(me +  0)*stride_in];
+		    X1 = lwb_in[(me +  4)*stride_in];	
+		    X2 = lwb_in[(me +  8)*stride_in];
+		    X3 = lwb_in[(me + 12)*stride_in];				
 		}
 	}
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 		
 
 	lds[me*4 + 0] = X0.x;
@@ -293,67 +294,67 @@ void fft_16(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const
 	}
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 	
 	if(rw)
 	{	
 		if(sb == SB_UNIT)
 		{		
-		lwb_out[me + 0]  = X0;
-		lwb_out[me + 4]  = X1;	
-		lwb_out[me + 8]  = X2;
-		lwb_out[me + 12] = X3;		
+		    lwb_out[me + 0]  = X0;
+		    lwb_out[me + 4]  = X1;	
+		    lwb_out[me + 8]  = X2;
+		    lwb_out[me + 12] = X3;		
 		}
 		else
 		{
-		lwb_out[(me +  0)*stride_out] = X0;
-		lwb_out[(me +  4)*stride_out] = X1;	
-		lwb_out[(me +  8)*stride_out] = X2;
-		lwb_out[(me + 12)*stride_out] = X3;			
+		    lwb_out[(me +  0)*stride_out] = X0;
+		    lwb_out[(me +  4)*stride_out] = X1;	
+		    lwb_out[(me +  8)*stride_out] = X2;
+		    lwb_out[(me + 12)*stride_out] = X3;			
 		}
 	}
 }
 
 
 
-template <StrideBin sb, int dir>
+template <typename T,  StrideBin sb, int dir>
 __device__
-void fft_32(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const uint me, const uint rw, const ulong stride_in, const ulong stride_out)
+void fft_32(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uint me, const uint rw, const ulong stride_in, const ulong stride_out)
 {
-	float2 X0, X1, X2, X3, X4, X5, X6, X7;
+	T X0, X1, X2, X3, X4, X5, X6, X7;
 
 	if(rw)
 	{
 		if(sb == SB_UNIT)
 		{			
-		X0 = lwb_in[me +  0];
-		X1 = lwb_in[me +  4];
-		X2 = lwb_in[me +  8];
-		X3 = lwb_in[me + 12];
-		X4 = lwb_in[me + 16];
-		X5 = lwb_in[me + 20];
-		X6 = lwb_in[me + 24];
-		X7 = lwb_in[me + 28];
+		    X0 = lwb_in[me +  0];
+		    X1 = lwb_in[me +  4];
+		    X2 = lwb_in[me +  8];
+		    X3 = lwb_in[me + 12];
+		    X4 = lwb_in[me + 16];
+		    X5 = lwb_in[me + 20];
+		    X6 = lwb_in[me + 24];
+		    X7 = lwb_in[me + 28];
 		}
 		else
 		{
-		X0 = lwb_in[(me +  0)*stride_in];
-		X1 = lwb_in[(me +  4)*stride_in];
-		X2 = lwb_in[(me +  8)*stride_in];
-		X3 = lwb_in[(me + 12)*stride_in];
-		X4 = lwb_in[(me + 16)*stride_in];
-		X5 = lwb_in[(me + 20)*stride_in];
-		X6 = lwb_in[(me + 24)*stride_in];
-		X7 = lwb_in[(me + 28)*stride_in];			
+		    X0 = lwb_in[(me +  0)*stride_in];
+		    X1 = lwb_in[(me +  4)*stride_in];
+		    X2 = lwb_in[(me +  8)*stride_in];
+		    X3 = lwb_in[(me + 12)*stride_in];
+		    X4 = lwb_in[(me + 16)*stride_in];
+		    X5 = lwb_in[(me + 20)*stride_in];
+		    X6 = lwb_in[(me + 24)*stride_in];
+		    X7 = lwb_in[(me + 28)*stride_in];			
 		}
 	}				
 	
 	if(dir == -1)
-		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	else
-		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 
 
 	lds[me*8 + 0] = X0.x;
@@ -429,13 +430,13 @@ void fft_32(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const
 
 	if(dir == -1)
 	{
-		FwdRad4(&X0, &X1, &X2, &X3);
-		FwdRad4(&X4, &X5, &X6, &X7);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X4, &X5, &X6, &X7);
 	}
 	else	
 	{
-		InvRad4(&X0, &X1, &X2, &X3);
-		InvRad4(&X4, &X5, &X6, &X7);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X4, &X5, &X6, &X7);
 	}	
 		
 		
@@ -443,42 +444,42 @@ void fft_32(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const
 	{
 		if(sb == SB_UNIT)
 		{			
-		float4 *lwbv = (float4 *)lwb_out;	
-		lwbv[me +  0] = MAKE_FLOAT4(X0.x,X0.y,X4.x,X4.y);
-		lwbv[me +  4] = MAKE_FLOAT4(X1.x,X1.y,X5.x,X5.y);	
-		lwbv[me +  8] = MAKE_FLOAT4(X2.x,X2.y,X6.x,X6.y);
-		lwbv[me + 12] = MAKE_FLOAT4(X3.x,X3.y,X7.x,X7.y);			
+		    vector4_type_t<T>  *lwbv = (vector4_type_t<T>  *)lwb_out;	
+		    lwbv[me +  0] = vector4_type_t<T>(  X0.x,X0.y,X4.x,X4.y);
+		    lwbv[me +  4] = vector4_type_t<T>(  X1.x,X1.y,X5.x,X5.y);	
+		    lwbv[me +  8] = vector4_type_t<T>(  X2.x,X2.y,X6.x,X6.y);
+		    lwbv[me + 12] = vector4_type_t<T>(  X3.x,X3.y,X7.x,X7.y);			
 		}
 		else
 		{
-		lwb_out[(me +  0)*stride_out] = X0;
-		lwb_out[(me +  4)*stride_out] = X1;
-		lwb_out[(me +  8)*stride_out] = X2;
-		lwb_out[(me + 12)*stride_out] = X3;
-		lwb_out[(me + 16)*stride_out] = X4;
-		lwb_out[(me + 20)*stride_out] = X5;
-		lwb_out[(me + 24)*stride_out] = X6;
-		lwb_out[(me + 28)*stride_out] = X7;				
+		    lwb_out[(me +  0)*stride_out] = X0;
+		    lwb_out[(me +  4)*stride_out] = X1;
+		    lwb_out[(me +  8)*stride_out] = X2;
+		    lwb_out[(me + 12)*stride_out] = X3;
+		    lwb_out[(me + 16)*stride_out] = X4;
+		    lwb_out[(me + 20)*stride_out] = X5;
+		    lwb_out[(me + 24)*stride_out] = X6;
+		    lwb_out[(me + 28)*stride_out] = X7;				
 		}
 	}			
 	
 }
 
 
-template <StrideBin sb, int dir>
+template <typename T,  StrideBin sb, int dir>
 __device__
-void fft_64(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const uint me, const uint rw, const ulong stride_in, const ulong stride_out)
+void fft_64(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uint me, const uint rw, const ulong stride_in, const ulong stride_out)
 {
-	float2 X0, X1, X2, X3;
+	T X0, X1, X2, X3;
 
 	if(rw)
 	{
 		if(sb == SB_UNIT)
 		{
-		X0 = lwb_in[me + 0];
-		X1 = lwb_in[me + 16];	
-		X2 = lwb_in[me + 32];
-		X3 = lwb_in[me + 48];	
+		    X0 = lwb_in[me + 0];
+		    X1 = lwb_in[me + 16];	
+		    X2 = lwb_in[me + 32];
+		    X3 = lwb_in[me + 48];	
 		}
 		else
 		{
@@ -487,9 +488,9 @@ void fft_64(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const
 	}
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 		
 
 	lds[me*4 + 0] = X0.x;
@@ -534,9 +535,9 @@ void fft_64(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const
 	}
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 	
 	
 	lds[(me/4)*16 + me%4 +  0] = X0.x;
@@ -581,67 +582,67 @@ void fft_64(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const
 	}
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 
 		
 	if(rw)
 	{	
 		if(sb == SB_UNIT)
 		{
-		lwb_out[me + 0]  = X0;
-		lwb_out[me + 16] = X1;	
-		lwb_out[me + 32] = X2;
-		lwb_out[me + 48] = X3;		
+		    lwb_out[me + 0]  = X0;
+		    lwb_out[me + 16] = X1;	
+		    lwb_out[me + 32] = X2;
+		    lwb_out[me + 48] = X3;		
 		}
 		else
 		{
-		lwb_out[(me +  0)*stride_out] = X0;
-		lwb_out[(me + 16)*stride_out] = X1;	
-		lwb_out[(me + 32)*stride_out] = X2;
-		lwb_out[(me + 48)*stride_out] = X3;			
+		    lwb_out[(me +  0)*stride_out] = X0;
+		    lwb_out[(me + 16)*stride_out] = X1;	
+		    lwb_out[(me + 32)*stride_out] = X2;
+		    lwb_out[(me + 48)*stride_out] = X3;			
 		}
 	}
 }
 
 
-template <StrideBin sb, int dir>
+template <typename T,  StrideBin sb, int dir>
 __device__
-void fft_128(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const uint me, const uint rw, const ulong stride_in, const ulong stride_out)
+void fft_128(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uint me, const uint rw, const ulong stride_in, const ulong stride_out)
 {
-	float2 X0, X1, X2, X3, X4, X5, X6, X7;
+	T X0, X1, X2, X3, X4, X5, X6, X7;
 	
 	if(rw)
 	{
 		if(sb == SB_UNIT)
 		{			
-		X0 = lwb_in[me + 0];
-		X1 = lwb_in[me + 16];
-		X2 = lwb_in[me + 32];
-		X3 = lwb_in[me + 48];
-		X4 = lwb_in[me + 64];
-		X5 = lwb_in[me + 80];
-		X6 = lwb_in[me + 96];
-		X7 = lwb_in[me + 112];
+		    X0 = lwb_in[me + 0];
+		    X1 = lwb_in[me + 16];
+		    X2 = lwb_in[me + 32];
+		    X3 = lwb_in[me + 48];
+		    X4 = lwb_in[me + 64];
+		    X5 = lwb_in[me + 80];
+		    X6 = lwb_in[me + 96];
+		    X7 = lwb_in[me + 112];
 		}
 		else
 		{
-		X0 = lwb_in[(me +   0)*stride_in];
-		X1 = lwb_in[(me +  16)*stride_in];
-		X2 = lwb_in[(me +  32)*stride_in];
-		X3 = lwb_in[(me +  48)*stride_in];
-		X4 = lwb_in[(me +  64)*stride_in];
-		X5 = lwb_in[(me +  80)*stride_in];
-		X6 = lwb_in[(me +  96)*stride_in];
-		X7 = lwb_in[(me + 112)*stride_in];			
+		    X0 = lwb_in[(me +   0)*stride_in];
+		    X1 = lwb_in[(me +  16)*stride_in];
+		    X2 = lwb_in[(me +  32)*stride_in];
+		    X3 = lwb_in[(me +  48)*stride_in];
+		    X4 = lwb_in[(me +  64)*stride_in];
+		    X5 = lwb_in[(me +  80)*stride_in];
+		    X6 = lwb_in[(me +  96)*stride_in];
+		    X7 = lwb_in[(me + 112)*stride_in];			
 		}
 	}
 	
 	if(dir == -1)
-		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	else
-		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 
 
 	lds[me*8 + 0] = X0.x;
@@ -714,13 +715,13 @@ void fft_128(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, cons
 
 	if(dir == -1)
 	{
-		FwdRad4(&X0, &X1, &X2, &X3);
-		FwdRad4(&X4, &X5, &X6, &X7);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X4, &X5, &X6, &X7);
 	}
 	else	
 	{
-		InvRad4(&X0, &X1, &X2, &X3);
-		InvRad4(&X4, &X5, &X6, &X7);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X4, &X5, &X6, &X7);
 	}	
 	
 	
@@ -795,13 +796,13 @@ void fft_128(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, cons
 	
 	if(dir == -1)
 	{
-		FwdRad4(&X0, &X1, &X2, &X3);
-		FwdRad4(&X4, &X5, &X6, &X7);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X4, &X5, &X6, &X7);
 	}
 	else	
 	{
-		InvRad4(&X0, &X1, &X2, &X3);
-		InvRad4(&X4, &X5, &X6, &X7);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X4, &X5, &X6, &X7);
 	}	
 		
 		
@@ -809,54 +810,54 @@ void fft_128(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, cons
 	{
 		if(sb == SB_UNIT)
 		{
-		float4 *lwbv = (float4 *)lwb_out;	
-		lwbv[me +  0] = MAKE_FLOAT4(X0.x,X0.y,X4.x,X4.y);
-		lwbv[me + 16] = MAKE_FLOAT4(X1.x,X1.y,X5.x,X5.y);	
-		lwbv[me + 32] = MAKE_FLOAT4(X2.x,X2.y,X6.x,X6.y);
-		lwbv[me + 48] = MAKE_FLOAT4(X3.x,X3.y,X7.x,X7.y);	
+		    vector4_type_t<T>  *lwbv = (vector4_type_t<T>  *)lwb_out;	
+		    lwbv[me +  0] = vector4_type_t<T>(  X0.x,X0.y,X4.x,X4.y);
+		    lwbv[me + 16] = vector4_type_t<T>(  X1.x,X1.y,X5.x,X5.y);	
+		    lwbv[me + 32] = vector4_type_t<T>(  X2.x,X2.y,X6.x,X6.y);
+		    lwbv[me + 48] = vector4_type_t<T>(  X3.x,X3.y,X7.x,X7.y);	
 		}
 		else
 		{
-		lwb_out[(me +   0)*stride_out] = X0;
-		lwb_out[(me +  16)*stride_out] = X1;
-		lwb_out[(me +  32)*stride_out] = X2;
-		lwb_out[(me +  48)*stride_out] = X3;
-		lwb_out[(me +  64)*stride_out] = X4;
-		lwb_out[(me +  80)*stride_out] = X5;
-		lwb_out[(me +  96)*stride_out] = X6;
-		lwb_out[(me + 112)*stride_out] = X7;			
+		    lwb_out[(me +   0)*stride_out] = X0;
+		    lwb_out[(me +  16)*stride_out] = X1;
+		    lwb_out[(me +  32)*stride_out] = X2;
+		    lwb_out[(me +  48)*stride_out] = X3;
+		    lwb_out[(me +  64)*stride_out] = X4;
+		    lwb_out[(me +  80)*stride_out] = X5;
+		    lwb_out[(me +  96)*stride_out] = X6;
+		    lwb_out[(me + 112)*stride_out] = X7;			
 		}
 	}	
 	
 }
 
 
-template <StrideBin sb, int dir>
+template <typename T,  StrideBin sb, int dir>
 __device__
-void fft_256(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const uint me, const ulong stride_in, const ulong stride_out)
+void fft_256(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uint me, const ulong stride_in, const ulong stride_out)
 {
-	float2 X0, X1, X2, X3;
+	T X0, X1, X2, X3;
 
 	if(sb == SB_UNIT)
 	{
-	X0 = lwb_in[me +   0];
-	X1 = lwb_in[me +  64];	
-	X2 = lwb_in[me + 128];
-	X3 = lwb_in[me + 192];	
+	    X0 = lwb_in[me +   0];
+	    X1 = lwb_in[me +  64];	
+	    X2 = lwb_in[me + 128];
+	    X3 = lwb_in[me + 192];	
 	}
 	else	
 	{
-	X0 = lwb_in[(me +   0)*stride_in];
-	X1 = lwb_in[(me +  64)*stride_in];	
-	X2 = lwb_in[(me + 128)*stride_in];
-	X3 = lwb_in[(me + 192)*stride_in];			
+	    X0 = lwb_in[(me +   0)*stride_in];
+	    X1 = lwb_in[(me +  64)*stride_in];	
+	    X2 = lwb_in[(me + 128)*stride_in];
+	    X3 = lwb_in[(me + 192)*stride_in];			
 	}
 	
 
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 	
 	lds[me*4 + 0] = X0.x;
 	lds[me*4 + 1] = X1.x;
@@ -900,9 +901,9 @@ void fft_256(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, cons
 	}
 
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 		
 		
 	lds[(me/4)*16 + me%4 +  0] = X0.x;
@@ -947,9 +948,9 @@ void fft_256(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, cons
 	}
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 
 
 	lds[(me/16)*64 + me%16 +  0] = X0.x;
@@ -994,33 +995,33 @@ void fft_256(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, cons
 	}
 	
 	if(dir == -1)
-		FwdRad4(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
 	else
-		InvRad4(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
 		
 	if(sb == SB_UNIT)
 	{
-	lwb_out[me +   0] = X0;
-	lwb_out[me +  64] = X1;	
-	lwb_out[me + 128] = X2;
-	lwb_out[me + 192] = X3;		
+	    lwb_out[me +   0] = X0;
+	    lwb_out[me +  64] = X1;	
+	    lwb_out[me + 128] = X2;
+	    lwb_out[me + 192] = X3;		
 	}
 	else
 	{
-	lwb_out[(me +   0)*stride_out] = X0;
-	lwb_out[(me +  64)*stride_out] = X1;	
-	lwb_out[(me + 128)*stride_out] = X2;
-	lwb_out[(me + 192)*stride_out] = X3;		
+	    lwb_out[(me +   0)*stride_out] = X0;
+	    lwb_out[(me +  64)*stride_out] = X1;	
+	    lwb_out[(me + 128)*stride_out] = X2;
+	    lwb_out[(me + 192)*stride_out] = X3;		
 	}
 
 }
 
 
-template <StrideBin sb, int dir>
+template <typename T,  StrideBin sb, int dir>
 __device__
-void fft_512(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const uint me, const ulong stride_in, const ulong stride_out)
+void fft_512(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uint me, const ulong stride_in, const ulong stride_out)
 {
-	float2 X0, X1, X2, X3, X4, X5, X6, X7;
+	T X0, X1, X2, X3, X4, X5, X6, X7;
 	
 	if(sb == SB_UNIT)
 	{
@@ -1047,9 +1048,9 @@ void fft_512(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, cons
 					
 	
 	if(dir == -1)
-		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	else
-		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	
 	
 
@@ -1108,8 +1109,8 @@ void fft_512(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, cons
 			
 	if(dir == -1)
 	{
-		float2 W;
-		float TR, TI;
+		T W;
+		real_type_t<T> TR, TI;
 		
 		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 0, X1)			
 		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 1, X2)	
@@ -1131,9 +1132,9 @@ void fft_512(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, cons
 	}
 	
 	if(dir == -1)
-		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	else
-		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 
 
 	lds[(me/8)*64 + (me%8) +  0] = X0.x;
@@ -1210,70 +1211,70 @@ void fft_512(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, cons
 	}
 	
 	if(dir == -1)
-		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	else
-		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 
 	if(sb == SB_UNIT)
 	{
-	lwb_out[me +   0] = X0;
-	lwb_out[me +  64] = X1;
-	lwb_out[me + 128] = X2;
-	lwb_out[me + 192] = X3;
-	lwb_out[me + 256] = X4;
-	lwb_out[me + 320] = X5;
-	lwb_out[me + 384] = X6;
-	lwb_out[me + 448] = X7;		
+	    lwb_out[me +   0] = X0;
+	    lwb_out[me +  64] = X1;
+	    lwb_out[me + 128] = X2;
+	    lwb_out[me + 192] = X3;
+	    lwb_out[me + 256] = X4;
+	    lwb_out[me + 320] = X5;
+	    lwb_out[me + 384] = X6;
+	    lwb_out[me + 448] = X7;		
 	}
 	else
 	{
-	lwb_out[(me +   0)*stride_out] = X0;
-	lwb_out[(me +  64)*stride_out] = X1;
-	lwb_out[(me + 128)*stride_out] = X2;
-	lwb_out[(me + 192)*stride_out] = X3;
-	lwb_out[(me + 256)*stride_out] = X4;
-	lwb_out[(me + 320)*stride_out] = X5;
-	lwb_out[(me + 384)*stride_out] = X6;
-	lwb_out[(me + 448)*stride_out] = X7;			
+	    lwb_out[(me +   0)*stride_out] = X0;
+	    lwb_out[(me +  64)*stride_out] = X1;
+	    lwb_out[(me + 128)*stride_out] = X2;
+	    lwb_out[(me + 192)*stride_out] = X3;
+	    lwb_out[(me + 256)*stride_out] = X4;
+	    lwb_out[(me + 320)*stride_out] = X5;
+	    lwb_out[(me + 384)*stride_out] = X6;
+	    lwb_out[(me + 448)*stride_out] = X7;			
 	}
 		
 }
 	
 
-template <StrideBin sb, int dir>
+template <typename T,  StrideBin sb, int dir>
 __device__
-void fft_1024(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const uint me, const ulong stride_in, const ulong stride_out)
+void fft_1024(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uint me, const ulong stride_in, const ulong stride_out)
 {
-	float2 X0, X1, X2, X3, X4, X5, X6, X7;
+	T X0, X1, X2, X3, X4, X5, X6, X7;
 	
 	if(sb == SB_UNIT)
 	{
-	X0 = lwb_in[me +   0];
-	X1 = lwb_in[me + 128];
-	X2 = lwb_in[me + 256];
-	X3 = lwb_in[me + 384];
-	X4 = lwb_in[me + 512];
-	X5 = lwb_in[me + 640];
-	X6 = lwb_in[me + 768];
-	X7 = lwb_in[me + 896];
+	    X0 = lwb_in[me +   0];
+	    X1 = lwb_in[me + 128];
+	    X2 = lwb_in[me + 256];
+	    X3 = lwb_in[me + 384];
+	    X4 = lwb_in[me + 512];
+	    X5 = lwb_in[me + 640];
+	    X6 = lwb_in[me + 768];
+	    X7 = lwb_in[me + 896];
 	}
 	else
 	{
-	X0 = lwb_in[(me +   0)*stride_in];
-	X1 = lwb_in[(me + 128)*stride_in];
-	X2 = lwb_in[(me + 256)*stride_in];
-	X3 = lwb_in[(me + 384)*stride_in];
-	X4 = lwb_in[(me + 512)*stride_in];
-	X5 = lwb_in[(me + 640)*stride_in];
-	X6 = lwb_in[(me + 768)*stride_in];
-	X7 = lwb_in[(me + 896)*stride_in];		
+	    X0 = lwb_in[(me +   0)*stride_in];
+	    X1 = lwb_in[(me + 128)*stride_in];
+	    X2 = lwb_in[(me + 256)*stride_in];
+	    X3 = lwb_in[(me + 384)*stride_in];
+	    X4 = lwb_in[(me + 512)*stride_in];
+	    X5 = lwb_in[(me + 640)*stride_in];
+	    X6 = lwb_in[(me + 768)*stride_in];
+	    X7 = lwb_in[(me + 896)*stride_in];		
 	}
 					
 	
 	if(dir == -1)
-		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	else
-		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	
 	
 
@@ -1352,9 +1353,9 @@ void fft_1024(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 	}
 	
 	if(dir == -1)
-		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	else
-		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 
 
 	lds[(me/8)*64 + (me%8) +  0] = X0.x;
@@ -1435,13 +1436,13 @@ void fft_1024(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 	
 	if(dir == -1)
 	{
-		FwdRad4(&X0, &X1, &X2, &X3);
-		FwdRad4(&X4, &X5, &X6, &X7);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X4, &X5, &X6, &X7);
 	}
 	else	
 	{
-		InvRad4(&X0, &X1, &X2, &X3);
-		InvRad4(&X4, &X5, &X6, &X7);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X4, &X5, &X6, &X7);
 	}
 
 		
@@ -1524,22 +1525,22 @@ void fft_1024(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 	
 	if(dir == -1)
 	{
-		FwdRad4(&X0, &X1, &X2, &X3);
-		FwdRad4(&X4, &X5, &X6, &X7);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X4, &X5, &X6, &X7);
 	}
 	else	
 	{
-		InvRad4(&X0, &X1, &X2, &X3);
-		InvRad4(&X4, &X5, &X6, &X7);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X4, &X5, &X6, &X7);
 	}	
 	
 	if(sb == SB_UNIT)	
 	{
-		float4 *lwbv = (float4 *)lwb_out;	
-		lwbv[me +   0] = MAKE_FLOAT4(X0.x,X0.y,X4.x,X4.y);
-		lwbv[me + 128] = MAKE_FLOAT4(X1.x,X1.y,X5.x,X5.y);	
-		lwbv[me + 256] = MAKE_FLOAT4(X2.x,X2.y,X6.x,X6.y);
-		lwbv[me + 384] = MAKE_FLOAT4(X3.x,X3.y,X7.x,X7.y);			
+		vector4_type_t<T>  *lwbv = (vector4_type_t<T>  *)lwb_out;	
+		lwbv[me +   0] = vector4_type_t<T>(  X0.x,X0.y,X4.x,X4.y);
+		lwbv[me + 128] = vector4_type_t<T>(  X1.x,X1.y,X5.x,X5.y);	
+		lwbv[me + 256] = vector4_type_t<T>(  X2.x,X2.y,X6.x,X6.y);
+		lwbv[me + 384] = vector4_type_t<T>(  X3.x,X3.y,X7.x,X7.y);			
 	}	
 	else
 	{
@@ -1556,40 +1557,40 @@ void fft_1024(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 
 
 	
-template <StrideBin sb, int dir>
+template <typename T,  StrideBin sb, int dir>
 __device__
-void fft_2048(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const uint me, const ulong stride_in, const ulong stride_out)
+void fft_2048(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uint me, const ulong stride_in, const ulong stride_out)
 {
-	float2 X0, X1, X2, X3, X4, X5, X6, X7;
+	T X0, X1, X2, X3, X4, X5, X6, X7;
 	
 	if(sb == SB_UNIT)
 	{
-	X0 = lwb_in[me +    0];
-	X1 = lwb_in[me +  256];
-	X2 = lwb_in[me +  512];
-	X3 = lwb_in[me +  768];
-	X4 = lwb_in[me + 1024];
-	X5 = lwb_in[me + 1280];
-	X6 = lwb_in[me + 1536];
-	X7 = lwb_in[me + 1792];
+	    X0 = lwb_in[me +    0];
+	    X1 = lwb_in[me +  256];
+	    X2 = lwb_in[me +  512];
+	    X3 = lwb_in[me +  768];
+	    X4 = lwb_in[me + 1024];
+	    X5 = lwb_in[me + 1280];
+	    X6 = lwb_in[me + 1536];
+	    X7 = lwb_in[me + 1792];
 	}
 	else
 	{
-	X0 = lwb_in[(me +    0)*stride_in];
-	X1 = lwb_in[(me +  256)*stride_in];
-	X2 = lwb_in[(me +  512)*stride_in];
-	X3 = lwb_in[(me +  768)*stride_in];
-	X4 = lwb_in[(me + 1024)*stride_in];
-	X5 = lwb_in[(me + 1280)*stride_in];
-	X6 = lwb_in[(me + 1536)*stride_in];
-	X7 = lwb_in[(me + 1792)*stride_in];		
+	    X0 = lwb_in[(me +    0)*stride_in];
+	    X1 = lwb_in[(me +  256)*stride_in];
+	    X2 = lwb_in[(me +  512)*stride_in];
+	    X3 = lwb_in[(me +  768)*stride_in];
+	    X4 = lwb_in[(me + 1024)*stride_in];
+	    X5 = lwb_in[(me + 1280)*stride_in];
+	    X6 = lwb_in[(me + 1536)*stride_in];
+	    X7 = lwb_in[(me + 1792)*stride_in];		
 	}
 					
 	
 	if(dir == -1)
-		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	else
-		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	
 	
 
@@ -1669,9 +1670,9 @@ void fft_2048(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 	}
 	
 	if(dir == -1)
-		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	else
-		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 
 
 	lds[(me/8)*64 + (me%8) +  0] = X0.x;
@@ -1749,9 +1750,9 @@ void fft_2048(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 	}
 	
 	if(dir == -1)
-		FwdRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		FwdRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 	else
-		InvRad8(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
+		InvRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 
 		
 	lds[(me/64)*512 + (me%64) +   0] = X0.x;
@@ -1831,22 +1832,22 @@ void fft_2048(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 	
 	if(dir == -1)
 	{
-		FwdRad4(&X0, &X1, &X2, &X3);
-		FwdRad4(&X4, &X5, &X6, &X7);
+		FwdRad4<T>(&X0, &X1, &X2, &X3);
+		FwdRad4<T>(&X4, &X5, &X6, &X7);
 	}
 	else	
 	{
-		InvRad4(&X0, &X1, &X2, &X3);
-		InvRad4(&X4, &X5, &X6, &X7);
+		InvRad4<T>(&X0, &X1, &X2, &X3);
+		InvRad4<T>(&X4, &X5, &X6, &X7);
 	}	
 		
 	if(sb == SB_UNIT)		
 	{
-		float4 *lwbv = (float4 *)lwb_out;	
-		lwbv[me +   0] = MAKE_FLOAT4(X0.x,X0.y,X4.x,X4.y);
-		lwbv[me + 256] = MAKE_FLOAT4(X1.x,X1.y,X5.x,X5.y);	
-		lwbv[me + 512] = MAKE_FLOAT4(X2.x,X2.y,X6.x,X6.y);
-		lwbv[me + 768] = MAKE_FLOAT4(X3.x,X3.y,X7.x,X7.y);			
+		vector4_type_t<T>  *lwbv = (vector4_type_t<T>  *)lwb_out;	
+		lwbv[me +   0] = vector4_type_t<T>(  X0.x,X0.y,X4.x,X4.y);
+		lwbv[me + 256] = vector4_type_t<T>(  X1.x,X1.y,X5.x,X5.y);	
+		lwbv[me + 512] = vector4_type_t<T>(  X2.x,X2.y,X6.x,X6.y);
+		lwbv[me + 768] = vector4_type_t<T>(  X3.x,X3.y,X7.x,X7.y);			
 	}
 	else
 	{
@@ -1861,59 +1862,59 @@ void fft_2048(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 	}
 }
 
-template <StrideBin sb, int dir>
+template <typename T,  StrideBin sb, int dir>
 __device__
-void fft_4096(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, const uint me, const ulong stride_in, const ulong stride_out)
+void fft_4096(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uint me, const ulong stride_in, const ulong stride_out)
 {
-	float2 X0, X1, X2, X3, X4, X5, X6, X7;
-	float2 X8, X9, X10, X11, X12, X13, X14, X15;
+	T X0, X1, X2, X3, X4, X5, X6, X7;
+	T X8, X9, X10, X11, X12, X13, X14, X15;
 	
 	if(sb == SB_UNIT)
 	{
-	 X0 = lwb_in[me +    0];
-	 X1 = lwb_in[me +  256];
-	 X2 = lwb_in[me +  512];
-	 X3 = lwb_in[me +  768];
-	 X4 = lwb_in[me + 1024];
-	 X5 = lwb_in[me + 1280];
-	 X6 = lwb_in[me + 1536];
-	 X7 = lwb_in[me + 1792];
-	 X8 = lwb_in[me + 2048];
-	 X9 = lwb_in[me + 2304];
-	X10 = lwb_in[me + 2560];
-	X11 = lwb_in[me + 2816];
-	X12 = lwb_in[me + 3072];
-	X13 = lwb_in[me + 3328];
-	X14 = lwb_in[me + 3584];
-	X15 = lwb_in[me + 3840];
+	     X0 = lwb_in[me +    0];
+	     X1 = lwb_in[me +  256];
+	     X2 = lwb_in[me +  512];
+	     X3 = lwb_in[me +  768];
+	     X4 = lwb_in[me + 1024];
+	     X5 = lwb_in[me + 1280];
+	     X6 = lwb_in[me + 1536];
+	     X7 = lwb_in[me + 1792];
+	     X8 = lwb_in[me + 2048];
+	     X9 = lwb_in[me + 2304];
+	    X10 = lwb_in[me + 2560];
+	    X11 = lwb_in[me + 2816];
+	    X12 = lwb_in[me + 3072];
+	    X13 = lwb_in[me + 3328];
+	    X14 = lwb_in[me + 3584];
+	    X15 = lwb_in[me + 3840];
 	}
 	else
 	{
-	 X0 = lwb_in[(me +    0)*stride_in];
-	 X1 = lwb_in[(me +  256)*stride_in];
-	 X2 = lwb_in[(me +  512)*stride_in];
-	 X3 = lwb_in[(me +  768)*stride_in];
-	 X4 = lwb_in[(me + 1024)*stride_in];
-	 X5 = lwb_in[(me + 1280)*stride_in];
-	 X6 = lwb_in[(me + 1536)*stride_in];
-	 X7 = lwb_in[(me + 1792)*stride_in];
-	 X8 = lwb_in[(me + 2048)*stride_in];
-	 X9 = lwb_in[(me + 2304)*stride_in];
-	X10 = lwb_in[(me + 2560)*stride_in];
-	X11 = lwb_in[(me + 2816)*stride_in];
-	X12 = lwb_in[(me + 3072)*stride_in];
-	X13 = lwb_in[(me + 3328)*stride_in];
-	X14 = lwb_in[(me + 3584)*stride_in];
-	X15 = lwb_in[(me + 3840)*stride_in];		
+	     X0 = lwb_in[(me +    0)*stride_in];
+	     X1 = lwb_in[(me +  256)*stride_in];
+	     X2 = lwb_in[(me +  512)*stride_in];
+	     X3 = lwb_in[(me +  768)*stride_in];
+	     X4 = lwb_in[(me + 1024)*stride_in];
+	     X5 = lwb_in[(me + 1280)*stride_in];
+	     X6 = lwb_in[(me + 1536)*stride_in];
+	     X7 = lwb_in[(me + 1792)*stride_in];
+	     X8 = lwb_in[(me + 2048)*stride_in];
+	     X9 = lwb_in[(me + 2304)*stride_in];
+	    X10 = lwb_in[(me + 2560)*stride_in];
+	    X11 = lwb_in[(me + 2816)*stride_in];
+	    X12 = lwb_in[(me + 3072)*stride_in];
+	    X13 = lwb_in[(me + 3328)*stride_in];
+	    X14 = lwb_in[(me + 3584)*stride_in];
+	    X15 = lwb_in[(me + 3840)*stride_in];		
 	}
 	
 	if(dir == -1)
 	{
-		FwdRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+		FwdRad16<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
 	}
 	else
 	{
-		InvRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+		InvRad16<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
 	}
 	
 	
@@ -2041,11 +2042,11 @@ void fft_4096(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 	
 	if(dir == -1)
 	{
-		FwdRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+		FwdRad16<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
 	}
 	else
 	{
-		InvRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+		InvRad16<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
 	}
 
 
@@ -2171,50 +2172,50 @@ void fft_4096(float2 *twiddles, float2 *lwb_in, float2 *lwb_out, float *lds, con
 	
 	if(dir == -1)
 	{
-		FwdRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+		FwdRad16<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
 	}
 	else
 	{
-		InvRad16(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
+		InvRad16<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7, &X8, &X9, &X10, &X11, &X12, &X13, &X14, &X15);
 	}
 
 	if(sb == SB_UNIT)
 	{		
-	lwb_out[me +    0] =  X0;
-	lwb_out[me +  256] =  X1;
-	lwb_out[me +  512] =  X2;
-	lwb_out[me +  768] =  X3;
-	lwb_out[me + 1024] =  X4;
-	lwb_out[me + 1280] =  X5;
-	lwb_out[me + 1536] =  X6;
-	lwb_out[me + 1792] =  X7;
-	lwb_out[me + 2048] =  X8;
-	lwb_out[me + 2304] =  X9;
-	lwb_out[me + 2560] = X10;
-	lwb_out[me + 2816] = X11;
-	lwb_out[me + 3072] = X12;
-	lwb_out[me + 3328] = X13;
-	lwb_out[me + 3584] = X14;
-	lwb_out[me + 3840] = X15;	
+	    lwb_out[me +    0] =  X0;
+	    lwb_out[me +  256] =  X1;
+	    lwb_out[me +  512] =  X2;
+	    lwb_out[me +  768] =  X3;
+	    lwb_out[me + 1024] =  X4;
+	    lwb_out[me + 1280] =  X5;
+	    lwb_out[me + 1536] =  X6;
+	    lwb_out[me + 1792] =  X7;
+	    lwb_out[me + 2048] =  X8;
+	    lwb_out[me + 2304] =  X9;
+	    lwb_out[me + 2560] = X10;
+	    lwb_out[me + 2816] = X11;
+	    lwb_out[me + 3072] = X12;
+	    lwb_out[me + 3328] = X13;
+	    lwb_out[me + 3584] = X14;
+	    lwb_out[me + 3840] = X15;	
 	}
 	else
 	{
-	lwb_out[(me +    0)*stride_out] =  X0;
-	lwb_out[(me +  256)*stride_out] =  X1;
-	lwb_out[(me +  512)*stride_out] =  X2;
-	lwb_out[(me +  768)*stride_out] =  X3;
-	lwb_out[(me + 1024)*stride_out] =  X4;
-	lwb_out[(me + 1280)*stride_out] =  X5;
-	lwb_out[(me + 1536)*stride_out] =  X6;
-	lwb_out[(me + 1792)*stride_out] =  X7;
-	lwb_out[(me + 2048)*stride_out] =  X8;
-	lwb_out[(me + 2304)*stride_out] =  X9;
-	lwb_out[(me + 2560)*stride_out] = X10;
-	lwb_out[(me + 2816)*stride_out] = X11;
-	lwb_out[(me + 3072)*stride_out] = X12;
-	lwb_out[(me + 3328)*stride_out] = X13;
-	lwb_out[(me + 3584)*stride_out] = X14;
-	lwb_out[(me + 3840)*stride_out] = X15;		
+	    lwb_out[(me +    0)*stride_out] =  X0;
+	    lwb_out[(me +  256)*stride_out] =  X1;
+	    lwb_out[(me +  512)*stride_out] =  X2;
+	    lwb_out[(me +  768)*stride_out] =  X3;
+	    lwb_out[(me + 1024)*stride_out] =  X4;
+	    lwb_out[(me + 1280)*stride_out] =  X5;
+	    lwb_out[(me + 1536)*stride_out] =  X6;
+	    lwb_out[(me + 1792)*stride_out] =  X7;
+	    lwb_out[(me + 2048)*stride_out] =  X8;
+	    lwb_out[(me + 2304)*stride_out] =  X9;
+	    lwb_out[(me + 2560)*stride_out] = X10;
+	    lwb_out[(me + 2816)*stride_out] = X11;
+	    lwb_out[(me + 3072)*stride_out] = X12;
+	    lwb_out[(me + 3328)*stride_out] = X13;
+	    lwb_out[(me + 3584)*stride_out] = X14;
+	    lwb_out[(me + 3840)*stride_out] = X15;		
 	}
 
 }

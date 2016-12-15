@@ -26,7 +26,7 @@ option( BUILD_LIBRARY "Build rocFFT library" OFF )
 option( BUILD_CLIENTS "Build rocFFT clients" OFF )
 
 # BUILD_SHARED_LIBS is a cmake built-in; we make it an explicit option such that it shows in cmake-gui
-option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" OFF )
+option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" ON )
 
 set( HOST_TOOLCHAIN_NAME "clang" CACHE STRING "Compiler toolchain: (clang gcc)" )
 set_property( CACHE HOST_TOOLCHAIN_NAME PROPERTY STRINGS clang gcc )
