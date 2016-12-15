@@ -193,10 +193,10 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
 	p->placement = placement;
 	p->precision = precision;
     if( precision == rocfft_precision_double ){
-        p->data_size = sizeof(double);
+        p->base_type_size = sizeof(double);
     }
     else{
-        p->data_size = sizeof(float);
+        p->base_type_size = sizeof(float);
     }  
 	p->transformType = transform_type;
 
@@ -267,7 +267,7 @@ rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *
 	ExecPlan execPlan;
 	repo.GetPlan(plan, execPlan);
 
-	*size_in_bytes = execPlan.workBufSize * 2 * plan->data_size;
+	*size_in_bytes = execPlan.workBufSize * 2 * plan->base_type_size;
 
 	return rocfft_status_success;
 }

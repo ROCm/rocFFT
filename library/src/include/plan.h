@@ -78,7 +78,7 @@ struct rocfft_plan_t
 	rocfft_result_placement	placement;
 	rocfft_transform_type	transformType;
 	rocfft_precision	precision;
-    size_t data_size;
+	size_t base_type_size;
 
 	rocfft_plan_description_t desc;
 
@@ -87,7 +87,8 @@ struct rocfft_plan_t
 		rank(1),
 		batch(1),
 		transformType(rocfft_transform_type_complex_forward),
-		precision(rocfft_precision_single)
+		precision(rocfft_precision_single),
+		base_type_size(sizeof(float))
 	{
 		lengths[0] = 1;
 		lengths[1] = 1;
