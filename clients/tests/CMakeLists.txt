@@ -100,6 +100,7 @@ endif( )
 set(rocfft_test_source
     gtest_main.cpp
     accuracy_test_pow2.cpp
+    unit_test.cpp
     misc/source/test_exception.cpp)
 
 set(rocfft_test_includes
