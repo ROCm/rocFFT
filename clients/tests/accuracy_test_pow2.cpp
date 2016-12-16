@@ -41,7 +41,7 @@ protected:
     }
 };
 
-size_t N_range[] = {small2, normal2, large2, dlarge2, 65536};
+size_t N_range[] = {small2, normal2, large2, dlarge2, 65536, 2, 4, 8, 16, 256};
 
 size_t batch_range[] = {1}; 
 
