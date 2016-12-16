@@ -31,3 +31,6 @@
 tags
 .tags
 .*.swp
+
+# Visual Studio Code
+.vscode

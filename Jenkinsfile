@@ -36,7 +36,7 @@ node('rocm-1.3 && fiji')
         stage("unit tests") {
           sh '''
               cd clients-build/tests-build/staging
-              ./rocfft-test-correctness-d --gtest_output=xml
+              ./rocfft-test-correctness --gtest_output=xml
           '''
           junit 'clients-build/tests-build/staging/*.xml'
         }
@@ -44,9 +44,9 @@ node('rocm-1.3 && fiji')
         stage("rider") {
           sh '''
               cd clients-build/rider-build/staging
-              ./rocfft-rider-d -x 16
-              ./rocfft-rider-d -x 256
-              ./rocfft-rider-d -x 1024
+              ./rocfft-rider -x 16
+              ./rocfft-rider -x 256
+              ./rocfft-rider -x 1024
           '''
         }
 
