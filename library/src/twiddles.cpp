@@ -4,9 +4,34 @@
 
 
 #include "rocfft_hip.h"
+#include "twiddles.h"
 
-void *twiddles_create(size_t N)
+std::vector<size_t> get_radices(size_t N)
 {
+	switch (N)
+	{
+		case 4096: 	return radices_pow2_4096;
+		case 2048: 	return radices_pow2_2048;
+		case 1024: 	return radices_pow2_1024;
+		case 512:  	return radices_pow2_512;
+		case 256:  	return radices_pow2_256;
+		case 128:  	return radices_pow2_128;
+		case 64:   	return radices_pow2_64;
+		case 32:   	return radices_pow2_32;
+		case 16:   	return radices_pow2_16;
+		case 8:    	return radices_pow2_8;
+		case 4:    	return radices_pow2_4;
+		case 2:    	return radices_pow2_2;
+		case 1: 	return radices_pow2_1;
+        default:    return radices_pow2_1;
+	}
+}
+
+void *twiddles_create(size_t N, rocfft_precision precision)
+{
+
+#if 0
+
 #include "./kernels/twiddles_pow2.h"
 #include "./kernels/twiddles_pow2_large.h"
 
@@ -120,11 +145,37 @@ void *twiddles_create(size_t N)
 				assert(false); break;
 	}
 
-
 	hipMalloc(&twts, ns*sizeof(float2));
 	hipMemcpy(twts, twtc, ns*sizeof(float2), hipMemcpyHostToDevice);
 
 	return twts;
+
+#else
+	void* twts;
+
+    if( precision == rocfft_precision_single){
+
+        TwiddleTable<float2> twTable(N); // vector2_type_t<precision> return float2 or double2
+        std::vector<size_t> radices = get_radices(N); //get radices from the radice table based on length N
+        void* twtc = twTable.GenerateTwiddleTable(radices); //calculate twiddles on host side
+
+	    hipMalloc(&twts, N*sizeof( float2 ) );
+	    hipMemcpy(twts, twtc, N*sizeof( float2 ), hipMemcpyHostToDevice);
+    }
+    else if( precision == rocfft_precision_double){
+
+        TwiddleTable<double2> twTable(N); // vector2_type_t<precision> return float2 or double2
+        std::vector<size_t> radices = get_radices(N); //get radices from the radice table based on length N
+        void* twtc = twTable.GenerateTwiddleTable(radices); //calculate twiddles on host side
+
+	    hipMalloc(&twts, N*sizeof( double2 ) );
+	    hipMemcpy(twts, twtc, N*sizeof( double2 ), hipMemcpyHostToDevice);
+    }
+
+	return twts;
+
+#endif
+
 }
 
 void twiddles_delete(void *twt)

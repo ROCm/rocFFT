@@ -5,6 +5,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include "rocfft.h"
 
 #ifdef __NVCC__
 
@@ -58,10 +59,34 @@ template<class T>
 using vector4_type_t = typename vector4_type<T>::type;
 
 
-/* example of using real_type_t */
-//real_type_t<float2> float_scalar;
-//real_type_t<double2> double_scalar;
+/* example of using vector4_type_t */
+//vector4_type_t<float2> float4_scalar;
+//vector4_type_t<double2> double4_scalar;
 
+
+template<rocfft_precision T>
+struct vector2_type;
+
+template<>
+struct vector2_type<rocfft_precision_single>
+{
+    typedef float2 type;
+};
+
+template<>
+struct vector2_type<rocfft_precision_double>
+{
+    typedef double2 type;
+};
+
+template<rocfft_precision T>
+using vector2_type_t = typename vector2_type<T>::type;
+
+
+/* example of using vector2_type_t */
+//vector2_type_t<rocfft_precision_single> float2_scalar;
+//vector2_type_t<rocfft_precision_double> double2_scalar;
+        
 
 
 #ifdef __NVCC__

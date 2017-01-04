@@ -6,7 +6,7 @@
 #define BUTTERFLY_H
 
 #include "common.h"
-
+#include <hip/hip_runtime.h>
 
 enum StrideBin
 {

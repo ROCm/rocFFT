@@ -113,50 +113,51 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
                                         const rocfft_plan_description description )
 {
 
+    // Initialize plan's parameters, no computation
 	if(description != nullptr)
 	{
 		switch(transform_type)
 		{
-		case rocfft_transform_type_complex_forward:
-		case rocfft_transform_type_complex_inverse:
-		{
-			if(placement == rocfft_placement_inplace)
-			{
-				if(description->inArrayType == rocfft_array_type_complex_interleaved)
-				{
-					if(description->outArrayType != rocfft_array_type_complex_interleaved)
-						return rocfft_status_invalid_array_type;
-				}
-				else if(description->inArrayType == rocfft_array_type_complex_planar)
-				{
-					if(description->outArrayType != rocfft_array_type_complex_planar)
-						return rocfft_status_invalid_array_type;
-				}
-				else
-					return rocfft_status_invalid_array_type;
-			}
-			else
-			{
-				if( (	(description->inArrayType == rocfft_array_type_complex_interleaved) ||
-					(description->inArrayType == rocfft_array_type_complex_planar) ) )
-				{
-					if( !(	(description->outArrayType == rocfft_array_type_complex_interleaved) ||
-						(description->outArrayType == rocfft_array_type_complex_planar) ) )
-						return rocfft_status_invalid_array_type;
-				}
-				else
-					return rocfft_status_invalid_array_type;
-			}
-		}
-		break;
-		case rocfft_transform_type_real_forward:
-		{
-		}
-		break;
-		case rocfft_transform_type_real_inverse:
-		{
-		}
-		break;
+		    case rocfft_transform_type_complex_forward:
+		    case rocfft_transform_type_complex_inverse:
+		    {
+			    if(placement == rocfft_placement_inplace)
+			    {
+				    if(description->inArrayType == rocfft_array_type_complex_interleaved)
+				    {
+					    if(description->outArrayType != rocfft_array_type_complex_interleaved)
+						    return rocfft_status_invalid_array_type;
+				    }
+				    else if(description->inArrayType == rocfft_array_type_complex_planar)
+				    {
+					    if(description->outArrayType != rocfft_array_type_complex_planar)
+						    return rocfft_status_invalid_array_type;
+				    }
+				    else
+					    return rocfft_status_invalid_array_type;
+			    }
+			    else
+			    {
+				    if( (	(description->inArrayType == rocfft_array_type_complex_interleaved) ||
+					    (description->inArrayType == rocfft_array_type_complex_planar) ) )
+				    {
+					    if( !(	(description->outArrayType == rocfft_array_type_complex_interleaved) ||
+						    (description->outArrayType == rocfft_array_type_complex_planar) ) )
+						    return rocfft_status_invalid_array_type;
+				    }
+				    else
+					    return rocfft_status_invalid_array_type;
+			    }
+		    }
+		    break;
+		    case rocfft_transform_type_real_forward:
+		    {
+		    }
+		    break;
+		    case rocfft_transform_type_real_inverse:
+		    {
+		    }
+		    break;
 		}
 
 
@@ -232,7 +233,7 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
 		return rocfft_status_invalid_dimensions;
 
 	Repo &repo = Repo::GetRepo();
-	repo.CreatePlan(p);
+	repo.CreatePlan(p);//add this plan into repo, incurs computation, see repo.cpp
 
 	return rocfft_status_success;
 }
