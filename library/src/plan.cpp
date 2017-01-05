@@ -14,33 +14,33 @@
 size_t Large1DThreshold = 4096;
 
 static inline bool IsPo2(size_t u) {
-	return (u != 0) && (0 == (u & (u - 1)));
+    return (u != 0) && (0 == (u & (u - 1)));
 }
 
 inline size_t PrecisionWidth(rocfft_precision pr)
 {
-	switch (pr)
-	{
-	    case rocfft_precision_single:	return 1;
-	    case rocfft_precision_double:	return 2;
-	    default:		assert(false);	return 1;
-	}
+    switch (pr)
+    {
+        case rocfft_precision_single:    return 1;
+        case rocfft_precision_double:    return 2;
+        default:        assert(false);    return 1;
+    }
 }
 
 
 
 rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan_description description, float scale )
 {
-	description->scale = scale;
+    description->scale = scale;
 
-	return rocfft_status_success;
+    return rocfft_status_success;
 }
 
 rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description description, double scale )
 {
-	description->scale = scale;
+    description->scale = scale;
 
-	return rocfft_status_success;
+    return rocfft_status_success;
 }
 
 rocfft_status rocfft_plan_description_set_data_layout(       rocfft_plan_description description,
@@ -49,1950 +49,1951 @@ rocfft_status rocfft_plan_description_set_data_layout(       rocfft_plan_descrip
                                                         size_t in_strides_size, const size_t *in_strides, size_t in_distance,
                                                         size_t out_strides_size, const size_t *out_strides, size_t out_distance )
 {
-	description->inArrayType = in_array_type;
-	description->outArrayType = out_array_type;
+    description->inArrayType = in_array_type;
+    description->outArrayType = out_array_type;
 
-	if(in_offsets != nullptr)
-	{
-		description->inOffset[0] = in_offsets[0];
-		if( (in_array_type == rocfft_array_type_complex_planar) || (in_array_type == rocfft_array_type_hermitian_planar) )
-			description->inOffset[1] = in_offsets[1];
-	}
+    if(in_offsets != nullptr)
+    {
+        description->inOffset[0] = in_offsets[0];
+        if( (in_array_type == rocfft_array_type_complex_planar) || (in_array_type == rocfft_array_type_hermitian_planar) )
+            description->inOffset[1] = in_offsets[1];
+    }
 
-	if(out_offsets != nullptr)
-	{
-		description->outOffset[0] = out_offsets[0];
-		if( (out_array_type == rocfft_array_type_complex_planar) || (out_array_type == rocfft_array_type_hermitian_planar) )
-			description->outOffset[1] = out_offsets[1];
-	}
-
-
-	if(in_strides != nullptr)
-	{
-		for(size_t i=0; i<MIN(3, in_strides_size); i++)
-			description->inStrides[i] = in_strides[i];
-	}
-
-	if(in_distance != 0)
-		description->inDist = in_distance;
-
-	if(out_strides != nullptr)
-	{
-		for(size_t i=0; i<MIN(3, out_strides_size); i++)
-			description->outStrides[i] = out_strides[i];
-	}
-
-	if(out_distance != 0)
-		description->outDist = out_distance;
+    if(out_offsets != nullptr)
+    {
+        description->outOffset[0] = out_offsets[0];
+        if( (out_array_type == rocfft_array_type_complex_planar) || (out_array_type == rocfft_array_type_hermitian_planar) )
+            description->outOffset[1] = out_offsets[1];
+    }
 
 
-	return rocfft_status_success;
+    if(in_strides != nullptr)
+    {
+        for(size_t i=0; i<MIN(3, in_strides_size); i++)
+            description->inStrides[i] = in_strides[i];
+    }
+
+    if(in_distance != 0)
+        description->inDist = in_distance;
+
+    if(out_strides != nullptr)
+    {
+        for(size_t i=0; i<MIN(3, out_strides_size); i++)
+            description->outStrides[i] = out_strides[i];
+    }
+
+    if(out_distance != 0)
+        description->outDist = out_distance;
+
+
+    return rocfft_status_success;
 }
 
 rocfft_status rocfft_plan_description_create( rocfft_plan_description *description )
 {
-	rocfft_plan_description desc = new rocfft_plan_description_t;
-	*description = desc;
+    rocfft_plan_description desc = new rocfft_plan_description_t;
+    *description = desc;
 
-	return rocfft_status_success;
+    return rocfft_status_success;
 }
 
 rocfft_status rocfft_plan_description_destroy( rocfft_plan_description description )
 {
-	if(description != nullptr)
-		delete description;
+    if(description != nullptr)
+        delete description;
 
-	return rocfft_status_success;
+    return rocfft_status_success;
 }
 
 
 rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
-					                    rocfft_result_placement placement,
+                                        rocfft_result_placement placement,
                                         rocfft_transform_type transform_type, rocfft_precision precision,
                                         size_t dimensions, const size_t *lengths, size_t number_of_transforms,
                                         const rocfft_plan_description description )
 {
 
-	if(description != nullptr)
-	{
-		switch(transform_type)
-		{
-		case rocfft_transform_type_complex_forward:
-		case rocfft_transform_type_complex_inverse:
-		{
-			if(placement == rocfft_placement_inplace)
-			{
-				if(description->inArrayType == rocfft_array_type_complex_interleaved)
-				{
-					if(description->outArrayType != rocfft_array_type_complex_interleaved)
-						return rocfft_status_invalid_array_type;
-				}
-				else if(description->inArrayType == rocfft_array_type_complex_planar)
-				{
-					if(description->outArrayType != rocfft_array_type_complex_planar)
-						return rocfft_status_invalid_array_type;
-				}
-				else
-					return rocfft_status_invalid_array_type;
-			}
-			else
-			{
-				if( (	(description->inArrayType == rocfft_array_type_complex_interleaved) ||
-					(description->inArrayType == rocfft_array_type_complex_planar) ) )
-				{
-					if( !(	(description->outArrayType == rocfft_array_type_complex_interleaved) ||
-						(description->outArrayType == rocfft_array_type_complex_planar) ) )
-						return rocfft_status_invalid_array_type;
-				}
-				else
-					return rocfft_status_invalid_array_type;
-			}
-		}
-		break;
-		case rocfft_transform_type_real_forward:
-		{
-		}
-		break;
-		case rocfft_transform_type_real_inverse:
-		{
-		}
-		break;
-		}
+    // Initialize plan's parameters, no computation
+    if(description != nullptr)
+    {
+        switch(transform_type)
+        {
+            case rocfft_transform_type_complex_forward:
+            case rocfft_transform_type_complex_inverse:
+            {
+                if(placement == rocfft_placement_inplace)
+                {
+                    if(description->inArrayType == rocfft_array_type_complex_interleaved)
+                    {
+                        if(description->outArrayType != rocfft_array_type_complex_interleaved)
+                            return rocfft_status_invalid_array_type;
+                    }
+                    else if(description->inArrayType == rocfft_array_type_complex_planar)
+                    {
+                        if(description->outArrayType != rocfft_array_type_complex_planar)
+                            return rocfft_status_invalid_array_type;
+                    }
+                    else
+                        return rocfft_status_invalid_array_type;
+                }
+                else
+                {
+                    if( (    (description->inArrayType == rocfft_array_type_complex_interleaved) ||
+                        (description->inArrayType == rocfft_array_type_complex_planar) ) )
+                    {
+                        if( !(    (description->outArrayType == rocfft_array_type_complex_interleaved) ||
+                            (description->outArrayType == rocfft_array_type_complex_planar) ) )
+                            return rocfft_status_invalid_array_type;
+                    }
+                    else
+                        return rocfft_status_invalid_array_type;
+                }
+            }
+            break;
+            case rocfft_transform_type_real_forward:
+            {
+            }
+            break;
+            case rocfft_transform_type_real_inverse:
+            {
+            }
+            break;
+        }
 
 
-		if( (placement == rocfft_placement_inplace) &&
-			((transform_type == rocfft_transform_type_complex_forward) || (transform_type == rocfft_transform_type_complex_inverse)) )
-		{
-			for(size_t i=0; i<3; i++)
-				if(description->inStrides[i] != description->outStrides[i])
-					return rocfft_status_invalid_strides;
+        if( (placement == rocfft_placement_inplace) &&
+            ((transform_type == rocfft_transform_type_complex_forward) || (transform_type == rocfft_transform_type_complex_inverse)) )
+        {
+            for(size_t i=0; i<3; i++)
+                if(description->inStrides[i] != description->outStrides[i])
+                    return rocfft_status_invalid_strides;
 
-			if(description->inDist != description->outDist)
-				return rocfft_status_invalid_distance;
+            if(description->inDist != description->outDist)
+                return rocfft_status_invalid_distance;
 
-			for(size_t i=0; i<2; i++)
-				if(description->inOffset[i] != description->outOffset[i])
-					return rocfft_status_invalid_offset;
-		}
-	}
+            for(size_t i=0; i<2; i++)
+                if(description->inOffset[i] != description->outOffset[i])
+                    return rocfft_status_invalid_offset;
+        }
+    }
 
-	if(dimensions > 3)
-		return rocfft_status_invalid_dimensions;
+    if(dimensions > 3)
+        return rocfft_status_invalid_dimensions;
 
-	rocfft_plan p = plan;
-	p->rank = dimensions;
+    rocfft_plan p = plan;
+    p->rank = dimensions;
 
-	size_t prodLength = 1;
-	for(size_t i=0; i<(p->rank); i++)
-	{
-		prodLength *= lengths[i];
-		p->lengths[i] = lengths[i];
-	}
+    size_t prodLength = 1;
+    for(size_t i=0; i<(p->rank); i++)
+    {
+        prodLength *= lengths[i];
+        p->lengths[i] = lengths[i];
+    }
 
-	p->batch = number_of_transforms;
-	p->placement = placement;
-	p->precision = precision;
+    p->batch = number_of_transforms;
+    p->placement = placement;
+    p->precision = precision;
     if( precision == rocfft_precision_double ){
         p->base_type_size = sizeof(double);
     }
     else{
         p->base_type_size = sizeof(float);
-    }  
-	p->transformType = transform_type;
+    }
+    p->transformType = transform_type;
 
-	if(description != nullptr)
-		p->desc = *description;
+    if(description != nullptr)
+        p->desc = *description;
 
-	if(p->desc.inStrides[0] == 0)
-	{
-		p->desc.inStrides[0] = 1;
-		for(size_t i=1; i<(p->rank); i++)
-			p->desc.inStrides[i] = p->lengths[i-1] * p->desc.inStrides[i-1];
-	}
+    if(p->desc.inStrides[0] == 0)
+    {
+        p->desc.inStrides[0] = 1;
+        for(size_t i=1; i<(p->rank); i++)
+            p->desc.inStrides[i] = p->lengths[i-1] * p->desc.inStrides[i-1];
+    }
 
-	if(p->desc.outStrides[0] == 0)
-	{
-		p->desc.outStrides[0] = 1;
-		for(size_t i=1; i<(p->rank); i++)
-			p->desc.outStrides[i] = p->lengths[i-1] * p->desc.outStrides[i-1];
-	}
+    if(p->desc.outStrides[0] == 0)
+    {
+        p->desc.outStrides[0] = 1;
+        for(size_t i=1; i<(p->rank); i++)
+            p->desc.outStrides[i] = p->lengths[i-1] * p->desc.outStrides[i-1];
+    }
 
 
-	if(p->desc.inDist == 0)
-	{
-		p->desc.inDist = p->lengths[p->rank - 1] * p->desc.inStrides[p->rank -1];
-	}
+    if(p->desc.inDist == 0)
+    {
+        p->desc.inDist = p->lengths[p->rank - 1] * p->desc.inStrides[p->rank -1];
+    }
 
-	if(p->desc.outDist == 0)
-	{
-		p->desc.outDist = p->lengths[p->rank - 1] * p->desc.outStrides[p->rank -1];
-	}
+    if(p->desc.outDist == 0)
+    {
+        p->desc.outDist = p->lengths[p->rank - 1] * p->desc.outStrides[p->rank -1];
+    }
 
-	if(!SupportedLength(prodLength))
-		return rocfft_status_invalid_dimensions;
+    if(!SupportedLength(prodLength))
+        return rocfft_status_invalid_dimensions;
 
-	Repo &repo = Repo::GetRepo();
-	repo.CreatePlan(p);
+    Repo &repo = Repo::GetRepo();
+    repo.CreatePlan(p);//add this plan into repo, incurs computation, see repo.cpp
 
-	return rocfft_status_success;
+    return rocfft_status_success;
 }
 
 rocfft_status rocfft_plan_allocate(rocfft_plan *plan)
 {
-	*plan = new rocfft_plan_t;
-	return rocfft_status_success;
+    *plan = new rocfft_plan_t;
+    return rocfft_status_success;
 }
 
 rocfft_status rocfft_plan_create(       rocfft_plan *plan,
-					rocfft_result_placement placement,
+                    rocfft_result_placement placement,
                                         rocfft_transform_type transform_type, rocfft_precision precision,
                                         size_t dimensions, const size_t *lengths, size_t number_of_transforms,
                                         const rocfft_plan_description description )
 {
-	rocfft_plan_allocate(plan);
-	return rocfft_plan_create_internal(*plan, placement, transform_type, precision, dimensions, lengths, number_of_transforms, description);
+    rocfft_plan_allocate(plan);
+    return rocfft_plan_create_internal(*plan, placement, transform_type, precision, dimensions, lengths, number_of_transforms, description);
 }
 
 rocfft_status rocfft_plan_destroy( rocfft_plan plan )
 {
-	if(plan != nullptr)
-		delete plan;
+    if(plan != nullptr)
+        delete plan;
 
-	return rocfft_status_success;
+    return rocfft_status_success;
 }
 
 rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *size_in_bytes )
 {
-	Repo &repo = Repo::GetRepo();
-	ExecPlan execPlan;
-	repo.GetPlan(plan, execPlan);
+    Repo &repo = Repo::GetRepo();
+    ExecPlan execPlan;
+    repo.GetPlan(plan, execPlan);
 
-	*size_in_bytes = execPlan.workBufSize * 2 * plan->base_type_size;
+    *size_in_bytes = execPlan.workBufSize * 2 * plan->base_type_size;
 
-	return rocfft_status_success;
+    return rocfft_status_success;
 }
 
 rocfft_status rocfft_plan_get_print( const rocfft_plan plan )
 {
-	std::cout << std::endl;
-	std::cout << "precision: " << ((plan->precision == rocfft_precision_single) ? "single" : "double") << std::endl;
+    std::cout << std::endl;
+    std::cout << "precision: " << ((plan->precision == rocfft_precision_single) ? "single" : "double") << std::endl;
 
-	std::cout << "transform type: ";
-	switch(plan->transformType)
-	{
-        case rocfft_transform_type_complex_forward:	std::cout << "complex forward"; break;
-        case rocfft_transform_type_complex_inverse:	std::cout << "complex inverse"; break;
-        case rocfft_transform_type_real_forward:	std::cout << "real forward"; break;
-        case rocfft_transform_type_real_inverse:	std::cout << "real inverse"; break;
-	}
-	std::cout << std::endl;
+    std::cout << "transform type: ";
+    switch(plan->transformType)
+    {
+        case rocfft_transform_type_complex_forward:    std::cout << "complex forward"; break;
+        case rocfft_transform_type_complex_inverse:    std::cout << "complex inverse"; break;
+        case rocfft_transform_type_real_forward:    std::cout << "real forward"; break;
+        case rocfft_transform_type_real_inverse:    std::cout << "real inverse"; break;
+    }
+    std::cout << std::endl;
 
-	std::cout << "result placement: ";
-	switch(plan->placement)
-	{
-        case rocfft_placement_inplace:		std::cout << "in-place"; break;
-        case rocfft_placement_notinplace:	std::cout << "not in-place"; break;
-	}
-	std::cout << std::endl;
-	std::cout << std::endl;
+    std::cout << "result placement: ";
+    switch(plan->placement)
+    {
+        case rocfft_placement_inplace:        std::cout << "in-place"; break;
+        case rocfft_placement_notinplace:    std::cout << "not in-place"; break;
+    }
+    std::cout << std::endl;
+    std::cout << std::endl;
 
-	std::cout << "input array type: ";
-	switch(plan->desc.inArrayType)
-	{
-        case rocfft_array_type_complex_interleaved:	std::cout << "complex interleaved"; break;
-        case rocfft_array_type_complex_planar:		std::cout << "complex planar"; break;
-        case rocfft_array_type_real:			std::cout << "real"; break;
-        case rocfft_array_type_hermitian_interleaved:	std::cout << "hermitian interleaved"; break;
-        case rocfft_array_type_hermitian_planar:	std::cout << "hermitian planar"; break;
-	}
-	std::cout << std::endl;
+    std::cout << "input array type: ";
+    switch(plan->desc.inArrayType)
+    {
+        case rocfft_array_type_complex_interleaved:    std::cout << "complex interleaved"; break;
+        case rocfft_array_type_complex_planar:        std::cout << "complex planar"; break;
+        case rocfft_array_type_real:            std::cout << "real"; break;
+        case rocfft_array_type_hermitian_interleaved:    std::cout << "hermitian interleaved"; break;
+        case rocfft_array_type_hermitian_planar:    std::cout << "hermitian planar"; break;
+    }
+    std::cout << std::endl;
 
-	std::cout << "output array type: ";
-	switch(plan->desc.outArrayType)
-	{
-        case rocfft_array_type_complex_interleaved:	std::cout << "complex interleaved"; break;
-        case rocfft_array_type_complex_planar:		std::cout << "comple planar"; break;
-        case rocfft_array_type_real:			std::cout << "real"; break;
-        case rocfft_array_type_hermitian_interleaved:	std::cout << "hermitian interleaved"; break;
-        case rocfft_array_type_hermitian_planar:	std::cout << "hermitian planar"; break;
-	}
-	std::cout << std::endl;
-	std::cout << std::endl;
+    std::cout << "output array type: ";
+    switch(plan->desc.outArrayType)
+    {
+        case rocfft_array_type_complex_interleaved:    std::cout << "complex interleaved"; break;
+        case rocfft_array_type_complex_planar:        std::cout << "comple planar"; break;
+        case rocfft_array_type_real:            std::cout << "real"; break;
+        case rocfft_array_type_hermitian_interleaved:    std::cout << "hermitian interleaved"; break;
+        case rocfft_array_type_hermitian_planar:    std::cout << "hermitian planar"; break;
+    }
+    std::cout << std::endl;
+    std::cout << std::endl;
 
-	std::cout << "dimensions: " << plan->rank << std::endl;
+    std::cout << "dimensions: " << plan->rank << std::endl;
 
-	std::cout << "lengths: " << plan->lengths[0];
-	for (size_t i = 1; i < plan->rank; i++)
-		std::cout << ", " << plan->lengths[i];
-	std::cout << std::endl;
-	std::cout << "batch size: " << plan->batch << std::endl;
-	std::cout << std::endl;
+    std::cout << "lengths: " << plan->lengths[0];
+    for (size_t i = 1; i < plan->rank; i++)
+        std::cout << ", " << plan->lengths[i];
+    std::cout << std::endl;
+    std::cout << "batch size: " << plan->batch << std::endl;
+    std::cout << std::endl;
 
-	std::cout << "input offset: " << plan->desc.inOffset[0];
-	if( (plan->desc.inArrayType == rocfft_array_type_complex_planar) || (plan->desc.inArrayType == rocfft_array_type_hermitian_planar) )
-		std::cout << ", " << plan->desc.inOffset[1];
-	std::cout << std::endl;
+    std::cout << "input offset: " << plan->desc.inOffset[0];
+    if( (plan->desc.inArrayType == rocfft_array_type_complex_planar) || (plan->desc.inArrayType == rocfft_array_type_hermitian_planar) )
+        std::cout << ", " << plan->desc.inOffset[1];
+    std::cout << std::endl;
 
-	std::cout << "output offset: " << plan->desc.outOffset[0];
-	if( (plan->desc.outArrayType == rocfft_array_type_complex_planar) || (plan->desc.outArrayType == rocfft_array_type_hermitian_planar) )
-		std::cout << ", " << plan->desc.outOffset[1];
-	std::cout << std::endl;
-	std::cout << std::endl;
+    std::cout << "output offset: " << plan->desc.outOffset[0];
+    if( (plan->desc.outArrayType == rocfft_array_type_complex_planar) || (plan->desc.outArrayType == rocfft_array_type_hermitian_planar) )
+        std::cout << ", " << plan->desc.outOffset[1];
+    std::cout << std::endl;
+    std::cout << std::endl;
 
-	std::cout << "input strides: " << plan->desc.inStrides[0];
-	for (size_t i = 1; i < plan->rank; i++)
-		std::cout << ", " << plan->desc.inStrides[i];
-	std::cout << std::endl;
+    std::cout << "input strides: " << plan->desc.inStrides[0];
+    for (size_t i = 1; i < plan->rank; i++)
+        std::cout << ", " << plan->desc.inStrides[i];
+    std::cout << std::endl;
 
-	std::cout << "output strides: " << plan->desc.outStrides[0];
-	for (size_t i = 1; i < plan->rank; i++)
-		std::cout << ", " << plan->desc.outStrides[i];
-	std::cout << std::endl;
+    std::cout << "output strides: " << plan->desc.outStrides[0];
+    for (size_t i = 1; i < plan->rank; i++)
+        std::cout << ", " << plan->desc.outStrides[i];
+    std::cout << std::endl;
 
-	std::cout << "input distance: " << plan->desc.inDist << std::endl;
-	std::cout << "output distance: " << plan->desc.outDist << std::endl;
-	std::cout << std::endl;
+    std::cout << "input distance: " << plan->desc.inDist << std::endl;
+    std::cout << "output distance: " << plan->desc.outDist << std::endl;
+    std::cout << std::endl;
 
-	std::cout << "scale: " << plan->desc.scale << std::endl;
-	std::cout << std::endl;
+    std::cout << "scale: " << plan->desc.scale << std::endl;
+    std::cout << std::endl;
 
-	return rocfft_status_success;
+    return rocfft_status_success;
 }
 
 
 std::string PrintScheme(ComputeScheme cs)
 {
-	std::string str;
+    std::string str;
 
-	switch (cs)
-	{
-		case CS_KERNEL_STOCKHAM:					str += "CS_KERNEL_STOCKHAM				"; break;
-		case CS_KERNEL_STOCKHAM_BLOCK_CC:			str += "CS_KERNEL_STOCKHAM_BLOCK_CC		"; break;
-		case CS_KERNEL_STOCKHAM_BLOCK_RC:			str += "CS_KERNEL_STOCKHAM_BLOCK_RC		"; break;
-		case CS_KERNEL_TRANSPOSE:					str += "CS_KERNEL_TRANSPOSE				"; break;
-		case CS_KERNEL_TRANSPOSE_XY_Z:				str += "CS_KERNEL_TRANSPOSE_XY_Z		"; break;
-		case CS_KERNEL_TRANSPOSE_Z_XY:				str += "CS_KERNEL_TRANSPOSE_Z_XY		"; break;
-		case CS_L1D_TRTRT:							str += "CS_L1D_TRTRT					"; break;
-		case CS_L1D_CC:								str += "CS_L1D_CC						"; break;
-		case CS_L1D_CRT:							str += "CS_L1D_CRT						"; break;
-		case CS_2D_STRAIGHT:						str += "CS_2D_STRAIGHT					"; break;
-		case CS_2D_RTRT:							str += "CS_2D_RTRT						"; break;
-		case CS_2D_RC:								str += "CS_2D_RC						"; break;
-		case CS_KERNEL_2D_STOCKHAM_BLOCK_CC:		str += "CS_KERNEL_2D_STOCKHAM_BLOCK_CC	"; break;
-		case CS_KERNEL_2D_SINGLE:					str += "CS_KERNEL_2D_SINGLE				"; break;
-		case CS_3D_STRAIGHT:						str += "CS_3D_STRAIGHT					"; break;
-		case CS_3D_RTRT:							str += "CS_3D_RTRT						"; break;
-		case CS_3D_RC:								str += "CS_3D_RC						"; break;
-		case CS_KERNEL_3D_STOCKHAM_BLOCK_CC:		str += "CS_KERNEL_3D_STOCKHAM_BLOCK_CC	"; break;
-		case CS_KERNEL_3D_SINGLE:					str += "CS_KERNEL_3D_SINGLE				"; break;
+    switch (cs)
+    {
+        case CS_KERNEL_STOCKHAM:                    str += "CS_KERNEL_STOCKHAM                "; break;
+        case CS_KERNEL_STOCKHAM_BLOCK_CC:            str += "CS_KERNEL_STOCKHAM_BLOCK_CC        "; break;
+        case CS_KERNEL_STOCKHAM_BLOCK_RC:            str += "CS_KERNEL_STOCKHAM_BLOCK_RC        "; break;
+        case CS_KERNEL_TRANSPOSE:                    str += "CS_KERNEL_TRANSPOSE                "; break;
+        case CS_KERNEL_TRANSPOSE_XY_Z:                str += "CS_KERNEL_TRANSPOSE_XY_Z        "; break;
+        case CS_KERNEL_TRANSPOSE_Z_XY:                str += "CS_KERNEL_TRANSPOSE_Z_XY        "; break;
+        case CS_L1D_TRTRT:                            str += "CS_L1D_TRTRT                    "; break;
+        case CS_L1D_CC:                                str += "CS_L1D_CC                        "; break;
+        case CS_L1D_CRT:                            str += "CS_L1D_CRT                        "; break;
+        case CS_2D_STRAIGHT:                        str += "CS_2D_STRAIGHT                    "; break;
+        case CS_2D_RTRT:                            str += "CS_2D_RTRT                        "; break;
+        case CS_2D_RC:                                str += "CS_2D_RC                        "; break;
+        case CS_KERNEL_2D_STOCKHAM_BLOCK_CC:        str += "CS_KERNEL_2D_STOCKHAM_BLOCK_CC    "; break;
+        case CS_KERNEL_2D_SINGLE:                    str += "CS_KERNEL_2D_SINGLE                "; break;
+        case CS_3D_STRAIGHT:                        str += "CS_3D_STRAIGHT                    "; break;
+        case CS_3D_RTRT:                            str += "CS_3D_RTRT                        "; break;
+        case CS_3D_RC:                                str += "CS_3D_RC                        "; break;
+        case CS_KERNEL_3D_STOCKHAM_BLOCK_CC:        str += "CS_KERNEL_3D_STOCKHAM_BLOCK_CC    "; break;
+        case CS_KERNEL_3D_SINGLE:                    str += "CS_KERNEL_3D_SINGLE                "; break;
 
-		default:									str += "CS_NONE							"; break;
-	}
+        default:                                    str += "CS_NONE                            "; break;
+    }
 
-	return str;
+    return str;
 }
 
 
 
 void TreeNode::RecursiveBuildTree()
 {
-	switch (dimension)
-	{
-	case 1:
-	{
-		if (length[0] <= Large1DThreshold)
-		{
-			scheme = CS_KERNEL_STOCKHAM;
-			return;
-		}
-
-		size_t divLength1 = 1;
-
-		if (IsPo2(length[0]))
-		{
-			// Enable block compute under these conditions
-			if (length[0] <= 262144 / PrecisionWidth(precision))
-			{
-				if (1 == PrecisionWidth(precision))
-				{
-					switch (length[0])
-					{
-					case 8192:		divLength1 = 64;		break;
-					case 16384:		divLength1 = 64;		break;
-					case 32768:		divLength1 = 128;		break;
-					case 65536:		divLength1 = 256;		break;
-					case 131072:	divLength1 = 64;		break;
-					case 262144:	divLength1 = 64;		break;
-					default:		assert(false);
-					}
-				}
-				else
-				{
-					switch (length[0])
-					{
-					case 4096:		divLength1 = 64;		break;
-					case 8192:		divLength1 = 64;		break;
-					case 16384:		divLength1 = 64;		break;
-					case 32768:		divLength1 = 128;		break;
-					case 65536:		divLength1 = 64;		break;
-					case 131072:	divLength1 = 64;		break;
-					default:		assert(false);
-					}
-				}
-
-				scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CS_L1D_CC : CS_L1D_CRT;
-			}
-			else
-			{
-				if (length[0] > (Large1DThreshold * Large1DThreshold))
-				{
-					divLength1 = length[0] / Large1DThreshold;
-				}
-				else
-				{
-					size_t in_x = 0;
-					size_t len = length[0];
-
-					while (len != 1) { len >>= 1; in_x++; }
-
-					in_x /= 2;
-					divLength1 = (size_t)1 << in_x;
-				}
-
-				scheme = CS_L1D_TRTRT;
-			}
-		}
-		else
-		{
-		}
-
-		size_t divLength0 = length[0] / divLength1;
-
-		switch (scheme)
-		{
-		case CS_L1D_TRTRT:
-		{
-			// first transpose
-			TreeNode *trans1Plan = TreeNode::CreateNode(this);
-
-			trans1Plan->length.push_back(divLength0);
-			trans1Plan->length.push_back(divLength1);
-
-			trans1Plan->scheme = CS_KERNEL_TRANSPOSE;
-			trans1Plan->dimension = 2;
-
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				trans1Plan->length.push_back(length[index]);
-			}
-
-			childNodes.push_back(trans1Plan);
-
-			// first row fft
-			TreeNode *row1Plan = TreeNode::CreateNode(this);
-
-			// twiddling is done in row2 or transpose2
-			row1Plan->large1D = 0;
-
-			row1Plan->length.push_back(divLength1);
-			row1Plan->length.push_back(divLength0);
-
-			row1Plan->scheme = CS_KERNEL_STOCKHAM;
-			row1Plan->dimension = 1;
+    switch (dimension)
+    {
+    case 1:
+    {
+        if (length[0] <= Large1DThreshold)
+        {
+            scheme = CS_KERNEL_STOCKHAM;
+            return;
+        }
+
+        size_t divLength1 = 1;
+
+        if (IsPo2(length[0]))
+        {
+            // Enable block compute under these conditions
+            if (length[0] <= 262144 / PrecisionWidth(precision))
+            {
+                if (1 == PrecisionWidth(precision))
+                {
+                    switch (length[0])
+                    {
+                    case 8192:        divLength1 = 64;        break;
+                    case 16384:        divLength1 = 64;        break;
+                    case 32768:        divLength1 = 128;        break;
+                    case 65536:        divLength1 = 256;        break;
+                    case 131072:    divLength1 = 64;        break;
+                    case 262144:    divLength1 = 64;        break;
+                    default:        assert(false);
+                    }
+                }
+                else
+                {
+                    switch (length[0])
+                    {
+                    case 4096:        divLength1 = 64;        break;
+                    case 8192:        divLength1 = 64;        break;
+                    case 16384:        divLength1 = 64;        break;
+                    case 32768:        divLength1 = 128;        break;
+                    case 65536:        divLength1 = 64;        break;
+                    case 131072:    divLength1 = 64;        break;
+                    default:        assert(false);
+                    }
+                }
+
+                scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CS_L1D_CC : CS_L1D_CRT;
+            }
+            else
+            {
+                if (length[0] > (Large1DThreshold * Large1DThreshold))
+                {
+                    divLength1 = length[0] / Large1DThreshold;
+                }
+                else
+                {
+                    size_t in_x = 0;
+                    size_t len = length[0];
+
+                    while (len != 1) { len >>= 1; in_x++; }
+
+                    in_x /= 2;
+                    divLength1 = (size_t)1 << in_x;
+                }
+
+                scheme = CS_L1D_TRTRT;
+            }
+        }
+        else
+        {
+        }
+
+        size_t divLength0 = length[0] / divLength1;
+
+        switch (scheme)
+        {
+        case CS_L1D_TRTRT:
+        {
+            // first transpose
+            TreeNode *trans1Plan = TreeNode::CreateNode(this);
+
+            trans1Plan->length.push_back(divLength0);
+            trans1Plan->length.push_back(divLength1);
+
+            trans1Plan->scheme = CS_KERNEL_TRANSPOSE;
+            trans1Plan->dimension = 2;
+
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                trans1Plan->length.push_back(length[index]);
+            }
+
+            childNodes.push_back(trans1Plan);
+
+            // first row fft
+            TreeNode *row1Plan = TreeNode::CreateNode(this);
+
+            // twiddling is done in row2 or transpose2
+            row1Plan->large1D = 0;
+
+            row1Plan->length.push_back(divLength1);
+            row1Plan->length.push_back(divLength0);
+
+            row1Plan->scheme = CS_KERNEL_STOCKHAM;
+            row1Plan->dimension = 1;
 
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				row1Plan->length.push_back(length[index]);
-			}
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                row1Plan->length.push_back(length[index]);
+            }
 
-			row1Plan->RecursiveBuildTree();
-			childNodes.push_back(row1Plan);
+            row1Plan->RecursiveBuildTree();
+            childNodes.push_back(row1Plan);
 
-			// second transpose
-			TreeNode *trans2Plan = TreeNode::CreateNode(this);
+            // second transpose
+            TreeNode *trans2Plan = TreeNode::CreateNode(this);
 
-			trans2Plan->length.push_back(divLength1);
-			trans2Plan->length.push_back(divLength0);
+            trans2Plan->length.push_back(divLength1);
+            trans2Plan->length.push_back(divLength0);
 
-			trans2Plan->scheme = CS_KERNEL_TRANSPOSE;
-			trans2Plan->dimension = 2;
+            trans2Plan->scheme = CS_KERNEL_TRANSPOSE;
+            trans2Plan->dimension = 2;
 
-			trans2Plan->large1D = length[0];
+            trans2Plan->large1D = length[0];
 
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				trans2Plan->length.push_back(length[index]);
-			}
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                trans2Plan->length.push_back(length[index]);
+            }
 
-			childNodes.push_back(trans2Plan);
+            childNodes.push_back(trans2Plan);
 
-			// second row fft
-			TreeNode *row2Plan = TreeNode::CreateNode(this);
+            // second row fft
+            TreeNode *row2Plan = TreeNode::CreateNode(this);
 
-			row2Plan->length.push_back(divLength0);
-			row2Plan->length.push_back(divLength1);
+            row2Plan->length.push_back(divLength0);
+            row2Plan->length.push_back(divLength1);
 
-			row2Plan->scheme = CS_KERNEL_STOCKHAM;
-			row2Plan->dimension = 1;
+            row2Plan->scheme = CS_KERNEL_STOCKHAM;
+            row2Plan->dimension = 1;
 
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				row2Plan->length.push_back(length[index]);
-			}
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                row2Plan->length.push_back(length[index]);
+            }
 
-			// algorithm is set up in a way that row2 does not recurse
-			assert(divLength0 <= Large1DThreshold);
+            // algorithm is set up in a way that row2 does not recurse
+            assert(divLength0 <= Large1DThreshold);
 
-			childNodes.push_back(row2Plan);
+            childNodes.push_back(row2Plan);
 
-			// third transpose
-			TreeNode *trans3Plan = TreeNode::CreateNode(this);
+            // third transpose
+            TreeNode *trans3Plan = TreeNode::CreateNode(this);
 
-			trans3Plan->length.push_back(divLength0);
-			trans3Plan->length.push_back(divLength1);
+            trans3Plan->length.push_back(divLength0);
+            trans3Plan->length.push_back(divLength1);
 
-			trans3Plan->scheme = CS_KERNEL_TRANSPOSE;
-			trans3Plan->dimension = 2;
+            trans3Plan->scheme = CS_KERNEL_TRANSPOSE;
+            trans3Plan->dimension = 2;
 
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				trans3Plan->length.push_back(length[index]);
-			}
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                trans3Plan->length.push_back(length[index]);
+            }
 
-			childNodes.push_back(trans3Plan);
-		}
-		break;
-		case CS_L1D_CC:
-		{
-			// first plan, column-to-column
-			TreeNode *col2colPlan = TreeNode::CreateNode(this);
+            childNodes.push_back(trans3Plan);
+        }
+        break;
+        case CS_L1D_CC:
+        {
+            // first plan, column-to-column
+            TreeNode *col2colPlan = TreeNode::CreateNode(this);
 
-			// large1D flag to confirm we need multiply twiddle factor
-			col2colPlan->large1D = length[0];
+            // large1D flag to confirm we need multiply twiddle factor
+            col2colPlan->large1D = length[0];
 
-			col2colPlan->length.push_back(divLength1);
-			col2colPlan->length.push_back(divLength0);
+            col2colPlan->length.push_back(divLength1);
+            col2colPlan->length.push_back(divLength0);
 
-			col2colPlan->scheme = CS_KERNEL_STOCKHAM_BLOCK_CC;
-			col2colPlan->dimension = 1;
+            col2colPlan->scheme = CS_KERNEL_STOCKHAM_BLOCK_CC;
+            col2colPlan->dimension = 1;
 
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				col2colPlan->length.push_back(length[index]);
-			}
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                col2colPlan->length.push_back(length[index]);
+            }
 
-			childNodes.push_back(col2colPlan);
+            childNodes.push_back(col2colPlan);
 
-			// second plan, row-to-column
-			TreeNode *row2colPlan = TreeNode::CreateNode(this);
+            // second plan, row-to-column
+            TreeNode *row2colPlan = TreeNode::CreateNode(this);
 
-			row2colPlan->length.push_back(divLength0);
-			row2colPlan->length.push_back(divLength1);
+            row2colPlan->length.push_back(divLength0);
+            row2colPlan->length.push_back(divLength1);
 
-			row2colPlan->scheme = CS_KERNEL_STOCKHAM_BLOCK_RC;
-			row2colPlan->dimension = 1;
+            row2colPlan->scheme = CS_KERNEL_STOCKHAM_BLOCK_RC;
+            row2colPlan->dimension = 1;
 
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				row2colPlan->length.push_back(length[index]);
-			}
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                row2colPlan->length.push_back(length[index]);
+            }
 
-			childNodes.push_back(row2colPlan);
-		}
-		break;
-		case CS_L1D_CRT:
-		{
-			// first plan, column-to-column
-			TreeNode *col2colPlan = TreeNode::CreateNode(this);
+            childNodes.push_back(row2colPlan);
+        }
+        break;
+        case CS_L1D_CRT:
+        {
+            // first plan, column-to-column
+            TreeNode *col2colPlan = TreeNode::CreateNode(this);
 
-			// large1D flag to confirm we need multiply twiddle factor
-			col2colPlan->large1D = length[0];
+            // large1D flag to confirm we need multiply twiddle factor
+            col2colPlan->large1D = length[0];
 
-			col2colPlan->length.push_back(divLength1);
-			col2colPlan->length.push_back(divLength0);
+            col2colPlan->length.push_back(divLength1);
+            col2colPlan->length.push_back(divLength0);
 
-			col2colPlan->scheme = CS_KERNEL_STOCKHAM_BLOCK_CC;
-			col2colPlan->dimension = 1;
+            col2colPlan->scheme = CS_KERNEL_STOCKHAM_BLOCK_CC;
+            col2colPlan->dimension = 1;
 
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				col2colPlan->length.push_back(length[index]);
-			}
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                col2colPlan->length.push_back(length[index]);
+            }
 
-			childNodes.push_back(col2colPlan);
+            childNodes.push_back(col2colPlan);
 
-			// second plan, row-to-row
-			TreeNode *row2rowPlan = TreeNode::CreateNode(this);
+            // second plan, row-to-row
+            TreeNode *row2rowPlan = TreeNode::CreateNode(this);
 
-			row2rowPlan->length.push_back(divLength0);
-			row2rowPlan->length.push_back(divLength1);
+            row2rowPlan->length.push_back(divLength0);
+            row2rowPlan->length.push_back(divLength1);
 
-			row2rowPlan->scheme = CS_KERNEL_STOCKHAM;
-			row2rowPlan->dimension = 1;
+            row2rowPlan->scheme = CS_KERNEL_STOCKHAM;
+            row2rowPlan->dimension = 1;
 
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				row2rowPlan->length.push_back(length[index]);
-			}
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                row2rowPlan->length.push_back(length[index]);
+            }
 
-			childNodes.push_back(row2rowPlan);
+            childNodes.push_back(row2rowPlan);
 
-			// third plan, transpose
-			TreeNode *transPlan = TreeNode::CreateNode(this);
+            // third plan, transpose
+            TreeNode *transPlan = TreeNode::CreateNode(this);
 
-			transPlan->length.push_back(divLength0);
-			transPlan->length.push_back(divLength1);
+            transPlan->length.push_back(divLength0);
+            transPlan->length.push_back(divLength1);
 
-			transPlan->scheme = CS_KERNEL_TRANSPOSE;
-			transPlan->dimension = 2;
+            transPlan->scheme = CS_KERNEL_TRANSPOSE;
+            transPlan->dimension = 2;
 
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				transPlan->length.push_back(length[index]);
-			}
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                transPlan->length.push_back(length[index]);
+            }
 
-			childNodes.push_back(transPlan);
-		}
-		break;
-		default: assert(false);
+            childNodes.push_back(transPlan);
+        }
+        break;
+        default: assert(false);
 
-		}
+        }
 
-	}
-	break;
+    }
+    break;
 
-	case 2:
-	{
-		if (scheme == CS_KERNEL_TRANSPOSE)
-			return;
+    case 2:
+    {
+        if (scheme == CS_KERNEL_TRANSPOSE)
+            return;
 
-		// conditions to choose which scheme
-		if ((length[0] * length[1]) <= 2048)
-			scheme = CS_KERNEL_2D_SINGLE;
-		else if (length[1] <= 256)
-			scheme = CS_2D_RC;
-		else
-			scheme = CS_2D_RTRT;
+        // conditions to choose which scheme
+        if ((length[0] * length[1]) <= 2048)
+            scheme = CS_KERNEL_2D_SINGLE;
+        else if (length[1] <= 256)
+            scheme = CS_2D_RC;
+        else
+            scheme = CS_2D_RTRT;
 
-		switch (scheme)
-		{
-		case CS_2D_RTRT:
-		{
-			// first row fft
-			TreeNode *row1Plan = TreeNode::CreateNode(this);
+        switch (scheme)
+        {
+        case CS_2D_RTRT:
+        {
+            // first row fft
+            TreeNode *row1Plan = TreeNode::CreateNode(this);
 
-			row1Plan->length.push_back(length[0]);
-			row1Plan->dimension = 1;
-			row1Plan->length.push_back(length[1]);
+            row1Plan->length.push_back(length[0]);
+            row1Plan->dimension = 1;
+            row1Plan->length.push_back(length[1]);
 
-			for (size_t index = 2; index < length.size(); index++)
-			{
-				row1Plan->length.push_back(length[index]);
-			}
+            for (size_t index = 2; index < length.size(); index++)
+            {
+                row1Plan->length.push_back(length[index]);
+            }
 
-			row1Plan->RecursiveBuildTree();
-			childNodes.push_back(row1Plan);
+            row1Plan->RecursiveBuildTree();
+            childNodes.push_back(row1Plan);
 
-			// first transpose
-			TreeNode *trans1Plan = TreeNode::CreateNode(this);
+            // first transpose
+            TreeNode *trans1Plan = TreeNode::CreateNode(this);
 
-			trans1Plan->length.push_back(length[0]);
-			trans1Plan->length.push_back(length[1]);
+            trans1Plan->length.push_back(length[0]);
+            trans1Plan->length.push_back(length[1]);
 
-			trans1Plan->scheme = CS_KERNEL_TRANSPOSE;
-			trans1Plan->dimension = 2;
+            trans1Plan->scheme = CS_KERNEL_TRANSPOSE;
+            trans1Plan->dimension = 2;
 
-			for (size_t index = 2; index < length.size(); index++)
-			{
-				trans1Plan->length.push_back(length[index]);
-			}
+            for (size_t index = 2; index < length.size(); index++)
+            {
+                trans1Plan->length.push_back(length[index]);
+            }
 
-			childNodes.push_back(trans1Plan);
+            childNodes.push_back(trans1Plan);
 
-			// second row fft
-			TreeNode *row2Plan = TreeNode::CreateNode(this);
+            // second row fft
+            TreeNode *row2Plan = TreeNode::CreateNode(this);
 
-			row2Plan->length.push_back(length[1]);
-			row2Plan->dimension = 1;
-			row2Plan->length.push_back(length[0]);
+            row2Plan->length.push_back(length[1]);
+            row2Plan->dimension = 1;
+            row2Plan->length.push_back(length[0]);
 
-			for (size_t index = 2; index < length.size(); index++)
-			{
-				row2Plan->length.push_back(length[index]);
-			}
+            for (size_t index = 2; index < length.size(); index++)
+            {
+                row2Plan->length.push_back(length[index]);
+            }
 
-			row2Plan->RecursiveBuildTree();
-			childNodes.push_back(row2Plan);
+            row2Plan->RecursiveBuildTree();
+            childNodes.push_back(row2Plan);
 
-			// second transpose
-			TreeNode *trans2Plan = TreeNode::CreateNode(this);
+            // second transpose
+            TreeNode *trans2Plan = TreeNode::CreateNode(this);
 
-			trans2Plan->length.push_back(length[1]);
-			trans2Plan->length.push_back(length[0]);
+            trans2Plan->length.push_back(length[1]);
+            trans2Plan->length.push_back(length[0]);
 
-			trans2Plan->scheme = CS_KERNEL_TRANSPOSE;
-			trans2Plan->dimension = 2;
+            trans2Plan->scheme = CS_KERNEL_TRANSPOSE;
+            trans2Plan->dimension = 2;
 
-			for (size_t index = 2; index < length.size(); index++)
-			{
-				trans2Plan->length.push_back(length[index]);
-			}
+            for (size_t index = 2; index < length.size(); index++)
+            {
+                trans2Plan->length.push_back(length[index]);
+            }
 
-			childNodes.push_back(trans2Plan);
+            childNodes.push_back(trans2Plan);
 
-		}
-		break;
-		case CS_2D_RC:
-		{
-			// row fft
-			TreeNode *rowPlan = TreeNode::CreateNode(this);
+        }
+        break;
+        case CS_2D_RC:
+        {
+            // row fft
+            TreeNode *rowPlan = TreeNode::CreateNode(this);
 
-			rowPlan->length.push_back(length[0]);
-			rowPlan->dimension = 1;
-			rowPlan->length.push_back(length[1]);
+            rowPlan->length.push_back(length[0]);
+            rowPlan->dimension = 1;
+            rowPlan->length.push_back(length[1]);
 
-			for (size_t index = 2; index < length.size(); index++)
-			{
-				rowPlan->length.push_back(length[index]);
-			}
+            for (size_t index = 2; index < length.size(); index++)
+            {
+                rowPlan->length.push_back(length[index]);
+            }
 
-			rowPlan->RecursiveBuildTree();
-			childNodes.push_back(rowPlan);
+            rowPlan->RecursiveBuildTree();
+            childNodes.push_back(rowPlan);
 
-			// column fft
-			TreeNode *colPlan = TreeNode::CreateNode(this);
+            // column fft
+            TreeNode *colPlan = TreeNode::CreateNode(this);
 
-			colPlan->length.push_back(length[1]);
-			colPlan->dimension = 1;
-			colPlan->length.push_back(length[0]);
+            colPlan->length.push_back(length[1]);
+            colPlan->dimension = 1;
+            colPlan->length.push_back(length[0]);
 
-			for (size_t index = 2; index < length.size(); index++)
-			{
-				colPlan->length.push_back(length[index]);
-			}
+            for (size_t index = 2; index < length.size(); index++)
+            {
+                colPlan->length.push_back(length[index]);
+            }
 
-			colPlan->scheme = CS_KERNEL_2D_STOCKHAM_BLOCK_CC;
-			childNodes.push_back(colPlan);
+            colPlan->scheme = CS_KERNEL_2D_STOCKHAM_BLOCK_CC;
+            childNodes.push_back(colPlan);
 
-		}
-		break;
-		case CS_KERNEL_2D_SINGLE:
-		{
+        }
+        break;
+        case CS_KERNEL_2D_SINGLE:
+        {
 
-		}
-		break;
+        }
+        break;
 
-		default: assert(false);
-		}
+        default: assert(false);
+        }
 
-	}
-	break;
+    }
+    break;
 
-	case 3:
-	{
-		// conditions to choose which scheme
-		if ((length[0] * length[1] * length[2]) <= 2048)
-			scheme = CS_KERNEL_3D_SINGLE;
-		else if (length[2] <= 256)
-			scheme = CS_3D_RC;
-		else
-			scheme = CS_3D_RTRT;
+    case 3:
+    {
+        // conditions to choose which scheme
+        if ((length[0] * length[1] * length[2]) <= 2048)
+            scheme = CS_KERNEL_3D_SINGLE;
+        else if (length[2] <= 256)
+            scheme = CS_3D_RC;
+        else
+            scheme = CS_3D_RTRT;
 
-		switch (scheme)
-		{
-		case CS_3D_RTRT:
-		{
-			// 2d fft
-			TreeNode *xyPlan = TreeNode::CreateNode(this);
+        switch (scheme)
+        {
+        case CS_3D_RTRT:
+        {
+            // 2d fft
+            TreeNode *xyPlan = TreeNode::CreateNode(this);
 
-			xyPlan->length.push_back(length[0]);
-			xyPlan->length.push_back(length[1]);
-			xyPlan->dimension = 2;
-			xyPlan->length.push_back(length[2]);
+            xyPlan->length.push_back(length[0]);
+            xyPlan->length.push_back(length[1]);
+            xyPlan->dimension = 2;
+            xyPlan->length.push_back(length[2]);
 
-			for (size_t index = 3; index < length.size(); index++)
-			{
-				xyPlan->length.push_back(length[index]);
-			}
+            for (size_t index = 3; index < length.size(); index++)
+            {
+                xyPlan->length.push_back(length[index]);
+            }
 
-			xyPlan->RecursiveBuildTree();
-			childNodes.push_back(xyPlan);
+            xyPlan->RecursiveBuildTree();
+            childNodes.push_back(xyPlan);
 
-			// first transpose
-			TreeNode *trans1Plan = TreeNode::CreateNode(this);
+            // first transpose
+            TreeNode *trans1Plan = TreeNode::CreateNode(this);
 
-			trans1Plan->length.push_back(length[0]);
-			trans1Plan->length.push_back(length[1]);
-			trans1Plan->length.push_back(length[2]);
+            trans1Plan->length.push_back(length[0]);
+            trans1Plan->length.push_back(length[1]);
+            trans1Plan->length.push_back(length[2]);
 
-			trans1Plan->scheme = CS_KERNEL_TRANSPOSE_XY_Z;
-			trans1Plan->dimension = 2;
+            trans1Plan->scheme = CS_KERNEL_TRANSPOSE_XY_Z;
+            trans1Plan->dimension = 2;
 
-			for (size_t index = 3; index < length.size(); index++)
-			{
-				trans1Plan->length.push_back(length[index]);
-			}
+            for (size_t index = 3; index < length.size(); index++)
+            {
+                trans1Plan->length.push_back(length[index]);
+            }
 
-			childNodes.push_back(trans1Plan);
+            childNodes.push_back(trans1Plan);
 
-			// z fft
-			TreeNode *zPlan = TreeNode::CreateNode(this);
+            // z fft
+            TreeNode *zPlan = TreeNode::CreateNode(this);
 
-			zPlan->length.push_back(length[2]);
-			zPlan->dimension = 1;
-			zPlan->length.push_back(length[0]);
-			zPlan->length.push_back(length[1]);
+            zPlan->length.push_back(length[2]);
+            zPlan->dimension = 1;
+            zPlan->length.push_back(length[0]);
+            zPlan->length.push_back(length[1]);
 
-			for (size_t index = 3; index < length.size(); index++)
-			{
-				zPlan->length.push_back(length[index]);
-			}
+            for (size_t index = 3; index < length.size(); index++)
+            {
+                zPlan->length.push_back(length[index]);
+            }
 
-			zPlan->RecursiveBuildTree();
-			childNodes.push_back(zPlan);
+            zPlan->RecursiveBuildTree();
+            childNodes.push_back(zPlan);
 
-			// second transpose
-			TreeNode *trans2Plan = TreeNode::CreateNode(this);
+            // second transpose
+            TreeNode *trans2Plan = TreeNode::CreateNode(this);
 
-			trans2Plan->length.push_back(length[2]);
-			trans2Plan->length.push_back(length[0]);
-			trans2Plan->length.push_back(length[1]);
+            trans2Plan->length.push_back(length[2]);
+            trans2Plan->length.push_back(length[0]);
+            trans2Plan->length.push_back(length[1]);
 
-			trans2Plan->scheme = CS_KERNEL_TRANSPOSE_Z_XY;
-			trans2Plan->dimension = 2;
+            trans2Plan->scheme = CS_KERNEL_TRANSPOSE_Z_XY;
+            trans2Plan->dimension = 2;
 
-			for (size_t index = 3; index < length.size(); index++)
-			{
-				trans2Plan->length.push_back(length[index]);
-			}
+            for (size_t index = 3; index < length.size(); index++)
+            {
+                trans2Plan->length.push_back(length[index]);
+            }
 
-			childNodes.push_back(trans2Plan);
-		}
-		break;
-		case CS_3D_RC:
-		{
-			// 2d fft
-			TreeNode *xyPlan = TreeNode::CreateNode(this);
+            childNodes.push_back(trans2Plan);
+        }
+        break;
+        case CS_3D_RC:
+        {
+            // 2d fft
+            TreeNode *xyPlan = TreeNode::CreateNode(this);
 
-			xyPlan->length.push_back(length[0]);
-			xyPlan->length.push_back(length[1]);
-			xyPlan->dimension = 2;
-			xyPlan->length.push_back(length[2]);
+            xyPlan->length.push_back(length[0]);
+            xyPlan->length.push_back(length[1]);
+            xyPlan->dimension = 2;
+            xyPlan->length.push_back(length[2]);
 
-			for (size_t index = 3; index < length.size(); index++)
-			{
-				xyPlan->length.push_back(length[index]);
-			}
+            for (size_t index = 3; index < length.size(); index++)
+            {
+                xyPlan->length.push_back(length[index]);
+            }
 
-			xyPlan->RecursiveBuildTree();
-			childNodes.push_back(xyPlan);
+            xyPlan->RecursiveBuildTree();
+            childNodes.push_back(xyPlan);
 
-			// z col fft
-			TreeNode *zPlan = TreeNode::CreateNode(this);
+            // z col fft
+            TreeNode *zPlan = TreeNode::CreateNode(this);
 
-			zPlan->length.push_back(length[2]);
-			zPlan->dimension = 1;
-			zPlan->length.push_back(length[0]);
-			zPlan->length.push_back(length[1]);
+            zPlan->length.push_back(length[2]);
+            zPlan->dimension = 1;
+            zPlan->length.push_back(length[0]);
+            zPlan->length.push_back(length[1]);
 
-			for (size_t index = 3; index < length.size(); index++)
-			{
-				zPlan->length.push_back(length[index]);
-			}
+            for (size_t index = 3; index < length.size(); index++)
+            {
+                zPlan->length.push_back(length[index]);
+            }
 
-			zPlan->scheme = CS_KERNEL_3D_STOCKHAM_BLOCK_CC;
-			childNodes.push_back(zPlan);
+            zPlan->scheme = CS_KERNEL_3D_STOCKHAM_BLOCK_CC;
+            childNodes.push_back(zPlan);
 
-		}
-		break;
-		case CS_KERNEL_3D_SINGLE:
-		{
+        }
+        break;
+        case CS_KERNEL_3D_SINGLE:
+        {
 
-		}
-		break;
+        }
+        break;
 
-		default: assert(false);
-		}
-	}
-	break;
+        default: assert(false);
+        }
+    }
+    break;
 
-	default: assert(false);
-	}
+    default: assert(false);
+    }
 
 }
 
 // logic A - using out-of-place transposes & complex-to-complex & with padding
 void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, OperatingBuffer &flipOut)
 {
-	if (parent == nullptr)
-	{
-		flipIn = OB_USER_OUT;
-		flipOut = OB_TEMP;
-	}
+    if (parent == nullptr)
+    {
+        flipIn = OB_USER_OUT;
+        flipOut = OB_TEMP;
+    }
 
-	if (scheme == CS_L1D_TRTRT)
-	{
-		if (parent == nullptr)
-		{
-			childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
-		}
-		else
-			childNodes[0]->obIn = flipIn;
+    if (scheme == CS_L1D_TRTRT)
+    {
+        if (parent == nullptr)
+        {
+            childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
+        }
+        else
+            childNodes[0]->obIn = flipIn;
 
-		childNodes[0]->obOut = flipOut;
+        childNodes[0]->obOut = flipOut;
 
-		OperatingBuffer t;
-		t = flipIn;
-		flipIn = flipOut;
-		flipOut = t;
+        OperatingBuffer t;
+        t = flipIn;
+        flipIn = flipOut;
+        flipOut = t;
 
-		if (childNodes[1]->childNodes.size())
-		{
-			childNodes[1]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
+        if (childNodes[1]->childNodes.size())
+        {
+            childNodes[1]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
 
-			size_t cs = childNodes[1]->childNodes.size();
-			childNodes[1]->obIn = childNodes[1]->childNodes[0]->obIn;
-			childNodes[1]->obOut = childNodes[1]->childNodes[cs-1]->obOut;
-		}
-		else
-		{
-			childNodes[1]->obIn = flipIn;
-			childNodes[1]->obOut = OB_USER_OUT;
+            size_t cs = childNodes[1]->childNodes.size();
+            childNodes[1]->obIn = childNodes[1]->childNodes[0]->obIn;
+            childNodes[1]->obOut = childNodes[1]->childNodes[cs-1]->obOut;
+        }
+        else
+        {
+            childNodes[1]->obIn = flipIn;
+            childNodes[1]->obOut = OB_USER_OUT;
 
-			if (flipIn != OB_USER_OUT)
-			{
-				OperatingBuffer t;
-				t = flipIn;
-				flipIn = flipOut;
-				flipOut = t;
-			}
-		}
+            if (flipIn != OB_USER_OUT)
+            {
+                OperatingBuffer t;
+                t = flipIn;
+                flipIn = flipOut;
+                flipOut = t;
+            }
+        }
 
-		if ((obIn == OB_UNINIT) && (obOut == OB_UNINIT))
-		{
-			if (flipIn == OB_TEMP)
-			{
-				childNodes[2]->obIn = OB_TEMP;
-				childNodes[2]->obOut = OB_USER_OUT;
+        if ((obIn == OB_UNINIT) && (obOut == OB_UNINIT))
+        {
+            if (flipIn == OB_TEMP)
+            {
+                childNodes[2]->obIn = OB_TEMP;
+                childNodes[2]->obOut = OB_USER_OUT;
 
-				childNodes[3]->obIn = OB_USER_OUT;
-				childNodes[3]->obOut = OB_TEMP;
+                childNodes[3]->obIn = OB_USER_OUT;
+                childNodes[3]->obOut = OB_TEMP;
 
-				childNodes[4]->obIn = OB_TEMP;
-				childNodes[4]->obOut = OB_USER_OUT;
-			}
-			else
-			{
-				childNodes[2]->obIn = OB_USER_OUT;
-				childNodes[2]->obOut = OB_TEMP;
+                childNodes[4]->obIn = OB_TEMP;
+                childNodes[4]->obOut = OB_USER_OUT;
+            }
+            else
+            {
+                childNodes[2]->obIn = OB_USER_OUT;
+                childNodes[2]->obOut = OB_TEMP;
 
-				childNodes[3]->obIn = OB_TEMP;
-				childNodes[3]->obOut = OB_TEMP;
+                childNodes[3]->obIn = OB_TEMP;
+                childNodes[3]->obOut = OB_TEMP;
 
-				childNodes[4]->obIn = OB_TEMP;
-				childNodes[4]->obOut = OB_USER_OUT;
-			}
+                childNodes[4]->obIn = OB_TEMP;
+                childNodes[4]->obOut = OB_USER_OUT;
+            }
 
-			obIn = childNodes[0]->obIn;
-			obOut = childNodes[4]->obOut;
-		}
-		else
-		{
-			assert(obIn == obOut);
+            obIn = childNodes[0]->obIn;
+            obOut = childNodes[4]->obOut;
+        }
+        else
+        {
+            assert(obIn == obOut);
 
-			if (obOut == OB_USER_OUT)
-			{
-				if (childNodes[1]->obOut == OB_TEMP)
-				{
-					childNodes[2]->obIn = OB_TEMP;
-					childNodes[2]->obOut = OB_USER_OUT;
+            if (obOut == OB_USER_OUT)
+            {
+                if (childNodes[1]->obOut == OB_TEMP)
+                {
+                    childNodes[2]->obIn = OB_TEMP;
+                    childNodes[2]->obOut = OB_USER_OUT;
 
-					childNodes[3]->obIn = OB_USER_OUT;
-					childNodes[3]->obOut = OB_TEMP;
+                    childNodes[3]->obIn = OB_USER_OUT;
+                    childNodes[3]->obOut = OB_TEMP;
 
-					childNodes[4]->obIn = OB_TEMP;
-					childNodes[4]->obOut = OB_USER_OUT;
-				}
-				else
-				{
-					childNodes[2]->obIn = OB_USER_OUT;
-					childNodes[2]->obOut = OB_TEMP;
+                    childNodes[4]->obIn = OB_TEMP;
+                    childNodes[4]->obOut = OB_USER_OUT;
+                }
+                else
+                {
+                    childNodes[2]->obIn = OB_USER_OUT;
+                    childNodes[2]->obOut = OB_TEMP;
 
-					childNodes[3]->obIn = OB_TEMP;
-					childNodes[3]->obOut = OB_TEMP;
+                    childNodes[3]->obIn = OB_TEMP;
+                    childNodes[3]->obOut = OB_TEMP;
 
-					childNodes[4]->obIn = OB_TEMP;
-					childNodes[4]->obOut = OB_USER_OUT;
-				}
-			}
-			else
-			{
-				if (childNodes[1]->obOut == OB_TEMP)
-				{
-					childNodes[2]->obIn = OB_TEMP;
-					childNodes[2]->obOut = OB_USER_OUT;
+                    childNodes[4]->obIn = OB_TEMP;
+                    childNodes[4]->obOut = OB_USER_OUT;
+                }
+            }
+            else
+            {
+                if (childNodes[1]->obOut == OB_TEMP)
+                {
+                    childNodes[2]->obIn = OB_TEMP;
+                    childNodes[2]->obOut = OB_USER_OUT;
 
-					childNodes[3]->obIn = OB_USER_OUT;
-					childNodes[3]->obOut = OB_USER_OUT;
+                    childNodes[3]->obIn = OB_USER_OUT;
+                    childNodes[3]->obOut = OB_USER_OUT;
 
-					childNodes[4]->obIn = OB_USER_OUT;
-					childNodes[4]->obOut = OB_TEMP;
-				}
-				else
-				{
-					childNodes[2]->obIn = OB_USER_OUT;
-					childNodes[2]->obOut = OB_TEMP;
+                    childNodes[4]->obIn = OB_USER_OUT;
+                    childNodes[4]->obOut = OB_TEMP;
+                }
+                else
+                {
+                    childNodes[2]->obIn = OB_USER_OUT;
+                    childNodes[2]->obOut = OB_TEMP;
 
-					childNodes[3]->obIn = OB_TEMP;
-					childNodes[3]->obOut = OB_USER_OUT;
+                    childNodes[3]->obIn = OB_TEMP;
+                    childNodes[3]->obOut = OB_USER_OUT;
 
-					childNodes[4]->obIn = OB_USER_OUT;
-					childNodes[4]->obOut = OB_TEMP;
-				}
-			}
-		}
-	}
-	else if(scheme == CS_L1D_CC)
-	{
-		if ((obIn == OB_UNINIT) && (obOut == OB_UNINIT))
-		{
-			if (parent == nullptr)
-			{
-				childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
-				childNodes[0]->obOut = OB_TEMP;
+                    childNodes[4]->obIn = OB_USER_OUT;
+                    childNodes[4]->obOut = OB_TEMP;
+                }
+            }
+        }
+    }
+    else if(scheme == CS_L1D_CC)
+    {
+        if ((obIn == OB_UNINIT) && (obOut == OB_UNINIT))
+        {
+            if (parent == nullptr)
+            {
+                childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
+                childNodes[0]->obOut = OB_TEMP;
 
-				childNodes[1]->obIn = OB_TEMP;
-				childNodes[1]->obOut = OB_USER_OUT;
-			}
-			else
-			{
-				childNodes[0]->obIn = flipIn;
-				childNodes[0]->obOut = flipOut;
+                childNodes[1]->obIn = OB_TEMP;
+                childNodes[1]->obOut = OB_USER_OUT;
+            }
+            else
+            {
+                childNodes[0]->obIn = flipIn;
+                childNodes[0]->obOut = flipOut;
 
-				childNodes[1]->obIn = flipOut;
-				childNodes[1]->obOut = flipIn;
-			}
+                childNodes[1]->obIn = flipOut;
+                childNodes[1]->obOut = flipIn;
+            }
 
-			obIn = childNodes[0]->obIn;
-			obOut = childNodes[1]->obOut;
-		}
-		else
-		{
-			assert(obIn == flipIn);
-			assert(obIn == obOut);
+            obIn = childNodes[0]->obIn;
+            obOut = childNodes[1]->obOut;
+        }
+        else
+        {
+            assert(obIn == flipIn);
+            assert(obIn == obOut);
 
-			childNodes[0]->obIn = flipIn;
-			childNodes[0]->obOut = flipOut;
+            childNodes[0]->obIn = flipIn;
+            childNodes[0]->obOut = flipOut;
 
-			childNodes[1]->obIn = flipOut;
-			childNodes[1]->obOut = flipIn;
-		}
+            childNodes[1]->obIn = flipOut;
+            childNodes[1]->obOut = flipIn;
+        }
 
-	}
-	else if (scheme == CS_L1D_CRT)
-	{
-		if ((obIn == OB_UNINIT) && (obOut == OB_UNINIT))
-		{
-			if (parent == nullptr)
-			{
-				childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
-				childNodes[0]->obOut = OB_TEMP;
+    }
+    else if (scheme == CS_L1D_CRT)
+    {
+        if ((obIn == OB_UNINIT) && (obOut == OB_UNINIT))
+        {
+            if (parent == nullptr)
+            {
+                childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
+                childNodes[0]->obOut = OB_TEMP;
 
-				childNodes[1]->obIn = OB_TEMP;
-				childNodes[1]->obOut = OB_TEMP;
+                childNodes[1]->obIn = OB_TEMP;
+                childNodes[1]->obOut = OB_TEMP;
 
-				childNodes[2]->obIn = OB_TEMP;
-				childNodes[2]->obOut = OB_USER_OUT;
-			}
-			else
-			{
-				childNodes[0]->obIn = flipIn;
-				childNodes[0]->obOut = flipOut;
+                childNodes[2]->obIn = OB_TEMP;
+                childNodes[2]->obOut = OB_USER_OUT;
+            }
+            else
+            {
+                childNodes[0]->obIn = flipIn;
+                childNodes[0]->obOut = flipOut;
 
-				childNodes[1]->obIn = flipOut;
-				childNodes[1]->obOut = flipOut;
+                childNodes[1]->obIn = flipOut;
+                childNodes[1]->obOut = flipOut;
 
-				childNodes[2]->obIn = flipOut;
-				childNodes[2]->obOut = flipIn;
-			}
+                childNodes[2]->obIn = flipOut;
+                childNodes[2]->obOut = flipIn;
+            }
 
-			obIn = childNodes[0]->obIn;
-			obOut = childNodes[2]->obOut;
-		}
-		else
-		{
-			assert(obIn == flipIn);
-			assert(obIn == obOut);
+            obIn = childNodes[0]->obIn;
+            obOut = childNodes[2]->obOut;
+        }
+        else
+        {
+            assert(obIn == flipIn);
+            assert(obIn == obOut);
 
-			childNodes[0]->obIn = flipIn;
-			childNodes[0]->obOut = flipOut;
+            childNodes[0]->obIn = flipIn;
+            childNodes[0]->obOut = flipOut;
 
-			childNodes[1]->obIn = flipOut;
-			childNodes[1]->obOut = flipOut;
+            childNodes[1]->obIn = flipOut;
+            childNodes[1]->obOut = flipOut;
 
-			childNodes[2]->obIn = flipOut;
-			childNodes[2]->obOut = flipIn;
-		}
-	}
-	else if ( (scheme == CS_2D_RTRT) || (scheme == CS_3D_RTRT) )
-	{
-		if (parent == nullptr)
-			childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
-		else
-			childNodes[0]->obIn = OB_USER_OUT;
+            childNodes[2]->obIn = flipOut;
+            childNodes[2]->obOut = flipIn;
+        }
+    }
+    else if ( (scheme == CS_2D_RTRT) || (scheme == CS_3D_RTRT) )
+    {
+        if (parent == nullptr)
+            childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
+        else
+            childNodes[0]->obIn = OB_USER_OUT;
 
-		childNodes[0]->obOut = OB_USER_OUT;
+        childNodes[0]->obOut = OB_USER_OUT;
 
-		flipIn = OB_USER_OUT;
-		flipOut = OB_TEMP;
-		childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
+        flipIn = OB_USER_OUT;
+        flipOut = OB_TEMP;
+        childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
 
-		childNodes[1]->obIn = OB_USER_OUT;
-		childNodes[1]->obOut = OB_TEMP;
+        childNodes[1]->obIn = OB_USER_OUT;
+        childNodes[1]->obOut = OB_TEMP;
 
-		childNodes[2]->obIn = OB_TEMP;
-		childNodes[2]->obOut = OB_TEMP;
+        childNodes[2]->obIn = OB_TEMP;
+        childNodes[2]->obOut = OB_TEMP;
 
-		flipIn = OB_TEMP;
-		flipOut = OB_USER_OUT;
-		childNodes[2]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
+        flipIn = OB_TEMP;
+        flipOut = OB_USER_OUT;
+        childNodes[2]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
 
-		childNodes[3]->obIn = OB_TEMP;
-		childNodes[3]->obOut = OB_USER_OUT;
+        childNodes[3]->obIn = OB_TEMP;
+        childNodes[3]->obOut = OB_USER_OUT;
 
-		obIn = childNodes[0]->obIn;
-		obOut = childNodes[3]->obOut;
-	}
-	else if ( (scheme == CS_2D_RC) || (scheme == CS_3D_RC) )
-	{
-		if (parent == nullptr)
-			childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
-		else
-			childNodes[0]->obIn = OB_USER_OUT;
+        obIn = childNodes[0]->obIn;
+        obOut = childNodes[3]->obOut;
+    }
+    else if ( (scheme == CS_2D_RC) || (scheme == CS_3D_RC) )
+    {
+        if (parent == nullptr)
+            childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
+        else
+            childNodes[0]->obIn = OB_USER_OUT;
 
-		childNodes[0]->obOut = OB_USER_OUT;
+        childNodes[0]->obOut = OB_USER_OUT;
 
-		flipIn = OB_USER_OUT;
-		flipOut = OB_TEMP;
-		childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
+        flipIn = OB_USER_OUT;
+        flipOut = OB_TEMP;
+        childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
 
-		childNodes[1]->obIn = OB_USER_OUT;
-		childNodes[1]->obOut = OB_USER_OUT;
+        childNodes[1]->obIn = OB_USER_OUT;
+        childNodes[1]->obOut = OB_USER_OUT;
 
-		obIn = childNodes[0]->obIn;
-		obOut = childNodes[1]->obOut;
-	}
-	else
-	{
-		if (parent == nullptr)
-		{
-			obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
-			obOut = OB_USER_OUT;
-		}
-		else
-		{
-			if( (obIn == OB_UNINIT) || (obOut == OB_UNINIT) )
-				assert(false);
+        obIn = childNodes[0]->obIn;
+        obOut = childNodes[1]->obOut;
+    }
+    else
+    {
+        if (parent == nullptr)
+        {
+            obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
+            obOut = OB_USER_OUT;
+        }
+        else
+        {
+            if( (obIn == OB_UNINIT) || (obOut == OB_UNINIT) )
+                assert(false);
 
-			if (obIn != obOut)
-			{
-				OperatingBuffer t;
-				t = flipIn;
-				flipIn = flipOut;
-				flipOut = t;
-			}
-		}
-	}
+            if (obIn != obOut)
+            {
+                OperatingBuffer t;
+                t = flipIn;
+                flipIn = flipOut;
+                flipOut = t;
+            }
+        }
+    }
 }
 
 void TreeNode::TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn, rocfft_array_type rootOut)
 {
-	if (parent != nullptr)
-	{
-		placement = (obIn == obOut) ? rocfft_placement_inplace : rocfft_placement_notinplace;
+    if (parent != nullptr)
+    {
+        placement = (obIn == obOut) ? rocfft_placement_inplace : rocfft_placement_notinplace;
 
-		switch (obIn)
-		{
-		case OB_USER_IN: inArrayType = rootIn; break;
-		case OB_USER_OUT: inArrayType = rootOut; break;
-		case OB_TEMP: inArrayType = rocfft_array_type_complex_interleaved; break;
-		default: inArrayType = rocfft_array_type_complex_interleaved;
-		}
+        switch (obIn)
+        {
+        case OB_USER_IN: inArrayType = rootIn; break;
+        case OB_USER_OUT: inArrayType = rootOut; break;
+        case OB_TEMP: inArrayType = rocfft_array_type_complex_interleaved; break;
+        default: inArrayType = rocfft_array_type_complex_interleaved;
+        }
 
-		switch (obOut)
-		{
-		case OB_USER_IN: assert(false); break;
-		case OB_USER_OUT: outArrayType = rootOut; break;
-		case OB_TEMP: outArrayType = rocfft_array_type_complex_interleaved; break;
-		default: outArrayType = rocfft_array_type_complex_interleaved;
-		}
-	}
+        switch (obOut)
+        {
+        case OB_USER_IN: assert(false); break;
+        case OB_USER_OUT: outArrayType = rootOut; break;
+        case OB_TEMP: outArrayType = rocfft_array_type_complex_interleaved; break;
+        default: outArrayType = rocfft_array_type_complex_interleaved;
+        }
+    }
 
-	std::vector<TreeNode *>::iterator children_p;
-	for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
-	{
-		(*children_p)->TraverseTreeAssignPlacementsLogicA(rootIn, rootOut);
-	}
+    std::vector<TreeNode *>::iterator children_p;
+    for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
+    {
+        (*children_p)->TraverseTreeAssignPlacementsLogicA(rootIn, rootOut);
+    }
 }
 
 void TreeNode::TraverseTreeAssignParamsLogicA()
 {
 
-	switch (scheme)
-	{
-	case CS_L1D_TRTRT:
-	{
-		size_t biggerDim = childNodes[0]->length[0] > childNodes[0]->length[1] ? childNodes[0]->length[0] : childNodes[0]->length[1];
-		size_t smallerDim = biggerDim == childNodes[0]->length[0] ? childNodes[0]->length[1] : childNodes[0]->length[0];
-		size_t padding = 0;
-		if ( ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) )
-			padding = 64;
-
-		TreeNode *trans1Plan = childNodes[0];
-		TreeNode *row1Plan = childNodes[1];
-		TreeNode *trans2Plan = childNodes[2];
-		TreeNode *row2Plan = childNodes[3];
-		TreeNode *trans3Plan = childNodes[4];
-
-		trans1Plan->inStride.push_back(inStride[0]);
-		trans1Plan->inStride.push_back(trans1Plan->length[0]);
-		trans1Plan->iDist = iDist;
-		for (size_t index = 1; index < length.size(); index++) trans1Plan->inStride.push_back(inStride[index]);
-
-		if (trans1Plan->obOut == OB_TEMP)
-		{
-			trans1Plan->outStride.push_back(1);
-			trans1Plan->outStride.push_back(trans1Plan->length[1] + padding);
-			trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
-
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				trans1Plan->outStride.push_back(trans1Plan->oDist);
-				trans1Plan->oDist *= length[index];
-			}
-		}
-		else
-		{
-			trans1Plan->transTileDir = TTD_IP_VER;
-
-			if (parent->scheme == CS_L1D_TRTRT)
-			{
-				trans1Plan->outStride.push_back(outStride[0]);
-				trans1Plan->outStride.push_back(outStride[0] * (trans1Plan->length[1]));
-				trans1Plan->oDist = oDist;
-
-				for (size_t index = 1; index < length.size(); index++) trans1Plan->outStride.push_back(outStride[index]);
-			}
-			else
-			{
-				// we dont have B info here, need to assume packed data and descended from 2D/3D
-				assert(parent->obOut == OB_USER_OUT);
-
-				assert(parent->outStride[0] == 1);
-				for (size_t index = 1; index < parent->length.size(); index++)
-					assert(parent->outStride[index] == (parent->outStride[index - 1] * parent->length[index - 1]));
-
-
-				trans1Plan->outStride.push_back(1);
-				trans1Plan->outStride.push_back(trans1Plan->length[1]);
-				trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->length[1];
-
-				for (size_t index = 1; index < length.size(); index++)
-				{
-					trans1Plan->outStride.push_back(trans1Plan->oDist);
-					trans1Plan->oDist *= length[index];
-				}
-			}
-		}
-
-		row1Plan->inStride = trans1Plan->outStride;
-		row1Plan->iDist = trans1Plan->oDist;
-
-		if (row1Plan->placement == rocfft_placement_inplace)
-		{
-			row1Plan->outStride = row1Plan->inStride;
-			row1Plan->oDist = row1Plan->iDist;
-		}
-		else
-		{
-			assert(row1Plan->obOut == OB_USER_OUT);
-
-			row1Plan->outStride.push_back(outStride[0]);
-			row1Plan->outStride.push_back(outStride[0] * row1Plan->length[0]);
-			row1Plan->oDist = oDist;
-
-			for (size_t index = 1; index < length.size(); index++) row1Plan->outStride.push_back(outStride[index]);
-		}
-
-		row1Plan->TraverseTreeAssignParamsLogicA();
-
-		trans2Plan->inStride = row1Plan->outStride;
-		trans2Plan->iDist = row1Plan->oDist;
-
-		if (trans2Plan->obOut == OB_TEMP)
-		{
-			trans2Plan->outStride.push_back(1);
-			trans2Plan->outStride.push_back(trans2Plan->length[1] + padding);
-			trans2Plan->oDist = trans2Plan->length[0] * trans2Plan->outStride[1];
-
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				trans2Plan->outStride.push_back(trans2Plan->oDist);
-				trans2Plan->oDist *= length[index];
-			}
-		}
-		else
-		{
-			trans2Plan->transTileDir = TTD_IP_VER;
-
-			if ( (parent == NULL) || (parent && (parent->scheme == CS_L1D_TRTRT)) )
-			{
-				trans2Plan->outStride.push_back(outStride[0]);
-				trans2Plan->outStride.push_back(outStride[0] * (trans2Plan->length[1]));
-				trans2Plan->oDist = oDist;
-
-				for (size_t index = 1; index < length.size(); index++) trans2Plan->outStride.push_back(outStride[index]);
-			}
-			else
-			{
-				// we dont have B info here, need to assume packed data and descended from 2D/3D
-				trans2Plan->outStride.push_back(1);
-				trans2Plan->outStride.push_back(trans2Plan->length[1]);
-				trans2Plan->oDist = trans2Plan->length[0] * trans2Plan->length[1];
-
-				for (size_t index = 1; index < length.size(); index++)
-				{
-					trans2Plan->outStride.push_back(trans2Plan->oDist);
-					trans2Plan->oDist *= length[index];
-				}
-			}
-		}
-
-		row2Plan->inStride = trans2Plan->outStride;
-		row2Plan->iDist = trans2Plan->oDist;
-
-		if (row2Plan->obIn == row2Plan->obOut)
-		{
-			row2Plan->outStride = row2Plan->inStride;
-			row2Plan->oDist = row2Plan->iDist;
-		}
-		else if (row2Plan->obOut == OB_TEMP)
-		{
-			row2Plan->outStride.push_back(1);
-			row2Plan->outStride.push_back(row2Plan->length[0] + padding);
-			row2Plan->oDist = row2Plan->length[1] * row2Plan->outStride[1];
-
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				row2Plan->outStride.push_back(row2Plan->oDist);
-				row2Plan->oDist *= length[index];
-			}
-		}
-		else
-		{
-			if ((parent == NULL) || (parent && (parent->scheme == CS_L1D_TRTRT)))
-			{
-				row2Plan->outStride.push_back(outStride[0]);
-				row2Plan->outStride.push_back(outStride[0] * (row2Plan->length[0]));
-				row2Plan->oDist = oDist;
-
-				for (size_t index = 1; index < length.size(); index++) row2Plan->outStride.push_back(outStride[index]);
-			}
-			else
-			{
-				// we dont have B info here, need to assume packed data and descended from 2D/3D
-				row2Plan->outStride.push_back(1);
-				row2Plan->outStride.push_back(row2Plan->length[0]);
-				row2Plan->oDist = row2Plan->length[0] * row2Plan->length[1];
-
-				for (size_t index = 1; index < length.size(); index++)
-				{
-					row2Plan->outStride.push_back(row2Plan->oDist);
-					row2Plan->oDist *= length[index];
-				}
-			}
-		}
-
-		if (trans3Plan->obOut != OB_TEMP)
-			trans3Plan->transTileDir = TTD_IP_VER;
-
-		trans3Plan->inStride = row2Plan->outStride;
-		trans3Plan->iDist = row2Plan->oDist;
-
-		trans3Plan->outStride.push_back(outStride[0]);
-		trans3Plan->outStride.push_back(outStride[0] * (trans3Plan->length[1]));
-		trans3Plan->oDist = oDist;
-
-		for (size_t index = 1; index < length.size(); index++) trans3Plan->outStride.push_back(outStride[index]);
-
-	}
-	break;
-	case CS_L1D_CC:
-	{
-		TreeNode *col2colPlan = childNodes[0];
-		TreeNode *row2colPlan = childNodes[1];
-
-		if(parent != NULL) assert(obIn == obOut);
-
-		if (obOut == OB_USER_OUT)
-		{
-			// B -> T
-			col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
-			col2colPlan->inStride.push_back(inStride[0]);
-			col2colPlan->iDist = iDist;
-
-			col2colPlan->outStride.push_back(col2colPlan->length[1]);
-			col2colPlan->outStride.push_back(1);
-			col2colPlan->oDist = length[0];
-
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				col2colPlan->inStride.push_back(inStride[index]);
-				col2colPlan->outStride.push_back(col2colPlan->oDist);
-				col2colPlan->oDist *= length[index];
-			}
-
-			// T -> B
-			row2colPlan->inStride.push_back(1);
-			row2colPlan->inStride.push_back(row2colPlan->length[0]);
-			row2colPlan->iDist = length[0];
-
-			row2colPlan->outStride.push_back(outStride[0] * row2colPlan->length[1]);
-			row2colPlan->outStride.push_back(outStride[0]);
-			row2colPlan->oDist = oDist;
-
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				row2colPlan->inStride.push_back(row2colPlan->iDist);
-				row2colPlan->iDist *= length[index];
-				row2colPlan->outStride.push_back(outStride[index]);
-			}
-		}
-		else
-		{
-			// here we don't have B info right away, we get it through its parent
-			assert(parent->obOut == OB_USER_OUT);
-
-			// T-> B
-			col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
-			col2colPlan->inStride.push_back(inStride[0]);
-			col2colPlan->iDist = iDist;
-
-			for (size_t index = 1; index < length.size(); index++) col2colPlan->inStride.push_back(inStride[index]);
-
-			if (parent->scheme == CS_L1D_TRTRT)
-			{
-				col2colPlan->outStride.push_back(parent->outStride[0] * col2colPlan->length[1]);
-				col2colPlan->outStride.push_back(parent->outStride[0]);
-				col2colPlan->outStride.push_back(parent->outStride[0] * col2colPlan->length[1] * col2colPlan->length[0]);
-				col2colPlan->oDist = parent->oDist;
-
-				for (size_t index = 1; index < parent->length.size(); index++) col2colPlan->outStride.push_back(parent->outStride[index]);
-			}
-			else
-			{
-				// we dont have B info here, need to assume packed data and descended from 2D/3D
-				assert(parent->outStride[0] == 1);
-				for (size_t index = 1; index < parent->length.size(); index++)
-					assert(parent->outStride[index] == (parent->outStride[index-1] * parent->length[index-1]));
-
-				col2colPlan->outStride.push_back(col2colPlan->length[1]);
-				col2colPlan->outStride.push_back(1);
-				col2colPlan->oDist = col2colPlan->length[1] * col2colPlan->length[0];
-
-				for (size_t index = 1; index < length.size(); index++)
-				{
-					col2colPlan->outStride.push_back(col2colPlan->oDist);
-					col2colPlan->oDist *= length[index];
-				}
-			}
-
-			// B -> T
-			if (parent->scheme == CS_L1D_TRTRT)
-			{
-				row2colPlan->inStride.push_back(parent->outStride[0]);
-				row2colPlan->inStride.push_back(parent->outStride[0] * row2colPlan->length[0]);
-				row2colPlan->inStride.push_back(parent->outStride[0] * row2colPlan->length[0] * row2colPlan->length[1]);
-				row2colPlan->iDist = parent->oDist;
-
-				for (size_t index = 1; index < parent->length.size(); index++) row2colPlan->inStride.push_back(parent->outStride[index]);
-			}
-			else
-			{
-				// we dont have B info here, need to assume packed data and descended from 2D/3D
-				row2colPlan->inStride.push_back(1);
-				row2colPlan->inStride.push_back(row2colPlan->length[0]);
-				row2colPlan->iDist = row2colPlan->length[0] * row2colPlan->length[1];
-
-				for (size_t index = 1; index < length.size(); index++)
-				{
-					row2colPlan->inStride.push_back(row2colPlan->iDist);
-					row2colPlan->iDist *= length[index];
-				}
-			}
-
-			row2colPlan->outStride.push_back(outStride[0] * row2colPlan->length[1]);
-			row2colPlan->outStride.push_back(outStride[0]);
-			row2colPlan->oDist = oDist;
-
-			for (size_t index = 1; index < length.size(); index++) row2colPlan->outStride.push_back(outStride[index]);
-		}
-	}
-	break;
-	case CS_L1D_CRT:
-	{
-		TreeNode *col2colPlan = childNodes[0];
-		TreeNode *row2rowPlan = childNodes[1];
-		TreeNode *transPlan = childNodes[2];
-
-		if (parent != NULL) assert(obIn == obOut);
-
-		if (obOut == OB_USER_OUT)
-		{
-			// B -> T
-			col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
-			col2colPlan->inStride.push_back(inStride[0]);
-			col2colPlan->iDist = iDist;
-
-			col2colPlan->outStride.push_back(col2colPlan->length[1]);
-			col2colPlan->outStride.push_back(1);
-			col2colPlan->oDist = length[0];
-
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				col2colPlan->inStride.push_back(inStride[index]);
-				col2colPlan->outStride.push_back(col2colPlan->oDist);
-				col2colPlan->oDist *= length[index];
-			}
-
-			// T -> T
-			row2rowPlan->inStride.push_back(1);
-			row2rowPlan->inStride.push_back(row2rowPlan->length[0]);
-			row2rowPlan->iDist = length[0];
-
-			for (size_t index = 1; index < length.size(); index++)
-			{
-				row2rowPlan->inStride.push_back(row2rowPlan->iDist);
-				row2rowPlan->iDist *= length[index];
-			}
-
-			row2rowPlan->outStride = row2rowPlan->inStride;
-			row2rowPlan->oDist = row2rowPlan->iDist;
-
-			// T -> B
-			transPlan->inStride = row2rowPlan->outStride;
-			transPlan->iDist = row2rowPlan->oDist;
-
-			transPlan->outStride.push_back(outStride[0]);
-			transPlan->outStride.push_back(outStride[0] * (transPlan->length[1]));
-			transPlan->oDist = oDist;
-
-			for (size_t index = 1; index < length.size(); index++) transPlan->outStride.push_back(outStride[index]);
-		}
-		else
-		{
-			// here we don't have B info right away, we get it through its parent
-			assert(parent->obOut == OB_USER_OUT);
-
-			// T -> B
-			col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
-			col2colPlan->inStride.push_back(inStride[0]);
-			col2colPlan->iDist = iDist;
-
-			for (size_t index = 1; index < length.size(); index++) col2colPlan->inStride.push_back(inStride[index]);
-
-			if (parent->scheme == CS_L1D_TRTRT)
-			{
-				col2colPlan->outStride.push_back(parent->outStride[0] * col2colPlan->length[1]);
-				col2colPlan->outStride.push_back(parent->outStride[0]);
-				col2colPlan->outStride.push_back(parent->outStride[0] * col2colPlan->length[1] * col2colPlan->length[0]);
-				col2colPlan->oDist = parent->oDist;
-
-				for (size_t index = 1; index < parent->length.size(); index++) col2colPlan->outStride.push_back(parent->outStride[index]);
-			}
-			else
-			{
-				// we dont have B info here, need to assume packed data and descended from 2D/3D
-				assert(parent->outStride[0] == 1);
-				for (size_t index = 1; index < parent->length.size(); index++)
-					assert(parent->outStride[index] == (parent->outStride[index - 1] * parent->length[index - 1]));
-
-				col2colPlan->outStride.push_back(col2colPlan->length[1]);
-				col2colPlan->outStride.push_back(1);
-				col2colPlan->oDist = col2colPlan->length[1] * col2colPlan->length[0];
-
-				for (size_t index = 1; index < length.size(); index++)
-				{
-					col2colPlan->outStride.push_back(col2colPlan->oDist);
-					col2colPlan->oDist *= length[index];
-				}
-			}
-
-			// B -> B
-			if (parent->scheme == CS_L1D_TRTRT)
-			{
-				row2rowPlan->inStride.push_back(parent->outStride[0]);
-				row2rowPlan->inStride.push_back(parent->outStride[0] * row2rowPlan->length[0]);
-				row2rowPlan->inStride.push_back(parent->outStride[0] * row2rowPlan->length[0] * row2rowPlan->length[1]);
-				row2rowPlan->iDist = parent->oDist;
-
-				for (size_t index = 1; index < parent->length.size(); index++) row2rowPlan->inStride.push_back(parent->outStride[index]);
-			}
-			else
-			{
-				// we dont have B info here, need to assume packed data and descended from 2D/3D
-				row2rowPlan->inStride.push_back(1);
-				row2rowPlan->inStride.push_back(row2rowPlan->length[0]);
-				row2rowPlan->iDist = row2rowPlan->length[0] * row2rowPlan->length[1];
-
-				for (size_t index = 1; index < length.size(); index++)
-				{
-					row2rowPlan->inStride.push_back(row2rowPlan->iDist);
-					row2rowPlan->iDist *= length[index];
-				}
-			}
-
-			row2rowPlan->outStride = row2rowPlan->inStride;
-			row2rowPlan->oDist = row2rowPlan->iDist;
-
-			// B -> T
-			transPlan->inStride = row2rowPlan->outStride;
-			transPlan->iDist = row2rowPlan->oDist;
-
-			transPlan->outStride.push_back(outStride[0]);
-			transPlan->outStride.push_back(outStride[0] * transPlan->length[1]);
-			transPlan->oDist = oDist;
-
-			for (size_t index = 1; index < length.size(); index++) transPlan->outStride.push_back(outStride[index]);
-		}
-	}
-	break;
-	case CS_2D_RTRT:
-	{
-		TreeNode *row1Plan = childNodes[0];
-		TreeNode *trans1Plan = childNodes[1];
-		TreeNode *row2Plan = childNodes[2];
-		TreeNode *trans2Plan = childNodes[3];
-
-
-		size_t biggerDim = length[0] > length[1] ? length[0] : length[1];
-		size_t smallerDim = biggerDim == length[0] ? length[1] : length[0];
-		size_t padding = 0;
-		if (((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512))
-			padding = 64;
-
-		// B -> B
-		assert(row1Plan->obOut == OB_USER_OUT);
-		row1Plan->inStride = inStride;
-		row1Plan->iDist = iDist;
-
-		row1Plan->outStride = outStride;
-		row1Plan->oDist = oDist;
-
-		row1Plan->TraverseTreeAssignParamsLogicA();
-
-		// B -> T
-		assert(trans1Plan->obOut == OB_TEMP);
-		trans1Plan->inStride = row1Plan->outStride;
-		trans1Plan->iDist = row1Plan->oDist;
-
-		trans1Plan->outStride.push_back(1);
-		trans1Plan->outStride.push_back(trans1Plan->length[1] + padding);
-		trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
-
-		for (size_t index = 2; index < length.size(); index++)
-		{
-			trans1Plan->outStride.push_back(trans1Plan->oDist);
-			trans1Plan->oDist *= length[index];
-		}
-
-		// T -> T
-		assert(row2Plan->obOut == OB_TEMP);
-		row2Plan->inStride = trans1Plan->outStride;
-		row2Plan->iDist = trans1Plan->oDist;
-
-		row2Plan->outStride = row2Plan->inStride;
-		row2Plan->oDist = row2Plan->iDist;
-
-		row2Plan->TraverseTreeAssignParamsLogicA();
-
-		// T -> B
-		assert(trans2Plan->obOut == OB_USER_OUT);
-		trans2Plan->inStride = row2Plan->outStride;
-		trans2Plan->iDist = row2Plan->oDist;
-
-		trans2Plan->outStride = outStride;
-		trans2Plan->oDist = oDist;
-	}
-	break;
-	case CS_2D_RC:
-	case CS_2D_STRAIGHT:
-	{
-		TreeNode *rowPlan = childNodes[0];
-		TreeNode *colPlan = childNodes[1];
-
-		// B -> B
-		assert(rowPlan->obOut == OB_USER_OUT);
-		rowPlan->inStride = inStride;
-		rowPlan->iDist = iDist;
-
-		rowPlan->outStride = outStride;
-		rowPlan->oDist = oDist;
-
-		rowPlan->TraverseTreeAssignParamsLogicA();
-
-		// B -> B
-		assert(colPlan->obOut == OB_USER_OUT);
-		colPlan->inStride.push_back(inStride[1]);
-		colPlan->inStride.push_back(inStride[0]);
-		for (size_t index = 2; index < length.size(); index++) colPlan->inStride.push_back(inStride[index]);
-
-		colPlan->iDist = rowPlan->oDist;
-
-		colPlan->outStride = colPlan->inStride;
-		colPlan->oDist = colPlan->iDist;
-	};
-	break;
-	case CS_3D_RTRT:
-	{
-		TreeNode *xyPlan = childNodes[0];
-		TreeNode *trans1Plan = childNodes[1];
-		TreeNode *zPlan = childNodes[2];
-		TreeNode *trans2Plan = childNodes[3];
-
-
-		size_t biggerDim = (length[0] * length[1]) > length[2] ? (length[0] * length[1]) : length[2];
-		size_t smallerDim = biggerDim == (length[0] * length[1]) ? length[2] : (length[0] * length[1]);
-		size_t padding = 0;
-		if (((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512))
-			padding = 64;
-
-		// B -> B
-		assert(xyPlan->obOut == OB_USER_OUT);
-		xyPlan->inStride = inStride;
-		xyPlan->iDist = iDist;
-
-		xyPlan->outStride = outStride;
-		xyPlan->oDist = oDist;
-
-		xyPlan->TraverseTreeAssignParamsLogicA();
-
-		// B -> T
-		assert(trans1Plan->obOut == OB_TEMP);
-		trans1Plan->inStride = xyPlan->outStride;
-		trans1Plan->iDist = xyPlan->oDist;
-
-		trans1Plan->outStride.push_back(1);
-		trans1Plan->outStride.push_back(trans1Plan->length[2] + padding);
-		trans1Plan->outStride.push_back(trans1Plan->length[0] * trans1Plan->outStride[1]);
-		trans1Plan->oDist = trans1Plan->length[1] * trans1Plan->outStride[2];
-
-		for (size_t index = 3; index < length.size(); index++)
-		{
-			trans1Plan->outStride.push_back(trans1Plan->oDist);
-			trans1Plan->oDist *= length[index];
-		}
-
-		// T -> T
-		assert(zPlan->obOut == OB_TEMP);
-		zPlan->inStride = trans1Plan->outStride;
-		zPlan->iDist = trans1Plan->oDist;
-
-		zPlan->outStride = zPlan->inStride;
-		zPlan->oDist = zPlan->iDist;
-
-		zPlan->TraverseTreeAssignParamsLogicA();
-
-		// T -> B
-		assert(trans2Plan->obOut == OB_USER_OUT);
-		trans2Plan->inStride = zPlan->outStride;
-		trans2Plan->iDist = zPlan->oDist;
-
-		trans2Plan->outStride = outStride;
-		trans2Plan->oDist = oDist;
-	}
-	break;
-	case CS_3D_RC:
-	case CS_3D_STRAIGHT:
-	{
-		TreeNode *xyPlan = childNodes[0];
-		TreeNode *zPlan = childNodes[1];
-
-		// B -> B
-		assert(xyPlan->obOut == OB_USER_OUT);
-		xyPlan->inStride = inStride;
-		xyPlan->iDist = iDist;
-
-		xyPlan->outStride = outStride;
-		xyPlan->oDist = oDist;
-
-		xyPlan->TraverseTreeAssignParamsLogicA();
-
-		// B -> B
-		assert(zPlan->obOut == OB_USER_OUT);
-		zPlan->inStride.push_back(inStride[2]);
-		zPlan->inStride.push_back(inStride[0]);
-		zPlan->inStride.push_back(inStride[1]);
-		for (size_t index = 3; index < length.size(); index++) zPlan->inStride.push_back(inStride[index]);
-
-		zPlan->iDist = xyPlan->oDist;
-
-		zPlan->outStride = zPlan->inStride;
-		zPlan->oDist = zPlan->iDist;
-	};
-	break;
-	default: return;
-
-	}
+    switch (scheme)
+    {
+    case CS_L1D_TRTRT:
+    {
+        size_t biggerDim = childNodes[0]->length[0] > childNodes[0]->length[1] ? childNodes[0]->length[0] : childNodes[0]->length[1];
+        size_t smallerDim = biggerDim == childNodes[0]->length[0] ? childNodes[0]->length[1] : childNodes[0]->length[0];
+        size_t padding = 0;
+        if ( ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) )
+            padding = 64;
+
+        TreeNode *trans1Plan = childNodes[0];
+        TreeNode *row1Plan = childNodes[1];
+        TreeNode *trans2Plan = childNodes[2];
+        TreeNode *row2Plan = childNodes[3];
+        TreeNode *trans3Plan = childNodes[4];
+
+        trans1Plan->inStride.push_back(inStride[0]);
+        trans1Plan->inStride.push_back(trans1Plan->length[0]);
+        trans1Plan->iDist = iDist;
+        for (size_t index = 1; index < length.size(); index++) trans1Plan->inStride.push_back(inStride[index]);
+
+        if (trans1Plan->obOut == OB_TEMP)
+        {
+            trans1Plan->outStride.push_back(1);
+            trans1Plan->outStride.push_back(trans1Plan->length[1] + padding);
+            trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
+
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                trans1Plan->outStride.push_back(trans1Plan->oDist);
+                trans1Plan->oDist *= length[index];
+            }
+        }
+        else
+        {
+            trans1Plan->transTileDir = TTD_IP_VER;
+
+            if (parent->scheme == CS_L1D_TRTRT)
+            {
+                trans1Plan->outStride.push_back(outStride[0]);
+                trans1Plan->outStride.push_back(outStride[0] * (trans1Plan->length[1]));
+                trans1Plan->oDist = oDist;
+
+                for (size_t index = 1; index < length.size(); index++) trans1Plan->outStride.push_back(outStride[index]);
+            }
+            else
+            {
+                // we dont have B info here, need to assume packed data and descended from 2D/3D
+                assert(parent->obOut == OB_USER_OUT);
+
+                assert(parent->outStride[0] == 1);
+                for (size_t index = 1; index < parent->length.size(); index++)
+                    assert(parent->outStride[index] == (parent->outStride[index - 1] * parent->length[index - 1]));
+
+
+                trans1Plan->outStride.push_back(1);
+                trans1Plan->outStride.push_back(trans1Plan->length[1]);
+                trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->length[1];
+
+                for (size_t index = 1; index < length.size(); index++)
+                {
+                    trans1Plan->outStride.push_back(trans1Plan->oDist);
+                    trans1Plan->oDist *= length[index];
+                }
+            }
+        }
+
+        row1Plan->inStride = trans1Plan->outStride;
+        row1Plan->iDist = trans1Plan->oDist;
+
+        if (row1Plan->placement == rocfft_placement_inplace)
+        {
+            row1Plan->outStride = row1Plan->inStride;
+            row1Plan->oDist = row1Plan->iDist;
+        }
+        else
+        {
+            assert(row1Plan->obOut == OB_USER_OUT);
+
+            row1Plan->outStride.push_back(outStride[0]);
+            row1Plan->outStride.push_back(outStride[0] * row1Plan->length[0]);
+            row1Plan->oDist = oDist;
+
+            for (size_t index = 1; index < length.size(); index++) row1Plan->outStride.push_back(outStride[index]);
+        }
+
+        row1Plan->TraverseTreeAssignParamsLogicA();
+
+        trans2Plan->inStride = row1Plan->outStride;
+        trans2Plan->iDist = row1Plan->oDist;
+
+        if (trans2Plan->obOut == OB_TEMP)
+        {
+            trans2Plan->outStride.push_back(1);
+            trans2Plan->outStride.push_back(trans2Plan->length[1] + padding);
+            trans2Plan->oDist = trans2Plan->length[0] * trans2Plan->outStride[1];
+
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                trans2Plan->outStride.push_back(trans2Plan->oDist);
+                trans2Plan->oDist *= length[index];
+            }
+        }
+        else
+        {
+            trans2Plan->transTileDir = TTD_IP_VER;
+
+            if ( (parent == NULL) || (parent && (parent->scheme == CS_L1D_TRTRT)) )
+            {
+                trans2Plan->outStride.push_back(outStride[0]);
+                trans2Plan->outStride.push_back(outStride[0] * (trans2Plan->length[1]));
+                trans2Plan->oDist = oDist;
+
+                for (size_t index = 1; index < length.size(); index++) trans2Plan->outStride.push_back(outStride[index]);
+            }
+            else
+            {
+                // we dont have B info here, need to assume packed data and descended from 2D/3D
+                trans2Plan->outStride.push_back(1);
+                trans2Plan->outStride.push_back(trans2Plan->length[1]);
+                trans2Plan->oDist = trans2Plan->length[0] * trans2Plan->length[1];
+
+                for (size_t index = 1; index < length.size(); index++)
+                {
+                    trans2Plan->outStride.push_back(trans2Plan->oDist);
+                    trans2Plan->oDist *= length[index];
+                }
+            }
+        }
+
+        row2Plan->inStride = trans2Plan->outStride;
+        row2Plan->iDist = trans2Plan->oDist;
+
+        if (row2Plan->obIn == row2Plan->obOut)
+        {
+            row2Plan->outStride = row2Plan->inStride;
+            row2Plan->oDist = row2Plan->iDist;
+        }
+        else if (row2Plan->obOut == OB_TEMP)
+        {
+            row2Plan->outStride.push_back(1);
+            row2Plan->outStride.push_back(row2Plan->length[0] + padding);
+            row2Plan->oDist = row2Plan->length[1] * row2Plan->outStride[1];
+
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                row2Plan->outStride.push_back(row2Plan->oDist);
+                row2Plan->oDist *= length[index];
+            }
+        }
+        else
+        {
+            if ((parent == NULL) || (parent && (parent->scheme == CS_L1D_TRTRT)))
+            {
+                row2Plan->outStride.push_back(outStride[0]);
+                row2Plan->outStride.push_back(outStride[0] * (row2Plan->length[0]));
+                row2Plan->oDist = oDist;
+
+                for (size_t index = 1; index < length.size(); index++) row2Plan->outStride.push_back(outStride[index]);
+            }
+            else
+            {
+                // we dont have B info here, need to assume packed data and descended from 2D/3D
+                row2Plan->outStride.push_back(1);
+                row2Plan->outStride.push_back(row2Plan->length[0]);
+                row2Plan->oDist = row2Plan->length[0] * row2Plan->length[1];
+
+                for (size_t index = 1; index < length.size(); index++)
+                {
+                    row2Plan->outStride.push_back(row2Plan->oDist);
+                    row2Plan->oDist *= length[index];
+                }
+            }
+        }
+
+        if (trans3Plan->obOut != OB_TEMP)
+            trans3Plan->transTileDir = TTD_IP_VER;
+
+        trans3Plan->inStride = row2Plan->outStride;
+        trans3Plan->iDist = row2Plan->oDist;
+
+        trans3Plan->outStride.push_back(outStride[0]);
+        trans3Plan->outStride.push_back(outStride[0] * (trans3Plan->length[1]));
+        trans3Plan->oDist = oDist;
+
+        for (size_t index = 1; index < length.size(); index++) trans3Plan->outStride.push_back(outStride[index]);
+
+    }
+    break;
+    case CS_L1D_CC:
+    {
+        TreeNode *col2colPlan = childNodes[0];
+        TreeNode *row2colPlan = childNodes[1];
+
+        if(parent != NULL) assert(obIn == obOut);
+
+        if (obOut == OB_USER_OUT)
+        {
+            // B -> T
+            col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
+            col2colPlan->inStride.push_back(inStride[0]);
+            col2colPlan->iDist = iDist;
+
+            col2colPlan->outStride.push_back(col2colPlan->length[1]);
+            col2colPlan->outStride.push_back(1);
+            col2colPlan->oDist = length[0];
+
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                col2colPlan->inStride.push_back(inStride[index]);
+                col2colPlan->outStride.push_back(col2colPlan->oDist);
+                col2colPlan->oDist *= length[index];
+            }
+
+            // T -> B
+            row2colPlan->inStride.push_back(1);
+            row2colPlan->inStride.push_back(row2colPlan->length[0]);
+            row2colPlan->iDist = length[0];
+
+            row2colPlan->outStride.push_back(outStride[0] * row2colPlan->length[1]);
+            row2colPlan->outStride.push_back(outStride[0]);
+            row2colPlan->oDist = oDist;
+
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                row2colPlan->inStride.push_back(row2colPlan->iDist);
+                row2colPlan->iDist *= length[index];
+                row2colPlan->outStride.push_back(outStride[index]);
+            }
+        }
+        else
+        {
+            // here we don't have B info right away, we get it through its parent
+            assert(parent->obOut == OB_USER_OUT);
+
+            // T-> B
+            col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
+            col2colPlan->inStride.push_back(inStride[0]);
+            col2colPlan->iDist = iDist;
+
+            for (size_t index = 1; index < length.size(); index++) col2colPlan->inStride.push_back(inStride[index]);
+
+            if (parent->scheme == CS_L1D_TRTRT)
+            {
+                col2colPlan->outStride.push_back(parent->outStride[0] * col2colPlan->length[1]);
+                col2colPlan->outStride.push_back(parent->outStride[0]);
+                col2colPlan->outStride.push_back(parent->outStride[0] * col2colPlan->length[1] * col2colPlan->length[0]);
+                col2colPlan->oDist = parent->oDist;
+
+                for (size_t index = 1; index < parent->length.size(); index++) col2colPlan->outStride.push_back(parent->outStride[index]);
+            }
+            else
+            {
+                // we dont have B info here, need to assume packed data and descended from 2D/3D
+                assert(parent->outStride[0] == 1);
+                for (size_t index = 1; index < parent->length.size(); index++)
+                    assert(parent->outStride[index] == (parent->outStride[index-1] * parent->length[index-1]));
+
+                col2colPlan->outStride.push_back(col2colPlan->length[1]);
+                col2colPlan->outStride.push_back(1);
+                col2colPlan->oDist = col2colPlan->length[1] * col2colPlan->length[0];
+
+                for (size_t index = 1; index < length.size(); index++)
+                {
+                    col2colPlan->outStride.push_back(col2colPlan->oDist);
+                    col2colPlan->oDist *= length[index];
+                }
+            }
+
+            // B -> T
+            if (parent->scheme == CS_L1D_TRTRT)
+            {
+                row2colPlan->inStride.push_back(parent->outStride[0]);
+                row2colPlan->inStride.push_back(parent->outStride[0] * row2colPlan->length[0]);
+                row2colPlan->inStride.push_back(parent->outStride[0] * row2colPlan->length[0] * row2colPlan->length[1]);
+                row2colPlan->iDist = parent->oDist;
+
+                for (size_t index = 1; index < parent->length.size(); index++) row2colPlan->inStride.push_back(parent->outStride[index]);
+            }
+            else
+            {
+                // we dont have B info here, need to assume packed data and descended from 2D/3D
+                row2colPlan->inStride.push_back(1);
+                row2colPlan->inStride.push_back(row2colPlan->length[0]);
+                row2colPlan->iDist = row2colPlan->length[0] * row2colPlan->length[1];
+
+                for (size_t index = 1; index < length.size(); index++)
+                {
+                    row2colPlan->inStride.push_back(row2colPlan->iDist);
+                    row2colPlan->iDist *= length[index];
+                }
+            }
+
+            row2colPlan->outStride.push_back(outStride[0] * row2colPlan->length[1]);
+            row2colPlan->outStride.push_back(outStride[0]);
+            row2colPlan->oDist = oDist;
+
+            for (size_t index = 1; index < length.size(); index++) row2colPlan->outStride.push_back(outStride[index]);
+        }
+    }
+    break;
+    case CS_L1D_CRT:
+    {
+        TreeNode *col2colPlan = childNodes[0];
+        TreeNode *row2rowPlan = childNodes[1];
+        TreeNode *transPlan = childNodes[2];
+
+        if (parent != NULL) assert(obIn == obOut);
+
+        if (obOut == OB_USER_OUT)
+        {
+            // B -> T
+            col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
+            col2colPlan->inStride.push_back(inStride[0]);
+            col2colPlan->iDist = iDist;
+
+            col2colPlan->outStride.push_back(col2colPlan->length[1]);
+            col2colPlan->outStride.push_back(1);
+            col2colPlan->oDist = length[0];
+
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                col2colPlan->inStride.push_back(inStride[index]);
+                col2colPlan->outStride.push_back(col2colPlan->oDist);
+                col2colPlan->oDist *= length[index];
+            }
+
+            // T -> T
+            row2rowPlan->inStride.push_back(1);
+            row2rowPlan->inStride.push_back(row2rowPlan->length[0]);
+            row2rowPlan->iDist = length[0];
+
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                row2rowPlan->inStride.push_back(row2rowPlan->iDist);
+                row2rowPlan->iDist *= length[index];
+            }
+
+            row2rowPlan->outStride = row2rowPlan->inStride;
+            row2rowPlan->oDist = row2rowPlan->iDist;
+
+            // T -> B
+            transPlan->inStride = row2rowPlan->outStride;
+            transPlan->iDist = row2rowPlan->oDist;
+
+            transPlan->outStride.push_back(outStride[0]);
+            transPlan->outStride.push_back(outStride[0] * (transPlan->length[1]));
+            transPlan->oDist = oDist;
+
+            for (size_t index = 1; index < length.size(); index++) transPlan->outStride.push_back(outStride[index]);
+        }
+        else
+        {
+            // here we don't have B info right away, we get it through its parent
+            assert(parent->obOut == OB_USER_OUT);
+
+            // T -> B
+            col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
+            col2colPlan->inStride.push_back(inStride[0]);
+            col2colPlan->iDist = iDist;
+
+            for (size_t index = 1; index < length.size(); index++) col2colPlan->inStride.push_back(inStride[index]);
+
+            if (parent->scheme == CS_L1D_TRTRT)
+            {
+                col2colPlan->outStride.push_back(parent->outStride[0] * col2colPlan->length[1]);
+                col2colPlan->outStride.push_back(parent->outStride[0]);
+                col2colPlan->outStride.push_back(parent->outStride[0] * col2colPlan->length[1] * col2colPlan->length[0]);
+                col2colPlan->oDist = parent->oDist;
+
+                for (size_t index = 1; index < parent->length.size(); index++) col2colPlan->outStride.push_back(parent->outStride[index]);
+            }
+            else
+            {
+                // we dont have B info here, need to assume packed data and descended from 2D/3D
+                assert(parent->outStride[0] == 1);
+                for (size_t index = 1; index < parent->length.size(); index++)
+                    assert(parent->outStride[index] == (parent->outStride[index - 1] * parent->length[index - 1]));
+
+                col2colPlan->outStride.push_back(col2colPlan->length[1]);
+                col2colPlan->outStride.push_back(1);
+                col2colPlan->oDist = col2colPlan->length[1] * col2colPlan->length[0];
+
+                for (size_t index = 1; index < length.size(); index++)
+                {
+                    col2colPlan->outStride.push_back(col2colPlan->oDist);
+                    col2colPlan->oDist *= length[index];
+                }
+            }
+
+            // B -> B
+            if (parent->scheme == CS_L1D_TRTRT)
+            {
+                row2rowPlan->inStride.push_back(parent->outStride[0]);
+                row2rowPlan->inStride.push_back(parent->outStride[0] * row2rowPlan->length[0]);
+                row2rowPlan->inStride.push_back(parent->outStride[0] * row2rowPlan->length[0] * row2rowPlan->length[1]);
+                row2rowPlan->iDist = parent->oDist;
+
+                for (size_t index = 1; index < parent->length.size(); index++) row2rowPlan->inStride.push_back(parent->outStride[index]);
+            }
+            else
+            {
+                // we dont have B info here, need to assume packed data and descended from 2D/3D
+                row2rowPlan->inStride.push_back(1);
+                row2rowPlan->inStride.push_back(row2rowPlan->length[0]);
+                row2rowPlan->iDist = row2rowPlan->length[0] * row2rowPlan->length[1];
+
+                for (size_t index = 1; index < length.size(); index++)
+                {
+                    row2rowPlan->inStride.push_back(row2rowPlan->iDist);
+                    row2rowPlan->iDist *= length[index];
+                }
+            }
+
+            row2rowPlan->outStride = row2rowPlan->inStride;
+            row2rowPlan->oDist = row2rowPlan->iDist;
+
+            // B -> T
+            transPlan->inStride = row2rowPlan->outStride;
+            transPlan->iDist = row2rowPlan->oDist;
+
+            transPlan->outStride.push_back(outStride[0]);
+            transPlan->outStride.push_back(outStride[0] * transPlan->length[1]);
+            transPlan->oDist = oDist;
+
+            for (size_t index = 1; index < length.size(); index++) transPlan->outStride.push_back(outStride[index]);
+        }
+    }
+    break;
+    case CS_2D_RTRT:
+    {
+        TreeNode *row1Plan = childNodes[0];
+        TreeNode *trans1Plan = childNodes[1];
+        TreeNode *row2Plan = childNodes[2];
+        TreeNode *trans2Plan = childNodes[3];
+
+
+        size_t biggerDim = length[0] > length[1] ? length[0] : length[1];
+        size_t smallerDim = biggerDim == length[0] ? length[1] : length[0];
+        size_t padding = 0;
+        if (((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512))
+            padding = 64;
+
+        // B -> B
+        assert(row1Plan->obOut == OB_USER_OUT);
+        row1Plan->inStride = inStride;
+        row1Plan->iDist = iDist;
+
+        row1Plan->outStride = outStride;
+        row1Plan->oDist = oDist;
+
+        row1Plan->TraverseTreeAssignParamsLogicA();
+
+        // B -> T
+        assert(trans1Plan->obOut == OB_TEMP);
+        trans1Plan->inStride = row1Plan->outStride;
+        trans1Plan->iDist = row1Plan->oDist;
+
+        trans1Plan->outStride.push_back(1);
+        trans1Plan->outStride.push_back(trans1Plan->length[1] + padding);
+        trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
+
+        for (size_t index = 2; index < length.size(); index++)
+        {
+            trans1Plan->outStride.push_back(trans1Plan->oDist);
+            trans1Plan->oDist *= length[index];
+        }
+
+        // T -> T
+        assert(row2Plan->obOut == OB_TEMP);
+        row2Plan->inStride = trans1Plan->outStride;
+        row2Plan->iDist = trans1Plan->oDist;
+
+        row2Plan->outStride = row2Plan->inStride;
+        row2Plan->oDist = row2Plan->iDist;
+
+        row2Plan->TraverseTreeAssignParamsLogicA();
+
+        // T -> B
+        assert(trans2Plan->obOut == OB_USER_OUT);
+        trans2Plan->inStride = row2Plan->outStride;
+        trans2Plan->iDist = row2Plan->oDist;
+
+        trans2Plan->outStride = outStride;
+        trans2Plan->oDist = oDist;
+    }
+    break;
+    case CS_2D_RC:
+    case CS_2D_STRAIGHT:
+    {
+        TreeNode *rowPlan = childNodes[0];
+        TreeNode *colPlan = childNodes[1];
+
+        // B -> B
+        assert(rowPlan->obOut == OB_USER_OUT);
+        rowPlan->inStride = inStride;
+        rowPlan->iDist = iDist;
+
+        rowPlan->outStride = outStride;
+        rowPlan->oDist = oDist;
+
+        rowPlan->TraverseTreeAssignParamsLogicA();
+
+        // B -> B
+        assert(colPlan->obOut == OB_USER_OUT);
+        colPlan->inStride.push_back(inStride[1]);
+        colPlan->inStride.push_back(inStride[0]);
+        for (size_t index = 2; index < length.size(); index++) colPlan->inStride.push_back(inStride[index]);
+
+        colPlan->iDist = rowPlan->oDist;
+
+        colPlan->outStride = colPlan->inStride;
+        colPlan->oDist = colPlan->iDist;
+    };
+    break;
+    case CS_3D_RTRT:
+    {
+        TreeNode *xyPlan = childNodes[0];
+        TreeNode *trans1Plan = childNodes[1];
+        TreeNode *zPlan = childNodes[2];
+        TreeNode *trans2Plan = childNodes[3];
+
+
+        size_t biggerDim = (length[0] * length[1]) > length[2] ? (length[0] * length[1]) : length[2];
+        size_t smallerDim = biggerDim == (length[0] * length[1]) ? length[2] : (length[0] * length[1]);
+        size_t padding = 0;
+        if (((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512))
+            padding = 64;
+
+        // B -> B
+        assert(xyPlan->obOut == OB_USER_OUT);
+        xyPlan->inStride = inStride;
+        xyPlan->iDist = iDist;
+
+        xyPlan->outStride = outStride;
+        xyPlan->oDist = oDist;
+
+        xyPlan->TraverseTreeAssignParamsLogicA();
+
+        // B -> T
+        assert(trans1Plan->obOut == OB_TEMP);
+        trans1Plan->inStride = xyPlan->outStride;
+        trans1Plan->iDist = xyPlan->oDist;
+
+        trans1Plan->outStride.push_back(1);
+        trans1Plan->outStride.push_back(trans1Plan->length[2] + padding);
+        trans1Plan->outStride.push_back(trans1Plan->length[0] * trans1Plan->outStride[1]);
+        trans1Plan->oDist = trans1Plan->length[1] * trans1Plan->outStride[2];
+
+        for (size_t index = 3; index < length.size(); index++)
+        {
+            trans1Plan->outStride.push_back(trans1Plan->oDist);
+            trans1Plan->oDist *= length[index];
+        }
+
+        // T -> T
+        assert(zPlan->obOut == OB_TEMP);
+        zPlan->inStride = trans1Plan->outStride;
+        zPlan->iDist = trans1Plan->oDist;
+
+        zPlan->outStride = zPlan->inStride;
+        zPlan->oDist = zPlan->iDist;
+
+        zPlan->TraverseTreeAssignParamsLogicA();
+
+        // T -> B
+        assert(trans2Plan->obOut == OB_USER_OUT);
+        trans2Plan->inStride = zPlan->outStride;
+        trans2Plan->iDist = zPlan->oDist;
+
+        trans2Plan->outStride = outStride;
+        trans2Plan->oDist = oDist;
+    }
+    break;
+    case CS_3D_RC:
+    case CS_3D_STRAIGHT:
+    {
+        TreeNode *xyPlan = childNodes[0];
+        TreeNode *zPlan = childNodes[1];
+
+        // B -> B
+        assert(xyPlan->obOut == OB_USER_OUT);
+        xyPlan->inStride = inStride;
+        xyPlan->iDist = iDist;
+
+        xyPlan->outStride = outStride;
+        xyPlan->oDist = oDist;
+
+        xyPlan->TraverseTreeAssignParamsLogicA();
+
+        // B -> B
+        assert(zPlan->obOut == OB_USER_OUT);
+        zPlan->inStride.push_back(inStride[2]);
+        zPlan->inStride.push_back(inStride[0]);
+        zPlan->inStride.push_back(inStride[1]);
+        for (size_t index = 3; index < length.size(); index++) zPlan->inStride.push_back(inStride[index]);
+
+        zPlan->iDist = xyPlan->oDist;
+
+        zPlan->outStride = zPlan->inStride;
+        zPlan->oDist = zPlan->iDist;
+    };
+    break;
+    default: return;
+
+    }
 }
 
 void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size_t &workBufSize)
 {
-	if (childNodes.size() == 0)
-	{
-		assert(length.size() == inStride.size());
-		assert(length.size() == outStride.size());
+    if (childNodes.size() == 0)
+    {
+        assert(length.size() == inStride.size());
+        assert(length.size() == outStride.size());
 
-		if (obOut == OB_TEMP) workBufSize = (oDist*batch) > workBufSize ? (oDist*batch) : workBufSize;
-		seq.push_back(this);
-	}
-	else
-	{
-		std::vector<TreeNode *>::iterator children_p;
-		for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
-		{
-			(*children_p)->TraverseTreeCollectLeafsLogicA(seq, workBufSize);
-		}
-	}
+        if (obOut == OB_TEMP) workBufSize = (oDist*batch) > workBufSize ? (oDist*batch) : workBufSize;
+        seq.push_back(this);
+    }
+    else
+    {
+        std::vector<TreeNode *>::iterator children_p;
+        for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
+        {
+            (*children_p)->TraverseTreeCollectLeafsLogicA(seq, workBufSize);
+        }
+    }
 }
 
 
 void TreeNode::Print(int indent)
 {
-	std::string indentStr;
-	int i = indent;
-	while (i--) indentStr += "    ";
+    std::string indentStr;
+    int i = indent;
+    while (i--) indentStr += "    ";
 
-	std::cout << std::endl << indentStr.c_str();
-	std::cout << "dimension: " << dimension;
-	std::cout << std::endl << indentStr.c_str();
-	std::cout << "batch: " << batch;
-	std::cout << std::endl << indentStr.c_str();
-	std::cout << "length: " << length[0];
-	for (size_t i = 1; i < length.size(); i++)
-		std::cout << ", " << length[i];
+    std::cout << std::endl << indentStr.c_str();
+    std::cout << "dimension: " << dimension;
+    std::cout << std::endl << indentStr.c_str();
+    std::cout << "batch: " << batch;
+    std::cout << std::endl << indentStr.c_str();
+    std::cout << "length: " << length[0];
+    for (size_t i = 1; i < length.size(); i++)
+        std::cout << ", " << length[i];
 
-	std::cout << std::endl << indentStr.c_str() << "iStrides: ";
-	for (size_t i = 0; i < inStride.size(); i++)
-		std::cout << inStride[i] << ", ";
-	std::cout << iDist;
+    std::cout << std::endl << indentStr.c_str() << "iStrides: ";
+    for (size_t i = 0; i < inStride.size(); i++)
+        std::cout << inStride[i] << ", ";
+    std::cout << iDist;
 
-	std::cout << std::endl << indentStr.c_str() << "oStrides: ";
-	for (size_t i = 0; i < outStride.size(); i++)
-		std::cout << outStride[i] << ", ";
-	std::cout << oDist;
+    std::cout << std::endl << indentStr.c_str() << "oStrides: ";
+    for (size_t i = 0; i < outStride.size(); i++)
+        std::cout << outStride[i] << ", ";
+    std::cout << oDist;
 
-	std::cout << std::endl << indentStr.c_str();
-	std::cout << ((placement == rocfft_placement_inplace) ? "inplace" : "not inplace") << "  ";
-	switch(inArrayType)
-	{
-        case rocfft_array_type_complex_interleaved:	std::cout << "complex interleaved"; break;
-        case rocfft_array_type_complex_planar:		std::cout << "complex planar"; break;
-        case rocfft_array_type_real:			std::cout << "real"; break;
-        case rocfft_array_type_hermitian_interleaved:	std::cout << "hermitian interleaved"; break;
-        case rocfft_array_type_hermitian_planar:	std::cout << "hermitian planar"; break;
-	}
-	std::cout << " -> ";
-	switch(outArrayType)
-	{
-        case rocfft_array_type_complex_interleaved:	std::cout << "complex interleaved"; break;
-        case rocfft_array_type_complex_planar:		std::cout << "complex planar"; break;
-        case rocfft_array_type_real:			std::cout << "real"; break;
-        case rocfft_array_type_hermitian_interleaved:	std::cout << "hermitian interleaved"; break;
-        case rocfft_array_type_hermitian_planar:	std::cout << "hermitian planar"; break;
-	}
-	std::cout << std::endl << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str();
-	std::cout << std::endl << indentStr.c_str() << "TTD: " << transTileDir;
-	std::cout << std::endl << indentStr.c_str() << "large1D: " << large1D << std::endl << indentStr.c_str();
+    std::cout << std::endl << indentStr.c_str();
+    std::cout << ((placement == rocfft_placement_inplace) ? "inplace" : "not inplace") << "  ";
+    switch(inArrayType)
+    {
+        case rocfft_array_type_complex_interleaved:    std::cout << "complex interleaved"; break;
+        case rocfft_array_type_complex_planar:        std::cout << "complex planar"; break;
+        case rocfft_array_type_real:            std::cout << "real"; break;
+        case rocfft_array_type_hermitian_interleaved:    std::cout << "hermitian interleaved"; break;
+        case rocfft_array_type_hermitian_planar:    std::cout << "hermitian planar"; break;
+    }
+    std::cout << " -> ";
+    switch(outArrayType)
+    {
+        case rocfft_array_type_complex_interleaved:    std::cout << "complex interleaved"; break;
+        case rocfft_array_type_complex_planar:        std::cout << "complex planar"; break;
+        case rocfft_array_type_real:            std::cout << "real"; break;
+        case rocfft_array_type_hermitian_interleaved:    std::cout << "hermitian interleaved"; break;
+        case rocfft_array_type_hermitian_planar:    std::cout << "hermitian planar"; break;
+    }
+    std::cout << std::endl << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str();
+    std::cout << std::endl << indentStr.c_str() << "TTD: " << transTileDir;
+    std::cout << std::endl << indentStr.c_str() << "large1D: " << large1D << std::endl << indentStr.c_str();
 
-	if (obIn == OB_USER_IN) std::cout << "A -> ";
-	else if (obIn == OB_USER_OUT) std::cout << "B -> ";
-	else if (obIn == OB_TEMP) std::cout << "T -> ";
-	else std::cout << "ERR -> ";
+    if (obIn == OB_USER_IN) std::cout << "A -> ";
+    else if (obIn == OB_USER_OUT) std::cout << "B -> ";
+    else if (obIn == OB_TEMP) std::cout << "T -> ";
+    else std::cout << "ERR -> ";
 
-	if (obOut == OB_USER_IN) std::cout << "A";
-	else if (obOut == OB_USER_OUT) std::cout << "B";
-	else if (obOut == OB_TEMP) std::cout << "T";
-	else std::cout << "ERR";
+    if (obOut == OB_USER_IN) std::cout << "A";
+    else if (obOut == OB_USER_OUT) std::cout << "B";
+    else if (obOut == OB_TEMP) std::cout << "T";
+    else std::cout << "ERR";
 
-	std::cout << std::endl;
+    std::cout << std::endl;
 
-	if(childNodes.size())
-	{
-		std::vector<TreeNode *>::iterator children_p;
-		for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
-		{
-			(*children_p)->Print(indent+1);
-		}
-	}
+    if(childNodes.size())
+    {
+        std::vector<TreeNode *>::iterator children_p;
+        for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
+        {
+            (*children_p)->Print(indent+1);
+        }
+    }
 }
 
 
 void ProcessNode(ExecPlan &execPlan)
 {
-	assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->dimension);
+    assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->dimension);
 
-	if (execPlan.rootPlan->placement == rocfft_placement_inplace)
-		assert(execPlan.rootPlan->inArrayType == execPlan.rootPlan->outArrayType);
+    if (execPlan.rootPlan->placement == rocfft_placement_inplace)
+        assert(execPlan.rootPlan->inArrayType == execPlan.rootPlan->outArrayType);
 
-	execPlan.rootPlan->RecursiveBuildTree();
-	OperatingBuffer flipIn, flipOut;
-	execPlan.rootPlan->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
-	execPlan.rootPlan->TraverseTreeAssignPlacementsLogicA(execPlan.rootPlan->inArrayType, execPlan.rootPlan->outArrayType);
-	execPlan.rootPlan->TraverseTreeAssignParamsLogicA();
+    execPlan.rootPlan->RecursiveBuildTree();
+    OperatingBuffer flipIn, flipOut;
+    execPlan.rootPlan->TraverseTreeAssignBuffersLogicA(flipIn, flipOut);
+    execPlan.rootPlan->TraverseTreeAssignPlacementsLogicA(execPlan.rootPlan->inArrayType, execPlan.rootPlan->outArrayType);
+    execPlan.rootPlan->TraverseTreeAssignParamsLogicA();
 
-	execPlan.rootPlan->TraverseTreeCollectLeafsLogicA(execPlan.execSeq, execPlan.workBufSize);
+    execPlan.rootPlan->TraverseTreeCollectLeafsLogicA(execPlan.execSeq, execPlan.workBufSize);
 }
 
 
 void PrintNode(ExecPlan &execPlan)
 {
-	std::cout << "*******************************************************************************" << std::endl;
+    std::cout << "*******************************************************************************" << std::endl;
 
-	size_t N = 1;
-	for (size_t i = 0; i < execPlan.rootPlan->length.size(); i++) N *= execPlan.rootPlan->length[i];
-	std::cout << "Work buffer size: " << execPlan.workBufSize << std::endl;
-	std::cout << "Work buffer ratio: " << (double)execPlan.workBufSize/(double)N << std::endl;
+    size_t N = 1;
+    for (size_t i = 0; i < execPlan.rootPlan->length.size(); i++) N *= execPlan.rootPlan->length[i];
+    std::cout << "Work buffer size: " << execPlan.workBufSize << std::endl;
+    std::cout << "Work buffer ratio: " << (double)execPlan.workBufSize/(double)N << std::endl;
 
-	if (execPlan.execSeq.size() > 1)
-	{
-		std::vector<TreeNode *>::iterator prev_p = execPlan.execSeq.begin();
-		std::vector<TreeNode *>::iterator curr_p = prev_p + 1;
-		while (curr_p != execPlan.execSeq.end())
-		{
-			if ((*curr_p)->placement == rocfft_placement_inplace)
-			{
-				for (size_t i = 0; i < ((*curr_p)->inStride.size()); i++)
-				{
-					if (((*curr_p)->inStride[i]) != ((*curr_p)->outStride[i]))
-						std::cout << "error in stride assignments" << std::endl;
-					if (((*curr_p)->iDist) != ((*curr_p)->oDist))
-						std::cout << "error in dist assignments" << std::endl;
-				}
+    if (execPlan.execSeq.size() > 1)
+    {
+        std::vector<TreeNode *>::iterator prev_p = execPlan.execSeq.begin();
+        std::vector<TreeNode *>::iterator curr_p = prev_p + 1;
+        while (curr_p != execPlan.execSeq.end())
+        {
+            if ((*curr_p)->placement == rocfft_placement_inplace)
+            {
+                for (size_t i = 0; i < ((*curr_p)->inStride.size()); i++)
+                {
+                    if (((*curr_p)->inStride[i]) != ((*curr_p)->outStride[i]))
+                        std::cout << "error in stride assignments" << std::endl;
+                    if (((*curr_p)->iDist) != ((*curr_p)->oDist))
+                        std::cout << "error in dist assignments" << std::endl;
+                }
 
-			}
+            }
 
-			if ((*prev_p)->obOut != (*curr_p)->obIn)
-				std::cout << "error in buffer assignments" << std::endl;
+            if ((*prev_p)->obOut != (*curr_p)->obIn)
+                std::cout << "error in buffer assignments" << std::endl;
 
-			prev_p = curr_p;
-			curr_p++;
-		}
-	}
+            prev_p = curr_p;
+            curr_p++;
+        }
+    }
 
-	execPlan.rootPlan->Print();
+    execPlan.rootPlan->Print();
 
-	std::cout << "===============================================================================" << std::endl << std::endl;
+    std::cout << "===============================================================================" << std::endl << std::endl;
 }
 
 

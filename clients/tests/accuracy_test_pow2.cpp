@@ -41,7 +41,7 @@ protected:
     }
 };
 
-size_t N_range[] = {small2, normal2, large2, dlarge2, 65536, 2, 4, 8, 16, 256};
+size_t N_range[] = {2, 4, 8, 16, 32, 128, 256, 512, 1024, 2048, 4096 /*, large2, dlarge2, 65536 */ };
 
 size_t batch_range[] = {1}; 
 
@@ -79,7 +79,7 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t N, size_t batch
     complex_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, placeness );
 }
 
-TEST_P(accuracy_test_pow2, normal_1D_complex_interleaved_to_complex_interleaved)
+TEST_P(accuracy_test_pow2, normal_1D_complex_interleaved_to_complex_interleaved_single_precision)
 {
     size_t N = std::get<0>(GetParam());
     size_t batch = std::get<1>(GetParam());
@@ -87,6 +87,17 @@ TEST_P(accuracy_test_pow2, normal_1D_complex_interleaved_to_complex_interleaved)
     rocfft_transform_type  transform_type = std::get<3>(GetParam());
 
     try { normal_1D_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(N, batch, placeness, transform_type); }
+    catch( const std::exception& err ) { handle_exception(err);    }
+}
+
+TEST_P(accuracy_test_pow2, normal_1D_complex_interleaved_to_complex_interleaved_double_precision)
+{
+    size_t N = std::get<0>(GetParam());
+    size_t batch = std::get<1>(GetParam());
+    rocfft_result_placement placeness = std::get<2>(GetParam());
+    rocfft_transform_type  transform_type = std::get<3>(GetParam());
+
+    try { normal_1D_complex_interleaved_to_complex_interleaved< double,  fftw_complex >(N, batch, placeness, transform_type); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 

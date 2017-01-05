@@ -10,12 +10,14 @@
 #include "plan.h"
 #include "repo.h"
 
+//Implementation of Class Repo
 
 void Repo::CreatePlan(rocfft_plan plan)
 {
 	Repo &repo = Repo::GetRepo();
+    //see if the repo has already stored the plan or not 
 	std::map<rocfft_plan_t, ExecPlan>::const_iterator it = repo.planUnique.find(*plan);
-	if(it == repo.planUnique.end())
+	if(it == repo.planUnique.end())//if not found
 	{
 		TreeNode *rootPlan = TreeNode::CreateNode();
 
@@ -43,16 +45,15 @@ void Repo::CreatePlan(rocfft_plan plan)
 
 		ExecPlan execPlan;
 		execPlan.rootPlan = rootPlan;
-		ProcessNode(execPlan);
+		ProcessNode(execPlan); //TODO: more descriptions are needed
 
-		PlanPow2(execPlan);
-
-		planUnique[*plan] = execPlan;
-		execLookup[plan] = execPlan;
+		PlanPow2(execPlan); // PlanPow2 enqueues the GPU kernels by function pointers but does not execute kernels
+		planUnique[*plan] = execPlan; //add this plan into member planUnique (type of map)
+		execLookup[plan] = execPlan; // add this plan into member execLookup (type of map)
 	}
-	else
+	else //find the stored plan
 	{
-		execLookup[plan] = it->second;
+		execLookup[plan] = it->second; //retrieve this plan and put it into member execLookup
 	}
 }
 

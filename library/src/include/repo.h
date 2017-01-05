@@ -6,33 +6,10 @@
 #ifndef REPO_H
 #define REPO_H
 
+#include "tree_node.h"
 #include <map>
 
-extern "C"
-{
-typedef void (*DevFnCall)(void *, void *);
-}
 
-struct GridParam
-{
-	size_t b_x, b_y, b_z;
-	size_t tpb_x, tpb_y, tpb_z;
-
-	GridParam() : b_x(1), b_y(1), b_z(1), tpb_x(1), tpb_y(1), tpb_z(1)
-	{}
-};
-
-struct ExecPlan
-{
-	TreeNode *rootPlan;
-	std::vector<TreeNode *> execSeq;
-	std::vector<DevFnCall> devFnCall;
-	std::vector<GridParam> gridParam;
-	size_t workBufSize;
-
-	ExecPlan() : rootPlan(nullptr), workBufSize(0)
-	{}
-};
 
 class Repo
 {
@@ -41,8 +18,8 @@ class Repo
 	std::map<rocfft_plan, ExecPlan> execLookup;
 
 public:
-	Repo(const Repo &) = delete;
-	Repo &operator=(const Repo &) = delete;
+	Repo(const Repo &) = delete; // delete is a c++11 feature, prohibit copy constructor 
+	Repo &operator=(const Repo &) = delete; //prohibit assignment operator
 
 	static Repo &GetRepo()
 	{
@@ -67,10 +44,6 @@ public:
 	
 };
 
-void ProcessNode(ExecPlan &execPlan);
-void PrintNode(ExecPlan &execPlan);
-
-void PlanPow2(ExecPlan &execPlan);
 
 #endif // REPO_H
 
