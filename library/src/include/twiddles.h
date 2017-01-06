@@ -9,6 +9,8 @@
 #include <math.h>
 #include "rocfft.h"
 
+#define TWIDDLE_DEE 8
+
 // Pow of 2 radix table, implemented in pow2.h
 const std::vector<size_t> radices_pow2_1 = {1};
 const std::vector<size_t> radices_pow2_2 = {2};
@@ -23,6 +25,29 @@ const std::vector<size_t> radices_pow2_512 = {8, 8, 8};
 const std::vector<size_t> radices_pow2_1024 = {8, 8, 4, 4};
 const std::vector<size_t> radices_pow2_2048 = {8, 8, 8, 4};
 const std::vector<size_t> radices_pow2_4096 = {16, 16, 16};
+
+
+
+//	help function: Find the smallest power of 2 that is >= n; return its power of 2 factor
+//	e.g., CeilPo2 (7) returns 3 : (2^3 >= 7)
+static inline size_t CeilPo2 (size_t n)
+{
+	size_t v = 1, t = 0;
+	while(v < n)
+	{
+		v <<= 1;
+		t++;
+	}
+
+	return t;
+}
+
+
+template<typename T>
+static inline T DivRoundingUp(T a, T b)
+{
+    return (a + (b -1))/b;
+}
 
 
 // Twiddle factors table
@@ -91,6 +116,66 @@ class TwiddleTable
 
         return wc;
     }
+};
+
+
+
+// Twiddle factors table for large N > 4096
+// used in 3-step algorithm
+template <typename T>
+class TwiddleTableLarge
+{
+    size_t N; // length
+	size_t X, Y;
+	size_t tableSize;
+	T *wc; // cosine, sine arrays
+
+	public:
+	TwiddleTableLarge(size_t length) : N(length)
+	{
+		X = size_t(1) << TWIDDLE_DEE;//2*8 = 256
+		Y = DivRoundingUp<size_t> (CeilPo2(N), TWIDDLE_DEE);
+		tableSize = X * Y;
+
+		// Allocate memory for the tables
+		wc = new T[tableSize];
+	}
+
+    ~TwiddleTableLarge()
+    {
+        // Free
+        delete[] wc;
+    }
+
+
+	T* GenerateTwiddleTable()
+	{
+		const double TWO_PI = -6.283185307179586476925286766559;
+
+		// Generate the table
+		size_t nt = 0;
+		double phi = TWO_PI / double (N);
+		for (size_t iY = 0; iY < Y; ++iY)
+		{
+			size_t i = size_t(1) << (iY * TWIDDLE_DEE);
+			for (size_t iX = 0; iX < X; ++iX)
+			{
+				size_t j = i * iX;
+
+				double c = cos(phi * j);
+				double s = sin(phi * j);
+
+				//if (fabs(c) < 1.0E-12)	c = 0.0;
+				//if (fabs(s) < 1.0E-12)	s = 0.0;
+
+                wc[nt].x   = c;
+                wc[nt].y   = s;
+                nt++;
+			}
+		}// end of for
+
+        return wc;
+	}
 };
 
 
