@@ -40,6 +40,8 @@ typedef enum hipfftType_t {
     HIPFFT_Z2Z = 0x69   // Double-complex to double-complex (interleaved)
 }hipfftType;
 
+#define HIPFFT_FORWARD -1
+#define HIPFFT_BACKWARD 1
 
 typedef struct hipfftHandle_t *hipfftHandle;
 

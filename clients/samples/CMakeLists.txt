@@ -85,3 +85,4 @@ find_package( rocfft REQUIRED CONFIG )
 
 # Build into subdirectories
 add_subdirectory( fixed-16 )
+add_subdirectory( fixed-16-hip )
