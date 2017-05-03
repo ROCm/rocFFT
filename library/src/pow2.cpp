@@ -494,7 +494,7 @@ void PlanPow2(ExecPlan &execPlan)
                     }
                     else if(execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE)
                     {
-                        ptr = &FN_PRFX(transpose_var1_sp);
+                        ptr = &FN_PRFX(transpose_var1_dp);
                         gp.tpb_x = 16;
                         gp.tpb_y = 16;
                         if(execPlan.execSeq[i]->transTileDir == TTD_IP_HOR)
