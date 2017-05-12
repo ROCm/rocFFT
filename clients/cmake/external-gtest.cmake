@@ -27,7 +27,7 @@ if( MSVC )
   list( APPEND gtest_cmake_args -Dgtest_force_shared_crt=ON )
 else( )
   # GTEST_USE_OWN_TR1_TUPLE necessary to compile with hipcc
-  set( EXTRA_FLAGS "-DGTEST_USE_OWN_TR1_TUPLE=1" )
+  set( EXTRA_FLAGS "-std=c++11 -DGTEST_USE_OWN_TR1_TUPLE=1" )
 
   if( BUILD_64 )
     set( EXTRA_FLAGS "${EXTRA_FLAGS} -m64" )

@@ -79,11 +79,11 @@ set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 set( Boost_USE_MULTITHREADED ON )
 set( Boost_DETAILED_FAILURE_MSG ON )
 set( Boost_ADDITIONAL_VERSIONS 1.60.0 1.60 )
-set( Boost_USE_STATIC_LIBS ON )
+set( Boost_USE_STATIC_LIBS OFF )
 find_package( Boost REQUIRED COMPONENTS program_options )
 
 if( NOT Boost_FOUND )
-	set( Boost_USE_STATIC_LIBS OFF )
+	set( Boost_USE_STATIC_LIBS ON )
 	find_package( Boost REQUIRED COMPONENTS program_options )
 endif( )
 
@@ -105,7 +105,7 @@ set(rocfft_selftest_includes
 add_executable( rocfft-selftest ${rocfft_selftest_source} ${rocfft_selftest_includes} )
 
 # Try to test for specific compiler features if cmake version is recent enough
-if( CMAKE_VERSION VERSION_GREATER "3.0" )
+if( ( CMAKE_VERSION VERSION_GREATER "3.0" ) AND (PLATFORM_NAME STREQUAL "AMD") )
   target_compile_features( rocfft-selftest PRIVATE cxx_static_assert cxx_nullptr cxx_lambdas cxx_auto_type )
 else( )
   # Otherwise, just try to compile the library with a standards flag
