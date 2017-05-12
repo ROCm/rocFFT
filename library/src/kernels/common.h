@@ -11,15 +11,32 @@
 
 #include "vector_types.h"
 
-__device__ float2 operator-(const float2 &a, const float2 &b) { return make_float2(a.x-b.x, a.y-b.y); }
-__device__ float2 operator+(const float2 &a, const float2 &b) { return make_float2(a.x+b.x, a.y+b.y); }
-__device__ float2 operator*(const float &a, const float2 &b) { return make_float2(a*b.x, a*b.y); }
+
+__device__ inline float2 operator-(const float2 &a, const float2 &b) { return make_float2(a.x-b.x, a.y-b.y); }
+__device__ inline float2 operator+(const float2 &a, const float2 &b) { return make_float2(a.x+b.x, a.y+b.y); }
+__device__ inline float2 operator*(const float &a, const float2 &b) { return make_float2(a*b.x, a*b.y); }
+
+__device__ inline double2 operator-(const double2 &a, const double2 &b) { return make_double2(a.x-b.x, a.y-b.y); }
+__device__ inline double2 operator+(const double2 &a, const double2 &b) { return make_double2(a.x+b.x, a.y+b.y); }
+__device__ inline double2 operator*(const double &a, const double2 &b) { return make_double2(a*b.x, a*b.y); }
 
 #endif
 
 
 template<class T>
 struct real_type;
+
+template<>
+struct real_type<float4>
+{
+    typedef float type;
+};
+
+template<>
+struct real_type<double4>
+{
+    typedef double type;
+};
 
 template<>
 struct real_type<float2>
@@ -59,6 +76,44 @@ template<class T>
 using vector4_type_t = typename vector4_type<T>::type;
 
 
+template<typename T>
+__device__ inline T lib_make_vector2(real_type_t<T> v0, real_type_t<T> v1);
+
+template<>
+__device__ inline float2 lib_make_vector2(float v0, float v1)
+#ifdef __NVCC__
+	{ return make_float2(v0, v1); }
+#else
+	{ return float2(v0, v1); }
+#endif
+
+template<>
+__device__ inline double2 lib_make_vector2(double v0, double v1)
+#ifdef __NVCC__
+	{ return make_double2(v0, v1); }
+#else
+	{ return double2(v0, v1); }
+#endif
+
+template<typename T>
+__device__ inline T lib_make_vector4(real_type_t<T> v0, real_type_t<T> v1, real_type_t<T> v2, real_type_t<T> v3);
+
+template<>
+__device__ inline float4 lib_make_vector4(float v0, float v1, float v2, float v3)
+#ifdef __NVCC__
+	{ return make_float4(v0, v1, v2, v3); }
+#else
+	{ return float4(v0, v1, v2, v3); }
+#endif
+
+template<>
+__device__ inline double4 lib_make_vector4(double v0, double v1, double v2, double v3)
+#ifdef __NVCC__
+	{ return make_double4(v0, v1, v2, v3); }
+#else
+	{ return double4(v0, v1, v2, v3); }
+#endif
+
 /* example of using vector4_type_t */
 //vector4_type_t<float2> float4_scalar;
 //vector4_type_t<double2> double4_scalar;
@@ -87,21 +142,6 @@ using vector2_type_t = typename vector2_type<T>::type;
 //vector2_type_t<rocfft_precision_single> float2_scalar;
 //vector2_type_t<rocfft_precision_double> double2_scalar;
         
-
-
-#ifdef __NVCC__
-#define MAKE_FLOAT2 make_float2
-#define MAKE_FLOAT4 make_float4
-#else
-#define MAKE_FLOAT2 float2
-#define MAKE_FLOAT4 float4
-
-
-//TODO: temporary solution may not nvcc compatible
-#define MAKE_COMPLEX T
-
-#endif
-
 
 
 #endif // COMMON_H

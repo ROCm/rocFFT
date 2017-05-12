@@ -207,8 +207,8 @@ void fft_8(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uint
 		if(sb == SB_UNIT)
 		{		
 		    vector4_type_t<T>  *lwbv = (vector4_type_t<T>  *)lwb_out;	
-		    lwbv[me + 0] = vector4_type_t<T>(  X0.x,X0.y,X2.x,X2.y);
-		    lwbv[me + 2] = vector4_type_t<T>(  X1.x,X1.y,X3.x,X3.y);
+		    lwbv[me + 0] = lib_make_vector4< vector4_type_t<T> >(  X0.x,X0.y,X2.x,X2.y);
+		    lwbv[me + 2] = lib_make_vector4< vector4_type_t<T> >(  X1.x,X1.y,X3.x,X3.y);
 		}		
 		else		
 		{
@@ -445,10 +445,10 @@ void fft_32(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const uin
 		if(sb == SB_UNIT)
 		{			
 		    vector4_type_t<T>  *lwbv = (vector4_type_t<T>  *)lwb_out;	
-		    lwbv[me +  0] = vector4_type_t<T>(  X0.x,X0.y,X4.x,X4.y);
-		    lwbv[me +  4] = vector4_type_t<T>(  X1.x,X1.y,X5.x,X5.y);	
-		    lwbv[me +  8] = vector4_type_t<T>(  X2.x,X2.y,X6.x,X6.y);
-		    lwbv[me + 12] = vector4_type_t<T>(  X3.x,X3.y,X7.x,X7.y);			
+		    lwbv[me +  0] = lib_make_vector4< vector4_type_t<T> >(  X0.x,X0.y,X4.x,X4.y);
+		    lwbv[me +  4] = lib_make_vector4< vector4_type_t<T> >(  X1.x,X1.y,X5.x,X5.y);	
+		    lwbv[me +  8] = lib_make_vector4< vector4_type_t<T> >(  X2.x,X2.y,X6.x,X6.y);
+		    lwbv[me + 12] = lib_make_vector4< vector4_type_t<T> >(  X3.x,X3.y,X7.x,X7.y);			
 		}
 		else
 		{
@@ -811,10 +811,10 @@ void fft_128(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const ui
 		if(sb == SB_UNIT)
 		{
 		    vector4_type_t<T>  *lwbv = (vector4_type_t<T>  *)lwb_out;	
-		    lwbv[me +  0] = vector4_type_t<T>(  X0.x,X0.y,X4.x,X4.y);
-		    lwbv[me + 16] = vector4_type_t<T>(  X1.x,X1.y,X5.x,X5.y);	
-		    lwbv[me + 32] = vector4_type_t<T>(  X2.x,X2.y,X6.x,X6.y);
-		    lwbv[me + 48] = vector4_type_t<T>(  X3.x,X3.y,X7.x,X7.y);	
+		    lwbv[me +  0] = lib_make_vector4< vector4_type_t<T> >(  X0.x,X0.y,X4.x,X4.y);
+		    lwbv[me + 16] = lib_make_vector4< vector4_type_t<T> >(  X1.x,X1.y,X5.x,X5.y);	
+		    lwbv[me + 32] = lib_make_vector4< vector4_type_t<T> >(  X2.x,X2.y,X6.x,X6.y);
+		    lwbv[me + 48] = lib_make_vector4< vector4_type_t<T> >(  X3.x,X3.y,X7.x,X7.y);	
 		}
 		else
 		{
@@ -1537,10 +1537,10 @@ void fft_1024(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const u
 	if(sb == SB_UNIT)	
 	{
 		vector4_type_t<T>  *lwbv = (vector4_type_t<T>  *)lwb_out;	
-		lwbv[me +   0] = vector4_type_t<T>(  X0.x,X0.y,X4.x,X4.y);
-		lwbv[me + 128] = vector4_type_t<T>(  X1.x,X1.y,X5.x,X5.y);	
-		lwbv[me + 256] = vector4_type_t<T>(  X2.x,X2.y,X6.x,X6.y);
-		lwbv[me + 384] = vector4_type_t<T>(  X3.x,X3.y,X7.x,X7.y);			
+		lwbv[me +   0] = lib_make_vector4< vector4_type_t<T> >(  X0.x,X0.y,X4.x,X4.y);
+		lwbv[me + 128] = lib_make_vector4< vector4_type_t<T> >(  X1.x,X1.y,X5.x,X5.y);	
+		lwbv[me + 256] = lib_make_vector4< vector4_type_t<T> >(  X2.x,X2.y,X6.x,X6.y);
+		lwbv[me + 384] = lib_make_vector4< vector4_type_t<T> >(  X3.x,X3.y,X7.x,X7.y);			
 	}	
 	else
 	{
@@ -1844,10 +1844,10 @@ void fft_2048(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const u
 	if(sb == SB_UNIT)		
 	{
 		vector4_type_t<T>  *lwbv = (vector4_type_t<T>  *)lwb_out;	
-		lwbv[me +   0] = vector4_type_t<T>(  X0.x,X0.y,X4.x,X4.y);
-		lwbv[me + 256] = vector4_type_t<T>(  X1.x,X1.y,X5.x,X5.y);	
-		lwbv[me + 512] = vector4_type_t<T>(  X2.x,X2.y,X6.x,X6.y);
-		lwbv[me + 768] = vector4_type_t<T>(  X3.x,X3.y,X7.x,X7.y);			
+		lwbv[me +   0] = lib_make_vector4< vector4_type_t<T> >(  X0.x,X0.y,X4.x,X4.y);
+		lwbv[me + 256] = lib_make_vector4< vector4_type_t<T> >(  X1.x,X1.y,X5.x,X5.y);	
+		lwbv[me + 512] = lib_make_vector4< vector4_type_t<T> >(  X2.x,X2.y,X6.x,X6.y);
+		lwbv[me + 768] = lib_make_vector4< vector4_type_t<T> >(  X3.x,X3.y,X7.x,X7.y);			
 	}
 	else
 	{

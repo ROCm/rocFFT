@@ -475,7 +475,9 @@ transpose_var1( hipLaunchParm lp, T *twiddles_large, T* pmComplexIn, T* pmComple
    const Tile wgTileExtent = { localExtent.x * reShapeFactor, localExtent.y / reShapeFactor };
    const size_t numGroupsY_1 = numGroupsY;
    // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
-   __shared__ T lds[ 64 ][ 64 ];
+
+	constexpr size_t TWIDTH = 64/(sizeof(T)/8);
+   __shared__ T lds[ TWIDTH ][ TWIDTH ];
 
    size_t currDimIndex;
    size_t rowSizeinUnits;

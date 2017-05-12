@@ -13,7 +13,7 @@ TWLstep2(T *twiddles, size_t u)
 	T result = twiddles[j];
 	u >>= 8;
 	j = u & 255;
-	result = MAKE_COMPLEX((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+	result = lib_make_vector2<T>((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
 		(result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
 	return result;
 }
@@ -26,11 +26,11 @@ TWLstep3(T *twiddles, size_t u)
 	T result = twiddles[j];
 	u >>= 8;
 	j = u & 255;
-	result = MAKE_COMPLEX((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+	result = lib_make_vector2<T>((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
 		(result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
 	u >>= 8;
 	j = u & 255;
-	result = MAKE_COMPLEX((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
+	result = lib_make_vector2<T>((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
 		(result.y * twiddles[512 + j].x + result.x * twiddles[512 + j].y));
 	return result;
 }
@@ -43,15 +43,15 @@ TWLstep4(T *twiddles, size_t u)
 	T result = twiddles[j];
 	u >>= 8;
 	j = u & 255;
-	result = MAKE_COMPLEX((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+	result = lib_make_vector2<T>((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
 		(result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
 	u >>= 8;
 	j = u & 255;
-	result = MAKE_COMPLEX((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
+	result = lib_make_vector2<T>((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
 		(result.y * twiddles[512 + j].x + result.x * twiddles[512 + j].y));
 	u >>= 8;
 	j = u & 255;
-	result = MAKE_COMPLEX((result.x * twiddles[768 + j].x - result.y * twiddles[768 + j].y),
+	result = lib_make_vector2<T>((result.x * twiddles[768 + j].x - result.y * twiddles[768 + j].y),
 		(result.y * twiddles[768 + j].x + result.x * twiddles[768 + j].y));
 	return result;
 }
@@ -383,10 +383,10 @@ lfft_128(T *twiddles_128, T *twiddles_large, T *lds, uint me, uint b)
 	
 	{
 		vector4_type_t<T>  *ldsv = (vector4_type_t<T>  *)lds;	
-		ldsv[me +  0] = vector4_type_t<T>(  X0.x,X0.y,X4.x,X4.y);
-		ldsv[me + 16] = vector4_type_t<T>(  X1.x,X1.y,X5.x,X5.y);	
-		ldsv[me + 32] = vector4_type_t<T>(  X2.x,X2.y,X6.x,X6.y);
-		ldsv[me + 48] = vector4_type_t<T>(  X3.x,X3.y,X7.x,X7.y);			
+		ldsv[me +  0] = lib_make_vector4< vector4_type_t<T> >(  X0.x,X0.y,X4.x,X4.y);
+		ldsv[me + 16] = lib_make_vector4< vector4_type_t<T> >(  X1.x,X1.y,X5.x,X5.y);	
+		ldsv[me + 32] = lib_make_vector4< vector4_type_t<T> >(  X2.x,X2.y,X6.x,X6.y);
+		ldsv[me + 48] = lib_make_vector4< vector4_type_t<T> >(  X3.x,X3.y,X7.x,X7.y);			
 	}	
 	
 }
