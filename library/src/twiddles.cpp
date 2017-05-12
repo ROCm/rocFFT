@@ -8,6 +8,22 @@
 
 std::vector<size_t> get_radices(size_t N)
 {
+	// Pow of 2 radix table, implemented in pow2.h
+	const std::vector<size_t> radices_pow2_1 = {1};
+	const std::vector<size_t> radices_pow2_2 = {2};
+	const std::vector<size_t> radices_pow2_4 = {2, 2};
+	const std::vector<size_t> radices_pow2_8 = {4, 2};
+	const std::vector<size_t> radices_pow2_16 = {4, 4};
+	const std::vector<size_t> radices_pow2_32 = {8, 4};
+	const std::vector<size_t> radices_pow2_64 = {4, 4, 4};
+	const std::vector<size_t> radices_pow2_128 = {8, 4, 4};
+	const std::vector<size_t> radices_pow2_256 = {4, 4, 4, 4};
+	const std::vector<size_t> radices_pow2_512 = {8, 8, 8};
+	const std::vector<size_t> radices_pow2_1024 = {8, 8, 4, 4};
+	const std::vector<size_t> radices_pow2_2048 = {8, 8, 8, 4};
+	const std::vector<size_t> radices_pow2_4096 = {16, 16, 16};
+
+
     switch (N)
     {
         case 4096:     return radices_pow2_4096;

@@ -38,6 +38,8 @@ endfunction( )
 # Main
 # ########################################################################
 
+list(APPEND CUDA_NVCC_FLAGS "-std=c++11")
+
 include( GenerateExportHeader )
 add_compiler_export_flags( )
 
@@ -78,6 +80,7 @@ elseif(PLATFORM_NAME STREQUAL "NVIDIA")
   set(extra_cuda_include_dir ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc)
   CUDA_INCLUDE_DIRECTORIES(${hip_include_dir}
                            ${extra_cuda_include_dir}
+                           ${CMAKE_SOURCE_DIR}/src/include
                            ${CMAKE_SOURCE_DIR}/include
                            ${pwd_include_dir}
                           )
@@ -89,7 +92,7 @@ elseif(PLATFORM_NAME STREQUAL "NVIDIA")
 endif( )
 
 # Try to test for specific compiler features if cmake version is recent enough
-if( CMAKE_VERSION VERSION_GREATER "3.0" )
+if( ( CMAKE_VERSION VERSION_GREATER "3.0" ) AND (PLATFORM_NAME STREQUAL "AMD") )
   target_compile_features( rocfft PRIVATE cxx_static_assert cxx_nullptr cxx_lambdas cxx_auto_type )
 else( )
   # Otherwise, just try to compile the library with a standards flag

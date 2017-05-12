@@ -12,6 +12,8 @@ cmake_minimum_required( VERSION 2.8.12 )
 # This project may compile dependencies for clients
 project( rocfft-clients CXX C )
 
+set (CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
 include( build-options )
