@@ -3,8 +3,6 @@
  ******************************************************************************/
 
 
-#define __HIPCC__
-
 #include <vector>
 #include <iostream>
 #include <fftw3.h>

@@ -3,8 +3,6 @@
  ******************************************************************************/
 
 
-#define __HIPCC__
-
 #include <vector>
 #include <iostream>
 #include <math.h>

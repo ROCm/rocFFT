@@ -8,8 +8,6 @@
 
 #include "kernel_launch.h"
 
-#define __HIPCC__
-
 #include <iostream>
 #include "rocfft_hip.h"
 

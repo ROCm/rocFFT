@@ -7,7 +7,6 @@
 #include <math.h>
 #include <iostream>
 
-#define __HIPCC__
 #include <hip/hip_runtime_api.h>
 
 enum FftBasisChoice
