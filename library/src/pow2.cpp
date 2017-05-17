@@ -14,6 +14,10 @@
 #include "twiddles.h"
 #include "kernel_launch.h"
 
+#ifdef TMP_DEBUG
+#include <hip/hip_runtime.h>
+#endif
+
 /* this function is called during creation of plan of pow 2: enqueue the HIP kernels by function pointers*/
 void PlanPow2(ExecPlan &execPlan)
 {
@@ -564,8 +568,27 @@ void TransformPow2(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
 
                 data.gridParam = execPlan.gridParam[i];
 
+#ifdef TMP_DEBUG
+		size_t out_size = data.node->oDist * data.node->batch;
+		size_t out_size_bytes = out_size * 2 * sizeof(float);
+		void *dbg_out = malloc(out_size_bytes);
+		memset(dbg_out, 0x40, out_size_bytes);
+		if(data.node->placement != rocfft_placement_inplace)
+		{
+			hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
+		}
+		printf("in debug block of kernel: %zu\n", i);
+#endif
+
                 DevFnCall fn = execPlan.devFnCall[i];
                 fn(&data, &back);
+
+#ifdef TMP_DEBUG
+		hipDeviceSynchronize();
+		hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
+		printf("copied from device\n");
+		free(dbg_out);
+#endif
             }
         }
     }
