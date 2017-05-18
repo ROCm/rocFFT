@@ -98,7 +98,27 @@ if( DEFINED CMAKE_CXX_CLANG_TIDY )
   list( APPEND BASE_CMAKE_ARGS -DCMAKE_CXX_CLANG_TIDY=${CMAKE_CXX_CLANG_TIDY} )
 endif( )
 
+#setup kernel generator as an external project
+
+ExternalProject_Add(
+    rocfft-kernel-generator
+    SOURCE_DIR ${PROJECT_SOURCE_DIR}/library/src/generator
+    BINARY_DIR ${PROJECT_SOURCE_DIR}/library/src/generator
+    INSTALL_COMMAND ""
+    )
+
+add_custom_target(kernel_generator_run
+    COMMAND ./kernel_generator
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/library/src/generator
+    COMMENT "run the generator to generated reqired kernels in ${PROJECT_SOURCE_DIR}/library/src/generator"
+)
+
+
+
+#set up rocfft dependency
 if( BUILD_LIBRARY )
+
+  list(APPEND rocfft_dependencies)
   set( LIBRARY_CMAKE_ARGS
     ${BASE_CMAKE_ARGS}
     -DHOST_TOOLCHAIN_FILE=${HOST_TOOLCHAIN_FILE}
@@ -119,6 +139,8 @@ if( BUILD_LIBRARY )
     ${rocfft_INSTALL_COMMAND}
   )
 endif()
+
+add_dependencies(rocfft kernel_generator_run)
 
 # Build clients of the library
 if( BUILD_CLIENTS )

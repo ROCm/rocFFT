@@ -354,11 +354,6 @@ void PlanPowX(ExecPlan &execPlan)
                             case 25:        ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_25); break;
                             case 5:         ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_5); break;
 
-                            //pow7
-                            case 2401:      ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_2401); break;
-                            case 343:       ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_343); break;
-                            case 49:        ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_49); break;
-                            case 7:         ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_7); break;
                     }
 
                     execPlan.devFnCall.push_back(ptr);
