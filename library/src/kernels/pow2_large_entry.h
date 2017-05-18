@@ -510,30 +510,59 @@ transpose_var1( hipLaunchParm lp, T *twiddles_large, T* pmComplexIn, T* pmComple
          size_t gInd = xInd + rowSizeinUnits * yInd;
          tmp = tileIn[ gInd ];
          // Transpose of Tile data happens here
-		 
-	 if(twl == 3)
-	 {
-		 if(dir == -1)
-		 {
-			TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
-		 }
-		 else
-		 {
-			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
-		 }
-	 }
-	 else if(twl == 4)
-	 {
-		 if(dir == -1)
-		 {
-			TWIDDLE_STEP_MUL_FWD(TWLstep4, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
-		 }
-		 else
-		 {
-			TWIDDLE_STEP_MUL_INV(TWLstep4, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
-		 }
-	 }
-		 
+
+	if(ttd == TTD_IP_HOR)
+	{		 
+		if(twl == 3)
+		{
+			if(dir == -1)
+			{
+				TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
+			}
+			else
+			{
+				TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
+			}
+		}
+		else if(twl == 4)
+		{
+			if(dir == -1)
+			{
+				TWIDDLE_STEP_MUL_FWD(TWLstep4, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
+			}
+			else
+			{
+				TWIDDLE_STEP_MUL_INV(TWLstep4, twiddles_large, (groupIndex.x * wgTileExtent.x + xInd) * (currDimIndex * wgTileExtent.y * wgUnroll + yInd), tmp)
+			}
+		}
+	}
+	else
+	{
+		if(twl == 3)
+		{
+			if(dir == -1)
+			{
+				TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (groupIndex.x * wgTileExtent.y * wgUnroll + yInd) * (currDimIndex * wgTileExtent.x + xInd), tmp)
+			}
+			else
+			{
+				TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (groupIndex.x * wgTileExtent.y * wgUnroll + yInd) * (currDimIndex * wgTileExtent.x + xInd), tmp)
+			}
+		}
+		else if(twl == 4)
+		{
+			if(dir == -1)
+			{
+				TWIDDLE_STEP_MUL_FWD(TWLstep4, twiddles_large, (groupIndex.x * wgTileExtent.y * wgUnroll + yInd) * (currDimIndex * wgTileExtent.x + xInd), tmp)
+			}
+			else
+			{
+				TWIDDLE_STEP_MUL_INV(TWLstep4, twiddles_large, (groupIndex.x * wgTileExtent.y * wgUnroll + yInd) * (currDimIndex * wgTileExtent.x + xInd), tmp)
+			}
+		}
+	}
+
+ 
          lds[ xInd ][ yInd ] = tmp; 
       }
    

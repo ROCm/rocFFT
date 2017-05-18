@@ -6,6 +6,8 @@
 # PUBLIC keywords
 cmake_minimum_required( VERSION 2.8.12 )
 
+set (CMAKE_CXX_STANDARD 11)
+
 if( CMAKE_GENERATOR MATCHES "NMake" )
 	option( NMAKE_COMPILE_VERBOSE "Print VERBOSE compile/link msgs to the console" OFF )
 	if( NMAKE_COMPILE_VERBOSE )
@@ -20,6 +22,8 @@ endif( )
 if( NOT MSVC_IDE AND NOT CMAKE_BUILD_TYPE )
   set( CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
+
+set(CMAKE_CXX_FLAGS_DEBUG "-DDEBUG ${CMAKE_CXX_FLAGS_DEBUG}")
 
 # Check if cmake supports the new VERSION tag for project() commands
 # rocfft becomes the name of the project with a particular version

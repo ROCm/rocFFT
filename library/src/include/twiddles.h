@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <vector>
+#include <tuple>
 #include <math.h>
 #include "rocfft.h"
 
@@ -135,7 +136,7 @@ class TwiddleTableLarge
     }
 
 
-	T* GenerateTwiddleTable()
+	std::tuple<size_t, T*> GenerateTwiddleTable()
 	{
 		const double TWO_PI = -6.283185307179586476925286766559;
 
@@ -161,7 +162,7 @@ class TwiddleTableLarge
 			}
 		}// end of for
 
-        return wc;
+        	return std::make_tuple(tableSize, wc);
 	}
 };
 
