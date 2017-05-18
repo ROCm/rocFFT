@@ -15,9 +15,10 @@
 
 int main()
 {
+    // For size N <= 4096 
 	const size_t N = 16;
 
-	// FFTW reference compute
+	// FFTW reference compute 
 	// ==========================================
 
 	float2 cx[N];
@@ -67,8 +68,8 @@ int main()
 	hipMemcpy(&y[0], x, Nbytes, hipMemcpyDeviceToHost);
 
 
-        double error = 0;
-        size_t element_id = 0;
+    double error = 0;
+    size_t element_id = 0;
 	for (size_t i = 0; i < N; i++)
 	{
         printf("element %d: input %f, %f; FFTW result %f, %f; rocFFT result %f, %f \n", (int)i, cx[i].x, cx[i].y, out[i][0], out[i][1], y[i].x, y[i].y);
@@ -76,7 +77,7 @@ int main()
         if (err > error) { error = err; element_id = i;}
 	}
 
-        printf("max error of FFTW and rocFFT is %e at element %d\n", error/(fabs(out[element_id][0])+fabs(out[element_id][1])), (int)element_id);
+    printf("max error of FFTW and rocFFT is %e at element %d\n", error/(fabs(out[element_id][0])+fabs(out[element_id][1])), (int)element_id);
 
 	fftwf_destroy_plan(p);
 	fftwf_free(in); fftwf_free(out);

@@ -15,6 +15,7 @@
 #include "twiddles.h"
 #include "kernel_launch.h"
 #include "function_pool.h"
+
 #ifdef TMP_DEBUG
 #include <hip/hip_runtime.h>
 #endif
@@ -96,6 +97,7 @@ void PlanPowX(ExecPlan &execPlan)
                             case 5:         ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_5); break;
 
                     }
+                   
 
                     execPlan.devFnCall.push_back(ptr);
                     GridParam gp;
@@ -354,6 +356,11 @@ void PlanPowX(ExecPlan &execPlan)
                             case 25:        ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_25); break;
                             case 5:         ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_5); break;
 
+                            //pow7
+                            case 2401:      ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_2401); break;
+                            case 343:       ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_343); break;
+                            case 49:        ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_49); break;
+                            case 7:         ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_7); break;
                     }
 
                     execPlan.devFnCall.push_back(ptr);
@@ -627,7 +634,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
 #endif
 
                 DevFnCall fn = execPlan.devFnCall[i];
-                fn(&data, &back);
+                fn(&data, &back);//execution kernel here
 
 #ifdef TMP_DEBUG
 		hipDeviceSynchronize();

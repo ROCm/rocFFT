@@ -6,10 +6,12 @@
 #if !defined( TWIDDLES_H )
 #define TWIDDLES_H
 
+
 #include <cassert>
 #include <vector>
 #include <tuple>
 #include <math.h>
+#include <vector>
 #include "rocfft.h"
 
 #define TWIDDLE_DEE 8

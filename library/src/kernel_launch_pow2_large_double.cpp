@@ -5,7 +5,6 @@
 
 
 #include "kernel_launch.h"
-
 #include <iostream>
 #include "rocfft_hip.h"
 #include "./kernels/common.h" 
