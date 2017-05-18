@@ -188,7 +188,7 @@ void WriteCPUHeaders(std::vector<size_t> support_list)
     str += "#define kernel_launch_generator_H \n";
 
     str += "\n";
-    str += "\//single precision \n";
+    str += "//single precision \n";
     for(size_t i=0;i<support_list.size();i++){
 
         std::string str_len = std::to_string(support_list[i]);
@@ -197,7 +197,7 @@ void WriteCPUHeaders(std::vector<size_t> support_list)
     }
 
     str += "\n";
-    str += "\//double precision \n";
+    str += "//double precision \n";
     for(size_t i=0;i<support_list.size();i++){
 
         std::string str_len = std::to_string(support_list[i]);
@@ -243,7 +243,7 @@ void WriteCPUWrappersSingle(std::vector<size_t> support_list)
 
     str += "\n";
 
-    str += "\//single precision \n";
+    str += "//single precision \n";
     for(size_t i=0;i<support_list.size();i++){
 
         std::string str_len = std::to_string(support_list[i]);
@@ -281,7 +281,7 @@ void WriteCPUWrappersDouble(std::vector<size_t> support_list)
     }
 
     str += "\n";
-    str += "\//double precision \n";
+    str += "//double precision \n";
     for(size_t i=0;i<support_list.size();i++){
 
         std::string str_len = std::to_string(support_list[i]);
@@ -313,11 +313,11 @@ void WriteCPUFunctionPool(std::vector<size_t> support_list)
     std::string str;
 
     str += "\n";
-    str += "#include \<iostream\> \n";
+    str += "#include <iostream> \n";
     str += "#include \"../include/function_pool.h\" \n";
     str += "#include \"kernel_launch_generator.h\" \n";
     str += "\n";
-    str += "\//build hash map to store the function pointers\n";
+    str += "//build hash map to store the function pointers\n";
     str += "function_pool::function_pool()\n";
     str += "{\n";
     str += "\t//single precision \n";
@@ -398,10 +398,8 @@ int possible(std::vector<size_t> &support_list)
                 {
                     if( i*j*k <= upper_bound ) {
                         counter++;
-                        printf("Item %d: %d * %d * %d  = %d is below %d \n", (int)counter, (int)i, (int)j, (int)k, i*j*k, upper_bound);
-
+                        //printf("Item %d: %d * %d * %d  = %d is below %d \n", (int)counter, (int)i, (int)j, (int)k, i*j*k, upper_bound);
                         size_t len = i*j *k ;
-
                         support_list.push_back(len);
                     }
                 }
@@ -409,7 +407,7 @@ int possible(std::vector<size_t> &support_list)
         }
     }
 
-    printf("Total, there are %d valid combinations\n", counter);    
+    //printf("Total, there are %d valid combinations\n", counter);    
     return 0;
 }
 
@@ -418,29 +416,25 @@ int main()
 {
 
     std::string str;
-
+/*
     size_t rad = 10;
-
     for (size_t d = 0; d<2; d++)
     {
         bool fwd = d ? false : true;
         Butterfly<rocfft_precision_single> bfly1(rad, 1, fwd, true); bfly1.GenerateButterfly(str); str += "\n"; //TODO, does not work for 4, single or double precsion does not matter here. 
     }
-
     printf("Generating rad %d butterfly \n", (int)rad);
     WriteButterflyToFile(str, rad);
-
+*/
     printf("===========================================================================\n");
 
     std::vector<size_t> support_list;
     possible(support_list);
 
     for(size_t i=0;i<support_list.size();i++){
-        printf("Generating len %d FFT kernels\n", support_list[i]);
+        //printf("Generating len %d FFT kernels\n", support_list[i]);
         generate_kernel(support_list[i], 1);
     }
-
-
 
 
 /*
