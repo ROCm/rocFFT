@@ -41,11 +41,21 @@ protected:
     }
 };
 
-size_t N_range[] = { 2, 4, 8, 16, 32, 128, 256, 512, 1024, 2048, 4096, 8192, 1048576, 262144, 65536 /* 65536 won't pass */ };
+#define POW2_RANGE 2, 4, 8, 16, 32, 128, 256, 512, 1024, 2048, 4096, 8192, 32768, 65536, 131072, 262144, 1048576
+#define POW3_RANGE 3, 9, 27, 81, 243, 729, 2187
+#define POW5_RANGE 5, 25, 125, 625, 3125
+#define MIX_RANGE 6, 10, 12, 15, 20, 30, 120, 150, 225, 240, 300 
 
-size_t batch_range[] = {1}; 
+size_t pow2_range[] = { POW2_RANGE };
+size_t pow3_range[] = { POW3_RANGE };
+size_t pow5_range[] = { POW5_RANGE };
+size_t mix_range[] = { MIX_RANGE };
 
-rocfft_result_placement placeness_range[] = {rocfft_placement_inplace};
+size_t batch_range[] = {1};
+
+size_t stride_range[] = {1};
+
+rocfft_result_placement placeness_range[] = {rocfft_placement_notinplace, rocfft_placement_inplace};
 
 rocfft_transform_type transform_range[] = {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse};
 
@@ -53,7 +63,7 @@ rocfft_transform_type transform_range[] = {rocfft_transform_type_complex_forward
 namespace power2
 {
 
-class accuracy_test_pow2: public :: TestWithParam < std::tuple<size_t, size_t, rocfft_result_placement, rocfft_transform_type >  >
+class accuracy_test_pow2: public :: TestWithParam < std::tuple<size_t, size_t, rocfft_result_placement, rocfft_transform_type, size_t >  >
 {
     protected:
         accuracy_test_pow2(){}
@@ -64,12 +74,15 @@ class accuracy_test_pow2: public :: TestWithParam < std::tuple<size_t, size_t, r
 
 
 template< class T, class fftw_T >
-void normal_1D_complex_interleaved_to_complex_interleaved(size_t N, size_t batch, rocfft_result_placement placeness, rocfft_transform_type  transform_type)
+void normal_1D_complex_interleaved_to_complex_interleaved(size_t N, size_t batch, rocfft_result_placement placeness, rocfft_transform_type  transform_type, size_t stride)
 {
     std::vector<size_t> lengths;
     lengths.push_back( N );
     std::vector<size_t> input_strides;
     std::vector<size_t> output_strides;
+    input_strides.push_back(stride);
+    output_strides.push_back(stride);
+
     size_t input_distance = 0;
     size_t output_distance = 0;
     rocfft_array_type in_array_type = rocfft_array_type_complex_interleaved;
@@ -85,8 +98,9 @@ TEST_P(accuracy_test_pow2, normal_1D_complex_interleaved_to_complex_interleaved_
     size_t batch = std::get<1>(GetParam());
     rocfft_result_placement placeness = std::get<2>(GetParam());
     rocfft_transform_type  transform_type = std::get<3>(GetParam());
+    size_t stride = std::get<4>(GetParam());
 
-    try { normal_1D_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(N, batch, placeness, transform_type); }
+    try { normal_1D_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(N, batch, placeness, transform_type, stride); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
@@ -96,8 +110,9 @@ TEST_P(accuracy_test_pow2, normal_1D_complex_interleaved_to_complex_interleaved_
     size_t batch = std::get<1>(GetParam());
     rocfft_result_placement placeness = std::get<2>(GetParam());
     rocfft_transform_type  transform_type = std::get<3>(GetParam());
+    size_t stride = std::get<4>(GetParam());
 
-    try { normal_1D_complex_interleaved_to_complex_interleaved< double,  fftw_complex >(N, batch, placeness, transform_type); }
+    try { normal_1D_complex_interleaved_to_complex_interleaved< double,  fftw_complex >(N, batch, placeness, transform_type, stride); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
@@ -107,12 +122,33 @@ TEST_P(accuracy_test_pow2, normal_1D_complex_interleaved_to_complex_interleaved_
 INSTANTIATE_TEST_CASE_P(rocfft_pow2,
                         accuracy_test_pow2,
                         Combine(
-                                  ValuesIn(N_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range)
+                                  ValuesIn(pow2_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
                                )
 );
 
 
+INSTANTIATE_TEST_CASE_P(rocfft_pow3,
+                        accuracy_test_pow2,
+                        Combine(
+                                  ValuesIn(pow3_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
+                               )
+);
 
+INSTANTIATE_TEST_CASE_P(rocfft_pow5,
+                        accuracy_test_pow2,
+                        Combine(
+                                  ValuesIn(pow5_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
+                               )
+);
+
+/*
+INSTANTIATE_TEST_CASE_P(rocfft_pow_mix,
+                        accuracy_test_pow2,
+                        Combine(
+                                  ValuesIn(mix_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
+                               )
+);
+*/
 
 // *****************************************************
 // *****************************************************

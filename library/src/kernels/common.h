@@ -4,11 +4,10 @@
 
 #ifndef COMMON_H
 #define COMMON_H
-
+#include <iostream>
 #include "rocfft.h"
 
 #ifdef __NVCC__
-
 #include "vector_types.h"
 
 
@@ -22,6 +21,11 @@ __device__ inline double2 operator*(const double &a, const double2 &b) { return 
 
 #endif
 
+enum StrideBin
+{
+	SB_UNIT,
+	SB_NONUNIT,
+};
 
 template<class T>
 struct real_type;
@@ -75,6 +79,36 @@ struct vector4_type<double2>
 template<class T>
 using vector4_type_t = typename vector4_type<T>::type;
 
+/* example of using vector4_type_t */
+//vector4_type_t<float2> float4_scalar;
+//vector4_type_t<double2> double4_scalar;
+
+
+template<rocfft_precision T>
+struct vector2_type;
+
+template<>
+struct vector2_type<rocfft_precision_single>
+{
+    typedef float2 type;
+};
+
+template<>
+struct vector2_type<rocfft_precision_double>
+{
+    typedef double2 type;
+};
+
+template<rocfft_precision T>
+using vector2_type_t = typename vector2_type<T>::type;
+
+
+/* example of using vector2_type_t */
+//vector2_type_t<rocfft_precision_single> float2_scalar;
+//vector2_type_t<rocfft_precision_double> double2_scalar;
+
+
+
 
 template<typename T>
 __device__ inline T lib_make_vector2(real_type_t<T> v0, real_type_t<T> v1);
@@ -114,34 +148,6 @@ __device__ inline double4 lib_make_vector4(double v0, double v1, double v2, doub
 	{ return double4(v0, v1, v2, v3); }
 #endif
 
-/* example of using vector4_type_t */
-//vector4_type_t<float2> float4_scalar;
-//vector4_type_t<double2> double4_scalar;
-
-
-template<rocfft_precision T>
-struct vector2_type;
-
-template<>
-struct vector2_type<rocfft_precision_single>
-{
-    typedef float2 type;
-};
-
-template<>
-struct vector2_type<rocfft_precision_double>
-{
-    typedef double2 type;
-};
-
-template<rocfft_precision T>
-using vector2_type_t = typename vector2_type<T>::type;
-
-
-/* example of using vector2_type_t */
-//vector2_type_t<rocfft_precision_single> float2_scalar;
-//vector2_type_t<rocfft_precision_double> double2_scalar;
-        
 
 
 #endif // COMMON_H

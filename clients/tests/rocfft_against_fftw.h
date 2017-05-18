@@ -31,15 +31,15 @@ void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_t
 	T scale = 1.0f )
 {
 
-	rocfft<T> test_fft( lengths.size(), &lengths[0],
-		input_strides.empty() ? NULL : &input_strides[0],
-		output_strides.empty() ? NULL : &output_strides[0],
-		batch, input_distance, output_distance,
+	rocfft<T> test_fft( lengths, batch,
+		input_strides,
+		output_strides,
+		input_distance, output_distance,
 		in_array_type, out_array_type,
 		placeness, transform_type, scale );
 
 
-	fftw<T, fftw_T> reference( lengths.size(), &lengths[0], batch, c2c );
+	fftw<T, fftw_T> reference( lengths, batch, input_strides, output_strides, placeness, c2c );
 
 
 	if( pattern == sawtooth )
@@ -70,7 +70,7 @@ void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_t
 	// if we're starting with unequal data, we're destined for failure
 	EXPECT_EQ( true, test_fft.input_buffer() == reference.input_buffer() );
 
-        // scale is already set in plan create called in constructor of class rocfft
+    // scale is already set in plan create called in constructor of class rocfft
 	if( transform_type  == rocfft_transform_type_complex_forward )
 	{
 		reference.set_forward_transform();

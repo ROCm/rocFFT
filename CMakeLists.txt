@@ -18,7 +18,11 @@ if( NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT DEFINED CMAKE_BUILD_TYPE )
   set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." FORCE )
 endif()
 
-list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
+# Append our library helper cmake path and the cmake path for hip (for convenience)
+# Users may override HIP path by specifying their own in CMAKE_MODULE_PATH
+list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake /opt/rocm/hip/cmake )
+
+#list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
 # The superbuild does not build anything itself, all compiling is done in external projects
 project( rocfft-superbuild NONE )
@@ -29,6 +33,9 @@ option( BUILD_CLIENTS "Build rocFFT clients" OFF )
 
 # BUILD_SHARED_LIBS is a cmake built-in; we make it an explicit option such that it shows in cmake-gui
 option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" OFF )
+
+set( HIP_ROOT /opt/rocm/hip CACHE PATH "Specify hip installation dir")
+set( BOOST_ROOT /opt/boost  CACHE PATH "Specify boost installation dir")
 
 set( HOST_TOOLCHAIN_NAME "clang" CACHE STRING "Compiler toolchain: (clang gcc)" )
 set_property( CACHE HOST_TOOLCHAIN_NAME PROPERTY STRINGS clang gcc )

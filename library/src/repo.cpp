@@ -15,7 +15,7 @@
 void Repo::CreatePlan(rocfft_plan plan)
 {
 	Repo &repo = Repo::GetRepo();
-    //see if the repo has already stored the plan or not 
+    //see if the repo has already stored the plan or not
 	std::map<rocfft_plan_t, ExecPlan>::const_iterator it = repo.planUnique.find(*plan);
 	if(it == repo.planUnique.end())//if not found
 	{
@@ -47,7 +47,7 @@ void Repo::CreatePlan(rocfft_plan plan)
 		execPlan.rootPlan = rootPlan;
 		ProcessNode(execPlan); //TODO: more descriptions are needed
 
-		PlanPow2(execPlan); // PlanPow2 enqueues the GPU kernels by function pointers but does not execute kernels
+		PlanPowX(execPlan); // PlanPowX enqueues the GPU kernels by function pointers but does not execute kernels
 		planUnique[*plan] = execPlan; //add this plan into member planUnique (type of map)
 		execLookup[plan] = execPlan; // add this plan into member execLookup (type of map)
 	}

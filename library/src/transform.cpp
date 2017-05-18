@@ -59,9 +59,9 @@ rocfft_status rocfft_execute(   const rocfft_plan plan,
 	}
 
 	if(plan->placement == rocfft_placement_inplace)
-		TransformPow2(execPlan, in_buffer, in_buffer, info);
+		TransformPowX(execPlan, in_buffer, in_buffer, info);
 	else
-		TransformPow2(execPlan, in_buffer, out_buffer, info);
+		TransformPowX(execPlan, in_buffer, out_buffer, info);
 
 	return rocfft_status_success;
 }

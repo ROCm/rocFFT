@@ -34,9 +34,11 @@ if( NOT DEFINED GTEST_ROOT )
   list( APPEND rocfft_clients_dependencies googletest )
 endif( )
 
-if( NOT DEFINED FFTW_ROOT )
-  include( external-fftw )
-  list( APPEND rocfft_clients_dependencies fftw )
+if( BUILD_CLIENTS_SAMPLES OR BUILD_CLIENTS_TESTS )
+  if( NOT DEFINED FFTW_ROOT )
+    include( external-fftw )
+    list( APPEND rocfft_clients_dependencies fftw )
+  endif( )
 endif( )
 
 list( APPEND CMAKE_PREFIX_PATH ${HIP_ROOT})
@@ -84,7 +86,7 @@ endif( )
 if( BUILD_CLIENTS_RIDER )
   set( RIDER_CMAKE_ARGS
         ${CLIENTS_CMAKE_ARGS}
-        -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}^^${FFTW_ROOT}^^${BOOST_ROOT}
+        -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}^^${BOOST_ROOT}
         -DHIP_SRC_ROOT=${HIP_SRC_ROOT}
   	)
 

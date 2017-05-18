@@ -50,9 +50,13 @@ set( rocfft_source
      transform.cpp
      hipfft.cpp
      repo.cpp
-     pow2.cpp
-     kernel_launch_single.cpp
-     kernel_launch_double.cpp
+     powX.cpp
+     generator/function_pool.cpp
+     generator/kernel_launch_single.cpp
+     generator/kernel_launch_double.cpp
+     kernel_launch_pow2_large_single.cpp
+     kernel_launch_pow2_large_double.cpp
+     get_radix.cpp
      twiddles.cpp
 )
 

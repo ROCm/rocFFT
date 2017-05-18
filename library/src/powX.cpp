@@ -6,6 +6,7 @@
 #include <vector>
 #include <assert.h>
 #include <iostream>
+#include <unordered_map>
 
 #include "rocfft.h"
 #include "plan.h"
@@ -13,13 +14,13 @@
 #include "transform.h"
 #include "twiddles.h"
 #include "kernel_launch.h"
-
+#include "function_pool.h"
 #ifdef TMP_DEBUG
 #include <hip/hip_runtime.h>
 #endif
 
 /* this function is called during creation of plan of pow 2: enqueue the HIP kernels by function pointers*/
-void PlanPow2(ExecPlan &execPlan)
+void PlanPowX(ExecPlan &execPlan)
 {
     for(size_t i=0; i<execPlan.execSeq.size(); i++)
     {
@@ -36,6 +37,7 @@ void PlanPow2(ExecPlan &execPlan)
         }
     }
 
+    //function_pool func_pool;
 
     if(execPlan.execSeq[0]->precision == rocfft_precision_single)
     {
@@ -44,41 +46,65 @@ void PlanPow2(ExecPlan &execPlan)
             if(execPlan.execSeq.size() == 1)
             {
                 if(
-                    (execPlan.execSeq[0]->placement == rocfft_placement_inplace) &&
                     (execPlan.execSeq[0]->inArrayType == rocfft_array_type_complex_interleaved) &&
                     (execPlan.execSeq[0]->outArrayType == rocfft_array_type_complex_interleaved) )
                 {
                     assert(execPlan.execSeq[0]->length[0] <= 4096);
 
-                    size_t WGS = 64;
-                    size_t NT = 1;
-                    DevFnCall ptr = nullptr;
+                    size_t workGroupSize;
+                    size_t numTransforms;
+                    DevFnCall ptr = nullptr;// typedef void (*DevFnCall)(void *, void *);
+                    GetWGSAndNT(execPlan.execSeq[0]->length[0], workGroupSize, numTransforms);//get working group size and number of transforms
 
+                    //ptr = func_pool.get_function_single(execPlan.execSeq[0]->length[0]);
                     switch(execPlan.execSeq[0]->length[0])
                     {
-                        case 4096: WGS = 256; NT = 1; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_4096); break;
-                        case 2048: WGS = 256; NT = 1; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_2048); break;
-                        case 1024: WGS = 128; NT = 1; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_1024); break;
-                        case 512:  WGS = 64;  NT = 1; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_512); break;
-                        case 256:  WGS = 64;  NT = 1; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_256); break;
-                        case 128:  WGS = 64;  NT = 4; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_128); break;
-                        case 64:   WGS = 64;  NT = 4; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_64); break;
-                        case 32:   WGS = 64; NT = 16; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_32); break;
-                        case 16:   WGS = 64; NT = 16; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_16); break;
-                        case 8:       WGS = 64; NT = 32; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_8); break;
-                        case 4:       WGS = 64; NT = 32; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_4); break;
-                        case 2:       WGS = 64; NT = 64; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_2); break;
-                        case 1:       WGS = 64; NT = 64; ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_1); break;
+
+                            //pow2
+                            //assume the hash map has been set up, mymap
+                            //ptr = mymap[ execPlan.execSeq[0]->length[0] ];
+
+                            case 4096: ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_4096); break;
+                            case 2048: ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_2048); break;
+                            case 1024: ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_1024); break;
+                            case 512:  ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_512); break;
+                            case 256:  ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_256); break;
+                            case 128:  ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_128); break;
+                            case 64:   ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_64); break;
+                            case 32:   ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_32); break;
+                            case 16:   ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_16); break;
+                            case 8:    ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_8); break;
+                            case 4:    ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_4); break;
+                            case 2:    ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_2); break;
+                            case 1:    ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_1); break;
+
+
+                            //pow3
+                            case 2187:      ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_2187); break;
+                            case 729:       ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_729); break;
+                            case 243:       ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_243); break;
+                            case 81:        ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_81); break;
+                            case 27:        ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_27); break;
+                            case 9:         ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_9); break;
+                            case 3:         ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_3); break;
+
+                            //pow5
+                            case 3125:      ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_3125); break;
+                            case 625:       ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_625); break;
+                            case 125:       ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_125); break;
+                            case 25:        ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_25); break;
+                            case 5:         ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_5); break;
+
                     }
 
                     execPlan.devFnCall.push_back(ptr);
                     GridParam gp;
-                    size_t B = execPlan.execSeq[0]->batch;
-                    gp.b_x = (B%NT) ? 1 + (B / NT) : (B / NT);
-                    gp.tpb_x = WGS;
+                    size_t batch = execPlan.execSeq[0]->batch;
+                    gp.b_x = (batch%numTransforms) ? 1 + (batch / numTransforms) : (batch / numTransforms);
+                    gp.tpb_x = workGroupSize;
                     execPlan.gridParam.push_back(gp);
-                }
-            }
+                }//
+            }// if(execPlan.execSeq.size() == 1)
             else
             {
                 for(size_t i=0; i<execPlan.execSeq.size(); i++)
@@ -214,9 +240,9 @@ void PlanPow2(ExecPlan &execPlan)
                         switch(execPlan.execSeq[i]->length[0])
                         {
                             case 4096:     gp.tpb_x = 256;
-                                    ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_4096); break;
+                                    ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_4096); break;
                             case 2048:     gp.tpb_x = 256;
-                                    ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_2048); break;
+                                    ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_2048); break;
                             default: assert(false);
                         }
                     }
@@ -285,38 +311,62 @@ void PlanPow2(ExecPlan &execPlan)
             if(execPlan.execSeq.size() == 1)
             {
                 if(
-                    (execPlan.execSeq[0]->placement == rocfft_placement_inplace) &&
                     (execPlan.execSeq[0]->inArrayType == rocfft_array_type_complex_interleaved) &&
                     (execPlan.execSeq[0]->outArrayType == rocfft_array_type_complex_interleaved) )
                 {
                     assert(execPlan.execSeq[0]->length[0] <= 4096);
 
-                    size_t WGS = 64;
-                    size_t NT = 1;
+                    size_t workGroupSize;// work group size
+                    size_t numTransforms;
                     DevFnCall ptr = nullptr;
+                    GetWGSAndNT(execPlan.execSeq[0]->length[0], workGroupSize, numTransforms);//get working group size and number of transforms
 
                     switch(execPlan.execSeq[0]->length[0])
                     {
-                        case 4096: WGS = 256; NT = 1; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_4096); break;
-                        case 2048: WGS = 256; NT = 1; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_2048); break;
-                        case 1024: WGS = 128; NT = 1; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_1024); break;
-                        case 512:  WGS = 64;  NT = 1; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_512); break;
-                        case 256:  WGS = 64;  NT = 1; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_256); break;
-                        case 128:  WGS = 64;  NT = 4; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_128); break;
-                        case 64:   WGS = 64;  NT = 4; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_64); break;
-                        case 32:   WGS = 64; NT = 16; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_32); break;
-                        case 16:   WGS = 64; NT = 16; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_16); break;
-                        case 8:       WGS = 64; NT = 32; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_8); break;
-                        case 4:       WGS = 64; NT = 32; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_4); break;
-                        case 2:       WGS = 64; NT = 64; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_2); break;
-                        case 1:       WGS = 64; NT = 64; ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_1); break;
+                            //pow2
+                            case 4096: ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_4096); break;
+                            case 2048: ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_2048); break;
+                            case 1024: ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_1024); break;
+                            case 512:  ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_512); break;
+                            case 256:  ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_256); break;
+                            case 128:  ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_128); break;
+                            case 64:   ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_64); break;
+                            case 32:   ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_32); break;
+                            case 16:   ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_16); break;
+                            case 8:    ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_8); break;
+                            case 4:    ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_4); break;
+                            case 2:    ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_2); break;
+                            case 1:    ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_1); break;
+
+                            //pow3
+                            case 2187:      ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_2187); break;
+                            case 729:       ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_729); break;
+                            case 243:       ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_243); break;
+                            case 81:        ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_81); break;
+                            case 27:        ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_27); break;
+                            case 9:         ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_9); break;
+                            case 3:         ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_3); break;
+
+                            //pow5
+                            case 3125:      ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_3125); break;
+                            case 625:       ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_625); break;
+                            case 125:       ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_125); break;
+                            case 25:        ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_25); break;
+                            case 5:         ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_5); break;
+
+                            //pow7
+                            case 2401:      ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_2401); break;
+                            case 343:       ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_343); break;
+                            case 49:        ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_49); break;
+                            case 7:         ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_7); break;
                     }
 
                     execPlan.devFnCall.push_back(ptr);
+
                     GridParam gp;
-                    size_t B = execPlan.execSeq[0]->batch;
-                    gp.b_x = (B%NT) ? 1 + (B / NT) : (B / NT);
-                    gp.tpb_x = WGS;
+                    size_t batch = execPlan.execSeq[0]->batch;
+                    gp.b_x = (batch%numTransforms) ? 1 + (batch / numTransforms) : (batch / numTransforms);
+                    gp.tpb_x = workGroupSize;
                     execPlan.gridParam.push_back(gp);
                 }
             }
@@ -455,9 +505,9 @@ void PlanPow2(ExecPlan &execPlan)
                         switch(execPlan.execSeq[i]->length[0])
                         {
                             case 4096:     gp.tpb_x = 256;
-                                    ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_4096); break;
+                                    ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_4096); break;
                             case 2048:     gp.tpb_x = 256;
-                                    ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_2048); break;
+                                    ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_2048); break;
                             default: assert(false);
                         }
                     }
@@ -522,28 +572,29 @@ void PlanPow2(ExecPlan &execPlan)
 
 }
 
-void TransformPow2(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer[], rocfft_execution_info info)
+void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer[], rocfft_execution_info info)
 {
     assert(execPlan.execSeq.size() == execPlan.devFnCall.size());
     assert(execPlan.execSeq.size() == execPlan.gridParam.size());
 
     if(execPlan.rootPlan->dimension == 1)
     {
-        if(execPlan.execSeq.size() == 1)
+        if(execPlan.execSeq.size() == 1) // one kernel 
         {
             DeviceCallIn data;
             DeviceCallOut back;
 
             data.node = execPlan.execSeq[0];
             data.bufIn[0] = in_buffer[0];
+            data.bufOut[0] = out_buffer[0];
             data.gridParam = execPlan.gridParam[0];
 
             DevFnCall fn = execPlan.devFnCall[0];
-            fn(&data, &back);
+            fn(&data, &back);//execution kernel here
         }
         else
         {
-            for(size_t i=0; i<execPlan.execSeq.size(); i++)
+            for(size_t i=0; i<execPlan.execSeq.size(); i++) //multiple kernels involving transpose
             {
                 DeviceCallIn data;
                 DeviceCallOut back;

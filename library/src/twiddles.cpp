@@ -6,42 +6,6 @@
 #include "rocfft_hip.h"
 #include "twiddles.h"
 
-std::vector<size_t> get_radices(size_t N)
-{
-	// Pow of 2 radix table, implemented in pow2.h
-	const std::vector<size_t> radices_pow2_1 = {1};
-	const std::vector<size_t> radices_pow2_2 = {2};
-	const std::vector<size_t> radices_pow2_4 = {2, 2};
-	const std::vector<size_t> radices_pow2_8 = {4, 2};
-	const std::vector<size_t> radices_pow2_16 = {4, 4};
-	const std::vector<size_t> radices_pow2_32 = {8, 4};
-	const std::vector<size_t> radices_pow2_64 = {4, 4, 4};
-	const std::vector<size_t> radices_pow2_128 = {8, 4, 4};
-	const std::vector<size_t> radices_pow2_256 = {4, 4, 4, 4};
-	const std::vector<size_t> radices_pow2_512 = {8, 8, 8};
-	const std::vector<size_t> radices_pow2_1024 = {8, 8, 4, 4};
-	const std::vector<size_t> radices_pow2_2048 = {8, 8, 8, 4};
-	const std::vector<size_t> radices_pow2_4096 = {16, 16, 16};
-
-
-    switch (N)
-    {
-        case 4096:     return radices_pow2_4096;
-        case 2048:     return radices_pow2_2048;
-        case 1024:     return radices_pow2_1024;
-        case 512:      return radices_pow2_512;
-        case 256:      return radices_pow2_256;
-        case 128:      return radices_pow2_128;
-        case 64:       return radices_pow2_64;
-        case 32:       return radices_pow2_32;
-        case 16:       return radices_pow2_16;
-        case 8:        return radices_pow2_8;
-        case 4:        return radices_pow2_4;
-        case 2:        return radices_pow2_2;
-        case 1:     return radices_pow2_1;
-        default:    return radices_pow2_1;
-    }
-}
 
 
 
@@ -51,10 +15,13 @@ void *twiddles_create(size_t N, rocfft_precision precision)
     void* twtc;//host side
     size_t ns = 0; // table size
 
+    std::vector<size_t> radices;
+
+    radices = GetRadices(N);
+
     if( precision == rocfft_precision_single){
         if(N <= 4096){
             TwiddleTable<float2> twTable(N); 
-            std::vector<size_t> radices = get_radices(N); //get radices from the radice table based on length N
 
             twtc = twTable.GenerateTwiddleTable(radices); //calculate twiddles on host side
 
@@ -73,7 +40,7 @@ void *twiddles_create(size_t N, rocfft_precision precision)
     else if( precision == rocfft_precision_double){
         if(N <= 4096){
             TwiddleTable<double2> twTable(N); 
-            std::vector<size_t> radices = get_radices(N); //get radices from the radice table based on length N
+
 
             twtc = twTable.GenerateTwiddleTable(radices); //calculate twiddles on host side
 

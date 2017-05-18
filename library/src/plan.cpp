@@ -230,8 +230,10 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
     }
 
     if(!SupportedLength(prodLength))
+    {
+        printf("This size %zu is not supported in rocFFT, will return;\n", prodLength);
         return rocfft_status_invalid_dimensions;
-
+    }
     Repo &repo = Repo::GetRepo();
     repo.CreatePlan(p);//add this plan into repo, incurs computation, see repo.cpp
 
@@ -245,7 +247,7 @@ rocfft_status rocfft_plan_allocate(rocfft_plan *plan)
 }
 
 rocfft_status rocfft_plan_create(       rocfft_plan *plan,
-                    rocfft_result_placement placement,
+                                        rocfft_result_placement placement,
                                         rocfft_transform_type transform_type, rocfft_precision precision,
                                         size_t dimensions, const size_t *lengths, size_t number_of_transforms,
                                         const rocfft_plan_description description )
@@ -401,7 +403,7 @@ void TreeNode::RecursiveBuildTree()
     {
     case 1:
     {
-        if (length[0] <= Large1DThreshold)
+        if (length[0] <= Large1DThreshold)//single kernel
         {
             scheme = CS_KERNEL_STOCKHAM;
             return;
@@ -409,39 +411,24 @@ void TreeNode::RecursiveBuildTree()
 
         size_t divLength1 = 1;
 
-        if (IsPo2(length[0]))
+        if (IsPo2(length[0]))//multiple kernels involving transpose
         {
             // Enable block compute under these conditions
-            if (length[0] <= 262144 / PrecisionWidth(precision))
+            if (length[0] <= 131072 )
             {
-                if (1 == PrecisionWidth(precision))
+                
+                switch (length[0])
                 {
-                    switch (length[0])
-                    {
-                    case 8192:        divLength1 = 64;        break;
-                    case 16384:        divLength1 = 64;        break;
+                    case 8192:         divLength1 = 64;         break;
+                    case 16384:        divLength1 = 64;         break;
                     case 32768:        divLength1 = 128;        break;
                     case 65536:        divLength1 = 256;        break;
-                    case 131072:    divLength1 = 64;        break;
-                    case 262144:    divLength1 = 64;        break;
-                    default:        assert(false);
-                    }
-                }
-                else
-                {
-                    switch (length[0])
-                    {
-                    case 4096:        divLength1 = 64;        break;
-                    case 8192:        divLength1 = 64;        break;
-                    case 16384:        divLength1 = 64;        break;
-                    case 32768:        divLength1 = 128;        break;
-                    case 65536:        divLength1 = 64;        break;
-                    case 131072:    divLength1 = 64;        break;
-                    default:        assert(false);
-                    }
+                    case 131072:       divLength1 = 64;         break;
+                    case 262144:       divLength1 = 64;         break;
+                    default:           assert(false);
                 }
 
-                scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CS_L1D_CC : CS_L1D_CRT;
+                scheme = (length[0] <= 65536 ) ? CS_L1D_CC : CS_L1D_CRT;
             }
             else
             {
@@ -463,7 +450,7 @@ void TreeNode::RecursiveBuildTree()
                 scheme = CS_L1D_TRTRT;
             }
         }
-        else
+        else//TODO other power, like 3, 5, 7 
         {
         }
 

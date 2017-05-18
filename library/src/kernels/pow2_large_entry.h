@@ -229,7 +229,7 @@ void fft_64_128_bcc_d2_s1(hipLaunchParm lp, T *twiddles_64, T *twiddles_8192, T 
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_128_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_8192, lwbIn, lwbOut, batch, 1, 1);
+	fft_64_128_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_8192, lwbIn, lwbOut, batch, stride_i, stride_o);
 }
 
 
@@ -253,7 +253,7 @@ void fft_128_64_brc_d2_s1(hipLaunchParm lp, T *twiddles_128, T * gbIn, T * gbOut
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_128_64_brc<T, SB_UNIT, dir>(twiddles_128, lwbIn, lwbOut, 1, 1);
+	fft_128_64_brc<T, SB_UNIT, dir>(twiddles_128, lwbIn, lwbOut, stride_i, stride_o);
 }
 
 
@@ -277,7 +277,7 @@ void fft_64_256_bcc_d2_s1(hipLaunchParm lp, T *twiddles_64, T *twiddles_16384, T
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_256_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_16384, lwbIn, lwbOut, batch, 1, 1);
+	fft_64_256_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_16384, lwbIn, lwbOut, batch, stride_i, stride_o);
 }
 
 
@@ -301,7 +301,7 @@ void fft_256_64_brc_d2_s1(hipLaunchParm lp, T *twiddles_256, T * gbIn, T * gbOut
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 	
-	fft_256_64_brc<T, SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
+	fft_256_64_brc<T, SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, stride_i, stride_o);
 }
 
 
@@ -325,7 +325,7 @@ void fft_128_256_bcc_d2_s1(hipLaunchParm lp, T *twiddles_128, T *twiddles_32768,
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_128_256_bcc<T, SB_UNIT, dir>(twiddles_128, twiddles_32768, lwbIn, lwbOut, batch, 1, 1);
+	fft_128_256_bcc<T, SB_UNIT, dir>(twiddles_128, twiddles_32768, lwbIn, lwbOut, batch, stride_i, stride_o);
 }
 
 
@@ -349,7 +349,7 @@ void fft_256_128_brc_d2_s1(hipLaunchParm lp, T *twiddles_256, T * gbIn, T * gbOu
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_256_128_brc<T, SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
+	fft_256_128_brc<T, SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, stride_i, stride_o);
 }
 
 
@@ -373,7 +373,7 @@ void fft_256_256_bcc_d2_s1(hipLaunchParm lp, T *twiddles_256, T *twiddles_65536,
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_256_256_bcc<T, SB_UNIT, dir>(twiddles_256, twiddles_65536, lwbIn, lwbOut, batch, 1, 1);
+	fft_256_256_bcc<T, SB_UNIT, dir>(twiddles_256, twiddles_65536, lwbIn, lwbOut, batch, stride_i, stride_o);
 }
 
 
@@ -397,7 +397,7 @@ void fft_256_256_brc_d2_s1(hipLaunchParm lp, T *twiddles_256, T * gbIn, T * gbOu
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_256_256_brc<T, SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, 1, 1);
+	fft_256_256_brc<T, SB_UNIT, dir>(twiddles_256, lwbIn, lwbOut, stride_i, stride_o);
 }
 
 
@@ -421,7 +421,7 @@ void fft_64_2048_bcc_d2_s1(hipLaunchParm lp, T *twiddles_64, T *twiddles_131072,
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_2048_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_131072, lwbIn, lwbOut, batch, 1, 1);
+	fft_64_2048_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_131072, lwbIn, lwbOut, batch, stride_i, stride_o);
 }
 
 
@@ -445,7 +445,7 @@ void fft_64_4096_bcc_d2_s1(hipLaunchParm lp, T *twiddles_64, T *twiddles_262144,
 	lwbIn = gbIn + iOffset;
 	lwbOut = gbOut + oOffset;
 
-	fft_64_4096_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_262144, lwbIn, lwbOut, batch, 1, 1);
+	fft_64_4096_bcc<T, SB_UNIT, dir>(twiddles_64, twiddles_262144, lwbIn, lwbOut, batch, stride_i, stride_o);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -476,7 +476,8 @@ transpose_var1( hipLaunchParm lp, T *twiddles_large, T* pmComplexIn, T* pmComple
    const size_t numGroupsY_1 = numGroupsY;
    // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
 
-	constexpr size_t TWIDTH = 64/(sizeof(T)/8);
+   //constexpr size_t TWIDTH = 64/(sizeof(T)/8);
+   constexpr size_t TWIDTH = 64;
    __shared__ T lds[ TWIDTH ][ TWIDTH ];
 
    size_t currDimIndex;

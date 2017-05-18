@@ -3,11 +3,11 @@
  ******************************************************************************/
 
 
+
 #include <vector>
 #include <iostream>
-#include <math.h>
 #include <fftw3.h>
-
+#include <math.h>
 #include <hip/hip_runtime_api.h>
 #include <hip/hip_vector_types.h>
 #include "rocfft.h"
@@ -15,12 +15,12 @@
 
 int main()
 {
-	const size_t N = 64*1024;
+	const size_t N = 16;
 
 	// FFTW reference compute
 	// ==========================================
 
-	float2 *cx = new float2[N];
+	float2 cx[N];
 	fftwf_complex *in, *out;
 	fftwf_plan p;
 
@@ -28,15 +28,15 @@ int main()
 	out = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * N);
 	p = fftwf_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
 
+
 	for (size_t i = 0; i < N; i++)
 	{
 		cx[i].x = in[i][0] = i + (i%3) - (i%7);
 		cx[i].y = in[i][1] = 0;
 	}
 
-	fftwf_execute(p);
 
-	fftwf_destroy_plan(p);
+	fftwf_execute(p);
 
 
 	// rocfft gpu compute
@@ -56,62 +56,32 @@ int main()
 	size_t length = N;
 	rocfft_plan_create(&plan, rocfft_placement_inplace, rocfft_transform_type_complex_forward, rocfft_precision_single, 1, &length, 1, NULL);
 
-	// Setup work buffer
-	void *workBuffer = nullptr;
-	size_t workBufferSize = 0;
-	rocfft_plan_get_work_buffer_size(plan, &workBufferSize);
-
-	// Setup exec info to pass work buffer to the library
-	rocfft_execution_info info = nullptr;
-	rocfft_execution_info_create(&info);
-
-	if(workBufferSize > 0)
-	{
-        	hipMalloc(&workBuffer, workBufferSize);
-	        rocfft_execution_info_set_work_buffer(info, workBuffer, workBufferSize);
-	}
-
 	// Execute plan
-	rocfft_execute(plan, (void**) &x, NULL, info);
-	hipDeviceSynchronize();
+	rocfft_execute(plan, (void**)&x, NULL, NULL);
 
 	// Destroy plan
 	rocfft_plan_destroy(plan);
-
-	if(workBuffer)
-  	     	hipFree(workBuffer);
-
-	rocfft_execution_info_destroy(info);
 
 	// Copy result back to host
 	std::vector<float2> y(N);
 	hipMemcpy(&y[0], x, Nbytes, hipMemcpyDeviceToHost);
 
-	// Compute normalized root mean square error
-	double maxv = 0;
-	double nrmse = 0;
+
+        double error = 0;
+        size_t element_id = 0;
 	for (size_t i = 0; i < N; i++)
 	{
-		double dr = out[i][0] - y[i].x;
-		double di = out[i][1] - y[i].y;
-
-		maxv = fabs(out[i][0]) > maxv ? fabs(out[i][0]) : maxv;
-		maxv = fabs(out[i][1]) > maxv ? fabs(out[i][1]) : maxv;
-		
-		nrmse += ((dr*dr) + (di*di));
+        printf("element %d: input %f, %f; FFTW result %f, %f; rocFFT result %f, %f \n", (int)i, cx[i].x, cx[i].y, out[i][0], out[i][1], y[i].x, y[i].y);
+        double err = fabs(out[i][0] - y[i].x) + fabs( out[i][1] - y[i].y);
+        if (err > error) { error = err; element_id = i;}
 	}
-	nrmse /= (double)N;
-	nrmse = sqrt(nrmse);
-	nrmse /= maxv;
 
-	std::cout << "normalized root mean square error (nrmse): " << nrmse << std::endl;
+        printf("max error of FFTW and rocFFT is %e at element %d\n", error/(fabs(out[element_id][0])+fabs(out[element_id][1])), (int)element_id);
 
-	// Deallocate buffers
-	fftwf_free(in);
-	fftwf_free(out);
-	delete[] cx;
+	fftwf_destroy_plan(p);
+	fftwf_free(in); fftwf_free(out);
 
-	return 0;
-	
+    hipFree(x);
+
+    return 1;
 }
-

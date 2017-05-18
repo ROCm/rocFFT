@@ -15,7 +15,7 @@ struct rocfft_execution_info_t
 	{}
 };
 
-void TransformPow2(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer[], rocfft_execution_info info);
+void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer[], rocfft_execution_info info);
 
 #endif // TRANSFORM_H
 
