@@ -77,6 +77,8 @@ lfft_64(T *twiddles_64, T *twiddles_large, T *lds, uint me, uint b)
 		InvRad4<T>(&X0, &X1, &X2, &X3);
 		
 
+	__syncthreads();
+	
 	lds[me*4 + 0] = X0;
 	lds[me*4 + 1] = X1;
 	lds[me*4 + 2] = X2;
@@ -89,9 +91,7 @@ lfft_64(T *twiddles_64, T *twiddles_large, T *lds, uint me, uint b)
 	X2 = lds[me + 32];
 	X3 = lds[me + 48];
 	
-	__syncthreads();
 	
-
 	if(dir == -1)
 	{
 		TWIDDLE_MUL_FWD(twiddles_64, 3 + 3*(me%4) + 0, X1)	
@@ -111,6 +111,8 @@ lfft_64(T *twiddles_64, T *twiddles_large, T *lds, uint me, uint b)
 		InvRad4<T>(&X0, &X1, &X2, &X3);
 	
 	
+	__syncthreads();
+	
 	lds[(me/4)*16 + me%4 +  0] = X0;
 	lds[(me/4)*16 + me%4 +  4] = X1;
 	lds[(me/4)*16 + me%4 +  8] = X2;
@@ -122,8 +124,6 @@ lfft_64(T *twiddles_64, T *twiddles_large, T *lds, uint me, uint b)
 	X1 = lds[me + 16];	
 	X2 = lds[me + 32];
 	X3 = lds[me + 48];
-	
-	__syncthreads();
 	
 
 	if(dir == -1)
@@ -180,6 +180,8 @@ lfft_64(T *twiddles_64, T *twiddles_large, T *lds, uint me, uint b)
 		}		
 	}
 	
+	__syncthreads();
+	
 	lds[me + 0]  = X0;
 	lds[me + 16] = X1;	
 	lds[me + 32] = X2;
@@ -210,6 +212,8 @@ lfft_128(T *twiddles_128, T *twiddles_large, T *lds, uint me, uint b)
 		InvRad8<T>(&X0, &X1, &X2, &X3, &X4, &X5, &X6, &X7);
 
 
+	__syncthreads();
+	
 	lds[me*8 + 0] = X0;
 	lds[me*8 + 1] = X1;
 	lds[me*8 + 2] = X2;
@@ -230,8 +234,6 @@ lfft_128(T *twiddles_128, T *twiddles_large, T *lds, uint me, uint b)
 	X5 = lds[(2*me + 1) + 32];
 	X6 = lds[(2*me + 1) + 64];
 	X7 = lds[(2*me + 1) + 96];	
-
-	__syncthreads();
 
 
 	if(dir == -1)
@@ -268,6 +270,8 @@ lfft_128(T *twiddles_128, T *twiddles_large, T *lds, uint me, uint b)
 	}	
 	
 	
+	__syncthreads();
+	
 	lds[((2*me + 0)/8)*32 + (2*me + 0)%8 +  0] = X0;
 	lds[((2*me + 0)/8)*32 + (2*me + 0)%8 +  8] = X1;
 	lds[((2*me + 0)/8)*32 + (2*me + 0)%8 + 16] = X2;
@@ -290,7 +294,6 @@ lfft_128(T *twiddles_128, T *twiddles_large, T *lds, uint me, uint b)
 	X6 = lds[(2*me + 1) + 64];
 	X7 = lds[(2*me + 1) + 96];	
 
-	__syncthreads();
 
 	if(dir == -1)
 	{
@@ -381,6 +384,8 @@ lfft_128(T *twiddles_128, T *twiddles_large, T *lds, uint me, uint b)
 	}
 	
 	
+	__syncthreads();
+	
 	{
 		vector4_type_t<T>  *ldsv = (vector4_type_t<T>  *)lds;	
 		ldsv[me +  0] = lib_make_vector4< vector4_type_t<T> >(  X0.x,X0.y,X4.x,X4.y);
@@ -409,6 +414,8 @@ lfft_256(T *twiddles_256, T *twiddles_large, T *lds, uint me, uint b)
 	else
 		InvRad4<T>(&X0, &X1, &X2, &X3);
 	
+	__syncthreads();
+	
 	lds[me*4 + 0] = X0;
 	lds[me*4 + 1] = X1;
 	lds[me*4 + 2] = X2;
@@ -420,8 +427,6 @@ lfft_256(T *twiddles_256, T *twiddles_large, T *lds, uint me, uint b)
 	X1 = lds[me +  64];	
 	X2 = lds[me + 128];
 	X3 = lds[me + 192];
-	
-	__syncthreads();
 	
 	
 	if(dir == -1)
@@ -443,6 +448,8 @@ lfft_256(T *twiddles_256, T *twiddles_large, T *lds, uint me, uint b)
 		InvRad4<T>(&X0, &X1, &X2, &X3);
 		
 		
+	__syncthreads();
+	
 	lds[(me/4)*16 + me%4 +  0] = X0;
 	lds[(me/4)*16 + me%4 +  4] = X1;
 	lds[(me/4)*16 + me%4 +  8] = X2;
@@ -454,8 +461,6 @@ lfft_256(T *twiddles_256, T *twiddles_large, T *lds, uint me, uint b)
 	X1 = lds[me +  64];	
 	X2 = lds[me + 128];
 	X3 = lds[me + 192];
-	
-	__syncthreads();
 	
 
 	if(dir == -1)
@@ -477,6 +482,8 @@ lfft_256(T *twiddles_256, T *twiddles_large, T *lds, uint me, uint b)
 		InvRad4<T>(&X0, &X1, &X2, &X3);
 
 
+	__syncthreads();
+	
 	lds[(me/16)*64 + me%16 +  0] = X0;
 	lds[(me/16)*64 + me%16 + 16] = X1;
 	lds[(me/16)*64 + me%16 + 32] = X2;
@@ -488,8 +495,6 @@ lfft_256(T *twiddles_256, T *twiddles_large, T *lds, uint me, uint b)
 	X1 = lds[me +  64];	
 	X2 = lds[me + 128];
 	X3 = lds[me + 192];
-	
-	__syncthreads();
 	
 	
 	if(dir == -1)
@@ -544,6 +549,8 @@ lfft_256(T *twiddles_256, T *twiddles_large, T *lds, uint me, uint b)
 			TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (me + 192)*b, X3)				
 		}		
 	}
+	
+	__syncthreads();
 	
 	lds[me +   0] = X0;
 	lds[me +  64] = X1;	
