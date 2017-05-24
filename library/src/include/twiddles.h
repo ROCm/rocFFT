@@ -172,8 +172,6 @@ class TwiddleTableLarge
 void *twiddles_create(size_t N, rocfft_precision precision);
 void twiddles_delete(void *twt);
 
-std::vector<size_t> GetRadices(size_t length);
-void GetWGSAndNT(size_t length, size_t &workGroupSize, size_t &numTransforms);
 
 
 

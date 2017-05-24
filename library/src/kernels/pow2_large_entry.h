@@ -476,8 +476,7 @@ transpose_var1( hipLaunchParm lp, T *twiddles_large, T* pmComplexIn, T* pmComple
    const size_t numGroupsY_1 = numGroupsY;
    // LDS is always complex and allocated transposed: lds[ wgTileExtent.y * wgUnroll ][ wgTileExtent.x ];
 
-   //constexpr size_t TWIDTH = 64/(sizeof(T)/8);
-   constexpr size_t TWIDTH = 64;
+   constexpr size_t TWIDTH = 64/(sizeof(T)/8);
    __shared__ T lds[ TWIDTH ][ TWIDTH ];
 
    size_t currDimIndex;

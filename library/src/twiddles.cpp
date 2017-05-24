@@ -5,6 +5,7 @@
 
 #include "rocfft_hip.h"
 #include "twiddles.h"
+#include "radix_table.h"
 
 
 
@@ -22,7 +23,7 @@ void *twiddles_create(size_t N, rocfft_precision precision)
 
     if( precision == rocfft_precision_single){
         if(N <= 4096){
-            TwiddleTable<float2> twTable(N); 
+            TwiddleTable<float2> twTable(N);
 
             twtc = twTable.GenerateTwiddleTable(radices); //calculate twiddles on host side
 
@@ -30,17 +31,17 @@ void *twiddles_create(size_t N, rocfft_precision precision)
             hipMemcpy(twts, twtc, N*sizeof( float2 ), hipMemcpyHostToDevice);
         }
         else{
-    
+
             TwiddleTableLarge<float2> twTable(N); //does not generate radices
             std::tie(ns, twtc) = twTable.GenerateTwiddleTable(); //calculate twiddles on host side
 
             hipMalloc(&twts, ns*sizeof(float2));
-            hipMemcpy(twts, twtc, ns*sizeof(float2), hipMemcpyHostToDevice);                        
-        }    
+            hipMemcpy(twts, twtc, ns*sizeof(float2), hipMemcpyHostToDevice);
+        }
     }
     else if( precision == rocfft_precision_double){
         if(N <= 4096){
-            TwiddleTable<double2> twTable(N); 
+            TwiddleTable<double2> twTable(N);
 
             twtc = twTable.GenerateTwiddleTable(radices); //calculate twiddles on host side
 
@@ -48,13 +49,13 @@ void *twiddles_create(size_t N, rocfft_precision precision)
             hipMemcpy(twts, twtc, N*sizeof( double2 ), hipMemcpyHostToDevice);
         }
         else{
-    
+
             TwiddleTableLarge<double2> twTable(N); //does not generate radices
             std::tie(ns, twtc) = twTable.GenerateTwiddleTable(); //calculate twiddles on host side
 
             hipMalloc(&twts, ns*sizeof(double2));
-            hipMemcpy(twts, twtc, ns*sizeof(double2), hipMemcpyHostToDevice);                        
-        }    
+            hipMemcpy(twts, twtc, ns*sizeof(double2), hipMemcpyHostToDevice);
+        }
     }
 
     return twts;

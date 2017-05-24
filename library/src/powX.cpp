@@ -12,7 +12,7 @@
 #include "plan.h"
 #include "repo.h"
 #include "transform.h"
-#include "twiddles.h"
+#include "radix_table.h"
 #include "kernel_launch.h"
 #include "function_pool.h"
 
