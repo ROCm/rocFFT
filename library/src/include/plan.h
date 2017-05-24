@@ -23,7 +23,7 @@ inline bool SupportedLength(size_t len)
     while(!(p%2)) p /= 2;
     while(!(p%3)) p /= 3;
     while(!(p%5)) p /= 5;
-    while(!(p%7)) p /= 7;
+    //while(!(p%7)) p /= 7;
 
     if(p == 1)
         return true;
