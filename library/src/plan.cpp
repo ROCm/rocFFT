@@ -414,21 +414,36 @@ void TreeNode::RecursiveBuildTree()
         if (IsPo2(length[0]))//multiple kernels involving transpose
         {
             // Enable block compute under these conditions
-            if (length[0] <= 131072 )
+            if (length[0] <= 262144 / PrecisionWidth(precision))
             {
-                
-                switch (length[0])
+                if (1 == PrecisionWidth(precision))
                 {
-                    case 8192:         divLength1 = 64;         break;
-                    case 16384:        divLength1 = 64;         break;
+                    switch (length[0])
+                    {
+                    case 8192:        divLength1 = 64;        break;
+                    case 16384:        divLength1 = 64;        break;
                     case 32768:        divLength1 = 128;        break;
                     case 65536:        divLength1 = 256;        break;
-                    case 131072:       divLength1 = 64;         break;
-                    case 262144:       divLength1 = 64;         break;
-                    default:           assert(false);
+                    case 131072:    divLength1 = 64;        break;
+                    case 262144:    divLength1 = 64;        break;
+                    default:        assert(false);
+                    }
+                }
+                else//TODO: fail in correctness check now
+                {
+                    switch (length[0])
+                    {
+                    case 4096:        divLength1 = 64;        break;
+                    case 8192:        divLength1 = 64;        break;
+                    case 16384:        divLength1 = 64;        break;
+                    case 32768:        divLength1 = 128;        break;
+                    case 65536:        divLength1 = 64;        break;
+                    case 131072:    divLength1 = 64;        break;
+                    default:        assert(false);
+                    }
                 }
 
-                scheme = (length[0] <= 65536 ) ? CS_L1D_CC : CS_L1D_CRT;
+                scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CS_L1D_CC : CS_L1D_CRT;
             }
             else
             {
