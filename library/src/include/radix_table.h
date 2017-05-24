@@ -25,7 +25,7 @@
                 //  Length, WorkGroupSize (thread block size), NumTransforms , NumPasses,  Radices
                 //  vector<size_t> radices; NUmPasses = radices.size();
                 //  Tuned for single precision on OpenCL stack; double precsion use the same table as single
-                { 4096,           256,             1,         4,     8, 8, 8, 8, 0, 0, 0, 0, 0, 0, 0, 0 },//pow2
+                { 4096,           256,             1,         3,     16, 16, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0 },//pow2
                 { 2048,           256,             1,         4,     8, 8, 8, 4, 0, 0, 0, 0, 0, 0, 0, 0 },
                 { 1024,           128,             1,         4,     8, 8, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0 },
                 { 512,            64,              1,         3,     8, 8, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -198,6 +198,9 @@
 
         assert(workGroupSize <= MAX_WORK_GROUP_SIZE);
     }
+
+std::vector<size_t> GetRadices(size_t length);
+void GetWGSAndNT(size_t length, size_t &workGroupSize, size_t &numTransforms);
 
 
 #endif //defined( RADIX_TABLE_H )
