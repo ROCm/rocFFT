@@ -105,6 +105,19 @@ namespace StockhamGenerator
 			default: assert(false); return "";
 		}
 	}
+	
+        template <rocfft_precision PR>
+	inline std::string MakeRegBaseType(size_t count)
+	{
+		switch(count)
+			{
+			case 1: return "real_type_t<T>";//float, double
+			case 2: return "lib_make_vector2<T>"; //float2, double2
+			case 4: return "lib_make_vector4< vector4_type_t<T> >"; //float4, double4
+			default: assert(false); return "";
+		}
+	}
+
 
 	template <rocfft_precision PR>
 	inline std::string FloatSuffix()

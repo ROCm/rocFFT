@@ -13,7 +13,8 @@ std::vector<size_t> GetRadices(size_t length)
     std::vector<size_t> radices;
 
     //get number of items in this table
-    size_t tableLength = sizeof(specRecord) / sizeof(specRecord[0]);
+    std::vector<SpecRecord> specRecord = GetRecord();
+    size_t tableLength = specRecord.size();
 
      //printf("tableLength=%d\n", tableLength);
     for(int i=0;i<tableLength;i++){
@@ -83,7 +84,8 @@ void GetWGSAndNT(size_t length, size_t &workGroupSize, size_t &numTransforms)
     numTransforms = 0;
 
     //get number of items in this table
-    size_t tableLength = sizeof(specRecord) / sizeof(specRecord[0]);
+    std::vector<SpecRecord> specRecord = GetRecord();
+    size_t tableLength = specRecord.size();
 
     //printf("tableLength=%d\n", tableLength);
     for(int i=0;i<tableLength;i++){

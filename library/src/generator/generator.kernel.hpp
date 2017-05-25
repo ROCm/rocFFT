@@ -103,12 +103,15 @@ namespace StockhamGenerator
 
         typedef typename std::map<size_t, SpecRecord> SpecTable;
         SpecTable specTable;
+        std::vector<SpecRecord> specRecord;
+
 
     public:
         KernelCoreSpecs()
         {
+                specRecord = GetRecord();
                 //reform an array to a map, the table is store in ../include/radix_table.h
-                size_t tableLength = sizeof(specRecord) / sizeof(specRecord[0]);
+                size_t tableLength = specRecord.size();
                 for (size_t i = 0; i<tableLength; i++) specTable[specRecord[i].length] = specRecord[i];
 
         }

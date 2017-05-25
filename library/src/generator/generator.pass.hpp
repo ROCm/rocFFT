@@ -251,7 +251,7 @@ namespace StockhamGenerator
                         passStr += std::to_string(numButterfly/2); passStr += "*me + "; passStr += std::to_string(butterflyIndex);
                         passStr += " + ";
                         passStr += std::to_string(r*(algLS/2)); passStr += " ]";
-                        passStr += " = "; passStr += RegBaseType<PR>(4); passStr += "(";
+                        passStr += " = "; passStr += MakeRegBaseType<PR>(4); passStr += "(";
                         passStr += regIndexA; passStr += ".x, ";
                         passStr += regIndexA; passStr += ".y, ";
                         passStr += regIndexB; passStr += ".x, ";

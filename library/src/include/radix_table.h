@@ -11,7 +11,6 @@
 #include <assert.h>
 
        /* radix table: tell the FFT algorithms; required by twiddle, passes, and kernel*/
-
         struct SpecRecord
         {
             size_t length;
@@ -21,7 +20,10 @@
             size_t radices[12]; // Setting upper limit of number of passes to 12
         };
 
-        SpecRecord specRecord[] = {
+    inline const std::vector<SpecRecord>& GetRecord()
+    {
+        
+	static const std::vector<SpecRecord> specRecord = {
                 //  Length, WorkGroupSize (thread block size), NumTransforms , NumPasses,  Radices
                 //  vector<size_t> radices; NUmPasses = radices.size();
                 //  Tuned for single precision on OpenCL stack; double precsion use the same table as single
@@ -57,7 +59,8 @@
 */
         };
 
-
+	return specRecord;
+    }
 
     #define MAX_WORK_GROUP_SIZE 1024
 
