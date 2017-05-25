@@ -85,6 +85,7 @@ elseif(PLATFORM_NAME STREQUAL "NVIDIA")
   CUDA_INCLUDE_DIRECTORIES(${hip_include_dir}
                            ${extra_cuda_include_dir}
                            ${CMAKE_SOURCE_DIR}/src/include
+                           ${CMAKE_SOURCE_DIR}/src/generator
                            ${CMAKE_SOURCE_DIR}/include
                            ${pwd_include_dir}
                           )

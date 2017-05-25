@@ -34,7 +34,6 @@ option( BUILD_CLIENTS "Build rocFFT clients" OFF )
 # BUILD_SHARED_LIBS is a cmake built-in; we make it an explicit option such that it shows in cmake-gui
 option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" OFF )
 
-set( HIP_ROOT /opt/rocm/hip CACHE PATH "Specify hip installation dir")
 set( BOOST_ROOT /opt/boost  CACHE PATH "Specify boost installation dir")
 
 set( HOST_TOOLCHAIN_NAME "clang" CACHE STRING "Compiler toolchain: (clang gcc)" )
@@ -107,8 +106,9 @@ ExternalProject_Add(
     INSTALL_COMMAND ""
     )
 
-add_custom_target(kernel_generator_run
-    COMMAND ./kernel_generator
+add_custom_command(
+    TARGET rocfft-kernel-generator
+    COMMAND ./rocfft-kernel-generator #./kernel_generator
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/library/src/generator
     COMMENT "run the generator to generated reqired kernels in ${PROJECT_SOURCE_DIR}/library/src/generator"
 )
@@ -140,7 +140,7 @@ if( BUILD_LIBRARY )
   )
 endif()
 
-add_dependencies(rocfft kernel_generator_run)
+add_dependencies(rocfft rocfft-kernel-generator)
 
 # Build clients of the library
 if( BUILD_CLIENTS )

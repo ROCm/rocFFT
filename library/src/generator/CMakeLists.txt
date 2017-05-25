@@ -7,10 +7,10 @@
 cmake_minimum_required( VERSION 2.8.12 )
 
 
-project( rocfft_kernel_generator)
+#project( rocfft-kernel-generator)
  
-add_executable(kernel_generator generator.main.cpp)
+add_executable(rocfft-kernel-generator generator.main.cpp)
 
-target_compile_options(kernel_generator PUBLIC -std=c++11)
+target_compile_options(rocfft-kernel-generator PUBLIC -std=c++11)
 
 
