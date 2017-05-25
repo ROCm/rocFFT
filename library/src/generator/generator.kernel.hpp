@@ -104,6 +104,7 @@ namespace StockhamGenerator
         typedef typename std::map<size_t, SpecRecord> SpecTable;
         SpecTable specTable;
         std::vector<SpecRecord> specRecord;
+        size_t tableLength;
 
 
     public:
@@ -111,7 +112,7 @@ namespace StockhamGenerator
         {
                 specRecord = GetRecord();
                 //reform an array to a map, the table is store in ../include/radix_table.h
-                size_t tableLength = specRecord.size();
+                tableLength = specRecord.size();
                 for (size_t i = 0; i<tableLength; i++) specTable[specRecord[i].length] = specRecord[i];
 
         }
@@ -121,10 +122,7 @@ namespace StockhamGenerator
 
             std::vector<size_t> radices;
 
-            //get number of items in this table
-            size_t tableLength = sizeof(specRecord) / sizeof(specRecord[0]);
-
-             //printf("tableLength=%d\n", tableLength);
+            //printf("tableLength=%d\n", tableLength);
             for(int i=0;i<tableLength;i++){
 
                 if (length == specRecord[i].length){//if find the matched size
