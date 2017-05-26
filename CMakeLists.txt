@@ -18,7 +18,11 @@ if( NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT DEFINED CMAKE_BUILD_TYPE )
   set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." FORCE )
 endif()
 
-list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
+# Append our library helper cmake path and the cmake path for hip (for convenience)
+# Users may override HIP path by specifying their own in CMAKE_MODULE_PATH
+list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake /opt/rocm/hip/cmake )
+
+#list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
 # The superbuild does not build anything itself, all compiling is done in external projects
 project( rocfft-superbuild NONE )
@@ -29,6 +33,8 @@ option( BUILD_CLIENTS "Build rocFFT clients" OFF )
 
 # BUILD_SHARED_LIBS is a cmake built-in; we make it an explicit option such that it shows in cmake-gui
 option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" OFF )
+
+set( BOOST_ROOT /opt/boost  CACHE PATH "Specify boost installation dir")
 
 set( HOST_TOOLCHAIN_NAME "clang" CACHE STRING "Compiler toolchain: (clang gcc)" )
 set_property( CACHE HOST_TOOLCHAIN_NAME PROPERTY STRINGS clang gcc )
@@ -91,7 +97,28 @@ if( DEFINED CMAKE_CXX_CLANG_TIDY )
   list( APPEND BASE_CMAKE_ARGS -DCMAKE_CXX_CLANG_TIDY=${CMAKE_CXX_CLANG_TIDY} )
 endif( )
 
+#setup kernel generator as an external project
+
+ExternalProject_Add(
+    rocfft-kernel-generator
+    SOURCE_DIR ${PROJECT_SOURCE_DIR}/library/src/generator
+    BINARY_DIR ${PROJECT_SOURCE_DIR}/library/src/generator
+    INSTALL_COMMAND ""
+    )
+
+add_custom_command(
+    TARGET rocfft-kernel-generator
+    COMMAND ./rocfft-kernel-generator #./kernel_generator
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/library/src/generator
+    COMMENT "run the generator to generated reqired kernels in ${PROJECT_SOURCE_DIR}/library/src/generator"
+)
+
+
+
+#set up rocfft dependency
 if( BUILD_LIBRARY )
+
+  list(APPEND rocfft_dependencies)
   set( LIBRARY_CMAKE_ARGS
     ${BASE_CMAKE_ARGS}
     -DHOST_TOOLCHAIN_FILE=${HOST_TOOLCHAIN_FILE}
@@ -112,6 +139,8 @@ if( BUILD_LIBRARY )
     ${rocfft_INSTALL_COMMAND}
   )
 endif()
+
+add_dependencies(rocfft rocfft-kernel-generator)
 
 # Build clients of the library
 if( BUILD_CLIENTS )

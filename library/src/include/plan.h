@@ -21,8 +21,9 @@ inline bool SupportedLength(size_t len)
 {
     size_t p = len;
     while(!(p%2)) p /= 2;
-    //while(!(p%3)) p /= 3;
-    //while(!(p%5)) p /= 5;
+    while(!(p%3)) p /= 3;
+    while(!(p%5)) p /= 5;
+    //while(!(p%7)) p /= 7;
 
     if(p == 1)
         return true;
@@ -107,7 +108,7 @@ struct rocfft_plan_t
 };
 
 
-void PlanPow2(ExecPlan &execPlan);
+void PlanPowX(ExecPlan &execPlan);
 
 
 

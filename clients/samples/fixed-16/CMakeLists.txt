@@ -2,7 +2,8 @@
 # Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
 ################################################################################
 
-add_executable( fixed-16 fixed-16.cpp )
+add_executable( fixed-16-float  fixed-16-float.cpp )
+add_executable( fixed-16-double fixed-16-double.cpp )
 
 if(PLATFORM_NAME STREQUAL "NVIDIA")
     set(hip_include_dir ${HIP_SRC_ROOT}/src/HIP/include)
@@ -11,9 +12,15 @@ if(PLATFORM_NAME STREQUAL "NVIDIA")
     
 endif( )
 
-target_include_directories( fixed-16
+target_include_directories( fixed-16-float
   PRIVATE $<BUILD_INTERFACE:${FFTW_INCLUDE_DIRS}>
   PRIVATE $<BUILD_INTERFACE:${hip_include_dir}>
   PRIVATE $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
 )
-target_link_libraries( fixed-16 rocfft ${FFTW_LIBRARIES} )
+target_include_directories( fixed-16-double
+  PRIVATE $<BUILD_INTERFACE:${FFTW_INCLUDE_DIRS}>
+  PRIVATE $<BUILD_INTERFACE:${hip_include_dir}>
+  PRIVATE $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
+)
+target_link_libraries( fixed-16-float rocfft ${FFTW_LIBRARIES} )
+target_link_libraries( fixed-16-double rocfft ${FFTW_LIBRARIES} )

@@ -3,6 +3,7 @@
  ******************************************************************************/
 
 
+
 #include <vector>
 #include <iostream>
 #include <math.h>
@@ -15,18 +16,19 @@
 
 int main()
 {
-	const size_t N = 64*1024;
+    // For size N >= 8192, temporary buffer is required to allocated
+	const size_t N = 64*2048;
 
 	// FFTW reference compute
 	// ==========================================
 
-	float2 *cx = new float2[N];
-	fftwf_complex *in, *out;
-	fftwf_plan p;
+	double2 *cx = new double2[N];
+	fftw_complex *in, *out;
+	fftw_plan p;
 
-	in = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * N);
-	out = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * N);
-	p = fftwf_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+	in = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * N);
+	out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * N);
+	p = fftw_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
 
 	for (size_t i = 0; i < N; i++)
 	{
@@ -34,18 +36,18 @@ int main()
 		cx[i].y = in[i][1] = 0;
 	}
 
-	fftwf_execute(p);
+	fftw_execute(p);
 
-	fftwf_destroy_plan(p);
+	fftw_destroy_plan(p);
 
 
 	// rocfft gpu compute
 	// ========================================
 
-	size_t Nbytes = N * sizeof(float2);
+	size_t Nbytes = N * sizeof(double2);
 
 	// Create HIP device object.
-	float2 *x;
+	double2 *x;
 	hipMalloc(&x, Nbytes);
 
 	//  Copy data to device
@@ -54,7 +56,7 @@ int main()
 	// Create plan
 	rocfft_plan plan = NULL;
 	size_t length = N;
-	rocfft_plan_create(&plan, rocfft_placement_inplace, rocfft_transform_type_complex_forward, rocfft_precision_single, 1, &length, 1, NULL);
+	rocfft_plan_create(&plan, rocfft_placement_inplace, rocfft_transform_type_complex_forward, rocfft_precision_double, 1, &length, 1, NULL);
 
 	// Setup work buffer
 	void *workBuffer = nullptr;
@@ -67,6 +69,7 @@ int main()
 
 	if(workBufferSize > 0)
 	{
+            printf("size of workbuffer=%d\n", (int)workBufferSize);
         	hipMalloc(&workBuffer, workBufferSize);
 	        rocfft_execution_info_set_work_buffer(info, workBuffer, workBufferSize);
 	}
@@ -84,7 +87,7 @@ int main()
 	rocfft_execution_info_destroy(info);
 
 	// Copy result back to host
-	std::vector<float2> y(N);
+	std::vector<double2> y(N);
 	hipMemcpy(&y[0], x, Nbytes, hipMemcpyDeviceToHost);
 
 	// Compute normalized root mean square error
@@ -95,9 +98,10 @@ int main()
 		double dr = out[i][0] - y[i].x;
 		double di = out[i][1] - y[i].y;
 
+        printf("element %d: input %f, %f; FFTW result %f, %f; rocFFT result %f, %f \n", (int)i, cx[i].x, cx[i].y, out[i][0], out[i][1], y[i].x, y[i].y);
 		maxv = fabs(out[i][0]) > maxv ? fabs(out[i][0]) : maxv;
 		maxv = fabs(out[i][1]) > maxv ? fabs(out[i][1]) : maxv;
-		
+
 		nrmse += ((dr*dr) + (di*di));
 	}
 	nrmse /= (double)N;
@@ -107,11 +111,11 @@ int main()
 	std::cout << "normalized root mean square error (nrmse): " << nrmse << std::endl;
 
 	// Deallocate buffers
-	fftwf_free(in);
-	fftwf_free(out);
+	fftw_free(in);
+	fftw_free(out);
 	delete[] cx;
 
 	return 0;
-	
+
 }
 

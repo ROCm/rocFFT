@@ -6,10 +6,12 @@
 #if !defined( TWIDDLES_H )
 #define TWIDDLES_H
 
+
 #include <cassert>
 #include <vector>
 #include <tuple>
 #include <math.h>
+#include <vector>
 #include "rocfft.h"
 
 #define TWIDDLE_DEE 8
@@ -169,6 +171,9 @@ class TwiddleTableLarge
 
 void *twiddles_create(size_t N, rocfft_precision precision);
 void twiddles_delete(void *twt);
+
+
+
 
 
 #endif //defined( TWIDDLES_H )

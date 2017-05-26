@@ -89,6 +89,7 @@ private:
     rocfft_array_type  _input_layout, _output_layout; 
     rocfft_result_placement  _placement;
 
+
     size_t dim;    
 
     rocfft_plan plan;
@@ -99,6 +100,8 @@ private:
     vector<size_t> lengths;
     size_t batch_size;
 
+    std::vector<size_t> input_strides;
+    std::vector<size_t> output_strides;
     //hipStream_t stream;
     
     //[0] for REAL, [1] for IMAG part, IMAG is not used if data type is real
@@ -116,34 +119,36 @@ private:
 
 public:
     /*****************************************************/
-    rocfft(  const size_t dimensions_in, const size_t* lengths_in,
-            const size_t* input_strides_in, const size_t* output_strides_in,
-            const size_t batch_size_in,
+    rocfft( const std::vector<size_t> lengths_in, const size_t batch_size_in,
+        	const std::vector<size_t> input_strides_in, const std::vector<size_t> output_strides_in,
             const size_t input_distance_in, const size_t output_distance_in,
             const rocfft_array_type  input_layout_in, const rocfft_array_type  output_layout_in,
             const rocfft_result_placement  placement_in, 
             const rocfft_transform_type transform_type_in, 
             const T scale_in )
         try
-        : dim(dimensions_in)
+        : dim(lengths_in.size())
+        , lengths (lengths_in)
         , batch_size (batch_size_in)
+        , input_strides (input_strides_in)
+        , output_strides (output_strides_in)
         , _input_layout( input_layout_in )
         , _output_layout( output_layout_in )
         , _placement( placement_in )
-	, _transformation_direction (transform_type_in)
+	    , _transformation_direction (transform_type_in)
         , scale (scale_in)
         , device_workspace_size(0)
-        , input(    dimensions_in,
-                    lengths_in,
-                    input_strides_in,
+        , input(    lengths_in.size(),
+                    lengths_in.data(),
+                    input_strides_in.data(),
                     batch_size_in,
                     input_distance_in,
                     _input_layout,
                     _placement
                 )
-        , output(   dimensions_in,
-                    lengths_in,
-                    output_strides_in,
+        , output(   lengths_in.size(),
+                    lengths_in.data(),
+                    output_strides_in.data(),
                     batch_size_in,
                     output_distance_in,
                     _output_layout,
@@ -153,16 +158,8 @@ public:
 
         argument_check(); //TODO add more FFT argument check
 
-        verbose_output();
+        //verbose_output();
         
-        for( int i = 0; i < max_dimension; i++ )
-        {
-            if( i < dim )
-                lengths.push_back( lengths_in[i] );
-            else
-                lengths.push_back( 1 );
-        }
-
     /********************create plan and perform the FFT transformation *********************************/
 
         input_device_buffers[0] = NULL;
@@ -205,6 +202,19 @@ public:
             HIP_V_THROW( hipMalloc(&(input_device_buffers[0]), input.size_in_bytes()), "hipMalloc failed" );
         }
 
+        if(_placement != rocfft_placement_inplace)
+        {
+            if( is_planar( _output_layout ) ) {
+                HIP_V_THROW( hipMalloc(&(output_device_buffers[0]), output.size_in_bytes()), "hipMalloc failed" );
+                HIP_V_THROW( hipMalloc(&(output_device_buffers[1]), output.size_in_bytes()), "hipMalloc failed" );
+            }
+            else if( is_interleaved( _output_layout ) ) {
+                HIP_V_THROW( hipMalloc(&(output_device_buffers[0]), output.size_in_bytes()), "hipMalloc failed" );
+            }
+            else if( is_real( _output_layout ) ) {
+                HIP_V_THROW( hipMalloc(&(output_device_buffers[0]), output.size_in_bytes()), "hipMalloc failed" );
+            }
+        }
     }
 
 
@@ -214,12 +224,16 @@ public:
 
         if( _input_layout == rocfft_array_type_complex_interleaved && 
             _output_layout == rocfft_array_type_complex_interleaved && 
+            input_strides[0] == 1 &&
+            output_strides[0] == 1 &&
             scale == 1.0 ){
+            printf("I am in simple plan create\n");
             LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, 
-                         dim, lengths.data(), batch_size, NULL  ), "rocfft_plan_create failed" );
+                         dim, lengths.data(), batch_size, NULL  ), "rocfft_plan_create failed" );//simply case plan create 
         }
         else{
-            set_layouts();//explicitely set layout 
+            printf("I am setting layout\n");
+            set_layouts();//explicitely set layout and then create plan  
         }
 
         LIB_V_THROW( rocfft_plan_get_print ( plan ), "rocfft_plan_get_print failed");
@@ -238,14 +252,16 @@ public:
     void set_layouts()
     {
 
-	LIB_V_THROW( rocfft_plan_description_create (&desc), "rocfft_plan_description_create failed");
-        // TODO offset non-packed data
-	LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, _input_layout, _output_layout, 0, 0, 0, NULL, 0, 0, NULL, 0),
-                                                             "rocfft_plan_description_data_layout failed");
+	    LIB_V_THROW( rocfft_plan_description_create (&desc), "rocfft_plan_description_create failed");
+        // TODO offset non-packed data; only works for 1D now
+	    LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, _input_layout, _output_layout, 0, 0, 
+                                                          input_strides.size(), input_strides.data(), input_strides[0]*lengths[0], 
+                                                          output_strides.size(), output_strides.data(), output_strides[0]*lengths[0]),
+                                                          "rocfft_plan_description_data_layout failed");
 
 
         // In rocfft, scale must be set before plan create
-	LIB_V_THROW( rocfft_set_scale_template<T>(desc, scale), "rocfft_plan_descrption_set_scale failed");
+	    LIB_V_THROW( rocfft_set_scale_template<T>(desc, scale), "rocfft_plan_descrption_set_scale failed");
 
         LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, dim, lengths.data(), batch_size, desc  ), "rocfft_plan_create failed" );       
     }
@@ -254,7 +270,7 @@ public:
     /*****************************************************/
     void transform(bool explicit_intermediate_buffer = use_explicit_intermediate_buffer) {
  
-        write_local_input_buffer_to_gpu(); // perform memory copy 
+        write_local_input_buffer_to_gpu(); // perform memory copy from cpu to gpu
 
         LIB_V_THROW( rocfft_execution_info_create(&info), "rocfft_execution_info_create failed" );
 
@@ -266,18 +282,18 @@ public:
 
         // Execute once for basic functional test
 
-        //if inplace transfor, NULL; else output_device buffer
+        //if inplace transform, NULL; else output_device buffer
         void** BuffersOut = (_placement == rocfft_placement_inplace) ? NULL : &output_device_buffers[0];
         LIB_V_THROW( rocfft_execute( plan, input_device_buffers, BuffersOut, info ), "rocfft_execute failed" );
 
         HIP_V_THROW( hipDeviceSynchronize(), "hipDeviceSynchronize failed" );
 
         if( _placement == rocfft_placement_inplace ){
-	    read_gpu_result_to_input_buffer();
-	}
-	else{
+	        read_gpu_result_to_input_buffer();
+	    }
+	    else{
             read_gpu_result_to_output_buffer();
-	}
+	    }
 	
     }
 
@@ -384,15 +400,15 @@ public:
     {
         for(int i=0;i<2;i++)
         {
-           if(input_device_buffers[i] != NULL) 
-           {
-               hipFree(input_device_buffers[i]);
-           }
-           if(output_device_buffers[i] != NULL) 
-           {
-               hipFree(output_device_buffers[i]);
-           }
-	}
+            if(input_device_buffers[i] != NULL) 
+            {
+                hipFree(input_device_buffers[i]);
+            }
+            if(output_device_buffers[i] != NULL) 
+            {
+                hipFree(output_device_buffers[i]);
+            }
+	    }
     
         if(device_workspace != NULL) hipFree(device_workspace);
 

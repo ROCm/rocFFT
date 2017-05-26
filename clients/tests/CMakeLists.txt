@@ -103,7 +103,7 @@ endif( )
 
 set(rocfft_test_source
     gtest_main.cpp
-    accuracy_test_pow2.cpp
+    accuracy_test_powX.cpp
     unit_test.cpp
     misc/source/test_exception.cpp)
 

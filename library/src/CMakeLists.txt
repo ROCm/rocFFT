@@ -50,9 +50,13 @@ set( rocfft_source
      transform.cpp
      hipfft.cpp
      repo.cpp
-     pow2.cpp
-     kernel_launch_single.cpp
-     kernel_launch_double.cpp
+     powX.cpp
+     generator/function_pool.cpp
+     generator/kernel_launch_single.cpp
+     generator/kernel_launch_double.cpp
+     kernel_launch_pow2_large_single.cpp
+     kernel_launch_pow2_large_double.cpp
+     get_radix.cpp
      twiddles.cpp
 )
 
@@ -81,6 +85,7 @@ elseif(PLATFORM_NAME STREQUAL "NVIDIA")
   CUDA_INCLUDE_DIRECTORIES(${hip_include_dir}
                            ${extra_cuda_include_dir}
                            ${CMAKE_SOURCE_DIR}/src/include
+                           ${CMAKE_SOURCE_DIR}/src/generator
                            ${CMAKE_SOURCE_DIR}/include
                            ${pwd_include_dir}
                           )

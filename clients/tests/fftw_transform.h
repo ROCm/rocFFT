@@ -30,7 +30,8 @@ class fftw_wrapper<float, fftwf_complex>
 public:
 	fftwf_plan plan;
 
-	void make_plan( int x, int y, int z, int num_dimensions, int batch_size, fftwf_complex* input_ptr, fftwf_complex* output_ptr, int num_points_in_single_batch, fftw_direction direction, fftw_transform_type type )
+	void make_plan( int x, int y, int z, int num_dimensions, int batch_size, fftwf_complex* input_ptr, fftwf_complex* output_ptr, int num_points_in_single_batch, 
+                    const std::vector<size_t> input_strides,  const std::vector<size_t> output_strides, fftw_direction direction, fftw_transform_type type )
 	{
 		// we need to swap x,y,z dimensions because of a row-column discrepancy between rocfft and fftw
 		int lengths[max_dimension] = {z, y, x};
@@ -48,9 +49,9 @@ public:
 										lengths+max_dimension-num_dimensions,
 										batch_size,
 										input_ptr, NULL,
-										1, num_points_in_single_batch,
-										output_ptr, NULL,
-										1, num_points_in_single_batch,
+									    input_strides[0], num_points_in_single_batch*input_strides[0],
+									    output_ptr, NULL,
+									    output_strides[0], num_points_in_single_batch*output_strides[0],
 										direction, FFTW_ESTIMATE);
 		}
 		else if( type == r2c )
@@ -66,7 +67,7 @@ public:
 											lengths+max_dimension-num_dimensions,
 											batch_size,
 											reinterpret_cast<float*>(input_ptr), NULL,
-											1, num_points_in_single_batch,
+											1, num_points_in_single_batch,//TODO for strides
 											output_ptr, NULL,
 											1, (x/2 + 1) * y * z,
 											FFTW_ESTIMATE);
@@ -86,16 +87,17 @@ public:
 											input_ptr, NULL,
 											1, (x/2 + 1) * y * z,
 											reinterpret_cast<float*>(output_ptr), NULL,
-											1, num_points_in_single_batch,
+											1, num_points_in_single_batch,//TODO for strides
 											FFTW_ESTIMATE);
 		}
 		else
 			throw std::runtime_error( "invalid transform type in <float>make_plan" );
 	}
 
-	fftw_wrapper( int x, int y, int z, int num_dimensions, int batch_size, fftwf_complex* input_ptr, fftwf_complex* output_ptr, int num_points_in_single_batch, fftw_direction direction, fftw_transform_type type )
+	fftw_wrapper( int x, int y, int z, int num_dimensions, int batch_size, fftwf_complex* input_ptr, fftwf_complex* output_ptr, int num_points_in_single_batch, 
+                  const std::vector<size_t> input_strides,  const std::vector<size_t> output_strides,  fftw_direction direction, fftw_transform_type type )
 	{
-		make_plan( x, y, z, num_dimensions, batch_size, input_ptr, output_ptr, num_points_in_single_batch, direction, type );
+		make_plan( x, y, z, num_dimensions, batch_size, input_ptr, output_ptr, num_points_in_single_batch, input_strides, output_strides, direction, type );
 	}
 
 	void destroy_plan()
@@ -120,7 +122,8 @@ class fftw_wrapper<double, fftw_complex>
 public:
 	fftw_plan plan;
 
-	void make_plan( int x, int y, int z, int num_dimensions, int batch_size, fftw_complex* input_ptr, fftw_complex* output_ptr, int num_points_in_single_batch, fftw_direction direction, fftw_transform_type type )
+	void make_plan( int x, int y, int z, int num_dimensions, int batch_size, fftw_complex* input_ptr, fftw_complex* output_ptr, int num_points_in_single_batch, 
+                    const std::vector<size_t> input_strides,  const std::vector<size_t> output_strides, fftw_direction direction, fftw_transform_type type )
 	{
 		// we need to swap x,y,z dimensions because of a row-column discrepancy between rocfft and fftw
 		int lengths[max_dimension] = {z, y, x};
@@ -138,9 +141,9 @@ public:
 									lengths+max_dimension-num_dimensions,
 									batch_size,
 									input_ptr, NULL,
-									1, num_points_in_single_batch,
+									input_strides[0], num_points_in_single_batch*input_strides[0],
 									output_ptr, NULL,
-									1, num_points_in_single_batch,
+									output_strides[0], num_points_in_single_batch*output_strides[0],
 									direction, FFTW_ESTIMATE);
 		}
 		else if( type == r2c )
@@ -156,7 +159,7 @@ public:
 											lengths+max_dimension-num_dimensions,
 											batch_size,
 											reinterpret_cast<double*>(input_ptr), NULL,
-											1, num_points_in_single_batch,
+											1, num_points_in_single_batch,//TODO for strides
 											output_ptr, NULL,
 											1, (x/2 + 1) * y * z,
 											FFTW_ESTIMATE);
@@ -176,16 +179,17 @@ public:
 											input_ptr, NULL,
 											1, (x/2 + 1) * y * z,
 											reinterpret_cast<double*>(output_ptr), NULL,
-											1, num_points_in_single_batch,
+											1, num_points_in_single_batch,//TODO for strides
 											FFTW_ESTIMATE);
 		}
 		else
 			throw std::runtime_error( "invalid transform type in <double>make_plan" );
 	}
 
-	fftw_wrapper( int x, int y, int z, int num_dimensions, int batch_size, fftw_complex* input_ptr, fftw_complex* output_ptr, int num_points_in_single_batch, fftw_direction direction, fftw_transform_type type )
+	fftw_wrapper( int x, int y, int z, int num_dimensions, int batch_size, fftw_complex* input_ptr, fftw_complex* output_ptr, int num_points_in_single_batch, 
+                  const std::vector<size_t> input_strides,  const std::vector<size_t> output_strides,  fftw_direction direction, fftw_transform_type type )
 	{
-		make_plan( x, y, z, num_dimensions, batch_size, input_ptr, output_ptr, num_points_in_single_batch, direction, type );
+		make_plan( x, y, z, num_dimensions, batch_size, input_ptr, output_ptr, num_points_in_single_batch, input_strides, output_strides, direction, type );
 	}
 
 	void destroy_plan()
@@ -211,11 +215,16 @@ class fftw {
 private:
 	static const size_t tightly_packed_distance = 0;
 
-	std::vector<size_t> _lengths;
 	fftw_direction _direction;
 	fftw_transform_type _type;
 	rocfft_array_type _input_layout, _output_layout;
+
+	std::vector<size_t> _lengths;
 	size_t _batch_size;
+
+    std::vector<size_t> input_strides;
+    std::vector<size_t> output_strides;
+
 	buffer<T> input;
 	buffer<T> output;
 	fftw_wrapper<T, fftw_T> fftw_guts;
@@ -224,23 +233,28 @@ private:
 
 public:
 	/*****************************************************/
-	fftw( const size_t number_of_dimensions_in, const size_t* lengths_in, const size_t batch_size_in, fftw_transform_type type_in )
-		: _lengths( initialized_lengths( number_of_dimensions_in, lengths_in ) )
+	fftw( const std::vector<size_t> lengths_in, const size_t batch_size_in, 
+          std::vector<size_t> input_strides_in, std::vector<size_t> output_strides_in,
+          const rocfft_result_placement  placement_in, 
+          fftw_transform_type type_in)
+		: _lengths( lengths_in  )
+		, _batch_size( batch_size_in )
+        , input_strides (input_strides_in)
+        , output_strides (output_strides_in)
 		, _direction( fftw_direction::forward )
 		, _type( type_in )
 		, _input_layout( initialized_input_layout() )  //chose interleaved layout artificially
 		, _output_layout( initialized_output_layout() )                   
-		, _batch_size( batch_size_in )
-		, input( number_of_dimensions_in,
-				lengths_in,
-				NULL,
+		, input( lengths_in.size(),
+				lengths_in.data(),
+				input_strides_in.data(), 
 				batch_size_in,
 				tightly_packed_distance,
 				_input_layout,
-				rocfft_placement_notinplace )
-		, output( number_of_dimensions_in,
-				lengths_in,
-				NULL,
+				rocfft_placement_notinplace )//FFTW always use outof place transformation
+		, output( lengths_in.size(),
+				lengths_in.data(),
+				output_strides_in.data(),
 				batch_size_in,
 				tightly_packed_distance,
 				_output_layout,
@@ -248,10 +262,12 @@ public:
 		, _forward_scale( 1.0f )
 		, _backward_scale( 1.0f/T(input.number_of_data_points_single_batch()) )
 		, fftw_guts( (int)_lengths[dimx], (int)_lengths[dimy], (int)_lengths[dimz],
-					 (int)number_of_dimensions_in, (int)batch_size_in,
+					 (int)lengths_in.size(), (int)batch_size_in,
 					 reinterpret_cast<fftw_T*>(input_ptr()),
 					 reinterpret_cast<fftw_T*>(output_ptr()),
-					 (int)(_lengths[dimx]*_lengths[dimy]*_lengths[dimz]), _direction, _type)
+					 (int)(_lengths[dimx]*_lengths[dimy]*_lengths[dimz]), 
+                     input_strides, output_strides,
+                     _direction, _type)
 	{
 		clear_data_buffer();
 	}
@@ -338,7 +354,7 @@ public:
 			fftw_guts.make_plan((int)_lengths[dimx], (int)_lengths[dimy], (int)_lengths[dimz],
 								(int)input.number_of_dimensions(), (int)input.batch_size(),
 								reinterpret_cast<fftw_T*>(input.interleaved_ptr()), reinterpret_cast<fftw_T*>(output.interleaved_ptr()),
-								(int)(_lengths[dimx]*_lengths[dimy]*_lengths[dimz]), _direction, _type);
+								(int)(_lengths[dimx]*_lengths[dimy]*_lengths[dimz]), input_strides, output_strides, _direction, _type);
 		}
 	}
 
@@ -355,7 +371,7 @@ public:
 			fftw_guts.make_plan((int)_lengths[dimx], (int)_lengths[dimy], (int)_lengths[dimz],
 								(int)input.number_of_dimensions(), (int)input.batch_size(),
 								reinterpret_cast<fftw_T*>(input.interleaved_ptr()), reinterpret_cast<fftw_T*>(output.interleaved_ptr()),
-								(int)(_lengths[dimx]*_lengths[dimy]*_lengths[dimz]), _direction, _type);
+								(int)(_lengths[dimx]*_lengths[dimy]*_lengths[dimz]), input_strides, output_strides, _direction, _type);
 		}
 	}
 

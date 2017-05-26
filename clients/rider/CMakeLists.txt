@@ -91,7 +91,7 @@ if( NOT Boost_FOUND )
 	find_package( Boost REQUIRED COMPONENTS program_options )
 endif( )
 
-find_package( FFTW 3.0 REQUIRED MODULE COMPONENTS FLOAT )
+
 find_package( rocfft REQUIRED CONFIG )
 
 if(PLATFORM_NAME STREQUAL "NVIDIA")
@@ -124,12 +124,11 @@ endif( )
 target_include_directories( rocfft-rider
   PRIVATE
     $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
-    $<BUILD_INTERFACE:${FFTW_INCLUDES}>
     $<BUILD_INTERFACE:${hip_include_dir}>
     $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
 )
 
-target_link_libraries( rocfft-rider rocfft ${FFTW_LIBRARIES} ${Boost_LIBRARIES} )
+target_link_libraries( rocfft-rider rocfft ${Boost_LIBRARIES} )
 
 # Ubuntu systems need to explicitely link to pthreads lib because of --as-needed
 # https://github.com/google/googletest/issues/391#issuecomment-125645879

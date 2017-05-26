@@ -3,10 +3,11 @@
  ******************************************************************************/
 
 
+
 #include <vector>
 #include <iostream>
 #include <fftw3.h>
-
+#include <math.h>
 #include <hip/hip_runtime_api.h>
 #include <hip/hip_vector_types.h>
 #include "rocfft.h"
@@ -14,9 +15,10 @@
 
 int main()
 {
+    // For size N <= 4096 
 	const size_t N = 16;
 
-	// FFTW reference compute
+	// FFTW reference compute 
 	// ==========================================
 
 	float2 cx[N];
@@ -37,14 +39,6 @@ int main()
 
 	fftwf_execute(p);
 
-	for (size_t i = 0; i < N; i++)
-	{
-		std::cout << out[i][0] << ", " << out[i][1] << std::endl;
-	}
-
-	fftwf_destroy_plan(p);
-	fftwf_free(in); fftwf_free(out);
-
 
 	// rocfft gpu compute
 	// ========================================
@@ -64,7 +58,7 @@ int main()
 	rocfft_plan_create(&plan, rocfft_placement_inplace, rocfft_transform_type_complex_forward, rocfft_precision_single, 1, &length, 1, NULL);
 
 	// Execute plan
-	rocfft_execute(plan, (void**) &x, NULL, NULL);
+	rocfft_execute(plan, (void**)&x, NULL, NULL);
 
 	// Destroy plan
 	rocfft_plan_destroy(plan);
@@ -73,8 +67,22 @@ int main()
 	std::vector<float2> y(N);
 	hipMemcpy(&y[0], x, Nbytes, hipMemcpyDeviceToHost);
 
+
+    double error = 0;
+    size_t element_id = 0;
 	for (size_t i = 0; i < N; i++)
 	{
-		std::cout << y[i].x << ", " << y[i].y << std::endl;
+        printf("element %d: input %f, %f; FFTW result %f, %f; rocFFT result %f, %f \n", (int)i, cx[i].x, cx[i].y, out[i][0], out[i][1], y[i].x, y[i].y);
+        double err = fabs(out[i][0] - y[i].x) + fabs( out[i][1] - y[i].y);
+        if (err > error) { error = err; element_id = i;}
 	}
+
+    printf("max error of FFTW and rocFFT is %e at element %d\n", error/(fabs(out[element_id][0])+fabs(out[element_id][1])), (int)element_id);
+
+	fftwf_destroy_plan(p);
+	fftwf_free(in); fftwf_free(out);
+
+    hipFree(x);
+
+    return 1;
 }

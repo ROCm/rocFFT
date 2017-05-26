@@ -530,6 +530,8 @@ public:
 	bool operator==( buffer<T> & other_buffer )
 	{
 		// complexity of each dimension must be the same
+        // but does not compare their stride. other_buffer's stride can be different
+        // e.g "buffer_A[1, 2] with stride 1" is consider to be equal "buffer_B[1, X, 2, X] with stride 2", since X is not touched.  
 		if( ( is_real() && !other_buffer.is_real() ) || ( !is_real() && other_buffer.is_real() ) ||
 			( is_hermitian() && !other_buffer.is_hermitian() ) || ( !is_hermitian() && other_buffer.is_hermitian() ) ||
 			( is_complex() && !other_buffer.is_complex() ) || ( !is_complex() && other_buffer.is_complex() ) )
