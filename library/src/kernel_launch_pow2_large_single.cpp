@@ -27,61 +27,55 @@ void device_call_template(void *, void *);
 #define POW2_SMALL_IP_A(FUNCTION_NAME,KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
-	DeviceCallIn *data = (DeviceCallIn *)data_p;\
-	DeviceCallOut *back = (DeviceCallOut *)back_p;\
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], data->node->batch);\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], data->node->batch);\
 }
 
 #define POW2_SMALL_IP_B(FUNCTION_NAME,KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
-	DeviceCallIn *data = (DeviceCallIn *)data_p;\
-	DeviceCallOut *back = (DeviceCallOut *)back_p;\
-	if(data->node->direction == -1) \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], data->node->batch);\
-	else \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], data->node->batch);\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    if(data->node->direction == -1) \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], data->node->batch);\
+    else \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], data->node->batch);\
 }
 
 #define POW2_SMALL_IP_C(FUNCTION_NAME,KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
-	DeviceCallIn *data = (DeviceCallIn *)data_p;\
-	DeviceCallOut *back = (DeviceCallOut *)back_p;\
-	if(data->node->direction == -1) \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0]);\
-	else \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0]);\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    if(data->node->direction == -1) \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0]);\
+    else \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0]);\
 }
 
 #define POW2_SMALL_OP_A(FUNCTION_NAME,KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
-	DeviceCallIn *data = (DeviceCallIn *)data_p;\
-	DeviceCallOut *back = (DeviceCallOut *)back_p;\
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0],  (float2 *)data->bufOut[0], data->node->batch);\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0],  (float2 *)data->bufOut[0], data->node->batch);\
 }
 
 #define POW2_SMALL_OP_B(FUNCTION_NAME,KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
-	DeviceCallIn *data = (DeviceCallIn *)data_p;\
-	DeviceCallOut *back = (DeviceCallOut *)back_p;\
-	if(data->node->direction == -1) \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0], data->node->batch);\
-	else \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0], data->node->batch);\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    if(data->node->direction == -1) \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0], data->node->batch);\
+    else \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0], data->node->batch);\
 }
 
 #define POW2_SMALL_OP_C(FUNCTION_NAME,KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
-	DeviceCallIn *data = (DeviceCallIn *)data_p;\
-	DeviceCallOut *back = (DeviceCallOut *)back_p;\
-	if(data->node->direction == -1) \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
-	else \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    if(data->node->direction == -1) \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
+    else \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
 }
 
 /* INPLACE */
@@ -127,29 +121,25 @@ POW2_SMALL_OP_A(rocfft_internal_dfn_sp_op_ci_ci_stoc_1_1,    fft_1_op_d1_pk)
 #define POW2_LARGE_BCC_A(FUNCTION_NAME,KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
-	DeviceCallIn *data = (DeviceCallIn *)data_p;\
-	DeviceCallOut *back = (DeviceCallOut *)back_p;\
-    printf("inStride=%d, outStride=%d \n", (int)data->node->inStride[0],  (int)data->node->outStride[0]);  \
-	if(data->node->direction == -1) \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-				(float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
-	else \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-				(float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    if(data->node->direction == -1) \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
+                (float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
+    else \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
+                (float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
 }
 
 #define POW2_LARGE_BRC_A(FUNCTION_NAME,KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
-	DeviceCallIn *data = (DeviceCallIn *)data_p;\
-	DeviceCallOut *back = (DeviceCallOut *)back_p;\
-    printf("inStride=%d, outStride=%d \n", (int)data->node->inStride[0],  (int)data->node->outStride[0]);  \
-	if(data->node->direction == -1) \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-				(float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
-	else \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-				(float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    if(data->node->direction == -1) \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
+                (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
+    else \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
+                (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
 }
 
 POW2_LARGE_BCC_A(rocfft_internal_dfn_sp_op_ci_ci_sbcc_2_64_128,  fft_64_128_bcc_d1_pk)
@@ -167,65 +157,63 @@ POW2_LARGE_BRC_A(rocfft_internal_dfn_sp_op_ci_ci_sbrc_2_256_256, fft_256_256_brc
 
 /* ============================================================================================ */
 
-#define TRANSPOSE_CALL(NUM_Y,DRN,TWL,TTD)	\
+#define TRANSPOSE_CALL(NUM_Y,DRN,TWL,TTD)    \
 hipLaunchKernel(HIP_KERNEL_NAME( transpose_var1<float2, DRN,TWL,TTD> ),\
-					dim3(data->gridParam.b_x, data->gridParam.b_y), dim3(data->gridParam.tpb_x, data->gridParam.tpb_x), 0, 0,\
-					(float2 *)data->node->twiddles_large, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
-					NUM_Y, data->node->inStride[1], data->node->outStride[1], data->node->iDist, data->node->oDist)
+                    dim3(data->gridParam.b_x, data->gridParam.b_y), dim3(data->gridParam.tpb_x, data->gridParam.tpb_x), 0, 0,\
+                    (float2 *)data->node->twiddles_large, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
+                    NUM_Y, data->node->inStride[1], data->node->outStride[1], data->node->iDist, data->node->oDist)
 
 void rocfft_internal_transpose_var1_sp(void *data_p, void *back_p)
 {
-	DeviceCallIn *data = (DeviceCallIn *)data_p;
-	DeviceCallOut *back = (DeviceCallOut *)back_p;
-    printf("inStride=%d, outStride=%d in transpose kernel\n", (int)data->node->inStride[0],  (int)data->node->outStride[0]);  
-	if(data->node->transTileDir == TTD_IP_HOR)
-	{
-		if(data->node->large1D == 0)
-		{
-			if(data->node->direction == -1)
-			TRANSPOSE_CALL((data->node->length[1]/64), -1, 0, TTD_IP_HOR);
-			else
-			TRANSPOSE_CALL((data->node->length[1]/64),  1, 0, TTD_IP_HOR);
-		}
-		else if(data->node->large1D <= 16777216)
-		{
-			if(data->node->direction == -1)
-			TRANSPOSE_CALL((data->node->length[1]/64), -1, 3, TTD_IP_HOR);
-			else
-			TRANSPOSE_CALL((data->node->length[1]/64),  1, 3, TTD_IP_HOR);
-		}
-		else
-		{
-			if(data->node->direction == -1)
-			TRANSPOSE_CALL((data->node->length[1]/64), -1, 4, TTD_IP_HOR);
-			else
-			TRANSPOSE_CALL((data->node->length[1]/64),  1, 4, TTD_IP_HOR);
-		}
-	}
-	else
-	{
-		if(data->node->large1D == 0)
-		{
-			if(data->node->direction == -1)
-			TRANSPOSE_CALL((data->node->length[0]/64), -1, 0, TTD_IP_VER);
-			else
-			TRANSPOSE_CALL((data->node->length[0]/64),  1, 0, TTD_IP_VER);
-		}
-		else if(data->node->large1D <= 16777216)
-		{
-			if(data->node->direction == -1)
-			TRANSPOSE_CALL((data->node->length[0]/64), -1, 3, TTD_IP_VER);
-			else
-			TRANSPOSE_CALL((data->node->length[0]/64),  1, 3, TTD_IP_VER);
-		}
-		else
-		{
-			if(data->node->direction == -1)
-			TRANSPOSE_CALL((data->node->length[0]/64), -1, 4, TTD_IP_VER);
-			else
-			TRANSPOSE_CALL((data->node->length[0]/64),  1, 4, TTD_IP_VER);
-		}
-	}
+    DeviceCallIn *data = (DeviceCallIn *)data_p;
+    if(data->node->transTileDir == TTD_IP_HOR)
+    {
+        if(data->node->large1D == 0)
+        {
+            if(data->node->direction == -1)
+            TRANSPOSE_CALL((data->node->length[1]/64), -1, 0, TTD_IP_HOR);
+            else
+            TRANSPOSE_CALL((data->node->length[1]/64),  1, 0, TTD_IP_HOR);
+        }
+        else if(data->node->large1D <= 16777216)
+        {
+            if(data->node->direction == -1)
+            TRANSPOSE_CALL((data->node->length[1]/64), -1, 3, TTD_IP_HOR);
+            else
+            TRANSPOSE_CALL((data->node->length[1]/64),  1, 3, TTD_IP_HOR);
+        }
+        else
+        {
+            if(data->node->direction == -1)
+            TRANSPOSE_CALL((data->node->length[1]/64), -1, 4, TTD_IP_HOR);
+            else
+            TRANSPOSE_CALL((data->node->length[1]/64),  1, 4, TTD_IP_HOR);
+        }
+    }
+    else
+    {
+        if(data->node->large1D == 0)
+        {
+            if(data->node->direction == -1)
+            TRANSPOSE_CALL((data->node->length[0]/64), -1, 0, TTD_IP_VER);
+            else
+            TRANSPOSE_CALL((data->node->length[0]/64),  1, 0, TTD_IP_VER);
+        }
+        else if(data->node->large1D <= 16777216)
+        {
+            if(data->node->direction == -1)
+            TRANSPOSE_CALL((data->node->length[0]/64), -1, 3, TTD_IP_VER);
+            else
+            TRANSPOSE_CALL((data->node->length[0]/64),  1, 3, TTD_IP_VER);
+        }
+        else
+        {
+            if(data->node->direction == -1)
+            TRANSPOSE_CALL((data->node->length[0]/64), -1, 4, TTD_IP_VER);
+            else
+            TRANSPOSE_CALL((data->node->length[0]/64),  1, 4, TTD_IP_VER);
+        }
+    }
 }
 
 /* ============================================================================================ */
@@ -233,33 +221,29 @@ void rocfft_internal_transpose_var1_sp(void *data_p, void *back_p)
 #define POW2_SMALL_IP_2_C(FUNCTION_NAME,KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
-	DeviceCallIn *data = (DeviceCallIn *)data_p;\
-	DeviceCallOut *back = (DeviceCallOut *)back_p;\
-    printf("inStride=%d, outStride=%d \n", (int)data->node->inStride[0],  (int)data->node->outStride[0]);  \
-	if(data->node->direction == -1) \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-				(float2 *)data->node->twiddles, (float2 *)data->bufIn[0],\
-				data->node->length[1], data->node->inStride[1], data->node->iDist);\
-	else \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-				(float2 *)data->node->twiddles, (float2 *)data->bufIn[0],\
-				data->node->length[1], data->node->inStride[1], data->node->iDist);\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    if(data->node->direction == -1) \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
+                (float2 *)data->node->twiddles, (float2 *)data->bufIn[0],\
+                data->node->length[1], data->node->inStride[1], data->node->iDist);\
+    else \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
+                (float2 *)data->node->twiddles, (float2 *)data->bufIn[0],\
+                data->node->length[1], data->node->inStride[1], data->node->iDist);\
 }
 
 #define POW2_SMALL_OP_2_C(FUNCTION_NAME,KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
-	DeviceCallIn *data = (DeviceCallIn *)data_p;\
-	DeviceCallOut *back = (DeviceCallOut *)back_p;\
-    printf("inStride=%d, outStride=%d \n", (int)data->node->inStride[0],  (int)data->node->outStride[0]);  \
-	if(data->node->direction == -1) \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-				(float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
-				data->node->length[1], data->node->inStride[1], data->node->outStride[1], data->node->iDist, data->node->oDist);\
-	else \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-				(float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
-				data->node->length[1], data->node->inStride[1], data->node->outStride[1], data->node->iDist, data->node->oDist);\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    if(data->node->direction == -1) \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
+                (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
+                data->node->length[1], data->node->inStride[1], data->node->outStride[1], data->node->iDist, data->node->oDist);\
+    else \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
+                (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
+                data->node->length[1], data->node->inStride[1], data->node->outStride[1], data->node->iDist, data->node->oDist);\
 }
 
 
@@ -278,33 +262,29 @@ POW2_SMALL_OP_2_C(rocfft_internal_dfn_sp_op_ci_ci_stoc_2_512,  fft_512_op_d2_s1)
 #define POW2_LARGE_BCC_3_A(FUNCTION_NAME,KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
-	DeviceCallIn *data = (DeviceCallIn *)data_p;\
-	DeviceCallOut *back = (DeviceCallOut *)back_p;\
-    printf("inStride=%d, outStride=%d \n", (int)data->node->inStride[0],  (int)data->node->outStride[0]);  \
-	if(data->node->direction == -1) \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-				(float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
-				data->node->length[2], data->node->inStride[2], data->node->outStride[2], data->node->iDist, data->node->oDist);\
-	else \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-				(float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
-				data->node->length[2], data->node->inStride[2], data->node->outStride[2], data->node->iDist, data->node->oDist);\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    if(data->node->direction == -1) \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
+                (float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
+                data->node->length[2], data->node->inStride[2], data->node->outStride[2], data->node->iDist, data->node->oDist);\
+    else \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
+                (float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
+                data->node->length[2], data->node->inStride[2], data->node->outStride[2], data->node->iDist, data->node->oDist);\
 }
 
 #define POW2_LARGE_BRC_3_A(FUNCTION_NAME,KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
-	DeviceCallIn *data = (DeviceCallIn *)data_p;\
-	DeviceCallOut *back = (DeviceCallOut *)back_p;\
-    printf("inStride=%d, outStride=%d \n", (int)data->node->inStride[0],  (int)data->node->outStride[0]);  \
-	if(data->node->direction == -1) \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-				(float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
-				data->node->length[2], data->node->inStride[2], data->node->outStride[2], data->node->iDist, data->node->oDist);\
-	else \
-	hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-				(float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
-				data->node->length[2], data->node->inStride[2], data->node->outStride[2], data->node->iDist, data->node->oDist);\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    if(data->node->direction == -1) \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
+                (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
+                data->node->length[2], data->node->inStride[2], data->node->outStride[2], data->node->iDist, data->node->oDist);\
+    else \
+    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
+                (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0],\
+                data->node->length[2], data->node->inStride[2], data->node->outStride[2], data->node->iDist, data->node->oDist);\
 }
 
 POW2_LARGE_BCC_3_A(rocfft_internal_dfn_sp_op_ci_ci_sbcc_3_64_128, fft_64_128_bcc_d2_s1)

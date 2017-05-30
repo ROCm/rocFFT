@@ -16,7 +16,7 @@ std::vector<size_t> GetRadices(size_t length)
     std::vector<SpecRecord> specRecord = GetRecord();
     size_t tableLength = specRecord.size();
 
-     //printf("tableLength=%d\n", tableLength);
+    //printf("tableLength=%d\n", tableLength);
     for(int i=0;i<tableLength;i++){
 
         if (length == specRecord[i].length){//if find the matched size
