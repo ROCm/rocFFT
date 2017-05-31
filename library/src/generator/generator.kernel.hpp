@@ -788,8 +788,8 @@ namespace StockhamGenerator
 
                     // Initialize
                     str += "\t";
-                    str += "unsigned int me = hipThreadIdx_x;\n\t";
-                    str += "unsigned int batch = hipBlockIdx_x;";
+                    str += "unsigned int me = (unsigned int)hipThreadIdx_x;\n\t";
+                    str += "unsigned int batch = (unsigned int)hipBlockIdx_x;";
                     str += "\n";
 
 
