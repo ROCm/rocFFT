@@ -38,7 +38,7 @@ void PlanPowX(ExecPlan &execPlan)
         }
     }
 
-    //function_pool func_pool;
+    function_pool func_pool;
 
     if(execPlan.execSeq[0]->precision == rocfft_precision_single)
     {
@@ -57,14 +57,11 @@ void PlanPowX(ExecPlan &execPlan)
                     DevFnCall ptr = nullptr;// typedef void (*DevFnCall)(void *, void *);
                     GetWGSAndNT(execPlan.execSeq[0]->length[0], workGroupSize, numTransforms);//get working group size and number of transforms
 
-                    //ptr = func_pool.get_function_single(execPlan.execSeq[0]->length[0]);
+                    /*
                     switch(execPlan.execSeq[0]->length[0])
                     {
 
                             //pow2
-                            //assume the hash map has been set up, mymap
-                            //ptr = mymap[ execPlan.execSeq[0]->length[0] ];
-
                             case 4096: ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_4096); break;
                             case 2048: ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_2048); break;
                             case 1024: ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_1024); break;
@@ -97,8 +94,9 @@ void PlanPowX(ExecPlan &execPlan)
                             case 5:         ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_5); break;
 
                     }
-                   
+                    */                   
 
+                    ptr = func_pool.get_function_single(execPlan.execSeq[0]->length[0]);
                     execPlan.devFnCall.push_back(ptr);
                     GridParam gp;
                     size_t batch = execPlan.execSeq[0]->batch;
@@ -322,7 +320,7 @@ void PlanPowX(ExecPlan &execPlan)
                     size_t numTransforms;
                     DevFnCall ptr = nullptr;
                     GetWGSAndNT(execPlan.execSeq[0]->length[0], workGroupSize, numTransforms);//get working group size and number of transforms
-
+/*
                     switch(execPlan.execSeq[0]->length[0])
                     {
                             //pow2
@@ -357,7 +355,8 @@ void PlanPowX(ExecPlan &execPlan)
                             case 5:         ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_5); break;
 
                     }
-
+*/
+                    ptr = func_pool.get_function_double(execPlan.execSeq[0]->length[0]);
                     execPlan.devFnCall.push_back(ptr);
 
                     GridParam gp;
@@ -617,25 +616,25 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
                 data.gridParam = execPlan.gridParam[i];
 
 #ifdef TMP_DEBUG
-		size_t out_size = data.node->oDist * data.node->batch;
-		size_t out_size_bytes = out_size * 2 * sizeof(float);
-		void *dbg_out = malloc(out_size_bytes);
-		memset(dbg_out, 0x40, out_size_bytes);
-		if(data.node->placement != rocfft_placement_inplace)
-		{
-			hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
-		}
-		printf("in debug block of kernel: %zu\n", i);
+                size_t out_size = data.node->oDist * data.node->batch;
+                size_t out_size_bytes = out_size * 2 * sizeof(float);
+                void *dbg_out = malloc(out_size_bytes);
+                memset(dbg_out, 0x40, out_size_bytes);
+                if(data.node->placement != rocfft_placement_inplace)
+                {
+                    hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
+                }
+                printf("in debug block of kernel: %zu\n", i);
 #endif
 
                 DevFnCall fn = execPlan.devFnCall[i];
                 fn(&data, &back);//execution kernel here
 
 #ifdef TMP_DEBUG
-		hipDeviceSynchronize();
-		hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
-		printf("copied from device\n");
-		free(dbg_out);
+                hipDeviceSynchronize();
+                hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
+                printf("copied from device\n");
+                free(dbg_out);
 #endif
             }
         }
