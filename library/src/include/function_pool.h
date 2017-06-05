@@ -11,43 +11,38 @@
 
 class function_pool
 {
-	std::unordered_map<size_t, DevFnCall> function_map_single;
-	std::unordered_map<size_t, DevFnCall> function_map_double;
+    std::unordered_map<size_t, DevFnCall> function_map_single;
+    std::unordered_map<size_t, DevFnCall> function_map_double;
 
 public:
-	function_pool(const function_pool &) = delete; // delete is a c++11 feature, prohibit copy constructor 
-	function_pool &operator=(const function_pool &) = delete; //prohibit assignment operator
+    //function_pool(const function_pool &) = delete; // delete is a c++11 feature, prohibit copy constructor 
+    //function_pool &operator=(const function_pool &) = delete; //prohibit assignment operator
 
-	function_pool();
+    function_pool();
 
-	~function_pool()
-	{
-	}
-
-	DevFnCall get_function_single(const size_t length)
+    ~function_pool()
     {
+    }
+
+    DevFnCall get_function_single(const size_t length)
+    {
+        return function_map_single.at(length);//return an reference to the value of the key, if not found throw an exception
+/*
         std::unordered_map<size_t, DevFnCall>::const_iterator iter = function_map_single.find (length);
 
         if ( iter == function_map_single.end() ){
-            std::cout << "no implementation is found";
+            std::cout << "no implementation is found" << std::endl;
             return nullptr;
         }
         else{
             return iter->second;
         }
+*/
     }
 
-	DevFnCall get_function_double(const size_t length)
+    DevFnCall get_function_double(const size_t length)
     {
-        std::unordered_map<size_t, DevFnCall>::const_iterator iter = function_map_double.find (length);
-
-        if ( iter == function_map_single.end() ){
-            std::cout << "no implementation is found";
-            return nullptr;
-        }
-        else{
-            return iter->second;
-        }
+        return function_map_double.at(length);
     }
 
 

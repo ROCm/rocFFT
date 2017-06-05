@@ -38,7 +38,7 @@ endfunction( )
 # Main
 # ########################################################################
 
-list(APPEND CUDA_NVCC_FLAGS "-std=c++11")
+list(APPEND CUDA_NVCC_FLAGS "-arch=sm_30 -std=c++11") #at least Kepler and above
 
 include( GenerateExportHeader )
 add_compiler_export_flags( )

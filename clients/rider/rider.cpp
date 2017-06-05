@@ -491,6 +491,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		for( unsigned i = 0; i < profile_count; ++i )
 		{
 			LIB_V_THROW( rocfft_execute( plan, input_device_buffers, BuffersOut, info ), "rocfft_execute failed" );
+		        //HIP_V_THROW( hipDeviceSynchronize(), "hipDeviceSynchronize failed" );
 		}
 
 		HIP_V_THROW( hipEventRecord(stop), "hipEventRecord failed" );

@@ -39,7 +39,7 @@ def run_tests(  )
   stage("unit tests") {
     sh '''
         cd clients-build/tests-build/staging
-        ./rocfft-test-correctness --gtest_output=xml
+        ./rocfft-test-correctness --gtest_filter=*single* --gtest_output=xml
     '''
     junit 'clients-build/tests-build/staging/*.xml'
   }

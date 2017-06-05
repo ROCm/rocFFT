@@ -44,7 +44,7 @@ protected:
 #define POW2_RANGE 2, 4, 8, 16, 32, 128, 256, 512, 1024, 2048, 4096, 8192, 32768, 65536, 131072, 262144, 1048576, 2097152, 4194304, 8388608, 16777216, 33554432
 #define POW3_RANGE 3, 9, 27, 81, 243, 729, 2187
 #define POW5_RANGE 5, 25, 125, 625, 3125
-#define MIX_RANGE 6, 10, 12, 15, 20, 30, 120, 150, 225, 240, 300 
+#define MIX_RANGE 6, 10, 12, 15, 20, 30, 120, 150, 225, 240, 300, 486, 600, 900, 1250, 1500, 1875, 3000 
 
 size_t pow2_range[] = { POW2_RANGE };
 size_t pow3_range[] = { POW3_RANGE };
@@ -60,14 +60,14 @@ rocfft_result_placement placeness_range[] = {rocfft_placement_notinplace, rocfft
 rocfft_transform_type transform_range[] = {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse};
 
 
-namespace power2
+namespace powerX
 {
 
-class accuracy_test_pow2: public :: TestWithParam < std::tuple<size_t, size_t, rocfft_result_placement, rocfft_transform_type, size_t >  >
+class accuracy_test: public :: TestWithParam < std::tuple<size_t, size_t, rocfft_result_placement, rocfft_transform_type, size_t >  >
 {
     protected:
-        accuracy_test_pow2(){}
-        virtual ~accuracy_test_pow2(){}
+        accuracy_test(){}
+        virtual ~accuracy_test(){}
         virtual void SetUp(){}
         virtual void TearDown(){}
 };
@@ -92,7 +92,7 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t N, size_t batch
     complex_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, placeness );
 }
 
-TEST_P(accuracy_test_pow2, normal_1D_complex_interleaved_to_complex_interleaved_single_precision)
+TEST_P(accuracy_test, normal_1D_complex_interleaved_to_complex_interleaved_single_precision)
 {
     size_t N = std::get<0>(GetParam());
     size_t batch = std::get<1>(GetParam());
@@ -104,7 +104,7 @@ TEST_P(accuracy_test_pow2, normal_1D_complex_interleaved_to_complex_interleaved_
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
-TEST_P(accuracy_test_pow2, normal_1D_complex_interleaved_to_complex_interleaved_double_precision)
+TEST_P(accuracy_test, normal_1D_complex_interleaved_to_complex_interleaved_double_precision)
 {
     size_t N = std::get<0>(GetParam());
     size_t batch = std::get<1>(GetParam());
@@ -120,7 +120,7 @@ TEST_P(accuracy_test_pow2, normal_1D_complex_interleaved_to_complex_interleaved_
 //Values is for a single item; ValuesIn is for an array
 //ValuesIn take each element (a vector) and combine them and feed them to test_p
 INSTANTIATE_TEST_CASE_P(rocfft_pow2,
-                        accuracy_test_pow2,
+                        accuracy_test,
                         Combine(
                                   ValuesIn(pow2_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
                                )
@@ -128,27 +128,27 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow2,
 
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow3,
-                        accuracy_test_pow2,
+                        accuracy_test,
                         Combine(
                                   ValuesIn(pow3_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
                                )
 );
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow5,
-                        accuracy_test_pow2,
+                        accuracy_test,
                         Combine(
                                   ValuesIn(pow5_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
                                )
 );
 
-/*
+
 INSTANTIATE_TEST_CASE_P(rocfft_pow_mix,
-                        accuracy_test_pow2,
+                        accuracy_test,
                         Combine(
                                   ValuesIn(mix_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
                                )
 );
-*/
+
 
 // *****************************************************
 // *****************************************************
