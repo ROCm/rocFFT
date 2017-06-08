@@ -5,6 +5,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <string.h>
 #include "generator.stockham.h"
 #include "generator.param.h"
 #include "generator.butterfly.hpp"
@@ -388,7 +389,7 @@ int generate_kernel(int len, int stride)
 // *****************************************************
 // *****************************************************
 
-int possible(std::vector<size_t> &support_list)
+int all_possible(std::vector<size_t> &support_list)
 {
     int counter=0;
     size_t upper_bound = 4096;
@@ -412,7 +413,7 @@ int possible(std::vector<size_t> &support_list)
 }
 
 
-int main()
+int main(int argc, char *argv[])
 {
 
     std::string str;
@@ -425,38 +426,43 @@ int main()
     }
     printf("Generating rad %d butterfly \n", (int)rad);
     WriteButterflyToFile(str, rad);
-*/
     printf("===========================================================================\n");
 
-    std::vector<size_t> support_list;
-    possible(support_list);
+*/
 
+    std::vector<size_t> support_list;
+
+    if(argc > 1){    
+        if(strcmp(argv[1], "pow2") == 0){ 
+            printf("Generating len pow2 FFT kernels\n");
+            for(size_t i=1;i<=4096;i*=2){
+                support_list.push_back(i);
+            }
+        }
+        if(strcmp(argv[1], "pow3") == 0){ 
+            printf("Generating len pow3 FFT kernels\n");
+            for(size_t i=3;i<=2187;i*=3){
+            support_list.push_back(i);
+            }
+        }
+        if(strcmp(argv[1], "pow5") == 0){ 
+            printf("Generating len pow5 FFT kernels\n");
+            for(size_t i=5;i<=3125;i*=5){
+            support_list.push_back(i);
+            }
+        }
+    }
+    else{//default generate all possible sizes
+         printf("Generating len mix of 2,3,5 FFT kernels\n");
+         all_possible(support_list);
+    }
+
+    
     for(size_t i=0;i<support_list.size();i++){
         //printf("Generating len %d FFT kernels\n", support_list[i]);
         generate_kernel(support_list[i], 1);
     }
-
-
 /*
-    for(size_t i=1;i<=4096;i*=2){
-        printf("Generating len %d FFT kernels\n", (int)i);
-        generate_kernel(i, 1);
-        support_list.push_back(i);
-    }
-
-    for(size_t i=3;i<=2187;i*=3){
-        printf("Generating len %d FFT kernels\n", (int)i);
-        generate_kernel(i, 1);
-        support_list.push_back(i);
-    }
-
-    for(size_t i=5;i<=3125;i*=5){
-        printf("Generating len %d FFT kernels\n", (int)i);
-        generate_kernel(i, 1);
-        support_list.push_back(i);
-    }
-
-
     for(size_t i=7;i<=2401;i*=7){
         printf("Generating len %d FFT kernels\n", (int)i);
         generate_kernel(i, 1);
