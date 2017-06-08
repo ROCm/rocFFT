@@ -48,7 +48,7 @@ rocfft_status rocfft_execute(   const rocfft_plan plan,
 	ExecPlan execPlan;
 	repo.GetPlan(plan, execPlan);
 
-#ifdef TMP_DEBUG
+#ifndef NDEBUG
 	PrintNode(execPlan);
 #endif
 

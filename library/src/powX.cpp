@@ -16,7 +16,7 @@
 #include "kernel_launch.h"
 #include "function_pool.h"
 
-#ifdef TMP_DEBUG
+#ifndef NDEBUG
 #include <hip/hip_runtime.h>
 #endif
 
@@ -615,7 +615,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
 
                 data.gridParam = execPlan.gridParam[i];
 
-#ifdef TMP_DEBUG
+#ifndef NDEBUG
                 size_t out_size = data.node->oDist * data.node->batch;
                 size_t out_size_bytes = out_size * 2 * sizeof(float);
                 void *dbg_out = malloc(out_size_bytes);
@@ -630,7 +630,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
                 DevFnCall fn = execPlan.devFnCall[i];
                 fn(&data, &back);//execution kernel here
 
-#ifdef TMP_DEBUG
+#ifndef NDEBUG
                 hipDeviceSynchronize();
                 hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
                 printf("copied from device\n");
