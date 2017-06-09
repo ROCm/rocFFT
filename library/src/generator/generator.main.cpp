@@ -389,13 +389,13 @@ int generate_kernel(int len, int stride)
 // *****************************************************
 // *****************************************************
 
-int all_possible(std::vector<size_t> &support_list)
+int all_possible(std::vector<size_t> &support_list, size_t i_upper_bound, size_t j_upper_bound, size_t k_upper_bound)
 {
     int counter=0;
     size_t upper_bound = 4096;
-    for(size_t i=1;i<=upper_bound;i*=5){
-        for(size_t j=1;j<=upper_bound;j*=3){
-            for(size_t k=1;k<=upper_bound;k*=2){
+    for(size_t i=1;i<=i_upper_bound;i*=5){
+        for(size_t j=1;j<=j_upper_bound;j*=3){
+            for(size_t k=1;k<=k_upper_bound;k*=2){
                 {
                     if( i*j*k <= upper_bound ) {
                         counter++;
@@ -435,26 +435,36 @@ int main(int argc, char *argv[])
     if(argc > 1){    
         if(strcmp(argv[1], "pow2") == 0){ 
             printf("Generating len pow2 FFT kernels\n");
-            for(size_t i=1;i<=4096;i*=2){
-                support_list.push_back(i);
-            }
+            all_possible(support_list, 1, 1, 4096);
         }
-        if(strcmp(argv[1], "pow3") == 0){ 
+        else if(strcmp(argv[1], "pow3") == 0){ 
             printf("Generating len pow3 FFT kernels\n");
-            for(size_t i=3;i<=2187;i*=3){
-            support_list.push_back(i);
-            }
+            all_possible(support_list, 1, 2187, 1);
         }
-        if(strcmp(argv[1], "pow5") == 0){ 
+        else if(strcmp(argv[1], "pow5") == 0){ 
             printf("Generating len pow5 FFT kernels\n");
-            for(size_t i=5;i<=3125;i*=5){
-            support_list.push_back(i);
-            }
+            all_possible(support_list, 3125, 1, 1);
+        }
+        else if(strcmp(argv[1], "pow2,3") == 0){ 
+            printf("Generating len pow2 and pow3 FFT kernels\n");
+            all_possible(support_list, 1, 2187, 4096);
+        }
+        else if(strcmp(argv[1], "pow2,5") == 0){ 
+            printf("Generating len pow2 and pow5 FFT kernels\n");
+            all_possible(support_list, 3125, 1, 4096);
+        }
+        else if(strcmp(argv[1], "pow3,5") == 0){ 
+            printf("Generating len pow3 and pow5 FFT kernels\n");
+            all_possible(support_list, 3125, 2187, 1);
+        }
+        else if(strcmp(argv[1], "all") == 0){ 
+            printf("Generating len mix of 2,3,5 FFT kernels\n");
+            all_possible(support_list, 3125, 2187, 4096);
         }
     }
-    else{//default generate all possible sizes
+    else{//if no arguments, generate all possible sizes
          printf("Generating len mix of 2,3,5 FFT kernels\n");
-         all_possible(support_list);
+         all_possible(support_list, 3125, 2187, 4096);
     }
 
     
