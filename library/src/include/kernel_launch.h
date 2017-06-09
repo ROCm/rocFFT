@@ -197,7 +197,7 @@ extern "C"
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
-    printf("number of thread blocks=%d\n", data->gridParam.b_x ); \
+    printf("number of thread blocks=%zu\n", data->gridParam.b_x ); \
     if (data->node->placement == rocfft_placement_inplace) { \
         if(data->node->inStride[0] && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1 ) {\

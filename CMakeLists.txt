@@ -34,7 +34,7 @@ option( BUILD_CLIENTS "Build rocFFT clients" OFF )
 # BUILD_SHARED_LIBS is a cmake built-in; we make it an explicit option such that it shows in cmake-gui
 option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" OFF )
 
-set( BOOST_ROOT /opt/boost  CACHE PATH "Specify boost installation dir")
+# set( BOOST_ROOT /opt/boost  CACHE PATH "Specify boost installation dir")
 
 set( HOST_TOOLCHAIN_NAME "clang" CACHE STRING "Compiler toolchain: (clang gcc)" )
 set_property( CACHE HOST_TOOLCHAIN_NAME PROPERTY STRINGS clang gcc )
@@ -140,9 +140,10 @@ if( BUILD_LIBRARY )
     CMAKE_ARGS ${LIBRARY_CMAKE_ARGS}
     ${rocfft_INSTALL_COMMAND}
   )
+
+  add_dependencies(rocfft rocfft-kernel-generator)
 endif()
 
-add_dependencies(rocfft rocfft-kernel-generator)
 
 # Build clients of the library
 if( BUILD_CLIENTS )
