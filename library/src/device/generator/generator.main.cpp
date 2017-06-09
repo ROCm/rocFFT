@@ -254,7 +254,7 @@ void WriteCPUWrappersSingle(std::vector<size_t> support_list)
 
 
     std::ofstream file;
-    std::string fileName = "kernel_launch_single.cpp";
+    std::string fileName = "kernel_launch_single.cpp.h";
     file.open ( fileName );
 
     if(!file.is_open())
@@ -292,7 +292,7 @@ void WriteCPUWrappersDouble(std::vector<size_t> support_list)
 
 
     std::ofstream file;
-    std::string fileName = "kernel_launch_double.cpp";
+    std::string fileName = "kernel_launch_double.cpp.h";
     file.open ( fileName );
 
     if(!file.is_open())
@@ -340,7 +340,7 @@ void WriteCPUFunctionPool(std::vector<size_t> support_list)
     str += "}\n";
 
     std::ofstream file;
-    std::string fileName = "function_pool.cpp";
+    std::string fileName = "function_pool.cpp.h";
     file.open ( fileName );
 
     if(!file.is_open())
