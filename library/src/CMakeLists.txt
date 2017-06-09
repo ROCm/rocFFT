@@ -38,6 +38,8 @@ endfunction( )
 # Main
 # ########################################################################
 
+add_subdirectory( device )
+
 list(APPEND CUDA_NVCC_FLAGS "-arch=sm_30 -std=c++11") #at least Kepler and above
 
 include( GenerateExportHeader )
@@ -51,11 +53,6 @@ set( rocfft_source
      hipfft.cpp
      repo.cpp
      powX.cpp
-     generator/function_pool.cpp
-     generator/kernel_launch_single.cpp
-     generator/kernel_launch_double.cpp
-     kernel_launch_pow2_large_single.cpp
-     kernel_launch_pow2_large_double.cpp
      get_radix.cpp
      twiddles.cpp
 )
