@@ -103,13 +103,18 @@ else( )
   endif( )
 endif( )
 
+add_dependencies( rocfft rocfft-device )
+
 target_include_directories( rocfft
   PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src/device/generator>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
           $<INSTALL_INTERFACE:include>
 )
+
+target_link_libraries( rocfft rocfft-device )
 
 set_target_properties( rocfft PROPERTIES VERSION ${rocfft_VERSION} SOVERSION ${rocfft_SOVERSION} )
 set_target_properties( rocfft PROPERTIES DEBUG_POSTFIX "-d" )

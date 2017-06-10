@@ -14,7 +14,7 @@
 #include "repo.h"
 #include "transform.h"
 #include "error.h"
-#include "../generator/kernel_launch_generator.h"
+#include "kernel_launch_generator.h"
 
 struct DeviceCallIn
 {

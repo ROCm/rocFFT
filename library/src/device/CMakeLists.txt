@@ -17,13 +17,22 @@ add_library( rocfft-device
      ${rocfft_device_source}
 )
 
-set_target_properties( rocfft_device PROPERTIES OUTPUT_NAME "rocfft-device-hcc" )
+add_dependencies( rocfft-device rocfft-kernel-generator )
+
+set_target_properties( rocfft-device PROPERTIES OUTPUT_NAME "rocfft-device-hcc" )
 
 target_include_directories( rocfft-device
   PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
+          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/generator>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/generator>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/../include>
+          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/../../include>
 )
 
+install( TARGETS rocfft-device
+  EXPORT rocfft-targets
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
 
