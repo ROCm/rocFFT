@@ -609,7 +609,7 @@ namespace StockhamGenerator
 
             large1D = params.fft_N[0] * params.fft_N[1];
 
-            str += "#include \"../kernels/common.h\"\n";
+            str += "#include \"kernels/common.h\"\n";
             str += "#include \"rocfft_butterfly_template.h\"\n\n";
 
 

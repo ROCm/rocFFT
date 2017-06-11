@@ -189,6 +189,10 @@ void WriteCPUHeaders(std::vector<size_t> support_list)
     str += "#define kernel_launch_generator_H \n";
 
     str += "\n";
+    str += "extern \"C\"\n";
+    str += "{\n";
+
+    str += "\n";
     str += "//single precision \n";
     for(size_t i=0;i<support_list.size();i++){
 
@@ -205,6 +209,9 @@ void WriteCPUHeaders(std::vector<size_t> support_list)
         str += "void rocfft_internal_dfn_dp_ci_ci_stoc_1_" + str_len + 
                "(void *data_p, void *back_p);\n";
     }
+
+    str += "\n";
+    str += "}\n";
 
     str += "\n";
     str += "#endif";
@@ -254,7 +261,7 @@ void WriteCPUWrappersSingle(std::vector<size_t> support_list)
 
 
     std::ofstream file;
-    std::string fileName = "kernel_launch_single.cpp";
+    std::string fileName = "kernel_launch_single.cpp.h";
     file.open ( fileName );
 
     if(!file.is_open())
@@ -292,7 +299,7 @@ void WriteCPUWrappersDouble(std::vector<size_t> support_list)
 
 
     std::ofstream file;
-    std::string fileName = "kernel_launch_double.cpp";
+    std::string fileName = "kernel_launch_double.cpp.h";
     file.open ( fileName );
 
     if(!file.is_open())
@@ -340,7 +347,7 @@ void WriteCPUFunctionPool(std::vector<size_t> support_list)
     str += "}\n";
 
     std::ofstream file;
-    std::string fileName = "function_pool.cpp";
+    std::string fileName = "function_pool.cpp.h";
     file.open ( fileName );
 
     if(!file.is_open())

@@ -34,7 +34,7 @@ option( BUILD_CLIENTS "Build rocFFT clients" OFF )
 # BUILD_SHARED_LIBS is a cmake built-in; we make it an explicit option such that it shows in cmake-gui
 option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" OFF )
 
-set( BOOST_ROOT /opt/boost  CACHE PATH "Specify boost installation dir")
+# set( BOOST_ROOT /opt/boost  CACHE PATH "Specify boost installation dir")
 
 set( HOST_TOOLCHAIN_NAME "clang" CACHE STRING "Compiler toolchain: (clang gcc)" )
 set_property( CACHE HOST_TOOLCHAIN_NAME PROPERTY STRINGS clang gcc )
@@ -97,25 +97,6 @@ if( DEFINED CMAKE_CXX_CLANG_TIDY )
   list( APPEND BASE_CMAKE_ARGS -DCMAKE_CXX_CLANG_TIDY=${CMAKE_CXX_CLANG_TIDY} )
 endif( )
 
-#setup kernel generator as an external project
-set(KERNELS_INTERNAL_USE "all" CACHE STRING "Supported FFT sizes.Default all.Choose all if mix radices are wanted")
-set_property(CACHE KERNELS_INTERNAL_USE PROPERTY STRINGS pow2 pow3 pow5 pow2,3 pow2,5 pow3,5 all)
-
-ExternalProject_Add(
-    rocfft-kernel-generator
-    SOURCE_DIR ${PROJECT_SOURCE_DIR}/library/src/generator
-    BINARY_DIR ${PROJECT_SOURCE_DIR}/library/src/generator
-    INSTALL_COMMAND ""
-    )
-
-add_custom_command(
-    TARGET rocfft-kernel-generator
-    COMMAND ./rocfft-kernel-generator ${KERNELS_INTERNAL_USE}
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/library/src/generator
-    COMMENT "run the generator to generated reqired kernels in ${PROJECT_SOURCE_DIR}/library/src/generator"
-)
-
-
 
 #set up rocfft dependency
 if( BUILD_LIBRARY )
@@ -140,9 +121,9 @@ if( BUILD_LIBRARY )
     CMAKE_ARGS ${LIBRARY_CMAKE_ARGS}
     ${rocfft_INSTALL_COMMAND}
   )
+
 endif()
 
-add_dependencies(rocfft rocfft-kernel-generator)
 
 # Build clients of the library
 if( BUILD_CLIENTS )

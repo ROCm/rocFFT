@@ -14,7 +14,7 @@
 #include "repo.h"
 #include "transform.h"
 #include "error.h"
-#include "../generator/kernel_launch_generator.h"
+#include "kernel_launch_generator.h"
 
 struct DeviceCallIn
 {
@@ -58,33 +58,6 @@ extern "C"
 
     //single precsion (sp)
 
-    void rocfft_internal_dfn_sp_ip_ci_ci_stoc_1_4096(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_2048)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_1024)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_512)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_256)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_128)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_64)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_32)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_16)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_8)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_4)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_2)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_1_1)(void *data_p, void *back_p);
-
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_4096)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_2048)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_1024)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_512)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_256)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_128)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_64)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_32)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_16)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_8)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_4)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_2)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_1_1)(void *data_p, void *back_p);
 
 
     void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_128)(void *data_p, void *back_p);
@@ -124,34 +97,6 @@ extern "C"
 
     
     //double precsion (dp)
-
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_4096)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_2048)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_1024)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_512)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_256)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_128)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_64)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_32)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_16)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_8)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_4)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_2)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_1_1)(void *data_p, void *back_p);
-
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_4096)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_2048)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_1024)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_512)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_256)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_128)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_64)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_32)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_16)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_8)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_4)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_2)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_1_1)(void *data_p, void *back_p);
 
 
     void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_128)(void *data_p, void *back_p);
@@ -197,7 +142,7 @@ extern "C"
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
-    printf("number of thread blocks=%d\n", data->gridParam.b_x ); \
+    printf("number of thread blocks=%zu\n", data->gridParam.b_x ); \
     if (data->node->placement == rocfft_placement_inplace) { \
         if(data->node->inStride[0] && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1 ) {\
