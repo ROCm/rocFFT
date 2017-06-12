@@ -57,7 +57,6 @@ set( rocfft_source
      twiddles.cpp
 )
 
-prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 
 if( ${BUILD_SHARED_LIBS} )
   message( STATUS "Library Type: SHARED" )
@@ -65,12 +64,10 @@ else( )
   message( STATUS "Library Type: STATIC" )
 endif( )
 
-set(pwd_include_dir ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(PLATFORM_NAME STREQUAL "AMD")
   add_library( rocfft
     ${rocfft_source}
-    ${relative_rocfft_headers_public}
   )
   set_target_properties( rocfft PROPERTIES OUTPUT_NAME "rocfft-hcc" )
 elseif(PLATFORM_NAME STREQUAL "NVIDIA")
@@ -109,10 +106,9 @@ add_dependencies( rocfft rocfft-device )
 
 target_include_directories( rocfft
   PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src/device/generator>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
           $<INSTALL_INTERFACE:include>
 )
 
