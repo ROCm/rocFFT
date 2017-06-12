@@ -82,8 +82,10 @@ elseif(PLATFORM_NAME STREQUAL "NVIDIA")
   CUDA_INCLUDE_DIRECTORIES(${hip_include_dir}
                            ${extra_cuda_include_dir}
                            ${CMAKE_SOURCE_DIR}/src/include
-                           ${CMAKE_SOURCE_DIR}/src/generator
+                           ${CMAKE_SOURCE_DIR}/src/device/generator
                            ${CMAKE_SOURCE_DIR}/include
+                           ${PROJECT_BINARY_DIR}/src/device/generator
+                           ${PROJECT_BINARY_DIR}/include
                            ${pwd_include_dir}
                           )
   CUDA_ADD_LIBRARY( rocfft
