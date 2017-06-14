@@ -885,8 +885,13 @@ namespace StockhamGenerator
                             str += "\tunsigned int rw = 1;\n\n";
                     }
 
-
-                    str += "\t(void)(rw == rw);\n";//suppress warning; when rw=1, generator directly puts 1 as the pass device function
+                    //The following lines suppress warning; when rw=1, generator directly puts 1 as the pass device function
+                    str += "\t//suppress warning\n";
+                    str += "\t#ifdef __NVCC__\n";
+                    str += "\t\t(void)(rw == rw);\n";
+                    str += "\t#else\n";
+                    str += "\t\t(void)rw;\n";
+                    str += "\t#endif\n";
 
 
                     // Transform index for 3-step twiddles
