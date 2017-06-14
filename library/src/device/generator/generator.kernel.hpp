@@ -385,7 +385,7 @@ namespace StockhamGenerator
                 for (size_t i = 0; i<nPasses; i++)
                 {
                     size_t rad = radices[i];
-                    printf("length: %d, rad = %d, linearRegs=%d ", (int)length, (int)rad, linearRegs);
+                    //printf("length: %d, rad = %d, linearRegs=%d ", (int)length, (int)rad, linearRegs);
                     L = LS * rad;
                     R /= rad;
 
@@ -412,7 +412,7 @@ namespace StockhamGenerator
             }
             else
             {
-                printf("generating radix sequences\n");
+                //printf("generating radix sequences\n");
 
                 // Possible radices
                 size_t cRad[] = { 13,11,10,8,7,6,5,4,3,2,1 }; // Must be in descending order
@@ -617,7 +617,7 @@ namespace StockhamGenerator
 
 
             bool cReg = linearRegs ? true : false;
-            printf("cReg is %d \n", cReg);
+            //printf("cReg is %d \n", cReg);
 
             // Generate butterflies for all unique radices
             std::list<size_t> uradices;

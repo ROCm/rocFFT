@@ -441,36 +441,36 @@ int main(int argc, char *argv[])
 
     if(argc > 1){    
         if(strcmp(argv[1], "pow2") == 0){ 
-            printf("Generating len pow2 FFT kernels\n");
+            //printf("Generating len pow2 FFT kernels\n");
             all_possible(support_list, 1, 1, 4096);
         }
         else if(strcmp(argv[1], "pow3") == 0){ 
-            printf("Generating len pow3 FFT kernels\n");
+            //printf("Generating len pow3 FFT kernels\n");
             all_possible(support_list, 1, 2187, 1);
         }
         else if(strcmp(argv[1], "pow5") == 0){ 
-            printf("Generating len pow5 FFT kernels\n");
+            //printf("Generating len pow5 FFT kernels\n");
             all_possible(support_list, 3125, 1, 1);
         }
         else if(strcmp(argv[1], "pow2,3") == 0){ 
-            printf("Generating len pow2 and pow3 FFT kernels\n");
+            //printf("Generating len pow2 and pow3 FFT kernels\n");
             all_possible(support_list, 1, 2187, 4096);
         }
         else if(strcmp(argv[1], "pow2,5") == 0){ 
-            printf("Generating len pow2 and pow5 FFT kernels\n");
+            //printf("Generating len pow2 and pow5 FFT kernels\n");
             all_possible(support_list, 3125, 1, 4096);
         }
         else if(strcmp(argv[1], "pow3,5") == 0){ 
-            printf("Generating len pow3 and pow5 FFT kernels\n");
+            //printf("Generating len pow3 and pow5 FFT kernels\n");
             all_possible(support_list, 3125, 2187, 1);
         }
         else if(strcmp(argv[1], "all") == 0){ 
-            printf("Generating len mix of 2,3,5 FFT kernels\n");
+            //printf("Generating len mix of 2,3,5 FFT kernels\n");
             all_possible(support_list, 3125, 2187, 4096);
         }
     }
     else{//if no arguments, generate all possible sizes
-         printf("Generating len mix of 2,3,5 FFT kernels\n");
+         //printf("Generating len mix of 2,3,5 FFT kernels\n");
          all_possible(support_list, 3125, 2187, 4096);
     }
 
@@ -488,18 +488,15 @@ int main(int argc, char *argv[])
 */
 
 
-    printf("===========================================================================\n");
-    printf("Generating CPU Header \n");
+    //printf("Generating CPU Header \n");
     WriteCPUHeaders(support_list);
 
 
-    printf("===========================================================================\n");
-    printf("Generating CPU wrappers \n");
+    //printf("Generating CPU wrappers \n");
     WriteCPUWrappersSingle(support_list);
     WriteCPUWrappersDouble(support_list);
 
-    printf("===========================================================================\n");
-    printf("Generating CPU function into Hash Map \n");
+    //printf("Generating CPU function into Hash Map \n");
     WriteCPUFunctionPool(support_list);
 
 }
