@@ -1109,8 +1109,6 @@ void fft_512(T *twiddles, T *lwb_in, T *lwb_out, real_type_t<T>   *lds, const ui
 			
 	if(dir == -1)
 	{
-		T W;
-		real_type_t<T> TR, TI;
 		
 		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 0, X1)			
 		TWIDDLE_MUL_FWD(twiddles, 7 + 7*(me%8) + 1, X2)	
