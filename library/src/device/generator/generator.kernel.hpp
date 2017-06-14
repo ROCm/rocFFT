@@ -385,7 +385,7 @@ namespace StockhamGenerator
                 for (size_t i = 0; i<nPasses; i++)
                 {
                     size_t rad = radices[i];
-                    printf("length: %d, rad = %d, linearRegs=%d ", (int)length, (int)rad, linearRegs);
+                    //printf("length: %d, rad = %d, linearRegs=%d ", (int)length, (int)rad, linearRegs);
                     L = LS * rad;
                     R /= rad;
 
@@ -412,7 +412,7 @@ namespace StockhamGenerator
             }
             else
             {
-                printf("generating radix sequences\n");
+                //printf("generating radix sequences\n");
 
                 // Possible radices
                 size_t cRad[] = { 13,11,10,8,7,6,5,4,3,2,1 }; // Must be in descending order
@@ -617,7 +617,7 @@ namespace StockhamGenerator
 
 
             bool cReg = linearRegs ? true : false;
-            printf("cReg is %d \n", cReg);
+            //printf("cReg is %d \n", cReg);
 
             // Generate butterflies for all unique radices
             std::list<size_t> uradices;
@@ -729,7 +729,7 @@ namespace StockhamGenerator
                     str += std::to_string(length);
                     str += "( hipLaunchParm lp, ";
                     str += "const " + r2Type + " * __restrict__ twiddles, const size_t stride_in, const size_t stride_out, ";
-                    str += "const int batch_count, ";
+                    str += "const size_t batch_count, ";
 
                     // Function attributes
                     if (placeness == rocfft_placement_inplace)
@@ -884,6 +884,14 @@ namespace StockhamGenerator
                     {
                             str += "\tunsigned int rw = 1;\n\n";
                     }
+
+                    //The following lines suppress warning; when rw=1, generator directly puts 1 as the pass device function
+                    str += "\t//suppress warning\n";
+                    str += "\t#ifdef __NVCC__\n";
+                    str += "\t\t(void)(rw == rw);\n";
+                    str += "\t#else\n";
+                    str += "\t\t(void)rw;\n";
+                    str += "\t#endif\n";
 
 
                     // Transform index for 3-step twiddles
