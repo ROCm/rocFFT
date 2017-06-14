@@ -82,7 +82,7 @@ public:
     // distance between consecutive batch members
     size_t                        iDist, oDist;
 
-    size_t                        direction;
+    int                        direction;
     rocfft_result_placement        placement;
     rocfft_precision            precision;
     rocfft_array_type            inArrayType, outArrayType;
@@ -157,8 +157,8 @@ typedef void (*DevFnCall)(void *, void *);
 
 struct GridParam
 {
-    size_t b_x, b_y, b_z;
-    size_t tpb_x, tpb_y, tpb_z;
+    unsigned int b_x, b_y, b_z;//in HIP, the data type of dimensions of work items, work groups is unsigned int
+    unsigned int tpb_x, tpb_y, tpb_z;
 
     GridParam() : b_x(1), b_y(1), b_z(1), tpb_x(1), tpb_y(1), tpb_z(1)
     {}

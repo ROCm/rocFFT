@@ -729,7 +729,7 @@ namespace StockhamGenerator
                     str += std::to_string(length);
                     str += "( hipLaunchParm lp, ";
                     str += "const " + r2Type + " * __restrict__ twiddles, const size_t stride_in, const size_t stride_out, ";
-                    str += "const int batch_count, ";
+                    str += "const size_t batch_count, ";
 
                     // Function attributes
                     if (placeness == rocfft_placement_inplace)
@@ -884,6 +884,9 @@ namespace StockhamGenerator
                     {
                             str += "\tunsigned int rw = 1;\n\n";
                     }
+
+
+                    str += "\t(void)(rw == rw);\n";//suppress warning; when rw=1, generator directly puts 1 as the pass device function
 
 
                     // Transform index for 3-step twiddles
