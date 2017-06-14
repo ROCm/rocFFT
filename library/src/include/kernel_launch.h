@@ -194,7 +194,7 @@ void FUNCTION_NAME(void *data_p, void *back_p)\
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
-    /*printf("number of blocks = %d, number of threads = %d, inStride=%d, outStride=%d \n", data->gridParam.b_x, data->gridParam.tpb_x,  data->node->inStride[0],  data->node->outStride[0]);*/  \
+    /*printf("number of blocks = %d, number of threads = %d, inStride=%zu, outStride=%zu \n", data->gridParam.b_x, data->gridParam.tpb_x,  data->node->inStride[0],  data->node->outStride[0]);*/  \
     if (data->node->placement == rocfft_placement_inplace) { \
         if(data->node->inStride[0] && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1 ) {\
