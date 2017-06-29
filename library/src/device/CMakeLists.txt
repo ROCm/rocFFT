@@ -49,6 +49,7 @@ project( rocfft-device CXX C )
 add_subdirectory( generator )
 
 set( rocfft_device_source
+     real2complex.cpp
      function_pool.cpp
      kernel_launch_single.cpp
      kernel_launch_double.cpp

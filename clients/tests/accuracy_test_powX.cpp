@@ -92,6 +92,11 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t N, size_t batch
     complex_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, placeness );
 }
 
+
+// *****************************************************
+//             Complex to Complex
+// *****************************************************
+
 TEST_P(accuracy_test, normal_1D_complex_interleaved_to_complex_interleaved_single_precision)
 {
     size_t N = std::get<0>(GetParam());
@@ -116,6 +121,45 @@ TEST_P(accuracy_test, normal_1D_complex_interleaved_to_complex_interleaved_doubl
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
+
+// *****************************************************
+//             Real to Complex
+// *****************************************************
+
+template< class T, class fftw_T >
+void normal_1D_real_interleaved_to_hermitian_interleaved(size_t N, size_t batch, rocfft_result_placement placeness, rocfft_transform_type  transform_type, size_t stride)
+{
+    std::vector<size_t> lengths;
+    lengths.push_back( N );
+    std::vector<size_t> input_strides;
+    std::vector<size_t> output_strides;
+    input_strides.push_back(stride);
+    output_strides.push_back(stride);
+
+    size_t input_distance = 0;
+    size_t output_distance = 0;
+    rocfft_array_type in_array_type = rocfft_array_type_real;
+    rocfft_array_type out_array_type = rocfft_array_type_hermitian_interleaved;
+
+    data_pattern pattern = sawtooth;
+    real_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, rocfft_placement_notinplace );//must be non-inplace tranform
+}
+
+
+TEST_P(accuracy_test, normal_1D_real_interleaved_to_hermitian_interleaved_single_precision)
+{
+    size_t N = std::get<0>(GetParam());
+    size_t batch = std::get<1>(GetParam());
+    rocfft_result_placement placeness = rocfft_placement_notinplace;//must be non-inplace
+    rocfft_transform_type  transform_type = rocfft_transform_type_real_forward;// must be real forward
+    size_t stride = std::get<4>(GetParam());
+
+    try { normal_1D_real_interleaved_to_hermitian_interleaved< float,  fftwf_complex >(N, batch, placeness, transform_type, stride); }
+    catch( const std::exception& err ) { handle_exception(err);    }
+}
+
+// *****************************************************
+// *****************************************************
 
 //Values is for a single item; ValuesIn is for an array
 //ValuesIn take each element (a vector) and combine them and feed them to test_p
