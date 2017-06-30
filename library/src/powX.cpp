@@ -744,7 +744,8 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
                     complex2hermitian(data.node->length[0], output_complex_buffer, data.node->iDist, out_buffer[0], original_oDist, data.node->batch, data.node->precision);
                     hipFree(input_complex_buffer);
                     hipFree(output_complex_buffer);
-                    data.node->oDist = original_oDist;   
+                    //configure back     
+                    //data.node->oDist = original_oDist;   
 
                 }//end complex or real
 
