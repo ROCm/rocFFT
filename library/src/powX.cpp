@@ -457,7 +457,7 @@ void PlanPowX(ExecPlan &execPlan)
                             gp.tpb_x = 256;
                         }
                         if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 128) )
-                        {/*****************************************************/
+                        {
                             ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbrc_2_256_128);
                             gp.b_x = 16 * execPlan.execSeq[i]->batch;
                             gp.tpb_x = 256;
@@ -596,7 +596,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
             }
             else if (  data.node->inArrayType == rocfft_array_type_real ) //real forward FFT
             {
-                /* in real forward FFT: the input is of size n real, the output is (1 + n/2) complex, where n/2 is an integer divide 
+                /* in real forward FFT: the input is of sizehttps://github.com/clMathLibraries/clFFT/wiki n real, the output is (1 + n/2) complex, where n/2 is an integer divide 
                    in this implementation, we allocate a same distance, same batch (basically, same size) complex buffer,
                    and copy the real buffer into complex buffer by padding 0 in the imaginary part
                    to solve with an inplace complex FFT. This is a functional but not optimal solution (TODO).
@@ -745,7 +745,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
                     hipFree(input_complex_buffer);
                     hipFree(output_complex_buffer);
                     //configure back     
-                    //data.node->oDist = original_oDist;   
+                    data.node->oDist = original_oDist;   
 
                 }//end complex or real
 
