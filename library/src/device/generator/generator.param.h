@@ -7,7 +7,7 @@
 #pragma once
 #if !defined( _generator_param_H )
 #define _generator_param_H
-#include "../../../library/include/rocfft.h"
+#include "../../../../library/include/rocfft.h"
 
             /* =====================================================================
                 Parameter used to control kernel generation
