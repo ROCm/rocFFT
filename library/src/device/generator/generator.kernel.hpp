@@ -9,7 +9,7 @@
 #define _generator_kernel_H
 #include <stdio.h>
 #include <list>
-#include "../include/radix_table.h"
+#include "../../include/radix_table.h"
 #include "generator.stockham.h"
 #include "generator.pass.hpp"
 #include "generator.param.h"
@@ -238,13 +238,13 @@ namespace StockhamGenerator
 
 
         //since it is batching process mutiple matrices by default, calculate the offset block
-        inline std::string OffsetCalcBlock(const std::string &off, bool input = true)
+        inline std::string OffsetCalcBlock(const std::string &offset_name, bool input = true)
         {
             std::string str;
 
             const size_t *pStride = input ? params.fft_inStride : params.fft_outStride;
 
-            str += "\t"; str += off; str += " = ";
+            str += "\t"; str += offset_name; str += " = ";
             std::string nextBatch = "batch";
             for (size_t i = (params.fft_DataDim - 1); i>2; i--)
             {
@@ -268,47 +268,69 @@ namespace StockhamGenerator
             return str;
         }
 
-        //since it is batching process mutiple matrices by default, calculate the offset pointer
-        inline std::string OffsetCalc(const std::string &off, bool input = true, bool rc_second_index = false)
+        /*OffsetCalc calculates the offset to the memory
+
+          offset_name
+             can be ioOffset, iOffset or oOffset, they are size_t type
+          stride_name
+             can be stride_in or stride_out, they are vector<size_t> type
+        */
+
+        inline std::string OffsetCalc(const std::string offset_name, const std::string stride_name, bool input = true, bool rc_second_index = false)
         {
             std::string str;
 
-            const size_t *pStride = input ? params.fft_inStride : params.fft_outStride;
+            /*===========the comments assume a 16-point FFT============================================*/
 
-            std::string batch;
+            // generate statement like "size_t counter_mod = batch*16 + (me/4);"
+            std::string counter_mod;
             if (r2c2r && !rcSimple)
             {
-                batch += "(batch*"; batch += std::to_string(2 * numTrans);
-                if (rc_second_index) batch += " + 1";
-                else                batch += " + 0";
+                counter_mod += "(batch*"; counter_mod += std::to_string(2 * numTrans);
+                if (rc_second_index) counter_mod += " + 1";
+                else                counter_mod += " + 0";
 
-                if (numTrans != 1) { batch += " + 2*(me/"; batch += std::to_string(workGroupSizePerTrans); batch += "))"; }
-                else { batch += ")"; }
+                if (numTrans != 1) { counter_mod += " + 2*(me/"; counter_mod += std::to_string(workGroupSizePerTrans); counter_mod += "))"; }
+                else { counter_mod += ")"; }
             }
             else
             {
-                if (numTrans == 1) { batch += "batch"; }
+                if (numTrans == 1) { counter_mod += "batch"; }
                 else {
-                    batch += "(batch*"; batch += std::to_string(numTrans);
-                    batch += " + (me/"; batch += std::to_string(workGroupSizePerTrans); batch += "))";
+                    counter_mod += "(batch*"; counter_mod += std::to_string(numTrans);
+                    counter_mod += " + (me/"; counter_mod += std::to_string(workGroupSizePerTrans); counter_mod += "))";
                 }
             }
+            str += "\t"; str += "size_t counter_mod = "; str += counter_mod; str += ";\n";
 
-            str += "\t"; str += off; str += " = ";
-            std::string nextBatch = batch;
-            for (size_t i = (params.fft_DataDim - 1); i>1; i--)//TODO for 2D, 3D
-            {
-                size_t currentLength = 1;
-                for (int j = 1; j<i; j++) currentLength *= params.fft_N[j];
+            /*=======================================================*/
+            /*  generate a loop like
+            for(int i = dim; i>1; i--){
+                int currentLength = 1;
+                for(int j=1; j<i; j++){
+                    currentLength *= lengths[j];
+                }
 
-                str += "("; str += nextBatch; str += "/"; str += std::to_string(currentLength);
-                str += ")*"; str += std::to_string(pStride[i]); str += " + ";//TODO for 2D, 3D
-                //str += ")*"; str += params.fft_N[j] ; str += input ? "stride_in" : "stride_out"; str += " + ";
-                nextBatch = "(" + nextBatch + "%" + std::to_string(currentLength) + ")";
+                iOffset += (counter_mod / currentLength)*stride[i];
+                counter_mod = counter_mod % currentLength;
             }
+            ioffset += counter_mod*strides[1];
+            */
+            std::string loop;
+            loop += "\tfor(int i = dim; i>1; i--){\n";//dim is a runtime variable
+            loop += "\t\tint currentLength = 1;\n";
+            loop += "\t\tfor(int j=1; j<i; j++){\n";
+            loop += "\t\t\tcurrentLength *= lengths[j];\n"; //lengths is a runtime variable
+            loop += "\t\t}\n";
+            loop += "\n";
+            loop += "\t\t" + offset_name + " += (counter_mod / currentLength)*" + stride_name + "[i];\n";
+            loop += "\t\tcounter_mod = counter_mod % currentLength;\n";//counter_mod is calculated at runtime
+            loop += "\t}\n";
 
-            //str += nextBatch; str += "*"; str += std::to_string(pStride[1]); str += ";\n";//TODO for 1D
-            str += nextBatch; str += "*"; str += std::to_string(length) ; str += input ? "*stride_in" : "*stride_out"; str += ";\n";
+            str += loop;
+            /*=======================================================*/
+            str += "\t" + offset_name + "+= counter_mod * " + stride_name  + "[1];\n";
+
             return str;
         }
 
@@ -713,22 +735,24 @@ namespace StockhamGenerator
                     fwd = d ? false : true;
 
 
-                    str += "//Configuration: number of threads per thread block: " + std::to_string(workGroupSize) + 
+                    str += "//Configuration: number of threads per thread block: " + std::to_string(workGroupSize) +
                         " transforms: " + std::to_string(numTrans) + " Passes: " + std::to_string(numPasses) + "\n";
                     // FFT kernel begin
                     // Function signature
                     str += "template <typename T, StrideBin sb>\n";
                     str += "__global__ void \n";
 
-                    // Function name
+                    // kernel name
                     if(fwd) str += "fft_fwd_";
                     else    str += "fft_back_";
                     if(place) str += "op_len";//outof place
                     else    str += "ip_len";//inplace
 
+                    // kernel arguments
                     str += std::to_string(length);
                     str += "( hipLaunchParm lp, ";
-                    str += "const " + r2Type + " * __restrict__ twiddles, const size_t stride_in, const size_t stride_out, ";
+                    str += "const " + r2Type + " * __restrict__ twiddles, const size_t dim, const size_t *lengths, ";
+                    str += "const size_t *stride_in, const size_t *stride_out, ";
                     str += "const size_t batch_count, ";
 
                     // Function attributes
@@ -759,13 +783,13 @@ namespace StockhamGenerator
                     {
                         if (inInterleaved)
                         {
-                            //str += "const "; 
+                            //str += "const ";
                             str += r2Type; str += " * __restrict__   gbIn, ";//has to remove const qualifier due to HIP on ROCM 1.4
                         }
                         else
                         {
                             str += rType; str += " * __restrict__   gbInRe, ";
-                            //str += "const "; 
+                            //str += "const ";
                             str += rType; str += " * __restrict__   gbInIm, ";
                         }
 
@@ -811,7 +835,7 @@ namespace StockhamGenerator
 
                     if (placeness == rocfft_placement_inplace)
                     {
-                        str += "unsigned int ioOffset;\n\t";
+                        str += "unsigned int ioOffset = 0;\n\t";
 
                         //Skip if callback is set
                         if (!params.fft_hasPreCallback || !params.fft_hasPostCallback)
@@ -830,8 +854,8 @@ namespace StockhamGenerator
                     }
                     else
                     {
-                        str += "unsigned int iOffset;\n\t";
-                        str += "unsigned int oOffset;\n\t";
+                        str += "unsigned int iOffset = 0;\n\t";
+                        str += "unsigned int oOffset = 0;\n\t";
 
                         //Skip if precallback is set
                         if (!(params.fft_hasPreCallback))
@@ -873,10 +897,16 @@ namespace StockhamGenerator
                     }
 
 
-                    // Conditional read-write ('rw') for arbitrary batch number
+                    // Conditional read-write ('rw') controls each thread behavior when it is not divisible
+                    // for 2D, 3D layout, the "upper_count" viewed by kernels is batch_count*length[1]*length[2]*...*length[dim-1]
+                    // because we flatten other dimensions to 1D dimension when configurating the thread blocks  
                     if ((numTrans > 1) && !blockCompute)
                     {
-                            str += "\tunsigned int rw = (me < (batch_count ";
+                            str += "\tunsigned int upper_count = batch_count;\n";
+                            str += "\tfor(int i=1; i<dim-1; i++){\n";
+                            str += "\t\tupper_count *= lengths[i];\n";
+                            str += "\t}\n";
+                            str += "\tunsigned int rw = (me < (upper_count ";
                             str += " - batch*"; str += std::to_string(numTrans); str += ")*";
                             str += std::to_string(workGroupSizePerTrans); str += ") ? 1 : 0;\n\n";
                     }
@@ -921,7 +951,7 @@ namespace StockhamGenerator
                     if (placeness == rocfft_placement_inplace)
                     {
 
-                        str += OffsetCalc("ioOffset", true);//TODO
+                        str += OffsetCalc("ioOffset", "stride_in", true);
 
                         str += "\t";
 
@@ -943,8 +973,8 @@ namespace StockhamGenerator
                     else
                     {
 
-                        str += OffsetCalc("iOffset", true);
-                        str += OffsetCalc("oOffset", false);
+                        str += OffsetCalc("iOffset", "stride_in", true);
+                        str += OffsetCalc("oOffset", "stride_out", false);
 
 
                         str += "\t";
@@ -1041,7 +1071,7 @@ namespace StockhamGenerator
                     {
                         str += "\t";
                         str += PassName(0, fwd, length);
-                        str += "<T, sb>(twiddles, stride_in, stride_out, "; //must explicitly transfer twiddles to underlying Pass device function
+                        str += "<T, sb>(twiddles, stride_in[0], stride_out[0], "; //always the inner-most stride, must explicitly transfer twiddles to underlying Pass device function
                         str += rw; str += me;
 
                         str += (params.fft_hasPreCallback) ? inOffset : "0";
@@ -1064,7 +1094,7 @@ namespace StockhamGenerator
                             str += exTab;
                             str += "\t";
                             str += PassName(p->GetPosition(), fwd, length);
-                            str += "<T, sb>(twiddles, stride_in, stride_out, "; //must explicitly transfer twiddles to underlying Pass device function
+                            str += "<T, sb>(twiddles, stride_in[0], stride_out[0], "; //always the inner-most stride, must explicitly transfer twiddles to underlying Pass device function
 
                             std::string ldsOff;
 
