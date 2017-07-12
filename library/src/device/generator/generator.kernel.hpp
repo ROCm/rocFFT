@@ -281,6 +281,7 @@ namespace StockhamGenerator
             std::string str;
 
             /*===========the comments assume a 16-point FFT============================================*/
+            str += "\t{\n";
 
             // generate statement like "size_t counter_mod = batch*16 + (me/4);"
             std::string counter_mod;
@@ -331,6 +332,7 @@ namespace StockhamGenerator
             /*=======================================================*/
             str += "\t" + offset_name + "+= counter_mod * " + stride_name  + "[1];\n";
 
+            str += "\t}\n";
             return str;
         }
 
