@@ -53,6 +53,11 @@ void PlanPowX(ExecPlan &execPlan)
                   )
                 {
                     assert(execPlan.execSeq[0]->length[0] <= 4096);
+                    execPlan.execSeq[0]->inStride[0] =  1;
+                    execPlan.execSeq[0]->inStride[1] =  execPlan.execSeq[0]->length[0];
+                    
+                    execPlan.execSeq[0]->outStride[0] =  1;
+                    execPlan.execSeq[0]->outStride[1] =  execPlan.execSeq[0]->length[0];
 
                     size_t workGroupSize;
                     size_t numTransforms;

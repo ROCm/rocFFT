@@ -905,7 +905,7 @@ namespace StockhamGenerator
                     if ((numTrans > 1) && !blockCompute)
                     {
                             str += "\tunsigned int upper_count = batch_count;\n";
-                            str += "\tfor(int i=1; i<dim-1; i++){\n";
+                            str += "\tfor(int i=1; i<dim; i++){\n";
                             str += "\t\tupper_count *= lengths[i];\n";
                             str += "\t}\n";
                             str += "\tunsigned int rw = (me < (upper_count ";
@@ -918,14 +918,14 @@ namespace StockhamGenerator
                     }
 
                     //The following lines suppress warning; when rw=1, generator directly puts 1 as the pass device function
-                    str += "\t//suppress warning\n";
+                    /*str += "\t//suppress warning\n";
                     str += "\t#ifdef __NVCC__\n";
                     str += "\t\t(void)(rw == rw);\n";
                     str += "\t#else\n";
                     str += "\t\t(void)rw;\n";
                     str += "\t#endif\n";
-
-
+                    */
+                    
                     // Transform index for 3-step twiddles
                     if (params.fft_3StepTwiddle && !blockCompute)
                     {
