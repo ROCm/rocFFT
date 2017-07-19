@@ -37,7 +37,12 @@ void PlanPowX(ExecPlan &execPlan)
         {
             execPlan.execSeq[i]->twiddles_large = twiddles_create(execPlan.execSeq[i]->large1D, execPlan.execSeq[0]->precision);
         }
+
+        execPlan.execSeq[i]->length_device = device_pointer_create(execPlan.execSeq[i]->length);
+        execPlan.execSeq[i]->inStride_device = device_pointer_create(execPlan.execSeq[i]->inStride);
+        execPlan.execSeq[i]->outStride_device = device_pointer_create(execPlan.execSeq[i]->outStride);
     }
+
 
     function_pool func_pool;
 
@@ -47,17 +52,12 @@ void PlanPowX(ExecPlan &execPlan)
         {
             if(execPlan.execSeq.size() == 1)
             {
-                if( 1 
-                    //(execPlan.execSeq[0]->inArrayType == rocfft_array_type_complex_interleaved) &&
-                    //(execPlan.execSeq[0]->outArrayType == rocfft_array_type_complex_interleaved) 
+                if(  
+                    (execPlan.execSeq[0]->inArrayType == rocfft_array_type_complex_interleaved) &&
+                    (execPlan.execSeq[0]->outArrayType == rocfft_array_type_complex_interleaved) 
                   )
                 {
-                    assert(execPlan.execSeq[0]->length[0] <= 4096);
-                    execPlan.execSeq[0]->inStride[0] =  1;
-                    execPlan.execSeq[0]->inStride[1] =  execPlan.execSeq[0]->length[0];
-                    
-                    execPlan.execSeq[0]->outStride[0] =  1;
-                    execPlan.execSeq[0]->outStride[1] =  execPlan.execSeq[0]->length[0];
+                    assert(execPlan.execSeq[0]->length[0] <= 4096);;
 
                     size_t workGroupSize;
                     size_t numTransforms;

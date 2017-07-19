@@ -67,3 +67,24 @@ void twiddles_delete(void *twt)
     if(twt)
         hipFree(twt);
 }
+
+
+size_t *device_pointer_create(std::vector< size_t > host)
+{
+
+    size_t* device_pointer;//device side
+     
+    hipMalloc(&device_pointer, host.size()*sizeof( size_t ) );
+    hipMemcpy(device_pointer, host.data(), host.size()*sizeof( size_t ), hipMemcpyHostToDevice);
+
+    return device_pointer;
+}
+
+void device_pointer_delete(size_t *device_pointer)
+{
+    if(device_pointer)
+        hipFree(device_pointer);
+}
+
+
+

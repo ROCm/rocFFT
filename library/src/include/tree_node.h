@@ -98,8 +98,13 @@ public:
 
     TransTileDir    transTileDir;
 
+    //device pointers, accepted as kernel arguments
     void        *twiddles;
     void        *twiddles_large;
+    
+    size_t        *length_device;
+    size_t        *inStride_device;
+    size_t        *outStride_device;
 
 public:
 
@@ -134,6 +139,23 @@ public:
             node->twiddles_large = nullptr;
         }
 
+        if(node->length_device)
+        {
+            device_pointer_delete(node->length_device);
+            node->length_device = nullptr;
+        }
+
+        if(node->inStride_device)
+        {
+            device_pointer_delete(node->inStride_device);
+            node->inStride_device = nullptr;
+        }
+
+        if(node->outStride_device)
+        {
+            device_pointer_delete(node->outStride_device);
+            node->outStride_device = nullptr;
+        }
         delete node;
     }
 
