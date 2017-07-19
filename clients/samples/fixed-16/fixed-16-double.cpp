@@ -15,13 +15,13 @@
 
 int main()
 {
-    // For size N <= 4096 
+
 	const size_t N = 16;
 
 	// FFTW reference compute
 	// ==========================================
 
-	double2 cx[N];
+	std::vector<double2> cx(N);
 	fftw_complex *in, *out;
 	fftw_plan p;
 
