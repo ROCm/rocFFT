@@ -12,7 +12,7 @@
 #include <vector>
 #include <map>
 #include <sstream>
-#include "../../../library/include/rocfft.h"
+#include "../../../../library/include/rocfft.h"
 
 
             /* =====================================================================
@@ -105,7 +105,7 @@ namespace StockhamGenerator
 			default: assert(false); return "";
 		}
 	}
-	
+
         template <rocfft_precision PR>
 	inline std::string MakeRegBaseType(size_t count)
 	{

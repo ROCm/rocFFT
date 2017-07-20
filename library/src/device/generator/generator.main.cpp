@@ -11,7 +11,7 @@
 #include "generator.butterfly.hpp"
 #include "generator.pass.hpp"
 #include "generator.kernel.hpp"
-#include "../include/radix_table.h"
+#include "../../include/radix_table.h"
 
 using namespace StockhamGenerator;
 
@@ -134,7 +134,7 @@ rocfft_status initParams (FFTKernelGenKeyParams &params, size_t LEN, size_t STRI
 }
 
 /* =====================================================================
-    WRITE GPU KERNEL FUNCTIONS 
+    WRITE GPU KERNEL FUNCTIONS
 =================================================================== */
 void WriteKernelToFile(std::string &str, int LEN)
 {
@@ -154,7 +154,7 @@ void WriteKernelToFile(std::string &str, int LEN)
 }
 
 /* =====================================================================
-   WRITE BUTTERFLY DEVICE FUNCTIONS 
+   WRITE BUTTERFLY DEVICE FUNCTIONS
 =================================================================== */
 void WriteButterflyToFile(std::string &str, int LEN)
 {
@@ -174,7 +174,7 @@ void WriteButterflyToFile(std::string &str, int LEN)
 }
 
 /* =====================================================================
-   WRITE CPU FUNCTIONS LAUNCHING KERNEL HEADER FILE 
+   WRITE CPU FUNCTIONS LAUNCHING KERNEL HEADER FILE
 =================================================================== */
 
 
@@ -197,7 +197,7 @@ void WriteCPUHeaders(std::vector<size_t> support_list)
     for(size_t i=0;i<support_list.size();i++){
 
         std::string str_len = std::to_string(support_list[i]);
-        str += "void rocfft_internal_dfn_sp_ci_ci_stoc_1_" + str_len + 
+        str += "void rocfft_internal_dfn_sp_ci_ci_stoc_1_" + str_len +
                "(void *data_p, void *back_p);\n";
     }
 
@@ -206,7 +206,7 @@ void WriteCPUHeaders(std::vector<size_t> support_list)
     for(size_t i=0;i<support_list.size();i++){
 
         std::string str_len = std::to_string(support_list[i]);
-        str += "void rocfft_internal_dfn_dp_ci_ci_stoc_1_" + str_len + 
+        str += "void rocfft_internal_dfn_dp_ci_ci_stoc_1_" + str_len +
                "(void *data_p, void *back_p);\n";
     }
 
@@ -229,7 +229,7 @@ void WriteCPUHeaders(std::vector<size_t> support_list)
 }
 
 /* =====================================================================
-   WRITE CPU FUNCTIONS LAUNCHING KERNEL CPP FILE 
+   WRITE CPU FUNCTIONS LAUNCHING KERNEL CPP FILE
 =================================================================== */
 
 
@@ -255,7 +255,7 @@ void WriteCPUWrappersSingle(std::vector<size_t> support_list)
     for(size_t i=0;i<support_list.size();i++){
 
         std::string str_len = std::to_string(support_list[i]);
-        str += "POWX_SINGLE_SMALL_GENERATOR( rocfft_internal_dfn_sp_ci_ci_stoc_1_" + str_len + 
+        str += "POWX_SINGLE_SMALL_GENERATOR( rocfft_internal_dfn_sp_ci_ci_stoc_1_" + str_len +
                ", fft_fwd_ip_len" + str_len + ", fft_back_ip_len" + str_len + ", fft_fwd_op_len" + str_len + ", fft_back_op_len" + str_len + ")\n";
     }
 
@@ -293,7 +293,7 @@ void WriteCPUWrappersDouble(std::vector<size_t> support_list)
     for(size_t i=0;i<support_list.size();i++){
 
         std::string str_len = std::to_string(support_list[i]);
-        str += "POWX_DOUBLE_SMALL_GENERATOR( rocfft_internal_dfn_dp_ci_ci_stoc_1_" + str_len + 
+        str += "POWX_DOUBLE_SMALL_GENERATOR( rocfft_internal_dfn_dp_ci_ci_stoc_1_" + str_len +
                ", fft_fwd_ip_len" + str_len + ", fft_back_ip_len" + str_len + ", fft_fwd_op_len" + str_len + ", fft_back_op_len" + str_len + ")\n";
     }
 
@@ -311,7 +311,7 @@ void WriteCPUWrappersDouble(std::vector<size_t> support_list)
 }
 
 /* =====================================================================
-   WRITE CPU FUNCTIONS Into Hash Map 
+   WRITE CPU FUNCTIONS Into Hash Map
 =================================================================== */
 
 
@@ -415,7 +415,7 @@ int all_possible(std::vector<size_t> &support_list, size_t i_upper_bound, size_t
         }
     }
 
-    //printf("Total, there are %d valid combinations\n", counter);    
+    //printf("Total, there are %d valid combinations\n", counter);
     return 0;
 }
 
@@ -429,7 +429,7 @@ int main(int argc, char *argv[])
     for (size_t d = 0; d<2; d++)
     {
         bool fwd = d ? false : true;
-        Butterfly<rocfft_precision_single> bfly1(rad, 1, fwd, true); bfly1.GenerateButterfly(str); str += "\n"; //TODO, does not work for 4, single or double precsion does not matter here. 
+        Butterfly<rocfft_precision_single> bfly1(rad, 1, fwd, true); bfly1.GenerateButterfly(str); str += "\n"; //TODO, does not work for 4, single or double precsion does not matter here.
     }
     printf("Generating rad %d butterfly \n", (int)rad);
     WriteButterflyToFile(str, rad);
@@ -439,32 +439,32 @@ int main(int argc, char *argv[])
 
     std::vector<size_t> support_list;
 
-    if(argc > 1){    
-        if(strcmp(argv[1], "pow2") == 0){ 
+    if(argc > 1){
+        if(strcmp(argv[1], "pow2") == 0){
             //printf("Generating len pow2 FFT kernels\n");
             all_possible(support_list, 1, 1, 4096);
         }
-        else if(strcmp(argv[1], "pow3") == 0){ 
+        else if(strcmp(argv[1], "pow3") == 0){
             //printf("Generating len pow3 FFT kernels\n");
             all_possible(support_list, 1, 2187, 1);
         }
-        else if(strcmp(argv[1], "pow5") == 0){ 
+        else if(strcmp(argv[1], "pow5") == 0){
             //printf("Generating len pow5 FFT kernels\n");
             all_possible(support_list, 3125, 1, 1);
         }
-        else if(strcmp(argv[1], "pow2,3") == 0){ 
+        else if(strcmp(argv[1], "pow2,3") == 0){
             //printf("Generating len pow2 and pow3 FFT kernels\n");
             all_possible(support_list, 1, 2187, 4096);
         }
-        else if(strcmp(argv[1], "pow2,5") == 0){ 
+        else if(strcmp(argv[1], "pow2,5") == 0){
             //printf("Generating len pow2 and pow5 FFT kernels\n");
             all_possible(support_list, 3125, 1, 4096);
         }
-        else if(strcmp(argv[1], "pow3,5") == 0){ 
+        else if(strcmp(argv[1], "pow3,5") == 0){
             //printf("Generating len pow3 and pow5 FFT kernels\n");
             all_possible(support_list, 3125, 2187, 1);
         }
-        else if(strcmp(argv[1], "all") == 0){ 
+        else if(strcmp(argv[1], "all") == 0){
             //printf("Generating len mix of 2,3,5 FFT kernels\n");
             all_possible(support_list, 3125, 2187, 4096);
         }
@@ -474,7 +474,7 @@ int main(int argc, char *argv[])
          all_possible(support_list, 3125, 2187, 4096);
     }
 
-    
+
     for(size_t i=0;i<support_list.size();i++){
         //printf("Generating len %d FFT kernels\n", support_list[i]);
         generate_kernel(support_list[i], 1);

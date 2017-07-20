@@ -99,9 +99,10 @@ public:
 
     TransTileDir    transTileDir;
 
+    //device pointers, accepted as kernel arguments
     void        *twiddles;
     void        *twiddles_large;
-
+    
     void        *devKernArg;
 
 public:

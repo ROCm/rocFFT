@@ -15,12 +15,13 @@
 #include "radix_table.h"
 #include "kernel_launch.h"
 #include "function_pool.h"
+#include "real2complex.h"
 
 #ifdef TMP_DEBUG
 #include <hip/hip_runtime.h>
 #endif
 
-/* this function is called during creation of plan of pow 2: enqueue the HIP kernels by function pointers*/
+/* this function is called during creation of plan of pow 2: enqueue the HIP kernels by function pointers but no input/output buffer associated*/
 void PlanPowX(ExecPlan &execPlan)
 {
     for(size_t i=0; i<execPlan.execSeq.size(); i++)
@@ -36,6 +37,10 @@ void PlanPowX(ExecPlan &execPlan)
         {
             execPlan.execSeq[i]->twiddles_large = twiddles_create(execPlan.execSeq[i]->large1D, execPlan.execSeq[0]->precision);
         }
+
+        execPlan.execSeq[i]->length_device = device_pointer_create(execPlan.execSeq[i]->length);
+        execPlan.execSeq[i]->inStride_device = device_pointer_create(execPlan.execSeq[i]->inStride);
+        execPlan.execSeq[i]->outStride_device = device_pointer_create(execPlan.execSeq[i]->outStride);
     }
 
     for(size_t i=0; i<execPlan.execSeq.size(); i++)
@@ -53,11 +58,12 @@ void PlanPowX(ExecPlan &execPlan)
         {
             if(execPlan.execSeq.size() == 1)
             {
-                if(
+                if(  
                     (execPlan.execSeq[0]->inArrayType == rocfft_array_type_complex_interleaved) &&
-                    (execPlan.execSeq[0]->outArrayType == rocfft_array_type_complex_interleaved) )
+                    (execPlan.execSeq[0]->outArrayType == rocfft_array_type_complex_interleaved) 
+                  )
                 {
-                    assert(execPlan.execSeq[0]->length[0] <= 4096);
+                    assert(execPlan.execSeq[0]->length[0] <= 4096);;
 
                     size_t workGroupSize;
                     size_t numTransforms;
@@ -580,23 +586,72 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
     assert(execPlan.execSeq.size() == execPlan.devFnCall.size());
     assert(execPlan.execSeq.size() == execPlan.gridParam.size());
 
-    if(execPlan.rootPlan->dimension == 1)
+    if(execPlan.rootPlan->dimension == 1)// 1D case 
     {
-        if(execPlan.execSeq.size() == 1) // one kernel 
+        if(execPlan.execSeq.size() == 1) // small FFT with only one kernel 
         {
             DeviceCallIn data;
             DeviceCallOut back;
-
+    
             data.node = execPlan.execSeq[0];
-            data.bufIn[0] = in_buffer[0];
-            data.bufOut[0] = out_buffer[0];
             data.gridParam = execPlan.gridParam[0];
+
+            void *complex_buffer;
+            size_t original_oDist; 
+            rocfft_result_placement original_placement;
+
+            if( data.node->inArrayType == rocfft_array_type_complex_interleaved )//complex FFT
+            {
+                data.bufIn[0] = in_buffer[0];
+                data.bufOut[0] = out_buffer[0];
+            }
+            else if (  data.node->inArrayType == rocfft_array_type_real ) //real forward FFT
+            {
+                /* in real forward FFT: the input is of sizehttps://github.com/clMathLibraries/clFFT/wiki n real, the output is (1 + n/2) complex, where n/2 is an integer divide 
+                   in this implementation, we allocate a same distance, same batch (basically, same size) complex buffer,
+                   and copy the real buffer into complex buffer by padding 0 in the imaginary part
+                   to solve with an inplace complex FFT. This is a functional but not optimal solution (TODO).
+            
+                   However, the oDist, stride must be changed accordingly.
+                */
+
+                rocfft_precision precision = data.node->precision;
+
+                size_t input_size =  (data.node->iDist) * data.node->batch; 
+                // complex_buffer honor the original input offset
+                hipMalloc(&complex_buffer, input_size * 2 * ( precision == rocfft_precision_single ? sizeof(float) : sizeof(double)) ); 
+
+                //change data layout from real to complex
+                real2complex(input_size, in_buffer[0], complex_buffer, precision);
+                data.bufIn[0] = complex_buffer;
+
+                //change plan
+                original_placement = data.node->placement;
+                data.node->placement = rocfft_placement_inplace;//change into a complex inplace transform
+                original_oDist = data.node->oDist;
+                data.node->oDist = data.node->iDist;  
+        
+                data.bufOut[0] = complex_buffer;//inplace transform
+            }
 
             DevFnCall fn = execPlan.devFnCall[0];
             fn(&data, &back);//execution kernel here
+
+            if (  data.node->inArrayType == rocfft_array_type_real ) 
+            {
+                //copy complex_buffer to out_buffer, the out_buffer's distance may be much smaller than output_complex_buffer
+                complex2hermitian(data.node->length[0], complex_buffer, data.node->iDist, out_buffer[0], original_oDist, data.node->batch, data.node->precision);
+
+                hipFree(complex_buffer);
+
+                //configure back
+                data.node->placement = original_placement;
+                data.node->oDist = original_oDist;          
+            }
         }
-        else
+        else // large FFT needs multiple kernels and transpose 
         {
+
             for(size_t i=0; i<execPlan.execSeq.size(); i++) //multiple kernels involving transpose
             {
                 DeviceCallIn data;
@@ -604,46 +659,108 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
 
                 data.node = execPlan.execSeq[i];
 
-                switch(data.node->obIn)
+                if( data.node->inArrayType == rocfft_array_type_complex_interleaved )//complex FFT
                 {
-                case OB_USER_IN:    data.bufIn[0] = in_buffer[0]; break;
-                case OB_USER_OUT:    data.bufIn[0] = out_buffer[0]; break;
-                case OB_TEMP:        data.bufIn[0] = info->workBuffer; break;
-                default: assert(false);
-                }
+                    switch(data.node->obIn)
+                    {
+                    case OB_USER_IN:    data.bufIn[0] = in_buffer[0]; break;
+                    case OB_USER_OUT:    data.bufIn[0] = out_buffer[0]; break;
+                    case OB_TEMP:        data.bufIn[0] = info->workBuffer; break;
+                    default: assert(false);
+                    }
 
-                switch(data.node->obOut)
+                    switch(data.node->obOut)
+                    {
+                    case OB_USER_IN:    data.bufOut[0] = in_buffer[0]; break;
+                    case OB_USER_OUT:    data.bufOut[0] = out_buffer[0]; break;
+                    case OB_TEMP:        data.bufOut[0] = info->workBuffer; break;
+                    default: assert(false);
+                    }
+
+                    data.gridParam = execPlan.gridParam[i];
+
+    #ifdef TMP_DEBUG
+                    size_t out_size = data.node->oDist * data.node->batch;
+                    size_t out_size_bytes = out_size * 2 * sizeof(float);
+                    void *dbg_out = malloc(out_size_bytes);
+                    memset(dbg_out, 0x40, out_size_bytes);
+                    if(data.node->placement != rocfft_placement_inplace)
+                    {
+                        hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
+                    }
+                    printf("in debug block of kernel: %zu\n", i);
+    #endif
+
+                    DevFnCall fn = execPlan.devFnCall[i];
+                    fn(&data, &back);//execution kernel here
+
+    #ifdef TMP_DEBUG
+                    hipDeviceSynchronize();
+                    hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
+                    printf("copied from device\n");
+                    free(dbg_out);
+    #endif
+
+                }
+                else if (  data.node->inArrayType == rocfft_array_type_real ) //real forward FFT
                 {
-                case OB_USER_IN:    data.bufOut[0] = in_buffer[0]; break;
-                case OB_USER_OUT:    data.bufOut[0] = out_buffer[0]; break;
-                case OB_TEMP:        data.bufOut[0] = info->workBuffer; break;
-                default: assert(false);
-                }
 
-                data.gridParam = execPlan.gridParam[i];
+                    /* in real forward FFT: the input is of size n real, the output is (1 + n/2) complex, where n/2 is an integer divide 
+                       in this implementation, we allocate a same distance, same batch (basically, same size) complex buffer,
+                       and copy the real buffer into complex buffer by padding 0 in the imaginary part
+                       to solve with an complex FFT. This is a functional but not optimal solution (TODO).
+                
+                       However, we cannot change the inplace or outplace transform type here, so must allocate a seperate output_complex_buffer
+                       the oDist, stride must be changed accordingly.
+                    */
 
-#ifdef TMP_DEBUG
-                size_t out_size = data.node->oDist * data.node->batch;
-                size_t out_size_bytes = out_size * 2 * sizeof(float);
-                void *dbg_out = malloc(out_size_bytes);
-                memset(dbg_out, 0x40, out_size_bytes);
-                if(data.node->placement != rocfft_placement_inplace)
-                {
-                    hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
-                }
-                printf("in debug block of kernel: %zu\n", i);
-#endif
+                    rocfft_precision precision = data.node->precision;
 
-                DevFnCall fn = execPlan.devFnCall[i];
-                fn(&data, &back);//execution kernel here
+                    void *input_complex_buffer;
+                    size_t input_size =  (data.node->iDist) * data.node->batch; 
+                    // input_complex_buffer honor the original input offset
+                    hipMalloc(&input_complex_buffer, input_size * 2 * ( precision == rocfft_precision_single ? sizeof(float) : sizeof(double)) ); 
 
-#ifdef TMP_DEBUG
-                hipDeviceSynchronize();
-                hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
-                printf("copied from device\n");
-                free(dbg_out);
-#endif
-            }
+                    void *output_complex_buffer;
+                    // output_complex_buffer use the same size of inpu_complex_buffer
+                    hipMalloc(&output_complex_buffer, input_size * 2 * ( precision == rocfft_precision_single ? sizeof(float) : sizeof(double)) ); 
+
+                    //change data layout from real to complex
+                    size_t original_oDist = data.node->oDist ;
+                    data.node->oDist = data.node->iDist; 
+                    real2complex(input_size, in_buffer[0], input_complex_buffer, precision);
+
+                    switch(data.node->obIn)
+                    {
+                    case OB_USER_IN:     data.bufIn[0] = input_complex_buffer; break;
+                    case OB_USER_OUT:    data.bufIn[0] = output_complex_buffer; break;
+                    case OB_TEMP:        data.bufIn[0] = info->workBuffer; break;
+                    default: assert(false);
+                    }
+
+                    switch(data.node->obOut)
+                    {
+                    case OB_USER_IN:     data.bufOut[0] = input_complex_buffer; break;
+                    case OB_USER_OUT:    data.bufOut[0] = output_complex_buffer; break;
+                    case OB_TEMP:        data.bufOut[0] = info->workBuffer; break;
+                    default: assert(false);
+                    }
+
+                    data.gridParam = execPlan.gridParam[i];
+
+                    DevFnCall fn = execPlan.devFnCall[i];
+                    fn(&data, &back);//execution kernel here
+
+                    //copy output_complex_buffer to out_buffer, the out_buffer's distance may be much smaller than output_complex_buffer
+                    complex2hermitian(data.node->length[0], output_complex_buffer, data.node->iDist, out_buffer[0], original_oDist, data.node->batch, data.node->precision);
+                    hipFree(input_complex_buffer);
+                    hipFree(output_complex_buffer);
+                    //configure back     
+                    data.node->oDist = original_oDist;   
+
+                }//end complex or real
+
+            }//end for loop
         }
     }
 }

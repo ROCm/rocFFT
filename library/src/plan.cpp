@@ -69,7 +69,7 @@ rocfft_status rocfft_plan_description_set_data_layout(       rocfft_plan_descrip
 
     if(in_strides != nullptr)
     {
-        for(size_t i=0; i<MIN(3, in_strides_size); i++)
+        for(size_t i=0; i<MIN(3, in_strides_size); i++)//TODO, 3
             description->inStrides[i] = in_strides[i];
     }
 
@@ -78,7 +78,7 @@ rocfft_status rocfft_plan_description_set_data_layout(       rocfft_plan_descrip
 
     if(out_strides != nullptr)
     {
-        for(size_t i=0; i<MIN(3, out_strides_size); i++)
+        for(size_t i=0; i<MIN(3, out_strides_size); i++)//TODO 3
             description->outStrides[i] = out_strides[i];
     }
 
@@ -164,20 +164,20 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
         if( (placement == rocfft_placement_inplace) &&
             ((transform_type == rocfft_transform_type_complex_forward) || (transform_type == rocfft_transform_type_complex_inverse)) )
         {
-            for(size_t i=0; i<3; i++)
+            for(size_t i=0; i<3; i++)//TODO 3
                 if(description->inStrides[i] != description->outStrides[i])
                     return rocfft_status_invalid_strides;
 
             if(description->inDist != description->outDist)
                 return rocfft_status_invalid_distance;
 
-            for(size_t i=0; i<2; i++)
+            for(size_t i=0; i<2; i++)//TODO 2
                 if(description->inOffset[i] != description->outOffset[i])
                     return rocfft_status_invalid_offset;
         }
     }
 
-    if(dimensions > 3)
+    if(dimensions > 3) //TODO 2
         return rocfft_status_invalid_dimensions;
 
     rocfft_plan p = plan;

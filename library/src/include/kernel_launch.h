@@ -42,7 +42,7 @@ extern "C"
     ip – in-place
 
     op - out-of-place
-
+a/library/src/include/kernel_launch.h
     ci – complex-interleaved (format of input buffer)
 
     ci – complex-interleaved (format of output buffer)
@@ -142,48 +142,50 @@ extern "C"
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
-    /*printf("number of thread blocks=%d\n", data->gridParam.b_x ); */\
+    printf("number of thread blocks=%d, dim=%d, stride[0]=%d, stride[1]=%d\n", (int)data->gridParam.b_x, (int)data->node->dimension, (int)data->node->inStride[0],(int)data->node->inStride[1]); \
     if (data->node->placement == rocfft_placement_inplace) { \
-        if(data->node->inStride[0] && data->node->outStride[0] == 1){ \
+        if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1 ) {\
+                printf("i am before the kernel launch\n"); \
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<float2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (float2 *)data->bufIn[0]); \
+                (float2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (float2 *)data->bufIn[0]); \
+                printf("i am after the kernel launch\n"); \
             }\
             else{ \
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERNE_NAME<float2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (float2 *)data->bufIn[0]);\
+                (float2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (float2 *)data->bufIn[0]);\
             }\
         } \
         else{ \
             if(data->node->direction == -1 ) {\
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<float2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (float2 *)data->bufIn[0]);\
+                (float2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (float2 *)data->bufIn[0]);\
             }\
             else{ \
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERNE_NAME<float2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (float2 *)data->bufIn[0]);\
+                (float2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (float2 *)data->bufIn[0]);\
             }\
         } \
     }\
     else{ \
-        if(data->node->inStride[0] && data->node->outStride[0] == 1){ \
+        if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1) {\
                 hipLaunchKernel(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<float2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
+                (float2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
             }\
             else{ \
                 hipLaunchKernel(HIP_KERNEL_NAME( OP_BACK_KERNE_NAME<float2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
+                (float2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
             }\
         }\
         else{ \
             if(data->node->direction == -1) {\
                 hipLaunchKernel(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<float2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]); \
+                (float2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]); \
             }\
             else{ \
                 hipLaunchKernel(HIP_KERNEL_NAME( OP_BACK_KERNE_NAME<float2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]); \
+                (float2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]); \
             }\
         } \
     }\
@@ -194,26 +196,26 @@ void FUNCTION_NAME(void *data_p, void *back_p)\
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
-    /*printf("number of blocks = %d, number of threads = %d, inStride=%zu, outStride=%zu \n", data->gridParam.b_x, data->gridParam.tpb_x,  data->node->inStride[0],  data->node->outStride[0]);*/  \
+    /*printf("number of blocks = %d, number of threads = %d, inStride=%zu, outStride=%zu \n", data->gridParam.b_x, data->gridParam.tpb_x,  data->node->inStride_device,  data->node->outStride[0]);*/  \
     if (data->node->placement == rocfft_placement_inplace) { \
         if(data->node->inStride[0] && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1 ) {\
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<double2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (double2 *)data->bufIn[0]); \
+                (double2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (double2 *)data->bufIn[0]); \
             }\
             else{ \
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERNE_NAME<double2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (double2 *)data->bufIn[0]);\
+                (double2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (double2 *)data->bufIn[0]);\
             }\
         } \
         else{ \
             if(data->node->direction == -1 ) {\
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<double2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (double2 *)data->bufIn[0]);\
+                (double2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (double2 *)data->bufIn[0]);\
             }\
             else{ \
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERNE_NAME<double2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (double2 *)data->bufIn[0]);\
+                (double2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (double2 *)data->bufIn[0]);\
             }\
         } \
     }\
@@ -221,21 +223,21 @@ void FUNCTION_NAME(void *data_p, void *back_p)\
         if(data->node->inStride[0] && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1) {\
                 hipLaunchKernel(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<double2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0]);\
+                (double2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0]);\
             }\
             else{ \
                 hipLaunchKernel(HIP_KERNEL_NAME( OP_BACK_KERNE_NAME<double2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0]);\
+                (double2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0]);\
             }\
         }\
         else{ \
             if(data->node->direction == -1) {\
                 hipLaunchKernel(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<double2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0]); \
+                (double2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0]); \
             }\
             else{ \
                 hipLaunchKernel(HIP_KERNEL_NAME( OP_BACK_KERNE_NAME<double2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->inStride[0], data->node->outStride[0], data->node->batch, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0]); \
+                (double2 *)data->node->twiddles, data->node->dimension, data->node->length_device, data->node->inStride_device, data->node->outStride_device, data->node->batch, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0]); \
             }\
         } \
     }\

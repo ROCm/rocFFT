@@ -19,7 +19,7 @@ int main()
 	// FFTW reference compute
 	// ==========================================
 
-	float2 cx[N];
+	std::vector<float2> cx(N);
 	fftwf_complex *in, *out;
 	fftwf_plan p;
 
