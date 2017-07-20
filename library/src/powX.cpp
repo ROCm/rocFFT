@@ -38,6 +38,13 @@ void PlanPowX(ExecPlan &execPlan)
         }
     }
 
+    for(size_t i=0; i<execPlan.execSeq.size(); i++)
+    {
+        execPlan.execSeq[i]->devKernArg = kargs_create(execPlan.execSeq[i]->length,
+                                                        execPlan.execSeq[i]->inStride, execPlan.execSeq[i]->outStride,
+                                                        execPlan.execSeq[i]->iDist, execPlan.execSeq[i]->oDist);
+    }
+
     function_pool func_pool;
 
     if(execPlan.execSeq[0]->precision == rocfft_precision_single)
