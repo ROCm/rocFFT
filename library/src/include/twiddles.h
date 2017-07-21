@@ -173,8 +173,7 @@ void *twiddles_create(size_t N, rocfft_precision precision);
 void twiddles_delete(void *twt);
 
 
-size_t *device_pointer_create(std::vector< size_t > host);
-void device_pointer_delete(size_t *device_pointer);
+
 
 
 #endif //defined( TWIDDLES_H )

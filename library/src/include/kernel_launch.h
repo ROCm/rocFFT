@@ -42,7 +42,7 @@ extern "C"
     ip – in-place
 
     op - out-of-place
-a/library/src/include/kernel_launch.h
+
     ci – complex-interleaved (format of input buffer)
 
     ci – complex-interleaved (format of output buffer)
