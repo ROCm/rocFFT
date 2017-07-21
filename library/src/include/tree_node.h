@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "twiddles.h"
+#include "kargs.h"
 
 enum OperatingBuffer
 {
@@ -57,7 +58,7 @@ class TreeNode
 private:
     // disallow public creation
     TreeNode(TreeNode *p) : parent(p), scheme(CS_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0),
-                transTileDir(TTD_IP_HOR), twiddles(nullptr), twiddles_large(nullptr)
+                transTileDir(TTD_IP_HOR), twiddles(nullptr), twiddles_large(nullptr), devKernArg(nullptr)
     {
         if(p != nullptr)
         {
@@ -98,8 +99,11 @@ public:
 
     TransTileDir    transTileDir;
 
+    // these are device pointers
     void        *twiddles;
     void        *twiddles_large;
+    size_t      *devKernArg;
+
 
 public:
 
@@ -132,6 +136,12 @@ public:
         {
             twiddles_delete(node->twiddles_large);
             node->twiddles_large = nullptr;
+        }
+
+        if(node->devKernArg)
+        {
+            kargs_delete(node->devKernArg);
+            node->devKernArg = nullptr;
         }
 
         delete node;

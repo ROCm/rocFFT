@@ -55,6 +55,7 @@ set( rocfft_source
      powX.cpp
      get_radix.cpp
      twiddles.cpp
+     kargs.cpp
 )
 
 

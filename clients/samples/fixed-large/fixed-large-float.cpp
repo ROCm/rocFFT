@@ -22,7 +22,7 @@ int main()
 	// FFTW reference compute
 	// ==========================================
 
-	float2 *cx = new float2[N];
+	std::vector<float2> cx(N);
 	fftwf_complex *in, *out;
 	fftwf_plan p;
 
@@ -112,7 +112,7 @@ int main()
 	// Deallocate buffers
 	fftwf_free(in);
 	fftwf_free(out);
-	delete[] cx;
+
 
 	return 0;
 
