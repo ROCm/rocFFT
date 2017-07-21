@@ -99,10 +99,11 @@ public:
 
     TransTileDir    transTileDir;
 
+    // these are device pointers
     void        *twiddles;
     void        *twiddles_large;
-    
-    void        *devKernArg;
+    size_t      *devKernArg;
+
 
 public:
 

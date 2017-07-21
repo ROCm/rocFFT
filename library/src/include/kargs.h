@@ -8,7 +8,7 @@
 
 #define KERN_ARGS_ARRAY_WIDTH 16 
 
-void *kargs_create(std::vector<size_t> length, std::vector<size_t> inStride, std::vector<size_t> outStride, size_t iDist, size_t oDist);
+size_t *kargs_create(std::vector<size_t> length, std::vector<size_t> inStride, std::vector<size_t> outStride, size_t iDist, size_t oDist);
 void kargs_delete(void *devk);
 
 

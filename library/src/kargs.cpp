@@ -6,7 +6,7 @@
 #include "rocfft_hip.h"
 #include "kargs.h"
 
-void *kargs_create(std::vector<size_t> length, std::vector<size_t> inStride, std::vector<size_t> outStride, size_t iDist, size_t oDist)
+size_t *kargs_create(std::vector<size_t> length, std::vector<size_t> inStride, std::vector<size_t> outStride, size_t iDist, size_t oDist)
 {
     void *devk;
     hipMalloc(&devk, 3*KERN_ARGS_ARRAY_WIDTH*sizeof(size_t));
@@ -29,9 +29,8 @@ void *kargs_create(std::vector<size_t> length, std::vector<size_t> inStride, std
     devkHost[i + 1*KERN_ARGS_ARRAY_WIDTH] = iDist;
     devkHost[i + 2*KERN_ARGS_ARRAY_WIDTH] = oDist;
 
-
     hipMemcpy(devk, devkHost, 3*KERN_ARGS_ARRAY_WIDTH*sizeof(size_t), hipMemcpyHostToDevice);
-    return devk;
+    return (size_t *)devk;
 }
 
 void kargs_delete(void *devk)
