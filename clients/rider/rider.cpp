@@ -514,12 +514,27 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		else
 			constMultiplier = 5.0;
 
-		double opsconst = constMultiplier * (double)totalLen * log((double)totalLen) / log(2.0);
+		double opsconst = (double)batchSize * constMultiplier * (double)totalLen * log((double)totalLen) / log(2.0);
+		double bytes = (double)batchSize * 2.0 * (double)totalLen ;// the scalar 2.0 is because read & write
+
+		if( (transformType == rocfft_transform_type_complex_forward) || (transformType == rocfft_transform_type_complex_inverse) ) {
+            if(precision == rocfft_precision_single) 
+                bytes *= sizeof(float) * 2;
+            else 
+                bytes *= sizeof(double) * 2;        
+        }
+        else{
+            if(precision == rocfft_precision_single) 
+                bytes *= sizeof(float);
+            else 
+                bytes *= sizeof(double);        
+        }
 
 
 		tout << "\nExecution gpu time: " << gpu_time << " ms" << std::endl;
 		tout << "Execution wall time: " << 1000.0*wtime << " ms" << std::endl;
-		tout << "Execution gflops (wall time): " << ((double)batchSize * opsconst)/(1000000000.0*wtime) << std::endl;
+		tout << "Execution gflops (wall time): " << (opsconst)/(1e9*wtime) << std::endl;
+		tout << "Bandwidth GB/s (wall time): " << (bytes)/(1e9*wtime) << std::endl;
 
 	}
 

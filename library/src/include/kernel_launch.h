@@ -138,23 +138,29 @@ extern "C"
 
 }
 
+/*
+   data->node->devKernArg : points to the internal length device pointer
+   data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH : points to the intenal in stride device pointer 
+   data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH : points to the internal out stride device pointer, only used in outof place kernels
+*/
 
 #define POWX_SINGLE_SMALL_GENERATOR(FUNCTION_NAME, IP_FWD_KERN_NAME, IP_BACK_KERN_NAME, OP_FWD_KERN_NAME, OP_BACK_KERN_NAME) \
 void FUNCTION_NAME(void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    printf("number of blocks = %d, number of threads = %d\n", data->gridParam.b_x, data->gridParam.tpb_x);  \
     if (data->node->placement == rocfft_placement_inplace) { \
         if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1 ) {\
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<float2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
                 (float2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
+                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (float2 *)data->bufIn[0]); \
             }\
             else{ \
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<float2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
                 (float2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
+                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (float2 *)data->bufIn[0]); \
             }\
         } \
@@ -162,13 +168,13 @@ void FUNCTION_NAME(void *data_p, void *back_p)\
             if(data->node->direction == -1 ) {\
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<float2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
                 (float2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
+                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (float2 *)data->bufIn[0]); \
             }\
             else{ \
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<float2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
                 (float2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
+                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (float2 *)data->bufIn[0]); \
             }\
         } \
@@ -215,13 +221,13 @@ void FUNCTION_NAME(void *data_p, void *back_p)\
             if(data->node->direction == -1 ) {\
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<double2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
                 (double2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
+                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (double2 *)data->bufIn[0]); \
             }\
             else{ \
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<double2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
                 (double2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
+                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (double2 *)data->bufIn[0]); \
             }\
         } \
@@ -229,13 +235,13 @@ void FUNCTION_NAME(void *data_p, void *back_p)\
             if(data->node->direction == -1 ) {\
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<double2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
                 (double2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
+                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (double2 *)data->bufIn[0]); \
             }\
             else{ \
                 hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<double2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
                 (double2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
+                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (double2 *)data->bufIn[0]); \
             }\
         } \

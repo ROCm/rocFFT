@@ -302,36 +302,77 @@ namespace StockhamGenerator
                     counter_mod += " + (me/"; counter_mod += std::to_string(workGroupSizePerTrans); counter_mod += "))";
                 }
             }
+
             str += "\t"; str += "size_t counter_mod = "; str += counter_mod; str += ";\n";
 
             /*=======================================================*/
             /*  generate a loop like
-            for(int i = dim; i>1; i--){
-                int currentLength = 1;
-                for(int j=1; j<i; j++){
-                    currentLength *= lengths[j];
-                }
-
-                iOffset += (counter_mod / currentLength)*stride[i];
-                counter_mod = counter_mod % currentLength;
+            if(dim == 1){
+                iOffset += counter_mod*strides[1];
             }
-            ioffset += counter_mod*strides[1];
+            else if(dim == 2){
+                int counter_1 = counter_mod / lengths[1];
+                int counter_mod_1 = counter_mod % lengths[1];
+
+                iOffset += counter_1*strides[2] + counter_mod_1*strides[1]; 
+            }
+            else if(dim == 3){
+                int counter_2 = counter_mod / (lengths[1] * lengths[2]);
+                int counter_mod_2 = counter_mod % (lengths[1] * lengths[2]);
+
+                int counter_1 = counter_mod_2 / lengths[1];
+                int counter_mod_1 = counter_mod_2 % lengths[1];
+
+                iOffset += counter_2*strides[3] + counter_1*strides[2] + counter_mod_1*strides[1]; 
+            }
+            else{
+                for(int i = dim; i>1; i--){
+                    int currentLength = 1;
+                    for(int j=1; j<i; j++){
+                        currentLength *= lengths[j];
+                    }
+
+                    iOffset += (counter_mod / currentLength)*stride[i];
+                    counter_mod = counter_mod % currentLength;
+                }
+                ioffset += counter_mod*strides[1];
+            }
             */
+
+            /*=======================================================*/
             std::string loop;
-            loop += "\tfor(int i = dim; i>1; i--){\n";//dim is a runtime variable
-            loop += "\t\tint currentLength = 1;\n";
-            loop += "\t\tfor(int j=1; j<i; j++){\n";
-            loop += "\t\t\tcurrentLength *= lengths[j];\n"; //lengths is a runtime variable
-            loop += "\t\t}\n";
-            loop += "\n";
-            loop += "\t\t" + offset_name + " += (counter_mod / currentLength)*" + stride_name + "[i];\n";
-            loop += "\t\tcounter_mod = counter_mod % currentLength;\n";//counter_mod is calculated at runtime
+            loop += "\tif(dim == 1){\n";
+            loop += "\t\t" + offset_name + " += counter_mod*" + stride_name + "[1];\n";
             loop += "\t}\n";
 
-            str += loop;
-            /*=======================================================*/
-            str += "\t" + offset_name + "+= counter_mod * " + stride_name  + "[1];\n";
+            loop += "\telse if(dim == 2){\n";
+            loop += "\t\tint counter_1 = counter_mod / lengths[1];\n";
+            loop += "\t\tint counter_mod_1 = counter_mod % lengths[1];\n";
+            loop += "\t\t" + offset_name + " += counter_1*"+ stride_name + "[2] + counter_mod_1*" + stride_name + "[1];\n"; 
+            loop += "\t}\n";
 
+            loop += "\telse if(dim == 3){\n";
+            loop += "\t\tint counter_2 = counter_mod / (lengths[1] * lengths[2]);\n";
+            loop += "\t\tint counter_mod_2 = counter_mod % (lengths[1] * lengths[2]);\n";
+            loop += "\t\tint counter_1 = counter_mod_2 / lengths[1];\n";
+            loop += "\t\tint counter_mod_1 = counter_mod_2 % lengths[1];\n";
+            loop += "\t\t" + offset_name + " += counter_2*"+ stride_name + "[3] + counter_1*"+ stride_name + "[2] + counter_mod_1*" + stride_name + "[1];\n"; 
+            loop += "\t}\n";
+
+            loop += "\telse{\n";
+            loop += "\t\tfor(int i = dim; i>1; i--){\n";//dim is a runtime variable
+            loop += "\t\t\tint currentLength = 1;\n";
+            loop += "\t\t\tfor(int j=1; j<i; j++){\n";
+            loop += "\t\t\t\tcurrentLength *= lengths[j];\n"; //lengths is a runtime variable
+            loop += "\t\t\t}\n";
+            loop += "\n";
+            loop += "\t\t\t" + offset_name + " += (counter_mod / currentLength)*" + stride_name + "[i];\n";
+            loop += "\t\t\tcounter_mod = counter_mod % currentLength;\n";//counter_mod is calculated at runtime
+            loop += "\t\t}\n";
+            loop += "\t\t" + offset_name + "+= counter_mod * " + stride_name  + "[1];\n";
+            loop += "\t}\n";
+            
+            str += loop;
             str += "\t}\n";
             return str;
         }
@@ -754,7 +795,8 @@ namespace StockhamGenerator
                     str += std::to_string(length);
                     str += "( hipLaunchParm lp, ";
                     str += "const " + r2Type + " * __restrict__ twiddles, const size_t dim, const size_t *lengths, ";
-                    str += "const size_t *stride_in, const size_t *stride_out, ";
+                    str += "const size_t *stride_in, ";
+                    if(placeness == rocfft_placement_notinplace) str += "const size_t *stride_out, ";
                     str += "const size_t batch_count, ";
 
                     // Function attributes
@@ -918,13 +960,13 @@ namespace StockhamGenerator
                     }
 
                     //The following lines suppress warning; when rw=1, generator directly puts 1 as the pass device function
-                    /*str += "\t//suppress warning\n";
+                    str += "\t//suppress warning\n";
                     str += "\t#ifdef __NVCC__\n";
                     str += "\t\t(void)(rw == rw);\n";
                     str += "\t#else\n";
                     str += "\t\t(void)rw;\n";
                     str += "\t#endif\n";
-                    */
+                    
                     
                     // Transform index for 3-step twiddles
                     if (params.fft_3StepTwiddle && !blockCompute)
@@ -1073,7 +1115,9 @@ namespace StockhamGenerator
                     {
                         str += "\t";
                         str += PassName(0, fwd, length);
-                        str += "<T, sb>(twiddles, stride_in[0], stride_out[0], "; //always the inner-most stride, must explicitly transfer twiddles to underlying Pass device function
+                        str += "<T, sb>(twiddles, stride_in[0], "; //always the inner-most stride, must explicitly transfer twiddles to underlying Pass device function
+                        if (placeness == rocfft_placement_notinplace) str += "stride_out[0], ";
+                        else str += "stride_in[0], ";
                         str += rw; str += me;
 
                         str += (params.fft_hasPreCallback) ? inOffset : "0";
@@ -1096,7 +1140,9 @@ namespace StockhamGenerator
                             str += exTab;
                             str += "\t";
                             str += PassName(p->GetPosition(), fwd, length);
-                            str += "<T, sb>(twiddles, stride_in[0], stride_out[0], "; //always the inner-most stride, must explicitly transfer twiddles to underlying Pass device function
+                            str += "<T, sb>(twiddles, stride_in[0], "; //always the inner-most stride, must explicitly transfer twiddles to underlying Pass device function
+                            if (placeness == rocfft_placement_notinplace) str += "stride_out[0], ";
+                            else str += "stride_in[0], ";
 
                             std::string ldsOff;
 
