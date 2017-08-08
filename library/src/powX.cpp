@@ -64,45 +64,6 @@ void PlanPowX(ExecPlan &execPlan)
                     DevFnCall ptr = nullptr;// typedef void (*DevFnCall)(void *, void *);
                     GetWGSAndNT(execPlan.execSeq[0]->length[0], workGroupSize, numTransforms);//get working group size and number of transforms
 
-                    /*
-                    switch(execPlan.execSeq[0]->length[0])
-                    {
-
-                            //pow2
-                            case 4096: ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_4096); break;
-                            case 2048: ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_2048); break;
-                            case 1024: ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_1024); break;
-                            case 512:  ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_512); break;
-                            case 256:  ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_256); break;
-                            case 128:  ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_128); break;
-                            case 64:   ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_64); break;
-                            case 32:   ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_32); break;
-                            case 16:   ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_16); break;
-                            case 8:    ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_8); break;
-                            case 4:    ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_4); break;
-                            case 2:    ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_2); break;
-                            case 1:    ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_1); break;
-
-
-                            //pow3
-                            case 2187:      ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_2187); break;
-                            case 729:       ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_729); break;
-                            case 243:       ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_243); break;
-                            case 81:        ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_81); break;
-                            case 27:        ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_27); break;
-                            case 9:         ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_9); break;
-                            case 3:         ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_3); break;
-
-                            //pow5
-                            case 3125:      ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_3125); break;
-                            case 625:       ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_625); break;
-                            case 125:       ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_125); break;
-                            case 25:        ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_25); break;
-                            case 5:         ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_5); break;
-
-                    }
-                    */                   
-
                     ptr = func_pool.get_function_single(execPlan.execSeq[0]->length[0]);
                     execPlan.devFnCall.push_back(ptr);
                     GridParam gp;
@@ -240,68 +201,43 @@ void PlanPowX(ExecPlan &execPlan)
                             gp.tpb_x = 256;
                         }
                     }
-                    else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM) && (execPlan.execSeq.size() == 3) )
-                    {
-                        gp.b_x = execPlan.execSeq[i]->length[1] * execPlan.execSeq[i]->batch;
-
-                        switch(execPlan.execSeq[i]->length[0])
-                        {
-                            case 4096:     gp.tpb_x = 256;
-                                    ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_4096); break;
-                            case 2048:     gp.tpb_x = 256;
-                                    ptr = &FN_PRFX(dfn_sp_ci_ci_stoc_1_2048); break;
-                            default: assert(false);
-                        }
-                    }
                     else if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM)
                     {
-                        gp.b_x = execPlan.execSeq[i]->length[1] * execPlan.execSeq[i]->batch;
+                        size_t workGroupSize;
+                        size_t numTransforms;
+                        GetWGSAndNT(execPlan.execSeq[i]->length[0], workGroupSize, numTransforms);//get working group size and number of transforms
 
-                        if(execPlan.execSeq[i]->placement == rocfft_placement_inplace)
-                        {
-                            switch(execPlan.execSeq[i]->length[0])
-                            {
-                                case 4096:     gp.tpb_x = 256;
-                                        ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_4096); break;
-                                case 2048:     gp.tpb_x = 256;
-                                        ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_2048); break;
-                                case 1024:     gp.tpb_x = 128;
-                                        ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_1024); break;
-                                case 512:     gp.tpb_x = 64;
-                                        ptr = &FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_512); break;
-                                default: assert(false);
-                            }
-                        }
-                        else
-                        {
-                            switch(execPlan.execSeq[i]->length[0])
-                            {
-                                case 4096:     gp.tpb_x = 256;
-                                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_stoc_2_4096); break;
-                                case 2048:     gp.tpb_x = 256;
-                                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_stoc_2_2048); break;
-                                case 1024:     gp.tpb_x = 128;
-                                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_stoc_2_1024); break;
-                                case 512:     gp.tpb_x = 64;
-                                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_stoc_2_512); break;
-                                default: assert(false);
-                            }
-                        }
+                        ptr = func_pool.get_function_single(execPlan.execSeq[i]->length[0]);
+
+                        size_t batch = execPlan.execSeq[i]->batch;
+                        for(size_t j=1; j<execPlan.execSeq[i]->length.size(); j++) batch *= execPlan.execSeq[i]->length[j];
+                        gp.b_x = (batch%numTransforms) ? 1 + (batch / numTransforms) : (batch / numTransforms);
+                        gp.tpb_x = workGroupSize;
                     }
                     else if(execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE)
                     {
-                        ptr = &FN_PRFX(transpose_var1_sp);
-                        gp.tpb_x = 16;
-                        gp.tpb_y = 16;
-                        if(execPlan.execSeq[i]->transTileDir == TTD_IP_HOR)
+
+                        if(IsPo2(execPlan.execSeq[i]->length[0]) && IsPo2(execPlan.execSeq[i]->length[1]))
                         {
-                            gp.b_x = execPlan.execSeq[i]->length[0] / 64;
-                            gp.b_y = (execPlan.execSeq[i]->length[1] / 64) * execPlan.execSeq[i]->batch;
+                            ptr = &FN_PRFX(transpose_var1_sp);
+                            gp.tpb_x = 16;
+                            gp.tpb_y = 16;
+                            if(execPlan.execSeq[i]->transTileDir == TTD_IP_HOR)
+                            {
+                                gp.b_x = execPlan.execSeq[i]->length[0] / 64;
+                                gp.b_y = (execPlan.execSeq[i]->length[1] / 64) * execPlan.execSeq[i]->batch;
+                            }
+                            else
+                            {
+                                gp.b_x = execPlan.execSeq[i]->length[1] / 64;
+                                gp.b_y = (execPlan.execSeq[i]->length[0] / 64) * execPlan.execSeq[i]->batch;
+                            }
                         }
                         else
                         {
-                            gp.b_x = execPlan.execSeq[i]->length[1] / 64;
-                            gp.b_y = (execPlan.execSeq[i]->length[0] / 64) * execPlan.execSeq[i]->batch;
+                            ptr = &FN_PRFX(transpose_var2);
+                            gp.tpb_x = 16;
+                            gp.tpb_y = 16;
                         }
                     }
 
@@ -327,42 +263,6 @@ void PlanPowX(ExecPlan &execPlan)
                     size_t numTransforms;
                     DevFnCall ptr = nullptr;
                     GetWGSAndNT(execPlan.execSeq[0]->length[0], workGroupSize, numTransforms);//get working group size and number of transforms
-/*
-                    switch(execPlan.execSeq[0]->length[0])
-                    {
-                            //pow2
-                            case 4096: ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_4096); break;
-                            case 2048: ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_2048); break;
-                            case 1024: ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_1024); break;
-                            case 512:  ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_512); break;
-                            case 256:  ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_256); break;
-                            case 128:  ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_128); break;
-                            case 64:   ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_64); break;
-                            case 32:   ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_32); break;
-                            case 16:   ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_16); break;
-                            case 8:    ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_8); break;
-                            case 4:    ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_4); break;
-                            case 2:    ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_2); break;
-                            case 1:    ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_1); break;
-
-                            //pow3
-                            case 2187:      ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_2187); break;
-                            case 729:       ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_729); break;
-                            case 243:       ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_243); break;
-                            case 81:        ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_81); break;
-                            case 27:        ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_27); break;
-                            case 9:         ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_9); break;
-                            case 3:         ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_3); break;
-
-                            //pow5
-                            case 3125:      ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_3125); break;
-                            case 625:       ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_625); break;
-                            case 125:       ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_125); break;
-                            case 25:        ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_25); break;
-                            case 5:         ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_5); break;
-
-                    }
-*/
                     ptr = func_pool.get_function_double(execPlan.execSeq[0]->length[0]);
                     execPlan.devFnCall.push_back(ptr);
 
@@ -501,68 +401,42 @@ void PlanPowX(ExecPlan &execPlan)
                             gp.tpb_x = 256;
                         }
                     }
-                    else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM) && (execPlan.execSeq.size() == 3) )
-                    {
-                        gp.b_x = execPlan.execSeq[i]->length[1] * execPlan.execSeq[i]->batch;
-
-                        switch(execPlan.execSeq[i]->length[0])
-                        {
-                            case 4096:     gp.tpb_x = 256;
-                                    ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_4096); break;
-                            case 2048:     gp.tpb_x = 256;
-                                    ptr = &FN_PRFX(dfn_dp_ci_ci_stoc_1_2048); break;
-                            default: assert(false);
-                        }
-                    }
                     else if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM)
                     {
-                        gp.b_x = execPlan.execSeq[i]->length[1] * execPlan.execSeq[i]->batch;
+                        size_t workGroupSize;
+                        size_t numTransforms;
+                        GetWGSAndNT(execPlan.execSeq[i]->length[0], workGroupSize, numTransforms);//get working group size and number of transforms
 
-                        if(execPlan.execSeq[i]->placement == rocfft_placement_inplace)
-                        {
-                            switch(execPlan.execSeq[i]->length[0])
-                            {
-                                case 4096:     gp.tpb_x = 256;
-                                        ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_4096); break;
-                                case 2048:     gp.tpb_x = 256;
-                                        ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_2048); break;
-                                case 1024:     gp.tpb_x = 128;
-                                        ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_1024); break;
-                                case 512:     gp.tpb_x = 64;
-                                        ptr = &FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_512); break;
-                                default: assert(false);
-                            }
-                        }
-                        else
-                        {
-                            switch(execPlan.execSeq[i]->length[0])
-                            {
-                                case 4096:     gp.tpb_x = 256;
-                                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_stoc_2_4096); break;
-                                case 2048:     gp.tpb_x = 256;
-                                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_stoc_2_2048); break;
-                                case 1024:     gp.tpb_x = 128;
-                                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_stoc_2_1024); break;
-                                case 512:     gp.tpb_x = 64;
-                                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_stoc_2_512); break;
-                                default: assert(false);
-                            }
-                        }
+                        ptr = func_pool.get_function_single(execPlan.execSeq[i]->length[0]);
+
+                        size_t batch = execPlan.execSeq[i]->batch;
+                        for(size_t j=1; j<execPlan.execSeq[i]->length.size(); j++) batch *= execPlan.execSeq[i]->length[j];
+                        gp.b_x = (batch%numTransforms) ? 1 + (batch / numTransforms) : (batch / numTransforms);
+                        gp.tpb_x = workGroupSize;
                     }
                     else if(execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE)
                     {
-                        ptr = &FN_PRFX(transpose_var1_dp);
-                        gp.tpb_x = 16;
-                        gp.tpb_y = 16;
-                        if(execPlan.execSeq[i]->transTileDir == TTD_IP_HOR)
+                        if(IsPo2(execPlan.execSeq[i]->length[0]) && IsPo2(execPlan.execSeq[i]->length[1]))
                         {
-                            gp.b_x = execPlan.execSeq[i]->length[0] / 64;
-                            gp.b_y = (execPlan.execSeq[i]->length[1] / 64) * execPlan.execSeq[i]->batch;
+                            ptr = &FN_PRFX(transpose_var1_dp);
+                            gp.tpb_x = 16;
+                            gp.tpb_y = 16;
+                            if(execPlan.execSeq[i]->transTileDir == TTD_IP_HOR)
+                            {
+                                gp.b_x = execPlan.execSeq[i]->length[0] / 64;
+                                gp.b_y = (execPlan.execSeq[i]->length[1] / 64) * execPlan.execSeq[i]->batch;
+                            }
+                            else
+                            {
+                                gp.b_x = execPlan.execSeq[i]->length[1] / 64;
+                                gp.b_y = (execPlan.execSeq[i]->length[0] / 64) * execPlan.execSeq[i]->batch;
+                            }
                         }
                         else
                         {
-                            gp.b_x = execPlan.execSeq[i]->length[1] / 64;
-                            gp.b_y = (execPlan.execSeq[i]->length[0] / 64) * execPlan.execSeq[i]->batch;
+                            ptr = &FN_PRFX(transpose_var2);
+                            gp.tpb_x = 16;
+                            gp.tpb_y = 16;
                         }
                     }
 
@@ -597,6 +471,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         }
         else
         {
+            //for(size_t i=0; i<1; i++) //multiple kernels involving transpose
             for(size_t i=0; i<execPlan.execSeq.size(); i++) //multiple kernels involving transpose
             {
                 DeviceCallIn data;
