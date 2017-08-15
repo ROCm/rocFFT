@@ -69,9 +69,8 @@ void rocfft_internal_transpose_var2(void *data_p, void *back_p)
 
     int input_row_size = data->node->length[1];
     int input_col_size = data->node->length[0];
-    int ld_in = data->node->inStride[1];
-    int ld_out = data->node->outStride[1];
     int batch_size = data->node->batch;
+    for(size_t j=2; j<data->node->length.size(); j++) batch_size *= data->node->length[j];
     
     if(data->node->precision == rocfft_precision_single)
     {

@@ -29,12 +29,12 @@ void PlanPowX(ExecPlan &execPlan)
             (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) ||
             (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) )
         {
-            execPlan.execSeq[i]->twiddles = twiddles_create(execPlan.execSeq[i]->length[0], execPlan.execSeq[0]->precision);
+            execPlan.execSeq[i]->twiddles = twiddles_create(execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision);
         }
 
         if(execPlan.execSeq[i]->large1D != 0)
         {
-            execPlan.execSeq[i]->twiddles_large = twiddles_create(execPlan.execSeq[i]->large1D, execPlan.execSeq[0]->precision);
+            execPlan.execSeq[i]->twiddles_large = twiddles_create(execPlan.execSeq[i]->large1D, execPlan.execSeq[i]->precision);
         }
     }
 
@@ -511,6 +511,8 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
 
                 DevFnCall fn = execPlan.devFnCall[i];
                 fn(&data, &back);//execution kernel here
+                hipDeviceSynchronize();
+                printf("executed kernel: %d\n", i); fflush(stdout);
 
 #ifdef TMP_DEBUG
                 hipDeviceSynchronize();

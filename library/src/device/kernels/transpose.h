@@ -1,4 +1,5 @@
 #include <hip/hip_runtime.h>
+#include "butterfly.h"
 
 //works for real to real and complex interleaved to complex interleaved 
 template<typename T, int micro_tile_col_size, int micro_tile_row_size, int wg_col_size, int wg_row_size>
@@ -28,15 +29,33 @@ __global__ void transpose_kernel_outplace(hipLaunchParm lp, T *input_matrix, T *
 
     __shared__ T lds[macro_tile_row_size][macro_tile_col_size];
 
-    size_t batch_idx = 0;
-    size_t blocks_per_batch = grid_dim_0 / batch_count;
-    batch_idx += (block_idx_0) / blocks_per_batch;
+	unsigned int iOffset = 0;
+	unsigned int oOffset = 0;
+    size_t blocks_per_matrix = (input_col_size / macro_tile_col_size);
 
-    input_matrix += batch_idx * stride_in[2];
+    {
+    size_t counter_mod = block_idx_0 / blocks_per_matrix;
+    
+    for(int i = dim; i>2; i--){
+        int currentLength = 1;
+        for(int j=2; j<i; j++){
+            currentLength *= lengths[j];
+        }
+    
+        iOffset += (counter_mod / currentLength)*stride_in[i];
+        oOffset += (counter_mod / currentLength)*stride_out[i];
+        counter_mod = counter_mod % currentLength;
+    }
+    iOffset+= counter_mod * stride_in[2];
+    oOffset+= counter_mod * stride_out[2];
+    }
+
+
+    input_matrix += iOffset;
 
     size_t input_offset = 0;
     input_offset += input_leading_dim_size * block_idx_1 * macro_tile_row_size;// each WG works on 64 by 64 block or 32 by 32
-    input_offset += (block_idx_0 % blocks_per_batch) * macro_tile_col_size;
+    input_offset += (block_idx_0 % blocks_per_matrix) * macro_tile_col_size;
 
     input_matrix += input_offset;
     for(int i = 0; i < unroll_factor; i++)
@@ -46,15 +65,22 @@ __global__ void transpose_kernel_outplace(hipLaunchParm lp, T *input_matrix, T *
         size_t subblock_idx_0 = local_idx_0 + (local_idx_1 % reshape_factor) * block_dim_0; // local_idx_0 + (local_idx_1 % 4) * 16
         size_t subblock_idx_1 = local_idx_1 / reshape_factor + i * (block_dim_1 / reshape_factor);
         //transpose happened here
-        lds[subblock_idx_0][subblock_idx_1] = input_matrix[subblock_idx_1 * input_leading_dim_size + subblock_idx_0];
+
+        T tmp = input_matrix[subblock_idx_1 * input_leading_dim_size + subblock_idx_0];
+        if(twiddles_large != 0)
+        {
+            TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, subblock_idx_0*subblock_idx_1, tmp);
+        }
+        lds[subblock_idx_0][subblock_idx_1] = tmp;
+
     }
 
     __syncthreads();
 
-    output_matrix += batch_idx * stride_out[2];
+    output_matrix += oOffset;
 
     size_t output_offset = 0;
-    output_offset += output_leading_dim_size * (block_idx_0 % blocks_per_batch) * macro_tile_row_size;//input_row_size == ouput_col_size
+    output_offset += output_leading_dim_size * (block_idx_0 % blocks_per_matrix) * macro_tile_row_size;//input_row_size == ouput_col_size
     output_offset += block_idx_1 * macro_tile_col_size;
 
     output_matrix += output_offset;

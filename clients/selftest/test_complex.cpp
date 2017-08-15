@@ -14,8 +14,8 @@ inline bool SupportedLength(size_t len)
 {
 	size_t p = len;
 	while(!(p%2)) p /= 2;
-	//while(!(p%3)) p /= 3;
-	//while(!(p%5)) p /= 5;
+	while(!(p%3)) p /= 3;
+	while(!(p%5)) p /= 5;
 
 	if(p == 1)
 		return true;
@@ -430,6 +430,7 @@ TEST_F( BasicInterfaceDouble1DBasisTest, InvLen210 )	{ TestRoutine(210, 1); }
 TEST_F( BasicInterfaceDouble1DBasisTest, invLen540_quick )	{ TestRoutine(540, 1); }
 
 
+TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen390625 )		{ TestRoutine(390625, -1); }
 TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen8 )		{ TestRoutine(8, -1); }
 TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen7 )		{ TestRoutine(7, -1); }
 TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen25 )		{ TestRoutine(25, -1); }
