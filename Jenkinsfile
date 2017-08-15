@@ -105,7 +105,7 @@ def rocfft_build_pipeline( String build_type, String clang_version, String boost
   return void
 }
 
-node('rocm-1.5 && gfx803')
+node('rocm-1.6 && gfx803')
 {
   rocfft_build_pipeline( "Release", "3.8", "/opt/boost/clang-3.8" )
 }
