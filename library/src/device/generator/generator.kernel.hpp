@@ -274,14 +274,19 @@ namespace StockhamGenerator
              can be ioOffset, iOffset or oOffset, they are size_t type
           stride_name
              can be stride_in or stride_out, they are vector<size_t> type
+          output
+             if true offset_name2, stride_name2 are enabled
+             else not enabled 
         */
 
-        inline std::string OffsetCalc(const std::string offset_name, const std::string stride_name, bool input = true, bool rc_second_index = false)
+        inline std::string OffsetCalc(const std::string offset_name1, const std::string stride_name1, 
+                                      const std::string offset_name2, const std::string stride_name2,  
+                                      bool output, bool rc_second_index = false)
         {
             std::string str;
 
             /*===========the comments assume a 16-point FFT============================================*/
-            str += "\t{\n";
+
 
             // generate statement like "size_t counter_mod = batch*16 + (me/4);"
             std::string counter_mod;
@@ -342,13 +347,15 @@ namespace StockhamGenerator
             /*=======================================================*/
             std::string loop;
             loop += "\tif(dim == 1){\n";
-            loop += "\t\t" + offset_name + " += counter_mod*" + stride_name + "[1];\n";
+            loop += "\t\t" + offset_name1 + " += counter_mod*" + stride_name1 + "[1];\n";
+            if (output == true) loop += "\t\t" + offset_name2 + " += counter_mod*" + stride_name2 + "[1];\n";
             loop += "\t}\n";
 
             loop += "\telse if(dim == 2){\n";
             loop += "\t\tint counter_1 = counter_mod / lengths[1];\n";
             loop += "\t\tint counter_mod_1 = counter_mod % lengths[1];\n";
-            loop += "\t\t" + offset_name + " += counter_1*"+ stride_name + "[2] + counter_mod_1*" + stride_name + "[1];\n"; 
+            loop += "\t\t" + offset_name1 + " += counter_1*"+ stride_name1 + "[2] + counter_mod_1*" + stride_name1 + "[1];\n"; 
+            if (output == true) loop += "\t\t" + offset_name2 + " += counter_1*"+ stride_name2 + "[2] + counter_mod_1*" + stride_name2 + "[1];\n"; 
             loop += "\t}\n";
 
             loop += "\telse if(dim == 3){\n";
@@ -356,7 +363,9 @@ namespace StockhamGenerator
             loop += "\t\tint counter_mod_2 = counter_mod % (lengths[1] * lengths[2]);\n";
             loop += "\t\tint counter_1 = counter_mod_2 / lengths[1];\n";
             loop += "\t\tint counter_mod_1 = counter_mod_2 % lengths[1];\n";
-            loop += "\t\t" + offset_name + " += counter_2*"+ stride_name + "[3] + counter_1*"+ stride_name + "[2] + counter_mod_1*" + stride_name + "[1];\n"; 
+            loop += "\t\t" + offset_name1 + " += counter_2*"+ stride_name1 + "[3] + counter_1*"+ stride_name1 + "[2] + counter_mod_1*" + stride_name1 + "[1];\n"; 
+            if (output == true) 
+                loop += "\t\t" + offset_name2 + " += counter_2*"+ stride_name2 + "[3] + counter_1*"+ stride_name2 + "[2] + counter_mod_1*" + stride_name2 + "[1];\n"; 
             loop += "\t}\n";
 
             loop += "\telse{\n";
@@ -366,14 +375,16 @@ namespace StockhamGenerator
             loop += "\t\t\t\tcurrentLength *= lengths[j];\n"; //lengths is a runtime variable
             loop += "\t\t\t}\n";
             loop += "\n";
-            loop += "\t\t\t" + offset_name + " += (counter_mod / currentLength)*" + stride_name + "[i];\n";
+            loop += "\t\t\t" + offset_name1 + " += (counter_mod / currentLength)*" + stride_name1 + "[i];\n";
+            if (output == true)    loop += "\t\t\t" + offset_name2 + " += (counter_mod / currentLength)*" + stride_name2 + "[i];\n";
             loop += "\t\t\tcounter_mod = counter_mod % currentLength;\n";//counter_mod is calculated at runtime
             loop += "\t\t}\n";
-            loop += "\t\t" + offset_name + "+= counter_mod * " + stride_name  + "[1];\n";
+            loop += "\t\t" + offset_name1 + "+= counter_mod * " + stride_name1  + "[1];\n";
+            if (output == true)    loop += "\t\t" + offset_name2 + "+= counter_mod * " + stride_name2  + "[1];\n";
             loop += "\t}\n";
             
             str += loop;
-            str += "\t}\n";
+
             return str;
         }
 
@@ -995,7 +1006,7 @@ namespace StockhamGenerator
                     if (placeness == rocfft_placement_inplace)
                     {
 
-                        str += OffsetCalc("ioOffset", "stride_in", true);
+                        str += OffsetCalc("ioOffset", "stride_in", "", "", false);
 
                         str += "\t";
 
@@ -1017,8 +1028,7 @@ namespace StockhamGenerator
                     else
                     {
 
-                        str += OffsetCalc("iOffset", "stride_in", true);
-                        str += OffsetCalc("oOffset", "stride_out", false);
+                        str += OffsetCalc("iOffset", "stride_in", "oOffset", "stride_out", true);
 
 
                         str += "\t";
