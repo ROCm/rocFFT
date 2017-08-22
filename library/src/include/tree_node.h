@@ -71,10 +71,10 @@ private:
 public:
     size_t                        batch;
 
-    // transform dimension - note this can be different from data dimension
+    // transform dimension - note this can be different from data dimension, user provided
     size_t                        dimension;
 
-    // length of the FFT in each dimension
+    // length of the FFT in each dimension, internal value
     std::vector< size_t >        length;
 
     // stride of the FFT in each dimension
