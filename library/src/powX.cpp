@@ -498,6 +498,11 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
                 data.gridParam = execPlan.gridParam[i];
 
 #ifdef TMP_DEBUG
+                size_t in_size = data.node->iDist * data.node->batch;
+                size_t in_size_bytes = in_size * 2 * sizeof(float);
+                void *dbg_in = malloc(in_size_bytes);
+                hipMemcpy(dbg_in, data.bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
+
                 size_t out_size = data.node->oDist * data.node->batch;
                 size_t out_size_bytes = out_size * 2 * sizeof(float);
                 void *dbg_out = malloc(out_size_bytes);
@@ -519,6 +524,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
                 hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
                 printf("copied from device\n");
                 free(dbg_out);
+                free(dbg_in);
 #endif
             }
         }

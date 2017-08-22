@@ -23,6 +23,7 @@ if( NOT CMAKE_CONFIGURATION_TYPES )
   set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
 
+# set(CMAKE_CXX_FLAGS_DEBUG "-DDEBUG -DTMP_DEBUG ${CMAKE_CXX_FLAGS_DEBUG}")
 set(CMAKE_CXX_FLAGS_DEBUG "-DDEBUG ${CMAKE_CXX_FLAGS_DEBUG}")
 
 if( DEFINED HOST_TOOLCHAIN_FILE )
