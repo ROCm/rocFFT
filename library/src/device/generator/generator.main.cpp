@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <string.h>
+#include <algorithm>
 #include "generator.stockham.h"
 #include "generator.param.h"
 #include "generator.butterfly.hpp"
@@ -399,7 +400,7 @@ int generate_kernel(int len, int stride)
 int all_possible(std::vector<size_t> &support_list, size_t i_upper_bound, size_t j_upper_bound, size_t k_upper_bound)
 {
     int counter=0;
-    size_t upper_bound = 4096;
+    size_t upper_bound = std::max(std::max(i_upper_bound, j_upper_bound), k_upper_bound);
     for(size_t i=1;i<=i_upper_bound;i*=5){
         for(size_t j=1;j<=j_upper_bound;j*=3){
             for(size_t k=1;k<=k_upper_bound;k*=2){

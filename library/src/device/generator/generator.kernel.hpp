@@ -706,33 +706,6 @@ namespace StockhamGenerator
 
 
             /* =====================================================================
-                write butterfly device functions
-               =================================================================== */
-
-#if 0
-
-            if (length > 1)
-            {
-                for (std::list<size_t>::const_iterator r = uradices.begin(); r != uradices.end(); r++)
-                {
-                    size_t rad = *r;
-                    p = passes.begin();
-                    while (p->GetRadix() != rad) p++;
-
-                    for (size_t d = 0; d<2; d++)
-                    {
-                        bool fwd = d ? false : true;
-
-                        if (p->GetNumB1()) { Butterfly<PR> bfly(rad, 1, fwd, cReg); bfly.GenerateButterfly(str); str += "\n"; }
-                        if (p->GetNumB2()) { Butterfly<PR> bfly(rad, 2, fwd, cReg); bfly.GenerateButterfly(str); str += "\n"; }
-                        if (p->GetNumB4()) { Butterfly<PR> bfly(rad, 4, fwd, cReg); bfly.GenerateButterfly(str); str += "\n"; }
-                    }
-                }
-            }
-
-
-#endif
-            /* =====================================================================
                 write pass functions
                 passes call butterfly device functions
                 passes use twiddles
@@ -778,6 +751,85 @@ namespace StockhamGenerator
                 Generate forward (fwd) cases and backward kernels
                 Generate inplace and outof place kernels
                =================================================================== */
+
+                /*  generate fwd or back ward length-point FFT device functions, assuming shared memory (LDS), offset are already pre-calculated\n" */
+
+                for (size_t d = 0; d<2; d++)
+                {
+                    bool fwd;
+                    fwd = d ? false : true;
+
+                    str += "template <typename T, StrideBin sb> \n";
+                    str += "__device__ void \n";
+                    if(fwd) str += "fwd_len";
+                    else  str += "back_len";
+                    str += std::to_string(length);
+                    str += "_device";
+                    str += "(const T *twiddles, const size_t stride_in, const size_t stride_out, unsigned int rw, unsigned int b, "; 
+                    str += "unsigned int me, unsigned int ldsOffset, T *lwbIn, T *lwbOut, real_type_t<T> *lds)\n";
+                    str += "{\n";
+
+                    // Setup registers if needed
+                    if (linearRegs)
+                    {
+                        str += "\t"; str += r2Type;
+                        str += " "; str += IterRegs("", false);
+                        str += ";\n";
+                    }
+
+                    if (numPasses == 1)
+                    {
+                        str += "\t";
+                        str += PassName(0, fwd, length);
+                        str += "<T, sb>(twiddles, stride_in, stride_out, rw, b, me, 0, 0, lwbIn, lwdOut"; 
+                        str += IterRegs("&");
+                        str += ");\n";
+                    }
+                    else
+                    {
+                        for (typename std::vector<Pass<PR> >::const_iterator p = passes.begin(); p != passes.end(); p++)
+                        {
+                            std::string exTab = "";
+
+                            str += exTab;
+                            str += "\t";
+                            str += PassName(p->GetPosition(), fwd, length);
+                            str += "<T, sb>(twiddles, stride_in, stride_out, rw, b, me, "; 
+
+                            std::string ldsArgs;
+                            if (halfLds) { ldsArgs += "lds, lds"; }
+                            else {
+                                if (ldsInterleaved) { ldsArgs += "lds"; }
+                                else { ldsArgs += "lds, lds + "; ldsArgs += std::to_string(length*numTrans); }
+                            }
+
+                            //about offset
+                            if (p == passes.begin()) // beginning pass
+                            {
+                                str += "0, ldsOffset, lwbIn, ";
+                                str += ldsArgs; 
+                            }
+                            else if ((p + 1) == passes.end()) // ending pass
+                            {
+                                str += "ldsOffset, 0, ";
+                                str += ldsArgs; 
+                                str += ", lwdOut"; 
+                            }
+                            else // intermediate pass
+                            {
+                                str += "ldsOffset, ldsOffset, ";
+                                str += ldsArgs; str += ", "; str += ldsArgs; 
+                            }
+
+                            str += IterRegs("&"); 
+                            str += ");\n";
+                            if (!halfLds) { str += exTab; str += "\t__syncthreads();\n"; }
+                        }
+                    }// if (numPasses == 1)
+                    str += "}\n\n";
+                }
+
+
             for( int place = 0; place<2; place++)
             {
                 rocfft_result_placement placeness;
@@ -788,8 +840,7 @@ namespace StockhamGenerator
                     bool fwd;
                     fwd = d ? false : true;
 
-
-                    str += "//Configuration: number of threads per thread block: " + std::to_string(workGroupSize) +
+                    str += "//Kernel configuration: number of threads per thread block: " + std::to_string(workGroupSize) +
                         " transforms: " + std::to_string(numTrans) + " Passes: " + std::to_string(numPasses) + "\n";
                     // FFT kernel begin
                     // Function signature
@@ -872,17 +923,6 @@ namespace StockhamGenerator
                     str += "\n";
 
 
-                    size_t ldsSize = halfLds ? length*numTrans : 2 * length*numTrans;
-                    ldsSize = ldsInterleaved ? ldsSize / 2 : ldsSize;
-
-                    if (numPasses > 1)
-                    {
-                            str += "\n\t";
-                            str +=  "__shared__  "; str += ldsInterleaved ? r2Type : rType; str += " lds[";
-                            str += std::to_string(ldsSize); str += "];\n";
-                    }
-
-
                     // Declare memory pointers
                     str += "\n\t";
 
@@ -940,15 +980,6 @@ namespace StockhamGenerator
                             }
                         }
                         str += "\n";
-                    }
-
-
-                    // Setup registers if needed
-                    if (linearRegs)
-                    {
-                        str += "\t"; str += r2Type;
-                        str += " "; str += IterRegs("", false);
-                        str += ";\n\n";
                     }
 
 
@@ -1083,8 +1114,8 @@ namespace StockhamGenerator
                     // rw string also contains 'b'
                     std::string rw, me;
 
-                    if (r2c2r && !rcSimple)    rw = "rw, b, ";
-                    else                    rw = ((numTrans > 1) || realSpecial) ? "rw, b, " : "1, b, ";
+                    if (r2c2r && !rcSimple)    rw = " rw, b, ";
+                    else                    rw = ((numTrans > 1) || realSpecial) ? " rw, b, " : " 1, b, ";
 
                     if (numTrans > 1) { me += "me%"; me += std::to_string(workGroupSizePerTrans); me += ", "; }
                     else { me += "me, "; }
@@ -1121,107 +1152,43 @@ namespace StockhamGenerator
                         call passes in the generated kernel
                        =================================================================== */
 
-                    if (numPasses == 1)
+                    str += "\t// Perform FFT input: lwb(In) ; output: lwb(Out); working space: lds \n";
+                    str += "\t// rw, b, me% control read/write; then ldsOffset, lwb, lds\n";
+
+                    size_t ldsSize = halfLds ? length*numTrans : 2 * length*numTrans;
+                    ldsSize = ldsInterleaved ? ldsSize / 2 : ldsSize;
+                    if (numPasses > 1)
                     {
-                        str += "\t";
-                        str += PassName(0, fwd, length);
-                        str += "<T, sb>(twiddles, stride_in[0], "; //always the inner-most stride, must explicitly transfer twiddles to underlying Pass device function
-                        if (placeness == rocfft_placement_notinplace) str += "stride_out[0], ";
-                        else str += "stride_in[0], ";
-                        str += rw; str += me;
+                            str += "\n\t";
+                            str +=  "__shared__  "; str += ldsInterleaved ? r2Type : rType; str += " lds[";
+                            str += std::to_string(ldsSize); str += "];\n";
+                    }
 
-                        str += (params.fft_hasPreCallback) ? inOffset : "0";
-
-
-                        str += ", 0, ";
-
-
-                        str += inBuf; str += outBuf;
-                        str += IterRegs("&");
-
-                        str += ");\n";
+                    std::string ldsOff;
+                    if (numTrans > 1)
+                    {
+                        ldsOff += "(me/"; ldsOff += std::to_string(workGroupSizePerTrans);
+                        ldsOff += ")*"; ldsOff += std::to_string(length);
                     }
                     else
                     {
-                        for (typename std::vector<Pass<PR> >::const_iterator p = passes.begin(); p != passes.end(); p++)
-                        {
-                            std::string exTab = "";
+                        ldsOff += "0";
+                    }
 
-                            str += exTab;
-                            str += "\t";
-                            str += PassName(p->GetPosition(), fwd, length);
-                            str += "<T, sb>(twiddles, stride_in[0], "; //always the inner-most stride, must explicitly transfer twiddles to underlying Pass device function
-                            if (placeness == rocfft_placement_notinplace) str += "stride_out[0], ";
-                            else str += "stride_in[0], ";
+                    str += "\t";
+                    if(fwd) str += "fwd_len";
+                    else  str += "back_len";
+                    str += std::to_string(length);
+                    str += "_device<T, sb>(twiddles, stride_in[0], stride_in[0],";
 
-                            std::string ldsOff;
+                    str += rw;
+                    str += me;
+                    str += ldsOff + ", "; 
 
-                            if (numTrans > 1)
-                            {
-                                    ldsOff += "(me/"; ldsOff += std::to_string(workGroupSizePerTrans);
-                                    ldsOff += ")*"; ldsOff += std::to_string(length);
-                            }
-                            else
-                            {
-                                    ldsOff += "0";
-                            }
+                    str += inBuf + outBuf;
+                    str += ", lds);\n" ;
 
-
-                            std::string ldsArgs;
-                            if (halfLds) { ldsArgs += "lds, lds"; }
-                            else {
-                                if (ldsInterleaved) { ldsArgs += "lds"; }
-                                else { ldsArgs += "lds, lds + "; ldsArgs += std::to_string(length*numTrans); }
-                            }
-
-                            str += rw;
-
-                            str += me;
-                            if (p == passes.begin()) // beginning pass
-                            {
-
-
-                                str += (params.fft_hasPreCallback) ? inOffset : "0";
-
-                                str += ", ";
-                                str += ldsOff;
-                                str += ", ";
-                                str += inBuf;
-                                str += ldsArgs; str += IterRegs("&");
-
-                                str += ");\n";
-                                if (!halfLds) { str += exTab; str += "\t__syncthreads();\n"; }
-                            }
-                            else if ((p + 1) == passes.end()) // ending pass
-                            {
-                                str += ldsOff;
-                                str += ", ";
-
-                                str += (params.fft_hasPostCallback) ? outOffset : "0";
-
-                                str += ", ";
-                                str += ldsArgs; str += ", ";
-                                str += outBuf;
-
-                                str += IterRegs("&");
-
-                                str += ");\n";
-
-                                if (!halfLds) { str += exTab; str += "\t__syncthreads();\n"; }
-                            }
-                            else // intermediate pass
-                            {
-                                str += ldsOff;
-                                str += ", ";
-                                str += ldsOff;
-                                str += ", ";
-                                str += ldsArgs; str += ", ";
-                                str += ldsArgs; str += IterRegs("&"); str += ");\n";
-                                if (!halfLds) { str += exTab; str += "\t__syncthreads();\n"; }
-                            }
-                        }
-                    }// if (numPasses == 1)
-                str += "}\n\n";
+                    str += "}\n\n";
                 }// end fwd, backward
             }
         }
