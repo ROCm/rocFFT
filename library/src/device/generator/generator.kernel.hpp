@@ -766,7 +766,9 @@ namespace StockhamGenerator
                     str += std::to_string(length);
                     str += "_device";
                     str += "(const T *twiddles, const size_t stride_in, const size_t stride_out, unsigned int rw, unsigned int b, "; 
-                    str += "unsigned int me, unsigned int ldsOffset, T *lwbIn, T *lwbOut, real_type_t<T> *lds)\n";
+                    str += "unsigned int me, unsigned int ldsOffset, T *lwbIn, T *lwbOut"; 
+                    if (numPasses > 1) str += ", real_type_t<T> *lds"; //only multiple pass use lds
+                    str += ")\n";
                     str += "{\n";
 
                     // Setup registers if needed
@@ -781,7 +783,7 @@ namespace StockhamGenerator
                     {
                         str += "\t";
                         str += PassName(0, fwd, length);
-                        str += "<T, sb>(twiddles, stride_in, stride_out, rw, b, me, 0, 0, lwbIn, lwdOut"; 
+                        str += "<T, sb>(twiddles, stride_in, stride_out, rw, b, me, 0, 0, lwbIn, lwbOut"; 
                         str += IterRegs("&");
                         str += ");\n";
                     }
@@ -813,7 +815,7 @@ namespace StockhamGenerator
                             {
                                 str += "ldsOffset, 0, ";
                                 str += ldsArgs; 
-                                str += ", lwdOut"; 
+                                str += ", lwbOut"; 
                             }
                             else // intermediate pass
                             {
@@ -1186,7 +1188,12 @@ namespace StockhamGenerator
                     str += ldsOff + ", "; 
 
                     str += inBuf + outBuf;
-                    str += ", lds);\n" ;
+
+                    if (numPasses > 1)
+                    {
+                        str += ", lds"; //only multiple pass use lds
+                    }
+                    str+= ");\n";
 
                     str += "}\n\n";
                 }// end fwd, backward
