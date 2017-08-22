@@ -96,6 +96,7 @@ extern "C"
 
     void FN_PRFX(transpose_var1_sp)(void *data_p, void *back_p);
 
+    void FN_PRFX(transpose_var2)(void *data_p, void *back_p);
     
     //double precsion (dp)
 

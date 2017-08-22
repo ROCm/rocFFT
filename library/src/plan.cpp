@@ -11,12 +11,6 @@
 #include "plan.h"
 #include "repo.h"
 
-size_t Large1DThreshold = 4096;
-
-static inline bool IsPo2(size_t u) {
-    return (u != 0) && (0 == (u & (u - 1)));
-}
-
 inline size_t PrecisionWidth(rocfft_precision pr)
 {
     switch (pr)
@@ -399,6 +393,8 @@ std::string PrintScheme(ComputeScheme cs)
 
 void TreeNode::RecursiveBuildTree()
 {
+    size_t Large1DThreshold = 4096 / PrecisionWidth(precision);
+
     switch (dimension)
     {
     case 1:
@@ -465,8 +461,38 @@ void TreeNode::RecursiveBuildTree()
                 scheme = CS_L1D_TRTRT;
             }
         }
-        else//TODO other power, like 3, 5, 7 
+        else
         {
+            size_t supported[] = {
+                4096, 4050, 4000, 3888, 3840, 3750, 3645, 3600, 3456, 3375, 3240, 3200, 3125, 3072, 3000, 2916, 2880, 2700, 2592, 2560, 2500, 2430, 2400, 2304, 2250, 2187, 2160,
+                2048, 2025, 2000, 1944, 1920, 1875, 1800, 1728, 1620, 1600, 1536, 1500, 1458, 1440, 1350, 1296, 1280, 1250, 1215, 1200, 1152, 1125, 1080, 1024, 1000, 972, 960,
+                900, 864, 810, 800, 768, 750, 729, 720, 675, 648, 640, 625, 600, 576, 540, 512, 500, 486, 480, 450, 432, 405, 400, 384, 375, 360, 324, 320, 300, 288, 270, 256,
+                250, 243, 240, 225, 216, 200, 192, 180, 162, 160, 150, 144, 135, 128, 125, 120, 108, 100, 96, 90, 81, 80, 75, 72, 64, 60, 54, 50, 48, 45, 40, 36, 32, 30, 27, 25,
+                24, 20, 18, 16, 15, 12, 10, 9, 8, 6, 5, 4, 3, 2, 1 };
+
+            size_t threshold_id = 0;
+            while(supported[threshold_id] != Large1DThreshold) threshold_id++;
+
+            if (length[0] > (Large1DThreshold * Large1DThreshold))
+            {
+                size_t idx = threshold_id;
+                while(length[0]%supported[idx] != 0) idx++;
+
+                divLength1 = length[0] / supported[idx];
+            }
+            else
+            {
+                // logic tries to break into as squarish matrix as possible
+                size_t sqr = (size_t)sqrt(length[0]);
+                size_t i = sizeof(supported)/sizeof(supported[0]) - 1;
+                while(supported[i] < sqr) i--;
+                while(length[0]%supported[i] != 0) i++;
+
+                divLength1 = length[0] / supported[i];
+
+            }
+
+            scheme = CS_L1D_TRTRT;
         }
 
         size_t divLength0 = length[0] / divLength1;

@@ -55,6 +55,7 @@ set( rocfft_device_source
      kernel_launch_double.cpp
      kernel_launch_pow2_large_single.cpp
      kernel_launch_pow2_large_double.cpp
+     kernel_launch_large.cpp
 )
 
 if(PLATFORM_NAME STREQUAL "AMD")
