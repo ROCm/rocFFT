@@ -3,11 +3,10 @@
  ******************************************************************************/
 
 #include <iostream>
-#include "rocfft.h"
+#include "kernel_launch.h"
+#include "./kernels/common.h"
 #include "rocfft_hip.h"
-#include "kernels/transpose.h"
-
-
+#include "./kernels/transpose.h"
 
 /* ============================================================================================ */
 
@@ -56,7 +55,7 @@ rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, size_t lda,
 
     hipStream_t rocfft_stream = 0;
 
-    hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream, m, n, A, B, lda, ldb);
+    hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream, m, n, A, B, lda, ldb);
 
     return rocfft_status_success;
 
@@ -65,7 +64,7 @@ rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, size_t lda,
 /* ============================================================================================ */
 
 
-
+/*
 rocfft_status
 rocfft_transpose_complex_to_complex(rocfft_precision precision, size_t m, size_t n, const void* A, size_t lda, void* B, size_t ldb, size_t batch_count)
 {
@@ -73,5 +72,25 @@ rocfft_transpose_complex_to_complex(rocfft_precision precision, size_t m, size_t
         return rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2*)A, lda, (float2*)B, ldb, batch_count);
     else
         return rocfft_transpose_outofplace_template<double2, 32, 32>(m, n, (const double2*)A, lda, (double2*)B, ldb, batch_count);//double2 must use 32 otherwise exceed the shared memory (LDS) size
+}
+*/
+
+void rocfft_internal_transpose_var2(void *data_p, void *back_p)
+{
+    DeviceCallIn *data = (DeviceCallIn *)data_p;
+
+    size_t m = data->node->length[1];
+    size_t n = data->node->length[0];
+    size_t lda = data->node->inStride[1]; 
+    size_t ldb = data->node->outStride[1];
+    size_t batch_count = data->node->batch;
+
+    if( data->node->precision == rocfft_precision_single)
+        rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2 *)data->bufIn[0], lda, (float2 *)data->bufOut[0], ldb, batch_count);
+    else
+        rocfft_transpose_outofplace_template<double2, 32, 32>(m, n, (const double2 *)data->bufIn[0], lda, (double2 *)data->bufOut[0], ldb, batch_count);//double2 must use 32 otherwise exceed the shared memory (LDS) size
+
+/*    (float2 *)data->node->twiddles_large, data->node->batch, data->node->length.size(),
+                    data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH);*/
 }
 

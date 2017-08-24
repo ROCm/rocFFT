@@ -5,7 +5,7 @@
 #include "rocfft_hip.h"
 #include "./kernels/transpose.h"
 
-void rocfft_internal_transpose_var2(void *data_p, void *back_p)
+void rocfft_internal_transpose_var3(void *data_p, void *back_p)
 {
     DeviceCallIn *data = (DeviceCallIn *)data_p;
 
