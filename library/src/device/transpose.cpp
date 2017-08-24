@@ -65,7 +65,7 @@ rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, size_t lda,
 /* ============================================================================================ */
 
 
-
+extern "C"
 rocfft_status
 rocfft_transpose_complex_to_complex(rocfft_precision precision, size_t m, size_t n, const void* A, size_t lda, void* B, size_t ldb, size_t batch_count)
 {

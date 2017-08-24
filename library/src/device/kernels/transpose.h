@@ -155,7 +155,7 @@ transpose_kernel( hipLaunchParm lp, int m, int n, const T* input, T* output, int
 {
 
     input += hipBlockIdx_x * DIM_X + hipBlockIdx_y * DIM_X * input_lda + (hipBlockIdx_z * input_lda * n);
-    output += hipBlockIdx_x * DIM_X * output_lda + hipBlockIdx_y * DIM_X + (hipBlockIdx_z * ouput_lda * m);
+    output += hipBlockIdx_x * DIM_X * output_lda + hipBlockIdx_y * DIM_X + (hipBlockIdx_z * output_lda * m);
 
     int mm = min(m - hipBlockIdx_x * DIM_X, DIM_X); // the corner case along m
     int nn = min(n - hipBlockIdx_y * DIM_X, DIM_X); // the corner case along n
