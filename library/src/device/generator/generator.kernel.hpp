@@ -170,7 +170,7 @@ namespace StockhamGenerator
         std::vector<Pass<PR> > passes;            // Array of pass objects
 
         bool halfLds;                            // LDS used to store one component (either real or imaginary) at a time
-                                                // for passing intermediate data between the passes, if this is set
+                                                // for passing intermediate data between the passes, if this is set true
                                                 // then each pass-function should accept same set of registers
 
         bool linearRegs;                        // scalar registers
@@ -184,8 +184,9 @@ namespace StockhamGenerator
         bool rcFull;
         bool rcSimple;
 
-        bool blockCompute;                        // When we have to compute FFT in blocks (either read or write is along columns)
+        bool blockCompute;                        // When we have to compute FFT in blocks (either read or write is along columns, optimization in radix-2 FFTs)
         size_t blockWidth, blockWGS, blockLDS;
+        BlockComputeType blockComputeType;
 
         bool realSpecial;                       // controls related to large1D real FFTs.
 
@@ -236,6 +237,18 @@ namespace StockhamGenerator
             return possible;
         }
 
+        /*
+          OffsetCalcBlock when blockCompute is set as ture
+          it calculates the offset to the memory
+
+          offset_name
+             can be ioOffset, iOffset or oOffset, they are size_t type
+          stride_name
+             can be stride_in or stride_out, they are vector<size_t> type
+          output
+             if true offset_name2, stride_name2 are enabled
+             else not enabled 
+        */
 
         //since it is batching process mutiple matrices by default, calculate the offset block
         inline std::string OffsetCalcBlock(const std::string &offset_name, bool input = true)
@@ -268,7 +281,8 @@ namespace StockhamGenerator
             return str;
         }
 
-        /*OffsetCalc calculates the offset to the memory
+        /*
+          OffsetCalc calculates the offset to the memory
 
           offset_name
              can be ioOffset, iOffset or oOffset, they are size_t type
@@ -396,7 +410,7 @@ namespace StockhamGenerator
             length = params.fft_N[0];
             workGroupSize = params.fft_workGroupSize;
             numTrans = params.fft_numTrans;
-
+            blockComputeType = params.blockComputeType;
 
             r2c = false;
             c2r = false;
@@ -455,7 +469,7 @@ namespace StockhamGenerator
             KernelCoreSpecs kcs;
             std::vector<size_t> radices = kcs.GetRadices(length);
             size_t nPasses = radices.size();
-            //params.fft_MaxWorkGroupSize = 512;
+
             if ((params.fft_MaxWorkGroupSize >= 256) && (nPasses != 0))
             {
                 for (size_t i = 0; i<nPasses; i++)
@@ -466,20 +480,6 @@ namespace StockhamGenerator
                     R /= rad;
 
                     passes.push_back(Pass<PR>(i, length, rad, cnPerWI, L, LS, R, linearRegs, halfLds, r2c, c2r, rcFull, rcSimple, realSpecial));
-
-                    //Pass precallback information to Pass object if its the first pass.
-                    //This will be used in single kernel transforms
-                    if (params.fft_hasPreCallback && i == 0 && !params.blockCompute)
-                    {
-                        passes[0].SetPrecallback(params.fft_hasPreCallback);
-                    }
-
-                    //Pass post-callback information to Pass object if its the last pass.
-                    //This will be used in single kernel transforms
-                    if (params.fft_hasPostCallback && i == (nPasses - 1) && !params.blockCompute)
-                    {
-                        passes[i].SetPostcallback(params.fft_hasPostCallback);
-                    }
 
                     LS *= rad;
                 }
@@ -521,13 +521,6 @@ namespace StockhamGenerator
                     radices.push_back(rad);
                     passes.push_back(Pass<PR>(pid, length, rad, cnPerWI, L, LS, R, linearRegs, halfLds, r2c, c2r, rcFull, rcSimple, realSpecial));
 
-                    //Pass precallback information to Pass object if its the first pass.
-                    //This will be used in single kernel transforms
-                    if (pid == 0 && params.fft_hasPreCallback)
-                    {
-                        passes[0].SetPrecallback(params.fft_hasPreCallback);
-                    }
-
                     pid++;
                     LS *= rad;
 
@@ -537,12 +530,6 @@ namespace StockhamGenerator
                 }// end while
                 numPasses = pid;
 
-                //Pass post-callback information to Pass object if its the last pass.
-                //This will be used in single kernel transforms
-                if (params.fft_hasPostCallback)
-                {
-                    passes[numPasses - 1].SetPostcallback(params.fft_hasPostCallback);
-                }
             }
 
             assert(numPasses == passes.size());
@@ -732,14 +719,20 @@ namespace StockhamGenerator
                     if (p == passes.begin() && params.fft_twiddleFront) { tw3Step = params.fft_3StepTwiddle; }
                     if ((p + 1) == passes.end()) { s = scale; if (!params.fft_twiddleFront) tw3Step = params.fft_3StepTwiddle; }
 
-
-                    if (p == passes.begin()) { inIlvd = inInterleaved;  inRl = inReal;  gIn = true; ins = -1; }
-                    // ins = -1 is for non-unit stride, the 1st pass may read strided memory, while the middle pass read/write LDS which guarantees unit-stride
-                    if ((p + 1) == passes.end()) { outIlvd = outInterleaved; outRl = outReal; gOut = true; outs = -1; } //-1 is non-unit stride
-                    // ins = -1 is for non-unit stride, the last pass may write strided memory
-                    if (p != passes.begin()) { inIlvd = ldsInterleaved; }
-                    if ((p + 1) != passes.end()) { outIlvd = ldsInterleaved; }
-
+                    if (blockCompute && !r2c2r)
+                    {
+                        inIlvd = ldsInterleaved;
+                        outIlvd = ldsInterleaved;
+                    }
+                    else
+                    {
+                        if (p == passes.begin()) { inIlvd = inInterleaved;  inRl = inReal;  gIn = true; ins = -1; }
+                        // ins = -1 is for non-unit stride, the 1st pass may read strided memory, while the middle pass read/write LDS which guarantees unit-stride
+                        if ((p + 1) == passes.end()) { outIlvd = outInterleaved; outRl = outReal; gOut = true; outs = -1; } //-1 is non-unit stride
+                        // ins = -1 is for non-unit stride, the last pass may write strided memory
+                        if (p != passes.begin()) { inIlvd = ldsInterleaved; }
+                        if ((p + 1) != passes.end()) { outIlvd = ldsInterleaved; }
+                    }
                     p->GeneratePass(fwd, str, tw3Step, params.fft_twiddleFront, inIlvd, outIlvd, inRl, outRl, ins, outs, s, gIn, gOut);
                 }
 
@@ -747,12 +740,9 @@ namespace StockhamGenerator
 
 
             /* =====================================================================
-                Generate Main kernels: call passes
-                Generate forward (fwd) cases and backward kernels
-                Generate inplace and outof place kernels
+                generate fwd or back ward length-point FFT device functions : encapsulate passes
+                called by kernels which set up shared memory (LDS), offset, etc
                =================================================================== */
-
-                /*  generate fwd or back ward length-point FFT device functions, assuming shared memory (LDS), offset are already pre-calculated\n" */
 
                 for (size_t d = 0; d<2; d++)
                 {
@@ -766,8 +756,17 @@ namespace StockhamGenerator
                     str += std::to_string(length);
                     str += "_device";
                     str += "(const T *twiddles, const size_t stride_in, const size_t stride_out, unsigned int rw, unsigned int b, "; 
-                    str += "unsigned int me, unsigned int ldsOffset, T *lwbIn, T *lwbOut"; 
-                    if (numPasses > 1) str += ", real_type_t<T> *lds"; //only multiple pass use lds
+                    str += "unsigned int me, unsigned int ldsOffset, T *lwbIn, T *lwbOut, "; 
+                    
+                    if (blockCompute)// blockCompute' lds type is T 
+                    {
+                        str += "T *lds";
+                    }
+                    else
+                    {
+                        if (numPasses > 1) str += "real_type_t<T> *lds"; //only multiple pass use lds
+                    } 
+
                     str += ")\n";
                     str += "{\n";
 
@@ -808,12 +807,28 @@ namespace StockhamGenerator
                             //about offset
                             if (p == passes.begin()) // beginning pass
                             {
-                                str += "0, ldsOffset, lwbIn, ";
+                                if (blockCompute)// blockCompute use shared memory (lds), so if true, use ldsOffset
+                                {
+                                    str += "ldsOffset, ";
+                                }
+                                else
+                                {
+                                    str += "0, ";
+                                }
+                                str += "ldsOffset, lwbIn, ";
                                 str += ldsArgs; 
                             }
                             else if ((p + 1) == passes.end()) // ending pass
                             {
-                                str += "ldsOffset, 0, ";
+                                str += "ldsOffset, ";
+                                if (blockCompute)//blockCompute use shared memory (lds), so if true, use ldsOffset
+                                {
+                                    str += "ldsOffset, ";
+                                }
+                                else
+                                {
+                                    str += "0, ";
+                                }
                                 str += ldsArgs; 
                                 str += ", lwbOut"; 
                             }
@@ -832,6 +847,12 @@ namespace StockhamGenerator
                 }
 
 
+            /* =====================================================================
+                Generate Main kernels: call passes
+                Generate forward (fwd) cases and backward kernels
+                Generate inplace and outof place kernels
+               =================================================================== */
+
             for( int place = 0; place<2; place++)
             {
                 rocfft_result_placement placeness;
@@ -842,8 +863,10 @@ namespace StockhamGenerator
                     bool fwd;
                     fwd = d ? false : true;
 
-                    str += "//Kernel configuration: number of threads per thread block: " + std::to_string(workGroupSize) +
-                        " transforms: " + std::to_string(numTrans) + " Passes: " + std::to_string(numPasses) + "\n";
+                    str += "//Kernel configuration: number of threads per thread block: "; 
+                    if (blockCompute) str += std::to_string(blockWGS);
+                    else str += std::to_string (workGroupSize); 
+                    str += " transforms: " + std::to_string(numTrans) + " Passes: " + std::to_string(numPasses) + "\n";
                     // FFT kernel begin
                     // Function signature
                     str += "template <typename T, StrideBin sb>\n";
@@ -867,10 +890,7 @@ namespace StockhamGenerator
                     if (placeness == rocfft_placement_inplace)
                     {
 
-
                         assert(inInterleaved == outInterleaved);
-                        assert(params.fft_inStride[1] == params.fft_outStride[1]);//here it checks in and outstride match
-                        assert(params.fft_inStride[0] == params.fft_outStride[0]);
 
                         if (inInterleaved)
                         {
@@ -925,10 +945,26 @@ namespace StockhamGenerator
                     str += "\n";
 
 
+                    // Allocate LDS
+                    if (blockCompute)
+                    {
+                        str += "\n\t"; str += "__shared__ "; str += r2Type; str += " lds[";
+                        str += std::to_string(blockLDS); str += "];\n";
+                    }
+                    else
+                    {
+                        size_t ldsSize = halfLds ? length*numTrans : 2 * length*numTrans;
+                        ldsSize = ldsInterleaved ? ldsSize / 2 : ldsSize;
+                        if (numPasses > 1)
+                        {
+                                str += "\n\t";
+                                str +=  "__shared__  "; str += ldsInterleaved ? r2Type : rType; str += " lds[";
+                                str += std::to_string(ldsSize); str += "];\n";
+                        }
+                    }
+
                     // Declare memory pointers
                     str += "\n\t";
-
-
 
                     if (placeness == rocfft_placement_inplace)
                     {
@@ -1033,13 +1069,18 @@ namespace StockhamGenerator
                         str += "\tunsigned int b = 0;\n\n";
                     }
 
-                // Setup memory pointers
-
+                    /* =====================================================================
+                        Setup memory pointers with offset
+                       =================================================================== */
 
                     if (placeness == rocfft_placement_inplace)
                     {
 
-                        str += OffsetCalc("ioOffset", "stride_in", "", "", false);
+
+                        if (blockCompute)
+                            str += OffsetCalcBlock("ioOffset", true);
+                        else
+                            str += OffsetCalc("ioOffset", "stride_in", "", "", false);
 
                         str += "\t";
 
@@ -1060,9 +1101,15 @@ namespace StockhamGenerator
                     }
                     else
                     {
-
-                        str += OffsetCalc("iOffset", "stride_in", "oOffset", "stride_out", true);
-
+                        if (blockCompute)
+                        {
+                            str += OffsetCalcBlock("iOffset", true);
+                            str += OffsetCalcBlock("oOffset", false);
+                        }
+                        else
+                        {
+                            str += OffsetCalc("iOffset", "stride_in", "oOffset", "stride_out", true);
+                        }
 
                         str += "\t";
 
@@ -1096,7 +1143,6 @@ namespace StockhamGenerator
                         str += "\n";
                     }
 
-
                     std::string inOffset;
                     std::string outOffset;
                     if (placeness == rocfft_placement_inplace && !r2c2r)
@@ -1109,11 +1155,71 @@ namespace StockhamGenerator
                         inOffset += "iOffset";
                         outOffset += "oOffset";
                     }
+                  
+                    /* =====================================================================
+                        blockCompute only: Read data into shared memory (LDS) for blocked access
+                       =================================================================== */
+
+                    if (blockCompute)
+                    {
+
+                        size_t loopCount = (length * blockWidth) / blockWGS;
+
+                        str += "\n\tfor(unsigned int t=0; t<"; str += std::to_string(loopCount);
+                        str += "; t++)\n\t{\n";
+
+                        //get offset 
+                        std::string bufOffset;
+
+                        for (size_t c = 0; c<2; c++)
+                        {
+                            std::string comp = "";
+                            std::string readBuf = (placeness == rocfft_placement_inplace) ? "lwb" : "lwbIn";
+                            if (!inInterleaved) comp = c ? ".y" : ".x";
+                            if (!inInterleaved)
+                                readBuf = (placeness == rocfft_placement_inplace) ? (c ? "lwbIm" : "lwbRe") : (c ? "lwbInIm" : "lwbInRe");
+
+                            if ((blockComputeType == BCT_C2C) || (blockComputeType == BCT_C2R))
+                            {
+                                bufOffset.clear();
+                                bufOffset += "(me%"; bufOffset += std::to_string(blockWidth); bufOffset += ") + ";
+                                bufOffset += "(me/"; bufOffset += std::to_string(blockWidth); bufOffset += ")*"; bufOffset += std::to_string(params.fft_inStride[0]);
+                                bufOffset += " + t*"; bufOffset += std::to_string(params.fft_inStride[0] * blockWGS / blockWidth);
+
+                                str += "\t\tR0"; str += comp; str += " = ";
+                                str += readBuf; str += "[";	str += bufOffset; str += "];\n";
+                                
+                            }
+                            else
+                            {
+                                str += "\t\tR0"; str += comp; str += " = "; str += readBuf; str += "[me + t*"; str += std::to_string(blockWGS); str += "];\n";
+                            }
 
 
+                            if (inInterleaved) break;
+                        }
 
-                    // Set rw and 'me' per transform
-                    // rw string also contains 'b'
+                        if ((blockComputeType == BCT_C2C) || (blockComputeType == BCT_C2R))
+                        {
+                            str += "\t\tlds[t*"; str += std::to_string(blockWGS / blockWidth); str += " + ";
+                            str += "(me%"; str += std::to_string(blockWidth); str += ")*"; str += std::to_string(length); str += " + ";
+                            str += "(me/"; str += std::to_string(blockWidth); str += ")] = R0;"; str += "\n";
+                        }
+                        else
+                        {
+                            str += "\t\tlds[t*"; str += std::to_string(blockWGS); str += " + me] = R0;"; str += "\n";
+                        }
+
+                        str += "\t}\n\n";
+                        str += "\t__syncthreads();\n\n";
+                    }
+
+
+                    /* =====================================================================
+                        Set rw and 'me' 
+                        rw string also contains 'b'
+                       =================================================================== */
+
                     std::string rw, me;
 
                     if (r2c2r && !rcSimple)    rw = " rw, b, ";
@@ -1122,11 +1228,10 @@ namespace StockhamGenerator
                     if (numTrans > 1) { me += "me%"; me += std::to_string(workGroupSizePerTrans); me += ", "; }
                     else { me += "me, "; }
 
-
+                    if (blockCompute) { me = "me%"; me += std::to_string(workGroupSizePerTrans); me += ", "; }// me is overwritten if blockCompute true
 
                     // Buffer strings
                     std::string inBuf, outBuf;
-
 
                     if (placeness == rocfft_placement_inplace)
                     {
@@ -1149,34 +1254,51 @@ namespace StockhamGenerator
                         else                outBuf = params.fft_hasPostCallback ? "gbOutRe, gbOutIm" : "lwbOutRe, lwbOutIm";
                     }
 
-
                     /* =====================================================================
-                        call passes in the generated kernel
+                        call FFT devices functions in the generated kernel
                        =================================================================== */
+
+                    if (blockCompute)// for blockCompute, a loop is required, inBuf, outBuf would be overwritten 
+                    {
+                        str += "\n\tfor(unsigned int t=0; t<"; str += std::to_string(blockWidth / (blockWGS / workGroupSizePerTrans));
+                        str += "; t++)\n\t{\n\n";
+
+                        inBuf = "lds, ";
+                        outBuf = "lds";
+
+                        if (params.fft_3StepTwiddle)
+                        {
+                            str += "\t\tb = (batch%"; str += std::to_string(params.fft_N[1] / blockWidth); str += ")*";
+                            str += std::to_string(blockWidth); str += " + t*"; str += std::to_string(blockWGS / workGroupSizePerTrans);
+                            str += " + (me/"; str += std::to_string(workGroupSizePerTrans); str += ");\n\n";
+                        }
+                    }
+
 
                     str += "\t// Perform FFT input: lwb(In) ; output: lwb(Out); working space: lds \n";
                     str += "\t// rw, b, me% control read/write; then ldsOffset, lwb, lds\n";
 
-                    size_t ldsSize = halfLds ? length*numTrans : 2 * length*numTrans;
-                    ldsSize = ldsInterleaved ? ldsSize / 2 : ldsSize;
-                    if (numPasses > 1)
-                    {
-                            str += "\n\t";
-                            str +=  "__shared__  "; str += ldsInterleaved ? r2Type : rType; str += " lds[";
-                            str += std::to_string(ldsSize); str += "];\n";
-                    }
 
                     std::string ldsOff;
-                    if (numTrans > 1)
+
+                    if (blockCompute)//blockCompute changes the ldsOff 
                     {
-                        ldsOff += "(me/"; ldsOff += std::to_string(workGroupSizePerTrans);
-                        ldsOff += ")*"; ldsOff += std::to_string(length);
+                        ldsOff += "t*"; ldsOff += std::to_string(length*(blockWGS / workGroupSizePerTrans)); ldsOff += " + (me/";
+                        ldsOff += std::to_string(workGroupSizePerTrans); ldsOff += ")*"; ldsOff += std::to_string(length);
+                        str += "\t";
                     }
                     else
                     {
-                        ldsOff += "0";
+                        if (numTrans > 1)
+                        {
+                            ldsOff += "(me/"; ldsOff += std::to_string(workGroupSizePerTrans);
+                            ldsOff += ")*"; ldsOff += std::to_string(length);
+                        }
+                        else
+                        {
+                            ldsOff += "0";
+                        }
                     }
-
                     str += "\t";
                     if(fwd) str += "fwd_len";
                     else  str += "back_len";
@@ -1195,7 +1317,61 @@ namespace StockhamGenerator
                     }
                     str+= ");\n";
 
-                    str += "}\n\n";
+                    if (blockCompute || realSpecial)// the "}" enclose the loop introduced by blockCompute
+                    {
+                        str += "\n\t}\n\n"; 
+                    }
+
+                    // Write data from shared memory (LDS) for blocked access
+                    if (blockCompute)
+                    {
+
+                        size_t loopCount = (length * blockWidth) / blockWGS;
+
+                        str += "\t__syncthreads();\n\n";
+                        str += "\n\tfor(unsigned int t=0; t<"; str += std::to_string(loopCount);
+                        str += "; t++)\n\t{\n";
+
+                        if ((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
+                        {
+                            str += "\t\tR0 = lds[t*"; str += std::to_string(blockWGS / blockWidth); str += " + ";
+                            str += "(me%"; str += std::to_string(blockWidth); str += ")*"; str += std::to_string(length); str += " + ";
+                            str += "(me/"; str += std::to_string(blockWidth); str += ")];"; str += "\n";
+                        }
+                        else
+                        {
+                            str += "\t\tR0 = lds[t*"; str += std::to_string(blockWGS); str += " + me];"; str += "\n";
+                        }
+
+                        for (size_t c = 0; c<2; c++)
+                        {
+                            std::string comp = "";
+                            std::string writeBuf = (placeness == rocfft_placement_inplace) ? "lwb" : "lwbOut";
+                            if (!outInterleaved) comp = c ? ".y" : ".x";
+                            if (!outInterleaved)
+                                writeBuf = (placeness == rocfft_placement_inplace) ? (c ? "lwbIm" : "lwbRe") : (c ? "lwbOutIm" : "lwbOutRe");
+
+                            if ((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
+                            {
+                                {
+                                    str += "\t\t"; str += writeBuf; str += "[(me%"; str += std::to_string(blockWidth); str += ") + ";
+                                    str += "(me/"; str += std::to_string(blockWidth); str += ")*"; str += std::to_string(params.fft_outStride[0]);//TODO stride hard code?
+                                    str += " + t*"; str += std::to_string(params.fft_outStride[0] * blockWGS / blockWidth); str += "] = R0"; str += comp; str += ";\n";//TOD: stride
+                                }
+                            }
+                            else
+                            {
+                                str += "\t\t"; str += writeBuf; str += "[me + t*"; str += std::to_string(blockWGS); str += "] = R0"; str += comp; str += ";\n";
+                            }
+
+                            if (outInterleaved) break;
+                        }
+
+                        str += "\t}\n\n";// "}" enclose the loop intrduced 
+                     }// end if blockCompute
+
+                     str += "}\n\n";// end the kernel
+
                 }// end fwd, backward
             }
         }
