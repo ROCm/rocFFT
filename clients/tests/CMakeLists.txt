@@ -104,6 +104,7 @@ endif( )
 set(rocfft_test_source
     gtest_main.cpp
     accuracy_test_powX.cpp
+    transpose_gtest.cpp
     unit_test.cpp
     misc/source/test_exception.cpp)
 
