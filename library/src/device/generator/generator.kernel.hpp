@@ -246,39 +246,51 @@ namespace StockhamGenerator
           stride_name
              can be stride_in or stride_out, they are vector<size_t> type
           output
-             if true offset_name2, stride_name2 are enabled
+             if true, offset_name2, stride_name2 are enabled
              else not enabled 
         */
 
         //since it is batching process mutiple matrices by default, calculate the offset block
-        inline std::string OffsetCalcBlock(const std::string &offset_name, bool input = true)
+        inline std::string OffsetCalcBlock(const std::string offset_name1, const std::string stride_name1, 
+                                           const std::string offset_name2, const std::string stride_name2,  
+                                           bool input, bool output)
         {
             std::string str;
 
-            const size_t *pStride = input ? params.fft_inStride : params.fft_outStride;
+            str += "\tsize_t counter_mod = batch;\n";
 
-            str += "\t"; str += offset_name; str += " = ";
-            std::string nextBatch = "batch";
-            for (size_t i = (params.fft_DataDim - 1); i>2; i--)
-            {
-                size_t currentLength = 1;
-                for (int j = 2; j<i; j++) currentLength *= params.fft_N[j];
-                currentLength *= (params.fft_N[1] / blockWidth);
+            std::string loop;
+            loop += "\tfor(int i = dim; i>2; i--){\n";//dim is a runtime variable
+            loop += "\t\tint currentLength = 1;\n";
+            loop += "\t\tfor(int j=2; j<i; j++){\n";
+            loop += "\t\t\tcurrentLength *= lengths[j];\n";  
+            loop += "\t\t}\n";
+            loop += "\t\tcurrentLength *= (lengths[1]/" + std::to_string(blockWidth) + ");\n";
+            loop += "\n";
+            loop +=  "\t\t" + offset_name1 + " += (counter_mod/currentLength)*" + stride_name1 + "[i];\n" ;
+            if (output == true) 
+                 loop +=  "\t\t" + offset_name2 + " += (counter_mod/currentLength)*" + stride_name2 + "[i];\n" ;
+            loop += "\t\tcounter_mod = (counter_mod % currentLength); \n";
+            loop += "\t}\n";
 
-                str += "("; str += nextBatch; str += "/"; str += std::to_string(currentLength);
-                str += ")*"; str += std::to_string(pStride[i]); str += " + ";
+            std::string sub_string = "(lengths[1]/" + std::to_string(blockWidth) + ")";// in FFT it is how many unrolls 
 
-                nextBatch = "(" + nextBatch + "%" + std::to_string(currentLength) + ")";
+            loop +=  "\t" + offset_name1 + " += (counter_mod/" + sub_string + ")*" ;
+            loop +=  stride_name1 + "[2] + (counter_mod % " + sub_string + ")*" + std::to_string(blockWidth);
+            if ( blockComputeType == BCT_R2C )//only for input
+                loop += "*lengths[0]";
+            loop += ";\n";
+
+            if (output == true){
+                loop +=  "\t" + offset_name1 + " += (counter_mod/" + sub_string + ")*" ;
+                loop +=  stride_name2 + "[2] + (counter_mod % " + sub_string + ")*" + std::to_string(blockWidth);
+                if ( blockComputeType == BCT_C2R )//only for output
+                    loop += "*lengths[0]";
+                loop += ";\n";
             }
 
-            str += "("; str += nextBatch; str += "/"; str += std::to_string(params.fft_N[1] / blockWidth);
-            str += ")*"; str += std::to_string(pStride[2]); str += " + ("; str += nextBatch;
-            str += "%"; str += std::to_string(params.fft_N[1] / blockWidth); str += ")*";
-
-            str += std::to_string(blockWidth);
-            str += ";\n";
-
-            return str;
+            str += loop;
+            return str;            
         }
 
         /*
@@ -289,7 +301,7 @@ namespace StockhamGenerator
           stride_name
              can be stride_in or stride_out, they are vector<size_t> type
           output
-             if true offset_name2, stride_name2 are enabled
+             if true, offset_name2, stride_name2 are enabled
              else not enabled 
         */
 
@@ -1078,7 +1090,7 @@ namespace StockhamGenerator
 
 
                         if (blockCompute)
-                            str += OffsetCalcBlock("ioOffset", true);
+                            str += OffsetCalcBlock("ioOffset", "stride_in", "", "", true, false);
                         else
                             str += OffsetCalc("ioOffset", "stride_in", "", "", false);
 
@@ -1103,8 +1115,7 @@ namespace StockhamGenerator
                     {
                         if (blockCompute)
                         {
-                            str += OffsetCalcBlock("iOffset", true);
-                            str += OffsetCalcBlock("oOffset", false);
+                            str += OffsetCalcBlock("iOffset",  "stride_in", "oOffset",  "stride_out", true, true);
                         }
                         else
                         {
