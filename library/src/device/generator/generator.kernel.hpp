@@ -220,18 +220,12 @@ namespace StockhamGenerator
             if (r2c2r)
                 return false;
 
-            if (realSpecial)
-                return false;
+            if (realSpecial)  
+              return false;
 
-
-            iStride = params.fft_inStride;
-            oStride = params.fft_outStride;
-
-
-            for (size_t i = 1; i < params.fft_DataDim; i++)
+            for (size_t i = 0; i < params.fft_DataDim-1; i++)//if it is power of 2
             {
-                if (iStride[i] % 2) { possible = false; break; }
-                if (oStride[i] % 2) { possible = false; break; }
+                if (params.fft_N[i] % 2) { possible = false; break; }
             }
 
             return possible;
@@ -575,6 +569,7 @@ namespace StockhamGenerator
 
             // Grouping read/writes ok?
             bool grp = IsGroupedReadWritePossible();
+            printf("len=%d, grp = %d\n", length, grp);
             for (size_t i = 0; i < numPasses; i++)
                 passes[i].SetGrouping(grp);
 
@@ -768,15 +763,15 @@ namespace StockhamGenerator
                     str += std::to_string(length);
                     str += "_device";
                     str += "(const T *twiddles, const size_t stride_in, const size_t stride_out, unsigned int rw, unsigned int b, "; 
-                    str += "unsigned int me, unsigned int ldsOffset, T *lwbIn, T *lwbOut, "; 
+                    str += "unsigned int me, unsigned int ldsOffset, T *lwbIn, T *lwbOut"; 
                     
                     if (blockCompute)// blockCompute' lds type is T 
                     {
-                        str += "T *lds";
+                        str += ", T *lds";
                     }
                     else
                     {
-                        if (numPasses > 1) str += "real_type_t<T> *lds"; //only multiple pass use lds
+                        if (numPasses > 1) str += ", real_type_t<T> *lds"; //only multiple pass use lds
                     } 
 
                     str += ")\n";
@@ -1060,6 +1055,8 @@ namespace StockhamGenerator
                     str += "\t#endif\n";
                     
                     
+                    //printf("fft_3StepTwiddle = %d, lengths = %zu\n", params.fft_3StepTwiddle, length);
+
                     // Transform index for 3-step twiddles
                     if (params.fft_3StepTwiddle && !blockCompute)
                     {
@@ -1194,9 +1191,9 @@ namespace StockhamGenerator
                             {
                                 bufOffset.clear();
                                 bufOffset += "(me%"; bufOffset += std::to_string(blockWidth); bufOffset += ") + ";
-                                bufOffset += "(me/"; bufOffset += std::to_string(blockWidth); bufOffset += ")*"; bufOffset += std::to_string(params.fft_inStride[0]);
-                                bufOffset += " + t*"; bufOffset += std::to_string(params.fft_inStride[0] * blockWGS / blockWidth);
-
+                                bufOffset += "(me/"; bufOffset += std::to_string(blockWidth); bufOffset += ")*stride_in[0] + t*stride_in[0]*"; 
+                                bufOffset += std::to_string(blockWGS / blockWidth);
+                                
                                 str += "\t\tR0"; str += comp; str += " = ";
                                 str += readBuf; str += "[";	str += bufOffset; str += "];\n";
                                 
@@ -1366,8 +1363,8 @@ namespace StockhamGenerator
                             {
                                 {
                                     str += "\t\t"; str += writeBuf; str += "[(me%"; str += std::to_string(blockWidth); str += ") + ";
-                                    str += "(me/"; str += std::to_string(blockWidth); str += ")*"; str += std::to_string(params.fft_outStride[0]);//TODO stride hard code?
-                                    str += " + t*"; str += std::to_string(params.fft_outStride[0] * blockWGS / blockWidth); str += "] = R0"; str += comp; str += ";\n";//TOD: stride
+                                    str += "(me/"; str += std::to_string(blockWidth); str += ")*stride_out[0] + t*stride_out[0]*";
+                                    str += std::to_string(blockWGS / blockWidth); str += "] = R0"; str += comp; str += ";\n";
                                 }
                             }
                             else

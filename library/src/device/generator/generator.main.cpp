@@ -23,45 +23,35 @@ using namespace StockhamGenerator;
 
 
 
-rocfft_status initParams (FFTKernelGenKeyParams &params, size_t LEN, size_t STRI)
+rocfft_status initParams (FFTKernelGenKeyParams &params, std::vector<size_t> fft_N,  bool blockCompute, BlockComputeType blockComputeType)
 {
             /* =====================================================================
                 Parameter : basic plan info
                =================================================================== */
 
-    params.fft_precision    = rocfft_precision_double;//Does not matter single or double, as it generates template data type
 
     params.fft_outputLayout = params.fft_inputLayout  = rocfft_array_type_complex_interleaved;
 
+    params.blockCompute = blockCompute;
+
+    params.blockComputeType = blockComputeType;
 
     bool real_transform = ((params.fft_inputLayout == rocfft_array_type_real) ||
                             (params.fft_outputLayout == rocfft_array_type_real));
 
             /* =====================================================================
-                Parameter : dimension and stride, TODO: stride is no longer used
+                Parameter : dimension 
                =================================================================== */
-
-    //length of the FFT in each dimension, <= 3
-    std::vector<size_t> length = {LEN};
-    //Stride of the FFT in each dimension
-    std::vector<size_t> inStride = {STRI};
-    std::vector<size_t> outStride = {STRI};
 
 
     size_t                  batchsize;
+    
+    params.fft_DataDim = fft_N.size() + 1;
 
-    params.fft_DataDim = length.size() + 1;
-
-    int i=0;
-    for(i = 0; i < length.size(); i++)
+    for(int i=0; i<fft_N.size(); i++)
     {
-        params.fft_N[i]         = length[i];
-        params.fft_inStride[i]  = inStride[i];
-        params.fft_outStride[i] = outStride[i];
+        params.fft_N[i] = fft_N[i];
     }
-
-    params.fft_inStride[i]  = LEN*STRI;
-    params.fft_outStride[i] = LEN*STRI;
 
             /* =====================================================================
                 Parameter: forward, backward scale
@@ -137,12 +127,12 @@ rocfft_status initParams (FFTKernelGenKeyParams &params, size_t LEN, size_t STRI
 /* =====================================================================
     WRITE GPU KERNEL FUNCTIONS
 =================================================================== */
-void WriteKernelToFile(std::string &str, int LEN)
+void WriteKernelToFile(std::string &str, std::string LEN)
 {
 
 
     std::ofstream file;
-    std::string fileName = "rocfft_kernel_"+std::to_string(LEN)+".h";
+    std::string fileName = "rocfft_kernel_"+LEN+".h";
     file.open ( fileName );
 
     if(!file.is_open())
@@ -363,33 +353,102 @@ void WriteCPUFunctionPool(std::vector<size_t> support_list)
 // *****************************************************
 // *****************************************************
 
-int generate_kernel(int len, int stride)
+int generate_kernel(int len)
 {
-
 
     std::string programCode;
     rocfft_precision pr = rocfft_precision_single;
     FFTKernelGenKeyParams params;
+    BlockComputeType blockComputeType;
 
-    initParams(params, len, stride);
-
-    switch(pr)
+    if(len > 4096) // must decompose into two kernels to do the transform : e.g 8192 = 64*128
     {
-        case rocfft_precision_single:
+        //break into 64*X 
+
+        //length of the FFT in each dimension, <= 3
+
+        size_t large1D_first_dim = 64;
+        size_t large1D_second_dim;
+        bool blockCompute = false;                
+        params.fft_3StepTwiddle = true;
+        std::vector<size_t> fft_N(2);
+
+        switch(len)
         {
-            Kernel<rocfft_precision_single> kernel(params);
-            kernel.GenerateKernel(programCode);
+                case 8192: 
+                    {large1D_first_dim = 64; blockCompute = true; }break;
+                case 16384: 
+                    large1D_first_dim = 64; blockCompute = true; break;
+                case 32768: 
+                    large1D_first_dim = 128; blockCompute = true; break;
+                case 65536: 
+                    large1D_first_dim = 128; blockCompute = true; break;
+                default: 
+                    large1D_first_dim = 64; blockCompute = false;
         }
-        break;
-        case rocfft_precision_double:
+
+        for(int i=0;i<2;i++)
         {
-            Kernel<rocfft_precision_double> kernel(params);
-            kernel.GenerateKernel(programCode);
+            if(i==0){
+                fft_N[0] = large1D_first_dim;
+                fft_N[1] = len/large1D_first_dim;
+                blockComputeType = BCT_C2R; //BCT_C2R, R2C, C2C
+            }
+            else{
+                fft_N[1] = large1D_first_dim;
+                fft_N[0] = len/large1D_first_dim;
+                blockComputeType = BCT_C2C;
+            }
+                    
+            initParams(params, fft_N, blockCompute, blockComputeType);// the last is about set blockCompute or not 
+              
+            switch(pr)
+            {
+                        case rocfft_precision_single:
+                        {
+                            Kernel<rocfft_precision_single> kernel(params);
+                            kernel.GenerateKernel(programCode);
+                        }
+                        break;
+                        case rocfft_precision_double:
+                        {
+                            Kernel<rocfft_precision_double> kernel(params);
+                            kernel.GenerateKernel(programCode);
+                        }
+                        break;
+            }
+
+            WriteKernelToFile(programCode, std::to_string(len) + "-" + std::to_string(i));
         }
-        break;
+    }
+    else{//single kernel
+
+        //length of the FFT in each dimension, <= 3
+        std::vector<size_t> fft_N(1); 
+        fft_N[0] = len;
+        initParams(params, fft_N, false, BCT_C2C);// here the C2C is not enabled, as the third parameter is set as false
+
+        switch(pr)
+        {
+            case rocfft_precision_single:
+            {
+                Kernel<rocfft_precision_single> kernel(params);
+                kernel.GenerateKernel(programCode);
+            }
+            break;
+            case rocfft_precision_double:
+            {
+                Kernel<rocfft_precision_double> kernel(params);
+                kernel.GenerateKernel(programCode);
+            }
+            break;
+        }
+
+        WriteKernelToFile(programCode, std::to_string(len));
+
     }
 
-    WriteKernelToFile(programCode, len);
+
 
     return 0;
 }
@@ -478,12 +537,12 @@ int main(int argc, char *argv[])
 
     for(size_t i=0;i<support_list.size();i++){
         //printf("Generating len %d FFT kernels\n", support_list[i]);
-        generate_kernel(support_list[i], 1);
+        generate_kernel(support_list[i]);
     }
 /*
     for(size_t i=7;i<=2401;i*=7){
         printf("Generating len %d FFT kernels\n", (int)i);
-        generate_kernel(i, 1);
+        generate_kernel(i);
         support_list.push_back(i);
     }
 */
