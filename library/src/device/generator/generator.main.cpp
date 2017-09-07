@@ -382,7 +382,7 @@ int generate_kernel(int len)
                 case 32768: 
                     large1D_first_dim = 128; blockCompute = true; break;
                 case 65536: 
-                    large1D_first_dim = 128; blockCompute = true; break;
+                    large1D_first_dim = 256; blockCompute = true; break;
                 default: 
                     large1D_first_dim = 64; blockCompute = false;
         }
@@ -392,12 +392,12 @@ int generate_kernel(int len)
             if(i==0){
                 fft_N[0] = large1D_first_dim;
                 fft_N[1] = len/large1D_first_dim;
-                blockComputeType = BCT_C2R; //BCT_C2R, R2C, C2C
+                blockComputeType = BCT_C2C; //from global memory point view
             }
             else{
                 fft_N[1] = large1D_first_dim;
                 fft_N[0] = len/large1D_first_dim;
-                blockComputeType = BCT_C2C;
+                blockComputeType = BCT_R2C;
             }
                     
             initParams(params, fft_N, blockCompute, blockComputeType);// the last is about set blockCompute or not 
@@ -534,6 +534,11 @@ int main(int argc, char *argv[])
          all_possible(support_list, 3125, 2187, 4096);
     }
 
+   //manually add 8K-64K of pow2
+    support_list.push_back(8192);
+    support_list.push_back(16384);                    
+    support_list.push_back(32768);
+    support_list.push_back(65536);
 
     for(size_t i=0;i<support_list.size();i++){
         //printf("Generating len %d FFT kernels\n", support_list[i]);
@@ -547,10 +552,8 @@ int main(int argc, char *argv[])
     }
 */
 
-
     //printf("Generating CPU Header \n");
     WriteCPUHeaders(support_list);
-
 
     //printf("Generating CPU wrappers \n");
     WriteCPUWrappersSingle(support_list);
