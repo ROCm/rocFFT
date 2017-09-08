@@ -16,7 +16,8 @@
 
 using namespace StockhamGenerator;
 
-
+#define large1DThreshold 4096
+ 
     /* =====================================================================
                 Initial parameter used to generate kernels
     =================================================================== */
@@ -186,10 +187,10 @@ void WriteCPUHeaders(std::vector<size_t> support_list)
     str += "\n";
     str += "//single precision \n";
     for(size_t i=0;i<support_list.size();i++){
-
         std::string str_len = std::to_string(support_list[i]);
-        str += "void rocfft_internal_dfn_sp_ci_ci_stoc_1_" + str_len +
-               "(void *data_p, void *back_p);\n";
+        str += "void rocfft_internal_dfn_sp_ci_ci_stoc_";
+        str +=  ( (support_list[i] > large1DThreshold) ? "2_" : "1_" ); 
+        str += str_len + "(void *data_p, void *back_p);\n";
     }
 
     str += "\n";
@@ -197,8 +198,9 @@ void WriteCPUHeaders(std::vector<size_t> support_list)
     for(size_t i=0;i<support_list.size();i++){
 
         std::string str_len = std::to_string(support_list[i]);
-        str += "void rocfft_internal_dfn_dp_ci_ci_stoc_1_" + str_len +
-               "(void *data_p, void *back_p);\n";
+        str += "void rocfft_internal_dfn_dp_ci_ci_stoc_";
+        str +=  ( (support_list[i] > large1DThreshold) ? "2_" : "1_" ); 
+        str += str_len + "(void *data_p, void *back_p);\n";
     }
 
     str += "\n";
@@ -237,7 +239,6 @@ void WriteCPUWrappersSingle(std::vector<size_t> support_list)
         std::string str_len = std::to_string(support_list[i]);
 
         str += "#include \"rocfft_kernel_" + str_len + ".h\" \n";
-
     }
 
     str += "\n";
@@ -320,18 +321,21 @@ void WriteCPUFunctionPool(std::vector<size_t> support_list)
     str += "function_pool::function_pool()\n";
     str += "{\n";
     str += "\t//single precision \n";
-    for(size_t i=0;i<support_list.size();i++){
 
+    for(size_t i=0;i<support_list.size();i++){
         std::string str_len = std::to_string(support_list[i]);
-        str += "\tfunction_map_single[" + str_len + "] = &rocfft_internal_dfn_sp_ci_ci_stoc_1_" + str_len + ";\n";
+        str += "\tfunction_map_single[" + str_len + "] = &rocfft_internal_dfn_sp_ci_ci_stoc_";
+        str +=  ( (support_list[i] > large1DThreshold) ? "2_" : "1_" );
+        str += str_len + ";\n";
     }
 
     str += "\n";
     str += "\t//double precision \n";
     for(size_t i=0;i<support_list.size();i++){
-
         std::string str_len = std::to_string(support_list[i]);
-        str += "\tfunction_map_double[" + str_len + "] = &rocfft_internal_dfn_dp_ci_ci_stoc_1_" + str_len + ";\n";
+        str += "\tfunction_map_double[" + str_len + "] = &rocfft_internal_dfn_dp_ci_ci_stoc_";
+        str +=  ( (support_list[i] > large1DThreshold) ? "2_" : "1_" );
+        str += str_len + ";\n";
     }
 
     str += "\n";
@@ -361,7 +365,7 @@ int generate_kernel(int len)
     FFTKernelGenKeyParams params;
     BlockComputeType blockComputeType;
 
-    if(len > 4096) // must decompose into two kernels to do the transform : e.g 8192 = 64*128
+    if(len > large1DThreshold) // must decompose into two kernels to do the transform : e.g 8192 = 64*128
     {
         //break into 64*X 
 
@@ -387,7 +391,7 @@ int generate_kernel(int len)
                     large1D_first_dim = 64; blockCompute = false;
         }
 
-        for(int i=0;i<2;i++)
+        for(int i=0;i<2;i++)//break into 2 kernels, that is why the loop ends with 2. 
         {
             if(i==0){
                 fft_N[0] = large1D_first_dim;
@@ -417,9 +421,10 @@ int generate_kernel(int len)
                         }
                         break;
             }
-
-            WriteKernelToFile(programCode, std::to_string(len) + "-" + std::to_string(i));
         }
+        //its two kernels are in one file
+        WriteKernelToFile(programCode, std::to_string(len));
+
     }
     else{//single kernel
 
@@ -447,8 +452,6 @@ int generate_kernel(int len)
         WriteKernelToFile(programCode, std::to_string(len));
 
     }
-
-
 
     return 0;
 }
@@ -502,7 +505,7 @@ int main(int argc, char *argv[])
     if(argc > 1){
         if(strcmp(argv[1], "pow2") == 0){
             //printf("Generating len pow2 FFT kernels\n");
-            all_possible(support_list, 1, 1, 4096);
+            all_possible(support_list, 1, 1, large1DThreshold);
         }
         else if(strcmp(argv[1], "pow3") == 0){
             //printf("Generating len pow3 FFT kernels\n");
@@ -514,11 +517,11 @@ int main(int argc, char *argv[])
         }
         else if(strcmp(argv[1], "pow2,3") == 0){
             //printf("Generating len pow2 and pow3 FFT kernels\n");
-            all_possible(support_list, 1, 2187, 4096);
+            all_possible(support_list, 1, 2187, large1DThreshold);
         }
         else if(strcmp(argv[1], "pow2,5") == 0){
             //printf("Generating len pow2 and pow5 FFT kernels\n");
-            all_possible(support_list, 3125, 1, 4096);
+            all_possible(support_list, 3125, 1, large1DThreshold);
         }
         else if(strcmp(argv[1], "pow3,5") == 0){
             //printf("Generating len pow3 and pow5 FFT kernels\n");
@@ -526,13 +529,18 @@ int main(int argc, char *argv[])
         }
         else if(strcmp(argv[1], "all") == 0){
             //printf("Generating len mix of 2,3,5 FFT kernels\n");
-            all_possible(support_list, 3125, 2187, 4096);
+            all_possible(support_list, 3125, 2187, large1DThreshold);
         }
     }
     else{//if no arguments, generate all possible sizes
          //printf("Generating len mix of 2,3,5 FFT kernels\n");
-         all_possible(support_list, 3125, 2187, 4096);
+         all_possible(support_list, 3125, 2187, large1DThreshold);
     }
+
+
+    //printf("Generating CPU wrappers CPP files \n");
+    WriteCPUWrappersSingle(support_list);//TODO: add large1D kernels into CPU functions, need to change CPU side code
+    WriteCPUWrappersDouble(support_list);//TODO: add large1D kernels into CPU functions, need to change CPU side code
 
    //manually add 8K-64K of pow2
     support_list.push_back(8192);
@@ -554,10 +562,6 @@ int main(int argc, char *argv[])
 
     //printf("Generating CPU Header \n");
     WriteCPUHeaders(support_list);
-
-    //printf("Generating CPU wrappers \n");
-    WriteCPUWrappersSingle(support_list);
-    WriteCPUWrappersDouble(support_list);
 
     //printf("Generating CPU function into Hash Map \n");
     WriteCPUFunctionPool(support_list);

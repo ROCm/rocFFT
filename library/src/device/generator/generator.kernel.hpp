@@ -1194,13 +1194,13 @@ namespace StockhamGenerator
                                 bufOffset += "(me/"; bufOffset += std::to_string(blockWidth); bufOffset += ")*stride_in[0] + t*stride_in[0]*";
                                 bufOffset += std::to_string(blockWGS / blockWidth);
 
-                                str += "\t\tR0"; str += comp; str += " = ";
+                                str += "\t\tT R0"; str += comp; str += " = ";
                                 str += readBuf; str += "[";	str += bufOffset; str += "];\n";
 
                             }
                             else
                             {
-                                str += "\t\tR0"; str += comp; str += " = "; str += readBuf; str += "[me + t*"; str += std::to_string(blockWGS); str += "];\n";
+                                str += "\t\tT R0"; str += comp; str += " = "; str += readBuf; str += "[me + t*"; str += std::to_string(blockWGS); str += "];\n";
                             }
 
 
@@ -1311,7 +1311,8 @@ namespace StockhamGenerator
                     if(fwd) str += "fwd_len";
                     else  str += "back_len";
                     str += std::to_string(length);
-                    str += "_device<T, sb>(twiddles, stride_in[0], stride_in[0],";
+                    str += "_device<T, sb>(twiddles, stride_in[0], ";
+                    str += ( (placeness == rocfft_placement_inplace) ? "stride_in[0], " : "stride_out[0], " );
 
                     str += rw;
                     str += me;
@@ -1342,13 +1343,13 @@ namespace StockhamGenerator
 
                         if ((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
                         {
-                            str += "\t\tR0 = lds[t*"; str += std::to_string(blockWGS / blockWidth); str += " + ";
+                            str += "\t\tT R0 = lds[t*"; str += std::to_string(blockWGS / blockWidth); str += " + ";
                             str += "(me%"; str += std::to_string(blockWidth); str += ")*"; str += std::to_string(length); str += " + ";
                             str += "(me/"; str += std::to_string(blockWidth); str += ")];"; str += "\n";
                         }
                         else
                         {
-                            str += "\t\tR0 = lds[t*"; str += std::to_string(blockWGS); str += " + me];"; str += "\n";
+                            str += "\t\tT R0 = lds[t*"; str += std::to_string(blockWGS); str += " + me];"; str += "\n";
                         }
 
                         for (size_t c = 0; c<2; c++)
@@ -1363,7 +1364,8 @@ namespace StockhamGenerator
                             {
                                 {
                                     str += "\t\t"; str += writeBuf; str += "[(me%"; str += std::to_string(blockWidth); str += ") + ";
-                                    str += "(me/"; str += std::to_string(blockWidth); str += ")*stride_out[0] + t*stride_out[0]*";
+                                    str += "(me/"; str += std::to_string(blockWidth); 
+                                    str += ( (placeness == rocfft_placement_inplace) ? ")*stride_in[0] + t*stride_in[0]*" : ")*stride_out[0] + t*stride_out[0]*" );
                                     str += std::to_string(blockWGS / blockWidth); str += "] = R0"; str += comp; str += ";\n";
                                 }
                             }
