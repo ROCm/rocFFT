@@ -1,9 +1,6 @@
-################################################################################
-# Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
-################################################################################
-
-cmake_minimum_required( VERSION 2.8.12 )
-
+# ########################################################################
+# Copyright 2016 Advanced Micro Devices, Inc.
+# ########################################################################
 
 # ########################################################################
 # A helper function to prefix a source list of files with a common path into a new list (non-destructive)
@@ -20,87 +17,91 @@ function( prepend_path prefix source_list_of_files return_list_of_files )
 endfunction( )
 
 # ########################################################################
-# A helper function to convert an hcc .cpp file into the equivalent cuda .cu file
-# ########################################################################
-function( cuda_rename_source source_list_of_files return_list_of_files )
-
-  # This loop copies each file in source_list_of_files to CMAKE_CURRENT_BINARY_DIR
-  # Then it replaces .cpp extentions with .cu
-  foreach( cpp_file ${${source_list_of_files}} )
-    string(REGEX REPLACE "\\.cpp$" ".cu" cu_file ${cpp_file} )
-    configure_file( "${cpp_file}" "${cu_file}" COPYONLY )
-    list( APPEND cuda_file_list ${cu_file} )
-  endforeach( )
-
-  # This prepends the CMAKE_CURRENT_BINARY_DIR path to the list of generated files
-  prepend_path( "${CMAKE_CURRENT_BINARY_DIR}" cuda_file_list cuda_file_list )
-  set( ${return_list_of_files} ${cuda_file_list} PARENT_SCOPE )
-endfunction( )
-
-# ########################################################################
 # Main
 # ########################################################################
 
-list(APPEND CUDA_NVCC_FLAGS "-arch=sm_30 -std=c++11") #at least Kepler and above
-
-
-project( rocfft-device CXX C )
-
-add_subdirectory( generator )
-
+# The following is a list of implementation files defining the library
 set( rocfft_device_source
-     transpose.cpp
-     real2complex.cpp
-     function_pool.cpp
-     kernel_launch_single.cpp
-     kernel_launch_double.cpp
-     kernel_launch_pow2_large_single.cpp
-     kernel_launch_pow2_large_double.cpp
-     transpose.cpp
-     kernel_launch_large_transpose.cpp
+  transpose.cpp
+  real2complex.cpp
+  function_pool.cpp
+  kernel_launch_single.cpp
+  kernel_launch_double.cpp
+  kernel_launch_pow2_large_single.cpp
+  kernel_launch_pow2_large_double.cpp
+  transpose.cpp
+  kernel_launch_large_transpose.cpp
 )
 
-if(PLATFORM_NAME STREQUAL "AMD")
-  add_library( rocfft-device
-     ${rocfft_device_source}
-  )
-  set_target_properties( rocfft-device PROPERTIES OUTPUT_NAME "rocfft-device-hcc" )
-elseif(PLATFORM_NAME STREQUAL "NVIDIA")
-  message("CUDA_root = ${CUDA_TOOLKIT_ROOT_DIR}")
-  cuda_rename_source( rocfft_device_source rocfft_device_source )
-  set(CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
-  set(hip_include_dir ${HIP_SRC_ROOT}/src/HIP/include)
-  set(extra_cuda_include_dir ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc)
-  CUDA_INCLUDE_DIRECTORIES(${hip_include_dir}
-                           ${extra_cuda_include_dir}
-                           ${PROJECT_SOURCE_DIR}
-                           ${PROJECT_SOURCE_DIR}/generator
-                           ${PROJECT_BINARY_DIR}/generator
-                           ${PROJECT_SOURCE_DIR}/../include
-                           ${PROJECT_SOURCE_DIR}/../../include
-                          )
-  CUDA_ADD_LIBRARY( rocfft-device
-    ${rocfft_device_source}
-  )
-  set_target_properties( rocfft-device PROPERTIES OUTPUT_NAME "rocfft-device-cuda" )
+prepend_path( "../.." rocfft_headers_public relative_rocfft_device_headers_public )
+
+if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
+  add_library( rocfft-device ${rocfft_device_source} ${relative_rocfft_device_headers_public} )
+elseif( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
+
+  # message("CUDA_root = ${CUDA_TOOLKIT_ROOT_DIR}")
+  # cuda_rename_source( rocfft_source rocfft_source )
+  # set( CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER} )
+  # set(hip_include_dir ${HIP_SRC_ROOT}/src/HIP/include)
+  # et(extra_cuda_include_dir ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc)
+  # HIP_INCLUDE_DIRECTORIES( ${hip_include_dir}
+  #     ${extra_cuda_include_dir}
+  #     ${CMAKE_SOURCE_DIR}/src/include
+  #     ${CMAKE_SOURCE_DIR}/src/device/generator
+  #     ${CMAKE_SOURCE_DIR}/include
+  #     ${PROJECT_BINARY_DIR}/src/device/generator
+  #     ${PROJECT_BINARY_DIR}/include
+  #     ${pwd_include_dir}
+  #     )
+
+  HIP_ADD_LIBRARY( rocfft-device ${rocfft_device_source} ${relative_rocfft_device_headers_public} )
 endif( )
 
+# NOTE: 2 issues below
+# 1.  rocfft header 'rocfft-types.h' exposes the hip header hip/hip_vector_types.h, requiring exposing hip::hip_hcc as PUBLIC
+# 2.  hcc requires -Wl,-Bsymbolic for rocm v1.6.1, should be able to remove in future
+target_link_libraries( rocfft-device PUBLIC hip::hip_hcc PRIVATE hip::hip_device hcc::hccshared )
 
-add_dependencies( rocfft-device rocfft-kernel-generator )
+# Test for specific compiler features if cmake version is recent enough
+target_compile_features( rocfft-device PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
 
+if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
+  # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
+  # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
+  target_compile_options( rocfft-device PRIVATE -Wno-unused-command-line-argument )
+
+  foreach( target ${AMDGPU_TARGETS} )
+    target_link_libraries( rocfft-device PRIVATE --amdgpu-target=${target} )
+  endforeach( )
+endif( )
 
 target_include_directories( rocfft-device
-  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
-          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/generator>
-          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/generator>
-          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/../include>
-          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/../../include>
+  PUBLIC  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/generator>
+          $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generator>
+          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
 )
 
-install( TARGETS rocfft-device
-  EXPORT rocfft-targets
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
+set_target_properties( rocfft-device PROPERTIES VERSION ${rocfft_VERSION} SOVERSION ${rocfft_SOVERSION} CXX_EXTENSIONS NO )
+set_target_properties( rocfft-device PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+set_target_properties( rocfft-device PROPERTIES DEBUG_POSTFIX "-d" )
 
+# Package that helps me set visibility for function names exported from shared library
+# set_target_properties( rocfft-device PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
+# include( GenerateExportHeader )
+# generate_export_header( rocfft-device EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft-export.h )
+
+# Following Boost conventions of prefixing 'lib' on static built libraries, across all platforms
+if( NOT BUILD_SHARED_LIBS )
+  set_target_properties( rocfft-device PROPERTIES PREFIX "lib" )
+endif( )
+
+# Building rocfft-device invokes the kernel generator first as part of the build
+add_subdirectory( generator )
+add_dependencies( rocfft-device rocfft-kernel-generator )
+
+rocm_install_targets(
+  TARGETS rocfft-device
+  PREFIX rocfft
+)
+#         PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
