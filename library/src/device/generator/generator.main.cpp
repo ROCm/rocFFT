@@ -543,10 +543,10 @@ int main(int argc, char *argv[])
     WriteCPUWrappersDouble(support_list);//TODO: add large1D kernels into CPU functions, need to change CPU side code
 
    //manually add 8K-64K of pow2
-    support_list.push_back(8192);
+    /*support_list.push_back(8192);
     support_list.push_back(16384);                    
     support_list.push_back(32768);
-    support_list.push_back(65536);
+    support_list.push_back(65536);*/
 
     for(size_t i=0;i<support_list.size();i++){
         //printf("Generating len %d FFT kernels\n", support_list[i]);

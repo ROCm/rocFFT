@@ -57,7 +57,7 @@ vector<vector<size_t>> size_range = {
 
 };
 
-size_t batch_range[] = {1, 100};
+static size_t batch_range[] = {1, 100};
 
 
 /* ===============Google Unit Test==================================================== */
@@ -71,7 +71,6 @@ class transpose_gtest: public :: TestWithParam <transpose_tuple>
         virtual void SetUp(){}
         virtual void TearDown(){}
 };
-
 
 TEST_P(transpose_gtest, float2)
 {

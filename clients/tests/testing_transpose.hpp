@@ -90,7 +90,8 @@ rocfft_status rocfft_transpose(size_t m, size_t n, T *A, size_t lda, T *B, size_
 template<>
 rocfft_status rocfft_transpose<float2>(size_t m, size_t n, float2 *A, size_t lda, float2 *B, size_t ldb, size_t batch_count)
 {
-    return rocfft_transpose_complex_to_complex(rocfft_precision_single, m, n, (const void*) A, lda, (void*)B, ldb, batch_count);
+    return rocfft_status_success;
+    //return rocfft_transpose_complex_to_complex(rocfft_precision_single, m, n, (const void*) A, lda, (void*)B, ldb, batch_count);
 }
 
 
