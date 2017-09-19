@@ -756,15 +756,15 @@ namespace StockhamGenerator
                     str += std::to_string(length);
                     str += "_device";
                     str += "(const T *twiddles, const size_t stride_in, const size_t stride_out, unsigned int rw, unsigned int b, "; 
-                    str += "unsigned int me, unsigned int ldsOffset, T *lwbIn, T *lwbOut, "; 
+                    str += "unsigned int me, unsigned int ldsOffset, T *lwbIn, T *lwbOut"; 
                     
                     if (blockCompute)// blockCompute' lds type is T 
                     {
-                        str += "T *lds";
+                        str += ", T *lds";
                     }
                     else
                     {
-                        if (numPasses > 1) str += "real_type_t<T> *lds"; //only multiple pass use lds
+                        if (numPasses > 1) str += ", real_type_t<T> *lds"; //only multiple pass use lds
                     } 
 
                     str += ")\n";

@@ -9,6 +9,13 @@
 #define _generator_param_H
 #include "../../../../library/include/rocfft.h"
 
+enum BlockComputeType
+{
+    BCT_C2C,    // Column to column
+    BCT_C2R,    // Column to row
+    BCT_R2C,    // Row to column
+};
+
             /* =====================================================================
                 Parameter used to control kernel generation
                =================================================================== */
@@ -54,6 +61,8 @@ struct FFTKernelGenKeyParams {
 	bool					 transOutHorizontal;	// tiles traverse the output buffer in horizontal direction
 
 	bool					 blockCompute;
+    BlockComputeType         blockComputeType;
+
 	size_t					 blockSIMD;
 	size_t					 blockLDS;
 

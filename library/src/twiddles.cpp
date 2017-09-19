@@ -31,7 +31,6 @@ void *twiddles_create(size_t N, rocfft_precision precision)
             hipMemcpy(twts, twtc, N*sizeof( float2 ), hipMemcpyHostToDevice);
         }
         else{
-    printf("large table%d\n",N);
             TwiddleTableLarge<float2> twTable(N); //does not generate radices
             std::tie(ns, twtc) = twTable.GenerateTwiddleTable(); //calculate twiddles on host side
 
