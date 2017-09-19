@@ -108,7 +108,7 @@ __global__ void transpose_kernel_outplace(hipLaunchParm lp, T *input_matrix, T *
 
 template<typename T, int DIM_X, int DIM_Y>
 __device__ void
-transpose_tile_device(const T* input, T* output, int m, int n, int input_lda, int output_lda )
+transpose_tile_device(const T* input, T* output, int m, int n, int gx, int gy, int input_lda, int output_lda, T *twiddles_large )
 {
 
     __shared__ T shared_A[DIM_X][DIM_X+1];//avoid bank conflicts
@@ -122,7 +122,13 @@ transpose_tile_device(const T* input, T* output, int m, int n, int input_lda, in
     {
         if( tx1 < m && (ty1 + i) < n)
         {
-            shared_A[ty1+i][tx1] = input[tx1 + (ty1 + i) * input_lda];   // the transpose taking place here
+            T tmp = input[tx1 + (ty1 + i) * input_lda];
+            if(twiddles_large != 0)
+            {
+                TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp);
+            }
+
+            shared_A[ty1+i][tx1] = tmp;   // the transpose taking place here
         }
     }
     __syncthreads();// ?
@@ -151,7 +157,7 @@ transpose_tile_device(const T* input, T* output, int m, int n, int input_lda, in
 
 template<typename T, int DIM_X, int DIM_Y>
 __global__ void
-transpose_kernel( hipLaunchParm lp, int m, int n, const T* input, T* output, int input_lda, int output_lda )
+transpose_kernel2( hipLaunchParm lp, int m, int n, const T* input, T* output, int input_lda, int output_lda, T *twiddles_large )
 {
 
     input += hipBlockIdx_x * DIM_X + hipBlockIdx_y * DIM_X * input_lda + (hipBlockIdx_z * input_lda * n);
@@ -160,7 +166,7 @@ transpose_kernel( hipLaunchParm lp, int m, int n, const T* input, T* output, int
     int mm = min(m - hipBlockIdx_x * DIM_X, DIM_X); // the corner case along m
     int nn = min(n - hipBlockIdx_y * DIM_X, DIM_X); // the corner case along n
 
-    transpose_tile_device<T, DIM_X, DIM_Y>(input, output, mm, nn, input_lda, output_lda );
+    transpose_tile_device<T, DIM_X, DIM_Y>(input, output, mm, nn, hipBlockIdx_x * DIM_X, hipBlockIdx_y * DIM_X, input_lda, output_lda, twiddles_large );
 }
 
 
