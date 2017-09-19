@@ -523,6 +523,23 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
                 hipDeviceSynchronize();
                 hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
                 printf("copied from device\n");
+               
+                /*if(i == 0 || i == 2 || i == 4)
+                { 
+                float *f_in = (float *)dbg_in;
+                float *f_out = (float *)dbg_out;
+
+                for(size_t kr=0; kr<data.node->length[1]; kr++)
+                {
+                    for(size_t kc=0; kc<data.node->length[0]; kc++)
+                    {
+                        if(f_in[2*(kr*data.node->length[0] + kc)] != f_out[2*(kc*data.node->length[1] + kr)])
+                            printf("fail\n");
+                        
+                    }
+                }
+                }*/
+
                 free(dbg_out);
                 free(dbg_in);
 #endif

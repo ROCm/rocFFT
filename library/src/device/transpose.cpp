@@ -40,7 +40,7 @@
 
 template<typename T, int TRANSPOSE_DIM_X, int TRANSPOSE_DIM_Y>
 rocfft_status
-rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, size_t lda, T* B, size_t ldb, size_t batch_count)
+rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, size_t lda, T* B, size_t ldb, size_t batch_count, void *twiddles_large)
 {
 
     if (lda < m )
@@ -55,7 +55,7 @@ rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, size_t lda,
 
     hipStream_t rocfft_stream = 0;
 
-    hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream, m, n, A, B, lda, ldb);
+    hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream, m, n, A, B, lda, ldb, (T *)twiddles_large);
 
     return rocfft_status_success;
 
@@ -86,9 +86,9 @@ void rocfft_internal_transpose_var2(void *data_p, void *back_p)
     size_t batch_count = data->node->batch;
 
     if( data->node->precision == rocfft_precision_single)
-        rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2 *)data->bufIn[0], lda, (float2 *)data->bufOut[0], ldb, batch_count);
+        rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2 *)data->bufIn[0], lda, (float2 *)data->bufOut[0], ldb, batch_count, data->node->twiddles_large);
     else
-        rocfft_transpose_outofplace_template<double2, 32, 32>(m, n, (const double2 *)data->bufIn[0], lda, (double2 *)data->bufOut[0], ldb, batch_count);//double2 must use 32 otherwise exceed the shared memory (LDS) size
+        rocfft_transpose_outofplace_template<double2, 32, 32>(m, n, (const double2 *)data->bufIn[0], lda, (double2 *)data->bufOut[0], ldb, batch_count, data->node->twiddles_large);//double2 must use 32 otherwise exceed the shared memory (LDS) size
 
 /*    (float2 *)data->node->twiddles_large, data->node->batch, data->node->length.size(),
                     data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH);*/
