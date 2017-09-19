@@ -51,9 +51,9 @@ size_t pow3_range[] = { POW3_RANGE };
 size_t pow5_range[] = { POW5_RANGE };
 size_t mix_range[] = { MIX_RANGE };
 
-size_t batch_range[] = {1};
+static size_t batch_range[] = {1};
 
-size_t stride_range[] = {1};
+static size_t stride_range[] = {1};
 
 rocfft_result_placement placeness_range[] = {rocfft_placement_notinplace, rocfft_placement_inplace};
 
