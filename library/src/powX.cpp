@@ -517,7 +517,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
                 DevFnCall fn = execPlan.devFnCall[i];
                 fn(&data, &back);//execution kernel here
                 hipDeviceSynchronize();
-                printf("executed kernel: %d\n", i); fflush(stdout);
+                printf("executed kernel: %zu\n", i); fflush(stdout);
 
 #ifdef TMP_DEBUG
                 hipDeviceSynchronize();
