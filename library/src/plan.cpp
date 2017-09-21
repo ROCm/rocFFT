@@ -1896,7 +1896,7 @@ void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size
 }
 
 
-void TreeNode::Print(int indent)
+void TreeNode::Print(int indent) const
 {
     std::string indentStr;
     int i = indent;
@@ -1958,7 +1958,7 @@ void TreeNode::Print(int indent)
 
     if(childNodes.size())
     {
-        std::vector<TreeNode *>::iterator children_p;
+        std::vector<TreeNode *>::const_iterator children_p;
         for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
         {
             (*children_p)->Print(indent+1);
@@ -1984,7 +1984,7 @@ void ProcessNode(ExecPlan &execPlan)
 }
 
 
-void PrintNode(ExecPlan &execPlan)
+void PrintNode(const ExecPlan &execPlan)
 {
     std::cout << "*******************************************************************************" << std::endl;
 
@@ -1995,8 +1995,8 @@ void PrintNode(ExecPlan &execPlan)
 
     if (execPlan.execSeq.size() > 1)
     {
-        std::vector<TreeNode *>::iterator prev_p = execPlan.execSeq.begin();
-        std::vector<TreeNode *>::iterator curr_p = prev_p + 1;
+        std::vector<TreeNode *>::const_iterator prev_p = execPlan.execSeq.begin();
+        std::vector<TreeNode *>::const_iterator curr_p = prev_p + 1;
         while (curr_p != execPlan.execSeq.end())
         {
             if ((*curr_p)->placement == rocfft_placement_inplace)

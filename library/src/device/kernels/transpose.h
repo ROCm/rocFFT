@@ -108,7 +108,7 @@ __global__ void transpose_kernel_outplace(hipLaunchParm lp, T *input_matrix, T *
 
 template<typename T, int DIM_X, int DIM_Y>
 __device__ void
-transpose_tile_device(const T* input, T* output, int m, int n, int gx, int gy, int input_lda, int output_lda, T *twiddles_large )
+transpose_tile_device(const T* input, T* output, int m, int n, int gx, int gy, int ld_in, int ld_out, T *twiddles_large )
 {
 
     __shared__ T shared_A[DIM_X][DIM_X+1];//avoid bank conflicts
@@ -122,7 +122,7 @@ transpose_tile_device(const T* input, T* output, int m, int n, int gx, int gy, i
     {
         if( tx1 < m && (ty1 + i) < n)
         {
-            T tmp = input[tx1 + (ty1 + i) * input_lda];
+            T tmp = input[tx1 + (ty1 + i) * ld_in];
             if(twiddles_large != 0)
             {
                 TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp);
@@ -138,7 +138,7 @@ transpose_tile_device(const T* input, T* output, int m, int n, int gx, int gy, i
         //reconfigure the threads
         if( tx1 < n && (ty1 + i)< m)
         {
-            output[tx1 + (i + ty1) * output_lda] = shared_A[tx1][ty1+i];
+            output[tx1 + (i + ty1) * ld_out] = shared_A[tx1][ty1+i];
         }
     }
 
@@ -157,16 +157,40 @@ transpose_tile_device(const T* input, T* output, int m, int n, int gx, int gy, i
 
 template<typename T, int DIM_X, int DIM_Y>
 __global__ void
-transpose_kernel2( hipLaunchParm lp, int m, int n, const T* input, T* output, int input_lda, int output_lda, T *twiddles_large )
+transpose_kernel2( hipLaunchParm lp, const T* input, T* output, T *twiddles_large, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out )
 {
+    int m = lengths[1];
+    int n = lengths[0];
+    int ld_in = stride_in[1];
+    int ld_out = stride_out[1];
 
-    input += hipBlockIdx_x * DIM_X + hipBlockIdx_y * DIM_X * input_lda + (hipBlockIdx_z * input_lda * n);
-    output += hipBlockIdx_x * DIM_X * output_lda + hipBlockIdx_y * DIM_X + (hipBlockIdx_z * output_lda * m);
+	size_t iOffset = 0;
+	size_t oOffset = 0;
+ 
+    size_t counter_mod = hipBlockIdx_z;
+    
+    for(int i = dim; i>2; i--){
+        int currentLength = 1;
+        for(int j=2; j<i; j++){
+            currentLength *= lengths[j];
+        }
+    
+        iOffset += (counter_mod / currentLength)*stride_in[i];
+        oOffset += (counter_mod / currentLength)*stride_out[i];
+        counter_mod = counter_mod % currentLength;
+    }
+    iOffset+= counter_mod * stride_in[2];
+    oOffset+= counter_mod * stride_out[2];
+
+
+
+    input += hipBlockIdx_x * DIM_X + hipBlockIdx_y * DIM_X * ld_in + iOffset;
+    output += hipBlockIdx_x * DIM_X * ld_out + hipBlockIdx_y * DIM_X + oOffset;
 
     int mm = min(m - hipBlockIdx_x * DIM_X, DIM_X); // the corner case along m
     int nn = min(n - hipBlockIdx_y * DIM_X, DIM_X); // the corner case along n
 
-    transpose_tile_device<T, DIM_X, DIM_Y>(input, output, mm, nn, hipBlockIdx_x * DIM_X, hipBlockIdx_y * DIM_X, input_lda, output_lda, twiddles_large );
+    transpose_tile_device<T, DIM_X, DIM_Y>(input, output, mm, nn, hipBlockIdx_x * DIM_X, hipBlockIdx_y * DIM_X, ld_in, ld_out, twiddles_large );
 }
 
 
