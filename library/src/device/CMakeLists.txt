@@ -20,6 +20,26 @@ endfunction( )
 # Main
 # ########################################################################
 
+# This builds the generator executable
+add_subdirectory( generator )
+
+# This includes an explicit list (all possible) of files the generator currently outputs
+include( generator/generated-kernels.cmake )
+
+set( generator_pattern "all" CACHE STRING "FFT kernels to generate" )
+set_property( CACHE generator_pattern PROPERTY STRINGS pow2 pow3 pow5 "pow2,3" "pow2,5" "pow3,5" all )
+
+# add_custom_command will create source output files, that are used in a target below
+# In order for the dependencies to work in cmake, add_custom_command must be in the same
+# CMakeLists.txt file as the target [rocfft-device]
+add_custom_command(
+  OUTPUT ${kernels_launch} ${kernels_1xxx} ${kernels_2xxx} ${kernels_3xxx_4xxx} ${kernels_5xxx_6xxx_7xxx_8xxx_9xxx}
+  COMMAND rocfft-kernel-generator ${generator_pattern}
+  DEPENDS rocfft-kernel-generator
+#  WORKING_DIRECTORY ${kernel_path}
+  COMMENT "Generator producing device kernels for rocfft-device"
+)
+
 # The following is a list of implementation files defining the library
 set( rocfft_device_source
   transpose.cpp
@@ -35,8 +55,18 @@ set( rocfft_device_source
 
 prepend_path( "../.." rocfft_headers_public relative_rocfft_device_headers_public )
 
+message( STATUS "kernels_launch: ${kernels_launch}" )
+
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
-  add_library( rocfft-device ${rocfft_device_source} ${relative_rocfft_device_headers_public} )
+  add_library( rocfft-device
+    ${rocfft_device_source}
+    ${relative_rocfft_device_headers_public}
+    ${kernels_launch}
+    ${kernels_1xxx}
+    ${kernels_2xxx}
+    ${kernels_3xxx_4xxx}
+    ${kernels_5xxx_6xxx_7xxx_8xxx_9xxx}
+  )
 elseif( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
 
   # message("CUDA_root = ${CUDA_TOOLKIT_ROOT_DIR}")
@@ -53,8 +83,15 @@ elseif( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
   #     ${PROJECT_BINARY_DIR}/include
   #     ${pwd_include_dir}
   #     )
-
-  HIP_ADD_LIBRARY( rocfft-device ${rocfft_device_source} ${relative_rocfft_device_headers_public} )
+  HIP_ADD_LIBRARY( rocfft-device
+    ${rocfft_device_source}
+    ${relative_rocfft_device_headers_public}
+    ${kernels_launch}
+    ${kernels_1xxx}
+    ${kernels_2xxx}
+    ${kernels_3xxx_4xxx}
+    ${kernels_5xxx_6xxx_7xxx_8xxx_9xxx}
+  )
 endif( )
 
 # NOTE: 2 issues below
@@ -76,10 +113,11 @@ if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
 endif( )
 
 target_include_directories( rocfft-device
-  PUBLIC  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/generator>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generator>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
-          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/generator>
+          $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
 )
 
 set_target_properties( rocfft-device PROPERTIES VERSION ${rocfft_VERSION} SOVERSION ${rocfft_SOVERSION} CXX_EXTENSIONS NO )
@@ -95,10 +133,6 @@ set_target_properties( rocfft-device PROPERTIES DEBUG_POSTFIX "-d" )
 if( NOT BUILD_SHARED_LIBS )
   set_target_properties( rocfft-device PROPERTIES PREFIX "lib" )
 endif( )
-
-# Building rocfft-device invokes the kernel generator first as part of the build
-add_subdirectory( generator )
-add_dependencies( rocfft-device rocfft-kernel-generator )
 
 rocm_install_targets(
   TARGETS rocfft-device

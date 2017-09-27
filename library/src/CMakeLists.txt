@@ -80,10 +80,10 @@ if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
 endif( )
 
 target_include_directories( rocfft
-  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/include>
-          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src/device/generator>
+  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+  PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
           $<INSTALL_INTERFACE:include>
 )
 
