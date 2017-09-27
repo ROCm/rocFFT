@@ -22,13 +22,13 @@
     @param[in]
     A     pointer storing batch_count of A matrix on the GPU.
     @param[in]
-    lda
+    ld_in
               size_t
               specifies the leading dimension for the matrix A
     @param[inout]
     B    pointer storing batch_count of B matrix on the GPU.
     @param[in]
-    ldb
+    ld_out
               size_t
               specifies the leading dimension for the matrix B
     @param[in]
@@ -40,22 +40,15 @@
 
 template<typename T, int TRANSPOSE_DIM_X, int TRANSPOSE_DIM_Y>
 rocfft_status
-rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, size_t lda, T* B, size_t ldb, size_t batch_count, void *twiddles_large)
+rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, T* B, void *twiddles_large, size_t count, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out, int twl, int dir)
 {
 
-    if (lda < m )
-        return rocfft_status_invalid_dimensions;
-    else if (ldb < n )
-        return rocfft_status_invalid_dimensions;
-
-    if(m == 0 || n == 0 ) return rocfft_status_success;
-
-    dim3 grid((m-1)/TRANSPOSE_DIM_X + 1, ( (n-1)/TRANSPOSE_DIM_X + 1 ), batch_count);
+    dim3 grid((n-1)/TRANSPOSE_DIM_X + 1, ( (m-1)/TRANSPOSE_DIM_X + 1 ), count);
     dim3 threads(TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, 1);
 
     hipStream_t rocfft_stream = 0;
 
-    hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream, m, n, A, B, lda, ldb, (T *)twiddles_large);
+    hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream, A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out, twl, dir);
 
     return rocfft_status_success;
 
@@ -67,12 +60,12 @@ rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, size_t lda,
 /*
 extern "C"
 rocfft_status
-rocfft_transpose_complex_to_complex(rocfft_precision precision, size_t m, size_t n, const void* A, size_t lda, void* B, size_t ldb, size_t batch_count)
+rocfft_transpose_complex_to_complex(rocfft_precision precision, size_t m, size_t n, const void* A, size_t ld_in, void* B, size_t ld_out, size_t batch_count)
 {
     if( precision == rocfft_precision_single)
-        return rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2*)A, lda, (float2*)B, ldb, batch_count);
+        return rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2*)A, ld_in, (float2*)B, ld_out, batch_count);
     else
-        return rocfft_transpose_outofplace_template<double2, 32, 32>(m, n, (const double2*)A, lda, (double2*)B, ldb, batch_count);//double2 must use 32 otherwise exceed the shared memory (LDS) size
+        return rocfft_transpose_outofplace_template<double2, 32, 32>(m, n, (const double2*)A, ld_in, (double2*)B, ld_out, batch_count);//double2 must use 32 otherwise exceed the shared memory (LDS) size
 }
 */
 
@@ -82,16 +75,38 @@ void rocfft_internal_transpose_var2(void *data_p, void *back_p)
 
     size_t m = data->node->length[1];
     size_t n = data->node->length[0];
-    size_t lda = data->node->inStride[1]; 
-    size_t ldb = data->node->outStride[1];
-    size_t batch_count = data->node->batch;
+    //size_t ld_in = data->node->inStride[1]; 
+    //size_t ld_out = data->node->outStride[1];
+
+    /*
+    if (ld_in < m )
+        return rocfft_status_invalid_dimensions;
+    else if (ld_out < n )
+        return rocfft_status_invalid_dimensions;
+
+    if(m == 0 || n == 0 ) return rocfft_status_success;
+    */
+
+    int twl = 0;
+
+         if(data->node->large1D > (size_t)256*256*256*256) printf("large1D twiddle size too large error");
+    else if(data->node->large1D > (size_t)256*256*256) twl = 4;
+    else if(data->node->large1D > (size_t)256*256) twl = 3;
+    else if(data->node->large1D > (size_t)256) twl = 2;
+    else twl = 0;
+
+    int dir = data->node->direction;
+
+    size_t count = data->node->batch;
+    for(size_t i=2; i<data->node->length.size(); i++) count *= data->node->length[i];
 
     if( data->node->precision == rocfft_precision_single)
-        rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2 *)data->bufIn[0], lda, (float2 *)data->bufOut[0], ldb, batch_count, data->node->twiddles_large);
+        rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2 *)data->bufIn[0], (float2 *)data->bufOut[0], data->node->twiddles_large, count,
+                data->node->length.size(), data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, twl, dir);
     else
-        rocfft_transpose_outofplace_template<double2, 32, 32>(m, n, (const double2 *)data->bufIn[0], lda, (double2 *)data->bufOut[0], ldb, batch_count, data->node->twiddles_large);//double2 must use 32 otherwise exceed the shared memory (LDS) size
+        rocfft_transpose_outofplace_template<double2, 32, 32>(m, n, (const double2 *)data->bufIn[0], (double2 *)data->bufOut[0], data->node->twiddles_large, count,
+                data->node->length.size(), data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, twl, dir);
+            //double2 must use 32 otherwise exceed the shared memory (LDS) size
 
-/*    (float2 *)data->node->twiddles_large, data->node->batch, data->node->length.size(),
-                    data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH);*/
 }
 
