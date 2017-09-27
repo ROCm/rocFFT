@@ -511,17 +511,15 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
                 {
                     hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
                 }
-                printf("in debug block of kernel: %zu\n", i);
+                printf("attempting kernel: %zu\n", i); fflush(stdout);
 #endif
 
                 DevFnCall fn = execPlan.devFnCall[i];
-                printf("running kernel: %zu\n", i); fflush(stdout);
                 fn(&data, &back);//execution kernel here
-                hipDeviceSynchronize();
-                printf("executed kernel: %zu\n", i); fflush(stdout);
 
 #ifdef TMP_DEBUG
                 hipDeviceSynchronize();
+                printf("executed kernel: %zu\n", i); fflush(stdout);
                 hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
                 printf("copied from device\n");
                

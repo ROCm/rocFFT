@@ -432,7 +432,12 @@ TEST_F( BasicInterfaceDouble1DBasisTest, invLen540_quick )	{ TestRoutine(540, 1)
 
 TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen390625 )		{ TestRoutine(390625, -1); }
 TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen78125 )		{ TestRoutine(78125, -1); }
-TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen1953125 )		{ TestRoutine(1953125, -1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen1953125 )	{ TestRoutine(1953125, -1); }
+//TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen48828125 )	{ TestRoutine(48828125, -1); }
+
+TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen14348907 )		{ TestRoutine(14348907, -1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen1594323 )		{ TestRoutine(1594323, -1); }
+
 TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen8 )		{ TestRoutine(8, -1); }
 TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen7 )		{ TestRoutine(7, -1); }
 TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen25 )		{ TestRoutine(25, -1); }
