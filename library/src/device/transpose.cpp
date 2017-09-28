@@ -40,7 +40,7 @@
 
 template<typename T, int TRANSPOSE_DIM_X, int TRANSPOSE_DIM_Y>
 rocfft_status
-rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, T* B, void *twiddles_large, size_t count, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out, int twl, int dir)
+rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, T* B, void *twiddles_large, size_t count, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out, int twl, int dir, int scheme)
 {
 
     dim3 grid((n-1)/TRANSPOSE_DIM_X + 1, ( (m-1)/TRANSPOSE_DIM_X + 1 ), count);
@@ -48,7 +48,16 @@ rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, T* B, void 
 
     hipStream_t rocfft_stream = 0;
 
-    hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream, A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out, twl, dir);
+    if(scheme == 0)
+    {
+        hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out, twl, dir);
+    }
+    else
+    {
+        hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel2_scheme<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out, scheme);
+    }
 
     return rocfft_status_success;
 
@@ -75,6 +84,21 @@ void rocfft_internal_transpose_var2(void *data_p, void *back_p)
 
     size_t m = data->node->length[1];
     size_t n = data->node->length[0];
+
+    int scheme = 0;
+    if(data->node->scheme == CS_KERNEL_TRANSPOSE_XY_Z)
+    {
+        scheme = 1;
+        m = data->node->length[2];
+        n = data->node->length[0] * data->node->length[1];
+    }
+    else if(data->node->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
+    {
+        scheme = 2;
+        m = data->node->length[1] * data->node->length[2];
+        n = data->node->length[0];
+    }
+
     //size_t ld_in = data->node->inStride[1]; 
     //size_t ld_out = data->node->outStride[1];
 
@@ -98,14 +122,19 @@ void rocfft_internal_transpose_var2(void *data_p, void *back_p)
     int dir = data->node->direction;
 
     size_t count = data->node->batch;
-    for(size_t i=2; i<data->node->length.size(); i++) count *= data->node->length[i];
+
+    size_t extraDimStart = 2;
+    if(scheme != 0)
+        extraDimStart = 3;
+
+    for(size_t i=extraDimStart; i<data->node->length.size(); i++) count *= data->node->length[i];
 
     if( data->node->precision == rocfft_precision_single)
         rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2 *)data->bufIn[0], (float2 *)data->bufOut[0], data->node->twiddles_large, count,
-                data->node->length.size(), data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, twl, dir);
+                data->node->length.size(), data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, twl, dir, scheme);
     else
         rocfft_transpose_outofplace_template<double2, 32, 32>(m, n, (const double2 *)data->bufIn[0], (double2 *)data->bufOut[0], data->node->twiddles_large, count,
-                data->node->length.size(), data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, twl, dir);
+                data->node->length.size(), data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, twl, dir, scheme);
             //double2 must use 32 otherwise exceed the shared memory (LDS) size
 
 }

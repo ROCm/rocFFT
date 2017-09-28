@@ -503,6 +503,11 @@ TEST_F( BasicInterfaceSingle2DBasisTest, InvLen64and125 )	{ TestRoutine(64,125, 
 TEST_F( BasicInterfaceSingle2DBasisTest, InvLen100and120 )	{ TestRoutine(100,120, 1); }
 TEST_F( BasicInterfaceSingle2DBasisTest, InvLen210and60 )	{ TestRoutine(210,60, 1); }
 
+TEST_F( BasicInterfaceSingle2DBasisTest, FwdLen900and900 )	    { TestRoutine(900,900, -1); }
+TEST_F( BasicInterfaceSingle2DBasisTest, FwdLen1296and1296 )    { TestRoutine(1296,1296, -1); }
+TEST_F( BasicInterfaceSingle2DBasisTest, FwdLen1000and1000 )    { TestRoutine(1000,1000, -1); }
+TEST_F( BasicInterfaceSingle2DBasisTest, FwdLen625and3125 )	    { TestRoutine(625,3125, -1); }
+TEST_F( BasicInterfaceSingle2DBasisTest, FwdLen2187and729 )	    { TestRoutine(2187,729, -1); }
 
 // Basic Interface 3D tests
 TEST_F( BasicInterfaceDouble3DBasisTest, FwdLen8and16and8 )		{ TestRoutine(8,16,8, -1); }
@@ -548,6 +553,7 @@ TEST_F( BasicInterfaceSingle3DBasisTest, InvLen64and125and27 )	{ TestRoutine(64,
 TEST_F( BasicInterfaceSingle3DBasisTest, InvLen100and120and9 )	{ TestRoutine(100,120,9, 1); }
 TEST_F( BasicInterfaceSingle3DBasisTest, InvLen210and60and36 )	{ TestRoutine(210,60,36, 1); }
 
+TEST_F( BasicInterfaceSingle3DBasisTest, FwdLen243and243and243 )		{ TestRoutine(243,243,243, -1); }
 
 // Parameterized tests
 
