@@ -223,6 +223,44 @@ transpose_kernel2( hipLaunchParm lp, const T* input, T* output, T *twiddles_larg
     transpose_tile_device<T, DIM_X, DIM_Y>(input, output, mm, nn, hipBlockIdx_x * DIM_X, hipBlockIdx_y * DIM_X, ld_in, ld_out, twiddles_large, twl, dir);
 }
 
+template<typename T, int DIM_X, int DIM_Y>
+__global__ void
+transpose_kernel2_scheme( hipLaunchParm lp, const T* input, T* output, T *twiddles_large, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out, const int scheme)
+{
+    int m = scheme == 1 ? lengths[2] : lengths[1]*lengths[2];
+    int n = scheme == 1 ? lengths[0]*lengths[1] : lengths[0];
+    int ld_in = scheme == 1 ? stride_in[2] : stride_in[1];
+    int ld_out = scheme == 1 ? stride_out[1] : stride_out[2];
+
+    size_t iOffset = 0;
+    size_t oOffset = 0;
+ 
+    size_t counter_mod = hipBlockIdx_z;
+    
+    for(int i = dim; i>3; i--){
+        int currentLength = 1;
+        for(int j=3; j<i; j++){
+            currentLength *= lengths[j];
+        }
+    
+        iOffset += (counter_mod / currentLength)*stride_in[i];
+        oOffset += (counter_mod / currentLength)*stride_out[i];
+        counter_mod = counter_mod % currentLength;
+    }
+    iOffset+= counter_mod * stride_in[3];
+    oOffset+= counter_mod * stride_out[3];
+
+
+
+    input += hipBlockIdx_x * DIM_X + hipBlockIdx_y * DIM_X * ld_in + iOffset;
+    output += hipBlockIdx_x * DIM_X * ld_out + hipBlockIdx_y * DIM_X + oOffset;
+
+    int mm = min(m - hipBlockIdx_y * DIM_X, DIM_X); // the corner case along m
+    int nn = min(n - hipBlockIdx_x * DIM_X, DIM_X); // the corner case along n
+
+    transpose_tile_device<T, DIM_X, DIM_Y>(input, output, mm, nn, hipBlockIdx_x * DIM_X, hipBlockIdx_y * DIM_X, ld_in, ld_out, twiddles_large, 0, 0);
+}
+
 
 
 

@@ -393,6 +393,9 @@ std::string PrintScheme(ComputeScheme cs)
 
 void TreeNode::RecursiveBuildTree()
 {
+    // this flag can be enabled when generator can do block column fft in multi-dimension cases and small 2d, 3d within one kernel
+    bool MultiDimFuseKernelsAvailable = false;
+
     size_t Large1DThreshold = 4096 / PrecisionWidth(precision);
 
     switch (dimension)
@@ -695,11 +698,16 @@ void TreeNode::RecursiveBuildTree()
         if (scheme == CS_KERNEL_TRANSPOSE)
             return;
 
-        // conditions to choose which scheme
-        if ((length[0] * length[1]) <= 2048)
-            scheme = CS_KERNEL_2D_SINGLE;
-        else if (length[1] <= 256)
-            scheme = CS_2D_RC;
+        if(MultiDimFuseKernelsAvailable)
+        {
+            // conditions to choose which scheme
+            if ((length[0] * length[1]) <= 2048)
+                scheme = CS_KERNEL_2D_SINGLE;
+            else if (length[1] <= 256)
+                scheme = CS_2D_RC;
+            else
+                scheme = CS_2D_RTRT;
+        }
         else
             scheme = CS_2D_RTRT;
 
@@ -819,11 +827,16 @@ void TreeNode::RecursiveBuildTree()
 
     case 3:
     {
-        // conditions to choose which scheme
-        if ((length[0] * length[1] * length[2]) <= 2048)
-            scheme = CS_KERNEL_3D_SINGLE;
-        else if (length[2] <= 256)
-            scheme = CS_3D_RC;
+        if(MultiDimFuseKernelsAvailable)
+        {
+            // conditions to choose which scheme
+            if ((length[0] * length[1] * length[2]) <= 2048)
+                scheme = CS_KERNEL_3D_SINGLE;
+            else if (length[2] <= 256)
+                scheme = CS_3D_RC;
+            else
+                scheme = CS_3D_RTRT;
+        }
         else
             scheme = CS_3D_RTRT;
 
