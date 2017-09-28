@@ -20,7 +20,8 @@
 #include <hip/hip_runtime.h>
 #endif
 
-/* this function is called during creation of plan of pow 2: enqueue the HIP kernels by function pointers*/
+
+/* this function is called during creation of plan : enqueue the HIP kernels by function pointers*/
 void PlanPowX(ExecPlan &execPlan)
 {
     for(size_t i=0; i<execPlan.execSeq.size(); i++)

@@ -553,6 +553,8 @@ TEST_F( BasicInterfaceSingle3DBasisTest, InvLen64and125and27 )	{ TestRoutine(64,
 TEST_F( BasicInterfaceSingle3DBasisTest, InvLen100and120and9 )	{ TestRoutine(100,120,9, 1); }
 TEST_F( BasicInterfaceSingle3DBasisTest, InvLen210and60and36 )	{ TestRoutine(210,60,36, 1); }
 
+TEST_F( BasicInterfaceSingle3DBasisTest, FwdLen100and100and100 )		{ TestRoutine(100,100,100, -1); }
+TEST_F( BasicInterfaceSingle3DBasisTest, FwdLen125and125and125 )		{ TestRoutine(125,125,125, -1); }
 TEST_F( BasicInterfaceSingle3DBasisTest, FwdLen243and243and243 )		{ TestRoutine(243,243,243, -1); }
 
 // Parameterized tests
