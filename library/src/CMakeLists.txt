@@ -16,9 +16,25 @@ function( prepend_path prefix source_list_of_files return_list_of_files )
   set( ${return_list_of_files} ${new_list} PARENT_SCOPE )
 endfunction( )
 
+function( cuda_find_samples_inc_dir header_dir )
+  find_path( CUDA_SAMPLES_INCLUDE_DIR
+  NAMES helper_math.h
+  HINTS
+      ${NVCUDASAMPLES_ROOT}/common/inc
+      $ENV{NVCUDASAMPLES_ROOT}/common/inc
+  PATHS
+      /usr/local/cuda/samples/common/inc
+  )
+  set( ${header_dir} ${CUDA_SAMPLES_INCLUDE_DIR} PARENT_SCOPE )
+endfunction( )
+
 # ########################################################################
 # Main
 # ########################################################################
+# Package that helps me set visibility for function names exported from shared library
+include( GenerateExportHeader )
+
+add_subdirectory( device )
 
 # The following is a list of implementation files defining the library
 set( rocfft_source
@@ -35,39 +51,11 @@ set( rocfft_source
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 
-if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
-  add_library( rocfft ${rocfft_source} ${relative_rocfft_headers_public} )
-elseif( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-# For CUDA platforms, use HIP to compile source
-  list( APPEND CMAKE_MODULE_PATH /opt/rocm/hip/cmake )
-
-  list( APPEND HIP_NVCC_FLAGS "-arch=sm_30 -std=c++11" ) #at least Kepler and above
-  find_package( HIP REQUIRED )
-
-  # message("CUDA_root = ${CUDA_TOOLKIT_ROOT_DIR}")
-  # cuda_rename_source( rocfft_source rocfft_source )
-  # set( CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER} )
-  # set(hip_include_dir ${HIP_SRC_ROOT}/src/HIP/include)
-  # et(extra_cuda_include_dir ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc)
-  # HIP_INCLUDE_DIRECTORIES( ${hip_include_dir}
-  #     ${extra_cuda_include_dir}
-  #     ${CMAKE_SOURCE_DIR}/src/include
-  #     ${CMAKE_SOURCE_DIR}/src/device/generator
-  #     ${CMAKE_SOURCE_DIR}/include
-  #     ${PROJECT_BINARY_DIR}/src/device/generator
-  #     ${PROJECT_BINARY_DIR}/include
-  #     ${pwd_include_dir}
-  #     )
-
-  HIP_ADD_LIBRARY( rocfft ${rocfft_source} ${relative_rocfft_headers_public} )
-endif( )
-
-add_subdirectory( device )
-
-target_link_libraries( rocfft PUBLIC hip::hip_hcc PRIVATE hip::hip_device hcc::hccshared rocfft-device )
-
-# Test for specific compiler features if cmake version is recent enough
+add_library( rocfft ${rocfft_source} ${relative_rocfft_headers_public} )
+add_library( roc::rocfft ALIAS rocfft )
 target_compile_features( rocfft PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
+
+target_link_libraries( rocfft PRIVATE hip::hip_hcc hip::hip_device hcc::hccshared rocfft-device )
 
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
   # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
@@ -77,6 +65,8 @@ if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
   foreach( target ${AMDGPU_TARGETS} )
     target_link_libraries( rocfft PRIVATE --amdgpu-target=${target} )
   endforeach( )
+else( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
+  cuda_find_samples_inc_dir( cuda_samples_inc_dir )
 endif( )
 
 target_include_directories( rocfft
@@ -84,6 +74,7 @@ target_include_directories( rocfft
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
+          $<BUILD_INTERFACE:${cuda_samples_inc_dir}>
           $<INSTALL_INTERFACE:include>
 )
 
@@ -91,8 +82,6 @@ set_target_properties( rocfft PROPERTIES VERSION ${rocfft_VERSION} SOVERSION ${r
 set_target_properties( rocfft PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
 set_target_properties( rocfft PROPERTIES DEBUG_POSTFIX "-d" )
 
-# Package that helps me set visibility for function names exported from shared library
-include( GenerateExportHeader )
 set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
 generate_export_header( rocfft EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft-export.h )
 

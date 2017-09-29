@@ -1,6 +1,7 @@
 # ########################################################################
 # Copyright 2016 Advanced Micro Devices, Inc.
 # ########################################################################
+# Author: Kent Knox
 
 # ########################################################################
 # A helper function to prefix a source list of files with a common path into a new list (non-destructive)
@@ -55,52 +56,19 @@ set( rocfft_device_source
 
 prepend_path( "../.." rocfft_headers_public relative_rocfft_device_headers_public )
 
-message( STATUS "kernels_launch: ${kernels_launch}" )
-
-if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
-  add_library( rocfft-device
-    ${rocfft_device_source}
-    ${relative_rocfft_device_headers_public}
-    ${kernels_launch}
-    ${kernels_1xxx}
-    ${kernels_2xxx}
-    ${kernels_3xxx_4xxx}
-    ${kernels_5xxx_6xxx_7xxx_8xxx_9xxx}
+add_library( rocfft-device
+  ${rocfft_device_source}
+  ${relative_rocfft_device_headers_public}
+  ${kernels_launch}
+  ${kernels_1xxx}
+  ${kernels_2xxx}
+  ${kernels_3xxx_4xxx}
+  ${kernels_5xxx_6xxx_7xxx_8xxx_9xxx}
   )
-elseif( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-
-  # message("CUDA_root = ${CUDA_TOOLKIT_ROOT_DIR}")
-  # cuda_rename_source( rocfft_source rocfft_source )
-  # set( CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER} )
-  # set(hip_include_dir ${HIP_SRC_ROOT}/src/HIP/include)
-  # et(extra_cuda_include_dir ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc)
-  # HIP_INCLUDE_DIRECTORIES( ${hip_include_dir}
-  #     ${extra_cuda_include_dir}
-  #     ${CMAKE_SOURCE_DIR}/src/include
-  #     ${CMAKE_SOURCE_DIR}/src/device/generator
-  #     ${CMAKE_SOURCE_DIR}/include
-  #     ${PROJECT_BINARY_DIR}/src/device/generator
-  #     ${PROJECT_BINARY_DIR}/include
-  #     ${pwd_include_dir}
-  #     )
-  HIP_ADD_LIBRARY( rocfft-device
-    ${rocfft_device_source}
-    ${relative_rocfft_device_headers_public}
-    ${kernels_launch}
-    ${kernels_1xxx}
-    ${kernels_2xxx}
-    ${kernels_3xxx_4xxx}
-    ${kernels_5xxx_6xxx_7xxx_8xxx_9xxx}
-  )
-endif( )
-
-# NOTE: 2 issues below
-# 1.  rocfft header 'rocfft-types.h' exposes the hip header hip/hip_vector_types.h, requiring exposing hip::hip_hcc as PUBLIC
-# 2.  hcc requires -Wl,-Bsymbolic for rocm v1.6.1, should be able to remove in future
-target_link_libraries( rocfft-device PUBLIC hip::hip_hcc PRIVATE hip::hip_device hcc::hccshared )
-
-# Test for specific compiler features if cmake version is recent enough
+add_library( roc::rocfft-device ALIAS rocfft-device )
 target_compile_features( rocfft-device PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
+
+target_link_libraries( rocfft-device PRIVATE hip::hip_hcc hip::hip_device hcc::hccshared )
 
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
   # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
@@ -126,7 +94,6 @@ set_target_properties( rocfft-device PROPERTIES DEBUG_POSTFIX "-d" )
 
 # Package that helps me set visibility for function names exported from shared library
 # set_target_properties( rocfft-device PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
-# include( GenerateExportHeader )
 # generate_export_header( rocfft-device EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft-export.h )
 
 # Following Boost conventions of prefixing 'lib' on static built libraries, across all platforms
