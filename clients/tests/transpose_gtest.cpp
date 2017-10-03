@@ -72,6 +72,7 @@ class transpose_gtest: public :: TestWithParam <transpose_tuple>
         virtual void TearDown(){}
 };
 
+/*
 TEST_P(transpose_gtest, float2)
 {
 
@@ -114,5 +115,6 @@ INSTANTIATE_TEST_CASE_P(rocfft_transpose,
                             ValuesIn(size_range), ValuesIn(batch_range)
                         )
                        );
+*/
 
 
