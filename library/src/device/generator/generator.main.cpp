@@ -190,7 +190,7 @@ void WriteCPUHeaders(std::vector<size_t> support_list)
         std::string str_len = std::to_string(support_list[i]);
         str += "void rocfft_internal_dfn_sp_ci_ci_stoc_";
         str +=  ( (support_list[i] > large1DThreshold) ? "2_" : "1_" ); 
-        str += str_len + "(void *data_p, void *back_p);\n";
+        str += str_len + "(const void *data_p, void *back_p);\n";
     }
 
     str += "\n";
@@ -200,7 +200,7 @@ void WriteCPUHeaders(std::vector<size_t> support_list)
         std::string str_len = std::to_string(support_list[i]);
         str += "void rocfft_internal_dfn_dp_ci_ci_stoc_";
         str +=  ( (support_list[i] > large1DThreshold) ? "2_" : "1_" ); 
-        str += str_len + "(void *data_p, void *back_p);\n";
+        str += str_len + "(const void *data_p, void *back_p);\n";
     }
 
     str += "\n";

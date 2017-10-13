@@ -56,6 +56,7 @@ set( rocfft_source
      get_radix.cpp
      twiddles.cpp
      kargs.cpp
+     ref_cpu.cpp
 )
 
 

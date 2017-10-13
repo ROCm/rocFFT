@@ -78,7 +78,7 @@ rocfft_transpose_complex_to_complex(rocfft_precision precision, size_t m, size_t
 }
 */
 
-void rocfft_internal_transpose_var2(void *data_p, void *back_p)
+void rocfft_internal_transpose_var2(const void *data_p, void *back_p)
 {
     DeviceCallIn *data = (DeviceCallIn *)data_p;
 
