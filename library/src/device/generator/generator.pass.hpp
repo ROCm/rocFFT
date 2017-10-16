@@ -586,7 +586,7 @@ namespace StockhamGenerator
                             else    // 3-step twiddle
                             {
                                 passStr += "\n\t{\n\t\t"; passStr += twType; passStr += " W = ";
-                                passStr += tw3StepFunc; passStr += "( ";
+                                passStr += tw3StepFunc; passStr += "<T>(twiddles_large, ";
 
                                 if(frontTwiddle)
                                 {
@@ -1244,7 +1244,7 @@ namespace StockhamGenerator
             fft_doPostCallback = hasPostcallback;
         }
 
-        void GeneratePass(    bool fwd, std::string &passStr, bool fft_3StepTwiddle, bool twiddleFront,
+        void GeneratePass(    bool fwd, std::string name_suffix, std::string &passStr, bool fft_3StepTwiddle, bool twiddleFront,
                             bool inInterleaved, bool outInterleaved,
                             bool inReal, bool outReal,
                             size_t inStride, size_t outStride, double scale,
@@ -1282,10 +1282,11 @@ namespace StockhamGenerator
             passStr += "__device__ void\n";
 
             //Function name
-            passStr += PassName(position, fwd, length);
+            passStr += PassName(position, fwd, length, name_suffix);
 
             // Function arguments
             passStr += "(const " + regB2Type + " *twiddles, ";
+            if(name_suffix == "_BCT_C2C") passStr += "const " + regB2Type + " *twiddles_large, ";//the blockCompute BCT_C2C algorithm use one more twiddle parameter
             passStr += "const size_t stride_in, const size_t stride_out, ";
             passStr += "unsigned int rw, unsigned int b, ";
             if(realSpecial) passStr += "unsigned int t, ";

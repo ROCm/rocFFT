@@ -144,7 +144,7 @@ namespace StockhamGenerator
 		return str;
 	}
 
-	inline std::string PassName(size_t pos, bool fwd, size_t length)
+	inline std::string PassName(size_t pos, bool fwd, size_t length, std::string name_suffix)
 	{
 		std::string str;
 		if(fwd) str += "Fwd";
@@ -152,6 +152,7 @@ namespace StockhamGenerator
 		str += "Pass"; str += std::to_string(pos);
         str += "_len";
         str += std::to_string(length);
+        str += name_suffix;
 		return str;
 	}
 
@@ -167,7 +168,7 @@ namespace StockhamGenerator
 
 	inline std::string TwTableLargeFunc()
 	{
-		return "TW3step";
+		return "TW2step";//TODO: switch according to the problem size 
 	}
 
 

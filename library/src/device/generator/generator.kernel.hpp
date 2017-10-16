@@ -192,6 +192,7 @@ namespace StockhamGenerator
 
         const FFTKernelGenKeyParams params;        // key params
 
+        std::string name_suffix; //use to specify kernel & device functions names to avoid naming conflict. 
 
         inline std::string IterRegs(const std::string &pfx, bool initComma = true)
         {
@@ -232,7 +233,7 @@ namespace StockhamGenerator
         }
 
         /*
-          OffsetCalcBlock when blockCompute is set as ture
+          OffsetCalcBlockCompute when blockCompute is set as ture
           it calculates the offset to the memory
 
           offset_name
@@ -245,7 +246,7 @@ namespace StockhamGenerator
         */
 
         //since it is batching process mutiple matrices by default, calculate the offset block
-        inline std::string OffsetCalcBlock(const std::string offset_name1, const std::string stride_name1,
+        inline std::string OffsetCalcBlockCompute(const std::string offset_name1, const std::string stride_name1,
                                            const std::string offset_name2, const std::string stride_name2,
                                            bool input, bool output)
         {
@@ -276,7 +277,7 @@ namespace StockhamGenerator
             loop += ";\n";
 
             if (output == true){
-                loop +=  "\t" + offset_name1 + " += (counter_mod/" + sub_string + ")*" ;
+                loop +=  "\t" + offset_name2 + " += (counter_mod/" + sub_string + ")*" ;
                 loop +=  stride_name2 + "[2] + (counter_mod % " + sub_string + ")*" + std::to_string(blockWidth);
                 if ( blockComputeType == BCT_C2R )//only for output
                     loop += "*lengths[0]";
@@ -413,10 +414,15 @@ namespace StockhamGenerator
             params(paramsVal), r2c2r(false)
 
         {
+
+            /* in principle, the fft_N should be passed as a run-time parameter to kernel (with the name lengths)
+               However, we have to take out the fft_N[0] (length) to calculate the pass, blockCompute related parameter at kernel generation stage    
+            */
             length = params.fft_N[0];
             workGroupSize = params.fft_workGroupSize;
             numTrans = params.fft_numTrans;
             blockComputeType = params.blockComputeType;
+            name_suffix = params.name_suffix;
 
             r2c = false;
             c2r = false;
@@ -675,11 +681,7 @@ namespace StockhamGenerator
             inReal  = (params.fft_inputLayout == rocfft_array_type_real) ? true : false;
             outReal = (params.fft_outputLayout == rocfft_array_type_real) ? true : false;
 
-            size_t large1D = 0;
-
-            large1D = params.fft_N[0] * params.fft_N[1];
-
-            str += "#include \"kernels/common.h\"\n";
+            //str += "#include \"common.h\"\n";
             str += "#include \"rocfft_butterfly_template.h\"\n\n";
 
 
@@ -740,7 +742,7 @@ namespace StockhamGenerator
                         if (p != passes.begin()) { inIlvd = ldsInterleaved; }
                         if ((p + 1) != passes.end()) { outIlvd = ldsInterleaved; }
                     }
-                    p->GeneratePass(fwd, str, tw3Step, params.fft_twiddleFront, inIlvd, outIlvd, inRl, outRl, ins, outs, s, gIn, gOut);
+                    p->GeneratePass(fwd, name_suffix, str, tw3Step, params.fft_twiddleFront, inIlvd, outIlvd, inRl, outRl, ins, outs, s, gIn, gOut);
                 }
 
             }
@@ -758,12 +760,15 @@ namespace StockhamGenerator
 
                     str += "template <typename T, StrideBin sb> \n";
                     str += "__device__ void \n";
+
                     if(fwd) str += "fwd_len";
                     else  str += "back_len";
-                    str += std::to_string(length);
+                    str += std::to_string(length) + name_suffix; 
                     str += "_device";
 
-                    str += "(const T *twiddles, const size_t stride_in, const size_t stride_out, unsigned int rw, unsigned int b, ";
+                    str += "(const T *twiddles, ";
+                    if(blockCompute && name_suffix == "_BCT_C2C") str += "const T *twiddles_large, ";//the blockCompute BCT_C2C algorithm use one more twiddle parameter
+                    str += "const size_t stride_in, const size_t stride_out, unsigned int rw, unsigned int b, ";
                     str += "unsigned int me, unsigned int ldsOffset, T *lwbIn, T *lwbOut";
 
                     if (blockCompute)// blockCompute' lds type is T
@@ -789,8 +794,10 @@ namespace StockhamGenerator
                     if (numPasses == 1)
                     {
                         str += "\t";
-                        str += PassName(0, fwd, length);
-                        str += "<T, sb>(twiddles, stride_in, stride_out, rw, b, me, 0, 0, lwbIn, lwbOut";
+                        str += PassName(0, fwd, length, name_suffix);
+                        str += "<T, sb>(twiddles, ";
+                        if(blockCompute && name_suffix == "_BCT_C2C") str += "twiddles_large, ";//the blockCompute BCT_C2C algorithm use one more twiddle parameter
+                        str += "stride_in, stride_out, rw, b, me, 0, 0, lwbIn, lwbOut";
                         str += IterRegs("&");
                         str += ");\n";
                     }
@@ -802,8 +809,11 @@ namespace StockhamGenerator
 
                             str += exTab;
                             str += "\t";
-                            str += PassName(p->GetPosition(), fwd, length);
-                            str += "<T, sb>(twiddles, stride_in, stride_out, rw, b, me, ";
+                            str += PassName(p->GetPosition(), fwd, length, name_suffix);
+                            str += "<T, sb>(twiddles, ";
+                            //the blockCompute BCT_C2C algorithm use one more twiddle parameter
+                            if(blockCompute && name_suffix == "_BCT_C2C") str += "twiddles_large, ";
+                            str += "stride_in, stride_out, rw, b, me, ";
 
                             std::string ldsArgs;
                             if (halfLds) { ldsArgs += "lds, lds"; }
@@ -885,11 +895,17 @@ namespace StockhamGenerator
                     else    str += "fft_back_";
                     if(place) str += "op_len";//outof place
                     else    str += "ip_len";//inplace
-
-                    // kernel arguments
-                    str += std::to_string(length);
+                    str += std::to_string(length) + name_suffix; 
+                    /* kernel arguments, 
+                       lengths, strides are transferred to kernel as a run-time parameter.
+                       lengths, strides may be high dimension arrays
+                    */
                     str += "( hipLaunchParm lp, ";
-                    str += "const " + r2Type + " * __restrict__ twiddles, const size_t dim, const size_t *lengths, ";
+                    str += "const " + r2Type + " * __restrict__ twiddles, "; 
+                    if(blockCompute && name_suffix == "_BCT_C2C"){
+                        str += "const " + r2Type + " * __restrict__ twiddles_large, ";//blockCompute introduce one more twiddle parameter
+                    } 
+                    str += "const size_t dim, const size_t *lengths, ";
                     str += "const size_t *stride_in, ";
                     if(placeness == rocfft_placement_notinplace) str += "const size_t *stride_out, ";
                     str += "const size_t batch_count, ";
@@ -1071,7 +1087,9 @@ namespace StockhamGenerator
                             str += std::to_string(workGroupSizePerTrans); str += "))%";
                         }
 
-                        str += std::to_string(params.fft_N[1]); str += ";\n\n";
+                        //str += std::to_string(params.fft_N[1]); 
+                        str += "lengths[1]"; 
+                        str += ";\n\n";
 
                     }
                     else
@@ -1088,7 +1106,7 @@ namespace StockhamGenerator
 
 
                         if (blockCompute)
-                            str += OffsetCalcBlock("ioOffset", "stride_in", "", "", true, false);
+                            str += OffsetCalcBlockCompute("ioOffset", "stride_in", "", "", true, false);
                         else
                             str += OffsetCalc("ioOffset", "stride_in", "", "", false);
 
@@ -1113,7 +1131,7 @@ namespace StockhamGenerator
                     {
                         if (blockCompute)
                         {
-                            str += OffsetCalcBlock("iOffset",  "stride_in", "oOffset",  "stride_out", true, true);
+                            str += OffsetCalcBlockCompute("iOffset",  "stride_in", "oOffset",  "stride_out", true, true);
                         }
                         else
                         {
@@ -1277,15 +1295,18 @@ namespace StockhamGenerator
 
                         if (params.fft_3StepTwiddle)
                         {
-                            str += "\t\tb = (batch%"; str += std::to_string(params.fft_N[1] / blockWidth); str += ")*";
+                            str += "\t\tb = (batch % (lengths[1]/"; 
+                            str += std::to_string(blockWidth);
+                            //str += std::to_string(params.fft_N[1] / blockWidth); 
+                            str += "))*";
                             str += std::to_string(blockWidth); str += " + t*"; str += std::to_string(blockWGS / workGroupSizePerTrans);
                             str += " + (me/"; str += std::to_string(workGroupSizePerTrans); str += ");\n\n";
                         }
                     }
 
 
-                    str += "\t// Perform FFT input: lwb(In) ; output: lwb(Out); working space: lds \n";
-                    str += "\t// rw, b, me% control read/write; then ldsOffset, lwb, lds\n";
+                    str += "\t\t// Perform FFT input: lwb(In) ; output: lwb(Out); working space: lds \n";
+                    str += "\t\t// rw, b, me% control read/write; then ldsOffset, lwb, lds\n";
 
 
                     std::string ldsOff;
@@ -1311,8 +1332,10 @@ namespace StockhamGenerator
                     str += "\t";
                     if(fwd) str += "fwd_len";
                     else  str += "back_len";
-                    str += std::to_string(length);
-                    str += "_device<T, sb>(twiddles, stride_in[0], ";
+                    str += std::to_string(length) + name_suffix;
+                    str += "_device<T, sb>(twiddles, ";
+                    if(blockCompute && name_suffix == "_BCT_C2C") str += "twiddles_large, ";
+                    str += "stride_in[0], ";
                     str += ( (placeness == rocfft_placement_inplace) ? "stride_in[0], " : "stride_out[0], " );
 
                     str += rw;
