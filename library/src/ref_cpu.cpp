@@ -1,36 +1,26 @@
-#include "ref_cpu.h"
 #include "kernel_launch.h"
+#include "ref_cpu.h"
 
 /*
-int main()
+void compute_general_1d_fft(const void *data_p, void *back_p)
 {
-    int n[] = { 16 }; 
+    RefLibHandle &refHandle = RefLibHandle::GetRefLibHandle();
+
+    DeviceCallIn *data = (DeviceCallIn *)data_p;
+
+    int n[1];
+    n[0] = data->node->length[0];     
     int N = n[0];
 
-    char *env_value = getenv("ROCFFT_DBG_FFTWF_LIB");
-    if(!env_value)
-    {
-        std::cout << "error finding fftw3 lib, set env variable ROCFFT_DBG_FFTWF_LIB" << std::endl;
-        return -1;
-    }
+	ftype_fftwf_malloc local_fftwf_malloc = (ftype_fftwf_malloc)dlsym(refHandle.fftw3f_lib, "fftwf_malloc");
+	ftype_fftwf_free local_fftwf_free = (ftype_fftwf_free)dlsym(refHandle.fftw3f_lib, "fftwf_free");
 
-	void *fftw3f_lib = dlopen(env_value, RTLD_NOW);
-    if(!fftw3f_lib)
-    {
-        std::cout << "error in dlopen" << std::endl;
-        return -1;
-           
-    }
+    ftype_fftwf_plan_many_dft local_fftwf_plan_many_dft = (ftype_fftwf_plan_many_dft)dlsym(refHandle.fftw3f_lib, "fftwf_plan_many_dft");
+    ftype_fftwf_execute local_fftwf_execute = (ftype_fftwf_execute)dlsym(refHandle.fftw3f_lib, "fftwf_execute");
+    ftype_fftwf_destroy_plan local_fftwf_destroy_plan = (ftype_fftwf_destroy_plan)dlsym(refHandle.fftw3f_lib, "fftwf_destroy_plan");
 
-	ftype_fftwf_malloc local_fftwf_malloc = (ftype_fftwf_malloc)dlsym(fftw3f_lib, "fftwf_malloc");
-	ftype_fftwf_free local_fftwf_free = (ftype_fftwf_free)dlsym(fftw3f_lib, "fftwf_free");
-
-    ftype_fftwf_plan_many_dft local_fftwf_plan_many_dft = (ftype_fftwf_plan_many_dft)dlsym(fftw3f_lib, "fftwf_plan_many_dft");
-    ftype_fftwf_execute local_fftwf_execute = (ftype_fftwf_execute)dlsym(fftw3f_lib, "fftwf_execute");
-    ftype_fftwf_destroy_plan local_fftwf_destroy_plan = (ftype_fftwf_destroy_plan)dlsym(fftw3f_lib, "fftwf_destroy_plan");
-
-    printf("\n%p", local_fftwf_malloc);
-    printf("\n%p", local_fftwf_free);
+    //printf("\n%p", local_fftwf_malloc);
+    //printf("\n%p", local_fftwf_free);
 
     local_fftwf_complex *in = (local_fftwf_complex *)local_fftwf_malloc(N * sizeof(local_fftwf_complex));
     local_fftwf_complex *ot = (local_fftwf_complex *)local_fftwf_malloc(N * sizeof(local_fftwf_complex));
@@ -58,9 +48,8 @@ int main()
     local_fftwf_free(ot);
 
     std::cout << std::endl;
-    return 0;
 }
-*/
+
 
 void rocfft_internal_cpu_reference_op(const void *data_p, void *back_p)
 {
@@ -68,6 +57,7 @@ void rocfft_internal_cpu_reference_op(const void *data_p, void *back_p)
 
     if(data->node->scheme == CS_KERNEL_STOCKHAM)
     {
+        compute_general_1d_fft(data_p, back_p);
     }
 
     if(data->node->scheme == CS_KERNEL_TRANSPOSE)
@@ -76,4 +66,6 @@ void rocfft_internal_cpu_reference_op(const void *data_p, void *back_p)
 
     return;
 }
+*/
+
 

@@ -501,10 +501,12 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         if(fn)
         {
 #ifdef DEBUG
-            DeviceCallOut back_cpu;
-            rocfft_internal_cpu_reference_op(&data, &back_cpu);
+            RefLibOp refLibOp(&data);
 #endif
             fn(&data, &back);//execution kernel here
+#ifdef DEBUG
+            refLibOp.VerifyResult(&data);
+#endif
         }
         else
         {
