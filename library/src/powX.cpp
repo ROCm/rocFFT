@@ -39,6 +39,7 @@ void PlanPowX(ExecPlan &execPlan)
         }
     }
 
+    //copy host buffer to device buffer
     for(size_t i=0; i<execPlan.execSeq.size(); i++)
     {
         execPlan.execSeq[i]->devKernArg = kargs_create(execPlan.execSeq[i]->length,
@@ -63,7 +64,7 @@ void PlanPowX(ExecPlan &execPlan)
                 DevFnCall ptr = nullptr;// typedef void (*DevFnCall)(void *, void *);
                 GetWGSAndNT(execPlan.execSeq[0]->length[0], workGroupSize, numTransforms);//get working group size and number of transforms
 
-                ptr = func_pool.get_function_single(execPlan.execSeq[0]->length[0]);
+                ptr = func_pool.get_function_single(std::make_pair(execPlan.execSeq[0]->length[0], CS_KERNEL_STOCKHAM)) ;
                 execPlan.devFnCall.push_back(ptr);
                 GridParam gp;
                 size_t batch = execPlan.execSeq[0]->batch;
@@ -80,32 +81,31 @@ void PlanPowX(ExecPlan &execPlan)
                 GridParam gp;
 
                 if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) && (execPlan.execSeq[i]->length.size() == 2) )
-                {
-                    if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 128) )
+                { 
+                   if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 128) )
                     {
-                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_128);
+                        ptr = func_pool.get_function_single(std::make_pair(execPlan.execSeq[0]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC)) ;
                         gp.b_x = 8 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 128;
                     }
                     if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 256) )
                     {
-                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_256);
+                        ptr = func_pool.get_function_single(std::make_pair(execPlan.execSeq[0]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC)) ;
                         gp.b_x = 16 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 128;
                     }
                     if( (execPlan.execSeq[i]->length[0] == 128) && (execPlan.execSeq[i]->length[1] == 256) )
                     {
-                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_128_256);
+                        ptr = func_pool.get_function_single(std::make_pair(execPlan.execSeq[0]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC)) ;
                         gp.b_x = 32 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 128;
                     }
                     if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 256) )
                     {
-                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_256_256);
+                        ptr = func_pool.get_function_single(std::make_pair(execPlan.execSeq[0]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC)) ;
                         gp.b_x = 32 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 256;
                     }
-
                     if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 2048) )
                     {
                         ptr = &FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_2048);
@@ -148,27 +148,24 @@ void PlanPowX(ExecPlan &execPlan)
                 }
                 else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) && (execPlan.execSeq[i]->length.size() == 2) )
                 {
+                    ptr = func_pool.get_function_single(std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC)) ;
                     if( (execPlan.execSeq[i]->length[0] == 128) && (execPlan.execSeq[i]->length[1] == 64) )
                     {
-                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_128_64);
                         gp.b_x = 8 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 128;
                     }
                     if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 64) )
                     {
-                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_64);
                         gp.b_x = 8 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 256;
                     }
                     if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 128) )
                     {
-                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_128);
                         gp.b_x = 16 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 256;
                     }
                     if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 256) )
                     {
-                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_256);
                         gp.b_x = 32 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 256;
                     }
@@ -206,7 +203,7 @@ void PlanPowX(ExecPlan &execPlan)
                     size_t numTransforms;
                     GetWGSAndNT(execPlan.execSeq[i]->length[0], workGroupSize, numTransforms);//get working group size and number of transforms
 
-                    ptr = func_pool.get_function_single(execPlan.execSeq[i]->length[0]);
+                    ptr = func_pool.get_function_single(std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM));
 
                     size_t batch = execPlan.execSeq[i]->batch;
                     for(size_t j=1; j<execPlan.execSeq[i]->length.size(); j++) batch *= execPlan.execSeq[i]->length[j];
@@ -261,7 +258,7 @@ void PlanPowX(ExecPlan &execPlan)
                 size_t numTransforms;
                 DevFnCall ptr = nullptr;
                 GetWGSAndNT(execPlan.execSeq[0]->length[0], workGroupSize, numTransforms);//get working group size and number of transforms
-                ptr = func_pool.get_function_double(execPlan.execSeq[0]->length[0]);
+                ptr = func_pool.get_function_double(std::make_pair(execPlan.execSeq[0]->length[0], CS_KERNEL_STOCKHAM));
                 execPlan.devFnCall.push_back(ptr);
 
                 GridParam gp;
@@ -282,25 +279,25 @@ void PlanPowX(ExecPlan &execPlan)
                 {
                     if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 128) )
                     {
-                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_128);
+                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbcc_64);
                         gp.b_x = 8 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 128;
                     }
                     if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 256) )
                     {
-                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_256);
+                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbcc_64);
                         gp.b_x = 16 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 128;
                     }
                     if( (execPlan.execSeq[i]->length[0] == 128) && (execPlan.execSeq[i]->length[1] == 256) )
                     {
-                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_128_256);
+                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbcc_128);
                         gp.b_x = 32 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 128;
                     }
                     if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 256) )
                     {
-                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_256_256);
+                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbcc_256);
                         gp.b_x = 32 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 256;
                     }
@@ -349,25 +346,25 @@ void PlanPowX(ExecPlan &execPlan)
                 {
                     if( (execPlan.execSeq[i]->length[0] == 128) && (execPlan.execSeq[i]->length[1] == 64) )
                     {
-                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbrc_2_128_64);
+                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbrc_128);
                         gp.b_x = 8 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 128;
                     }
                     if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 64) )
                     {
-                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbrc_2_256_64);
+                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbrc_256);
                         gp.b_x = 8 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 256;
                     }
                     if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 128) )
                     {
-                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbrc_2_256_128);
+                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbrc_256);
                         gp.b_x = 16 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 256;
                     }
                     if( (execPlan.execSeq[i]->length[0] == 256) && (execPlan.execSeq[i]->length[1] == 256) )
                     {
-                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbrc_2_256_256);
+                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbrc_256);
                         gp.b_x = 32 * execPlan.execSeq[i]->batch;
                         gp.tpb_x = 256;
                     }
@@ -405,7 +402,7 @@ void PlanPowX(ExecPlan &execPlan)
                     size_t numTransforms;
                     GetWGSAndNT(execPlan.execSeq[i]->length[0], workGroupSize, numTransforms);//get working group size and number of transforms
 
-                    ptr = func_pool.get_function_single(execPlan.execSeq[i]->length[0]);
+                    ptr = func_pool.get_function_double(std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM));
 
                     size_t batch = execPlan.execSeq[i]->batch;
                     for(size_t j=1; j<execPlan.execSeq[i]->length.size(); j++) batch *= execPlan.execSeq[i]->length[j];

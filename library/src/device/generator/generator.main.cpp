@@ -7,13 +7,16 @@
 #include <vector>
 #include <string.h>
 #include <algorithm>
+#include <tuple>
+#include "../../include/radix_table.h"
+#include "../../include/tree_node.h"
+
 #include "generator.stockham.h"
 #include "generator.param.h"
 #include "generator.butterfly.hpp"
 #include "generator.pass.hpp"
 #include "generator.kernel.hpp"
 #include "generator.file.h"
-#include "../../include/radix_table.h"
 
 
 using namespace StockhamGenerator;
@@ -111,30 +114,50 @@ int main(int argc, char *argv[])
     }
 */
 
-    //generate small kernel into *.h file
+    /* =====================================================================
+       generate small kernel into *.h file
+    =================================================================== */
+
     for(size_t i=0;i<support_size_list.size();i++){
         //printf("Generating len %d FFT kernels\n", support_size_list[i]);
-        generate_kernel_small(support_size_list[i]);
+        generate_kernel(support_size_list[i], CS_KERNEL_STOCKHAM);
     }
-
-    /*large1D is not a single kernels but a bunch of small kernels combinations
-      Initially available is 8K - 64K break into 64, 128, 256 combinations
-    */
-    std::vector<size_t> large1D_first_dim = {64, 128, 256};
-    std::vector<size_t> large1D_second_dim = {128, 256}; 
-    generate_kernel_large(large1D_first_dim, large1D_second_dim);
 
     //printf("Wrtie small size CPU functions implemention to *.cpp files \n"); 
     // all the small size of the same precsion are in one single file
     write_cpu_function_small(support_size_list, "single");
     write_cpu_function_small(support_size_list, "double");
 
+    /* =====================================================================
+
+      large1D is not a single kernels but a bunch of small kernels combinations
+      here we use a vector of tuple to store the supported sizes
+      Initially available is 8K - 64K break into 64, 128, 256 combinations
+    =================================================================== */
+
+    std::vector<  std::tuple<size_t, ComputeScheme> > large1D_list;
+    large1D_list.push_back( std::make_tuple(64, CS_KERNEL_STOCKHAM_BLOCK_CC) );
+    large1D_list.push_back( std::make_tuple(128, CS_KERNEL_STOCKHAM_BLOCK_CC) );
+    large1D_list.push_back( std::make_tuple(256, CS_KERNEL_STOCKHAM_BLOCK_CC) );
+
+    large1D_list.push_back( std::make_tuple(128, CS_KERNEL_STOCKHAM_BLOCK_RC) );
+    large1D_list.push_back( std::make_tuple(256, CS_KERNEL_STOCKHAM_BLOCK_RC) );
+
+    for(int i=0; i<large1D_list.size(); i++)
+    {
+        auto my_tuple = large1D_list[i];
+        generate_kernel(std::get<0>(my_tuple), std::get<1>(my_tuple)); 
+    }
+
+    write_cpu_function_large(large1D_list, "single");
+    write_cpu_function_large(large1D_list, "double");
+
     //write big size CPU functions; one file for one size      
 
     //printf("Write CPU functions declaration to *.h file \n");
-    WriteCPUHeaders(support_size_list);
+    WriteCPUHeaders(support_size_list, large1D_list);
 
     //printf("Add CPU function into hash map \n");
-    AddCPUFunctionToPool(support_size_list);
+    AddCPUFunctionToPool(support_size_list, large1D_list);
 
 }

@@ -9,10 +9,22 @@
 #include <unordered_map>
 #include "tree_node.h"
 
+struct SimpleHash
+{
+    size_t operator()(const std::pair<size_t, ComputeScheme>& p) const
+    {
+        using std::hash;
+        return (hash<size_t>()(p.first) ^ hash<int8_t>()((int8_t)p.second));// or 
+    }
+
+	//exampel usage:  function_map_single[std::make_pair(64,CS_KERNEL_STOCKHAM)] = &rocfft_internal_dfn_sp_ci_ci_stoc_1_64;
+};
+
 class function_pool
 {
-    std::unordered_map<size_t, DevFnCall> function_map_single;
-    std::unordered_map<size_t, DevFnCall> function_map_double;
+    using Key = std::pair<size_t, ComputeScheme>; 
+    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_single;
+    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_double;
 
 public:
     //function_pool(const function_pool &) = delete; // delete is a c++11 feature, prohibit copy constructor 
@@ -24,9 +36,9 @@ public:
     {
     }
 
-    DevFnCall get_function_single(const size_t length)
+    DevFnCall get_function_single(Key mykey)
     {
-        return function_map_single.at(length);//return an reference to the value of the key, if not found throw an exception
+        return function_map_single.at(mykey);//return an reference to the value of the key, if not found throw an exception
 /*
         std::unordered_map<size_t, DevFnCall>::const_iterator iter = function_map_single.find (length);
 
@@ -40,9 +52,9 @@ public:
 */
     }
 
-    DevFnCall get_function_double(const size_t length)
+    DevFnCall get_function_double(Key mykey)
     {
-        return function_map_double.at(length);
+        return function_map_double.at(mykey);
     }
 
 

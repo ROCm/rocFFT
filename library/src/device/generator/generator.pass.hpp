@@ -583,7 +583,7 @@ namespace StockhamGenerator
                                 passStr += std::to_string(algLS); passStr += ") + "; passStr += std::to_string(r-1);
                                 passStr += "];\n\t\t";
                             }
-                            else    // 3-step twiddle
+                            else    // 2, 3, or 4-step twiddle
                             {
                                 passStr += "\n\t{\n\t\t"; passStr += twType; passStr += " W = ";
                                 passStr += tw3StepFunc; passStr += "<T>(twiddles_large, ";
@@ -1286,7 +1286,7 @@ namespace StockhamGenerator
 
             // Function arguments
             passStr += "(const " + regB2Type + " *twiddles, ";
-            if(name_suffix == "_BCT_C2C") passStr += "const " + regB2Type + " *twiddles_large, ";//the blockCompute BCT_C2C algorithm use one more twiddle parameter
+            if(name_suffix == "_sbcc") passStr += "const " + regB2Type + " *twiddles_large, ";//the blockCompute BCT_C2C algorithm use one more twiddle parameter
             passStr += "const size_t stride_in, const size_t stride_out, ";
             passStr += "unsigned int rw, unsigned int b, ";
             if(realSpecial) passStr += "unsigned int t, ";

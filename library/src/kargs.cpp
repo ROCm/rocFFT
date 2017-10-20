@@ -6,6 +6,7 @@
 #include "rocfft_hip.h"
 #include "kargs.h"
 
+//malloc device buffer; copy host buffer to device buffer
 size_t *kargs_create(std::vector<size_t> length, std::vector<size_t> inStride, std::vector<size_t> outStride, size_t iDist, size_t oDist)
 {
     void *devk;
@@ -23,7 +24,7 @@ size_t *kargs_create(std::vector<size_t> length, std::vector<size_t> inStride, s
         devkHost[i + 0*KERN_ARGS_ARRAY_WIDTH] = length[i];
         devkHost[i + 1*KERN_ARGS_ARRAY_WIDTH] = inStride[i];
         devkHost[i + 2*KERN_ARGS_ARRAY_WIDTH] = outStride[i];
-        i++; 
+        i++;
     }
 
     devkHost[i + 1*KERN_ARGS_ARRAY_WIDTH] = iDist;

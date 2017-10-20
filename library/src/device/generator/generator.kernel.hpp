@@ -767,7 +767,7 @@ namespace StockhamGenerator
                     str += "_device";
 
                     str += "(const T *twiddles, ";
-                    if(blockCompute && name_suffix == "_BCT_C2C") str += "const T *twiddles_large, ";//the blockCompute BCT_C2C algorithm use one more twiddle parameter
+                    if(blockCompute && name_suffix == "_sbcc") str += "const T *twiddles_large, ";//the blockCompute BCT_C2C algorithm use one more twiddle parameter
                     str += "const size_t stride_in, const size_t stride_out, unsigned int rw, unsigned int b, ";
                     str += "unsigned int me, unsigned int ldsOffset, T *lwbIn, T *lwbOut";
 
@@ -796,7 +796,7 @@ namespace StockhamGenerator
                         str += "\t";
                         str += PassName(0, fwd, length, name_suffix);
                         str += "<T, sb>(twiddles, ";
-                        if(blockCompute && name_suffix == "_BCT_C2C") str += "twiddles_large, ";//the blockCompute BCT_C2C algorithm use one more twiddle parameter
+                        if(blockCompute && name_suffix == "_sbcc") str += "twiddles_large, ";//the blockCompute BCT_C2C algorithm use one more twiddle parameter
                         str += "stride_in, stride_out, rw, b, me, 0, 0, lwbIn, lwbOut";
                         str += IterRegs("&");
                         str += ");\n";
@@ -812,7 +812,7 @@ namespace StockhamGenerator
                             str += PassName(p->GetPosition(), fwd, length, name_suffix);
                             str += "<T, sb>(twiddles, ";
                             //the blockCompute BCT_C2C algorithm use one more twiddle parameter
-                            if(blockCompute && name_suffix == "_BCT_C2C") str += "twiddles_large, ";
+                            if(blockCompute && name_suffix == "_sbcc") str += "twiddles_large, ";
                             str += "stride_in, stride_out, rw, b, me, ";
 
                             std::string ldsArgs;
@@ -902,7 +902,7 @@ namespace StockhamGenerator
                     */
                     str += "( hipLaunchParm lp, ";
                     str += "const " + r2Type + " * __restrict__ twiddles, "; 
-                    if(blockCompute && name_suffix == "_BCT_C2C"){
+                    if(blockCompute && name_suffix == "_sbcc"){
                         str += "const " + r2Type + " * __restrict__ twiddles_large, ";//blockCompute introduce one more twiddle parameter
                     } 
                     str += "const size_t dim, const size_t *lengths, ";
@@ -1334,7 +1334,7 @@ namespace StockhamGenerator
                     else  str += "back_len";
                     str += std::to_string(length) + name_suffix;
                     str += "_device<T, sb>(twiddles, ";
-                    if(blockCompute && name_suffix == "_BCT_C2C") str += "twiddles_large, ";
+                    if(blockCompute && name_suffix == "_sbcc") str += "twiddles_large, ";
                     str += "stride_in[0], ";
                     str += ( (placeness == rocfft_placement_inplace) ? "stride_in[0], " : "stride_out[0], " );
 

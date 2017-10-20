@@ -11,7 +11,8 @@
 #include "./kernels/pow2_ip_entry.h"
 #include "./kernels/pow2_op_entry.h"
 #include "./kernels/pow2_large_entry.h"
-#include "./generator/rocfft_kernel_large.h"
+#include "./generator/kernel_launch_single_large.cpp.h"
+
 
 // precision, placement, iL, oL, scheme, dim, length **, iStrides **, oStrides **
 void device_call_template(void *, void *);
@@ -37,166 +38,11 @@ void FUNCTION_NAME(void *data_p, void *back_p)\
                 (float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
 }
 
-#define POW2_LARGE_BRC_A(FUNCTION_NAME,KERN_NAME) \
-void FUNCTION_NAME(void *data_p, void *back_p)\
-{\
-    DeviceCallIn *data = (DeviceCallIn *)data_p;\
-    if(data->node->direction == -1) \
-    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,-1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-                (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
-    else \
-    hipLaunchKernel(HIP_KERNEL_NAME( KERN_NAME<float2,1> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,\
-                (float2 *)data->node->twiddles, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]);\
-}
 
-// new generated kernels 64 C2C
-void rocfft_internal_dfn_sp_op_ci_ci_sbcc_2_64_128(void *data_p, void *back_p)
-{
-// should always be outofplace kernels, remove SB_NONUNIT (TODO) 
-    DeviceCallIn *data = (DeviceCallIn *)data_p;
-    if(data->node->direction == -1) {
-        hipLaunchKernel(HIP_KERNEL_NAME( fft_fwd_op_len64_BCT_C2C<float2, SB_NONUNIT>, dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,
-                (float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, 
-                data->node->length.size(), 
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, 
-                data->node->batch,
-                (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]));
-    }
-    else
-        hipLaunchKernel(HIP_KERNEL_NAME( fft_back_op_len64_BCT_C2C<float2, SB_NONUNIT>, dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,
-                (float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, 
-                data->node->length.size(), 
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, 
-                data->node->batch,
-                (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]));
-    }
-}
-
-// the same function but with different input
-void rocfft_internal_dfn_sp_op_ci_ci_sbcc_2_64_256(void *data_p, void *back_p)
-{
-    rocfft_internal_dfn_sp_op_ci_ci_sbcc_2_64_128(data_p, back_p);
-}
-
-
-// new generated kernels 128 C2C
-void rocfft_internal_dfn_sp_op_ci_ci_sbcc_2_128_256(void *data_p, void *back_p)
-{
-// should always be outofplace kernels, remove SB_NONUNIT (TODO) 
-    DeviceCallIn *data = (DeviceCallIn *)data_p;
-    if(data->node->direction == -1) {
-        hipLaunchKernel(HIP_KERNEL_NAME( fft_fwd_op_len128_BCT_C2C<float2, SB_NONUNIT>, dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,
-                (float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, 
-                data->node->length.size(), 
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, 
-                data->node->batch,
-                (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]));
-    }
-    else
-        hipLaunchKernel(HIP_KERNEL_NAME( fft_back_op_len128_BCT_C2C<float2, SB_NONUNIT>, dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,
-                (float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, 
-                data->node->length.size(), 
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, 
-                data->node->batch,
-                (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]));
-    }
-}
-
-
-// new generated kernels 256 C2C
-void rocfft_internal_dfn_sp_op_ci_ci_sbcc_2_256_256(void *data_p, void *back_p)
-{
-// should always be outofplace kernels, remove SB_NONUNIT (TODO) 
-    DeviceCallIn *data = (DeviceCallIn *)data_p;
-    if(data->node->direction == -1) {
-        hipLaunchKernel(HIP_KERNEL_NAME( fft_fwd_op_len256_BCT_C2C<float2, SB_NONUNIT>, dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,
-                (float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, 
-                data->node->length.size(), 
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, 
-                data->node->batch,
-                (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]));
-    }
-    else
-        hipLaunchKernel(HIP_KERNEL_NAME( fft_back_op_len256_BCT_C2C<float2, SB_NONUNIT>, dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,
-                (float2 *)data->node->twiddles, (float2 *)data->node->twiddles_large, 
-                data->node->length.size(), 
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, 
-                data->node->batch,
-                (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]));
-    }
-}
-
-
-
-// new generated kernels 128 R2C
-void rocfft_internal_dfn_sp_op_ci_ci_sbrc_2_128_64(void *data_p, void *back_p)
-{
-// should always be outofplace kernels, remove SB_NONUNIT (TODO) 
-    DeviceCallIn *data = (DeviceCallIn *)data_p;
-    if(data->node->direction == -1) {
-        hipLaunchKernel(HIP_KERNEL_NAME( fft_fwd_op_len128_BCT_R2C<float2, SB_NONUNIT>, dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,
-                (float2 *)data->node->twiddles, 
-                data->node->length.size(), 
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, 
-                data->node->batch,
-                (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]));
-    }
-    else
-        hipLaunchKernel(HIP_KERNEL_NAME( fft_back_op_len128_BCT_R2C<float2, SB_NONUNIT>, dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,
-                (float2 *)data->node->twiddles, 
-                data->node->length.size(), 
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, 
-                data->node->batch,
-                (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]));
-    }
-}
-
-void rocfft_internal_dfn_sp_op_ci_ci_sbrc_2_256_64(void *data_p, void *back_p)
-{
-// should always be outofplace kernels, remove SB_NONUNIT (TODO) 
-    DeviceCallIn *data = (DeviceCallIn *)data_p;
-    if(data->node->direction == -1) {
-        hipLaunchKernel(HIP_KERNEL_NAME( fft_fwd_op_len256_BCT_R2C<float2, SB_NONUNIT>, dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,
-                (float2 *)data->node->twiddles, 
-                data->node->length.size(), 
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, 
-                data->node->batch,
-                (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]));
-    }
-    else
-        hipLaunchKernel(HIP_KERNEL_NAME( fft_back_op_len256_BCT_R2C<float2, SB_NONUNIT>, dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0,
-                (float2 *)data->node->twiddles, 
-                data->node->length.size(), 
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, 
-                data->node->batch,
-                (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]));
-    }
-}
-
-void rocfft_internal_dfn_sp_op_ci_ci_sbrc_2_256_128(void *data_p, void *back_p)
-{
-    rocfft_internal_dfn_sp_op_ci_ci_sbrc_2_256_128(data_p, back_p);
-}
-
-
-void rocfft_internal_dfn_sp_op_ci_ci_sbrc_2_256_256(void *data_p, void *back_p)
-{
-    rocfft_internal_dfn_sp_op_ci_ci_sbrc_2_256_256(data_p, back_p);
-}
-
-
-//POW2_LARGE_BCC_A(rocfft_internal_dfn_sp_op_ci_ci_sbcc_2_64_128,  fft_64_128_bcc_d1_pk)
-//POW2_LARGE_BCC_A(rocfft_internal_dfn_sp_op_ci_ci_sbcc_2_64_256,  fft_64_256_bcc_d1_pk)
-//POW2_LARGE_BCC_A(rocfft_internal_dfn_sp_op_ci_ci_sbcc_2_128_256, fft_128_256_bcc_d1_pk)
-//POW2_LARGE_BCC_A(rocfft_internal_dfn_sp_op_ci_ci_sbcc_2_256_256, fft_256_256_bcc_d1_pk)//64K
 
 POW2_LARGE_BCC_A(rocfft_internal_dfn_sp_op_ci_ci_sbcc_2_64_2048, fft_64_2048_bcc_d1_pk)
 POW2_LARGE_BCC_A(rocfft_internal_dfn_sp_op_ci_ci_sbcc_2_64_4096, fft_64_4096_bcc_d1_pk)
 
-//POW2_LARGE_BRC_A(rocfft_internal_dfn_sp_op_ci_ci_sbrc_2_128_64,  fft_128_64_brc_d1_pk)
-//POW2_LARGE_BRC_A(rocfft_internal_dfn_sp_op_ci_ci_sbrc_2_256_64,  fft_256_64_brc_d1_pk)
-//POW2_LARGE_BRC_A(rocfft_internal_dfn_sp_op_ci_ci_sbrc_2_256_128, fft_256_128_brc_d1_pk)
-//POW2_LARGE_BRC_A(rocfft_internal_dfn_sp_op_ci_ci_sbrc_2_256_256, fft_256_256_brc_d1_pk)
 
 /* ============================================================================================ */
 

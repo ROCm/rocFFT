@@ -7,11 +7,14 @@
 #include <vector>
 #include <string.h>
 #include <algorithm>
+#include "../../include/radix_table.h"
+#include "../../include/tree_node.h"
+
 #include "generator.stockham.h"
 #include "generator.param.h"
 #include "generator.pass.hpp"
 #include "generator.kernel.hpp"
-#include "../../include/radix_table.h"
+
 
 using namespace StockhamGenerator;
 
@@ -153,7 +156,7 @@ void WriteButterflyToFile(std::string &str, int LEN)
    Write CPU functions (launching kernel) header to file
 =================================================================== */
 extern "C" 
-void WriteCPUHeaders(std::vector<size_t> support_list)
+void WriteCPUHeaders(std::vector<size_t> support_list, std::vector<  std::tuple<size_t, ComputeScheme> > large1D_list)
 {
 
     std::string str;
@@ -163,28 +166,53 @@ void WriteCPUHeaders(std::vector<size_t> support_list)
     str += "#if !defined( kernel_launch_generator_H )\n";
     str += "#define kernel_launch_generator_H \n";
 
+    str += "//generated CPU function headers which call GPU kernels\n";
     str += "\n";
     str += "extern \"C\"\n";
     str += "{\n";
 
     str += "\n";
-    str += "//single precision \n";
     for(size_t i=0;i<support_list.size();i++){
         std::string str_len = std::to_string(support_list[i]);
         str += "void rocfft_internal_dfn_sp_ci_ci_stoc_";
-        str +=  ( (support_list[i] > large1DThreshold) ? "2_" : "1_" ); 
         str += str_len + "(void *data_p, void *back_p);\n";
     }
 
     str += "\n";
-    str += "//double precision \n";
     for(size_t i=0;i<support_list.size();i++){
 
         std::string str_len = std::to_string(support_list[i]);
         str += "void rocfft_internal_dfn_dp_ci_ci_stoc_";
-        str +=  ( (support_list[i] > large1DThreshold) ? "2_" : "1_" ); 
         str += str_len + "(void *data_p, void *back_p);\n";
     }
+
+    str += "\n";
+    //write large 1D kernels single 
+    for(size_t i=0;i<large1D_list.size();i++){
+        auto my_tuple = large1D_list[i];
+        std::string  str_len =  std::to_string ( std::get<0>(my_tuple) ); 
+        ComputeScheme scheme = std::get<1>(my_tuple);
+
+        if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC){
+            str += "void rocfft_internal_dfn_sp_op_ci_ci_sbcc_";
+            str += str_len + "(void *data_p, void *back_p);\n";  
+        }
+        else if (scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) {
+            str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc_";
+            str += str_len + "(void *data_p, void *back_p);\n";
+        }
+
+        if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC){
+            str += "void rocfft_internal_dfn_dp_op_ci_ci_sbcc_";
+            str += str_len + "(void *data_p, void *back_p);\n";  
+        }
+        else if (scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) {
+            str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc_";
+            str += str_len + "(void *data_p, void *back_p);\n";
+        }
+    }
+
+
 
     str += "\n";
     str += "}\n";
@@ -216,9 +244,12 @@ void write_cpu_function_small(std::vector<size_t> support_list, std::string prec
     std::string large_case_precision = "SINGLE";
     std::string short_name_precision = "sp";
 
+    std::string complex_case_precision = "float2";
+
     if(precision == "double"){
         large_case_precision = "DOUBLE";
         short_name_precision = "dp";
+        complex_case_precision = "double2";
     }
 
     str += "\n";
@@ -237,8 +268,8 @@ void write_cpu_function_small(std::vector<size_t> support_list, std::string prec
     for(size_t i=0;i<support_list.size();i++){
 
         std::string str_len = std::to_string(support_list[i]);
-        str += "POWX_" + large_case_precision + "_SMALL_GENERATOR( rocfft_internal_dfn_" + short_name_precision + "_ci_ci_stoc_1_" + str_len +
-               ", fft_fwd_ip_len" + str_len + ", fft_back_ip_len" + str_len + ", fft_fwd_op_len" + str_len + ", fft_back_op_len" + str_len + ")\n";
+        str += "POWX_SMALL_GENERATOR( rocfft_internal_dfn_" + short_name_precision + "_ci_ci_stoc_" + str_len +
+               ", fft_fwd_ip_len" + str_len + ", fft_back_ip_len" + str_len + ", fft_fwd_op_len" + str_len + ", fft_back_op_len" + str_len + ", " + complex_case_precision + ")\n";
     }
 
 
@@ -260,38 +291,47 @@ void write_cpu_function_small(std::vector<size_t> support_list, std::string prec
 =================================================================== */
 
 extern "C" 
-void write_cpu_function_large(std::vector<size_t> support_list, std::string precision)
+void write_cpu_function_large(std::vector<  std::tuple<size_t, ComputeScheme> > large1D_list, std::string precision)
 {
-    // TODO: the first kernel need two twiddles, 
-
     std::string str;
 
-    std::string large_case_precision = "SINGLE";
+    std::string complex_case_precision = "float2";
     std::string short_name_precision = "sp";
 
     if(precision == "double"){
-        large_case_precision = "DOUBLE";
+        complex_case_precision = "double2";
         short_name_precision = "dp";
     }
 
     str += "\n";
     str += "#include \"kernel_launch.h\" \n"; //kernel_launch.h has the required macros
     str += "\n";
-    for(size_t i=0;i<support_list.size();i++){
-
-        std::string str_len = std::to_string(support_list[i]);
-
-        str += "#include \"rocfft_kernel_" + str_len + ".h\" \n";
-    }
-
-    str += "\n";
 
     str += "//" + precision + " precision \n";
+    str += "\n";
 
-    for(size_t i=0;i<support_list.size();i++){
-        std::string str_len = std::to_string(support_list[i]);
-        str += "POWX_" + large_case_precision + "_LARGE_GENERATOR( rocfft_internal_dfn_" + short_name_precision + "_ci_ci_stoc_2_" + str_len +
-               ", fft_fwd_ip_len" + str_len + ", fft_back_ip_len" + str_len + ", fft_fwd_op_len" + str_len + ", fft_back_op_len" + str_len + ")\n";
+    for(size_t i=0;i<large1D_list.size();i++){
+
+        auto my_tuple = large1D_list[i];
+        std::string  str_len =  std::to_string ( std::get<0>(my_tuple) ); 
+        ComputeScheme scheme = std::get<1>(my_tuple);
+
+        std::string name_suffix;
+
+        if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
+        {        
+            name_suffix = "_sbcc";
+            str += "#include \"rocfft_kernel_" + str_len + name_suffix + ".h\" \n";
+            str += "POWX_LARGE_SBCC_GENERATOR( rocfft_internal_dfn_" + short_name_precision + "_op_ci_ci_sbcc_" + str_len +
+               ", fft_fwd_op_len" + str_len + name_suffix + ", fft_back_op_len" + str_len + name_suffix + "," + complex_case_precision + ")\n";
+        }
+        else if (scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) {
+            name_suffix = "_sbrc";
+            str += "#include \"rocfft_kernel_" + str_len + name_suffix + ".h\" \n";
+            str += "POWX_LARGE_SBRC_GENERATOR( rocfft_internal_dfn_" + short_name_precision + "_op_ci_ci_sbrc_" + str_len +
+               ", fft_fwd_op_len" + str_len + name_suffix + ", fft_back_op_len" + str_len + name_suffix + "," + complex_case_precision + ")\n";
+        }
+
     }
 
     std::ofstream file;
@@ -312,7 +352,7 @@ void write_cpu_function_large(std::vector<size_t> support_list, std::string prec
    Add CPU funtions to function pools (a hash map) 
 =================================================================== */
 extern "C" 
-void AddCPUFunctionToPool(std::vector<size_t> support_list)
+void AddCPUFunctionToPool(std::vector<size_t> support_list, std::vector<  std::tuple<size_t, ComputeScheme> > large1D_list)
 {
     std::string str;
 
@@ -326,10 +366,10 @@ void AddCPUFunctionToPool(std::vector<size_t> support_list)
     str += "{\n";
     str += "\t//single precision \n";
 
+    //write small 1D kernels
     for(size_t i=0;i<support_list.size();i++){
         std::string str_len = std::to_string(support_list[i]);
-        str += "\tfunction_map_single[" + str_len + "] = &rocfft_internal_dfn_sp_ci_ci_stoc_";
-        str +=  ( (support_list[i] > large1DThreshold) ? "2_" : "1_" );
+        str += "\tfunction_map_single[std::make_pair(" + str_len + ",CS_KERNEL_STOCKHAM)] = &rocfft_internal_dfn_sp_ci_ci_stoc_";
         str += str_len + ";\n";
     }
 
@@ -337,12 +377,44 @@ void AddCPUFunctionToPool(std::vector<size_t> support_list)
     str += "\t//double precision \n";
     for(size_t i=0;i<support_list.size();i++){
         std::string str_len = std::to_string(support_list[i]);
-        str += "\tfunction_map_double[" + str_len + "] = &rocfft_internal_dfn_dp_ci_ci_stoc_";
-        str +=  ( (support_list[i] > large1DThreshold) ? "2_" : "1_" );
+        str += "\tfunction_map_double[std::make_pair(" + str_len + ",CS_KERNEL_STOCKHAM)] = &rocfft_internal_dfn_dp_ci_ci_stoc_";
         str += str_len + ";\n";
     }
 
     str += "\n";
+
+    //write large 1D kernels single 
+    for(size_t i=0;i<large1D_list.size();i++){
+
+        auto my_tuple = large1D_list[i];
+        std::string  str_len =  std::to_string ( std::get<0>(my_tuple) ); 
+        ComputeScheme scheme = std::get<1>(my_tuple);
+
+        if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC){
+            str += "\tfunction_map_single[std::make_pair(" + str_len + ", CS_KERNEL_STOCKHAM_BLOCK_CC)] = &rocfft_internal_dfn_sp_op_ci_ci_sbcc_" + str_len + ";\n";;
+        }
+        else if (scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) {
+            str += "\tfunction_map_single[std::make_pair(" + str_len + ", CS_KERNEL_STOCKHAM_BLOCK_RC)] = &rocfft_internal_dfn_sp_op_ci_ci_sbrc_" + str_len + ";\n";;
+        }
+
+    }
+
+    //write large 1D kernels double 
+    for(size_t i=0;i<large1D_list.size();i++){
+
+        auto my_tuple = large1D_list[i];
+        std::string  str_len =  std::to_string ( std::get<0>(my_tuple) ); 
+        ComputeScheme scheme = std::get<1>(my_tuple);
+
+        if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC){
+            str += "\tfunction_map_double[std::make_pair(" + str_len + ", CS_KERNEL_STOCKHAM_BLOCK_CC)] = &rocfft_internal_dfn_dp_op_ci_ci_sbcc_" + str_len + ";\n";;
+        }
+        else if (scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) {
+            str += "\tfunction_map_double[std::make_pair(" + str_len + ", CS_KERNEL_STOCKHAM_BLOCK_RC)] = &rocfft_internal_dfn_dp_op_ci_ci_sbrc_" + str_len + ";\n";;
+        }
+
+    }
+
     str += "}\n";
 
     std::ofstream file;
@@ -379,65 +451,54 @@ void WriteKernelToFile(std::string &str, std::string LEN)
 }
 
 extern "C" 
-void generate_kernel_small(size_t len)
+void generate_kernel(size_t len, ComputeScheme scheme)
 {
     std::string programCode;
     FFTKernelGenKeyParams params;
 
-    std::vector<size_t> fft_N(1); 
-    fft_N[0] = len;
-    initParams(params, fft_N, false, BCT_C2C);// here the C2C is not enabled, as the third parameter is set as false
+    if (scheme == CS_KERNEL_STOCKHAM) //for small size
+    {
+        std::vector<size_t> fft_N(1); 
+        fft_N[0] = len;
+        initParams(params, fft_N, false, BCT_C2C);// here the C2C is not enabled, as the third parameter is set as false
 
-    Kernel<rocfft_precision_single> kernel(params);//generate data type template kernels regardless of precision 
-    kernel.GenerateKernel(programCode);
+        Kernel<rocfft_precision_single> kernel(params);//generate data type template kernels regardless of precision 
+        kernel.GenerateKernel(programCode);
 
-    WriteKernelToFile(programCode, std::to_string(len));
-}
-
-extern "C" 
-void generate_kernel_large(std::vector<size_t> large1D_first_dim, std::vector<size_t> large1D_second_dim)
-{
-    std::string programCode;
-    FFTKernelGenKeyParams params;
-    BlockComputeType blockComputeType;
-
-    bool isPow2 = true;
-
-    if(isPow2)
+        WriteKernelToFile(programCode, std::to_string(len));
+    }
+    else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
     {
         //length of the FFT in each dimension, <= 3
         //generate different combinations, like 8192=64(C2C)*128(R2C). 32768=128(C2C)*256(R2C), notice,128(C2C) != 128(R2C) 
         // the first dim is always type C2C with fft_2StepTwiddle true (1), the second is always R2C with fft_2StepTwiddle false (0)       
         bool blockCompute = true;   //enable blockCompute in large 1D
-
         std::vector<size_t> fft_N = {1, 1}; 
-        //generate C2C type kernels 
-        for(int i=0;i<large1D_first_dim.size();i++)
-        {                   
-            fft_N[0] = large1D_first_dim[i];
-            params.fft_3StepTwiddle = true;
-            params.name_suffix = "_BCT_C2C";
-            initParams(params, fft_N, blockCompute, BCT_C2C);
+        //generate C2C type kernels                            
+        fft_N[0] = len;
+        params.fft_3StepTwiddle = true;
+        params.name_suffix = "_sbcc";
+        initParams(params, fft_N, blockCompute, BCT_C2C);
               
-            Kernel<rocfft_precision_single> kernel(params);//generate data type template kernels regardless of precision 
-            kernel.GenerateKernel(programCode);
-
-        }
-
+        Kernel<rocfft_precision_single> kernel(params);//generate data type template kernels regardless of precision 
+        kernel.GenerateKernel(programCode);
+                
+        WriteKernelToFile(programCode, std::to_string(len) + params.name_suffix);
+    }
+    else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
+    {    
+        bool blockCompute = true;   //enable blockCompute in large 1D
+        std::vector<size_t> fft_N = {1, 1}; 
         //generate R2C type kernels 
-        for(int i=0;i<large1D_second_dim.size();i++) 
-        {                   
-            fft_N[0] = large1D_second_dim[i];
-            params.fft_3StepTwiddle = false;
-            params.name_suffix = "_BCT_R2C";
-            initParams(params, fft_N, blockCompute, BCT_R2C);
+        fft_N[0] = len;
+        params.fft_3StepTwiddle = false;
+        params.name_suffix = "_sbrc";
+        initParams(params, fft_N, blockCompute, BCT_R2C);
             
-            Kernel<rocfft_precision_single> kernel(params);//generate data type template kernels regardless of precision 
-            kernel.GenerateKernel(programCode);  
-        }
-
-        WriteKernelToFile(programCode, "large");
-    
+        Kernel<rocfft_precision_single> kernel(params);//generate data type template kernels regardless of precision 
+        kernel.GenerateKernel(programCode);  
+        
+        WriteKernelToFile(programCode, std::to_string(len) + params.name_suffix);
     }
 }
 
