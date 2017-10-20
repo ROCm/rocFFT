@@ -161,28 +161,44 @@ if [[ "${install_dependencies}" == true ]]; then
 
 fi
 
+export PATH=${PATH}:/opt/rocm/bin
+
 pushd .
   # #################################################
-  # configure
+  # configure & build
   # #################################################
-  mkdir -p ${build_dir}/release && cd ${build_dir}/release
+  mkdir -p ${build_dir}/release/clients && cd ${build_dir}/release
 
+  # On ROCm platforms, hcc compiler can build everything
   if [[ "${build_cuda}" == false ]]; then
-    export CXX=/opt/rocm/bin/hcc
-  else
-    export CXX=/opt/rocm/bin/hipcc
-  fi
+    if [[ "${build_clients}" == true ]]; then
+      CXX=hcc cmake -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_BENCHMARKS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON ../..
+    else
+      CXX=hcc cmake ../..
+    fi
 
-  if [[ "${build_clients}" == true ]]; then
-    cmake -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_BENCHMARKS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON ../..
+    make -j$(nproc)
   else
-    cmake ../..
-  fi
+    # The nvidia compile is a little more complicated, in that we split compiling the library from the clients
+    # We use the hipcc compiler to build the rocfft library for a cuda backend (hipcc offloads the compile to nvcc)
+    # However, we run into a compiler incompatibility compiling the clients between nvcc and fftw3.h 3.3.4 headers.
+    # The incompatibility is fixed in fft v3.3.6, but that is not shipped by default on Ubuntu
+    # As a workaround, since clients do not contain device code, we opt to build clients with the native
+    # compiler on the platform.  The compiler cmake chooses during configuration time is mostly unchangeable,
+    # so we launch multiple cmake invocation with a different compiler on each.
 
-  # #################################################
-  # build
-  # #################################################
-  make -j$(nproc)
+    # Build library only with hipcc as compiler
+    CXX=hipcc cmake -DCMAKE_INSTALL_PREFIX=rocfft-install -DCPACK_PACKAGE_INSTALL_DIRECTORY=/opt/rocm ../..
+    make -j$(nproc) install
+
+    # Build cuda clients with default host compiler
+    if [[ "${build_clients}" == true ]]; then
+      pushd clients
+        cmake -DCMAKE_PREFIX_PATH=$(pwd)/../rocfft-install -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_BENCHMARKS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON ../../../clients
+        make -j$(nproc)
+      popd
+    fi
+  fi
 
   # #################################################
   # install

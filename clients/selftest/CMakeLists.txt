@@ -10,7 +10,7 @@ set( Boost_USE_STATIC_LIBS OFF )
 
 # ########################################################################
 # The following check are hacks to get compiles working for CUDA backend
-# These should be removed in the future.
+# when using hipcc as comiler.  These should be removed in the future.
 
 # If hipcc is set as compiler, we are compiling for CUDA backend and
 # nvcc complains of illegal -dumpversion flag because cmake thinks nvcc is a GNU compiler
@@ -18,7 +18,7 @@ set( Boost_USE_STATIC_LIBS OFF )
 
 if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
   set( Boost_COMPILER "" )
-  set( BOOST_LIBRARYDIR "/usr/lib/x86_64-linux-gnu/" )  # Don't know why we need this yet
+  set( BOOST_LIBRARYDIR "/usr/lib/x86_64-linux-gnu/" )  # Don't know why we need to specify this
 endif( )
 # ########################################################################
 
@@ -52,14 +52,26 @@ target_include_directories( rocfft-selftest
 
 target_link_libraries( rocfft-selftest PRIVATE roc::rocfft ${GTEST_LIBRARIES} ${Boost_LIBRARIES} )
 
+if( CUDA_FOUND )
+  target_include_directories( rocfft-selftest
+    PRIVATE
+      $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
+      $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
+    )
+  target_compile_definitions( rocfft-selftest PRIVATE __HIP_PLATFORM_NVCC__ )
+  target_link_libraries( rocfft-selftest PRIVATE ${CUDA_LIBRARIES} )
+else( )
+  target_link_libraries( rocfft-selftest PRIVATE hip::hip_hcc )
+endif( )
+
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
   # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
   # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
   target_compile_options( rocfft-selftest PRIVATE -Wno-unused-command-line-argument )
 
-  foreach( target ${AMDGPU_TARGETS} )
-    target_link_libraries( rocfft-selftest PRIVATE --amdgpu-target=${target} )
-  endforeach( )
+  # foreach( target ${AMDGPU_TARGETS} )
+  #   target_link_libraries( rocfft-selftest PRIVATE --amdgpu-target=${target} )
+  # endforeach( )
 endif( )
 
 set( THREADS_PREFER_PTHREAD_FLAG ON )

@@ -3,7 +3,7 @@
 ################################################################################
 # Author: Kent Knox
 
-set( Boost_DEBUG ON )
+# set( Boost_DEBUG ON )
 set( Boost_USE_MULTITHREADED ON )
 set( Boost_DETAILED_FAILURE_MSG ON )
 set( Boost_ADDITIONAL_VERSIONS 1.65.1 1.65 )
@@ -24,7 +24,6 @@ set( Boost_USE_STATIC_LIBS OFF )
 if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
   set( Boost_COMPILER "" )
   set( BOOST_LIBRARYDIR "/usr/lib/x86_64-linux-gnu/" )  # Don't know why we need this yet
-  add_definitions( -D__ICC )
 endif( )
 # ########################################################################
 
@@ -72,16 +71,28 @@ target_include_directories( rocfft-test
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/misc/include>
 )
 
-target_link_libraries( rocfft-test PRIVATE roc::rocfft hip::hip_hcc ${GTEST_LIBRARIES} ${FFTW_LIBRARIES} ${Boost_LIBRARIES} )
+target_link_libraries( rocfft-test PRIVATE roc::rocfft ${GTEST_LIBRARIES} ${FFTW_LIBRARIES} ${Boost_LIBRARIES} )
+
+if( CUDA_FOUND )
+  target_include_directories( rocfft-test
+    PRIVATE
+      $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
+      $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
+    )
+  target_compile_definitions( rocfft-test PRIVATE __HIP_PLATFORM_NVCC__ )
+  target_link_libraries( rocfft-test PRIVATE ${CUDA_LIBRARIES} )
+else( )
+  target_link_libraries( rocfft-test PRIVATE hip::hip_hcc )
+endif( )
 
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
   # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
   # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
   target_compile_options( rocfft-test PRIVATE -Wno-unused-command-line-argument )
 
-  foreach( target ${AMDGPU_TARGETS} )
-    target_link_libraries( rocfft-test PRIVATE --amdgpu-target=${target} )
-  endforeach( )
+  # foreach( target ${AMDGPU_TARGETS} )
+  #   target_link_libraries( rocfft-test PRIVATE --amdgpu-target=${target} )
+  # endforeach( )
 endif( )
 
 set( THREADS_PREFER_PTHREAD_FLAG ON )

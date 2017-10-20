@@ -25,18 +25,19 @@ project( rocfft LANGUAGES CXX )
 # ########################################################################
 # NOTE:  CUDA compiling path
 # ########################################################################
-# I have tried compiling rocFFT source with multiple methods, and ended up
-# using the approach where we set the CXX compiler to hipcc.  I didn't like
-# using either the HIP_ADD_LIBRARY or CUDA_ADD_LIBRARY approaches, for a few
-# of the reasons I list here.
+# I have tried compiling rocFFT library source with multiple methods,
+# and ended up using the approach where we set the CXX compiler to hipcc.
+# I didn't like using the HIP_ADD_LIBRARY or CUDA_ADD_LIBRARY approaches,
+# for the reasons I list here.
 # 1.  Adding header include directories is through HIP_INCLUDE_DIRECTORIES(), which
 # is global to a directory and affects all targets
 # 2.  You must add HIP_SOURCE_PROPERTY_FORMAT OBJ properties to .cpp files
 # to get HIP_ADD_LIBRARY to recognize the file
 # 3.  HIP_ADD_LIBRARY invokes a call to add_custom_command() to compile files,
-# and rocFFT does the same.  The order in which this happens is undefined, and
-# sometimes a file is attempted to be compiled before it has been generated.
-# The fix for this is to create 'PHONY' targets, which I don't desire.
+# and rocFFT does the same.  The order in which custom commands execute is
+# undefined, and sometimes a file is attempted to be compiled before it has
+# been generated.  The fix for this is to create 'PHONY' targets, which I
+# don't desire.
 
 # Using hipcc allows us to avoid the above problems, with two primary costs:
 # 1.  The cmake logic to detect compiler features fails with nvcc backend
@@ -44,57 +45,17 @@ project( rocfft LANGUAGES CXX )
 # below.
 
 # Hopefully, cost #2 is already paid.  All in all, I want to get rid of the
-# need for hipcc, and I hope that at some point of time in the future we
+# need for hipcc, and hope that at some point of time in the future we
 # can use the export config files from hip & hcc for both ROCm & nvcc backends.
 # ########################################################################
-
-# ########################################################################
-# HELPER FUNCTIONS
-# ########################################################################
-
-# ########################################################################
-# target_compile_features() override
-# ########################################################################
-function( target_compile_features target_name )
-  # With Cmake v3.5, hipcc (with nvcc backend) does not work with target_compile_features
-  # Turn on -std=c++11 manually
-  if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-    set_target_properties( ${target_name} PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON )
-  else( )
-    _target_compile_features( ${target_name} ${ARGN} )
-  endif( )
-endfunction( )
-
-# ########################################################################
-# target_link_libraries() override
-# ########################################################################
-function( target_link_libraries target_name )
-  # hipcc takes care of all hip library dependencies internally; remove them
-  # nvcc requres that we append -Xlinker to all other explicit library dependencies
-  if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-    foreach( link_library ${ARGN} )
-      if( (link_library MATCHES "^hip::|^hcc::") )
-      else( )
-        if( TARGET ${link_library} )
-          list( APPEND new_list -Xlinker ${link_library} )
-        else( )
-          list( APPEND new_list ${link_library} )
-        endif( )
-      endif( )
-    endforeach( )
-    _target_link_libraries( ${target_name} ${new_list} )
-  else( )
-    _target_link_libraries( ${target_name} ${ARGN} )
-  endif( )
-endfunction( )
 
 # ########################################################################
 # Main
 # ########################################################################
 
 if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-  # list( APPEND HIP_NVCC_FLAGS "-arch=sm_30" ) # -std=c++11, at least Kepler and above
-  message( STATUS "HIPCC compiler set; CUDA backend selected [ CXX=/opt/rocm/bin/hipcc cmake ... ]" )
+  # For now, we assume hipcc compiler means to compile for CUDA backend
+  message( STATUS "HIPCC compiler detected; CUDA backend selected" )
 
   set( CMAKE_C_COMPILE_OPTIONS_PIC "-Xcompiler ${CMAKE_C_COMPILE_OPTIONS_PIC}" )
   set( CMAKE_CXX_COMPILE_OPTIONS_PIC "-Xcompiler ${CMAKE_CXX_COMPILE_OPTIONS_PIC}" )
@@ -112,8 +73,6 @@ if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
   set( CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY_INLINES_HIDDEN "-Xcompiler ${CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY_INLINES_HIDDEN}" )
 elseif( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
   message( STATUS "HCC compiler set; ROCm backend selected [ CXX=/opt/rocm/bin/hcc cmake ... ]" )
-else( )
-  message( AUTHOR_WARNING "Did you forget to set the compiler to HCC or HIPCC? [ CXX=/opt/rocm/bin/hcc cmake ... ]" )
 endif( )
 
 # This finds the rocm-cmake project, and installs it if not found
@@ -148,7 +107,7 @@ list( APPEND CMAKE_PREFIX_PATH /opt/rocm/hcc /opt/rocm/hip )
 
 # Building tensile can add significant compile time; this option allows to build
 # library without tensile to allow for rapid iteration without GEMM functionality
-option( BUILD_VERBOSE "Output additional build information" ON )
+option( BUILD_VERBOSE "Output additional build information" OFF )
 
 # BUILD_SHARED_LIBS is a cmake built-in; we make it an explicit option such that it shows in cmake-gui
 option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" ON )
@@ -156,8 +115,7 @@ option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" ON )
 # Find HCC/HIP dependencies
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
   find_package( hcc REQUIRED CONFIG PATHS /opt/rocm )
-else( )
-  message( STATUS "Building for CUDA backend" )
+  find_package( hip REQUIRED CONFIG PATHS /opt/rocm )
 endif( )
 
 # CMake list of machine targets

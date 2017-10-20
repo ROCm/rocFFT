@@ -48,23 +48,32 @@ target_compile_features( rocfft-rider PRIVATE cxx_static_assert cxx_nullptr cxx_
 target_include_directories( rocfft-rider
 PRIVATE
   $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
+  $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
 )
 
-target_link_libraries( rocfft-rider PRIVATE roc::rocfft hip::hip_hcc ${Boost_LIBRARIES} )
+target_link_libraries( rocfft-rider PRIVATE roc::rocfft ${Boost_LIBRARIES} )
+
+if( CUDA_FOUND )
+  target_include_directories( rocfft-rider
+    PRIVATE
+      $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
+      $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
+    )
+  target_compile_definitions( rocfft-rider PRIVATE __HIP_PLATFORM_NVCC__ )
+  target_link_libraries( rocfft-rider PRIVATE ${CUDA_LIBRARIES} )
+else( )
+  target_link_libraries( rocfft-rider PRIVATE hip::hip_hcc )
+endif( )
 
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
   # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
   # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
   target_compile_options( rocfft-rider PRIVATE -Wno-unused-command-line-argument )
 
-  foreach( target ${AMDGPU_TARGETS} )
-    target_link_libraries( rocfft-rider PRIVATE --amdgpu-target=${target} )
-  endforeach( )
+  # foreach( target ${AMDGPU_TARGETS} )
+  #   target_link_libraries( rocfft-rider PRIVATE --amdgpu-target=${target} )
+  # endforeach( )
 endif( )
-
-# set( THREADS_PREFER_PTHREAD_FLAG ON )
-# find_package( Threads REQUIRED )
-# target_link_libraries( rocfft-rider PRIVATE Threads::Threads )
 
 set_target_properties( rocfft-rider PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
 set_target_properties( rocfft-rider PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )

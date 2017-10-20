@@ -2,6 +2,48 @@
 # Copyright 2016 Advanced Micro Devices, Inc.
 # ########################################################################
 
+# The following helper functions wrap common cmake functions.  They are
+# used to cope with a few wierdnesses of hipcc/nvcc.
+# ########################################################################
+# HELPER FUNCTIONS
+# ########################################################################
+
+# ########################################################################
+# target_compile_features() override
+# ########################################################################
+function( target_compile_features target_name )
+  # With Cmake v3.5, hipcc (with nvcc backend) does not work with target_compile_features
+  # Turn on -std=c++11 manually
+  if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
+    set_target_properties( ${target_name} PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON )
+  else( )
+    _target_compile_features( ${target_name} ${ARGN} )
+  endif( )
+endfunction( )
+
+# ########################################################################
+# target_link_libraries() override
+# ########################################################################
+function( target_link_libraries target_name )
+  # hipcc takes care of finding hip library dependencies internally; remove
+  # explicit mentions of them so cmake doesn't complain on nvcc path
+  if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
+    foreach( link_library ${ARGN} )
+      if( (link_library MATCHES "^hip::|^hcc::") )
+      else( )
+        if( TARGET ${link_library} )
+          list( APPEND new_list -Xlinker ${link_library} )
+        else( )
+          list( APPEND new_list ${link_library} )
+        endif( )
+      endif( )
+    endforeach( )
+    _target_link_libraries( ${target_name} ${new_list} )
+  else( )
+    _target_link_libraries( ${target_name} ${ARGN} )
+  endif( )
+endfunction( )
+
 # ########################################################################
 # Main
 # ########################################################################
@@ -38,11 +80,6 @@ if( BUILD_VERBOSE )
   message( STATUS "\t==>CMAKE_SHARED_LINKER_FLAGS: ${CMAKE_SHARED_LINKER_FLAGS}" )
   message( STATUS "\t==>CMAKE_SHARED_LINKER_FLAGS_DEBUG: ${CMAKE_SHARED_LINKER_FLAGS_DEBUG}" )
   message( STATUS "\t==>CMAKE_SHARED_LINKER_FLAGS_RELEASE: ${CMAKE_SHARED_LINKER_FLAGS_RELEASE}" )
-endif( )
-
-# For ROCm backend, use the HIP export config files
-if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
-  find_package( hip REQUIRED CONFIG PATHS /opt/rocm )
 endif( )
 
 # configure a header file to pass the CMake version settings to the source, and package the header files in the output archive

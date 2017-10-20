@@ -26,21 +26,33 @@ foreach( sample ${sample_list} )
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
   )
 
-  target_link_libraries( ${sample} PRIVATE roc::rocfft hip::hip_hcc ${FFTW_LIBRARIES} )
+  target_link_libraries( ${sample} PRIVATE roc::rocfft ${FFTW_LIBRARIES} )
 
   target_compile_features( ${sample} PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
 
   set_target_properties( ${sample} PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
   set_target_properties( ${sample} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
 
+  if( CUDA_FOUND )
+    target_include_directories( ${sample}
+      PRIVATE
+        $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
+        $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
+      )
+    target_compile_definitions( ${sample} PRIVATE __HIP_PLATFORM_NVCC__ )
+    target_link_libraries( ${sample} PRIVATE ${CUDA_LIBRARIES} )
+  else( )
+    target_link_libraries( ${sample} PRIVATE hip::hip_hcc )
+  endif( )
+
   if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
     # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
     # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
     target_compile_options( ${sample} PRIVATE -Wno-unused-command-line-argument )
 
-    foreach( target ${AMDGPU_TARGETS} )
-      target_link_libraries( ${sample} PRIVATE --amdgpu-target=${target} )
-    endforeach( )
+    # foreach( target ${AMDGPU_TARGETS} )
+    #   target_link_libraries( ${sample} PRIVATE --amdgpu-target=${target} )
+    # endforeach( )
   endif( )
 
 endforeach( )
