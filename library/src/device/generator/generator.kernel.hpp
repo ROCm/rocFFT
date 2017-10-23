@@ -587,9 +587,7 @@ namespace StockhamGenerator
 
             if (blockCompute)
             {
-                blockWidth = BlockSizes::BlockWidth(length);
-                blockWGS = BlockSizes::BlockWorkGroupSize(length);
-                blockLDS = BlockSizes::BlockLdsSize(length);
+                BlockSizes::GetValue(length, blockWidth, blockWGS, blockLDS);
             }
             else
             {
@@ -600,57 +598,28 @@ namespace StockhamGenerator
         class BlockSizes
         {
         public:
-            enum ValType
+            static void GetValue(size_t N, size_t &bwd, size_t &wgs, size_t &lds)
             {
-                BS_VT_WGS,
-                BS_VT_BWD,
-                BS_VT_LDS,
-            };
+                // wgs preferred work group size
+                // bwd block width to be used
+                // lds LDS size to be used for the block
 
-            static size_t BlockLdsSize(size_t N) { return GetValue(N, BS_VT_LDS); }
-            static size_t BlockWidth(size_t N) { return GetValue(N, BS_VT_BWD); }
-            static size_t BlockWorkGroupSize(size_t N) { return GetValue(N, BS_VT_WGS); }
+                GetBlockComputeTable(N, bwd, wgs, lds);
 
-        private:
-
-            static size_t GetValue(size_t N, ValType vt)
-            {
-                size_t wgs; // preferred work group size
-                size_t bwd; // block width to be used
-                size_t lds; // LDS size to be used for the block
-
-
+                /*
+                // bwd > t_nt is always ture, TODO: remove
                 KernelCoreSpecs kcs;
                 size_t t_wgs, t_nt;
                 kcs.GetWGSAndNT(N, t_wgs, t_nt);
+                wgs =  (bwd > t_nt) ? wgs : t_wgs; 
+                */
 
-                switch (N)
-                {
-                case 256:    bwd = 8 ;   wgs = (bwd > t_nt) ? 256 : t_wgs; break;
-                case 128:    bwd = 8 ;   wgs = (bwd > t_nt) ? 128 : t_wgs; break;
-                case 64:    bwd = 16 ;  wgs = (bwd > t_nt) ? 128 : t_wgs; break;
-                case 32:    bwd = 32 ;  wgs = (bwd > t_nt) ? 64 : t_wgs; break;
-                case 16:    bwd = 64 ;  wgs = (bwd > t_nt) ? 64 : t_wgs; break;
-                case 8:        bwd = 128 ; wgs = (bwd > t_nt) ? 64 : t_wgs; break;
-                default:    assert(false);
-                }
-
+                //printf("N=%d, bwd=%d, wgs=%d, lds=%d\n", N, bwd, wgs, lds); 
                 // block width cannot be less than numTrans, math in other parts of code depend on this assumption
-                assert(bwd >= t_nt);
-
-                lds = N*bwd;
-
-                switch (vt)
-                {
-                case BS_VT_WGS: return wgs;
-                case BS_VT_BWD: return bwd;
-                case BS_VT_LDS: return lds;
-                default: assert(false); return 0;
-                }
+                // assert(bwd >= t_nt);
             }
         };
-
-
+        
             /* =====================================================================
                 In this GenerateKernel function
                 Real2Complex Complex2Real features are not available
