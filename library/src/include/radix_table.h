@@ -10,20 +10,20 @@
 #include <map>
 #include <assert.h>
 
-       /* radix table: tell the FFT algorithms; required by twiddle, passes, and kernel*/
-        struct SpecRecord
-        {
-            size_t length;
-            size_t workGroupSize;
-            size_t numTransforms;
-            size_t numPasses;
-            size_t radices[12]; // Setting upper limit of number of passes to 12
-        };
+    /* radix table: tell the FFT algorithms for size <= 4096 ; required by twiddle, passes, and kernel*/
+    struct SpecRecord
+    {
+        size_t length;
+        size_t workGroupSize;
+        size_t numTransforms;
+        size_t numPasses;
+        size_t radices[12]; // Setting upper limit of number of passes to 12
+    };
 
     inline const std::vector<SpecRecord>& GetRecord()
     {
         
-	static const std::vector<SpecRecord> specRecord = {
+	    static const std::vector<SpecRecord> specRecord = {
                 //  Length, WorkGroupSize (thread block size), NumTransforms , NumPasses,  Radices
                 //  vector<size_t> radices; NUmPasses = radices.size();
                 //  Tuned for single precision on OpenCL stack; double precsion use the same table as single
@@ -39,29 +39,26 @@
                 {   8,            64,             32,         2,     4, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
                 {   4,            64,             32,         2,     2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
                 {   2,            64,             64,         1,     2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-/*
-                {2187,           243,              1,         7,     3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0 },//pow3
-                { 729,           243,              1,         6,     3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0 },
-                { 243,           243,              3,         5,     3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0 },
-                {  81,           243,              9,         4,     3, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0 },
-                {  27,           243,             27,         3,     3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                {   9,           243,             81,         2,     3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                {   3,           243,            243,         1,     3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                {3125,           125,              1,         5,     5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0 },//pow5
-                { 625,           125,              1,         4,     5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0 },
-                { 125,           125,              5,         3,     5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                {  25,           125,             25,         2,     5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                {   5,           125,            125,         1,     5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                {2401,            49,              1,         4,     7, 7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0 },//pow7
-                { 343,            49,              1,         3,     7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                {  40,            49,              7,         2,     7, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                {   7,            49,             49,         1,     7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-*/
         };
 
-	return specRecord;
+	    return specRecord;
     }
 
+
+    /* blockCompute table: used for large 1D kernels of size >= 8192 */
+    inline void GetBlockComputeTable(size_t N, size_t &bwd, size_t &wgs, size_t &lds)
+    {            
+        switch (N)
+        {
+                case 256:    bwd = 8 ;   wgs = 256; break;
+                case 128:    bwd = 8 ;   wgs = 128; break;
+                case 64:    bwd = 16 ;  wgs = 128;  break;
+                case 32:    bwd = 32 ;  wgs = 64;  break;
+                case 16:    bwd = 64 ;  wgs = 64;  break;
+                case 8:     bwd = 128 ; wgs = 64;  break;
+        }
+         lds = N*bwd;
+    }
     #define MAX_WORK_GROUP_SIZE 1024
 
     /* =====================================================================
@@ -204,6 +201,8 @@
 
 std::vector<size_t> GetRadices(size_t length);
 void GetWGSAndNT(size_t length, size_t &workGroupSize, size_t &numTransforms);
+
+
 
 
 #endif //defined( RADIX_TABLE_H )
