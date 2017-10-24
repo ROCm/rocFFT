@@ -15,6 +15,7 @@
 #include "radix_table.h"
 #include "kernel_launch.h"
 #include "function_pool.h"
+#include "ref_cpu.h"
 
 #ifdef TMP_DEBUG
 #include <hip/hip_runtime.h>
@@ -386,96 +387,91 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
     assert(execPlan.execSeq.size() == execPlan.devFnCall.size());
     assert(execPlan.execSeq.size() == execPlan.gridParam.size());
 
-    if(execPlan.execSeq.size() == 1) // one kernel 
+    //for(size_t i=0; i<1; i++) //multiple kernels involving transpose
+    for(size_t i=0; i<execPlan.execSeq.size(); i++) //multiple kernels involving transpose
     {
         DeviceCallIn data;
         DeviceCallOut back;
 
-        data.node = execPlan.execSeq[0];
-        data.bufIn[0] = in_buffer[0];
-        data.bufOut[0] = out_buffer[0];
-        data.gridParam = execPlan.gridParam[0];
+        data.node = execPlan.execSeq[i];
 
-        DevFnCall fn = execPlan.devFnCall[0];
-        fn(&data, &back);//execution kernel here
-    }
-    else
-    {
-        //for(size_t i=0; i<1; i++) //multiple kernels involving transpose
-        for(size_t i=0; i<execPlan.execSeq.size(); i++) //multiple kernels involving transpose
+        switch(data.node->obIn)
         {
-            DeviceCallIn data;
-            DeviceCallOut back;
+        case OB_USER_IN:    data.bufIn[0] = in_buffer[0]; break;
+        case OB_USER_OUT:    data.bufIn[0] = out_buffer[0]; break;
+        case OB_TEMP:        data.bufIn[0] = info->workBuffer; break;
+        default: assert(false);
+        }
 
-            data.node = execPlan.execSeq[i];
+        switch(data.node->obOut)
+        {
+        case OB_USER_IN:    data.bufOut[0] = in_buffer[0]; break;
+        case OB_USER_OUT:    data.bufOut[0] = out_buffer[0]; break;
+        case OB_TEMP:        data.bufOut[0] = info->workBuffer; break;
+        default: assert(false);
+        }
 
-            switch(data.node->obIn)
-            {
-            case OB_USER_IN:    data.bufIn[0] = in_buffer[0]; break;
-            case OB_USER_OUT:    data.bufIn[0] = out_buffer[0]; break;
-            case OB_TEMP:        data.bufIn[0] = info->workBuffer; break;
-            default: assert(false);
-            }
-
-            switch(data.node->obOut)
-            {
-            case OB_USER_IN:    data.bufOut[0] = in_buffer[0]; break;
-            case OB_USER_OUT:    data.bufOut[0] = out_buffer[0]; break;
-            case OB_TEMP:        data.bufOut[0] = info->workBuffer; break;
-            default: assert(false);
-            }
-
-            data.gridParam = execPlan.gridParam[i];
+        data.gridParam = execPlan.gridParam[i];
 
 #ifdef TMP_DEBUG
-            size_t in_size = data.node->iDist * data.node->batch;
-            size_t in_size_bytes = in_size * 2 * sizeof(float);
-            void *dbg_in = malloc(in_size_bytes);
-            hipMemcpy(dbg_in, data.bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
+        size_t in_size = data.node->iDist * data.node->batch;
+        size_t in_size_bytes = in_size * 2 * sizeof(float);
+        void *dbg_in = malloc(in_size_bytes);
+        hipMemcpy(dbg_in, data.bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
-            size_t out_size = data.node->oDist * data.node->batch;
-            size_t out_size_bytes = out_size * 2 * sizeof(float);
-            void *dbg_out = malloc(out_size_bytes);
-            memset(dbg_out, 0x40, out_size_bytes);
-            if(data.node->placement != rocfft_placement_inplace)
-            {
-                hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
-            }
-            printf("attempting kernel: %zu\n", i); fflush(stdout);
+        size_t out_size = data.node->oDist * data.node->batch;
+        size_t out_size_bytes = out_size * 2 * sizeof(float);
+        void *dbg_out = malloc(out_size_bytes);
+        memset(dbg_out, 0x40, out_size_bytes);
+        if(data.node->placement != rocfft_placement_inplace)
+        {
+            hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
+        }
+        printf("attempting kernel: %zu\n", i); fflush(stdout);
 #endif
 
-            DevFnCall fn = execPlan.devFnCall[i];
-            if(fn)
-                fn(&data, &back);//execution kernel here
-            else
-                printf("null ptr function call error\n");
-
-#ifdef TMP_DEBUG
-            hipDeviceSynchronize();
-            printf("executed kernel: %zu\n", i); fflush(stdout);
-            hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
-            printf("copied from device\n");
-           
-            /*if(i == 0 || i == 2 || i == 4)
-            { 
-            float *f_in = (float *)dbg_in;
-            float *f_out = (float *)dbg_out;
-
-            for(size_t kr=0; kr<data.node->length[1]; kr++)
-            {
-                for(size_t kc=0; kc<data.node->length[0]; kc++)
-                {
-                    if(f_in[2*(kr*data.node->length[0] + kc)] != f_out[2*(kc*data.node->length[1] + kr)])
-                        printf("fail\n");
-                    
-                }
-            }
-            }*/
-
-            free(dbg_out);
-            free(dbg_in);
+        DevFnCall fn = execPlan.devFnCall[i];
+        if(fn)
+        {
+#ifdef DEBUG
+            RefLibOp refLibOp(&data);
+#endif
+            fn(&data, &back);//execution kernel here
+#ifdef DEBUG
+            refLibOp.VerifyResult(&data);
 #endif
         }
+        else
+        {
+            printf("null ptr function call error\n");
+        }
+
+#ifdef TMP_DEBUG
+        hipDeviceSynchronize();
+        printf("executed kernel: %zu\n", i); fflush(stdout);
+        hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
+        printf("copied from device\n");
+       
+        /*if(i == 0 || i == 2 || i == 4)
+        { 
+        float *f_in = (float *)dbg_in;
+        float *f_out = (float *)dbg_out;
+
+        for(size_t kr=0; kr<data.node->length[1]; kr++)
+        {
+            for(size_t kc=0; kc<data.node->length[0]; kc++)
+            {
+                if(f_in[2*(kr*data.node->length[0] + kc)] != f_out[2*(kc*data.node->length[1] + kr)])
+                    printf("fail\n");
+                
+            }
+        }
+        }*/
+
+        free(dbg_out);
+        free(dbg_in);
+#endif
+
     }
 }
 

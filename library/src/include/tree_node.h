@@ -161,7 +161,7 @@ public:
 
 extern "C"
 {
-typedef void (*DevFnCall)(void *, void *);
+typedef void (*DevFnCall)(const void *, void *);
 }
 
 

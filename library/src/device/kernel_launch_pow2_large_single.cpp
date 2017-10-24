@@ -11,7 +11,7 @@
 #include "./kernels/pow2_ip_entry.h"
 #include "./kernels/pow2_op_entry.h"
 #include "./kernels/pow2_large_entry.h"
-#include "./generator/kernel_launch_single_large.cpp.h"
+// #include "./generator/kernel_launch_single_large.cpp.h"
 
 
 // precision, placement, iL, oL, scheme, dim, length **, iStrides **, oStrides **

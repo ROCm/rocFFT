@@ -175,7 +175,7 @@ void WriteCPUHeaders(std::vector<size_t> support_list, std::vector<  std::tuple<
     for(size_t i=0;i<support_list.size();i++){
         std::string str_len = std::to_string(support_list[i]);
         str += "void rocfft_internal_dfn_sp_ci_ci_stoc_";
-        str += str_len + "(void *data_p, void *back_p);\n";
+        str += str_len + "(const void *data_p, void *back_p);\n";
     }
 
     str += "\n";
@@ -183,7 +183,7 @@ void WriteCPUHeaders(std::vector<size_t> support_list, std::vector<  std::tuple<
 
         std::string str_len = std::to_string(support_list[i]);
         str += "void rocfft_internal_dfn_dp_ci_ci_stoc_";
-        str += str_len + "(void *data_p, void *back_p);\n";
+        str += str_len + "(const void *data_p, void *back_p);\n";
     }
 
     str += "\n";
@@ -195,20 +195,20 @@ void WriteCPUHeaders(std::vector<size_t> support_list, std::vector<  std::tuple<
 
         if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC){
             str += "void rocfft_internal_dfn_sp_op_ci_ci_sbcc_";
-            str += str_len + "(void *data_p, void *back_p);\n";  
+            str += str_len + "(const void *data_p, void *back_p);\n";  
         }
         else if (scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) {
             str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc_";
-            str += str_len + "(void *data_p, void *back_p);\n";
+            str += str_len + "(const void *data_p, void *back_p);\n";
         }
 
         if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC){
             str += "void rocfft_internal_dfn_dp_op_ci_ci_sbcc_";
-            str += str_len + "(void *data_p, void *back_p);\n";  
+            str += str_len + "(const void *data_p, void *back_p);\n";  
         }
         else if (scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) {
             str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc_";
-            str += str_len + "(void *data_p, void *back_p);\n";
+            str += str_len + "(const void *data_p, void *back_p);\n";
         }
     }
 

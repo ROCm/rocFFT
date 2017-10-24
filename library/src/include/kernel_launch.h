@@ -59,60 +59,60 @@ extern "C"
 
     //single precsion (sp)
 
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_2048)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_4096)(void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_2048)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_4096)(const void *data_p, void *back_p);
 
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_4096)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_2048)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_1024)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_512)(void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_4096)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_2048)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_1024)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_512)(const void *data_p, void *back_p);
 
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_4096)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_2048)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_1024)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_512)(void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_4096)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_2048)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_1024)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_512)(const void *data_p, void *back_p);
 
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_64_128)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_64_256)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_128_256)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_256_256)(void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_64_128)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_64_256)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_128_256)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_256_256)(const void *data_p, void *back_p);
 
-    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_128_64)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_64)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_128)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_256)(void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_128_64)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_64)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_128)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_256)(const void *data_p, void *back_p);
 
-    void FN_PRFX(transpose_var1_sp)(void *data_p, void *back_p);
+    void FN_PRFX(transpose_var1_sp)(const void *data_p, void *back_p);
 
-    void FN_PRFX(transpose_var2)(void *data_p, void *back_p);
+    void FN_PRFX(transpose_var2)(const void *data_p, void *back_p);
     
     //double precsion (dp)
 
 
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_2048)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_4096)(void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_2048)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_4096)(const void *data_p, void *back_p);
 
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_4096)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_2048)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_1024)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_512)(void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_4096)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_2048)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_1024)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_512)(const void *data_p, void *back_p);
 
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_2_4096)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_2_2048)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_2_1024)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_2_512)(void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_stoc_2_4096)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_stoc_2_2048)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_stoc_2_1024)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_stoc_2_512)(const void *data_p, void *back_p);
 
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_3_64_128)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_3_64_256)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_3_128_256)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_3_256_256)(void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_3_64_128)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_3_64_256)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_3_128_256)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_3_256_256)(const void *data_p, void *back_p);
 
-    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_3_128_64)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_3_256_64)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_3_256_128)(void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_3_256_256)(void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_3_128_64)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_3_256_64)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_3_256_128)(const void *data_p, void *back_p);
+    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_3_256_256)(const void *data_p, void *back_p);
 
-    void FN_PRFX(transpose_var1_dp)(void *data_p, void *back_p);
+    void FN_PRFX(transpose_var1_dp)(const void *data_p, void *back_p);
 
 
 }
@@ -124,7 +124,7 @@ extern "C"
 */
 
 #define POWX_SMALL_GENERATOR(FUNCTION_NAME, IP_FWD_KERN_NAME, IP_BACK_KERN_NAME, OP_FWD_KERN_NAME, OP_BACK_KERN_NAME, PRECISION) \
-void FUNCTION_NAME(void *data_p, void *back_p)\
+void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
     printf("number of blocks = %d, number of threads = %d\n", data->gridParam.b_x, data->gridParam.tpb_x);  \
@@ -192,7 +192,7 @@ void FUNCTION_NAME(void *data_p, void *back_p)\
 
 
 #define POWX_LARGE_SBCC_GENERATOR(FUNCTION_NAME, FWD_KERN_NAME, BACK_KERN_NAME, PRECISION) \
-void FUNCTION_NAME(void *data_p, void *back_p)\
+void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
     printf("number of blocks = %d, number of threads = %d\n", data->gridParam.b_x, data->gridParam.tpb_x);  \
@@ -213,7 +213,7 @@ void FUNCTION_NAME(void *data_p, void *back_p)\
 }
 
 #define POWX_LARGE_SBRC_GENERATOR(FUNCTION_NAME, FWD_KERN_NAME, BACK_KERN_NAME, PRECISION) \
-void FUNCTION_NAME(void *data_p, void *back_p)\
+void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
     printf("number of blocks = %d, number of threads = %d\n", data->gridParam.b_x, data->gridParam.tpb_x);  \
