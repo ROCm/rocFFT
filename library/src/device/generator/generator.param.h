@@ -67,6 +67,7 @@ struct FFTKernelGenKeyParams {
 
     BlockComputeType blockComputeType;
 
+    std::string name_suffix; //use to specify kernel & device functions names to avoid naming conflict. 
     // sometimes non square matrix are broken down into a number of
     // square matrix during inplace transpose
     // let's call this number transposeMiniBatchSize
@@ -121,6 +122,7 @@ struct FFTKernelGenKeyParams {
         fft_hasPreCallback = false;
         fft_hasPostCallback = false;
         limit_LocalMemSize = 0;
+
     }
 };
 

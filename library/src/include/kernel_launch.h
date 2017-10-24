@@ -59,20 +59,8 @@ extern "C"
 
     //single precsion (sp)
 
-
-
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_128)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_256)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_128_256)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_256_256)(const void *data_p, void *back_p);
-
     void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_2048)(const void *data_p, void *back_p);
     void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_4096)(const void *data_p, void *back_p);
-
-    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_128_64)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_64)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_128)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_2_256_256)(const void *data_p, void *back_p);
 
     void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_4096)(const void *data_p, void *back_p);
     void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_2048)(const void *data_p, void *back_p);
@@ -101,18 +89,8 @@ extern "C"
     //double precsion (dp)
 
 
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_128)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_256)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_128_256)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_256_256)(const void *data_p, void *back_p);
-
     void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_2048)(const void *data_p, void *back_p);
     void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_4096)(const void *data_p, void *back_p);
-
-    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_2_128_64)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_2_256_64)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_2_256_128)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_2_256_256)(const void *data_p, void *back_p);
 
     void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_4096)(const void *data_p, void *back_p);
     void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_2048)(const void *data_p, void *back_p);
@@ -145,7 +123,7 @@ extern "C"
    data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH : points to the internal out stride device pointer, only used in outof place kernels
 */
 
-#define POWX_SINGLE_SMALL_GENERATOR(FUNCTION_NAME, IP_FWD_KERN_NAME, IP_BACK_KERN_NAME, OP_FWD_KERN_NAME, OP_BACK_KERN_NAME) \
+#define POWX_SMALL_GENERATOR(FUNCTION_NAME, IP_FWD_KERN_NAME, IP_BACK_KERN_NAME, OP_FWD_KERN_NAME, OP_BACK_KERN_NAME, PRECISION) \
 void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
@@ -153,129 +131,105 @@ void FUNCTION_NAME(const void *data_p, void *back_p)\
     if (data->node->placement == rocfft_placement_inplace) { \
         if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1 ) {\
-                hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<float2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->length.size(), \
+                hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
+                (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (float2 *)data->bufIn[0]); \
+                data->node->batch, (PRECISION *)data->bufIn[0]); \
             }\
             else{ \
-                hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<float2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->length.size(), \
+                hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
+                (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (float2 *)data->bufIn[0]); \
+                data->node->batch, (PRECISION *)data->bufIn[0]); \
             }\
         } \
         else{ \
             if(data->node->direction == -1 ) {\
-                hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<float2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->length.size(), \
+                hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<PRECISION, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
+                (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (float2 *)data->bufIn[0]); \
+                data->node->batch, (PRECISION *)data->bufIn[0]); \
             }\
             else{ \
-                hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<float2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->length.size(), \
+                hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<PRECISION, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
+                (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (float2 *)data->bufIn[0]); \
+                data->node->batch, (PRECISION *)data->bufIn[0]); \
             }\
         } \
     }\
     else{ \
         if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1) {\
-                hipLaunchKernel(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<float2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->length.size(), \
+                hipLaunchKernel(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
+                (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]); \
+                data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
             }\
             else{ \
-                hipLaunchKernel(HIP_KERNEL_NAME( OP_BACK_KERN_NAME<float2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->length.size(), \
+                hipLaunchKernel(HIP_KERNEL_NAME( OP_BACK_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
+                (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]); \
+                data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
             }\
         }\
         else{ \
             if(data->node->direction == -1) {\
-                hipLaunchKernel(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<float2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->length.size(), \
+                hipLaunchKernel(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<PRECISION, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
+                (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]); \
+                data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
             }\
             else{ \
-                hipLaunchKernel(HIP_KERNEL_NAME( OP_BACK_KERN_NAME<float2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (float2 *)data->node->twiddles, data->node->length.size(), \
+                hipLaunchKernel(HIP_KERNEL_NAME( OP_BACK_KERN_NAME<PRECISION, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
+                (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (float2 *)data->bufIn[0], (float2 *)data->bufOut[0]); \
+                data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
             }\
         } \
     }\
 }
 
 
-#define POWX_DOUBLE_SMALL_GENERATOR(FUNCTION_NAME, IP_FWD_KERN_NAME, IP_BACK_KERN_NAME, OP_FWD_KERN_NAME, OP_BACK_KERN_NAME) \
+#define POWX_LARGE_SBCC_GENERATOR(FUNCTION_NAME, FWD_KERN_NAME, BACK_KERN_NAME, PRECISION) \
 void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
-    if (data->node->placement == rocfft_placement_inplace) { \
-        if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1){ \
-            if(data->node->direction == -1 ) {\
-                hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<double2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (double2 *)data->bufIn[0]); \
-            }\
-            else{ \
-                hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<double2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (double2 *)data->bufIn[0]); \
-            }\
-        } \
-        else{ \
-            if(data->node->direction == -1 ) {\
-                hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<double2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (double2 *)data->bufIn[0]); \
-            }\
-            else{ \
-                hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<double2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (double2 *)data->bufIn[0]); \
-            }\
-        } \
+    printf("number of blocks = %d, number of threads = %d\n", data->gridParam.b_x, data->gridParam.tpb_x);  \
+    if(data->node->direction == -1) {\
+        hipLaunchKernel(HIP_KERNEL_NAME( FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
+                (PRECISION *)data->node->twiddles, (PRECISION *)data->node->twiddles_large, \
+                data->node->length.size(), \
+                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
+                data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
     }\
     else{ \
-        if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1){ \
-            if(data->node->direction == -1) {\
-                hipLaunchKernel(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<double2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->length.size(), \
+        hipLaunchKernel(HIP_KERNEL_NAME( BACK_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
+                (PRECISION *)data->node->twiddles, (PRECISION *)data->node->twiddles_large, \
+                data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0]); \
-            }\
-            else{ \
-                hipLaunchKernel(HIP_KERNEL_NAME( OP_BACK_KERN_NAME<double2, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->length.size(), \
+                data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
+    }\
+}
+
+#define POWX_LARGE_SBRC_GENERATOR(FUNCTION_NAME, FWD_KERN_NAME, BACK_KERN_NAME, PRECISION) \
+void FUNCTION_NAME(const void *data_p, void *back_p)\
+{\
+    DeviceCallIn *data = (DeviceCallIn *)data_p;\
+    printf("number of blocks = %d, number of threads = %d\n", data->gridParam.b_x, data->gridParam.tpb_x);  \
+    if(data->node->direction == -1) {\
+        hipLaunchKernel(HIP_KERNEL_NAME( FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
+                (PRECISION *)data->node->twiddles, \
+                data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0]); \
-            }\
-        }\
-        else{ \
-            if(data->node->direction == -1) {\
-                hipLaunchKernel(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<double2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->length.size(), \
+                data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
+    }\
+    else{ \
+        hipLaunchKernel(HIP_KERNEL_NAME( BACK_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
+                (PRECISION *)data->node->twiddles, \
+                data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0]); \
-            }\
-            else{ \
-                hipLaunchKernel(HIP_KERNEL_NAME( OP_BACK_KERN_NAME<double2, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
-                (double2 *)data->node->twiddles, data->node->length.size(), \
-                data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
-                data->node->batch, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0]); \
-            }\
-        } \
+                data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
     }\
 }
 
