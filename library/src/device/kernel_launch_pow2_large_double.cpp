@@ -11,7 +11,7 @@
 #include "./kernels/pow2_ip_entry.h"
 #include "./kernels/pow2_op_entry.h"
 #include "./kernels/pow2_large_entry.h"
-// #include "./generator/kernel_launch_double_large.cpp.h"
+
 
 // precision, placement, iL, oL, scheme, dim, length **, iStrides **, oStrides **
 void device_call_template(void *, void *);
@@ -19,7 +19,7 @@ void device_call_template(void *, void *);
 
 
 #define POW2_LARGE_BCC_A(FUNCTION_NAME,KERN_NAME) \
-void FUNCTION_NAME(void *data_p, void *back_p)\
+void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
     if(data->node->direction == -1) \
@@ -43,7 +43,7 @@ hipLaunchKernel(HIP_KERNEL_NAME( transpose_var1<double2, DRN,TWL,TTD> ),\
                     (double2 *)data->node->twiddles_large, (double2 *)data->bufIn[0], (double2 *)data->bufOut[0],\
                     NUM_Y, data->node->inStride[1], data->node->outStride[1], data->node->iDist, data->node->oDist)
 
-void rocfft_internal_transpose_var1_dp(void *data_p, void *back_p)
+void rocfft_internal_transpose_var1_dp(const void *data_p, void *back_p)
 {
     DeviceCallIn *data = (DeviceCallIn *)data_p;
 
@@ -99,7 +99,7 @@ void rocfft_internal_transpose_var1_dp(void *data_p, void *back_p)
 
 
 #define POW2_SMALL_IP_2_C(FUNCTION_NAME,KERN_NAME) \
-void FUNCTION_NAME(void *data_p, void *back_p)\
+void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
     if(data->node->direction == -1) \
@@ -113,7 +113,7 @@ void FUNCTION_NAME(void *data_p, void *back_p)\
 }
 
 #define POW2_SMALL_OP_2_C(FUNCTION_NAME,KERN_NAME) \
-void FUNCTION_NAME(void *data_p, void *back_p)\
+void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
     if(data->node->direction == -1) \
@@ -139,7 +139,7 @@ POW2_SMALL_OP_2_C(rocfft_internal_dfn_dp_op_ci_ci_stoc_2_512,  fft_512_op_d2_s1)
 
 
 #define POW2_LARGE_BCC_3_A(FUNCTION_NAME,KERN_NAME) \
-void FUNCTION_NAME(void *data_p, void *back_p)\
+void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
     if(data->node->direction == -1) \
@@ -153,7 +153,7 @@ void FUNCTION_NAME(void *data_p, void *back_p)\
 }
 
 #define POW2_LARGE_BRC_3_A(FUNCTION_NAME,KERN_NAME) \
-void FUNCTION_NAME(void *data_p, void *back_p)\
+void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
     if(data->node->direction == -1) \
