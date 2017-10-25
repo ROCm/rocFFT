@@ -488,6 +488,8 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		HIP_V_THROW( hipEventCreate(&start), "hipEventCreate failed" );
 		HIP_V_THROW( hipEventCreate(&stop), "hipEventCreate failed" );
 
+		HIP_V_THROW( hipEventRecord(start), "hipEventRecord failed" );
+
 		for( unsigned i = 0; i < profile_count; ++i )
 		{
 			LIB_V_THROW( rocfft_execute( plan, input_device_buffers, BuffersOut, info ), "rocfft_execute failed" );
