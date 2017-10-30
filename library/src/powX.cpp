@@ -85,7 +85,7 @@ void PlanPowX(ExecPlan &execPlan)
                 if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) && (execPlan.execSeq[i]->length.size() == 2) )
                 { 
 
-                   if(  execPlan.execSeq[i]->length[1] <= 256 )
+                    if(  execPlan.execSeq[i]->length[1] <= 4096 )
                     {
                         ptr = func_pool.get_function_single(std::make_pair(execPlan.execSeq[0]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC)) ;
 
@@ -93,18 +93,7 @@ void PlanPowX(ExecPlan &execPlan)
                         gp.b_x =  (execPlan.execSeq[i]->length[1])/bwd * execPlan.execSeq[i]->batch;
                         gp.tpb_x = wgs;
                     }
-                    if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 2048) )
-                    {
-                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_2048);
-                        gp.b_x = 128 * execPlan.execSeq[i]->batch;
-                        gp.tpb_x = 128;
-                    }
-                    if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 4096) )
-                    {
-                        ptr = &FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_4096);
-                        gp.b_x = 256 * execPlan.execSeq[i]->batch;
-                        gp.tpb_x = 128;
-                    }
+
                 }
                 else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) && (execPlan.execSeq[i]->length.size() == 3) )
                 {
@@ -250,25 +239,13 @@ void PlanPowX(ExecPlan &execPlan)
                 if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) && (execPlan.execSeq[i]->length.size() == 2) )
                 {
 
-                   if(  execPlan.execSeq[i]->length[1] <= 256 )
+                   if(  execPlan.execSeq[i]->length[1] <= 4096 )
                     {
                         ptr = func_pool.get_function_double(std::make_pair(execPlan.execSeq[0]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC)) ;
 
                         GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
                         gp.b_x =  (execPlan.execSeq[i]->length[1])/bwd * execPlan.execSeq[i]->batch;
                         gp.tpb_x = wgs;
-                    }
-                    if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 2048) )
-                    {
-                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_2048);
-                        gp.b_x = 128 * execPlan.execSeq[i]->batch;
-                        gp.tpb_x = 128;
-                    }
-                    if( (execPlan.execSeq[i]->length[0] == 64) && (execPlan.execSeq[i]->length[1] == 4096) )
-                    {
-                        ptr = &FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_4096);
-                        gp.b_x = 256 * execPlan.execSeq[i]->batch;
-                        gp.tpb_x = 128;
                     }
                 }
                 else if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) && (execPlan.execSeq[i]->length.size() == 3) )

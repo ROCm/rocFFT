@@ -15,12 +15,19 @@ template <typename T>
 __device__ T
 TW2step(const T *twiddles, size_t u)
 {
-	size_t j = u & 255;
+	size_t j = u & 255;// get the lowest 8 bits
 	T result = twiddles[j];
-	u >>= 8;
-	j = u & 255;
-	result = lib_make_vector2<T>((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
-		(result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
+    u >>= 8; // discard the lowest 8 bits
+    int i = 0;
+    while(u > 0)
+    {
+        i+=1;
+	    j = u & 255;
+	    result = lib_make_vector2<T>((result.x * twiddles[256*i + j].x - result.y * twiddles[256*i + j].y),
+		    (result.y * twiddles[256*i + j].x + result.x * twiddles[256*i + j].y));
+        u >>= 8;//discard the lowest 8 bits
+    }
+
 	return result;
 }
 
@@ -30,10 +37,12 @@ TW3step(const T *twiddles, size_t u)
 {
 	size_t j = u & 255;
 	T result = twiddles[j];
+
 	u >>= 8;
 	j = u & 255;
 	result = lib_make_vector2<T>((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
 		(result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
+
 	u >>= 8;
 	j = u & 255;
 	result = lib_make_vector2<T>((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
