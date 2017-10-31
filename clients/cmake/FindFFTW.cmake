@@ -1,6 +1,7 @@
 ################################################################################
 # Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
 ################################################################################
+# Author: Kent Knox
 
 #if( FFTW_FIND_VERSION VERSION_LESS "3" )
 #    message( FFTW_FIND_VERION is ${FFTW_FIND_VERSION})
@@ -19,19 +20,10 @@ find_path(FFTW_INCLUDE_DIRS
 mark_as_advanced( FFTW_INCLUDE_DIRS )
 
 # message( STATUS "FFTW_FIND_COMPONENTS: ${FFTW_FIND_COMPONENTS}" )
-message( STATUS "FFTW_FIND_REQUIRED_FLOAT: ${FFTW_FIND_REQUIRED_FLOAT}" )
-message( STATUS "FFTW_FIND_REQUIRED_DOUBLE: ${FFTW_FIND_REQUIRED_DOUBLE}" )
-
-# Print out the bit-ness search mode cmake is set too, to aid in debugging
-get_property( LIB64 GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS )
-if( LIB64 )
-  message( STATUS "FindFFTW is searching for 64-bit libraries" )
-else( )
-  message( STATUS "FindFFTW is searching for 32-bit libraries" )
-endif( )
+# message( STATUS "FFTW_FIND_REQUIRED_FLOAT: ${FFTW_FIND_REQUIRED_FLOAT}" )
+# message( STATUS "FFTW_FIND_REQUIRED_DOUBLE: ${FFTW_FIND_REQUIRED_DOUBLE}" )
 
 set( FFTW_LIBRARIES "" )
-set( FFTW_FIND_REQUIRED_FLOAT TRUE)
 if( FFTW_FIND_REQUIRED_FLOAT OR FFTW_FIND_REQUIRED_SINGLE )
   find_library( FFTW_LIBRARIES_SINGLE
       NAMES fftw3f fftw3f-3 fftw3 fftw3-3
@@ -41,17 +33,15 @@ if( FFTW_FIND_REQUIRED_FLOAT OR FFTW_FIND_REQUIRED_SINGLE )
       PATHS
           /usr/lib
           /usr/local/lib
-          /usr/lib/x86_64-linux-gnu
       PATH_SUFFIXES
           x86_64-linux-gnu
-      DOC "FFTW dynamic library"
+      DOC "FFTW dynamic library single"
   )
   mark_as_advanced( FFTW_LIBRARIES_SINGLE )
   list( APPEND FFTW_LIBRARIES ${FFTW_LIBRARIES_SINGLE} )
 endif( )
 
-set( FFTW_FIND_REQUIRED_DOUBLE TRUE)
-if( FFTW_FIND_REQUIRED_DOUBLE OR FFTW_FIND_REQUIRED_DOUBLE )
+if( FFTW_FIND_REQUIRED_DOUBLE )
   find_library( FFTW_LIBRARIES_DOUBLE
       NAMES fftw3
       HINTS
@@ -60,10 +50,9 @@ if( FFTW_FIND_REQUIRED_DOUBLE OR FFTW_FIND_REQUIRED_DOUBLE )
       PATHS
           /usr/lib
           /usr/local/lib
-          /usr/lib/x86_64-linux-gnu
       PATH_SUFFIXES
           x86_64-linux-gnu
-      DOC "FFTW dynamic library"
+      DOC "FFTW dynamic library double"
   )
   mark_as_advanced( FFTW_LIBRARIES_DOUBLE )
   list( APPEND FFTW_LIBRARIES ${FFTW_LIBRARIES_DOUBLE} )

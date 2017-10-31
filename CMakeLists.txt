@@ -1,170 +1,131 @@
-################################################################################
-# Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
-################################################################################
+# ########################################################################
+# Copyright 2016 Advanced Micro Devices, Inc.
+# ########################################################################
+# Author: Kent Knox
 
-# Natively available on including Ubuntu 14.04, OpenSUSE 13.2, CentOS 6.6
-cmake_minimum_required( VERSION 2.8.12 )
+# The ROCm platform requires Ubuntu 16.04 or Fedora 24, which has cmake 3.5
+cmake_minimum_required( VERSION 3.5 )
 
-set (CMAKE_CXX_STANDARD 11)
-
-# On windows, it's convenient to change the default install prefix such that it does NOT point to 'program files'
-if( WIN32 AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT )
-  set( CMAKE_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/library-package" CACHE PATH "Install path prefix, prepended onto install directories" FORCE )
+# Consider removing this in the future
+# This should appear before the project command, because it does not use FORCE
+if( WIN32 )
+  set( CMAKE_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/package" CACHE PATH "Install path prefix, prepended onto install directories" )
+else( )
+  set( CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "Install path prefix, prepended onto install directories" )
 endif( )
 
 # This has to be initialized before the project() command appears
 # Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
 if( NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT DEFINED CMAKE_BUILD_TYPE )
-  set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." FORCE )
+  set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
+
+project( rocfft LANGUAGES CXX )
+
+# ########################################################################
+# NOTE:  CUDA compiling path
+# ########################################################################
+# I have tried compiling rocFFT library source with multiple methods,
+# and ended up using the approach where we set the CXX compiler to hipcc.
+# I didn't like using the HIP_ADD_LIBRARY or CUDA_ADD_LIBRARY approaches,
+# for the reasons I list here.
+# 1.  Adding header include directories is through HIP_INCLUDE_DIRECTORIES(), which
+# is global to a directory and affects all targets
+# 2.  You must add HIP_SOURCE_PROPERTY_FORMAT OBJ properties to .cpp files
+# to get HIP_ADD_LIBRARY to recognize the file
+# 3.  HIP_ADD_LIBRARY invokes a call to add_custom_command() to compile files,
+# and rocFFT does the same.  The order in which custom commands execute is
+# undefined, and sometimes a file is attempted to be compiled before it has
+# been generated.  The fix for this is to create 'PHONY' targets, which I
+# don't desire.
+
+# Using hipcc allows us to avoid the above problems, with two primary costs:
+# 1.  The cmake logic to detect compiler features fails with nvcc backend
+# 2.  Upfront cost to figure out all the strange compiler/linker flags I define
+# below.
+
+# Hopefully, cost #2 is already paid.  All in all, I want to get rid of the
+# need for hipcc, and hope that at some point of time in the future we
+# can use the export config files from hip & hcc for both ROCm & nvcc backends.
+# ########################################################################
+
+# ########################################################################
+# Main
+# ########################################################################
+
+if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
+  # For now, we assume hipcc compiler means to compile for CUDA backend
+  message( STATUS "HIPCC compiler detected; CUDA backend selected" )
+
+  set( CMAKE_C_COMPILE_OPTIONS_PIC "-Xcompiler ${CMAKE_C_COMPILE_OPTIONS_PIC}" )
+  set( CMAKE_CXX_COMPILE_OPTIONS_PIC "-Xcompiler ${CMAKE_CXX_COMPILE_OPTIONS_PIC}" )
+  set( CMAKE_SHARED_LIBRARY_C_FLAGS "-Xlinker ${CMAKE_SHARED_LIBRARY_C_FLAGS}" )
+  set( CMAKE_SHARED_LIBRARY_CXX_FLAGS "-Xlinker ${CMAKE_SHARED_LIBRARY_CXX_FLAGS}" )
+  set( CMAKE_SHARED_LIBRARY_SONAME_C_FLAG "-Xlinker -soname," )
+  set( CMAKE_SHARED_LIBRARY_SONAME_CXX_FLAG "-Xlinker -soname," )
+  set( CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG "-Xlinker -rpath," )
+  set( CMAKE_SHARED_LIBRARY_RUNTIME_CXX_FLAG "-Xlinker -rpath," )
+  set( CMAKE_EXECUTABLE_RUNTIME_C_FLAG "-Xlinker -rpath," )
+  set( CMAKE_EXECUTABLE_RUNTIME_CXX_FLAG "-Xlinker -rpath," )
+  set( CMAKE_C_COMPILE_OPTIONS_VISIBILITY "-Xcompiler ${CMAKE_C_COMPILE_OPTIONS_VISIBILITY}" )
+  set( CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY "-Xcompiler ${CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY}" )
+  set( CMAKE_C_COMPILE_OPTIONS_VISIBILITY_INLINES_HIDDEN "-Xcompiler ${CMAKE_C_COMPILE_OPTIONS_VISIBILITY_INLINES_HIDDEN}" )
+  set( CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY_INLINES_HIDDEN "-Xcompiler ${CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY_INLINES_HIDDEN}" )
+elseif( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
+  message( STATUS "HCC compiler set; ROCm backend selected [ CXX=/opt/rocm/bin/hcc cmake ... ]" )
+endif( )
+
+# This finds the rocm-cmake project, and installs it if not found
+# rocm-cmake contains common cmake code for rocm projects to help setup and install
+set( PROJECT_EXTERN_DIR ${CMAKE_CURRENT_BINARY_DIR}/extern )
+find_package( ROCM CONFIG QUIET PATHS /opt/rocm )
+if( NOT ROCM_FOUND )
+  set( rocm_cmake_tag "master" CACHE STRING "rocm-cmake tag to download" )
+  file( DOWNLOAD https://github.com/RadeonOpenCompute/rocm-cmake/archive/${rocm_cmake_tag}.zip
+    ${PROJECT_EXTERN_DIR}/rocm-cmake-${rocm_cmake_tag}.zip )
+
+  execute_process( COMMAND ${CMAKE_COMMAND} -E tar xzf ${PROJECT_EXTERN_DIR}/rocm-cmake-${rocm_cmake_tag}.zip
+    WORKING_DIRECTORY ${PROJECT_EXTERN_DIR} )
+
+  find_package( ROCM REQUIRED CONFIG PATHS ${PROJECT_EXTERN_DIR}/rocm-cmake-${rocm_cmake_tag} )
+endif( )
+
+include( ROCMSetupVersion )
+include( ROCMCreatePackage )
+include( ROCMInstallTargets )
+include( ROCMPackageConfigHelpers )
+include( ROCMInstallSymlinks )
+
+rocm_setup_version( VERSION 0.3.0.0 )
 
 # Append our library helper cmake path and the cmake path for hip (for convenience)
 # Users may override HIP path by specifying their own in CMAKE_MODULE_PATH
-list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake /opt/rocm/hip/cmake )
+list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
-#list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
+# NOTE:  workaround until hcc & hip cmake modules fixes symlink logic in their config files; remove when fixed
+list( APPEND CMAKE_PREFIX_PATH /opt/rocm/hcc /opt/rocm/hip )
 
-# The superbuild does not build anything itself, all compiling is done in external projects
-project( rocfft-superbuild NONE )
-
-# Everything is initially off, so that cache is not initialized until user elects to build
-option( BUILD_LIBRARY "Build rocFFT library" OFF )
-option( BUILD_CLIENTS "Build rocFFT clients" OFF )
+# Building tensile can add significant compile time; this option allows to build
+# library without tensile to allow for rapid iteration without GEMM functionality
+option( BUILD_VERBOSE "Output additional build information" OFF )
 
 # BUILD_SHARED_LIBS is a cmake built-in; we make it an explicit option such that it shows in cmake-gui
-option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" OFF )
+option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" ON )
 
-# set( BOOST_ROOT /opt/boost  CACHE PATH "Specify boost installation dir")
-
-set( HOST_TOOLCHAIN_NAME "clang" CACHE STRING "Compiler toolchain: (clang gcc)" )
-set_property( CACHE HOST_TOOLCHAIN_NAME PROPERTY STRINGS clang gcc )
-
-set( DEVICE_TOOLCHAIN_NAME "hipcc" CACHE STRING "Compiler toolchain for library: (hcc hipcc)" )
-set_property( CACHE DEVICE_TOOLCHAIN_NAME PROPERTY STRINGS hcc hipcc )
-
-set( PLATFORM_NAME "AMD" CACHE STRING "Device platform: (AMD NVIDIA)")
-set_property( CACHE PLATFORM_NAME PROPERTY STRINGS AMD NVIDIA)
-
-message( STATUS "PLATFORM NAME is set to be ${PLATFORM_NAME}")
-
-# Default behavior is to NOT install library, but clients may overload
-set( rocfft_INSTALL_COMMAND INSTALL_COMMAND ${CMAKE_COMMAND} -E echo_append )
-
-# Clients are programs provided in this repository, that make use of the library as a library client.  This can include
-# but is not limited to benchmarks, tests and samples.
-if( BUILD_CLIENTS )
-  # Clients need to find and link rocfft; we install it locally instead of globally
-  unset( rocfft_INSTALL_COMMAND )
-endif()
-
-# standard cmake module to manage dependencies
-include( ExternalProject )
-
-# This captures all of the dependencies cmake builds itself
-set( rocfft_dependencies )
-
-set( DEVICE_TOOLCHAIN_FILE "" )
-if( DEVICE_TOOLCHAIN_NAME STREQUAL "hipcc" )
-  if( NOT DEFINED HIP_ROOT )
-    include( cmake/external-hip.cmake )
-    list( APPEND rocfft_dependencies HIP )
-  endif( )
-
-  # configure toolchain file to find the hip compiler with the hip we just downloaded
-  configure_file( "${PROJECT_SOURCE_DIR}/cmake/${DEVICE_TOOLCHAIN_NAME}-toolchain.cmake.in"
-      "${PROJECT_BINARY_DIR}/cmake/${DEVICE_TOOLCHAIN_NAME}-toolchain.cmake" )
-
-  set( DEVICE_TOOLCHAIN_FILE "${PROJECT_BINARY_DIR}/cmake/${DEVICE_TOOLCHAIN_NAME}-toolchain.cmake" )
-else( )
-  set( DEVICE_TOOLCHAIN_FILE "${PROJECT_SOURCE_DIR}/cmake/${DEVICE_TOOLCHAIN_NAME}-toolchain.cmake" )
+# Find HCC/HIP dependencies
+if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
+  find_package( hcc REQUIRED CONFIG PATHS /opt/rocm )
+  find_package( hip REQUIRED CONFIG PATHS /opt/rocm )
 endif( )
 
-# Default arguments that get passed down into all external projects
-set( BASE_CMAKE_ARGS
-  -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-  -DCMAKE_MODULE_PATH=${CMAKE_MODULE_PATH}
-  -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
-  -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
- )
+# CMake list of machine targets
+set( AMDGPU_TARGETS gfx803;gfx900 CACHE STRING "List of specific machine types for library to target" )
 
-# CMAKE_BUILD_TYPE only applies to single configuration build systems
-if( NOT CMAKE_CONFIGURATION_TYPES )
-  list( APPEND BASE_CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} )
-endif( )
+add_subdirectory( library )
 
-if( DEFINED CMAKE_CXX_CLANG_TIDY )
-  message( STATUS "clang-tidy enabled: ${CMAKE_CXX_CLANG_TIDY}")
-  list( APPEND BASE_CMAKE_ARGS -DCMAKE_CXX_CLANG_TIDY=${CMAKE_CXX_CLANG_TIDY} )
-endif( )
-
-
-#set up rocfft dependency
-if( BUILD_LIBRARY )
-
-  list(APPEND rocfft_dependencies)
-  set( LIBRARY_CMAKE_ARGS
-    ${BASE_CMAKE_ARGS}
-    -DHOST_TOOLCHAIN_FILE=${HOST_TOOLCHAIN_FILE}
-    -DDEVICE_TOOLCHAIN_FILE=${DEVICE_TOOLCHAIN_FILE}
-    -DPLATFORM_NAME=${PLATFORM_NAME}
-    -DHIP_ROOT=${HIP_ROOT}
-    -DHIP_SRC_ROOT=${HIP_SRC_ROOT}#needed for NV device
-    -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
-  )
-
-  # Build the library as an external project
-  ExternalProject_Add( rocfft
-    DEPENDS ${rocfft_dependencies}
-    SOURCE_DIR ${PROJECT_SOURCE_DIR}/library
-    BINARY_DIR library-build
-    INSTALL_DIR library-package
-    CMAKE_ARGS ${LIBRARY_CMAKE_ARGS}
-    ${rocfft_INSTALL_COMMAND}
-  )
-
-endif()
-
+include( clients/cmake/build-options.cmake )
 
 # Build clients of the library
-if( BUILD_CLIENTS )
-  include( clients/cmake/build-options.cmake )
-
-  # Default arguments that get passed down into all external projects
-  set( CLIENTS_CMAKE_ARGS
-    ${BASE_CMAKE_ARGS}
-    -DBUILD_CLIENTS_SAMPLES=${BUILD_CLIENTS_SAMPLES}
-    -DBUILD_CLIENTS_RIDER=${BUILD_CLIENTS_RIDER}
-    -DBUILD_CLIENTS_SELFTEST=${BUILD_CLIENTS_SELFTEST}
-    -DBUILD_CLIENTS_BENCHMARKS=${BUILD_CLIENTS_BENCHMARKS}
-    -DBUILD_CLIENTS_TESTS=${BUILD_CLIENTS_TESTS}
-    -DCMAKE_TOOLCHAIN_FILE=${PROJECT_SOURCE_DIR}/cmake/${HOST_TOOLCHAIN_NAME}-toolchain.cmake
-    -DDEVICE_TOOLCHAIN_FILE=${DEVICE_TOOLCHAIN_FILE}
-    -DPLATFORM_NAME=${PLATFORM_NAME}
-    -DHIP_ROOT=${HIP_ROOT}
-    -DHIP_SRC_ROOT=${HIP_SRC_ROOT}#needed for NV device
-    )
-
-    if( DEFINED BOOST_ROOT )
-      list( APPEND CLIENTS_CMAKE_ARGS -DBOOST_ROOT=${BOOST_ROOT} )
-    endif( )
-
-    if( DEFINED FFTW_ROOT )
-      list( APPEND CLIENTS_CMAKE_ARGS -DFFTW_ROOT=${FFTW_ROOT} )
-    endif( )
-
-    if( BUILD_LIBRARY )
-      ExternalProject_Get_Property( rocfft install_dir )
-      list( APPEND CLIENTS_CMAKE_ARGS -DCMAKE_PREFIX_PATH=${install_dir} )
-    endif( )
-
-  # Clients are set up as an external project to take advantage of specifying toolchain files.
-  # We want cmake to go through it's usual discovery process
-  ExternalProject_Add( rocfft-clients
-    DEPENDS ${rocfft_dependencies} rocfft
-    SOURCE_DIR ${PROJECT_SOURCE_DIR}/clients
-    BINARY_DIR clients-build
-    INSTALL_DIR clients-package
-    CMAKE_ARGS ${CLIENTS_CMAKE_ARGS}
-    INSTALL_COMMAND ""
-  )
+if( BUILD_CLIENTS_SAMPLES OR BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_BENCHMARKS OR BUILD_CLIENTS_SELFTEST OR BUILD_CLIENTS_SAMPLES )
+  add_subdirectory( clients )
 endif( )

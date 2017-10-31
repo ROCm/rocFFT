@@ -1,6 +1,6 @@
-################################################################################
-# Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
-################################################################################
+# ########################################################################
+# Copyright 2016 Advanced Micro Devices, Inc.
+# ########################################################################
 
 # ########################################################################
 # A helper function to prefix a source list of files with a common path into a new list (non-destructive)
@@ -16,159 +16,97 @@ function( prepend_path prefix source_list_of_files return_list_of_files )
   set( ${return_list_of_files} ${new_list} PARENT_SCOPE )
 endfunction( )
 
-# ########################################################################
-# A helper function to convert an hcc .cpp file into the equivalent cuda .cu file
-# ########################################################################
-function( cuda_rename_source source_list_of_files return_list_of_files )
-
-  # This loop copies each file in source_list_of_files to CMAKE_CURRENT_BINARY_DIR
-  # Then it replaces .cpp extentions with .cu
-  foreach( cpp_file ${${source_list_of_files}} )
-    string(REGEX REPLACE "\\.cpp$" ".cu" cu_file ${cpp_file} )
-    configure_file( "${cpp_file}" "${cu_file}" COPYONLY )
-    list( APPEND cuda_file_list ${cu_file} )
-  endforeach( )
-
-  # This prepends the CMAKE_CURRENT_BINARY_DIR path to the list of generated files
-  prepend_path( "${CMAKE_CURRENT_BINARY_DIR}" cuda_file_list cuda_file_list )
-  set( ${return_list_of_files} ${cuda_file_list} PARENT_SCOPE )
+function( cuda_find_samples_inc_dir header_dir )
+  find_path( CUDA_SAMPLES_INCLUDE_DIR
+  NAMES helper_math.h
+  HINTS
+      ${NVCUDASAMPLES_ROOT}/common/inc
+      $ENV{NVCUDASAMPLES_ROOT}/common/inc
+  PATHS
+      /usr/local/cuda/samples/common/inc
+  )
+  set( ${header_dir} ${CUDA_SAMPLES_INCLUDE_DIR} PARENT_SCOPE )
 endfunction( )
 
 # ########################################################################
 # Main
 # ########################################################################
+# Package that helps me set visibility for function names exported from shared library
+include( GenerateExportHeader )
 
 add_subdirectory( device )
 
-list(APPEND CUDA_NVCC_FLAGS "-arch=sm_30 -std=c++11") #at least Kepler and above
-
-include( GenerateExportHeader )
-add_compiler_export_flags( )
-
 # The following is a list of implementation files defining the library
 set( rocfft_source
-     auxiliary.cpp
-     plan.cpp
-     transform.cpp
-     hipfft.cpp
-     repo.cpp
-     powX.cpp
-     get_radix.cpp
-     twiddles.cpp
-     kargs.cpp
-)
+      auxiliary.cpp
+      plan.cpp
+      transform.cpp
+      hipfft.cpp
+      repo.cpp
+      powX.cpp
+      get_radix.cpp
+      twiddles.cpp
+      kargs.cpp
+    )
 
+prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 
-if( ${BUILD_SHARED_LIBS} )
-  message( STATUS "Library Type: SHARED" )
-else( )
-  message( STATUS "Library Type: STATIC" )
+add_library( rocfft ${rocfft_source} ${relative_rocfft_headers_public} )
+add_library( roc::rocfft ALIAS rocfft )
+target_compile_features( rocfft PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
+
+target_link_libraries( rocfft PRIVATE hip::hip_hcc hip::hip_device hcc::hccshared rocfft-device )
+
+if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
+  # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
+  # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
+  target_compile_options( rocfft PRIVATE -Wno-unused-command-line-argument )
+
+  foreach( target ${AMDGPU_TARGETS} )
+    target_link_libraries( rocfft PRIVATE --amdgpu-target=${target} )
+  endforeach( )
+else( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
+  cuda_find_samples_inc_dir( cuda_samples_inc_dir )
 endif( )
-
-
-if(PLATFORM_NAME STREQUAL "AMD")
-  add_library( rocfft
-    ${rocfft_source}
-  )
-  set_target_properties( rocfft PROPERTIES OUTPUT_NAME "rocfft-hcc" )
-elseif(PLATFORM_NAME STREQUAL "NVIDIA")
-  message("CUDA_root = ${CUDA_TOOLKIT_ROOT_DIR}")
-  cuda_rename_source( rocfft_source rocfft_source )
-  set(CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
-  set(hip_include_dir ${HIP_SRC_ROOT}/src/HIP/include)
-  set(extra_cuda_include_dir ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc)
-  CUDA_INCLUDE_DIRECTORIES(${hip_include_dir}
-                           ${extra_cuda_include_dir}
-                           ${CMAKE_SOURCE_DIR}/src/include
-                           ${CMAKE_SOURCE_DIR}/src/device/generator
-                           ${CMAKE_SOURCE_DIR}/include
-                           ${PROJECT_BINARY_DIR}/src/device/generator
-                           ${PROJECT_BINARY_DIR}/include
-                           ${pwd_include_dir}
-                          )
-  CUDA_ADD_LIBRARY( rocfft
-    ${rocfft_source}
-    ${relative_rocfft_headers_public}
-  )
-  set_target_properties( rocfft PROPERTIES OUTPUT_NAME "rocfft-cuda" )
-endif( )
-
-# Try to test for specific compiler features if cmake version is recent enough
-if( ( CMAKE_VERSION VERSION_GREATER "3.0" ) AND (PLATFORM_NAME STREQUAL "AMD") )
-  target_compile_features( rocfft PRIVATE cxx_static_assert cxx_nullptr cxx_lambdas cxx_auto_type )
-else( )
-  # Otherwise, just try to compile the library with a standards flag
-  if( CMAKE_COMPILER_IS_GNUCXX OR ( CMAKE_CXX_COMPILER_ID MATCHES "Clang" ) )
-    target_compile_options( rocfft PRIVATE -std=c++11 )
-  endif( )
-endif( )
-
-add_dependencies( rocfft rocfft-device )
 
 target_include_directories( rocfft
-  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/include>
-          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src/device/generator>
+  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+  PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
+          $<BUILD_INTERFACE:${cuda_samples_inc_dir}>
           $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries( rocfft rocfft-device )
-
-set_target_properties( rocfft PROPERTIES VERSION ${rocfft_VERSION} SOVERSION ${rocfft_SOVERSION} )
-set_target_properties( rocfft PROPERTIES DEBUG_POSTFIX "-d" )
+set_target_properties( rocfft PROPERTIES VERSION ${rocfft_VERSION} SOVERSION ${rocfft_SOVERSION} CXX_EXTENSIONS NO )
 set_target_properties( rocfft PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+set_target_properties( rocfft PROPERTIES DEBUG_POSTFIX "-d" )
+
+set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
+generate_export_header( rocfft EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft-export.h )
 
 # Following Boost conventions of prefixing 'lib' on static built libraries, across all platforms
-if( NOT ${BUILD_SHARED_LIBS} )
+if( NOT BUILD_SHARED_LIBS )
   set_target_properties( rocfft PROPERTIES PREFIX "lib" )
 endif( )
 
-# Package that helps me set visibility for function names exported from shared library
-GENERATE_EXPORT_HEADER( rocfft EXPORT_FILE_NAME rocfft-export.h )
+############################################################
+# Installation
 
-# The following is cmake code to generate a config file package for rocfft
-# Documentation for how to use the following package:
-# https://cmake.org/cmake/help/v3.0/module/CMakePackageConfigHelpers.html
-include( CMakePackageConfigHelpers )
-
-set( LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR} )
-set( INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR} )
-set( config_package_location ${LIB_INSTALL_DIR}/cmake/rocfft )
-
-configure_package_config_file(
-  rocfft-config.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/rocfft-config.cmake
-  INSTALL_DESTINATION ${config_package_location}
-  PATH_VARS INCLUDE_INSTALL_DIR LIB_INSTALL_DIR
+rocm_install_targets(
+  TARGETS rocfft
+  INCLUDE
+    ${CMAKE_SOURCE_DIR}/library/include
+    ${CMAKE_BINARY_DIR}/include
+  PREFIX rocfft
 )
+#         PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
 
-write_basic_package_version_file(
-  ${CMAKE_CURRENT_BINARY_DIR}/rocfft-config-version.cmake
-  VERSION ${rocfft_VERSION}
-  COMPATIBILITY SameMajorVersion
-)
+rocm_export_targets(
+  TARGETS rocfft-targets
+  PREFIX rocfft
+  DEPENDS PACKAGE hip
+  NAMESPACE roc::
+ )
 
-install( TARGETS rocfft
-  EXPORT rocfft-targets
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
-
-install( EXPORT rocfft-targets
-  DESTINATION
-    ${config_package_location}
-)
-
-install( FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/rocfft-config.cmake
-  ${CMAKE_CURRENT_BINARY_DIR}/rocfft-config-version.cmake
-  DESTINATION
-    ${config_package_location} )
-
-install( FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/rocfft-export.h
-  DESTINATION
-    ${CMAKE_INSTALL_INCLUDEDIR}
-)
+rocm_install_symlink_subdir( rocfft )
