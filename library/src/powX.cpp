@@ -238,8 +238,7 @@ void PlanPowX(ExecPlan &execPlan)
 
                 if( (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) && (execPlan.execSeq[i]->length.size() == 2) )
                 {
-
-                   if(  execPlan.execSeq[i]->length[1] <= 4096 )
+                    if(  execPlan.execSeq[i]->length[1] <= 4096 ) 
                     {
                         ptr = func_pool.get_function_double(std::make_pair(execPlan.execSeq[0]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC)) ;
 
@@ -327,6 +326,7 @@ void PlanPowX(ExecPlan &execPlan)
                         (execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE_XY_Z) ||
                         (execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE_Z_XY))
                 {
+                    /*
                     if(IsPo2(execPlan.execSeq[i]->length[0]) && IsPo2(execPlan.execSeq[i]->length[1]))
                     {
                         ptr = &FN_PRFX(transpose_var1_dp);
@@ -344,6 +344,7 @@ void PlanPowX(ExecPlan &execPlan)
                         }
                     }
                     else
+                    */
                     {
                         ptr = &FN_PRFX(transpose_var2);
                         gp.tpb_x = 16;

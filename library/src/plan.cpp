@@ -10,7 +10,7 @@
 #include "private.h"
 #include "plan.h"
 #include "repo.h"
-
+#include "radix_table.h"
 inline size_t PrecisionWidth(rocfft_precision pr)
 {
     switch (pr)
@@ -396,13 +396,12 @@ void TreeNode::RecursiveBuildTree()
     // this flag can be enabled when generator can do block column fft in multi-dimension cases and small 2d, 3d within one kernel
     bool MultiDimFuseKernelsAvailable = false;
 
-    size_t Large1DThreshold = 4096 / PrecisionWidth(precision);
-
     switch (dimension)
     {
     case 1:
     {
-        if (length[0] <= Large1DThreshold)//single kernel
+
+        if (length[0] <= large1DThreshold)//single kernel
         {
             scheme = CS_KERNEL_STOCKHAM;
             return;
@@ -412,43 +411,26 @@ void TreeNode::RecursiveBuildTree()
 
         if (IsPo2(length[0]))//multiple kernels involving transpose
         {
-            // Enable block compute under these conditions
-            if (length[0] <= 262144 / PrecisionWidth(precision))
-            {
-                if (1 == PrecisionWidth(precision))
-                {
-                    switch (length[0])
-                    {
-                    case 8192:        divLength1 = 64;        break;
-                    case 16384:        divLength1 = 64;        break;
-                    case 32768:        divLength1 = 128;        break;
-                    case 65536:        divLength1 = 256;        break;
-                    case 131072:    divLength1 = 64;        break;
-                    case 262144:    divLength1 = 64;        break;
-                    default:        assert(false);
-                    }
-                }
-                else//TODO: fail in correctness check now
-                {
-                    switch (length[0])
-                    {
-                    case 4096:        divLength1 = 64;        break;
-                    case 8192:        divLength1 = 64;        break;
-                    case 16384:        divLength1 = 64;        break;
-                    case 32768:        divLength1 = 128;        break;
-                    case 65536:        divLength1 = 64;        break;
-                    case 131072:    divLength1 = 64;        break;
-                    default:        assert(false);
-                    }
-                }
 
-                scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CS_L1D_CC : CS_L1D_CRT;
+            if (length[0] <= 262144)
+            {
+                switch (length[0])
+                {
+                    case 8192:         divLength1 = 64;        break;
+                    case 16384:        divLength1 = 64;        break;
+                    case 32768:        divLength1 = 128;       break;
+                    case 65536:        divLength1 = 256;       break;
+                    case 131072:       divLength1 = 64;        break;
+                    case 262144:       divLength1 = 64;        break;
+                    default:           assert(false);
+                }
+                scheme = (length[0] <= 65536) ? CS_L1D_CC : CS_L1D_CRT;
             }
             else
             {
-                if (length[0] > (Large1DThreshold * Large1DThreshold))
+                if (length[0] > (large1DThreshold * large1DThreshold))
                 {
-                    divLength1 = length[0] / Large1DThreshold;
+                    divLength1 = length[0] / large1DThreshold;
                 }
                 else
                 {
@@ -464,7 +446,7 @@ void TreeNode::RecursiveBuildTree()
                 scheme = CS_L1D_TRTRT;
             }
         }
-        else
+        else // if (IsPo2(length[0]))
         {
             size_t supported[] = {
                 4096, 4050, 4000, 3888, 3840, 3750, 3645, 3600, 3456, 3375, 3240, 3200, 3125, 3072, 3000, 2916, 2880, 2700, 2592, 2560, 2500, 2430, 2400, 2304, 2250, 2187, 2160,
@@ -474,9 +456,9 @@ void TreeNode::RecursiveBuildTree()
                 24, 20, 18, 16, 15, 12, 10, 9, 8, 6, 5, 4, 3, 2, 1 };
 
             size_t threshold_id = 0;
-            while(supported[threshold_id] != Large1DThreshold) threshold_id++;
+            while(supported[threshold_id] != large1DThreshold) threshold_id++;
 
-            if (length[0] > (Large1DThreshold * Large1DThreshold))
+            if (length[0] > (large1DThreshold * large1DThreshold))
             {
                 size_t idx = threshold_id;
                 while(length[0]%supported[idx] != 0) idx++;
@@ -573,7 +555,7 @@ void TreeNode::RecursiveBuildTree()
             }
 
             // algorithm is set up in a way that row2 does not recurse
-            assert(divLength0 <= Large1DThreshold);
+            assert(divLength0 <= large1DThreshold);
 
             childNodes.push_back(row2Plan);
 
