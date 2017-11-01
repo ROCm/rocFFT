@@ -27,14 +27,22 @@ add_subdirectory( generator )
 # This includes an explicit list (all possible) of files the generator currently outputs
 include( generator/generated-kernels.cmake )
 
-set( generator_pattern "all" CACHE STRING "FFT kernels to generate" )
+set( generator_pattern all CACHE STRING "FFT kernels to generate" )
 set_property( CACHE generator_pattern PROPERTY STRINGS pow2 pow3 pow5 "pow2,3" "pow2,5" "pow3,5" all )
 
+set( gen_headers ${kernels_launch} ${kernels_all} )
+if( generator_pattern STREQUAL "pow2" )
+    set( gen_headers ${kernels_launch} ${kernels_pow2} )
+elseif( generator_pattern STREQUAL "pow3" )
+    set( gen_headers ${kernels_launch} ${kernels_pow3} )
+elseif( generator_pattern STREQUAL "pow5" )
+    set( gen_headers ${kernels_launch} ${kernels_pow5} )
+endif()
 # add_custom_command will create source output files, that are used in a target below
 # In order for the dependencies to work in cmake, add_custom_command must be in the same
 # CMakeLists.txt file as the target [rocfft-device]
 add_custom_command(
-  OUTPUT ${kernels_launch} ${kernels_1xxx} ${kernels_2xxx} ${kernels_3xxx_4xxx} ${kernels_5xxx_6xxx_7xxx_8xxx_9xxx}
+  OUTPUT ${gen_headers} 
   COMMAND rocfft-kernel-generator ${generator_pattern}
   DEPENDS rocfft-kernel-generator
 #  WORKING_DIRECTORY ${kernel_path}
@@ -59,11 +67,7 @@ prepend_path( "../.." rocfft_headers_public relative_rocfft_device_headers_publi
 add_library( rocfft-device
   ${rocfft_device_source}
   ${relative_rocfft_device_headers_public}
-  ${kernels_launch}
-  ${kernels_1xxx}
-  ${kernels_2xxx}
-  ${kernels_3xxx_4xxx}
-  ${kernels_5xxx_6xxx_7xxx_8xxx_9xxx}
+  ${gen_headers}
   )
 add_library( roc::rocfft-device ALIAS rocfft-device )
 target_compile_features( rocfft-device PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
