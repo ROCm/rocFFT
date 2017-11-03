@@ -410,11 +410,11 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         DevFnCall fn = execPlan.devFnCall[i];
         if(fn)
         {
-#ifdef DEBUG
+#ifdef REF_DEBUG
             RefLibOp refLibOp(&data);
 #endif
             fn(&data, &back);//execution kernel here
-#ifdef DEBUG
+#ifdef REF_DEBUG
             refLibOp.VerifyResult(&data);
 #endif
         }

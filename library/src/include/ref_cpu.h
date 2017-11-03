@@ -2,6 +2,8 @@
 #ifndef REF_CPU_H
 #define REF_CPU_H
 
+#ifdef REF_DEBUG
+
 #include <dlfcn.h>
 #include <cstdio>
 #include <stdlib.h>
@@ -90,9 +92,10 @@ public:
 
 class RefLibOp
 {
-    local_fftwf_complex *in;
-    local_fftwf_complex *ot;
-
+    local_fftwf_complex *in; // input
+    local_fftwf_complex *ot; // output from fftw 
+    local_fftwf_complex *lb; // output from lib
+    
     void DataSetup(const void *data_p)
     {
         RefLibHandle &refHandle = RefLibHandle::GetRefLibHandle();
@@ -106,9 +109,58 @@ class RefLibOp
 
         in = (local_fftwf_complex *)local_fftwf_malloc(totalSize);
         ot = (local_fftwf_complex *)local_fftwf_malloc(totalSize);
+        lb = (local_fftwf_complex *)local_fftwf_malloc(totalSize);
         
         memset(in, 0x40, totalSize);
         memset(ot, 0x40, totalSize);
+        memset(lb, 0x40, totalSize);
+    }
+
+    void CopyVector(local_fftwf_complex *dst, local_fftwf_complex *src, size_t batch, size_t dist, std::vector<size_t> length, std::vector<size_t> stride)
+    {
+        size_t offset_dst = 0;
+        size_t offset_src = 0;
+        size_t offset_src_d = 0;
+		size_t pos = 0;
+
+		std::vector<size_t> current;
+		for(size_t i=0; i<length.size(); i++) current.push_back(0);
+
+        size_t b = 0;
+        while(b<batch)
+        {
+            offset_src += b*dist;
+        	while(true)
+            {
+                offset_src = offset_src_d + current[0]*stride[0];
+    
+    			dst[offset_dst][0] = src[offset_src][0];
+    			dst[offset_dst][1] = src[offset_src][1];
+    			
+                current[0]++;
+                offset_dst++;
+        
+                while(current[pos] == length[pos])
+                {
+                    if(pos == (length.size() - 1))
+                    {
+    					goto nested_exit;
+                    }
+        
+                    current[pos] = 0;
+                    pos++;
+                    current[pos]++;
+       
+    				for(size_t i=1; i<current.size(); i++)
+    					offset_src_d += current[i]*stride[i]; 
+        
+                }
+        
+                pos = 0;
+            }
+nested_exit:
+            b++;
+		}
     }
 
     void CopyInputVector(const void *data_p)
@@ -120,49 +172,7 @@ class RefLibOp
         local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(in_size_bytes);
         hipMemcpy(tmp_mem, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
-        size_t offset_in = 0;
-        size_t offset_tmp = 0;
-        size_t offset_tmp_d = 0;
-		size_t pos = 0;
-
-		std::vector<size_t> current;
-		for(size_t i=0; i<data->node->length.size(); i++) current.push_back(0);
-
-        size_t b = 0;
-        while(b<data->node->batch)
-        {
-            offset_tmp += b*data->node->iDist;
-        	while(true)
-            {
-                offset_tmp = offset_tmp_d + current[0]*data->node->inStride[0];
-    
-    			in[offset_in][0] = tmp_mem[offset_tmp][0];
-    			in[offset_in][1] = tmp_mem[offset_tmp][1];
-    			
-                current[0]++;
-                offset_in++;
-        
-                while(current[pos] == data->node->length[pos])
-                {
-                    if(pos == (data->node->length.size() - 1))
-                    {
-    					goto nested_exit;
-                    }
-        
-                    current[pos] = 0;
-                    pos++;
-                    current[pos]++;
-       
-    				for(size_t i=1; i<current.size(); i++)
-    					offset_tmp_d += current[i]*data->node->inStride[i]; 
-        
-                }
-        
-                pos = 0;
-            }
-nested_exit:
-            b++;
-		}
+        CopyVector(in, tmp_mem, data->node->batch, data->node->iDist, data->node->length, data->node->inStride);
 
         if(tmp_mem)
             free(tmp_mem);
@@ -207,7 +217,25 @@ public:
         DeviceCallIn *data = (DeviceCallIn *)data_p;
         size_t out_size = data->node->oDist * data->node->batch;
         size_t out_size_bytes = out_size * 2 * sizeof(float);
-        hipMemcpy(ot, data->bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
+   
+        local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(out_size_bytes);
+        hipMemcpy(tmp_mem, data->bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
+        CopyVector(lb, tmp_mem, data->node->batch, data->node->oDist, data->node->length, data->node->outStride);
+
+        std::cout << "lib output" << std::endl;
+        for(size_t i=0; i<16; i++)
+        {
+            std::cout << lb[i][0] << ", " << lb[i][1] << std::endl;
+        }
+
+        std::cout << "fftw output" << std::endl;
+        for(size_t i=0; i<16; i++)
+        {
+            std::cout << ot[i][0] << ", " << ot[i][1] << std::endl;
+        }
+
+        if(tmp_mem)
+            free(tmp_mem);
     }
 
     ~RefLibOp()
@@ -225,9 +253,15 @@ public:
             local_fftwf_free(ot);
             ot = nullptr;
         }
+        if(lb)
+        {
+            local_fftwf_free(lb);
+            lb = nullptr;
+        }
     }
 };
 
+#endif // REF_DEBUG
 
 #endif // REF_CPU_H
 
