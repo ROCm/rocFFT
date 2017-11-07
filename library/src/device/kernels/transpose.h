@@ -1,5 +1,5 @@
-#include <hip/hip_runtime.h>
-#include "butterfly.h"
+#include "rocfft_hip.h"
+#include "common.h"
 
 //works for real to real and complex interleaved to complex interleaved 
 template<typename T, int micro_tile_col_size, int micro_tile_row_size, int wg_col_size, int wg_row_size>

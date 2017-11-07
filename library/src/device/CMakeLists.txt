@@ -56,8 +56,8 @@ set( rocfft_device_source
   function_pool.cpp
   kernel_launch_single.cpp
   kernel_launch_double.cpp
-  kernel_launch_pow2_large_single.cpp
-  kernel_launch_pow2_large_double.cpp
+  kernel_launch_single_large.cpp
+  kernel_launch_double_large.cpp
   transpose.cpp
   kernel_launch_large_transpose.cpp
 )

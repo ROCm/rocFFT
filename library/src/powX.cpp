@@ -18,7 +18,7 @@
 #include "ref_cpu.h"
 
 #ifdef TMP_DEBUG
-#include <hip/hip_runtime.h>
+#include "rocfft_hip.h"
 #endif
 
 
