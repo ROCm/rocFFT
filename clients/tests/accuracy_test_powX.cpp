@@ -126,7 +126,7 @@ TEST_P(accuracy_test, normal_1D_complex_interleaved_to_complex_interleaved_doubl
 // *****************************************************
 //             Real to Complex
 // *****************************************************
-
+/*
 template< class T, class fftw_T >
 void normal_1D_real_interleaved_to_hermitian_interleaved(size_t N, size_t batch, rocfft_result_placement placeness, rocfft_transform_type  transform_type, size_t stride)
 {
@@ -158,7 +158,7 @@ TEST_P(accuracy_test, normal_1D_real_interleaved_to_hermitian_interleaved_single
     try { normal_1D_real_interleaved_to_hermitian_interleaved< float,  fftwf_complex >(N, batch, placeness, transform_type, stride); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
-
+*/
 // *****************************************************
 // *****************************************************
 
