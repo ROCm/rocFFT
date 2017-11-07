@@ -39,7 +39,7 @@ void *twiddles_create(size_t N, rocfft_precision precision)
         }
     }
     else if( precision == rocfft_precision_double){
-        if(N <= large1DThreshold){
+        if(N < large1DThreshold){
             TwiddleTable<double2> twTable(N);
 
             twtc = twTable.GenerateTwiddleTable(radices); //calculate twiddles on host side

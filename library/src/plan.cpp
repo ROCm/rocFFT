@@ -400,50 +400,98 @@ void TreeNode::RecursiveBuildTree()
     {
     case 1:
     {
-
-        if (length[0] <= large1DThreshold)//single kernel
-        {
-            scheme = CS_KERNEL_STOCKHAM;
-            return;
+        if (PrecisionWidth(precision) == 1)
+        { 
+            if (length[0] <= large1DThreshold)//single kernel algorithm for single precision <= 4096
+            {
+                scheme = CS_KERNEL_STOCKHAM;
+                return;
+            }
+        }
+        if (PrecisionWidth(precision) == 2)
+        { 
+            if (length[0] < large1DThreshold)//single kernel algorithm for double precision < 4096, like size 4000 still use single kernel
+            {
+                scheme = CS_KERNEL_STOCKHAM;
+                return;
+            }
         }
 
         size_t divLength1 = 1;
 
-        if (IsPo2(length[0]))//multiple kernels involving transpose
+        if (IsPo2(length[0]))//multiple kernels algorithm
         {
-
-            if (length[0] <= 262144)
+            if (PrecisionWidth(precision) == 1)
             {
-                switch (length[0])
+                if (length[0] <= 262144)
                 {
-                    case 8192:         divLength1 = 64;        break;
-                    case 16384:        divLength1 = 64;        break;
-                    case 32768:        divLength1 = 128;       break;
-                    case 65536:        divLength1 = 256;       break;
-                    case 131072:       divLength1 = 64;        break;
-                    case 262144:       divLength1 = 64;        break;
-                    default:           assert(false);
-                }
-                scheme = (length[0] <= 65536) ? CS_L1D_CC : CS_L1D_CRT;
-            }
-            else
-            {
-                if (length[0] > (large1DThreshold * large1DThreshold))
-                {
-                    divLength1 = length[0] / large1DThreshold;
+                    switch (length[0])
+                    {
+                        case 8192:         divLength1 = 64;        break;
+                        case 16384:        divLength1 = 64;        break;
+                        case 32768:        divLength1 = 128;       break;
+                        case 65536:        divLength1 = 256;       break;
+                        case 131072:       divLength1 = 64;        break;
+                        case 262144:       divLength1 = 64;        break;
+                        default:           assert(false);
+                    }
+                    scheme = (length[0] <= 65536) ? CS_L1D_CC : CS_L1D_CRT;
                 }
                 else
                 {
-                    size_t in_x = 0;
-                    size_t len = length[0];
+                    if (length[0] > pow(large1DThreshold,2))
+                    {
+                        divLength1 = length[0] / large1DThreshold;
+                    }
+                    else
+                    {
+                        size_t in_x = 0;
+                        size_t len = length[0];
 
-                    while (len != 1) { len >>= 1; in_x++; }
+                        while (len != 1) { len >>= 1; in_x++; }
 
-                    in_x /= 2;
-                    divLength1 = (size_t)1 << in_x;
+                        in_x /= 2;
+                        divLength1 = (size_t)1 << in_x;
+                    }
+
+                    scheme = CS_L1D_TRTRT;
                 }
+            }
+            if (PrecisionWidth(precision) == 2)
+            {
+                if (length[0] <= 131072)
+                {
+                    switch (length[0])
+                    {
+                        case 4096:         divLength1 = 64;        break;
+                        case 8192:         divLength1 = 64;        break;
+                        case 16384:        divLength1 = 64;        break;
+                        case 32768:        divLength1 = 128;       break;
+                        case 65536:        divLength1 = 64;       break;
+                        case 131072:       divLength1 = 64;        break;
+                        default:           assert(false);
+                    }
+                    scheme = (length[0] <= 32768) ? CS_L1D_CC : CS_L1D_CRT;
+                }
+                else
+                {
+                    if (length[0] > pow(large1DThreshold/PrecisionWidth(precision),2)) 
+                    {
+                        divLength1 = length[0] / (large1DThreshold/PrecisionWidth(precision));
+                    }
+                    else
+                    {
+                        size_t in_x = 0;
+                        size_t len = length[0];
 
-                scheme = CS_L1D_TRTRT;
+                        while (len != 1) { len >>= 1; in_x++; }
+
+                        in_x /= 2;
+                        divLength1 = (size_t)1 << in_x;
+                    }
+
+                    scheme = CS_L1D_TRTRT;
+                }
             }
         }
         else // if (IsPo2(length[0]))
