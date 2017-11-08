@@ -8,6 +8,7 @@
 #include <string.h>
 #include <algorithm>
 #include <tuple>
+#include "rocfft.h"
 #include "../../include/radix_table.h"
 #include "../../include/tree_node.h"
 
@@ -74,7 +75,7 @@ int main(int argc, char *argv[])
     if(argc > 1){
         if(strcmp(argv[1], "pow2") == 0){
             //printf("Generating len pow2 FFT kernels\n");
-            generate_support_size_list(support_size_list, 1, 1, large1DThreshold);
+            generate_support_size_list(support_size_list, 1, 1, Large1DThreshold(rocfft_precision_single));
         }
         else if(strcmp(argv[1], "pow3") == 0){
             //printf("Generating len pow3 FFT kernels\n");
@@ -86,11 +87,11 @@ int main(int argc, char *argv[])
         }
         else if(strcmp(argv[1], "pow2,3") == 0){
             //printf("Generating len pow2 and pow3 FFT kernels\n");
-            generate_support_size_list(support_size_list, 1, 2187, large1DThreshold);
+            generate_support_size_list(support_size_list, 1, 2187, Large1DThreshold(rocfft_precision_single));
         }
         else if(strcmp(argv[1], "pow2,5") == 0){
             //printf("Generating len pow2 and pow5 FFT kernels\n");
-            generate_support_size_list(support_size_list, 3125, 1, large1DThreshold);
+            generate_support_size_list(support_size_list, 3125, 1, Large1DThreshold(rocfft_precision_single));
         }
         else if(strcmp(argv[1], "pow3,5") == 0){
             //printf("Generating len pow3 and pow5 FFT kernels\n");
@@ -98,12 +99,12 @@ int main(int argc, char *argv[])
         }
         else if(strcmp(argv[1], "all") == 0){
             //printf("Generating len mix of 2,3,5 FFT kernels\n");
-            generate_support_size_list(support_size_list, 3125, 2187, large1DThreshold);
+            generate_support_size_list(support_size_list, 3125, 2187, Large1DThreshold(rocfft_precision_single));
         }
     }
     else{//if no arguments, generate all possible sizes
          //printf("Generating len mix of 2,3,5 FFT kernels\n");
-         generate_support_size_list(support_size_list, 3125, 2187, large1DThreshold);
+         generate_support_size_list(support_size_list, 3125, 2187, Large1DThreshold(rocfft_precision_single));
     }
 
 /*

@@ -4,6 +4,7 @@
 
 #include <stddef.h>
 #include <vector>
+#include "rocfft.h"
 #include "radix_table.h"
 
 

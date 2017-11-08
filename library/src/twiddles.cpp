@@ -8,10 +8,9 @@
 #include "radix_table.h"
 
 
-
-void *twiddles_create(size_t N, rocfft_precision precision)
+template <typename T>
+void *twiddles_create_pr(size_t N, size_t threshold)
 {
-
     void* twts;//device side
     void* twtc;//host side
     size_t ns = 0; // table size
@@ -20,45 +19,35 @@ void *twiddles_create(size_t N, rocfft_precision precision)
 
     radices = GetRadices(N);
 
+    if(N <= threshold){
+        TwiddleTable<T> twTable(N);
+        twtc = twTable.GenerateTwiddleTable(radices); //calculate twiddles on host side
 
-    if( precision == rocfft_precision_single){
-        if(N <= large1DThreshold){
-            TwiddleTable<float2> twTable(N);
-
-            twtc = twTable.GenerateTwiddleTable(radices); //calculate twiddles on host side
-
-            hipMalloc(&twts, N*sizeof( float2 ) );
-            hipMemcpy(twts, twtc, N*sizeof( float2 ), hipMemcpyHostToDevice);
-        }
-        else{
-            TwiddleTableLarge<float2> twTable(N); //does not generate radices
-            std::tie(ns, twtc) = twTable.GenerateTwiddleTable(); //calculate twiddles on host side
-
-            hipMalloc(&twts, ns*sizeof(float2));
-            hipMemcpy(twts, twtc, ns*sizeof(float2), hipMemcpyHostToDevice);
-        }
+        hipMalloc(&twts, N*sizeof(T) );
+        hipMemcpy(twts, twtc, N*sizeof(T), hipMemcpyHostToDevice);
     }
-    else if( precision == rocfft_precision_double){
-        if(N < large1DThreshold){
-            TwiddleTable<double2> twTable(N);
+    else{
+        TwiddleTableLarge<T> twTable(N); //does not generate radices
+        std::tie(ns, twtc) = twTable.GenerateTwiddleTable(); //calculate twiddles on host side
 
-            twtc = twTable.GenerateTwiddleTable(radices); //calculate twiddles on host side
-
-            hipMalloc(&twts, N*sizeof( double2 ) );
-            hipMemcpy(twts, twtc, N*sizeof( double2 ), hipMemcpyHostToDevice);
-        }
-        else{
-
-            TwiddleTableLarge<double2> twTable(N); //does not generate radices
-            std::tie(ns, twtc) = twTable.GenerateTwiddleTable(); //calculate twiddles on host side
-
-            hipMalloc(&twts, ns*sizeof(double2));
-            hipMemcpy(twts, twtc, ns*sizeof(double2), hipMemcpyHostToDevice);
-        }
+        hipMalloc(&twts, ns*sizeof(T));
+        hipMemcpy(twts, twtc, ns*sizeof(T), hipMemcpyHostToDevice);
     }
 
     return twts;
+}
 
+void *twiddles_create(size_t N, rocfft_precision precision)
+{
+	if(precision == rocfft_precision_single)
+		return twiddles_create_pr<float2>(N, Large1DThreshold(precision));
+	else if(precision == rocfft_precision_double)
+		return twiddles_create_pr<double2>(N, Large1DThreshold(precision));
+	else
+	{
+		assert(false);
+		return nullptr;
+	}
 }
 
 void twiddles_delete(void *twt)
