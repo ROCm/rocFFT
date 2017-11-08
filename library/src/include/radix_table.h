@@ -11,7 +11,22 @@
 #include <assert.h>
 
 
-#define large1DThreshold 4096
+inline size_t PrecisionWidth(rocfft_precision precision)
+{
+    switch (precision)
+    {
+        case rocfft_precision_single:    return 1;
+        case rocfft_precision_double:    return 2;
+        default:       assert(false);    return 1;
+    }
+}
+
+inline size_t Large1DThreshold(rocfft_precision precision)
+{
+    return 4096/PrecisionWidth(precision);
+}
+
+#define LARGE_1D_THRESHOLD 4096
 #define MAX_WORK_GROUP_SIZE 1024
 
     /* radix table: tell the FFT algorithms for size <= 4096 ; required by twiddle, passes, and kernel*/

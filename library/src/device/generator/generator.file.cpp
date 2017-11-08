@@ -7,6 +7,7 @@
 #include <vector>
 #include <string.h>
 #include <algorithm>
+#include "rocfft.h"
 #include "../../include/radix_table.h"
 #include "../../include/tree_node.h"
 
