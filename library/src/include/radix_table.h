@@ -10,6 +10,10 @@
 #include <map>
 #include <assert.h>
 
+
+#define large1DThreshold 4096
+#define MAX_WORK_GROUP_SIZE 1024
+
     /* radix table: tell the FFT algorithms for size <= 4096 ; required by twiddle, passes, and kernel*/
     struct SpecRecord
     {
@@ -59,7 +63,7 @@
         }
          lds = N*bwd;
     }
-    #define MAX_WORK_GROUP_SIZE 1024
+
 
     /* =====================================================================
        Calculate grid and thread blocks (work groups, work items)

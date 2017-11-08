@@ -18,7 +18,7 @@
 
 using namespace StockhamGenerator;
 
-#define large1DThreshold 4096
+
  
     /* =====================================================================
                 Initial parameter used to generate kernels

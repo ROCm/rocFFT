@@ -57,64 +57,11 @@ extern "C"
 
     */
 
-    //single precsion (sp)
 
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_2048)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_2_64_4096)(const void *data_p, void *back_p);
+    void rocfft_internal_transpose_var1_sp(const void *data_p, void *back_p);
 
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_4096)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_2048)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_1024)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_ip_ci_ci_stoc_2_512)(const void *data_p, void *back_p);
-
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_4096)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_2048)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_1024)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_stoc_2_512)(const void *data_p, void *back_p);
-
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_64_128)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_64_256)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_128_256)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbcc_3_256_256)(const void *data_p, void *back_p);
-
-    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_128_64)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_64)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_128)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_sp_op_ci_ci_sbrc_3_256_256)(const void *data_p, void *back_p);
-
-    void FN_PRFX(transpose_var1_sp)(const void *data_p, void *back_p);
-
-    void FN_PRFX(transpose_var2)(const void *data_p, void *back_p);
+    void rocfft_internal_transpose_var2(const void *data_p, void *back_p);
     
-    //double precsion (dp)
-
-
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_2048)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_2_64_4096)(const void *data_p, void *back_p);
-
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_4096)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_2048)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_1024)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_ip_ci_ci_stoc_2_512)(const void *data_p, void *back_p);
-
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_2_4096)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_2_2048)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_2_1024)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_stoc_2_512)(const void *data_p, void *back_p);
-
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_3_64_128)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_3_64_256)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_3_128_256)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbcc_3_256_256)(const void *data_p, void *back_p);
-
-    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_3_128_64)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_3_256_64)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_3_256_128)(const void *data_p, void *back_p);
-    void FN_PRFX(dfn_dp_op_ci_ci_sbrc_3_256_256)(const void *data_p, void *back_p);
-
-    void FN_PRFX(transpose_var1_dp)(const void *data_p, void *back_p);
-
-
 }
 
 /*

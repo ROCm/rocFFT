@@ -501,6 +501,9 @@ private:
 
 							// compute square error
 							rms += ((ex_r - ac_r)*(ex_r - ac_r) + (ex_i - ac_i)*(ex_i - ac_i));
+#ifdef DEBUG
+                            std::cout << "my result:(" << ac_r << "," << ac_i << "); reference result: (" << ex_r << "," << ex_i << ")" << std::endl;
+#endif 
 						}
 					}
 				}

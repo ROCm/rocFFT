@@ -50,13 +50,13 @@ TEST(rocfft_UnitTest, sample_code_iterative)
 	        hipMemcpy(y.data(), x, Nbytes, hipMemcpyDeviceToHost);
 
 	        // Check results
-		EXPECT_EQ((float)N, y[0].x);
-		EXPECT_EQ(-(float)N, y[0].y);
+		    EXPECT_EQ((float)N, y[0].x);
+		    EXPECT_EQ(-(float)N, y[0].y);
 
 	        for (size_t i = 1; i < N; i++)
 	        {
-			EXPECT_EQ(0, y[i].x);
-			EXPECT_EQ(0, y[i].y);
+			    EXPECT_EQ(0, y[i].x);
+			    EXPECT_EQ(0, y[i].y);
 	        }
 
 	        // Free device buffer
