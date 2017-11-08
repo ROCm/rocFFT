@@ -21,7 +21,7 @@
 
 using namespace StockhamGenerator;
 
-#define large1DThreshold 4096
+
  
 
 /* =====================================================================
@@ -140,6 +140,7 @@ int main(int argc, char *argv[])
     large1D_list.push_back( std::make_tuple(128, CS_KERNEL_STOCKHAM_BLOCK_CC) );
     large1D_list.push_back( std::make_tuple(256, CS_KERNEL_STOCKHAM_BLOCK_CC) );
 
+    large1D_list.push_back( std::make_tuple(64, CS_KERNEL_STOCKHAM_BLOCK_RC) );
     large1D_list.push_back( std::make_tuple(128, CS_KERNEL_STOCKHAM_BLOCK_RC) );
     large1D_list.push_back( std::make_tuple(256, CS_KERNEL_STOCKHAM_BLOCK_RC) );
 

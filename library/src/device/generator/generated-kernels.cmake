@@ -21,20 +21,16 @@ rocfft_kernel_4.h
 rocfft_kernel_512.h
 rocfft_kernel_64.h
 rocfft_kernel_64_sbcc.h
+rocfft_kernel_64_sbrc.h
 rocfft_kernel_8.h
 )
 
 set( kernels_pow3
-rocfft_kernel_128_sbcc.h
-rocfft_kernel_128_sbrc.h
 rocfft_kernel_1.h
 rocfft_kernel_2187.h
 rocfft_kernel_243.h
-rocfft_kernel_256_sbcc.h
-rocfft_kernel_256_sbrc.h
 rocfft_kernel_27.h
 rocfft_kernel_3.h
-rocfft_kernel_64_sbcc.h
 rocfft_kernel_729.h
 rocfft_kernel_81.h
 rocfft_kernel_9.h
@@ -42,16 +38,11 @@ rocfft_kernel_9.h
 
 set( kernels_pow5
 rocfft_kernel_125.h
-rocfft_kernel_128_sbcc.h
-rocfft_kernel_128_sbrc.h
 rocfft_kernel_1.h
-rocfft_kernel_256_sbcc.h
-rocfft_kernel_256_sbrc.h
 rocfft_kernel_25.h
 rocfft_kernel_3125.h
 rocfft_kernel_5.h
 rocfft_kernel_625.h
-rocfft_kernel_64_sbcc.h
 )
 
 set( kernels_all
@@ -177,6 +168,7 @@ rocfft_kernel_640.h
 rocfft_kernel_648.h
 rocfft_kernel_64.h
 rocfft_kernel_64_sbcc.h
+rocfft_kernel_64_sbrc.h
 rocfft_kernel_675.h
 rocfft_kernel_6.h
 rocfft_kernel_720.h

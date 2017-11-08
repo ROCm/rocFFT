@@ -38,6 +38,7 @@ function display_help()
   echo "    [-i|--install] install after build"
   echo "    [-d|--dependencies] install build dependencies"
   echo "    [-c|--clients] build library clients too (combines with -i & -d)"
+  echo "    [-g|--debug] -DCMAKE_BUILD_TYPE=Debug (default is =Release)"
   echo "    [--cuda] build library for cuda backend"
 }
 
@@ -60,6 +61,7 @@ install_package=false
 install_dependencies=false
 build_clients=false
 build_cuda=false
+build_release=true
 
 # #################################################
 # Parameter parsing
@@ -68,7 +70,7 @@ build_cuda=false
 # check if we have a modern version of getopt that can handle whitespace and long parameters
 getopt -T
 if [[ $? -eq 4 ]]; then
-  GETOPT_PARSE=$(getopt --name "${0}" --longoptions help,install,clients,dependencies,cuda --options hicd -- "$@")
+  GETOPT_PARSE=$(getopt --name "${0}" --longoptions help,install,clients,dependencies,debug,cuda --options hicgd -- "$@")
 else
   echo "Need a new version of getopt"
   exit 1
@@ -96,6 +98,9 @@ while true; do
     -c|--clients)
         build_clients=true
         shift ;;
+    -g|--debug)
+        build_release=false
+        shift ;;
     --cuda)
         build_cuda=true
         shift ;;
@@ -113,7 +118,11 @@ printf "\033[32mCreating project build directory in: \033[33m${build_dir}\033[0m
 # prep
 # #################################################
 # ensure a clean build environment
-rm -rf ${build_dir}
+if [[ "${build_release}" == true ]]; then
+  rm -rf ${build_dir}/release
+else
+  rm -rf ${build_dir}/debug
+fi
 
 # #################################################
 # install build dependencies on request
@@ -149,9 +158,9 @@ if [[ "${install_dependencies}" == true ]]; then
       fi
     done
 
-    # The following builds googletest & lapack from source, installs into cmake default /usr/local
+    # The following builds googletest from source, installs into cmake default /usr/local
     pushd .
-      printf "\033[32mBuilding \033[33mgoogletest & lapack\033[32m from source; installing into \033[33m/usr/local\033[0m\n"
+      printf "\033[32mBuilding \033[33mgoogletest\033[32m from source; installing into \033[33m/usr/local\033[0m\n"
       mkdir -p ${build_dir}/deps && cd ${build_dir}/deps
       cmake -DBUILD_BOOST=OFF ../../deps
       make -j$(nproc)
@@ -167,16 +176,26 @@ pushd .
   # #################################################
   # configure & build
   # #################################################
-  mkdir -p ${build_dir}/release/clients && cd ${build_dir}/release
+  cmake_common_options=""
+  cmake_client_options=""
+
+  # build type
+  if [[ "${build_release}" == true ]]; then
+    mkdir -p ${build_dir}/release/clients && cd ${build_dir}/release
+    cmake_common_options="${cmake_common_options} -DCMAKE_BUILD_TYPE=Release"
+  else
+    mkdir -p ${build_dir}/debug/clients && cd ${build_dir}/debug
+    cmake_common_options="${cmake_common_options} -DCMAKE_BUILD_TYPE=Debug"
+  fi
+
+  # clients
+  if [[ "${build_clients}" == true ]]; then
+    cmake_client_options="${cmake_client_options} -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_BENCHMARKS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON"
+  fi
 
   # On ROCm platforms, hcc compiler can build everything
   if [[ "${build_cuda}" == false ]]; then
-    if [[ "${build_clients}" == true ]]; then
-      CXX=hcc cmake -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_BENCHMARKS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON ../..
-    else
-      CXX=hcc cmake ../..
-    fi
-
+    CXX=hcc cmake ${cmake_common_options} ${cmake_client_options} ../..
     make -j$(nproc)
   else
     # The nvidia compile is a little more complicated, in that we split compiling the library from the clients
@@ -188,13 +207,13 @@ pushd .
     # so we launch multiple cmake invocation with a different compiler on each.
 
     # Build library only with hipcc as compiler
-    CXX=hipcc cmake -DCMAKE_INSTALL_PREFIX=rocfft-install -DCPACK_PACKAGE_INSTALL_DIRECTORY=/opt/rocm ../..
+    CXX=hipcc cmake ${cmake_common_options} -DCMAKE_INSTALL_PREFIX=rocfft-install -DCPACK_PACKAGE_INSTALL_DIRECTORY=/opt/rocm ../..
     make -j$(nproc) install
 
     # Build cuda clients with default host compiler
     if [[ "${build_clients}" == true ]]; then
       pushd clients
-        cmake -DCMAKE_PREFIX_PATH=$(pwd)/../rocfft-install -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_BENCHMARKS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON ../../../clients
+        cmake ${cmake_common_options} ${cmake_client_options} -DCMAKE_PREFIX_PATH=$(pwd)/../rocfft-install ../../../clients
         make -j$(nproc)
       popd
     fi
