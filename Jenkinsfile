@@ -188,7 +188,7 @@ Boolean docker_build_inside_image( def build_image, compiler_data compiler_args,
               cd ${paths.project_build_prefix}/build/release/clients/staging
               ./rocfft-test${build_type_postfix} --gtest_output=xml --gtest_color=yes
           """
-        junit "${paths.project_build_prefix}/clients/staging/*.xml"
+        junit "${paths.project_build_prefix}/build/release/clients/staging/*.xml"
       }
 
       String docker_context = "${compiler_args.build_config}/${compiler_args.compiler_name}"
@@ -196,15 +196,15 @@ Boolean docker_build_inside_image( def build_image, compiler_data compiler_args,
       {
         sh  """#!/usr/bin/env bash
             set -x
-            cd ${paths.project_build_prefix}
+            cd ${paths.project_build_prefix}/build/release
             make package
           """
 
         sh  """#!/usr/bin/env bash
             set -x
             rm -rf ${docker_context} && mkdir -p ${docker_context}
-            mv ${paths.project_build_prefix}/*.deb ${docker_context}
-            mv ${paths.project_build_prefix}/*.rpm ${docker_context}
+            mv ${paths.project_build_prefix}/build/release/*.deb ${docker_context}
+            mv ${paths.project_build_prefix}/build/release/*.rpm ${docker_context}
             dpkg -c ${docker_context}/*.deb
         """
 
@@ -220,8 +220,8 @@ Boolean docker_build_inside_image( def build_image, compiler_data compiler_args,
 ////////////////////////////////////////////////////////////////////////
 // This builds a fresh docker image FROM a clean base image, with no build dependencies included
 // Uploads the new docker image to internal artifactory
-// String docker_upload_artifactory( String hcc_ver, String artifactory_org, String from_image, String rocfft_src_rel, String build_dir_rel )
-String docker_upload_artifactory( compiler_data compiler_args, docker_data docker_args, project_paths rocfft_paths, String job_name )
+// String docker_test_install( String hcc_ver, String artifactory_org, String from_image, String rocfft_src_rel, String build_dir_rel )
+String docker_test_install( compiler_data compiler_args, docker_data docker_args, project_paths rocfft_paths, String job_name )
 {
   def rocfft_install_image = null
   String image_name = "rocfft-hip-${compiler_args.compiler_name}-ubuntu-16.04"
@@ -244,30 +244,6 @@ String docker_upload_artifactory( compiler_data compiler_args, docker_data docke
     sh """docker build -t ${job_name}/${image_name} --pull -f ${docker_context}/${docker_args.install_docker_file} \
         --build-arg base_image=${docker_args.from_image} ${docker_context}"""
     rocfft_install_image = docker.image( "${job_name}/${image_name}" )
-
-  // NOTE: Don't push to artifactory yet, just test install package
-
-  // The connection to artifactory can fail sometimes, but this should not be treated as a build fail
-  //   try
-  //   {
-  //     // Don't push pull requests to artifactory, these tend to accumulate over time
-  //     if( env.BRANCH_NAME.toLowerCase( ).startsWith( 'pr-' ) )
-  //     {
-  //       println 'Pull Request (PR-xxx) detected; NOT pushing to artifactory'
-  //     }
-  //     else
-  //     {
-  //       docker.withRegistry('http://compute-artifactory:5001', 'artifactory-cred' )
-  //       {
-  //         rocfft_install_image.push( "${env.BUILD_NUMBER}" )
-  //         rocfft_install_image.push( 'latest' )
-  //       }
-  //     }
-  //   }
-  //   catch( err )
-  //   {
-  //     currentBuild.result = 'SUCCESS'
-  //   }
   }
 
   return image_name
@@ -357,16 +333,15 @@ def build_pipeline( compiler_data compiler_args, docker_data docker_args, projec
       build_succeeded = docker_build_inside_image( rocfft_build_image, compiler_args, docker_args, rocfft_paths )
     }
 
-    // After a successful build, upload a docker image of the results
-    String job_name = env.JOB_NAME.toLowerCase( )
-    String rocfft_image_name = docker_upload_artifactory( compiler_args, docker_args, rocfft_paths, job_name )
+    // After a successful build, test the installer
+    // Only do this for rocm based builds
+    if( compiler_args.compiler_name.toLowerCase( ).startsWith( 'hcc-' ) )
+    {
+      String job_name = env.JOB_NAME.toLowerCase( )
+      String rocfft_image_name = docker_test_install( compiler_args, docker_args, rocfft_paths, job_name )
 
-    // if( params.push_image_to_docker_hub )
-    // {
-    //   docker_upload_dockerhub( job_name, rocfft_image_name, 'rocm' )
-    //   docker_clean_images( 'rocm', rocfft_image_name )
-    // }
-    docker_clean_images( job_name, rocfft_image_name )
+      docker_clean_images( job_name, rocfft_image_name )
+    }
   }
 }
 
