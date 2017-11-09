@@ -59,7 +59,6 @@ set( rocfft_device_source
   kernel_launch_single_large.cpp
   kernel_launch_double_large.cpp
   transpose.cpp
-  kernel_launch_large_transpose.cpp
 )
 
 prepend_path( "../.." rocfft_headers_public relative_rocfft_device_headers_public )
