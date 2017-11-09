@@ -250,6 +250,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         if(fn)
         {
 #ifdef REF_DEBUG
+            printf("\n---------------------------------------------\n");
             printf("\n\nkernel: %zu\n", i); fflush(stdout);
             RefLibOp refLibOp(&data);
 #endif

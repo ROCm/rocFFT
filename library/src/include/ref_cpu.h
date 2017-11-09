@@ -266,7 +266,6 @@ public:
         rmse = sqrt(rmse/(double)totalSize);
         nrmse = rmse/maxMag;
 
-        std::cout << "---------------------------------------------" << std::endl;
         std::cout << "rmse: " << rmse << std::endl << "nrmse: " << nrmse << std::endl;
         std::cout << "---------------------------------------------" << std::endl;
          
