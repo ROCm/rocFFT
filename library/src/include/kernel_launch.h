@@ -10,12 +10,11 @@
 #include <iostream>
 #include "rocfft.h"
 #include "rocfft_hip.h"
-#include "plan.h"
-#include "repo.h"
-#include "transform.h"
+#include "tree_node.h"
+#include "kargs.h"
 #include "error.h"
 #include "kernel_launch_generator.h"
-#include "kargs.h"
+
 
 struct DeviceCallIn
 {
@@ -74,7 +73,6 @@ extern "C"
 void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
-    printf("number of blocks = %d, number of threads = %d\n", data->gridParam.b_x, data->gridParam.tpb_x);  \
     if (data->node->placement == rocfft_placement_inplace) { \
         if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1 ) {\
@@ -142,7 +140,6 @@ void FUNCTION_NAME(const void *data_p, void *back_p)\
 void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
-    printf("number of blocks = %d, number of threads = %d\n", data->gridParam.b_x, data->gridParam.tpb_x);  \
     if(data->node->direction == -1) {\
         hipLaunchKernel(HIP_KERNEL_NAME( FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
                 (PRECISION *)data->node->twiddles, (PRECISION *)data->node->twiddles_large, \
@@ -163,7 +160,6 @@ void FUNCTION_NAME(const void *data_p, void *back_p)\
 void FUNCTION_NAME(const void *data_p, void *back_p)\
 {\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
-    printf("number of blocks = %d, number of threads = %d\n", data->gridParam.b_x, data->gridParam.tpb_x);  \
     if(data->node->direction == -1) {\
         hipLaunchKernel(HIP_KERNEL_NAME( FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, 0, \
                 (PRECISION *)data->node->twiddles, \
