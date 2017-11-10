@@ -120,7 +120,7 @@ private:
 public:
     /*****************************************************/
     rocfft( const std::vector<size_t> lengths_in, const size_t batch_size_in,
-        	const std::vector<size_t> input_strides_in, const std::vector<size_t> output_strides_in,
+            const std::vector<size_t> input_strides_in, const std::vector<size_t> output_strides_in,
             const size_t input_distance_in, const size_t output_distance_in,
             const rocfft_array_type  input_layout_in, const rocfft_array_type  output_layout_in,
             const rocfft_result_placement  placement_in,
@@ -135,7 +135,7 @@ public:
         , _input_layout( input_layout_in )
         , _output_layout( output_layout_in )
         , _placement( placement_in )
-	    , _transformation_direction (transform_type_in)
+        , _transformation_direction (transform_type_in)
         , scale (scale_in)
         , device_workspace_size(0)
         , input(    lengths_in.size(),
@@ -251,16 +251,16 @@ public:
     void set_layouts()
     {
 
-	    LIB_V_THROW( rocfft_plan_description_create (&desc), "rocfft_plan_description_create failed");
+        LIB_V_THROW( rocfft_plan_description_create (&desc), "rocfft_plan_description_create failed");
         // TODO offset non-packed data; only works for 1D now
-	    LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, _input_layout, _output_layout, 0, 0,
+        LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, _input_layout, _output_layout, 0, 0,
                                                           input_strides.size(), input_strides.data(), input_strides[0]*lengths[0],
                                                           output_strides.size(), output_strides.data(), output_strides[0]*lengths[0]),
                                                           "rocfft_plan_description_data_layout failed");
 
 
         // In rocfft, scale must be set before plan create
-	    LIB_V_THROW( rocfft_set_scale_template<T>(desc, scale), "rocfft_plan_descrption_set_scale failed");
+        LIB_V_THROW( rocfft_set_scale_template<T>(desc, scale), "rocfft_plan_descrption_set_scale failed");
 
         LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, dim, lengths.data(), batch_size, desc  ), "rocfft_plan_create failed" );
     }
@@ -288,11 +288,11 @@ public:
         HIP_V_THROW( hipDeviceSynchronize(), "hipDeviceSynchronize failed" );
 
         if( _placement == rocfft_placement_inplace ){
-	        read_gpu_result_to_input_buffer();
-	    }
-	    else{
+            read_gpu_result_to_input_buffer();
+        }
+        else{
             read_gpu_result_to_output_buffer();
-	    }
+        }
 
     }
 
@@ -407,7 +407,7 @@ public:
             {
                 hipFree(output_device_buffers[i]);
             }
-	    }
+        }
 
         if(device_workspace != NULL) hipFree(device_workspace);
 
