@@ -77,7 +77,8 @@ public:
 
 	void Generate(CT **data, CT **mag, int dir = -1)
 	{
-		srand((unsigned int)time(NULL));
+		srand((unsigned int)0xBABABABA);
+		//srand((unsigned int)time(NULL));
 
 		memset(mix, 0, L * B *sizeof(CT));
 		memset(ref, 0, L * B *sizeof(CT));
