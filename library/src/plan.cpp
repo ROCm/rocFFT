@@ -453,7 +453,7 @@ void TreeNode::RecursiveBuildTree()
                 scheme = CS_L1D_TRTRT;
             }
         }
-        else // if (IsPo2(length[0]))
+        else // if not Pow2
         {
             size_t supported[] = {
                 4096, 4050, 4000, 3888, 3840, 3750, 3645, 3600, 3456, 3375, 3240, 3200, 3125, 3072, 3000, 2916, 2880, 2700, 2592, 2560, 2500, 2430, 2400, 2304, 2250, 2187, 2160,

@@ -17,10 +17,10 @@
 
 using namespace std;
 
-//    unique_ptr is a smart pointer that retains sole ownership of an object through a pointer and destroys that object 
-//    when the unique_ptr goes out of scope. No two unique_ptr instances can manage the same object. 
+//    unique_ptr is a smart pointer that retains sole ownership of an object through a pointer and destroys that object
+//    when the unique_ptr goes out of scope. No two unique_ptr instances can manage the same object.
 //    Custom deleter functions for our unique_ptr smart pointer class
-//    In my version 1, I do not use it 
+//    In my version 1, I do not use it
 
 
 
@@ -31,7 +31,7 @@ template<class T>
 rocfft_status rocfft_plan_create_template(rocfft_plan *plan,
                     rocfft_result_placement placement,
                     rocfft_transform_type transform_type,
-                    size_t dimensions, const size_t *lengths, 
+                    size_t dimensions, const size_t *lengths,
                     size_t number_of_transforms,
                     const rocfft_plan_description description );
 
@@ -39,7 +39,7 @@ template<>
 rocfft_status rocfft_plan_create_template<float>(rocfft_plan *plan,
                     rocfft_result_placement placement,
                     rocfft_transform_type transform_type,
-                    size_t dimensions, const size_t *lengths, 
+                    size_t dimensions, const size_t *lengths,
                     size_t number_of_transforms,
                     const rocfft_plan_description description )
 {
@@ -50,7 +50,7 @@ template<>
 rocfft_status rocfft_plan_create_template<double>(rocfft_plan *plan,
                     rocfft_result_placement placement,
                     rocfft_transform_type transform_type,
-                    size_t dimensions, const size_t *lengths, 
+                    size_t dimensions, const size_t *lengths,
                     size_t number_of_transforms,
                     const rocfft_plan_description description )
 {
@@ -86,14 +86,14 @@ template <class T>
 class rocfft {
 private:
 
-    rocfft_array_type  _input_layout, _output_layout; 
+    rocfft_array_type  _input_layout, _output_layout;
     rocfft_result_placement  _placement;
 
 
-    size_t dim;    
+    size_t dim;
 
     rocfft_plan plan;
-    rocfft_plan_description desc; 
+    rocfft_plan_description desc;
     rocfft_execution_info info;
     rocfft_transform_type _transformation_direction;
 
@@ -103,7 +103,7 @@ private:
     std::vector<size_t> input_strides;
     std::vector<size_t> output_strides;
     //hipStream_t stream;
-    
+
     //[0] for REAL, [1] for IMAG part, IMAG is not used if data type is real
     void* input_device_buffers[2];
     void* output_device_buffers[2];
@@ -111,7 +111,7 @@ private:
     buffer<T> input;
     buffer<T> output;
 
-    T scale; 
+    T scale;
 
     size_t device_workspace_size;
     void *device_workspace;
@@ -120,11 +120,11 @@ private:
 public:
     /*****************************************************/
     rocfft( const std::vector<size_t> lengths_in, const size_t batch_size_in,
-        	const std::vector<size_t> input_strides_in, const std::vector<size_t> output_strides_in,
+            const std::vector<size_t> input_strides_in, const std::vector<size_t> output_strides_in,
             const size_t input_distance_in, const size_t output_distance_in,
             const rocfft_array_type  input_layout_in, const rocfft_array_type  output_layout_in,
-            const rocfft_result_placement  placement_in, 
-            const rocfft_transform_type transform_type_in, 
+            const rocfft_result_placement  placement_in,
+            const rocfft_transform_type transform_type_in,
             const T scale_in )
         try
         : dim(lengths_in.size())
@@ -135,7 +135,7 @@ public:
         , _input_layout( input_layout_in )
         , _output_layout( output_layout_in )
         , _placement( placement_in )
-	    , _transformation_direction (transform_type_in)
+        , _transformation_direction (transform_type_in)
         , scale (scale_in)
         , device_workspace_size(0)
         , input(    lengths_in.size(),
@@ -159,7 +159,7 @@ public:
         argument_check(); //TODO add more FFT argument check
 
         //verbose_output();
-        
+
     /********************create plan and perform the FFT transformation *********************************/
 
         input_device_buffers[0] = NULL;
@@ -172,11 +172,11 @@ public:
         initialize_resource(); //allocate
 
         LIB_V_THROW( rocfft_setup(), "rocfft_setup failed");
-                           
+
         plan = NULL;
         desc = NULL;
         info = NULL;
-         
+
         initialize_plan();
 
         /*****************************************************/
@@ -222,25 +222,24 @@ public:
     void initialize_plan()
     {
 
-        if( _input_layout == rocfft_array_type_complex_interleaved && 
-            _output_layout == rocfft_array_type_complex_interleaved && 
+        if( _input_layout == rocfft_array_type_complex_interleaved &&
+            _output_layout == rocfft_array_type_complex_interleaved &&
             input_strides[0] == 1 &&
             output_strides[0] == 1 &&
             scale == 1.0 ){
-            printf("I am in simple plan create\n");
-            LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, 
-                         dim, lengths.data(), batch_size, NULL  ), "rocfft_plan_create failed" );//simply case plan create 
+            LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction,
+                         dim, lengths.data(), batch_size, NULL  ), "rocfft_plan_create failed" );//simply case plan create
         }
         else{
-            printf("I am setting layout\n");
-            set_layouts();//explicitely set layout and then create plan  
+            set_layouts();//explicitely set layout and then create plan
         }
-
+#ifdef DEBUG
         LIB_V_THROW( rocfft_plan_get_print ( plan ), "rocfft_plan_get_print failed");
-        //get the worksapce_size based on the plan 
+#endif
 
+        //get the worksapce_size based on the plan
         LIB_V_THROW( rocfft_plan_get_work_buffer_size( plan, &device_workspace_size ), "rocfft_plan_get_work_buffer_size failed" );
-        //allocate the worksapce 
+        //allocate the worksapce
         if (device_workspace_size)
         {
             HIP_V_THROW( hipMalloc(&device_workspace, device_workspace_size), "Creating intmediate Buffer failed" );
@@ -252,31 +251,31 @@ public:
     void set_layouts()
     {
 
-	    LIB_V_THROW( rocfft_plan_description_create (&desc), "rocfft_plan_description_create failed");
+        LIB_V_THROW( rocfft_plan_description_create (&desc), "rocfft_plan_description_create failed");
         // TODO offset non-packed data; only works for 1D now
-	    LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, _input_layout, _output_layout, 0, 0, 
-                                                          input_strides.size(), input_strides.data(), input_strides[0]*lengths[0], 
+        LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, _input_layout, _output_layout, 0, 0,
+                                                          input_strides.size(), input_strides.data(), input_strides[0]*lengths[0],
                                                           output_strides.size(), output_strides.data(), output_strides[0]*lengths[0]),
                                                           "rocfft_plan_description_data_layout failed");
 
 
         // In rocfft, scale must be set before plan create
-	    LIB_V_THROW( rocfft_set_scale_template<T>(desc, scale), "rocfft_plan_descrption_set_scale failed");
+        LIB_V_THROW( rocfft_set_scale_template<T>(desc, scale), "rocfft_plan_descrption_set_scale failed");
 
-        LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, dim, lengths.data(), batch_size, desc  ), "rocfft_plan_create failed" );       
+        LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction, dim, lengths.data(), batch_size, desc  ), "rocfft_plan_create failed" );
     }
 
 
     /*****************************************************/
     void transform(bool explicit_intermediate_buffer = use_explicit_intermediate_buffer) {
- 
+
         write_local_input_buffer_to_gpu(); // perform memory copy from cpu to gpu
 
         LIB_V_THROW( rocfft_execution_info_create(&info), "rocfft_execution_info_create failed" );
 
-        if(device_workspace != NULL) //if device_workspace is required 
+        if(device_workspace != NULL) //if device_workspace is required
         {
-            LIB_V_THROW( rocfft_execution_info_set_work_buffer(info, device_workspace, device_workspace_size), 
+            LIB_V_THROW( rocfft_execution_info_set_work_buffer(info, device_workspace, device_workspace_size),
                       "rocfft_execution_info_set_work_buffer failed" );
         }
 
@@ -289,12 +288,12 @@ public:
         HIP_V_THROW( hipDeviceSynchronize(), "hipDeviceSynchronize failed" );
 
         if( _placement == rocfft_placement_inplace ){
-	        read_gpu_result_to_input_buffer();
-	    }
-	    else{
+            read_gpu_result_to_input_buffer();
+        }
+        else{
             read_gpu_result_to_output_buffer();
-	    }
-	
+        }
+
     }
 
     /*****************************************************/
@@ -387,11 +386,11 @@ public:
 
     /*****************************************************/
     //Do not need to check placement valid or not. the checking has been done at the very beginning in the constructor
-    buffer<T> & result() 
+    buffer<T> & result()
     {
         if( _placement == rocfft_placement_inplace )
             return input;
-        else 
+        else
             return output;
     }
 
@@ -400,22 +399,22 @@ public:
     {
         for(int i=0;i<2;i++)
         {
-            if(input_device_buffers[i] != NULL) 
+            if(input_device_buffers[i] != NULL)
             {
                 hipFree(input_device_buffers[i]);
             }
-            if(output_device_buffers[i] != NULL) 
+            if(output_device_buffers[i] != NULL)
             {
                 hipFree(output_device_buffers[i]);
             }
-	    }
-    
+        }
+
         if(device_workspace != NULL) hipFree(device_workspace);
 
         if(desc != NULL){
             LIB_V_THROW( rocfft_plan_description_destroy(desc), "rocfft_plan_description_destroy failed" );
         }
-    
+
         if(info != NULL){
             LIB_V_THROW( rocfft_execution_info_destroy(info), "rocfft_execution_info_destroy failed" );
         }
@@ -513,7 +512,7 @@ private:
                 }
                 case rocfft_array_type_complex_planar:
                 {
-                    if( (_output_layout == rocfft_array_type_complex_interleaved) 
+                    if( (_output_layout == rocfft_array_type_complex_interleaved)
                                 || (_output_layout == rocfft_array_type_hermitian_interleaved) )
                     {
                         throw std::runtime_error( "Cannot use the same buffer for planar->interleaved in-place transforms" );
@@ -540,10 +539,10 @@ private:
                         throw std::runtime_error( "Cannot use the same buffer for interleaved->planar in-place transforms" );
                     }
                     break;
-                }    
+                }
             } //end switch
         } // end if
-    }// end check 
+    }// end check
 
 
 };
