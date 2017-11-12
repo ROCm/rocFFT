@@ -119,18 +119,21 @@ class RefLibOp
 
     void CopyVector(local_fftwf_complex *dst, local_fftwf_complex *src, size_t batch, size_t dist, std::vector<size_t> length, std::vector<size_t> stride)
     {
-        size_t offset_dst = 0;
-        size_t offset_src = 0;
-        size_t offset_src_d = 0;
-		size_t pos = 0;
-
-		std::vector<size_t> current;
-		for(size_t i=0; i<length.size(); i++) current.push_back(0);
+        size_t lenSize = 1;
+        for(size_t i=0; i<length.size(); i++) lenSize *= length[i];
 
         size_t b = 0;
         while(b<batch)
         {
-            offset_src += b*dist;
+            size_t offset_dst = 0;
+            size_t offset_src = 0;
+            size_t offset_src_d = 0;
+		    size_t pos = 0;
+            bool obreak = false;
+
+		    std::vector<size_t> current;
+    		for(size_t i=0; i<length.size(); i++) current.push_back(0);
+
         	while(true)
             {
                 offset_src = offset_src_d + current[0]*stride[0];
@@ -145,22 +148,29 @@ class RefLibOp
                 {
                     if(pos == (length.size() - 1))
                     {
-    					goto nested_exit;
+                        obreak = true;
+                        break;
                     }
         
                     current[pos] = 0;
                     pos++;
                     current[pos]++;
-       
+      
+                    offset_src_d = 0; 
     				for(size_t i=1; i<current.size(); i++)
     					offset_src_d += current[i]*stride[i]; 
         
                 }
-        
+       
+                if(obreak)
+                   break;
+
                 pos = 0;
             }
-nested_exit:
+
             b++;
+            src += dist;
+            dst += lenSize;
 		}
     }
 
@@ -179,6 +189,41 @@ nested_exit:
             free(tmp_mem);
     }
 
+    inline float2 TwMul(float2 *twiddles, const size_t twl, const int direction, float2 val, size_t u)
+    {
+        size_t j = u & 255;
+        float2 result = twiddles[j];
+
+        float real, imag;
+        size_t h = 1;
+        do
+        {
+            u >>= 8;
+            j = u & 255;
+            real = (result.x * twiddles[256*h + j].x - result.y * twiddles[256*h + j].y);
+            imag = (result.y * twiddles[256*h + j].x + result.x * twiddles[256*h + j].y);
+            result.x = real;
+            result.y = imag;
+            h++;
+        } while(h < twl);
+
+        if(direction == -1)
+        {
+            real = (result.x * val.x) - (result.y * val.y);
+            imag = (result.y * val.x) + (result.x * val.y);
+        }
+        else
+        {
+            real =  (result.x * val.x) + (result.y * val.y);
+            imag = -(result.y * val.x) + (result.x * val.y);
+        }
+
+        result.x = real;
+        result.y = imag;
+
+        return result;
+    }
+
     void Execute(const void *data_p)
     {
         DeviceCallIn *data = (DeviceCallIn *)data_p;
@@ -195,7 +240,12 @@ nested_exit:
             int howmany = data->node->batch;
             for(size_t i=1; i<data->node->length.size(); i++) howmany *= data->node->length[i];
     
-            void *p = local_fftwf_plan_many_dft(1, n, howmany, in, NULL, 1, n[0], ot, NULL, 1, n[0], LOCAL_FFTW_FORWARD, LOCAL_FFTW_ESTIMATE);
+            void *p;
+            if(data->node->direction == -1)
+                p = local_fftwf_plan_many_dft(1, n, howmany, in, NULL, 1, n[0], ot, NULL, 1, n[0], LOCAL_FFTW_FORWARD, LOCAL_FFTW_ESTIMATE);
+            else
+                p = local_fftwf_plan_many_dft(1, n, howmany, in, NULL, 1, n[0], ot, NULL, 1, n[0], LOCAL_FFTW_BACKWARD, LOCAL_FFTW_ESTIMATE);
+
             CopyInputVector(data_p);
             local_fftwf_execute(p);
             local_fftwf_destroy_plan(p);
@@ -209,14 +259,52 @@ nested_exit:
 
             size_t cols = data->node->length[0];
             size_t rows = data->node->length[1];
-            for(size_t b=0; b<howmany; b++)
+
+            if(data->node->large1D == 0)
             {
-                for(size_t i=0; i<rows; i++)
+                for(size_t b=0; b<howmany; b++)
                 {
-                    for(size_t j=0; j<cols; j++)
+                    for(size_t i=0; i<rows; i++)
                     {
-                        ot[b*rows*cols + j*rows + i][0] = in[b*rows*cols + i*cols + j][0];
-                        ot[b*rows*cols + j*rows + i][1] = in[b*rows*cols + i*cols + j][1];
+                        for(size_t j=0; j<cols; j++)
+                        {
+                            ot[b*rows*cols + j*rows + i][0] = in[b*rows*cols + i*cols + j][0];
+                            ot[b*rows*cols + j*rows + i][1] = in[b*rows*cols + i*cols + j][1];
+                        }
+                    }
+                }
+            }
+            else
+            {
+                float2 *twtc;
+                size_t ns = 0;
+                TwiddleTableLarge<float2> twTable(data->node->large1D);
+                std::tie(ns, twtc) = twTable.GenerateTwiddleTable();
+
+                int twl = 0;
+            
+                     if(data->node->large1D > (size_t)256*256*256*256) printf("large1D twiddle size too large error");
+                else if(data->node->large1D > (size_t)256*256*256) twl = 4;
+                else if(data->node->large1D > (size_t)256*256) twl = 3;
+                else if(data->node->large1D > (size_t)256) twl = 2;
+                else twl = 0;
+    
+                for(size_t b=0; b<howmany; b++)
+                {
+                    for(size_t i=0; i<rows; i++)
+                    {
+                        for(size_t j=0; j<cols; j++)
+                        {
+                            float2 in_v, ot_v;
+
+                            in_v.x = in[b*rows*cols + i*cols + j][0];
+                            in_v.y = in[b*rows*cols + i*cols + j][1];
+
+                            ot_v = TwMul(twtc, twl, data->node->direction, in_v, i*j);
+
+                            ot[b*rows*cols + j*rows + i][0] = ot_v.x;
+                            ot[b*rows*cols + j*rows + i][1] = ot_v.y;
+                        }
                     }
                 }
             }
@@ -242,7 +330,19 @@ public:
    
         local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(out_size_bytes);
         hipMemcpy(tmp_mem, data->bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
-        CopyVector(lb, tmp_mem, data->node->batch, data->node->oDist, data->node->length, data->node->outStride);
+
+        if(data->node->scheme == CS_KERNEL_TRANSPOSE)
+        {
+            std::vector<size_t> length_transpose_output;
+            length_transpose_output.push_back(data->node->length[1]);
+            length_transpose_output.push_back(data->node->length[0]);
+            for(size_t i=2; i<data->node->length.size(); i++) length_transpose_output.push_back(data->node->length[i]);
+            CopyVector(lb, tmp_mem, data->node->batch, data->node->oDist, length_transpose_output, data->node->outStride);
+        }
+        else
+        {
+            CopyVector(lb, tmp_mem, data->node->batch, data->node->oDist, data->node->length, data->node->outStride);
+        }
 
         double maxMag = 0.0;
         double rmse = 0.0, nrmse = 0.0;
