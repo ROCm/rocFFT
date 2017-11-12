@@ -189,7 +189,7 @@ class RefLibOp
             free(tmp_mem);
     }
 
-    float2 TwMul(float2 *twiddles, float2 val, size_t u)
+    inline float2 TwMul(float2 *twiddles, const size_t twl, const int direction, float2 val, size_t u)
     {
         size_t j = u & 255;
         float2 result = twiddles[j];
@@ -205,10 +205,19 @@ class RefLibOp
             result.x = real;
             result.y = imag;
             h++;
-        } while(u != 0);
+        } while(h < twl);
 
-        real = (result.x * val.x - result.y * val.y);
-        imag = (result.y * val.x + result.x * val.y);
+        if(direction == -1)
+        {
+            real = (result.x * val.x) - (result.y * val.y);
+            imag = (result.y * val.x) + (result.x * val.y);
+        }
+        else
+        {
+            real =  (result.x * val.x) + (result.y * val.y);
+            imag = -(result.y * val.x) + (result.x * val.y);
+        }
+
         result.x = real;
         result.y = imag;
 
@@ -231,7 +240,12 @@ class RefLibOp
             int howmany = data->node->batch;
             for(size_t i=1; i<data->node->length.size(); i++) howmany *= data->node->length[i];
     
-            void *p = local_fftwf_plan_many_dft(1, n, howmany, in, NULL, 1, n[0], ot, NULL, 1, n[0], LOCAL_FFTW_FORWARD, LOCAL_FFTW_ESTIMATE);
+            void *p;
+            if(data->node->direction == -1)
+                p = local_fftwf_plan_many_dft(1, n, howmany, in, NULL, 1, n[0], ot, NULL, 1, n[0], LOCAL_FFTW_FORWARD, LOCAL_FFTW_ESTIMATE);
+            else
+                p = local_fftwf_plan_many_dft(1, n, howmany, in, NULL, 1, n[0], ot, NULL, 1, n[0], LOCAL_FFTW_BACKWARD, LOCAL_FFTW_ESTIMATE);
+
             CopyInputVector(data_p);
             local_fftwf_execute(p);
             local_fftwf_destroy_plan(p);
@@ -267,6 +281,14 @@ class RefLibOp
                 TwiddleTableLarge<float2> twTable(data->node->large1D);
                 std::tie(ns, twtc) = twTable.GenerateTwiddleTable();
 
+                int twl = 0;
+            
+                     if(data->node->large1D > (size_t)256*256*256*256) printf("large1D twiddle size too large error");
+                else if(data->node->large1D > (size_t)256*256*256) twl = 4;
+                else if(data->node->large1D > (size_t)256*256) twl = 3;
+                else if(data->node->large1D > (size_t)256) twl = 2;
+                else twl = 0;
+    
                 for(size_t b=0; b<howmany; b++)
                 {
                     for(size_t i=0; i<rows; i++)
@@ -278,7 +300,7 @@ class RefLibOp
                             in_v.x = in[b*rows*cols + i*cols + j][0];
                             in_v.y = in[b*rows*cols + i*cols + j][1];
 
-                            ot_v = TwMul(twtc, in_v, i*j);
+                            ot_v = TwMul(twtc, twl, data->node->direction, in_v, i*j);
 
                             ot[b*rows*cols + j*rows + i][0] = ot_v.x;
                             ot[b*rows*cols + j*rows + i][1] = ot_v.y;
@@ -308,7 +330,19 @@ public:
    
         local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(out_size_bytes);
         hipMemcpy(tmp_mem, data->bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
-        CopyVector(lb, tmp_mem, data->node->batch, data->node->oDist, data->node->length, data->node->outStride);
+
+        if(data->node->scheme == CS_KERNEL_TRANSPOSE)
+        {
+            std::vector<size_t> length_transpose_output;
+            length_transpose_output.push_back(data->node->length[1]);
+            length_transpose_output.push_back(data->node->length[0]);
+            for(size_t i=2; i<data->node->length.size(); i++) length_transpose_output.push_back(data->node->length[i]);
+            CopyVector(lb, tmp_mem, data->node->batch, data->node->oDist, length_transpose_output, data->node->outStride);
+        }
+        else
+        {
+            CopyVector(lb, tmp_mem, data->node->batch, data->node->oDist, data->node->length, data->node->outStride);
+        }
 
         double maxMag = 0.0;
         double rmse = 0.0, nrmse = 0.0;
