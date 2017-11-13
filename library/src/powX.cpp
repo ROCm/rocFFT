@@ -102,29 +102,10 @@ void PlanPowX(ExecPlan &execPlan)
                         (execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE_XY_Z) ||
                         (execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE_Z_XY))
                 {
-
-                    if(IsPo2(execPlan.execSeq[i]->length[0]) && IsPo2(execPlan.execSeq[i]->length[1]))
-                    {
-                        ptr = &FN_PRFX(transpose_var1_sp);//sepcial transpose for pow2
-                        gp.tpb_x = 16;
-                        gp.tpb_y = 16;
-                        if(execPlan.execSeq[i]->transTileDir == TTD_IP_HOR)
-                        {
-                            gp.b_x = execPlan.execSeq[i]->length[0] / 64;
-                            gp.b_y = (execPlan.execSeq[i]->length[1] / 64) * execPlan.execSeq[i]->batch;
-                        }
-                        else
-                        {
-                            gp.b_x = execPlan.execSeq[i]->length[1] / 64;
-                            gp.b_y = (execPlan.execSeq[i]->length[0] / 64) * execPlan.execSeq[i]->batch;
-                        }
-                    }
-                    else
-                    {
-                        ptr = &FN_PRFX(transpose_var2);
-                        gp.tpb_x = 16;
-                        gp.tpb_y = 16;
-                    }
+                    ptr = &FN_PRFX(transpose_var2);
+                    gp.tpb_x = 16;
+                    gp.tpb_y = 16;
+                    
                 }
 
                 execPlan.devFnCall.push_back(ptr);
