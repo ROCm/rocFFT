@@ -18,7 +18,8 @@ enum OperatingBuffer
     OB_UNINIT,
     OB_USER_IN,
     OB_USER_OUT,
-    OB_TEMP
+    OB_TEMP,
+    OB_TEMP_CMPLX_FOR_REAL
 };
 
 enum ComputeScheme
@@ -30,14 +31,29 @@ enum ComputeScheme
     CS_KERNEL_TRANSPOSE,
     CS_KERNEL_TRANSPOSE_XY_Z,
     CS_KERNEL_TRANSPOSE_Z_XY,
+
+    CS_REAL_TRANSFORM_USING_CMPLX,
+    CS_KERNEL_COPY_R_TO_CMPLX,
+    CS_KERNEL_COPY_CMPLX_TO_HERM,
+    CS_KERNEL_COPY_HERM_TO_CMPLX,
+    CS_KERNEL_COPY_CMPLX_TO_R,
+
+    CS_BLSTN,
+    CS_KERNEL_COPY_FORW_BLSTN,
+    CS_KERNEL_COPY_INVR_BLSTN,
+    CS_KERNEL_MUL,
+    CS_KERNEL_CHIRP,
+
     CS_L1D_TRTRT,
     CS_L1D_CC,
     CS_L1D_CRT,
+
     CS_2D_STRAIGHT,
     CS_2D_RTRT,
     CS_2D_RC,
     CS_KERNEL_2D_STOCKHAM_BLOCK_CC,
     CS_KERNEL_2D_SINGLE,
+
     CS_3D_STRAIGHT,
     CS_3D_RTRT,
     CS_3D_RC,
@@ -148,10 +164,10 @@ public:
     }
 
     void RecursiveBuildTree();
-    void TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, OperatingBuffer &flipOut);
+    void TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, OperatingBuffer &flipOut, OperatingBuffer &obOutBuf);
     void TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn, rocfft_array_type rootOut);
     void TraverseTreeAssignParamsLogicA();
-    void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size_t &workBufSize);
+    void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size_t &tmpBufSize, size_t &cmplxForRealSize);
     void Print(int indent = 0) const;
 
     // logic B - using in-place transposes, todo
