@@ -48,12 +48,12 @@ void Repo::CreatePlan(rocfft_plan plan)
         ProcessNode(execPlan); //TODO: more descriptions are needed
 
         PlanPowX(execPlan); // PlanPowX enqueues the GPU kernels by function pointers but does not execute kernels
-        planUnique[*plan] = execPlan; //add this plan into member planUnique (type of map)
-        execLookup[plan] = execPlan; // add this plan into member execLookup (type of map)
+        repo.planUnique[*plan] = execPlan; //add this plan into member planUnique (type of map)
+        repo.execLookup[plan] = execPlan; // add this plan into member execLookup (type of map)
     }
     else //find the stored plan
     {
-        execLookup[plan] = it->second; //retrieve this plan and put it into member execLookup
+        repo.execLookup[plan] = it->second; //retrieve this plan and put it into member execLookup
     }
 }
 

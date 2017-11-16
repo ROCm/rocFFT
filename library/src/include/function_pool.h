@@ -26,35 +26,33 @@ class function_pool
     std::unordered_map<Key, DevFnCall, SimpleHash> function_map_single;
     std::unordered_map<Key, DevFnCall, SimpleHash> function_map_double;
 
-public:
-    //function_pool(const function_pool &) = delete; // delete is a c++11 feature, prohibit copy constructor 
-    //function_pool &operator=(const function_pool &) = delete; //prohibit assignment operator
-
     function_pool();
+
+public:
+    function_pool(const function_pool &) = delete; // delete is a c++11 feature, prohibit copy constructor 
+    function_pool &operator=(const function_pool &) = delete; //prohibit assignment operator
+
+
+    static function_pool &get_function_pool()
+    {
+        static function_pool func_pool;
+        return func_pool;
+    }
 
     ~function_pool()
     {
     }
 
-    DevFnCall get_function_single(Key mykey)
+    static DevFnCall get_function_single(Key mykey)
     {
-        return function_map_single.at(mykey);//return an reference to the value of the key, if not found throw an exception
-/*
-        std::unordered_map<size_t, DevFnCall>::const_iterator iter = function_map_single.find (length);
-
-        if ( iter == function_map_single.end() ){
-            std::cout << "no implementation is found" << std::endl;
-            return nullptr;
-        }
-        else{
-            return iter->second;
-        }
-*/
+        function_pool &func_pool = get_function_pool();
+        return func_pool.function_map_single.at(mykey);//return an reference to the value of the key, if not found throw an exception
     }
 
-    DevFnCall get_function_double(Key mykey)
+    static DevFnCall get_function_double(Key mykey)
     {
-        return function_map_double.at(mykey);
+        function_pool &func_pool = get_function_pool();
+        return func_pool.function_map_double.at(mykey);
     }
 
 
