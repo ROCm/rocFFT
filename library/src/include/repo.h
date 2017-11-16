@@ -38,9 +38,9 @@ public:
 		}
 	}
 
-	void CreatePlan(rocfft_plan plan);
-	void GetPlan(rocfft_plan plan, ExecPlan &execPlan);
-	void DeletePlan(rocfft_plan plan);
+	static void CreatePlan(rocfft_plan plan);
+	static void GetPlan(rocfft_plan plan, ExecPlan &execPlan);
+	static void DeletePlan(rocfft_plan plan);
 	
 };
 
