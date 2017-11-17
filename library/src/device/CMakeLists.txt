@@ -53,6 +53,7 @@ add_custom_command(
 set( rocfft_device_source
   transpose.cpp
   real2complex.cpp
+  complex2real.cpp
   function_pool.cpp
   kernel_launch_single.cpp
   kernel_launch_double.cpp
