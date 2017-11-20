@@ -197,8 +197,10 @@ struct ExecPlan
     std::vector<DevFnCall> devFnCall;
     std::vector<GridParam> gridParam;
     size_t workBufSize;
+    size_t tmpWorkBufSize;
+    size_t copyWorkBufSize;
 
-    ExecPlan() : rootPlan(nullptr), workBufSize(0)
+    ExecPlan() : rootPlan(nullptr), workBufSize(0), tmpWorkBufSize(0), copyWorkBufSize(0)
     {}
 };
 
