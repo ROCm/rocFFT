@@ -2192,6 +2192,8 @@ void ProcessNode(ExecPlan &execPlan)
     size_t cmplxForRealSize = 0;
     execPlan.rootPlan->TraverseTreeCollectLeafsLogicA(execPlan.execSeq, tmpBufSize, cmplxForRealSize);
     execPlan.workBufSize = tmpBufSize + cmplxForRealSize;
+    execPlan.tmpWorkBufSize = tmpBufSize;
+    execPlan.copyWorkBufSize = cmplxForRealSize;
 }
 
 

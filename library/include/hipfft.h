@@ -143,31 +143,31 @@ DLL_PUBLIC hipfftResult hipfftEstimateMany(int rank,
                                        int batch,
                                        size_t *workSize);
 
-DLL_PUBLIC hipfftResult hipfftCreate(hipfftHandle * handle);
+DLL_PUBLIC hipfftResult hipfftCreate(hipfftHandle * plan);
 
-DLL_PUBLIC hipfftResult hipfftGetSize1d(hipfftHandle handle,
+DLL_PUBLIC hipfftResult hipfftGetSize1d(hipfftHandle plan,
                                     int nx,
                                     hipfftType type,
                                     int batch, /* deprecated - use hipfftGetSizeMany */
                                     size_t *workSize );
 
-DLL_PUBLIC hipfftResult hipfftGetSize2d(hipfftHandle handle,
+DLL_PUBLIC hipfftResult hipfftGetSize2d(hipfftHandle plan,
                                     int nx, int ny,
                                     hipfftType type,
                                     size_t *workSize);
 
-DLL_PUBLIC hipfftResult hipfftGetSize3d(hipfftHandle handle,
+DLL_PUBLIC hipfftResult hipfftGetSize3d(hipfftHandle plan,
                                     int nx, int ny, int nz,
                                     hipfftType type,
                                     size_t *workSize);
 
-DLL_PUBLIC hipfftResult hipfftGetSizeMany(hipfftHandle handle,
+DLL_PUBLIC hipfftResult hipfftGetSizeMany(hipfftHandle plan,
                                       int rank, int *n,
                                       int *inembed, int istride, int idist,
                                       int *onembed, int ostride, int odist,
-                                      hipfftType type, int batch, size_t *workArea);
+                                      hipfftType type, int batch, size_t *workSize);
 
-DLL_PUBLIC hipfftResult hipfftGetSize(hipfftHandle handle, size_t *workSize);
+DLL_PUBLIC hipfftResult hipfftGetSize(hipfftHandle plan, size_t *workSize);
 
 DLL_PUBLIC hipfftResult hipfftSetWorkArea(hipfftHandle plan, void *workArea);
 
