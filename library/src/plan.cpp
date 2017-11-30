@@ -484,7 +484,7 @@ void TreeNode::RecursiveBuildTree()
     // this flag can be enabled when generator can do block column fft in multi-dimension cases and small 2d, 3d within one kernel
     bool MultiDimFuseKernelsAvailable = false;
 
-    if( (inArrayType == rocfft_array_type_real) || (outArrayType == rocfft_array_type_real) )
+    if( (parent == nullptr) && ((inArrayType == rocfft_array_type_real) || (outArrayType == rocfft_array_type_real)) )
     {
         scheme = CS_REAL_TRANSFORM_USING_CMPLX;
 
