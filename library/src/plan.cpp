@@ -259,6 +259,19 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
             if(p->desc.inDist == 0)
                 p->desc.inDist = dist;
         }
+        else if( (p->transformType == rocfft_transform_type_real_forward) && (p->placement == rocfft_placement_inplace) )
+        {
+            size_t dist = 2 * (1 + (p->lengths[0])/2);
+           
+            for(size_t i=1; i<(p->rank); i++)
+            {
+                p->desc.inStrides[i] = dist;
+                dist *= p->lengths[i];
+            }
+
+            if(p->desc.inDist == 0)
+                p->desc.inDist = dist;
+        }
         else
         {
             for(size_t i=1; i<(p->rank); i++)
@@ -273,6 +286,19 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
         if(p->transformType == rocfft_transform_type_real_forward)
         {
             size_t dist = 1 + (p->lengths[0])/2;
+           
+            for(size_t i=1; i<(p->rank); i++)
+            {
+                p->desc.outStrides[i] = dist;
+                dist *= p->lengths[i];
+            }
+
+            if(p->desc.outDist == 0)
+                p->desc.outDist = dist;
+        }
+        else if( (p->transformType == rocfft_transform_type_real_inverse) && (p->placement == rocfft_placement_inplace) )
+        {
+            size_t dist = 2 * (1 + (p->lengths[0])/2);
            
             for(size_t i=1; i<(p->rank); i++)
             {
