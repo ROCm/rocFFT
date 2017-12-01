@@ -222,11 +222,11 @@ public:
     void initialize_plan()
     {
 
-        if( _input_layout == rocfft_array_type_complex_interleaved &&
-            _output_layout == rocfft_array_type_complex_interleaved &&
+        if(
             input_strides[0] == 1 &&
             output_strides[0] == 1 &&
             scale == 1.0 ){
+            printf("I am in simply create\n");
             LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction,
                          dim, lengths.data(), batch_size, NULL  ), "rocfft_plan_create failed" );//simply case plan create
         }
@@ -253,9 +253,16 @@ public:
 
         LIB_V_THROW( rocfft_plan_description_create (&desc), "rocfft_plan_description_create failed");
         // TODO offset non-packed data; only works for 1D now
+    
+        size_t output_distance = output_strides[0]*lengths[0];
+        if(is_hermitian(_output_layout))//if real to hermitian
+        {
+            output_distance = output_distance/2 + 1;
+        }
+        
         LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, _input_layout, _output_layout, 0, 0,
                                                           input_strides.size(), input_strides.data(), input_strides[0]*lengths[0],
-                                                          output_strides.size(), output_strides.data(), output_strides[0]*lengths[0]),
+                                                          output_strides.size(), output_strides.data(), output_distance),
                                                           "rocfft_plan_description_data_layout failed");
 
 
