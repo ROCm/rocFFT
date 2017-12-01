@@ -8,30 +8,30 @@
 #include "kernel_launch.h"
 #include "./kernels/common.h"
 
+
 template<typename T>
 __global__
-void real2complex_kernel(hipLaunchParm lp, size_t input_size, real_type_t<T> *input, size_t input_distance, T *output, size_t output_distance)
+void complex2real_kernel(hipLaunchParm lp, size_t input_size, T *input, size_t input_distance, real_type_t<T> *output, size_t output_distance)
 {
-    size_t tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+    int tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     
-    size_t input_offset = hipBlockIdx_y * input_distance;
+    int input_offset = hipBlockIdx_y * input_distance;
 
-    size_t output_offset = hipBlockIdx_y * output_distance;
+    int output_offset = hipBlockIdx_y * output_distance;
 
     input += input_offset;
     output += output_offset;
 
     if( tid < input_size)
     {
-        output[tid].y = 0.0;
-        output[tid].x = input[tid];
+        output[tid] = input[tid].x;
     }
 }
 
 
 /*! \brief auxiliary function
 
-    convert a real vector into a complex one by padding the imaginary part with 0.
+    convert a complex vector into a real one by only taking the real part of the complex vector
 
     @param[in]
     input_size 
@@ -39,7 +39,7 @@ void real2complex_kernel(hipLaunchParm lp, size_t input_size, real_type_t<T> *in
 
     @param[in]
     input_buffer
-          data type : float or double 
+          data type : float2 or double2 
 
     @param[in]
     input_distance 
@@ -47,7 +47,7 @@ void real2complex_kernel(hipLaunchParm lp, size_t input_size, real_type_t<T> *in
 
     @param[in,output]
     output_buffer
-          data type : complex type (float2 or double2)
+          data type : float or double
 
     @param[in]
     output_distance 
@@ -61,15 +61,17 @@ void real2complex_kernel(hipLaunchParm lp, size_t input_size, real_type_t<T> *in
     precision 
           data type of input buffer. rocfft_precision_single or rocfft_precsion_double
 
+
     ********************************************************************/
 
-void real2complex(const void *data_p, void *back_p) 
+//currently only works for stride=1 cases
+void complex2real(const void *data_p, void *back_p) 
 {
     DeviceCallIn *data = (DeviceCallIn *)data_p;
 
     size_t input_size = 1;
 
-    for(size_t i=0; i<data->node->length.size();i++){
+    for(int i=0; i<data->node->length.size();i++){
         input_size *= data->node->length[i];
     }
 
@@ -84,15 +86,15 @@ void real2complex(const void *data_p, void *back_p)
     size_t batch = data->node->batch;
     rocfft_precision precision = data->node->precision;
     
-    size_t blocks = (input_size-1)/512 + 1;
+    int blocks = (input_size-1)/512 + 1;
 
     dim3 grid(blocks, batch, 1);//the second dimension is used for batching 
     dim3 threads(512, 1, 1);//use 512 threads (work items)
 
     if(precision == rocfft_precision_single) 
-        hipLaunchKernel( real2complex_kernel<float2>, grid, threads, 0, 0, input_size, (float *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
+        hipLaunchKernel( complex2real_kernel<float2>, grid, threads, 0, 0, input_size, (float2 *)input_buffer, input_distance, (float *)output_buffer, output_distance);  
     else 
-        hipLaunchKernel( real2complex_kernel<double2>, grid, threads, 0, 0, input_size, (double *)input_buffer, input_distance, (double2 *)output_buffer,
+        hipLaunchKernel( complex2real_kernel<double2>, grid, threads, 0, 0, input_size, (double2 *)input_buffer, input_distance, (double *)output_buffer,
 output_distance);
 
     return;    
@@ -104,29 +106,30 @@ output_distance);
 
 template<typename T>
 __global__
-void complex2hermitian_kernel(hipLaunchParm lp, size_t input_size, T *input, size_t input_distance, T *output, size_t output_distance)
+void hermitian2complex_kernel(hipLaunchParm lp, size_t N, T *input, size_t input_distance, T *output, size_t output_distance)
 {
-    size_t tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+    int tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     
-    size_t input_offset = hipBlockIdx_y * input_distance;
+    int input_offset = hipBlockIdx_y * input_distance;
 
-    size_t output_offset = hipBlockIdx_y * output_distance;
+    int output_offset = hipBlockIdx_y * output_distance;
+
+    int bound = N/2 + 1; 
 
     input += input_offset;
     output += output_offset;
 
-    size_t bound = input_size/2 + 1;
-
-    if( tid < bound)//only read and write the first [input_size/2+1] elements due to conjugate symmetry
+    if( tid < bound) //only read the first [N/2+1] elements due to conjugate symmetry
     {
-        output[tid] = input[tid];
+        // tid && (N - tid) are mirror;
+        output[N-tid] = output[tid] = input[tid]; 
     }
 }
 
 
 /*! \brief auxiliary function
 
-    read from input_buffer and store the first  [1 + input_size/2] elements to the output_buffer
+    read from input_buffer of hermitian structure into an output_buffer of regular complex structure by padding 0
 
     @param[in]
     input_size 
@@ -134,7 +137,8 @@ void complex2hermitian_kernel(hipLaunchParm lp, size_t input_size, T *input, siz
 
     @param[in]
     input_buffer
-          data type dictated by precision parameter but complex type (float2 or double2)
+          data type : complex type (float2 or double2)
+          but only store first [1 + output_size/2] elements according to conjugate symmetry
 
     @param[in]
     input_distance 
@@ -142,8 +146,7 @@ void complex2hermitian_kernel(hipLaunchParm lp, size_t input_size, T *input, siz
 
     @param[in,output]
     output_buffer
-          data type dictated by precision parameter but complex type (float2 or double2)
-          but only store first [1 + input_size/2] elements according to conjugate symmetry
+          data type : complex type (float2 or double2) of size output_size
 
     @param[in]
     output_distance 
@@ -159,13 +162,13 @@ void complex2hermitian_kernel(hipLaunchParm lp, size_t input_size, T *input, siz
 
     ********************************************************************/
 
-void complex2hermitian(const void *data_p, void *back_p) 
+void hermitian2complex(const void *data_p, void *back_p) 
 {
     DeviceCallIn *data = (DeviceCallIn *)data_p;
 
     size_t input_size = 1;
 
-    for(size_t i=0; i<data->node->length.size();i++){
+    for(int i=0; i<data->node->length.size();i++){
         input_size *= data->node->length[i];
     }
 
@@ -177,19 +180,26 @@ void complex2hermitian(const void *data_p, void *back_p)
     void* input_buffer = data->bufIn[0];
     void* output_buffer = data->bufOut[0];
 
-    printf("hermitian output_distance = %zu\n", output_distance);//TODO bug for batch > 1, oDist must be N/2+1, instead of N
     size_t batch = data->node->batch;
     rocfft_precision precision = data->node->precision;
-    
-    size_t blocks = (input_size-1)/512 + 1;
+
+    size_t output_size; 
+    if (input_size/2){
+        output_size = (input_size-1)*2;
+    } 
+    else{
+        output_size = (input_size-1)*2 + 1;
+    }
+
+    int blocks = (input_size-1)/512 + 1;
 
     dim3 grid(blocks, batch, 1);//the second dimension is used for batching 
     dim3 threads(512, 1, 1);//use 512 threads (work items)
 
     if(precision == rocfft_precision_single) 
-        hipLaunchKernel( complex2hermitian_kernel<float2>, grid, threads, 0, 0, input_size, (float2 *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
+        hipLaunchKernel( hermitian2complex_kernel<float2>, grid, threads, 0, 0, output_size, (float2 *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
     else 
-        hipLaunchKernel( complex2hermitian_kernel<double2>, grid, threads, 0, 0, input_size, (double2 *)input_buffer, input_distance, (double2 *)output_buffer, output_distance);  
+        hipLaunchKernel( hermitian2complex_kernel<double2>, grid, threads, 0, 0, output_size, (double2 *)input_buffer, input_distance, (double2 *)output_buffer, output_distance);  
 
     return;    
 }

@@ -17,6 +17,7 @@
 #include "kernel_launch.h"
 #include "function_pool.h"
 #include "ref_cpu.h"
+#include "real2complex.h"
 
 #ifdef TMP_DEBUG
 #include "rocfft_hip.h"
@@ -109,9 +110,37 @@ void PlanPowX(ExecPlan &execPlan)
                         (execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE_Z_XY))
                 {
                     ptr = &FN_PRFX(transpose_var2);
-                    gp.tpb_x = 16;
+                    gp.tpb_x = 64;
                     gp.tpb_y = 16;
                     
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_R_TO_CMPLX)
+                {
+                    ptr = &real2complex;
+                    gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
+                    gp.b_y = execPlan.execSeq[i]->batch;
+                    gp.tpb_x = 512; gp.tpb_y = 1;
+                }   
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_CMPLX_TO_R)
+                {
+                    ptr = &complex2real;
+                    gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
+                    gp.b_y = execPlan.execSeq[i]->batch;
+                    gp.tpb_x = 512; gp.tpb_y = 1;
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_HERM_TO_CMPLX)
+                {
+                    ptr = &hermitian2complex;
+                    gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
+                    gp.b_y = execPlan.execSeq[i]->batch;
+                    gp.tpb_x = 512; gp.tpb_y = 1;
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_CMPLX_TO_HERM)
+                {
+                    ptr = &complex2hermitian;
+                    gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
+                    gp.b_y = execPlan.execSeq[i]->batch;
+                    gp.tpb_x = 512; gp.tpb_y = 1;
                 }
                 else
                 {
@@ -177,9 +206,8 @@ void PlanPowX(ExecPlan &execPlan)
                         (execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE_Z_XY))
                 {
                     ptr = &FN_PRFX(transpose_var2);
-                    gp.tpb_x = 16;
-                    gp.tpb_y = 16;
-                    
+                    gp.tpb_x = 32;
+                    gp.tpb_y = 32;
                 }
                 else
                 {
@@ -248,7 +276,8 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         DevFnCall fn = execPlan.devFnCall[i];
         if(fn)
         {
-#ifdef REF_DEBUG
+#ifdef REF_DEBUG 
+            // verify results for simple and five-stage scheme not for RC, CC scheme
             printf("\n---------------------------------------------\n");
             printf("\n\nkernel: %zu\n", i); fflush(stdout);
             RefLibOp refLibOp(&data);

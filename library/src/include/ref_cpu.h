@@ -13,7 +13,7 @@
 #define LOCAL_FFTW_BACKWARD (+1)
 #define LOCAL_FFTW_ESTIMATE (1U << 6)
 
-typedef float local_fftwf_complex[2];
+typedef float local_fftwf_complex[2];//each elment is a float type
 
 typedef void *(*ftype_fftwf_malloc)(size_t n);
 typedef void (*ftype_fftwf_free)(void *p);
@@ -178,8 +178,15 @@ class RefLibOp
     {
         DeviceCallIn *data = (DeviceCallIn *)data_p;
 
-        size_t in_size = data->node->iDist * data->node->batch;
-        size_t in_size_bytes = in_size * 2 * sizeof(float);
+        size_t in_size_bytes = (data->node->iDist * data->node->batch) * sizeof(float);
+    
+        if(data->node->inArrayType == rocfft_array_type_real){
+            in_size_bytes *= 1;         
+        }
+        else{
+            in_size_bytes *= 2;             
+        }
+    
         local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(in_size_bytes);
         hipMemcpy(tmp_mem, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
@@ -309,9 +316,52 @@ class RefLibOp
                 }
             }
         }
+        else if(data->node->scheme == CS_KERNEL_COPY_R_TO_CMPLX)
+        {
+            size_t in_size_bytes = (data->node->iDist * data->node->batch) * sizeof(float);
+
+            float *tmp_mem = (float *)malloc(in_size_bytes);
+            hipMemcpy(tmp_mem, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
+
+                for(size_t b=0; b<data->node->batch; b++)
+                {
+                    for(size_t i=0; i<data->node->length[0]; i++)
+                    {
+                         ot[data->node->oDist * b + i][0] = tmp_mem[ data->node->iDist * b + i];
+                         ot[data->node->oDist * b + i][1] = 0;                   
+                    }
+                }
+
+            if(tmp_mem)
+                free(tmp_mem);
+
+        }
+        else if(data->node->scheme == CS_KERNEL_COPY_CMPLX_TO_HERM)
+        {
+            //assump the input is complex, the output is hermitian on take the first [N/2 + 1] elements
+            size_t in_size_bytes = (data->node->iDist * data->node->batch) * 2 * sizeof(float);
+
+            local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(in_size_bytes);
+            hipMemcpy(tmp_mem, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
+
+                for(size_t b=0; b<data->node->batch; b++)
+                {
+                    for(size_t i=0; i<data->node->length[0]/2 + 1; i++)//TODO: only work for 1D cases
+                    {
+                         ot[data->node->oDist * b + i][0] = tmp_mem[ data->node->iDist * b + i][0];
+                         ot[data->node->oDist * b + i][1] = tmp_mem[ data->node->iDist * b + i][1];                   
+                    }
+                }
+
+            if(tmp_mem)
+                free(tmp_mem);
+
+        }
         else
         {
-            assert(false);
+            //assert(false);
+            //do not terminate the program but only tells not implemented 
+            printf("No implemented\n");
         }
     }
 
@@ -325,8 +375,13 @@ public:
     void VerifyResult(const void *data_p)
     {
         DeviceCallIn *data = (DeviceCallIn *)data_p;
-        size_t out_size = data->node->oDist * data->node->batch;
-        size_t out_size_bytes = out_size * 2 * sizeof(float);
+        size_t out_size_bytes = (data->node->oDist * data->node->batch) * sizeof(float);
+        if(data->node->outArrayType == rocfft_array_type_real){
+            out_size_bytes *= 1;         
+        }
+        else{
+            out_size_bytes *= 2;             
+        }
    
         local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(out_size_bytes);
         hipMemcpy(tmp_mem, data->bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
@@ -346,6 +401,11 @@ public:
 
         double maxMag = 0.0;
         double rmse = 0.0, nrmse = 0.0;
+
+        if (data->node->scheme == CS_KERNEL_COPY_CMPLX_TO_HERM){
+            totalSize = totalSize/2 + 1; //hermitan only check the first N/2 +1 elements; but only works for batch=1, dense packed cases
+        }
+
         for(size_t i=0; i<totalSize; i++)
         {
             double mag;

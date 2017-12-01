@@ -23,6 +23,8 @@ struct hipfftHandle_t
     {}
 };
 
+/*! \brief Creates a 1D FFT plan configuration for the size and data type. The batch parameter tells how many 1D transforms to perform
+ */
 hipfftResult hipfftPlan1d(hipfftHandle *plan,
                                  int nx,
                                  hipfftType type,
@@ -35,6 +37,8 @@ hipfftResult hipfftPlan1d(hipfftHandle *plan,
     return hipfftMakePlan1d(*plan, nx, type, batch, nullptr);
 }
 
+/*! \brief Creates a 2D FFT plan configuration according to the sizes and data type.
+ */
 hipfftResult hipfftPlan2d(hipfftHandle *plan,
                                  int nx, int ny,
                                  hipfftType type)
@@ -46,6 +50,8 @@ hipfftResult hipfftPlan2d(hipfftHandle *plan,
     return hipfftMakePlan2d(*plan, nx, ny, type, nullptr);
 }
 
+/*! \brief Creates a 3D FFT plan configuration according to the sizes and data type.
+ */
 hipfftResult hipfftPlan3d(hipfftHandle *plan,
                                  int nx, int ny, int nz,
                                  hipfftType type)
@@ -53,7 +59,6 @@ hipfftResult hipfftPlan3d(hipfftHandle *plan,
     hipfftHandle handle = nullptr;
     hipfftCreate(&handle);
     *plan = handle;
-
 
     return hipfftMakePlan3d(*plan, nx, ny, nz, type, nullptr);
 }
@@ -73,7 +78,7 @@ hipfftResult hipfftPlanMany(hipfftHandle *plan,
     return hipfftMakePlanMany(*plan, rank, n, inembed, istride, idist, onembed, ostride, odist, type, batch, nullptr);
 }
 
-
+/*
 hipfftResult hipfftMakePlan(hipfftHandle plan, int dim,
                                      size_t *lengths,
                                      hipfftType type,
@@ -133,25 +138,25 @@ hipfftResult hipfftMakePlan(hipfftHandle plan, int dim,
     if(type == HIPFFT_C2C || type == HIPFFT_Z2Z)//if complex2complex
     {
             //has to create 4 plans   
-	        rocfft_plan_create_internal(	&plan->forward_inplace,
+	        rocfft_plan_create_internal(	&plan->ip_forward,
 					        rocfft_placement_inplace,
 					        rocfft_transform_type_complex_forward,
 					        precision,
 					        dim, lengths, batch, description);
 
-	        rocfft_plan_create_internal(	&plan->inverse_inplace,
+	        rocfft_plan_create_internal(	&plan->ip_inverse,
 					        rocfft_placement_inplace,
 					        rocfft_transform_type_complex_inverse,
 					        precision,
 					        dim, lengths, batch, description);
 
-	        rocfft_plan_create_internal(	&plan->forward_notinplace,
+	        rocfft_plan_create_internal(	&plan->op_forward,
 					        rocfft_placement_notinplace,
 					        rocfft_transform_type_complex_forward,
 					        precision,
 					        dim, lengths, batch, description);
 
-	        rocfft_plan_create_internal(	&plan->inverse_notinplace,
+	        rocfft_plan_create_internal(	&plan->op_inverse,
 					        rocfft_placement_notinplace,
 					        rocfft_transform_type_complex_inverse,
 					        precision,
@@ -162,13 +167,13 @@ hipfftResult hipfftMakePlan(hipfftHandle plan, int dim,
     {
         if(transform_type  == rocfft_transform_type_real_forward)
         {        
-	        rocfft_plan_create_internal(	&plan->forward_inplace,
+	        rocfft_plan_create_internal(	&plan->ip_forward,
 					        rocfft_placement_inplace,
 					        transform_type,
 					        precision,
 					        dim, lengths, batch, description);
 
-	        rocfft_plan_create_internal(	&plan->forward_notinplace,
+	        rocfft_plan_create_internal(	&plan->op_forward,
 					        rocfft_placement_notinplace,
 					        transform_type,
 					        precision,
@@ -177,13 +182,13 @@ hipfftResult hipfftMakePlan(hipfftHandle plan, int dim,
         }
         else// inverse
         {
-	        rocfft_plan_create_internal(	&plan->inverse_inplace,
+	        rocfft_plan_create_internal(	&plan->ip_inverse,
 					        rocfft_placement_inplace,
 					        transform_type,
 					        precision,
 					        dim, lengths, batch, description);
 
-	        rocfft_plan_create_internal(	&plan->inverse_notinplace,
+	        rocfft_plan_create_internal(	&plan->op_inverse,
 					        rocfft_placement_notinplace,
 					        transform_type,
 					        precision,
@@ -193,20 +198,11 @@ hipfftResult hipfftMakePlan(hipfftHandle plan, int dim,
     }
 	return status;
 }
+*/
 
 /*============================================================================================*/
 
-hipfftResult hipfftCreate(hipfftHandle * handle)
-{
-	hipfftHandle h = new hipfftHandle_t;
-
-	*handle = h;
-
-	return HIPFFT_SUCCESS;
-}
-
-
-/*! \brief Creates a 1D FFT plan configuration for the size and data type. The batch parameter tells how many 1D transforms to perform
+/*! \brief Assume hipfftCreate has been called. Creates a 1D FFT plan configuration for the size and data type. The batch parameter tells how many 1D transforms to perform
  */
 
 hipfftResult hipfftMakePlan1d(hipfftHandle plan,
@@ -215,6 +211,12 @@ hipfftResult hipfftMakePlan1d(hipfftHandle plan,
                                      int batch,
                                      size_t *workSize)
 {
+
+    if (nx < 0 || batch < 0)
+    {
+        return HIPFFT_INVALID_SIZE;
+    }
+
     size_t lengths[1];
     lengths[0] = nx;
     size_t number_of_transforms = batch;
@@ -263,14 +265,9 @@ hipfftResult hipfftMakePlan1d(hipfftHandle plan,
 
     return HIPFFT_SUCCESS;
    
-    if (nx < 0 || batch < 0)
-    {
-        return HIPFFT_INVALID_SIZE;
-    }
-
 }
 
-/*! \brief Creates a 2D FFT plan configuration according to the sizes and data type.
+/*! \brief Assume hipfftCreate has been called. Creates a 2D FFT plan configuration according to the sizes and data type.
  */
 
 hipfftResult hipfftMakePlan2d(hipfftHandle plan,
@@ -278,6 +275,12 @@ hipfftResult hipfftMakePlan2d(hipfftHandle plan,
                                      hipfftType type,
                                      size_t *workSize)
 {
+
+    if (nx < 0 || ny < 0)
+    {
+        return HIPFFT_INVALID_SIZE;
+    }
+
     size_t lengths[2];
     lengths[0] = ny;
     lengths[1] = nx;
@@ -327,14 +330,9 @@ hipfftResult hipfftMakePlan2d(hipfftHandle plan,
 
     return HIPFFT_SUCCESS;
 
-    if (nx < 0 || ny < 0)
-    {
-        return HIPFFT_INVALID_SIZE;
-    }
-
 }
 
-/*! \brief Creates a 3D FFT plan configuration according to the sizes and data type.
+/*! \brief Assume hipfftCreate has been called. Creates a 3D FFT plan configuration according to the sizes and data type.
  */
 
 hipfftResult hipfftMakePlan3d(hipfftHandle plan,
@@ -342,6 +340,12 @@ hipfftResult hipfftMakePlan3d(hipfftHandle plan,
                                      hipfftType type,
                                      size_t *workSize)
 {
+
+    if (nx < 0 || ny < 0 || nz < 0)
+    {
+        return HIPFFT_INVALID_SIZE;
+    }
+
     size_t lengths[3];
     lengths[0] = nz;
     lengths[1] = ny;
@@ -392,11 +396,6 @@ hipfftResult hipfftMakePlan3d(hipfftHandle plan,
 
     return HIPFFT_SUCCESS;
 
-    if (nx < 0 || ny < 0 || nz < 0)
-    {
-        return HIPFFT_INVALID_SIZE;
-    }
-
 }
 
 /*! \brief 
@@ -410,7 +409,6 @@ hipfftResult hipfftMakePlan3d(hipfftHandle plan,
     rank 	Dimensionality of n.
 
     n 	    Array of size rank, describing the size of each dimension, n[0] being the size of the outermost and n[rank-1] innermost (contiguous) dimension of a transform.
->>>>>>> add copy kernels; add more implementation in hipfft
 
     inembed 	Define the number of elements in each dimension the output array.
                 Pointer of size rank that indicates the storage dimensions of the input data in memory. 
@@ -543,10 +541,8 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
         rocfft_plan_get_work_buffer_size(plan->ip_forward, workSize);
 
     return HIPFFT_SUCCESS;
-=======
-	size_t lengths[3];
-	for(size_t i=0; i<rank; i++)
-		lengths[i] = n[rank-1-i];
+
+/*
 
     hipfftResult status;
 
@@ -629,8 +625,7 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
 		rocfft_plan_description_destroy(desc);
 	}
 
-	return status;
->>>>>>> add copy kernels; add more implementation in hipfft
+*/
 }
 
 hipfftResult hipfftMakePlanMany64(hipfftHandle plan,
@@ -696,6 +691,10 @@ hipfftResult hipfftCreate(hipfftHandle * plan)
     rocfft_plan_allocate(&h->ip_inverse);
     rocfft_plan_allocate(&h->op_inverse);
 
+    *plan = h;
+
+return HIPFFT_SUCCESS;
+}
 
 /*! \brief gives an accurate estimate of the work area size required for a plan
 
@@ -705,12 +704,6 @@ hipfftResult hipfftCreate(hipfftHandle * plan)
     and after any hipfftSet*() calls subsequent to plan generation, if those calls might alter the required work space size.
 
  */
-
-hipfftResult hipfftGetSize(hipfftHandle handle, size_t *workSize)//TODO, we cannot implement this function
-{
-	return HIPFFT_NOT_SUPPORTED;
-}
-
 
 /*! \brief gives an accurate estimate of the work area size required for a plan
  */
@@ -722,19 +715,16 @@ hipfftResult hipfftGetSize_internal(hipfftHandle plan,
 
     if(type == HIPFFT_C2C || type == HIPFFT_Z2Z)  //TODO
     {
-        rocfft_plan_get_work_buffer_size( (const rocfft_plan)(&(plan->forward_notinplace)), workSize );
+        rocfft_plan_get_work_buffer_size( plan->op_forward, workSize );
     }
     else if(type == HIPFFT_C2R || type == HIPFFT_Z2D)  
     {
-        rocfft_plan_get_work_buffer_size( (const rocfft_plan)(&(plan->forward_notinplace)), workSize );
+        rocfft_plan_get_work_buffer_size( plan->op_forward, workSize );
     }
     else //R2C or D2Z
     {
-        rocfft_plan_get_work_buffer_size( (const rocfft_plan)(&(plan->forward_notinplace)), workSize );
+        rocfft_plan_get_work_buffer_size( plan->op_forward, workSize );
     }
->>>>>>> add copy kernels; add more implementation in hipfft
-
-    *plan = h;
 
     return HIPFFT_SUCCESS;
 }
@@ -743,7 +733,6 @@ hipfftResult hipfftGetSize_internal(hipfftHandle plan,
 /*! \brief gives an accurate estimate of the work area size required for a plan
  */
 
->>>>>>> add copy kernels; add more implementation in hipfft
 hipfftResult hipfftGetSize1d(hipfftHandle plan,
                                     int nx,
                                     hipfftType type,
@@ -751,19 +740,17 @@ hipfftResult hipfftGetSize1d(hipfftHandle plan,
                                     size_t *workSize )
 {
 
+    if (nx < 0 || batch < 0)
+    {
+        return HIPFFT_INVALID_SIZE;
+    }
+
     hipfftHandle p;
     hipfftPlan1d(&p, nx, type, batch);
     rocfft_plan_get_work_buffer_size(p->ip_forward, workSize);
     hipfftDestroy(p);
 
     return HIPFFT_SUCCESS;
-
-    if (nx < 0 || batch < 0)
-    {
-        return HIPFFT_INVALID_SIZE;
-    }
-
-
 }
 
 /*! \brief gives an accurate estimate of the work area size required for a plan
@@ -774,6 +761,10 @@ hipfftResult hipfftGetSize2d(hipfftHandle plan,
                                     hipfftType type,
                                     size_t *workSize)
 {
+    if (nx < 0 || ny < 0)
+    {
+        return HIPFFT_INVALID_SIZE;
+    }
 
     hipfftHandle p;
     hipfftPlan2d(&p, nx, ny, type);
@@ -781,12 +772,6 @@ hipfftResult hipfftGetSize2d(hipfftHandle plan,
     hipfftDestroy(p);
 
     return HIPFFT_SUCCESS;
-
-    if (nx < 0 || ny < 0)
-    {
-        return HIPFFT_INVALID_SIZE;
-    }
-
 }
 
 /*! \brief gives an accurate estimate of the work area size required for a plan
@@ -797,6 +782,10 @@ hipfftResult hipfftGetSize3d(hipfftHandle plan,
                                     hipfftType type,
                                     size_t *workSize)
 {
+    if (nx < 0 || ny < 0 || nz < 0)
+    {
+        return HIPFFT_INVALID_SIZE;
+    }
 
     hipfftHandle p;
     hipfftPlan3d(&p, nx, ny, nz, type);
@@ -804,13 +793,6 @@ hipfftResult hipfftGetSize3d(hipfftHandle plan,
     hipfftDestroy(p);
 
     return HIPFFT_SUCCESS;
-
-    if (nx < 0 || ny < 0 || nz < 0)
-    {
-        return HIPFFT_INVALID_SIZE;
-    }
-
-
 }
 
 /*! \brief gives an accurate estimate of the work area size required for a plan
@@ -832,13 +814,11 @@ hipfftResult hipfftGetSizeMany(hipfftHandle plan,
 }
 
 hipfftResult hipfftGetSize(hipfftHandle plan, size_t *workSize)
-
-    if (rank < 0 || istride < 0 || ostride < 0 || batch < 0)
-    {
-        return HIPFFT_INVALID_SIZE;
-    }
-
-    return hipfftGetSize_internal(plan, type, workArea);
+{
+ 
+    rocfft_plan_get_work_buffer_size(plan->ip_forward, workSize);
+    //return hipfftGetSize_internal(plan, type, workArea);
+    return HIPFFT_SUCCESS;
 }
 
 
@@ -913,7 +893,7 @@ hipfftResult hipfftExecR2C(hipfftHandle plan,
 	void *out[1];
 	out[0] = (void *)odata;
 
-    rocfft_execute( &plan->forward_notinplace, in, out, nullptr );
+    rocfft_execute( plan->op_forward, in, out, nullptr );
 
 	return HIPFFT_SUCCESS;
 
@@ -933,7 +913,7 @@ hipfftResult hipfftExecC2R(hipfftHandle plan,
 	void *out[1];
 	out[0] = (void *)odata;
 
-    rocfft_execute( &plan->inverse_notinplace, in, out, nullptr );
+    rocfft_execute( plan->op_inverse, in, out, nullptr );
 
 	return HIPFFT_SUCCESS;
 
@@ -959,22 +939,22 @@ hipfftResult hipfftExecZ2Z(hipfftHandle plan,
 	{
         if( idata == odata)
         {
-		    rocfft_execute( &plan->forward_inplace, in, out, nullptr );
+		    rocfft_execute( plan->ip_forward, in, out, nullptr );
         }
         else
         {
-		    rocfft_execute( &plan->forward_notinplace, in, out, nullptr );
+		    rocfft_execute( plan->op_forward, in, out, nullptr );
         }
 	}
 	else
 	{
         if( idata == odata)
         {
-		    rocfft_execute( &plan->inverse_inplace, in, out, nullptr );
+		    rocfft_execute( plan->ip_inverse, in, out, nullptr );
         }
         else
         {
-		    rocfft_execute( &plan->inverse_notinplace, in, out, nullptr );
+		    rocfft_execute( plan->op_inverse, in, out, nullptr );
         }
 	}
 
@@ -996,7 +976,7 @@ hipfftResult hipfftExecD2Z(hipfftHandle plan,
 	void *out[1];
 	out[0] = (void *)odata;
 
-    rocfft_execute( &plan->forward_notinplace, in, out, nullptr );
+    rocfft_execute( plan->op_forward, in, out, nullptr );
 
 	return HIPFFT_SUCCESS;
 
@@ -1013,7 +993,7 @@ hipfftResult hipfftExecZ2D(hipfftHandle plan,
 	void *out[1];
 	out[0] = (void *)odata;
 
-    rocfft_execute( &plan->inverse_notinplace, in, out, nullptr );
+    rocfft_execute( plan->op_inverse, in, out, nullptr );
 
 	return HIPFFT_SUCCESS;
 

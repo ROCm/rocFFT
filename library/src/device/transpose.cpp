@@ -119,6 +119,10 @@ void rocfft_internal_transpose_var2(const void *data_p, void *back_p)
     else if(data->node->large1D > (size_t)256) twl = 2;
     else twl = 0;
 
+#ifdef DEBUG
+    printf("twl=%d;\n",twl);
+#endif 
+
     int dir = data->node->direction;
 
     size_t count = data->node->batch;

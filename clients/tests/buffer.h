@@ -260,6 +260,12 @@ private:
 
 			_tightly_packed_distance = false;
 		}
+
+//#ifdef DEBUG
+        if(is_hermitian()){
+            std::cout << "In hermitian buffer, the lengths[0] is: " << _lengths[0] << " distance is: " << _distance << std::endl; 
+        }
+//#endif
 	}
 
 	/*****************************************************/
@@ -501,9 +507,10 @@ private:
 
 							// compute square error
 							rms += ((ex_r - ac_r)*(ex_r - ac_r) + (ex_i - ac_i)*(ex_i - ac_i));
-#ifdef DEBUG
-                            std::cout << "my result:(" << ac_r << "," << ac_i << "); reference result: (" << ex_r << "," << ex_i << ")" << std::endl;
-#endif 
+//#ifdef DEBUG
+                            if (rms/maxMag > 0.01) 
+                                std::cout << "element: " << x << "; my result:(" << ac_r << "," << ac_i << "); reference result: (" << ex_r << "," << ex_i << ")" << std::endl;
+//#endif 
 						}
 					}
 				}
@@ -1053,6 +1060,7 @@ public:
 					for( size_t x = 0; x < number_of_points_in_one_period; x++) {
 						if( is_real() )
 						{
+                            //printf("x=%zu, real value=%f\n", x, value);
 							set_one_data_point( value, x, y, z, batch);
 						}
 						else

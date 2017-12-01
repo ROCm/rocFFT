@@ -19,8 +19,8 @@
 struct DeviceCallIn
 {
     TreeNode *node;
-    void *bufIn[2];
-    void *bufOut[2];
+    void *bufIn[2];//TODO, bufIn[1] is never used
+    void *bufOut[2];//TODO, bufOut[1] is never used
 
     GridParam gridParam;
 };
