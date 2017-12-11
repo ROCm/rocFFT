@@ -11,9 +11,6 @@
 
 #include "tree_node.h"
 
-#ifndef nullptr
-#define nullptr NULL
-#endif
 
 #define MIN(A,B) (((A) < (B)) ? (A) : (B))
 
