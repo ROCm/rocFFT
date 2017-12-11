@@ -226,20 +226,22 @@ public:
             input_strides[0] == 1 &&
             output_strides[0] == 1 &&
             scale == 1.0 ){
-            printf("I am in simply create\n");
             LIB_V_THROW( rocfft_plan_create_template<T>( &plan, _placement, _transformation_direction,
                          dim, lengths.data(), batch_size, NULL  ), "rocfft_plan_create failed" );//simply case plan create
         }
         else{
             set_layouts();//explicitely set layout and then create plan
         }
-//#ifdef DEBUG
+#ifdef DEBUG
         LIB_V_THROW( rocfft_plan_get_print ( plan ), "rocfft_plan_get_print failed");
-//#endif
+#endif
 
         //get the worksapce_size based on the plan
         LIB_V_THROW( rocfft_plan_get_work_buffer_size( plan, &device_workspace_size ), "rocfft_plan_get_work_buffer_size failed" );
         //allocate the worksapce
+#ifdef DEBUG
+        printf("Device work buffer size in bytes= %zu\n", device_workspace_size);
+#endif
         if (device_workspace_size)
         {
             HIP_V_THROW( hipMalloc(&device_workspace, device_workspace_size), "Creating intmediate Buffer failed" );

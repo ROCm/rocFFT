@@ -177,7 +177,7 @@ void complex2hermitian(const void *data_p, void *back_p)
     void* input_buffer = data->bufIn[0];
     void* output_buffer = data->bufOut[0];
 
-    printf("hermitian output_distance = %zu\n", output_distance);//TODO bug for batch > 1, oDist must be N/2+1, instead of N
+    //printf("hermitian output_distance = %zu\n", output_distance);//TODO bug for batch > 1, oDist must be N/2+1, instead of N
     size_t batch = data->node->batch;
     rocfft_precision precision = data->node->precision;
     

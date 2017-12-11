@@ -236,12 +236,22 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
 
         data.node = execPlan.execSeq[i];
 
+	size_t inBytes;
+	if( data.node->precision == rocfft_precision_single)
+	{
+            inBytes = sizeof(float)*2;
+	}
+        else
+	{
+	    inBytes = sizeof(double)*2;
+	}
+
         switch(data.node->obIn)
         {
         case OB_USER_IN:                data.bufIn[0] = in_buffer[0]; break;
         case OB_USER_OUT:               data.bufIn[0] = out_buffer[0]; break;
         case OB_TEMP:                   data.bufIn[0] = info->workBuffer; break;
-        case OB_TEMP_CMPLX_FOR_REAL:    data.bufIn[0] = (void *)((char *)info->workBuffer + execPlan.tmpWorkBufSize); break;
+        case OB_TEMP_CMPLX_FOR_REAL:    data.bufIn[0] = (void *)((char *)info->workBuffer + execPlan.tmpWorkBufSize * inBytes); break;
         default: assert(false);
         }
 
@@ -250,7 +260,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         case OB_USER_IN:                data.bufOut[0] = in_buffer[0]; break;
         case OB_USER_OUT:               data.bufOut[0] = out_buffer[0]; break;
         case OB_TEMP:                   data.bufOut[0] = info->workBuffer; break;
-        case OB_TEMP_CMPLX_FOR_REAL:    data.bufOut[0] = (void *)((char *)info->workBuffer + execPlan.tmpWorkBufSize); break;
+        case OB_TEMP_CMPLX_FOR_REAL:    data.bufOut[0] = (void *)((char *)info->workBuffer + execPlan.tmpWorkBufSize * inBytes); break;
         default: assert(false);
         }
 
@@ -298,10 +308,11 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
         printf("copied from device\n");
        
-        /*if(i == 0 || i == 2 || i == 4)
+        if(i == 0 || i == 2 || i == 4)
         { 
-        float *f_in = (float *)dbg_in;
-        float *f_out = (float *)dbg_out;
+        float2 *f_in = (float2 *)dbg_in;
+        float2 *f_out = (float2 *)dbg_out;
+
 
         for(size_t kr=0; kr<data.node->length[1]; kr++)
         {
@@ -309,11 +320,11 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
             {
                 if(f_in[2*(kr*data.node->length[0] + kc)] != f_out[2*(kc*data.node->length[1] + kr)])
                     printf("fail\n");
-                
             }
         }
-        }*/
+        }
 
+        printf("\n---------------------------------------------\n");
         free(dbg_out);
         free(dbg_in);
 #endif

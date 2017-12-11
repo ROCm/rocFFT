@@ -51,7 +51,6 @@ rocfft_status rocfft_execute(   const rocfft_plan plan,
 #ifdef DEBUG
 	PrintNode(execPlan);
 #endif
-
 	if(execPlan.workBufSize > 0)
 	{
 		assert(info != nullptr);

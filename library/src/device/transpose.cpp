@@ -4,16 +4,16 @@
 
 #include <iostream>
 #include "kernel_launch.h"
-#include "./kernels/common.h"
 #include "rocfft_hip.h"
-#include "./kernels/transpose.h"
+#include "transpose.h"
 
 /* ============================================================================================ */
 
 /*! \brief FFT Transpose out-of-place API
 
     \details
-    transpose matrix A of size (m by n) to matrix B (n by m)
+    transpose matrix A of size (m row by n cols) to matrix B (n row by m cols)
+    both A and B are in row major
 
     @param[in]
     m         size_t.
@@ -21,10 +21,6 @@
     n         size_t.
     @param[in]
     A     pointer storing batch_count of A matrix on the GPU.
-    @param[in]
-    ld_in
-              size_t
-              specifies the leading dimension for the matrix A
     @param[inout]
     B    pointer storing batch_count of B matrix on the GPU.
     @param[in]
@@ -32,7 +28,7 @@
               size_t
               specifies the leading dimension for the matrix B
     @param[in]
-    batch_count
+    count
               size_t
               number of matrices processed
     ********************************************************************/
@@ -66,17 +62,6 @@ rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, T* B, void 
 /* ============================================================================================ */
 
 
-/*
-extern "C"
-rocfft_status
-rocfft_transpose_complex_to_complex(rocfft_precision precision, size_t m, size_t n, const void* A, size_t ld_in, void* B, size_t ld_out, size_t batch_count)
-{
-    if( precision == rocfft_precision_single)
-        return rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2*)A, ld_in, (float2*)B, ld_out, batch_count);
-    else
-        return rocfft_transpose_outofplace_template<double2, 32, 32>(m, n, (const double2*)A, ld_in, (double2*)B, ld_out, batch_count);//double2 must use 32 otherwise exceed the shared memory (LDS) size
-}
-*/
 
 void rocfft_internal_transpose_var2(const void *data_p, void *back_p)
 {
@@ -119,10 +104,6 @@ void rocfft_internal_transpose_var2(const void *data_p, void *back_p)
     else if(data->node->large1D > (size_t)256) twl = 2;
     else twl = 0;
 
-#ifdef DEBUG
-    printf("twl=%d;\n",twl);
-#endif 
-
     int dir = data->node->direction;
 
     size_t count = data->node->batch;
@@ -132,7 +113,16 @@ void rocfft_internal_transpose_var2(const void *data_p, void *back_p)
         extraDimStart = 3;
 
     for(size_t i=extraDimStart; i<data->node->length.size(); i++) count *= data->node->length[i];
-
+/*
+    float2* tmp; 
+    tmp = (float2*)malloc(sizeof(float)*2*m*n);
+    hipMemcpy(tmp, data->bufIn[0], sizeof(float)*2*m*n, hipMemcpyDeviceToHost);
+    for(int i=0;i<m;i++)
+     for(int j=0;j<n;j++)
+	{	
+		printf("transpose input elment [%d][%d] = (%f, %f)\n", i, j, tmp[j+i*n].x, tmp[j+i*n].y);
+	}
+*/
     if( data->node->precision == rocfft_precision_single)
         rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2 *)data->bufIn[0], (float2 *)data->bufOut[0], data->node->twiddles_large, count,
                 data->node->length.size(), data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, twl, dir, scheme);

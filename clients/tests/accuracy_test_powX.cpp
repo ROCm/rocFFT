@@ -55,9 +55,9 @@ static size_t batch_range[] = {1};
 
 static size_t stride_range[] = {1};
 
-rocfft_result_placement placeness_range[] = {rocfft_placement_notinplace, rocfft_placement_inplace};
+rocfft_result_placement placeness_range[] = {rocfft_placement_notinplace, /*rocfft_placement_inplace*/};
 
-rocfft_transform_type transform_range[] = {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse};
+rocfft_transform_type transform_range[] = {rocfft_transform_type_complex_forward, /*rocfft_transform_type_complex_inverse*/};
 
 
 namespace powerX
@@ -170,11 +170,12 @@ TEST_P(accuracy_test_real, normal_1D_real_interleaved_to_hermitian_interleaved_s
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
-// *****************************************************
-// *****************************************************
 
 //Values is for a single item; ValuesIn is for an array
 //ValuesIn take each element (a vector) and combine them and feed them to test_p
+// *****************************************************
+          //COMPLEX TO COMPLEX 
+// *****************************************************
 INSTANTIATE_TEST_CASE_P(rocfft_pow2,
                         accuracy_test_complex,
                         Combine(
@@ -205,6 +206,9 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow_mix,
                                )
 );
 
+// *****************************************************
+          //REAL TO HERMITIAN 
+// *****************************************************
 INSTANTIATE_TEST_CASE_P(rocfft_pow2,
                         accuracy_test_real,
                         Combine(
@@ -212,6 +216,29 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow2,
                                )
 );
 
+
+INSTANTIATE_TEST_CASE_P(rocfft_pow3,
+                        accuracy_test_real,
+                        Combine(
+                                  ValuesIn(pow3_range), ValuesIn(batch_range)
+                               )
+);
+
+
+INSTANTIATE_TEST_CASE_P(rocfft_pow5,
+                        accuracy_test_real,
+                        Combine(
+                                  ValuesIn(pow5_range), ValuesIn(batch_range)
+                               )
+);
+
+
+INSTANTIATE_TEST_CASE_P(rocfft_pow_mix,
+                        accuracy_test_real,
+                        Combine(
+                                  ValuesIn(mix_range), ValuesIn(batch_range)
+                               )
+);
 
 // *****************************************************
 // *****************************************************
