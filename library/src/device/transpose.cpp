@@ -24,10 +24,6 @@
     @param[inout]
     B    pointer storing batch_count of B matrix on the GPU.
     @param[in]
-    ld_out
-              size_t
-              specifies the leading dimension for the matrix B
-    @param[in]
     count
               size_t
               number of matrices processed
@@ -113,16 +109,7 @@ void rocfft_internal_transpose_var2(const void *data_p, void *back_p)
         extraDimStart = 3;
 
     for(size_t i=extraDimStart; i<data->node->length.size(); i++) count *= data->node->length[i];
-/*
-    float2* tmp; 
-    tmp = (float2*)malloc(sizeof(float)*2*m*n);
-    hipMemcpy(tmp, data->bufIn[0], sizeof(float)*2*m*n, hipMemcpyDeviceToHost);
-    for(int i=0;i<m;i++)
-     for(int j=0;j<n;j++)
-	{	
-		printf("transpose input elment [%d][%d] = (%f, %f)\n", i, j, tmp[j+i*n].x, tmp[j+i*n].y);
-	}
-*/
+    
     if( data->node->precision == rocfft_precision_single)
         rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2 *)data->bufIn[0], (float2 *)data->bufOut[0], data->node->twiddles_large, count,
                 data->node->length.size(), data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, twl, dir, scheme);
