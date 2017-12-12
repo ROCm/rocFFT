@@ -170,6 +170,19 @@ TEST_P(accuracy_test_real, normal_1D_real_interleaved_to_hermitian_interleaved_s
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
+TEST_P(accuracy_test_real, normal_1D_real_interleaved_to_hermitian_interleaved_double_precision)
+{
+    size_t N = std::get<0>(GetParam());
+    size_t batch = std::get<1>(GetParam());
+    rocfft_result_placement placeness = rocfft_placement_notinplace;//must be non-inplace
+    rocfft_transform_type  transform_type = rocfft_transform_type_real_forward;// must be real forward
+    size_t stride = 1;
+
+    try { normal_1D_real_interleaved_to_hermitian_interleaved< double,  fftw_complex >(N, batch, placeness, transform_type, stride); }
+    catch( const std::exception& err ) { handle_exception(err);    }
+}
+
+
 
 //Values is for a single item; ValuesIn is for an array
 //ValuesIn take each element (a vector) and combine them and feed them to test_p
