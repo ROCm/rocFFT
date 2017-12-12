@@ -209,6 +209,34 @@ void PlanPowX(ExecPlan &execPlan)
                     gp.tpb_x = 32;
                     gp.tpb_y = 32;
                 }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_R_TO_CMPLX)
+                {
+                    ptr = &real2complex;
+                    gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
+                    gp.b_y = execPlan.execSeq[i]->batch;
+                    gp.tpb_x = 512; gp.tpb_y = 1;
+                }   
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_CMPLX_TO_R)
+                {
+                    ptr = &complex2real;
+                    gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
+                    gp.b_y = execPlan.execSeq[i]->batch;
+                    gp.tpb_x = 512; gp.tpb_y = 1;
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_HERM_TO_CMPLX)
+                {
+                    ptr = &hermitian2complex;
+                    gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
+                    gp.b_y = execPlan.execSeq[i]->batch;
+                    gp.tpb_x = 512; gp.tpb_y = 1;
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_CMPLX_TO_HERM)
+                {
+                    ptr = &complex2hermitian;
+                    gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
+                    gp.b_y = execPlan.execSeq[i]->batch;
+                    gp.tpb_x = 512; gp.tpb_y = 1;
+                }
                 else
                 {
                     std::cout << "should not be in this else block" << std::endl;

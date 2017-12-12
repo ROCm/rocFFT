@@ -40,15 +40,13 @@ rocfft_status initParams (FFTKernelGenKeyParams &params, std::vector<size_t> fft
 
     params.blockComputeType = blockComputeType;
 
-    bool real_transform = ((params.fft_inputLayout == rocfft_array_type_real) ||
-                            (params.fft_outputLayout == rocfft_array_type_real));
+    //bool real_transform = ((params.fft_inputLayout == rocfft_array_type_real) || (params.fft_outputLayout == rocfft_array_type_real));
 
             /* =====================================================================
                 Parameter : dimension 
                =================================================================== */
 
 
-    size_t                  batchsize;
     
     params.fft_DataDim = fft_N.size() + 1;
 
@@ -81,7 +79,7 @@ rocfft_status initParams (FFTKernelGenKeyParams &params, std::vector<size_t> fft
     // Real FFT special flag
     // if this is set it means we are doing the 4th step in the 5-step real FFT breakdown algorithm
     bool realSpecial = false;
-    size_t realSpecial_Nr; // this value stores the logical column height (N0) of matrix in the 4th step
+    //size_t realSpecial_Nr; // this value stores the logical column height (N0) of matrix in the 4th step
                            // length[1] should be 1 + N0/2
 
 
