@@ -582,7 +582,7 @@ void TreeNode::RecursiveBuildTree()
                     default:        assert(false);
                     }
                 }
-                else//TODO: fail in correctness check now
+                else
                 {
                     switch (length[0])
                     {
@@ -2158,6 +2158,7 @@ void TreeNode::Print(int indent) const
 
     std::cout << std::endl << indentStr.c_str();
     std::cout << ((placement == rocfft_placement_inplace) ? "inplace" : "not inplace") << "  ";
+    std::cout << "array type: ";
     switch(inArrayType)
     {
         case rocfft_array_type_complex_interleaved:    std::cout << "complex interleaved"; break;

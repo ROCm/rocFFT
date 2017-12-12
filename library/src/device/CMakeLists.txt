@@ -53,12 +53,12 @@ add_custom_command(
 set( rocfft_device_source
   transpose.cpp
   real2complex.cpp
+  complex2real.cpp
   function_pool.cpp
   kernel_launch_single.cpp
   kernel_launch_double.cpp
   kernel_launch_single_large.cpp
   kernel_launch_double_large.cpp
-  transpose.cpp
 )
 
 prepend_path( "../.." rocfft_headers_public relative_rocfft_device_headers_public )
@@ -86,6 +86,7 @@ endif( )
 target_include_directories( rocfft-device
   PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
   PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/generator>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>

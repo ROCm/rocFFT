@@ -17,6 +17,7 @@
 #include "kernel_launch.h"
 #include "function_pool.h"
 #include "ref_cpu.h"
+#include "real2complex.h"
 
 #ifdef TMP_DEBUG
 #include "rocfft_hip.h"
@@ -109,9 +110,37 @@ void PlanPowX(ExecPlan &execPlan)
                         (execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE_Z_XY))
                 {
                     ptr = &FN_PRFX(transpose_var2);
-                    gp.tpb_x = 16;
+                    gp.tpb_x = 64;
                     gp.tpb_y = 16;
                     
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_R_TO_CMPLX)
+                {
+                    ptr = &real2complex;
+                    gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
+                    gp.b_y = execPlan.execSeq[i]->batch;
+                    gp.tpb_x = 512; gp.tpb_y = 1;
+                }   
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_CMPLX_TO_R)
+                {
+                    ptr = &complex2real;
+                    gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
+                    gp.b_y = execPlan.execSeq[i]->batch;
+                    gp.tpb_x = 512; gp.tpb_y = 1;
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_HERM_TO_CMPLX)
+                {
+                    ptr = &hermitian2complex;
+                    gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
+                    gp.b_y = execPlan.execSeq[i]->batch;
+                    gp.tpb_x = 512; gp.tpb_y = 1;
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_CMPLX_TO_HERM)
+                {
+                    ptr = &complex2hermitian;
+                    gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
+                    gp.b_y = execPlan.execSeq[i]->batch;
+                    gp.tpb_x = 512; gp.tpb_y = 1;
                 }
                 else
                 {
@@ -177,9 +206,8 @@ void PlanPowX(ExecPlan &execPlan)
                         (execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE_Z_XY))
                 {
                     ptr = &FN_PRFX(transpose_var2);
-                    gp.tpb_x = 16;
-                    gp.tpb_y = 16;
-                    
+                    gp.tpb_x = 32;
+                    gp.tpb_y = 32;
                 }
                 else
                 {
@@ -208,12 +236,22 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
 
         data.node = execPlan.execSeq[i];
 
+	size_t inBytes;
+	if( data.node->precision == rocfft_precision_single)
+	{
+            inBytes = sizeof(float)*2;
+	}
+        else
+	{
+	    inBytes = sizeof(double)*2;
+	}
+
         switch(data.node->obIn)
         {
         case OB_USER_IN:                data.bufIn[0] = in_buffer[0]; break;
         case OB_USER_OUT:               data.bufIn[0] = out_buffer[0]; break;
         case OB_TEMP:                   data.bufIn[0] = info->workBuffer; break;
-        case OB_TEMP_CMPLX_FOR_REAL:    data.bufIn[0] = (void *)((char *)info->workBuffer + execPlan.tmpWorkBufSize); break;
+        case OB_TEMP_CMPLX_FOR_REAL:    data.bufIn[0] = (void *)((char *)info->workBuffer + execPlan.tmpWorkBufSize * inBytes); break;
         default: assert(false);
         }
 
@@ -222,7 +260,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         case OB_USER_IN:                data.bufOut[0] = in_buffer[0]; break;
         case OB_USER_OUT:               data.bufOut[0] = out_buffer[0]; break;
         case OB_TEMP:                   data.bufOut[0] = info->workBuffer; break;
-        case OB_TEMP_CMPLX_FOR_REAL:    data.bufOut[0] = (void *)((char *)info->workBuffer + execPlan.tmpWorkBufSize); break;
+        case OB_TEMP_CMPLX_FOR_REAL:    data.bufOut[0] = (void *)((char *)info->workBuffer + execPlan.tmpWorkBufSize * inBytes); break;
         default: assert(false);
         }
 
@@ -248,7 +286,8 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         DevFnCall fn = execPlan.devFnCall[i];
         if(fn)
         {
-#ifdef REF_DEBUG
+#ifdef REF_DEBUG 
+            // verify results for simple and five-stage scheme not for RC, CC scheme
             printf("\n---------------------------------------------\n");
             printf("\n\nkernel: %zu\n", i); fflush(stdout);
             RefLibOp refLibOp(&data);
@@ -269,10 +308,11 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
         printf("copied from device\n");
        
-        /*if(i == 0 || i == 2 || i == 4)
+        if(i == 0 || i == 2 || i == 4)
         { 
-        float *f_in = (float *)dbg_in;
-        float *f_out = (float *)dbg_out;
+        float2 *f_in = (float2 *)dbg_in;
+        float2 *f_out = (float2 *)dbg_out;
+
 
         for(size_t kr=0; kr<data.node->length[1]; kr++)
         {
@@ -280,11 +320,11 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
             {
                 if(f_in[2*(kr*data.node->length[0] + kc)] != f_out[2*(kc*data.node->length[1] + kr)])
                     printf("fail\n");
-                
             }
         }
-        }*/
+        }
 
+        printf("\n---------------------------------------------\n");
         free(dbg_out);
         free(dbg_in);
 #endif
