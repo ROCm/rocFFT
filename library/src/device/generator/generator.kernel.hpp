@@ -216,7 +216,6 @@ namespace StockhamGenerator
         inline bool IsGroupedReadWritePossible()//TODO
         {
             bool possible = true;
-            const size_t *iStride, *oStride;
 
             if (r2c2r)
                 return false;
@@ -657,7 +656,7 @@ namespace StockhamGenerator
             std::string sfx = FloatSuffix<PR>();
 
 
-            bool cReg = linearRegs ? true : false;
+            //bool cReg = linearRegs ? true : false;
             //printf("cReg is %d \n", cReg);
 
             // Generate butterflies for all unique radices
@@ -704,9 +703,9 @@ namespace StockhamGenerator
                     }
                     else
                     {
-                        if (p == passes.begin()) { inIlvd = inInterleaved;  inRl = inReal;  gIn = true; ins = -1; }
+                        if (p == passes.begin()) { inIlvd = inInterleaved;  inRl = inReal;  gIn = true; ins = 0x7fff; } //0x7fff = 32767 in decimal, indicating non-unit stride
                         // ins = -1 is for non-unit stride, the 1st pass may read strided memory, while the middle pass read/write LDS which guarantees unit-stride
-                        if ((p + 1) == passes.end()) { outIlvd = outInterleaved; outRl = outReal; gOut = true; outs = -1; } //-1 is non-unit stride
+                        if ((p + 1) == passes.end()) { outIlvd = outInterleaved; outRl = outReal; gOut = true; outs = 0x7fff; } //0x7fff is non-unit stride
                         // ins = -1 is for non-unit stride, the last pass may write strided memory
                         if (p != passes.begin()) { inIlvd = ldsInterleaved; }
                         if ((p + 1) != passes.end()) { outIlvd = ldsInterleaved; }
