@@ -118,11 +118,23 @@ void hermitian2complex_kernel(hipLaunchParm lp, size_t N, T *input, size_t input
 
     input += input_offset;
     output += output_offset;
+    
+    if (tid == 0){ // simply write the first elment to output
+        output[0] = input[0];
+        return;
+    }
 
     if( tid < bound) //only read the first [N/2+1] elements due to conjugate symmetry
     {
-        // tid && (N - tid) are mirror;
-        output[N-tid] = output[tid] = input[tid]; 
+        // tid && (N-tid) are conjugate mirror with the sign of imag part flipped;
+        // for example if N = 7
+        // input elemnts of size (N/2+1=4) = [28.0, -3.5+7.2i, -3.5+2.7i, -3.5+0.79i]
+        // output would be  [28.0, -3.5+7.26i, -3.5+2.7i, -3.5+0.79i, -3.5-0.79i, -3.5-2.7i, -3.5-7.26i];
+        // where tid=1 && tid=6, tid=2 && tid==5, tid==3 && tid==4  are mirrors 
+        // if (tid == N-tid), then it is a real value,flipping imag sign has no effect 
+        output[tid] = input[tid]; 
+        output[N-tid].x = output[tid].x;
+        output[N-tid].y = -output[tid].y; 
     }
 }
 
@@ -184,7 +196,7 @@ void hermitian2complex(const void *data_p, void *back_p)
     rocfft_precision precision = data->node->precision;
 
     size_t output_size; 
-    if (input_size/2){
+    if (input_size % 2){//if odd
         output_size = (input_size-1)*2;
     } 
     else{
