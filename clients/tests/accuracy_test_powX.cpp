@@ -133,7 +133,7 @@ TEST_P(accuracy_test_complex, normal_1D_complex_interleaved_to_complex_interleav
 
 
 // *****************************************************
-//             Real to Complex
+//             Real to Hermitian 
 // *****************************************************
 
 template< class T, class fftw_T >
@@ -152,7 +152,7 @@ void normal_1D_real_interleaved_to_hermitian_interleaved(size_t N, size_t batch,
     rocfft_array_type out_array_type = rocfft_array_type_hermitian_interleaved;
 
     data_pattern pattern = sawtooth;
-    real_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, rocfft_placement_notinplace );//must be non-inplace tranform
+    real_to_hermitian<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, rocfft_placement_notinplace );//must be non-inplace tranform
 
     usleep(1e4);
 }
@@ -179,6 +179,59 @@ TEST_P(accuracy_test_real, normal_1D_real_interleaved_to_hermitian_interleaved_d
     size_t stride = 1;
 
     try { normal_1D_real_interleaved_to_hermitian_interleaved< double,  fftw_complex >(N, batch, placeness, transform_type, stride); }
+    catch( const std::exception& err ) { handle_exception(err);    }
+}
+
+
+
+// *****************************************************
+//             Hermitian to Real 
+// *****************************************************
+
+template< class T, class fftw_T >
+void normal_1D_hermitian_interleaved_to_real_interleaved(size_t N, size_t batch, rocfft_result_placement placeness, rocfft_transform_type  transform_type, size_t stride)
+{
+    std::vector<size_t> lengths;
+    lengths.push_back( N );
+    std::vector<size_t> input_strides;
+    std::vector<size_t> output_strides;
+    input_strides.push_back(stride);
+    output_strides.push_back(stride);
+
+    size_t input_distance = 0;// 0 means the data are densely packed
+    size_t output_distance = 0;// 0 means the data are densely packed
+    rocfft_array_type in_array_type = rocfft_array_type_hermitian_interleaved;
+    rocfft_array_type out_array_type = rocfft_array_type_real;
+
+
+    data_pattern pattern = sawtooth;
+    hermitian_to_real<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, rocfft_placement_notinplace );//must be non-inplace tranform
+
+    usleep(1e4);
+}
+
+
+TEST_P(accuracy_test_real, normal_1D_hermitian_interleaved_to_real_interleaved_single_precision)
+{
+    size_t N = std::get<0>(GetParam());
+    size_t batch = std::get<1>(GetParam());
+    rocfft_result_placement placeness = rocfft_placement_notinplace;//must be non-inplace
+    rocfft_transform_type  transform_type = rocfft_transform_type_real_inverse;// must be real inverse
+    size_t stride = 1;
+
+    try { normal_1D_hermitian_interleaved_to_real_interleaved< float,  fftwf_complex >(N, batch, placeness, transform_type, stride); }
+    catch( const std::exception& err ) { handle_exception(err);    }
+}
+
+TEST_P(accuracy_test_real, normal_1D_hermitian_interleaved_to_real_interleaved_double_precision)
+{
+    size_t N = std::get<0>(GetParam());
+    size_t batch = std::get<1>(GetParam());
+    rocfft_result_placement placeness = rocfft_placement_notinplace;//must be non-inplace
+    rocfft_transform_type  transform_type = rocfft_transform_type_real_inverse;// must be real inverse
+    size_t stride = 1;
+
+    try { normal_1D_hermitian_interleaved_to_real_interleaved< double,  fftw_complex >(N, batch, placeness, transform_type, stride); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
