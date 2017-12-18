@@ -503,7 +503,7 @@ private:
                             // compute square error
                             rms += ((ex_r - ac_r)*(ex_r - ac_r) + (ex_i - ac_i)*(ex_i - ac_i));
 #ifdef DEBUG
-                            if (rms/maxMag > 0.01) 
+                            //if (rms/maxMag > 0.01) 
                                 std::cout << "element: " << x << "; my result:(" << ac_r << "," << ac_i << "); reference result: (" << ex_r << "," << ex_i << ")" << std::endl;
 #endif 
                         }
@@ -1049,10 +1049,11 @@ public:
                     // at T/2, value will change to -amplitude and increase back up to 0 at T
                     // if there are an odd number of points in the whole period,
                     // we'll make a stop at 0 in the middle of the jump
-                    T value = 0.0f;
+                    T value = 1.0f;
                     T per_point_delta = amplitude / (number_of_points_on_one_line - 1);
 
                     for( size_t x = 0; x < number_of_points_in_one_period; x++) {
+
                         if( is_real() )
                         {
                             // value = (T)x/1000; //for debug 
@@ -1064,9 +1065,12 @@ public:
                             // for the real value, we want the sawtooth as described above
                             // for the imaginary value, we want the 2 times the inverse
                             //        (so that real and imaginary don't match, possibly obscuring errors)
-                            // value = (T)x/1000; //for debug
+                            //value = (T)x/1000; //for debug
                             // if( x % 2 == 0 ) value *= -1;// change the sign, for debug
-                            set_one_data_point( value, -2.0f * value, x, y, z, batch);
+			    T imag = -2.0f * value;
+		            if ( x==0 || x == number_of_points_in_one_period-1) imag = 0.0;// let element 0 and last to be real for hermitian input
+								
+                            set_one_data_point( value, imag, x, y, z, batch);
                         }
 
                         // if we're at T/2, we want to saw on down to the negative amplitude . . .

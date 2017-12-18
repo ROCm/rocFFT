@@ -260,7 +260,7 @@ public:
 				_output_layout,
 				rocfft_placement_notinplace )
 		, _forward_scale( 1.0f )
-		, _backward_scale( 1.0f/T(input.number_of_data_points_single_batch()) )
+		, _backward_scale( 1.0f )
 		, fftw_guts( (int)_lengths[dimx], (int)_lengths[dimy], (int)_lengths[dimz],
 					 (int)lengths_in.size(), (int)batch_size_in,
 					 reinterpret_cast<fftw_T*>(input_ptr()),

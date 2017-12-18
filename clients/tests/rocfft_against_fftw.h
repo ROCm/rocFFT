@@ -148,8 +148,8 @@ void real_to_hermitian( data_pattern pattern, rocfft_transform_type transform_ty
 	// if we're starting with unequal data, we're destined for failure
 	EXPECT_EQ( true, test_fft.input_buffer() == reference.input_buffer() );
 
-	//test_fft.forward_scale( scale );//TODO may not need
-	reference.forward_scale( scale );
+	//test_fft.forward_scale( scale );//TODO
+	//reference.forward_scale( scale );//TODO
 
 	test_fft.transform();
 	reference.transform();
@@ -164,7 +164,7 @@ void real_to_hermitian( data_pattern pattern, rocfft_transform_type transform_ty
 
 // dimension is inferred from lengths.size()
 // tightly packed is inferred from strides.empty()
-// input layout is always real
+// input layout is always hermitian
 template< class T, class fftw_T >
 void hermitian_to_real( data_pattern pattern, rocfft_transform_type transform_type,
 	std::vector<size_t> lengths, size_t batch,
@@ -213,8 +213,8 @@ void hermitian_to_real( data_pattern pattern, rocfft_transform_type transform_ty
 	// if we're starting with unequal data, we're destined for failure
 	EXPECT_EQ( true, test_fft.input_buffer() == reference.input_buffer() );
 
-	//test_fft.forward_scale( scale );//TODO may not need
-	reference.forward_scale( scale );
+	//test_fft.backward_scale( scale );// rocFFT kernels do not take scale for inverse
+	//reference.backward_scale( scale );// FFTW kernels do not take scale for inverse
 
 	test_fft.transform();
 	reference.transform();
