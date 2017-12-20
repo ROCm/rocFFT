@@ -57,6 +57,7 @@ if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
   # For now, we assume hipcc compiler means to compile for CUDA backend
   message( STATUS "HIPCC compiler detected; CUDA backend selected" )
 
+  set( HIP_PLATFORM "nvcc" )
   set( CMAKE_C_COMPILE_OPTIONS_PIC "-Xcompiler ${CMAKE_C_COMPILE_OPTIONS_PIC}" )
   set( CMAKE_CXX_COMPILE_OPTIONS_PIC "-Xcompiler ${CMAKE_CXX_COMPILE_OPTIONS_PIC}" )
   set( CMAKE_SHARED_LIBRARY_C_FLAGS "-Xlinker ${CMAKE_SHARED_LIBRARY_C_FLAGS}" )
