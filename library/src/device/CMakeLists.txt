@@ -73,6 +73,10 @@ target_compile_features( rocfft-device PRIVATE cxx_static_assert cxx_nullptr cxx
 
 target_link_libraries( rocfft-device PRIVATE hip::hip_hcc hip::hip_device hcc::hccshared )
 
+if(HIP_PLATFORM STREQUAL "nvcc")
+    target_compile_options( rocfft-device PRIVATE "-gencode arch=compute_50,code=sm_50 -gencode arch=compute_52,code=sm_52 -gencode arch=compute_30,code=sm_30" )
+endif()
+
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
   # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
   # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
