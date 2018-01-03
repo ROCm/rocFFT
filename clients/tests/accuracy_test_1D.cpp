@@ -46,22 +46,49 @@ protected:
 #define POW5_RANGE 5, 25, 125, 625, 3125, 15625, 78125, 390625, 1953125, 9765625, 48828125
 #define MIX_RANGE 6, 10, 12, 15, 20, 30, 120, 150, 225, 240, 300, 486, 600, 900, 1250, 1500, 1875, 2160, 2187, 2250, 2500, 3000, 4000, 12000, 24000,72000
 
-size_t pow2_range[] = { POW2_RANGE };
-size_t pow3_range[] = { POW3_RANGE };
-size_t pow5_range[] = { POW5_RANGE };
-size_t mix_range[] = { MIX_RANGE };
+#define LARGE_RANGE  4096, 4050, 4000, 3888, 3840, 3750, 3645, 3600, 3456, 3375, 3240, 3200, 3125, 3072, 3000, 2916, 2880, 2700, 2592, 2560, 2500, 2430, 2400, 2304, 2250, 2187, 2160, \\
+                2048, 2025, 2000, 1944, 1920, 1875, 1800, 1728, 1620, 1600, 1536, 1500, 1458, 1440, 1350, 1296, 1280, 1250, 1215, 1200, 1152, 1125, 1080, 1024, 1000, 972, 960, \\
+                900, 864, 810, 800, 768, 750, 729, 720, 675, 648, 640, 625, 600, 576, 540, 512, 500, 486, 480, 450, 432, 405, 400, 384, 375, 360, 324, 320, 300, 288, 270, 256,  \\
+                250, 243, 240, 225, 216, 200, 192, 180, 162, 160, 150, 144, 135, 128, 125, 120, 108, 100, 96, 90, 81, 80, 75, 72, 64, 60, 54, 50, 48, 45, 40, 36, 32, 30, 27, 25,\\
+24, 20, 18, 16, 15, 12, 10, 9, 8, 6, 5, 4, 3, 2, 1 
+
+
+static std::vector<size_t> pow2_range = { POW2_RANGE };
+static std::vector<size_t> pow3_range = { POW3_RANGE };
+static std::vector<size_t> pow5_range = { POW5_RANGE };
+static std::vector<size_t> mix_range = { MIX_RANGE };
 
 static size_t batch_range[] = {1};
 
 static size_t stride_range[] = {1};
 
-rocfft_result_placement placeness_range[] = {rocfft_placement_notinplace, /*rocfft_placement_inplace*/};
+static rocfft_result_placement placeness_range[] = {rocfft_placement_notinplace, rocfft_placement_inplace};
 
-rocfft_transform_type transform_range[] = {rocfft_transform_type_complex_forward, /*rocfft_transform_type_complex_inverse*/};
+static rocfft_transform_type transform_range[] = {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse};
 
-
-namespace powerX
+static std::vector<size_t> generate_random(size_t number_run)
 {
+    std::vector<size_t> output;
+
+    size_t i, j, k;
+    
+    size_t RAND_MAX_NUMBER = 6;
+
+    for(size_t r=0; r<number_run; r++)
+    {
+
+        i = (size_t)(rand() % RAND_MAX_NUMBER); // generate a integer number between [0, RAND_MAX-1]
+        j = (size_t)(rand() % RAND_MAX_NUMBER); // generate a integer number between [0, RAND_MAX-1]
+        k = (size_t)(rand() % RAND_MAX_NUMBER); // generate a integer number between [0, RAND_MAX-1]
+        
+        size_t value = pow(2, i) * pow(3, j) * pow(5, k);
+        output.push_back(value);     
+    }
+   
+    return output;
+}
+
+
 
 class accuracy_test_complex: public :: TestWithParam < std::tuple<size_t, size_t, rocfft_result_placement, rocfft_transform_type, size_t >  >
 {
@@ -87,10 +114,12 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t N, size_t batch
 {
     std::vector<size_t> lengths;
     lengths.push_back( N );
+
     std::vector<size_t> input_strides;
     std::vector<size_t> output_strides;
     input_strides.push_back(stride);
     output_strides.push_back(stride);
+
 
     size_t input_distance = 0;
     size_t output_distance = 0;
@@ -272,6 +301,15 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow_mix,
                                )
 );
 
+
+INSTANTIATE_TEST_CASE_P(rocfft_pow_random,
+                        accuracy_test_complex,
+                        Combine(
+                                  ValuesIn(generate_random(20)), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
+                               )
+);
+
+
 // *****************************************************
           //REAL TO HERMITIAN 
 // *****************************************************
@@ -392,4 +430,4 @@ DP_HUGE_TEST( DISABLED_large_dp_test_7, 4096*64, 17  )
 #endif
 
 
-} //namespace
+
