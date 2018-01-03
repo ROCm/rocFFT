@@ -158,7 +158,7 @@ public:
 
         argument_check(); //TODO add more FFT argument check
 
-        //verbose_output();
+        //verbose_output();// DEBUG
 
     /********************create plan and perform the FFT transformation *********************************/
 
@@ -256,7 +256,7 @@ public:
         LIB_V_THROW( rocfft_plan_description_create (&desc), "rocfft_plan_description_create failed");
         // TODO offset non-packed data; only works for 1D now
     
-        size_t output_distance = output_strides[0]*lengths[0];
+        size_t output_distance = output_strides[0]*lengths[0];//TODO
         if(is_hermitian(_output_layout))//if real to hermitian
         {
             output_distance = output_distance/2 + 1;
@@ -314,8 +314,8 @@ public:
             if( _placement == rocfft_placement_inplace ) cout << "in-place" << endl;
             else cout << "out-of-place" << endl;
 
-            cout << "input buffer size " << input.size_in_bytes() << endl;
-            cout << "output buffer size " << output.size_in_bytes() << endl;
+            cout << "input buffer byte size " << input.size_in_bytes() << endl;
+            cout << "output buffer byte size " << output.size_in_bytes() << endl;
 
     }
 

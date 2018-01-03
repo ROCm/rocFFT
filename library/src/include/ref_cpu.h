@@ -323,14 +323,20 @@ class RefLibOp
             float *tmp_mem = (float *)malloc(in_size_bytes);
             hipMemcpy(tmp_mem, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
-                for(size_t b=0; b<data->node->batch; b++)
+            size_t elements = 1;
+            for(size_t d=0; d < data->node->length.size();d++)
+            {
+                elements *= data->node->length[d];
+            }
+            for(size_t b=0; b < data->node->batch; b++)
+            {
+                for(size_t i=0; i<elements; i++)
                 {
-                    for(size_t i=0; i<data->node->length[0]; i++)
-                    {
-                         ot[data->node->oDist * b + i][0] = tmp_mem[ data->node->iDist * b + i];
-                         ot[data->node->oDist * b + i][1] = 0;                   
-                    }
+                    ot[data->node->oDist * b + i][0] = tmp_mem[ data->node->iDist * b + i];
+                    ot[data->node->oDist * b + i][1] = 0;                   
+                        
                 }
+            }
 
             if(tmp_mem)
                 free(tmp_mem);
@@ -344,10 +350,17 @@ class RefLibOp
             local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(in_size_bytes);
             hipMemcpy(tmp_mem, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
-            //printf("iDist=%zu,oDist=%zu, in complex2hermitian kernel\n", data->node->iDist, data->node->oDist);
+            size_t elements = 1;
+            elements *= data->node->length[0]/2 + 1;
+            for(size_t d=1; d < data->node->length.size();d++)
+            {
+                elements *= data->node->length[d];
+            }
+
+            printf("iDist=%zu,oDist=%zu, in complex2hermitian kernel\n", data->node->iDist, data->node->oDist);
             for(size_t b=0; b<data->node->batch; b++)
             {
-            	for(size_t i=0; i<data->node->length[0]/2 + 1; i++)//TODO: only work for 1D cases
+            	for(size_t i=0; i<elements; i++)//TODO: only work for 1D cases
                 {
                      ot[data->node->oDist * b + i][0] = tmp_mem[ data->node->iDist * b + i][0];
                      ot[data->node->oDist * b + i][1] = tmp_mem[ data->node->iDist * b + i][1];                   

@@ -294,7 +294,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
 
         data.gridParam = execPlan.gridParam[i];
 
-#ifdef TMP_DEBUG
+//#ifdef TMP_DEBUG
         size_t in_size = data.node->iDist * data.node->batch;
         size_t in_size_bytes = in_size * 2 * sizeof(float);
         void *dbg_in = malloc(in_size_bytes);
@@ -309,17 +309,17 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
             hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
         }
         printf("attempting kernel: %zu\n", i); fflush(stdout);
-#endif
+//#endif
 
         DevFnCall fn = execPlan.devFnCall[i];
         if(fn)
         {
-#ifdef REF_DEBUG 
+//#ifdef REF_DEBUG 
             // verify results for simple and five-stage scheme not for RC, CC scheme
             printf("\n---------------------------------------------\n");
             printf("\n\nkernel: %zu\n", i); fflush(stdout);
             RefLibOp refLibOp(&data);
-#endif
+//#endif
             fn(&data, &back);//execution kernel here
 #ifdef REF_DEBUG
             refLibOp.VerifyResult(&data);
@@ -330,24 +330,26 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
             printf("null ptr function call error\n");
         }
 
-#ifdef TMP_DEBUG
+//#ifdef TMP_DEBUG
         hipDeviceSynchronize();
         printf("executed kernel: %zu\n", i); fflush(stdout);
         hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
         printf("copied from device\n");
        
-        if(i == 0 || i == 2 || i == 4)
+        //if(i == 0 || i == 2 || i == 4)
         { 
         float2 *f_in = (float2 *)dbg_in;
         float2 *f_out = (float2 *)dbg_out;
 
 
-        for(size_t kr=0; kr<data.node->length[1]; kr++)
+        for(size_t y=0; y<data.node->length[1]; y++)
         {
-            for(size_t kc=0; kc<data.node->length[0]; kc++)
+            for(size_t x=0; x<data.node->length[0]/2+1; x++)
             {
-                if(f_in[2*(kr*data.node->length[0] + kc)] != f_out[2*(kc*data.node->length[1] + kr)])
-                    printf("fail\n");
+                printf(  
+                    "x=%zu, y=%zu, kernel output result = %f, %f\n", x, y, f_out[y*data.node->length[0] + x].x, f_out[y*data.node->length[0] + x].y    
+                );
+
             }
         }
         }
@@ -355,7 +357,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         printf("\n---------------------------------------------\n");
         free(dbg_out);
         free(dbg_in);
-#endif
+//#endif
 
     }
 }
