@@ -411,37 +411,39 @@ hcc_rocm:
 
     build_pipeline( hcc_compiler_args, hcc_docker_args, rocfft_paths, print_version_closure )
   }
-},
-nvcc:
-{
-  node( 'docker && cuda' )
-  {
-    def hcc_docker_args = new docker_data(
-        from_image:'nvidia/cuda:9.0-devel',
-        build_docker_file:'dockerfile-build-nvidia-cuda',
-        install_docker_file:'dockerfile-install-nvidia-cuda',
-        docker_run_args:'--device=/dev/nvidiactl --device=/dev/nvidia0 --device=/dev/nvidia-uvm --device=/dev/nvidia-uvm-tools --volume-driver=nvidia-docker --volume=nvidia_driver_384.90:/usr/local/nvidia:ro',
-        docker_build_args:' --pull' )
-
-    def hcc_compiler_args = new compiler_data(
-        compiler_name:'nvcc-9.0',
-        build_config:'Release',
-        compiler_path:'g++' )
-
-    def rocfft_paths = new project_paths(
-        project_name:'rocfft-nvcc',
-        src_prefix:'src',
-        build_prefix:'src',
-        build_command: './install.sh -cd --cuda' )
-
-    def print_version_closure = {
-      sh  """
-          set -x
-          nvidia-smi
-          nvcc --version
-        """
-    }
-
-    build_pipeline( hcc_compiler_args, hcc_docker_args, rocfft_paths, print_version_closure )
-  }
 }
+//,
+//nvcc:
+//{
+//  node( 'docker && cuda' )
+//  {
+//    def hcc_docker_args = new docker_data(
+//        from_image:'nvidia/cuda:9.0-devel',
+//        build_docker_file:'dockerfile-build-nvidia-cuda',
+//        install_docker_file:'dockerfile-install-nvidia-cuda',
+//        docker_run_args:'--device=/dev/nvidiactl --device=/dev/nvidia0 --device=/dev/nvidia-uvm --device=/dev/nvidia-uvm-tools --volume-driver=nvidia-docker --volume=nvidia_driver_384.90:/usr/local/nvidia:ro',
+//        docker_build_args:' --pull' )
+//
+//    def hcc_compiler_args = new compiler_data(
+//        compiler_name:'nvcc-9.0',
+//        build_config:'Release',
+//        compiler_path:'g++' )
+//
+//    def rocfft_paths = new project_paths(
+//        project_name:'rocfft-nvcc',
+//        src_prefix:'src',
+//        build_prefix:'src',
+//        build_command: './install.sh -cd --cuda' )
+//
+//    def print_version_closure = {
+//      sh  """
+//          set -x
+//          nvidia-smi
+//          nvcc --version
+//        """
+//    }
+//
+//    build_pipeline( hcc_compiler_args, hcc_docker_args, rocfft_paths, print_version_closure )
+//  }
+//}
+
