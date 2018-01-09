@@ -2,6 +2,10 @@
  * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
  ******************************************************************************/
 
+/*! @file rocfft.h
+ *  rocfft.h defines all the public interfaces and types
+ *  */
+
 #ifndef __ROCFFT_H__
 #define __ROCFFT_H__
 
@@ -11,7 +15,6 @@ extern "C"
 {
 #endif // __cplusplus
 
-/* Opaque pointer types to library internal data structures */
 
 /*! @brief Opaque pointer type to plan structure */
 typedef struct rocfft_plan_t *rocfft_plan;
