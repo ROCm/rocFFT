@@ -871,7 +871,11 @@ int main( int argc, char* argv[ ] )
 {
 	testing::InitGoogleTest( &argc, argv );
 
+    rocfft_setup();
+
     int retVal = RUN_ALL_TESTS( );
+
+    rocfft_cleanup();
 
 /*
     //  Reflection code to inspect how many tests failed in gTest

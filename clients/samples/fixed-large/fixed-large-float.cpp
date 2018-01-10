@@ -44,6 +44,8 @@ int main()
 	// rocfft gpu compute
 	// ========================================
 
+    rocfft_setup();
+
 	size_t Nbytes = N * sizeof(float2);
 
 	// Create HIP device object.
@@ -112,6 +114,8 @@ int main()
 	// Deallocate buffers
 	fftwf_free(in);
 	fftwf_free(out);
+
+    rocfft_cleanup();
 
 
 	return 0;

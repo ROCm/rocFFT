@@ -37,6 +37,8 @@ int main()
         // rocFFT gpu compute
         // ========================================
 
+        rocfft_setup();
+
         size_t N = 16;
         size_t Nbytes = N * sizeof(float2);
 
@@ -81,6 +83,8 @@ int main()
 
         // Free device buffer
         hipFree(x);
+
+        rocfft_cleanup();
 
         return 0;
 }
