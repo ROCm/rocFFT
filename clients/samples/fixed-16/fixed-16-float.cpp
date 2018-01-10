@@ -43,6 +43,8 @@ int main()
 	// rocfft gpu compute
 	// ========================================
 
+    rocfft_setup();
+
 	size_t Nbytes = N * sizeof(float2);
 
 	// Create HIP device object.
@@ -84,5 +86,7 @@ int main()
 
     hipFree(x);
 
-    return 1;
+    rocfft_cleanup();
+
+    return 0;
 }

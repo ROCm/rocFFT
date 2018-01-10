@@ -85,7 +85,9 @@ Example
    {
            // rocFFT gpu compute
            // ========================================
-   
+  
+           rocfft_setup();
+
            size_t N = 16;
            size_t Nbytes = N * sizeof(float2);
    
@@ -131,6 +133,8 @@ Example
            // Free device buffer
            hipFree(x);
    
+           rocfft_cleanup();
+
            return 0;
    }
 
