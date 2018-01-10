@@ -319,7 +319,7 @@ AUTOLINK_SUPPORT       = YES
 # diagrams that involve STL classes more complete and accurate.
 # The default value is: NO.
 
-BUILTIN_STL_SUPPORT    = YES
+BUILTIN_STL_SUPPORT    = NO
 
 # If you use Microsoft's C++/CLI language, you should set this option to YES to
 # enable parsing support.
@@ -417,6 +417,8 @@ LOOKUP_CACHE_SIZE      = 0
 #---------------------------------------------------------------------------
 # Build related configuration options
 #---------------------------------------------------------------------------
+
+SHOW_NAMESPACES        = NO
 
 # If the EXTRACT_ALL tag is set to YES, doxygen will assume all entities in
 # documentation are documented, even if no documentation was available. Private

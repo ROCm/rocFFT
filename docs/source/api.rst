@@ -2,8 +2,10 @@
    :maxdepth: 4 
    :caption: Contents:
 
-rocfft_plan_create
-------------------
+===
+API
+===
 
-.. doxygenfunction :: rocfft_plan_create
+.. doxygenindex::
+
  

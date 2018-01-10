@@ -10,6 +10,7 @@ Welcome to rocFFT's documentation!
    :maxdepth: 4 
    :caption: Contents:
 
+   library 
    api
 
 Indices and tables
