@@ -230,7 +230,7 @@ public:
                          dim, lengths.data(), batch_size, NULL  ), "rocfft_plan_create failed" );//simply case plan create
         }
         else{
-            set_layouts();//explicitely set layout and then create plan
+            set_layouts();//explicitely set layout and then create plan, TODO
         }
 #ifdef DEBUG
         LIB_V_THROW( rocfft_plan_get_print ( plan ), "rocfft_plan_get_print failed");
@@ -351,35 +351,37 @@ public:
 
 
     /*****************************************************/
-    void set_input_to_value( T real )
+    void set_data_to_value( T real )
     {
         input.set_all_to_value( real );
     }
 
     /*****************************************************/
-    void set_input_to_value( T real, T imag )
+    void set_data_to_value( T real, T imag )
     {
         input.set_all_to_value( real, imag );
     }
 
     /*****************************************************/
-    void set_input_to_sawtooth(T max) {
+    void set_data_to_sawtooth(T max) {
         input.set_all_to_sawtooth(max);
     }
 
     /*****************************************************/
-    void set_input_to_impulse() {
+    void set_data_to_impulse() {
         input.set_all_to_impulse();
     }
 
     /*****************************************************/
-    // yes, the "super duper global seed" is horrible
-    // alas, i'll have TODO it better later
-    void set_input_to_random()
+    void set_data_to_random()
     {
-        //input.set_all_to_random_data( 10, super_duper_global_seed );
-        input.set_all_to_impulse();
+        input.set_all_to_random();
     }
+
+	/*****************************************************/
+	void set_data_to_buffer( buffer<T> other_buffer ) {
+		input = other_buffer;
+	}
 
     /*****************************************************/
     buffer<T> & input_buffer()

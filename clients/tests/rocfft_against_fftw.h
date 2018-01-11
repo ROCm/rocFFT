@@ -45,31 +45,26 @@ void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_t
 
 	if( pattern == sawtooth )
 	{
-		test_fft.set_input_to_sawtooth( 1.0f );
-		reference.set_data_to_sawtooth( 1.0f );
+		test_fft.set_data_to_sawtooth( 1.0f );
 	}
 	else if( pattern == value )
 	{
-		test_fft.set_input_to_value( 2.0f, 2.5f );
-		reference.set_all_data_to_value( 2.0f, 2.5f );
+		test_fft.set_data_to_value( 2.0f, 2.5f );
 	}
 	else if( pattern == impulse )
 	{
-		test_fft.set_input_to_impulse();
-		reference.set_data_to_impulse();
+		test_fft.set_data_to_impulse();
 	}
 	else if( pattern == erratic )
 	{
-		test_fft.set_input_to_random(); //TODO 
-		reference.set_data_to_random(); //TODO
+		test_fft.set_data_to_random();  
 	}
 	else
 	{
 		throw std::runtime_error( "invalid pattern type in complex_to_complex()" );
 	}
 
-	// if we're starting with unequal data, we're destined for failure
-	//EXPECT_EQ( true, test_fft.input_buffer() == reference.input_buffer() );
+    reference.set_data_to_buffer(test_fft.input_buffer());
 
     // scale is already set in plan create called in constructor of class rocfft
 	if( transform_type  == rocfft_transform_type_complex_forward )
@@ -121,32 +116,26 @@ void real_to_hermitian( data_pattern pattern, rocfft_transform_type transform_ty
 
 	if( pattern == sawtooth )
 	{
-		test_fft.set_input_to_sawtooth( 1.0f );
-		reference.set_data_to_sawtooth( 1.0f );
+		test_fft.set_data_to_sawtooth( 1.0f );
 	}
 	else if( pattern == value )
 	{
-		test_fft.set_input_to_value( 2.0f );
-		reference.set_all_data_to_value( 2.0f );
+		test_fft.set_data_to_value( 2.0f );
 	}
 	else if( pattern == impulse )
 	{
-		test_fft.set_input_to_impulse();
-		reference.set_data_to_impulse();
+		test_fft.set_data_to_impulse();
 	}
 	else if( pattern == erratic )
 	{
-		test_fft.set_input_to_random(); //TODO 
-		reference.set_data_to_random(); //TODO
+		test_fft.set_data_to_random();  
 	}
 	else
 	{
 		throw std::runtime_error( "invalid pattern type in real_to_hermitian()" );
 	}
 
-
-	// if we're starting with unequal data, we're destined for failure
-	//EXPECT_EQ( true, test_fft.input_buffer() == reference.input_buffer() );
+    reference.set_data_to_buffer(test_fft.input_buffer());
 
 	//test_fft.forward_scale( scale );//TODO
 	//reference.forward_scale( scale );//TODO
@@ -174,6 +163,32 @@ void hermitian_to_real( data_pattern pattern, rocfft_transform_type transform_ty
 	rocfft_result_placement placeness,
 	T scale = 1.0f )
 {
+    
+    // will perform a real to hermitian first 
+	fftw<T, fftw_T> data_maker( lengths, batch, output_strides, input_strides, placeness, r2c );
+
+	if( pattern == sawtooth )
+	{
+		data_maker.set_data_to_sawtooth( 1.0f );
+	}
+	else if( pattern == value )
+	{
+		data_maker.set_data_to_value( 2.0f );
+	}
+	else if( pattern == impulse )
+	{
+		data_maker.set_data_to_impulse();
+	}
+	else if( pattern == erratic )
+	{
+		data_maker.set_data_to_random();  
+	}
+	else
+	{
+		throw std::runtime_error( "invalid pattern type in hermitian_to_real()" );
+	}
+
+    data_maker.transform();
 
 	rocfft<T> test_fft( lengths, batch,
 		input_strides,
@@ -181,37 +196,13 @@ void hermitian_to_real( data_pattern pattern, rocfft_transform_type transform_ty
 		input_distance, output_distance,
 		in_array_type, out_array_type,
 		placeness, transform_type, scale );
+	test_fft.set_data_to_buffer( data_maker.result() );
 
 	fftw<T, fftw_T> reference( lengths, batch, input_strides, output_strides, placeness, c2r );
-
-	if( pattern == sawtooth )
-	{
-		test_fft.set_input_to_sawtooth( 1.0f );
-		reference.set_data_to_sawtooth( 1.0f );
-	}
-	else if( pattern == value )
-	{
-		test_fft.set_input_to_value( 2.0f );
-		reference.set_all_data_to_value( 2.0f );
-	}
-	else if( pattern == impulse )
-	{
-		test_fft.set_input_to_impulse();
-		reference.set_data_to_impulse();
-	}
-	else if( pattern == erratic )
-	{
-		test_fft.set_input_to_random(); //TODO 
-		reference.set_data_to_random(); //TODO
-	}
-	else
-	{
-		throw std::runtime_error( "invalid pattern type in hermitian_to_real()" );
-	}
-
+    reference.set_data_to_buffer(data_maker.result());
 
 	// if we're starting with unequal data, we're destined for failure
-	//EXPECT_EQ( true, test_fft.input_buffer() == reference.input_buffer() );
+	EXPECT_EQ( true, test_fft.input_buffer() == reference.input_buffer() );
 
 	//test_fft.backward_scale( scale );// rocFFT kernels do not take scale for inverse
 	//reference.backward_scale( scale );// FFTW kernels do not take scale for inverse
