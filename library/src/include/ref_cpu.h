@@ -323,14 +323,20 @@ class RefLibOp
             float *tmp_mem = (float *)malloc(in_size_bytes);
             hipMemcpy(tmp_mem, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
-                for(size_t b=0; b<data->node->batch; b++)
+            size_t elements = 1;
+            for(size_t d=0; d < data->node->length.size();d++)
+            {
+                elements *= data->node->length[d];
+            }
+            for(size_t b=0; b < data->node->batch; b++)
+            {
+                for(size_t i=0; i<elements; i++)
                 {
-                    for(size_t i=0; i<data->node->length[0]; i++)
-                    {
-                         ot[data->node->oDist * b + i][0] = tmp_mem[ data->node->iDist * b + i];
-                         ot[data->node->oDist * b + i][1] = 0;                   
-                    }
+                    ot[data->node->oDist * b + i][0] = tmp_mem[ data->node->iDist * b + i];
+                    ot[data->node->oDist * b + i][1] = 0;                   
+                        
                 }
+            }
 
             if(tmp_mem)
                 free(tmp_mem);
@@ -344,13 +350,55 @@ class RefLibOp
             local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(in_size_bytes);
             hipMemcpy(tmp_mem, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
-            //printf("iDist=%zu,oDist=%zu, in complex2hermitian kernel\n", data->node->iDist, data->node->oDist);
+            size_t elements = 1;
+            elements *= data->node->length[0]/2 + 1;
+            for(size_t d=1; d < data->node->length.size();d++)
+            {
+                elements *= data->node->length[d];
+            }
+
+            printf("iDist=%zu,oDist=%zu, in complex2hermitian kernel\n", data->node->iDist, data->node->oDist);
             for(size_t b=0; b<data->node->batch; b++)
             {
-            	for(size_t i=0; i<data->node->length[0]/2 + 1; i++)//TODO: only work for 1D cases
+            	for(size_t i=0; i<elements; i++)//TODO: only work for 1D cases
                 {
                      ot[data->node->oDist * b + i][0] = tmp_mem[ data->node->iDist * b + i][0];
                      ot[data->node->oDist * b + i][1] = tmp_mem[ data->node->iDist * b + i][1];                   
+                }
+           }
+
+            if(tmp_mem)
+                free(tmp_mem);
+
+        }
+        else if(data->node->scheme == CS_KERNEL_COPY_HERM_TO_CMPLX)
+        {
+            //assump the input is hermitian, the output is complex on take the first [N/2 + 1] elements
+            size_t in_size_bytes = (data->node->iDist * data->node->batch) * 2 * sizeof(float);
+
+            local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(in_size_bytes);
+            hipMemcpy(tmp_mem, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
+
+            size_t output_size = data->node->length[0];
+            size_t input_size = output_size/2 + 1;
+
+            printf("iDist=%zu,oDist=%zu, in hermitian2complex kernel\n", data->node->iDist, data->node->oDist);
+            for(size_t b=0; b<data->node->batch; b++)
+            {
+                for(size_t d=0; d <  (data->node->length.size() == 2 ? (data->node->length[1]) : 1);  d++)//TODO; only work for 1D or 2D
+                {
+                	for(size_t i=0; i<input_size; i++)
+                    {
+                         ot[data->node->oDist * b + d*output_size + i][0] = tmp_mem[ data->node->iDist * b + d*input_size + i][0];
+                         ot[data->node->oDist * b + d*output_size + i][1] = tmp_mem[ data->node->iDist * b + d*input_size + i][1];
+
+                         if(i > 0)
+                         {  
+                             size_t mirror = output_size-i;
+                             ot[data->node->oDist * b + d*output_size + mirror][0] = tmp_mem[ data->node->iDist * b + d*input_size + i][0];
+                             ot[data->node->oDist * b + d*output_size + mirror][1] = tmp_mem[ data->node->iDist * b + d*input_size + i][1] * (-1);
+                         }
+                    }
                 }
            }
 
@@ -375,6 +423,7 @@ public:
 
     void VerifyResult(const void *data_p)
     {
+
         DeviceCallIn *data = (DeviceCallIn *)data_p;
         size_t out_size_bytes = (data->node->oDist * data->node->batch) * sizeof(float);
         if(data->node->outArrayType == rocfft_array_type_real){
@@ -384,6 +433,11 @@ public:
             out_size_bytes *= 2;             
         }
    
+        if (data->node->scheme == CS_KERNEL_COPY_CMPLX_TO_R)
+        {
+             return; //not implemented
+        }
+
         local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(out_size_bytes);
         hipMemcpy(tmp_mem, data->bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
 
@@ -413,6 +467,7 @@ public:
             totalSize = totalSize/2 + 1; //hermitan only check the first N/2 +1 elements; but only works for batch=1, dense packed cases
         }
 
+        //compare lb (library results) vs ot (CPU results)
         for(size_t i=0; i<totalSize; i++)
         {
             double mag;

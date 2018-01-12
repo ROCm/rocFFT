@@ -105,6 +105,10 @@ public:
         initialize_lengths(lengths_in);
         initialize_strides(strides_in);
         initialize_distance(distance_in);
+
+        //printf("_distance=%zu, _lengths[0]=%zu, _lengths[1]=%zu, _strides[0]=%zu, _strides[1]=%zu, _strides[2]=%zu ======================\n", _distance,
+        //_lengths[0],_lengths[1], _strides[0], _strides[1], _strides[2]);
+
         create_buffer_memory();
         clear();
     }
@@ -216,12 +220,12 @@ private:
     }
 
     /*****************************************************/
-    void initialize_strides(const size_t* strides_in)
+    void initialize_strides(const size_t* strides_in)//TODO: stride may introduce bugs
     {
         preinitialize_strides_to_1_1_1();
 
         // we need to calculate the strides if tightly packed
-        if( strides_in == nullptr ) {
+        if( strides_in == nullptr || strides_in[0] == 1) {
             _strides[dimx] = 1;
             for( size_t i = 1; i < _number_of_dimensions; ++i )
             {
@@ -260,6 +264,7 @@ private:
 
             _tightly_packed_distance = false;
         }
+
 
     }
 
@@ -503,10 +508,11 @@ private:
                             // compute square error
                             rms += ((ex_r - ac_r)*(ex_r - ac_r) + (ex_i - ac_i)*(ex_i - ac_i));
 #ifdef DEBUG
-                            //if (rms/maxMag > 0.01) 
+                            if (rms/maxMag > 0.01) 
                                 std::cout << "element: " << x << "; my result:(" << ac_r << "," << ac_i << "); reference result: (" << ex_r << "," << ex_i << ")" << std::endl;
 #endif 
                         }
+                            //if ( length(dimy) > 1 ) std::cout << "y == " << y << "  above ==================" << std::endl; 
                     }
                 }
 
@@ -1042,21 +1048,20 @@ public:
                 for( size_t y = 0; y < length(dimy); y++ )
                 {
                     // waveform will be 1 period of sawtooth
-                    size_t number_of_points_in_one_period = length(dimx);
-                    size_t number_of_points_on_one_line = number_of_points_in_one_period / 2;
-
                     // the sawtooth will start at 0 and increase to amplitude at T/2
                     // at T/2, value will change to -amplitude and increase back up to 0 at T
                     // if there are an odd number of points in the whole period,
                     // we'll make a stop at 0 in the middle of the jump
-                    T value = 1.0f;
-                    T per_point_delta = amplitude / (number_of_points_on_one_line - 1);
+                    T value = 1.0 * (y+1);
+                    //if (value > 1e3) value /= 1e3;
 
-                    for( size_t x = 0; x < number_of_points_in_one_period; x++) {
-
+                    T per_point_delta = amplitude / (length(dimx)/2);
+                    //inner most dimension
+                    for( size_t x = 0; x < length(dimx); x++) {
+                        
                         if( is_real() )
                         {
-                            // value = (T)x/1000; //for debug 
+                            //value = (T)x/1000; //for debug 
                             // if( x % 2 == 0 ) value *= -1;//change the sign, for debug 
                             set_one_data_point( value, x, y, z, batch);
                         }
@@ -1067,16 +1072,16 @@ public:
                             //        (so that real and imaginary don't match, possibly obscuring errors)
                             //value = (T)x/1000; //for debug
                             // if( x % 2 == 0 ) value *= -1;// change the sign, for debug
-			    T imag = -2.0f * value;
-		            if ( x==0 || x == number_of_points_in_one_period-1) imag = 0.0;// let element 0 and last to be real for hermitian input
-								
+			                T imag = -2.0 * value;
+                            //    imag = 0.0;// let element 0 and last to be real for hermitian input
                             set_one_data_point( value, imag, x, y, z, batch);
                         }
-
+                        
                         // if we're at T/2, we want to saw on down to the negative amplitude . . .
+                        
                         if( floats_are_about_equal( value, amplitude ) )
                         {
-                            if( number_of_points_in_one_period % 2 != 0 ) // odd, we need to add the 0
+                            if( length(dimx) % 2 != 0 ) // odd, we need to add the 0
                             {
                                 x++;
                                 if( is_real() )
@@ -1091,7 +1096,8 @@ public:
                             value = -1 * amplitude;
                         }
                         // . . . otherwise, keep going up
-                        else value += per_point_delta;
+                        else                        
+                         value += per_point_delta;
                     }
                 }
             }
@@ -1099,30 +1105,31 @@ public:
     }
 
     /*****************************************************/
-    void set_all_to_random_data( size_t max_value, size_t seed ) {
-        // for all batches
 
+    void set_all_to_random() {
+        // for all batches
+        size_t max_value = 10.0;
         boost::mt19937 random_data_generator;
         boost::uniform_int<> distribution(1, INT_MAX);
         boost::variate_generator<boost::mt19937&, boost::uniform_int<> >
             random_value(random_data_generator, distribution);
-        random_data_generator.seed( static_cast<boost::uint32_t>( seed ) );
+        //random_data_generator.seed( static_cast<boost::uint32_t>( seed ) );
+        random_data_generator.seed( static_cast<unsigned int>(std::time(0)) );
 
         for( size_t batch = 0; batch < batch_size(); batch++) {
             for( size_t z = 0; z < length(dimz); z++) {
                 for( size_t y = 0; y < length(dimy); y++) {
                     for( size_t x = 0; x < length(dimx); x++) {
-                        int val = random_value() % (max_value + 1); // pluck a random value
-                        if( random_value() % 2 ) val *= -1; // make it negative about 50% of the time
-
+                        int value = random_value() % (max_value + 1); // pluck a random value
+                        if( random_value() % 2 ) value *= -1; // make it negative about 50% of the time
+                        //printf("value=%d\n", value);
                         if( is_real() )
                         {
-                            set_one_data_point( static_cast<T>(val), x, y, z, batch );
+                            set_one_data_point( static_cast<T>(value), x, y, z, batch );
                         }
-
                         else
                         {
-                            set_one_data_point( static_cast<T>(val), static_cast<T>(val), x, y, z, batch );
+                            set_one_data_point( static_cast<T>(value), static_cast<T>(value), x, y, z, batch );
                         }
                     }
                 }

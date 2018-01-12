@@ -271,7 +271,7 @@ TEST_P(accuracy_test_real, normal_1D_hermitian_interleaved_to_real_interleaved_d
 // *****************************************************
           //COMPLEX TO COMPLEX 
 // *****************************************************
-INSTANTIATE_TEST_CASE_P(rocfft_pow2,
+INSTANTIATE_TEST_CASE_P(rocfft_pow2_1D,
                         accuracy_test_complex,
                         Combine(
                                   ValuesIn(pow2_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
@@ -279,14 +279,14 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow2,
 );
 
 
-INSTANTIATE_TEST_CASE_P(rocfft_pow3,
+INSTANTIATE_TEST_CASE_P(rocfft_pow3_1D,
                         accuracy_test_complex,
                         Combine(
                                   ValuesIn(pow3_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
                                )
 );
 
-INSTANTIATE_TEST_CASE_P(rocfft_pow5,
+INSTANTIATE_TEST_CASE_P(rocfft_pow5_1D,
                         accuracy_test_complex,
                         Combine(
                                   ValuesIn(pow5_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
@@ -294,7 +294,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow5,
 );
 
 
-INSTANTIATE_TEST_CASE_P(rocfft_pow_mix,
+INSTANTIATE_TEST_CASE_P(rocfft_pow_mix_1D,
                         accuracy_test_complex,
                         Combine(
                                   ValuesIn(mix_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
@@ -302,7 +302,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow_mix,
 );
 
 
-INSTANTIATE_TEST_CASE_P(rocfft_pow_random,
+INSTANTIATE_TEST_CASE_P(rocfft_pow_random_1D,
                         accuracy_test_complex,
                         Combine(
                                   ValuesIn(generate_random(20)), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
@@ -311,9 +311,9 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow_random,
 
 
 // *****************************************************
-          //REAL TO HERMITIAN 
+          //REAL  HERMITIAN 
 // *****************************************************
-INSTANTIATE_TEST_CASE_P(rocfft_pow2,
+INSTANTIATE_TEST_CASE_P(rocfft_pow2_1D,
                         accuracy_test_real,
                         Combine(
                                   ValuesIn(pow2_range), ValuesIn(batch_range)
@@ -321,7 +321,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow2,
 );
 
 
-INSTANTIATE_TEST_CASE_P(rocfft_pow3,
+INSTANTIATE_TEST_CASE_P(rocfft_pow3_1D,
                         accuracy_test_real,
                         Combine(
                                   ValuesIn(pow3_range), ValuesIn(batch_range)
@@ -329,7 +329,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow3,
 );
 
 
-INSTANTIATE_TEST_CASE_P(rocfft_pow5,
+INSTANTIATE_TEST_CASE_P(rocfft_pow5_1D,
                         accuracy_test_real,
                         Combine(
                                   ValuesIn(pow5_range), ValuesIn(batch_range)
@@ -337,7 +337,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow5,
 );
 
 
-INSTANTIATE_TEST_CASE_P(rocfft_pow_mix,
+INSTANTIATE_TEST_CASE_P(rocfft_pow_mix_1D,
                         accuracy_test_real,
                         Combine(
                                   ValuesIn(mix_range), ValuesIn(batch_range)

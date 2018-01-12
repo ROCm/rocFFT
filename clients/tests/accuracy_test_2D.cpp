@@ -41,9 +41,11 @@ protected:
     }
 };
                                                                                 //65536=pow(2,16)                                 //8388608 = pow(2,23)
-#define POW2_RANGE {2, 4}, {8, 16}, {32, 128}, {256, 512}, {1024, 2048}, {4096, 8192}, {16384, 32768}, {65536, 131072}, {262144, 524288}
-#define POW3_RANGE {3, 9}, {27, 81}, {243, 729}, {2187, 6561}, {19683, 59049}, {177147, 531441}
-#define POW5_RANGE {5, 25}, {125, 625}, {3125, 15625}, {78125, 390625}, {1953125, 9765625} 
+#define POW2_RANGE {2, 4}, {8, 16}, {32, 128}, {256, 512}, {1024, 2048}, {4096, 8192} /* malloc fail on 4GB Fiji Nano on the following size \\
+ , {16384, 32768}, {65536, 131072}, {262144, 524288} */
+
+#define POW3_RANGE {3, 9}, {27, 81}, {243, 729}, {2187, 6561} /* malloc fail on 4GB Fiji Nano on the following size , {19683, 59049}, {177147, 531441} */
+#define POW5_RANGE {5, 25}, {125, 625}, {3125, 15625}, /* malloc fail on 4GB Fiji Nano on the following size , {78125, 390625}, {1953125, 9765625} */
 
 static std::vector< std::vector<size_t> > pow2_range = { POW2_RANGE };
 static std::vector< std::vector<size_t> > pow3_range = { POW3_RANGE };
@@ -52,11 +54,13 @@ static std::vector< std::vector<size_t> > pow5_range = { POW5_RANGE };
 
 static size_t batch_range[] = {1};
 
-static size_t stride_range[] = {1};
+static size_t stride_range[] = {1};//1: assume packed data
 
-static rocfft_result_placement placeness_range[] = {rocfft_placement_notinplace, rocfft_placement_inplace};
+static rocfft_result_placement placeness_range[] = {/*rocfft_placement_notinplace,*/ rocfft_placement_inplace};
 
-static rocfft_transform_type transform_range[] = {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse};
+static rocfft_transform_type transform_range[] = {/*rocfft_transform_type_complex_forward, */rocfft_transform_type_complex_inverse};
+
+static data_pattern pattern_range[]= {sawtooth};
 
 static std::vector< std::vector<size_t> > generate_random(size_t number_run)
 {
@@ -93,7 +97,7 @@ static std::vector< std::vector<size_t> > generate_random(size_t number_run)
 
 
 
-class accuracy_test_complex_2D: public :: TestWithParam < std::tuple<std::vector<size_t>, size_t, rocfft_result_placement, rocfft_transform_type, size_t >  >
+class accuracy_test_complex_2D: public :: TestWithParam < std::tuple<std::vector<size_t>, size_t, rocfft_result_placement, rocfft_transform_type, size_t, data_pattern>  >
 {
     protected:
         accuracy_test_complex_2D(){}
@@ -102,7 +106,7 @@ class accuracy_test_complex_2D: public :: TestWithParam < std::tuple<std::vector
         virtual void TearDown(){}
 };
 
-class accuracy_test_real_2D: public :: TestWithParam < std::tuple<std::vector<size_t>, size_t>  >
+class accuracy_test_real_2D: public :: TestWithParam < std::tuple<std::vector<size_t>, size_t, data_pattern>  >
 {
     protected:
         accuracy_test_real_2D(){}
@@ -113,7 +117,7 @@ class accuracy_test_real_2D: public :: TestWithParam < std::tuple<std::vector<si
 
 
 template< class T, class fftw_T >
-void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t> lengths,  size_t batch, rocfft_result_placement placeness, rocfft_transform_type  transform_type, size_t stride)
+void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t> lengths,  size_t batch, rocfft_result_placement placeness, rocfft_transform_type  transform_type, size_t stride, data_pattern pattern)
 {
     size_t total_size = 1;
     for(int i=0; i<lengths.size();i++)
@@ -139,7 +143,6 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t> le
     rocfft_array_type in_array_type = rocfft_array_type_complex_interleaved;
     rocfft_array_type out_array_type = rocfft_array_type_complex_interleaved;
 
-    data_pattern pattern = sawtooth;
     complex_to_complex<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, placeness );
     usleep(1e4);
 }
@@ -156,8 +159,9 @@ TEST_P(accuracy_test_complex_2D, normal_2D_complex_interleaved_to_complex_interl
     rocfft_result_placement placeness = std::get<2>(GetParam());
     rocfft_transform_type  transform_type = std::get<3>(GetParam());
     size_t stride = std::get<4>(GetParam());
+    data_pattern pattern = std::get<5>(GetParam());
 
-    try { normal_2D_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(lengths,  batch, placeness, transform_type, stride); }
+    try { normal_2D_complex_interleaved_to_complex_interleaved< float,  fftwf_complex >(lengths,  batch, placeness, transform_type, stride, pattern); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
@@ -169,8 +173,9 @@ TEST_P(accuracy_test_complex_2D, normal_2D_complex_interleaved_to_complex_interl
     rocfft_result_placement placeness = std::get<2>(GetParam());
     rocfft_transform_type  transform_type = std::get<3>(GetParam());
     size_t stride = std::get<4>(GetParam());
+    data_pattern pattern = std::get<5>(GetParam());
 
-    try { normal_2D_complex_interleaved_to_complex_interleaved< double,  fftw_complex >(lengths,  batch, placeness, transform_type, stride); }
+    try { normal_2D_complex_interleaved_to_complex_interleaved< double,  fftw_complex >(lengths,  batch, placeness, transform_type, stride, pattern); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
@@ -180,25 +185,19 @@ TEST_P(accuracy_test_complex_2D, normal_2D_complex_interleaved_to_complex_interl
 // *****************************************************
 
 template< class T, class fftw_T >
-void normal_2D_real_interleaved_to_hermitian_interleaved(std::vector<size_t> lengths,  size_t batch, rocfft_result_placement placeness, rocfft_transform_type  transform_type, size_t stride)
+void normal_2D_real_interleaved_to_hermitian_interleaved(std::vector<size_t> lengths,  size_t batch, rocfft_result_placement placeness, rocfft_transform_type  transform_type, size_t stride, data_pattern pattern)
 {
 
     std::vector<size_t> input_strides;
     std::vector<size_t> output_strides;
     input_strides.push_back(stride);
     output_strides.push_back(stride);
-    for(int i=1; i<lengths.size();i++)
-    {
-        input_strides.push_back(input_strides[i-1]*lengths[i-1]);
-        output_strides.push_back(output_strides[i-1]*lengths[i-1]);
-    }
 
     size_t input_distance = 0;// 0 means the data are densely packed
     size_t output_distance = 0;// 0 means the data are densely packed
     rocfft_array_type in_array_type = rocfft_array_type_real;
     rocfft_array_type out_array_type = rocfft_array_type_hermitian_interleaved;
 
-    data_pattern pattern = sawtooth;
     real_to_hermitian<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, rocfft_placement_notinplace );//must be non-inplace tranform
 
     usleep(1e4);
@@ -209,11 +208,12 @@ TEST_P(accuracy_test_real_2D, normal_2D_real_interleaved_to_hermitian_interleave
 {
     std::vector<size_t> lengths = std::get<0>(GetParam());
     size_t batch = std::get<1>(GetParam());
+    data_pattern pattern = std::get<2>(GetParam());
     rocfft_result_placement placeness = rocfft_placement_notinplace;//must be non-inplace
     rocfft_transform_type  transform_type = rocfft_transform_type_real_forward;// must be real forward
     size_t stride = 1;
 
-    try { normal_2D_real_interleaved_to_hermitian_interleaved< float,  fftwf_complex >(lengths,  batch, placeness, transform_type, stride); }
+    try { normal_2D_real_interleaved_to_hermitian_interleaved< float,  fftwf_complex >(lengths,  batch, placeness, transform_type, stride, pattern); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
@@ -221,11 +221,12 @@ TEST_P(accuracy_test_real_2D, normal_2D_real_interleaved_to_hermitian_interleave
 {
     std::vector<size_t> lengths = std::get<0>(GetParam());
     size_t batch = std::get<1>(GetParam());
+    data_pattern pattern = std::get<2>(GetParam());
     rocfft_result_placement placeness = rocfft_placement_notinplace;//must be non-inplace
     rocfft_transform_type  transform_type = rocfft_transform_type_real_forward;// must be real forward
     size_t stride = 1;
 
-    try { normal_2D_real_interleaved_to_hermitian_interleaved< double,  fftw_complex >(lengths,  batch, placeness, transform_type, stride); }
+    try { normal_2D_real_interleaved_to_hermitian_interleaved< double,  fftw_complex >(lengths,  batch, placeness, transform_type, stride, pattern); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
@@ -236,52 +237,48 @@ TEST_P(accuracy_test_real_2D, normal_2D_real_interleaved_to_hermitian_interleave
 // *****************************************************
 
 template< class T, class fftw_T >
-void normal_2D_hermitian_interleaved_to_real_interleaved(std::vector<size_t> lengths,  size_t batch, rocfft_result_placement placeness, rocfft_transform_type  transform_type, size_t stride)
+void normal_2D_hermitian_interleaved_to_real_interleaved(std::vector<size_t> lengths,  size_t batch, rocfft_result_placement placeness, rocfft_transform_type  transform_type, size_t stride, data_pattern pattern)
 {
     std::vector<size_t> input_strides;
     std::vector<size_t> output_strides;
     input_strides.push_back(stride);
     output_strides.push_back(stride);
-    for(int i=1; i<lengths.size();i++)
-    {
-        input_strides.push_back(input_strides[i-1]*lengths[i-1]);
-        output_strides.push_back(output_strides[i-1]*lengths[i-1]);
-    }
+
 
     size_t input_distance = 0;// 0 means the data are densely packed
     size_t output_distance = 0;// 0 means the data are densely packed
     rocfft_array_type in_array_type = rocfft_array_type_hermitian_interleaved;
     rocfft_array_type out_array_type = rocfft_array_type_real;
 
-
-    data_pattern pattern = sawtooth;
     hermitian_to_real<T, fftw_T>( pattern, transform_type, lengths, batch, input_strides, output_strides, input_distance, output_distance, in_array_type, out_array_type, rocfft_placement_notinplace );//must be non-inplace tranform
 
     usleep(1e4);
 }
 
-
+/*
 TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleaved_single_precision)
 {
     std::vector<size_t> lengths = std::get<0>(GetParam());
     size_t batch = std::get<1>(GetParam());
+    data_pattern pattern = std::get<2>(GetParam());
     rocfft_result_placement placeness = rocfft_placement_notinplace;//must be non-inplace
     rocfft_transform_type  transform_type = rocfft_transform_type_real_inverse;// must be real inverse
     size_t stride = 1;
 
-    try { normal_2D_hermitian_interleaved_to_real_interleaved< float,  fftwf_complex >(lengths,  batch, placeness, transform_type, stride); }
+    try { normal_2D_hermitian_interleaved_to_real_interleaved< float,  fftwf_complex >(lengths,  batch, placeness, transform_type, stride, pattern); }
     catch( const std::exception& err ) { handle_exception(err);    }
-}
-
+} 
+*/
 TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleaved_double_precision)
 {
     std::vector<size_t> lengths = std::get<0>(GetParam());
     size_t batch = std::get<1>(GetParam());
+    data_pattern pattern = std::get<2>(GetParam());
     rocfft_result_placement placeness = rocfft_placement_notinplace;//must be non-inplace
     rocfft_transform_type  transform_type = rocfft_transform_type_real_inverse;// must be real inverse
     size_t stride = 1;
 
-    try { normal_2D_hermitian_interleaved_to_real_interleaved< double,  fftw_complex >(lengths,  batch, placeness, transform_type, stride); }
+    try { normal_2D_hermitian_interleaved_to_real_interleaved< double,  fftw_complex >(lengths,  batch, placeness, transform_type, stride, pattern); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
 
@@ -295,7 +292,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleave
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_2D,
                         accuracy_test_complex_2D,
                         Combine(
-                                  ValuesIn(pow2_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
+                                  ValuesIn(pow2_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range), ValuesIn(pattern_range)
                                )
 );
 
@@ -303,21 +300,43 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow2_2D,
 INSTANTIATE_TEST_CASE_P(rocfft_pow3_2D,
                         accuracy_test_complex_2D,
                         Combine(
-                                  ValuesIn(pow3_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
+                                  ValuesIn(pow3_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range), ValuesIn(pattern_range)
                                )
 );
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow5_2D,
                         accuracy_test_complex_2D,
                         Combine(
-                                  ValuesIn(pow5_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range)
+                                  ValuesIn(pow5_range), ValuesIn(batch_range), ValuesIn(placeness_range), ValuesIn(transform_range), ValuesIn(stride_range), ValuesIn(pattern_range)
                                )
 );
 
 
+// *****************************************************
+          //REAL  HERMITIAN 
+// *****************************************************
+INSTANTIATE_TEST_CASE_P(rocfft_pow2_2D,
+                        accuracy_test_real_2D,
+                        Combine(
+                                  ValuesIn(pow2_range), ValuesIn(batch_range), ValuesIn(pattern_range)
+                               )
+);
 
 
+INSTANTIATE_TEST_CASE_P(rocfft_pow3_2D,
+                        accuracy_test_real_2D,
+                        Combine(
+                                  ValuesIn(pow3_range), ValuesIn(batch_range), ValuesIn(pattern_range)
+                               )
+);
 
+
+INSTANTIATE_TEST_CASE_P(rocfft_pow5_2D,
+                        accuracy_test_real_2D,
+                        Combine(
+                                  ValuesIn(pow5_range), ValuesIn(batch_range), ValuesIn(pattern_range)
+                               )
+);
 
 
 

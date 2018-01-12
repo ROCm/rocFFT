@@ -158,7 +158,7 @@ public:
 
         argument_check(); //TODO add more FFT argument check
 
-        //verbose_output();
+        //verbose_output();// DEBUG
 
     /********************create plan and perform the FFT transformation *********************************/
 
@@ -230,7 +230,7 @@ public:
                          dim, lengths.data(), batch_size, NULL  ), "rocfft_plan_create failed" );//simply case plan create
         }
         else{
-            set_layouts();//explicitely set layout and then create plan
+            set_layouts();//explicitely set layout and then create plan, TODO
         }
 #ifdef DEBUG
         LIB_V_THROW( rocfft_plan_get_print ( plan ), "rocfft_plan_get_print failed");
@@ -256,7 +256,7 @@ public:
         LIB_V_THROW( rocfft_plan_description_create (&desc), "rocfft_plan_description_create failed");
         // TODO offset non-packed data; only works for 1D now
     
-        size_t output_distance = output_strides[0]*lengths[0];
+        size_t output_distance = output_strides[0]*lengths[0];//TODO
         if(is_hermitian(_output_layout))//if real to hermitian
         {
             output_distance = output_distance/2 + 1;
@@ -314,8 +314,8 @@ public:
             if( _placement == rocfft_placement_inplace ) cout << "in-place" << endl;
             else cout << "out-of-place" << endl;
 
-            cout << "input buffer size " << input.size_in_bytes() << endl;
-            cout << "output buffer size " << output.size_in_bytes() << endl;
+            cout << "input buffer byte size " << input.size_in_bytes() << endl;
+            cout << "output buffer byte size " << output.size_in_bytes() << endl;
 
     }
 
@@ -351,35 +351,37 @@ public:
 
 
     /*****************************************************/
-    void set_input_to_value( T real )
+    void set_data_to_value( T real )
     {
         input.set_all_to_value( real );
     }
 
     /*****************************************************/
-    void set_input_to_value( T real, T imag )
+    void set_data_to_value( T real, T imag )
     {
         input.set_all_to_value( real, imag );
     }
 
     /*****************************************************/
-    void set_input_to_sawtooth(T max) {
+    void set_data_to_sawtooth(T max) {
         input.set_all_to_sawtooth(max);
     }
 
     /*****************************************************/
-    void set_input_to_impulse() {
+    void set_data_to_impulse() {
         input.set_all_to_impulse();
     }
 
     /*****************************************************/
-    // yes, the "super duper global seed" is horrible
-    // alas, i'll have TODO it better later
-    void set_input_to_random()
+    void set_data_to_random()
     {
-        //input.set_all_to_random_data( 10, super_duper_global_seed );
-        input.set_all_to_impulse();
+        input.set_all_to_random();
     }
+
+	/*****************************************************/
+	void set_data_to_buffer( buffer<T> other_buffer ) {
+		input = other_buffer;
+	}
 
     /*****************************************************/
     buffer<T> & input_buffer()

@@ -406,13 +406,13 @@ public:
 	}
 
 	/*****************************************************/
-	void set_all_data_to_value( T value )
+	void set_data_to_value( T value )
 	{
 		input.set_all_to_value( value );
 	}
 
 	/*****************************************************/
-	void set_all_data_to_value( T real_value, T imag_value )
+	void set_data_to_value( T real_value, T imag_value )
 	{
 		input.set_all_to_value( real_value, imag_value );
 	}
@@ -436,84 +436,14 @@ public:
 	}
 
 	/*****************************************************/
-	// yes, the "super duper global seed" is horrible
-	// alas, i'll have TODO it better later
 	void set_data_to_random()
 	{
-		//input.set_all_to_random_data( 10, super_duper_global_seed );
+		input.set_all_to_random();
 	}
 
 	/*****************************************************/
-	void set_input_to_buffer( buffer<T> other_buffer ) {
+	void set_data_to_buffer( buffer<T> other_buffer ) {
 		input = other_buffer;
-	}
-
-	void set_output_postcallback()
-	{
-		//postcallback user data
-		buffer<T> userdata( 	output.number_of_dimensions(),
-					output.lengths(),
-					output.strides(),
-					output.batch_size(),
-					output.distance(),
-					rocfft_array_type_real ,
-					rocfft_placement_inplace
-					);
-		
-		userdata.set_all_to_random_data(_lengths[0], 10);
-		
-		output *= userdata;
-	}
-
-	void set_input_precallback()
-	{
-		//precallback user data
-		buffer<T> userdata( 	input.number_of_dimensions(),
-					input.lengths(),
-					input.strides(),
-					input.batch_size(),
-					input.distance(),
-					rocfft_array_type_real ,
-					rocfft_placement_inplace
-					);
-		
-		userdata.set_all_to_random_data(_lengths[0], 10);
-		
-		input *= userdata;
-	}
-
-	void set_input_precallback_special()
-	{
-		//precallback user data
-		buffer<T> userdata( 	input.number_of_dimensions(),
-					input.lengths(),
-					input.strides(),
-					input.batch_size(),
-					input.distance(),
-					rocfft_array_type_real ,
-					rocfft_placement_inplace
-					);
-		
-		userdata.set_all_to_random_data(_lengths[0], 10);
-		
-		input.multiply_3pt_average(userdata);
-	}
-
-	void set_output_postcallback_special()
-	{
-		//postcallback user data
-		buffer<T> userdata( 	output.number_of_dimensions(),
-					output.lengths(),
-					output.strides(),
-					output.batch_size(),
-					output.distance(),
-					rocfft_array_type_real ,
-					rocfft_placement_inplace
-					);
-		
-		userdata.set_all_to_random_data(_lengths[0], 10);
-		
-		output.multiply_3pt_average(userdata);
 	}
 
 	/*****************************************************/
@@ -521,11 +451,11 @@ public:
 	{
 		if( _input_layout == rocfft_array_type_real )
 		{
-			set_all_data_to_value( 0.0f );
+			set_data_to_value( 0.0f );
 		}
 		else
 		{
-			set_all_data_to_value( 0.0f, 0.0f );
+			set_data_to_value( 0.0f, 0.0f );
 		}
 	}
 

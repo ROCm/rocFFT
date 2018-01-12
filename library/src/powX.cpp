@@ -336,18 +336,18 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
         printf("copied from device\n");
        
-        if(i == 0 || i == 2 || i == 4)
+        //if(i == 0 || i == 2 || i == 4)
         { 
         float2 *f_in = (float2 *)dbg_in;
         float2 *f_out = (float2 *)dbg_out;
-
-
-        for(size_t kr=0; kr<data.node->length[1]; kr++)
+        //temporary print out the kernel output 
+        for(size_t y=0; y<data.node->length[1]; y++)
         {
-            for(size_t kc=0; kc<data.node->length[0]; kc++)
+            for(size_t x=0; x<data.node->length[0]; x++)
             {
-                if(f_in[2*(kr*data.node->length[0] + kc)] != f_out[2*(kc*data.node->length[1] + kr)])
-                    printf("fail\n");
+                printf(  
+                    "x=%zu, y=%zu, kernel output result = %f, %f\n", x, y, f_out[y*data.node->length[0] + x].x, f_out[y*data.node->length[0] + x].y    
+                );
             }
         }
         }
