@@ -1052,7 +1052,9 @@ public:
                     // at T/2, value will change to -amplitude and increase back up to 0 at T
                     // if there are an odd number of points in the whole period,
                     // we'll make a stop at 0 in the middle of the jump
-                    T value = 1.0 * sqrt((y+1));
+                    T value = 1.0 * (y+1);
+                    //if (value > 1e3) value /= 1e3;
+
                     T per_point_delta = amplitude / (length(dimx)/2);
                     //inner most dimension
                     for( size_t x = 0; x < length(dimx); x++) {

@@ -216,7 +216,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_real_interleaved_to_hermitian_interleave
     try { normal_2D_real_interleaved_to_hermitian_interleaved< float,  fftwf_complex >(lengths,  batch, placeness, transform_type, stride, pattern); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
-/*
+
 TEST_P(accuracy_test_real_2D, normal_2D_real_interleaved_to_hermitian_interleaved_double_precision)
 {
     std::vector<size_t> lengths = std::get<0>(GetParam());
@@ -229,7 +229,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_real_interleaved_to_hermitian_interleave
     try { normal_2D_real_interleaved_to_hermitian_interleaved< double,  fftw_complex >(lengths,  batch, placeness, transform_type, stride, pattern); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
-*/
+
 
 
 // *****************************************************
@@ -255,7 +255,7 @@ void normal_2D_hermitian_interleaved_to_real_interleaved(std::vector<size_t> len
     usleep(1e4);
 }
 
-
+/*
 TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleaved_single_precision)
 {
     std::vector<size_t> lengths = std::get<0>(GetParam());
@@ -267,8 +267,8 @@ TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleave
 
     try { normal_2D_hermitian_interleaved_to_real_interleaved< float,  fftwf_complex >(lengths,  batch, placeness, transform_type, stride, pattern); }
     catch( const std::exception& err ) { handle_exception(err);    }
-}
-/*
+} 
+*/
 TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleaved_double_precision)
 {
     std::vector<size_t> lengths = std::get<0>(GetParam());
@@ -281,7 +281,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleave
     try { normal_2D_hermitian_interleaved_to_real_interleaved< double,  fftw_complex >(lengths,  batch, placeness, transform_type, stride, pattern); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
-*/
+
 
 
 //Values is for a single item; ValuesIn is for an array
@@ -313,7 +313,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow5_2D,
 
 
 // *****************************************************
-          //REAL TO HERMITIAN 
+          //REAL  HERMITIAN 
 // *****************************************************
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_2D,
                         accuracy_test_real_2D,
@@ -330,6 +330,13 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow3_2D,
                                )
 );
 
+
+INSTANTIATE_TEST_CASE_P(rocfft_pow5_2D,
+                        accuracy_test_real_2D,
+                        Combine(
+                                  ValuesIn(pow5_range), ValuesIn(batch_range), ValuesIn(pattern_range)
+                               )
+);
 
 
 

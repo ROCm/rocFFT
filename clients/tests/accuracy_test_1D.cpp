@@ -311,7 +311,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow_random_1D,
 
 
 // *****************************************************
-          //REAL TO HERMITIAN 
+          //REAL  HERMITIAN 
 // *****************************************************
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_1D,
                         accuracy_test_real,
