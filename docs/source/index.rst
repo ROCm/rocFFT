@@ -12,6 +12,7 @@ Welcome to rocFFT's documentation!
 
    library 
    api
+   allapi
 
 Indices and tables
 ==================

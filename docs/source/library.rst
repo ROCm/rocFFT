@@ -131,7 +131,9 @@ Example
            // Create rocFFT plan
            rocfft_plan plan = NULL;
            size_t length = N;
-           rocfft_plan_create(&plan, rocfft_placement_inplace, rocfft_transform_type_complex_forward, rocfft_precision_single, 1, &length, 1, NULL);
+           rocfft_plan_create(&plan, rocfft_placement_inplace,
+                rocfft_transform_type_complex_forward, rocfft_precision_single,
+                1, &length, 1, NULL);
    
            // Execute plan
            rocfft_execute(plan, (void**) &x, NULL, NULL);
@@ -198,16 +200,17 @@ Transform and Array types
 
 There are two main types of FFT transforms in the library:
 
-* Complex FFT - Transformation of complex data; the library supports the following two array types to store complex numbers:
+* Complex FFT - Transformation of complex data(could be forward or backward); the library supports the following two
+  array types to store complex numbers:
 
-  #. Planar format - where the real and imaginary components are kept in 2 separate arrays: 
-     Buffer1: RRRRR 
-     Buffer2: IIIII
+  #. Planar format - where the real and imaginary components are kept in 2 separate arrays:
+
+     * Buffer1: ``RRRRR...`` 
+     * Buffer2: ``IIIII...``
   #. Interleaved format - where the real and imaginary components are stored as contiguous pairs in the same array: 
-     Buffer: RIRIRIRIRIRI
 
-  Complex FFT could either be forward or backward.
-
+     * Buffer: ``RIRIRIRIRIRI...``
+  
 * Real FFT - Transformation of real data. For transforms involving real data, there are two possibilities:
 
   * Real data being subject to forward FFT transform that results in complex data (Hermitian).
