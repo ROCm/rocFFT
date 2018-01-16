@@ -48,6 +48,7 @@ set(rocfft_test_source
   accuracy_test_2D.cpp
   transpose_gtest.cpp
   unit_test.cpp
+  template.cpp
   misc/source/test_exception.cpp
   )
 
