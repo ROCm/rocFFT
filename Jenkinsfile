@@ -411,8 +411,7 @@ hcc_rocm:
 
     build_pipeline( hcc_compiler_args, hcc_docker_args, rocfft_paths, print_version_closure )
   }
-}
-,
+},
 nvcc:
 {
   node( 'docker && cuda' )
