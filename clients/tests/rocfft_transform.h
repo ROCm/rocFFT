@@ -22,11 +22,6 @@ using namespace std;
 //    Custom deleter functions for our unique_ptr smart pointer class
 //    In my version 1, I do not use it
 
-
-
-
-
-
 template<class T>
 rocfft_status rocfft_plan_create_template(rocfft_plan *plan,
                     rocfft_result_placement placement,
@@ -35,49 +30,10 @@ rocfft_status rocfft_plan_create_template(rocfft_plan *plan,
                     size_t number_of_transforms,
                     const rocfft_plan_description description );
 
-template<>
-rocfft_status rocfft_plan_create_template<float>(rocfft_plan *plan,
-                    rocfft_result_placement placement,
-                    rocfft_transform_type transform_type,
-                    size_t dimensions, const size_t *lengths,
-                    size_t number_of_transforms,
-                    const rocfft_plan_description description )
-{
-    return rocfft_plan_create(plan, placement, transform_type, rocfft_precision_single, dimensions, lengths, number_of_transforms, description);
-}
-
-template<>
-rocfft_status rocfft_plan_create_template<double>(rocfft_plan *plan,
-                    rocfft_result_placement placement,
-                    rocfft_transform_type transform_type,
-                    size_t dimensions, const size_t *lengths,
-                    size_t number_of_transforms,
-                    const rocfft_plan_description description )
-{
-    return rocfft_plan_create(plan, placement, transform_type, rocfft_precision_double, dimensions, lengths, number_of_transforms, description);
-}
-
-
 template<class T>
 rocfft_status rocfft_set_scale_template(
                     const rocfft_plan_description description,
                     const T scale );
-
-template<>
-rocfft_status rocfft_set_scale_template<float>(
-                    const rocfft_plan_description description,
-                    const float scale )
-{
-    return rocfft_plan_description_set_scale_float(description, scale);
-}
-
-template<>
-rocfft_status rocfft_set_scale_template<double>(
-                    const rocfft_plan_description description,
-                    const double scale )
-{
-    return rocfft_plan_description_set_scale_double(description, scale);
-}
 
 
  /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
@@ -255,13 +211,13 @@ public:
 
         LIB_V_THROW( rocfft_plan_description_create (&desc), "rocfft_plan_description_create failed");
         // TODO offset non-packed data; only works for 1D now
-    
+
         size_t output_distance = output_strides[0]*lengths[0];//TODO
         if(is_hermitian(_output_layout))//if real to hermitian
         {
             output_distance = output_distance/2 + 1;
         }
-        
+
         LIB_V_THROW( rocfft_plan_description_set_data_layout( desc, _input_layout, _output_layout, 0, 0,
                                                           input_strides.size(), input_strides.data(), input_strides[0]*lengths[0],
                                                           output_strides.size(), output_strides.data(), output_distance),
