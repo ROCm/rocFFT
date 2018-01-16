@@ -32,13 +32,12 @@
 
 template<typename T, int TRANSPOSE_DIM_X, int TRANSPOSE_DIM_Y>
 rocfft_status
-rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, T* B, void *twiddles_large, size_t count, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out, int twl, int dir, int scheme)
+rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, T* B, void *twiddles_large, size_t count, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out, int twl, int dir, int scheme, hipStream_t rocfft_stream)
 {
 
     dim3 grid((n-1)/TRANSPOSE_DIM_X + 1, ( (m-1)/TRANSPOSE_DIM_X + 1 ), count);
     dim3 threads(TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, 1);
 
-    hipStream_t rocfft_stream = 0;
 
     if(scheme == 0)
     {
@@ -108,14 +107,16 @@ void rocfft_internal_transpose_var2(const void *data_p, void *back_p)
     if(scheme != 0)
         extraDimStart = 3;
 
+    hipStream_t rocfft_stream = data->rocfft_stream; 
+
     for(size_t i=extraDimStart; i<data->node->length.size(); i++) count *= data->node->length[i];
     
     if( data->node->precision == rocfft_precision_single)
         rocfft_transpose_outofplace_template<float2, 64, 16>(m, n, (const float2 *)data->bufIn[0], (float2 *)data->bufOut[0], data->node->twiddles_large, count,
-                data->node->length.size(), data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, twl, dir, scheme);
+                data->node->length.size(), data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, twl, dir, scheme, rocfft_stream);
     else
         rocfft_transpose_outofplace_template<double2, 32, 32>(m, n, (const double2 *)data->bufIn[0], (double2 *)data->bufOut[0], data->node->twiddles_large, count,
-                data->node->length.size(), data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, twl, dir, scheme);
+                data->node->length.size(), data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, twl, dir, scheme, rocfft_stream);
             //double2 must use 32 otherwise exceed the shared memory (LDS) size
 
 }

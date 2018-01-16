@@ -194,6 +194,7 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
         return rocfft_status_invalid_dimensions;
 
     rocfft_plan p = plan;
+    //problem dimensions specified by user
     p->rank = dimensions;
 
     size_t prodLength = 1;

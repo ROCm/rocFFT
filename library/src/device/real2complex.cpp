@@ -90,10 +90,12 @@ void real2complex(const void *data_p, void *back_p)
     dim3 grid(blocks, batch, 1);//the second dimension is used for batching 
     dim3 threads(512, 1, 1);//use 512 threads (work items)
 
+    hipStream_t rocfft_stream = data->rocfft_stream; 
+
     if(precision == rocfft_precision_single) 
-        hipLaunchKernel( real2complex_kernel<float2>, grid, threads, 0, 0, input_size, (float *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
+        hipLaunchKernel( real2complex_kernel<float2>, grid, threads, 0, rocfft_stream, input_size, (float *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
     else 
-        hipLaunchKernel( real2complex_kernel<double2>, grid, threads, 0, 0, input_size, (double *)input_buffer, input_distance, (double2 *)output_buffer,
+        hipLaunchKernel( real2complex_kernel<double2>, grid, threads, 0, rocfft_stream, input_size, (double *)input_buffer, input_distance, (double2 *)output_buffer,
 output_distance);http://www.mitbbs.com/ym_article/ImmigrationNews/31219615.html
 
     return;    
@@ -198,6 +200,7 @@ void complex2hermitian(const void *data_p, void *back_p)
     dim3 grid(blocks, high_dimension, batch);
     dim3 threads(512, 1, 1);//use 512 threads (work items)
 
+    hipStream_t rocfft_stream = data->rocfft_stream; 
 /*
     float2* tmp; tmp = (float2*)malloc(sizeof(float2)*input_distance*batch);
     hipMemcpy(tmp, input_buffer, sizeof(float2)*input_distance*batch, hipMemcpyDeviceToHost);
@@ -211,9 +214,9 @@ void complex2hermitian(const void *data_p, void *back_p)
     }
 */
     if(precision == rocfft_precision_single) 
-        hipLaunchKernel( complex2hermitian_kernel<float2>, grid, threads, 0, 0, input_size, (float2 *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
+        hipLaunchKernel( complex2hermitian_kernel<float2>, grid, threads, 0, rocfft_stream, input_size, (float2 *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
     else 
-        hipLaunchKernel( complex2hermitian_kernel<double2>, grid, threads, 0, 0, input_size, (double2 *)input_buffer, input_distance, (double2 *)output_buffer, output_distance);  
+        hipLaunchKernel( complex2hermitian_kernel<double2>, grid, threads, 0, rocfft_stream, input_size, (double2 *)input_buffer, input_distance, (double2 *)output_buffer, output_distance);  
 
     return;    
 }

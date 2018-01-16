@@ -64,7 +64,7 @@ void PlanPowX(ExecPlan &execPlan)
             {
                 DevFnCall ptr = nullptr;
                 GridParam gp;
-                size_t bwd,wgs,lds;                        
+                size_t bwd,wgs,lds;
 
                 if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM)
                 {
@@ -81,7 +81,7 @@ void PlanPowX(ExecPlan &execPlan)
                     gp.tpb_x = workGroupSize;
                 }
                 else if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-                { 
+                {
                     ptr = function_pool::get_function_single(std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC)) ;
 
                     GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
@@ -92,7 +92,7 @@ void PlanPowX(ExecPlan &execPlan)
                         gp.b_x *= execPlan.execSeq[i]->length[2];
                     }
                     gp.tpb_x = wgs;
-                }        
+                }
                 else if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
                 {
                     ptr = function_pool::get_function_single(std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC)) ;
@@ -112,7 +112,7 @@ void PlanPowX(ExecPlan &execPlan)
                     ptr = &FN_PRFX(transpose_var2);
                     gp.tpb_x = 64;
                     gp.tpb_y = 16;
-                    
+
                 }
                 else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_R_TO_CMPLX)
                 {
@@ -120,7 +120,7 @@ void PlanPowX(ExecPlan &execPlan)
                     gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
                     gp.b_y = execPlan.execSeq[i]->batch;
                     gp.tpb_x = 512; gp.tpb_y = 1;
-                }   
+                }
                 else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_CMPLX_TO_R)
                 {
                     ptr = &complex2real;
@@ -150,17 +150,17 @@ void PlanPowX(ExecPlan &execPlan)
 
                 execPlan.devFnCall.push_back(ptr);
                 execPlan.gridParam.push_back(gp);
-            
+
             }//end for
     }// end if(execPlan.execSeq[0]->precision == rocfft_precision_single)
     else if(execPlan.execSeq[0]->precision == rocfft_precision_double)
     {
-        
+
             for(size_t i=0; i<execPlan.execSeq.size(); i++)
             {
                 DevFnCall ptr = nullptr;
                 GridParam gp;
-                size_t bwd,wgs,lds;    
+                size_t bwd,wgs,lds;
 
                 if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM)
                 {
@@ -215,7 +215,7 @@ void PlanPowX(ExecPlan &execPlan)
                     gp.b_x = (execPlan.execSeq[i]->length[0]-1)/512 + 1;
                     gp.b_y = execPlan.execSeq[i]->batch;
                     gp.tpb_x = 512; gp.tpb_y = 1;
-                }   
+                }
                 else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_CMPLX_TO_R)
                 {
                     ptr = &complex2real;
@@ -246,7 +246,7 @@ void PlanPowX(ExecPlan &execPlan)
                 execPlan.devFnCall.push_back(ptr);
                 execPlan.gridParam.push_back(gp);
             }
-        
+
     }// end if(execPlan.execSeq[0]->precision == rocfft_precision_double)
 
 }
@@ -263,16 +263,23 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         DeviceCallOut back;
 
         data.node = execPlan.execSeq[i];
-
-	size_t inBytes;
-	if( data.node->precision == rocfft_precision_single)
-	{
+        if(info == nullptr)//if info is not specified, use the default 0 stream
+        {
+            data.rocfft_stream = 0;
+        }
+        else //use the specified stream
+        {
+            data.rocfft_stream = info->rocfft_stream;
+        }
+        size_t inBytes;
+        if( data.node->precision == rocfft_precision_single)
+        {
             inBytes = sizeof(float)*2;
-	}
-        else
-	{
-	    inBytes = sizeof(double)*2;
-	}
+        }
+            else
+        {
+            inBytes = sizeof(double)*2;
+        }
 
         switch(data.node->obIn)
         {
@@ -314,7 +321,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         DevFnCall fn = execPlan.devFnCall[i];
         if(fn)
         {
-#ifdef REF_DEBUG 
+#ifdef REF_DEBUG
             // verify results for simple and five-stage scheme not for RC, CC scheme
             printf("\n---------------------------------------------\n");
             printf("\n\nkernel: %zu\n", i); fflush(stdout);
@@ -335,18 +342,18 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         printf("executed kernel: %zu\n", i); fflush(stdout);
         hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
         printf("copied from device\n");
-       
+
         //if(i == 0 || i == 2 || i == 4)
-        { 
+        {
         float2 *f_in = (float2 *)dbg_in;
         float2 *f_out = (float2 *)dbg_out;
-        //temporary print out the kernel output 
+        //temporary print out the kernel output
         for(size_t y=0; y<data.node->length[1]; y++)
         {
             for(size_t x=0; x<data.node->length[0]; x++)
             {
-                printf(  
-                    "x=%zu, y=%zu, kernel output result = %f, %f\n", x, y, f_out[y*data.node->length[0] + x].x, f_out[y*data.node->length[0] + x].y    
+                printf(
+                    "x=%zu, y=%zu, kernel output result = %f, %f\n", x, y, f_out[y*data.node->length[0] + x].x, f_out[y*data.node->length[0] + x].y
                 );
             }
         }

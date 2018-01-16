@@ -56,7 +56,7 @@ void Repo::CreatePlan(rocfft_plan plan)
         repo.execLookup[plan] = it->second; //retrieve this plan and put it into member execLookup
     }
 }
-
+//according to input plan, return the corresponding execPlan
 void Repo::GetPlan(rocfft_plan plan, ExecPlan &execPlan)
 {
     Repo &repo = Repo::GetRepo();
