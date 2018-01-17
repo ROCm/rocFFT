@@ -158,13 +158,14 @@ if [[ "${install_dependencies}" == true ]]; then
       fi
     done
 
-    # The following builds googletest from source, installs into cmake default /usr/local
+    # The following builds googletest from source
     pushd .
-      printf "\033[32mBuilding \033[33mgoogletest\033[32m from source; installing into \033[33m/usr/local\033[0m\n"
+      printf "\033[32mBuilding \033[33mgoogletest\033[32m from source"
       mkdir -p ${build_dir}/deps && cd ${build_dir}/deps
-      cmake -DBUILD_BOOST=OFF ../../deps
+      cmake -DBUILD_BOOST=OFF -DCMAKE_INSTALL_PREFIX=deps-install ../../deps
       make -j$(nproc)
-      elevate_if_not_root make install
+      # elevate_if_not_root make install
+      make install
     popd
   fi
 
@@ -195,7 +196,7 @@ pushd .
 
   # On ROCm platforms, hcc compiler can build everything
   if [[ "${build_cuda}" == false ]]; then
-    CXX=hcc cmake ${cmake_common_options} ${cmake_client_options} ../..
+    CXX=hcc cmake ${cmake_common_options} ${cmake_client_options} -DCMAKE_PREFIX_PATH="$(pwd)/../deps/deps-install" ../..
     make -j$(nproc)
   else
     # The nvidia compile is a little more complicated, in that we split compiling the library from the clients
@@ -213,7 +214,7 @@ pushd .
     # Build cuda clients with default host compiler
     if [[ "${build_clients}" == true ]]; then
       pushd clients
-        cmake ${cmake_common_options} ${cmake_client_options} -DCMAKE_PREFIX_PATH=$(pwd)/../rocfft-install ../../../clients
+        cmake ${cmake_common_options} ${cmake_client_options} -DCMAKE_PREFIX_PATH="$(pwd)/../rocfft-install;$(pwd)/../deps/deps-install" ../../../clients
         make -j$(nproc)
       popd
     fi

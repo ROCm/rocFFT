@@ -26,9 +26,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     pkg-config \
     libfftw3-dev \
     libboost-program-options-dev \
-    hip_hcc \
-    hip_nvcc \
-    cuda \
     && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

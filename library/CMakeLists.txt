@@ -106,30 +106,39 @@ set( INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR} )
 add_subdirectory( src )
 
 # The following code is setting variables to control the behavior of CPack to generate our
-if( WIN32 )
-    set( CPACK_SOURCE_GENERATOR "ZIP" )
-    set( CPACK_GENERATOR "ZIP" )
-else( )
-    set( CPACK_SOURCE_GENERATOR "TGZ" )
-    set( CPACK_GENERATOR "DEB;RPM" CACHE STRING "cpack list: 7Z, DEB, IFW, NSIS, NSIS64, RPM, STGZ, TBZ2, TGZ, TXZ, TZ, ZIP" )
-    # set( CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON )
-endif( )
+# if( WIN32 )
+#     set( CPACK_SOURCE_GENERATOR "ZIP" )
+#     set( CPACK_GENERATOR "ZIP" )
+# else( )
+#     set( CPACK_SOURCE_GENERATOR "TGZ" )
+#     set( CPACK_GENERATOR "DEB;RPM" CACHE STRING "cpack list: 7Z, DEB, IFW, NSIS, NSIS64, RPM, STGZ, TBZ2, TGZ, TXZ, TZ, ZIP" )
+#     # set( CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON )
+# endif( )
 
 # Package specific CPACK vars
-set( CPACK_DEBIAN_PACKAGE_DEPENDS "hip_hcc (>= 1.0.17174)" )
-set( CPACK_RPM_PACKAGE_REQUIRES "hip_hcc >= 1.0.17174" )
+set( CPACK_DEBIAN_PACKAGE_DEPENDS "hip_hcc (>= 1.3)" )
+set( CPACK_RPM_PACKAGE_REQUIRES "hip_hcc >= 1.3" )
 set( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE.md" )
 
-# Give rocfft compiled for CUDA backend a different name
-if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
-    set( package_name rocfft )
-else( )
-    set( package_name rocfft-alt )
+if( NOT CPACK_PACKAGING_INSTALL_PREFIX )
+  set( CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}" )
 endif( )
+
+set( CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "\${CPACK_PACKAGING_INSTALL_PREFIX}" "\${CPACK_PACKAGING_INSTALL_PREFIX}/include" )
+
+# Give rocfft compiled for CUDA backend a different name
+if( NOT CUDA_FOUND )
+  set( package_name rocfft )
+else( )
+  set( package_name rocfft-alt )
+endif( )
+
+set( ROCFFT_CONFIG_DIR "\${CPACK_PACKAGING_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}" CACHE PATH "Path placed into ldconfig file" )
 
 rocm_create_package(
     NAME ${package_name}
     DESCRIPTION "Radeon Open Compute FFT library"
     MAINTAINER "Kent Knox <kent.knox@amd.com>"
     LDCONFIG
+    LDCONFIG_DIR ${ROCFFT_CONFIG_DIR}
 )

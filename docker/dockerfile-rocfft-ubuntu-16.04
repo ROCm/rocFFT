@@ -1,10 +1,10 @@
-# Parameters related to building rocblas
+# Parameters related to building rocfft
 ARG base_image
 
 FROM ${base_image}
 LABEL maintainer="kent.knox@amd"
 
-# Copy the debian package of rocblas into the container from host
+# Copy the debian package of rocfft into the container from host
 COPY *.deb /tmp/
 
 # Install the debian package

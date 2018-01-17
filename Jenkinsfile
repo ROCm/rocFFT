@@ -204,12 +204,12 @@ Boolean docker_build_inside_image( def build_image, compiler_data compiler_args,
             set -x
             rm -rf ${docker_context} && mkdir -p ${docker_context}
             mv ${paths.project_build_prefix}/build/release/*.deb ${docker_context}
-            mv ${paths.project_build_prefix}/build/release/*.rpm ${docker_context}
+            # mv ${paths.project_build_prefix}/build/release/*.rpm ${docker_context}
             dpkg -c ${docker_context}/*.deb
         """
 
         archiveArtifacts artifacts: "${docker_context}/*.deb", fingerprint: true
-        archiveArtifacts artifacts: "${docker_context}/*.rpm", fingerprint: true
+        // archiveArtifacts artifacts: "${docker_context}/*.rpm", fingerprint: true
       }
     }
   }
@@ -348,13 +348,13 @@ def build_pipeline( compiler_data compiler_args, docker_data docker_args, projec
 // The following launches 3 builds in parallel: hcc-ctu, hcc-1.6 and cuda
 parallel hcc_ctu:
 {
-  node( 'docker && rocm' )
+  node( 'docker && rocm && dkms' )
   {
     def docker_args = new docker_data(
         from_image:'compute-artifactory:5001/rocm-developer-tools/hip/master/hip-hcc-ctu-ubuntu-16.04:latest',
-        build_docker_file:'dockerfile-build-hip-hcc-ctu-ubuntu-16.04',
-        install_docker_file:'dockerfile-install-hip-hcc-ctu-ubuntu-16.04',
-        docker_run_args:'--device=/dev/kfd',
+        build_docker_file:'dockerfile-build-ubuntu-16.04',
+        install_docker_file:'dockerfile-rocfft-ubuntu-16.04',
+        docker_run_args:'--device=/dev/kfd --device=/dev/dri --group-add=video',
         docker_build_args:' --pull' )
 
     def compiler_args = new compiler_data(
@@ -381,13 +381,13 @@ parallel hcc_ctu:
 },
 hcc_rocm:
 {
-  node( 'docker && rocm' )
+  node( 'docker && rocm && !dkms' )
   {
     def hcc_docker_args = new docker_data(
-        from_image:'rocm/rocm-terminal:latest',
-        build_docker_file:'dockerfile-build-rocm-terminal',
-        install_docker_file:'dockerfile-install-rocm-terminal',
-        docker_run_args:'--device=/dev/kfd',
+        from_image:'rocm/dev-ubuntu-16.04:latest',
+        build_docker_file:'dockerfile-build-ubuntu-16.04',
+        install_docker_file:'dockerfile-rocfft-ubuntu-16.04',
+        docker_run_args:'--device=/dev/kfd --device=/dev/dri --group-add=video',
         docker_build_args:' --pull' )
 
     def hcc_compiler_args = new compiler_data(
@@ -411,38 +411,37 @@ hcc_rocm:
 
     build_pipeline( hcc_compiler_args, hcc_docker_args, rocfft_paths, print_version_closure )
   }
-},
-nvcc:
-{
-  node( 'docker && cuda' )
-  {
-    def hcc_docker_args = new docker_data(
-        from_image:'nvidia/cuda:9.0-devel',
-        build_docker_file:'dockerfile-build-nvidia-cuda',
-        install_docker_file:'dockerfile-install-nvidia-cuda',
-        docker_run_args:'--device=/dev/nvidiactl --device=/dev/nvidia0 --device=/dev/nvidia-uvm --device=/dev/nvidia-uvm-tools --volume-driver=nvidia-docker --volume=nvidia_driver_384.90:/usr/local/nvidia:ro',
-        docker_build_args:' --pull' )
+} //,
+// nvcc:
+// {
+//   node( 'docker && cuda' )
+//   {
+//     def hcc_docker_args = new docker_data(
+//         from_image:'nvidia/cuda:9.1-devel-ubuntu16.04',
+//         build_docker_file:'dockerfile-build-nvidia-cuda',
+//         install_docker_file:'dockerfile-rocfft-ubuntu-cuda',
+//         docker_run_args:'--runtime=nvidia',
+//         docker_build_args:' --pull' )
 
-    def hcc_compiler_args = new compiler_data(
-        compiler_name:'nvcc-9.0',
-        build_config:'Release',
-        compiler_path:'g++' )
+//     def hcc_compiler_args = new compiler_data(
+//         compiler_name:'nvcc-9.1',
+//         build_config:'Release',
+//         compiler_path:'g++' )
 
-    def rocfft_paths = new project_paths(
-        project_name:'rocfft-nvcc',
-        src_prefix:'src',
-        build_prefix:'src',
-        build_command: './install.sh -cd --cuda' )
+//     def rocfft_paths = new project_paths(
+//         project_name:'rocfft-nvcc',
+//         src_prefix:'src',
+//         build_prefix:'src',
+//         build_command: './install.sh -cd --cuda' )
 
-    def print_version_closure = {
-      sh  """
-          set -x
-          nvidia-smi
-          nvcc --version
-        """
-    }
+//     def print_version_closure = {
+//       sh  """
+//           set -x
+//           nvidia-smi
+//           nvcc --version
+//         """
+//     }
 
-    build_pipeline( hcc_compiler_args, hcc_docker_args, rocfft_paths, print_version_closure )
-  }
-}
-
+//     build_pipeline( hcc_compiler_args, hcc_docker_args, rocfft_paths, print_version_closure )
+//   }
+// }
