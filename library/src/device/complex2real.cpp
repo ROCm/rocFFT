@@ -91,9 +91,11 @@ void complex2real(const void *data_p, void *back_p)
     dim3 grid(blocks, batch, 1);//the second dimension is used for batching 
     dim3 threads(512, 1, 1);//use 512 threads (work items)
 
+    hipStream_t rocfft_stream = data->rocfft_stream; 
+    /*
     float2* tmp; tmp = (float2*)malloc(sizeof(float2)*input_size*batch);
     hipMemcpy(tmp, input_buffer, sizeof(float2)*input_size*batch, hipMemcpyDeviceToHost);
-    /*
+    
     for(size_t j=0; j< (data->node->length.size() == 2 ? (data->node->length[1]) : 1); j++)
     {
         for(size_t i=0; i<data->node->length[0]; i++)
@@ -104,9 +106,9 @@ void complex2real(const void *data_p, void *back_p)
 
     free(tmp);*/
     if(precision == rocfft_precision_single) 
-        hipLaunchKernel( complex2real_kernel<float2>, grid, threads, 0, 0, input_size, (float2 *)input_buffer, input_distance, (float *)output_buffer, output_distance);  
+        hipLaunchKernel( complex2real_kernel<float2>, grid, threads, 0, rocfft_stream, input_size, (float2 *)input_buffer, input_distance, (float *)output_buffer, output_distance);  
     else 
-        hipLaunchKernel( complex2real_kernel<double2>, grid, threads, 0, 0, input_size, (double2 *)input_buffer, input_distance, (double *)output_buffer,
+        hipLaunchKernel( complex2real_kernel<double2>, grid, threads, 0, rocfft_stream, input_size, (double2 *)input_buffer, input_distance, (double *)output_buffer,
 output_distance);
 
     return;    
@@ -225,10 +227,12 @@ void hermitian2complex(const void *data_p, void *back_p)
     dim3 grid(blocks, high_dimension, batch);
     dim3 threads(512, 1, 1);//use 512 threads (work items)
 
+    hipStream_t rocfft_stream = data->rocfft_stream; 
+
     if(precision == rocfft_precision_single) 
-        hipLaunchKernel( hermitian2complex_kernel<float2>, grid, threads, 0, 0, problem_size, hermitian_size, (float2 *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
+        hipLaunchKernel( hermitian2complex_kernel<float2>, grid, threads, 0, rocfft_stream, problem_size, hermitian_size, (float2 *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
     else 
-        hipLaunchKernel( hermitian2complex_kernel<double2>, grid, threads, 0, 0, problem_size, hermitian_size, (double2 *)input_buffer, input_distance, (double2 *)output_buffer, output_distance);  
+        hipLaunchKernel( hermitian2complex_kernel<double2>, grid, threads, 0, rocfft_stream, problem_size, hermitian_size, (double2 *)input_buffer, input_distance, (double2 *)output_buffer, output_distance);  
 
     return;    
 }

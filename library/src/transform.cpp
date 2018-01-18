@@ -38,6 +38,12 @@ rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution_info info,
 	return rocfft_status_success;
 }
 
+rocfft_status rocfft_execution_info_set_stream( rocfft_execution_info info, void *stream )
+{
+    info->rocfft_stream = (hipStream_t)stream;
+	return rocfft_status_success;
+}
+
 rocfft_status rocfft_execute(   const rocfft_plan plan,
                                 void *in_buffer[],
                                 void *out_buffer[],
