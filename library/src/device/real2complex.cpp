@@ -96,7 +96,7 @@ void real2complex(const void *data_p, void *back_p)
         hipLaunchKernel( real2complex_kernel<float2>, grid, threads, 0, rocfft_stream, input_size, (float *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
     else 
         hipLaunchKernel( real2complex_kernel<double2>, grid, threads, 0, rocfft_stream, input_size, (double *)input_buffer, input_distance, (double2 *)output_buffer,
-output_distance);http://www.mitbbs.com/ym_article/ImmigrationNews/31219615.html
+output_distance);
 
     return;    
 }
