@@ -1,28 +1,28 @@
-# This Dockerfile provides a starting point for a ROCm installation of hipCaffe.
-
-# Parameters related to building hip
+# Parameters related to building rocfft
 ARG base_image
 
 FROM ${base_image}
-LABEL maintainer="kent.knox@amd"
+MAINTAINER Kent Knox <kent.knox@amd>
 
-USER root
 ARG user_uid
 
-# Install dependent packages
+# Install Packages & dependent packages
 # Dependencies:
 # * hcc-config.cmake: pkg-config
-# * tensile: python2.7, python-yaml
-# * rocblas-test: gfortran, googletest
-# * rocblas-bench: libboost-program-options-dev
+# * rocblas-test: libfftw3-dev, googletest
+# * rocfft-bench: libboost-program-options-dev
+# * rocm_agent_enumerator: python, libnuma1
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    sudo \
+    build-essential \
     cmake \
     ca-certificates \
     git \
     pkg-config \
     libfftw3-dev \
     libboost-program-options-dev \
-    rpm \
+    python \
+    libnuma1 \
     && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
