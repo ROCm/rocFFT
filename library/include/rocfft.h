@@ -150,6 +150,7 @@ DLL_PUBLIC rocfft_status rocfft_execute(    const rocfft_plan plan,
 DLL_PUBLIC rocfft_status rocfft_plan_destroy( rocfft_plan plan );
 
 
+#if 0
 /*! @brief Set scaling factor in single precision
  *  @details This is one of plan description functions to specify optional additional plan properties using the description handle. This API specifies scaling factor.
  *  @param[in] description description handle
@@ -163,6 +164,8 @@ DLL_PUBLIC rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan_de
  *  @param[in] scale scaling factor
  *  */
 DLL_PUBLIC rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description description, double scale );
+#endif
+
 
 /*! @brief Set data layout
  *
@@ -191,6 +194,8 @@ DLL_PUBLIC rocfft_status rocfft_plan_description_set_data_layout(   rocfft_plan_
                                                                     size_t in_strides_size, const size_t *in_strides, size_t in_distance,
                                                                     size_t out_strides_size, const size_t *out_strides, size_t out_distance );
 
+
+#if 0
 /*! @brief Set devices in plan description
  *  @details This is one of plan description functions to specify optional additional plan properties using the description handle. This API specifies what compute devices to target.
  *  @param[in] description description handle
@@ -198,6 +203,7 @@ DLL_PUBLIC rocfft_status rocfft_plan_description_set_data_layout(   rocfft_plan_
  *  @param[in] number_of_devices number of devices (size of devices array)
  *  */
 DLL_PUBLIC rocfft_status rocfft_plan_description_set_devices( rocfft_plan_description description, void *devices, size_t number_of_devices );
+#endif
 
 
 /*! @brief Get work buffer size
@@ -252,6 +258,7 @@ DLL_PUBLIC rocfft_status rocfft_execution_info_destroy( rocfft_execution_info in
  *  */
 DLL_PUBLIC rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution_info info, void *work_buffer, size_t size_in_bytes );
 
+#if 0
 /*! @brief Set execution mode in execution info
  *  @details This is one of the execution info functions to specify optional additional information to control execution.
  *  This API specifies execution mode. It has to be called before the call to rocfft_execute.
@@ -260,6 +267,7 @@ DLL_PUBLIC rocfft_status rocfft_execution_info_set_work_buffer( rocfft_execution
  *  @param[in] mode execution mode
  *  */
 DLL_PUBLIC rocfft_status rocfft_execution_info_set_mode( rocfft_execution_info info, rocfft_execution_mode mode );
+#endif
 
 /*! @brief Set stream in execution info
  *  @details This is one of the execution info functions to specify optional additional information to control execution.
@@ -271,7 +279,7 @@ DLL_PUBLIC rocfft_status rocfft_execution_info_set_mode( rocfft_execution_info i
  *  */
 DLL_PUBLIC rocfft_status rocfft_execution_info_set_stream( rocfft_execution_info info, void *stream );
 
-
+#if 0
 /*! @brief Get events from execution info
  *  @details This is one of the execution info functions to retrieve information from execution.
  *  This API obtains event information. It has to be called after the call to rocfft_execute.
@@ -281,6 +289,7 @@ DLL_PUBLIC rocfft_status rocfft_execution_info_set_stream( rocfft_execution_info
  *  @param[out] number_of_events number of events (size of events array) 
  *  */
 DLL_PUBLIC rocfft_status rocfft_execution_info_get_events( const rocfft_execution_info info, void **events, size_t *number_of_events );
+#endif
 
 
 

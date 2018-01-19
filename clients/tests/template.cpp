@@ -37,7 +37,8 @@ rocfft_status rocfft_set_scale_template<float>(
                     const rocfft_plan_description description,
                     const float scale )
 {
-    return rocfft_plan_description_set_scale_float(description, scale);
+    return rocfft_status_success;
+    // return rocfft_plan_description_set_scale_float(description, scale);
 }
 
 template<>
@@ -45,7 +46,8 @@ rocfft_status rocfft_set_scale_template<double>(
                     const rocfft_plan_description description,
                     const double scale )
 {
-    return rocfft_plan_description_set_scale_double(description, scale);
+    return rocfft_status_success;
+    // return rocfft_plan_description_set_scale_double(description, scale);
 }
 
 

@@ -370,13 +370,13 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 						0, NULL, 0, 0, NULL, 0 ), "rocfft_plan_description_data_layout failed" );
 		}
 
-		if(scale != 1.0)
+		/*if(scale != 1.0)
 		{
 			if(precision == rocfft_precision_single)
 				LIB_V_THROW( rocfft_plan_description_set_scale_float( desc, (float)scale ), "rocfft_plan_description_set_scale_float failed" );
 			else
 				LIB_V_THROW( rocfft_plan_description_set_scale_double( desc, scale ), "rocfft_plan_description_set_scale_double failed" );
-		}
+		}*/
 
 		LIB_V_THROW( rocfft_plan_create( &plan, place, transformType, precision, dim, lengths, batchSize, desc ), "rocfft_plan_create failed" );
 	}
