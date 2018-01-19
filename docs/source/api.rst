@@ -58,13 +58,13 @@ The plan description object can be safely deleted after call to the plan api :cp
 
 .. doxygenfunction:: rocfft_plan_description_destroy
 
-.. doxygenfunction:: rocfft_plan_description_set_scale_float
+.. comment  doxygenfunction:: rocfft_plan_description_set_scale_float
 
-.. doxygenfunction:: rocfft_plan_description_set_scale_double
+.. comment doxygenfunction:: rocfft_plan_description_set_scale_double
 
 .. doxygenfunction:: rocfft_plan_description_set_data_layout
 
-.. doxygenfunction:: rocfft_plan_description_set_devices
+.. comment doxygenfunction:: rocfft_plan_description_set_devices
 
 Execution
 ---------
@@ -91,11 +91,11 @@ execution.
 
 .. doxygenfunction:: rocfft_execution_info_set_work_buffer
 
-.. doxygenfunction:: rocfft_execution_info_set_mode
+.. comment doxygenfunction:: rocfft_execution_info_set_mode
 
 .. doxygenfunction:: rocfft_execution_info_set_stream
 
-.. doxygenfunction:: rocfft_execution_info_get_events
+.. comment doxygenfunction:: rocfft_execution_info_get_events
 
 
 Enumerations
