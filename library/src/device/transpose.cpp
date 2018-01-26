@@ -41,12 +41,12 @@ rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, T* B, void 
 
     if(scheme == 0)
     {
-        hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream,
+        hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream,
                 A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out, twl, dir);
     }
     else
     {
-        hipLaunchKernel(HIP_KERNEL_NAME(transpose_kernel2_scheme<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream,
+        hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2_scheme<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream,
                 A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out, scheme);
     }
 

@@ -78,13 +78,13 @@ void FUNCTION_NAME(const void *data_p, void *back_p)\
     if (data->node->placement == rocfft_placement_inplace) { \
         if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1 ) {\
-                hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
                 (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (PRECISION *)data->bufIn[0]); \
             }\
             else{ \
-                hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
                 (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (PRECISION *)data->bufIn[0]); \
@@ -92,13 +92,13 @@ void FUNCTION_NAME(const void *data_p, void *back_p)\
         } \
         else{ \
             if(data->node->direction == -1 ) {\
-                hipLaunchKernel(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<PRECISION, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME( IP_FWD_KERN_NAME<PRECISION, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
                 (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (PRECISION *)data->bufIn[0]); \
             }\
             else{ \
-                hipLaunchKernel(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<PRECISION, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME( IP_BACK_KERN_NAME<PRECISION, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
                 (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (PRECISION *)data->bufIn[0]); \
@@ -108,13 +108,13 @@ void FUNCTION_NAME(const void *data_p, void *back_p)\
     else{ \
         if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1){ \
             if(data->node->direction == -1) {\
-                hipLaunchKernel(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
                 (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
             }\
             else{ \
-                hipLaunchKernel(HIP_KERNEL_NAME( OP_BACK_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME( OP_BACK_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
                 (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
@@ -122,13 +122,13 @@ void FUNCTION_NAME(const void *data_p, void *back_p)\
         }\
         else{ \
             if(data->node->direction == -1) {\
-                hipLaunchKernel(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<PRECISION, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME( OP_FWD_KERN_NAME<PRECISION, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
                 (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
             }\
             else{ \
-                hipLaunchKernel(HIP_KERNEL_NAME( OP_BACK_KERN_NAME<PRECISION, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME( OP_BACK_KERN_NAME<PRECISION, SB_NONUNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
                 (PRECISION *)data->node->twiddles, data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
@@ -144,14 +144,14 @@ void FUNCTION_NAME(const void *data_p, void *back_p)\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
     hipStream_t rocfft_stream = data->rocfft_stream; \
     if(data->node->direction == -1) {\
-        hipLaunchKernel(HIP_KERNEL_NAME( FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
+        hipLaunchKernelGGL(HIP_KERNEL_NAME( FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
                 (PRECISION *)data->node->twiddles, (PRECISION *)data->node->twiddles_large, \
                 data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
     }\
     else{ \
-        hipLaunchKernel(HIP_KERNEL_NAME( BACK_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
+        hipLaunchKernelGGL(HIP_KERNEL_NAME( BACK_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
                 (PRECISION *)data->node->twiddles, (PRECISION *)data->node->twiddles_large, \
                 data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
@@ -165,14 +165,14 @@ void FUNCTION_NAME(const void *data_p, void *back_p)\
     DeviceCallIn *data = (DeviceCallIn *)data_p;\
     hipStream_t rocfft_stream = data->rocfft_stream; \
     if(data->node->direction == -1) {\
-        hipLaunchKernel(HIP_KERNEL_NAME( FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
+        hipLaunchKernelGGL(HIP_KERNEL_NAME( FWD_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
                 (PRECISION *)data->node->twiddles, \
                 data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \
                 data->node->batch, (PRECISION *)data->bufIn[0], (PRECISION *)data->bufOut[0]); \
     }\
     else{ \
-        hipLaunchKernel(HIP_KERNEL_NAME( BACK_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
+        hipLaunchKernelGGL(HIP_KERNEL_NAME( BACK_KERN_NAME<PRECISION, SB_UNIT> ), dim3(data->gridParam.b_x), dim3(data->gridParam.tpb_x), 0, rocfft_stream, \
                 (PRECISION *)data->node->twiddles, \
                 data->node->length.size(), \
                 data->node->devKernArg, data->node->devKernArg + 1*KERN_ARGS_ARRAY_WIDTH, data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH, \

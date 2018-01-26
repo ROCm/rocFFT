@@ -92,7 +92,7 @@ transpose_tile_device(const T* input, T* output, const size_t m, const size_t n,
 
 template<typename T, size_t DIM_X, size_t DIM_Y>
 __global__ void
-transpose_kernel2( hipLaunchParm lp, const T* input, T* output, T *twiddles_large, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out, const int twl, const int dir )
+transpose_kernel2(const T* input, T* output, T *twiddles_large, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out, const int twl, const int dir)
 {
     size_t m = lengths[1];
     size_t n = lengths[0];
@@ -129,7 +129,7 @@ transpose_kernel2( hipLaunchParm lp, const T* input, T* output, T *twiddles_larg
 
 template<typename T, size_t DIM_X, size_t DIM_Y>
 __global__ void
-transpose_kernel2_scheme( hipLaunchParm lp, const T* input, T* output, T *twiddles_large, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out, const size_t scheme)
+transpose_kernel2_scheme(const T* input, T* output, T *twiddles_large, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out, const size_t scheme)
 {
     size_t m = scheme == 1 ? lengths[2] : lengths[1]*lengths[2];
     size_t n = scheme == 1 ? lengths[0]*lengths[1] : lengths[0];

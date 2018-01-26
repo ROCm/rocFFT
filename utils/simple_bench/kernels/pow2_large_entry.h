@@ -22,7 +22,7 @@ typedef struct tag_Tile
 template<typename T, int dir, int twl, TransTileDir ttd>
 __global__
 void
-transpose_var1( hipLaunchParm lp, T *twiddles_large, T* pmComplexIn, T* pmComplexOut,
+transpose_var1( T *twiddles_large, T* pmComplexIn, T* pmComplexOut,
 			const ulong numGroupsY,  const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
    const Tile localIndex = { (size_t)hipThreadIdx_x, (size_t)hipThreadIdx_y }; 
