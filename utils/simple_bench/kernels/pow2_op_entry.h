@@ -12,7 +12,7 @@
 	
 template <typename T,  int dir>
 __global__
-void fft_2048_op_d2_s1(hipLaunchParm lp, T *twiddles, T *buffer_i, T *buffer_o, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+void fft_2048_op_d2_s1(T *twiddles, T *buffer_i, T *buffer_o, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;
@@ -27,7 +27,7 @@ void fft_2048_op_d2_s1(hipLaunchParm lp, T *twiddles, T *buffer_i, T *buffer_o, 
 
 template <typename T,  int dir>
 __global__
-void fft_4096_op_d2_s1(hipLaunchParm lp, T *twiddles, T *buffer_i, T *buffer_o, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
+void fft_4096_op_d2_s1(T *twiddles, T *buffer_i, T *buffer_o, const ulong len, const ulong stride_i, const ulong stride_o, const ulong dist_i, const ulong dist_o)
 {
 	uint me = hipThreadIdx_x;
 	uint batch = hipBlockIdx_x;

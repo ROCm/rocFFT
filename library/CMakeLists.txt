@@ -57,7 +57,8 @@ list( APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake )
 # This tells cmake to create a compile_commands.json file that can be used with clang tooling or vim
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 
-set(CMAKE_CXX_FLAGS_DEBUG "-DDEBUG -DREF_DEBUG ${CMAKE_CXX_FLAGS_DEBUG}")
+set(CMAKE_CXX_FLAGS_DEBUG "-DDEBUG ${CMAKE_CXX_FLAGS_DEBUG}")
+#set(CMAKE_CXX_FLAGS_DEBUG "-DDEBUG -DREF_DEBUG ${CMAKE_CXX_FLAGS_DEBUG}")
 
 # Print out compiler flags for viewing/debug
 if( BUILD_VERBOSE )

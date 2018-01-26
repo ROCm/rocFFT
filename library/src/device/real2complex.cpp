@@ -10,7 +10,7 @@
 
 template<typename T>
 __global__
-void real2complex_kernel(hipLaunchParm lp, size_t input_size, real_type_t<T> *input, size_t input_distance, T *output, size_t output_distance)
+void real2complex_kernel(size_t input_size, real_type_t<T> *input, size_t input_distance, T *output, size_t output_distance)
 {
     size_t tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     
@@ -93,9 +93,9 @@ void real2complex(const void *data_p, void *back_p)
     hipStream_t rocfft_stream = data->rocfft_stream; 
 
     if(precision == rocfft_precision_single) 
-        hipLaunchKernel( real2complex_kernel<float2>, grid, threads, 0, rocfft_stream, input_size, (float *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
+        hipLaunchKernelGGL( real2complex_kernel<float2>, grid, threads, 0, rocfft_stream, input_size, (float *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
     else 
-        hipLaunchKernel( real2complex_kernel<double2>, grid, threads, 0, rocfft_stream, input_size, (double *)input_buffer, input_distance, (double2 *)output_buffer,
+        hipLaunchKernelGGL( real2complex_kernel<double2>, grid, threads, 0, rocfft_stream, input_size, (double *)input_buffer, input_distance, (double2 *)output_buffer,
 output_distance);
 
     return;    
@@ -107,7 +107,7 @@ output_distance);
 
 template<typename T>
 __global__
-void complex2hermitian_kernel(hipLaunchParm lp, size_t input_size, T *input, size_t input_distance, T *output, size_t output_distance)
+void complex2hermitian_kernel(size_t input_size, T *input, size_t input_distance, T *output, size_t output_distance)
 {
     
     size_t input_offset = hipBlockIdx_z * input_distance;//batch offset
@@ -214,9 +214,9 @@ void complex2hermitian(const void *data_p, void *back_p)
     }
 */
     if(precision == rocfft_precision_single) 
-        hipLaunchKernel( complex2hermitian_kernel<float2>, grid, threads, 0, rocfft_stream, input_size, (float2 *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
+        hipLaunchKernelGGL( complex2hermitian_kernel<float2>, grid, threads, 0, rocfft_stream, input_size, (float2 *)input_buffer, input_distance, (float2 *)output_buffer, output_distance);  
     else 
-        hipLaunchKernel( complex2hermitian_kernel<double2>, grid, threads, 0, rocfft_stream, input_size, (double2 *)input_buffer, input_distance, (double2 *)output_buffer, output_distance);  
+        hipLaunchKernelGGL( complex2hermitian_kernel<double2>, grid, threads, 0, rocfft_stream, input_size, (double2 *)input_buffer, input_distance, (double2 *)output_buffer, output_distance);  
 
     return;    
 }

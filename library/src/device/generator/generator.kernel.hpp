@@ -868,7 +868,7 @@ namespace StockhamGenerator
                        lengths, strides are transferred to kernel as a run-time parameter.
                        lengths, strides may be high dimension arrays
                     */
-                    str += "( hipLaunchParm lp, ";
+                    str += "( ";
                     str += "const " + r2Type + " * __restrict__ twiddles, "; 
                     if(blockCompute && name_suffix == "_sbcc"){
                         str += "const " + r2Type + " * __restrict__ twiddles_large, ";//blockCompute introduce one more twiddle parameter
