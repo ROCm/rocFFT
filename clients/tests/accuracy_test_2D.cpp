@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "test_constants.h"
 #include "rocfft_against_fftw.h"
 #include "fftw_transform.h"
@@ -67,7 +67,7 @@ static std::vector< std::vector<size_t> > generate_random(size_t number_run)
     std::vector< std::vector<size_t> > output;
 
     size_t i, j, k, l, m, n;
-    
+
     size_t RAND_MAX_NUMBER = 6;
 
     for(size_t r=0; r<number_run; r++)
@@ -77,19 +77,19 @@ static std::vector< std::vector<size_t> > generate_random(size_t number_run)
         i = (size_t)(rand() % RAND_MAX_NUMBER); // generate a integer number between [0, RAND_MAX-1]
         j = (size_t)(rand() % RAND_MAX_NUMBER); // generate a integer number between [0, RAND_MAX-1]
         k = (size_t)(rand() % RAND_MAX_NUMBER); // generate a integer number between [0, RAND_MAX-1]
-        
+
         size_t value = pow(2, i) * pow(3, j) * pow(5, k);
-        tmp.push_back(value);     
+        tmp.push_back(value);
 
         l = (size_t)(rand() % RAND_MAX_NUMBER); // generate a integer number between [0, RAND_MAX-1]
         m = (size_t)(rand() % RAND_MAX_NUMBER); // generate a integer number between [0, RAND_MAX-1]
         n = (size_t)(rand() % RAND_MAX_NUMBER); // generate a integer number between [0, RAND_MAX-1]
-        
+
         value = pow(2, l) * pow(3, m) * pow(5, n);
 
-        tmp.push_back(value); 
+        tmp.push_back(value);
 
-        output.push_back(tmp);    
+        output.push_back(tmp);
     }
 
     return output;
@@ -125,8 +125,8 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t> le
         total_size *= lengths[i];
     }
     if (total_size * sizeof(T) * 2 >= 2e8){
-        //printf("No test is really launched; MB byte size = %f is too big; will return \n", total_size * sizeof(T) * 2/1e6); 
-        return; //memory size over 200MB is too big 
+        //printf("No test is really launched; MB byte size = %f is too big; will return \n", total_size * sizeof(T) * 2/1e6);
+        return; //memory size over 200MB is too big
     }
     std::vector<size_t> input_strides;
     std::vector<size_t> output_strides;
@@ -181,7 +181,7 @@ TEST_P(accuracy_test_complex_2D, normal_2D_complex_interleaved_to_complex_interl
 
 
 // *****************************************************
-//             Real to Hermitian 
+//             Real to Hermitian
 // *****************************************************
 
 template< class T, class fftw_T >
@@ -233,7 +233,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_real_interleaved_to_hermitian_interleave
 
 
 // *****************************************************
-//             Hermitian to Real 
+//             Hermitian to Real
 // *****************************************************
 
 template< class T, class fftw_T >
@@ -267,7 +267,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleave
 
     try { normal_2D_hermitian_interleaved_to_real_interleaved< float,  fftwf_complex >(lengths,  batch, placeness, transform_type, stride, pattern); }
     catch( const std::exception& err ) { handle_exception(err);    }
-} 
+}
 */
 TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleaved_double_precision)
 {
@@ -287,7 +287,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleave
 //Values is for a single item; ValuesIn is for an array
 //ValuesIn take each element (a vector) and combine them and feed them to test_p
 // *****************************************************
-          //COMPLEX TO COMPLEX 
+          //COMPLEX TO COMPLEX
 // *****************************************************
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_2D,
                         accuracy_test_complex_2D,
@@ -313,7 +313,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow5_2D,
 
 
 // *****************************************************
-          //REAL  HERMITIAN 
+          //REAL  HERMITIAN
 // *****************************************************
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_2D,
                         accuracy_test_real_2D,

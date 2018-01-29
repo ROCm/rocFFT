@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "test_constants.h"
 #include "rocfft_transform.h"
 #include "fftw_transform.h"
@@ -57,7 +57,7 @@ void complex_to_complex( data_pattern pattern, rocfft_transform_type transform_t
 	}
 	else if( pattern == erratic )
 	{
-		test_fft.set_data_to_random();  
+		test_fft.set_data_to_random();
 	}
 	else
 	{
@@ -128,7 +128,7 @@ void real_to_hermitian( data_pattern pattern, rocfft_transform_type transform_ty
 	}
 	else if( pattern == erratic )
 	{
-		test_fft.set_data_to_random();  
+		test_fft.set_data_to_random();
 	}
 	else
 	{
@@ -163,8 +163,8 @@ void hermitian_to_real( data_pattern pattern, rocfft_transform_type transform_ty
 	rocfft_result_placement placeness,
 	T scale = 1.0f )
 {
-    
-    // will perform a real to hermitian first 
+
+    // will perform a real to hermitian first
 	fftw<T, fftw_T> data_maker( lengths, batch, output_strides, input_strides, placeness, r2c );
 
 	if( pattern == sawtooth )
@@ -181,7 +181,7 @@ void hermitian_to_real( data_pattern pattern, rocfft_transform_type transform_ty
 	}
 	else if( pattern == erratic )
 	{
-		data_maker.set_data_to_random();  
+		data_maker.set_data_to_random();
 	}
 	else
 	{

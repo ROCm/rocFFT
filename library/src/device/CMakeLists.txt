@@ -42,7 +42,7 @@ endif()
 # In order for the dependencies to work in cmake, add_custom_command must be in the same
 # CMakeLists.txt file as the target [rocfft-device]
 add_custom_command(
-  OUTPUT ${gen_headers} 
+  OUTPUT ${gen_headers}
   COMMAND rocfft-kernel-generator ${generator_pattern}
   DEPENDS rocfft-kernel-generator
 #  WORKING_DIRECTORY ${kernel_path}
@@ -88,7 +88,7 @@ if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
 endif( )
 
 target_include_directories( rocfft-device
-  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include/rocfft>
   PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

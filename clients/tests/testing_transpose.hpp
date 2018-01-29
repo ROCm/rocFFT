@@ -12,7 +12,7 @@
 #include <math.h>
 #include <sys/time.h>
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "rocfft_transpose.h"
 #include "../rider/misc.h" // to use LIB_V_THROW and HIP_V_THROW
 
@@ -55,7 +55,7 @@ using namespace std;
     }
 
     template<typename T>
-    void print_matrix(vector<T> CPU_result, vector<T> GPU_result, size_t m, size_t n, size_t lda){  
+    void print_matrix(vector<T> CPU_result, vector<T> GPU_result, size_t m, size_t n, size_t lda){
         for(int i=0;i<m;i++)
             for(int j=0;j<n;j++)
             {
@@ -110,7 +110,7 @@ rocfft_status testing_transpose(size_t M, size_t N, size_t lda, size_t ldb, size
 
     rocfft_status status;
 
-    A_size = lda * N * batch_count; 
+    A_size = lda * N * batch_count;
     B_size = ldb * M * batch_count;
 
     //Naming: dX is in GPU (device) memory. hK is in CPU (host) memory
@@ -136,11 +136,11 @@ rocfft_status testing_transpose(size_t M, size_t N, size_t lda, size_t ldb, size
     =================================================================== */
 
     //library interface
-    
-    status = rocfft_transpose<T>( 
+
+    status = rocfft_transpose<T>(
                     M, N,
                     dA, lda,
-                    dB, ldb, batch_count); 
+                    dB, ldb, batch_count);
 
     if(status != rocfft_status_success) //only valid size, compare with cblas
     {
@@ -162,7 +162,7 @@ rocfft_status testing_transpose(size_t M, size_t N, size_t lda, size_t ldb, size
                      hA.data(), lda,
                      hB_copy.data(), ldb,
                      batch_count);
-  
+
 
             print_matrix(hB_copy, hB, min(N,3), min(M,3), ldb);
 
@@ -171,7 +171,7 @@ rocfft_status testing_transpose(size_t M, size_t N, size_t lda, size_t ldb, size
             // unit check and norm check can not be interchanged their order
 
             for(int i=0;i<batch_count;i++){
-                unit_check_general<T>(N, M, ldb, hB_copy.data() + M * ldb * i, hB.data() + M * ldb * i);           
+                unit_check_general<T>(N, M, ldb, hB_copy.data() + M * ldb * i, hB.data() + M * ldb * i);
             }
 
         }

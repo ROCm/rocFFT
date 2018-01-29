@@ -137,3 +137,8 @@ include( clients/cmake/build-options.cmake )
 if( BUILD_CLIENTS_SAMPLES OR BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_BENCHMARKS OR BUILD_CLIENTS_SELFTEST OR BUILD_CLIENTS_SAMPLES )
   add_subdirectory( clients )
 endif( )
+
+# This should always be last, and is necessary to fix an issue with using rocm-cmake
+# Cmake parses add_subdirectory in a breadth first style, instead of depth first.  This causes confusion in the cmake installer
+# where
+add_subdirectory( cmake )
