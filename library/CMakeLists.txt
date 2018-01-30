@@ -86,13 +86,12 @@ if( BUILD_VERBOSE )
 endif( )
 
 # configure a header file to pass the CMake version settings to the source, and package the header files in the output archive
-configure_file( "${CMAKE_CURRENT_SOURCE_DIR}/include/rocfft-version.h.in" "${PROJECT_BINARY_DIR}/include/rocfft-version.h" )
+configure_file( "${CMAKE_CURRENT_SOURCE_DIR}/include/rocfft/rocfft-version.h.in" "${PROJECT_BINARY_DIR}/include/rocfft/rocfft-version.h" )
 
 set( rocfft_headers_public
-  include/rocfft.h
-  include/rocfft_transpose.h
-  include/hipfft.h
-  ${PROJECT_BINARY_DIR}/include/rocfft-version.h
+  include/rocfft/rocfft.h
+  include/rocfft/hipfft.h
+  ${PROJECT_BINARY_DIR}/include/rocfft/rocfft-version.h
 )
 
 source_group( "Header Files\\Public" FILES ${rocfft_headers_public} )

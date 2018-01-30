@@ -7,7 +7,7 @@
 #if !defined( TESTCONSTANTS_H )
 #define TESTCONSTANTS_H
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include <string>
 #include <stdexcept>
 
@@ -114,7 +114,7 @@ enum data_pattern {impulse, sawtooth, value, erratic};
 				*((double*)outputIm + outoffset) = fftoutputIm * scalar; \n \
 				}
 
-//Postcallback test for LDS - works when 1 WI works on one element. 
+//Postcallback test for LDS - works when 1 WI works on one element.
 //Assumes 1D FFT of length 64.
 #define POST_MULVAL_LDS void mulval_post(void *output, uint outoffset, void *userdata, float2 fftoutput, __local void* localmem)\n \
 				{ \n \

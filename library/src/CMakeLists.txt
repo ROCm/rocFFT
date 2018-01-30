@@ -70,7 +70,7 @@ else( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
 endif( )
 
 target_include_directories( rocfft
-  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include/rocfft>
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
@@ -83,7 +83,7 @@ set_target_properties( rocfft PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BIN
 set_target_properties( rocfft PROPERTIES DEBUG_POSTFIX "-d" )
 
 set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
-generate_export_header( rocfft EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft-export.h )
+generate_export_header( rocfft EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft/rocfft-export.h )
 
 # Following Boost conventions of prefixing 'lib' on static built libraries, across all platforms
 if( NOT BUILD_SHARED_LIBS )
@@ -108,5 +108,3 @@ rocm_export_targets(
   DEPENDS PACKAGE hip
   NAMESPACE roc::
  )
-
-rocm_install_symlink_subdir( rocfft )

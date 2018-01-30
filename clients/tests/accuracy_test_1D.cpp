@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "test_constants.h"
 #include "rocfft_against_fftw.h"
 #include "fftw_transform.h"
@@ -50,7 +50,7 @@ protected:
                 2048, 2025, 2000, 1944, 1920, 1875, 1800, 1728, 1620, 1600, 1536, 1500, 1458, 1440, 1350, 1296, 1280, 1250, 1215, 1200, 1152, 1125, 1080, 1024, 1000, 972, 960, \\
                 900, 864, 810, 800, 768, 750, 729, 720, 675, 648, 640, 625, 600, 576, 540, 512, 500, 486, 480, 450, 432, 405, 400, 384, 375, 360, 324, 320, 300, 288, 270, 256,  \\
                 250, 243, 240, 225, 216, 200, 192, 180, 162, 160, 150, 144, 135, 128, 125, 120, 108, 100, 96, 90, 81, 80, 75, 72, 64, 60, 54, 50, 48, 45, 40, 36, 32, 30, 27, 25,\\
-24, 20, 18, 16, 15, 12, 10, 9, 8, 6, 5, 4, 3, 2, 1 
+24, 20, 18, 16, 15, 12, 10, 9, 8, 6, 5, 4, 3, 2, 1
 
 
 static std::vector<size_t> pow2_range = { POW2_RANGE };
@@ -71,7 +71,7 @@ static std::vector<size_t> generate_random(size_t number_run)
     std::vector<size_t> output;
 
     size_t i, j, k;
-    
+
     size_t RAND_MAX_NUMBER = 6;
 
     for(size_t r=0; r<number_run; r++)
@@ -80,11 +80,11 @@ static std::vector<size_t> generate_random(size_t number_run)
         i = (size_t)(rand() % RAND_MAX_NUMBER); // generate a integer number between [0, RAND_MAX-1]
         j = (size_t)(rand() % RAND_MAX_NUMBER); // generate a integer number between [0, RAND_MAX-1]
         k = (size_t)(rand() % RAND_MAX_NUMBER); // generate a integer number between [0, RAND_MAX-1]
-        
+
         size_t value = pow(2, i) * pow(3, j) * pow(5, k);
-        output.push_back(value);     
+        output.push_back(value);
     }
-   
+
     return output;
 }
 
@@ -162,7 +162,7 @@ TEST_P(accuracy_test_complex, normal_1D_complex_interleaved_to_complex_interleav
 
 
 // *****************************************************
-//             Real to Hermitian 
+//             Real to Hermitian
 // *****************************************************
 
 template< class T, class fftw_T >
@@ -214,7 +214,7 @@ TEST_P(accuracy_test_real, normal_1D_real_interleaved_to_hermitian_interleaved_d
 
 
 // *****************************************************
-//             Hermitian to Real 
+//             Hermitian to Real
 // *****************************************************
 
 template< class T, class fftw_T >
@@ -269,7 +269,7 @@ TEST_P(accuracy_test_real, normal_1D_hermitian_interleaved_to_real_interleaved_d
 //Values is for a single item; ValuesIn is for an array
 //ValuesIn take each element (a vector) and combine them and feed them to test_p
 // *****************************************************
-          //COMPLEX TO COMPLEX 
+          //COMPLEX TO COMPLEX
 // *****************************************************
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_1D,
                         accuracy_test_complex,
@@ -311,7 +311,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow_random_1D,
 
 
 // *****************************************************
-          //REAL  HERMITIAN 
+          //REAL  HERMITIAN
 // *****************************************************
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_1D,
                         accuracy_test_real,

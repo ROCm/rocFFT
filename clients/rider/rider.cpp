@@ -10,8 +10,7 @@
 #include <valarray>
 
 #include <boost/program_options.hpp>
-#include "rocfft.h"
-#include "../../library/include/unicode.compatibility.h"
+#include "rocfft/rocfft.h"
 #include "./rider.h"
 
 
@@ -520,24 +519,22 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 		double bytes = (double)batchSize * 2.0 * (double)totalLen ;// the scalar 2.0 is because read & write
 
 		if( (transformType == rocfft_transform_type_complex_forward) || (transformType == rocfft_transform_type_complex_inverse) ) {
-            if(precision == rocfft_precision_single) 
+            if(precision == rocfft_precision_single)
                 bytes *= sizeof(float) * 2;
-            else 
-                bytes *= sizeof(double) * 2;        
-        }
-        else{
-            if(precision == rocfft_precision_single) 
-                bytes *= sizeof(float);
-            else 
-                bytes *= sizeof(double);        
-        }
+            else
+                bytes *= sizeof(double) * 2;
+		}
+		else{
+				if(precision == rocfft_precision_single)
+						bytes *= sizeof(float);
+				else
+						bytes *= sizeof(double);
+		}
 
-
-		tout << "\nExecution gpu time: " << gpu_time << " ms" << std::endl;
-		tout << "Execution wall time: " << 1000.0*wtime << " ms" << std::endl;
-		tout << "Execution gflops (wall time): " << (opsconst)/(1e9*wtime) << std::endl;
-		tout << "Bandwidth GB/s (wall time): " << (bytes)/(1e9*wtime) << std::endl;
-
+		std::cout << "\nExecution gpu time: " << gpu_time << " ms" << std::endl;
+		std::cout << "Execution wall time: " << 1000.0 * wtime << " ms" << std::endl;
+		std::cout << "Execution gflops (wall time): " << (opsconst) / (1e9 * wtime) << std::endl;
+		std::cout << "Bandwidth GB/s (wall time): " << (bytes) / (1e9 * wtime) << std::endl;
 	}
 
 	if(workBuffer)
@@ -716,7 +713,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 }
 
 
-int _tmain( int argc, _TCHAR* argv[] )
+int main( int argc, char* argv[] )
 {
 	//	This helps with mixing output of both wide and narrow characters to the screen
 	std::ios::sync_with_stdio( false );
@@ -926,7 +923,7 @@ int _tmain( int argc, _TCHAR* argv[] )
 	}
 	catch( std::exception& e )
 	{
-		terr << _T( "rocfft error condition reported:" ) << std::endl << e.what() << std::endl;
+		std::cerr << "rocfft error condition reported:" << std::endl << e.what() << std::endl;
 		return 1;
 	}
 

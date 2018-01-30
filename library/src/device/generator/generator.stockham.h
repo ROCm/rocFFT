@@ -12,7 +12,7 @@
 #include <vector>
 #include <map>
 #include <sstream>
-#include "../../../../library/include/rocfft.h"
+#include "rocfft.h"
 
 
             /* =====================================================================
@@ -168,7 +168,7 @@ namespace StockhamGenerator
 
 	inline std::string TwTableLargeFunc()
 	{
-		return "TW2step";//TODO: switch according to the problem size 
+		return "TW2step";//TODO: switch according to the problem size
 	}
 
 

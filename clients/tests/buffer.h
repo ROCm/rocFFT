@@ -14,7 +14,7 @@
 #include <vector>
 #include <utility>
 #include <sstream>
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "test_constants.h"
 #include <boost/random.hpp>
 #include <stdint.h>
@@ -508,11 +508,11 @@ private:
                             // compute square error
                             rms += ((ex_r - ac_r)*(ex_r - ac_r) + (ex_i - ac_i)*(ex_i - ac_i));
 #ifdef DEBUG
-                            if (rms/maxMag > 0.01) 
+                            if (rms/maxMag > 0.01)
                                 std::cout << "element: " << x << "; my result:(" << ac_r << "," << ac_i << "); reference result: (" << ex_r << "," << ex_i << ")" << std::endl;
-#endif 
+#endif
                         }
-                            //if ( length(dimy) > 1 ) std::cout << "y == " << y << "  above ==================" << std::endl; 
+                            //if ( length(dimy) > 1 ) std::cout << "y == " << y << "  above ==================" << std::endl;
                     }
                 }
 
@@ -542,7 +542,7 @@ public:
     {
         // complexity of each dimension must be the same
         // but does not compare their stride. other_buffer's stride can be different
-        // e.g "buffer_A[1, 2] with stride 1" is consider to be equal "buffer_B[1, X, 2, X] with stride 2", since X is not touched.  
+        // e.g "buffer_A[1, 2] with stride 1" is consider to be equal "buffer_B[1, X, 2, X] with stride 2", since X is not touched.
         if( ( is_real() && !other_buffer.is_real() ) || ( !is_real() && other_buffer.is_real() ) ||
             ( is_hermitian() && !other_buffer.is_hermitian() ) || ( !is_hermitian() && other_buffer.is_hermitian() ) ||
             ( is_complex() && !other_buffer.is_complex() ) || ( !is_complex() && other_buffer.is_complex() ) )
@@ -606,26 +606,26 @@ public:
             for( size_t z = 0; z < length(dimz); z++ )
                 for( size_t y = 0; y < length(dimy); y++ )
                     for( size_t x = 0; x < length(dimx); x++ )
-                    {        
+                    {
                         the_index = index(x, y, z, batch);
                         if( is_interleaved() )
                         {
                             *( base_ptr + the_index ) *= other_buffer.real(x, y, z, batch);
-        
+
                             the_index = the_index + 1; // the imaginary component immediately follows the real
                             if (other_buffer.is_real())
                             {
                                 *( base_ptr + the_index ) *= other_buffer.real(x, y, z, batch);
                             }
                             else
-                            {    
+                            {
                                 *( base_ptr + the_index ) *= other_buffer.imag(x, y, z, batch);
                             }
                         }
                         else if ( is_planar() )
                         {
                             *( real_ptr + the_index ) *= other_buffer.real(x, y, z, batch);
-                            
+
                             if (other_buffer.is_real())
                             {
                                 *( imag_ptr + the_index ) *= other_buffer.real(x, y, z, batch);
@@ -678,25 +678,25 @@ public:
             for( size_t z = 0; z < length(dimz); z++ )
                 for( size_t y = 0; y < length(dimy); y++ )
                     for( size_t x = 0; x < length(dimx); x++ )
-                    {        
+                    {
                         the_index = index(x, y, z, batch);
                         o_the_index = other_buffer.index(x, y, z, batch);
                         o_prev_val = o_the_index <= 0 ? 0 : *(o_base_ptr + o_the_index - 1);
                         o_next_val = o_the_index >= (other_buffer.total_number_of_points_including_data_and_intervening() - 1) ? 0 : *(o_base_ptr + o_the_index +  1);
-                        
+
                         average = (o_prev_val + *(o_base_ptr + o_the_index) + o_next_val)/ 3.0f ;
 
                         if( is_interleaved() )
                         {
                             *( base_ptr + the_index ) *= average;
-        
+
                             the_index = the_index + 1; // the imaginary component immediately follows the real
                             *( base_ptr + the_index ) *= average;
                         }
                         else if ( is_planar() )
                         {
                             *( real_ptr + the_index ) *= average;
-                            
+
                             *( imag_ptr + the_index ) *= average;
                         }
                         else if ( is_real() )
@@ -1058,11 +1058,11 @@ public:
                     T per_point_delta = amplitude / (length(dimx)/2);
                     //inner most dimension
                     for( size_t x = 0; x < length(dimx); x++) {
-                        
+
                         if( is_real() )
                         {
-                            //value = (T)x/1000; //for debug 
-                            // if( x % 2 == 0 ) value *= -1;//change the sign, for debug 
+                            //value = (T)x/1000; //for debug
+                            // if( x % 2 == 0 ) value *= -1;//change the sign, for debug
                             set_one_data_point( value, x, y, z, batch);
                         }
                         else
@@ -1076,9 +1076,9 @@ public:
                             //    imag = 0.0;// let element 0 and last to be real for hermitian input
                             set_one_data_point( value, imag, x, y, z, batch);
                         }
-                        
+
                         // if we're at T/2, we want to saw on down to the negative amplitude . . .
-                        
+
                         if( floats_are_about_equal( value, amplitude ) )
                         {
                             if( length(dimx) % 2 != 0 ) // odd, we need to add the 0
@@ -1096,7 +1096,7 @@ public:
                             value = -1 * amplitude;
                         }
                         // . . . otherwise, keep going up
-                        else                        
+                        else
                          value += per_point_delta;
                     }
                 }

@@ -7,7 +7,7 @@
 #pragma once
 #if !defined( _generator_param_H )
 #define _generator_param_H
-#include "../../../../library/include/rocfft.h"
+#include "rocfft.h"
 
             /* =====================================================================
                 Parameter used to control kernel generation
@@ -67,7 +67,7 @@ struct FFTKernelGenKeyParams {
 
     BlockComputeType blockComputeType;
 
-    std::string name_suffix; //use to specify kernel & device functions names to avoid naming conflict. 
+    std::string name_suffix; //use to specify kernel & device functions names to avoid naming conflict.
     // sometimes non square matrix are broken down into a number of
     // square matrix during inplace transpose
     // let's call this number transposeMiniBatchSize

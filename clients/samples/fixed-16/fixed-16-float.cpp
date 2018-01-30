@@ -10,15 +10,15 @@
 #include <math.h>
 #include <hip/hip_runtime_api.h>
 #include <hip/hip_vector_types.h>
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 
 int main()
 {
-    // For size N <= 4096 
+    // For size N <= 4096
 	const size_t N = 16;
 
-	// FFTW reference compute 
+	// FFTW reference compute
 	// ==========================================
 
 	std::vector<float2> cx(N);

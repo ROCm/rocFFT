@@ -11,7 +11,7 @@
 
 #include <hip/hip_runtime_api.h>
 #include <hip/hip_vector_types.h>
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 
 int main()
