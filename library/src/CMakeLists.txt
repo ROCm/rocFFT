@@ -70,11 +70,11 @@ else( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
 endif( )
 
 target_include_directories( rocfft
-  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include/rocfft>
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
-          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
           $<BUILD_INTERFACE:${cuda_samples_inc_dir}>
+  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include/rocfft>
+          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include/rocfft>
           $<INSTALL_INTERFACE:include>
 )
 

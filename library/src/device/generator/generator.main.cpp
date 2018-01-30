@@ -23,10 +23,10 @@
 using namespace StockhamGenerator;
 
 
- 
+
 
 /* =====================================================================
-    Ggenerate the support size according to the lower and upper bound 
+    Ggenerate the support size according to the lower and upper bound
 =================================================================== */
 
 int generate_support_size_list(std::vector<size_t> &support_size_list, size_t i_upper_bound, size_t j_upper_bound, size_t k_upper_bound)
@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
         generate_kernel(support_size_list[i], CS_KERNEL_STOCKHAM);
     }
 
-    //printf("Wrtie small size CPU functions implemention to *.cpp files \n"); 
+    //printf("Wrtie small size CPU functions implemention to *.cpp files \n");
     // all the small size of the same precsion are in one single file
     write_cpu_function_small(support_size_list, "single");
     write_cpu_function_small(support_size_list, "double");
@@ -148,13 +148,13 @@ int main(int argc, char *argv[])
     for(int i=0; i<large1D_list.size(); i++)
     {
         auto my_tuple = large1D_list[i];
-        generate_kernel(std::get<0>(my_tuple), std::get<1>(my_tuple)); 
+        generate_kernel(std::get<0>(my_tuple), std::get<1>(my_tuple));
     }
 
     write_cpu_function_large(large1D_list, "single");
     write_cpu_function_large(large1D_list, "double");
 
-    //write big size CPU functions; one file for one size      
+    //write big size CPU functions; one file for one size
 
     //printf("Write CPU functions declaration to *.h file \n");
     WriteCPUHeaders(support_size_list, large1D_list);

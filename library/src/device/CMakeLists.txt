@@ -88,21 +88,18 @@ if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
 endif( )
 
 target_include_directories( rocfft-device
-  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include/rocfft>
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/generator>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include/rocfft>
+          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include/rocfft>
 )
 
 set_target_properties( rocfft-device PROPERTIES VERSION ${rocfft_VERSION} SOVERSION ${rocfft_SOVERSION} CXX_EXTENSIONS NO )
 set_target_properties( rocfft-device PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
 set_target_properties( rocfft-device PROPERTIES DEBUG_POSTFIX "-d" )
-
-# Package that helps me set visibility for function names exported from shared library
-# set_target_properties( rocfft-device PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
-# generate_export_header( rocfft-device EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft-export.h )
 
 # Following Boost conventions of prefixing 'lib' on static built libraries, across all platforms
 if( NOT BUILD_SHARED_LIBS )
