@@ -52,6 +52,7 @@ add_custom_command(
 # The following is a list of implementation files defining the library
 set( rocfft_device_source
   transpose.cpp
+  bluestein.cpp
   real2complex.cpp
   complex2real.cpp
   function_pool.cpp

@@ -32,6 +32,13 @@ inline bool SupportedLength(size_t len)
         return false;
 }
 
+inline size_t FindBlue(size_t len)
+{
+    size_t p = 1;
+    while(p < len) p <<= 1;
+    return 2*p;
+}
+
 struct rocfft_plan_description_t
 {
 

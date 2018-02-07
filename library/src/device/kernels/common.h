@@ -151,6 +151,15 @@ __device__ inline double4 lib_make_vector4(double v0, double v1, double v2, doub
 
 template <typename T>
 __device__ T
+TWLstep1(T *twiddles, size_t u)
+{
+	size_t j = u & 255;
+	T result = twiddles[j];
+    return result;
+}
+
+template <typename T>
+__device__ T
 TWLstep2(T *twiddles, size_t u)
 {
 	size_t j = u & 255;

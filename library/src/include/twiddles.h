@@ -127,7 +127,7 @@ class TwiddleTableLarge
 		Y = DivRoundingUp<size_t> (CeilPo2(N), TWIDDLE_DEE);
 		tableSize = X * Y;
 
-		// Allocate memory for the tables
+        // Allocate memory for the tables
 		wc = new T[tableSize];
 	}
 
@@ -169,7 +169,7 @@ class TwiddleTableLarge
 };
 
 
-void *twiddles_create(size_t N, rocfft_precision precision);
+void *twiddles_create(size_t N, rocfft_precision precision, bool large);
 void twiddles_delete(void *twt);
 
 
