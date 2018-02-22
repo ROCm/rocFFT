@@ -43,6 +43,19 @@ void ErrorCheck(size_t N, CT *ref, CT *tst, size_t size=0)
 	size_t maxRefRealIdx = 0, maxRefImagIdx = 0;
 	size_t maxTstRealIdx = 0, maxTstImagIdx = 0;
 
+#if 0 
+    std::cout << "lib output" << std::endl;
+	for(size_t i=0; i<size; i++)
+	{
+            std::cout << tst[i][0] << ", " << tst[i][1] << std::endl;
+    }
+    std::cout << "ref output" << std::endl;
+	for(size_t i=0; i<size; i++)
+	{
+            std::cout << N*ref[i][0] << ", " << N*ref[i][1] << std::endl;
+    }
+#endif
+
 	for(size_t i=0; i<size; i++)
 	{
 		T refReal = N*fabs(ref[i][0]);
@@ -257,10 +270,10 @@ protected:
 
 	virtual void RunBvt(size_t L)
 	{
-		if(!SupportedLength(L))
+		/*if(!SupportedLength(L))
 		{
 			return;
-		}
+		}*/
 
 		void *bufs[1];
 		bufs[0] = dev;
@@ -391,6 +404,13 @@ typedef BasicInterface3DBasisTest<float, complex_single, rocfft_precision_single
 
 
 // complex to complex interface
+
+// primes
+
+TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen504017 )		{ TestRoutine(504017, -1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, InvLen504017 )		{ TestRoutine(504017,  1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen69 )		{ TestRoutine(69, -1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, InvLen69 )		{ TestRoutine(69,  1); }
 
 // some big tests
 

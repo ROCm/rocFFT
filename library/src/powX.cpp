@@ -34,15 +34,14 @@ void PlanPowX(ExecPlan &execPlan)
             (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC) ||
             (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) )
         {
-            execPlan.execSeq[i]->twiddles = twiddles_create(execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision);
+            execPlan.execSeq[i]->twiddles = twiddles_create(execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false);
         }
 
         if(execPlan.execSeq[i]->large1D != 0)
         {
-            execPlan.execSeq[i]->twiddles_large = twiddles_create(execPlan.execSeq[i]->large1D, execPlan.execSeq[i]->precision);
+            execPlan.execSeq[i]->twiddles_large = twiddles_create(execPlan.execSeq[i]->large1D, execPlan.execSeq[i]->precision, true);
         }
     }
-
     //copy host buffer to device buffer
     for(size_t i=0; i<execPlan.execSeq.size(); i++)
     {
@@ -142,6 +141,26 @@ void PlanPowX(ExecPlan &execPlan)
                     gp.b_y = execPlan.execSeq[i]->batch;
                     gp.tpb_x = 512; gp.tpb_y = 1;
                 }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_CHIRP)
+                {
+                    ptr = &FN_PRFX(chirp);
+                    gp.tpb_x = 64;
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_PAD_MUL)
+                {
+                    ptr = &FN_PRFX(mul);
+                    gp.tpb_x = 64;
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_FFT_MUL)
+                {
+                    ptr = &FN_PRFX(mul);
+                    gp.tpb_x = 64;
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_RES_MUL)
+                {
+                    ptr = &FN_PRFX(mul);
+                    gp.tpb_x = 64;
+                }
                 else
                 {
                     std::cout << "should not be in this else block" << std::endl;
@@ -237,6 +256,26 @@ void PlanPowX(ExecPlan &execPlan)
                     gp.b_y = execPlan.execSeq[i]->batch;
                     gp.tpb_x = 512; gp.tpb_y = 1;
                 }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_CHIRP)
+                {
+                    ptr = &FN_PRFX(chirp);
+                    gp.tpb_x = 64;
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_PAD_MUL)
+                {
+                    ptr = &FN_PRFX(mul);
+                    gp.tpb_x = 64;
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_FFT_MUL)
+                {
+                    ptr = &FN_PRFX(mul);
+                    gp.tpb_x = 64;
+                }
+                else if(execPlan.execSeq[i]->scheme == CS_KERNEL_RES_MUL)
+                {
+                    ptr = &FN_PRFX(mul);
+                    gp.tpb_x = 64;
+                }
                 else
                 {
                     std::cout << "should not be in this else block" << std::endl;
@@ -256,7 +295,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
     assert(execPlan.execSeq.size() == execPlan.devFnCall.size());
     assert(execPlan.execSeq.size() == execPlan.gridParam.size());
 
-    //for(size_t i=0; i<1; i++) //multiple kernels involving transpose
+    //for(size_t i=0; i<5; i++) //multiple kernels involving transpose
     for(size_t i=0; i<execPlan.execSeq.size(); i++) //multiple kernels involving transpose
     {
         DeviceCallIn data;
@@ -287,6 +326,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         case OB_USER_OUT:               data.bufIn[0] = out_buffer[0]; break;
         case OB_TEMP:                   data.bufIn[0] = info->workBuffer; break;
         case OB_TEMP_CMPLX_FOR_REAL:    data.bufIn[0] = (void *)((char *)info->workBuffer + execPlan.tmpWorkBufSize * inBytes); break;
+        case OB_TEMP_BLUESTEIN:         data.bufIn[0] = (void *)((char *)info->workBuffer + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize + data.node->iOffset) * inBytes); break;
         default: assert(false);
         }
 
@@ -296,6 +336,7 @@ void TransformPowX(const ExecPlan &execPlan, void *in_buffer[], void *out_buffer
         case OB_USER_OUT:               data.bufOut[0] = out_buffer[0]; break;
         case OB_TEMP:                   data.bufOut[0] = info->workBuffer; break;
         case OB_TEMP_CMPLX_FOR_REAL:    data.bufOut[0] = (void *)((char *)info->workBuffer + execPlan.tmpWorkBufSize * inBytes); break;
+        case OB_TEMP_BLUESTEIN:         data.bufOut[0] = (void *)((char *)info->workBuffer + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize + data.node->oOffset) * inBytes); break;
         default: assert(false);
         }
 

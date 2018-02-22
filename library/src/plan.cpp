@@ -328,11 +328,11 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
         p->desc.outDist = p->lengths[p->rank - 1] * p->desc.outStrides[p->rank -1];
     }
     
-    if(!SupportedLength(prodLength))
+    /*if(!SupportedLength(prodLength))
     {
         printf("This size %zu is not supported in rocFFT, will return;\n", prodLength);
         return rocfft_status_invalid_dimensions;
-    }
+    }*/
     Repo &repo = Repo::GetRepo();
     repo.CreatePlan(p);//add this plan into repo, incurs computation, see repo.cpp
 
@@ -479,11 +479,11 @@ std::string PrintScheme(ComputeScheme cs)
         case CS_KERNEL_COPY_CMPLX_TO_HERM:          str += "CS_KERNEL_COPY_CMPLX_TO_HERM";      break;
         case CS_KERNEL_COPY_HERM_TO_CMPLX:          str += "CS_KERNEL_COPY_HERM_TO_CMPLX";      break;
         case CS_KERNEL_COPY_CMPLX_TO_R:             str += "CS_KERNEL_COPY_CMPLX_TO_R";         break;
-        case CS_BLSTN:                              str += "CS_BLSTN";                          break;
-        case CS_KERNEL_COPY_FORW_BLSTN:             str += "CS_KERNEL_COPY_FORW_BLSTN";         break;
-        case CS_KERNEL_COPY_INVR_BLSTN:             str += "CS_KERNEL_COPY_INVR_BLSTN";         break;
-        case CS_KERNEL_MUL:                         str += "CS_KERNEL_MUL";                     break;
-        case CS_KERNEL_CHIRP:                       str += "CS_KERNEL_CHIRP";                   break;
+        case CS_BLUESTEIN:                          str +="CS_BLUESTEIN";                       break;
+        case CS_KERNEL_CHIRP:                       str +="CS_KERNEL_CHIRP";                    break;
+        case CS_KERNEL_PAD_MUL:                     str +="CS_KERNEL_PAD_MUL";                  break;
+        case CS_KERNEL_FFT_MUL:                     str +="CS_KERNEL_FFT_MUL";                  break;
+        case CS_KERNEL_RES_MUL:                     str +="CS_KERNEL_RES_MUL";                  break;
         case CS_L1D_TRTRT:                          str += "CS_L1D_TRTRT";                      break;
         case CS_L1D_CC:                             str += "CS_L1D_CC";                         break;
         case CS_L1D_CRT:                            str += "CS_L1D_CRT";                        break;
@@ -557,6 +557,96 @@ void TreeNode::RecursiveBuildTree()
     {
     case 1:
     {
+        if(!SupportedLength(length[0]))
+        {
+            scheme = CS_BLUESTEIN;
+            lengthBlue = FindBlue(length[0]);
+
+            TreeNode *chirpPlan = TreeNode::CreateNode(this);
+
+            chirpPlan->scheme = CS_KERNEL_CHIRP;
+            chirpPlan->dimension = 1;
+            chirpPlan->length.push_back(length[0]);
+            chirpPlan->lengthBlue = lengthBlue;
+            chirpPlan->direction = direction;
+            chirpPlan->batch = 1;
+            chirpPlan->large1D = 2*length[0];
+            childNodes.push_back(chirpPlan);
+
+            TreeNode *padmulPlan = TreeNode::CreateNode(this);
+
+            padmulPlan->dimension = 1;
+            padmulPlan->length = length;
+            padmulPlan->lengthBlue = lengthBlue;
+            padmulPlan->scheme = CS_KERNEL_PAD_MUL;
+            childNodes.push_back(padmulPlan);
+
+            TreeNode *fftiPlan = TreeNode::CreateNode(this);
+
+            fftiPlan->dimension = 1;
+            fftiPlan->length.push_back(lengthBlue);
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                fftiPlan->length.push_back(length[index]);
+            }
+
+            fftiPlan->iOffset = 2*lengthBlue;
+            fftiPlan->oOffset = 2*lengthBlue;
+            fftiPlan->scheme = CS_KERNEL_STOCKHAM;
+            fftiPlan->RecursiveBuildTree();
+            childNodes.push_back(fftiPlan);
+
+            TreeNode *fftcPlan = TreeNode::CreateNode(this);
+
+            fftcPlan->dimension = 1;
+            fftcPlan->length.push_back(lengthBlue);
+            fftcPlan->scheme = CS_KERNEL_STOCKHAM;
+            fftcPlan->batch = 1;
+            fftcPlan->iOffset = lengthBlue;
+            fftcPlan->oOffset = lengthBlue;
+            fftcPlan->RecursiveBuildTree();
+            childNodes.push_back(fftcPlan);
+
+            TreeNode *fftmulPlan = TreeNode::CreateNode(this);
+
+            fftmulPlan->dimension = 1;
+            fftmulPlan->length.push_back(lengthBlue);
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                fftmulPlan->length.push_back(length[index]);
+            }
+
+            fftmulPlan->lengthBlue = lengthBlue;
+            fftmulPlan->scheme = CS_KERNEL_FFT_MUL;
+            childNodes.push_back(fftmulPlan);
+
+            TreeNode *fftrPlan = TreeNode::CreateNode(this);
+
+            fftrPlan->dimension = 1;
+            fftrPlan->length.push_back(lengthBlue);
+            for (size_t index = 1; index < length.size(); index++)
+            {
+                fftrPlan->length.push_back(length[index]);
+            }
+
+            fftrPlan->scheme = CS_KERNEL_STOCKHAM;
+            fftrPlan->direction = -direction;
+            fftrPlan->iOffset = 2*lengthBlue;
+            fftrPlan->oOffset = 2*lengthBlue;
+            fftrPlan->RecursiveBuildTree();
+            childNodes.push_back(fftrPlan);
+
+            TreeNode *resmulPlan = TreeNode::CreateNode(this);
+
+            resmulPlan->dimension = 1;
+            resmulPlan->length = length;
+            resmulPlan->lengthBlue = lengthBlue;
+            resmulPlan->scheme = CS_KERNEL_RES_MUL;
+            childNodes.push_back(resmulPlan);
+
+			return;
+        }
+
         if (length[0] <= Large1DThreshold(precision))//single kernel algorithm
         {
             scheme = CS_KERNEL_STOCKHAM;
@@ -1130,6 +1220,13 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, Operatin
 
             obOutBuf = OB_TEMP_CMPLX_FOR_REAL;
         }
+        else if(scheme == CS_BLUESTEIN)
+        {
+            flipIn = OB_TEMP_BLUESTEIN;
+            flipOut = OB_TEMP;
+
+            obOutBuf = OB_TEMP_BLUESTEIN;
+        }
         else
         {
             flipIn = OB_USER_OUT;
@@ -1139,7 +1236,7 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, Operatin
         }
     }
 
-    if(scheme == CS_REAL_TRANSFORM_USING_CMPLX)
+    if (scheme == CS_REAL_TRANSFORM_USING_CMPLX)
     {
         assert(parent == nullptr);
         childNodes[0]->obIn = OB_USER_IN;
@@ -1160,6 +1257,43 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, Operatin
        
         obIn = childNodes[0]->obIn;
         obOut = childNodes[2]->obOut;
+    }
+    else if (scheme == CS_BLUESTEIN)
+    {
+        childNodes[0]->obIn = OB_TEMP_BLUESTEIN;
+        childNodes[0]->obOut = OB_TEMP_BLUESTEIN;
+
+        if (parent == nullptr)
+        {
+            childNodes[1]->obIn = (placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN;
+        }
+        else
+        {
+            childNodes[1]->obIn = OB_TEMP_BLUESTEIN;
+        }
+        
+        childNodes[1]->obOut = OB_TEMP_BLUESTEIN;
+
+        childNodes[2]->obIn = OB_TEMP_BLUESTEIN;
+        childNodes[2]->obOut = OB_TEMP_BLUESTEIN;
+        childNodes[2]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
+
+        childNodes[3]->obIn = OB_TEMP_BLUESTEIN;
+        childNodes[3]->obOut = OB_TEMP_BLUESTEIN;
+        childNodes[3]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
+
+        childNodes[4]->obIn = OB_TEMP_BLUESTEIN;
+        childNodes[4]->obOut = OB_TEMP_BLUESTEIN;
+
+        childNodes[5]->obIn = OB_TEMP_BLUESTEIN;
+        childNodes[5]->obOut = OB_TEMP_BLUESTEIN;
+        childNodes[5]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
+
+        childNodes[6]->obIn = OB_TEMP_BLUESTEIN;
+        childNodes[6]->obOut = OB_USER_OUT;
+
+        obIn = childNodes[1]->obIn;
+        obOut = childNodes[6]->obOut;
     }
     else if (scheme == CS_L1D_TRTRT)
     {
@@ -1449,6 +1583,11 @@ void TreeNode::TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn, rocf
         case OB_USER_OUT: inArrayType = rootOut; break;
         case OB_TEMP: inArrayType = rocfft_array_type_complex_interleaved; break;
         case OB_TEMP_CMPLX_FOR_REAL: inArrayType = rocfft_array_type_complex_interleaved; break;
+        case OB_TEMP_BLUESTEIN: 
+                                     inArrayType = rocfft_array_type_complex_interleaved;
+                                     if(parent->iOffset != 0) iOffset = parent->iOffset;
+                                     break;
+
         default: inArrayType = rocfft_array_type_complex_interleaved;
         }
 
@@ -1458,6 +1597,11 @@ void TreeNode::TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn, rocf
         case OB_USER_OUT: outArrayType = rootOut; break;
         case OB_TEMP: outArrayType = rocfft_array_type_complex_interleaved; break;
         case OB_TEMP_CMPLX_FOR_REAL: outArrayType = rocfft_array_type_complex_interleaved; break;
+        case OB_TEMP_BLUESTEIN:
+                                     outArrayType = rocfft_array_type_complex_interleaved;
+                                     if(parent->oOffset != 0) oOffset = parent->oOffset;
+                                     break;
+
         default: outArrayType = rocfft_array_type_complex_interleaved;
         }
     }
@@ -1503,7 +1647,65 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         copyTailPlan->outStride = outStride;
         copyTailPlan->oDist = oDist;
     }
-    break; 
+    break;
+    case CS_BLUESTEIN:
+    {
+        TreeNode *chirpPlan = childNodes[0];
+        TreeNode *padmulPlan = childNodes[1];
+        TreeNode *fftiPlan = childNodes[2];
+        TreeNode *fftcPlan = childNodes[3];
+        TreeNode *fftmulPlan = childNodes[4];
+        TreeNode *fftrPlan = childNodes[5];
+        TreeNode *resmulPlan = childNodes[6];
+
+        chirpPlan->inStride.push_back(1);
+        chirpPlan->iDist = chirpPlan->lengthBlue;
+        chirpPlan->outStride.push_back(1);
+        chirpPlan->oDist = chirpPlan->lengthBlue;
+       
+        padmulPlan->inStride = inStride;
+        padmulPlan->iDist = iDist;
+
+        padmulPlan->outStride.push_back(1);
+        padmulPlan->oDist = padmulPlan->lengthBlue;
+        for (size_t index = 1; index < length.size(); index++)
+        {
+            padmulPlan->outStride.push_back(padmulPlan->oDist);
+            padmulPlan->oDist *= length[index];
+        }
+
+        fftiPlan->inStride = padmulPlan->outStride;
+        fftiPlan->iDist = padmulPlan->oDist;
+        fftiPlan->outStride = fftiPlan->inStride;
+        fftiPlan->oDist = fftiPlan->iDist;
+
+        fftiPlan->TraverseTreeAssignParamsLogicA();
+
+        fftcPlan->inStride = chirpPlan->outStride;
+        fftcPlan->iDist = chirpPlan->oDist;
+        fftcPlan->outStride = fftcPlan->inStride;
+        fftcPlan->oDist = fftcPlan->iDist;
+
+        fftcPlan->TraverseTreeAssignParamsLogicA();
+
+        fftmulPlan->inStride = fftiPlan->outStride;
+        fftmulPlan->iDist = fftiPlan->oDist;
+        fftmulPlan->outStride = fftmulPlan->inStride;
+        fftmulPlan->oDist = fftmulPlan->iDist;
+
+        fftrPlan->inStride = fftmulPlan->outStride;
+        fftrPlan->iDist = fftmulPlan->oDist;
+        fftrPlan->outStride = fftrPlan->inStride;
+        fftrPlan->oDist = fftrPlan->iDist;
+
+        fftrPlan->TraverseTreeAssignParamsLogicA();
+
+        resmulPlan->inStride = fftrPlan->outStride;
+        resmulPlan->iDist = fftrPlan->oDist;
+        resmulPlan->outStride = outStride;
+        resmulPlan->oDist = oDist; 
+    }
+    break;
     case CS_L1D_TRTRT:
     {
         size_t biggerDim = childNodes[0]->length[0] > childNodes[0]->length[1] ? childNodes[0]->length[0] : childNodes[0]->length[1];
@@ -1579,7 +1781,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         }
         else
         {
-            assert( (row1Plan->obOut == OB_USER_OUT) || (row1Plan->obOut == OB_TEMP_CMPLX_FOR_REAL) );
+            assert( (row1Plan->obOut == OB_USER_OUT) || (row1Plan->obOut == OB_TEMP_CMPLX_FOR_REAL) || (row1Plan->obOut == OB_TEMP_BLUESTEIN) );
 
             row1Plan->outStride.push_back(outStride[0]);
             row1Plan->outStride.push_back(outStride[0] * row1Plan->length[0]);
@@ -1946,7 +2148,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
             padding = 64;
 
         // B -> B
-        assert( (row1Plan->obOut == OB_USER_OUT) || (row1Plan->obOut == OB_TEMP_CMPLX_FOR_REAL) );
+        assert( (row1Plan->obOut == OB_USER_OUT) || (row1Plan->obOut == OB_TEMP_CMPLX_FOR_REAL) || (row1Plan->obOut == OB_TEMP_BLUESTEIN) );
         row1Plan->inStride = inStride;
         row1Plan->iDist = iDist;
 
@@ -1981,7 +2183,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         row2Plan->TraverseTreeAssignParamsLogicA();
 
         // T -> B
-        assert( (trans2Plan->obOut == OB_USER_OUT) || (trans2Plan->obOut == OB_TEMP_CMPLX_FOR_REAL) );
+        assert( (trans2Plan->obOut == OB_USER_OUT) || (trans2Plan->obOut == OB_TEMP_CMPLX_FOR_REAL) || (trans2Plan->obOut == OB_TEMP_BLUESTEIN) );
         trans2Plan->inStride = row2Plan->outStride;
         trans2Plan->iDist = row2Plan->oDist;
 
@@ -1996,7 +2198,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         TreeNode *colPlan = childNodes[1];
 
         // B -> B
-        assert( (rowPlan->obOut == OB_USER_OUT) || (rowPlan->obOut == OB_TEMP_CMPLX_FOR_REAL) );
+        assert( (rowPlan->obOut == OB_USER_OUT) || (rowPlan->obOut == OB_TEMP_CMPLX_FOR_REAL) || (rowPlan->obOut == OB_TEMP_BLUESTEIN) );
         rowPlan->inStride = inStride;
         rowPlan->iDist = iDist;
 
@@ -2006,7 +2208,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         rowPlan->TraverseTreeAssignParamsLogicA();
 
         // B -> B
-        assert( (colPlan->obOut == OB_USER_OUT) || (colPlan->obOut == OB_TEMP_CMPLX_FOR_REAL) );
+        assert( (colPlan->obOut == OB_USER_OUT) || (colPlan->obOut == OB_TEMP_CMPLX_FOR_REAL) || (colPlan->obOut == OB_TEMP_BLUESTEIN) );
         colPlan->inStride.push_back(inStride[1]);
         colPlan->inStride.push_back(inStride[0]);
         for (size_t index = 2; index < length.size(); index++) colPlan->inStride.push_back(inStride[index]);
@@ -2032,7 +2234,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
             padding = 64;
 
         // B -> B
-        assert( (xyPlan->obOut == OB_USER_OUT) || (xyPlan->obOut == OB_TEMP_CMPLX_FOR_REAL) );
+        assert( (xyPlan->obOut == OB_USER_OUT) || (xyPlan->obOut == OB_TEMP_CMPLX_FOR_REAL) || (xyPlan->obOut == OB_TEMP_BLUESTEIN) );
         xyPlan->inStride = inStride;
         xyPlan->iDist = iDist;
 
@@ -2068,7 +2270,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         zPlan->TraverseTreeAssignParamsLogicA();
 
         // T -> B
-        assert( (trans2Plan->obOut == OB_USER_OUT) || (trans2Plan->obOut == OB_TEMP_CMPLX_FOR_REAL) );
+        assert( (trans2Plan->obOut == OB_USER_OUT) || (trans2Plan->obOut == OB_TEMP_CMPLX_FOR_REAL) || (trans2Plan->obOut == OB_TEMP_BLUESTEIN) );
         trans2Plan->inStride = zPlan->outStride;
         trans2Plan->iDist = zPlan->oDist;
 
@@ -2083,7 +2285,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         TreeNode *zPlan = childNodes[1];
 
         // B -> B
-        assert( (xyPlan->obOut == OB_USER_OUT) || (xyPlan->obOut == OB_TEMP_CMPLX_FOR_REAL) );
+        assert( (xyPlan->obOut == OB_USER_OUT) || (xyPlan->obOut == OB_TEMP_CMPLX_FOR_REAL) || (xyPlan->obOut == OB_TEMP_BLUESTEIN) );
         xyPlan->inStride = inStride;
         xyPlan->iDist = iDist;
 
@@ -2093,7 +2295,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         xyPlan->TraverseTreeAssignParamsLogicA();
 
         // B -> B
-        assert( (zPlan->obOut == OB_USER_OUT) || (zPlan->obOut == OB_TEMP_CMPLX_FOR_REAL) );
+        assert( (zPlan->obOut == OB_USER_OUT) || (zPlan->obOut == OB_TEMP_CMPLX_FOR_REAL) || (zPlan->obOut == OB_TEMP_BLUESTEIN) );
         zPlan->inStride.push_back(inStride[2]);
         zPlan->inStride.push_back(inStride[0]);
         zPlan->inStride.push_back(inStride[1]);
@@ -2110,13 +2312,16 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
     }
 }
 
-void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size_t &tmpBufSize, size_t &cmplxForRealSize)
+void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size_t &tmpBufSize, size_t &cmplxForRealSize, size_t &blueSize, size_t &chirpSize)
 {
     if (childNodes.size() == 0)
     {
         assert(length.size() == inStride.size());
         assert(length.size() == outStride.size());
 
+        if(scheme == CS_KERNEL_CHIRP) chirpSize = (2*lengthBlue) > chirpSize ? (2*lengthBlue) : chirpSize;
+
+        if (obOut == OB_TEMP_BLUESTEIN) blueSize = (oDist*batch) > blueSize ? (oDist*batch) : blueSize;
         if (obOut == OB_TEMP_CMPLX_FOR_REAL) cmplxForRealSize = (oDist*batch) > cmplxForRealSize ? (oDist*batch) : cmplxForRealSize;
         if (obOut == OB_TEMP) tmpBufSize = (oDist*batch) > tmpBufSize ? (oDist*batch) : tmpBufSize;
         seq.push_back(this);
@@ -2126,7 +2331,7 @@ void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size
         std::vector<TreeNode *>::iterator children_p;
         for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
         {
-            (*children_p)->TraverseTreeCollectLeafsLogicA(seq, tmpBufSize, cmplxForRealSize);
+            (*children_p)->TraverseTreeCollectLeafsLogicA(seq, tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
         }
     }
 }
@@ -2156,6 +2361,14 @@ void TreeNode::Print(int indent) const
     for (size_t i = 0; i < outStride.size(); i++)
         std::cout << outStride[i] << ", ";
     std::cout << oDist;
+    
+    std::cout << std::endl << indentStr.c_str();
+    std::cout << "iOffset: " << iOffset;
+    std::cout << std::endl << indentStr.c_str();
+    std::cout << "oOffset: " << oOffset;
+
+    std::cout << std::endl << indentStr.c_str();
+    std::cout << "direction: " << direction;
 
     std::cout << std::endl << indentStr.c_str();
     std::cout << ((placement == rocfft_placement_inplace) ? "inplace" : "not inplace") << "  ";
@@ -2179,18 +2392,21 @@ void TreeNode::Print(int indent) const
     }
     std::cout << std::endl << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str();
     std::cout << std::endl << indentStr.c_str() << "TTD: " << transTileDir;
-    std::cout << std::endl << indentStr.c_str() << "large1D: " << large1D << std::endl << indentStr.c_str();
+    std::cout << std::endl << indentStr.c_str() << "large1D: " << large1D;
+    std::cout << std::endl << indentStr.c_str() << "lengthBlue: " << lengthBlue << std::endl << indentStr.c_str();
 
     if (obIn == OB_USER_IN) std::cout << "A -> ";
     else if (obIn == OB_USER_OUT) std::cout << "B -> ";
     else if (obIn == OB_TEMP) std::cout << "T -> ";
     else if (obIn == OB_TEMP_CMPLX_FOR_REAL) std::cout << "C -> ";
+    else if (obIn == OB_TEMP_BLUESTEIN) std::cout << "S -> ";
     else std::cout << "ERR -> ";
 
     if (obOut == OB_USER_IN) std::cout << "A";
     else if (obOut == OB_USER_OUT) std::cout << "B";
     else if (obOut == OB_TEMP) std::cout << "T";
     else if (obOut == OB_TEMP_CMPLX_FOR_REAL) std::cout << "C";
+    else if (obOut == OB_TEMP_BLUESTEIN) std::cout << "S";
     else std::cout << "ERR";
 
     std::cout << std::endl;
@@ -2218,10 +2434,14 @@ void ProcessNode(ExecPlan &execPlan)
 
     size_t tmpBufSize = 0;
     size_t cmplxForRealSize = 0;
-    execPlan.rootPlan->TraverseTreeCollectLeafsLogicA(execPlan.execSeq, tmpBufSize, cmplxForRealSize);
-    execPlan.workBufSize = tmpBufSize + cmplxForRealSize;
+    size_t blueSize = 0;
+    size_t chirpSize = 0;
+    execPlan.rootPlan->TraverseTreeCollectLeafsLogicA(execPlan.execSeq, tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
+    execPlan.workBufSize = tmpBufSize + cmplxForRealSize + blueSize + chirpSize;
     execPlan.tmpWorkBufSize = tmpBufSize;
     execPlan.copyWorkBufSize = cmplxForRealSize;
+    execPlan.blueWorkBufSize = blueSize;
+    execPlan.chirpWorkBufSize = chirpSize;
 }
 
 
@@ -2229,7 +2449,7 @@ void PrintNode(const ExecPlan &execPlan)
 {
     std::cout << "*******************************************************************************" << std::endl;
 
-    size_t N = 1;
+    size_t N = execPlan.rootPlan->batch;
     for (size_t i = 0; i < execPlan.rootPlan->length.size(); i++) N *= execPlan.rootPlan->length[i];
     std::cout << "Work buffer size: " << execPlan.workBufSize << std::endl;
     std::cout << "Work buffer ratio: " << (double)execPlan.workBufSize/(double)N << std::endl;
@@ -2252,8 +2472,9 @@ void PrintNode(const ExecPlan &execPlan)
 
             }
 
-            if ((*prev_p)->obOut != (*curr_p)->obIn)
-                std::cout << "error in buffer assignments" << std::endl;
+            if((*prev_p)->scheme != CS_KERNEL_CHIRP)
+                if ((*prev_p)->obOut != (*curr_p)->obIn)
+                    std::cout << "error in buffer assignments" << std::endl;
 
             prev_p = curr_p;
             curr_p++;

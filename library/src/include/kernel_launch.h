@@ -58,8 +58,9 @@ extern "C"
     */
 
 
-    void rocfft_internal_transpose_var1_sp(const void *data_p, void *back_p);
 
+    void rocfft_internal_mul(const void *data_p, void *back_p);
+    void rocfft_internal_chirp(const void *data_p, void *back_p);
     void rocfft_internal_transpose_var2(const void *data_p, void *back_p);
     
 }

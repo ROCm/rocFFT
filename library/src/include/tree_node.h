@@ -19,7 +19,8 @@ enum OperatingBuffer
     OB_USER_IN,
     OB_USER_OUT,
     OB_TEMP,
-    OB_TEMP_CMPLX_FOR_REAL
+    OB_TEMP_CMPLX_FOR_REAL,
+    OB_TEMP_BLUESTEIN,
 };
 
 enum ComputeScheme
@@ -38,11 +39,11 @@ enum ComputeScheme
     CS_KERNEL_COPY_HERM_TO_CMPLX,
     CS_KERNEL_COPY_CMPLX_TO_R,
 
-    CS_BLSTN,
-    CS_KERNEL_COPY_FORW_BLSTN,
-    CS_KERNEL_COPY_INVR_BLSTN,
-    CS_KERNEL_MUL,
+    CS_BLUESTEIN,
     CS_KERNEL_CHIRP,
+    CS_KERNEL_PAD_MUL,
+    CS_KERNEL_FFT_MUL,
+    CS_KERNEL_RES_MUL,
 
     CS_L1D_TRTRT,
     CS_L1D_CC,
@@ -74,6 +75,7 @@ class TreeNode
 private:
     // disallow public creation
     TreeNode(TreeNode *p) : parent(p), scheme(CS_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0),
+                lengthBlue(0), iOffset(0), oOffset(0),
                 transTileDir(TTD_IP_HOR), twiddles(nullptr), twiddles_large(nullptr), devKernArg(nullptr)
     {
         if(p != nullptr)
@@ -85,35 +87,38 @@ private:
     }
 
 public:
-    size_t                        batch;
+    size_t                      batch;
 
     // transform dimension - note this can be different from data dimension, user provided
-    size_t                        dimension;
+    size_t                      dimension;
 
     // length of the FFT in each dimension, internal value
-    std::vector< size_t >        length;
+    std::vector< size_t >       length;
 
     // stride of the FFT in each dimension
-    std::vector< size_t >        inStride, outStride;
+    std::vector< size_t >       inStride, outStride;
 
     // distance between consecutive batch members
-    size_t                        iDist, oDist;
+    size_t                      iDist, oDist;
 
-    int                        direction;
-    rocfft_result_placement        placement;
+    int                         direction;
+    rocfft_result_placement     placement;
     rocfft_precision            precision;
-    rocfft_array_type            inArrayType, outArrayType;
+    rocfft_array_type           inArrayType, outArrayType;
 
     // extra twiddle multiplication for large 1D
-    size_t                        large1D;
+    size_t                      large1D;
 
     TreeNode                    *parent;
-    std::vector<TreeNode *>        childNodes;
+    std::vector<TreeNode *>     childNodes;
 
-    ComputeScheme                scheme;
-    OperatingBuffer                obIn, obOut;
+    ComputeScheme               scheme;
+    OperatingBuffer             obIn, obOut;
 
-    TransTileDir    transTileDir;
+    TransTileDir                transTileDir;
+
+    size_t                      lengthBlue;
+    size_t                      iOffset, oOffset;
 
     // these are device pointers
     void        *twiddles;
@@ -167,7 +172,7 @@ public:
     void TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, OperatingBuffer &flipOut, OperatingBuffer &obOutBuf);
     void TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn, rocfft_array_type rootOut);
     void TraverseTreeAssignParamsLogicA();
-    void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size_t &tmpBufSize, size_t &cmplxForRealSize);
+    void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size_t &tmpBufSize, size_t &cmplxForRealSize, size_t &blueSize, size_t &chirpSize);
     void Print(int indent = 0) const;
 
     // logic B - using in-place transposes, todo
@@ -199,8 +204,10 @@ struct ExecPlan
     size_t workBufSize;
     size_t tmpWorkBufSize;
     size_t copyWorkBufSize;
+    size_t blueWorkBufSize;
+    size_t chirpWorkBufSize;
 
-    ExecPlan() : rootPlan(nullptr), workBufSize(0), tmpWorkBufSize(0), copyWorkBufSize(0)
+    ExecPlan() : rootPlan(nullptr), workBufSize(0), tmpWorkBufSize(0), copyWorkBufSize(0), blueWorkBufSize(0)
     {}
 };
 

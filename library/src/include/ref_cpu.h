@@ -103,9 +103,25 @@ class RefLibOp
     	ftype_fftwf_malloc local_fftwf_malloc = (ftype_fftwf_malloc)dlsym(refHandle.fftw3f_lib, "fftwf_malloc");
     
         DeviceCallIn *data = (DeviceCallIn *)data_p;
-   
-        totalSize = data->node->batch;
-        for(size_t i=0; i<data->node->length.size(); i++) totalSize *= data->node->length[i];
+  
+        if(data->node->scheme == CS_KERNEL_CHIRP)
+        {
+            totalSize = 2 * data->node->lengthBlue;
+        }
+        else if(    (data->node->scheme == CS_KERNEL_FFT_MUL) ||
+                    (data->node->scheme == CS_KERNEL_PAD_MUL) ||
+                    (data->node->scheme == CS_KERNEL_RES_MUL)
+               )
+        {
+            totalSize = data->node->batch;
+            for(size_t i=1; i<data->node->length.size(); i++) totalSize *= data->node->length[i];
+            totalSize *= data->node->lengthBlue;
+        }
+        else
+        { 
+            totalSize = data->node->batch;
+            for(size_t i=0; i<data->node->length.size(); i++) totalSize *= data->node->length[i];
+        }
         size_t totalByteSize = totalSize*sizeof(local_fftwf_complex);
 
         in = (local_fftwf_complex *)local_fftwf_malloc(totalByteSize);
@@ -174,7 +190,7 @@ class RefLibOp
 		}
     }
 
-    void CopyInputVector(const void *data_p)
+    void CopyInputVector(const void *data_p, size_t offset = 0)
     {
         DeviceCallIn *data = (DeviceCallIn *)data_p;
 
@@ -186,9 +202,10 @@ class RefLibOp
         else{
             in_size_bytes *= 2;             
         }
-    
+   
+        void *buf = ((char *)data->bufIn[0] + offset); 
         local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(in_size_bytes);
-        hipMemcpy(tmp_mem, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
+        hipMemcpy(tmp_mem, buf, in_size_bytes, hipMemcpyDeviceToHost);
 
         CopyVector(in, tmp_mem, data->node->batch, data->node->iDist, data->node->length, data->node->inStride);
 
@@ -231,6 +248,67 @@ class RefLibOp
         return result;
     }
 
+    inline void chirp(size_t N, size_t M, int dir, local_fftwf_complex *vec)
+    {
+        const double TWO_PI = atan(1.0)*8.0 * (double)(-dir);
+
+        for(size_t i=0; i<=(M-N); i++)
+        {
+				double cs = cos(TWO_PI * (double)(i*i) / (2.0*(double)N));
+				double ss = sin(TWO_PI * (double)(i*i) / (2.0*(double)N));
+
+            if(i == 0)
+            {
+                vec[i][0] = cs;
+                vec[i][1] = ss;
+
+                vec[i + M][0] = cs;
+                vec[i + M][1] = ss;
+            }
+            else if(i < N)
+            {
+                vec[i][0] = cs;
+                vec[i][1] = ss;
+                vec[M - i][0] = cs;
+                vec[M - i][1] = ss;
+        
+                vec[i + M][0] = cs;
+                vec[i + M][1] = ss;
+                vec[M - i + M][0] = cs;
+                vec[M - i + M][1] = ss;
+            }
+            else
+            {
+                vec[i][0] = 0;
+                vec[i][1] = 0;
+                vec[i + M][0] = 0;
+                vec[i + M][1] = 0;
+            }
+        }
+    }
+
+    inline void chirp_fft(size_t N, size_t M, int dir, local_fftwf_complex *vec)
+    {
+        RefLibHandle &refHandle = RefLibHandle::GetRefLibHandle();
+        ftype_fftwf_plan_many_dft local_fftwf_plan_many_dft = (ftype_fftwf_plan_many_dft)dlsym(refHandle.fftw3f_lib, "fftwf_plan_many_dft");
+        ftype_fftwf_execute local_fftwf_execute = (ftype_fftwf_execute)dlsym(refHandle.fftw3f_lib, "fftwf_execute");
+        ftype_fftwf_destroy_plan local_fftwf_destroy_plan = (ftype_fftwf_destroy_plan)dlsym(refHandle.fftw3f_lib, "fftwf_destroy_plan");
+
+        int n[1];
+        n[0] = M;
+
+        void *p;
+        if(dir == -1)
+            p = local_fftwf_plan_many_dft(1, n, 1, vec, NULL, 1, n[0], vec, NULL, 1, n[0], LOCAL_FFTW_FORWARD, LOCAL_FFTW_ESTIMATE);
+        else
+            p = local_fftwf_plan_many_dft(1, n, 1, vec, NULL, 1, n[0], vec, NULL, 1, n[0], LOCAL_FFTW_BACKWARD, LOCAL_FFTW_ESTIMATE);
+
+        chirp(N, M, dir, vec);
+        local_fftwf_execute(p);
+        local_fftwf_destroy_plan(p);
+        
+    }
+
     void Execute(const void *data_p)
     {
         DeviceCallIn *data = (DeviceCallIn *)data_p;
@@ -261,7 +339,7 @@ class RefLibOp
         {
             CopyInputVector(data_p);
 
-            int howmany = data->node->batch;
+            size_t howmany = data->node->batch;
             for(size_t i=2; i<data->node->length.size(); i++) howmany *= data->node->length[i];
 
             size_t cols = data->node->length[0];
@@ -406,11 +484,116 @@ class RefLibOp
                 free(tmp_mem);
 
         }
+        else if(data->node->scheme == CS_KERNEL_CHIRP)
+        {
+			size_t N = data->node->length[0];
+            size_t M = data->node->lengthBlue;
+            chirp(N, M, data->node->direction, ot);
+        }
+        else if(data->node->scheme == CS_KERNEL_PAD_MUL)
+        {
+            CopyInputVector(data_p);
+
+            size_t howmany = data->node->batch;
+            for(size_t i=1; i<data->node->length.size(); i++) howmany *= data->node->length[i];
+
+            size_t N = data->node->length[0];
+            size_t M = data->node->lengthBlue;
+
+            local_fftwf_complex *chirp_mem = (local_fftwf_complex *)malloc(M * 2 * 2 * sizeof(float));
+            chirp(N, M, data->node->direction, chirp_mem);
+
+            for(size_t b=0; b<howmany; b++)
+            {
+                for(size_t i=0; i<M; i++)
+                {
+                    if(i < N)
+                    {
+                        float in_r = in[b*N + i][0];
+                        float in_i = in[b*N + i][1];
+                        float ch_r = chirp_mem[i][0]; 
+                        float ch_i = chirp_mem[i][1];
+
+                        ot[b*M + i][0] =  in_r*ch_r + in_i*ch_i;
+                        ot[b*M + i][1] = -in_r*ch_i + in_i*ch_r;
+                    }
+                    else
+                    {
+                        ot[b*M + i][0] = 0;
+                        ot[b*M + i][1] = 0;
+                    }
+                }
+            }
+
+            if(chirp_mem)
+                free(chirp_mem);
+        }
+        else if(data->node->scheme == CS_KERNEL_FFT_MUL)
+        {
+            size_t M = data->node->lengthBlue;
+            size_t N = data->node->parent->length[0];
+
+            CopyInputVector(data_p, M*2*2*sizeof(float));
+
+            local_fftwf_complex *chirp_mem = (local_fftwf_complex *)malloc(M * 2 * 2 * sizeof(float));
+            chirp_fft(N, M, data->node->direction, chirp_mem);
+
+            size_t howmany = data->node->batch;
+            for(size_t i=1; i<data->node->length.size(); i++) howmany *= data->node->length[i];
+
+            for(size_t b=0; b<howmany; b++)
+            {
+                for(size_t i=0; i<M; i++)
+                {
+                    float in_r = in[b*M + i][0];
+                    float in_i = in[b*M + i][1];
+                    float ch_r = chirp_mem[i][0]; 
+                    float ch_i = chirp_mem[i][1];
+
+                    ot[b*M + i][0] = in_r*ch_r - in_i*ch_i;
+                    ot[b*M + i][1] = in_r*ch_i + in_i*ch_r;
+                }
+            }
+             
+            if(chirp_mem)
+                free(chirp_mem);
+        }
+        else if(data->node->scheme == CS_KERNEL_RES_MUL)
+        {
+            size_t M = data->node->lengthBlue;
+            size_t N = data->node->length[0];
+
+            CopyInputVector(data_p, M*2*2*sizeof(float));
+
+            local_fftwf_complex *chirp_mem = (local_fftwf_complex *)malloc(M * 2 * 2 * sizeof(float));
+            chirp(N, M, data->node->direction, chirp_mem);
+
+            size_t howmany = data->node->batch;
+            for(size_t i=1; i<data->node->length.size(); i++) howmany *= data->node->length[i];
+
+            double MI = 1.0/(double)M;
+            for(size_t b=0; b<howmany; b++)
+            {
+                for(size_t i=0; i<N; i++)
+                {
+                    float in_r = in[b*N + i][0];
+                    float in_i = in[b*N + i][1];
+                    float ch_r = chirp_mem[i][0]; 
+                    float ch_i = chirp_mem[i][1];
+
+                    ot[b*N + i][0] = MI * ( in_r*ch_r + in_i*ch_i);
+                    ot[b*N + i][1] = MI * (-in_r*ch_i + in_i*ch_r);
+                }
+            }
+             
+            if(chirp_mem)
+                free(chirp_mem);
+        }
         else
         {
             //assert(false);
             //do not terminate the program but only tells not implemented 
-            printf("No implemented\n");
+            printf("Not implemented\n");
         }
     }
 
@@ -423,30 +606,42 @@ public:
 
     void VerifyResult(const void *data_p)
     {
-
         DeviceCallIn *data = (DeviceCallIn *)data_p;
         size_t out_size_bytes = (data->node->oDist * data->node->batch) * sizeof(float);
-        if(data->node->outArrayType == rocfft_array_type_real){
+        if(data->node->outArrayType == rocfft_array_type_real)
+        {
             out_size_bytes *= 1;         
         }
-        else{
+        else
+        {
             out_size_bytes *= 2;             
         }
-   
+ 
+        void *bufOut = data->bufOut[0]; 
+        if(data->node->scheme == CS_KERNEL_CHIRP)
+        {
+            out_size_bytes *= 2;
+        }
+        else if( (data->node->scheme == CS_KERNEL_FFT_MUL) ||
+                (data->node->scheme == CS_KERNEL_PAD_MUL) )
+        {
+            bufOut = ((char *)bufOut + 2*2*sizeof(float)*data->node->lengthBlue);
+        }
+
         if (data->node->scheme == CS_KERNEL_COPY_CMPLX_TO_R)
         {
              return; //not implemented
         }
 
         local_fftwf_complex *tmp_mem = (local_fftwf_complex *)malloc(out_size_bytes);
-        hipMemcpy(tmp_mem, data->bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
+        hipMemcpy(tmp_mem, bufOut, out_size_bytes, hipMemcpyDeviceToHost);
 
         if(data->node->scheme == CS_KERNEL_COPY_CMPLX_TO_HERM)
         {
             hipMemcpy(lb, tmp_mem, out_size_bytes, hipMemcpyHostToHost);//hermitan only works for batch=1, dense packed cases
-
             return;//TODO
         }
+        
         if(data->node->scheme == CS_KERNEL_TRANSPOSE)
         {
             std::vector<size_t> length_transpose_output;
@@ -454,6 +649,19 @@ public:
             length_transpose_output.push_back(data->node->length[0]);
             for(size_t i=2; i<data->node->length.size(); i++) length_transpose_output.push_back(data->node->length[i]);
             CopyVector(lb, tmp_mem, data->node->batch, data->node->oDist, length_transpose_output, data->node->outStride);
+        }
+        else if(data->node->scheme == CS_KERNEL_CHIRP)
+        {
+            std::vector<size_t> length_chirp;
+            length_chirp.push_back(data->node->lengthBlue);
+            CopyVector(lb, tmp_mem, 2*data->node->batch, data->node->oDist, length_chirp, data->node->outStride);
+        }
+        else if(data->node->scheme == CS_KERNEL_PAD_MUL)
+        {
+            std::vector<size_t> length_ot;
+            length_ot.push_back(data->node->lengthBlue);
+            for(size_t i=1; i<data->node->length.size(); i++) length_ot.push_back(data->node->length[i]);
+            CopyVector(lb, tmp_mem, data->node->batch, data->node->oDist, length_ot, data->node->outStride);
         }
         else
         {
@@ -491,22 +699,33 @@ public:
         std::cout << "rmse: " << rmse << std::endl << "nrmse: " << nrmse << std::endl;
         std::cout << "---------------------------------------------" << std::endl;
          
-#if 0
+#if 0 
+        size_t beg_idx = 0;
+        size_t end_idx = 7;
         std::cout << "input" << std::endl;
-        for(size_t i=0; i<4; i++)
+        for(size_t i=beg_idx; i<end_idx; i++)
         {
+            //int *re = (int *)&in[i][0];
+            //int *im = (int *)&in[i][1];
+            //printf("%x, %x\n",*re,*im);
             std::cout << in[i][0] << ", " << in[i][1] << std::endl;
         }
 
         std::cout << "lib output" << std::endl;
-        for(size_t i=0; i<4; i++)
+        for(size_t i=beg_idx; i<end_idx; i++)
         {
+            //int *re = (int *)&lb[i][0];
+            //int *im = (int *)&lb[i][1];
+            //printf("%x, %x\n",*re,*im);
             std::cout << lb[i][0] << ", " << lb[i][1] << std::endl;
         }
 
         std::cout << "fftw output" << std::endl;
-        for(size_t i=0; i<4; i++)
+        for(size_t i=beg_idx; i<end_idx; i++)
         {
+            //int *re = (int *)&ot[i][0];
+            //int *im = (int *)&ot[i][1];
+            //printf("%x, %x\n",*re,*im);
             std::cout << ot[i][0] << ", " << ot[i][1] << std::endl;
         }
 #endif

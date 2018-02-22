@@ -548,6 +548,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 
 
 	bool checkflag= false;
+    double err_ratio = 1E-6;
 
 	// Read and check output data
 	// This check is not valid if the FFT is executed multiple times inplace.
@@ -576,7 +577,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 				{
 					if (0 == (i % outfftVectorSizePadded))
 					{
-						if (output[i].real() != outfftVectorSize)
+						if (fabs(output[i].real() - outfftVectorSize)/outfftVectorSize > err_ratio)
 						{
 							checkflag = true;
 							break;
@@ -584,14 +585,14 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 					}
 					else
 					{
-						if (output[ i ].real() != 0)
+						if (fabs(output[ i ].real()) > (err_ratio * outfftVectorSize))
 						{
 							checkflag = true;
 							break;
 						}
 					}
 
-					if (output[ i ].imag() != 0)
+					if (fabs(output[ i ].imag()) > (err_ratio * outfftVectorSize))
 					{
 						checkflag = true;
 						break;

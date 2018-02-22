@@ -49,7 +49,6 @@ rocfft_status rocfft_execute(   const rocfft_plan plan,
                                 void *out_buffer[],
                                 rocfft_execution_info info )
 {
-
 	Repo &repo = Repo::GetRepo();
 	ExecPlan execPlan;
 	repo.GetPlan(plan, execPlan);
@@ -57,6 +56,7 @@ rocfft_status rocfft_execute(   const rocfft_plan plan,
 #ifdef DEBUG
 	PrintNode(execPlan);
 #endif
+
 	if(execPlan.workBufSize > 0)
 	{
 		assert(info != nullptr);

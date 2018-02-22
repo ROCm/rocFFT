@@ -1,3 +1,6 @@
+#ifndef TRANSPOSE_H 
+#define TRANSPOSE_H
+
 #include "rocfft_hip.h"
 #include "common.h"
 
@@ -164,4 +167,6 @@ transpose_kernel2_scheme(const T* input, T* output, T *twiddles_large, size_t di
 
     transpose_tile_device<T, DIM_X, DIM_Y>(input, output, mm, nn, hipBlockIdx_x * DIM_X, hipBlockIdx_y * DIM_X, ld_in, ld_out, twiddles_large, 0, 0);
 }
+
+#endif // TRANSPOSE_H
 

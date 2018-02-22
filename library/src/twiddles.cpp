@@ -9,17 +9,16 @@
 
 
 template <typename T>
-void *twiddles_create_pr(size_t N, size_t threshold)
+void *twiddles_create_pr(size_t N, size_t threshold, bool large)
 {
     void* twts;//device side
     void* twtc;//host side
     size_t ns = 0; // table size
 
-    std::vector<size_t> radices;
+    if((N <= threshold) && !large) {
+        std::vector<size_t> radices;
+        radices = GetRadices(N);
 
-    radices = GetRadices(N);
-
-    if(N <= threshold){
         TwiddleTable<T> twTable(N);
         twtc = twTable.GenerateTwiddleTable(radices); //calculate twiddles on host side
 
@@ -37,12 +36,12 @@ void *twiddles_create_pr(size_t N, size_t threshold)
     return twts;
 }
 
-void *twiddles_create(size_t N, rocfft_precision precision)
+void *twiddles_create(size_t N, rocfft_precision precision, bool large)
 {
 	if(precision == rocfft_precision_single)
-		return twiddles_create_pr<float2>(N, Large1DThreshold(precision));
+		return twiddles_create_pr<float2>(N, Large1DThreshold(precision), large);
 	else if(precision == rocfft_precision_double)
-		return twiddles_create_pr<double2>(N, Large1DThreshold(precision));
+		return twiddles_create_pr<double2>(N, Large1DThreshold(precision), large);
 	else
 	{
 		assert(false);
