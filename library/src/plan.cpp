@@ -1260,6 +1260,14 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, Operatin
     }
     else if (scheme == CS_BLUESTEIN)
     {
+        OperatingBuffer savFlipIn = flipIn;
+        OperatingBuffer savFlipOut = flipOut;
+        OperatingBuffer savOutBuf = obOutBuf;
+
+        flipIn = OB_TEMP_BLUESTEIN;
+        flipOut = OB_TEMP;
+        obOutBuf = OB_TEMP_BLUESTEIN;
+
         childNodes[0]->obIn = OB_TEMP_BLUESTEIN;
         childNodes[0]->obOut = OB_TEMP_BLUESTEIN;
 
@@ -1269,7 +1277,7 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, Operatin
         }
         else
         {
-            childNodes[1]->obIn = OB_TEMP_BLUESTEIN;
+            childNodes[1]->obIn = obIn;
         }
         
         childNodes[1]->obOut = OB_TEMP_BLUESTEIN;
@@ -1290,10 +1298,22 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, Operatin
         childNodes[5]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
 
         childNodes[6]->obIn = OB_TEMP_BLUESTEIN;
-        childNodes[6]->obOut = OB_USER_OUT;
+
+        if (parent == nullptr)
+        {
+            childNodes[6]->obOut = OB_USER_OUT;
+        }
+        else
+        {
+            childNodes[6]->obOut = obOut;
+        }
 
         obIn = childNodes[1]->obIn;
         obOut = childNodes[6]->obOut;
+
+        flipIn = savFlipIn;
+        flipOut = savFlipOut;
+        obOutBuf = savOutBuf;
     }
     else if (scheme == CS_L1D_TRTRT)
     {
@@ -2472,7 +2492,7 @@ void PrintNode(const ExecPlan &execPlan)
 
             }
 
-            if((*prev_p)->scheme != CS_KERNEL_CHIRP)
+            if( ((*prev_p)->scheme != CS_KERNEL_CHIRP) && ((*curr_p)->scheme != CS_KERNEL_CHIRP) )
                 if ((*prev_p)->obOut != (*curr_p)->obIn)
                     std::cout << "error in buffer assignments" << std::endl;
 
