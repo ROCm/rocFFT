@@ -407,10 +407,41 @@ typedef BasicInterface3DBasisTest<float, complex_single, rocfft_precision_single
 
 // primes
 
-TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen504017 )		{ TestRoutine(504017, -1); }
-TEST_F( BasicInterfaceSingle1DBasisTest, InvLen504017 )		{ TestRoutine(504017,  1); }
-TEST_F( BasicInterfaceSingle1DBasisTest, FwdLen69 )		{ TestRoutine(69, -1); }
-TEST_F( BasicInterfaceSingle1DBasisTest, InvLen69 )		{ TestRoutine(69,  1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, BluesteinFwdLen504017 )		{ TestRoutine(504017, -1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, BluesteinInvLen504017 )		{ TestRoutine(504017,  1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, BluesteinFwdLen117191 )		{ TestRoutine(117191, -1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, BluesteinInvLen117191 )		{ TestRoutine(117191,  1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, BluesteinFwdLen7187 )		    { TestRoutine(7187, -1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, BluesteinInvLen7187 )		    { TestRoutine(7187,  1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, BluesteinFwdLen69 )		    { TestRoutine(69, -1); }
+TEST_F( BasicInterfaceSingle1DBasisTest, BluesteinInvLen69 )		    { TestRoutine(69,  1); }
+
+TEST_F( BasicInterfaceSingle2DBasisTest, BluesteinFwdLen139and433 )		    { TestRoutine(139,433, -1); }
+TEST_F( BasicInterfaceSingle2DBasisTest, BluesteinInvLen139and433 )		    { TestRoutine(139,433,  1); }
+
+TEST_F( BasicInterfaceSingle2DBasisTest, BluesteinFwdLen1061and229 )		{ TestRoutine(1061,229, -1); }
+TEST_F( BasicInterfaceSingle2DBasisTest, BluesteinInvLen1061and229 )		{ TestRoutine(1061,229,  1); }
+
+TEST_F( BasicInterfaceSingle3DBasisTest, BluesteinFwdLen73and113and89 )		{ TestRoutine(73,113,89, -1); }
+TEST_F( BasicInterfaceSingle3DBasisTest, BluesteinInvLen73and113and89 )		{ TestRoutine(73,113,89,  1); }
+
+TEST_F( BasicInterfaceDouble1DBasisTest, BluesteinFwdLen504017 )		{ TestRoutine(504017, -1); }
+TEST_F( BasicInterfaceDouble1DBasisTest, BluesteinInvLen504017 )		{ TestRoutine(504017,  1); }
+TEST_F( BasicInterfaceDouble1DBasisTest, BluesteinFwdLen117191 )		{ TestRoutine(117191, -1); }
+TEST_F( BasicInterfaceDouble1DBasisTest, BluesteinInvLen117191 )		{ TestRoutine(117191,  1); }
+TEST_F( BasicInterfaceDouble1DBasisTest, BluesteinFwdLen7187 )		    { TestRoutine(7187, -1); }
+TEST_F( BasicInterfaceDouble1DBasisTest, BluesteinInvLen7187 )		    { TestRoutine(7187,  1); }
+TEST_F( BasicInterfaceDouble1DBasisTest, BluesteinFwdLen69 )		    { TestRoutine(69, -1); }
+TEST_F( BasicInterfaceDouble1DBasisTest, BluesteinInvLen69 )		    { TestRoutine(69,  1); }
+
+TEST_F( BasicInterfaceDouble2DBasisTest, BluesteinFwdLen139and433 )		    { TestRoutine(139,433, -1); }
+TEST_F( BasicInterfaceDouble2DBasisTest, BluesteinInvLen139and433 )		    { TestRoutine(139,433,  1); }
+
+TEST_F( BasicInterfaceDouble2DBasisTest, BluesteinFwdLen1061and229 )		{ TestRoutine(1061,229, -1); }
+TEST_F( BasicInterfaceDouble2DBasisTest, BluesteinInvLen1061and229 )		{ TestRoutine(1061,229,  1); }
+
+TEST_F( BasicInterfaceDouble3DBasisTest, BluesteinFwdLen73and113and89 )		{ TestRoutine(73,113,89, -1); }
+TEST_F( BasicInterfaceDouble3DBasisTest, BluesteinInvLen73and113and89 )		{ TestRoutine(73,113,89,  1); }
 
 // some big tests
 
