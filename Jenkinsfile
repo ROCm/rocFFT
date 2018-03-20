@@ -381,7 +381,7 @@ parallel hcc_ctu:
 },
 hcc_rocm:
 {
-  node( 'docker && rocm && !dkms' )
+  node( 'docker && rocm && dkms' )
   {
     def hcc_docker_args = new docker_data(
         from_image:'rocm/dev-ubuntu-16.04:latest',
