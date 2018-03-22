@@ -384,7 +384,7 @@ hcc_rocm:
   node( 'docker && rocm && dkms' )
   {
     def hcc_docker_args = new docker_data(
-        from_image:'rocm/dev-ubuntu-16.04:latest',
+        from_image:'rocm/dev-ubuntu-16.04:1.7.1',
         build_docker_file:'dockerfile-build-ubuntu-16.04',
         install_docker_file:'dockerfile-rocfft-ubuntu-16.04',
         docker_run_args:'--device=/dev/kfd --device=/dev/dri --group-add=video',
