@@ -6,6 +6,7 @@
 #define __HIPFFT_H__
 
 #include <hip/hip_runtime_api.h>
+#include <hip/hip_complex.h>
 
 #define DLL_PUBLIC __attribute__ ((visibility ("default")))
 
@@ -46,8 +47,8 @@ typedef enum hipfftType_t {
 
 typedef struct hipfftHandle_t *hipfftHandle;
 
-typedef float hipfftComplex[2];
-typedef double hipfftDoubleComplex[2];
+typedef hipComplex hipfftComplex;
+typedef hipDoubleComplex hipfftDoubleComplex;
 typedef float  hipfftReal;
 typedef double hipfftDoubleReal;
 
