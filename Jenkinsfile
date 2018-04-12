@@ -351,7 +351,7 @@ parallel hcc_ctu:
   node( 'docker && rocm && dkms' )
   {
     def docker_args = new docker_data(
-        from_image:'compute-artifactory:5001/rocm-developer-tools/hip/master/hip-hcc-ctu-ubuntu-16.04:337',
+        from_image:'compute-artifactory:5001/rocm-developer-tools/hip/master/hip-hcc-ctu-ubuntu-16.04:latest',
         build_docker_file:'dockerfile-build-ubuntu-16.04',
         install_docker_file:'dockerfile-rocfft-ubuntu-16.04',
         docker_run_args:'--device=/dev/kfd --device=/dev/dri --group-add=video',
