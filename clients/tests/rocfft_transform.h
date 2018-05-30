@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <vector>
-#include "rocfft/rocfft.h"
+#include "rocfft.h"
 #include "buffer.h"
 #include "test_constants.h"
 #include "../rider/misc.h" // to use LIB_V_THROW and HIP_V_THROW

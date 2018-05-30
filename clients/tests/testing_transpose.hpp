@@ -12,7 +12,7 @@
 #include <math.h>
 #include <sys/time.h>
 
-#include "rocfft/rocfft.h"
+#include "rocfft.h"
 #include "rocfft_transpose.h"
 #include "../rider/misc.h" // to use LIB_V_THROW and HIP_V_THROW
 

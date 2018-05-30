@@ -5,7 +5,7 @@
 
 #include <stdexcept>
 
-#include "rocfft/rocfft.h"
+#include "rocfft.h"
 #include "./misc.h"
 
 void setupBuffers( std::vector< int > devices,
