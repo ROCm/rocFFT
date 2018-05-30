@@ -113,6 +113,9 @@ option( BUILD_VERBOSE "Output additional build information" OFF )
 # BUILD_SHARED_LIBS is a cmake built-in; we make it an explicit option such that it shows in cmake-gui
 option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" ON )
 
+# force library install path to lib (CentOS 7 defaults to lib64)
+set(CMAKE_INSTALL_LIBDIR "lib" CACHE INTERNAL "Installation directory for libraries" FORCE)
+
 # Find HCC/HIP dependencies
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$|.*/hipcc$" )
   message( STATUS "Building with ROCm tools" )
@@ -133,12 +136,9 @@ add_subdirectory( library )
 
 include( clients/cmake/build-options.cmake )
 
+
 # Build clients of the library
 if( BUILD_CLIENTS_SAMPLES OR BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_BENCHMARKS OR BUILD_CLIENTS_SELFTEST OR BUILD_CLIENTS_SAMPLES )
   add_subdirectory( clients )
 endif( )
 
-# This should always be last, and is necessary to fix an issue with using rocm-cmake
-# Cmake parses add_subdirectory in a breadth first style, instead of depth first.  This causes confusion in the cmake installer
-# where
-add_subdirectory( cmake )

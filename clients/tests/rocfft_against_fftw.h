@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "rocfft/rocfft.h"
+#include "rocfft.h"
 #include "test_constants.h"
 #include "rocfft_transform.h"
 #include "fftw_transform.h"

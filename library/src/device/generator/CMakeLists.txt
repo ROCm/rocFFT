@@ -11,6 +11,6 @@ set_target_properties( rocfft-kernel-generator PROPERTIES DEBUG_POSTFIX "-d" )
 target_include_directories( rocfft-kernel-generator
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/>
          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../include>
-         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include/rocfft>
-         $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include/rocfft>
+         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+         $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
 )

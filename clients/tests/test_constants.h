@@ -7,7 +7,7 @@
 #if !defined( TESTCONSTANTS_H )
 #define TESTCONSTANTS_H
 
-#include "rocfft/rocfft.h"
+#include "rocfft.h"
 #include <string>
 #include <stdexcept>
 

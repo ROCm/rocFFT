@@ -86,12 +86,12 @@ if( BUILD_VERBOSE )
 endif( )
 
 # configure a header file to pass the CMake version settings to the source, and package the header files in the output archive
-configure_file( "${CMAKE_CURRENT_SOURCE_DIR}/include/rocfft/rocfft-version.h.in" "${PROJECT_BINARY_DIR}/include/rocfft/rocfft-version.h" )
+configure_file( "${CMAKE_CURRENT_SOURCE_DIR}/include/rocfft-version.h.in" "${PROJECT_BINARY_DIR}/include/rocfft-version.h" )
 
 set( rocfft_headers_public
-  include/rocfft/rocfft.h
-  include/rocfft/hipfft.h
-  ${PROJECT_BINARY_DIR}/include/rocfft/rocfft-version.h
+  include/rocfft.h
+  include/hipfft.h
+  ${PROJECT_BINARY_DIR}/include/rocfft-version.h
 )
 
 source_group( "Header Files\\Public" FILES ${rocfft_headers_public} )
@@ -124,7 +124,7 @@ if( NOT CPACK_PACKAGING_INSTALL_PREFIX )
   set( CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}" )
 endif( )
 
-set( CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "\${CPACK_PACKAGING_INSTALL_PREFIX}" "\${CPACK_PACKAGING_INSTALL_PREFIX}/include" )
+set( CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "\${CPACK_PACKAGING_INSTALL_PREFIX}" "\${CPACK_PACKAGING_INSTALL_PREFIX}/include" "\${CPACK_PACKAGING_INSTALL_PREFIX}/lib" "\${CPACK_PACKAGING_INSTALL_PREFIX}/lib/cmake" )
 
 # Give rocfft compiled for CUDA backend a different name
 if( NOT CUDA_FOUND )

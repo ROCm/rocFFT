@@ -10,7 +10,7 @@
 #include <valarray>
 
 #include <boost/program_options.hpp>
-#include "rocfft/rocfft.h"
+#include "rocfft.h"
 #include "./rider.h"
 
 
