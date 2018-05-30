@@ -85,18 +85,6 @@ install_yum_packages( )
   done
 }
 
-# Take an array of packages as input, and install those packages with 'yum' if they are not already installed
-install_yum_packages( )
-{
-  package_dependencies=("$@")
-  for package in "${package_dependencies[@]}"; do
-    if [[ $(yum list installed ${package} &> /dev/null; echo $? ) -ne 0 ]]; then
-      printf "\033[32mInstalling \033[33m${package}\033[32m from distro package manager\033[0m\n"
-      elevate_if_not_root yum install -y ${package}
-    fi
-  done
-}
-
 # Take an array of packages as input, and install those packages with 'dnf' if they are not already installed
 install_dnf_packages( )
 {

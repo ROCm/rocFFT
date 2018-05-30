@@ -31,6 +31,9 @@ endfunction( )
 # ########################################################################
 # Main
 # ########################################################################
+
+set( package_targets rocfft )
+
 # Package that helps me set visibility for function names exported from shared library
 include( GenerateExportHeader )
 
@@ -73,8 +76,8 @@ target_include_directories( rocfft
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
           $<BUILD_INTERFACE:${cuda_samples_inc_dir}>
-  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include/rocfft>
-          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include/rocfft>
+  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
           $<INSTALL_INTERFACE:include>
 )
 
@@ -94,7 +97,7 @@ endif( )
 # Installation
 
 rocm_install_targets(
-  TARGETS rocfft
+  TARGETS ${package_targets} 
   INCLUDE
     ${CMAKE_SOURCE_DIR}/library/include
     ${CMAKE_BINARY_DIR}/include
@@ -108,3 +111,5 @@ rocm_export_targets(
   DEPENDS PACKAGE hip
   NAMESPACE roc::
  )
+
+rocm_install_symlink_subdir( rocfft )
