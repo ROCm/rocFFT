@@ -14,7 +14,7 @@
 #include <vector>
 #include <utility>
 #include <sstream>
-#include "rocfft/rocfft.h"
+#include "rocfft.h"
 #include "test_constants.h"
 #include <boost/random.hpp>
 #include <stdint.h>

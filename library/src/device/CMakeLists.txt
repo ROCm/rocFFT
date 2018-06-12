@@ -94,8 +94,8 @@ target_include_directories( rocfft-device
           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/generator>
           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include/rocfft>
-          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include/rocfft>
+          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
 )
 
 set_target_properties( rocfft-device PROPERTIES VERSION ${rocfft_VERSION} SOVERSION ${rocfft_SOVERSION} CXX_EXTENSIONS NO )
@@ -112,3 +112,5 @@ rocm_install_targets(
   PREFIX rocfft
 )
 #         PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
+
+rocm_install_symlink_subdir( rocfft )

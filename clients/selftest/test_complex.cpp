@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 #include <stdlib.h>
-#include "rocfft/rocfft.h"
+#include "rocfft.h"
 #include "./basis_vector.h"
 
 typedef float complex_single[2];
