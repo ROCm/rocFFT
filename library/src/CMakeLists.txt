@@ -58,7 +58,13 @@ add_library( rocfft ${rocfft_source} ${relative_rocfft_headers_public} )
 add_library( roc::rocfft ALIAS rocfft )
 target_compile_features( rocfft PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
 
-target_link_libraries( rocfft PRIVATE hip::hip_hcc hip::hip_device hcc::hccshared rocfft-device )
+# Remove this check when we no longer build with older rocm stack(ie < 1.8.2)
+if(TARGET hip::device)
+target_link_libraries( rocfft PRIVATE hip::device )
+else()
+target_link_libraries( rocfft PRIVATE hip::hip_hcc hip::hip_device hcc::hccshared )
+endif()
+target_link_libraries( rocfft PRIVATE rocfft-device )
 
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
   # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1

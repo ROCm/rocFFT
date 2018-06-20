@@ -72,7 +72,12 @@ add_library( rocfft-device
 add_library( roc::rocfft-device ALIAS rocfft-device )
 target_compile_features( rocfft-device PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
 
+# Remove this check when we no longer build with older rocm stack(ie < 1.8.2)
+if(TARGET hip::device)
+target_link_libraries( rocfft-device PRIVATE hip::device )
+else()
 target_link_libraries( rocfft-device PRIVATE hip::hip_hcc hip::hip_device hcc::hccshared )
+endif()
 
 if(HIP_PLATFORM STREQUAL "nvcc")
     target_compile_options( rocfft-device PRIVATE "-gencode arch=compute_50,code=sm_50 -gencode arch=compute_52,code=sm_52 -gencode arch=compute_30,code=sm_30" )
