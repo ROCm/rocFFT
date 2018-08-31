@@ -52,8 +52,11 @@ project( rocfft LANGUAGES CXX )
 # ########################################################################
 # Main
 # ########################################################################
-
-if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
+set( USE_HIP_CLANG OFF CACHE BOOL "Use hip-clang to build for amdgpu" )
+if( USE_HIP_CLANG )
+  message( STATUS "Use hip-clang to build for amdgpu backend" )
+  set( HIP_PLATFORM "hip-clang" )
+elseif( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
   # For now, we assume hipcc compiler means to compile for CUDA backend
   message( STATUS "HIPCC compiler detected; CUDA backend selected" )
 
