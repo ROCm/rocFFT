@@ -97,7 +97,7 @@ include( ROCMInstallTargets )
 include( ROCMPackageConfigHelpers )
 include( ROCMInstallSymlinks )
 
-rocm_setup_version( VERSION 0.8.4.0 NO_GIT_TAG_VERSION )
+rocm_setup_version( VERSION 0.8.6.0 NO_GIT_TAG_VERSION )
 
 # Append our library helper cmake path and the cmake path for hip (for convenience)
 # Users may override HIP path by specifying their own in CMAKE_MODULE_PATH
@@ -130,7 +130,7 @@ find_package( hip REQUIRED CONFIG PATHS /opt/rocm )
 find_package( CUDA QUIET )
 
 # CMake list of machine targets
-set( AMDGPU_TARGETS gfx803;gfx900 CACHE STRING "List of specific machine types for library to target" )
+set( AMDGPU_TARGETS gfx803;gfx900;gfx906 CACHE STRING "List of specific machine types for library to target" )
 
 add_subdirectory( library )
 
