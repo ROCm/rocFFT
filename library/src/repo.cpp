@@ -46,6 +46,7 @@ void Repo::CreatePlan(rocfft_plan plan)
         ExecPlan execPlan;
         execPlan.rootPlan = rootPlan;
         ProcessNode(execPlan); //TODO: more descriptions are needed
+        //PrintNode(execPlan);
 
         PlanPowX(execPlan); // PlanPowX enqueues the GPU kernels by function pointers but does not execute kernels
         repo.planUnique[*plan] = execPlan; //add this plan into member planUnique (type of map)
