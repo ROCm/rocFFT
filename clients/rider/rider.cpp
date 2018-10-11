@@ -101,7 +101,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 	}
 	else
 	{
-		outfftVectorSize = lengths[0] * lengths[1] * lengths[2];
+		outfftVectorSize = fftVectorSize;
 		outfftVectorSizePadded = o_strides[3];
 		outfftBatchSize = outfftVectorSizePadded * batchSize;
 	}
@@ -673,7 +673,7 @@ int transform( size_t* lengths, const size_t *inStrides, const size_t *outStride
 							{
 								size_t p0 = p1 + i * o_strides[0];
 
-								if (real[p0] != 1)
+								if (real[p0] != outfftVectorSize)
 								{
 									checkflag = true;
 									break;

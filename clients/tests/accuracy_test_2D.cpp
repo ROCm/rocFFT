@@ -255,7 +255,7 @@ void normal_2D_hermitian_interleaved_to_real_interleaved(std::vector<size_t> len
     usleep(1e4);
 }
 
-/*
+
 TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleaved_single_precision)
 {
     std::vector<size_t> lengths = std::get<0>(GetParam());
@@ -268,7 +268,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleave
     try { normal_2D_hermitian_interleaved_to_real_interleaved< float,  fftwf_complex >(lengths,  batch, placeness, transform_type, stride, pattern); }
     catch( const std::exception& err ) { handle_exception(err);    }
 }
-*/
+
 TEST_P(accuracy_test_real_2D, normal_2D_hermitian_interleaved_to_real_interleaved_double_precision)
 {
     std::vector<size_t> lengths = std::get<0>(GetParam());
