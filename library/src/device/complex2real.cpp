@@ -244,7 +244,7 @@ void hermitian2complex(const void *data_p, void *back_p)
         std::cout << "Error: dimension larger than 3, which is not handled" << std::endl;
 
     size_t dim_1 = 1, dim_2 = 1;
-    if(data->node->length.size() == 2)
+    if(data->node->length.size() >= 2)
         dim_1 = data->node->length[1];
     if(data->node->length.size() == 3)
         dim_2 = data->node->length[2];
@@ -258,10 +258,10 @@ void hermitian2complex(const void *data_p, void *back_p)
 
     hipStream_t rocfft_stream = data->rocfft_stream; 
 
-    float2* tmp; tmp = (float2*)malloc(sizeof(float2)*input_distance*batch);
+    /*float2* tmp; tmp = (float2*)malloc(sizeof(float2)*input_distance*batch);
     hipMemcpy(tmp, input_buffer, sizeof(float2)*input_distance*batch, hipMemcpyDeviceToHost);
 
-    /*printf("herm size %d, dim0 %d, dim1 %d, dim2 %d\n", hermitian_size, dim_0, dim_1, dim_2);
+    printf("herm size %d, dim0 %d, dim1 %d, dim2 %d\n", hermitian_size, dim_0, dim_1, dim_2);
     printf("input_stride %d output_stride %d input_distance %d output_distance %d\n", input_stride, output_stride, input_distance, output_distance);
 
     //for(size_t j=0;j<data->node->length[1]; j++)
