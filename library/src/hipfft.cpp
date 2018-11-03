@@ -14,12 +14,16 @@ struct hipfftHandle_t
     rocfft_plan op_forward;
     rocfft_plan ip_inverse;
     rocfft_plan op_inverse;
+    rocfft_execution_info info;
+    void * workBuffer;
 
     hipfftHandle_t() :
         ip_forward(nullptr),
         op_forward(nullptr),
         ip_inverse(nullptr),
-        op_inverse(nullptr)
+        op_inverse(nullptr),
+        info(nullptr),
+        workBuffer(nullptr)
     {}
 };
 
@@ -224,8 +228,10 @@ hipfftResult hipfftMakePlan1d(hipfftHandle plan,
     switch(type)
     {
         case HIPFFT_R2C:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_C2R:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_C2C:
             rocfft_plan_create_internal(plan->ip_forward,
@@ -251,10 +257,13 @@ hipfftResult hipfftMakePlan1d(hipfftHandle plan,
             break;
 
         case HIPFFT_D2Z:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_Z2D:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_Z2Z:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         default:
             assert(false);
@@ -289,8 +298,10 @@ hipfftResult hipfftMakePlan2d(hipfftHandle plan,
     switch(type)
     {
         case HIPFFT_R2C:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_C2R:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_C2C:
             rocfft_plan_create_internal(plan->ip_forward,
@@ -316,10 +327,13 @@ hipfftResult hipfftMakePlan2d(hipfftHandle plan,
             break;
 
         case HIPFFT_D2Z:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_Z2D:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_Z2Z:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         default:
             assert(false);
@@ -352,11 +366,37 @@ hipfftResult hipfftMakePlan3d(hipfftHandle plan,
     lengths[2] = nx;
     size_t number_of_transforms = 1;
 
+    size_t workBufferSize = 0;
+
     switch(type)
     {
         case HIPFFT_R2C:
+            if(rocfft_plan_create_internal(plan->ip_forward,
+                                            rocfft_placement_inplace,
+                                            rocfft_transform_type_real_forward,
+                                            rocfft_precision_single,
+                                            3, lengths, number_of_transforms, nullptr) != rocfft_status_success)
+                return HIPFFT_INVALID_VALUE;
+            if(rocfft_plan_create_internal(plan->op_forward,
+                                           rocfft_placement_notinplace,
+                                           rocfft_transform_type_real_forward,
+                                           rocfft_precision_single,
+                                           3, lengths, number_of_transforms, nullptr) != rocfft_status_success)
+                return HIPFFT_INVALID_VALUE;
+            rocfft_plan_get_work_buffer_size(plan->op_forward, &workBufferSize);
             break;
         case HIPFFT_C2R:
+            rocfft_plan_create_internal(plan->ip_inverse,
+                    rocfft_placement_inplace,
+                    rocfft_transform_type_real_inverse,
+                    rocfft_precision_single,
+                    3, lengths, number_of_transforms, nullptr);
+            rocfft_plan_create_internal(plan->op_inverse,
+                    rocfft_placement_notinplace,
+                    rocfft_transform_type_real_inverse,
+                    rocfft_precision_single,
+                    3, lengths, number_of_transforms, nullptr);
+            rocfft_plan_get_work_buffer_size(plan->op_inverse, &workBufferSize);
             break;
         case HIPFFT_C2C:
             rocfft_plan_create_internal(plan->ip_forward,
@@ -382,13 +422,25 @@ hipfftResult hipfftMakePlan3d(hipfftHandle plan,
             break;
 
         case HIPFFT_D2Z:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_Z2D:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_Z2Z:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         default:
             assert(false);
+    }
+
+    if(workBufferSize > 0)
+    {
+        if(plan->workBuffer)
+            hipFree(plan->workBuffer);
+        if(hipMalloc(&plan->workBuffer, workBufferSize) != HIP_SUCCESS)
+            return HIPFFT_ALLOC_FAILED;
+        rocfft_execution_info_set_work_buffer(plan->info, plan->workBuffer, workBufferSize);
     }
 
     if(workSize != nullptr)
@@ -499,8 +551,10 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
     switch(type)
     {
         case HIPFFT_R2C:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_C2R:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_C2C:
             rocfft_plan_create_internal(plan->ip_forward,
@@ -526,10 +580,13 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
             break;
 
         case HIPFFT_D2Z:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_Z2D:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         case HIPFFT_Z2Z:
+            return HIPFFT_NOT_IMPLEMENTED;
             break;
         default:
             assert(false);
@@ -640,7 +697,7 @@ hipfftResult hipfftMakePlanMany64(hipfftHandle plan,
                                          long long int batch,
                                          size_t * workSize)
 {
-    return HIPFFT_SUCCESS;
+    return HIPFFT_NOT_IMPLEMENTED;
 }
 
 
@@ -691,9 +748,11 @@ hipfftResult hipfftCreate(hipfftHandle * plan)
     rocfft_plan_allocate(&h->ip_inverse);
     rocfft_plan_allocate(&h->op_inverse);
 
+    rocfft_execution_info_create(&h->info);
+
     *plan = h;
 
-return HIPFFT_SUCCESS;
+    return HIPFFT_SUCCESS;
 }
 
 /*! \brief gives an accurate estimate of the work area size required for a plan
@@ -867,13 +926,13 @@ hipfftResult hipfftExecC2C(hipfftHandle plan,
     out[0] = (void *)odata;
 
 
-    if(direction == -1)
+    if(direction == HIPFFT_FORWARD)
     {
-        rocfft_execute( plan->ip_forward, in, out, nullptr );
+        rocfft_execute( idata == odata ? plan->ip_forward : plan->op_forward, in, out, plan->info );
     }
     else
     {
-        rocfft_execute( plan->ip_forward, in, out, nullptr );
+        rocfft_execute( idata == odata ? plan->ip_inverse : plan->op_inverse, in, out, plan->info );
     }
 
     return HIPFFT_SUCCESS;
@@ -893,7 +952,7 @@ hipfftResult hipfftExecR2C(hipfftHandle plan,
 	void *out[1];
 	out[0] = (void *)odata;
 
-    rocfft_execute( plan->op_forward, in, out, nullptr );
+	rocfft_execute( in[0] == out[0] ? plan->ip_forward : plan->op_forward, in, out, plan->info );
 
 	return HIPFFT_SUCCESS;
 
@@ -913,7 +972,7 @@ hipfftResult hipfftExecC2R(hipfftHandle plan,
 	void *out[1];
 	out[0] = (void *)odata;
 
-    rocfft_execute( plan->op_inverse, in, out, nullptr );
+	rocfft_execute( in[0] == out[0] ? plan->ip_inverse : plan->op_inverse, in, out, plan->info );
 
 	return HIPFFT_SUCCESS;
 
@@ -935,27 +994,13 @@ hipfftResult hipfftExecZ2Z(hipfftHandle plan,
 	void *out[1];
 	out[0] = (void *)odata;
 
-	if(direction == -1)
+	if(direction == HIPFFT_FORWARD)
 	{
-        if( idata == odata)
-        {
-		    rocfft_execute( plan->ip_forward, in, out, nullptr );
-        }
-        else
-        {
-		    rocfft_execute( plan->op_forward, in, out, nullptr );
-        }
+		rocfft_execute( idata == odata ? plan->ip_forward : plan->op_forward, in, out, plan->info );
 	}
 	else
 	{
-        if( idata == odata)
-        {
-		    rocfft_execute( plan->ip_inverse, in, out, nullptr );
-        }
-        else
-        {
-		    rocfft_execute( plan->op_inverse, in, out, nullptr );
-        }
+		rocfft_execute( idata == odata ? plan->ip_inverse : plan->op_inverse, in, out, plan->info );
 	}
 
 	return HIPFFT_SUCCESS;
@@ -976,7 +1021,7 @@ hipfftResult hipfftExecD2Z(hipfftHandle plan,
 	void *out[1];
 	out[0] = (void *)odata;
 
-    rocfft_execute( plan->op_forward, in, out, nullptr );
+	rocfft_execute( in[0] == out[0] ? plan->ip_forward : plan->op_forward, in, out, plan->info );
 
 	return HIPFFT_SUCCESS;
 
@@ -993,7 +1038,7 @@ hipfftResult hipfftExecZ2D(hipfftHandle plan,
 	void *out[1];
 	out[0] = (void *)odata;
 
-    rocfft_execute( plan->op_inverse, in, out, nullptr );
+   	rocfft_execute( in[0] == out[0] ? plan->ip_inverse : plan->op_inverse, in, out, plan->info );
 
 	return HIPFFT_SUCCESS;
 
@@ -1010,7 +1055,8 @@ hipfftResult hipfftExecZ2D(hipfftHandle plan,
 hipfftResult hipfftSetStream(hipfftHandle plan,
                                     hipStream_t stream)
 {
-	return HIPFFT_SUCCESS;//TODO
+	rocfft_execution_info_set_stream(plan->info, stream);
+	return HIPFFT_SUCCESS;
 }
 
  
@@ -1032,7 +1078,10 @@ hipfftResult hipfftDestroy(hipfftHandle plan)
         rocfft_plan_destroy(plan->op_forward);
         rocfft_plan_destroy(plan->ip_inverse);
         rocfft_plan_destroy(plan->op_inverse);
-        
+
+        hipFree(plan->workBuffer);
+        rocfft_execution_info_destroy(plan->info);
+
         delete plan;
     }
 
