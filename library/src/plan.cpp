@@ -5,14 +5,19 @@
 #include <vector>
 #include <assert.h>
 #include <iostream>
-
+#include <sstream>
 #include "rocfft.h"
 #include "private.h"
 #include "plan.h"
 #include "repo.h"
 #include "radix_table.h"
 
-
+#define TO_STR2(x) #x
+#define TO_STR(x) TO_STR2(x)
+#define VERSION_STRING (TO_STR(rocfft_version_major) "." \
+                        TO_STR(rocfft_version_minor) "." \
+                        TO_STR(rocfft_version_patch) "." \
+                        TO_STR(rocfft_version_tweak))
 
 rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan_description description, float scale )
 {
@@ -461,6 +466,12 @@ rocfft_status rocfft_plan_get_print( const rocfft_plan plan )
     return rocfft_status_success;
 }
 
+ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char *version_string)
+{
+    std::string v(VERSION_STRING);
+    strcpy(version_string,  v.c_str());
+    return rocfft_status_success;
+}
 
 std::string PrintScheme(ComputeScheme cs)
 {
