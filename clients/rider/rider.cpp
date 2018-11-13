@@ -785,8 +785,8 @@ int main( int argc, char* argv[] )
 		if( vm.count( "version" ) )
 		{
             char v[256];
-            rocfft_get_version_string(v);
-			std::cout << "version " << v << std::endl;
+            rocfft_get_version_string(v, 256);
+            std::cout << "version " << v << std::endl;
 			return 0;
 		}
 
