@@ -197,9 +197,10 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_data_layout(   rocfft_pl
 
 /*! @brief Get library version string
  *
- * @param[in, out] version string
+ * @param[in, out] buf buffer of version string
+ * @param[in] len the length of input string buffer
  */
-ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char *version_string);
+ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char *buf, size_t len);
 
 #if 0
 /*! @brief Set devices in plan description

@@ -5,7 +5,7 @@
 #include <vector>
 #include <assert.h>
 #include <iostream>
-#include <sstream>
+
 #include "rocfft.h"
 #include "private.h"
 #include "plan.h"
@@ -466,10 +466,14 @@ rocfft_status rocfft_plan_get_print( const rocfft_plan plan )
     return rocfft_status_success;
 }
 
-ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char *version_string)
+ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char *buf, size_t len)
 {
     std::string v(VERSION_STRING);
-    strcpy(version_string,  v.c_str());
+    if (buf == NULL)
+        return rocfft_status_failure;
+    size_t count = std::min(len-1, v.length());
+    memcpy(buf, v.c_str(), count);
+    *(buf + count) = '\0';
     return rocfft_status_success;
 }
 
