@@ -114,7 +114,7 @@ install_packages( )
 
   # dependencies needed for rocfft and clients to build
   local library_dependencies_ubuntu=( "make" "cmake-curses-gui" "hip_hcc" "pkg-config" )
-  local library_dependencies_centos=( "epel-release" "make" "cmake3" "hip_hcc" "gcc-c++" )
+  local library_dependencies_centos=( "epel-release" "make" "cmake3" "hip_hcc" "gcc-c++" "rpm-build" )
   local library_dependencies_fedora=( "make" "cmake" "hip_hcc" "gcc-c++" "libcxx-devel" "rpm-build" )
 
   if [[ "${build_cuda}" == true ]]; then
