@@ -48,6 +48,7 @@ set(rocfft_test_source
   accuracy_test_2D.cpp
   unit_test.cpp
   template.cpp
+  hipfft_test.cpp
   misc/source/test_exception.cpp
   )
 
