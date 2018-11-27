@@ -12,7 +12,12 @@
 #include "repo.h"
 #include "radix_table.h"
 
-
+#define TO_STR2(x) #x
+#define TO_STR(x) TO_STR2(x)
+#define VERSION_STRING (TO_STR(rocfft_version_major) "." \
+                        TO_STR(rocfft_version_minor) "." \
+                        TO_STR(rocfft_version_patch) "." \
+                        TO_STR(rocfft_version_tweak))
 
 rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan_description description, float scale )
 {
@@ -461,6 +466,16 @@ rocfft_status rocfft_plan_get_print( const rocfft_plan plan )
     return rocfft_status_success;
 }
 
+ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char *buf, size_t len)
+{
+    std::string v(VERSION_STRING);
+    if (buf == NULL)
+        return rocfft_status_failure;
+    size_t count = std::min(len-1, v.length());
+    memcpy(buf, v.c_str(), count);
+    *(buf + count) = '\0';
+    return rocfft_status_success;
+}
 
 std::string PrintScheme(ComputeScheme cs)
 {

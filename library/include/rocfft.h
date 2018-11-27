@@ -195,6 +195,12 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_data_layout(   rocfft_pl
                                                                     size_t in_strides_size, const size_t *in_strides, size_t in_distance,
                                                                     size_t out_strides_size, const size_t *out_strides, size_t out_distance );
 
+/*! @brief Get library version string
+ *
+ * @param[in, out] buf buffer of version string
+ * @param[in] len the length of input string buffer
+ */
+ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char *buf, size_t len);
 
 #if 0
 /*! @brief Set devices in plan description
