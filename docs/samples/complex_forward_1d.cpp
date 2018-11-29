@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <vector>
 #include <iostream>
-#include <math.h>
+#include <algorithm>
+#include <cmath>
 #include <hip/hip_runtime_api.h>
 #include "rocfft.h"
 
@@ -47,10 +48,18 @@ int main()
     // Copy result back to host
     std::vector<float2> y(N);
     hipMemcpy(&y[0], x, Nbytes, hipMemcpyDeviceToHost);
-
     hipFree(x);
 
     rocfft_cleanup();
+
+    for( size_t i = 0;i < N;++i){
+        if(std::abs( cx[i].x - y[i].x ) < 1e-5){
+            std::cerr << "Error - unexpected matching element: observed " << y[i].x << ", expected " <<  cx[i].x << std::endl;
+            return 1;
+        }
+    }
+
+    std::cout << "complex forward 1d - OK!" << std::endl;
 
     return 0;
 }
