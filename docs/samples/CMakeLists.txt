@@ -7,7 +7,6 @@ find_package(hip)
 find_package(rocfft)
 
 add_executable(complex_forward_1d complex_forward_1d.cpp)
-#target_compile_features( complex_forward_1d PRIVATE cxx_static_assert cxx_nullptr cxx_lambdas cxx_auto_type )
 target_link_libraries( complex_forward_1d PRIVATE roc::rocfft hip::hip_hcc )
 target_include_directories( complex_forward_1d PRIVATE ${rocfft_INCLUDE_DIR} )
 set_target_properties( complex_forward_1d PROPERTIES
