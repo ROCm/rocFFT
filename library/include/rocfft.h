@@ -198,7 +198,7 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_data_layout(   rocfft_pl
 /*! @brief Get library version string
  *
  * @param[in, out] buf buffer of version string
- * @param[in] len the length of input string buffer
+ * @param[in] len the length of input string buffer, expecting minimum 30
  */
 ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char *buf, size_t len);
 
