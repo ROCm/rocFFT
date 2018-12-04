@@ -4,7 +4,15 @@
 
 /* the configured version and settings
  */
-#define rocfft_version_major @rocfft_VERSION_MAJOR@
-#define rocfft_version_minor @rocfft_VERSION_MINOR@
-#define rocfft_version_patch @rocfft_VERSION_PATCH@
-#define rocfft_version_tweak @rocfft_VERSION_TWEAK@
+#ifndef ROCFFT_VERSION_H_
+#define ROCFFT_VERSION_H_
+
+// clang-format off
+#define rocfft_version_major      @rocfft_VERSION_MAJOR@
+#define rocfft_version_minor      @rocfft_VERSION_MINOR@
+#define rocfft_version_patch      @rocfft_VERSION_PATCH@
+#define rocfft_version_tweak      @rocfft_VERSION_TWEAK@
+#define rocfft_version_commit_id  @rocfft_VERSION_COMMIT_ID@
+// clang-format on
+
+#endif
