@@ -14,11 +14,13 @@
 
 #define TO_STR2(x) #x
 #define TO_STR(x) TO_STR2(x)
+// clang-format off
 #define VERSION_STRING (TO_STR(rocfft_version_major) "." \
                         TO_STR(rocfft_version_minor) "." \
                         TO_STR(rocfft_version_patch) "." \
-                        TO_STR(rocfft_version_tweak))
-
+                        TO_STR(rocfft_version_tweak) "-" \
+			TO_STR(rocfft_version_commit_id))
+// clang-format on
 rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan_description description, float scale )
 {
     description->scale = scale;
