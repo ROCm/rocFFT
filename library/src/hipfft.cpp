@@ -124,7 +124,6 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle plan,
                                             rocfft_transform_type_real_forward,
                                             rocfft_precision_single,
                                             dim, lengths, number_of_transforms, desc));
-            ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_get_work_buffer_size(plan->op_forward, &workBufferSize));
             break;
         case HIPFFT_C2R:
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->ip_inverse,
@@ -137,7 +136,6 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle plan,
                                             rocfft_transform_type_real_inverse,
                                             rocfft_precision_single,
                                             dim, lengths, number_of_transforms, desc));
-            ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_get_work_buffer_size(plan->op_inverse, &workBufferSize));
             break;
         case HIPFFT_C2C:
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->ip_forward,
@@ -173,7 +171,6 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle plan,
                                             rocfft_transform_type_real_forward,
                                             rocfft_precision_double,
                                             dim, lengths, number_of_transforms, desc));
-            ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_get_work_buffer_size(plan->op_forward, &workBufferSize));
             break;
         case HIPFFT_Z2D:
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->ip_inverse,
@@ -186,7 +183,6 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle plan,
                                            rocfft_transform_type_real_inverse,
                                            rocfft_precision_double,
                                            dim, lengths, number_of_transforms, desc));
-            ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_get_work_buffer_size(plan->op_inverse, &workBufferSize));
             break;
         case HIPFFT_Z2Z:
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->ip_forward,
@@ -214,6 +210,28 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle plan,
             assert(false);
     }
 
+    size_t tmpBufferSize = 0;
+    if(plan->ip_forward)
+    {
+        ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_get_work_buffer_size(plan->ip_forward, &tmpBufferSize));
+        workBufferSize = std::max(workBufferSize, tmpBufferSize);
+    }
+    if(plan->op_forward)
+    {
+        ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_get_work_buffer_size(plan->op_forward, &tmpBufferSize));
+        workBufferSize = std::max(workBufferSize, tmpBufferSize);
+    }
+    if(plan->ip_inverse)
+    {
+        ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_get_work_buffer_size(plan->ip_inverse, &tmpBufferSize));
+        workBufferSize = std::max(workBufferSize, tmpBufferSize);
+    }
+    if(plan->op_inverse)
+    {
+        ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_get_work_buffer_size(plan->op_inverse, &tmpBufferSize));
+        workBufferSize = std::max(workBufferSize, tmpBufferSize);
+    }
+
     if(workBufferSize > 0)
     {
         if(plan->workBuffer)
@@ -225,7 +243,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle plan,
     }
 
     if(workSize != nullptr)
-        ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_get_work_buffer_size(plan->ip_forward, workSize));
+        *workSize = workBufferSize;
 
     return HIPFFT_SUCCESS;
 }
