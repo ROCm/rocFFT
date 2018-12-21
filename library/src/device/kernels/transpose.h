@@ -15,9 +15,9 @@
    DIM_X is divisible by DIM_Y
 */
 
-template<typename T, size_t DIM_X, size_t DIM_Y>
+template<typename T, size_t DIM_X, size_t DIM_Y, bool WITH_TWL, int TWL, int DIR>
 __device__ void
-transpose_tile_device(const T* input, T* output, const size_t m, const size_t n, size_t gx, size_t gy, size_t ld_in, size_t ld_out, T *twiddles_large, const int twl, const int dir )
+transpose_tile_device(const T* input, T* output, const size_t m, const size_t n, size_t gx, size_t gy, size_t ld_in, size_t ld_out, T *twiddles_large)
 {
 
     __shared__ T shared_A[DIM_X][DIM_X];
@@ -31,45 +31,48 @@ transpose_tile_device(const T* input, T* output, const size_t m, const size_t n,
         if( tx1 < n && (ty1 + i) < m)
         {
             T tmp = input[tx1 + (ty1 + i) * ld_in];
-            if(twl == 2)
+            if (WITH_TWL)
             {
-                if(dir == -1)
+                if(TWL == 2)
                 {
-                    TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp); 
+                    if(DIR == -1)
+                    {
+                        TWIDDLE_STEP_MUL_FWD(TWLstep2, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp); 
+                    }
+                    else
+                    {
+                        TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp);
+                    }
                 }
-                else
+                else if(TWL == 3)
                 {
-                    TWIDDLE_STEP_MUL_INV(TWLstep2, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp);
+                    if(DIR == -1)
+                    {
+                        TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp);
+                    }
+                    else
+                    {
+                        TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp);
+                    }
                 }
-            }
-            else if(twl == 3)
-            {
-                if(dir == -1)
+                else if(TWL == 4)
                 {
-                    TWIDDLE_STEP_MUL_FWD(TWLstep3, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp);
+                    if(DIR == -1)
+                    {
+                        TWIDDLE_STEP_MUL_FWD(TWLstep4, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp);
+                    }
+                    else
+                    {
+                        TWIDDLE_STEP_MUL_INV(TWLstep4, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp);
+                    }
                 }
-                else
-                {
-                    TWIDDLE_STEP_MUL_INV(TWLstep3, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp);
-                }
-            }
-            else if(twl == 4)
-            {
-                if(dir == -1)
-                {
-                    TWIDDLE_STEP_MUL_FWD(TWLstep4, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp);
-                }
-                else
-                {
-                    TWIDDLE_STEP_MUL_INV(TWLstep4, twiddles_large, (gx + tx1)*(gy + ty1 + i), tmp);
-                }
-     
             }
 
             shared_A[tx1][ty1+i] = tmp;   // the transpose taking place here
         }
     }
-    __syncthreads();// ?
+
+    __syncthreads();
 
     for(size_t i=0; i<n; i+=DIM_Y)
     {
@@ -93,9 +96,9 @@ transpose_tile_device(const T* input, T* output, const size_t m, const size_t n,
 
 
 
-template<typename T, size_t DIM_X, size_t DIM_Y>
+template<typename T, size_t DIM_X, size_t DIM_Y, bool WITH_TWL, int TWL, int DIR>
 __global__ void
-transpose_kernel2(const T* input, T* output, T *twiddles_large, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out, const int twl, const int dir)
+transpose_kernel2(const T* input, T* output, T *twiddles_large, size_t dim, size_t *lengths, size_t *stride_in, size_t *stride_out)
 {
     size_t m = lengths[1];
     size_t n = lengths[0];
@@ -127,7 +130,7 @@ transpose_kernel2(const T* input, T* output, T *twiddles_large, size_t dim, size
     size_t mm = min(m - hipBlockIdx_y * DIM_X, DIM_X); // the corner case along m
     size_t nn = min(n - hipBlockIdx_x * DIM_X, DIM_X); // the corner case along n
     
-    transpose_tile_device<T, DIM_X, DIM_Y>(input, output, mm, nn, hipBlockIdx_x * DIM_X, hipBlockIdx_y * DIM_X, ld_in, ld_out, twiddles_large, twl, dir);
+    transpose_tile_device<T, DIM_X, DIM_Y, WITH_TWL, TWL, DIR>(input, output, mm, nn, hipBlockIdx_x * DIM_X, hipBlockIdx_y * DIM_X, ld_in, ld_out, twiddles_large);
 }
 
 template<typename T, size_t DIM_X, size_t DIM_Y>
@@ -165,7 +168,7 @@ transpose_kernel2_scheme(const T* input, T* output, T *twiddles_large, size_t di
     size_t mm = min(m - hipBlockIdx_y * DIM_X, DIM_X); // the corner case along m
     size_t nn = min(n - hipBlockIdx_x * DIM_X, DIM_X); // the corner case along n
 
-    transpose_tile_device<T, DIM_X, DIM_Y>(input, output, mm, nn, hipBlockIdx_x * DIM_X, hipBlockIdx_y * DIM_X, ld_in, ld_out, twiddles_large, 0, 0);
+    transpose_tile_device<T, DIM_X, DIM_Y, false, 0, 0>(input, output, mm, nn, hipBlockIdx_x * DIM_X, hipBlockIdx_y * DIM_X, ld_in, ld_out, twiddles_large);
 }
 
 #endif // TRANSPOSE_H
