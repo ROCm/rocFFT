@@ -194,6 +194,22 @@ rocfft_kernel_9.h
 set( kernels_launch
 kernel_launch_generator.h
 function_pool.cpp.h
-kernel_launch_double.cpp.h
-kernel_launch_single.cpp.h
+function_pool.cpp
+kernel_launch_single_large.cpp.h
+kernel_launch_single_large.cpp
+kernel_launch_double_large.cpp.h
+kernel_launch_double_large.cpp
 )
+
+set( small_kernels_group_num 8 )
+MATH(EXPR max_group_num "${small_kernels_group_num}-1")
+foreach(small_kernel_group_id RANGE 0 ${max_group_num} )
+    string(CONCAT small_kernel_single_file "kernel_launch_single_" ${small_kernel_group_id} ".cpp")
+    string(CONCAT small_kernel_single_h_file "kernel_launch_single_" ${small_kernel_group_id} ".cpp.h")
+    string(CONCAT small_kernel_double_file "kernel_launch_double_" ${small_kernel_group_id} ".cpp")
+    string(CONCAT small_kernel_double_h_file "kernel_launch_double_" ${small_kernel_group_id} ".cpp.h")
+
+    list(APPEND kernels_launch ${small_kernel_single_file} ${small_kernel_single_h_file})
+    list(APPEND kernels_launch ${small_kernel_double_file} ${small_kernel_double_h_file})
+endforeach(small_kernel_group_id)
+

@@ -72,6 +72,8 @@ int main(int argc, char *argv[])
 
     std::vector<size_t> support_size_list;
 
+    int small_kernels_group_num = 8; //default
+
     if(argc > 1){
         if(strcmp(argv[1], "pow2") == 0){
             //printf("Generating len pow2 FFT kernels\n");
@@ -107,6 +109,16 @@ int main(int argc, char *argv[])
          generate_support_size_list(support_size_list, 3125, 2187, Large1DThreshold(rocfft_precision_single));
     }
 
+    if(argc > 2)
+    {
+        small_kernels_group_num = std::stoi(argv[2]);
+        if (small_kernels_group_num <=0 || small_kernels_group_num >128 )
+        {
+            std::cerr << "Invalid small kernels group number!" << std::endl;
+            return 0;
+        }
+    }
+
 /*
     for(size_t i=7;i<=2401;i*=7){
         printf("Generating len %d FFT kernels\n", (int)i);
@@ -126,8 +138,8 @@ int main(int argc, char *argv[])
 
     //printf("Wrtie small size CPU functions implemention to *.cpp files \n");
     // all the small size of the same precsion are in one single file
-    write_cpu_function_small(support_size_list, "single");
-    write_cpu_function_small(support_size_list, "double");
+    write_cpu_function_small(support_size_list, "single", small_kernels_group_num);
+    write_cpu_function_small(support_size_list, "double", small_kernels_group_num);
 
     /* =====================================================================
 

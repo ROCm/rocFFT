@@ -236,9 +236,13 @@ void WriteCPUHeaders(std::vector<size_t> support_list, std::vector<  std::tuple<
    implementation to *.cpp.h file for small sizes
 =================================================================== */
 extern "C"
-void write_cpu_function_small(std::vector<size_t> support_list, std::string precision)
+void write_cpu_function_small(std::vector<size_t> support_list, std::string precision, int group_num)
 {
-    std::string str;
+    if (support_list.size() < group_num)
+    {
+        std::cout << "Not enough kernels to generate with " << group_num << " groups."<< std::endl;
+        return;
+    }
 
     std::string large_case_precision = "SINGLE";
     std::string short_name_precision = "sp";
@@ -251,37 +255,57 @@ void write_cpu_function_small(std::vector<size_t> support_list, std::string prec
         complex_case_precision = "double2";
     }
 
-    str += "\n";
-    str += "#include \"kernel_launch.h\" \n"; //kernel_launch.h has the required macros
-    str += "\n";
-    for(size_t i=0;i<support_list.size();i++){
-
-        std::string str_len = std::to_string(support_list[i]);
-
-        str += "#include \"rocfft_kernel_" + str_len + ".h\" \n";
-    }
-
-    str += "\n";
-
-    str += "//" + precision + " precision \n";
-    for(size_t i=0;i<support_list.size();i++){
-
-        std::string str_len = std::to_string(support_list[i]);
-        str += "POWX_SMALL_GENERATOR( rocfft_internal_dfn_" + short_name_precision + "_ci_ci_stoc_" + str_len +
-               ", fft_fwd_ip_len" + str_len + ", fft_back_ip_len" + str_len + ", fft_fwd_op_len" + str_len + ", fft_back_op_len" + str_len + ", " + complex_case_precision + ")\n";
-    }
-
-
-    std::ofstream file;
-    std::string fileName = "kernel_launch_" + precision + ".cpp.h";
-    file.open ( fileName );
-
-    if(!file.is_open())
+    size_t group_size = (support_list.size() + group_num -1) / group_num;
+    for (size_t j = 0; j < group_num; j++)
     {
-        std::cout << "File: " << fileName << " could not be opened, exiting ...." << std::endl;
+        size_t i_start = j*group_size;
+        size_t i_end = std::min((j+1)*group_size, support_list.size());
+
+        std::string str;
+
+        str += "\n";
+        str += "#include \"kernel_launch.h\" \n"; //kernel_launch.h has the required macros
+        str += "\n";
+        for(size_t i = i_start; i < i_end; i++)
+        {
+
+            std::string str_len = std::to_string(support_list[i]);
+
+            str += "#include \"rocfft_kernel_" + str_len + ".h\" \n";
+        }
+
+        str += "\n";
+
+        str += "//" + precision + " precision \n";
+        for(size_t i = i_start; i < i_end; i++)
+        {
+
+            std::string str_len = std::to_string(support_list[i]);
+            str += "POWX_SMALL_GENERATOR( rocfft_internal_dfn_" + short_name_precision + "_ci_ci_stoc_" + str_len +
+                   ", fft_fwd_ip_len" + str_len + ", fft_back_ip_len" + str_len + ", fft_fwd_op_len" + str_len + ", fft_back_op_len" + str_len + ", " + complex_case_precision + ")\n";
+        }
+
+
+        std::ofstream file;
+        std::string headerFileName = "kernel_launch_" + precision + "_" + std::to_string(j) + ".cpp.h";
+        file.open ( headerFileName );
+
+        if(!file.is_open())
+        {
+            std::cout << "File: " << headerFileName << " could not be opened, exiting ...." << std::endl;
+        }
+        file << str;
+        file.close();
+
+        std::string sourceFileName = "kernel_launch_" + precision + "_" + std::to_string(j) + ".cpp";
+        file.open ( sourceFileName );
+        if(!file.is_open())
+        {
+            std::cout << "File: " << sourceFileName << " could not be opened, exiting ...." << std::endl;
+        }
+        file << "#include \"" << headerFileName << "\"";
+        file.close();
     }
-    file << str;
-    file.close();
 }
 
 /* =====================================================================
@@ -334,14 +358,23 @@ void write_cpu_function_large(std::vector<  std::tuple<size_t, ComputeScheme> > 
     }
 
     std::ofstream file;
-    std::string fileName = "kernel_launch_" + precision + "_large.cpp.h";
-    file.open ( fileName );
+    std::string headerFileName = "kernel_launch_" + precision + "_large.cpp.h";
+    file.open ( headerFileName );
 
     if(!file.is_open())
     {
-        std::cout << "File: " << fileName << " could not be opened, exiting ...." << std::endl;
+        std::cout << "File: " << headerFileName << " could not be opened, exiting ...." << std::endl;
     }
     file << str;
+    file.close();
+
+    std::string sourceFileName = "kernel_launch_" + precision + "_large.cpp";
+    file.open ( sourceFileName );
+    if(!file.is_open())
+    {
+        std::cout << "File: " << sourceFileName << " could not be opened, exiting ...." << std::endl;
+    }
+    file << "#include \"" << headerFileName << "\"";
     file.close();
 }
 
@@ -417,14 +450,23 @@ void AddCPUFunctionToPool(std::vector<size_t> support_list, std::vector<  std::t
     str += "}\n";
 
     std::ofstream file;
-    std::string fileName = "function_pool.cpp.h";
-    file.open ( fileName );
+    std::string headerFileName = "function_pool.cpp.h";
+    file.open ( headerFileName );
 
     if(!file.is_open())
     {
-        std::cout << "File: " << fileName << " could not be opened, exiting ...." << std::endl;
+        std::cout << "File: " << headerFileName << " could not be opened, exiting ...." << std::endl;
     }
     file << str;
+    file.close();
+
+    std::string sourceFileName = "function_pool.cpp";
+    file.open ( sourceFileName );
+    if(!file.is_open())
+    {
+        std::cout << "File: " << sourceFileName << " could not be opened, exiting ...." << std::endl;
+    }
+    file << "#include \"" << headerFileName << "\"";
     file.close();
 }
 
