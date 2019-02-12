@@ -16,7 +16,7 @@ extern "C"
 void WriteCPUHeaders(std::vector<size_t> support_list, std::vector<  std::tuple<size_t, ComputeScheme> > large1D_list);
 
 extern "C" 
-void write_cpu_function_small(std::vector<size_t> support_list, std::string precision);
+void write_cpu_function_small(std::vector<size_t> support_list, std::string precision, int group_num);
 
 extern "C" 
 void write_cpu_function_large(std::vector<  std::tuple<size_t, ComputeScheme> > large1D_list, std::string precision);

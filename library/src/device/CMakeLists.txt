@@ -38,12 +38,13 @@ elseif( generator_pattern STREQUAL "pow3" )
 elseif( generator_pattern STREQUAL "pow5" )
     set( gen_headers ${kernels_launch} ${kernels_pow5} )
 endif()
+
 # add_custom_command will create source output files, that are used in a target below
 # In order for the dependencies to work in cmake, add_custom_command must be in the same
 # CMakeLists.txt file as the target [rocfft-device]
 add_custom_command(
   OUTPUT ${gen_headers}
-  COMMAND rocfft-kernel-generator ${generator_pattern}
+  COMMAND rocfft-kernel-generator ${generator_pattern} ${small_kernels_group_num}
   DEPENDS rocfft-kernel-generator
 #  WORKING_DIRECTORY ${kernel_path}
   COMMENT "Generator producing device kernels for rocfft-device"
@@ -55,11 +56,6 @@ set( rocfft_device_source
   bluestein.cpp
   real2complex.cpp
   complex2real.cpp
-  function_pool.cpp
-  kernel_launch_single.cpp
-  kernel_launch_double.cpp
-  kernel_launch_single_large.cpp
-  kernel_launch_double_large.cpp
 )
 
 prepend_path( "../.." rocfft_headers_public relative_rocfft_device_headers_public )
@@ -71,6 +67,7 @@ add_library( rocfft-device
   )
 add_library( roc::rocfft-device ALIAS rocfft-device )
 target_compile_features( rocfft-device PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
+target_compile_options (rocfft-device PRIVATE -fno-gpu-rdc)
 
 # Remove this check when we no longer build with older rocm stack(ie < 1.8.2)
 if(TARGET hip::device)
