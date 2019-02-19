@@ -38,6 +38,12 @@ rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, T* B, void 
     dim3 grid((n-1)/TRANSPOSE_DIM_X + 1, ( (m-1)/TRANSPOSE_DIM_X + 1 ), count);
     dim3 threads(TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, 1);
 
+    bool noCorner = false;
+
+    if ((n % TRANSPOSE_DIM_X == 0) && (m % TRANSPOSE_DIM_X == 0))// working threads match problem sizes, no corner cases
+    {
+        noCorner = true;
+    }
 
     if(scheme == 0)
     {
@@ -45,50 +51,82 @@ rocfft_transpose_outofplace_template(size_t m, size_t n, const T* A, T* B, void 
         {
             if (dir == -1)
             {
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, -1>), dim3(grid), dim3(threads), 0, rocfft_stream,
-                    A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+                if (noCorner)
+                    hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, -1, true>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                        A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+                else
+                    hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, -1, false>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                        A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
             }
             else
             {
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, 1>), dim3(grid), dim3(threads), 0, rocfft_stream,
-                    A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+                if (noCorner)
+                    hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, 1, true>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                        A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+                else
+                    hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, 1, false>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                        A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
             }
         }
         else if (twl == 3)
         {
             if (dir == -1)
             {
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, -1>), dim3(grid), dim3(threads), 0, rocfft_stream,
-                    A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+                if (noCorner)
+                    hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, -1, true>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                        A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+                else
+                    hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, -1, false>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                        A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
             }
             else
             {
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, 1>), dim3(grid), dim3(threads), 0, rocfft_stream,
-                    A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+                if (noCorner)
+                    hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, 1, true>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                        A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+                else
+                    hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, 1, false>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                        A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
             }
         }
         else if (twl == 4)
         {
             if (dir == -1)
             {
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, -1>), dim3(grid), dim3(threads), 0, rocfft_stream,
-                    A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+                if (noCorner)
+                    hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, -1, true>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                        A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+                else
+                    hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, -1, false>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                        A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
             }
             else
             {
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, 1>), dim3(grid), dim3(threads), 0, rocfft_stream,
-                    A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+                if (noCorner)
+                    hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, 1, true>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                        A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+                else
+                    hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, 1, false>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                        A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
             }
         }
         else
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, false, 0, 0>), dim3(grid), dim3(threads), 0, rocfft_stream,
-                A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+            if (noCorner)
+                hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, false, 0, 0, true>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                    A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
+            else
+                hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, false, 0, 0, false>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                    A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out);
         }
     }
     else
     {
-        hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2_scheme<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y>), dim3(grid), dim3(threads), 0, rocfft_stream,
+        if (noCorner)
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2_scheme<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true>), dim3(grid), dim3(threads), 0, rocfft_stream,
+                A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out, scheme);
+        else
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_kernel2_scheme<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, false>), dim3(grid), dim3(threads), 0, rocfft_stream,
                 A, B, (T *)twiddles_large, dim, lengths, stride_in, stride_out, scheme);
     }
 
