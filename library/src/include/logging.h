@@ -323,7 +323,7 @@ class LogSingleton
 // (layer_mode & rocblas_layer_mode_log_trace) != 0
 // log_function will call log_arguments to log arguments with a comma separator
 template <typename... Ts>
-void log_trace(Ts&&... xs)
+inline void log_trace(Ts&&... xs)
 {
     if(LOG_TRACE_ENABLED())
         tuple_helper::log_arguments(*LogSingleton::GetInstance().GetTraceOS(), ",", std::forward<Ts>(xs)...);
@@ -334,7 +334,7 @@ void log_trace(Ts&&... xs)
 // log_bench will call log_arguments to log a string that
 // can be input to the executable rocblas-bench.
 template <typename... Ts>
-void log_bench(Ts&&... xs)
+inline void log_bench(Ts&&... xs)
 {
     if(LOG_BENCH_ENABLED())
         tuple_helper::log_arguments(*LogSingleton::GetInstance().GetBenchOS(), " ", std::forward<Ts>(xs)...);
@@ -345,7 +345,7 @@ void log_bench(Ts&&... xs)
 // log_profile will call argument_profile to profile actual arguments,
 // keeping count of the number of times each set of arguments is used
 template <typename... Ts>
-void log_profile(const char* func, Ts&&... xs)
+inline void log_profile(const char* func, Ts&&... xs)
 {
     if(LOG_PROFILE_ENABLED())
     {
