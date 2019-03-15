@@ -11,6 +11,7 @@
 #include "plan.h"
 #include "repo.h"
 #include "radix_table.h"
+#include "logging.h"
 
 #define TO_STR2(x) #x
 #define TO_STR(x) TO_STR2(x)
@@ -41,6 +42,11 @@ rocfft_status rocfft_plan_description_set_data_layout(       rocfft_plan_descrip
                                                         size_t in_strides_size, const size_t *in_strides, size_t in_distance,
                                                         size_t out_strides_size, const size_t *out_strides, size_t out_distance )
 {
+    log_trace(__func__, "description", description, "in_array_type", in_array_type,
+              "out_array_type", out_array_type, "in_offsets", in_offsets, "out_offsets", out_offsets,
+              "in_strides_size", in_strides_size, "in_strides", in_strides, "in_distance", in_distance,
+              "out_strides_size", out_strides_size, "out_strides", out_strides, "out_distance", out_distance);
+    
     description->inArrayType = in_array_type;
     description->outArrayType = out_array_type;
 
@@ -85,12 +91,15 @@ rocfft_status rocfft_plan_description_create( rocfft_plan_description *descripti
 {
     rocfft_plan_description desc = new rocfft_plan_description_t;
     *description = desc;
+    log_trace(__func__, "description", *description);
 
     return rocfft_status_success;
 }
 
 rocfft_status rocfft_plan_description_destroy( rocfft_plan_description description )
 {
+    log_trace(__func__, "description", description);
+    
     if(description != nullptr)
         delete description;
 
@@ -104,7 +113,6 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
                                         size_t dimensions, const size_t *lengths, size_t number_of_transforms,
                                         const rocfft_plan_description description )
 {
-
     // Initialize plan's parameters, no computation
     if(description != nullptr)
     {
@@ -359,11 +367,27 @@ rocfft_status rocfft_plan_create(       rocfft_plan *plan,
                                         const rocfft_plan_description description )
 {
     rocfft_plan_allocate(plan);
+    
+    size_t log_len[3] = {0,0,0};
+    if (dimensions > 0)
+        log_len[0] = lengths[0];
+    if (dimensions > 1)
+        log_len[1] = lengths[1];
+    if (dimensions > 2)
+        log_len[2] = lengths[2];
+    
+    log_trace(__func__, "plan", *plan, "placment", placement, 
+              "transform_type", transform_type, "precision", precision,
+              "dimensions", dimensions, "lengths", log_len[0], log_len[1], log_len[2],
+              "number_of_transforms",number_of_transforms,"description", description);
+
     return rocfft_plan_create_internal(*plan, placement, transform_type, precision, dimensions, lengths, number_of_transforms, description);
 }
 
 rocfft_status rocfft_plan_destroy( rocfft_plan plan )
 {
+    log_trace(__func__, "plan", plan);
+        
     if(plan != nullptr)
         delete plan;
 
@@ -372,6 +396,7 @@ rocfft_status rocfft_plan_destroy( rocfft_plan plan )
 
 rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *size_in_bytes )
 {
+    log_trace(__func__, "plan", plan, "size_in_bytes", size_in_bytes);
     Repo &repo = Repo::GetRepo();
     ExecPlan execPlan;
     repo.GetPlan(plan, execPlan);
@@ -383,6 +408,7 @@ rocfft_status rocfft_plan_get_work_buffer_size( const rocfft_plan plan, size_t *
 
 rocfft_status rocfft_plan_get_print( const rocfft_plan plan )
 {
+    log_trace(__func__, "plan", plan);
     std::cout << std::endl;
     std::cout << "precision: " << ((plan->precision == rocfft_precision_single) ? "single" : "double") << std::endl;
 
@@ -470,6 +496,7 @@ rocfft_status rocfft_plan_get_print( const rocfft_plan plan )
 
 ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char *buf, size_t len)
 {
+    log_trace(__func__, "buf", buf, "len", len);
     std::string v(VERSION_STRING);
     if (buf == NULL)
         return rocfft_status_failure;
@@ -2374,86 +2401,86 @@ void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size
 }
 
 
-void TreeNode::Print(int indent) const
+void TreeNode::Print(std::ostream& os,int indent) const
 {
     std::string indentStr;
     int i = indent;
     while (i--) indentStr += "    ";
 
-    std::cout << std::endl << indentStr.c_str();
-    std::cout << "dimension: " << dimension;
-    std::cout << std::endl << indentStr.c_str();
-    std::cout << "batch: " << batch;
-    std::cout << std::endl << indentStr.c_str();
-    std::cout << "length: " << length[0];
+    os << std::endl << indentStr.c_str();
+    os << "dimension: " << dimension;
+    os << std::endl << indentStr.c_str();
+    os << "batch: " << batch;
+    os << std::endl << indentStr.c_str();
+    os << "length: " << length[0];
     for (size_t i = 1; i < length.size(); i++)
-        std::cout << ", " << length[i];
+        os << ", " << length[i];
 
-    std::cout << std::endl << indentStr.c_str() << "iStrides: ";
+    os << std::endl << indentStr.c_str() << "iStrides: ";
     for (size_t i = 0; i < inStride.size(); i++)
-        std::cout << inStride[i] << ", ";
-    std::cout << iDist;
+        os << inStride[i] << ", ";
+    os << iDist;
 
-    std::cout << std::endl << indentStr.c_str() << "oStrides: ";
+    os << std::endl << indentStr.c_str() << "oStrides: ";
     for (size_t i = 0; i < outStride.size(); i++)
-        std::cout << outStride[i] << ", ";
-    std::cout << oDist;
+        os << outStride[i] << ", ";
+    os << oDist;
     
-    std::cout << std::endl << indentStr.c_str();
-    std::cout << "iOffset: " << iOffset;
-    std::cout << std::endl << indentStr.c_str();
-    std::cout << "oOffset: " << oOffset;
+    os << std::endl << indentStr.c_str();
+    os << "iOffset: " << iOffset;
+    os << std::endl << indentStr.c_str();
+    os << "oOffset: " << oOffset;
 
-    std::cout << std::endl << indentStr.c_str();
-    std::cout << "direction: " << direction;
+    os << std::endl << indentStr.c_str();
+    os << "direction: " << direction;
 
-    std::cout << std::endl << indentStr.c_str();
-    std::cout << ((placement == rocfft_placement_inplace) ? "inplace" : "not inplace") << "  ";
-    std::cout << "array type: ";
+    os << std::endl << indentStr.c_str();
+    os << ((placement == rocfft_placement_inplace) ? "inplace" : "not inplace") << "  ";
+    os << "array type: ";
     switch(inArrayType)
     {
-        case rocfft_array_type_complex_interleaved:    std::cout << "complex interleaved"; break;
-        case rocfft_array_type_complex_planar:        std::cout << "complex planar"; break;
-        case rocfft_array_type_real:            std::cout << "real"; break;
-        case rocfft_array_type_hermitian_interleaved:    std::cout << "hermitian interleaved"; break;
-        case rocfft_array_type_hermitian_planar:    std::cout << "hermitian planar"; break;
+        case rocfft_array_type_complex_interleaved:    os << "complex interleaved"; break;
+        case rocfft_array_type_complex_planar:        os << "complex planar"; break;
+        case rocfft_array_type_real:            os << "real"; break;
+        case rocfft_array_type_hermitian_interleaved:    os << "hermitian interleaved"; break;
+        case rocfft_array_type_hermitian_planar:    os << "hermitian planar"; break;
     }
-    std::cout << " -> ";
+    os << " -> ";
     switch(outArrayType)
     {
-        case rocfft_array_type_complex_interleaved:    std::cout << "complex interleaved"; break;
-        case rocfft_array_type_complex_planar:        std::cout << "complex planar"; break;
-        case rocfft_array_type_real:            std::cout << "real"; break;
-        case rocfft_array_type_hermitian_interleaved:    std::cout << "hermitian interleaved"; break;
-        case rocfft_array_type_hermitian_planar:    std::cout << "hermitian planar"; break;
+        case rocfft_array_type_complex_interleaved:    os << "complex interleaved"; break;
+        case rocfft_array_type_complex_planar:        os << "complex planar"; break;
+        case rocfft_array_type_real:            os << "real"; break;
+        case rocfft_array_type_hermitian_interleaved:    os << "hermitian interleaved"; break;
+        case rocfft_array_type_hermitian_planar:    os << "hermitian planar"; break;
     }
-    std::cout << std::endl << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str();
-    std::cout << std::endl << indentStr.c_str() << "TTD: " << transTileDir;
-    std::cout << std::endl << indentStr.c_str() << "large1D: " << large1D;
-    std::cout << std::endl << indentStr.c_str() << "lengthBlue: " << lengthBlue << std::endl << indentStr.c_str();
+    os << std::endl << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str();
+    os << std::endl << indentStr.c_str() << "TTD: " << transTileDir;
+    os << std::endl << indentStr.c_str() << "large1D: " << large1D;
+    os << std::endl << indentStr.c_str() << "lengthBlue: " << lengthBlue << std::endl << indentStr.c_str();
 
-    if (obIn == OB_USER_IN) std::cout << "A -> ";
-    else if (obIn == OB_USER_OUT) std::cout << "B -> ";
-    else if (obIn == OB_TEMP) std::cout << "T -> ";
-    else if (obIn == OB_TEMP_CMPLX_FOR_REAL) std::cout << "C -> ";
-    else if (obIn == OB_TEMP_BLUESTEIN) std::cout << "S -> ";
-    else std::cout << "ERR -> ";
+    if (obIn == OB_USER_IN) os << "A -> ";
+    else if (obIn == OB_USER_OUT) os << "B -> ";
+    else if (obIn == OB_TEMP) os << "T -> ";
+    else if (obIn == OB_TEMP_CMPLX_FOR_REAL) os << "C -> ";
+    else if (obIn == OB_TEMP_BLUESTEIN) os << "S -> ";
+    else os << "ERR -> ";
 
-    if (obOut == OB_USER_IN) std::cout << "A";
-    else if (obOut == OB_USER_OUT) std::cout << "B";
-    else if (obOut == OB_TEMP) std::cout << "T";
-    else if (obOut == OB_TEMP_CMPLX_FOR_REAL) std::cout << "C";
-    else if (obOut == OB_TEMP_BLUESTEIN) std::cout << "S";
-    else std::cout << "ERR";
+    if (obOut == OB_USER_IN) os << "A";
+    else if (obOut == OB_USER_OUT) os << "B";
+    else if (obOut == OB_TEMP) os << "T";
+    else if (obOut == OB_TEMP_CMPLX_FOR_REAL) os << "C";
+    else if (obOut == OB_TEMP_BLUESTEIN) os << "S";
+    else os << "ERR";
 
-    std::cout << std::endl;
+    os << std::endl;
 
     if(childNodes.size())
     {
         std::vector<TreeNode *>::const_iterator children_p;
         for (children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
         {
-            (*children_p)->Print(indent+1);
+            (*children_p)->Print(os, indent+1);
         }
     }
 }
@@ -2482,14 +2509,14 @@ void ProcessNode(ExecPlan &execPlan)
 }
 
 
-void PrintNode(const ExecPlan &execPlan)
+void PrintNode(std::ostream& os, const ExecPlan &execPlan)
 {
-    std::cout << "*******************************************************************************" << std::endl;
+    os << "*******************************************************************************" << std::endl;
 
     size_t N = execPlan.rootPlan->batch;
     for (size_t i = 0; i < execPlan.rootPlan->length.size(); i++) N *= execPlan.rootPlan->length[i];
-    std::cout << "Work buffer size: " << execPlan.workBufSize << std::endl;
-    std::cout << "Work buffer ratio: " << (double)execPlan.workBufSize/(double)N << std::endl;
+    os << "Work buffer size: " << execPlan.workBufSize << std::endl;
+    os << "Work buffer ratio: " << (double)execPlan.workBufSize/(double)N << std::endl;
 
     if (execPlan.execSeq.size() > 1)
     {
@@ -2502,25 +2529,25 @@ void PrintNode(const ExecPlan &execPlan)
                 for (size_t i = 0; i < ((*curr_p)->inStride.size()); i++)
                 {
                     if (((*curr_p)->inStride[i]) != ((*curr_p)->outStride[i]))
-                        std::cout << "error in stride assignments" << std::endl;
+                        os << "error in stride assignments" << std::endl;
                     if (((*curr_p)->iDist) != ((*curr_p)->oDist))
-                        std::cout << "error in dist assignments" << std::endl;
+                        os << "error in dist assignments" << std::endl;
                 }
 
             }
 
             if( ((*prev_p)->scheme != CS_KERNEL_CHIRP) && ((*curr_p)->scheme != CS_KERNEL_CHIRP) )
                 if ((*prev_p)->obOut != (*curr_p)->obIn)
-                    std::cout << "error in buffer assignments" << std::endl;
+                    os << "error in buffer assignments" << std::endl;
 
             prev_p = curr_p;
             curr_p++;
         }
     }
 
-    execPlan.rootPlan->Print();
+    execPlan.rootPlan->Print(os, 0);
 
-    std::cout << "===============================================================================" << std::endl << std::endl;
+    os << "===============================================================================" << std::endl << std::endl;
 }
 
 

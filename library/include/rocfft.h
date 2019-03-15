@@ -298,6 +298,14 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_stream( rocfft_execution_i
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_get_events( const rocfft_execution_info info, void **events, size_t *number_of_events );
 #endif
 
+/*! \brief Indicates if layer is active with bitmask*/
+typedef enum rocfft_layer_mode_ {
+    rocfft_layer_mode_none          = 0b0000000000,
+    rocfft_layer_mode_log_trace     = 0b0000000001,
+    rocfft_layer_mode_log_bench     = 0b0000000010,
+    rocfft_layer_mode_log_profile   = 0b0000000100,
+} rocfft_layer_mode;
+
 #ifdef __cplusplus
 }
 #endif // __cplusplus
