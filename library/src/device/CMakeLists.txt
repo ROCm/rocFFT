@@ -80,7 +80,7 @@ if(HIP_PLATFORM STREQUAL "nvcc")
     target_compile_options( rocfft-device PRIVATE "-gencode arch=compute_50,code=sm_50 -gencode arch=compute_52,code=sm_52 -gencode arch=compute_30,code=sm_30" )
 endif()
 
-if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
+if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" OR HIP_PLATFORM STREQUAL "hip-clang")
   # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
   # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
   target_compile_options( rocfft-device PRIVATE -Wno-unused-command-line-argument )
