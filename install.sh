@@ -325,7 +325,7 @@ pushd .
   fi
 
   if [[ "${build_hip_clang}" == true ]]; then
-    cmake_common_options="${cmake_common_options} -DUSE_HIP_CLANG=ON"
+    cmake_common_options="${cmake_common_options} -DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang"
   fi
 
   # On ROCm platforms, hcc compiler can build everything
