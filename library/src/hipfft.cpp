@@ -411,9 +411,33 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
                 o_strides[i] = onembed_lengths[i-1]*o_strides[i-1];
         }
 
+        // Decide the inArrayType and outArrayType based on the transform type
+        rocfft_array_type in_array_type, out_array_type;
+        switch(type) {
+            case HIPFFT_R2C:
+            case HIPFFT_D2Z:
+                in_array_type  = rocfft_array_type_real;
+                out_array_type = rocfft_array_type_hermitian_interleaved;
+                break;
+            case HIPFFT_C2R:
+            case HIPFFT_Z2D:
+                in_array_type  = rocfft_array_type_hermitian_interleaved;
+                out_array_type = rocfft_array_type_real;
+                break;
+            case HIPFFT_C2C:
+            case HIPFFT_Z2Z:
+                in_array_type  = rocfft_array_type_complex_interleaved;
+                out_array_type = rocfft_array_type_complex_interleaved;
+                break;
+            defaut:
+                in_array_type  = rocfft_array_type_complex_interleaved;
+                out_array_type = rocfft_array_type_complex_interleaved;
+                break;
+        }
+
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_description_set_data_layout( desc,
-                                rocfft_array_type_complex_interleaved,
-                                rocfft_array_type_complex_interleaved,
+                                in_array_type,
+                                out_array_type,
                                 0, 0,
                                 rank, i_strides, idist,
                                 rank, o_strides, odist ));

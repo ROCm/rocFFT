@@ -66,7 +66,7 @@ target_link_libraries( rocfft PRIVATE hip::hip_hcc hip::hip_device hcc::hccshare
 endif()
 target_link_libraries( rocfft PRIVATE rocfft-device )
 
-if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
+if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" OR HIP_PLATFORM STREQUAL "hip-clang")
   # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
   # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
   target_compile_options( rocfft PRIVATE -Wno-unused-command-line-argument )
