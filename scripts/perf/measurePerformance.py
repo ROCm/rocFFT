@@ -109,11 +109,9 @@ parser.add_argument('--ref_tol',
 parser.add_argument('--tablefile',
     dest='tableOutputFilename', default=None,
     help='save the results to a plaintext table with the file name indicated. this can be used with plotPerformance.py to generate graphs of the data (default: table prints to screen)')
-parser.add_argument('--mute',
-    dest='mute', default='false',
-    help='don\'t print stdcout into log')
-parser.add_argument('--prefix',
-    dest='prefix', default='./',
+parser.add_argument('--mute', action="store_true", help='no print')
+parser.add_argument('--client_prefix',
+    dest='client_prefix', default='./',
     help='Path where the library client is located (default current directory)')
 
 args = parser.parse_args()
@@ -126,7 +124,7 @@ if not os.path.exists('perfLog'):
 logfile = os.path.join('perfLog', (label+'-'+'fftMeasurePerfLog.txt'))
 
 def printLog(txt):
-    if args.mute != 'true':
+    if not args.mute:
         print txt
     log(logfile, txt)
 
@@ -433,7 +431,7 @@ if args.library == 'rocFFT':
 
 
 
-if not os.path.isfile(args.prefix+executable(args.library)):
+if not os.path.isfile(args.client_prefix+executable(args.library)):
     printLog("ERROR: Could not find client named {0}".format(executable(args.library)))
     quit()
 
@@ -665,7 +663,7 @@ for params in test_combinations:
     lengthz = str(params.z)
     inlayout=str(params.inlayout)
     outlayout=str(params.outlayout)
-    prefix=str(args.prefix)
+    client_prefix=str(args.client_prefix)
 
     
     if params.batchsize == 'max':
@@ -696,7 +694,7 @@ for params in test_combinations:
         transformType = '3'
         
     #set up arguments here
-    arguments = [prefix+ executable(args.library),
+    arguments = [client_prefix+ executable(args.library),
                  '--device ' + device,
                  '-x', lengthx,
                  '-y', lengthy,
@@ -806,3 +804,4 @@ if args.refFilename != None:
             
       
 printLog("=========================MEASURE PERFORMANCE ENDS===========================\n")
+
