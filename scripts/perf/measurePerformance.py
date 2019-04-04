@@ -40,6 +40,7 @@ from performanceUtility import timeout, log, generate235Radices
 
 TIMOUT_VAL = 900 #In seconds
 WARNING_LOG_MAX_ENTRY = 500
+MIN_GFLOPS_TO_COMPARE = 10
 
 #layoutvalues = ['cp', 'ci']
 placevalues = ['in', 'out']
@@ -99,10 +100,10 @@ parser.add_argument('--label',
 parser.add_argument('--ini',
     dest='iniFilename', default=None,
     help='use the parameters in the named .ini file instead of the command line parameters.')
-parser.add_argument('--refFile',
+parser.add_argument('--ref_file',
     dest='refFilename', default=None,
     help='The reference results file to compare with.')
-parser.add_argument('--refTol',
+parser.add_argument('--ref_tol',
     dest='refTol', default='0.05',
     help='The reference gflops tolerance, default 5%%.')
 parser.add_argument('--tablefile',
@@ -787,7 +788,7 @@ if args.refFilename != None:
     totalCount = len(gflops_result)
     for idx, row in enumerate(refResultsContents):
         ref_gflops = float(row[row.rfind(',')+1:]) # assume the last col is GFLOPS
-        if idx < totalCount:
+        if (idx < totalCount and np.less(MIN_GFLOPS_TO_COMPARE, ref_gflops) ):
             if np.less(gflops_result[idx], ref_gflops):
                 relative_error = abs(ref_gflops - gflops_result[idx])/gflops_result[idx] 
                 if np.greater(relative_error, float(args.refTol)):
