@@ -101,7 +101,7 @@ include( ROCMPackageConfigHelpers )
 include( ROCMInstallSymlinks )
 
 
-set ( VERSION_STRING "0.9.1." )
+set ( VERSION_STRING "0.9.2." )
 # Check if BUILD_NUMBER is defined in a Jenkins envirnment
 if ($ENV{BUILD_NUMBER} )
   string(CONCAT BUILD_VERSION ${VERSION_STRING} $ENV{BUILD_NUMBER}) 
