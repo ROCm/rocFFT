@@ -234,12 +234,21 @@ def plotFromDataFile():
   display a pretty graph
   """
   colors = ['k','y','m','c','b','g','r']
+
   def getkey(item):
     return str(item.label)
   dataForAllPlots.sort(key=getkey)
-  #for thisPlot in sorted(dataForAllPlots,key=getkey):
+
+  if len(dataForAllPlots) > 18: #todo, better color scheme
+    colors = list(matplotlib.colors.cnames.values())
+  elif len(dataForAllPlots) > 7:
+    # follow https://xkcd.com/color/rgb/
+    colors = [u'#e50000', u'#15b01a', u'#0343df', u'#ff81c0', u'#653700', u'#7e1e9c', \
+              u'#ffff14', u'#029386', u'#f97306', u'#96f97b', u'#c20078', u'#95d0fc', \
+              u'#75bbfd', u'#929591', u'#89fe05', u'#bf77f6', u'#9a0eea', u'#033500'  ]
+
   for thisPlot in sorted(dataForAllPlots,key=getkey):
-    getattr(pylab, plottype)(thisPlot.xdata, thisPlot.ydata, '{}.-'.format(colors.pop()), label=thisPlot.label, **plotkwargs)
+    getattr(pylab, plottype)(thisPlot.xdata, thisPlot.ydata, colors.pop(), label=thisPlot.label, **plotkwargs)
 
   if len(dataForAllPlots) > 1:
     pylab.legend(loc='best')

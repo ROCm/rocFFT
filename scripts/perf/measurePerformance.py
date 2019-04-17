@@ -45,7 +45,7 @@ from performanceUtility import timeout, log, generate235Radices
 TIMOUT_VAL = 900 #In seconds
 WARNING_LOG_MAX_ENTRY = 500
 MIN_GFLOPS_TO_COMPARE = 10
-MAX_RERUN_NUM = 1024
+MAX_RERUN_NUM = 128
 
 #layoutvalues = ['cp', 'ci']
 placevalues = ['in', 'out']
@@ -120,6 +120,7 @@ args = parser.parse_args()
 
 label = str(args.label)
 
+# todo: change the log dir, especially for rerun case
 if not os.path.exists('perfLog'):
     os.makedirs('perfLog')
 logfile = os.path.join('perfLog', (label+'-'+'fftMeasurePerfLog.txt'))
@@ -135,8 +136,9 @@ printLog("Process id of Measure Performance:"+str(os.getpid()))
 currCommandProcess = None
 
 rerun_args = ''
+rerun_index = -1
+rerun_file = str(args.rerun)
 if args.rerun:
-    rerun_file = str(args.rerun)
     if (not rerun_file) or (not os.path.isfile(rerun_file)):
         printLog('ERROR: invalid file/path for --rerun option.')
         quit()
@@ -153,13 +155,15 @@ if args.rerun:
             quit()
 
         for i in range(MAX_RERUN_NUM):
-            next_file = rerun_file[:-4] + "_r" + str(i) + ".csv" #support csv file only
+            next_file =  rerun_file[:-4] + "_r" + str(i) + ".csv" #support csv file only for now
             if not os.path.isfile(next_file):
                 rerun_args = [arg.replace(rerun_file, next_file) for arg in rerun_args]
                 #print rerun_args
                 args = parser.parse_args(rerun_args)
+                args.label = os.path.basename(next_file)[:-4]
+                rerun_index = i
                 break
-            if i == MAX_RERUN_NUM:
+            if i >= MAX_RERUN_NUM-1:
                 printLog('ERROR: --rerun option, too many files.')
                 quit()
 
@@ -756,6 +760,22 @@ if args.refFilename != None:
              ", passing rate " + '{:.2%}'.format((totalCount-failedCount)/totalCount) +
              ", with tolerance " + '{:.2%}'.format(float(args.refTol)))
 
+if rerun_args:
+    printLog("-----------------------------------------------------")
+    printLog("Rerun auto plotting...")
+
+    plot_output_file = ''
+    plot_cmd = "python plotPerformance.py -x x -y gflops -d " + rerun_file
+    if rerun_index > -1:
+        for i in range(rerun_index+1):
+                next_file =  rerun_file[:-4] + "_r" + str(i) + ".csv" #support csv file only for now
+                if os.path.isfile(next_file):
+                    plot_cmd +=  " -d " + next_file
+                if i == rerun_index:
+                    plot_output_file = next_file.replace(".csv", ".png")
+                    plot_cmd +=  " --outputfile " + plot_output_file
+    subprocess.check_call(plot_cmd, shell=True)
+    printLog("Plotted to file " + plot_output_file + '.')
 
 printLog("=========================MEASURE PERFORMANCE ENDS===========================\n")
 
