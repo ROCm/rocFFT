@@ -77,7 +77,7 @@ parser.add_argument('-d', '--device',
     help='device(s) to run on; may be a comma-delimited list. choices are (default gpu)')
 parser.add_argument('-t', '--type',
     dest='type', default='full',
-    help='run suite with full or short suite(default full)')
+    help='run tests with full or short suite(default full)')
 parser.add_argument('-r', '--ref_dir',
     dest='ref_dir', default='./',
     help='specify the reference results dirctory(default ./)')

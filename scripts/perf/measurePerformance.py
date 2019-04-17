@@ -1,16 +1,16 @@
 # #############################################################################
 # Copyright (c) 2013 - present Advanced Micro Devices, Inc. All rights reserved.
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
@@ -38,9 +38,14 @@ import errorHandler
 from fftPerformanceTesting import *
 from performanceUtility import timeout, log, generate235Radices
 
+#Todo list:
+# - more error handling
+# - more tests for relative path
+
 TIMOUT_VAL = 900 #In seconds
 WARNING_LOG_MAX_ENTRY = 500
 MIN_GFLOPS_TO_COMPARE = 10
+MAX_RERUN_NUM = 1024
 
 #layoutvalues = ['cp', 'ci']
 placevalues = ['in', 'out']
@@ -94,12 +99,6 @@ parser.add_argument('-r', '--precision',
 parser.add_argument('--label',
     dest='label', default=None,
     help='a label to be associated with all transforms performed in this run. if LABEL includes any spaces, it must be in \"double quotes\". note that the label is not saved to an .ini file. e.g., --label cayman may indicate that a test was performed on a cayman card or --label \"Windows 32\" may indicate that the test was performed on Windows 32')
-#parser.add_argument('--createini',
-#    dest='createIniFilename', default=None,
-#    help='create an .ini file with the given name that saves the other parameters given at the command line, then quit. e.g., \'measureperformance.py -x 2048 --createini my_favorite_setup.ini\' will create an .ini file that will save the configuration for a 2048-datapoint 1D FFT.')
-parser.add_argument('--ini',
-    dest='iniFilename', default=None,
-    help='use the parameters in the named .ini file instead of the command line parameters.')
 parser.add_argument('--ref_file',
     dest='refFilename', default=None,
     help='The reference results file to compare with.')
@@ -113,9 +112,11 @@ parser.add_argument('--mute', action="store_true", help='no print')
 parser.add_argument('--client_prefix',
     dest='client_prefix', default='./',
     help='Path where the library client is located (default current directory)')
+parser.add_argument('--rerun',
+    dest='rerun', default=None,
+    help='rerun test from *.csv result file')
 
 args = parser.parse_args()
-args.library = 'rocFFT'
 
 label = str(args.label)
 
@@ -133,6 +134,41 @@ printLog("Process id of Measure Performance:"+str(os.getpid()))
 
 currCommandProcess = None
 
+rerun_args = ''
+if args.rerun:
+    rerun_file = str(args.rerun)
+    if (not rerun_file) or (not os.path.isfile(rerun_file)):
+        printLog('ERROR: invalid file/path for --rerun option.')
+        quit()
+    else:
+        with open(rerun_file, 'r') as input:
+            for line in input:
+                if line.startswith('#Cmd:'):
+                    rerun_args = line.strip().split('.py')[1] #todo: better err handling
+                    rerun_args = rerun_args.strip().split(' ')
+                    break
+
+        if not "--tablefile" in rerun_args :
+            printLog('ERROR: --rerun option, need explicitly specified --tablefile file.')
+            quit()
+
+        for i in range(MAX_RERUN_NUM):
+            next_file = rerun_file[:-4] + "_r" + str(i) + ".csv" #support csv file only
+            if not os.path.isfile(next_file):
+                rerun_args = [arg.replace(rerun_file, next_file) for arg in rerun_args]
+                #print rerun_args
+                args = parser.parse_args(rerun_args)
+                break
+            if i == MAX_RERUN_NUM:
+                printLog('ERROR: --rerun option, too many files.')
+                quit()
+
+args.library = 'rocFFT'
+
+if args.tableOutputFilename != None and args.refFilename != None:
+    if args.tableOutputFilename == args.refFilename:
+        printLog('ERROR: tablefile and ref_file are the same.')
+        quit()
 
 printLog('Executing measure performance for label: '+str(label))
 
@@ -145,7 +181,7 @@ def checkTimeOutPut2(args):
     #return ret
     currCommandProcess = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     printLog("Curr Command Process id = "+str(currCommandProcess.pid))
-    ret = currCommandProcess.communicate()    
+    ret = currCommandProcess.communicate()
     if(ret[0] == None or ret[0] == ''):
         errCode = currCommandProcess.poll()
         raise subprocess.CalledProcessError(errCode, args, output=ret[1])
@@ -175,7 +211,7 @@ def checkTimeOutPut(args):
     currCommandProcess = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
     thread = Thread(target=executeCommand)
     thread.start()
-    thread.join(TIMOUT_VAL) #wait for the thread to complete 
+    thread.join(TIMOUT_VAL) #wait for the thread to complete
     if thread.is_alive():
         printLog('ERROR: Killing the process - terminating thread because it is taking too much of time to execute')
         currCommandProcess.kill()
@@ -186,91 +222,6 @@ def checkTimeOutPut(args):
         printLog('ERROR: @@@@@Raising Called processor exception')
         raise subprocess.CalledProcessError(errCode, args, output=stde)
     return stdo
-
-
-
-
-
-# don't try to create and use an .ini file at the same time (it will open a portal through which demons will emerge)
-#if args.iniFilename and args.createIniFilename:
-#    printLog('ERROR: --ini and --createini are mutually exclusive. Please choose only one.')
-#    quit()
-
-#read in .ini parameters if --ini is used
-#if args.iniFilename != None:
-#    if not os.path.isfile(args.iniFilename):
-#        printLog("No file with the name \'{}\' exists. Please indicate another filename.".format(args.iniFilename))
-#        quit()
-#    
-#    ini = open(args.iniFilename, 'r')
-#    iniContents = ini.read()
-#    iniContents = iniContents.split(';')
-#    for i in range(0,len(iniContents)):
-#        line = iniContents.pop()
-#        line = line.partition(' ')
-#        parameter = line[0]
-#        value = line[2]
-#        value = value.replace('\'','').replace('[','').replace(']','').replace(' ','')
-#        print"value= ",value
-#        
-#        if parameter == 'batchSize':
-#            args.batchSize = value
-#        elif parameter == 'constProbSize':
-#            args.constProbSize = value
-#        elif parameter == 'lengthx':
-#            args.lengthx = value
-#        elif parameter == 'reps':
-#            args.reps = value
-#        elif parameter == 'prime_factor':
-#            args.prime_factor = value
-#        elif parameter == 'test_count':
-#            args.test_count = value
-#        elif parameter == 'lengthy':
-#            args.lengthy = value
-#        elif parameter == 'lengthz':
-#            args.lengthz = value
-#        elif parameter == 'problemsize':
-#            args.problemsize = value
-#        elif parameter == 'device':
-#            args.device = value
-#        elif parameter == 'inputlayout':
-#            args.inputlayout = value
-#        elif parameter == 'outputlayout':
-#            args.outputlayout = value
-#        elif parameter == 'placeness':
-#            args.placeness = value
-#        elif parameter == 'precision':
-#            args.precision = value
-#        else:
-#            printLog('{} corrupted. Please re-create a .ini file with the --createini flag.'.format(args.iniFilename))
-#            #quit()
-
-#create ini file if requested
-#if args.createIniFilename != None:
-#    printLog('Creating Ini files')
-#    if os.path.isfile(args.createIniFilename):
-#        printLog('A file with the name \'{}\' already exists. Please delete the file or choose another name.'.format(args.createIniFilename))
-#        quit()
-#    printLog('Creating Ini file:'+args.createIniFilename+'\n')
-#    ini = open(args.createIniFilename, 'w')
-#    ini.write('batchSize {} ;'.format(args.batchSize))
-#    ini.write('constProbSize {} ;'.format(args.constProbSize))
-#    ini.write('lengthx {} ;'.format(args.lengthx))
-#    ini.write('lengthy {} ;'.format(args.lengthy))
-#    ini.write('lengthz {} ;'.format(args.lengthz))
-#    ini.write('prime_factor {} ;'.format(args.prime_factor))
-#    ini.write('test_count {} ;'.format(args.test_count))
-#    ini.write('reps {} ;'.format(args.reps))
-#    ini.write('problemsize {} ;'.format(args.problemsize))
-#    ini.write('device {} ;'.format(args.device))
-#    ini.write('inputlayout {} ;'.format(args.inputlayout))
-#    ini.write('outputlayout {} ;'.format(args.outputlayout))
-#    ini.write('placeness {} ;'.format(args.placeness))
-#    ini.write('precision {} ;'.format(args.precision))
-#    printLog('Created Ini file:'+args.createIniFilename+'\n')
-#    printLog("=========================MEASURE PERFORMANCE START===========================\n")
-#    quit()
-#
 
 #turn pow10 into its range list
 if args.batchSize.count('pow10'):
@@ -422,7 +373,7 @@ def check_for_1235_factors(values, option):
                 print 'ERROR: --{0} must specify number with only 1,2,3,5 as factors'.format(option)
                 quit()
             #print 'Valid number for :',option,':', m
-       
+
 
 if args.library == 'rocFFT':
     check_for_1235_factors(args.lengthx, 'lengthx')
@@ -443,7 +394,7 @@ def get235RadicesNumberInRange(minimum, maximum):
     minIndex = numbers.index(minimum)
     maxIndex = numbers.index(maximum)
     return numbers[minIndex:maxIndex+1]
-   
+
 #expand ranges
 class Range:
     def __init__(self, ranges, defaultStep='+1'):
@@ -528,8 +479,8 @@ def create_prime_factors(args,input_list):
     powers5+=[5**x for x in range(1,int(math.floor(math.log(max(input_list),5)+1)))]
   if '7' in args.prime_factor:
     powers7+=[7**x for x in range(1,int(math.floor(math.log(max(input_list),7)+1)))]
-  
-  
+
+
   xlist=[]
   for i in powers2:
     for j in powers3:
@@ -538,7 +489,7 @@ def create_prime_factors(args,input_list):
           dummy=int(i)*int(j)*int(k)*int(l)
           if(dummy<=max(input_list)) and (dummy>=min(input_list)):
             xlist.append(dummy)
-          
+
   xlist=sorted(xlist)
   xlist=xlist[:int(args.test_count)] #snafu
   return xlist
@@ -579,24 +530,24 @@ if args.problemsize and args.problemsize[0] != 'None':
         y = []
         z = []
         batch = []
-    
+
         x.append(int(n[0][0]))
-    
+
         if len(n[0]) >= 2:
             y.append(int(n[0][1]))
         else:
             y.append(1)
-    
+
         if len(n[0]) >= 3:
             z.append(int(n[0][2]))
         else:
             z.append(1)
-    
+
         if len(n) > 1:
             batch.append(int(n[1]))
         else:
             batch.append(1)
-    
+
         combos = itertools.product(x, y, z, batch)
         combos = list(itertools.islice(combos, None))
         for n in combos:
@@ -611,20 +562,13 @@ test_combinations = itertools.product(problem_size_combinations, args.device, ar
 test_combinations = list(itertools.islice(test_combinations, None))
 test_combinations = [TestCombination(params[0][0], params[0][1], params[0][2], params[0][3], params[1], params[2], params[3], params[4], params[5], args.label) for params in test_combinations]
 
-if args.iniFilename != None:
-  array=np.genfromtxt(args.iniFilename, names=True, delimiter=',', dtype=None)
-  test_combinations = [TestCombination(params[0],params[1], params[2], params[3], params[4],params[5],params[6],params[7],params[8],args.label) for params in array]
-
 #print("lenghtx= ",test_combinations[0].x)
 #print("lenghty= ",test_combinations[0].y)
 #print("lenghtz= ",test_combinations[0].z)
 #print("placeness= ",test_combinations[0].placeness)
 
-
-
 #turn each test combination into a command, run the command, and then stash the gflops
 gflops_result = [] # this is where we'll store the results for the table
-
 
 #open output file and write the header
 
@@ -641,6 +585,16 @@ else:
 printLog('table header---->'+ str(tableHeader))
 
 table = open(args.tableOutputFilename, 'w')
+table.write('#Do not change any content of this file except adding comments!!!\n')
+table.write('#\n')
+table.write('#Timestamp: ' + str(datetime.now()) + '\n')
+table.write('#\n')
+if rerun_args:
+    table.write('#From --rerun\n')
+    table.write('#Cmd: python ' + str(sys.argv[0]) + ' ' + str(' '.join(rerun_args)) + '\n')
+else:
+    table.write('#Cmd: python ' + str(' '.join(sys.argv)) + '\n')
+table.write('#\n')
 table.write(tableHeader + '\n')
 table.flush()
 if args.constProbSize == -1:
@@ -656,7 +610,7 @@ for params in test_combinations:
       break
     vi = vi+1
     printLog("-----------------------------------------------------")
-    printLog('preparing command: '+ str(vi))    
+    printLog('preparing command: '+ str(vi))
     device = params.device
     lengthx = str(params.x)
     lengthy = str(params.y)
@@ -665,7 +619,7 @@ for params in test_combinations:
     outlayout=str(params.outlayout)
     client_prefix=str(args.client_prefix)
 
-    
+
     if params.batchsize == 'max':
         batchSize = maxBatchSize(lengthx, lengthy, lengthz, params.inlayout, params.precision, '-' + device)
     elif params.batchsize == 'adapt':
@@ -692,7 +646,7 @@ for params in test_combinations:
         transformType = '2'
     elif (outlayout == '2' and (inlayout == '3' or outlayout == '4')):
         transformType = '3'
-        
+
     #set up arguments here
     arguments = [client_prefix+ executable(args.library),
                  '--device ' + device,
@@ -707,7 +661,7 @@ for params in test_combinations:
                  precision,
                  '-p', args.reps]
 
-   
+
     writeline = True
     try:
         arguments=' '.join(arguments)
@@ -741,7 +695,7 @@ for params in test_combinations:
             thisResult = re.search('\d+\.*\d*e*-*\d*$', output[-1])
             thisResult = float(thisResult.group(0))
             gflops_result.append(thisResult)
-            
+
             thisResult = ('{:11d}'.format(params.x), '{:11d}'.format(params.y), '{:11d}'.format(params.z),\
                 '{:>11s}'.format(batchSize), '{:>7s}'.format(params.device), \
                 '{:>6s}'.format(params.inlayout), '{:>7s}'.format(params.outlayout), \
@@ -751,7 +705,7 @@ for params in test_combinations:
             outputRow = ''
             for x in thisResult:
                 outputRow = outputRow + str(x) + ','
-            outputRow = outputRow.rstrip(',')
+            #outputRow = outputRow.rstrip(',')
             table.write(outputRow + '\n')
             table.flush()
 
@@ -768,27 +722,27 @@ for params in test_combinations:
         else:
             prinLog('ERROR: output from client makes no sense')
             #quit()
-            
+
 if args.refFilename != None:
     printLog("-----------------------------------------------------")
     printLog("Enabled reference comparison")
     refResults = open(args.refFilename, 'r')
     refResultsContents = refResults.read()
     refResultsContents = refResultsContents.rstrip().split('\n')
-  
-    firstRow = refResultsContents.pop(0)
-    if firstRow != tableHeader:
-        print 'ERROR: input file \'{}\' does not match expected format.'.format(thisFile)
-        quit()
-        
+
+    raw_data = []
+    for line in refResultsContents:
+        if not (line.startswith('#') or len(line.strip()) == 0):
+            raw_data.append(line.split('#')[0].rstrip(', '))
+
     printLog("          index"+str(tableHeader).replace("     GFLOPS", "  GFLOPS ref vs tested  relative_err"))
     failedCount = 0
     totalCount = len(gflops_result)
-    for idx, row in enumerate(refResultsContents):
+    for idx, row in enumerate(raw_data):
         ref_gflops = float(row[row.rfind(',')+1:]) # assume the last col is GFLOPS
         if (idx < totalCount and np.less(MIN_GFLOPS_TO_COMPARE, ref_gflops) ):
             if np.less(gflops_result[idx], ref_gflops):
-                relative_error = abs(ref_gflops - gflops_result[idx])/gflops_result[idx] 
+                relative_error = abs(ref_gflops - gflops_result[idx])/gflops_result[idx]
                 if np.greater(relative_error, float(args.refTol)):
                     printLog("Warning: " + '{:>6d}'.format(idx+1) + row +
                              "," + '{:>11.3f}'.format(gflops_result[idx]) +
@@ -797,11 +751,11 @@ if args.refFilename != None:
             if failedCount>= WARNING_LOG_MAX_ENTRY:
                 printLog("Too many failed cases...")
                 break
-                  
-    printLog("\nTotal number of samples " + str(totalCount) + 
+
+    printLog("\nTotal number of samples " + str(totalCount) +
              ", passing rate " + '{:.2%}'.format((totalCount-failedCount)/totalCount) +
              ", with tolerance " + '{:.2%}'.format(float(args.refTol)))
-            
-      
+
+
 printLog("=========================MEASURE PERFORMANCE ENDS===========================\n")
 

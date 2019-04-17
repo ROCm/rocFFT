@@ -29,7 +29,7 @@ from datetime import datetime
 
 # Common data and functions for the performance suite
 
-tableHeader = '    lengthx,    lengthy,    lengthz,      batch, device, inlay, outlay, place, precision,       label,     GFLOPS'
+tableHeader = '#   lengthx,    lengthy,    lengthz,      batch, device, inlay, outlay, place, precision,       label,     GFLOPS'
 
 class TestCombination:
     def __init__(self,

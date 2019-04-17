@@ -1,16 +1,16 @@
 # #############################################################################
 # Copyright (c) 2013 - present Advanced Micro Devices, Inc. All rights reserved.
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
@@ -40,16 +40,16 @@ def plotGraph(dataForAllPlots, title, plottype, plotkwargs, xaxislabel, yaxislab
   #plottype = 'plot'
   for thisPlot in dataForAllPlots:
     getattr(pylab, plottype)(thisPlot.xdata, thisPlot.ydata,
-                             '{}.-'.format(colors.pop()), 
+                             '{}.-'.format(colors.pop()),
                              label=thisPlot.label, **plotkwargs)
   if len(dataForAllPlots) > 1:
     pylab.legend(loc='best')
-  
+
   pylab.title(title)
   pylab.xlabel(xaxislabel)
   pylab.ylabel(yaxislabel)
   pylab.grid(True)
-  
+
   if args.outputFilename == None:
     # if no pdf output is requested, spit the graph to the screen . . .
     pylab.show()
@@ -70,21 +70,26 @@ def plotFromDataFile():
     if not os.path.isfile(thisFile):
       print 'No file with the name \'{}\' exists. Please indicate another filename.'.format(thisFile)
       quit()
-  
+
     results = open(thisFile, 'r')
     resultsContents = results.read()
     resultsContents = resultsContents.rstrip().split('\n')
-  
-    firstRow = resultsContents.pop(0)
-    if firstRow != tableHeader:
-      print 'ERROR: input file \'{}\' does not match expected format.'.format(thisFile)
-      quit()
-  
-    for row in resultsContents:
+
+    raw_data = []
+    for line in resultsContents:
+        if not (line.startswith('#') or len(line.strip()) == 0):
+            raw_data.append(line.split('#')[0].rstrip(', '))
+
+    #firstRow = raw_data.pop(0)
+    #if firstRow != tableHeader:
+    #  print 'ERROR: input file \'{}\' does not match expected format.'.format(thisFile)
+    #  quit()
+
+    for row in raw_data:
       row = row.split(',')
       row = TableRow(TestCombination(row[0],row[1],row[2],row[3],row[4],row[5],row[6],row[7],row[8],row[9]), row[10])
       data.append(GraphPoint(row.parameters.x, row.parameters.y, row.parameters.z, row.parameters.batchsize, row.parameters.precision, row.parameters.device, row.parameters.label, row.gflops))
-  
+
   """
   data sanity check
   """
@@ -93,12 +98,12 @@ def plotFromDataFile():
   for option in plotvalues:
     values = []
     for point in data:
-      values.append(getattr(point, option)) 
+      values.append(getattr(point, option))
     multiplePlotValues.append(len(set(values)) > 1)
   if multiplePlotValues.count(True) > 1 and args.plot == None:
     print 'ERROR: more than one parameter of {} has multiple values. Please specify which parameter to plot with --plot'.format(plotvalues)
     quit()
-  
+
   # if args.graphxaxis is not 'problemsize', the user should know that the results might be strange
   if args.graphxaxis != 'problemsize':
     xaxisvalueSet = []
@@ -106,11 +111,11 @@ def plotFromDataFile():
       if option != 'problemsize':
         values = []
         for point in data:
-          values.append(getattr(point, option)) 
+          values.append(getattr(point, option))
         xaxisvalueSet.append(len(set(values)) > 1)
     if xaxisvalueSet.count(True) > 1:
       print 'WARNING: more than one parameter of {} is varied. unexpected results may occur. please double check your graphs for accuracy.'.format(xaxisvalues)
-  
+
   # multiple rows should not have the same input values
   pointInputs = []
   for point in data:
@@ -118,7 +123,7 @@ def plotFromDataFile():
   if len(set(pointInputs)) != len(data):
     print 'ERROR: imported table has duplicate rows with identical input parameters'
     quit()
-  
+
   """
   figure out if we have multiple plots on this graph (and what they should be)
   """
@@ -129,12 +134,12 @@ def plotFromDataFile():
   else:
     # default to device if none of the options to plot have multiple values
     multiplePlots = 'device'
-  
+
   """
   assemble data for the graphs
   """
   data.sort(key=lambda row: int(getattr(row, args.graphxaxis)))
-  
+
   # choose scale for x axis
   if args.xaxisscale == None:
     # user didn't specify. autodetect
@@ -144,7 +149,7 @@ def plotFromDataFile():
       args.xaxisscale = 'log10'
     else: # small numbers on x-axis
       args.xaxisscale = 'linear'
-  
+
   if args.yaxisscale == None:
     args.yaxisscale = 'linear'
 
@@ -174,15 +179,15 @@ def plotFromDataFile():
     print 'ERROR: invalid value for x-axis scale'
     quit()
 
-  
+
   plots = set(getattr(row, multiplePlots) for row in data)
-  
+
   class DataForOnePlot:
     def __init__(self, inlabel, inxdata, inydata):
       self.label = inlabel
       self.xdata = inxdata
       self.ydata = inydata
-  
+
   dataForAllPlots=[]
   for plot in plots:
     dataForThisPlot = itertools.ifilter( lambda x: getattr(x, multiplePlots) == plot, data)
@@ -193,7 +198,7 @@ def plotFromDataFile():
       xdata = [getattr(row, args.graphxaxis) for row in dataForThisPlot]
     ydata = [getattr(row, args.graphyaxis) for row in dataForThisPlot]
     dataForAllPlots.append(DataForOnePlot(plot,xdata,ydata))
-  
+
   """
   assemble labels for the graph or use the user-specified ones
   """
@@ -203,7 +208,7 @@ def plotFromDataFile():
   else:
     # autogen a lovely title
     title = 'Performance vs. ' + args.graphxaxis.capitalize()
-  
+
   if args.xaxislabel:
     # use the user selection
     xaxislabel = args.xaxislabel
@@ -213,9 +218,9 @@ def plotFromDataFile():
       units = '(bytes)'
     else:
       units = '(datapoints)'
-  
+
     xaxislabel = args.graphxaxis + ' ' + units
-  
+
   if args.yaxislabel:
     # use the user selection
     yaxislabel = args.yaxislabel
@@ -224,7 +229,7 @@ def plotFromDataFile():
     if args.graphyaxis == 'gflops':
       units = 'GFLOPS'
     yaxislabel = 'Performance (' + units + ')'
-  
+
   """
   display a pretty graph
   """
@@ -235,15 +240,15 @@ def plotFromDataFile():
   #for thisPlot in sorted(dataForAllPlots,key=getkey):
   for thisPlot in sorted(dataForAllPlots,key=getkey):
     getattr(pylab, plottype)(thisPlot.xdata, thisPlot.ydata, '{}.-'.format(colors.pop()), label=thisPlot.label, **plotkwargs)
-  
+
   if len(dataForAllPlots) > 1:
     pylab.legend(loc='best')
-  
+
   pylab.title(title)
   pylab.xlabel(xaxislabel)
   pylab.ylabel(yaxislabel)
   pylab.grid(True)
-  
+
   if args.outputFilename == None:
     # if no pdf output is requested, spit the graph to the screen . . .
     pylab.show()
