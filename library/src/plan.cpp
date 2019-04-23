@@ -108,11 +108,15 @@ rocfft_status rocfft_plan_description_destroy( rocfft_plan_description descripti
 }
 
 
-rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
-                                        rocfft_result_placement placement,
-                                        rocfft_transform_type transform_type, rocfft_precision precision,
-                                        size_t dimensions, const size_t *lengths, size_t number_of_transforms,
-                                        const rocfft_plan_description description )
+rocfft_status rocfft_plan_create_internal(  rocfft_plan                    plan,
+                                            rocfft_result_placement        placement,
+                                            rocfft_transform_type          transform_type,
+                                            rocfft_precision               precision,
+                                            size_t                         dimensions,
+                                            const size_t                  *lengths,
+                                            size_t                         number_of_transforms,
+                                            const rocfft_plan_description  description,
+                                            bool                           dry_run )
 {
     // Initialize plan's parameters, no computation
     if(description != nullptr)
@@ -349,9 +353,11 @@ rocfft_status rocfft_plan_create_internal(       rocfft_plan plan,
         printf("This size %zu is not supported in rocFFT, will return;\n", prodLength);
         return rocfft_status_invalid_dimensions;
     }*/
-    Repo &repo = Repo::GetRepo();
-    repo.CreatePlan(p);//add this plan into repo, incurs computation, see repo.cpp
-
+    if (!dry_run)
+    {
+        Repo &repo = Repo::GetRepo();
+        repo.CreatePlan(p);//add this plan into repo, incurs computation, see repo.cpp
+    }
     return rocfft_status_success;
 }
 
@@ -399,7 +405,7 @@ rocfft_status rocfft_plan_create(       rocfft_plan *plan,
 
     log_bench(ss.str());
 
-    return rocfft_plan_create_internal(*plan, placement, transform_type, precision, dimensions, lengths, number_of_transforms, description);
+    return rocfft_plan_create_internal(*plan, placement, transform_type, precision, dimensions, lengths, number_of_transforms, description, false);
 }
 
 rocfft_status rocfft_plan_destroy( rocfft_plan plan )

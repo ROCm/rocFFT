@@ -107,7 +107,8 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle plan,
                                      hipfftType type,
                                      size_t number_of_transforms,
                                      rocfft_plan_description desc,
-                                     size_t *workSize)
+                                     size_t *workSize,
+                                     bool dry_run)
 {
     size_t workBufferSize = 0;
 
@@ -118,46 +119,46 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle plan,
                                             rocfft_placement_inplace,
                                             rocfft_transform_type_real_forward,
                                             rocfft_precision_single,
-                                            dim, lengths, number_of_transforms, desc));
+                                            dim, lengths, number_of_transforms, desc, dry_run));
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->op_forward,
                                             rocfft_placement_notinplace,
                                             rocfft_transform_type_real_forward,
                                             rocfft_precision_single,
-                                            dim, lengths, number_of_transforms, desc));
+                                            dim, lengths, number_of_transforms, desc, dry_run));
             break;
         case HIPFFT_C2R:
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->ip_inverse,
                                             rocfft_placement_inplace,
                                             rocfft_transform_type_real_inverse,
                                             rocfft_precision_single,
-                                            dim, lengths, number_of_transforms, desc));
+                                            dim, lengths, number_of_transforms, desc, dry_run));
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->op_inverse,
                                             rocfft_placement_notinplace,
                                             rocfft_transform_type_real_inverse,
                                             rocfft_precision_single,
-                                            dim, lengths, number_of_transforms, desc));
+                                            dim, lengths, number_of_transforms, desc, dry_run));
             break;
         case HIPFFT_C2C:
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->ip_forward,
                                             rocfft_placement_inplace,
                                             rocfft_transform_type_complex_forward,
                                             rocfft_precision_single,
-                                            dim, lengths, number_of_transforms, desc));
+                                            dim, lengths, number_of_transforms, desc, dry_run));
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->op_forward,
                                             rocfft_placement_notinplace,
                                             rocfft_transform_type_complex_forward,
                                             rocfft_precision_single,
-                                            dim, lengths, number_of_transforms, desc));
+                                            dim, lengths, number_of_transforms, desc, dry_run));
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->ip_inverse,
                                             rocfft_placement_inplace,
                                             rocfft_transform_type_complex_inverse,
                                             rocfft_precision_single,
-                                            dim, lengths, number_of_transforms, desc));
+                                            dim, lengths, number_of_transforms, desc, dry_run));
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->op_inverse,
                                             rocfft_placement_notinplace,
                                             rocfft_transform_type_complex_inverse,
                                             rocfft_precision_single,
-                                            dim, lengths, number_of_transforms, desc));
+                                            dim, lengths, number_of_transforms, desc, dry_run));
             break;
 
         case HIPFFT_D2Z:
@@ -165,46 +166,46 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle plan,
                                             rocfft_placement_inplace,
                                             rocfft_transform_type_real_forward,
                                             rocfft_precision_double,
-                                            dim, lengths, number_of_transforms, desc));
+                                            dim, lengths, number_of_transforms, desc, dry_run));
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->op_forward,
                                             rocfft_placement_notinplace,
                                             rocfft_transform_type_real_forward,
                                             rocfft_precision_double,
-                                            dim, lengths, number_of_transforms, desc));
+                                            dim, lengths, number_of_transforms, desc, dry_run));
             break;
         case HIPFFT_Z2D:
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->ip_inverse,
                                            rocfft_placement_inplace,
                                            rocfft_transform_type_real_inverse,
                                            rocfft_precision_double,
-                                           dim, lengths, number_of_transforms, desc));
+                                           dim, lengths, number_of_transforms, desc, dry_run));
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->op_inverse,
                                            rocfft_placement_notinplace,
                                            rocfft_transform_type_real_inverse,
                                            rocfft_precision_double,
-                                           dim, lengths, number_of_transforms, desc));
+                                           dim, lengths, number_of_transforms, desc, dry_run));
             break;
         case HIPFFT_Z2Z:
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->ip_forward,
                                            rocfft_placement_inplace,
                                            rocfft_transform_type_complex_forward,
                                            rocfft_precision_double,
-                                           dim, lengths, number_of_transforms, desc));
+                                           dim, lengths, number_of_transforms, desc, dry_run));
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->op_forward,
                                            rocfft_placement_notinplace,
                                            rocfft_transform_type_complex_forward,
                                            rocfft_precision_double,
-                                           dim, lengths, number_of_transforms, desc));
+                                           dim, lengths, number_of_transforms, desc, dry_run));
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->ip_inverse,
                                            rocfft_placement_inplace,
                                            rocfft_transform_type_complex_inverse,
                                            rocfft_precision_double,
-                                           dim, lengths, number_of_transforms, desc));
+                                           dim, lengths, number_of_transforms, desc, dry_run));
             ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->op_inverse,
                                            rocfft_placement_notinplace,
                                            rocfft_transform_type_complex_inverse,
                                            rocfft_precision_double,
-                                           dim, lengths, number_of_transforms, desc));
+                                           dim, lengths, number_of_transforms, desc, dry_run));
             break;
         default:
             assert(false);
@@ -236,7 +237,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle plan,
     {
         if(plan->workBuffer)
             if(hipFree(plan->workBuffer) != HIP_SUCCESS)
-               return HIPFFT_ALLOC_FAILED; 
+               return HIPFFT_ALLOC_FAILED;
         if(hipMalloc(&plan->workBuffer, workBufferSize) != HIP_SUCCESS)
             return HIPFFT_ALLOC_FAILED;
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_execution_info_set_work_buffer(plan->info, plan->workBuffer, workBufferSize));
@@ -270,7 +271,7 @@ hipfftResult hipfftMakePlan1d(hipfftHandle plan,
     size_t number_of_transforms = batch;
     rocfft_plan_description desc = nullptr;
 
-    return hipfftMakePlan_internal(plan, 1, lengths, type, number_of_transforms, desc, workSize);
+    return hipfftMakePlan_internal(plan, 1, lengths, type, number_of_transforms, desc, workSize, false);
 }
 
 /*! \brief Assume hipfftCreate has been called. Creates a 2D FFT plan configuration according to the sizes and data type.
@@ -292,7 +293,7 @@ hipfftResult hipfftMakePlan2d(hipfftHandle plan,
     size_t number_of_transforms = 1;
     rocfft_plan_description desc = nullptr;
 
-    return hipfftMakePlan_internal(plan, 2, lengths, type, number_of_transforms, desc, workSize);
+    return hipfftMakePlan_internal(plan, 2, lengths, type, number_of_transforms, desc, workSize, false);
 }
 
 /*! \brief Assume hipfftCreate has been called. Creates a 3D FFT plan configuration according to the sizes and data type.
@@ -315,7 +316,7 @@ hipfftResult hipfftMakePlan3d(hipfftHandle plan,
     size_t number_of_transforms = 1;
     rocfft_plan_description desc = nullptr;
 
-    return hipfftMakePlan_internal(plan, 3, lengths, type, number_of_transforms, desc, workSize);
+    return hipfftMakePlan_internal(plan, 3, lengths, type, number_of_transforms, desc, workSize, false);
 }
 
 /*! \brief
@@ -330,7 +331,7 @@ hipfftResult hipfftMakePlan3d(hipfftHandle plan,
 
     n 	    Array of size rank, describing the size of each dimension, n[0] being the size of the outermost and n[rank-1] innermost (contiguous) dimension of a transform.
 
-    inembed 	Define the number of elements in each dimension the output array.
+    inembed 	Define the number of elements in each dimension the input array.
                 Pointer of size rank that indicates the storage dimensions of the input data in memory.
                 If set to NULL all other advanced data layout parameters are ignored.
 
@@ -349,13 +350,13 @@ hipfftResult hipfftMakePlan3d(hipfftHandle plan,
     batch 	    number of transforms
  */
 hipfftResult hipfftMakePlanMany(hipfftHandle plan,
-                                       int rank,
-                                       int *n,
-                                       int *inembed, int istride, int idist,
-                                       int *onembed, int ostride, int odist,
-                                       hipfftType type,
-                                       int batch,
-                                       size_t *workSize)
+                                int rank,
+                                int *n,
+                                int *inembed, int istride, int idist,
+                                int *onembed, int ostride, int odist,
+                                hipfftType type,
+                                int batch,
+                                size_t *workSize)
 {
 
     size_t lengths[3];
@@ -374,12 +375,14 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
         size_t i_strides[3] = {1,1,1};
         size_t o_strides[3] = {1,1,1};
 
-        // todo: following logic only for complex-to-complex, todo real
-        if(inembed == nullptr)
+        // pre-fetch the default params in case one of inembed and onembed
+        // is NULL
+        hipfftMakePlan_internal(plan, rank, lengths, type, number_of_transforms, nullptr, workSize, true);
+
+        if(inembed == nullptr) //restore the default strides
         {
             for(size_t i=1; i<rank; i++)
-                i_strides[i] = lengths[i-1]*i_strides[i-1];
-
+                i_strides[i] = plan->ip_forward->desc.inStrides[i];
         }
         else
         {
@@ -393,11 +396,10 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
                 i_strides[i] = inembed_lengths[i-1]*i_strides[i-1];
         }
 
-        if(onembed == nullptr)
+        if(onembed == nullptr) //restore the default strides
         {
             for(size_t i=1; i<rank; i++)
-                o_strides[i] = lengths[i-1]*o_strides[i-1];
-
+                o_strides[i] = plan->ip_forward->desc.outStrides[i];
         }
         else
         {
@@ -444,7 +446,7 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
     }
 
 
-    hipfftResult ret = hipfftMakePlan_internal(plan, rank, lengths, type, number_of_transforms, desc, workSize);
+    hipfftResult ret = hipfftMakePlan_internal(plan, rank, lengths, type, number_of_transforms, desc, workSize, false);
 
     ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_description_destroy(desc));
 
