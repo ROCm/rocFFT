@@ -28,6 +28,19 @@ import datetime
 
 from timeit import default_timer as timer
 
+#Todo:
+#  -- implement full test suite
+#  -- update short test suite
+#  -- add option to run with float of double
+#  -- timeout for plotting
+#  -- configure test suite with YAML or json
+
+FULL_SUITE_FLOAT_TEST_NUM=9
+FULL_SUITE_DOUBLE_TEST_NUM=9
+
+SHORT_SUITE_FLOAT_TEST_NUM=7
+SHORT_SUITE_DOUBLE_TEST_NUM=5
+
 def load_short_test_suite(measure_cmd, table_file_list, ref_file_list, append_options):
 
     file_list = []
@@ -36,7 +49,7 @@ def load_short_test_suite(measure_cmd, table_file_list, ref_file_list, append_op
             file_list.append(" --tablefile " + f)
     else:
         for i in range(len(table_file_list)):
-            file_list.append(" --tablefile " + table_file_list[i] + " --ref_file "+ ref_file_list[i])
+            file_list.append(" --tablefile " + table_file_list[i] + " --ref-file "+ ref_file_list[i])
 
     subprocess.check_call(measure_cmd + " -x 2-16777216                     -b adapt -prime_factor 2                          " + file_list[ 0] + append_options, shell=True)
     subprocess.check_call(measure_cmd + " -x 2-4096      -y 2-4096          -b adapt -prime_factor 2                          " + file_list[ 1] + append_options, shell=True)
@@ -56,7 +69,7 @@ def load_short_test_suite(measure_cmd, table_file_list, ref_file_list, append_op
     subprocess.check_call(measure_cmd + " -x 256-4194304                    -b 50    -prime_factor 2 -r double -i 2 -o 3      " + file_list[12] + append_options, shell=True) # TODO: test with "-b adapt" after fixing real fft
 
 
-def plot_short_test_suite(plot_cmd, table_file_list, ref_file_list):
+def plot_test_suite(plot_cmd, table_file_list, ref_file_list):
 
     append_options = " -x x -y gflops "
 
@@ -74,23 +87,23 @@ def plot_short_test_suite(plot_cmd, table_file_list, ref_file_list):
 parser = argparse.ArgumentParser(description='rocFFT performance test suite')
 parser.add_argument('-d', '--device',
     dest='device', default='0',
-    help='device(s) to run on; may be a comma-delimited list. choices are (default gpu)')
+    help='device(s) to run on; may be a comma-delimited list.')
 parser.add_argument('-t', '--type',
     dest='type', default='full',
     help='run tests with full or short suite(default full)')
-parser.add_argument('-r', '--ref_dir',
+parser.add_argument('-r', '--ref-dir',
     dest='ref_dir', default='./',
     help='specify the reference results dirctory(default ./)')
-parser.add_argument('-w', '--work_dir',
+parser.add_argument('-w', '--work-dir',
     dest='work_dir', default='./',
     help='specify the current working results dirctory(default ./)')
-parser.add_argument('-g', '--gen_ref', action="store_true", help='generate reference')
+parser.add_argument('-g', '--gen-ref', action="store_true", help='generate reference')
 parser.add_argument('-p', '--plot', action="store_true", help='plot the results to png')
 parser.add_argument('-m','--mute', action="store_true", help='no print')
-parser.add_argument('--client_prefix',
+parser.add_argument('--client-prefix',
     dest='client_prefix', default='./',
     help='Path where the library client is located (default current directory)')
- 
+
 args = parser.parse_args()
 
 elapsed_time = timer()
@@ -138,13 +151,13 @@ else:
 
     label = " --label short "
 
-append_options += label + ' --client_prefix ' + args.client_prefix
+append_options += label + ' --client-prefix ' + args.client_prefix
 if args.mute:
     append_options += ' --mute '
 
 load_short_test_suite(measure_cmd, table_file_list, ref_file_list, append_options)
 if args.plot:
-    plot_short_test_suite(plot_cmd, table_file_list, ref_file_list)
+    plot_test_suite(plot_cmd, table_file_list, ref_file_list)
 
 elapsed_time = timer() - elapsed_time
 

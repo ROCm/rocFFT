@@ -99,17 +99,17 @@ parser.add_argument('-r', '--precision',
 parser.add_argument('--label',
     dest='label', default=None,
     help='a label to be associated with all transforms performed in this run. if LABEL includes any spaces, it must be in \"double quotes\". note that the label is not saved to an .ini file. e.g., --label cayman may indicate that a test was performed on a cayman card or --label \"Windows 32\" may indicate that the test was performed on Windows 32')
-parser.add_argument('--ref_file',
+parser.add_argument('--ref-file',
     dest='refFilename', default=None,
     help='The reference results file to compare with.')
-parser.add_argument('--ref_tol',
+parser.add_argument('--ref-tol',
     dest='refTol', default='0.05',
     help='The reference gflops tolerance, default 5%%.')
 parser.add_argument('--tablefile',
     dest='tableOutputFilename', default=None,
     help='save the results to a plaintext table with the file name indicated. this can be used with plotPerformance.py to generate graphs of the data (default: table prints to screen)')
 parser.add_argument('--mute', action="store_true", help='no print')
-parser.add_argument('--client_prefix',
+parser.add_argument('--client-prefix',
     dest='client_prefix', default='./',
     help='Path where the library client is located (default current directory)')
 parser.add_argument('--rerun',
@@ -171,7 +171,7 @@ args.library = 'rocFFT'
 
 if args.tableOutputFilename != None and args.refFilename != None:
     if args.tableOutputFilename == args.refFilename:
-        printLog('ERROR: tablefile and ref_file are the same.')
+        printLog('ERROR: tablefile and ref-file are the same.')
         quit()
 
 printLog('Executing measure performance for label: '+str(label))
