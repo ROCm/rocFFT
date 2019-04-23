@@ -71,6 +71,7 @@ rocfft_status rocfft_setup()
 {
     // set layer_mode from value of environment variable ROCFFT_LAYER
     auto str_layer_mode = getenv("ROCFFT_LAYER");
+
     if(str_layer_mode)
     {
         rocfft_layer_mode layer_mode = static_cast<rocfft_layer_mode>(strtol(str_layer_mode, 0, 0));
