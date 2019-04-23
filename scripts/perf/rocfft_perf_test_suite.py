@@ -31,8 +31,9 @@ from timeit import default_timer as timer
 #Todo:
 #  -- implement full test suite
 #  -- update short test suite
-#  -- add option to run with float of double
+#  -- add option to run with float or double
 #  -- timeout for plotting
+#  -- add re-plot option
 #  -- configure test suite with YAML or json
 
 FULL_SUITE_FLOAT_TEST_NUM=9
