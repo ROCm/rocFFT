@@ -3,15 +3,15 @@
  * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
  ******************************************************************************/
 
-
 #ifndef TREE_NODE_H
 #define TREE_NODE_H
 
 #include <cstring>
+#include <iostream>
 #include <vector>
 
-#include "twiddles.h"
 #include "kargs.h"
+#include "twiddles.h"
 
 enum OperatingBuffer
 {
@@ -68,83 +68,91 @@ enum TransTileDir
     TTD_IP_VER,
 };
 
-
-
 class TreeNode
 {
 private:
     // disallow public creation
-    TreeNode(TreeNode *p) : parent(p), scheme(CS_NONE), obIn(OB_UNINIT), obOut(OB_UNINIT), large1D(0),
-                lengthBlue(0), iOffset(0), oOffset(0),
-                transTileDir(TTD_IP_HOR), twiddles(nullptr), twiddles_large(nullptr), devKernArg(nullptr)
+    TreeNode(TreeNode* p)
+        : parent(p)
+        , scheme(CS_NONE)
+        , obIn(OB_UNINIT)
+        , obOut(OB_UNINIT)
+        , large1D(0)
+        , lengthBlue(0)
+        , iOffset(0)
+        , oOffset(0)
+        , transTileDir(TTD_IP_HOR)
+        , twiddles(nullptr)
+        , twiddles_large(nullptr)
+        , devKernArg(nullptr)
     {
         if(p != nullptr)
         {
             precision = p->precision;
-            batch = p->batch;
+            batch     = p->batch;
             direction = p->direction;
         }
     }
 
 public:
-    size_t                      batch;
+    size_t batch;
 
-    // transform dimension - note this can be different from data dimension, user provided
-    size_t                      dimension;
+    // transform dimension - note this can be different from data dimension, user
+    // provided
+    size_t dimension;
 
     // length of the FFT in each dimension, internal value
-    std::vector< size_t >       length;
+    std::vector<size_t> length;
 
     // stride of the FFT in each dimension
-    std::vector< size_t >       inStride, outStride;
+    std::vector<size_t> inStride, outStride;
 
     // distance between consecutive batch members
-    size_t                      iDist, oDist;
+    size_t iDist, oDist;
 
-    int                         direction;
-    rocfft_result_placement     placement;
-    rocfft_precision            precision;
-    rocfft_array_type           inArrayType, outArrayType;
+    int                     direction;
+    rocfft_result_placement placement;
+    rocfft_precision        precision;
+    rocfft_array_type       inArrayType, outArrayType;
 
     // extra twiddle multiplication for large 1D
-    size_t                      large1D;
+    size_t large1D;
 
-    TreeNode                    *parent;
-    std::vector<TreeNode *>     childNodes;
+    TreeNode*              parent;
+    std::vector<TreeNode*> childNodes;
 
-    ComputeScheme               scheme;
-    OperatingBuffer             obIn, obOut;
+    ComputeScheme   scheme;
+    OperatingBuffer obIn, obOut;
 
-    TransTileDir                transTileDir;
+    TransTileDir transTileDir;
 
-    size_t                      lengthBlue;
-    size_t                      iOffset, oOffset;
+    size_t lengthBlue;
+    size_t iOffset, oOffset;
 
     // these are device pointers
-    void        *twiddles;
-    void        *twiddles_large;
-    size_t      *devKernArg;
-
+    void*   twiddles;
+    void*   twiddles_large;
+    size_t* devKernArg;
 
 public:
-
-    TreeNode(const TreeNode &) = delete;            // disallow copy constructor
-    TreeNode& operator=(const TreeNode&) = delete;    // disallow assignment operator
+    TreeNode(const TreeNode&) = delete; // disallow copy constructor
+    TreeNode& operator=(const TreeNode&) = delete; // disallow assignment operator
 
     // create node (user level) using this function
-    static TreeNode* CreateNode(TreeNode *parentNode = nullptr)
+    static TreeNode* CreateNode(TreeNode* parentNode = nullptr)
     {
         return new TreeNode(parentNode);
     }
 
     // destroy node by calling this function
-    static void DeleteNode(TreeNode *node)
+    static void DeleteNode(TreeNode* node)
     {
         if(!node)
             return;
 
-        std::vector<TreeNode *>::iterator children_p;
-        for (children_p = node->childNodes.begin(); children_p != node->childNodes.end(); children_p++)
+        std::vector<TreeNode*>::iterator children_p;
+        for(children_p = node->childNodes.begin(); children_p != node->childNodes.end();
+            children_p++)
             DeleteNode(*children_p); // recursively delete allocated nodes
 
         if(node->twiddles)
@@ -169,52 +177,66 @@ public:
     }
 
     void RecursiveBuildTree();
-    void TraverseTreeAssignBuffersLogicA(OperatingBuffer &flipIn, OperatingBuffer &flipOut, OperatingBuffer &obOutBuf);
+    void TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
+                                         OperatingBuffer& flipOut,
+                                         OperatingBuffer& obOutBuf);
     void TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn, rocfft_array_type rootOut);
     void TraverseTreeAssignParamsLogicA();
-    void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode *> &seq, size_t &tmpBufSize, size_t &cmplxForRealSize, size_t &blueSize, size_t &chirpSize);
+    void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode*>& seq,
+                                        size_t&                 tmpBufSize,
+                                        size_t&                 cmplxForRealSize,
+                                        size_t&                 blueSize,
+                                        size_t&                 chirpSize);
     void Print(std::ostream& os = std::cout, int indent = 0) const;
 
     // logic B - using in-place transposes, todo
     void RecursiveBuildTreeLogicB();
 };
 
-
-extern "C"
-{
-typedef void (*DevFnCall)(const void *, void *);
+extern "C" {
+typedef void (*DevFnCall)(const void*, void*);
 }
-
 
 struct GridParam
 {
-    unsigned int b_x, b_y, b_z;//in HIP, the data type of dimensions of work items, work groups is unsigned int
+    unsigned int b_x, b_y, b_z; // in HIP, the data type of dimensions of work
+    // items, work groups is unsigned int
     unsigned int tpb_x, tpb_y, tpb_z;
 
-    GridParam() : b_x(1), b_y(1), b_z(1), tpb_x(1), tpb_y(1), tpb_z(1)
-    {}
+    GridParam()
+        : b_x(1)
+        , b_y(1)
+        , b_z(1)
+        , tpb_x(1)
+        , tpb_y(1)
+        , tpb_z(1)
+    {
+    }
 };
 
 struct ExecPlan
 {
-    TreeNode *rootPlan;
-    std::vector<TreeNode *> execSeq;
+    TreeNode*              rootPlan;
+    std::vector<TreeNode*> execSeq;
     std::vector<DevFnCall> devFnCall;
     std::vector<GridParam> gridParam;
-    size_t workBufSize;
-    size_t tmpWorkBufSize;
-    size_t copyWorkBufSize;
-    size_t blueWorkBufSize;
-    size_t chirpWorkBufSize;
+    size_t                 workBufSize;
+    size_t                 tmpWorkBufSize;
+    size_t                 copyWorkBufSize;
+    size_t                 blueWorkBufSize;
+    size_t                 chirpWorkBufSize;
 
-    ExecPlan() : rootPlan(nullptr), workBufSize(0), tmpWorkBufSize(0), copyWorkBufSize(0), blueWorkBufSize(0)
-    {}
+    ExecPlan()
+        : rootPlan(nullptr)
+        , workBufSize(0)
+        , tmpWorkBufSize(0)
+        , copyWorkBufSize(0)
+        , blueWorkBufSize(0)
+    {
+    }
 };
 
-
-
-void ProcessNode(ExecPlan &execPlan);
-void PrintNode(std::ostream &os, const ExecPlan &execPlan);
-
+void ProcessNode(ExecPlan& execPlan);
+void PrintNode(std::ostream& os, const ExecPlan& execPlan);
 
 #endif // TREE_NODE_H
