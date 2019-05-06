@@ -3,579 +3,612 @@
  ******************************************************************************/
 
 #pragma once
-#if !defined( _generator_butterfly_H )
+#if !defined(_generator_butterfly_H)
 #define _generator_butterfly_H
 #include "generator.stockham.h"
-
 
 namespace StockhamGenerator
 {
 
-	// FFT butterfly generator
+    // FFT butterfly generator
     template <rocfft_precision PR>
     class Butterfly
     {
-		size_t radix;		// Base radix
-        size_t count;       // Number of basic butterflies, valid values: 1,2,4
-		bool fwd;			// FFT direction
-		bool cReg;			// registers are complex numbers, .x (real), .y(imag)
+        size_t radix; // Base radix
+        size_t count; // Number of basic butterflies, valid values: 1,2,4
+        bool   fwd; // FFT direction
+        bool   cReg; // registers are complex numbers, .x (real), .y(imag)
 
-		size_t BitReverse (size_t n, size_t N) const
-		{
-			return (N < 2) ? n : (BitReverse (n >> 1, N >> 1) | ((n & 1) != 0 ? (N >> 1) : 0));
-		}
+        size_t BitReverse(size_t n, size_t N) const
+        {
+            return (N < 2) ? n : (BitReverse(n >> 1, N >> 1) | ((n & 1) != 0 ? (N >> 1) : 0));
+        }
 
-		void GenerateButterflyStr(std::string &bflyStr) const
-		{
-			std::string regType = cReg ? RegBaseType<PR>(2) : RegBaseType<PR>(count);
+        void GenerateButterflyStr(std::string& bflyStr) const
+        {
+            std::string regType = cReg ? RegBaseType<PR>(2) : RegBaseType<PR>(count);
 
-			// Function attribute
+            // Function attribute
             bflyStr += "template <typename T>\n";
-			bflyStr += "__device__ void \n";
-
-			// Function name
-			bflyStr += ButterflyName(radix, count, fwd);
-
-			// Function Arguments
-			bflyStr += "(";
-			for(size_t i=0;;i++)
-			{
-				if(cReg)
-				{
-					bflyStr += regType; bflyStr += " *R";
-					if(radix & (radix-1))	bflyStr += std::to_string(i);
-					else					bflyStr += std::to_string(BitReverse(i,radix));
-				}
-				else
-				{
-					bflyStr += regType; bflyStr += " *R"; bflyStr += std::to_string(i); bflyStr += ", ";	// real arguments
-					bflyStr += regType; bflyStr += " *I"; bflyStr += std::to_string(i);					// imaginary arguments
-				}
-
-				if(i == radix-1)
-				{
-					bflyStr += ")";
-					break;
-				}
-				else
-				{
-					bflyStr += ", ";
-				}
-			}
-
-			bflyStr += "\n{\n\n";
-
-
-			// Temporary variables
-			// Allocate temporary variables if we are not using complex registers (cReg = 0) or if cReg is true, then
-			// allocate temporary variables only for non power-of-2 radices
-			if (!( (radix == 7 && cReg) || (radix == 11 && cReg) || (radix == 13 && cReg) ))
-			{
-			    if( (radix & (radix-1)) || (!cReg) )
-			    {
-				    bflyStr += "\t";
-				    if(cReg)
-					    bflyStr += RegBaseType<PR>(1);
-				    else
-					    bflyStr += regType;
-
-				    for(size_t i=0;;i++)
-				    {
-					    bflyStr += " TR"; bflyStr += std::to_string(i); bflyStr += ",";	// real arguments
-					    bflyStr += " TI"; bflyStr += std::to_string(i);					// imaginary arguments
-
-					    if(i == radix-1)
-					    {
-						    bflyStr += ";";
-						    break;
-					    }
-					    else
-					    {
-						    bflyStr += ",";
-					    }
-				    }
-			    }
-			    else
-			    {
-				bflyStr += "\t";
-				bflyStr += RegBaseType<PR>(2);
-				bflyStr += " T;";
-				}
-			}
-
-
-			bflyStr += "\n\n\t";
-
-			// Butterfly for different radices
-			switch(radix)
-			{
-			case 2:
-				{
-					if(cReg)
-					{
-						bflyStr +=
-						"(*R1) = (*R0) - (*R1);\n\t"
-						"(*R0) = 2.0f * (*R0) - (*R1);\n\t";
-					}
-					else
-					{
-						bflyStr +=
-						"TR0 = (*R0) + (*R1);\n\t"
-						"TI0 = (*I0) + (*I1);\n\t"
-						"TR1 = (*R0) - (*R1);\n\t"
-						"TI1 = (*I0) - (*I1);\n\t";
-					}
-
-				} break;
-			case 3:
-				{
-					if(fwd)
-					{
-						if(cReg)
-						{
-							bflyStr +=
-							"TR0 = (*R0).x + (*R1).x + (*R2).x;\n\t"
-							"TR1 = ((*R0).x - C3QA*((*R1).x + (*R2).x)) + C3QB*((*R1).y - (*R2).y);\n\t"
-							"TR2 = ((*R0).x - C3QA*((*R1).x + (*R2).x)) - C3QB*((*R1).y - (*R2).y);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = (*R0).y + (*R1).y + (*R2).y;\n\t"
-							"TI1 = ((*R0).y - C3QA*((*R1).y + (*R2).y)) - C3QB*((*R1).x - (*R2).x);\n\t"
-							"TI2 = ((*R0).y - C3QA*((*R1).y + (*R2).y)) + C3QB*((*R1).x - (*R2).x);\n\t";
-						}
-						else
-						{
-							bflyStr +=
-							"TR0 = *R0 + *R1 + *R2;\n\t"
-							"TR1 = (*R0 - C3QA*(*R1 + *R2)) + C3QB*(*I1 - *I2);\n\t"
-							"TR2 = (*R0 - C3QA*(*R1 + *R2)) - C3QB*(*I1 - *I2);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = *I0 + *I1 + *I2;\n\t"
-							"TI1 = (*I0 - C3QA*(*I1 + *I2)) - C3QB*(*R1 - *R2);\n\t"
-							"TI2 = (*I0 - C3QA*(*I1 + *I2)) + C3QB*(*R1 - *R2);\n\t";
-						}
-					}
-					else
-					{
-						if(cReg)
-						{
-							bflyStr +=
-							"TR0 = (*R0).x + (*R1).x + (*R2).x;\n\t"
-							"TR1 = ((*R0).x - C3QA*((*R1).x + (*R2).x)) - C3QB*((*R1).y - (*R2).y);\n\t"
-							"TR2 = ((*R0).x - C3QA*((*R1).x + (*R2).x)) + C3QB*((*R1).y - (*R2).y);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = (*R0).y + (*R1).y + (*R2).y;\n\t"
-							"TI1 = ((*R0).y - C3QA*((*R1).y + (*R2).y)) + C3QB*((*R1).x - (*R2).x);\n\t"
-							"TI2 = ((*R0).y - C3QA*((*R1).y + (*R2).y)) - C3QB*((*R1).x - (*R2).x);\n\t";
-						}
-						else
-						{
-							bflyStr +=
-							"TR0 = *R0 + *R1 + *R2;\n\t"
-							"TR1 = (*R0 - C3QA*(*R1 + *R2)) - C3QB*(*I1 - *I2);\n\t"
-							"TR2 = (*R0 - C3QA*(*R1 + *R2)) + C3QB*(*I1 - *I2);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = *I0 + *I1 + *I2;\n\t"
-							"TI1 = (*I0 - C3QA*(*I1 + *I2)) + C3QB*(*R1 - *R2);\n\t"
-							"TI2 = (*I0 - C3QA*(*I1 + *I2)) - C3QB*(*R1 - *R2);\n\t";
-						}
-					}
-				} break;
-			case 4:
-				{
-					if(fwd)
-					{
-						if(cReg)
-						{
-							bflyStr +=
-							"(*R1) = (*R0) - (*R1);\n\t"
-							"(*R0) = 2.0f * (*R0) - (*R1);\n\t"
-							"(*R3) = (*R2) - (*R3);\n\t"
-							"(*R2) = 2.0f * (*R2) - (*R3);\n\t"
-							"\n\t"
-							"(*R2) = (*R0) - (*R2);\n\t"
-							"(*R0) = 2.0f * (*R0) - (*R2);\n\t"
-							"(*R3) = (*R1) + (fvect2)(-(*R3).y, (*R3).x);\n\t"
-							"(*R1) = 2.0f * (*R1) - (*R3);\n\t";
-						}
-						else
-						{
-							bflyStr +=
-							"TR0 = (*R0) + (*R2) + (*R1) + (*R3);\n\t"
-							"TR1 = (*R0) - (*R2) + (*I1) - (*I3);\n\t"
-							"TR2 = (*R0) + (*R2) - (*R1) - (*R3);\n\t"
-							"TR3 = (*R0) - (*R2) - (*I1) + (*I3);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = (*I0) + (*I2) + (*I1) + (*I3);\n\t"
-							"TI1 = (*I0) - (*I2) - (*R1) + (*R3);\n\t"
-							"TI2 = (*I0) + (*I2) - (*I1) - (*I3);\n\t"
-							"TI3 = (*I0) - (*I2) + (*R1) - (*R3);\n\t";
-						}
-					}
-					else
-					{
-						if(cReg)
-						{
-							bflyStr +=
-							"(*R1) = (*R0) - (*R1);\n\t"
-							"(*R0) = 2.0f * (*R0) - (*R1);\n\t"
-							"(*R3) = (*R2) - (*R3);\n\t"
-							"(*R2) = 2.0f * (*R2) - (*R3);\n\t"
-							"\n\t"
-							"(*R2) = (*R0) - (*R2);\n\t"
-							"(*R0) = 2.0f * (*R0) - (*R2);\n\t"
-							"(*R3) = (*R1) + (fvect2)((*R3).y, -(*R3).x);\n\t"
-							"(*R1) = 2.0f * (*R1) - (*R3);\n\t";
-						}
-						else
-						{
-							bflyStr +=
-							"TR0 = (*R0) + (*R2) + (*R1) + (*R3);\n\t"
-							"TR1 = (*R0) - (*R2) - (*I1) + (*I3);\n\t"
-							"TR2 = (*R0) + (*R2) - (*R1) - (*R3);\n\t"
-							"TR3 = (*R0) - (*R2) + (*I1) - (*I3);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = (*I0) + (*I2) + (*I1) + (*I3);\n\t"
-							"TI1 = (*I0) - (*I2) + (*R1) - (*R3);\n\t"
-							"TI2 = (*I0) + (*I2) - (*I1) - (*I3);\n\t"
-							"TI3 = (*I0) - (*I2) - (*R1) + (*R3);\n\t";
-						}
-					}
-				} break;
-			case 5:
-				{
-					if(fwd)
-					{
-						if(cReg)
-						{
-							bflyStr +=
-							"TR0 = (*R0).x + (*R1).x + (*R2).x + (*R3).x + (*R4).x;\n\t"
-							"TR1 = ((*R0).x - C5QC*((*R2).x + (*R3).x)) + C5QB*((*R1).y - (*R4).y) + C5QD*((*R2).y - (*R3).y) + C5QA*(((*R1).x - (*R2).x) + ((*R4).x - (*R3).x));\n\t"
-							"TR4 = ((*R0).x - C5QC*((*R2).x + (*R3).x)) - C5QB*((*R1).y - (*R4).y) - C5QD*((*R2).y - (*R3).y) + C5QA*(((*R1).x - (*R2).x) + ((*R4).x - (*R3).x));\n\t"
-							"TR2 = ((*R0).x - C5QC*((*R1).x + (*R4).x)) - C5QB*((*R2).y - (*R3).y) + C5QD*((*R1).y - (*R4).y) + C5QA*(((*R2).x - (*R1).x) + ((*R3).x - (*R4).x));\n\t"
-							"TR3 = ((*R0).x - C5QC*((*R1).x + (*R4).x)) + C5QB*((*R2).y - (*R3).y) - C5QD*((*R1).y - (*R4).y) + C5QA*(((*R2).x - (*R1).x) + ((*R3).x - (*R4).x));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = (*R0).y + (*R1).y + (*R2).y + (*R3).y + (*R4).y;\n\t"
-							"TI1 = ((*R0).y - C5QC*((*R2).y + (*R3).y)) - C5QB*((*R1).x - (*R4).x) - C5QD*((*R2).x - (*R3).x) + C5QA*(((*R1).y - (*R2).y) + ((*R4).y - (*R3).y));\n\t"
-							"TI4 = ((*R0).y - C5QC*((*R2).y + (*R3).y)) + C5QB*((*R1).x - (*R4).x) + C5QD*((*R2).x - (*R3).x) + C5QA*(((*R1).y - (*R2).y) + ((*R4).y - (*R3).y));\n\t"
-							"TI2 = ((*R0).y - C5QC*((*R1).y + (*R4).y)) + C5QB*((*R2).x - (*R3).x) - C5QD*((*R1).x - (*R4).x) + C5QA*(((*R2).y - (*R1).y) + ((*R3).y - (*R4).y));\n\t"
-							"TI3 = ((*R0).y - C5QC*((*R1).y + (*R4).y)) - C5QB*((*R2).x - (*R3).x) + C5QD*((*R1).x - (*R4).x) + C5QA*(((*R2).y - (*R1).y) + ((*R3).y - (*R4).y));\n\t";
-						}
-						else
-						{
-							bflyStr +=
-							"TR0 = *R0 + *R1 + *R2 + *R3 + *R4;\n\t"
-							"TR1 = (*R0 - C5QC*(*R2 + *R3)) + C5QB*(*I1 - *I4) + C5QD*(*I2 - *I3) + C5QA*((*R1 - *R2) + (*R4 - *R3));\n\t"
-							"TR4 = (*R0 - C5QC*(*R2 + *R3)) - C5QB*(*I1 - *I4) - C5QD*(*I2 - *I3) + C5QA*((*R1 - *R2) + (*R4 - *R3));\n\t"
-							"TR2 = (*R0 - C5QC*(*R1 + *R4)) - C5QB*(*I2 - *I3) + C5QD*(*I1 - *I4) + C5QA*((*R2 - *R1) + (*R3 - *R4));\n\t"
-							"TR3 = (*R0 - C5QC*(*R1 + *R4)) + C5QB*(*I2 - *I3) - C5QD*(*I1 - *I4) + C5QA*((*R2 - *R1) + (*R3 - *R4));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = *I0 + *I1 + *I2 + *I3 + *I4;\n\t"
-							"TI1 = (*I0 - C5QC*(*I2 + *I3)) - C5QB*(*R1 - *R4) - C5QD*(*R2 - *R3) + C5QA*((*I1 - *I2) + (*I4 - *I3));\n\t"
-							"TI4 = (*I0 - C5QC*(*I2 + *I3)) + C5QB*(*R1 - *R4) + C5QD*(*R2 - *R3) + C5QA*((*I1 - *I2) + (*I4 - *I3));\n\t"
-							"TI2 = (*I0 - C5QC*(*I1 + *I4)) + C5QB*(*R2 - *R3) - C5QD*(*R1 - *R4) + C5QA*((*I2 - *I1) + (*I3 - *I4));\n\t"
-							"TI3 = (*I0 - C5QC*(*I1 + *I4)) - C5QB*(*R2 - *R3) + C5QD*(*R1 - *R4) + C5QA*((*I2 - *I1) + (*I3 - *I4));\n\t";
-						}
-					}
-					else
-					{
-						if(cReg)
-						{
-							bflyStr +=
-							"TR0 = (*R0).x + (*R1).x + (*R2).x + (*R3).x + (*R4).x;\n\t"
-							"TR1 = ((*R0).x - C5QC*((*R2).x + (*R3).x)) - C5QB*((*R1).y - (*R4).y) - C5QD*((*R2).y - (*R3).y) + C5QA*(((*R1).x - (*R2).x) + ((*R4).x - (*R3).x));\n\t"
-							"TR4 = ((*R0).x - C5QC*((*R2).x + (*R3).x)) + C5QB*((*R1).y - (*R4).y) + C5QD*((*R2).y - (*R3).y) + C5QA*(((*R1).x - (*R2).x) + ((*R4).x - (*R3).x));\n\t"
-							"TR2 = ((*R0).x - C5QC*((*R1).x + (*R4).x)) + C5QB*((*R2).y - (*R3).y) - C5QD*((*R1).y - (*R4).y) + C5QA*(((*R2).x - (*R1).x) + ((*R3).x - (*R4).x));\n\t"
-							"TR3 = ((*R0).x - C5QC*((*R1).x + (*R4).x)) - C5QB*((*R2).y - (*R3).y) + C5QD*((*R1).y - (*R4).y) + C5QA*(((*R2).x - (*R1).x) + ((*R3).x - (*R4).x));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = (*R0).y + (*R1).y + (*R2).y + (*R3).y + (*R4).y;\n\t"
-							"TI1 = ((*R0).y - C5QC*((*R2).y + (*R3).y)) + C5QB*((*R1).x - (*R4).x) + C5QD*((*R2).x - (*R3).x) + C5QA*(((*R1).y - (*R2).y) + ((*R4).y - (*R3).y));\n\t"
-							"TI4 = ((*R0).y - C5QC*((*R2).y + (*R3).y)) - C5QB*((*R1).x - (*R4).x) - C5QD*((*R2).x - (*R3).x) + C5QA*(((*R1).y - (*R2).y) + ((*R4).y - (*R3).y));\n\t"
-							"TI2 = ((*R0).y - C5QC*((*R1).y + (*R4).y)) - C5QB*((*R2).x - (*R3).x) + C5QD*((*R1).x - (*R4).x) + C5QA*(((*R2).y - (*R1).y) + ((*R3).y - (*R4).y));\n\t"
-							"TI3 = ((*R0).y - C5QC*((*R1).y + (*R4).y)) + C5QB*((*R2).x - (*R3).x) - C5QD*((*R1).x - (*R4).x) + C5QA*(((*R2).y - (*R1).y) + ((*R3).y - (*R4).y));\n\t";
-						}
-						else
-						{
-							bflyStr +=
-							"TR0 = *R0 + *R1 + *R2 + *R3 + *R4;\n\t"
-							"TR1 = (*R0 - C5QC*(*R2 + *R3)) - C5QB*(*I1 - *I4) - C5QD*(*I2 - *I3) + C5QA*((*R1 - *R2) + (*R4 - *R3));\n\t"
-							"TR4 = (*R0 - C5QC*(*R2 + *R3)) + C5QB*(*I1 - *I4) + C5QD*(*I2 - *I3) + C5QA*((*R1 - *R2) + (*R4 - *R3));\n\t"
-							"TR2 = (*R0 - C5QC*(*R1 + *R4)) + C5QB*(*I2 - *I3) - C5QD*(*I1 - *I4) + C5QA*((*R2 - *R1) + (*R3 - *R4));\n\t"
-							"TR3 = (*R0 - C5QC*(*R1 + *R4)) - C5QB*(*I2 - *I3) + C5QD*(*I1 - *I4) + C5QA*((*R2 - *R1) + (*R3 - *R4));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = *I0 + *I1 + *I2 + *I3 + *I4;\n\t"
-							"TI1 = (*I0 - C5QC*(*I2 + *I3)) + C5QB*(*R1 - *R4) + C5QD*(*R2 - *R3) + C5QA*((*I1 - *I2) + (*I4 - *I3));\n\t"
-							"TI4 = (*I0 - C5QC*(*I2 + *I3)) - C5QB*(*R1 - *R4) - C5QD*(*R2 - *R3) + C5QA*((*I1 - *I2) + (*I4 - *I3));\n\t"
-							"TI2 = (*I0 - C5QC*(*I1 + *I4)) - C5QB*(*R2 - *R3) + C5QD*(*R1 - *R4) + C5QA*((*I2 - *I1) + (*I3 - *I4));\n\t"
-							"TI3 = (*I0 - C5QC*(*I1 + *I4)) + C5QB*(*R2 - *R3) - C5QD*(*R1 - *R4) + C5QA*((*I2 - *I1) + (*I3 - *I4));\n\t";
-						}
-					}
-				} break;
-			case 6:
-				{
-					if(fwd)
-					{
-						if(cReg)
-						{
-							bflyStr +=
-							"TR0 = (*R0).x + (*R2).x + (*R4).x;\n\t"
-							"TR2 = ((*R0).x - C3QA*((*R2).x + (*R4).x)) + C3QB*((*R2).y - (*R4).y);\n\t"
-							"TR4 = ((*R0).x - C3QA*((*R2).x + (*R4).x)) - C3QB*((*R2).y - (*R4).y);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = (*R0).y + (*R2).y + (*R4).y;\n\t"
-							"TI2 = ((*R0).y - C3QA*((*R2).y + (*R4).y)) - C3QB*((*R2).x - (*R4).x);\n\t"
-							"TI4 = ((*R0).y - C3QA*((*R2).y + (*R4).y)) + C3QB*((*R2).x - (*R4).x);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TR1 = (*R1).x + (*R3).x + (*R5).x;\n\t"
-							"TR3 = ((*R1).x - C3QA*((*R3).x + (*R5).x)) + C3QB*((*R3).y - (*R5).y);\n\t"
-							"TR5 = ((*R1).x - C3QA*((*R3).x + (*R5).x)) - C3QB*((*R3).y - (*R5).y);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI1 = (*R1).y + (*R3).y + (*R5).y;\n\t"
-							"TI3 = ((*R1).y - C3QA*((*R3).y + (*R5).y)) - C3QB*((*R3).x - (*R5).x);\n\t"
-							"TI5 = ((*R1).y - C3QA*((*R3).y + (*R5).y)) + C3QB*((*R3).x - (*R5).x);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R0).x = TR0 + TR1;\n\t"
-							"(*R1).x = TR2 + ( C3QA*TR3 + C3QB*TI3);\n\t"
-							"(*R2).x = TR4 + (-C3QA*TR5 + C3QB*TI5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R0).y = TI0 + TI1;\n\t"
-							"(*R1).y = TI2 + (-C3QB*TR3 + C3QA*TI3);\n\t"
-							"(*R2).y = TI4 + (-C3QB*TR5 - C3QA*TI5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R3).x = TR0 - TR1;\n\t"
-							"(*R4).x = TR2 - ( C3QA*TR3 + C3QB*TI3);\n\t"
-							"(*R5).x = TR4 - (-C3QA*TR5 + C3QB*TI5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R3).y = TI0 - TI1;\n\t"
-							"(*R4).y = TI2 - (-C3QB*TR3 + C3QA*TI3);\n\t"
-							"(*R5).y = TI4 - (-C3QB*TR5 - C3QA*TI5);\n\t";
-						}
-						else
-						{
-							bflyStr +=
-							"TR0 = *R0 + *R2 + *R4;\n\t"
-							"TR2 = (*R0 - C3QA*(*R2 + *R4)) + C3QB*(*I2 - *I4);\n\t"
-							"TR4 = (*R0 - C3QA*(*R2 + *R4)) - C3QB*(*I2 - *I4);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = *I0 + *I2 + *I4;\n\t"
-							"TI2 = (*I0 - C3QA*(*I2 + *I4)) - C3QB*(*R2 - *R4);\n\t"
-							"TI4 = (*I0 - C3QA*(*I2 + *I4)) + C3QB*(*R2 - *R4);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TR1 = *R1 + *R3 + *R5;\n\t"
-							"TR3 = (*R1 - C3QA*(*R3 + *R5)) + C3QB*(*I3 - *I5);\n\t"
-							"TR5 = (*R1 - C3QA*(*R3 + *R5)) - C3QB*(*I3 - *I5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI1 = *I1 + *I3 + *I5;\n\t"
-							"TI3 = (*I1 - C3QA*(*I3 + *I5)) - C3QB*(*R3 - *R5);\n\t"
-							"TI5 = (*I1 - C3QA*(*I3 + *I5)) + C3QB*(*R3 - *R5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R0) = TR0 + TR1;\n\t"
-							"(*R1) = TR2 + ( C3QA*TR3 + C3QB*TI3);\n\t"
-							"(*R2) = TR4 + (-C3QA*TR5 + C3QB*TI5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*I0) = TI0 + TI1;\n\t"
-							"(*I1) = TI2 + (-C3QB*TR3 + C3QA*TI3);\n\t"
-							"(*I2) = TI4 + (-C3QB*TR5 - C3QA*TI5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R3) = TR0 - TR1;\n\t"
-							"(*R4) = TR2 - ( C3QA*TR3 + C3QB*TI3);\n\t"
-							"(*R5) = TR4 - (-C3QA*TR5 + C3QB*TI5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*I3) = TI0 - TI1;\n\t"
-							"(*I4) = TI2 - (-C3QB*TR3 + C3QA*TI3);\n\t"
-							"(*I5) = TI4 - (-C3QB*TR5 - C3QA*TI5);\n\t";
-						}
-					}
-					else
-					{
-						if(cReg)
-						{
-							bflyStr +=
-							"TR0 = (*R0).x + (*R2).x + (*R4).x;\n\t"
-							"TR2 = ((*R0).x - C3QA*((*R2).x + (*R4).x)) - C3QB*((*R2).y - (*R4).y);\n\t"
-							"TR4 = ((*R0).x - C3QA*((*R2).x + (*R4).x)) + C3QB*((*R2).y - (*R4).y);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = (*R0).y + (*R2).y + (*R4).y;\n\t"
-							"TI2 = ((*R0).y - C3QA*((*R2).y + (*R4).y)) + C3QB*((*R2).x - (*R4).x);\n\t"
-							"TI4 = ((*R0).y - C3QA*((*R2).y + (*R4).y)) - C3QB*((*R2).x - (*R4).x);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TR1 = (*R1).x + (*R3).x + (*R5).x;\n\t"
-							"TR3 = ((*R1).x - C3QA*((*R3).x + (*R5).x)) - C3QB*((*R3).y - (*R5).y);\n\t"
-							"TR5 = ((*R1).x - C3QA*((*R3).x + (*R5).x)) + C3QB*((*R3).y - (*R5).y);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI1 = (*R1).y + (*R3).y + (*R5).y;\n\t"
-							"TI3 = ((*R1).y - C3QA*((*R3).y + (*R5).y)) + C3QB*((*R3).x - (*R5).x);\n\t"
-							"TI5 = ((*R1).y - C3QA*((*R3).y + (*R5).y)) - C3QB*((*R3).x - (*R5).x);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R0).x = TR0 + TR1;\n\t"
-							"(*R1).x = TR2 + ( C3QA*TR3 - C3QB*TI3);\n\t"
-							"(*R2).x = TR4 + (-C3QA*TR5 - C3QB*TI5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R0).y = TI0 + TI1;\n\t"
-							"(*R1).y = TI2 + ( C3QB*TR3 + C3QA*TI3);\n\t"
-							"(*R2).y = TI4 + ( C3QB*TR5 - C3QA*TI5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R3).x = TR0 - TR1;\n\t"
-							"(*R4).x = TR2 - ( C3QA*TR3 - C3QB*TI3);\n\t"
-							"(*R5).x = TR4 - (-C3QA*TR5 - C3QB*TI5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R3).y = TI0 - TI1;\n\t"
-							"(*R4).y = TI2 - ( C3QB*TR3 + C3QA*TI3);\n\t"
-							"(*R5).y = TI4 - ( C3QB*TR5 - C3QA*TI5);\n\t";
-						}
-						else
-						{
-							bflyStr +=
-							"TR0 = *R0 + *R2 + *R4;\n\t"
-							"TR2 = (*R0 - C3QA*(*R2 + *R4)) - C3QB*(*I2 - *I4);\n\t"
-							"TR4 = (*R0 - C3QA*(*R2 + *R4)) + C3QB*(*I2 - *I4);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = *I0 + *I2 + *I4;\n\t"
-							"TI2 = (*I0 - C3QA*(*I2 + *I4)) + C3QB*(*R2 - *R4);\n\t"
-							"TI4 = (*I0 - C3QA*(*I2 + *I4)) - C3QB*(*R2 - *R4);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TR1 = *R1 + *R3 + *R5;\n\t"
-							"TR3 = (*R1 - C3QA*(*R3 + *R5)) - C3QB*(*I3 - *I5);\n\t"
-							"TR5 = (*R1 - C3QA*(*R3 + *R5)) + C3QB*(*I3 - *I5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI1 = *I1 + *I3 + *I5;\n\t"
-							"TI3 = (*I1 - C3QA*(*I3 + *I5)) + C3QB*(*R3 - *R5);\n\t"
-							"TI5 = (*I1 - C3QA*(*I3 + *I5)) - C3QB*(*R3 - *R5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R0) = TR0 + TR1;\n\t"
-							"(*R1) = TR2 + ( C3QA*TR3 - C3QB*TI3);\n\t"
-							"(*R2) = TR4 + (-C3QA*TR5 - C3QB*TI5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*I0) = TI0 + TI1;\n\t"
-							"(*I1) = TI2 + ( C3QB*TR3 + C3QA*TI3);\n\t"
-							"(*I2) = TI4 + ( C3QB*TR5 - C3QA*TI5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R3) = TR0 - TR1;\n\t"
-							"(*R4) = TR2 - ( C3QA*TR3 - C3QB*TI3);\n\t"
-							"(*R5) = TR4 - (-C3QA*TR5 - C3QB*TI5);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*I3) = TI0 - TI1;\n\t"
-							"(*I4) = TI2 - ( C3QB*TR3 + C3QA*TI3);\n\t"
-							"(*I5) = TI4 - ( C3QB*TR5 - C3QA*TI5);\n\t";
-						}
-					}
-				} break;
-			case 7:
-				{
-					static const char *C7SFR = "\
+            bflyStr += "__device__ void \n";
+
+            // Function name
+            bflyStr += ButterflyName(radix, count, fwd);
+
+            // Function Arguments
+            bflyStr += "(";
+            for(size_t i = 0;; i++)
+            {
+                if(cReg)
+                {
+                    bflyStr += regType;
+                    bflyStr += " *R";
+                    if(radix & (radix - 1))
+                        bflyStr += std::to_string(i);
+                    else
+                        bflyStr += std::to_string(BitReverse(i, radix));
+                }
+                else
+                {
+                    bflyStr += regType;
+                    bflyStr += " *R";
+                    bflyStr += std::to_string(i);
+                    bflyStr += ", "; // real arguments
+                    bflyStr += regType;
+                    bflyStr += " *I";
+                    bflyStr += std::to_string(i); // imaginary arguments
+                }
+
+                if(i == radix - 1)
+                {
+                    bflyStr += ")";
+                    break;
+                }
+                else
+                {
+                    bflyStr += ", ";
+                }
+            }
+
+            bflyStr += "\n{\n\n";
+
+            // Temporary variables
+            // Allocate temporary variables if we are not using complex registers (cReg
+            // = 0) or if cReg is true, then
+            // allocate temporary variables only for non power-of-2 radices
+            if(!((radix == 7 && cReg) || (radix == 11 && cReg) || (radix == 13 && cReg)))
+            {
+                if((radix & (radix - 1)) || (!cReg))
+                {
+                    bflyStr += "\t";
+                    if(cReg)
+                        bflyStr += RegBaseType<PR>(1);
+                    else
+                        bflyStr += regType;
+
+                    for(size_t i = 0;; i++)
+                    {
+                        bflyStr += " TR";
+                        bflyStr += std::to_string(i);
+                        bflyStr += ","; // real arguments
+                        bflyStr += " TI";
+                        bflyStr += std::to_string(i); // imaginary arguments
+
+                        if(i == radix - 1)
+                        {
+                            bflyStr += ";";
+                            break;
+                        }
+                        else
+                        {
+                            bflyStr += ",";
+                        }
+                    }
+                }
+                else
+                {
+                    bflyStr += "\t";
+                    bflyStr += RegBaseType<PR>(2);
+                    bflyStr += " T;";
+                }
+            }
+
+            bflyStr += "\n\n\t";
+
+            // Butterfly for different radices
+            switch(radix)
+            {
+            case 2:
+            {
+                if(cReg)
+                {
+                    bflyStr += "(*R1) = (*R0) - (*R1);\n\t"
+                               "(*R0) = 2.0f * (*R0) - (*R1);\n\t";
+                }
+                else
+                {
+                    bflyStr += "TR0 = (*R0) + (*R1);\n\t"
+                               "TI0 = (*I0) + (*I1);\n\t"
+                               "TR1 = (*R0) - (*R1);\n\t"
+                               "TI1 = (*I0) - (*I1);\n\t";
+                }
+            }
+            break;
+            case 3:
+            {
+                if(fwd)
+                {
+                    if(cReg)
+                    {
+                        bflyStr += "TR0 = (*R0).x + (*R1).x + (*R2).x;\n\t"
+                                   "TR1 = ((*R0).x - C3QA*((*R1).x + (*R2).x)) + "
+                                   "C3QB*((*R1).y - (*R2).y);\n\t"
+                                   "TR2 = ((*R0).x - C3QA*((*R1).x + (*R2).x)) - "
+                                   "C3QB*((*R1).y - (*R2).y);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = (*R0).y + (*R1).y + (*R2).y;\n\t"
+                                   "TI1 = ((*R0).y - C3QA*((*R1).y + (*R2).y)) - "
+                                   "C3QB*((*R1).x - (*R2).x);\n\t"
+                                   "TI2 = ((*R0).y - C3QA*((*R1).y + (*R2).y)) + "
+                                   "C3QB*((*R1).x - (*R2).x);\n\t";
+                    }
+                    else
+                    {
+                        bflyStr += "TR0 = *R0 + *R1 + *R2;\n\t"
+                                   "TR1 = (*R0 - C3QA*(*R1 + *R2)) + C3QB*(*I1 - *I2);\n\t"
+                                   "TR2 = (*R0 - C3QA*(*R1 + *R2)) - C3QB*(*I1 - *I2);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = *I0 + *I1 + *I2;\n\t"
+                                   "TI1 = (*I0 - C3QA*(*I1 + *I2)) - C3QB*(*R1 - *R2);\n\t"
+                                   "TI2 = (*I0 - C3QA*(*I1 + *I2)) + C3QB*(*R1 - *R2);\n\t";
+                    }
+                }
+                else
+                {
+                    if(cReg)
+                    {
+                        bflyStr += "TR0 = (*R0).x + (*R1).x + (*R2).x;\n\t"
+                                   "TR1 = ((*R0).x - C3QA*((*R1).x + (*R2).x)) - "
+                                   "C3QB*((*R1).y - (*R2).y);\n\t"
+                                   "TR2 = ((*R0).x - C3QA*((*R1).x + (*R2).x)) + "
+                                   "C3QB*((*R1).y - (*R2).y);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = (*R0).y + (*R1).y + (*R2).y;\n\t"
+                                   "TI1 = ((*R0).y - C3QA*((*R1).y + (*R2).y)) + "
+                                   "C3QB*((*R1).x - (*R2).x);\n\t"
+                                   "TI2 = ((*R0).y - C3QA*((*R1).y + (*R2).y)) - "
+                                   "C3QB*((*R1).x - (*R2).x);\n\t";
+                    }
+                    else
+                    {
+                        bflyStr += "TR0 = *R0 + *R1 + *R2;\n\t"
+                                   "TR1 = (*R0 - C3QA*(*R1 + *R2)) - C3QB*(*I1 - *I2);\n\t"
+                                   "TR2 = (*R0 - C3QA*(*R1 + *R2)) + C3QB*(*I1 - *I2);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = *I0 + *I1 + *I2;\n\t"
+                                   "TI1 = (*I0 - C3QA*(*I1 + *I2)) + C3QB*(*R1 - *R2);\n\t"
+                                   "TI2 = (*I0 - C3QA*(*I1 + *I2)) - C3QB*(*R1 - *R2);\n\t";
+                    }
+                }
+            }
+            break;
+            case 4:
+            {
+                if(fwd)
+                {
+                    if(cReg)
+                    {
+                        bflyStr += "(*R1) = (*R0) - (*R1);\n\t"
+                                   "(*R0) = 2.0f * (*R0) - (*R1);\n\t"
+                                   "(*R3) = (*R2) - (*R3);\n\t"
+                                   "(*R2) = 2.0f * (*R2) - (*R3);\n\t"
+                                   "\n\t"
+                                   "(*R2) = (*R0) - (*R2);\n\t"
+                                   "(*R0) = 2.0f * (*R0) - (*R2);\n\t"
+                                   "(*R3) = (*R1) + (fvect2)(-(*R3).y, (*R3).x);\n\t"
+                                   "(*R1) = 2.0f * (*R1) - (*R3);\n\t";
+                    }
+                    else
+                    {
+                        bflyStr += "TR0 = (*R0) + (*R2) + (*R1) + (*R3);\n\t"
+                                   "TR1 = (*R0) - (*R2) + (*I1) - (*I3);\n\t"
+                                   "TR2 = (*R0) + (*R2) - (*R1) - (*R3);\n\t"
+                                   "TR3 = (*R0) - (*R2) - (*I1) + (*I3);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = (*I0) + (*I2) + (*I1) + (*I3);\n\t"
+                                   "TI1 = (*I0) - (*I2) - (*R1) + (*R3);\n\t"
+                                   "TI2 = (*I0) + (*I2) - (*I1) - (*I3);\n\t"
+                                   "TI3 = (*I0) - (*I2) + (*R1) - (*R3);\n\t";
+                    }
+                }
+                else
+                {
+                    if(cReg)
+                    {
+                        bflyStr += "(*R1) = (*R0) - (*R1);\n\t"
+                                   "(*R0) = 2.0f * (*R0) - (*R1);\n\t"
+                                   "(*R3) = (*R2) - (*R3);\n\t"
+                                   "(*R2) = 2.0f * (*R2) - (*R3);\n\t"
+                                   "\n\t"
+                                   "(*R2) = (*R0) - (*R2);\n\t"
+                                   "(*R0) = 2.0f * (*R0) - (*R2);\n\t"
+                                   "(*R3) = (*R1) + (fvect2)((*R3).y, -(*R3).x);\n\t"
+                                   "(*R1) = 2.0f * (*R1) - (*R3);\n\t";
+                    }
+                    else
+                    {
+                        bflyStr += "TR0 = (*R0) + (*R2) + (*R1) + (*R3);\n\t"
+                                   "TR1 = (*R0) - (*R2) - (*I1) + (*I3);\n\t"
+                                   "TR2 = (*R0) + (*R2) - (*R1) - (*R3);\n\t"
+                                   "TR3 = (*R0) - (*R2) + (*I1) - (*I3);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = (*I0) + (*I2) + (*I1) + (*I3);\n\t"
+                                   "TI1 = (*I0) - (*I2) + (*R1) - (*R3);\n\t"
+                                   "TI2 = (*I0) + (*I2) - (*I1) - (*I3);\n\t"
+                                   "TI3 = (*I0) - (*I2) - (*R1) + (*R3);\n\t";
+                    }
+                }
+            }
+            break;
+            case 5:
+            {
+                if(fwd)
+                {
+                    if(cReg)
+                    {
+                        bflyStr
+                            += "TR0 = (*R0).x + (*R1).x + (*R2).x + (*R3).x + (*R4).x;\n\t"
+                               "TR1 = ((*R0).x - C5QC*((*R2).x + (*R3).x)) + C5QB*((*R1).y - "
+                               "(*R4).y) + C5QD*((*R2).y - (*R3).y) + C5QA*(((*R1).x - (*R2).x) "
+                               "+ ((*R4).x - (*R3).x));\n\t"
+                               "TR4 = ((*R0).x - C5QC*((*R2).x + (*R3).x)) - C5QB*((*R1).y - "
+                               "(*R4).y) - C5QD*((*R2).y - (*R3).y) + C5QA*(((*R1).x - (*R2).x) "
+                               "+ ((*R4).x - (*R3).x));\n\t"
+                               "TR2 = ((*R0).x - C5QC*((*R1).x + (*R4).x)) - C5QB*((*R2).y - "
+                               "(*R3).y) + C5QD*((*R1).y - (*R4).y) + C5QA*(((*R2).x - (*R1).x) "
+                               "+ ((*R3).x - (*R4).x));\n\t"
+                               "TR3 = ((*R0).x - C5QC*((*R1).x + (*R4).x)) + C5QB*((*R2).y - "
+                               "(*R3).y) - C5QD*((*R1).y - (*R4).y) + C5QA*(((*R2).x - (*R1).x) "
+                               "+ ((*R3).x - (*R4).x));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr
+                            += "TI0 = (*R0).y + (*R1).y + (*R2).y + (*R3).y + (*R4).y;\n\t"
+                               "TI1 = ((*R0).y - C5QC*((*R2).y + (*R3).y)) - C5QB*((*R1).x - "
+                               "(*R4).x) - C5QD*((*R2).x - (*R3).x) + C5QA*(((*R1).y - (*R2).y) "
+                               "+ ((*R4).y - (*R3).y));\n\t"
+                               "TI4 = ((*R0).y - C5QC*((*R2).y + (*R3).y)) + C5QB*((*R1).x - "
+                               "(*R4).x) + C5QD*((*R2).x - (*R3).x) + C5QA*(((*R1).y - (*R2).y) "
+                               "+ ((*R4).y - (*R3).y));\n\t"
+                               "TI2 = ((*R0).y - C5QC*((*R1).y + (*R4).y)) + C5QB*((*R2).x - "
+                               "(*R3).x) - C5QD*((*R1).x - (*R4).x) + C5QA*(((*R2).y - (*R1).y) "
+                               "+ ((*R3).y - (*R4).y));\n\t"
+                               "TI3 = ((*R0).y - C5QC*((*R1).y + (*R4).y)) - C5QB*((*R2).x - "
+                               "(*R3).x) + C5QD*((*R1).x - (*R4).x) + C5QA*(((*R2).y - (*R1).y) "
+                               "+ ((*R3).y - (*R4).y));\n\t";
+                    }
+                    else
+                    {
+                        bflyStr += "TR0 = *R0 + *R1 + *R2 + *R3 + *R4;\n\t"
+                                   "TR1 = (*R0 - C5QC*(*R2 + *R3)) + C5QB*(*I1 - *I4) + "
+                                   "C5QD*(*I2 - *I3) + C5QA*((*R1 - *R2) + (*R4 - *R3));\n\t"
+                                   "TR4 = (*R0 - C5QC*(*R2 + *R3)) - C5QB*(*I1 - *I4) - "
+                                   "C5QD*(*I2 - *I3) + C5QA*((*R1 - *R2) + (*R4 - *R3));\n\t"
+                                   "TR2 = (*R0 - C5QC*(*R1 + *R4)) - C5QB*(*I2 - *I3) + "
+                                   "C5QD*(*I1 - *I4) + C5QA*((*R2 - *R1) + (*R3 - *R4));\n\t"
+                                   "TR3 = (*R0 - C5QC*(*R1 + *R4)) + C5QB*(*I2 - *I3) - "
+                                   "C5QD*(*I1 - *I4) + C5QA*((*R2 - *R1) + (*R3 - *R4));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = *I0 + *I1 + *I2 + *I3 + *I4;\n\t"
+                                   "TI1 = (*I0 - C5QC*(*I2 + *I3)) - C5QB*(*R1 - *R4) - "
+                                   "C5QD*(*R2 - *R3) + C5QA*((*I1 - *I2) + (*I4 - *I3));\n\t"
+                                   "TI4 = (*I0 - C5QC*(*I2 + *I3)) + C5QB*(*R1 - *R4) + "
+                                   "C5QD*(*R2 - *R3) + C5QA*((*I1 - *I2) + (*I4 - *I3));\n\t"
+                                   "TI2 = (*I0 - C5QC*(*I1 + *I4)) + C5QB*(*R2 - *R3) - "
+                                   "C5QD*(*R1 - *R4) + C5QA*((*I2 - *I1) + (*I3 - *I4));\n\t"
+                                   "TI3 = (*I0 - C5QC*(*I1 + *I4)) - C5QB*(*R2 - *R3) + "
+                                   "C5QD*(*R1 - *R4) + C5QA*((*I2 - *I1) + (*I3 - *I4));\n\t";
+                    }
+                }
+                else
+                {
+                    if(cReg)
+                    {
+                        bflyStr
+                            += "TR0 = (*R0).x + (*R1).x + (*R2).x + (*R3).x + (*R4).x;\n\t"
+                               "TR1 = ((*R0).x - C5QC*((*R2).x + (*R3).x)) - C5QB*((*R1).y - "
+                               "(*R4).y) - C5QD*((*R2).y - (*R3).y) + C5QA*(((*R1).x - (*R2).x) "
+                               "+ ((*R4).x - (*R3).x));\n\t"
+                               "TR4 = ((*R0).x - C5QC*((*R2).x + (*R3).x)) + C5QB*((*R1).y - "
+                               "(*R4).y) + C5QD*((*R2).y - (*R3).y) + C5QA*(((*R1).x - (*R2).x) "
+                               "+ ((*R4).x - (*R3).x));\n\t"
+                               "TR2 = ((*R0).x - C5QC*((*R1).x + (*R4).x)) + C5QB*((*R2).y - "
+                               "(*R3).y) - C5QD*((*R1).y - (*R4).y) + C5QA*(((*R2).x - (*R1).x) "
+                               "+ ((*R3).x - (*R4).x));\n\t"
+                               "TR3 = ((*R0).x - C5QC*((*R1).x + (*R4).x)) - C5QB*((*R2).y - "
+                               "(*R3).y) + C5QD*((*R1).y - (*R4).y) + C5QA*(((*R2).x - (*R1).x) "
+                               "+ ((*R3).x - (*R4).x));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr
+                            += "TI0 = (*R0).y + (*R1).y + (*R2).y + (*R3).y + (*R4).y;\n\t"
+                               "TI1 = ((*R0).y - C5QC*((*R2).y + (*R3).y)) + C5QB*((*R1).x - "
+                               "(*R4).x) + C5QD*((*R2).x - (*R3).x) + C5QA*(((*R1).y - (*R2).y) "
+                               "+ ((*R4).y - (*R3).y));\n\t"
+                               "TI4 = ((*R0).y - C5QC*((*R2).y + (*R3).y)) - C5QB*((*R1).x - "
+                               "(*R4).x) - C5QD*((*R2).x - (*R3).x) + C5QA*(((*R1).y - (*R2).y) "
+                               "+ ((*R4).y - (*R3).y));\n\t"
+                               "TI2 = ((*R0).y - C5QC*((*R1).y + (*R4).y)) - C5QB*((*R2).x - "
+                               "(*R3).x) + C5QD*((*R1).x - (*R4).x) + C5QA*(((*R2).y - (*R1).y) "
+                               "+ ((*R3).y - (*R4).y));\n\t"
+                               "TI3 = ((*R0).y - C5QC*((*R1).y + (*R4).y)) + C5QB*((*R2).x - "
+                               "(*R3).x) - C5QD*((*R1).x - (*R4).x) + C5QA*(((*R2).y - (*R1).y) "
+                               "+ ((*R3).y - (*R4).y));\n\t";
+                    }
+                    else
+                    {
+                        bflyStr += "TR0 = *R0 + *R1 + *R2 + *R3 + *R4;\n\t"
+                                   "TR1 = (*R0 - C5QC*(*R2 + *R3)) - C5QB*(*I1 - *I4) - "
+                                   "C5QD*(*I2 - *I3) + C5QA*((*R1 - *R2) + (*R4 - *R3));\n\t"
+                                   "TR4 = (*R0 - C5QC*(*R2 + *R3)) + C5QB*(*I1 - *I4) + "
+                                   "C5QD*(*I2 - *I3) + C5QA*((*R1 - *R2) + (*R4 - *R3));\n\t"
+                                   "TR2 = (*R0 - C5QC*(*R1 + *R4)) + C5QB*(*I2 - *I3) - "
+                                   "C5QD*(*I1 - *I4) + C5QA*((*R2 - *R1) + (*R3 - *R4));\n\t"
+                                   "TR3 = (*R0 - C5QC*(*R1 + *R4)) - C5QB*(*I2 - *I3) + "
+                                   "C5QD*(*I1 - *I4) + C5QA*((*R2 - *R1) + (*R3 - *R4));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = *I0 + *I1 + *I2 + *I3 + *I4;\n\t"
+                                   "TI1 = (*I0 - C5QC*(*I2 + *I3)) + C5QB*(*R1 - *R4) + "
+                                   "C5QD*(*R2 - *R3) + C5QA*((*I1 - *I2) + (*I4 - *I3));\n\t"
+                                   "TI4 = (*I0 - C5QC*(*I2 + *I3)) - C5QB*(*R1 - *R4) - "
+                                   "C5QD*(*R2 - *R3) + C5QA*((*I1 - *I2) + (*I4 - *I3));\n\t"
+                                   "TI2 = (*I0 - C5QC*(*I1 + *I4)) - C5QB*(*R2 - *R3) + "
+                                   "C5QD*(*R1 - *R4) + C5QA*((*I2 - *I1) + (*I3 - *I4));\n\t"
+                                   "TI3 = (*I0 - C5QC*(*I1 + *I4)) + C5QB*(*R2 - *R3) - "
+                                   "C5QD*(*R1 - *R4) + C5QA*((*I2 - *I1) + (*I3 - *I4));\n\t";
+                    }
+                }
+            }
+            break;
+            case 6:
+            {
+                if(fwd)
+                {
+                    if(cReg)
+                    {
+                        bflyStr += "TR0 = (*R0).x + (*R2).x + (*R4).x;\n\t"
+                                   "TR2 = ((*R0).x - C3QA*((*R2).x + (*R4).x)) + "
+                                   "C3QB*((*R2).y - (*R4).y);\n\t"
+                                   "TR4 = ((*R0).x - C3QA*((*R2).x + (*R4).x)) - "
+                                   "C3QB*((*R2).y - (*R4).y);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = (*R0).y + (*R2).y + (*R4).y;\n\t"
+                                   "TI2 = ((*R0).y - C3QA*((*R2).y + (*R4).y)) - "
+                                   "C3QB*((*R2).x - (*R4).x);\n\t"
+                                   "TI4 = ((*R0).y - C3QA*((*R2).y + (*R4).y)) + "
+                                   "C3QB*((*R2).x - (*R4).x);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TR1 = (*R1).x + (*R3).x + (*R5).x;\n\t"
+                                   "TR3 = ((*R1).x - C3QA*((*R3).x + (*R5).x)) + "
+                                   "C3QB*((*R3).y - (*R5).y);\n\t"
+                                   "TR5 = ((*R1).x - C3QA*((*R3).x + (*R5).x)) - "
+                                   "C3QB*((*R3).y - (*R5).y);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI1 = (*R1).y + (*R3).y + (*R5).y;\n\t"
+                                   "TI3 = ((*R1).y - C3QA*((*R3).y + (*R5).y)) - "
+                                   "C3QB*((*R3).x - (*R5).x);\n\t"
+                                   "TI5 = ((*R1).y - C3QA*((*R3).y + (*R5).y)) + "
+                                   "C3QB*((*R3).x - (*R5).x);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R0).x = TR0 + TR1;\n\t"
+                                   "(*R1).x = TR2 + ( C3QA*TR3 + C3QB*TI3);\n\t"
+                                   "(*R2).x = TR4 + (-C3QA*TR5 + C3QB*TI5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R0).y = TI0 + TI1;\n\t"
+                                   "(*R1).y = TI2 + (-C3QB*TR3 + C3QA*TI3);\n\t"
+                                   "(*R2).y = TI4 + (-C3QB*TR5 - C3QA*TI5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R3).x = TR0 - TR1;\n\t"
+                                   "(*R4).x = TR2 - ( C3QA*TR3 + C3QB*TI3);\n\t"
+                                   "(*R5).x = TR4 - (-C3QA*TR5 + C3QB*TI5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R3).y = TI0 - TI1;\n\t"
+                                   "(*R4).y = TI2 - (-C3QB*TR3 + C3QA*TI3);\n\t"
+                                   "(*R5).y = TI4 - (-C3QB*TR5 - C3QA*TI5);\n\t";
+                    }
+                    else
+                    {
+                        bflyStr += "TR0 = *R0 + *R2 + *R4;\n\t"
+                                   "TR2 = (*R0 - C3QA*(*R2 + *R4)) + C3QB*(*I2 - *I4);\n\t"
+                                   "TR4 = (*R0 - C3QA*(*R2 + *R4)) - C3QB*(*I2 - *I4);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = *I0 + *I2 + *I4;\n\t"
+                                   "TI2 = (*I0 - C3QA*(*I2 + *I4)) - C3QB*(*R2 - *R4);\n\t"
+                                   "TI4 = (*I0 - C3QA*(*I2 + *I4)) + C3QB*(*R2 - *R4);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TR1 = *R1 + *R3 + *R5;\n\t"
+                                   "TR3 = (*R1 - C3QA*(*R3 + *R5)) + C3QB*(*I3 - *I5);\n\t"
+                                   "TR5 = (*R1 - C3QA*(*R3 + *R5)) - C3QB*(*I3 - *I5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI1 = *I1 + *I3 + *I5;\n\t"
+                                   "TI3 = (*I1 - C3QA*(*I3 + *I5)) - C3QB*(*R3 - *R5);\n\t"
+                                   "TI5 = (*I1 - C3QA*(*I3 + *I5)) + C3QB*(*R3 - *R5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R0) = TR0 + TR1;\n\t"
+                                   "(*R1) = TR2 + ( C3QA*TR3 + C3QB*TI3);\n\t"
+                                   "(*R2) = TR4 + (-C3QA*TR5 + C3QB*TI5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*I0) = TI0 + TI1;\n\t"
+                                   "(*I1) = TI2 + (-C3QB*TR3 + C3QA*TI3);\n\t"
+                                   "(*I2) = TI4 + (-C3QB*TR5 - C3QA*TI5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R3) = TR0 - TR1;\n\t"
+                                   "(*R4) = TR2 - ( C3QA*TR3 + C3QB*TI3);\n\t"
+                                   "(*R5) = TR4 - (-C3QA*TR5 + C3QB*TI5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*I3) = TI0 - TI1;\n\t"
+                                   "(*I4) = TI2 - (-C3QB*TR3 + C3QA*TI3);\n\t"
+                                   "(*I5) = TI4 - (-C3QB*TR5 - C3QA*TI5);\n\t";
+                    }
+                }
+                else
+                {
+                    if(cReg)
+                    {
+                        bflyStr += "TR0 = (*R0).x + (*R2).x + (*R4).x;\n\t"
+                                   "TR2 = ((*R0).x - C3QA*((*R2).x + (*R4).x)) - "
+                                   "C3QB*((*R2).y - (*R4).y);\n\t"
+                                   "TR4 = ((*R0).x - C3QA*((*R2).x + (*R4).x)) + "
+                                   "C3QB*((*R2).y - (*R4).y);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = (*R0).y + (*R2).y + (*R4).y;\n\t"
+                                   "TI2 = ((*R0).y - C3QA*((*R2).y + (*R4).y)) + "
+                                   "C3QB*((*R2).x - (*R4).x);\n\t"
+                                   "TI4 = ((*R0).y - C3QA*((*R2).y + (*R4).y)) - "
+                                   "C3QB*((*R2).x - (*R4).x);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TR1 = (*R1).x + (*R3).x + (*R5).x;\n\t"
+                                   "TR3 = ((*R1).x - C3QA*((*R3).x + (*R5).x)) - "
+                                   "C3QB*((*R3).y - (*R5).y);\n\t"
+                                   "TR5 = ((*R1).x - C3QA*((*R3).x + (*R5).x)) + "
+                                   "C3QB*((*R3).y - (*R5).y);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI1 = (*R1).y + (*R3).y + (*R5).y;\n\t"
+                                   "TI3 = ((*R1).y - C3QA*((*R3).y + (*R5).y)) + "
+                                   "C3QB*((*R3).x - (*R5).x);\n\t"
+                                   "TI5 = ((*R1).y - C3QA*((*R3).y + (*R5).y)) - "
+                                   "C3QB*((*R3).x - (*R5).x);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R0).x = TR0 + TR1;\n\t"
+                                   "(*R1).x = TR2 + ( C3QA*TR3 - C3QB*TI3);\n\t"
+                                   "(*R2).x = TR4 + (-C3QA*TR5 - C3QB*TI5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R0).y = TI0 + TI1;\n\t"
+                                   "(*R1).y = TI2 + ( C3QB*TR3 + C3QA*TI3);\n\t"
+                                   "(*R2).y = TI4 + ( C3QB*TR5 - C3QA*TI5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R3).x = TR0 - TR1;\n\t"
+                                   "(*R4).x = TR2 - ( C3QA*TR3 - C3QB*TI3);\n\t"
+                                   "(*R5).x = TR4 - (-C3QA*TR5 - C3QB*TI5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R3).y = TI0 - TI1;\n\t"
+                                   "(*R4).y = TI2 - ( C3QB*TR3 + C3QA*TI3);\n\t"
+                                   "(*R5).y = TI4 - ( C3QB*TR5 - C3QA*TI5);\n\t";
+                    }
+                    else
+                    {
+                        bflyStr += "TR0 = *R0 + *R2 + *R4;\n\t"
+                                   "TR2 = (*R0 - C3QA*(*R2 + *R4)) - C3QB*(*I2 - *I4);\n\t"
+                                   "TR4 = (*R0 - C3QA*(*R2 + *R4)) + C3QB*(*I2 - *I4);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = *I0 + *I2 + *I4;\n\t"
+                                   "TI2 = (*I0 - C3QA*(*I2 + *I4)) + C3QB*(*R2 - *R4);\n\t"
+                                   "TI4 = (*I0 - C3QA*(*I2 + *I4)) - C3QB*(*R2 - *R4);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TR1 = *R1 + *R3 + *R5;\n\t"
+                                   "TR3 = (*R1 - C3QA*(*R3 + *R5)) - C3QB*(*I3 - *I5);\n\t"
+                                   "TR5 = (*R1 - C3QA*(*R3 + *R5)) + C3QB*(*I3 - *I5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI1 = *I1 + *I3 + *I5;\n\t"
+                                   "TI3 = (*I1 - C3QA*(*I3 + *I5)) + C3QB*(*R3 - *R5);\n\t"
+                                   "TI5 = (*I1 - C3QA*(*I3 + *I5)) - C3QB*(*R3 - *R5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R0) = TR0 + TR1;\n\t"
+                                   "(*R1) = TR2 + ( C3QA*TR3 - C3QB*TI3);\n\t"
+                                   "(*R2) = TR4 + (-C3QA*TR5 - C3QB*TI5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*I0) = TI0 + TI1;\n\t"
+                                   "(*I1) = TI2 + ( C3QB*TR3 + C3QA*TI3);\n\t"
+                                   "(*I2) = TI4 + ( C3QB*TR5 - C3QA*TI5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R3) = TR0 - TR1;\n\t"
+                                   "(*R4) = TR2 - ( C3QA*TR3 - C3QB*TI3);\n\t"
+                                   "(*R5) = TR4 - (-C3QA*TR5 - C3QB*TI5);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*I3) = TI0 - TI1;\n\t"
+                                   "(*I4) = TI2 - ( C3QB*TR3 + C3QA*TI3);\n\t"
+                                   "(*I5) = TI4 - ( C3QB*TR5 - C3QA*TI5);\n\t";
+                    }
+                }
+            }
+            break;
+            case 7:
+            {
+                static const char* C7SFR = "\
 					/*FFT7 Forward Real */ \n\
 					\n\
 						pr0 = *R1 + *R6; \n\
@@ -674,7 +707,7 @@ namespace StockhamGenerator
 						TI6 = pi7 + qr6; \n\
 					";
 
-					static const char *C7SBR = "\
+                static const char* C7SBR = "\
 					/*FFT7 Backward Real */ \n\
 					\n\
 						pr0 = *R1 + *R6; \n\
@@ -773,7 +806,7 @@ namespace StockhamGenerator
 						TI6 = pi7 + qr6; \n\
 					";
 
-					static const char *C7SFC = "\
+                static const char* C7SFC = "\
 					/*FFT7 Forward Complex */ \n\
 					\n\
 						p0 = *R1 + *R6; \n\
@@ -834,7 +867,7 @@ namespace StockhamGenerator
 						(*R6).y = p7.y + q6.x; \n\
 					";
 
-					static const char *C7SBC = "\
+                static const char* C7SBC = "\
 					/*FFT7 Backward Complex */ \n\
 					\n\
 						p0 = *R1 + *R6; \n\
@@ -895,448 +928,587 @@ namespace StockhamGenerator
 						(*R6).y = p7.y + q6.x; \n\
 					";
 
-
-
-					if (!cReg) {
-						for (size_t i = 0; i < 10; i++)
-							bflyStr += regType + " pr" + std::to_string(i) + ", pi" + std::to_string(i) + ";\n\t";
-						for (size_t i = 0; i < 9; i++)
-							bflyStr += regType + " qr" + std::to_string(i) + ", qi" + std::to_string(i) + ";\n\t";
-
-						if (fwd)
-							bflyStr += C7SFR;
-						else
-							bflyStr += C7SBR;
-					} else {
-						for (size_t i = 0; i < 10; i++)
-							bflyStr += regType + " p" + std::to_string(i) + ";\n\t";
-						for (size_t i = 0; i < 9; i++)
-							bflyStr += regType + " q" + std::to_string(i) + ";\n\t";
-						if (fwd)
-							bflyStr += C7SFC;
-						else
-							bflyStr += C7SBC;
-					}
-				}
-				break;
-
-			case 8:
-				{
-					if(fwd)
-					{
-						if(cReg)
-						{
-							bflyStr +=
-							"(*R1) = (*R0) - (*R1);\n\t"
-							"(*R0) = 2.0f * (*R0) - (*R1);\n\t"
-							"(*R3) = (*R2) - (*R3);\n\t"
-							"(*R2) = 2.0f * (*R2) - (*R3);\n\t"
-							"(*R5) = (*R4) - (*R5);\n\t"
-							"(*R4) = 2.0f * (*R4) - (*R5);\n\t"
-							"(*R7) = (*R6) - (*R7);\n\t"
-							"(*R6) = 2.0f * (*R6) - (*R7);\n\t"
-							"\n\t"
-							"(*R2) = (*R0) - (*R2);\n\t"
-							"(*R0) = 2.0f * (*R0) - (*R2);\n\t"
-							"(*R3) = (*R1) + (fvect2)(-(*R3).y, (*R3).x);\n\t"
-							"(*R1) = 2.0f * (*R1) - (*R3);\n\t"
-							"(*R6) = (*R4) - (*R6);\n\t"
-							"(*R4) = 2.0f * (*R4) - (*R6);\n\t"
-							"(*R7) = (*R5) + (fvect2)(-(*R7).y, (*R7).x);\n\t"
-							"(*R5) = 2.0f * (*R5) - (*R7);\n\t"
-							"\n\t"
-							"(*R4) = (*R0) - (*R4);\n\t"
-							"(*R0) = 2.0f * (*R0) - (*R4);\n\t"
-							"(*R5) = ((*R1) - C8Q * (*R5)) - C8Q * (fvect2)((*R5).y, -(*R5).x);\n\t"
-							"(*R1) = 2.0f * (*R1) - (*R5);\n\t"
-							"(*R6) = (*R2) + (fvect2)(-(*R6).y, (*R6).x);\n\t"
-							"(*R2) = 2.0f * (*R2) - (*R6);\n\t"
-							"(*R7) = ((*R3) + C8Q * (*R7)) - C8Q * (fvect2)((*R7).y, -(*R7).x);\n\t"
-							"(*R3) = 2.0f * (*R3) - (*R7);\n\t";
-						}
-						else
-						{
-							bflyStr +=
-							"TR0 = (*R0) + (*R4) + (*R2) + (*R6) +     (*R1)             +     (*R3)             +     (*R5)             +     (*R7)            ;\n\t"
-							"TR1 = (*R0) - (*R4) + (*I2) - (*I6) + C8Q*(*R1) + C8Q*(*I1) - C8Q*(*R3) + C8Q*(*I3) - C8Q*(*R5) - C8Q*(*I5) + C8Q*(*R7) - C8Q*(*I7);\n\t"
-							"TR2 = (*R0) + (*R4) - (*R2) - (*R6)             +     (*I1)             -     (*I3)             +     (*I5)             -     (*I7);\n\t"
-							"TR3 = (*R0) - (*R4) - (*I2) + (*I6) - C8Q*(*R1) + C8Q*(*I1) + C8Q*(*R3) + C8Q*(*I3) + C8Q*(*R5) - C8Q*(*I5) - C8Q*(*R7) - C8Q*(*I7);\n\t"
-							"TR4 = (*R0) + (*R4) + (*R2) + (*R6) -     (*R1)             -     (*R3)             -     (*R5)             -     (*R7)            ;\n\t"
-							"TR5 = (*R0) - (*R4) + (*I2) - (*I6) - C8Q*(*R1) - C8Q*(*I1) + C8Q*(*R3) - C8Q*(*I3) + C8Q*(*R5) + C8Q*(*I5) - C8Q*(*R7) + C8Q*(*I7);\n\t"
-							"TR6 = (*R0) + (*R4) - (*R2) - (*R6)             -    (*I1)              +     (*I3)             -     (*I5)             +     (*I7);\n\t"
-							"TR7 = (*R0) - (*R4) - (*I2) + (*I6) + C8Q*(*R1) - C8Q*(*I1) - C8Q*(*R3) - C8Q*(*I3) - C8Q*(*R5) + C8Q*(*I5) + C8Q*(*R7) + C8Q*(*I7);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = (*I0) + (*I4) + (*I2) + (*I6)             +     (*I1)             +     (*I3)             +     (*I5)             +     (*I7);\n\t"
-							"TI1 = (*I0) - (*I4) - (*R2) + (*R6) - C8Q*(*R1) + C8Q*(*I1) - C8Q*(*R3) - C8Q*(*I3) + C8Q*(*R5) - C8Q*(*I5) + C8Q*(*R7) + C8Q*(*I7);\n\t"
-							"TI2 = (*I0) + (*I4) - (*I2) - (*I6) -     (*R1)             +     (*R3)             -     (*R5)             +     (*R7)            ;\n\t"
-							"TI3 = (*I0) - (*I4) + (*R2) - (*R6) - C8Q*(*R1) - C8Q*(*I1) - C8Q*(*R3) + C8Q*(*I3) + C8Q*(*R5) + C8Q*(*I5) + C8Q*(*R7) - C8Q*(*I7);\n\t"
-							"TI4 = (*I0) + (*I4) + (*I2) + (*I6)             -    (*I1)              -     (*I3)             -     (*I5)             -     (*I7);\n\t"
-							"TI5 = (*I0) - (*I4) - (*R2) + (*R6) + C8Q*(*R1) - C8Q*(*I1) + C8Q*(*R3) + C8Q*(*I3) - C8Q*(*R5) + C8Q*(*I5) - C8Q*(*R7) - C8Q*(*I7);\n\t"
-							"TI6 = (*I0) + (*I4) - (*I2) - (*I6) +     (*R1)             -     (*R3)             +     (*R5)             -     (*R7)            ;\n\t"
-							"TI7 = (*I0) - (*I4) + (*R2) - (*R6) + C8Q*(*R1) + C8Q*(*I1) + C8Q*(*R3) - C8Q*(*I3) - C8Q*(*R5) - C8Q*(*I5) - C8Q*(*R7) + C8Q*(*I7);\n\t";
-						}
-					}
-					else
-					{
-						if(cReg)
-						{
-							bflyStr +=
-							"(*R1) = (*R0) - (*R1);\n\t"
-							"(*R0) = 2.0f * (*R0) - (*R1);\n\t"
-							"(*R3) = (*R2) - (*R3);\n\t"
-							"(*R2) = 2.0f * (*R2) - (*R3);\n\t"
-							"(*R5) = (*R4) - (*R5);\n\t"
-							"(*R4) = 2.0f * (*R4) - (*R5);\n\t"
-							"(*R7) = (*R6) - (*R7);\n\t"
-							"(*R6) = 2.0f * (*R6) - (*R7);\n\t"
-							"\n\t"
-							"(*R2) = (*R0) - (*R2);\n\t"
-							"(*R0) = 2.0f * (*R0) - (*R2);\n\t"
-							"(*R3) = (*R1) + (fvect2)((*R3).y, -(*R3).x);\n\t"
-							"(*R1) = 2.0f * (*R1) - (*R3);\n\t"
-							"(*R6) = (*R4) - (*R6);\n\t"
-							"(*R4) = 2.0f * (*R4) - (*R6);\n\t"
-							"(*R7) = (*R5) + (fvect2)((*R7).y, -(*R7).x);\n\t"
-							"(*R5) = 2.0f * (*R5) - (*R7);\n\t"
-							"\n\t"
-							"(*R4) = (*R0) - (*R4);\n\t"
-							"(*R0) = 2.0f * (*R0) - (*R4);\n\t"
-							"(*R5) = ((*R1) - C8Q * (*R5)) + C8Q * (fvect2)((*R5).y, -(*R5).x);\n\t"
-							"(*R1) = 2.0f * (*R1) - (*R5);\n\t"
-							"(*R6) = (*R2) + (fvect2)((*R6).y, -(*R6).x);\n\t"
-							"(*R2) = 2.0f * (*R2) - (*R6);\n\t"
-							"(*R7) = ((*R3) + C8Q * (*R7)) + C8Q * (fvect2)((*R7).y, -(*R7).x);\n\t"
-							"(*R3) = 2.0f * (*R3) - (*R7);\n\t";
-						}
-						else
-						{
-							bflyStr +=
-							"TR0 = (*R0) + (*R4) + (*R2) + (*R6) +     (*R1)             +     (*R3)             +     (*R5)             +     (*R7)            ;\n\t"
-							"TR1 = (*R0) - (*R4) - (*I2) + (*I6) + C8Q*(*R1) - C8Q*(*I1) - C8Q*(*R3) - C8Q*(*I3) - C8Q*(*R5) + C8Q*(*I5) + C8Q*(*R7) + C8Q*(*I7);\n\t"
-							"TR2 = (*R0) + (*R4) - (*R2) - (*R6)             -     (*I1)             +     (*I3)             -     (*I5)             +     (*I7);\n\t"
-							"TR3 = (*R0) - (*R4) + (*I2) - (*I6) - C8Q*(*R1) - C8Q*(*I1) + C8Q*(*R3) - C8Q*(*I3) + C8Q*(*R5) + C8Q*(*I5) - C8Q*(*R7) + C8Q*(*I7);\n\t"
-							"TR4 = (*R0) + (*R4) + (*R2) + (*R6) -     (*R1)             -    (*R3)              -     (*R5)             -     (*R7)            ;\n\t"
-							"TR5 = (*R0) - (*R4) - (*I2) + (*I6) - C8Q*(*R1) + C8Q*(*I1) + C8Q*(*R3) + C8Q*(*I3) + C8Q*(*R5) - C8Q*(*I5) - C8Q*(*R7) - C8Q*(*I7);\n\t"
-							"TR6 = (*R0) + (*R4) - (*R2) - (*R6)             +     (*I1)             -     (*I3)             +     (*I5)             -     (*I7);\n\t"
-							"TR7 = (*R0) - (*R4) + (*I2) - (*I6) + C8Q*(*R1) + C8Q*(*I1) - C8Q*(*R3) + C8Q*(*I3) - C8Q*(*R5) - C8Q*(*I5) + C8Q*(*R7) - C8Q*(*I7);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = (*I0) + (*I4) + (*I2) + (*I6)             +     (*I1)             +    (*I3)              +     (*I5)             +     (*I7);\n\t"
-							"TI1 = (*I0) - (*I4) + (*R2) - (*R6) + C8Q*(*R1) + C8Q*(*I1) + C8Q*(*R3) - C8Q*(*I3) - C8Q*(*R5) - C8Q*(*I5) - C8Q*(*R7) + C8Q*(*I7);\n\t"
-							"TI2 = (*I0) + (*I4) - (*I2) - (*I6) +     (*R1)             -     (*R3)             +     (*R5)             -     (*R7)            ;\n\t"
-							"TI3 = (*I0) - (*I4) - (*R2) + (*R6) + C8Q*(*R1) - C8Q*(*I1) + C8Q*(*R3) + C8Q*(*I3) - C8Q*(*R5) + C8Q*(*I5) - C8Q*(*R7) - C8Q*(*I7);\n\t"
-							"TI4 = (*I0) + (*I4) + (*I2) + (*I6)             -     (*I1)             -     (*I3)             -     (*I5)             -     (*I7);\n\t"
-							"TI5 = (*I0) - (*I4) + (*R2) - (*R6) - C8Q*(*R1) - C8Q*(*I1) - C8Q*(*R3) + C8Q*(*I3) + C8Q*(*R5) + C8Q*(*I5) + C8Q*(*R7) - C8Q*(*I7);\n\t"
-							"TI6 = (*I0) + (*I4) - (*I2) - (*I6) -     (*R1)             +     (*R3)             -     (*R5)             +     (*R7)            ;\n\t"
-							"TI7 = (*I0) - (*I4) - (*R2) + (*R6) - C8Q*(*R1) + C8Q*(*I1) - C8Q*(*R3) - C8Q*(*I3) + C8Q*(*R5) - C8Q*(*I5) + C8Q*(*R7) + C8Q*(*I7);\n\t";
-						}
-					}
-				} break;
-			case 10:
-				{
-					if(fwd)
-					{
-						if(cReg)
-						{
-							bflyStr +=
-							"TR0 = (*R0).x + (*R2).x + (*R4).x + (*R6).x + (*R8).x;\n\t"
-							"TR2 = ((*R0).x - C5QC*((*R4).x + (*R6).x)) + C5QB*((*R2).y - (*R8).y) + C5QD*((*R4).y - (*R6).y) + C5QA*(((*R2).x - (*R4).x) + ((*R8).x - (*R6).x));\n\t"
-							"TR8 = ((*R0).x - C5QC*((*R4).x + (*R6).x)) - C5QB*((*R2).y - (*R8).y) - C5QD*((*R4).y - (*R6).y) + C5QA*(((*R2).x - (*R4).x) + ((*R8).x - (*R6).x));\n\t"
-							"TR4 = ((*R0).x - C5QC*((*R2).x + (*R8).x)) - C5QB*((*R4).y - (*R6).y) + C5QD*((*R2).y - (*R8).y) + C5QA*(((*R4).x - (*R2).x) + ((*R6).x - (*R8).x));\n\t"
-							"TR6 = ((*R0).x - C5QC*((*R2).x + (*R8).x)) + C5QB*((*R4).y - (*R6).y) - C5QD*((*R2).y - (*R8).y) + C5QA*(((*R4).x - (*R2).x) + ((*R6).x - (*R8).x));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = (*R0).y + (*R2).y + (*R4).y + (*R6).y + (*R8).y;\n\t"
-							"TI2 = ((*R0).y - C5QC*((*R4).y + (*R6).y)) - C5QB*((*R2).x - (*R8).x) - C5QD*((*R4).x - (*R6).x) + C5QA*(((*R2).y - (*R4).y) + ((*R8).y - (*R6).y));\n\t"
-							"TI8 = ((*R0).y - C5QC*((*R4).y + (*R6).y)) + C5QB*((*R2).x - (*R8).x) + C5QD*((*R4).x - (*R6).x) + C5QA*(((*R2).y - (*R4).y) + ((*R8).y - (*R6).y));\n\t"
-							"TI4 = ((*R0).y - C5QC*((*R2).y + (*R8).y)) + C5QB*((*R4).x - (*R6).x) - C5QD*((*R2).x - (*R8).x) + C5QA*(((*R4).y - (*R2).y) + ((*R6).y - (*R8).y));\n\t"
-							"TI6 = ((*R0).y - C5QC*((*R2).y + (*R8).y)) - C5QB*((*R4).x - (*R6).x) + C5QD*((*R2).x - (*R8).x) + C5QA*(((*R4).y - (*R2).y) + ((*R6).y - (*R8).y));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TR1 = (*R1).x + (*R3).x + (*R5).x + (*R7).x + (*R9).x;\n\t"
-							"TR3 = ((*R1).x - C5QC*((*R5).x + (*R7).x)) + C5QB*((*R3).y - (*R9).y) + C5QD*((*R5).y - (*R7).y) + C5QA*(((*R3).x - (*R5).x) + ((*R9).x - (*R7).x));\n\t"
-							"TR9 = ((*R1).x - C5QC*((*R5).x + (*R7).x)) - C5QB*((*R3).y - (*R9).y) - C5QD*((*R5).y - (*R7).y) + C5QA*(((*R3).x - (*R5).x) + ((*R9).x - (*R7).x));\n\t"
-							"TR5 = ((*R1).x - C5QC*((*R3).x + (*R9).x)) - C5QB*((*R5).y - (*R7).y) + C5QD*((*R3).y - (*R9).y) + C5QA*(((*R5).x - (*R3).x) + ((*R7).x - (*R9).x));\n\t"
-							"TR7 = ((*R1).x - C5QC*((*R3).x + (*R9).x)) + C5QB*((*R5).y - (*R7).y) - C5QD*((*R3).y - (*R9).y) + C5QA*(((*R5).x - (*R3).x) + ((*R7).x - (*R9).x));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI1 = (*R1).y + (*R3).y + (*R5).y + (*R7).y + (*R9).y;\n\t"
-							"TI3 = ((*R1).y - C5QC*((*R5).y + (*R7).y)) - C5QB*((*R3).x - (*R9).x) - C5QD*((*R5).x - (*R7).x) + C5QA*(((*R3).y - (*R5).y) + ((*R9).y - (*R7).y));\n\t"
-							"TI9 = ((*R1).y - C5QC*((*R5).y + (*R7).y)) + C5QB*((*R3).x - (*R9).x) + C5QD*((*R5).x - (*R7).x) + C5QA*(((*R3).y - (*R5).y) + ((*R9).y - (*R7).y));\n\t"
-							"TI5 = ((*R1).y - C5QC*((*R3).y + (*R9).y)) + C5QB*((*R5).x - (*R7).x) - C5QD*((*R3).x - (*R9).x) + C5QA*(((*R5).y - (*R3).y) + ((*R7).y - (*R9).y));\n\t"
-							"TI7 = ((*R1).y - C5QC*((*R3).y + (*R9).y)) - C5QB*((*R5).x - (*R7).x) + C5QD*((*R3).x - (*R9).x) + C5QA*(((*R5).y - (*R3).y) + ((*R7).y - (*R9).y));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R0).x = TR0 + TR1;\n\t"
-							"(*R1).x = TR2 + ( C5QE*TR3 + C5QD*TI3);\n\t"
-							"(*R2).x = TR4 + ( C5QA*TR5 + C5QB*TI5);\n\t"
-							"(*R3).x = TR6 + (-C5QA*TR7 + C5QB*TI7);\n\t"
-							"(*R4).x = TR8 + (-C5QE*TR9 + C5QD*TI9);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R0).y = TI0 + TI1;\n\t"
-							"(*R1).y = TI2 + (-C5QD*TR3 + C5QE*TI3);\n\t"
-							"(*R2).y = TI4 + (-C5QB*TR5 + C5QA*TI5);\n\t"
-							"(*R3).y = TI6 + (-C5QB*TR7 - C5QA*TI7);\n\t"
-							"(*R4).y = TI8 + (-C5QD*TR9 - C5QE*TI9);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R5).x = TR0 - TR1;\n\t"
-							"(*R6).x = TR2 - ( C5QE*TR3 + C5QD*TI3);\n\t"
-							"(*R7).x = TR4 - ( C5QA*TR5 + C5QB*TI5);\n\t"
-							"(*R8).x = TR6 - (-C5QA*TR7 + C5QB*TI7);\n\t"
-							"(*R9).x = TR8 - (-C5QE*TR9 + C5QD*TI9);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R5).y = TI0 - TI1;\n\t"
-							"(*R6).y = TI2 - (-C5QD*TR3 + C5QE*TI3);\n\t"
-							"(*R7).y = TI4 - (-C5QB*TR5 + C5QA*TI5);\n\t"
-							"(*R8).y = TI6 - (-C5QB*TR7 - C5QA*TI7);\n\t"
-							"(*R9).y = TI8 - (-C5QD*TR9 - C5QE*TI9);\n\t";
-						}
-						else
-						{
-							bflyStr +=
-							"TR0 = *R0 + *R2 + *R4 + *R6 + *R8;\n\t"
-							"TR2 = (*R0 - C5QC*(*R4 + *R6)) + C5QB*(*I2 - *I8) + C5QD*(*I4 - *I6) + C5QA*((*R2 - *R4) + (*R8 - *R6));\n\t"
-							"TR8 = (*R0 - C5QC*(*R4 + *R6)) - C5QB*(*I2 - *I8) - C5QD*(*I4 - *I6) + C5QA*((*R2 - *R4) + (*R8 - *R6));\n\t"
-							"TR4 = (*R0 - C5QC*(*R2 + *R8)) - C5QB*(*I4 - *I6) + C5QD*(*I2 - *I8) + C5QA*((*R4 - *R2) + (*R6 - *R8));\n\t"
-							"TR6 = (*R0 - C5QC*(*R2 + *R8)) + C5QB*(*I4 - *I6) - C5QD*(*I2 - *I8) + C5QA*((*R4 - *R2) + (*R6 - *R8));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = *I0 + *I2 + *I4 + *I6 + *I8;\n\t"
-							"TI2 = (*I0 - C5QC*(*I4 + *I6)) - C5QB*(*R2 - *R8) - C5QD*(*R4 - *R6) + C5QA*((*I2 - *I4) + (*I8 - *I6));\n\t"
-							"TI8 = (*I0 - C5QC*(*I4 + *I6)) + C5QB*(*R2 - *R8) + C5QD*(*R4 - *R6) + C5QA*((*I2 - *I4) + (*I8 - *I6));\n\t"
-							"TI4 = (*I0 - C5QC*(*I2 + *I8)) + C5QB*(*R4 - *R6) - C5QD*(*R2 - *R8) + C5QA*((*I4 - *I2) + (*I6 - *I8));\n\t"
-							"TI6 = (*I0 - C5QC*(*I2 + *I8)) - C5QB*(*R4 - *R6) + C5QD*(*R2 - *R8) + C5QA*((*I4 - *I2) + (*I6 - *I8));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TR1 = *R1 + *R3 + *R5 + *R7 + *R9;\n\t"
-							"TR3 = (*R1 - C5QC*(*R5 + *R7)) + C5QB*(*I3 - *I9) + C5QD*(*I5 - *I7) + C5QA*((*R3 - *R5) + (*R9 - *R7));\n\t"
-							"TR9 = (*R1 - C5QC*(*R5 + *R7)) - C5QB*(*I3 - *I9) - C5QD*(*I5 - *I7) + C5QA*((*R3 - *R5) + (*R9 - *R7));\n\t"
-							"TR5 = (*R1 - C5QC*(*R3 + *R9)) - C5QB*(*I5 - *I7) + C5QD*(*I3 - *I9) + C5QA*((*R5 - *R3) + (*R7 - *R9));\n\t"
-							"TR7 = (*R1 - C5QC*(*R3 + *R9)) + C5QB*(*I5 - *I7) - C5QD*(*I3 - *I9) + C5QA*((*R5 - *R3) + (*R7 - *R9));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI1 = *I1 + *I3 + *I5 + *I7 + *I9;\n\t"
-							"TI3 = (*I1 - C5QC*(*I5 + *I7)) - C5QB*(*R3 - *R9) - C5QD*(*R5 - *R7) + C5QA*((*I3 - *I5) + (*I9 - *I7));\n\t"
-							"TI9 = (*I1 - C5QC*(*I5 + *I7)) + C5QB*(*R3 - *R9) + C5QD*(*R5 - *R7) + C5QA*((*I3 - *I5) + (*I9 - *I7));\n\t"
-							"TI5 = (*I1 - C5QC*(*I3 + *I9)) + C5QB*(*R5 - *R7) - C5QD*(*R3 - *R9) + C5QA*((*I5 - *I3) + (*I7 - *I9));\n\t"
-							"TI7 = (*I1 - C5QC*(*I3 + *I9)) - C5QB*(*R5 - *R7) + C5QD*(*R3 - *R9) + C5QA*((*I5 - *I3) + (*I7 - *I9));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R0) = TR0 + TR1;\n\t"
-							"(*R1) = TR2 + ( C5QE*TR3 + C5QD*TI3);\n\t"
-							"(*R2) = TR4 + ( C5QA*TR5 + C5QB*TI5);\n\t"
-							"(*R3) = TR6 + (-C5QA*TR7 + C5QB*TI7);\n\t"
-							"(*R4) = TR8 + (-C5QE*TR9 + C5QD*TI9);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*I0) = TI0 + TI1;\n\t"
-							"(*I1) = TI2 + (-C5QD*TR3 + C5QE*TI3);\n\t"
-							"(*I2) = TI4 + (-C5QB*TR5 + C5QA*TI5);\n\t"
-							"(*I3) = TI6 + (-C5QB*TR7 - C5QA*TI7);\n\t"
-							"(*I4) = TI8 + (-C5QD*TR9 - C5QE*TI9);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R5) = TR0 - TR1;\n\t"
-							"(*R6) = TR2 - ( C5QE*TR3 + C5QD*TI3);\n\t"
-							"(*R7) = TR4 - ( C5QA*TR5 + C5QB*TI5);\n\t"
-							"(*R8) = TR6 - (-C5QA*TR7 + C5QB*TI7);\n\t"
-							"(*R9) = TR8 - (-C5QE*TR9 + C5QD*TI9);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*I5) = TI0 - TI1;\n\t"
-							"(*I6) = TI2 - (-C5QD*TR3 + C5QE*TI3);\n\t"
-							"(*I7) = TI4 - (-C5QB*TR5 + C5QA*TI5);\n\t"
-							"(*I8) = TI6 - (-C5QB*TR7 - C5QA*TI7);\n\t"
-							"(*I9) = TI8 - (-C5QD*TR9 - C5QE*TI9);\n\t";
-						}
-					}
-					else
-					{
-						if(cReg)
-						{
-							bflyStr +=
-							"TR0 = (*R0).x + (*R2).x + (*R4).x + (*R6).x + (*R8).x;\n\t"
-							"TR2 = ((*R0).x - C5QC*((*R4).x + (*R6).x)) - C5QB*((*R2).y - (*R8).y) - C5QD*((*R4).y - (*R6).y) + C5QA*(((*R2).x - (*R4).x) + ((*R8).x - (*R6).x));\n\t"
-							"TR8 = ((*R0).x - C5QC*((*R4).x + (*R6).x)) + C5QB*((*R2).y - (*R8).y) + C5QD*((*R4).y - (*R6).y) + C5QA*(((*R2).x - (*R4).x) + ((*R8).x - (*R6).x));\n\t"
-							"TR4 = ((*R0).x - C5QC*((*R2).x + (*R8).x)) + C5QB*((*R4).y - (*R6).y) - C5QD*((*R2).y - (*R8).y) + C5QA*(((*R4).x - (*R2).x) + ((*R6).x - (*R8).x));\n\t"
-							"TR6 = ((*R0).x - C5QC*((*R2).x + (*R8).x)) - C5QB*((*R4).y - (*R6).y) + C5QD*((*R2).y - (*R8).y) + C5QA*(((*R4).x - (*R2).x) + ((*R6).x - (*R8).x));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = (*R0).y + (*R2).y + (*R4).y + (*R6).y + (*R8).y;\n\t"
-							"TI2 = ((*R0).y - C5QC*((*R4).y + (*R6).y)) + C5QB*((*R2).x - (*R8).x) + C5QD*((*R4).x - (*R6).x) + C5QA*(((*R2).y - (*R4).y) + ((*R8).y - (*R6).y));\n\t"
-							"TI8 = ((*R0).y - C5QC*((*R4).y + (*R6).y)) - C5QB*((*R2).x - (*R8).x) - C5QD*((*R4).x - (*R6).x) + C5QA*(((*R2).y - (*R4).y) + ((*R8).y - (*R6).y));\n\t"
-							"TI4 = ((*R0).y - C5QC*((*R2).y + (*R8).y)) - C5QB*((*R4).x - (*R6).x) + C5QD*((*R2).x - (*R8).x) + C5QA*(((*R4).y - (*R2).y) + ((*R6).y - (*R8).y));\n\t"
-							"TI6 = ((*R0).y - C5QC*((*R2).y + (*R8).y)) + C5QB*((*R4).x - (*R6).x) - C5QD*((*R2).x - (*R8).x) + C5QA*(((*R4).y - (*R2).y) + ((*R6).y - (*R8).y));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TR1 = (*R1).x + (*R3).x + (*R5).x + (*R7).x + (*R9).x;\n\t"
-							"TR3 = ((*R1).x - C5QC*((*R5).x + (*R7).x)) - C5QB*((*R3).y - (*R9).y) - C5QD*((*R5).y - (*R7).y) + C5QA*(((*R3).x - (*R5).x) + ((*R9).x - (*R7).x));\n\t"
-							"TR9 = ((*R1).x - C5QC*((*R5).x + (*R7).x)) + C5QB*((*R3).y - (*R9).y) + C5QD*((*R5).y - (*R7).y) + C5QA*(((*R3).x - (*R5).x) + ((*R9).x - (*R7).x));\n\t"
-							"TR5 = ((*R1).x - C5QC*((*R3).x + (*R9).x)) + C5QB*((*R5).y - (*R7).y) - C5QD*((*R3).y - (*R9).y) + C5QA*(((*R5).x - (*R3).x) + ((*R7).x - (*R9).x));\n\t"
-							"TR7 = ((*R1).x - C5QC*((*R3).x + (*R9).x)) - C5QB*((*R5).y - (*R7).y) + C5QD*((*R3).y - (*R9).y) + C5QA*(((*R5).x - (*R3).x) + ((*R7).x - (*R9).x));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI1 = (*R1).y + (*R3).y + (*R5).y + (*R7).y + (*R9).y;\n\t"
-							"TI3 = ((*R1).y - C5QC*((*R5).y + (*R7).y)) + C5QB*((*R3).x - (*R9).x) + C5QD*((*R5).x - (*R7).x) + C5QA*(((*R3).y - (*R5).y) + ((*R9).y - (*R7).y));\n\t"
-							"TI9 = ((*R1).y - C5QC*((*R5).y + (*R7).y)) - C5QB*((*R3).x - (*R9).x) - C5QD*((*R5).x - (*R7).x) + C5QA*(((*R3).y - (*R5).y) + ((*R9).y - (*R7).y));\n\t"
-							"TI5 = ((*R1).y - C5QC*((*R3).y + (*R9).y)) - C5QB*((*R5).x - (*R7).x) + C5QD*((*R3).x - (*R9).x) + C5QA*(((*R5).y - (*R3).y) + ((*R7).y - (*R9).y));\n\t"
-							"TI7 = ((*R1).y - C5QC*((*R3).y + (*R9).y)) + C5QB*((*R5).x - (*R7).x) - C5QD*((*R3).x - (*R9).x) + C5QA*(((*R5).y - (*R3).y) + ((*R7).y - (*R9).y));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R0).x = TR0 + TR1;\n\t"
-							"(*R1).x = TR2 + ( C5QE*TR3 - C5QD*TI3);\n\t"
-							"(*R2).x = TR4 + ( C5QA*TR5 - C5QB*TI5);\n\t"
-							"(*R3).x = TR6 + (-C5QA*TR7 - C5QB*TI7);\n\t"
-							"(*R4).x = TR8 + (-C5QE*TR9 - C5QD*TI9);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R0).y = TI0 + TI1;\n\t"
-							"(*R1).y = TI2 + ( C5QD*TR3 + C5QE*TI3);\n\t"
-							"(*R2).y = TI4 + ( C5QB*TR5 + C5QA*TI5);\n\t"
-							"(*R3).y = TI6 + ( C5QB*TR7 - C5QA*TI7);\n\t"
-							"(*R4).y = TI8 + ( C5QD*TR9 - C5QE*TI9);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R5).x = TR0 - TR1;\n\t"
-							"(*R6).x = TR2 - ( C5QE*TR3 - C5QD*TI3);\n\t"
-							"(*R7).x = TR4 - ( C5QA*TR5 - C5QB*TI5);\n\t"
-							"(*R8).x = TR6 - (-C5QA*TR7 - C5QB*TI7);\n\t"
-							"(*R9).x = TR8 - (-C5QE*TR9 - C5QD*TI9);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R5).y = TI0 - TI1;\n\t"
-							"(*R6).y = TI2 - ( C5QD*TR3 + C5QE*TI3);\n\t"
-							"(*R7).y = TI4 - ( C5QB*TR5 + C5QA*TI5);\n\t"
-							"(*R8).y = TI6 - ( C5QB*TR7 - C5QA*TI7);\n\t"
-							"(*R9).y = TI8 - ( C5QD*TR9 - C5QE*TI9);\n\t";
-						}
-						else
-						{
-							bflyStr +=
-							"TR0 = *R0 + *R2 + *R4 + *R6 + *R8;\n\t"
-							"TR2 = (*R0 - C5QC*(*R4 + *R6)) - C5QB*(*I2 - *I8) - C5QD*(*I4 - *I6) + C5QA*((*R2 - *R4) + (*R8 - *R6));\n\t"
-							"TR8 = (*R0 - C5QC*(*R4 + *R6)) + C5QB*(*I2 - *I8) + C5QD*(*I4 - *I6) + C5QA*((*R2 - *R4) + (*R8 - *R6));\n\t"
-							"TR4 = (*R0 - C5QC*(*R2 + *R8)) + C5QB*(*I4 - *I6) - C5QD*(*I2 - *I8) + C5QA*((*R4 - *R2) + (*R6 - *R8));\n\t"
-							"TR6 = (*R0 - C5QC*(*R2 + *R8)) - C5QB*(*I4 - *I6) + C5QD*(*I2 - *I8) + C5QA*((*R4 - *R2) + (*R6 - *R8));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI0 = *I0 + *I2 + *I4 + *I6 + *I8;\n\t"
-							"TI2 = (*I0 - C5QC*(*I4 + *I6)) + C5QB*(*R2 - *R8) + C5QD*(*R4 - *R6) + C5QA*((*I2 - *I4) + (*I8 - *I6));\n\t"
-							"TI8 = (*I0 - C5QC*(*I4 + *I6)) - C5QB*(*R2 - *R8) - C5QD*(*R4 - *R6) + C5QA*((*I2 - *I4) + (*I8 - *I6));\n\t"
-							"TI4 = (*I0 - C5QC*(*I2 + *I8)) - C5QB*(*R4 - *R6) + C5QD*(*R2 - *R8) + C5QA*((*I4 - *I2) + (*I6 - *I8));\n\t"
-							"TI6 = (*I0 - C5QC*(*I2 + *I8)) + C5QB*(*R4 - *R6) - C5QD*(*R2 - *R8) + C5QA*((*I4 - *I2) + (*I6 - *I8));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TR1 = *R1 + *R3 + *R5 + *R7 + *R9;\n\t"
-							"TR3 = (*R1 - C5QC*(*R5 + *R7)) - C5QB*(*I3 - *I9) - C5QD*(*I5 - *I7) + C5QA*((*R3 - *R5) + (*R9 - *R7));\n\t"
-							"TR9 = (*R1 - C5QC*(*R5 + *R7)) + C5QB*(*I3 - *I9) + C5QD*(*I5 - *I7) + C5QA*((*R3 - *R5) + (*R9 - *R7));\n\t"
-							"TR5 = (*R1 - C5QC*(*R3 + *R9)) + C5QB*(*I5 - *I7) - C5QD*(*I3 - *I9) + C5QA*((*R5 - *R3) + (*R7 - *R9));\n\t"
-							"TR7 = (*R1 - C5QC*(*R3 + *R9)) - C5QB*(*I5 - *I7) + C5QD*(*I3 - *I9) + C5QA*((*R5 - *R3) + (*R7 - *R9));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"TI1 = *I1 + *I3 + *I5 + *I7 + *I9;\n\t"
-							"TI3 = (*I1 - C5QC*(*I5 + *I7)) + C5QB*(*R3 - *R9) + C5QD*(*R5 - *R7) + C5QA*((*I3 - *I5) + (*I9 - *I7));\n\t"
-							"TI9 = (*I1 - C5QC*(*I5 + *I7)) - C5QB*(*R3 - *R9) - C5QD*(*R5 - *R7) + C5QA*((*I3 - *I5) + (*I9 - *I7));\n\t"
-							"TI5 = (*I1 - C5QC*(*I3 + *I9)) - C5QB*(*R5 - *R7) + C5QD*(*R3 - *R9) + C5QA*((*I5 - *I3) + (*I7 - *I9));\n\t"
-							"TI7 = (*I1 - C5QC*(*I3 + *I9)) + C5QB*(*R5 - *R7) - C5QD*(*R3 - *R9) + C5QA*((*I5 - *I3) + (*I7 - *I9));\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R0) = TR0 + TR1;\n\t"
-							"(*R1) = TR2 + ( C5QE*TR3 - C5QD*TI3);\n\t"
-							"(*R2) = TR4 + ( C5QA*TR5 - C5QB*TI5);\n\t"
-							"(*R3) = TR6 + (-C5QA*TR7 - C5QB*TI7);\n\t"
-							"(*R4) = TR8 + (-C5QE*TR9 - C5QD*TI9);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*I0) = TI0 + TI1;\n\t"
-							"(*I1) = TI2 + ( C5QD*TR3 + C5QE*TI3);\n\t"
-							"(*I2) = TI4 + ( C5QB*TR5 + C5QA*TI5);\n\t"
-							"(*I3) = TI6 + ( C5QB*TR7 - C5QA*TI7);\n\t"
-							"(*I4) = TI8 + ( C5QD*TR9 - C5QE*TI9);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*R5) = TR0 - TR1;\n\t"
-							"(*R6) = TR2 - ( C5QE*TR3 - C5QD*TI3);\n\t"
-							"(*R7) = TR4 - ( C5QA*TR5 - C5QB*TI5);\n\t"
-							"(*R8) = TR6 - (-C5QA*TR7 - C5QB*TI7);\n\t"
-							"(*R9) = TR8 - (-C5QE*TR9 - C5QD*TI9);\n\t";
-
-							bflyStr += "\n\t";
-
-							bflyStr +=
-							"(*I5) = TI0 - TI1;\n\t"
-							"(*I6) = TI2 - ( C5QD*TR3 + C5QE*TI3);\n\t"
-							"(*I7) = TI4 - ( C5QB*TR5 + C5QA*TI5);\n\t"
-							"(*I8) = TI6 - ( C5QB*TR7 - C5QA*TI7);\n\t"
-							"(*I9) = TI8 - ( C5QD*TR9 - C5QE*TI9);\n\t";
-						}
-					}
-				} break;
-			case 11:
-				{
-					static const char *radix11str = " \
+                if(!cReg)
+                {
+                    for(size_t i = 0; i < 10; i++)
+                        bflyStr += regType + " pr" + std::to_string(i) + ", pi" + std::to_string(i)
+                                   + ";\n\t";
+                    for(size_t i = 0; i < 9; i++)
+                        bflyStr += regType + " qr" + std::to_string(i) + ", qi" + std::to_string(i)
+                                   + ";\n\t";
+
+                    if(fwd)
+                        bflyStr += C7SFR;
+                    else
+                        bflyStr += C7SBR;
+                }
+                else
+                {
+                    for(size_t i = 0; i < 10; i++)
+                        bflyStr += regType + " p" + std::to_string(i) + ";\n\t";
+                    for(size_t i = 0; i < 9; i++)
+                        bflyStr += regType + " q" + std::to_string(i) + ";\n\t";
+                    if(fwd)
+                        bflyStr += C7SFC;
+                    else
+                        bflyStr += C7SBC;
+                }
+            }
+            break;
+
+            case 8:
+            {
+                if(fwd)
+                {
+                    if(cReg)
+                    {
+                        bflyStr += "(*R1) = (*R0) - (*R1);\n\t"
+                                   "(*R0) = 2.0f * (*R0) - (*R1);\n\t"
+                                   "(*R3) = (*R2) - (*R3);\n\t"
+                                   "(*R2) = 2.0f * (*R2) - (*R3);\n\t"
+                                   "(*R5) = (*R4) - (*R5);\n\t"
+                                   "(*R4) = 2.0f * (*R4) - (*R5);\n\t"
+                                   "(*R7) = (*R6) - (*R7);\n\t"
+                                   "(*R6) = 2.0f * (*R6) - (*R7);\n\t"
+                                   "\n\t"
+                                   "(*R2) = (*R0) - (*R2);\n\t"
+                                   "(*R0) = 2.0f * (*R0) - (*R2);\n\t"
+                                   "(*R3) = (*R1) + (fvect2)(-(*R3).y, (*R3).x);\n\t"
+                                   "(*R1) = 2.0f * (*R1) - (*R3);\n\t"
+                                   "(*R6) = (*R4) - (*R6);\n\t"
+                                   "(*R4) = 2.0f * (*R4) - (*R6);\n\t"
+                                   "(*R7) = (*R5) + (fvect2)(-(*R7).y, (*R7).x);\n\t"
+                                   "(*R5) = 2.0f * (*R5) - (*R7);\n\t"
+                                   "\n\t"
+                                   "(*R4) = (*R0) - (*R4);\n\t"
+                                   "(*R0) = 2.0f * (*R0) - (*R4);\n\t"
+                                   "(*R5) = ((*R1) - C8Q * (*R5)) - C8Q * (fvect2)((*R5).y, "
+                                   "-(*R5).x);\n\t"
+                                   "(*R1) = 2.0f * (*R1) - (*R5);\n\t"
+                                   "(*R6) = (*R2) + (fvect2)(-(*R6).y, (*R6).x);\n\t"
+                                   "(*R2) = 2.0f * (*R2) - (*R6);\n\t"
+                                   "(*R7) = ((*R3) + C8Q * (*R7)) - C8Q * (fvect2)((*R7).y, "
+                                   "-(*R7).x);\n\t"
+                                   "(*R3) = 2.0f * (*R3) - (*R7);\n\t";
+                    }
+                    else
+                    {
+                        bflyStr += "TR0 = (*R0) + (*R4) + (*R2) + (*R6) +     (*R1)          "
+                                   "   +     (*R3)             +     (*R5)             +     "
+                                   "(*R7)            ;\n\t"
+                                   "TR1 = (*R0) - (*R4) + (*I2) - (*I6) + C8Q*(*R1) + "
+                                   "C8Q*(*I1) - C8Q*(*R3) + C8Q*(*I3) - C8Q*(*R5) - "
+                                   "C8Q*(*I5) + C8Q*(*R7) - C8Q*(*I7);\n\t"
+                                   "TR2 = (*R0) + (*R4) - (*R2) - (*R6)             +     "
+                                   "(*I1)             -     (*I3)             +     (*I5)    "
+                                   "         -     (*I7);\n\t"
+                                   "TR3 = (*R0) - (*R4) - (*I2) + (*I6) - C8Q*(*R1) + "
+                                   "C8Q*(*I1) + C8Q*(*R3) + C8Q*(*I3) + C8Q*(*R5) - "
+                                   "C8Q*(*I5) - C8Q*(*R7) - C8Q*(*I7);\n\t"
+                                   "TR4 = (*R0) + (*R4) + (*R2) + (*R6) -     (*R1)          "
+                                   "   -     (*R3)             -     (*R5)             -     "
+                                   "(*R7)            ;\n\t"
+                                   "TR5 = (*R0) - (*R4) + (*I2) - (*I6) - C8Q*(*R1) - "
+                                   "C8Q*(*I1) + C8Q*(*R3) - C8Q*(*I3) + C8Q*(*R5) + "
+                                   "C8Q*(*I5) - C8Q*(*R7) + C8Q*(*I7);\n\t"
+                                   "TR6 = (*R0) + (*R4) - (*R2) - (*R6)             -    "
+                                   "(*I1)              +     (*I3)             -     (*I5)   "
+                                   "          +     (*I7);\n\t"
+                                   "TR7 = (*R0) - (*R4) - (*I2) + (*I6) + C8Q*(*R1) - "
+                                   "C8Q*(*I1) - C8Q*(*R3) - C8Q*(*I3) - C8Q*(*R5) + "
+                                   "C8Q*(*I5) + C8Q*(*R7) + C8Q*(*I7);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = (*I0) + (*I4) + (*I2) + (*I6)             +     "
+                                   "(*I1)             +     (*I3)             +     (*I5)    "
+                                   "         +     (*I7);\n\t"
+                                   "TI1 = (*I0) - (*I4) - (*R2) + (*R6) - C8Q*(*R1) + "
+                                   "C8Q*(*I1) - C8Q*(*R3) - C8Q*(*I3) + C8Q*(*R5) - "
+                                   "C8Q*(*I5) + C8Q*(*R7) + C8Q*(*I7);\n\t"
+                                   "TI2 = (*I0) + (*I4) - (*I2) - (*I6) -     (*R1)          "
+                                   "   +     (*R3)             -     (*R5)             +     "
+                                   "(*R7)            ;\n\t"
+                                   "TI3 = (*I0) - (*I4) + (*R2) - (*R6) - C8Q*(*R1) - "
+                                   "C8Q*(*I1) - C8Q*(*R3) + C8Q*(*I3) + C8Q*(*R5) + "
+                                   "C8Q*(*I5) + C8Q*(*R7) - C8Q*(*I7);\n\t"
+                                   "TI4 = (*I0) + (*I4) + (*I2) + (*I6)             -    "
+                                   "(*I1)              -     (*I3)             -     (*I5)   "
+                                   "          -     (*I7);\n\t"
+                                   "TI5 = (*I0) - (*I4) - (*R2) + (*R6) + C8Q*(*R1) - "
+                                   "C8Q*(*I1) + C8Q*(*R3) + C8Q*(*I3) - C8Q*(*R5) + "
+                                   "C8Q*(*I5) - C8Q*(*R7) - C8Q*(*I7);\n\t"
+                                   "TI6 = (*I0) + (*I4) - (*I2) - (*I6) +     (*R1)          "
+                                   "   -     (*R3)             +     (*R5)             -     "
+                                   "(*R7)            ;\n\t"
+                                   "TI7 = (*I0) - (*I4) + (*R2) - (*R6) + C8Q*(*R1) + "
+                                   "C8Q*(*I1) + C8Q*(*R3) - C8Q*(*I3) - C8Q*(*R5) - "
+                                   "C8Q*(*I5) - C8Q*(*R7) + C8Q*(*I7);\n\t";
+                    }
+                }
+                else
+                {
+                    if(cReg)
+                    {
+                        bflyStr += "(*R1) = (*R0) - (*R1);\n\t"
+                                   "(*R0) = 2.0f * (*R0) - (*R1);\n\t"
+                                   "(*R3) = (*R2) - (*R3);\n\t"
+                                   "(*R2) = 2.0f * (*R2) - (*R3);\n\t"
+                                   "(*R5) = (*R4) - (*R5);\n\t"
+                                   "(*R4) = 2.0f * (*R4) - (*R5);\n\t"
+                                   "(*R7) = (*R6) - (*R7);\n\t"
+                                   "(*R6) = 2.0f * (*R6) - (*R7);\n\t"
+                                   "\n\t"
+                                   "(*R2) = (*R0) - (*R2);\n\t"
+                                   "(*R0) = 2.0f * (*R0) - (*R2);\n\t"
+                                   "(*R3) = (*R1) + (fvect2)((*R3).y, -(*R3).x);\n\t"
+                                   "(*R1) = 2.0f * (*R1) - (*R3);\n\t"
+                                   "(*R6) = (*R4) - (*R6);\n\t"
+                                   "(*R4) = 2.0f * (*R4) - (*R6);\n\t"
+                                   "(*R7) = (*R5) + (fvect2)((*R7).y, -(*R7).x);\n\t"
+                                   "(*R5) = 2.0f * (*R5) - (*R7);\n\t"
+                                   "\n\t"
+                                   "(*R4) = (*R0) - (*R4);\n\t"
+                                   "(*R0) = 2.0f * (*R0) - (*R4);\n\t"
+                                   "(*R5) = ((*R1) - C8Q * (*R5)) + C8Q * (fvect2)((*R5).y, "
+                                   "-(*R5).x);\n\t"
+                                   "(*R1) = 2.0f * (*R1) - (*R5);\n\t"
+                                   "(*R6) = (*R2) + (fvect2)((*R6).y, -(*R6).x);\n\t"
+                                   "(*R2) = 2.0f * (*R2) - (*R6);\n\t"
+                                   "(*R7) = ((*R3) + C8Q * (*R7)) + C8Q * (fvect2)((*R7).y, "
+                                   "-(*R7).x);\n\t"
+                                   "(*R3) = 2.0f * (*R3) - (*R7);\n\t";
+                    }
+                    else
+                    {
+                        bflyStr += "TR0 = (*R0) + (*R4) + (*R2) + (*R6) +     (*R1)          "
+                                   "   +     (*R3)             +     (*R5)             +     "
+                                   "(*R7)            ;\n\t"
+                                   "TR1 = (*R0) - (*R4) - (*I2) + (*I6) + C8Q*(*R1) - "
+                                   "C8Q*(*I1) - C8Q*(*R3) - C8Q*(*I3) - C8Q*(*R5) + "
+                                   "C8Q*(*I5) + C8Q*(*R7) + C8Q*(*I7);\n\t"
+                                   "TR2 = (*R0) + (*R4) - (*R2) - (*R6)             -     "
+                                   "(*I1)             +     (*I3)             -     (*I5)    "
+                                   "         +     (*I7);\n\t"
+                                   "TR3 = (*R0) - (*R4) + (*I2) - (*I6) - C8Q*(*R1) - "
+                                   "C8Q*(*I1) + C8Q*(*R3) - C8Q*(*I3) + C8Q*(*R5) + "
+                                   "C8Q*(*I5) - C8Q*(*R7) + C8Q*(*I7);\n\t"
+                                   "TR4 = (*R0) + (*R4) + (*R2) + (*R6) -     (*R1)          "
+                                   "   -    (*R3)              -     (*R5)             -     "
+                                   "(*R7)            ;\n\t"
+                                   "TR5 = (*R0) - (*R4) - (*I2) + (*I6) - C8Q*(*R1) + "
+                                   "C8Q*(*I1) + C8Q*(*R3) + C8Q*(*I3) + C8Q*(*R5) - "
+                                   "C8Q*(*I5) - C8Q*(*R7) - C8Q*(*I7);\n\t"
+                                   "TR6 = (*R0) + (*R4) - (*R2) - (*R6)             +     "
+                                   "(*I1)             -     (*I3)             +     (*I5)    "
+                                   "         -     (*I7);\n\t"
+                                   "TR7 = (*R0) - (*R4) + (*I2) - (*I6) + C8Q*(*R1) + "
+                                   "C8Q*(*I1) - C8Q*(*R3) + C8Q*(*I3) - C8Q*(*R5) - "
+                                   "C8Q*(*I5) + C8Q*(*R7) - C8Q*(*I7);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = (*I0) + (*I4) + (*I2) + (*I6)             +     "
+                                   "(*I1)             +    (*I3)              +     (*I5)    "
+                                   "         +     (*I7);\n\t"
+                                   "TI1 = (*I0) - (*I4) + (*R2) - (*R6) + C8Q*(*R1) + "
+                                   "C8Q*(*I1) + C8Q*(*R3) - C8Q*(*I3) - C8Q*(*R5) - "
+                                   "C8Q*(*I5) - C8Q*(*R7) + C8Q*(*I7);\n\t"
+                                   "TI2 = (*I0) + (*I4) - (*I2) - (*I6) +     (*R1)          "
+                                   "   -     (*R3)             +     (*R5)             -     "
+                                   "(*R7)            ;\n\t"
+                                   "TI3 = (*I0) - (*I4) - (*R2) + (*R6) + C8Q*(*R1) - "
+                                   "C8Q*(*I1) + C8Q*(*R3) + C8Q*(*I3) - C8Q*(*R5) + "
+                                   "C8Q*(*I5) - C8Q*(*R7) - C8Q*(*I7);\n\t"
+                                   "TI4 = (*I0) + (*I4) + (*I2) + (*I6)             -     "
+                                   "(*I1)             -     (*I3)             -     (*I5)    "
+                                   "         -     (*I7);\n\t"
+                                   "TI5 = (*I0) - (*I4) + (*R2) - (*R6) - C8Q*(*R1) - "
+                                   "C8Q*(*I1) - C8Q*(*R3) + C8Q*(*I3) + C8Q*(*R5) + "
+                                   "C8Q*(*I5) + C8Q*(*R7) - C8Q*(*I7);\n\t"
+                                   "TI6 = (*I0) + (*I4) - (*I2) - (*I6) -     (*R1)          "
+                                   "   +     (*R3)             -     (*R5)             +     "
+                                   "(*R7)            ;\n\t"
+                                   "TI7 = (*I0) - (*I4) - (*R2) + (*R6) - C8Q*(*R1) + "
+                                   "C8Q*(*I1) - C8Q*(*R3) - C8Q*(*I3) + C8Q*(*R5) - "
+                                   "C8Q*(*I5) + C8Q*(*R7) + C8Q*(*I7);\n\t";
+                    }
+                }
+            }
+            break;
+            case 10:
+            {
+                if(fwd)
+                {
+                    if(cReg)
+                    {
+                        bflyStr
+                            += "TR0 = (*R0).x + (*R2).x + (*R4).x + (*R6).x + (*R8).x;\n\t"
+                               "TR2 = ((*R0).x - C5QC*((*R4).x + (*R6).x)) + C5QB*((*R2).y - "
+                               "(*R8).y) + C5QD*((*R4).y - (*R6).y) + C5QA*(((*R2).x - (*R4).x) "
+                               "+ ((*R8).x - (*R6).x));\n\t"
+                               "TR8 = ((*R0).x - C5QC*((*R4).x + (*R6).x)) - C5QB*((*R2).y - "
+                               "(*R8).y) - C5QD*((*R4).y - (*R6).y) + C5QA*(((*R2).x - (*R4).x) "
+                               "+ ((*R8).x - (*R6).x));\n\t"
+                               "TR4 = ((*R0).x - C5QC*((*R2).x + (*R8).x)) - C5QB*((*R4).y - "
+                               "(*R6).y) + C5QD*((*R2).y - (*R8).y) + C5QA*(((*R4).x - (*R2).x) "
+                               "+ ((*R6).x - (*R8).x));\n\t"
+                               "TR6 = ((*R0).x - C5QC*((*R2).x + (*R8).x)) + C5QB*((*R4).y - "
+                               "(*R6).y) - C5QD*((*R2).y - (*R8).y) + C5QA*(((*R4).x - (*R2).x) "
+                               "+ ((*R6).x - (*R8).x));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr
+                            += "TI0 = (*R0).y + (*R2).y + (*R4).y + (*R6).y + (*R8).y;\n\t"
+                               "TI2 = ((*R0).y - C5QC*((*R4).y + (*R6).y)) - C5QB*((*R2).x - "
+                               "(*R8).x) - C5QD*((*R4).x - (*R6).x) + C5QA*(((*R2).y - (*R4).y) "
+                               "+ ((*R8).y - (*R6).y));\n\t"
+                               "TI8 = ((*R0).y - C5QC*((*R4).y + (*R6).y)) + C5QB*((*R2).x - "
+                               "(*R8).x) + C5QD*((*R4).x - (*R6).x) + C5QA*(((*R2).y - (*R4).y) "
+                               "+ ((*R8).y - (*R6).y));\n\t"
+                               "TI4 = ((*R0).y - C5QC*((*R2).y + (*R8).y)) + C5QB*((*R4).x - "
+                               "(*R6).x) - C5QD*((*R2).x - (*R8).x) + C5QA*(((*R4).y - (*R2).y) "
+                               "+ ((*R6).y - (*R8).y));\n\t"
+                               "TI6 = ((*R0).y - C5QC*((*R2).y + (*R8).y)) - C5QB*((*R4).x - "
+                               "(*R6).x) + C5QD*((*R2).x - (*R8).x) + C5QA*(((*R4).y - (*R2).y) "
+                               "+ ((*R6).y - (*R8).y));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr
+                            += "TR1 = (*R1).x + (*R3).x + (*R5).x + (*R7).x + (*R9).x;\n\t"
+                               "TR3 = ((*R1).x - C5QC*((*R5).x + (*R7).x)) + C5QB*((*R3).y - "
+                               "(*R9).y) + C5QD*((*R5).y - (*R7).y) + C5QA*(((*R3).x - (*R5).x) "
+                               "+ ((*R9).x - (*R7).x));\n\t"
+                               "TR9 = ((*R1).x - C5QC*((*R5).x + (*R7).x)) - C5QB*((*R3).y - "
+                               "(*R9).y) - C5QD*((*R5).y - (*R7).y) + C5QA*(((*R3).x - (*R5).x) "
+                               "+ ((*R9).x - (*R7).x));\n\t"
+                               "TR5 = ((*R1).x - C5QC*((*R3).x + (*R9).x)) - C5QB*((*R5).y - "
+                               "(*R7).y) + C5QD*((*R3).y - (*R9).y) + C5QA*(((*R5).x - (*R3).x) "
+                               "+ ((*R7).x - (*R9).x));\n\t"
+                               "TR7 = ((*R1).x - C5QC*((*R3).x + (*R9).x)) + C5QB*((*R5).y - "
+                               "(*R7).y) - C5QD*((*R3).y - (*R9).y) + C5QA*(((*R5).x - (*R3).x) "
+                               "+ ((*R7).x - (*R9).x));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr
+                            += "TI1 = (*R1).y + (*R3).y + (*R5).y + (*R7).y + (*R9).y;\n\t"
+                               "TI3 = ((*R1).y - C5QC*((*R5).y + (*R7).y)) - C5QB*((*R3).x - "
+                               "(*R9).x) - C5QD*((*R5).x - (*R7).x) + C5QA*(((*R3).y - (*R5).y) "
+                               "+ ((*R9).y - (*R7).y));\n\t"
+                               "TI9 = ((*R1).y - C5QC*((*R5).y + (*R7).y)) + C5QB*((*R3).x - "
+                               "(*R9).x) + C5QD*((*R5).x - (*R7).x) + C5QA*(((*R3).y - (*R5).y) "
+                               "+ ((*R9).y - (*R7).y));\n\t"
+                               "TI5 = ((*R1).y - C5QC*((*R3).y + (*R9).y)) + C5QB*((*R5).x - "
+                               "(*R7).x) - C5QD*((*R3).x - (*R9).x) + C5QA*(((*R5).y - (*R3).y) "
+                               "+ ((*R7).y - (*R9).y));\n\t"
+                               "TI7 = ((*R1).y - C5QC*((*R3).y + (*R9).y)) - C5QB*((*R5).x - "
+                               "(*R7).x) + C5QD*((*R3).x - (*R9).x) + C5QA*(((*R5).y - (*R3).y) "
+                               "+ ((*R7).y - (*R9).y));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R0).x = TR0 + TR1;\n\t"
+                                   "(*R1).x = TR2 + ( C5QE*TR3 + C5QD*TI3);\n\t"
+                                   "(*R2).x = TR4 + ( C5QA*TR5 + C5QB*TI5);\n\t"
+                                   "(*R3).x = TR6 + (-C5QA*TR7 + C5QB*TI7);\n\t"
+                                   "(*R4).x = TR8 + (-C5QE*TR9 + C5QD*TI9);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R0).y = TI0 + TI1;\n\t"
+                                   "(*R1).y = TI2 + (-C5QD*TR3 + C5QE*TI3);\n\t"
+                                   "(*R2).y = TI4 + (-C5QB*TR5 + C5QA*TI5);\n\t"
+                                   "(*R3).y = TI6 + (-C5QB*TR7 - C5QA*TI7);\n\t"
+                                   "(*R4).y = TI8 + (-C5QD*TR9 - C5QE*TI9);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R5).x = TR0 - TR1;\n\t"
+                                   "(*R6).x = TR2 - ( C5QE*TR3 + C5QD*TI3);\n\t"
+                                   "(*R7).x = TR4 - ( C5QA*TR5 + C5QB*TI5);\n\t"
+                                   "(*R8).x = TR6 - (-C5QA*TR7 + C5QB*TI7);\n\t"
+                                   "(*R9).x = TR8 - (-C5QE*TR9 + C5QD*TI9);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R5).y = TI0 - TI1;\n\t"
+                                   "(*R6).y = TI2 - (-C5QD*TR3 + C5QE*TI3);\n\t"
+                                   "(*R7).y = TI4 - (-C5QB*TR5 + C5QA*TI5);\n\t"
+                                   "(*R8).y = TI6 - (-C5QB*TR7 - C5QA*TI7);\n\t"
+                                   "(*R9).y = TI8 - (-C5QD*TR9 - C5QE*TI9);\n\t";
+                    }
+                    else
+                    {
+                        bflyStr += "TR0 = *R0 + *R2 + *R4 + *R6 + *R8;\n\t"
+                                   "TR2 = (*R0 - C5QC*(*R4 + *R6)) + C5QB*(*I2 - *I8) + "
+                                   "C5QD*(*I4 - *I6) + C5QA*((*R2 - *R4) + (*R8 - *R6));\n\t"
+                                   "TR8 = (*R0 - C5QC*(*R4 + *R6)) - C5QB*(*I2 - *I8) - "
+                                   "C5QD*(*I4 - *I6) + C5QA*((*R2 - *R4) + (*R8 - *R6));\n\t"
+                                   "TR4 = (*R0 - C5QC*(*R2 + *R8)) - C5QB*(*I4 - *I6) + "
+                                   "C5QD*(*I2 - *I8) + C5QA*((*R4 - *R2) + (*R6 - *R8));\n\t"
+                                   "TR6 = (*R0 - C5QC*(*R2 + *R8)) + C5QB*(*I4 - *I6) - "
+                                   "C5QD*(*I2 - *I8) + C5QA*((*R4 - *R2) + (*R6 - *R8));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = *I0 + *I2 + *I4 + *I6 + *I8;\n\t"
+                                   "TI2 = (*I0 - C5QC*(*I4 + *I6)) - C5QB*(*R2 - *R8) - "
+                                   "C5QD*(*R4 - *R6) + C5QA*((*I2 - *I4) + (*I8 - *I6));\n\t"
+                                   "TI8 = (*I0 - C5QC*(*I4 + *I6)) + C5QB*(*R2 - *R8) + "
+                                   "C5QD*(*R4 - *R6) + C5QA*((*I2 - *I4) + (*I8 - *I6));\n\t"
+                                   "TI4 = (*I0 - C5QC*(*I2 + *I8)) + C5QB*(*R4 - *R6) - "
+                                   "C5QD*(*R2 - *R8) + C5QA*((*I4 - *I2) + (*I6 - *I8));\n\t"
+                                   "TI6 = (*I0 - C5QC*(*I2 + *I8)) - C5QB*(*R4 - *R6) + "
+                                   "C5QD*(*R2 - *R8) + C5QA*((*I4 - *I2) + (*I6 - *I8));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TR1 = *R1 + *R3 + *R5 + *R7 + *R9;\n\t"
+                                   "TR3 = (*R1 - C5QC*(*R5 + *R7)) + C5QB*(*I3 - *I9) + "
+                                   "C5QD*(*I5 - *I7) + C5QA*((*R3 - *R5) + (*R9 - *R7));\n\t"
+                                   "TR9 = (*R1 - C5QC*(*R5 + *R7)) - C5QB*(*I3 - *I9) - "
+                                   "C5QD*(*I5 - *I7) + C5QA*((*R3 - *R5) + (*R9 - *R7));\n\t"
+                                   "TR5 = (*R1 - C5QC*(*R3 + *R9)) - C5QB*(*I5 - *I7) + "
+                                   "C5QD*(*I3 - *I9) + C5QA*((*R5 - *R3) + (*R7 - *R9));\n\t"
+                                   "TR7 = (*R1 - C5QC*(*R3 + *R9)) + C5QB*(*I5 - *I7) - "
+                                   "C5QD*(*I3 - *I9) + C5QA*((*R5 - *R3) + (*R7 - *R9));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI1 = *I1 + *I3 + *I5 + *I7 + *I9;\n\t"
+                                   "TI3 = (*I1 - C5QC*(*I5 + *I7)) - C5QB*(*R3 - *R9) - "
+                                   "C5QD*(*R5 - *R7) + C5QA*((*I3 - *I5) + (*I9 - *I7));\n\t"
+                                   "TI9 = (*I1 - C5QC*(*I5 + *I7)) + C5QB*(*R3 - *R9) + "
+                                   "C5QD*(*R5 - *R7) + C5QA*((*I3 - *I5) + (*I9 - *I7));\n\t"
+                                   "TI5 = (*I1 - C5QC*(*I3 + *I9)) + C5QB*(*R5 - *R7) - "
+                                   "C5QD*(*R3 - *R9) + C5QA*((*I5 - *I3) + (*I7 - *I9));\n\t"
+                                   "TI7 = (*I1 - C5QC*(*I3 + *I9)) - C5QB*(*R5 - *R7) + "
+                                   "C5QD*(*R3 - *R9) + C5QA*((*I5 - *I3) + (*I7 - *I9));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R0) = TR0 + TR1;\n\t"
+                                   "(*R1) = TR2 + ( C5QE*TR3 + C5QD*TI3);\n\t"
+                                   "(*R2) = TR4 + ( C5QA*TR5 + C5QB*TI5);\n\t"
+                                   "(*R3) = TR6 + (-C5QA*TR7 + C5QB*TI7);\n\t"
+                                   "(*R4) = TR8 + (-C5QE*TR9 + C5QD*TI9);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*I0) = TI0 + TI1;\n\t"
+                                   "(*I1) = TI2 + (-C5QD*TR3 + C5QE*TI3);\n\t"
+                                   "(*I2) = TI4 + (-C5QB*TR5 + C5QA*TI5);\n\t"
+                                   "(*I3) = TI6 + (-C5QB*TR7 - C5QA*TI7);\n\t"
+                                   "(*I4) = TI8 + (-C5QD*TR9 - C5QE*TI9);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R5) = TR0 - TR1;\n\t"
+                                   "(*R6) = TR2 - ( C5QE*TR3 + C5QD*TI3);\n\t"
+                                   "(*R7) = TR4 - ( C5QA*TR5 + C5QB*TI5);\n\t"
+                                   "(*R8) = TR6 - (-C5QA*TR7 + C5QB*TI7);\n\t"
+                                   "(*R9) = TR8 - (-C5QE*TR9 + C5QD*TI9);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*I5) = TI0 - TI1;\n\t"
+                                   "(*I6) = TI2 - (-C5QD*TR3 + C5QE*TI3);\n\t"
+                                   "(*I7) = TI4 - (-C5QB*TR5 + C5QA*TI5);\n\t"
+                                   "(*I8) = TI6 - (-C5QB*TR7 - C5QA*TI7);\n\t"
+                                   "(*I9) = TI8 - (-C5QD*TR9 - C5QE*TI9);\n\t";
+                    }
+                }
+                else
+                {
+                    if(cReg)
+                    {
+                        bflyStr
+                            += "TR0 = (*R0).x + (*R2).x + (*R4).x + (*R6).x + (*R8).x;\n\t"
+                               "TR2 = ((*R0).x - C5QC*((*R4).x + (*R6).x)) - C5QB*((*R2).y - "
+                               "(*R8).y) - C5QD*((*R4).y - (*R6).y) + C5QA*(((*R2).x - (*R4).x) "
+                               "+ ((*R8).x - (*R6).x));\n\t"
+                               "TR8 = ((*R0).x - C5QC*((*R4).x + (*R6).x)) + C5QB*((*R2).y - "
+                               "(*R8).y) + C5QD*((*R4).y - (*R6).y) + C5QA*(((*R2).x - (*R4).x) "
+                               "+ ((*R8).x - (*R6).x));\n\t"
+                               "TR4 = ((*R0).x - C5QC*((*R2).x + (*R8).x)) + C5QB*((*R4).y - "
+                               "(*R6).y) - C5QD*((*R2).y - (*R8).y) + C5QA*(((*R4).x - (*R2).x) "
+                               "+ ((*R6).x - (*R8).x));\n\t"
+                               "TR6 = ((*R0).x - C5QC*((*R2).x + (*R8).x)) - C5QB*((*R4).y - "
+                               "(*R6).y) + C5QD*((*R2).y - (*R8).y) + C5QA*(((*R4).x - (*R2).x) "
+                               "+ ((*R6).x - (*R8).x));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr
+                            += "TI0 = (*R0).y + (*R2).y + (*R4).y + (*R6).y + (*R8).y;\n\t"
+                               "TI2 = ((*R0).y - C5QC*((*R4).y + (*R6).y)) + C5QB*((*R2).x - "
+                               "(*R8).x) + C5QD*((*R4).x - (*R6).x) + C5QA*(((*R2).y - (*R4).y) "
+                               "+ ((*R8).y - (*R6).y));\n\t"
+                               "TI8 = ((*R0).y - C5QC*((*R4).y + (*R6).y)) - C5QB*((*R2).x - "
+                               "(*R8).x) - C5QD*((*R4).x - (*R6).x) + C5QA*(((*R2).y - (*R4).y) "
+                               "+ ((*R8).y - (*R6).y));\n\t"
+                               "TI4 = ((*R0).y - C5QC*((*R2).y + (*R8).y)) - C5QB*((*R4).x - "
+                               "(*R6).x) + C5QD*((*R2).x - (*R8).x) + C5QA*(((*R4).y - (*R2).y) "
+                               "+ ((*R6).y - (*R8).y));\n\t"
+                               "TI6 = ((*R0).y - C5QC*((*R2).y + (*R8).y)) + C5QB*((*R4).x - "
+                               "(*R6).x) - C5QD*((*R2).x - (*R8).x) + C5QA*(((*R4).y - (*R2).y) "
+                               "+ ((*R6).y - (*R8).y));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr
+                            += "TR1 = (*R1).x + (*R3).x + (*R5).x + (*R7).x + (*R9).x;\n\t"
+                               "TR3 = ((*R1).x - C5QC*((*R5).x + (*R7).x)) - C5QB*((*R3).y - "
+                               "(*R9).y) - C5QD*((*R5).y - (*R7).y) + C5QA*(((*R3).x - (*R5).x) "
+                               "+ ((*R9).x - (*R7).x));\n\t"
+                               "TR9 = ((*R1).x - C5QC*((*R5).x + (*R7).x)) + C5QB*((*R3).y - "
+                               "(*R9).y) + C5QD*((*R5).y - (*R7).y) + C5QA*(((*R3).x - (*R5).x) "
+                               "+ ((*R9).x - (*R7).x));\n\t"
+                               "TR5 = ((*R1).x - C5QC*((*R3).x + (*R9).x)) + C5QB*((*R5).y - "
+                               "(*R7).y) - C5QD*((*R3).y - (*R9).y) + C5QA*(((*R5).x - (*R3).x) "
+                               "+ ((*R7).x - (*R9).x));\n\t"
+                               "TR7 = ((*R1).x - C5QC*((*R3).x + (*R9).x)) - C5QB*((*R5).y - "
+                               "(*R7).y) + C5QD*((*R3).y - (*R9).y) + C5QA*(((*R5).x - (*R3).x) "
+                               "+ ((*R7).x - (*R9).x));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr
+                            += "TI1 = (*R1).y + (*R3).y + (*R5).y + (*R7).y + (*R9).y;\n\t"
+                               "TI3 = ((*R1).y - C5QC*((*R5).y + (*R7).y)) + C5QB*((*R3).x - "
+                               "(*R9).x) + C5QD*((*R5).x - (*R7).x) + C5QA*(((*R3).y - (*R5).y) "
+                               "+ ((*R9).y - (*R7).y));\n\t"
+                               "TI9 = ((*R1).y - C5QC*((*R5).y + (*R7).y)) - C5QB*((*R3).x - "
+                               "(*R9).x) - C5QD*((*R5).x - (*R7).x) + C5QA*(((*R3).y - (*R5).y) "
+                               "+ ((*R9).y - (*R7).y));\n\t"
+                               "TI5 = ((*R1).y - C5QC*((*R3).y + (*R9).y)) - C5QB*((*R5).x - "
+                               "(*R7).x) + C5QD*((*R3).x - (*R9).x) + C5QA*(((*R5).y - (*R3).y) "
+                               "+ ((*R7).y - (*R9).y));\n\t"
+                               "TI7 = ((*R1).y - C5QC*((*R3).y + (*R9).y)) + C5QB*((*R5).x - "
+                               "(*R7).x) - C5QD*((*R3).x - (*R9).x) + C5QA*(((*R5).y - (*R3).y) "
+                               "+ ((*R7).y - (*R9).y));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R0).x = TR0 + TR1;\n\t"
+                                   "(*R1).x = TR2 + ( C5QE*TR3 - C5QD*TI3);\n\t"
+                                   "(*R2).x = TR4 + ( C5QA*TR5 - C5QB*TI5);\n\t"
+                                   "(*R3).x = TR6 + (-C5QA*TR7 - C5QB*TI7);\n\t"
+                                   "(*R4).x = TR8 + (-C5QE*TR9 - C5QD*TI9);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R0).y = TI0 + TI1;\n\t"
+                                   "(*R1).y = TI2 + ( C5QD*TR3 + C5QE*TI3);\n\t"
+                                   "(*R2).y = TI4 + ( C5QB*TR5 + C5QA*TI5);\n\t"
+                                   "(*R3).y = TI6 + ( C5QB*TR7 - C5QA*TI7);\n\t"
+                                   "(*R4).y = TI8 + ( C5QD*TR9 - C5QE*TI9);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R5).x = TR0 - TR1;\n\t"
+                                   "(*R6).x = TR2 - ( C5QE*TR3 - C5QD*TI3);\n\t"
+                                   "(*R7).x = TR4 - ( C5QA*TR5 - C5QB*TI5);\n\t"
+                                   "(*R8).x = TR6 - (-C5QA*TR7 - C5QB*TI7);\n\t"
+                                   "(*R9).x = TR8 - (-C5QE*TR9 - C5QD*TI9);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R5).y = TI0 - TI1;\n\t"
+                                   "(*R6).y = TI2 - ( C5QD*TR3 + C5QE*TI3);\n\t"
+                                   "(*R7).y = TI4 - ( C5QB*TR5 + C5QA*TI5);\n\t"
+                                   "(*R8).y = TI6 - ( C5QB*TR7 - C5QA*TI7);\n\t"
+                                   "(*R9).y = TI8 - ( C5QD*TR9 - C5QE*TI9);\n\t";
+                    }
+                    else
+                    {
+                        bflyStr += "TR0 = *R0 + *R2 + *R4 + *R6 + *R8;\n\t"
+                                   "TR2 = (*R0 - C5QC*(*R4 + *R6)) - C5QB*(*I2 - *I8) - "
+                                   "C5QD*(*I4 - *I6) + C5QA*((*R2 - *R4) + (*R8 - *R6));\n\t"
+                                   "TR8 = (*R0 - C5QC*(*R4 + *R6)) + C5QB*(*I2 - *I8) + "
+                                   "C5QD*(*I4 - *I6) + C5QA*((*R2 - *R4) + (*R8 - *R6));\n\t"
+                                   "TR4 = (*R0 - C5QC*(*R2 + *R8)) + C5QB*(*I4 - *I6) - "
+                                   "C5QD*(*I2 - *I8) + C5QA*((*R4 - *R2) + (*R6 - *R8));\n\t"
+                                   "TR6 = (*R0 - C5QC*(*R2 + *R8)) - C5QB*(*I4 - *I6) + "
+                                   "C5QD*(*I2 - *I8) + C5QA*((*R4 - *R2) + (*R6 - *R8));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI0 = *I0 + *I2 + *I4 + *I6 + *I8;\n\t"
+                                   "TI2 = (*I0 - C5QC*(*I4 + *I6)) + C5QB*(*R2 - *R8) + "
+                                   "C5QD*(*R4 - *R6) + C5QA*((*I2 - *I4) + (*I8 - *I6));\n\t"
+                                   "TI8 = (*I0 - C5QC*(*I4 + *I6)) - C5QB*(*R2 - *R8) - "
+                                   "C5QD*(*R4 - *R6) + C5QA*((*I2 - *I4) + (*I8 - *I6));\n\t"
+                                   "TI4 = (*I0 - C5QC*(*I2 + *I8)) - C5QB*(*R4 - *R6) + "
+                                   "C5QD*(*R2 - *R8) + C5QA*((*I4 - *I2) + (*I6 - *I8));\n\t"
+                                   "TI6 = (*I0 - C5QC*(*I2 + *I8)) + C5QB*(*R4 - *R6) - "
+                                   "C5QD*(*R2 - *R8) + C5QA*((*I4 - *I2) + (*I6 - *I8));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TR1 = *R1 + *R3 + *R5 + *R7 + *R9;\n\t"
+                                   "TR3 = (*R1 - C5QC*(*R5 + *R7)) - C5QB*(*I3 - *I9) - "
+                                   "C5QD*(*I5 - *I7) + C5QA*((*R3 - *R5) + (*R9 - *R7));\n\t"
+                                   "TR9 = (*R1 - C5QC*(*R5 + *R7)) + C5QB*(*I3 - *I9) + "
+                                   "C5QD*(*I5 - *I7) + C5QA*((*R3 - *R5) + (*R9 - *R7));\n\t"
+                                   "TR5 = (*R1 - C5QC*(*R3 + *R9)) + C5QB*(*I5 - *I7) - "
+                                   "C5QD*(*I3 - *I9) + C5QA*((*R5 - *R3) + (*R7 - *R9));\n\t"
+                                   "TR7 = (*R1 - C5QC*(*R3 + *R9)) - C5QB*(*I5 - *I7) + "
+                                   "C5QD*(*I3 - *I9) + C5QA*((*R5 - *R3) + (*R7 - *R9));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "TI1 = *I1 + *I3 + *I5 + *I7 + *I9;\n\t"
+                                   "TI3 = (*I1 - C5QC*(*I5 + *I7)) + C5QB*(*R3 - *R9) + "
+                                   "C5QD*(*R5 - *R7) + C5QA*((*I3 - *I5) + (*I9 - *I7));\n\t"
+                                   "TI9 = (*I1 - C5QC*(*I5 + *I7)) - C5QB*(*R3 - *R9) - "
+                                   "C5QD*(*R5 - *R7) + C5QA*((*I3 - *I5) + (*I9 - *I7));\n\t"
+                                   "TI5 = (*I1 - C5QC*(*I3 + *I9)) - C5QB*(*R5 - *R7) + "
+                                   "C5QD*(*R3 - *R9) + C5QA*((*I5 - *I3) + (*I7 - *I9));\n\t"
+                                   "TI7 = (*I1 - C5QC*(*I3 + *I9)) + C5QB*(*R5 - *R7) - "
+                                   "C5QD*(*R3 - *R9) + C5QA*((*I5 - *I3) + (*I7 - *I9));\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R0) = TR0 + TR1;\n\t"
+                                   "(*R1) = TR2 + ( C5QE*TR3 - C5QD*TI3);\n\t"
+                                   "(*R2) = TR4 + ( C5QA*TR5 - C5QB*TI5);\n\t"
+                                   "(*R3) = TR6 + (-C5QA*TR7 - C5QB*TI7);\n\t"
+                                   "(*R4) = TR8 + (-C5QE*TR9 - C5QD*TI9);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*I0) = TI0 + TI1;\n\t"
+                                   "(*I1) = TI2 + ( C5QD*TR3 + C5QE*TI3);\n\t"
+                                   "(*I2) = TI4 + ( C5QB*TR5 + C5QA*TI5);\n\t"
+                                   "(*I3) = TI6 + ( C5QB*TR7 - C5QA*TI7);\n\t"
+                                   "(*I4) = TI8 + ( C5QD*TR9 - C5QE*TI9);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*R5) = TR0 - TR1;\n\t"
+                                   "(*R6) = TR2 - ( C5QE*TR3 - C5QD*TI3);\n\t"
+                                   "(*R7) = TR4 - ( C5QA*TR5 - C5QB*TI5);\n\t"
+                                   "(*R8) = TR6 - (-C5QA*TR7 - C5QB*TI7);\n\t"
+                                   "(*R9) = TR8 - (-C5QE*TR9 - C5QD*TI9);\n\t";
+
+                        bflyStr += "\n\t";
+
+                        bflyStr += "(*I5) = TI0 - TI1;\n\t"
+                                   "(*I6) = TI2 - ( C5QD*TR3 + C5QE*TI3);\n\t"
+                                   "(*I7) = TI4 - ( C5QB*TR5 + C5QA*TI5);\n\t"
+                                   "(*I8) = TI6 - ( C5QB*TR7 - C5QA*TI7);\n\t"
+                                   "(*I9) = TI8 - ( C5QD*TR9 - C5QE*TI9);\n\t";
+                    }
+                }
+            }
+            break;
+            case 11:
+            {
+                static const char* radix11str = " \
 						fptype p0, p1, p2, p3, p4, p5, p6, p7, p8, p9; \n\
 						p0 = ((*R1).x - (*R10).x)*dir; \n\
 						p1 = (*R1).x + (*R10).x; \n\
@@ -1490,22 +1662,22 @@ namespace StockhamGenerator
 						(*R10).x = z1 - w14* b11_0; \n\
 						(*R10).y = z7 - w1* b11_0; \n";
 
-					if (fwd)
-					{
-						bflyStr += "fptype dir = -1;\n\n";
-					}
-					else
-					{
-						bflyStr += "fptype dir = 1;\n\n";
-					}
+                if(fwd)
+                {
+                    bflyStr += "fptype dir = -1;\n\n";
+                }
+                else
+                {
+                    bflyStr += "fptype dir = 1;\n\n";
+                }
 
-					bflyStr += radix11str;
+                bflyStr += radix11str;
+            }
+            break;
+            case 13:
+            {
 
-				} break;
-			case 13:
-				{
-
-					static const char *radix13str = " \
+                static const char* radix13str = " \
 						fptype p0, p1, p2, p3, p4, p5, p6, p7, p8, p9;\n\
 						p0 = (*R7).x - (*R2).x;\n\
 						p1 = (*R7).x + (*R2).x;\n\
@@ -1710,77 +1882,104 @@ namespace StockhamGenerator
 						(*R12).x =  e6 -  f2 * dir * b13_9 ;\n\
 						(*R12).y = e12 + f12 * dir * b13_9 ;\n";
 
-						if (fwd)
-						{
-							bflyStr += "fptype dir = -1;\n\n";
-						}
-						else
-						{
-							bflyStr += "fptype dir = 1;\n\n";
-						}
+                if(fwd)
+                {
+                    bflyStr += "fptype dir = -1;\n\n";
+                }
+                else
+                {
+                    bflyStr += "fptype dir = 1;\n\n";
+                }
 
-						bflyStr += radix13str;
+                bflyStr += radix13str;
+            }
+            break;
 
-				} break;
+            default:
+                assert(false);
+            }
 
-			default:
-				assert(false);
-			}
+            bflyStr += "\n\t";
 
-			bflyStr += "\n\t";
+            // Assign results
+            if((radix & (radix - 1)) || (!cReg))
+            {
+                if((radix != 10) && (radix != 6))
+                {
+                    for(size_t i = 0; i < radix; i++)
+                    {
+                        if(cReg)
+                        {
+                            if((radix != 7) && (radix != 11) && (radix != 13))
+                            {
+                                bflyStr += "((*R";
+                                bflyStr += std::to_string(i);
+                                bflyStr += ").x) = TR";
+                                bflyStr += std::to_string(i);
+                                bflyStr += "; ";
+                                bflyStr += "((*R";
+                                bflyStr += std::to_string(i);
+                                bflyStr += ").y) = TI";
+                                bflyStr += std::to_string(i);
+                                bflyStr += ";\n\t";
+                            }
+                        }
+                        else
+                        {
+                            bflyStr += "(*R";
+                            bflyStr += std::to_string(i);
+                            bflyStr += ") = TR";
+                            bflyStr += std::to_string(i);
+                            bflyStr += "; ";
+                            bflyStr += "(*I";
+                            bflyStr += std::to_string(i);
+                            bflyStr += ") = TI";
+                            bflyStr += std::to_string(i);
+                            bflyStr += ";\n\t";
+                        }
+                    }
+                }
+            }
+            else
+            {
+                for(size_t i = 0; i < radix; i++)
+                {
+                    size_t j = BitReverse(i, radix);
 
-			// Assign results
-			if( (radix & (radix-1)) || (!cReg) )
-			{
-				if( (radix != 10) && (radix != 6) )
-				{
-				for(size_t i=0; i<radix;i++)
-				{
-					if(cReg)
-					{
-						if ( (radix != 7) && (radix != 11) && (radix != 13) )
-						{
-						bflyStr += "((*R"; bflyStr += std::to_string(i); bflyStr += ").x) = TR"; bflyStr += std::to_string(i); bflyStr += "; ";
-						bflyStr += "((*R"; bflyStr += std::to_string(i); bflyStr += ").y) = TI"; bflyStr += std::to_string(i); bflyStr += ";\n\t";
-						}
-					}
-					else
-					{
-						bflyStr += "(*R"; bflyStr += std::to_string(i); bflyStr += ") = TR"; bflyStr += std::to_string(i); bflyStr += "; ";
-						bflyStr += "(*I"; bflyStr += std::to_string(i); bflyStr += ") = TI"; bflyStr += std::to_string(i); bflyStr += ";\n\t";
-					}
-				}
-				}
-			}
-			else
-			{
-				for(size_t i=0; i<radix;i++)
-				{
-					size_t j = BitReverse(i, radix);
+                    if(i < j)
+                    {
+                        bflyStr += "T = (*R";
+                        bflyStr += std::to_string(i);
+                        bflyStr += "); (*R";
+                        bflyStr += std::to_string(i);
+                        bflyStr += ") = (*R";
+                        bflyStr += std::to_string(j);
+                        bflyStr += "); (*R";
+                        bflyStr += std::to_string(j);
+                        bflyStr += ") = T;\n\t";
+                    }
+                }
+            }
 
-					if(i < j)
-					{
-						bflyStr += "T = (*R"; bflyStr += std::to_string(i); bflyStr += "); (*R";
-						bflyStr += std::to_string(i); bflyStr += ") = (*R"; bflyStr += std::to_string(j); bflyStr += "); (*R";
-						bflyStr += std::to_string(j); bflyStr += ") = T;\n\t";
-					}
-				}
-			}
+            bflyStr += "\n}\n";
+        }
 
-			bflyStr += "\n}\n";
-		}
+    public:
+        Butterfly(size_t radixVal, size_t countVal, bool fwdVal, bool cRegVal)
+            : radix(radixVal)
+            , count(countVal)
+            , fwd(fwdVal)
+            , cReg(cRegVal)
+        {
+        }
 
-	public:
-		Butterfly(size_t radixVal, size_t countVal, bool fwdVal, bool cRegVal) : radix(radixVal), count(countVal), fwd(fwdVal), cReg(cRegVal) {}
-
-		void GenerateButterfly(std::string &bflyStr) const
-		{
-			assert(count <= 4);
-			if(count > 0)
-				GenerateButterflyStr(bflyStr);
-		}
+        void GenerateButterfly(std::string& bflyStr) const
+        {
+            assert(count <= 4);
+            if(count > 0)
+                GenerateButterflyStr(bflyStr);
+        }
     };
-
 };
 
 #endif

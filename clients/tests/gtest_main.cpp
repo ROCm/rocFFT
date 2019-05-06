@@ -6,27 +6,26 @@
 /// @brief googletest based unit tester for rocfft
 ///
 
-#include <iostream>
-#include <gtest/gtest.h>
 #include <boost/program_options.hpp>
+#include <gtest/gtest.h>
+#include <iostream>
 
 #include "rocfft.h"
 #include "test_constants.h"
-//namespace po = boost::program_options;
+// namespace po = boost::program_options;
 
 // global for test use
 
 size_t number_of_random_tests;
 time_t random_test_parameter_seed;
-float tolerance;
+float  tolerance;
 double rmse_tolerance;
-bool verbose;
+bool   verbose;
 
 bool suppress_output = false;
 bool comparison_type = root_mean_square;
 
-
-int main( int argc, char* argv[] )
+int main(int argc, char* argv[])
 {
 
 #if 0
@@ -92,7 +91,8 @@ int main( int argc, char* argv[] )
 
     tolerance = 0.001f;
 
-    // this rmse_tolerance is not absolute; it is for a 4096-point single precision transform
+    // this rmse_tolerance is not absolute; it is for a 4096-point single
+    // precision transform
     // the actual rmse tolerance is this value times sqrt(problem-size/4096)
     rmse_tolerance = 0.00002;
 
@@ -101,9 +101,7 @@ int main( int argc, char* argv[] )
 
     //::testing::InitGoogleTest( &myArgc, const_cast< char** >( &myArgv[ 0 ] ) );
 
-    ::testing::InitGoogleTest( &argc, argv );
+    ::testing::InitGoogleTest(&argc, argv);
 
     return RUN_ALL_TESTS();
-
-
 }

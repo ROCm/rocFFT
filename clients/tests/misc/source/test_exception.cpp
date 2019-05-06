@@ -7,7 +7,7 @@
 #include <iostream>
 #include <string>
 
-void handle_exception(const std::exception &except)
+void handle_exception(const std::exception& except)
 {
     std::cout << "--- EXCEPTION CAUGHT ---" << std::endl;
     std::string error_message = except.what();

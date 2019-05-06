@@ -3,15 +3,13 @@
  *
  * ************************************************************************ */
 
-
+#include "testing_transpose.hpp"
+#include <functional>
 #include <gtest/gtest.h>
 #include <math.h>
 #include <stdexcept>
-#include <vector>
 #include <tuple>
-#include <functional>
-#include "testing_transpose.hpp"
-
+#include <vector>
 
 using ::testing::TestWithParam;
 using ::testing::Values;
@@ -19,7 +17,8 @@ using ::testing::ValuesIn;
 using ::testing::Combine;
 using namespace std;
 
-//only GCC/VS 2010 comes with std::tr1::tuple, but it is unnecessary,  std::tuple is good enough;
+// only GCC/VS 2010 comes with std::tr1::tuple, but it is unnecessary,
+// std::tuple is good enough;
 
 typedef std::tuple<vector<size_t>, size_t> transpose_tuple;
 
@@ -31,45 +30,51 @@ README: This file contains testers to verify the correctness of
         Normal users only need to get the library routines without testers
      =================================================================== */
 
-
 /* =====================================================================
-Advance users only: BrainStorm the parameters but do not make artificial one which invalidates the matrix.
-Yet, the goal of this file is to verify result correctness not argument-checkers.
+Advance users only: BrainStorm the parameters but do not make artificial one
+which invalidates the matrix.
+Yet, the goal of this file is to verify result correctness not
+argument-checkers.
 
-Representative sampling is sufficient, endless brute-force sampling is not necessary
+Representative sampling is sufficient, endless brute-force sampling is not
+necessary
 =================================================================== */
-
 
 // small sizes
 
-//vector of vector, each triple is a {rows, cols, lda, ldb};
-//add/delete this list in pairs, like {3, 4, 4, 5}
+// vector of vector, each triple is a {rows, cols, lda, ldb};
+// add/delete this list in pairs, like {3, 4, 4, 5}
 
-const
-vector<vector<size_t>> size_range = {
-                                            { 3, 3, 3, 3},
-                                            { 3, 3, 4, 4},
-                                            {10, 10, 10, 10},
-                                            {100, 100, 102, 101},
-                                            {1024, 1024, 1024, 1024},
-                                            {1119, 111, 2000, 111},
-                                            {5000, 5000, 6000, 7000}
+const vector<vector<size_t>> size_range = {{3, 3, 3, 3},
+                                           {3, 3, 4, 4},
+                                           {10, 10, 10, 10},
+                                           {100, 100, 102, 101},
+                                           {1024, 1024, 1024, 1024},
+                                           {1119, 111, 2000, 111},
+                                           {5000, 5000, 6000, 7000}
 
 };
 
 static size_t batch_range[] = {1, 100};
 
+/* ===============Google Unit
+ * Test==================================================== */
 
-/* ===============Google Unit Test==================================================== */
-
-
-class transpose_gtest: public :: TestWithParam <transpose_tuple>
+class transpose_gtest : public ::TestWithParam<transpose_tuple>
 {
-    protected:
-        transpose_gtest(){}
-        virtual ~transpose_gtest(){}
-        virtual void SetUp(){}
-        virtual void TearDown(){}
+protected:
+    transpose_gtest()
+    {
+    }
+    virtual ~transpose_gtest()
+    {
+    }
+    virtual void SetUp()
+    {
+    }
+    virtual void TearDown()
+    {
+    }
 };
 
 /*
@@ -88,9 +93,11 @@ TEST_P(transpose_gtest, float2)
 
     size_t batch_count = std::get<1>(tup);
 
-    rocfft_status status = testing_transpose<float2>( rows, cols, lda, ldb, batch_count);
+    rocfft_status status = testing_transpose<float2>( rows, cols, lda, ldb,
+batch_count);
 
-    // if not success, then the input argument is problematic, so detect the error message
+    // if not success, then the input argument is problematic, so detect the
+error message
     if(status != rocfft_status_success){
         if(lda < rows){
             EXPECT_EQ(rocfft_status_invalid_dimensions, status);
@@ -116,5 +123,3 @@ INSTANTIATE_TEST_CASE_P(rocfft_transpose,
                         )
                        );
 */
-
-

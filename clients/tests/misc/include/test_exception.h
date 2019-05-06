@@ -8,6 +8,6 @@
 
 #include <exception>
 
-void handle_exception(const std::exception &except);
+void handle_exception(const std::exception& except);
 
 #endif

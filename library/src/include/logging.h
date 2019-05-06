@@ -5,30 +5,32 @@
 #ifndef LOGGING_H
 #define LOGGING_H
 
-#include <cstring>
+#include <atomic>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
-#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <functional>
 #include <iomanip>
 #include <map>
-#include <unordered_map>
-#include <atomic>
+#include <memory>
 #include <mutex>
 #include <shared_mutex>
-#include <memory>
-#include <functional>
+#include <string>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
-#include <string>
-#include <fstream>
+
+#include "rocfft.h"
 
 class tuple_helper
 {
-    protected:
+protected:
     /************************************************************************************
-     * Print values
-     ************************************************************************************/
+   * Print values
+   ************************************************************************************/
     // Default output
     template <typename T>
     static void print_value(std::ostream& os, const T& x)
@@ -64,15 +66,24 @@ class tuple_helper
     }
 
     // bool output
-    static void print_value(std::ostream& os, bool b) { os << (b ? "true" : "false"); }
+    static void print_value(std::ostream& os, bool b)
+    {
+        os << (b ? "true" : "false");
+    }
 
     // string output
-    static void print_value(std::ostream& os, const char* s) { os << std::quoted(s); }
-    static void print_value(std::ostream& os, const std::string& s) { print_value(os, s.c_str()); }
+    static void print_value(std::ostream& os, const char* s)
+    {
+        os << std::quoted(s);
+    }
+    static void print_value(std::ostream& os, const std::string& s)
+    {
+        print_value(os, s.c_str());
+    }
 
     /************************************************************************************
-     * Print tuples
-     ************************************************************************************/
+   * Print tuples
+   ************************************************************************************/
     template <typename T, size_t idx = std::tuple_size<T>{}>
     struct print_tuple_recurse
     {
@@ -111,8 +122,8 @@ class tuple_helper
     }
 
     /************************************************************************************
-     * Compute value hashes for (key1, value1, key2, value2, ...) tuples
-     ************************************************************************************/
+   * Compute value hashes for (key1, value1, key2, value2, ...) tuples
+   ************************************************************************************/
     // Workaround for compilers which don't implement C++14 enum hash (LWG 2148)
     template <typename T>
     static typename std::enable_if<std::is_enum<T>{}, size_t>::type hash(const T& x)
@@ -137,7 +148,10 @@ class tuple_helper
     }
 
     // For consistency with above
-    static size_t hash(const std::string& s) { return hash(s.c_str()); }
+    static size_t hash(const std::string& s)
+    {
+        return hash(s.c_str());
+    }
 
     // Combine tuple value hashes, computing hash of all tuple values
     template <typename TUP, size_t idx = std::tuple_size<TUP>{}>
@@ -154,7 +168,10 @@ class tuple_helper
     template <typename TUP>
     struct tuple_hash_recurse<TUP, 0>
     {
-        __attribute__((always_inline)) size_t operator()(const TUP&) { return 0; }
+        __attribute__((always_inline)) size_t operator()(const TUP&)
+        {
+            return 0;
+        }
     };
 
     // Hash function class compatible with STL containers
@@ -162,21 +179,33 @@ class tuple_helper
     struct hash_t
     {
         static_assert(std::tuple_size<TUP>{} % 2 == 0, "Tuple size must be even");
-        size_t operator()(const TUP& x) const { return tuple_hash_recurse<TUP>{}(x); }
+        size_t operator()(const TUP& x) const
+        {
+            return tuple_hash_recurse<TUP>{}(x);
+        }
     };
 
     /************************************************************************************
-     * Test (key1, value1, key2, value2, ...) tuples for equality of values
-     ************************************************************************************/
+   * Test (key1, value1, key2, value2, ...) tuples for equality of values
+   ************************************************************************************/
     template <typename T>
     static bool equal(const T& x1, const T& x2)
     {
         return std::equal_to<T>{}(x1, x2);
     }
 
-    static bool equal(const char* s1, const char* s2) { return !strcmp(s1, s2); }
-    static bool equal(const std::string& s1, const char* s2) { return !strcmp(s1.c_str(), s2); }
-    static bool equal(const char* s1, const std::string& s2) { return !strcmp(s1, s2.c_str()); }
+    static bool equal(const char* s1, const char* s2)
+    {
+        return !strcmp(s1, s2);
+    }
+    static bool equal(const std::string& s1, const char* s2)
+    {
+        return !strcmp(s1.c_str(), s2);
+    }
+    static bool equal(const char* s1, const std::string& s2)
+    {
+        return !strcmp(s1, s2.c_str());
+    }
 
     // Recursively compare tuple values, short-circuiting
     template <typename TUP, size_t idx = std::tuple_size<TUP>{}>
@@ -184,8 +213,8 @@ class tuple_helper
     {
         bool operator()(const TUP& t1, const TUP& t2)
         {
-            return equal(std::get<idx - 1>(t1), std::get<idx - 1>(t2)) &&
-                   tuple_equal_recurse<TUP, idx - 2>{}(t1, t2);
+            return equal(std::get<idx - 1>(t1), std::get<idx - 1>(t2))
+                   && tuple_equal_recurse<TUP, idx - 2>{}(t1, t2);
         }
     };
 
@@ -193,7 +222,10 @@ class tuple_helper
     template <typename TUP>
     struct tuple_equal_recurse<TUP, 0>
     {
-        bool operator()(const TUP&, const TUP&) { return true; }
+        bool operator()(const TUP&, const TUP&)
+        {
+            return true;
+        }
     };
 
     // Equality test class compatible with STL containers
@@ -208,9 +240,9 @@ class tuple_helper
     };
 
     /************************************************************************************
-     * Log values (for log_trace and log_bench)
-     ************************************************************************************/
-    public:
+   * Log values (for log_trace and log_bench)
+   ************************************************************************************/
+public:
     template <typename H, typename... Ts>
     static void log_arguments(std::ostream& os, const char* sep, H head, Ts&&... xs)
     {
@@ -235,7 +267,7 @@ class argument_profile : tuple_helper
     // Table mapping argument tuples into atomic counts
     std::unordered_map<TUP, std::atomic_size_t*, hash_t<TUP>, equal_t<TUP>> map;
 
-    public:
+public:
     // A tuple of arguments is looked up in an unordered map.
     // A count of the number of calls with these arguments is kept.
     // arg is assumed to be an rvalue for efficiency
@@ -273,7 +305,10 @@ class argument_profile : tuple_helper
     }
 
     // Constructor
-    explicit argument_profile(std::ostream& os) : os(os) {}
+    explicit argument_profile(std::ostream& os)
+        : os(os)
+    {
+    }
 
     // Cleanup handler which dumps profile at destruction
     ~argument_profile()
@@ -290,34 +325,55 @@ class argument_profile : tuple_helper
 
 class LogSingleton
 {
-    public:
-        static LogSingleton& GetInstance()
-        {
-            static LogSingleton instance;
-            return instance;
-        }
-    private:
-        LogSingleton() {}
+public:
+    static LogSingleton& GetInstance()
+    {
+        static LogSingleton instance;
+        return instance;
+    }
 
-        rocfft_layer_mode layer_mode;
-        std::ostream* log_trace_os;
-        std::ostream* log_bench_os;
-        std::ostream* log_profile_os;
+private:
+    LogSingleton()
+    {
+    }
 
-        LogSingleton(LogSingleton const&);
-        void operator=(LogSingleton const&);
+    rocfft_layer_mode layer_mode;
+    std::ostream*     log_trace_os;
+    std::ostream*     log_bench_os;
+    std::ostream*     log_profile_os;
 
-    public:
-        void SetLayerMode(rocfft_layer_mode mode ) { layer_mode = mode ;}
-        rocfft_layer_mode const GetLayerMode() { return layer_mode; }
-        std::ostream*& GetTraceOS() { return log_trace_os; }
-        std::ostream*& GetBenchOS() { return log_bench_os; }
-        std::ostream*& GetProfileOS() { return log_profile_os; }
+    LogSingleton(LogSingleton const&);
+    void operator=(LogSingleton const&);
+
+public:
+    void SetLayerMode(rocfft_layer_mode mode)
+    {
+        layer_mode = mode;
+    }
+    rocfft_layer_mode const GetLayerMode()
+    {
+        return layer_mode;
+    }
+    std::ostream*& GetTraceOS()
+    {
+        return log_trace_os;
+    }
+    std::ostream*& GetBenchOS()
+    {
+        return log_bench_os;
+    }
+    std::ostream*& GetProfileOS()
+    {
+        return log_profile_os;
+    }
 };
 
-#define LOG_TRACE_ENABLED() (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_trace)
-#define LOG_BENCH_ENABLED() (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_bench)
-#define LOG_PROFILE_ENABLED() (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_profile)
+#define LOG_TRACE_ENABLED() \
+    (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_trace)
+#define LOG_BENCH_ENABLED() \
+    (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_bench)
+#define LOG_PROFILE_ENABLED() \
+    (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_profile)
 
 // if trace logging is turned on with
 // (layer_mode & rocblas_layer_mode_log_trace) != 0
@@ -326,7 +382,8 @@ template <typename... Ts>
 inline void log_trace(Ts&&... xs)
 {
     if(LOG_TRACE_ENABLED())
-        tuple_helper::log_arguments(*LogSingleton::GetInstance().GetTraceOS(), ",", std::forward<Ts>(xs)...);
+        tuple_helper::log_arguments(
+            *LogSingleton::GetInstance().GetTraceOS(), ",", std::forward<Ts>(xs)...);
 }
 
 // if bench logging is turned on with
@@ -337,7 +394,8 @@ template <typename... Ts>
 inline void log_bench(Ts&&... xs)
 {
     if(LOG_BENCH_ENABLED())
-        tuple_helper::log_arguments(*LogSingleton::GetInstance().GetBenchOS(), " ", std::forward<Ts>(xs)...);
+        tuple_helper::log_arguments(
+            *LogSingleton::GetInstance().GetBenchOS(), " ", std::forward<Ts>(xs)...);
 }
 
 // if profile logging is turned on with
@@ -356,4 +414,3 @@ inline void log_profile(const char* func, Ts&&... xs)
 }
 
 #endif
-
