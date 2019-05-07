@@ -88,11 +88,11 @@ int main()
     result = hipfftPlanMany(
         &hipPlan, rank, n, inembed, istride, idist, onembed, ostride, odist, HIPFFT_Z2Z, howmany);
 
-    hipfftComplex* d_in_out;
+    hipfftDoubleComplex* d_in_out;
     hipMalloc((void**)&d_in_out, total_bytes);
     hipMemcpy(d_in_out, (void*)fftw_in, total_bytes, hipMemcpyHostToDevice);
 
-    result = hipfftExecC2C(hipPlan, d_in_out, d_in_out, HIPFFT_FORWARD);
+    result = hipfftExecZ2Z(hipPlan, d_in_out, d_in_out, HIPFFT_FORWARD);
 
     hipMemcpy((void*)fftw_out, d_in_out, total_bytes, hipMemcpyDeviceToHost);
 

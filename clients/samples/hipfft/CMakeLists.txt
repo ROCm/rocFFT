@@ -15,7 +15,7 @@ if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
 endif( )
 # ########################################################################
 
-set( sample_list hipfft_planmany_2d_r2c hipfft_planmany_2d_z2z)
+set( sample_list hipfft_planmany_2d_r2c hipfft_planmany_2d_z2z hipfft_setworkarea)
 
 foreach( sample ${sample_list} )
 
