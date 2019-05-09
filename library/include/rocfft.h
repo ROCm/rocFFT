@@ -37,7 +37,8 @@ typedef struct rocfft_plan_description_t* rocfft_plan_description;
 typedef struct rocfft_execution_info_t* rocfft_execution_info;
 
 /*! @brief rocfft status/error codes */
-typedef enum rocfft_status_e {
+typedef enum rocfft_status_e
+{
     rocfft_status_success,
     rocfft_status_failure,
     rocfft_status_invalid_arg_value,
@@ -49,7 +50,8 @@ typedef enum rocfft_status_e {
 } rocfft_status;
 
 /*! @brief Type of transform */
-typedef enum rocfft_transform_type_e {
+typedef enum rocfft_transform_type_e
+{
     rocfft_transform_type_complex_forward,
     rocfft_transform_type_complex_inverse,
     rocfft_transform_type_real_forward,
@@ -57,19 +59,22 @@ typedef enum rocfft_transform_type_e {
 } rocfft_transform_type;
 
 /*! @brief Precision */
-typedef enum rocfft_precision_e {
+typedef enum rocfft_precision_e
+{
     rocfft_precision_single,
     rocfft_precision_double,
 } rocfft_precision;
 
 /*! @brief Result placement */
-typedef enum rocfft_result_placement_e {
+typedef enum rocfft_result_placement_e
+{
     rocfft_placement_inplace,
     rocfft_placement_notinplace,
 } rocfft_result_placement;
 
 /*! @brief Array type */
-typedef enum rocfft_array_type_e {
+typedef enum rocfft_array_type_e
+{
     rocfft_array_type_complex_interleaved,
     rocfft_array_type_complex_planar,
     rocfft_array_type_real,
@@ -78,7 +83,8 @@ typedef enum rocfft_array_type_e {
 } rocfft_array_type;
 
 /*! @brief Execution mode */
-typedef enum rocfft_execution_mode_e {
+typedef enum rocfft_execution_mode_e
+{
     rocfft_exec_mode_nonblocking,
     rocfft_exec_mode_nonblocking_with_flush,
     rocfft_exec_mode_blocking,
@@ -223,17 +229,17 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_double( rocfft_pla
  * output buffer
  *  */
 ROCFFT_EXPORT rocfft_status
-    rocfft_plan_description_set_data_layout(rocfft_plan_description description,
-                                            rocfft_array_type       in_array_type,
-                                            rocfft_array_type       out_array_type,
-                                            const size_t*           in_offsets,
-                                            const size_t*           out_offsets,
-                                            size_t                  in_strides_size,
-                                            const size_t*           in_strides,
-                                            size_t                  in_distance,
-                                            size_t                  out_strides_size,
-                                            const size_t*           out_strides,
-                                            size_t                  out_distance);
+              rocfft_plan_description_set_data_layout(rocfft_plan_description description,
+                                                      rocfft_array_type       in_array_type,
+                                                      rocfft_array_type       out_array_type,
+                                                      const size_t*           in_offsets,
+                                                      const size_t*           out_offsets,
+                                                      size_t                  in_strides_size,
+                                                      const size_t*           in_strides,
+                                                      size_t                  in_distance,
+                                                      size_t                  out_strides_size,
+                                                      const size_t*           out_strides,
+                                                      size_t                  out_distance);
 
 /*! @brief Get library version string
  *
@@ -353,7 +359,8 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_get_events( const rocfft_execu
 #endif
 
 /*! \brief Indicates if layer is active with bitmask*/
-typedef enum rocfft_layer_mode_ {
+typedef enum rocfft_layer_mode_
+{
     rocfft_layer_mode_none        = 0b0000000000,
     rocfft_layer_mode_log_trace   = 0b0000000001,
     rocfft_layer_mode_log_bench   = 0b0000000010,

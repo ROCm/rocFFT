@@ -131,7 +131,7 @@ enum data_pattern
                      size_t outoffset,                                       \
                      void*  userdata,                                        \
                      float  fftoutputRe,                                     \
-                     float  fftoutputIm)\n                                   \
+                     float  fftoutputIm)\n                                    \
     {                                                                        \
         \n float scalar                   = *((float*)userdata + outoffset); \
         \n*((float*)outputRe + outoffset) = fftoutputRe * scalar;            \

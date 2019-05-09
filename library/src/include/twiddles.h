@@ -11,7 +11,6 @@
 #include <math.h>
 #include <tuple>
 #include <vector>
-#include <vector>
 
 #define TWIDDLE_DEE 8
 
@@ -162,6 +161,6 @@ public:
 };
 
 void* twiddles_create(size_t N, rocfft_precision precision, bool large);
-void twiddles_delete(void* twt);
+void  twiddles_delete(void* twt);
 
 #endif // defined( TWIDDLES_H )

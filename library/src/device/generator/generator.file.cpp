@@ -143,7 +143,7 @@ extern "C" void WriteButterflyToFile(std::string& str, int LEN)
 /* =====================================================================
    Write CPU functions (launching kernel) header to file
 =================================================================== */
-extern "C" void WriteCPUHeaders(std::vector<size_t> support_list,
+extern "C" void WriteCPUHeaders(std::vector<size_t>                            support_list,
                                 std::vector<std::tuple<size_t, ComputeScheme>> large1D_list)
 {
 
@@ -316,7 +316,7 @@ extern "C" void
 
 extern "C" void
     write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> large1D_list,
-                             std::string precision)
+                             std::string                                    precision)
 {
     std::string str;
 
@@ -392,7 +392,7 @@ extern "C" void
 /* =====================================================================
    Add CPU funtions to function pools (a hash map)
 =================================================================== */
-extern "C" void AddCPUFunctionToPool(std::vector<size_t> support_list,
+extern "C" void AddCPUFunctionToPool(std::vector<size_t>                            support_list,
                                      std::vector<std::tuple<size_t, ComputeScheme>> large1D_list)
 {
     std::string str;

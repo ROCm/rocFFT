@@ -126,7 +126,7 @@ inline void DetermineSizes(const size_t& length, size_t& workGroupSize, size_t& 
     size_t baseRadix[]   = {13, 11, 7, 5, 3, 2}; // list only supported primes
     size_t baseRadixSize = sizeof(baseRadix) / sizeof(baseRadix[0]);
 
-    size_t l = length;
+    size_t                   l = length;
     std::map<size_t, size_t> primeFactorsExpanded;
     for(size_t r = 0; r < baseRadixSize; r++)
     {
@@ -307,6 +307,6 @@ inline void DetermineSizes(const size_t& length, size_t& workGroupSize, size_t& 
 }
 
 std::vector<size_t> GetRadices(size_t length);
-void GetWGSAndNT(size_t length, size_t& workGroupSize, size_t& numTransforms);
+void                GetWGSAndNT(size_t length, size_t& workGroupSize, size_t& numTransforms);
 
 #endif // defined( RADIX_TABLE_H )

@@ -42,9 +42,7 @@ public:
         return func_pool;
     }
 
-    ~function_pool()
-    {
-    }
+    ~function_pool() {}
 
     static DevFnCall get_function_single(Key mykey)
     {

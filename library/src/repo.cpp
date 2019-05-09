@@ -72,8 +72,8 @@ void Repo::GetPlan(rocfft_plan plan, ExecPlan& execPlan)
 
 void Repo::DeletePlan(rocfft_plan plan)
 {
-    Repo& repo = Repo::GetRepo();
-    std::map<rocfft_plan, ExecPlan>::iterator it = repo.execLookup.find(plan);
+    Repo&                                     repo = Repo::GetRepo();
+    std::map<rocfft_plan, ExecPlan>::iterator it   = repo.execLookup.find(plan);
     if(it != repo.execLookup.end())
         repo.execLookup.erase(it);
 }

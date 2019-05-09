@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
     float* cot = (float*)malloc(b * n * n * 2 * sizeof(float));
 
     for(size_t i = 0; i < b * n * n * 2; i++)
-        cin[i]   = 1.0;
+        cin[i] = 1.0;
 
     float* in = nullptr;
     float* ot = nullptr;

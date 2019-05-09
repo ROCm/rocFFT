@@ -470,7 +470,7 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
 {
 
     size_t lengths[3];
-    for(size_t i   = 0; i < rank; i++)
+    for(size_t i = 0; i < rank; i++)
         lengths[i] = n[rank - 1 - i];
 
     size_t number_of_transforms = batch;
@@ -492,7 +492,7 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
 
         if(inembed == nullptr) // restore the default strides
         {
-            for(size_t i     = 1; i < rank; i++)
+            for(size_t i = 1; i < rank; i++)
                 i_strides[i] = plan->ip_forward->desc.inStrides[i];
         }
         else
@@ -500,16 +500,16 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
             i_strides[0] = istride;
 
             size_t inembed_lengths[3];
-            for(size_t i           = 0; i < rank; i++)
+            for(size_t i = 0; i < rank; i++)
                 inembed_lengths[i] = inembed[rank - 1 - i];
 
-            for(size_t i     = 1; i < rank; i++)
+            for(size_t i = 1; i < rank; i++)
                 i_strides[i] = inembed_lengths[i - 1] * i_strides[i - 1];
         }
 
         if(onembed == nullptr) // restore the default strides
         {
-            for(size_t i     = 1; i < rank; i++)
+            for(size_t i = 1; i < rank; i++)
                 o_strides[i] = plan->ip_forward->desc.outStrides[i];
         }
         else
@@ -517,10 +517,10 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
             o_strides[0] = ostride;
 
             size_t onembed_lengths[3];
-            for(size_t i           = 0; i < rank; i++)
+            for(size_t i = 0; i < rank; i++)
                 onembed_lengths[i] = onembed[rank - 1 - i];
 
-            for(size_t i     = 1; i < rank; i++)
+            for(size_t i = 1; i < rank; i++)
                 o_strides[i] = onembed_lengths[i - 1] * o_strides[i - 1];
         }
 

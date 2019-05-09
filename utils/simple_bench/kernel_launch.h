@@ -12,7 +12,8 @@
 
 extern "C" {
 
-typedef enum rocfft_transform_type_e {
+typedef enum rocfft_transform_type_e
+{
     rocfft_transform_type_complex_forward,
     rocfft_transform_type_complex_inverse,
     rocfft_transform_type_real_forward,
@@ -20,19 +21,22 @@ typedef enum rocfft_transform_type_e {
 } rocfft_transform_type;
 
 // Precision
-typedef enum rocfft_precision_e {
+typedef enum rocfft_precision_e
+{
     rocfft_precision_single,
     rocfft_precision_double,
 } rocfft_precision;
 
 // Result placement
-typedef enum rocfft_result_placement_e {
+typedef enum rocfft_result_placement_e
+{
     rocfft_placement_inplace,
     rocfft_placement_notinplace,
 } rocfft_result_placement;
 
 // Array type
-typedef enum rocfft_array_type_e {
+typedef enum rocfft_array_type_e
+{
     rocfft_array_type_complex_interleaved,
     rocfft_array_type_complex_planar,
     rocfft_array_type_real,
@@ -41,7 +45,8 @@ typedef enum rocfft_array_type_e {
 } rocfft_array_type;
 
 // Execution mode
-typedef enum rocfft_execution_mode_e {
+typedef enum rocfft_execution_mode_e
+{
     rocfft_exec_mode_nonblocking,
     rocfft_exec_mode_nonblocking_with_flush,
     rocfft_exec_mode_blocking,

@@ -325,8 +325,8 @@ private:
     std::vector<size_t> input_strides;
     std::vector<size_t> output_strides;
 
-    buffer<T> input;
-    buffer<T> output;
+    buffer<T>               input;
+    buffer<T>               output;
     fftw_wrapper<T, fftw_T> fftw_guts;
 
     T _forward_scale, _backward_scale;
@@ -381,9 +381,7 @@ public:
     }
 
     /*****************************************************/
-    ~fftw()
-    {
-    }
+    ~fftw() {}
 
     /*****************************************************/
     rocfft_array_type initialized_input_layout()

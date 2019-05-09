@@ -16,7 +16,8 @@ extern "C" {
 
 #include <cstddef>
 
-typedef enum hipfftResult_t {
+typedef enum hipfftResult_t
+{
     HIPFFT_SUCCESS                   = 0, //  The hipFFT operation was successful
     HIPFFT_INVALID_PLAN              = 1, //  hipFFT was passed an invalid plan handle
     HIPFFT_ALLOC_FAILED              = 2, //  hipFFT failed to allocate GPU or CPU memory
@@ -35,7 +36,8 @@ typedef enum hipfftResult_t {
     HIPFFT_NOT_SUPPORTED   = 16 // Operation is not supported for parameters given.
 } hipfftResult;
 
-typedef enum hipfftType_t {
+typedef enum hipfftType_t
+{
     HIPFFT_R2C = 0x2a, // Real to complex (interleaved)
     HIPFFT_C2R = 0x2c, // Complex (interleaved) to real
     HIPFFT_C2C = 0x29, // Complex to complex (interleaved)
@@ -82,10 +84,10 @@ DLL_PUBLIC hipfftResult hipfftMakePlan1d(hipfftHandle plan,
                                          size_t*      workSize);
 
 DLL_PUBLIC hipfftResult
-    hipfftMakePlan2d(hipfftHandle plan, int nx, int ny, hipfftType type, size_t* workSize);
+           hipfftMakePlan2d(hipfftHandle plan, int nx, int ny, hipfftType type, size_t* workSize);
 
 DLL_PUBLIC hipfftResult
-    hipfftMakePlan3d(hipfftHandle plan, int nx, int ny, int nz, hipfftType type, size_t* workSize);
+           hipfftMakePlan3d(hipfftHandle plan, int nx, int ny, int nz, hipfftType type, size_t* workSize);
 
 DLL_PUBLIC hipfftResult hipfftMakePlanMany(hipfftHandle plan,
                                            int          rank,
@@ -156,10 +158,10 @@ DLL_PUBLIC hipfftResult hipfftGetSize1d(hipfftHandle plan,
                                         size_t*      workSize);
 
 DLL_PUBLIC hipfftResult
-    hipfftGetSize2d(hipfftHandle plan, int nx, int ny, hipfftType type, size_t* workSize);
+           hipfftGetSize2d(hipfftHandle plan, int nx, int ny, hipfftType type, size_t* workSize);
 
 DLL_PUBLIC hipfftResult
-    hipfftGetSize3d(hipfftHandle plan, int nx, int ny, int nz, hipfftType type, size_t* workSize);
+           hipfftGetSize3d(hipfftHandle plan, int nx, int ny, int nz, hipfftType type, size_t* workSize);
 
 DLL_PUBLIC hipfftResult hipfftGetSizeMany(hipfftHandle plan,
                                           int          rank,

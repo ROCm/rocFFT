@@ -15,7 +15,7 @@ extern "C" rocfft_status initParams(FFTKernelGenKeyParams& params,
 
 extern "C" void WriteButterflyToFile(std::string& str, int LEN);
 
-extern "C" void WriteCPUHeaders(std::vector<size_t> support_list,
+extern "C" void WriteCPUHeaders(std::vector<size_t>                            support_list,
                                 std::vector<std::tuple<size_t, ComputeScheme>> large1D_list);
 
 extern "C" void write_cpu_function_small(std::vector<size_t> support_list,
@@ -24,9 +24,9 @@ extern "C" void write_cpu_function_small(std::vector<size_t> support_list,
 
 extern "C" void
     write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> large1D_list,
-                             std::string precision);
+                             std::string                                    precision);
 
-extern "C" void AddCPUFunctionToPool(std::vector<size_t> support_list,
+extern "C" void AddCPUFunctionToPool(std::vector<size_t>                            support_list,
                                      std::vector<std::tuple<size_t, ComputeScheme>> large1D_list);
 
 extern "C" void generate_kernel(size_t len, ComputeScheme scheme);
