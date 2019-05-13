@@ -315,7 +315,7 @@ if [[ "${install_dependencies}" == true ]]; then
     ${cmake_executable} -DBUILD_BOOST=OFF ../../deps
     # ${cmake_executable} -DCMAKE_INSTALL_PREFIX=deps-install -DBUILD_BOOST=OFF ../../deps
     make -j$(nproc)
-    # make install
+    elevate_if_not_root make install
     popd
 fi
 
