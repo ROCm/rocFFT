@@ -77,9 +77,7 @@ struct Timer
     struct timespec start, end;
 
 public:
-    Timer()
-    {
-    }
+    Timer() {}
 
     void Start()
     {

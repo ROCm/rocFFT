@@ -16,6 +16,6 @@ size_t* kargs_create(std::vector<size_t> length,
                      std::vector<size_t> outStride,
                      size_t              iDist,
                      size_t              oDist);
-void kargs_delete(void* devk);
+void    kargs_delete(void* devk);
 
 #endif // defined( KARGS_H )

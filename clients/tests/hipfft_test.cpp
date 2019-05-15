@@ -95,7 +95,7 @@ TEST(hipfftTest, RunR2C)
     const size_t N = 4096;
     float        in[N];
     for(size_t i = 0; i < N; i++)
-        in[i]    = i + (i % 3) - (i % 7);
+        in[i] = i + (i % 3) - (i % 7);
 
     hipfftReal*    d_in;
     hipfftComplex* d_out;
@@ -120,7 +120,7 @@ TEST(hipfftTest, RunR2C)
     EXPECT_TRUE(workSize != 0);
 
     double ref_in[N];
-    for(size_t i  = 0; i < N; i++)
+    for(size_t i = 0; i < N; i++)
         ref_in[i] = in[i];
 
     fftw_complex* ref_out;

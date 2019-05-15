@@ -22,7 +22,7 @@ namespace po = boost::program_options;
 //	and we store into an enum varaible
 template <class _Elem, class _Traits>
 std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits>& stream,
-                                               rocfft_array_type& atype)
+                                               rocfft_array_type&                  atype)
 {
     unsigned tmp;
     stream >> tmp;
@@ -33,7 +33,7 @@ std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits
 // similarly for transform type
 template <class _Elem, class _Traits>
 std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits>& stream,
-                                               rocfft_transform_type& ttype)
+                                               rocfft_transform_type&              ttype)
 {
     unsigned tmp;
     stream >> tmp;
@@ -395,9 +395,7 @@ int transform(size_t*                 lengths,
     rocfft_execution_info   info = NULL;
 
     if((place == rocfft_placement_inplace) && packed && (scale == 1.0) && (inOffset[0] == 0)
-       && (inOffset[1] == 0)
-       && (outOffset[0] == 0)
-       && (outOffset[1] == 0))
+       && (inOffset[1] == 0) && (outOffset[0] == 0) && (outOffset[1] == 0))
     {
         LIB_V_THROW(rocfft_plan_create(
                         &plan, place, transformType, precision, dim, lengths, batchSize, NULL),
@@ -994,7 +992,11 @@ int main(int argc, char* argv[])
 
         // input output array type support matrix
         int ioArrTypeSupport[5][5] = {
-            {1, 1, 0, 0, 0}, {1, 1, 0, 0, 0}, {0, 0, 0, 1, 1}, {0, 0, 1, 0, 0}, {0, 0, 1, 0, 0},
+            {1, 1, 0, 0, 0},
+            {1, 1, 0, 0, 0},
+            {0, 0, 0, 1, 1},
+            {0, 0, 1, 0, 0},
+            {0, 0, 1, 0, 0},
         };
 
         if(inL > 4)
@@ -1007,10 +1009,7 @@ int main(int argc, char* argv[])
 
         bool packed = false;
         if((iStrides[0] == 1) && (iStrides[1] == 0) && (iStrides[2] == 0) && (iStrides[3] == 0)
-           && (oStrides[0] == 1)
-           && (oStrides[1] == 0)
-           && (oStrides[2] == 0)
-           && (oStrides[3] == 0))
+           && (oStrides[0] == 1) && (oStrides[1] == 0) && (oStrides[2] == 0) && (oStrides[3] == 0))
             packed = true;
 
         if((transformType == rocfft_transform_type_complex_forward)

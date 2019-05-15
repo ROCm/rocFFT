@@ -95,7 +95,7 @@ rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description de
 
     if(in_strides != nullptr)
     {
-        for(size_t i                  = 0; i < MIN(3, in_strides_size); i++)
+        for(size_t i = 0; i < MIN(3, in_strides_size); i++)
             description->inStrides[i] = in_strides[i];
     }
 
@@ -104,7 +104,7 @@ rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description de
 
     if(out_strides != nullptr)
     {
-        for(size_t i                   = 0; i < MIN(3, out_strides_size); i++)
+        for(size_t i = 0; i < MIN(3, out_strides_size); i++)
             description->outStrides[i] = out_strides[i];
     }
 
@@ -323,7 +323,7 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
         }
         else
         {
-            for(size_t i             = 1; i < (p->rank); i++)
+            for(size_t i = 1; i < (p->rank); i++)
                 p->desc.inStrides[i] = p->lengths[i - 1] * p->desc.inStrides[i - 1];
         }
     }
@@ -361,7 +361,7 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
         }
         else
         {
-            for(size_t i              = 1; i < (p->rank); i++)
+            for(size_t i = 1; i < (p->rank); i++)
                 p->desc.outStrides[i] = p->lengths[i - 1] * p->desc.outStrides[i - 1];
         }
     }
@@ -613,12 +613,12 @@ rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
 ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, size_t len)
 {
     log_trace(__func__, "buf", buf, "len", len);
-    std::string v(VERSION_STRING);
-    if(buf == NULL)
+    static constexpr char v[] = VERSION_STRING;
+    if(!buf)
         return rocfft_status_failure;
-    size_t count = std::min(len - 1, v.length());
-    memcpy(buf, v.c_str(), count);
-    *(buf + count) = '\0';
+    if(len < sizeof(v))
+        return rocfft_status_invalid_arg_value;
+    memcpy(buf, v, sizeof(v));
     return rocfft_status_success;
 }
 

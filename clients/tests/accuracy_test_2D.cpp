@@ -14,28 +14,20 @@
 #include "rocfft_against_fftw.h"
 #include "test_constants.h"
 
+using ::testing::Combine;
 using ::testing::TestWithParam;
 using ::testing::Values;
 using ::testing::ValuesIn;
-using ::testing::Combine;
 
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
 class accuracy_test_complex_2D_pow2_single : public ::testing::Test
 {
 protected:
-    accuracy_test_complex_2D_pow2_single()
-    {
-    }
-    virtual ~accuracy_test_complex_2D_pow2_single()
-    {
-    }
-    virtual void SetUp()
-    {
-    }
-    virtual void TearDown()
-    {
-    }
+    accuracy_test_complex_2D_pow2_single() {}
+    virtual ~accuracy_test_complex_2D_pow2_single() {}
+    virtual void SetUp() {}
+    virtual void TearDown() {}
 };
 
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
@@ -43,18 +35,10 @@ protected:
 class accuracy_test_complex_2D_pow2_double : public ::testing::Test
 {
 protected:
-    accuracy_test_complex_2D_pow2_double()
-    {
-    }
-    virtual ~accuracy_test_complex_2D_pow2_double()
-    {
-    }
-    virtual void SetUp()
-    {
-    }
-    virtual void TearDown()
-    {
-    }
+    accuracy_test_complex_2D_pow2_double() {}
+    virtual ~accuracy_test_complex_2D_pow2_double() {}
+    virtual void SetUp() {}
+    virtual void TearDown() {}
 };
 // 65536=pow(2,16)                                 //8388608 = pow(2,23)
 #define POW2_RANGE                                        \
@@ -132,36 +116,20 @@ class accuracy_test_complex_2D : public ::TestWithParam<std::tuple<std::vector<s
                                                                    data_pattern>>
 {
 protected:
-    accuracy_test_complex_2D()
-    {
-    }
-    virtual ~accuracy_test_complex_2D()
-    {
-    }
-    virtual void SetUp()
-    {
-    }
-    virtual void TearDown()
-    {
-    }
+    accuracy_test_complex_2D() {}
+    virtual ~accuracy_test_complex_2D() {}
+    virtual void SetUp() {}
+    virtual void TearDown() {}
 };
 
 class accuracy_test_real_2D
     : public ::TestWithParam<std::tuple<std::vector<size_t>, size_t, data_pattern>>
 {
 protected:
-    accuracy_test_real_2D()
-    {
-    }
-    virtual ~accuracy_test_real_2D()
-    {
-    }
-    virtual void SetUp()
-    {
-    }
-    virtual void TearDown()
-    {
-    }
+    accuracy_test_real_2D() {}
+    virtual ~accuracy_test_real_2D() {}
+    virtual void SetUp() {}
+    virtual void TearDown() {}
 };
 
 template <class T, class fftw_T>

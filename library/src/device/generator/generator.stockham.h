@@ -125,7 +125,7 @@ namespace StockhamGenerator
     }
 
     template <rocfft_precision PR>
-    inline std::string         FloatSuffix()
+    inline std::string FloatSuffix()
     {
         // Suffix for constants
         std::string sfx;

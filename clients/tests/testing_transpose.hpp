@@ -9,7 +9,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <sys/time.h>
-#include <sys/time.h>
 #include <vector>
 
 #include "../rider/misc.h" // to use LIB_V_THROW and HIP_V_THROW

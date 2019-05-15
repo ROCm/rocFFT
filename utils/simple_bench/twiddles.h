@@ -163,6 +163,6 @@ public:
 };
 
 void* twiddles_create(size_t N);
-void twiddles_delete(void* twt);
+void  twiddles_delete(void* twt);
 
 #endif // defined( TWIDDLES_H )

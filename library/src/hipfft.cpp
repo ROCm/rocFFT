@@ -8,9 +8,6 @@
 #include "plan.h"
 #include "private.h"
 #include "rocfft.h"
-#include <boost/algorithm/string.hpp>
-#include <boost/lexical_cast.hpp>
-#include <iostream>
 #include <sstream>
 
 #define ROC_FFT_CHECK_ALLOC_FAILED(ret)  \
@@ -477,7 +474,7 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
                                 size_t*      workSize)
 {
     size_t lengths[3];
-    for(size_t i   = 0; i < rank; i++)
+    for(size_t i = 0; i < rank; i++)
         lengths[i] = n[rank - 1 - i];
 
     size_t number_of_transforms = batch;
@@ -499,7 +496,7 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
 
         if(inembed == nullptr) // restore the default strides
         {
-            for(size_t i     = 1; i < rank; i++)
+            for(size_t i = 1; i < rank; i++)
                 i_strides[i] = plan->ip_forward->desc.inStrides[i];
         }
         else
@@ -507,16 +504,16 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
             i_strides[0] = istride;
 
             size_t inembed_lengths[3];
-            for(size_t i           = 0; i < rank; i++)
+            for(size_t i = 0; i < rank; i++)
                 inembed_lengths[i] = inembed[rank - 1 - i];
 
-            for(size_t i     = 1; i < rank; i++)
+            for(size_t i = 1; i < rank; i++)
                 i_strides[i] = inembed_lengths[i - 1] * i_strides[i - 1];
         }
 
         if(onembed == nullptr) // restore the default strides
         {
-            for(size_t i     = 1; i < rank; i++)
+            for(size_t i = 1; i < rank; i++)
                 o_strides[i] = plan->ip_forward->desc.outStrides[i];
         }
         else
@@ -524,10 +521,10 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
             o_strides[0] = ostride;
 
             size_t onembed_lengths[3];
-            for(size_t i           = 0; i < rank; i++)
+            for(size_t i = 0; i < rank; i++)
                 onembed_lengths[i] = onembed[rank - 1 - i];
 
-            for(size_t i     = 1; i < rank; i++)
+            for(size_t i = 1; i < rank; i++)
                 o_strides[i] = onembed_lengths[i - 1] * o_strides[i - 1];
         }
 
@@ -998,11 +995,22 @@ hipfftResult hipfftGetVersion(int* version)
     std::ostringstream       result;
     std::vector<std::string> sections;
 
-    boost::split(sections, v, boost::is_any_of("."));
+    std::istringstream iss(v);
+    std::string        tmp_str;
+    while(std::getline(iss, tmp_str, '.'))
+    {
+        sections.push_back(tmp_str);
+    }
+
     for(size_t i = 0; i < sections.size(); i++)
     {
         std::vector<std::string> sl;
-        boost::split(sl, sections[i], boost::is_any_of("-")); // remove potential git tag string
+        // remove potential git tag string
+        std::istringstream iss(sections[i]);
+        while(std::getline(iss, tmp_str, '-'))
+        {
+            sl.push_back(tmp_str);
+        }
         if(sl[0].size() == 0)
             result << "00";
         else if(sl[0].size() == 1)
@@ -1011,7 +1019,7 @@ hipfftResult hipfftGetVersion(int* version)
             result << sl[0].at(sl[0].size() - 2) << sl[0].at(sl[0].size() - 1);
     }
 
-    *version = boost::lexical_cast<int>(result.str());
+    *version = std::stoi(result.str());
     return HIPFFT_SUCCESS;
 }
 

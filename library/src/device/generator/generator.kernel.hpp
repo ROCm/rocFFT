@@ -102,9 +102,9 @@ namespace StockhamGenerator
     {
 
         typedef typename std::map<size_t, SpecRecord> SpecTable;
-        SpecTable               specTable;
-        std::vector<SpecRecord> specRecord;
-        size_t                  tableLength;
+        SpecTable                                     specTable;
+        std::vector<SpecRecord>                       specRecord;
+        size_t                                        tableLength;
 
     public:
         KernelCoreSpecs()
@@ -112,7 +112,7 @@ namespace StockhamGenerator
             specRecord = GetRecord();
             // reform an array to a map, the table is store in ../include/radix_table.h
             tableLength = specRecord.size();
-            for(size_t i                        = 0; i < tableLength; i++)
+            for(size_t i = 0; i < tableLength; i++)
                 specTable[specRecord[i].length] = specRecord[i];
         }
 
@@ -496,7 +496,7 @@ namespace StockhamGenerator
                 r2c = true;
             if(params.fft_outputLayout == rocfft_array_type_real)
                 c2r = true;
-            r2c2r   = (r2c || c2r);
+            r2c2r = (r2c || c2r);
 
             if(r2c)
             {
@@ -1028,8 +1028,8 @@ namespace StockhamGenerator
                         str += std::to_string(blockWGS);
                     else
                         str += std::to_string(workGroupSize);
-                    str += " transforms: " + std::to_string(numTrans) + " Passes: "
-                           + std::to_string(numPasses) + "\n";
+                    str += " transforms: " + std::to_string(numTrans)
+                           + " Passes: " + std::to_string(numPasses) + "\n";
                     // FFT kernel begin
                     // Function signature
                     str += "template <typename T, StrideBin sb>\n";

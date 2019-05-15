@@ -11,10 +11,10 @@
 #include <tuple>
 #include <vector>
 
+using ::testing::Combine;
 using ::testing::TestWithParam;
 using ::testing::Values;
 using ::testing::ValuesIn;
-using ::testing::Combine;
 using namespace std;
 
 // only GCC/VS 2010 comes with std::tr1::tuple, but it is unnecessary,
@@ -63,18 +63,10 @@ static size_t batch_range[] = {1, 100};
 class transpose_gtest : public ::TestWithParam<transpose_tuple>
 {
 protected:
-    transpose_gtest()
-    {
-    }
-    virtual ~transpose_gtest()
-    {
-    }
-    virtual void SetUp()
-    {
-    }
-    virtual void TearDown()
-    {
-    }
+    transpose_gtest() {}
+    virtual ~transpose_gtest() {}
+    virtual void SetUp() {}
+    virtual void TearDown() {}
 };
 
 /*

@@ -1,4 +1,3 @@
-
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -12,7 +11,7 @@
 
 int main()
 {
-    // For size N <= 4096
+    // The problem size
     const size_t N = 8;
 
     std::cout << "Complex 1d in-place FFT example\n";
@@ -32,19 +31,14 @@ int main()
     }
     std::cout << "\n";
 
-    // rocfft gpu compute
-    // ========================================
-
     rocfft_setup();
-
-    size_t Nbytes = N * sizeof(float2);
 
     // Create HIP device object.
     float2* x;
-    hipMalloc(&x, Nbytes);
+    hipMalloc(&x, cx.size() * sizeof(decltype(cx)::value_type));
 
     //  Copy data to device
-    hipMemcpy(x, cx.data(), Nbytes, hipMemcpyHostToDevice);
+    hipMemcpy(x, cx.data(), cx.size() * sizeof(decltype(cx)::value_type), hipMemcpyHostToDevice);
 
     // Create plans
     rocfft_plan forward = NULL;
@@ -76,7 +70,7 @@ int main()
 
     // Copy result back to host
     std::vector<float2> cy(N);
-    hipMemcpy(cy.data(), x, Nbytes, hipMemcpyDeviceToHost);
+    hipMemcpy(cy.data(), x, cy.size() * sizeof(decltype(cy)::value_type), hipMemcpyDeviceToHost);
 
     std::cout << "Transformed:\n";
     for(size_t i = 0; i < cy.size(); i++)
@@ -91,7 +85,7 @@ int main()
                    NULL, // out_buffer
                    NULL); // execution info
 
-    hipMemcpy(cy.data(), x, Nbytes, hipMemcpyDeviceToHost);
+    hipMemcpy(cy.data(), x, cy.size() * sizeof(decltype(cy)::value_type), hipMemcpyDeviceToHost);
     std::cout << "Transformed back:\n";
     for(size_t i = 0; i < cy.size(); i++)
     {

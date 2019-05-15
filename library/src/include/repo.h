@@ -10,9 +10,7 @@
 
 class Repo
 {
-    Repo()
-    {
-    }
+    Repo() {}
     std::map<rocfft_plan_t, ExecPlan> planUnique;
     std::map<rocfft_plan, ExecPlan>   execLookup;
 

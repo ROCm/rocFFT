@@ -14,28 +14,20 @@
 #include "rocfft_against_fftw.h"
 #include "test_constants.h"
 
+using ::testing::Combine;
 using ::testing::TestWithParam;
 using ::testing::Values;
 using ::testing::ValuesIn;
-using ::testing::Combine;
 
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
 class accuracy_test_complex_pow2_single : public ::testing::Test
 {
 protected:
-    accuracy_test_complex_pow2_single()
-    {
-    }
-    virtual ~accuracy_test_complex_pow2_single()
-    {
-    }
-    virtual void SetUp()
-    {
-    }
-    virtual void TearDown()
-    {
-    }
+    accuracy_test_complex_pow2_single() {}
+    virtual ~accuracy_test_complex_pow2_single() {}
+    virtual void SetUp() {}
+    virtual void TearDown() {}
 };
 
 /*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
@@ -43,18 +35,10 @@ protected:
 class accuracy_test_complex_pow2_double : public ::testing::Test
 {
 protected:
-    accuracy_test_complex_pow2_double()
-    {
-    }
-    virtual ~accuracy_test_complex_pow2_double()
-    {
-    }
-    virtual void SetUp()
-    {
-    }
-    virtual void TearDown()
-    {
-    }
+    accuracy_test_complex_pow2_double() {}
+    virtual ~accuracy_test_complex_pow2_double() {}
+    virtual void SetUp() {}
+    virtual void TearDown() {}
 };
 // 65536=pow(2,16)                                 //8388608 = pow(2,23)
 #define POW2_RANGE                                                                               \
@@ -113,42 +97,24 @@ static std::vector<size_t> generate_random(size_t number_run)
     return output;
 }
 
-class accuracy_test_complex : public ::TestWithParam<std::tuple<size_t,
-                                                                size_t,
-                                                                rocfft_result_placement,
-                                                                rocfft_transform_type,
-                                                                size_t>>
+class accuracy_test_complex
+    : public ::TestWithParam<
+          std::tuple<size_t, size_t, rocfft_result_placement, rocfft_transform_type, size_t>>
 {
 protected:
-    accuracy_test_complex()
-    {
-    }
-    virtual ~accuracy_test_complex()
-    {
-    }
-    virtual void SetUp()
-    {
-    }
-    virtual void TearDown()
-    {
-    }
+    accuracy_test_complex() {}
+    virtual ~accuracy_test_complex() {}
+    virtual void SetUp() {}
+    virtual void TearDown() {}
 };
 
 class accuracy_test_real : public ::TestWithParam<std::tuple<size_t, size_t>>
 {
 protected:
-    accuracy_test_real()
-    {
-    }
-    virtual ~accuracy_test_real()
-    {
-    }
-    virtual void SetUp()
-    {
-    }
-    virtual void TearDown()
-    {
-    }
+    accuracy_test_real() {}
+    virtual ~accuracy_test_real() {}
+    virtual void SetUp() {}
+    virtual void TearDown() {}
 };
 
 template <class T, class fftw_T>

@@ -263,12 +263,8 @@ namespace StockhamGenerator
             // special write back to global memory with float4 grouping, writing 2
             // complex numbers at once
             if(numB && (numB % 2 == 0) && (regC == 1) && (numButterfly % 2 == 0) && (algLS % 2 == 0)
-               && (flag == SR_WRITE)
-               && (nextPass == NULL)
-               && interleaved
-               && (component == SR_COMP_BOTH)
-               && linearRegs
-               && enableGrouping
+               && (flag == SR_WRITE) && (nextPass == NULL) && interleaved
+               && (component == SR_COMP_BOTH) && linearRegs && enableGrouping
                && !fft_doPostCallback)
             {
                 assert((numButterfly * workGroupSize) == algLS);

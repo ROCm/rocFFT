@@ -30,18 +30,14 @@ void transpose_complex_interleaved_to_complex_planar_reference(size_t input_row_
             for(int j = 0; j < input_col_size; j++)
             {
                 output_matrix_real[b * input_col_size * output_leading_dim_size
-                                   + j * output_leading_dim_size
-                                   + i]
+                                   + j * output_leading_dim_size + i]
                     = input_matrix[b * input_row_size * input_leading_dim_size
-                                   + i * input_leading_dim_size
-                                   + j]
+                                   + i * input_leading_dim_size + j]
                           .real();
                 output_matrix_imag[b * input_col_size * output_leading_dim_size
-                                   + j * output_leading_dim_size
-                                   + i]
+                                   + j * output_leading_dim_size + i]
                     = input_matrix[b * input_row_size * input_leading_dim_size
-                                   + i * input_leading_dim_size
-                                   + j]
+                                   + i * input_leading_dim_size + j]
                           .imag();
             }
         }
@@ -66,17 +62,13 @@ void transpose_complex_planar_to_complex_interleaved_reference(size_t input_row_
             for(int j = 0; j < input_col_size; j++)
             {
                 output_matrix[b * input_col_size * output_leading_dim_size
-                              + j * output_leading_dim_size
-                              + i]
+                              + j * output_leading_dim_size + i]
                     .real(input_matrix_real[b * input_row_size * input_leading_dim_size
-                                            + i * input_leading_dim_size
-                                            + j]);
+                                            + i * input_leading_dim_size + j]);
                 output_matrix[b * input_col_size * output_leading_dim_size
-                              + j * output_leading_dim_size
-                              + i]
+                              + j * output_leading_dim_size + i]
                     .imag(input_matrix_imag[b * input_row_size * input_leading_dim_size
-                                            + i * input_leading_dim_size
-                                            + j]);
+                                            + i * input_leading_dim_size + j]);
             }
         }
     }
@@ -99,11 +91,9 @@ void transpose_reference(size_t input_row_size,
             for(int j = 0; j < input_col_size; j++)
             {
                 output_matrix[b * input_col_size * output_leading_dim_size
-                              + j * output_leading_dim_size
-                              + i]
+                              + j * output_leading_dim_size + i]
                     = input_matrix[b * input_row_size * input_leading_dim_size
-                                   + i * input_leading_dim_size
-                                   + j];
+                                   + i * input_leading_dim_size + j];
             }
         }
     }

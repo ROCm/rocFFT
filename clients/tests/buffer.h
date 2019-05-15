@@ -117,9 +117,7 @@ public:
     }
 
     /*****************************************************/
-    ~buffer()
-    {
-    }
+    ~buffer() {}
 
     /*****************************************************/
     // this assignment operator only copies _data_.
@@ -135,8 +133,7 @@ public:
         }
 
         if(this->_number_of_dimensions != that._number_of_dimensions
-           || this->_batch_size != that._batch_size
-           || this->_lengths != that._lengths)
+           || this->_batch_size != that._batch_size || this->_lengths != that._lengths)
         {
             throw std::runtime_error("Buffers must be the same size for assignment operator");
         }
@@ -392,9 +389,9 @@ private:
                 if(_tightly_packed_strides && _tightly_packed_distance)
                 {
                     // request extra memory
-                    _the_buffers[re].increase_allocated_memory(
-                        amount_of_extra_padding_per_x() * stride(dimx) * length(dimy) * length(dimz)
-                        * batch_size());
+                    _the_buffers[re].increase_allocated_memory(amount_of_extra_padding_per_x()
+                                                               * stride(dimx) * length(dimy)
+                                                               * length(dimz) * batch_size());
 
                     // adjust strides/distances so that the padding is at the end of each
                     // row in the Xth dimension
@@ -1215,9 +1212,9 @@ public:
     void set_all_to_random()
     {
         // for all batches
-        size_t               max_value = 10.0;
-        boost::mt19937       random_data_generator;
-        boost::uniform_int<> distribution(1, INT_MAX);
+        size_t                                                          max_value = 10.0;
+        boost::mt19937                                                  random_data_generator;
+        boost::uniform_int<>                                            distribution(1, INT_MAX);
         boost::variate_generator<boost::mt19937&, boost::uniform_int<>> random_value(
             random_data_generator, distribution);
         // random_data_generator.seed( static_cast<boost::uint32_t>( seed ) );
