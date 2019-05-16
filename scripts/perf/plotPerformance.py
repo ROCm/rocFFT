@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # #############################################################################
 # Copyright (c) 2013 - present Advanced Micro Devices, Inc. All rights reserved.
 #
