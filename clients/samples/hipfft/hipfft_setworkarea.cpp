@@ -19,14 +19,14 @@ int main()
 
     std::vector<float2> cx(N);
 
-    size_t complex_input_bytes = sizeof(fftwf_complex) * (N/2+1);
-    size_t real_output_bytes = sizeof(float) * N;
+    size_t complex_input_bytes = sizeof(fftwf_complex) * (N / 2 + 1);
+    size_t real_output_bytes   = sizeof(float) * N;
 
-    fftwf_complex *in = (fftwf_complex*)fftwf_malloc(complex_input_bytes);
-    float *out = (float*)fftwf_malloc(real_output_bytes);
-    fftwf_plan p = fftwf_plan_dft_c2r_1d(N, in, out, FFTW_ESTIMATE);
+    fftwf_complex* in  = (fftwf_complex*)fftwf_malloc(complex_input_bytes);
+    float*         out = (float*)fftwf_malloc(real_output_bytes);
+    fftwf_plan     p   = fftwf_plan_dft_c2r_1d(N, in, out, FFTW_ESTIMATE);
 
-    for(size_t i = 0; i < (N/2+1); i++)
+    for(size_t i = 0; i < (N / 2 + 1); i++)
     {
         cx[i].x = in[i][0] = i + (i % 3) - (i % 7);
         cx[i].y = in[i][1] = 0;
@@ -45,7 +45,7 @@ int main()
 
     // Create plan
     hipfftHandle plan = NULL;
-    size_t workSize;
+    size_t       workSize;
 
     hipfftEstimate1d(N, HIPFFT_C2R, 1, &workSize);
     std::cout << "hipfftEstimate1d workSize: " << workSize << std::endl;
@@ -59,7 +59,7 @@ int main()
     hipfftComplex* workBuf;
     hipMalloc(&workBuf, workSize);
     hipfftSetWorkArea(plan, workBuf);
-    
+
     hipfftGetSize(plan, &workSize);
     std::cout << "hipfftGetSize workSize: " << workSize << std::endl;
 
@@ -77,9 +77,8 @@ int main()
     size_t element_id = 0;
     for(size_t i = 0; i < N; i++)
     {
-        if (i <32)
-            printf("element %d: FFTW result %f; hipFFT result %f \n",
-                   (int)i, out[i], y[i]);
+        if(i < 32)
+            printf("element %d: FFTW result %f; hipFFT result %f \n", (int)i, out[i], y[i]);
         double err = fabs(out[i] - y[i]);
         if(err > error)
         {

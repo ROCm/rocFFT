@@ -223,7 +223,7 @@ DLL_PUBLIC hipfftResult hipfftDestroy(hipfftHandle plan);
 
 DLL_PUBLIC hipfftResult hipfftGetVersion(int* version);
 
-DLL_PUBLIC hipfftResult hipfftGetProperty(hipfftLibraryPropertyType type, int *value);
+DLL_PUBLIC hipfftResult hipfftGetProperty(hipfftLibraryPropertyType type, int* value);
 
 #ifdef __cplusplus
 }

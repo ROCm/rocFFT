@@ -3,11 +3,11 @@
  ******************************************************************************/
 
 #include "hipfft.h"
-#include "tree_node.h"
-#include "transform.h"
 #include "plan.h"
 #include "private.h"
 #include "rocfft.h"
+#include "transform.h"
+#include "tree_node.h"
 #include <sstream>
 
 #define ROC_FFT_CHECK_ALLOC_FAILED(ret)  \
@@ -63,7 +63,6 @@ struct hipfftHandle_t
     {
     }
 };
-
 
 /*! \brief Creates a 1D FFT plan configuration for the size and data type. The
  * batch parameter tells how many 1D transforms to perform
@@ -331,7 +330,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
 
     if(workBufferSize > 0)
     {
-        if (plan->autoAllocate)
+        if(plan->autoAllocate)
         {
             if(plan->workBuffer)
                 if(hipFree(plan->workBuffer) != HIP_SUCCESS)
@@ -340,7 +339,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                 return HIPFFT_ALLOC_FAILED;
         }
         ROC_FFT_CHECK_INVALID_VALUE(
-                rocfft_execution_info_set_work_buffer(plan->info, plan->workBuffer, workBufferSize));
+            rocfft_execution_info_set_work_buffer(plan->info, plan->workBuffer, workBufferSize));
     }
 
     if(workSize != nullptr)
@@ -595,21 +594,21 @@ hipfftResult hipfftMakePlanMany64(hipfftHandle   plan,
 hipfftResult hipfftEstimate1d(int nx, hipfftType type, int batch, size_t* workSize)
 {
     hipfftHandle plan = nullptr;
-    hipfftResult ret = hipfftGetSize1d(plan, nx, type, batch, workSize);
+    hipfftResult ret  = hipfftGetSize1d(plan, nx, type, batch, workSize);
     return ret;
 }
 
 hipfftResult hipfftEstimate2d(int nx, int ny, hipfftType type, size_t* workSize)
 {
     hipfftHandle plan = nullptr;
-    hipfftResult ret = hipfftGetSize2d(plan, nx, ny, type, workSize);
+    hipfftResult ret  = hipfftGetSize2d(plan, nx, ny, type, workSize);
     return ret;
 }
 
 hipfftResult hipfftEstimate3d(int nx, int ny, int nz, hipfftType type, size_t* workSize)
 {
     hipfftHandle plan = nullptr;
-    hipfftResult ret = hipfftGetSize3d(plan, nx, ny, nz, type, workSize);
+    hipfftResult ret  = hipfftGetSize3d(plan, nx, ny, nz, type, workSize);
     return ret;
 }
 
@@ -626,8 +625,8 @@ hipfftResult hipfftEstimateMany(int        rank,
                                 size_t*    workSize)
 {
     hipfftHandle plan = nullptr;
-    hipfftResult ret = hipfftGetSizeMany(plan, rank, n, inembed, istride, idist,
-                        onembed, ostride, odist, type, batch, workSize);
+    hipfftResult ret  = hipfftGetSizeMany(
+        plan, rank, n, inembed, istride, idist, onembed, ostride, odist, type, batch, workSize);
     return ret;
 }
 
@@ -794,7 +793,7 @@ hipfftResult hipfftGetSizeMany64(hipfftHandle   plan,
 hipfftResult hipfftSetWorkArea(hipfftHandle plan, void* workArea)
 {
     ROC_FFT_CHECK_INVALID_VALUE(
-                rocfft_execution_info_set_work_buffer(plan->info, workArea, plan->info->workBufferSize));
+        rocfft_execution_info_set_work_buffer(plan->info, workArea, plan->info->workBufferSize));
     return HIPFFT_SUCCESS;
 }
 
@@ -975,7 +974,7 @@ hipfftResult hipfftDestroy(hipfftHandle plan)
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_destroy(plan->ip_inverse));
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_destroy(plan->op_inverse));
 
-        if (plan->autoAllocate)
+        if(plan->autoAllocate)
             hipFree(plan->workBuffer);
 
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_execution_info_destroy(plan->info));
@@ -1023,7 +1022,7 @@ hipfftResult hipfftGetVersion(int* version)
     return HIPFFT_SUCCESS;
 }
 
-hipfftResult hipfftGetProperty(hipfftLibraryPropertyType type, int *value)
+hipfftResult hipfftGetProperty(hipfftLibraryPropertyType type, int* value)
 {
     int full;
     hipfftGetVersion(&full);
@@ -1032,11 +1031,11 @@ hipfftResult hipfftGetProperty(hipfftLibraryPropertyType type, int *value)
     int minor = (full - major * 10000) / 100;
     int patch = (full - major * 10000 - minor * 100);
 
-    if (type == MAJOR_VERSION)
+    if(type == MAJOR_VERSION)
         *value = major;
-    else if (type == MINOR_VERSION)
+    else if(type == MINOR_VERSION)
         *value = minor;
-    else if (type == PATCH_LEVEL)
+    else if(type == PATCH_LEVEL)
         *value = patch;
     else
         return HIPFFT_INVALID_TYPE;
