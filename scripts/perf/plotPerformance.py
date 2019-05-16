@@ -27,6 +27,8 @@ import subprocess
 import itertools
 import os
 import matplotlib
+if 'DISPLAY' not in os.environ:
+    matplotlib.use('agg')
 import pylab
 from matplotlib.backends.backend_pdf import PdfPages
 from fftPerformanceTesting import *
