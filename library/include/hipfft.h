@@ -46,6 +46,13 @@ typedef enum hipfftType_t
     HIPFFT_Z2Z = 0x69 // Double-complex to double-complex (interleaved)
 } hipfftType;
 
+typedef enum hipfftLibraryPropertyType_t
+{
+    MAJOR_VERSION,
+    MINOR_VERSION,
+    PATCH_LEVEL
+} hipfftLibraryPropertyType;
+
 #define HIPFFT_FORWARD -1
 #define HIPFFT_BACKWARD 1
 
@@ -215,6 +222,8 @@ DLL_PUBLIC hipfftResult hipfftSetCompatibilityMode(hipfftHandle plan,
 DLL_PUBLIC hipfftResult hipfftDestroy(hipfftHandle plan);
 
 DLL_PUBLIC hipfftResult hipfftGetVersion(int* version);
+
+DLL_PUBLIC hipfftResult hipfftGetProperty(hipfftLibraryPropertyType type, int* value);
 
 #ifdef __cplusplus
 }

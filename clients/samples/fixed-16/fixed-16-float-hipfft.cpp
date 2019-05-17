@@ -51,9 +51,8 @@ int main()
     hipMemcpy(x, &cx[0], Nbytes, hipMemcpyHostToDevice);
 
     // Create plan
-    hipfftHandle plan = NULL;
-    hipfftCreate(&plan);
-    size_t length = N;
+    hipfftHandle plan   = NULL;
+    size_t       length = N;
     hipfftPlan1d(&plan, length, HIPFFT_C2C, 1);
 
     // Execute plan
