@@ -639,6 +639,8 @@ std::map<ComputeScheme, const char*> ComputeSchemetoString
        {ENUMSTR(CS_KERNEL_COPY_CMPLX_TO_HERM)},
        {ENUMSTR(CS_KERNEL_COPY_HERM_TO_CMPLX)},
        {ENUMSTR(CS_KERNEL_COPY_CMPLX_TO_R)},
+       {ENUMSTR(CS_KERNEL_R_TO_CMPLX)},
+       {ENUMSTR(CS_KERNEL_CMPLX_TO_R)},
 
        {ENUMSTR(CS_BLUESTEIN)},
        {ENUMSTR(CS_KERNEL_CHIRP)},
