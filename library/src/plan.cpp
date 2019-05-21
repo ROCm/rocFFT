@@ -724,6 +724,457 @@ std::string PrintScheme(ComputeScheme cs)
     return str;
 }
 
+void TreeNode::BuildReal()
+{
+    // Create a root node which copies the real (or Hermitian) data to
+    // a complex buffer (with zero imaginary part), performs a complex
+    // FFT, and then copies the result to a Hermitian (or real)
+    // output.
+
+    scheme = CS_REAL_TRANSFORM_USING_CMPLX;
+
+    TreeNode* copyHeadPlan = TreeNode::CreateNode(this);
+
+    // head copy plan
+    copyHeadPlan->dimension = dimension;
+    copyHeadPlan->length    = length;
+
+    if(inArrayType == rocfft_array_type_real)
+    {
+        copyHeadPlan->scheme = CS_KERNEL_COPY_R_TO_CMPLX;
+    }
+    else if(outArrayType == rocfft_array_type_real)
+    {
+        copyHeadPlan->scheme = CS_KERNEL_COPY_HERM_TO_CMPLX;
+    }
+
+    childNodes.push_back(copyHeadPlan);
+
+    // complex fft
+    TreeNode* fftPlan = TreeNode::CreateNode(this);
+
+    fftPlan->dimension = dimension;
+    fftPlan->length    = length;
+
+    fftPlan->RecursiveBuildTree();
+    childNodes.push_back(fftPlan);
+
+    // tail copy plan
+    TreeNode* copyTailPlan = TreeNode::CreateNode(this);
+
+    copyTailPlan->dimension = dimension;
+    copyTailPlan->length    = length;
+
+    if(inArrayType == rocfft_array_type_real)
+        copyTailPlan->scheme = CS_KERNEL_COPY_CMPLX_TO_HERM;
+    else if(outArrayType == rocfft_array_type_real)
+        copyTailPlan->scheme = CS_KERNEL_COPY_CMPLX_TO_R;
+
+    childNodes.push_back(copyTailPlan);
+
+    return;
+}
+
+size_t TreeNode::div1DNoPo2(const size_t length0)
+{
+    const size_t supported[]
+        = {4096, 4050, 4000, 3888, 3840, 3750, 3645, 3600, 3456, 3375, 3240, 3200, 3125, 3072,
+           3000, 2916, 2880, 2700, 2592, 2560, 2500, 2430, 2400, 2304, 2250, 2187, 2160, 2048,
+           2025, 2000, 1944, 1920, 1875, 1800, 1728, 1620, 1600, 1536, 1500, 1458, 1440, 1350,
+           1296, 1280, 1250, 1215, 1200, 1152, 1125, 1080, 1024, 1000, 972,  960,  900,  864,
+           810,  800,  768,  750,  729,  720,  675,  648,  640,  625,  600,  576,  540,  512,
+           500,  486,  480,  450,  432,  405,  400,  384,  375,  360,  324,  320,  300,  288,
+           270,  256,  250,  243,  240,  225,  216,  200,  192,  180,  162,  160,  150,  144,
+           135,  128,  125,  120,  108,  100,  96,   90,   81,   80,   75,   72,   64,   60,
+           54,   50,   48,   45,   40,   36,   32,   30,   27,   25,   24,   20,   18,   16,
+           15,   12,   10,   9,    8,    6,    5,    4,    3,    2,    1};
+
+    size_t idx;
+    if(length0 > (Large1DThreshold(precision) * Large1DThreshold(precision)))
+    {
+        idx = 0;
+        while(supported[idx] != Large1DThreshold(precision))
+        {
+            idx++;
+        }
+        while(length0 % supported[idx] != 0)
+        {
+            idx++;
+        }
+    }
+    else
+    {
+        // logic tries to break into as squarish matrix as possible
+        size_t sqr = (size_t)sqrt(length0);
+        idx        = sizeof(supported) / sizeof(supported[0]) - 1;
+        while(supported[idx] < sqr)
+        {
+            idx--;
+        }
+        while(length0 % supported[idx] != 0)
+        {
+            idx++;
+        }
+    }
+    assert(idx < sizeof(supported) / sizeof(supported[0]));
+    return length0 / supported[idx];
+}
+
+void TreeNode::Build1D()
+{
+    // Build a node for a 1D FFT
+
+    if(!SupportedLength(length[0]))
+    {
+        Build1DBluestein();
+        return;
+    }
+
+    if(length[0] <= Large1DThreshold(precision)) // single kernel algorithm
+    {
+        scheme = CS_KERNEL_STOCKHAM;
+        return;
+    }
+
+    size_t divLength1 = 1;
+
+    if(IsPo2(length[0])) // multiple kernels involving transpose
+    {
+        if(length[0] <= 262144 / PrecisionWidth(precision))
+        {
+            // Enable block compute under these conditions
+            if(1 == PrecisionWidth(precision))
+            {
+                divLength1 = Pow2Lengths1Single.at(length[0]);
+            }
+            else
+            {
+                divLength1 = Pow2Lengths1Double.at(length[0]);
+            }
+            scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CS_L1D_CC : CS_L1D_CRT;
+        }
+        else
+        {
+            if(length[0] > (Large1DThreshold(precision) * Large1DThreshold(precision)))
+            {
+                divLength1 = length[0] / Large1DThreshold(precision);
+            }
+            else
+            {
+                size_t in_x = 0;
+                size_t len  = length[0];
+                while(len != 1)
+                {
+                    len >>= 1;
+                    in_x++;
+                }
+                in_x /= 2;
+                divLength1 = (size_t)1 << in_x;
+            }
+            scheme = CS_L1D_TRTRT;
+        }
+    }
+    else // if not Pow2
+    {
+        divLength1 = div1DNoPo2(length[0]);
+        scheme     = CS_L1D_TRTRT;
+    }
+
+    size_t divLength0 = length[0] / divLength1;
+
+    switch(scheme)
+    {
+    case CS_L1D_TRTRT:
+        Build1DCS_L1D_TRTRT(divLength0, divLength1);
+        break;
+    case CS_L1D_CC:
+        Build1DCS_L1D_CC(divLength0, divLength1);
+        break;
+    case CS_L1D_CRT:
+        Build1DCS_L1D_CRT(divLength0, divLength1);
+        break;
+    default:
+        assert(false);
+    }
+}
+
+void TreeNode::Build1DBluestein()
+{
+    // Build a node for a 1D stage using the Bluestein algorithm for
+    // general transform lengths.
+
+    scheme     = CS_BLUESTEIN;
+    lengthBlue = FindBlue(length[0]);
+
+    TreeNode* chirpPlan = TreeNode::CreateNode(this);
+
+    chirpPlan->scheme    = CS_KERNEL_CHIRP;
+    chirpPlan->dimension = 1;
+    chirpPlan->length.push_back(length[0]);
+    chirpPlan->lengthBlue = lengthBlue;
+    chirpPlan->direction  = direction;
+    chirpPlan->batch      = 1;
+    chirpPlan->large1D    = 2 * length[0];
+    childNodes.push_back(chirpPlan);
+
+    TreeNode* padmulPlan = TreeNode::CreateNode(this);
+
+    padmulPlan->dimension  = 1;
+    padmulPlan->length     = length;
+    padmulPlan->lengthBlue = lengthBlue;
+    padmulPlan->scheme     = CS_KERNEL_PAD_MUL;
+    childNodes.push_back(padmulPlan);
+
+    TreeNode* fftiPlan = TreeNode::CreateNode(this);
+
+    fftiPlan->dimension = 1;
+    fftiPlan->length.push_back(lengthBlue);
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        fftiPlan->length.push_back(length[index]);
+    }
+
+    fftiPlan->iOffset = 2 * lengthBlue;
+    fftiPlan->oOffset = 2 * lengthBlue;
+    fftiPlan->scheme  = CS_KERNEL_STOCKHAM;
+    fftiPlan->RecursiveBuildTree();
+    childNodes.push_back(fftiPlan);
+
+    TreeNode* fftcPlan = TreeNode::CreateNode(this);
+
+    fftcPlan->dimension = 1;
+    fftcPlan->length.push_back(lengthBlue);
+    fftcPlan->scheme  = CS_KERNEL_STOCKHAM;
+    fftcPlan->batch   = 1;
+    fftcPlan->iOffset = lengthBlue;
+    fftcPlan->oOffset = lengthBlue;
+    fftcPlan->RecursiveBuildTree();
+    childNodes.push_back(fftcPlan);
+
+    TreeNode* fftmulPlan = TreeNode::CreateNode(this);
+
+    fftmulPlan->dimension = 1;
+    fftmulPlan->length.push_back(lengthBlue);
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        fftmulPlan->length.push_back(length[index]);
+    }
+
+    fftmulPlan->lengthBlue = lengthBlue;
+    fftmulPlan->scheme     = CS_KERNEL_FFT_MUL;
+    childNodes.push_back(fftmulPlan);
+
+    TreeNode* fftrPlan = TreeNode::CreateNode(this);
+
+    fftrPlan->dimension = 1;
+    fftrPlan->length.push_back(lengthBlue);
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        fftrPlan->length.push_back(length[index]);
+    }
+
+    fftrPlan->scheme    = CS_KERNEL_STOCKHAM;
+    fftrPlan->direction = -direction;
+    fftrPlan->iOffset   = 2 * lengthBlue;
+    fftrPlan->oOffset   = 2 * lengthBlue;
+    fftrPlan->RecursiveBuildTree();
+    childNodes.push_back(fftrPlan);
+
+    TreeNode* resmulPlan = TreeNode::CreateNode(this);
+
+    resmulPlan->dimension  = 1;
+    resmulPlan->length     = length;
+    resmulPlan->lengthBlue = lengthBlue;
+    resmulPlan->scheme     = CS_KERNEL_RES_MUL;
+    childNodes.push_back(resmulPlan);
+}
+
+void Build1D_Compute_divLengthPow2() {}
+
+void TreeNode::Build1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLength1)
+{
+    // first transpose
+    TreeNode* trans1Plan = TreeNode::CreateNode(this);
+
+    trans1Plan->length.push_back(divLength0);
+    trans1Plan->length.push_back(divLength1);
+
+    trans1Plan->scheme    = CS_KERNEL_TRANSPOSE;
+    trans1Plan->dimension = 2;
+
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        trans1Plan->length.push_back(length[index]);
+    }
+
+    childNodes.push_back(trans1Plan);
+
+    // first row fft
+    TreeNode* row1Plan = TreeNode::CreateNode(this);
+
+    // twiddling is done in row2 or transpose2
+    row1Plan->large1D = 0;
+
+    row1Plan->length.push_back(divLength1);
+    row1Plan->length.push_back(divLength0);
+
+    row1Plan->scheme    = CS_KERNEL_STOCKHAM;
+    row1Plan->dimension = 1;
+
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        row1Plan->length.push_back(length[index]);
+    }
+
+    row1Plan->RecursiveBuildTree();
+    childNodes.push_back(row1Plan);
+
+    // second transpose
+    TreeNode* trans2Plan = TreeNode::CreateNode(this);
+
+    trans2Plan->length.push_back(divLength1);
+    trans2Plan->length.push_back(divLength0);
+
+    trans2Plan->scheme    = CS_KERNEL_TRANSPOSE;
+    trans2Plan->dimension = 2;
+
+    trans2Plan->large1D = length[0];
+
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        trans2Plan->length.push_back(length[index]);
+    }
+
+    childNodes.push_back(trans2Plan);
+
+    // second row fft
+    TreeNode* row2Plan = TreeNode::CreateNode(this);
+
+    row2Plan->length.push_back(divLength0);
+    row2Plan->length.push_back(divLength1);
+
+    row2Plan->scheme    = CS_KERNEL_STOCKHAM;
+    row2Plan->dimension = 1;
+
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        row2Plan->length.push_back(length[index]);
+    }
+
+    // algorithm is set up in a way that row2 does not recurse
+    assert(divLength0 <= Large1DThreshold(this->precision));
+
+    childNodes.push_back(row2Plan);
+
+    // third transpose
+    TreeNode* trans3Plan = TreeNode::CreateNode(this);
+
+    trans3Plan->length.push_back(divLength0);
+    trans3Plan->length.push_back(divLength1);
+
+    trans3Plan->scheme    = CS_KERNEL_TRANSPOSE;
+    trans3Plan->dimension = 2;
+
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        trans3Plan->length.push_back(length[index]);
+    }
+
+    childNodes.push_back(trans3Plan);
+}
+
+void TreeNode::Build1DCS_L1D_CC(const size_t divLength0, const size_t divLength1)
+{
+    // first plan, column-to-column
+    TreeNode* col2colPlan = TreeNode::CreateNode(this);
+
+    // large1D flag to confirm we need multiply twiddle factor
+    col2colPlan->large1D = length[0];
+
+    col2colPlan->length.push_back(divLength1);
+    col2colPlan->length.push_back(divLength0);
+
+    col2colPlan->scheme    = CS_KERNEL_STOCKHAM_BLOCK_CC;
+    col2colPlan->dimension = 1;
+
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        col2colPlan->length.push_back(length[index]);
+    }
+
+    childNodes.push_back(col2colPlan);
+
+    // second plan, row-to-column
+    TreeNode* row2colPlan = TreeNode::CreateNode(this);
+
+    row2colPlan->length.push_back(divLength0);
+    row2colPlan->length.push_back(divLength1);
+
+    row2colPlan->scheme    = CS_KERNEL_STOCKHAM_BLOCK_RC;
+    row2colPlan->dimension = 1;
+
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        row2colPlan->length.push_back(length[index]);
+    }
+
+    childNodes.push_back(row2colPlan);
+}
+
+void TreeNode::Build1DCS_L1D_CRT(const size_t divLength0, const size_t divLength1)
+{
+    // first plan, column-to-column
+    TreeNode* col2colPlan = TreeNode::CreateNode(this);
+
+    // large1D flag to confirm we need multiply twiddle factor
+    col2colPlan->large1D = length[0];
+
+    col2colPlan->length.push_back(divLength1);
+    col2colPlan->length.push_back(divLength0);
+
+    col2colPlan->scheme    = CS_KERNEL_STOCKHAM_BLOCK_CC;
+    col2colPlan->dimension = 1;
+
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        col2colPlan->length.push_back(length[index]);
+    }
+
+    childNodes.push_back(col2colPlan);
+
+    // second plan, row-to-row
+    TreeNode* row2rowPlan = TreeNode::CreateNode(this);
+
+    row2rowPlan->length.push_back(divLength0);
+    row2rowPlan->length.push_back(divLength1);
+
+    row2rowPlan->scheme    = CS_KERNEL_STOCKHAM;
+    row2rowPlan->dimension = 1;
+
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        row2rowPlan->length.push_back(length[index]);
+    }
+
+    childNodes.push_back(row2rowPlan);
+
+    // third plan, transpose
+    TreeNode* transPlan = TreeNode::CreateNode(this);
+
+    transPlan->length.push_back(divLength0);
+    transPlan->length.push_back(divLength1);
+
+    transPlan->scheme    = CS_KERNEL_TRANSPOSE;
+    transPlan->dimension = 2;
+
+    for(size_t index = 1; index < length.size(); index++)
+    {
+        transPlan->length.push_back(length[index]);
+    }
+
+    childNodes.push_back(transPlan);
+}
+
 void TreeNode::RecursiveBuildTree()
 {
     // this flag can be enabled when generator can do block column fft in
@@ -733,467 +1184,15 @@ void TreeNode::RecursiveBuildTree()
     if((parent == nullptr)
        && ((inArrayType == rocfft_array_type_real) || (outArrayType == rocfft_array_type_real)))
     {
-        scheme = CS_REAL_TRANSFORM_USING_CMPLX;
-
-        TreeNode* copyHeadPlan = TreeNode::CreateNode(this);
-
-        // head copy plan
-        copyHeadPlan->dimension = dimension;
-        copyHeadPlan->length    = length;
-
-        if(inArrayType == rocfft_array_type_real)
-            copyHeadPlan->scheme = CS_KERNEL_COPY_R_TO_CMPLX;
-        else if(outArrayType == rocfft_array_type_real)
-            copyHeadPlan->scheme = CS_KERNEL_COPY_HERM_TO_CMPLX;
-
-        childNodes.push_back(copyHeadPlan);
-
-        // complex fft
-        TreeNode* fftPlan = TreeNode::CreateNode(this);
-
-        fftPlan->dimension = dimension;
-        fftPlan->length    = length;
-
-        fftPlan->RecursiveBuildTree();
-        childNodes.push_back(fftPlan);
-
-        // tail copy plan
-        TreeNode* copyTailPlan = TreeNode::CreateNode(this);
-
-        copyTailPlan->dimension = dimension;
-        copyTailPlan->length    = length;
-
-        if(inArrayType == rocfft_array_type_real)
-            copyTailPlan->scheme = CS_KERNEL_COPY_CMPLX_TO_HERM;
-        else if(outArrayType == rocfft_array_type_real)
-            copyTailPlan->scheme = CS_KERNEL_COPY_CMPLX_TO_R;
-
-        childNodes.push_back(copyTailPlan);
-
+        BuildReal();
         return;
     }
 
     switch(dimension)
     {
     case 1:
-    {
-        if(!SupportedLength(length[0]))
-        {
-            scheme     = CS_BLUESTEIN;
-            lengthBlue = FindBlue(length[0]);
-
-            TreeNode* chirpPlan = TreeNode::CreateNode(this);
-
-            chirpPlan->scheme    = CS_KERNEL_CHIRP;
-            chirpPlan->dimension = 1;
-            chirpPlan->length.push_back(length[0]);
-            chirpPlan->lengthBlue = lengthBlue;
-            chirpPlan->direction  = direction;
-            chirpPlan->batch      = 1;
-            chirpPlan->large1D    = 2 * length[0];
-            childNodes.push_back(chirpPlan);
-
-            TreeNode* padmulPlan = TreeNode::CreateNode(this);
-
-            padmulPlan->dimension  = 1;
-            padmulPlan->length     = length;
-            padmulPlan->lengthBlue = lengthBlue;
-            padmulPlan->scheme     = CS_KERNEL_PAD_MUL;
-            childNodes.push_back(padmulPlan);
-
-            TreeNode* fftiPlan = TreeNode::CreateNode(this);
-
-            fftiPlan->dimension = 1;
-            fftiPlan->length.push_back(lengthBlue);
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                fftiPlan->length.push_back(length[index]);
-            }
-
-            fftiPlan->iOffset = 2 * lengthBlue;
-            fftiPlan->oOffset = 2 * lengthBlue;
-            fftiPlan->scheme  = CS_KERNEL_STOCKHAM;
-            fftiPlan->RecursiveBuildTree();
-            childNodes.push_back(fftiPlan);
-
-            TreeNode* fftcPlan = TreeNode::CreateNode(this);
-
-            fftcPlan->dimension = 1;
-            fftcPlan->length.push_back(lengthBlue);
-            fftcPlan->scheme  = CS_KERNEL_STOCKHAM;
-            fftcPlan->batch   = 1;
-            fftcPlan->iOffset = lengthBlue;
-            fftcPlan->oOffset = lengthBlue;
-            fftcPlan->RecursiveBuildTree();
-            childNodes.push_back(fftcPlan);
-
-            TreeNode* fftmulPlan = TreeNode::CreateNode(this);
-
-            fftmulPlan->dimension = 1;
-            fftmulPlan->length.push_back(lengthBlue);
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                fftmulPlan->length.push_back(length[index]);
-            }
-
-            fftmulPlan->lengthBlue = lengthBlue;
-            fftmulPlan->scheme     = CS_KERNEL_FFT_MUL;
-            childNodes.push_back(fftmulPlan);
-
-            TreeNode* fftrPlan = TreeNode::CreateNode(this);
-
-            fftrPlan->dimension = 1;
-            fftrPlan->length.push_back(lengthBlue);
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                fftrPlan->length.push_back(length[index]);
-            }
-
-            fftrPlan->scheme    = CS_KERNEL_STOCKHAM;
-            fftrPlan->direction = -direction;
-            fftrPlan->iOffset   = 2 * lengthBlue;
-            fftrPlan->oOffset   = 2 * lengthBlue;
-            fftrPlan->RecursiveBuildTree();
-            childNodes.push_back(fftrPlan);
-
-            TreeNode* resmulPlan = TreeNode::CreateNode(this);
-
-            resmulPlan->dimension  = 1;
-            resmulPlan->length     = length;
-            resmulPlan->lengthBlue = lengthBlue;
-            resmulPlan->scheme     = CS_KERNEL_RES_MUL;
-            childNodes.push_back(resmulPlan);
-
-            return;
-        }
-
-        if(length[0] <= Large1DThreshold(precision)) // single kernel algorithm
-        {
-            scheme = CS_KERNEL_STOCKHAM;
-            return;
-        }
-
-        size_t divLength1 = 1;
-
-        if(IsPo2(length[0])) // multiple kernels involving transpose
-        {
-            // Enable block compute under these conditions
-            if(length[0] <= 262144 / PrecisionWidth(precision))
-            {
-                if(1 == PrecisionWidth(precision))
-                {
-                    switch(length[0])
-                    {
-                    case 8192:
-                        divLength1 = 64;
-                        break;
-                    case 16384:
-                        divLength1 = 64;
-                        break;
-                    case 32768:
-                        divLength1 = 128;
-                        break;
-                    case 65536:
-                        divLength1 = 256;
-                        break;
-                    case 131072:
-                        divLength1 = 64;
-                        break;
-                    case 262144:
-                        divLength1 = 64;
-                        break;
-                    default:
-                        assert(false);
-                    }
-                }
-                else
-                {
-                    switch(length[0])
-                    {
-                    case 4096:
-                        divLength1 = 64;
-                        break;
-                    case 8192:
-                        divLength1 = 64;
-                        break;
-                    case 16384:
-                        divLength1 = 64;
-                        break;
-                    case 32768:
-                        divLength1 = 128;
-                        break;
-                    case 65536:
-                        divLength1 = 64;
-                        break;
-                    case 131072:
-                        divLength1 = 64;
-                        break;
-                    default:
-                        assert(false);
-                    }
-                }
-
-                scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CS_L1D_CC : CS_L1D_CRT;
-            }
-            else
-            {
-                if(length[0] > (Large1DThreshold(precision) * Large1DThreshold(precision)))
-                {
-                    divLength1 = length[0] / Large1DThreshold(precision);
-                }
-                else
-                {
-                    size_t in_x = 0;
-                    size_t len  = length[0];
-
-                    while(len != 1)
-                    {
-                        len >>= 1;
-                        in_x++;
-                    }
-
-                    in_x /= 2;
-                    divLength1 = (size_t)1 << in_x;
-                }
-
-                scheme = CS_L1D_TRTRT;
-            }
-        }
-        else // if not Pow2
-        {
-            size_t supported[] = {
-                4096, 4050, 4000, 3888, 3840, 3750, 3645, 3600, 3456, 3375, 3240, 3200, 3125, 3072,
-                3000, 2916, 2880, 2700, 2592, 2560, 2500, 2430, 2400, 2304, 2250, 2187, 2160, 2048,
-                2025, 2000, 1944, 1920, 1875, 1800, 1728, 1620, 1600, 1536, 1500, 1458, 1440, 1350,
-                1296, 1280, 1250, 1215, 1200, 1152, 1125, 1080, 1024, 1000, 972,  960,  900,  864,
-                810,  800,  768,  750,  729,  720,  675,  648,  640,  625,  600,  576,  540,  512,
-                500,  486,  480,  450,  432,  405,  400,  384,  375,  360,  324,  320,  300,  288,
-                270,  256,  250,  243,  240,  225,  216,  200,  192,  180,  162,  160,  150,  144,
-                135,  128,  125,  120,  108,  100,  96,   90,   81,   80,   75,   72,   64,   60,
-                54,   50,   48,   45,   40,   36,   32,   30,   27,   25,   24,   20,   18,   16,
-                15,   12,   10,   9,    8,    6,    5,    4,    3,    2,    1};
-
-            size_t threshold_id = 0;
-            while(supported[threshold_id] != Large1DThreshold(precision))
-                threshold_id++;
-
-            if(length[0] > (Large1DThreshold(precision) * Large1DThreshold(precision)))
-            {
-                size_t idx = threshold_id;
-                while(length[0] % supported[idx] != 0)
-                    idx++;
-
-                divLength1 = length[0] / supported[idx];
-            }
-            else
-            {
-                // logic tries to break into as squarish matrix as possible
-                size_t sqr = (size_t)sqrt(length[0]);
-                size_t i   = sizeof(supported) / sizeof(supported[0]) - 1;
-                while(supported[i] < sqr)
-                    i--;
-                while(length[0] % supported[i] != 0)
-                    i++;
-
-                divLength1 = length[0] / supported[i];
-            }
-
-            scheme = CS_L1D_TRTRT;
-        }
-
-        size_t divLength0 = length[0] / divLength1;
-
-        switch(scheme)
-        {
-        case CS_L1D_TRTRT:
-        {
-            // first transpose
-            TreeNode* trans1Plan = TreeNode::CreateNode(this);
-
-            trans1Plan->length.push_back(divLength0);
-            trans1Plan->length.push_back(divLength1);
-
-            trans1Plan->scheme    = CS_KERNEL_TRANSPOSE;
-            trans1Plan->dimension = 2;
-
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                trans1Plan->length.push_back(length[index]);
-            }
-
-            childNodes.push_back(trans1Plan);
-
-            // first row fft
-            TreeNode* row1Plan = TreeNode::CreateNode(this);
-
-            // twiddling is done in row2 or transpose2
-            row1Plan->large1D = 0;
-
-            row1Plan->length.push_back(divLength1);
-            row1Plan->length.push_back(divLength0);
-
-            row1Plan->scheme    = CS_KERNEL_STOCKHAM;
-            row1Plan->dimension = 1;
-
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                row1Plan->length.push_back(length[index]);
-            }
-
-            row1Plan->RecursiveBuildTree();
-            childNodes.push_back(row1Plan);
-
-            // second transpose
-            TreeNode* trans2Plan = TreeNode::CreateNode(this);
-
-            trans2Plan->length.push_back(divLength1);
-            trans2Plan->length.push_back(divLength0);
-
-            trans2Plan->scheme    = CS_KERNEL_TRANSPOSE;
-            trans2Plan->dimension = 2;
-
-            trans2Plan->large1D = length[0];
-
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                trans2Plan->length.push_back(length[index]);
-            }
-
-            childNodes.push_back(trans2Plan);
-
-            // second row fft
-            TreeNode* row2Plan = TreeNode::CreateNode(this);
-
-            row2Plan->length.push_back(divLength0);
-            row2Plan->length.push_back(divLength1);
-
-            row2Plan->scheme    = CS_KERNEL_STOCKHAM;
-            row2Plan->dimension = 1;
-
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                row2Plan->length.push_back(length[index]);
-            }
-
-            // algorithm is set up in a way that row2 does not recurse
-            assert(divLength0 <= Large1DThreshold(this->precision));
-
-            childNodes.push_back(row2Plan);
-
-            // third transpose
-            TreeNode* trans3Plan = TreeNode::CreateNode(this);
-
-            trans3Plan->length.push_back(divLength0);
-            trans3Plan->length.push_back(divLength1);
-
-            trans3Plan->scheme    = CS_KERNEL_TRANSPOSE;
-            trans3Plan->dimension = 2;
-
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                trans3Plan->length.push_back(length[index]);
-            }
-
-            childNodes.push_back(trans3Plan);
-        }
+        Build1D();
         break;
-        case CS_L1D_CC:
-        {
-            // first plan, column-to-column
-            TreeNode* col2colPlan = TreeNode::CreateNode(this);
-
-            // large1D flag to confirm we need multiply twiddle factor
-            col2colPlan->large1D = length[0];
-
-            col2colPlan->length.push_back(divLength1);
-            col2colPlan->length.push_back(divLength0);
-
-            col2colPlan->scheme    = CS_KERNEL_STOCKHAM_BLOCK_CC;
-            col2colPlan->dimension = 1;
-
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                col2colPlan->length.push_back(length[index]);
-            }
-
-            childNodes.push_back(col2colPlan);
-
-            // second plan, row-to-column
-            TreeNode* row2colPlan = TreeNode::CreateNode(this);
-
-            row2colPlan->length.push_back(divLength0);
-            row2colPlan->length.push_back(divLength1);
-
-            row2colPlan->scheme    = CS_KERNEL_STOCKHAM_BLOCK_RC;
-            row2colPlan->dimension = 1;
-
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                row2colPlan->length.push_back(length[index]);
-            }
-
-            childNodes.push_back(row2colPlan);
-        }
-        break;
-        case CS_L1D_CRT:
-        {
-            // first plan, column-to-column
-            TreeNode* col2colPlan = TreeNode::CreateNode(this);
-
-            // large1D flag to confirm we need multiply twiddle factor
-            col2colPlan->large1D = length[0];
-
-            col2colPlan->length.push_back(divLength1);
-            col2colPlan->length.push_back(divLength0);
-
-            col2colPlan->scheme    = CS_KERNEL_STOCKHAM_BLOCK_CC;
-            col2colPlan->dimension = 1;
-
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                col2colPlan->length.push_back(length[index]);
-            }
-
-            childNodes.push_back(col2colPlan);
-
-            // second plan, row-to-row
-            TreeNode* row2rowPlan = TreeNode::CreateNode(this);
-
-            row2rowPlan->length.push_back(divLength0);
-            row2rowPlan->length.push_back(divLength1);
-
-            row2rowPlan->scheme    = CS_KERNEL_STOCKHAM;
-            row2rowPlan->dimension = 1;
-
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                row2rowPlan->length.push_back(length[index]);
-            }
-
-            childNodes.push_back(row2rowPlan);
-
-            // third plan, transpose
-            TreeNode* transPlan = TreeNode::CreateNode(this);
-
-            transPlan->length.push_back(divLength0);
-            transPlan->length.push_back(divLength1);
-
-            transPlan->scheme    = CS_KERNEL_TRANSPOSE;
-            transPlan->dimension = 2;
-
-            for(size_t index = 1; index < length.size(); index++)
-            {
-                transPlan->length.push_back(length[index]);
-            }
-
-            childNodes.push_back(transPlan);
-        }
-        break;
-        default:
-            assert(false);
-        }
-    }
-    break;
 
     case 2:
     {
