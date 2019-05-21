@@ -10,6 +10,7 @@
 #include "rocfft.h"
 #include <assert.h>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <vector>
 
@@ -622,105 +623,49 @@ ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, size_t len)
     return rocfft_status_success;
 }
 
+#define ENUMSTR(x) x, TO_STR(x)
+
+std::map<ComputeScheme, const char*> ComputeSchemetoString
+    = {{ENUMSTR(CS_NONE)},
+       {ENUMSTR(CS_KERNEL_STOCKHAM)},
+       {ENUMSTR(CS_KERNEL_STOCKHAM_BLOCK_CC)},
+       {ENUMSTR(CS_KERNEL_STOCKHAM_BLOCK_RC)},
+       {ENUMSTR(CS_KERNEL_TRANSPOSE)},
+       {ENUMSTR(CS_KERNEL_TRANSPOSE_XY_Z)},
+       {ENUMSTR(CS_KERNEL_TRANSPOSE_Z_XY)},
+
+       {ENUMSTR(CS_REAL_TRANSFORM_USING_CMPLX)},
+       {ENUMSTR(CS_KERNEL_COPY_R_TO_CMPLX)},
+       {ENUMSTR(CS_KERNEL_COPY_CMPLX_TO_HERM)},
+       {ENUMSTR(CS_KERNEL_COPY_HERM_TO_CMPLX)},
+       {ENUMSTR(CS_KERNEL_COPY_CMPLX_TO_R)},
+
+       {ENUMSTR(CS_BLUESTEIN)},
+       {ENUMSTR(CS_KERNEL_CHIRP)},
+       {ENUMSTR(CS_KERNEL_PAD_MUL)},
+       {ENUMSTR(CS_KERNEL_FFT_MUL)},
+       {ENUMSTR(CS_KERNEL_RES_MUL)},
+
+       {ENUMSTR(CS_L1D_TRTRT)},
+       {ENUMSTR(CS_L1D_CC)},
+       {ENUMSTR(CS_L1D_CRT)},
+
+       {ENUMSTR(CS_2D_STRAIGHT)},
+       {ENUMSTR(CS_2D_RTRT)},
+       {ENUMSTR(CS_2D_RC)},
+       {ENUMSTR(CS_KERNEL_2D_STOCKHAM_BLOCK_CC)},
+       {ENUMSTR(CS_KERNEL_2D_SINGLE)},
+
+       {ENUMSTR(CS_3D_STRAIGHT)},
+       {ENUMSTR(CS_3D_RTRT)},
+       {ENUMSTR(CS_3D_RC)},
+       {ENUMSTR(CS_KERNEL_3D_STOCKHAM_BLOCK_CC)},
+       {ENUMSTR(CS_KERNEL_3D_SINGLE)}};
+
 std::string PrintScheme(ComputeScheme cs)
 {
     std::string str;
-
-    switch(cs)
-    {
-    case CS_KERNEL_STOCKHAM:
-        str += "CS_KERNEL_STOCKHAM";
-        break;
-    case CS_KERNEL_STOCKHAM_BLOCK_CC:
-        str += "CS_KERNEL_STOCKHAM_BLOCK_CC";
-        break;
-    case CS_KERNEL_STOCKHAM_BLOCK_RC:
-        str += "CS_KERNEL_STOCKHAM_BLOCK_RC";
-        break;
-    case CS_KERNEL_TRANSPOSE:
-        str += "CS_KERNEL_TRANSPOSE";
-        break;
-    case CS_KERNEL_TRANSPOSE_XY_Z:
-        str += "CS_KERNEL_TRANSPOSE_XY_Z";
-        break;
-    case CS_KERNEL_TRANSPOSE_Z_XY:
-        str += "CS_KERNEL_TRANSPOSE_Z_XY";
-        break;
-    case CS_REAL_TRANSFORM_USING_CMPLX:
-        str += "CS_REAL_TRANSFORM_USING_CMPLX";
-        break;
-    case CS_KERNEL_COPY_R_TO_CMPLX:
-        str += "CS_KERNEL_COPY_R_TO_CMPLX";
-        break;
-    case CS_KERNEL_COPY_CMPLX_TO_HERM:
-        str += "CS_KERNEL_COPY_CMPLX_TO_HERM";
-        break;
-    case CS_KERNEL_COPY_HERM_TO_CMPLX:
-        str += "CS_KERNEL_COPY_HERM_TO_CMPLX";
-        break;
-    case CS_KERNEL_COPY_CMPLX_TO_R:
-        str += "CS_KERNEL_COPY_CMPLX_TO_R";
-        break;
-    case CS_BLUESTEIN:
-        str += "CS_BLUESTEIN";
-        break;
-    case CS_KERNEL_CHIRP:
-        str += "CS_KERNEL_CHIRP";
-        break;
-    case CS_KERNEL_PAD_MUL:
-        str += "CS_KERNEL_PAD_MUL";
-        break;
-    case CS_KERNEL_FFT_MUL:
-        str += "CS_KERNEL_FFT_MUL";
-        break;
-    case CS_KERNEL_RES_MUL:
-        str += "CS_KERNEL_RES_MUL";
-        break;
-    case CS_L1D_TRTRT:
-        str += "CS_L1D_TRTRT";
-        break;
-    case CS_L1D_CC:
-        str += "CS_L1D_CC";
-        break;
-    case CS_L1D_CRT:
-        str += "CS_L1D_CRT";
-        break;
-    case CS_2D_STRAIGHT:
-        str += "CS_2D_STRAIGHT";
-        break;
-    case CS_2D_RTRT:
-        str += "CS_2D_RTRT";
-        break;
-    case CS_2D_RC:
-        str += "CS_2D_RC";
-        break;
-    case CS_KERNEL_2D_STOCKHAM_BLOCK_CC:
-        str += "CS_KERNEL_2D_STOCKHAM_BLOCK_CC";
-        break;
-    case CS_KERNEL_2D_SINGLE:
-        str += "CS_KERNEL_2D_SINGLE";
-        break;
-    case CS_3D_STRAIGHT:
-        str += "CS_3D_STRAIGHT";
-        break;
-    case CS_3D_RTRT:
-        str += "CS_3D_RTRT";
-        break;
-    case CS_3D_RC:
-        str += "CS_3D_RC";
-        break;
-    case CS_KERNEL_3D_STOCKHAM_BLOCK_CC:
-        str += "CS_KERNEL_3D_STOCKHAM_BLOCK_CC";
-        break;
-    case CS_KERNEL_3D_SINGLE:
-        str += "CS_KERNEL_3D_SINGLE";
-        break;
-
-    default:
-        str += "CS_NONE";
-        break;
-    }
-
+    str += ComputeSchemetoString.at(cs);
     return str;
 }
 
