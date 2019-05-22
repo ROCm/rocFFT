@@ -79,28 +79,26 @@ void PlanPowX(ExecPlan& execPlan)
             // get working group size and number of transforms
             size_t workGroupSize;
             size_t numTransforms;
-            GetWGSAndNT(execPlan.execSeq[i]->length[0], workGroupSize, numTransforms); 
+            GetWGSAndNT(execPlan.execSeq[i]->length[0], workGroupSize, numTransforms);
             ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                ? function_pool::get_function_single(
-                    std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM))
-                : function_pool::get_function_double(
-                    std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM));
+                      ? function_pool::get_function_single(
+                          std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM))
+                      : function_pool::get_function_double(
+                          std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM));
             size_t batch = execPlan.execSeq[i]->batch;
             for(size_t j = 1; j < execPlan.execSeq[i]->length.size(); j++)
                 batch *= execPlan.execSeq[i]->length[j];
-            gp.b_x = (batch % numTransforms) ? 1 + (batch / numTransforms)
-                : (batch / numTransforms);
+            gp.b_x
+                = (batch % numTransforms) ? 1 + (batch / numTransforms) : (batch / numTransforms);
             gp.tpb_x = workGroupSize;
         }
         break;
         case CS_KERNEL_STOCKHAM_BLOCK_CC:
             ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                ? function_pool::get_function_single(
-                    std::make_pair(execPlan.execSeq[i]->length[0],
-                                   CS_KERNEL_STOCKHAM_BLOCK_CC)) :
-                function_pool::get_function_double(
-                    std::make_pair(execPlan.execSeq[i]->length[0],
-                                   CS_KERNEL_STOCKHAM_BLOCK_CC));
+                      ? function_pool::get_function_single(std::make_pair(
+                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC))
+                      : function_pool::get_function_double(std::make_pair(
+                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC));
             GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
             gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd * execPlan.execSeq[i]->batch;
             if(execPlan.execSeq[i]->length.size() == 3)
@@ -111,12 +109,10 @@ void PlanPowX(ExecPlan& execPlan)
             break;
         case CS_KERNEL_STOCKHAM_BLOCK_RC:
             ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                ? function_pool::get_function_single(
-                    std::make_pair(execPlan.execSeq[i]->length[0],
-                                   CS_KERNEL_STOCKHAM_BLOCK_RC))
-                : function_pool::get_function_double(
-                    std::make_pair(execPlan.execSeq[i]->length[0],
-                                   CS_KERNEL_STOCKHAM_BLOCK_RC));
+                      ? function_pool::get_function_single(std::make_pair(
+                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC))
+                      : function_pool::get_function_double(std::make_pair(
+                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC));
             GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
             gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd * execPlan.execSeq[i]->batch;
             if(execPlan.execSeq[i]->length.size() == 3)
