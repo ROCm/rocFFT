@@ -671,30 +671,99 @@ std::string PrintScheme(ComputeScheme cs)
     return str;
 }
 
-void TreeNode::BuildReal()
+void TreeNode::BuildRealEven()
 {
-    // Create a root node which copies the real (or Hermitian) data to
-    // a complex buffer (with zero imaginary part), performs a complex
-    // FFT, and then copies the result to a Hermitian (or real)
-    // output.
+    assert(dimension == 1); // FIXME: temp
 
-    scheme = CS_REAL_TRANSFORM_USING_CMPLX;
+    assert(length[0] % 2 == 0);
 
+    TreeNode* cfftPlan     = TreeNode::CreateNode(this);
+    cfftPlan->dimension    = dimension;
+    cfftPlan->length       = length;
+    cfftPlan->length[0]    = cfftPlan->length[0] / 2;
+    cfftPlan->inArrayType  = rocfft_array_type_complex_interleaved;
+    cfftPlan->outArrayType = rocfft_array_type_complex_interleaved;
+    cfftPlan->placement    = rocfft_placement_inplace;
+
+    if(inArrayType == rocfft_array_type_real)
+    {
+        // complex-to-real transform: in-place complex transform then post-process
+        assert(direction == -1);
+        assert(outArrayType == rocfft_array_type_hermitian_interleaved);
+        assert(inStride[0] == 1); // assumed contigous for now
+
+        // cfftPlan works in-place on the input buffer.
+        // NB: the input buffer is real.
+        cfftPlan->obOut     = obIn;
+        cfftPlan->outStride = inStride; // assumed contiguous
+        cfftPlan->iDist     = 2 * iDist;
+        cfftPlan->oDist     = 2 * iDist;
+        cfftPlan->iOffset   = 2 * iOffset;
+        cfftPlan->oOffset   = 2 * iOffset;
+        cfftPlan->RecursiveBuildTree();
+        childNodes.push_back(cfftPlan);
+
+        if(dimension == 1) {
+            TreeNode* postPlan = TreeNode::CreateNode(this);
+            postPlan->scheme = CS_KERNEL_R_TO_CMPLX;
+            postPlan->dimension = 1;
+            childNodes.push_back(postPlan);        
+        } else {
+            // TODO: change the batch of the prePlan so that we do the
+            // all of the x-rows in one batch of prePlan, and then push_back
+            // one prePlan for (batch) times.  Setting up parameters
+            // correctly, of course.
+            assert(false);
+        }
+    }
+    else
+    {
+        // complex-to-real transform: pre-process followed by in-place complex transform
+        assert(direction == 1);
+        assert(inArrayType == rocfft_array_type_hermitian_interleaved);
+        assert(outArrayType == rocfft_array_type_real);
+        assert(outStride[0] == 1); // assumed contigous for now
+
+        if(dimension == 1) {
+            TreeNode* prePlan = TreeNode::CreateNode(this);
+            prePlan->dimension = 1;
+            prePlan->scheme = CS_KERNEL_CMPLX_TO_R;
+            childNodes.push_back(prePlan);
+        } else {
+            // TODO: change the batch of the prePlan so that we do the
+            // all of the x-rows in one batch of prePlan, and then
+            // push_back one prePlan for (batch) times.  Setting up
+            // parameters correctly, of course.
+            assert(false);
+        }
+        
+        // cfftPlan works in-place on the output buffer.
+        // NB: the output buffer is real.
+        cfftPlan->obIn      = obOut;
+        cfftPlan->outStride = inStride; // assumed contiguous
+        cfftPlan->iDist     = 2 *   oDist;
+        cfftPlan->oDist     = 2 *   oDist;
+        cfftPlan->iOffset   = 2 * oOffset;
+        cfftPlan->oOffset   = 2 * oOffset;
+        cfftPlan->RecursiveBuildTree();
+        childNodes.push_back(cfftPlan);
+    }
+}
+
+void TreeNode::BuildRealEmbed()
+{
+    // Embed the data into a full-length complex array, perform a
+    // complex transform, and then extract the relevant output.
+    
     TreeNode* copyHeadPlan = TreeNode::CreateNode(this);
 
     // head copy plan
     copyHeadPlan->dimension = dimension;
     copyHeadPlan->length    = length;
-
-    if(inArrayType == rocfft_array_type_real)
-    {
-        copyHeadPlan->scheme = CS_KERNEL_COPY_R_TO_CMPLX;
-    }
-    else if(outArrayType == rocfft_array_type_real)
-    {
-        copyHeadPlan->scheme = CS_KERNEL_COPY_HERM_TO_CMPLX;
-    }
-
+    copyHeadPlan->scheme
+        = (inArrayType == rocfft_array_type_real)
+        ? CS_KERNEL_COPY_R_TO_CMPLX
+        : CS_KERNEL_COPY_HERM_TO_CMPLX;
     childNodes.push_back(copyHeadPlan);
 
     // complex fft
@@ -711,15 +780,31 @@ void TreeNode::BuildReal()
 
     copyTailPlan->dimension = dimension;
     copyTailPlan->length    = length;
-
-    if(inArrayType == rocfft_array_type_real)
-        copyTailPlan->scheme = CS_KERNEL_COPY_CMPLX_TO_HERM;
-    else if(outArrayType == rocfft_array_type_real)
-        copyTailPlan->scheme = CS_KERNEL_COPY_CMPLX_TO_R;
-
+    copyTailPlan->scheme
+        = (inArrayType == rocfft_array_type_real)
+        ? CS_KERNEL_COPY_CMPLX_TO_HERM
+        : CS_KERNEL_COPY_CMPLX_TO_R;
     childNodes.push_back(copyTailPlan);
+}
 
-    return;
+void TreeNode::BuildReal()
+{
+    // Create a root node which copies the real (or Hermitian) data to
+    // a complex buffer (with zero imaginary part), performs a complex
+    // FFT, and then copies the result to a Hermitian (or real)
+    // output.
+
+    scheme = CS_REAL_TRANSFORM_USING_CMPLX;
+
+    // TODO: remove dimensionality constraint
+    if((length[0] % 2 == 0) && (dimension == 1))
+    {
+        BuildRealEven();
+    }
+    else
+    {
+        BuildRealEmbed();
+    }
 }
 
 size_t TreeNode::div1DNoPo2(const size_t length0)

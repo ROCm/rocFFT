@@ -208,6 +208,8 @@ public:
 
     // Real-complex and complex-real node builder:
     void BuildReal();
+    void BuildRealEven();
+    void BuildRealEmbed();
 
     // 1D node builers:
     void Build1D();
