@@ -13,6 +13,7 @@
 
 #include "rocfft.h"
 
+// Returns 1 for single-precision, 2 for double precision
 inline size_t PrecisionWidth(rocfft_precision precision)
 {
     switch(precision)

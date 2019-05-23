@@ -101,7 +101,7 @@ include( ROCMPackageConfigHelpers )
 include( ROCMInstallSymlinks )
 
 
-set ( VERSION_STRING "0.9.2." )
+set ( VERSION_STRING "0.9.3." )
 # Check if BUILD_NUMBER is defined in a Jenkins envirnment
 if ($ENV{BUILD_NUMBER} )
   string(CONCAT BUILD_VERSION ${VERSION_STRING} $ENV{BUILD_NUMBER}) 
@@ -123,9 +123,11 @@ list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 # NOTE:  workaround until hcc & hip cmake modules fixes symlink logic in their config files; remove when fixed
 list( APPEND CMAKE_PREFIX_PATH /opt/rocm/hcc /opt/rocm/hip )
 
-# Building tensile can add significant compile time; this option allows to build
-# library without tensile to allow for rapid iteration without GEMM functionality
+# Enable verbose output
 option( BUILD_VERBOSE "Output additional build information" OFF )
+
+# Build the reference C++ kernel implementations.
+option( BUILD_CPUREF "Build CPU reference debug code" OFF )
 
 # BUILD_SHARED_LIBS is a cmake built-in; we make it an explicit option such that it shows in cmake-gui
 option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" ON )

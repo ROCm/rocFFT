@@ -66,258 +66,114 @@ void PlanPowX(ExecPlan& execPlan)
         function_pool::verify_no_null_functions();
     }
 
-    if(execPlan.execSeq[0]->precision == rocfft_precision_single)
+    for(size_t i = 0; i < execPlan.execSeq.size(); i++)
     {
+        DevFnCall ptr = nullptr;
+        GridParam gp;
+        size_t    bwd, wgs, lds;
 
-        for(size_t i = 0; i < execPlan.execSeq.size(); i++)
+        switch(execPlan.execSeq[i]->scheme)
         {
-            DevFnCall ptr = nullptr;
-            GridParam gp;
-            size_t    bwd, wgs, lds;
-
-            if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM)
-            {
-                // assert(execPlan.execSeq[i]->length[0] <= 4096);
-                size_t workGroupSize;
-                size_t numTransforms;
-                GetWGSAndNT(execPlan.execSeq[i]->length[0],
-                            workGroupSize,
-                            numTransforms); // get working group size and number of transforms
-
-                ptr = function_pool::get_function_single(
-                    std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM));
-
-                size_t batch = execPlan.execSeq[i]->batch;
-                for(size_t j = 1; j < execPlan.execSeq[i]->length.size(); j++)
-                    batch *= execPlan.execSeq[i]->length[j];
-                gp.b_x = (batch % numTransforms) ? 1 + (batch / numTransforms)
-                                                 : (batch / numTransforms);
-                gp.tpb_x = workGroupSize;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-            {
-                ptr = function_pool::get_function_single(
-                    std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC));
-
-                GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
-                gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd * execPlan.execSeq[i]->batch;
-
-                if(execPlan.execSeq[i]->length.size() == 3)
-                {
-                    gp.b_x *= execPlan.execSeq[i]->length[2];
-                }
-                gp.tpb_x = wgs;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
-            {
-                ptr = function_pool::get_function_single(
-                    std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC));
-
-                GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
-                gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd * execPlan.execSeq[i]->batch;
-                if(execPlan.execSeq[i]->length.size() == 3)
-                {
-                    gp.b_x *= execPlan.execSeq[i]->length[2];
-                }
-                gp.tpb_x = wgs;
-            }
-            else if((execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE)
-                    || (execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE_XY_Z)
-                    || (execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE_Z_XY))
-            {
-                ptr      = &FN_PRFX(transpose_var2);
-                gp.tpb_x = 64;
-                gp.tpb_y = 16;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_R_TO_CMPLX)
-            {
-                ptr      = &real2complex;
-                gp.b_x   = (execPlan.execSeq[i]->length[0] - 1) / 512 + 1;
-                gp.b_y   = execPlan.execSeq[i]->batch;
-                gp.tpb_x = 512;
-                gp.tpb_y = 1;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_CMPLX_TO_R)
-            {
-                ptr      = &complex2real;
-                gp.b_x   = (execPlan.execSeq[i]->length[0] - 1) / 512 + 1;
-                gp.b_y   = execPlan.execSeq[i]->batch;
-                gp.tpb_x = 512;
-                gp.tpb_y = 1;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_HERM_TO_CMPLX)
-            {
-                ptr      = &hermitian2complex;
-                gp.b_x   = (execPlan.execSeq[i]->length[0] - 1) / 512 + 1;
-                gp.b_y   = execPlan.execSeq[i]->batch;
-                gp.tpb_x = 512;
-                gp.tpb_y = 1;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_CMPLX_TO_HERM)
-            {
-                ptr      = &complex2hermitian;
-                gp.b_x   = (execPlan.execSeq[i]->length[0] - 1) / 512 + 1;
-                gp.b_y   = execPlan.execSeq[i]->batch;
-                gp.tpb_x = 512;
-                gp.tpb_y = 1;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_CHIRP)
-            {
-                ptr      = &FN_PRFX(chirp);
-                gp.tpb_x = 64;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_PAD_MUL)
-            {
-                ptr      = &FN_PRFX(mul);
-                gp.tpb_x = 64;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_FFT_MUL)
-            {
-                ptr      = &FN_PRFX(mul);
-                gp.tpb_x = 64;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_RES_MUL)
-            {
-                ptr      = &FN_PRFX(mul);
-                gp.tpb_x = 64;
-            }
-            else
-            {
-                std::cout << "should not be in this else block" << std::endl;
-                std::cout << "scheme: " << execPlan.execSeq[i]->scheme << std::endl;
-            }
-
-            execPlan.devFnCall.push_back(ptr);
-            execPlan.gridParam.push_back(gp);
-
-        } // end for
-    } // end if(execPlan.execSeq[0]->precision == rocfft_precision_single)
-    else if(execPlan.execSeq[0]->precision == rocfft_precision_double)
-    {
-
-        for(size_t i = 0; i < execPlan.execSeq.size(); i++)
+        case CS_KERNEL_STOCKHAM:
         {
-            DevFnCall ptr = nullptr;
-            GridParam gp;
-            size_t    bwd, wgs, lds;
-
-            if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM)
+            // get working group size and number of transforms
+            size_t workGroupSize;
+            size_t numTransforms;
+            GetWGSAndNT(execPlan.execSeq[i]->length[0], workGroupSize, numTransforms);
+            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
+                      ? function_pool::get_function_single(
+                          std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM))
+                      : function_pool::get_function_double(
+                          std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM));
+            size_t batch = execPlan.execSeq[i]->batch;
+            for(size_t j = 1; j < execPlan.execSeq[i]->length.size(); j++)
+                batch *= execPlan.execSeq[i]->length[j];
+            gp.b_x
+                = (batch % numTransforms) ? 1 + (batch / numTransforms) : (batch / numTransforms);
+            gp.tpb_x = workGroupSize;
+        }
+        break;
+        case CS_KERNEL_STOCKHAM_BLOCK_CC:
+            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
+                      ? function_pool::get_function_single(std::make_pair(
+                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC))
+                      : function_pool::get_function_double(std::make_pair(
+                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC));
+            GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
+            gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd * execPlan.execSeq[i]->batch;
+            if(execPlan.execSeq[i]->length.size() == 3)
             {
-                size_t workGroupSize;
-                size_t numTransforms;
-                GetWGSAndNT(execPlan.execSeq[i]->length[0],
-                            workGroupSize,
-                            numTransforms); // get working group size and number of transforms
-
-                ptr = function_pool::get_function_double(
-                    std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM));
-
-                size_t batch = execPlan.execSeq[i]->batch;
-                for(size_t j = 1; j < execPlan.execSeq[i]->length.size(); j++)
-                    batch *= execPlan.execSeq[i]->length[j];
-                gp.b_x = (batch % numTransforms) ? 1 + (batch / numTransforms)
-                                                 : (batch / numTransforms);
-                gp.tpb_x = workGroupSize;
+                gp.b_x *= execPlan.execSeq[i]->length[2];
             }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
+            gp.tpb_x = wgs;
+            break;
+        case CS_KERNEL_STOCKHAM_BLOCK_RC:
+            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
+                      ? function_pool::get_function_single(std::make_pair(
+                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC))
+                      : function_pool::get_function_double(std::make_pair(
+                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC));
+            GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
+            gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd * execPlan.execSeq[i]->batch;
+            if(execPlan.execSeq[i]->length.size() == 3)
             {
-                ptr = function_pool::get_function_double(
-                    std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC));
-
-                GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
-                gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd * execPlan.execSeq[i]->batch;
-
-                if(execPlan.execSeq[i]->length.size() == 3)
-                {
-                    gp.b_x *= execPlan.execSeq[i]->length[2];
-                }
-                gp.tpb_x = wgs;
+                gp.b_x *= execPlan.execSeq[i]->length[2];
             }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
-            {
-                ptr = function_pool::get_function_double(
-                    std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC));
-
-                GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
-                gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd * execPlan.execSeq[i]->batch;
-
-                if(execPlan.execSeq[i]->length.size() == 3)
-                {
-                    gp.b_x *= execPlan.execSeq[i]->length[2];
-                }
-                gp.tpb_x = wgs;
-            }
-            else if((execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE)
-                    || (execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE_XY_Z)
-                    || (execPlan.execSeq[i]->scheme == CS_KERNEL_TRANSPOSE_Z_XY))
-            {
-                ptr      = &FN_PRFX(transpose_var2);
-                gp.tpb_x = 32;
-                gp.tpb_y = 32;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_R_TO_CMPLX)
-            {
-                ptr      = &real2complex;
-                gp.b_x   = (execPlan.execSeq[i]->length[0] - 1) / 512 + 1;
-                gp.b_y   = execPlan.execSeq[i]->batch;
-                gp.tpb_x = 512;
-                gp.tpb_y = 1;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_CMPLX_TO_R)
-            {
-                ptr      = &complex2real;
-                gp.b_x   = (execPlan.execSeq[i]->length[0] - 1) / 512 + 1;
-                gp.b_y   = execPlan.execSeq[i]->batch;
-                gp.tpb_x = 512;
-                gp.tpb_y = 1;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_HERM_TO_CMPLX)
-            {
-                ptr      = &hermitian2complex;
-                gp.b_x   = (execPlan.execSeq[i]->length[0] - 1) / 512 + 1;
-                gp.b_y   = execPlan.execSeq[i]->batch;
-                gp.tpb_x = 512;
-                gp.tpb_y = 1;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_COPY_CMPLX_TO_HERM)
-            {
-                ptr      = &complex2hermitian;
-                gp.b_x   = (execPlan.execSeq[i]->length[0] - 1) / 512 + 1;
-                gp.b_y   = execPlan.execSeq[i]->batch;
-                gp.tpb_x = 512;
-                gp.tpb_y = 1;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_CHIRP)
-            {
-                ptr      = &FN_PRFX(chirp);
-                gp.tpb_x = 64;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_PAD_MUL)
-            {
-                ptr      = &FN_PRFX(mul);
-                gp.tpb_x = 64;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_FFT_MUL)
-            {
-                ptr      = &FN_PRFX(mul);
-                gp.tpb_x = 64;
-            }
-            else if(execPlan.execSeq[i]->scheme == CS_KERNEL_RES_MUL)
-            {
-                ptr      = &FN_PRFX(mul);
-                gp.tpb_x = 64;
-            }
-            else
-            {
-                std::cout << "should not be in this else block" << std::endl;
-                std::cout << "scheme: " << execPlan.execSeq[i]->scheme << std::endl;
-            }
-
-            execPlan.devFnCall.push_back(ptr);
-            execPlan.gridParam.push_back(gp);
+            gp.tpb_x = wgs;
+            break;
+        case CS_KERNEL_TRANSPOSE:
+        case CS_KERNEL_TRANSPOSE_XY_Z:
+        case CS_KERNEL_TRANSPOSE_Z_XY:
+            ptr      = &FN_PRFX(transpose_var2);
+            gp.tpb_x = (execPlan.execSeq[0]->precision == rocfft_precision_single) ? 32 : 64;
+            gp.tpb_y = (execPlan.execSeq[0]->precision == rocfft_precision_single) ? 32 : 16;
+            break;
+        case CS_KERNEL_COPY_R_TO_CMPLX:
+            ptr      = &real2complex;
+            gp.b_x   = (execPlan.execSeq[i]->length[0] - 1) / 512 + 1;
+            gp.b_y   = execPlan.execSeq[i]->batch;
+            gp.tpb_x = 512;
+            gp.tpb_y = 1;
+            break;
+        case CS_KERNEL_COPY_CMPLX_TO_R:
+            ptr      = &complex2real;
+            gp.b_x   = (execPlan.execSeq[i]->length[0] - 1) / 512 + 1;
+            gp.b_y   = execPlan.execSeq[i]->batch;
+            gp.tpb_x = 512;
+            gp.tpb_y = 1;
+            break;
+        case CS_KERNEL_COPY_HERM_TO_CMPLX:
+            ptr      = &hermitian2complex;
+            gp.b_x   = (execPlan.execSeq[i]->length[0] - 1) / 512 + 1;
+            gp.b_y   = execPlan.execSeq[i]->batch;
+            gp.tpb_x = 512;
+            gp.tpb_y = 1;
+            break;
+        case CS_KERNEL_COPY_CMPLX_TO_HERM:
+            ptr      = &complex2hermitian;
+            gp.b_x   = (execPlan.execSeq[i]->length[0] - 1) / 512 + 1;
+            gp.b_y   = execPlan.execSeq[i]->batch;
+            gp.tpb_x = 512;
+            gp.tpb_y = 1;
+            break;
+        case CS_KERNEL_CHIRP:
+            ptr      = &FN_PRFX(chirp);
+            gp.tpb_x = 64;
+            break;
+        case CS_KERNEL_PAD_MUL:
+        case CS_KERNEL_FFT_MUL:
+        case CS_KERNEL_RES_MUL:
+            ptr      = &FN_PRFX(mul);
+            gp.tpb_x = 64;
+            break;
+        default:
+            std::cout << "should not be in this case" << std::endl;
+            std::cout << "scheme: " << execPlan.execSeq[i]->scheme << std::endl;
         }
 
-    } // end if(execPlan.execSeq[0]->precision == rocfft_precision_double)
+        execPlan.devFnCall.push_back(ptr);
+        execPlan.gridParam.push_back(gp);
+    }
 }
 
 void TransformPowX(const ExecPlan&       execPlan,

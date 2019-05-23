@@ -8,6 +8,7 @@
 
 #include <cstring>
 #include <iostream>
+#include <map>
 #include <vector>
 
 #include "kargs.h"
@@ -38,7 +39,9 @@ enum ComputeScheme
     CS_KERNEL_COPY_CMPLX_TO_HERM,
     CS_KERNEL_COPY_HERM_TO_CMPLX,
     CS_KERNEL_COPY_CMPLX_TO_R,
-
+    CS_KERNEL_R_TO_CMPLX,
+    CS_KERNEL_CMPLX_TO_R,
+    
     CS_BLUESTEIN,
     CS_KERNEL_CHIRP,
     CS_KERNEL_PAD_MUL,
@@ -92,7 +95,31 @@ private:
             batch     = p->batch;
             direction = p->direction;
         }
+
+        Pow2Lengths1Single.insert(std::make_pair(8192, 64));
+        Pow2Lengths1Single.insert(std::make_pair(16384, 64));
+        Pow2Lengths1Single.insert(std::make_pair(32768, 128));
+        Pow2Lengths1Single.insert(std::make_pair(65536, 256));
+        Pow2Lengths1Single.insert(std::make_pair(131072, 64));
+        Pow2Lengths1Single.insert(std::make_pair(262144, 64));
+
+        Pow2Lengths1Double.insert(std::make_pair(4096, 64));
+        Pow2Lengths1Double.insert(std::make_pair(8192, 64));
+        Pow2Lengths1Double.insert(std::make_pair(16384, 64));
+        Pow2Lengths1Double.insert(std::make_pair(32768, 128));
+        Pow2Lengths1Double.insert(std::make_pair(65536, 64));
+        Pow2Lengths1Double.insert(std::make_pair(131072, 64));
     }
+
+    // Maps from length[0] to divLength1 for 1D transforms in
+    // single and double precision for power-of-two transfor sizes
+    // using blocks.
+    std::map<size_t, size_t> Pow2Lengths1Single;
+    std::map<size_t, size_t> Pow2Lengths1Double;
+
+    // Compute divLength1 from Length[0] for non-power-of-two 1D
+    // transform sizes
+    size_t div1DNoPo2(const size_t length0);
 
 public:
     size_t batch;
@@ -176,7 +203,19 @@ public:
         delete node;
     }
 
+    // Main tree builder:
     void RecursiveBuildTree();
+
+    // Real-complex and complex-real node builder:
+    void BuildReal();
+
+    // 1D node builers:
+    void Build1D();
+    void Build1DBluestein();
+    void Build1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLength1);
+    void Build1DCS_L1D_CC(const size_t divLength0, const size_t divLength1);
+    void Build1DCS_L1D_CRT(const size_t divLength0, const size_t divLength1);
+
     void TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
                                          OperatingBuffer& flipOut,
                                          OperatingBuffer& obOutBuf);

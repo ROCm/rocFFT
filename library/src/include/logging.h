@@ -29,8 +29,8 @@ class tuple_helper
 {
 protected:
     /************************************************************************************
-   * Print values
-   ************************************************************************************/
+     * Print values
+     ************************************************************************************/
     // Default output
     template <typename T>
     static void print_value(std::ostream& os, const T& x)
@@ -53,7 +53,7 @@ protected:
             // If no decimal point or exponent, append .0
             char* end = s + strcspn(s, ".eE");
             if(!*end)
-                strcat(end, ".0");
+                strcpy(end, ".0");
             os << s;
         }
     }
@@ -82,24 +82,24 @@ protected:
     }
 
     /************************************************************************************
-   * Print tuples
-   ************************************************************************************/
-    template <typename T, size_t idx = std::tuple_size<T> {}>
+     * Print tuples
+     ************************************************************************************/
+    template <typename TUP, size_t idx = std::tuple_size<TUP> {}>
     struct print_tuple_recurse
     {
         template <typename F>
-        __attribute__((always_inline)) void operator()(F& print_argument, const T& tuple)
+        __attribute__((always_inline)) void operator()(F& print_argument, const TUP& tuple)
         {
-            print_tuple_recurse<T, idx - 2> {}(print_argument, tuple);
+            print_tuple_recurse<TUP, idx - 2> {}(print_argument, tuple);
             print_argument(std::get<idx - 2>(tuple), std::get<idx - 1>(tuple));
         }
     };
 
-    template <typename T>
-    struct print_tuple_recurse<T, 0>
+    template <typename TUP>
+    struct print_tuple_recurse<TUP, 0>
     {
         template <typename F>
-        __attribute__((always_inline)) void operator()(F& print_argument, const T& tuple)
+        __attribute__((always_inline)) void operator()(F&, const TUP&)
         {
         }
     };
@@ -110,19 +110,19 @@ protected:
     {
         static_assert(std::tuple_size<TUP> {} % 2 == 0, "Tuple size must be even");
 
-        // delim starts as '{' opening brace and becomes ',' afterwards
-        auto print_argument = [&, delim = '{'](auto name, auto value) mutable {
+        // delim starts as "- {" and becomes "," afterwards
+        auto print_argument = [&, delim = "- {"](auto&& name, auto&& value) mutable {
             os << delim << " " << name << ": ";
             print_value(os, value);
-            delim = ',';
+            delim = ",";
         };
         print_tuple_recurse<TUP> {}(print_argument, tuple);
         os << " }" << std::endl;
     }
 
     /************************************************************************************
-   * Compute value hashes for (key1, value1, key2, value2, ...) tuples
-   ************************************************************************************/
+     * Compute value hashes for (key1, value1, key2, value2, ...) tuples
+     ************************************************************************************/
     // Workaround for compilers which don't implement C++14 enum hash (LWG 2148)
     template <typename T>
     static typename std::enable_if<std::is_enum<T> {}, size_t>::type hash(const T& x)
@@ -138,11 +138,11 @@ protected:
     }
 
     // C-style string hash since std::hash does not hash them
-    static constexpr size_t hash(const char* s)
+    static size_t hash(const char* s)
     {
         size_t seed = 0xcbf29ce484222325;
-        for(const char* p = s; *p; ++p)
-            seed = (seed ^ *p) * 0x100000001b3;
+        for(auto p = reinterpret_cast<const unsigned char*>(s); *p; ++p)
+            seed = (seed ^ *p) * 0x100000001b3; // FNV-1a
         return seed;
     }
 
@@ -185,12 +185,12 @@ protected:
     };
 
     /************************************************************************************
-   * Test (key1, value1, key2, value2, ...) tuples for equality of values
-   ************************************************************************************/
+     * Test (key1, value1, key2, value2, ...) tuples for equality of values
+     ************************************************************************************/
     template <typename T>
     static bool equal(const T& x1, const T& x2)
     {
-        return std::equal_to<T> {}(x1, x2);
+        return x1 == x2;
     }
 
     static bool equal(const char* s1, const char* s2)
@@ -237,18 +237,6 @@ protected:
             return tuple_equal_recurse<TUP> {}(x, y);
         }
     };
-
-    /************************************************************************************
-   * Log values (for log_trace and log_bench)
-   ************************************************************************************/
-public:
-    template <typename H, typename... Ts>
-    static void log_arguments(std::ostream& os, const char* sep, H head, Ts&&... xs)
-    {
-        os << head;
-        int x[] = {(os << sep << std::forward<Ts>(xs), 0)...};
-        os << "\n";
-    }
 };
 
 /************************************************************************************
@@ -311,6 +299,7 @@ public:
 
     // Cleanup handler which dumps profile at destruction
     ~argument_profile()
+    try
     {
         // Print all of the tuples in the map
         for(auto& p : map)
@@ -319,6 +308,10 @@ public:
                         std::tuple_cat(p.first, std::make_tuple("call_count", p.second->load())));
             delete p.second;
         }
+        os.flush();
+    }
+    catch(...)
+    {
     }
 };
 
@@ -372,31 +365,8 @@ public:
 #define LOG_PROFILE_ENABLED() \
     (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_profile)
 
-// if trace logging is turned on with
-// (layer_mode & rocblas_layer_mode_log_trace) != 0
-// log_function will call log_arguments to log arguments with a comma separator
-template <typename... Ts>
-inline void log_trace(Ts&&... xs)
-{
-    if(LOG_TRACE_ENABLED())
-        tuple_helper::log_arguments(
-            *LogSingleton::GetInstance().GetTraceOS(), ",", std::forward<Ts>(xs)...);
-}
-
-// if bench logging is turned on with
-// (layer_mode & rocblas_layer_mode_log_bench) != 0
-// log_bench will call log_arguments to log a string that
-// can be input to the executable rocblas-bench.
-template <typename... Ts>
-inline void log_bench(Ts&&... xs)
-{
-    if(LOG_BENCH_ENABLED())
-        tuple_helper::log_arguments(
-            *LogSingleton::GetInstance().GetBenchOS(), " ", std::forward<Ts>(xs)...);
-}
-
 // if profile logging is turned on with
-// (layer_mode & rocblas_layer_mode_log_profile) != 0
+// (layer_mode & rocfft_layer_mode_log_profile) != 0
 // log_profile will call argument_profile to profile actual arguments,
 // keeping count of the number of times each set of arguments is used
 template <typename... Ts>
@@ -406,8 +376,41 @@ inline void log_profile(const char* func, Ts&&... xs)
     {
         auto tup = std::make_tuple("rocfft_function", func, std::forward<Ts>(xs)...);
         static argument_profile<decltype(tup)> profile(LogSingleton::GetInstance().GetProfileOS());
+        static int aqe = at_quick_exit([] { profile.~argument_profile(); });
         profile(std::move(tup));
     }
+}
+
+/************************************************************************************
+ * Log values (for log_trace and log_bench)
+ ************************************************************************************/
+template <typename H, typename... Ts>
+static inline void log_arguments(std::ostream& os, const char* sep, H head, Ts&&... xs)
+{
+    os << head;
+    int x[] = {(os << sep << std::forward<Ts>(xs), 0)...};
+    os << std::endl;
+}
+
+// if trace logging is turned on with
+// (layer_mode & rocbfft_layer_mode_log_trace) != 0
+// log_function will call log_arguments to log arguments with a comma separator
+template <typename... Ts>
+inline void log_trace(Ts&&... xs)
+{
+    if(LOG_TRACE_ENABLED())
+        log_arguments(*LogSingleton::GetInstance().GetTraceOS(), ",", std::forward<Ts>(xs)...);
+}
+
+// if bench logging is turned on with
+// (layer_mode & rocfft_layer_mode_log_bench) != 0
+// log_bench will call log_arguments to log a string that
+// can be input to the executable rocfft-rider.
+template <typename... Ts>
+inline void log_bench(Ts&&... xs)
+{
+    if(LOG_BENCH_ENABLED())
+        log_arguments(*LogSingleton::GetInstance().GetBenchOS(), " ", std::forward<Ts>(xs)...);
 }
 
 #endif
