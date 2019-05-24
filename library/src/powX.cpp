@@ -41,13 +41,18 @@ void PlanPowX(ExecPlan& execPlan)
            || (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC))
         {
             execPlan.execSeq[i]->twiddles = twiddles_create(
-                execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false);
+                execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false, false);
+        }
+        else if(execPlan.execSeq[i]->scheme == CS_KERNEL_R_TO_CMPLX)
+        {
+            execPlan.execSeq[i]->twiddles = twiddles_create(
+                execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false, true);
         }
 
         if(execPlan.execSeq[i]->large1D != 0)
         {
             execPlan.execSeq[i]->twiddles_large = twiddles_create(
-                execPlan.execSeq[i]->large1D, execPlan.execSeq[i]->precision, true);
+                execPlan.execSeq[i]->large1D, execPlan.execSeq[i]->precision, true, false);
         }
     }
     // copy host buffer to device buffer
@@ -157,11 +162,11 @@ void PlanPowX(ExecPlan& execPlan)
             gp.tpb_y = 1;
             break;
         case CS_KERNEL_R_TO_CMPLX:
-            ptr = &real2complex_post;
+            ptr = &r2c_1d_post;
             // FIXME: specify grid params
             break;
         case CS_KERNEL_CMPLX_TO_R:
-            ptr = &complex2real_pre;
+            ptr = &c2r_1d_pre;
             // FIXME: specify grid params
             break;
         case CS_KERNEL_CHIRP:

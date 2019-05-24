@@ -7,7 +7,7 @@
 #include "rocfft_hip.h"
 
 template <typename T>
-void* twiddles_create_pr(size_t N, size_t threshold, bool large)
+void* twiddles_create_pr(size_t N, size_t threshold, bool large, bool no_radices)
 {
     void*  twts; // device side
     void*  twtc; // host side
@@ -15,11 +15,17 @@ void* twiddles_create_pr(size_t N, size_t threshold, bool large)
 
     if((N <= threshold) && !large)
     {
-        std::vector<size_t> radices;
-        radices = GetRadices(N);
-
         TwiddleTable<T> twTable(N);
-        twtc = twTable.GenerateTwiddleTable(radices); // calculate twiddles on host side
+        if (no_radices)
+        {
+            twtc = twTable.GenerateTwiddleTable();
+        }
+        else
+        {
+            std::vector<size_t> radices;
+            radices = GetRadices(N);
+            twtc = twTable.GenerateTwiddleTable(radices); // calculate twiddles on host side
+        }
 
         hipMalloc(&twts, N * sizeof(T));
         hipMemcpy(twts, twtc, N * sizeof(T), hipMemcpyHostToDevice);
@@ -36,12 +42,12 @@ void* twiddles_create_pr(size_t N, size_t threshold, bool large)
     return twts;
 }
 
-void* twiddles_create(size_t N, rocfft_precision precision, bool large)
+void* twiddles_create(size_t N, rocfft_precision precision, bool large, bool no_radices)
 {
     if(precision == rocfft_precision_single)
-        return twiddles_create_pr<float2>(N, Large1DThreshold(precision), large);
+        return twiddles_create_pr<float2>(N, Large1DThreshold(precision), large, no_radices);
     else if(precision == rocfft_precision_double)
-        return twiddles_create_pr<double2>(N, Large1DThreshold(precision), large);
+        return twiddles_create_pr<double2>(N, Large1DThreshold(precision), large, no_radices);
     else
     {
         assert(false);
