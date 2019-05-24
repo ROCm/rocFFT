@@ -16,4 +16,5 @@ void complex2real(const void* data, void* back);
 
 void hermitian2complex(const void* data, void* back);
 
+void r2c_1d_post(const void* data, void* back);
 #endif // REAL_TO_COMPLEX_H

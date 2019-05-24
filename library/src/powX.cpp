@@ -41,13 +41,18 @@ void PlanPowX(ExecPlan& execPlan)
            || (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC))
         {
             execPlan.execSeq[i]->twiddles = twiddles_create(
-                execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false);
+                execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false, false);
+        }
+        else if(execPlan.execSeq[i]->scheme == CS_KERNEL_R_TO_CMPLX)
+        {
+            execPlan.execSeq[i]->twiddles = twiddles_create(
+                execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false, true);
         }
 
         if(execPlan.execSeq[i]->large1D != 0)
         {
             execPlan.execSeq[i]->twiddles_large = twiddles_create(
-                execPlan.execSeq[i]->large1D, execPlan.execSeq[i]->precision, true);
+                execPlan.execSeq[i]->large1D, execPlan.execSeq[i]->precision, true, false);
         }
     }
     // copy host buffer to device buffer
