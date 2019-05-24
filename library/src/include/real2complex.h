@@ -16,4 +16,14 @@ void complex2real(const void* data, void* back);
 
 void hermitian2complex(const void* data, void* back);
 
+void real2complex_post(const void* data, void* back)
+{
+    // FIXME: implement
+}
+
+void complex2real_pre(const void* data, void* back)
+{
+    // FIXME: implement
+}
+
 #endif // REAL_TO_COMPLEX_H
