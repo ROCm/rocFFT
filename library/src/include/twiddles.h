@@ -107,10 +107,10 @@ public:
 
         // Generate the table
         size_t nt = 0;
-        for(size_t i=0; i < N; i++)
+        for(size_t i = 0; i < N; i++)
         {
-            double c,s;
-            sincos(TWO_PI * i/N, &s, &c);
+            double c, s;
+            sincos(TWO_PI * i / N, &s, &c);
 
             wc[nt].x = c;
             wc[nt].y = s;

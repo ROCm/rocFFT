@@ -24,7 +24,7 @@
 			TO_STR(rocfft_version_commit_id))
 // clang-format on
 rocfft_status rocfft_plan_description_set_scale_float(rocfft_plan_description description,
-                                                      float                   scale)
+                                                      const float             scale)
 {
     description->scale = scale;
 
@@ -32,7 +32,7 @@ rocfft_status rocfft_plan_description_set_scale_float(rocfft_plan_description de
 }
 
 rocfft_status rocfft_plan_description_set_scale_double(rocfft_plan_description description,
-                                                       double                  scale)
+                                                       const double            scale)
 {
     description->scale = scale;
 
@@ -40,16 +40,16 @@ rocfft_status rocfft_plan_description_set_scale_double(rocfft_plan_description d
 }
 
 rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description description,
-                                                      rocfft_array_type       in_array_type,
-                                                      rocfft_array_type       out_array_type,
+                                                      const rocfft_array_type in_array_type,
+                                                      const rocfft_array_type out_array_type,
                                                       const size_t*           in_offsets,
                                                       const size_t*           out_offsets,
-                                                      size_t                  in_strides_size,
+                                                      const size_t            in_strides_size,
                                                       const size_t*           in_strides,
-                                                      size_t                  in_distance,
-                                                      size_t                  out_strides_size,
+                                                      const size_t            in_distance,
+                                                      const size_t            out_strides_size,
                                                       const size_t*           out_strides,
-                                                      size_t                  out_distance)
+                                                      const size_t            out_distance)
 {
     log_trace(__func__,
               "description",
@@ -135,14 +135,14 @@ rocfft_status rocfft_plan_description_destroy(rocfft_plan_description descriptio
 }
 
 rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
-                                          rocfft_result_placement       placement,
-                                          rocfft_transform_type         transform_type,
-                                          rocfft_precision              precision,
-                                          size_t                        dimensions,
+                                          const rocfft_result_placement placement,
+                                          const rocfft_transform_type   transform_type,
+                                          const rocfft_precision        precision,
+                                          const size_t                  dimensions,
                                           const size_t*                 lengths,
-                                          size_t                        number_of_transforms,
+                                          const size_t                  number_of_transforms,
                                           const rocfft_plan_description description,
-                                          bool                          dry_run)
+                                          const bool                    dry_run)
 {
     // Check plan validity
     if(description != nullptr)
@@ -362,12 +362,12 @@ rocfft_status rocfft_plan_allocate(rocfft_plan* plan)
 }
 
 rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
-                                 rocfft_result_placement       placement,
-                                 rocfft_transform_type         transform_type,
-                                 rocfft_precision              precision,
-                                 size_t                        dimensions,
+                                 const rocfft_result_placement placement,
+                                 const rocfft_transform_type   transform_type,
+                                 const rocfft_precision        precision,
+                                 const size_t                  dimensions,
                                  const size_t*                 lengths,
-                                 size_t                        number_of_transforms,
+                                 const size_t                  number_of_transforms,
                                  const rocfft_plan_description description)
 {
     rocfft_plan_allocate(plan);
@@ -575,7 +575,7 @@ rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
     return rocfft_status_success;
 }
 
-ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, size_t len)
+ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, const size_t len)
 {
     log_trace(__func__, "buf", buf, "len", len);
     static constexpr char v[] = VERSION_STRING;
@@ -653,7 +653,7 @@ void TreeNode::BuildRealEven()
     cfftPlan->inArrayType  = rocfft_array_type_complex_interleaved;
     cfftPlan->outArrayType = rocfft_array_type_complex_interleaved;
     cfftPlan->placement    = rocfft_placement_inplace;
-    
+
     if(inArrayType == rocfft_array_type_real)
     {
         // complex-to-real transform: in-place complex transform then post-process
@@ -1533,12 +1533,12 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         {
             // real-to-complex
             // complex FFT kernel
-            childNodes[1]->obIn  = OB_USER_IN;
-            childNodes[1]->obOut = OB_USER_IN;
+            childNodes[0]->obIn  = OB_USER_IN;
+            childNodes[0]->obOut = OB_USER_IN;
 
             // real-to-complex post kernel
-            childNodes[2]->obIn  = OB_USER_IN;
-            childNodes[2]->obOut = OB_USER_OUT;
+            childNodes[1]->obIn  = OB_USER_IN;
+            childNodes[1]->obOut = OB_USER_OUT;
         }
         else
         {
@@ -1869,8 +1869,8 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
     }
 }
 
-void TreeNode::TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn,
-                                                  rocfft_array_type rootOut)
+void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn,
+                                                  const rocfft_array_type rootOut)
 {
 
     if(parent != nullptr)
@@ -2690,7 +2690,7 @@ void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode*>& seq,
         {
             chirpSize = std::max(2 * lengthBlue, chirpSize);
         }
-            
+
         if(obOut == OB_TEMP_BLUESTEIN)
         {
             blueSize = std::max(oDist * batch, blueSize);
@@ -2716,7 +2716,7 @@ void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode*>& seq,
     }
 }
 
-void TreeNode::Print(std::ostream& os, int indent) const
+void TreeNode::Print(std::ostream& os, const int indent) const
 {
     std::string indentStr;
     int         i = indent;

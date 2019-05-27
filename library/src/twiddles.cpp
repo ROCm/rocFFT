@@ -16,7 +16,7 @@ void* twiddles_create_pr(size_t N, size_t threshold, bool large, bool no_radices
     if((N <= threshold) && !large)
     {
         TwiddleTable<T> twTable(N);
-        if (no_radices)
+        if(no_radices)
         {
             twtc = twTable.GenerateTwiddleTable();
         }
@@ -24,7 +24,7 @@ void* twiddles_create_pr(size_t N, size_t threshold, bool large, bool no_radices
         {
             std::vector<size_t> radices;
             radices = GetRadices(N);
-            twtc = twTable.GenerateTwiddleTable(radices); // calculate twiddles on host side
+            twtc    = twTable.GenerateTwiddleTable(radices); // calculate twiddles on host side
         }
 
         hipMalloc(&twts, N * sizeof(T));
