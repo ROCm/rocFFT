@@ -96,7 +96,7 @@ rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description de
 
     if(in_strides != nullptr)
     {
-        for(size_t i = 0; i < MIN(3, in_strides_size); i++)
+        for(size_t i = 0; i < std::min((size_t)3, in_strides_size); i++)
             description->inStrides[i] = in_strides[i];
     }
 
@@ -105,7 +105,7 @@ rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description de
 
     if(out_strides != nullptr)
     {
-        for(size_t i = 0; i < MIN(3, out_strides_size); i++)
+        for(size_t i = 0; i < std::min((size_t)3, out_strides_size); i++)
             description->outStrides[i] = out_strides[i];
     }
 
