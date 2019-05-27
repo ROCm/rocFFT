@@ -653,25 +653,13 @@ void TreeNode::BuildRealEven()
     cfftPlan->inArrayType  = rocfft_array_type_complex_interleaved;
     cfftPlan->outArrayType = rocfft_array_type_complex_interleaved;
     cfftPlan->placement    = rocfft_placement_inplace;
-
-    TreeNode* nullPlan     = TreeNode::CreateNode(this);
-    nullPlan->scheme       = CS_NONE;
-    nullPlan->dimension    = 0;
-    nullPlan->iDist        = 0;
-    nullPlan->oDist        = 0;
-    nullPlan->iOffset      = 0;
-    nullPlan->oOffset      = 0;
-    nullPlan->inArrayType  = rocfft_array_type_complex_interleaved;
-    nullPlan->outArrayType = rocfft_array_type_complex_interleaved;
-
+    
     if(inArrayType == rocfft_array_type_real)
     {
         // complex-to-real transform: in-place complex transform then post-process
         assert(direction == -1);
         assert(outArrayType == rocfft_array_type_hermitian_interleaved);
         assert(inStride[0] == 1); // assumed contigous for now
-
-        childNodes.push_back(nullPlan);
 
         // cfftPlan works in-place on the input buffer.
         // NB: the input buffer is real.
@@ -745,8 +733,6 @@ void TreeNode::BuildRealEven()
         cfftPlan->oOffset   = 2 * oOffset;
         cfftPlan->RecursiveBuildTree();
         childNodes.push_back(cfftPlan);
-
-        childNodes.push_back(nullPlan);
     }
 }
 
@@ -1546,10 +1532,6 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         if(direction == -1)
         {
             // real-to-complex
-            // null kernel
-            childNodes[0]->obIn  = OB_USER_IN;
-            childNodes[0]->obOut = OB_USER_IN;
-
             // complex FFT kernel
             childNodes[1]->obIn  = OB_USER_IN;
             childNodes[1]->obOut = OB_USER_IN;
@@ -1568,10 +1550,6 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
             // complex FFT kernel
             childNodes[1]->obIn  = OB_USER_OUT;
             childNodes[1]->obOut = OB_USER_OUT;
-
-            // null kernel
-            childNodes[2]->obIn  = OB_USER_OUT;
-            childNodes[2]->obOut = OB_USER_OUT;
         }
     }
     break;
@@ -2709,21 +2687,27 @@ void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode*>& seq,
         assert(length.size() == outStride.size());
 
         if(scheme == CS_KERNEL_CHIRP)
-            chirpSize = (2 * lengthBlue) > chirpSize ? (2 * lengthBlue) : chirpSize;
-
+        {
+            chirpSize = std::max(2 * lengthBlue, chirpSize);
+        }
+            
         if(obOut == OB_TEMP_BLUESTEIN)
-            blueSize = (oDist * batch) > blueSize ? (oDist * batch) : blueSize;
+        {
+            blueSize = std::max(oDist * batch, blueSize);
+        }
         if(obOut == OB_TEMP_CMPLX_FOR_REAL)
-            cmplxForRealSize
-                = (oDist * batch) > cmplxForRealSize ? (oDist * batch) : cmplxForRealSize;
+        {
+            cmplxForRealSize = std::max(oDist * batch, cmplxForRealSize);
+        }
         if(obOut == OB_TEMP)
-            tmpBufSize = (oDist * batch) > tmpBufSize ? (oDist * batch) : tmpBufSize;
+        {
+            tmpBufSize = std::max(oDist * batch, tmpBufSize);
+        }
         seq.push_back(this);
     }
     else
     {
-        std::vector<TreeNode*>::iterator children_p;
-        for(children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
+        for(auto children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
         {
             (*children_p)
                 ->TraverseTreeCollectLeafsLogicA(
