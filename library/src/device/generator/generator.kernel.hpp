@@ -749,10 +749,10 @@ namespace StockhamGenerator
             ldsInterleaved      = halfLds ? false : ldsInterleaved;
             ldsInterleaved      = blockCompute ? true : ldsInterleaved;
 
-            bool inReal; // Input is real format
-            bool outReal; // Output is real format
-            inReal  = (params.fft_inputLayout == rocfft_array_type_real) ? true : false;
-            outReal = (params.fft_outputLayout == rocfft_array_type_real) ? true : false;
+            // Input is real format
+            bool inReal = params.fft_inputLayout == rocfft_array_type_real;
+            // Output is real format
+            bool outReal = params.fft_outputLayout == rocfft_array_type_real;
 
             // str += "#include \"common.h\"\n";
             str += "#include \"rocfft_butterfly_template.h\"\n\n";
@@ -780,8 +780,7 @@ namespace StockhamGenerator
 
             for(size_t d = 0; d < 2; d++)
             {
-                bool fwd;
-                fwd = d ? false : true;
+                bool fwd = d ? false : true;
 
                 double scale = fwd ? params.fft_fwdScale : params.fft_backScale;
 

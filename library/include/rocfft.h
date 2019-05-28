@@ -80,6 +80,7 @@ typedef enum rocfft_array_type_e
     rocfft_array_type_real,
     rocfft_array_type_hermitian_interleaved,
     rocfft_array_type_hermitian_planar,
+    rocfft_array_type_unset,
 } rocfft_array_type;
 
 /*! @brief Execution mode */

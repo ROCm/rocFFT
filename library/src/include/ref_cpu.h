@@ -577,16 +577,24 @@ class RefLibOp
             // Post-processing stage of 1D real-to-complex transform, out-of-place
             const size_t N = data->node->length[0];
             assert(N % 2 == 0);
-            const size_t halfN = N / 2;
-            for(int r = 0; r < halfN; ++r)
+            const size_t halfN   = N / 2;
+            const size_t howmany = data->node->batch;
+            const size_t iDist   = data->node->iDist;
+            const size_t oDist   = data->node->oDist;
+            for(size_t ibatch = 0; ibatch < howmany; ++ibatch)
             {
-                const auto omegaNr = std::exp(std::complex<float>(0, -2.0 * M_PI * r));
-                ot[r]
-                    = in[r] * std::complex<float>(0.5 + 0.5 * omegaNr.imag(), -0.5 * omegaNr.real())
-                      + std::conj(in[halfN - r])
-                            * std::complex<float>(0.5 - 0.5 * omegaNr.imag(), 0.5 * omegaNr.real());
+                for(int r = 0; r < halfN; ++r)
+                {
+                    const auto omegaNr     = std::exp(std::complex<float>(0, -2.0 * M_PI * r));
+                    ot[r + ibatch + oDist] = in[r + ibatch + iDist]
+                                                 * std::complex<float>(0.5 + 0.5 * omegaNr.imag(),
+                                                                       -0.5 * omegaNr.real())
+                                             + std::conj(in[halfN - r])
+                                                   * std::complex<float>(0.5 - 0.5 * omegaNr.imag(),
+                                                                         0.5 * omegaNr.real());
+                }
+                ot[halfN] = std::complex<float>(in[0].real() + in[0].imag(), 0.0);
             }
-            ot[halfN] = std::complex<float>(in[0].real() + in[0].imag(), 0.0);
         }
         break;
         case CS_KERNEL_CMPLX_TO_R:

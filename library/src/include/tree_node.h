@@ -90,6 +90,8 @@ private:
         , twiddles(nullptr)
         , twiddles_large(nullptr)
         , devKernArg(nullptr)
+        , inArrayType(rocfft_array_type_unset)
+        , outArrayType(rocfft_array_type_unset)
     {
         if(p != nullptr)
         {

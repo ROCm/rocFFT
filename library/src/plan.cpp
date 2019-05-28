@@ -508,6 +508,9 @@ rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
     case rocfft_array_type_hermitian_planar:
         std::cout << "hermitian planar";
         break;
+    default:
+        std::cout << "unset";
+        break;
     }
     std::cout << std::endl;
 
@@ -528,6 +531,9 @@ rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
         break;
     case rocfft_array_type_hermitian_planar:
         std::cout << "hermitian planar";
+        break;
+    default:
+        std::cout << "unset";
         break;
     }
     std::cout << std::endl;
@@ -680,9 +686,11 @@ void TreeNode::BuildRealEven()
             postPlan->iDist     = iDist;
             postPlan->oDist     = oDist;
 
-            postPlan->length    = {length[0]};
-            postPlan->inStride  = {inStride[0]};
-            postPlan->outStride = {outStride[0]};
+            postPlan->length       = {length[0]};
+            postPlan->inStride     = {inStride[0]};
+            postPlan->outStride    = {outStride[0]};
+            postPlan->inArrayType  = rocfft_array_type_complex_interleaved;
+            postPlan->outArrayType = rocfft_array_type_hermitian_interleaved;
             childNodes.push_back(postPlan);
         }
         else
@@ -704,14 +712,17 @@ void TreeNode::BuildRealEven()
 
         if(dimension == 1)
         {
-            TreeNode* prePlan  = TreeNode::CreateNode(this);
-            prePlan->dimension = 1;
-            prePlan->length    = {length[0]};
-            prePlan->iDist     = iDist;
-            prePlan->oDist     = oDist;
-            prePlan->inStride  = {inStride[0]};
-            prePlan->outStride = {outStride[0]};
-            prePlan->scheme    = CS_KERNEL_CMPLX_TO_R;
+            TreeNode* prePlan     = TreeNode::CreateNode(this);
+            prePlan->dimension    = 1;
+            prePlan->length       = {length[0]};
+            prePlan->iDist        = iDist;
+            prePlan->oDist        = oDist;
+            prePlan->inStride     = {inStride[0]};
+            prePlan->outStride    = {outStride[0]};
+            prePlan->inArrayType  = rocfft_array_type_hermitian_interleaved;
+            prePlan->outArrayType = rocfft_array_type_real;
+
+            prePlan->scheme = CS_KERNEL_CMPLX_TO_R;
             childNodes.push_back(prePlan);
         }
         else
@@ -1877,57 +1888,60 @@ void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn
     {
         placement = (obIn == obOut) ? rocfft_placement_inplace : rocfft_placement_notinplace;
 
-        switch(obIn)
+        if(inArrayType == rocfft_array_type_unset)
         {
-        case OB_USER_IN:
-            inArrayType = rootIn;
-            break;
-        case OB_USER_OUT:
-            inArrayType = rootOut;
-            break;
-        case OB_TEMP:
-            inArrayType = rocfft_array_type_complex_interleaved;
-            break;
-        case OB_TEMP_CMPLX_FOR_REAL:
-            inArrayType = rocfft_array_type_complex_interleaved;
-            break;
-        case OB_TEMP_BLUESTEIN:
-            inArrayType = rocfft_array_type_complex_interleaved;
-            if(parent->iOffset != 0)
-                iOffset = parent->iOffset;
-            break;
-
-        default:
-            inArrayType = rocfft_array_type_complex_interleaved;
+            switch(obIn)
+            {
+            case OB_USER_IN:
+                inArrayType = rootIn;
+                break;
+            case OB_USER_OUT:
+                inArrayType = rootOut;
+                break;
+            case OB_TEMP:
+                inArrayType = rocfft_array_type_complex_interleaved;
+                break;
+            case OB_TEMP_CMPLX_FOR_REAL:
+                inArrayType = rocfft_array_type_complex_interleaved;
+                break;
+            case OB_TEMP_BLUESTEIN:
+                inArrayType = rocfft_array_type_complex_interleaved;
+                if(parent->iOffset != 0)
+                    iOffset = parent->iOffset;
+                break;
+            default:
+                inArrayType = rocfft_array_type_complex_interleaved;
+            }
         }
 
-        switch(obOut)
+        if(outArrayType == rocfft_array_type_unset)
         {
-        case OB_USER_IN:
-            inArrayType = rootIn;
-            break;
-        case OB_USER_OUT:
-            outArrayType = rootOut;
-            break;
-        case OB_TEMP:
-            outArrayType = rocfft_array_type_complex_interleaved;
-            break;
-        case OB_TEMP_CMPLX_FOR_REAL:
-            outArrayType = rocfft_array_type_complex_interleaved;
-            break;
-        case OB_TEMP_BLUESTEIN:
-            outArrayType = rocfft_array_type_complex_interleaved;
-            if(parent->oOffset != 0)
-                oOffset = parent->oOffset;
-            break;
-
-        default:
-            outArrayType = rocfft_array_type_complex_interleaved;
+            switch(obOut)
+            {
+            case OB_USER_IN:
+                outArrayType = rootIn;
+                break;
+            case OB_USER_OUT:
+                outArrayType = rootOut;
+                break;
+            case OB_TEMP:
+                outArrayType = rocfft_array_type_complex_interleaved;
+                break;
+            case OB_TEMP_CMPLX_FOR_REAL:
+                outArrayType = rocfft_array_type_complex_interleaved;
+                break;
+            case OB_TEMP_BLUESTEIN:
+                outArrayType = rocfft_array_type_complex_interleaved;
+                if(parent->oOffset != 0)
+                    oOffset = parent->oOffset;
+                break;
+            default:
+                outArrayType = rocfft_array_type_complex_interleaved;
+            }
         }
     }
 
-    std::vector<TreeNode*>::iterator children_p;
-    for(children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
+    for(auto children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
     {
         (*children_p)->TraverseTreeAssignPlacementsLogicA(rootIn, rootOut);
     }
@@ -2772,6 +2786,9 @@ void TreeNode::Print(std::ostream& os, const int indent) const
     case rocfft_array_type_hermitian_planar:
         os << "hermitian planar";
         break;
+    default:
+        os << "unset";
+        break;
     }
     os << " -> ";
     switch(outArrayType)
@@ -2790,6 +2807,9 @@ void TreeNode::Print(std::ostream& os, const int indent) const
         break;
     case rocfft_array_type_hermitian_planar:
         os << "hermitian planar";
+        break;
+    default:
+        os << "unset";
         break;
     }
     os << std::endl << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str();
