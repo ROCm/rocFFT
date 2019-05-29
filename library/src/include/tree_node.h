@@ -41,7 +41,7 @@ enum ComputeScheme
     CS_KERNEL_COPY_CMPLX_TO_R,
     CS_KERNEL_R_TO_CMPLX,
     CS_KERNEL_CMPLX_TO_R,
-    
+
     CS_BLUESTEIN,
     CS_KERNEL_CHIRP,
     CS_KERNEL_PAD_MUL,
