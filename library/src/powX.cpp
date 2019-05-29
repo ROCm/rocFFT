@@ -161,6 +161,14 @@ void PlanPowX(ExecPlan& execPlan)
             gp.tpb_x = 512;
             gp.tpb_y = 1;
             break;
+        case CS_KERNEL_R_TO_CMPLX:
+            ptr = &r2c_1d_post;
+            // FIXME: specify grid params
+            break;
+        case CS_KERNEL_CMPLX_TO_R:
+            ptr = &c2r_1d_pre;
+            // FIXME: specify grid params
+            break;
         case CS_KERNEL_CHIRP:
             ptr      = &FN_PRFX(chirp);
             gp.tpb_x = 64;
@@ -195,24 +203,10 @@ void TransformPowX(const ExecPlan&       execPlan,
         DeviceCallIn  data;
         DeviceCallOut back;
 
-        data.node = execPlan.execSeq[i];
-        if(info == nullptr) // if info is not specified, use the default 0 stream
-        {
-            data.rocfft_stream = 0;
-        }
-        else // use the specified stream
-        {
-            data.rocfft_stream = info->rocfft_stream;
-        }
-        size_t inBytes;
-        if(data.node->precision == rocfft_precision_single)
-        {
-            inBytes = sizeof(float) * 2;
-        }
-        else
-        {
-            inBytes = sizeof(double) * 2;
-        }
+        data.node          = execPlan.execSeq[i];
+        data.rocfft_stream = (info == nullptr) ? 0 : info->rocfft_stream;
+        size_t inBytes     = (data.node->precision == rocfft_precision_single) ? sizeof(float) * 2
+                                                                           : sizeof(double) * 2;
 
         switch(data.node->obIn)
         {
@@ -234,7 +228,11 @@ void TransformPowX(const ExecPlan&       execPlan,
                                        + data.node->iOffset)
                                           * inBytes);
             break;
+        case OB_UNINIT:
+            std::cerr << "Error: operating buffer not initialized for kernel!\n";
+            assert(data.node->obIn != OB_UNINIT);
         default:
+            std::cerr << "Error: operating buffer not specified for kernel!\n";
             assert(false);
         }
 
@@ -299,7 +297,7 @@ void TransformPowX(const ExecPlan&       execPlan,
         }
         else
         {
-            printf("null ptr function call error\n");
+            std::cout << "null ptr function call error\n";
         }
 
 #ifdef TMP_DEBUG

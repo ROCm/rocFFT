@@ -492,6 +492,9 @@ void r2c_1d_post(const void* data_p, void* back_p)
                                      output_distance,
                                      data->rocfft_stream);
     }
+}
 
-    return;
+void c2r_1d_pre(const void* data_p, void* back_p)
+{
+    // FIXME: implement
 }

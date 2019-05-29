@@ -156,6 +156,8 @@ int transform(size_t*                 lengths,
         number_of_output_buffers        = 1;
         size_of_output_buffers_in_bytes = outfftBatchSize * sizeof(T);
         break;
+    default:
+        throw std::runtime_error("Invalid input array format");
     }
 
     // Fill the input buffers
@@ -526,6 +528,8 @@ int transform(size_t*                 lengths,
             }
             break;
         }
+        default:
+            throw std::runtime_error("Invalid input array format");
         }
     }
 
