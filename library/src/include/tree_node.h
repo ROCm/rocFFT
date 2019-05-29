@@ -86,6 +86,8 @@ private:
         , lengthBlue(0)
         , iOffset(0)
         , oOffset(0)
+        , iDist(0)
+        , oDist(0)
         , transTileDir(TTD_IP_HOR)
         , twiddles(nullptr)
         , twiddles_large(nullptr)

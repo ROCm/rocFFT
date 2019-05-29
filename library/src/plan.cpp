@@ -16,12 +16,61 @@
 
 #define TO_STR2(x) #x
 #define TO_STR(x) TO_STR2(x)
+#define ENUMSTR(x) x, TO_STR(x)
+
 // clang-format off
 #define VERSION_STRING (TO_STR(rocfft_version_major) "." \
                         TO_STR(rocfft_version_minor) "." \
                         TO_STR(rocfft_version_patch) "." \
                         TO_STR(rocfft_version_tweak) "-" \
 			TO_STR(rocfft_version_commit_id))
+
+std::string PrintScheme(ComputeScheme cs)
+{
+    std::map<ComputeScheme, const char*> ComputeSchemetoString
+        = {{ENUMSTR(CS_NONE)},
+           {ENUMSTR(CS_KERNEL_STOCKHAM)},
+           {ENUMSTR(CS_KERNEL_STOCKHAM_BLOCK_CC)},
+           {ENUMSTR(CS_KERNEL_STOCKHAM_BLOCK_RC)},
+           {ENUMSTR(CS_KERNEL_TRANSPOSE)},
+           {ENUMSTR(CS_KERNEL_TRANSPOSE_XY_Z)},
+           {ENUMSTR(CS_KERNEL_TRANSPOSE_Z_XY)},
+
+           {ENUMSTR(CS_REAL_TRANSFORM_USING_CMPLX)},
+           {ENUMSTR(CS_KERNEL_COPY_R_TO_CMPLX)},
+           {ENUMSTR(CS_KERNEL_COPY_CMPLX_TO_HERM)},
+           {ENUMSTR(CS_KERNEL_COPY_HERM_TO_CMPLX)},
+           {ENUMSTR(CS_KERNEL_COPY_CMPLX_TO_R)},
+
+           {ENUMSTR(CS_REAL_TRANSFORM_EVEN)},
+           {ENUMSTR(CS_KERNEL_R_TO_CMPLX)},
+           {ENUMSTR(CS_KERNEL_CMPLX_TO_R)},
+
+           {ENUMSTR(CS_BLUESTEIN)},
+           {ENUMSTR(CS_KERNEL_CHIRP)},
+           {ENUMSTR(CS_KERNEL_PAD_MUL)},
+           {ENUMSTR(CS_KERNEL_FFT_MUL)},
+           {ENUMSTR(CS_KERNEL_RES_MUL)},
+
+           {ENUMSTR(CS_L1D_TRTRT)},
+           {ENUMSTR(CS_L1D_CC)},
+           {ENUMSTR(CS_L1D_CRT)},
+
+           {ENUMSTR(CS_2D_STRAIGHT)},
+           {ENUMSTR(CS_2D_RTRT)},
+           {ENUMSTR(CS_2D_RC)},
+           {ENUMSTR(CS_KERNEL_2D_STOCKHAM_BLOCK_CC)},
+           {ENUMSTR(CS_KERNEL_2D_SINGLE)},
+
+           {ENUMSTR(CS_3D_STRAIGHT)},
+           {ENUMSTR(CS_3D_RTRT)},
+           {ENUMSTR(CS_3D_RC)},
+           {ENUMSTR(CS_KERNEL_3D_STOCKHAM_BLOCK_CC)},
+           {ENUMSTR(CS_KERNEL_3D_SINGLE)}};
+
+    return ComputeSchemetoString.at(cs);
+}
+
 // clang-format on
 rocfft_status rocfft_plan_description_set_scale_float(rocfft_plan_description description,
                                                       const float             scale)
@@ -205,11 +254,15 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     if(dimensions > 3)
         return rocfft_status_invalid_dimensions;
 
-    rocfft_plan p     = plan;
-    p->rank           = dimensions;
-    p->lengths[0]     = lengths[0];
-    p->lengths[1]     = lengths[1];
-    p->lengths[2]     = lengths[2];
+    rocfft_plan p = plan;
+    p->rank       = dimensions;
+    p->lengths[0] = 1;
+    p->lengths[1] = 1;
+    p->lengths[2] = 1;
+    for(size_t ilength = 0; ilength < dimensions; ++ilength)
+    {
+        p->lengths[ilength] = lengths[ilength];
+    }
     p->batch          = number_of_transforms;
     p->placement      = placement;
     p->precision      = precision;
@@ -593,56 +646,6 @@ ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, const size_t le
     return rocfft_status_success;
 }
 
-#define ENUMSTR(x) x, TO_STR(x)
-
-std::map<ComputeScheme, const char*> ComputeSchemetoString
-    = {{ENUMSTR(CS_NONE)},
-       {ENUMSTR(CS_KERNEL_STOCKHAM)},
-       {ENUMSTR(CS_KERNEL_STOCKHAM_BLOCK_CC)},
-       {ENUMSTR(CS_KERNEL_STOCKHAM_BLOCK_RC)},
-       {ENUMSTR(CS_KERNEL_TRANSPOSE)},
-       {ENUMSTR(CS_KERNEL_TRANSPOSE_XY_Z)},
-       {ENUMSTR(CS_KERNEL_TRANSPOSE_Z_XY)},
-
-       {ENUMSTR(CS_REAL_TRANSFORM_USING_CMPLX)},
-       {ENUMSTR(CS_KERNEL_COPY_R_TO_CMPLX)},
-       {ENUMSTR(CS_KERNEL_COPY_CMPLX_TO_HERM)},
-       {ENUMSTR(CS_KERNEL_COPY_HERM_TO_CMPLX)},
-       {ENUMSTR(CS_KERNEL_COPY_CMPLX_TO_R)},
-
-       {ENUMSTR(CS_REAL_TRANSFORM_EVEN)},
-       {ENUMSTR(CS_KERNEL_R_TO_CMPLX)},
-       {ENUMSTR(CS_KERNEL_CMPLX_TO_R)},
-
-       {ENUMSTR(CS_BLUESTEIN)},
-       {ENUMSTR(CS_KERNEL_CHIRP)},
-       {ENUMSTR(CS_KERNEL_PAD_MUL)},
-       {ENUMSTR(CS_KERNEL_FFT_MUL)},
-       {ENUMSTR(CS_KERNEL_RES_MUL)},
-
-       {ENUMSTR(CS_L1D_TRTRT)},
-       {ENUMSTR(CS_L1D_CC)},
-       {ENUMSTR(CS_L1D_CRT)},
-
-       {ENUMSTR(CS_2D_STRAIGHT)},
-       {ENUMSTR(CS_2D_RTRT)},
-       {ENUMSTR(CS_2D_RC)},
-       {ENUMSTR(CS_KERNEL_2D_STOCKHAM_BLOCK_CC)},
-       {ENUMSTR(CS_KERNEL_2D_SINGLE)},
-
-       {ENUMSTR(CS_3D_STRAIGHT)},
-       {ENUMSTR(CS_3D_RTRT)},
-       {ENUMSTR(CS_3D_RC)},
-       {ENUMSTR(CS_KERNEL_3D_STOCKHAM_BLOCK_CC)},
-       {ENUMSTR(CS_KERNEL_3D_SINGLE)}};
-
-std::string PrintScheme(ComputeScheme cs)
-{
-    std::string str;
-    str += ComputeSchemetoString.at(cs);
-    return str;
-}
-
 void TreeNode::BuildRealEven()
 {
     assert(dimension == 1); // FIXME: temp
@@ -650,12 +653,13 @@ void TreeNode::BuildRealEven()
 
     scheme = CS_REAL_TRANSFORM_EVEN;
 
-    TreeNode* cfftPlan     = TreeNode::CreateNode(this);
-    cfftPlan->dimension    = dimension;
-    cfftPlan->length       = length;
-    cfftPlan->inStride     = inStride;
-    cfftPlan->outStride    = outStride;
-    cfftPlan->length[0]    = cfftPlan->length[0] / 2;
+    TreeNode* cfftPlan  = TreeNode::CreateNode(this);
+    cfftPlan->dimension = dimension;
+    cfftPlan->length    = length;
+    cfftPlan->length[0] = cfftPlan->length[0] / 2;
+    cfftPlan->inStride  = inStride;
+    cfftPlan->outStride = outStride;
+
     cfftPlan->inArrayType  = rocfft_array_type_complex_interleaved;
     cfftPlan->outArrayType = rocfft_array_type_complex_interleaved;
     cfftPlan->placement    = rocfft_placement_inplace;
@@ -670,7 +674,7 @@ void TreeNode::BuildRealEven()
         // cfftPlan works in-place on the input buffer.
         // NB: the input buffer is real.
         cfftPlan->obOut     = obIn;
-        cfftPlan->outStride = inStride; // assumed contiguous
+        cfftPlan->outStride = cfftPlan->inStride; // assumed contiguous
         cfftPlan->iDist     = 2 * iDist;
         cfftPlan->oDist     = 2 * iDist;
         cfftPlan->iOffset   = 2 * iOffset;
@@ -686,11 +690,15 @@ void TreeNode::BuildRealEven()
             postPlan->iDist     = iDist;
             postPlan->oDist     = oDist;
 
-            postPlan->length       = {length[0]};
-            postPlan->inStride     = {inStride[0]};
-            postPlan->outStride    = {outStride[0]};
+            postPlan->length       = {length[0] / 2};
+            postPlan->inStride     = {inStride[0]}; // TODO: assumes contiguous
+            postPlan->outStride    = {outStride[0]}; // TODO: assumes contiguous
             postPlan->inArrayType  = rocfft_array_type_complex_interleaved;
             postPlan->outArrayType = rocfft_array_type_hermitian_interleaved;
+
+            assert(postPlan->length.size() == postPlan->inStride.size());
+            assert(postPlan->outStride.size() == postPlan->inStride.size());
+
             childNodes.push_back(postPlan);
         }
         else
@@ -714,13 +722,16 @@ void TreeNode::BuildRealEven()
         {
             TreeNode* prePlan     = TreeNode::CreateNode(this);
             prePlan->dimension    = 1;
-            prePlan->length       = {length[0]};
+            prePlan->length       = {length[0] / 2};
             prePlan->iDist        = iDist;
             prePlan->oDist        = oDist;
-            prePlan->inStride     = {inStride[0]};
-            prePlan->outStride    = {outStride[0]};
+            prePlan->inStride     = {inStride[0]}; // FIXME: check
+            prePlan->outStride    = {outStride[0]}; // FIXME: check
             prePlan->inArrayType  = rocfft_array_type_hermitian_interleaved;
             prePlan->outArrayType = rocfft_array_type_real;
+
+            assert(prePlan->length.size() == prePlan->inStride.size());
+            assert(prePlan->outStride.size() == prePlan->inStride.size());
 
             prePlan->scheme = CS_KERNEL_CMPLX_TO_R;
             childNodes.push_back(prePlan);
@@ -737,7 +748,7 @@ void TreeNode::BuildRealEven()
         // cfftPlan works in-place on the output buffer.
         // NB: the output buffer is real.
         cfftPlan->obIn      = obOut;
-        cfftPlan->outStride = inStride; // assumed contiguous
+        cfftPlan->outStride = cfftPlan->inStride; // assumed contiguous
         cfftPlan->iDist     = 2 * oDist;
         cfftPlan->oDist     = 2 * oDist;
         cfftPlan->iOffset   = 2 * oOffset;
@@ -1494,6 +1505,11 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
             flipOut  = OB_TEMP;
             obOutBuf = OB_TEMP_CMPLX_FOR_REAL;
             break;
+        case CS_REAL_TRANSFORM_EVEN:
+            flipIn   = OB_USER_IN;
+            flipOut  = OB_TEMP;
+            obOutBuf = OB_USER_OUT;
+            break;
         case CS_BLUESTEIN:
             flipIn   = OB_TEMP_BLUESTEIN;
             flipOut  = OB_TEMP;
@@ -1546,6 +1562,14 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
             // complex FFT kernel
             childNodes[0]->obIn  = OB_USER_IN;
             childNodes[0]->obOut = OB_USER_IN;
+            childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
+
+            size_t cs = childNodes[0]->childNodes.size();
+            if(cs)
+            {
+                assert(childNodes[0]->childNodes[0]->obIn == OB_USER_IN);
+                assert(childNodes[0]->childNodes[cs - 1]->obOut == OB_USER_IN);
+            }
 
             // real-to-complex post kernel
             childNodes[1]->obIn  = OB_USER_IN;
@@ -1554,7 +1578,7 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         else
         {
             // complex-to-real
-            // complex-to-real per kernel
+            // complex-to-real pre kernel
             childNodes[0]->obIn  = OB_USER_IN;
             childNodes[0]->obOut = OB_USER_OUT;
 
@@ -1883,7 +1907,6 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
 void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn,
                                                   const rocfft_array_type rootOut)
 {
-
     if(parent != nullptr)
     {
         placement = (obIn == obOut) ? rocfft_placement_inplace : rocfft_placement_notinplace;
@@ -1953,6 +1976,8 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
     {
     case CS_REAL_TRANSFORM_USING_CMPLX:
     {
+        assert(childNodes.size() == 3);
+
         TreeNode* copyHeadPlan = childNodes[0];
         TreeNode* fftPlan      = childNodes[1];
         TreeNode* copyTailPlan = childNodes[2];
@@ -1980,6 +2005,12 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
 
         copyTailPlan->outStride = outStride;
         copyTailPlan->oDist     = oDist;
+    }
+    break;
+    case CS_REAL_TRANSFORM_EVEN:
+    {
+        assert(childNodes.size() == 2);
+        // FIXME: set up strides and dists.
     }
     break;
     case CS_BLUESTEIN:
@@ -2697,9 +2728,6 @@ void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode*>& seq,
 {
     if(childNodes.size() == 0)
     {
-        assert(length.size() == inStride.size());
-        assert(length.size() == outStride.size());
-
         if(scheme == CS_KERNEL_CHIRP)
         {
             chirpSize = std::max(2 * lengthBlue, chirpSize);
@@ -2737,6 +2765,7 @@ void TreeNode::Print(std::ostream& os, const int indent) const
     while(i--)
         indentStr += "    ";
 
+    os << std::endl << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str();
     os << std::endl << indentStr.c_str();
     os << "dimension: " << dimension;
     os << std::endl << indentStr.c_str();
@@ -2764,10 +2793,17 @@ void TreeNode::Print(std::ostream& os, const int indent) const
     os << "oOffset: " << oOffset;
 
     os << std::endl << indentStr.c_str();
+    os << "iDist: " << iDist;
+    os << std::endl << indentStr.c_str();
+    os << "oDist: " << oDist;
+
+    os << std::endl << indentStr.c_str();
     os << "direction: " << direction;
 
     os << std::endl << indentStr.c_str();
-    os << ((placement == rocfft_placement_inplace) ? "inplace" : "not inplace") << "  ";
+    os << ((placement == rocfft_placement_inplace) ? "inplace" : "not inplace");
+
+    os << std::endl << indentStr.c_str();
     os << "array type: ";
     switch(inArrayType)
     {
@@ -2812,7 +2848,6 @@ void TreeNode::Print(std::ostream& os, const int indent) const
         os << "unset";
         break;
     }
-    os << std::endl << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str();
     os << std::endl << indentStr.c_str() << "TTD: " << transTileDir;
     os << std::endl << indentStr.c_str() << "large1D: " << large1D;
     os << std::endl
@@ -2863,7 +2898,14 @@ void ProcessNode(ExecPlan& execPlan)
 
     execPlan.rootPlan->RecursiveBuildTree();
     OperatingBuffer flipIn, flipOut, obOutBuf;
+
+    assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->inStride.size());
+    assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->outStride.size());
+
     execPlan.rootPlan->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
+    assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->inStride.size());
+    assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->outStride.size());
+
     execPlan.rootPlan->TraverseTreeAssignPlacementsLogicA(execPlan.rootPlan->inArrayType,
                                                           execPlan.rootPlan->outArrayType);
     execPlan.rootPlan->TraverseTreeAssignParamsLogicA();
