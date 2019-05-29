@@ -320,18 +320,18 @@ void complex2hermitian(const void* data_p, void* back_p)
 
 /*============================================================================================*/
 
-// GPU kernel without twiddle calculation.
+// GPU kernel for 1d r2c post-process and c2r pre-process
 // T is memory allocation type, could be float2 or double2.
 // Each thread handles 2 points.
-template <typename T, bool IN_PLACE>
-__global__ void r2c_1d_post_process_kernel(size_t   input_size,
-                                           size_t   input_stride,
-                                           size_t   output_stride,
-                                           T*       input,
-                                           size_t   input_distance,
-                                           T*       output,
-                                           size_t   output_distance,
-                                           T const* twiddles)
+template <typename T, bool IN_PLACE, bool R2C>
+__global__ void real_1d_pre_post_process_kernel(size_t   input_size,
+                                                size_t   input_stride,
+                                                size_t   output_stride,
+                                                T*       input,
+                                                size_t   input_distance,
+                                                T*       output,
+                                                size_t   output_distance,
+                                                T const* twiddles)
 {
     size_t input_offset = hipBlockIdx_z * input_distance; // batch offset
 
@@ -359,53 +359,69 @@ __global__ void r2c_1d_post_process_kernel(size_t   input_size,
 
     if(idx_p == 0)
     {
-        output[idx_p].x = p.x + p.y;
-        output[idx_p].y = 0;
-        output[idx_q].x = p.x - p.y;
-        output[idx_q].y = 0;
+        if(R2C)
+        {
+            output[idx_p].x = p.x + p.y;
+            output[idx_p].y = 0;
+            output[idx_q].x = p.x - p.y;
+            output[idx_q].y = 0;
+        }
+        else
+        {
+            output[idx_p].x = p.x + q.x;
+            output[idx_p].y = p.x - q.x;
+        }
     }
     else if(idx_p <= input_size >> 2)
     {
-        T u((p.x + q.x) * 0.5, (p.y - q.y) * 0.5);
-        T v((p.y + q.y) * 0.5, (p.x - q.x) * 0.5);
+        T u(p.x + q.x, p.y - q.y); // p + conj(q)
+        T v(p.x - q.x, p.y + q.y); // p - conj(q)
 
         T twd_p = twiddles[idx_p];
         T twd_q = twiddles[idx_q];
 
-        output[idx_p].x = u.x + v.x * twd_p.x + v.y * twd_p.y;
-        output[idx_p].y = u.y - v.y * twd_p.x + v.x * twd_p.y;
+        if(R2C)
+        {
+            u *= 0.5;
+            v *= 0.5;
+        }
+        else
+        {
+            twd_p.x = -twd_p.x;
+            twd_q.x = -twd_q.x;
+        }
 
-        output[idx_q].x = u.x + v.x * twd_q.x - v.y * twd_q.y;
-        output[idx_q].y = -u.y + v.y * twd_q.x + v.x * twd_q.y;
+        output[idx_p].x = u.x + v.x * twd_p.y + v.y * twd_p.x;
+        output[idx_p].y = u.y + v.y * twd_p.y - v.x * twd_p.x;
+
+        output[idx_q].x = u.x - v.x * twd_q.y + v.y * twd_q.x;
+        output[idx_q].y = -u.y + v.y * twd_q.y + v.x * twd_q.x;
     }
 }
 
 // GPU intermediate host code
-template <typename T>
-void r2c_1d_post_process(size_t const N,
-                         size_t       batch,
-                         T*           d_input,
-                         T*           d_output,
-                         T*           d_twiddles,
-                         size_t       high_dimension,
-                         size_t       input_stride,
-                         size_t       output_stride,
-                         size_t       input_distance,
-                         size_t       output_distance,
-                         hipStream_t  rocfft_stream)
+template <typename T, bool R2C>
+void real_1d_pre_post_post_process(size_t const N,
+                                   size_t       batch,
+                                   T*           d_input,
+                                   T*           d_output,
+                                   T*           d_twiddles,
+                                   size_t       high_dimension,
+                                   size_t       input_stride,
+                                   size_t       output_stride,
+                                   size_t       input_distance,
+                                   size_t       output_distance,
+                                   hipStream_t  rocfft_stream)
 {
     const size_t block_size = 512;
     size_t       blocks     = (N / 4 - 1) / block_size + 1;
-
-    if(high_dimension > 65535 || batch > 65535)
-        printf("2D and 3D or batch is too big; not implemented\n");
 
     dim3 grid(blocks, high_dimension, batch);
     dim3 threads(block_size, 1, 1);
 
     if(d_input == d_output)
     {
-        hipLaunchKernelGGL(r2c_1d_post_process_kernel<T, true>,
+        hipLaunchKernelGGL(real_1d_pre_post_process_kernel<T, true, R2C>,
                            grid,
                            threads,
                            0,
@@ -421,7 +437,7 @@ void r2c_1d_post_process(size_t const N,
     }
     else
     {
-        hipLaunchKernelGGL(r2c_1d_post_process_kernel<T, false>,
+        hipLaunchKernelGGL(real_1d_pre_post_process_kernel<T, false, R2C>,
                            grid,
                            threads,
                            0,
@@ -466,31 +482,31 @@ void r2c_1d_post(const void* data_p, void* back_p)
 
     if(data->node->precision == rocfft_precision_single)
     {
-        r2c_1d_post_process<float2>(input_size,
-                                    batch,
-                                    (float2*)input_buffer,
-                                    (float2*)output_buffer,
-                                    (float2*)(data->node->twiddles),
-                                    high_dimension,
-                                    input_stride,
-                                    output_stride,
-                                    input_distance,
-                                    output_distance,
-                                    data->rocfft_stream);
+        real_1d_pre_post_post_process<float2, true>(input_size,
+                                                    batch,
+                                                    (float2*)input_buffer,
+                                                    (float2*)output_buffer,
+                                                    (float2*)(data->node->twiddles),
+                                                    high_dimension,
+                                                    input_stride,
+                                                    output_stride,
+                                                    input_distance,
+                                                    output_distance,
+                                                    data->rocfft_stream);
     }
     else
     {
-        r2c_1d_post_process<double2>(input_size,
-                                     batch,
-                                     (double2*)input_buffer,
-                                     (double2*)output_buffer,
-                                     (double2*)(data->node->twiddles),
-                                     high_dimension,
-                                     input_stride,
-                                     output_stride,
-                                     input_distance,
-                                     output_distance,
-                                     data->rocfft_stream);
+        real_1d_pre_post_post_process<double2, true>(input_size,
+                                                     batch,
+                                                     (double2*)input_buffer,
+                                                     (double2*)output_buffer,
+                                                     (double2*)(data->node->twiddles),
+                                                     high_dimension,
+                                                     input_stride,
+                                                     output_stride,
+                                                     input_distance,
+                                                     output_distance,
+                                                     data->rocfft_stream);
     }
 }
 
