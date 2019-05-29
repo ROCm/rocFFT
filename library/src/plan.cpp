@@ -2780,12 +2780,10 @@ void TreeNode::Print(std::ostream& os, const int indent) const
     os << std::endl << indentStr.c_str() << "iStrides: ";
     for(size_t i = 0; i < inStride.size(); i++)
         os << inStride[i] << " ";
-    os << iDist;
 
     os << std::endl << indentStr.c_str() << "oStrides: ";
     for(size_t i = 0; i < outStride.size(); i++)
         os << outStride[i] << " ";
-    os << oDist;
 
     os << std::endl << indentStr.c_str();
     os << "iOffset: " << iOffset;
