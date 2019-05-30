@@ -672,32 +672,19 @@ void TreeNode::BuildRealEven()
         assert(inStride[0] == 1); // assumed contigous for now
 
         // cfftPlan works in-place on the input buffer.
-        // NB: the input buffer is real.
-        cfftPlan->obOut     = obIn;
-        cfftPlan->outStride = cfftPlan->inStride; // assumed contiguous
-        cfftPlan->iDist     = 2 * iDist;
-        cfftPlan->oDist     = 2 * iDist;
-        cfftPlan->iOffset   = 2 * iOffset;
-        cfftPlan->oOffset   = 2 * iOffset;
+        // NB: the input buffer is real, but we treat it as complex
+        cfftPlan->obOut = obIn;
         cfftPlan->RecursiveBuildTree();
         childNodes.push_back(cfftPlan);
 
         if(dimension == 1)
         {
-            TreeNode* postPlan  = TreeNode::CreateNode(this);
-            postPlan->scheme    = CS_KERNEL_R_TO_CMPLX;
-            postPlan->dimension = 1;
-            postPlan->iDist     = iDist;
-            postPlan->oDist     = oDist;
-
+            TreeNode* postPlan     = TreeNode::CreateNode(this);
+            postPlan->scheme       = CS_KERNEL_R_TO_CMPLX;
+            postPlan->dimension    = 1;
             postPlan->length       = {length[0] / 2};
-            postPlan->inStride     = {inStride[0]}; // TODO: assumes contiguous
-            postPlan->outStride    = {outStride[0]}; // TODO: assumes contiguous
             postPlan->inArrayType  = rocfft_array_type_complex_interleaved;
             postPlan->outArrayType = rocfft_array_type_hermitian_interleaved;
-
-            assert(postPlan->length.size() == postPlan->inStride.size());
-            assert(postPlan->outStride.size() == postPlan->inStride.size());
 
             childNodes.push_back(postPlan);
         }
@@ -723,15 +710,8 @@ void TreeNode::BuildRealEven()
             TreeNode* prePlan     = TreeNode::CreateNode(this);
             prePlan->dimension    = 1;
             prePlan->length       = {length[0] / 2};
-            prePlan->iDist        = iDist;
-            prePlan->oDist        = oDist;
-            prePlan->inStride     = {inStride[0]}; // FIXME: check
-            prePlan->outStride    = {outStride[0]}; // FIXME: check
             prePlan->inArrayType  = rocfft_array_type_hermitian_interleaved;
             prePlan->outArrayType = rocfft_array_type_real;
-
-            assert(prePlan->length.size() == prePlan->inStride.size());
-            assert(prePlan->outStride.size() == prePlan->inStride.size());
 
             prePlan->scheme = CS_KERNEL_CMPLX_TO_R;
             childNodes.push_back(prePlan);
@@ -746,13 +726,8 @@ void TreeNode::BuildRealEven()
         }
 
         // cfftPlan works in-place on the output buffer.
-        // NB: the output buffer is real.
-        cfftPlan->obIn      = obOut;
-        cfftPlan->outStride = cfftPlan->inStride; // assumed contiguous
-        cfftPlan->iDist     = 2 * oDist;
-        cfftPlan->oDist     = 2 * oDist;
-        cfftPlan->iOffset   = 2 * oOffset;
-        cfftPlan->oOffset   = 2 * oOffset;
+        // NB: the output buffer is real, but we treat it as complex
+        cfftPlan->obIn = obOut;
         cfftPlan->RecursiveBuildTree();
         childNodes.push_back(cfftPlan);
     }
@@ -2010,7 +1985,56 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
     case CS_REAL_TRANSFORM_EVEN:
     {
         assert(childNodes.size() == 2);
-        // FIXME: set up strides and dists.
+
+        assert(length.size() == inStride.size());
+        assert(length.size() == outStride.size());
+
+        // FIXME: check strides
+
+        if(direction == -1)
+        {
+            // forward transform, r2c
+
+            TreeNode* fftPlan  = childNodes[0];
+            fftPlan->inStride  = inStride;
+            fftPlan->iDist     = iDist;
+            fftPlan->outStride = outStride;
+            fftPlan->oDist     = oDist;
+            fftPlan->TraverseTreeAssignParamsLogicA();
+            assert(fftPlan->length.size() == fftPlan->inStride.size());
+            assert(fftPlan->length.size() == fftPlan->outStride.size());
+
+            TreeNode* postPlan = childNodes[1];
+            assert(postPlan->scheme == CS_KERNEL_R_TO_CMPLX);
+            postPlan->inStride  = {inStride[0]};
+            postPlan->iDist     = iDist;
+            postPlan->outStride = {outStride[0]};
+            postPlan->oDist     = oDist;
+            assert(postPlan->length.size() == postPlan->inStride.size());
+            assert(postPlan->length.size() == postPlan->outStride.size());
+        }
+        else
+        {
+            // backward transform, c2r
+
+            TreeNode* prePlan = childNodes[0];
+            assert(prePlan->scheme == CS_KERNEL_CMPLX_TO_R);
+            prePlan->inStride  = {inStride[0]};
+            prePlan->iDist     = iDist;
+            prePlan->outStride = {outStride[0]};
+            prePlan->oDist     = oDist;
+            assert(prePlan->length.size() == prePlan->inStride.size());
+            assert(prePlan->length.size() == prePlan->outStride.size());
+
+            TreeNode* fftPlan  = childNodes[1];
+            fftPlan->inStride  = inStride;
+            fftPlan->iDist     = iDist;
+            fftPlan->outStride = outStride;
+            fftPlan->oDist     = oDist;
+            fftPlan->TraverseTreeAssignParamsLogicA();
+            assert(fftPlan->length.size() == fftPlan->inStride.size());
+            assert(fftPlan->length.size() == fftPlan->outStride.size());
+        }
     }
     break;
     case CS_BLUESTEIN:

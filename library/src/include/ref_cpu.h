@@ -4,6 +4,7 @@
 
 #ifdef REF_DEBUG
 
+#include "hipfft.h"
 #include <complex>
 #include <cstdio>
 #include <dlfcn.h>
@@ -217,14 +218,12 @@ class RefLibOp
         case CS_KERNEL_FFT_MUL:
         case CS_KERNEL_PAD_MUL:
         case CS_KERNEL_RES_MUL:
-        {
             insize = data->node->batch;
             for(size_t i = 1; i < data->node->length.size(); i++)
                 insize *= data->node->length[i];
             insize *= data->node->lengthBlue;
             outsize = insize;
-        }
-        break;
+            break;
         case CS_KERNEL_R_TO_CMPLX:
             insize  = data->node->length[0];
             outsize = data->node->length[0] + 1;
@@ -648,24 +647,32 @@ class RefLibOp
         case CS_KERNEL_R_TO_CMPLX:
         {
             // Post-processing stage of 1D real-to-complex transform, out-of-place
-            const size_t N = data->node->length[0];
+            const size_t halfN = data->node->length[0];
 
-            std::complex<float>* in = (std::complex<float>*)fftwin.data;
-            std::complex<float>* ot = (std::complex<float>*)fftwout.data;
+            assert(fftwin.size == halfN);
+            assert(fftwout.size == halfN + 1);
 
-            assert(fftwin.size == N);
-            assert(fftwout.size == N + 1);
+            std::complex<float>* input  = (std::complex<float>*)fftwin.data;
+            std::complex<float>* output = (std::complex<float>*)fftwout.data;
 
-            for(int r = 0; r < N; ++r)
+            size_t output_idx_base = 0;
+
+            const std::complex<float> I(0, 1);
+            const std::complex<float> one(1, 0);
+            const std::complex<float> half(0.5, 0);
+
+            const float overN = 0.5 / halfN;
+
+            for(int r = 0; r < halfN; ++r)
             {
                 const std::complex<float> omegaNr
-                    = std::exp(std::complex<float>(0, -2.0 * M_PI * r / (double)N));
-                ot[r]
-                    = in[r] * std::complex<float>(0.5 + 0.5 * omegaNr.imag(), -0.5 * omegaNr.real())
-                      + std::conj(in[N - r])
-                            * std::complex<float>(0.5 - 0.5 * omegaNr.imag(), 0.5 * omegaNr.real());
+                    = std::exp(std::complex<float>(0.0f, (float)(-2.0f * M_PI * r * overN)));
+                output[r] = input[r] * half * (one - I * omegaNr)
+                            + conj(input[halfN - r]) * half * (one + I * omegaNr);
             }
-            ot[N] = std::complex<float>(in[0].real() + in[0].imag(), 0.0);
+
+            output[output_idx_base + halfN]
+                = std::complex<float>(input[0].real() - input[0].imag(), 0);
         }
         break;
         case CS_KERNEL_CMPLX_TO_R:
