@@ -294,6 +294,8 @@ void TransformPowX(const ExecPlan&       execPlan,
             }
             std::cout << std::endl;
             std::cout << "\tbatch: " << execPlan.execSeq[i]->batch << std::endl;
+            std::cout << "\tiDist: " << execPlan.execSeq[i]->iDist << std::endl;
+            std::cout << "\toDist: " << execPlan.execSeq[i]->oDist << std::endl;
             RefLibOp refLibOp(&data);
 #endif
             fn(&data, &back); // execution kernel here

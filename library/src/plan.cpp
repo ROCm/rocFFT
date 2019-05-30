@@ -770,7 +770,7 @@ void TreeNode::BuildRealEmbed()
 
 void TreeNode::BuildReal()
 {
-    if((length[0] % 2 == 0) && (dimension == 1))
+    if(false && (length[0] % 2 == 0) && (dimension == 1))
     {
         // TODO: remove dimensionality constraint
         BuildRealEven();
@@ -1989,7 +1989,10 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         assert(length.size() == inStride.size());
         assert(length.size() == outStride.size());
 
-        // FIXME: check strides
+        // FIXME: check strides and dists.
+
+        // FIXME: what happens if there is a user-specified stride and
+        // dist?  What if they aren't even?
 
         if(direction == -1)
         {
@@ -2022,15 +2025,15 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
             prePlan->inStride  = {inStride[0]};
             prePlan->iDist     = iDist;
             prePlan->outStride = {outStride[0]};
-            prePlan->oDist     = oDist;
+            prePlan->oDist     = oDist / 2 - 1;
             assert(prePlan->length.size() == prePlan->inStride.size());
             assert(prePlan->length.size() == prePlan->outStride.size());
 
             TreeNode* fftPlan  = childNodes[1];
-            fftPlan->inStride  = inStride;
-            fftPlan->iDist     = iDist;
+            fftPlan->inStride  = outStride;
+            fftPlan->iDist     = oDist / 2 - 1;
             fftPlan->outStride = outStride;
-            fftPlan->oDist     = oDist;
+            fftPlan->oDist     = fftPlan->iDist;
             fftPlan->TraverseTreeAssignParamsLogicA();
             assert(fftPlan->length.size() == fftPlan->inStride.size());
             assert(fftPlan->length.size() == fftPlan->outStride.size());
