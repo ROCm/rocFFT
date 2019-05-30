@@ -401,17 +401,17 @@ __global__ void real_1d_pre_post_process_kernel(size_t   input_size,
 
 // GPU intermediate host code
 template <typename T, bool R2C>
-void real_1d_pre_post_post_process(size_t const N,
-                                   size_t       batch,
-                                   T*           d_input,
-                                   T*           d_output,
-                                   T*           d_twiddles,
-                                   size_t       high_dimension,
-                                   size_t       input_stride,
-                                   size_t       output_stride,
-                                   size_t       input_distance,
-                                   size_t       output_distance,
-                                   hipStream_t  rocfft_stream)
+void real_1d_pre_post_process(size_t const N,
+                              size_t       batch,
+                              T*           d_input,
+                              T*           d_output,
+                              T*           d_twiddles,
+                              size_t       high_dimension,
+                              size_t       input_stride,
+                              size_t       output_stride,
+                              size_t       input_distance,
+                              size_t       output_distance,
+                              hipStream_t  rocfft_stream)
 {
     const size_t block_size = 512;
     size_t       blocks     = (N / 4 - 1) / block_size + 1;
@@ -453,11 +453,14 @@ void real_1d_pre_post_post_process(size_t const N,
     }
 }
 
-void r2c_1d_post(const void* data_p, void* back_p)
+template <bool R2C>
+void real_1d_pre_post(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
 
-    size_t input_size = data->node->length[0]; // input_size is the innermost dimension
+    // input_size is the innermost dimension
+    // the upper level provides always N/2, that is regular complex fft size
+    size_t input_size = data->node->length[0] * 2;
 
     size_t input_distance  = data->node->iDist;
     size_t output_distance = data->node->oDist;
@@ -482,35 +485,40 @@ void r2c_1d_post(const void* data_p, void* back_p)
 
     if(data->node->precision == rocfft_precision_single)
     {
-        real_1d_pre_post_post_process<float2, true>(input_size,
-                                                    batch,
-                                                    (float2*)input_buffer,
-                                                    (float2*)output_buffer,
-                                                    (float2*)(data->node->twiddles),
-                                                    high_dimension,
-                                                    input_stride,
-                                                    output_stride,
-                                                    input_distance,
-                                                    output_distance,
-                                                    data->rocfft_stream);
+        real_1d_pre_post_process<float2, R2C>(input_size,
+                                              batch,
+                                              (float2*)input_buffer,
+                                              (float2*)output_buffer,
+                                              (float2*)(data->node->twiddles),
+                                              high_dimension,
+                                              input_stride,
+                                              output_stride,
+                                              input_distance,
+                                              output_distance,
+                                              data->rocfft_stream);
     }
     else
     {
-        real_1d_pre_post_post_process<double2, true>(input_size,
-                                                     batch,
-                                                     (double2*)input_buffer,
-                                                     (double2*)output_buffer,
-                                                     (double2*)(data->node->twiddles),
-                                                     high_dimension,
-                                                     input_stride,
-                                                     output_stride,
-                                                     input_distance,
-                                                     output_distance,
-                                                     data->rocfft_stream);
+        real_1d_pre_post_process<double2, R2C>(input_size,
+                                               batch,
+                                               (double2*)input_buffer,
+                                               (double2*)output_buffer,
+                                               (double2*)(data->node->twiddles),
+                                               high_dimension,
+                                               input_stride,
+                                               output_stride,
+                                               input_distance,
+                                               output_distance,
+                                               data->rocfft_stream);
     }
+}
+
+void r2c_1d_post(const void* data_p, void* back_p)
+{
+    real_1d_pre_post<true>(data_p, back_p);
 }
 
 void c2r_1d_pre(const void* data_p, void* back_p)
 {
-    // FIXME: implement
+    real_1d_pre_post<false>(data_p, back_p);
 }

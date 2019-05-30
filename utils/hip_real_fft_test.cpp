@@ -476,17 +476,17 @@ void r2c_1d_post_process(size_t const N,
 
 // GPU intermediate host code
 template <typename T, bool R2C>
-void real_1d_pre_post_post_process(size_t const N,
-                                   size_t       batch,
-                                   T*           d_input,
-                                   T*           d_output,
-                                   T*           d_twiddles,
-                                   size_t       high_dimension,
-                                   size_t       input_stride,
-                                   size_t       output_stride,
-                                   size_t       input_distance,
-                                   size_t       output_distance,
-                                   hipStream_t  rocfft_stream)
+void real_1d_pre_post_process(size_t const N,
+                              size_t       batch,
+                              T*           d_input,
+                              T*           d_output,
+                              T*           d_twiddles,
+                              size_t       high_dimension,
+                              size_t       input_stride,
+                              size_t       output_stride,
+                              size_t       input_distance,
+                              size_t       output_distance,
+                              hipStream_t  rocfft_stream)
 {
     const size_t block_size = 512;
     size_t       blocks     = (N / 4 - 1) / block_size + 1;
@@ -610,17 +610,17 @@ void r2c_1d_gpu_post_process_test(size_t const N, size_t batch, float const* inp
     //r2c_1d_post_process<float2>(N, batch, d_input, d_input, d_twiddles,
     //                            high_dimension, input_stride, output_stride,
     //                            input_distance, output_distance, 0);
-    real_1d_pre_post_post_process<float2, true>(N,
-                                                batch,
-                                                d_input,
-                                                d_input,
-                                                d_twiddles,
-                                                high_dimension,
-                                                input_stride,
-                                                output_stride,
-                                                input_distance,
-                                                output_distance,
-                                                0);
+    real_1d_pre_post_process<float2, true>(N,
+                                           batch,
+                                           d_input,
+                                           d_input,
+                                           d_twiddles,
+                                           high_dimension,
+                                           input_stride,
+                                           output_stride,
+                                           input_distance,
+                                           output_distance,
+                                           0);
 
     hipMemcpy(outputs, d_input, sizeof(float) * (N + 2) * batch, hipMemcpyDeviceToHost);
 
@@ -628,7 +628,7 @@ void r2c_1d_gpu_post_process_test(size_t const N, size_t batch, float const* inp
     //r2c_1d_post_process<float2>(N, batch, d_input, d_output, d_twiddles,
     //                            high_dimension, input_stride, output_stride,
     //                            input_distance, output_distance, 0);
-    //real_1d_pre_post_post_process<float2, true>(N, batch, d_input, d_output, d_twiddles,
+    //real_1d_pre_post_process<float2, true>(N, batch, d_input, d_output, d_twiddles,
     //                            high_dimension, input_stride, output_stride,
     //                            input_distance, output_distance, 0);
     //hipMemcpy(outputs, d_output, sizeof(float2) * (N/2+1) * batch, hipMemcpyDeviceToHost);
@@ -641,13 +641,11 @@ void r2c_1d_gpu_post_process_test(size_t const N, size_t batch, float const* inp
     fftwf_free(work_in_out);
 }
 
-// The layout follows fftw pattern: N/2 + 1
-complex inputs and N real outputs.
-    // The basic idea is
-    //    (1) one butterfly pre-process reverse real to complex post-process
-    //    (2) do a regular complex backward N/2 FFT
-    void
-    c2r_1d_cpu(size_t const N, size_t batch, cplx const* inputs, float* outputs)
+// The layout follows fftw pattern: N/2 + 1 complex inputs and N real outputs.
+// The basic idea is
+//    (1) one butterfly pre-process reverse real to complex post-process
+//    (2) do a regular complex backward N/2 FFT
+void c2r_1d_cpu(size_t const N, size_t batch, cplx const* inputs, float* outputs)
 {
     fftwf_complex* work_in_out = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * N / 2);
     fftwf_plan     work_plan;
@@ -762,22 +760,22 @@ void c2r_1d_gpu_pre_process_test(size_t const N, size_t batch, cplx const* input
         = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * (N / 2) * batch);
 
     // in-place test
-    real_1d_pre_post_post_process<float2, false>(N,
-                                                 batch,
-                                                 d_input,
-                                                 d_input,
-                                                 d_twiddles,
-                                                 high_dimension,
-                                                 input_stride,
-                                                 output_stride,
-                                                 input_distance,
-                                                 output_distance,
-                                                 0);
+    real_1d_pre_post_process<float2, false>(N,
+                                            batch,
+                                            d_input,
+                                            d_input,
+                                            d_twiddles,
+                                            high_dimension,
+                                            input_stride,
+                                            output_stride,
+                                            input_distance,
+                                            output_distance,
+                                            0);
 
     hipMemcpy(work_in_out, d_input, total_output_bytes, hipMemcpyDeviceToHost);
 
     // out-place test
-    //real_1d_pre_post_post_process<float2, false>(N, batch, d_input, d_output, d_twiddles,
+    //real_1d_pre_post_process<float2, false>(N, batch, d_input, d_output, d_twiddles,
     //                            high_dimension, input_stride, output_stride,
     //                            input_distance, output_distance, 0);
     //hipMemcpy(work_in_out, d_output, total_output_bytes, hipMemcpyDeviceToHost);
@@ -864,8 +862,8 @@ void real_outputs_print_sum_clear(std::string tag, size_t N, size_t batch, float
 
 int main()
 {
-    const size_t N     = 1444;
-    const size_t batch = 300;
+    const size_t N     = 14;
+    const size_t batch = 3;
 
     assert(N >= 4);
     assert(N % 2 == 0);
