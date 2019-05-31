@@ -770,7 +770,7 @@ void TreeNode::BuildRealEmbed()
 
 void TreeNode::BuildReal()
 {
-    if(false && (length[0] % 2 == 0) && (dimension == 1))
+    if((length[0] % 2 == 0) && (dimension == 1))
     {
         // TODO: remove dimensionality constraint
         BuildRealEven();
