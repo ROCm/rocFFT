@@ -770,7 +770,7 @@ void TreeNode::BuildRealEmbed()
 
 void TreeNode::BuildReal()
 {
-    if(false && inStride[0] == 1 && outStride[0] == 1 && length[0] % 2 == 0 && dimension == 1)
+    if(inStride[0] == 1 && outStride[0] == 1 && length[0] % 2 == 0 && dimension == 1)
     {
         BuildRealEven();
     }
