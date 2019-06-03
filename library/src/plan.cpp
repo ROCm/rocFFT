@@ -770,9 +770,8 @@ void TreeNode::BuildRealEmbed()
 
 void TreeNode::BuildReal()
 {
-    if((length[0] % 2 == 0) && (dimension == 1))
+    if(false && inStride[0] == 1 && outStride[0] == 1 && length[0] % 2 == 0 && dimension == 1)
     {
-        // TODO: remove dimensionality constraint
         BuildRealEven();
     }
     else
@@ -2025,13 +2024,13 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
             prePlan->inStride  = {inStride[0]};
             prePlan->iDist     = iDist;
             prePlan->outStride = {outStride[0]};
-            prePlan->oDist     = oDist / 2 - 1;
+            prePlan->oDist     = oDist / 2 + 1;
             assert(prePlan->length.size() == prePlan->inStride.size());
             assert(prePlan->length.size() == prePlan->outStride.size());
 
             TreeNode* fftPlan  = childNodes[1];
             fftPlan->inStride  = outStride;
-            fftPlan->iDist     = oDist / 2 - 1;
+            fftPlan->iDist     = oDist / 2 + 1;
             fftPlan->outStride = outStride;
             fftPlan->oDist     = fftPlan->iDist;
             fftPlan->TraverseTreeAssignParamsLogicA();
