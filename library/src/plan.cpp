@@ -1465,7 +1465,8 @@ void TreeNode::RecursiveBuildTree()
     }
 }
 
-// logic A - using out-of-place transposes & complex-to-complex & with padding
+// Assign buffers, taking into account out-of-place transposes and
+// padded buffers.
 void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
                                                OperatingBuffer& flipOut,
                                                OperatingBuffer& obOutBuf)
@@ -1536,7 +1537,10 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
             // complex FFT kernel
             childNodes[0]->obIn  = OB_USER_IN;
             childNodes[0]->obOut = OB_USER_IN;
-            childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
+            childNodes[0]->TraverseTreeAssignBuffersLogicA(childNodes[0]->obIn,
+                                                           flipIn,
+                                                           childNodes[0]->obIn);
+            childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipIn, obOutBuf);
 
             size_t cs = childNodes[0]->childNodes.size();
             if(cs)
@@ -1559,6 +1563,9 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
             // complex FFT kernel
             childNodes[1]->obIn  = OB_USER_OUT;
             childNodes[1]->obOut = OB_USER_OUT;
+            childNodes[1]->TraverseTreeAssignBuffersLogicA(childNodes[0]->obOut,
+                                                           flipOut,
+                                                           childNodes[0]->obOut);
         }
     }
     break;
@@ -1875,6 +1882,15 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
                 std::swap(flipIn, flipOut);
             }
         }
+    }
+
+    // Verify that all operating buffers have been assigned
+    assert(obIn != OB_UNINIT);
+    assert(obOut != OB_UNINIT);
+    for(int i = 0; i < childNodes.size(); ++i)
+    {
+        assert(childNodes[i]->obIn != OB_UNINIT);
+        assert(childNodes[i]->obOut != OB_UNINIT);
     }
 }
 
