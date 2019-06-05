@@ -114,10 +114,23 @@ private:
 public:
     fftwbuf()
         : data(0)
+        , size(0)
+        , typesize(0)
     {
         RefLibHandle& refHandle = RefLibHandle::GetRefLibHandle();
         local_fftwf_malloc      = (ftype_fftwf_malloc)dlsym(refHandle.fftw3f_lib, "fftwf_malloc");
         local_fftwf_free        = (ftype_fftwf_free)dlsym(refHandle.fftw3f_lib, "fftwf_free");
+    };
+    fftwbuf(const size_t size0, const size_t typesize0)
+        : data(0)
+        , size(size0)
+        , typesize(typesize0)
+    {
+        RefLibHandle& refHandle = RefLibHandle::GetRefLibHandle();
+        local_fftwf_malloc      = (ftype_fftwf_malloc)dlsym(refHandle.fftw3f_lib, "fftwf_malloc");
+        local_fftwf_free        = (ftype_fftwf_free)dlsym(refHandle.fftw3f_lib, "fftwf_free");
+
+        alloc(size0, typesize0);
     };
     ~fftwbuf()
     {
@@ -307,8 +320,7 @@ class RefLibOp
         }
 
         void*   buf = ((char*)data->bufIn[0] + offset);
-        fftwbuf tmp_mem;
-        tmp_mem.alloc(data->node->iDist * data->node->batch, sizeof(std::complex<float>));
+        fftwbuf tmp_mem(data->node->iDist * data->node->batch, sizeof(std::complex<float>));
         hipMemcpy(tmp_mem.data, buf, in_size_bytes, hipMemcpyDeviceToHost);
 
         CopyVector((local_fftwf_complex*)fftwin.data,
@@ -537,8 +549,7 @@ class RefLibOp
             std::complex<float>* ot = (std::complex<float>*)fftwout.data;
             size_t in_size_bytes    = (data->node->iDist * data->node->batch) * sizeof(float);
 
-            fftwbuf tmp_mem;
-            tmp_mem.alloc(data->node->iDist * data->node->batch, sizeof(std::complex<float>));
+            fftwbuf tmp_mem(data->node->iDist * data->node->batch, sizeof(std::complex<float>));
 
             hipMemcpy(tmp_mem.data, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
@@ -566,8 +577,7 @@ class RefLibOp
             // [N/2 + 1] elements
             size_t in_size_bytes = (data->node->iDist * data->node->batch) * 2 * sizeof(float);
 
-            fftwbuf tmp_mem;
-            tmp_mem.alloc(data->node->iDist * data->node->batch, sizeof(std::complex<float>));
+            fftwbuf tmp_mem(data->node->iDist * data->node->batch, sizeof(std::complex<float>));
 
             hipMemcpy(tmp_mem.data, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
@@ -598,8 +608,7 @@ class RefLibOp
             // [N/2 + 1] elements
             size_t in_size_bytes = (data->node->iDist * data->node->batch) * 2 * sizeof(float);
 
-            fftwbuf tmp_mem;
-            tmp_mem.alloc(data->node->iDist * data->node->batch, sizeof(std::complex<float>));
+            fftwbuf tmp_mem(data->node->iDist * data->node->batch, sizeof(std::complex<float>));
 
             hipMemcpy(tmp_mem.data, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
@@ -709,8 +718,7 @@ class RefLibOp
             size_t N = data->node->length[0];
             size_t M = data->node->lengthBlue;
 
-            fftwbuf chirp_mem;
-            chirp_mem.alloc(M * 2, sizeof(std::complex<float>));
+            fftwbuf chirp_mem(M * 2, sizeof(std::complex<float>));
 
             chirp(N, M, data->node->direction, (local_fftwf_complex*)chirp_mem.data);
 
@@ -748,8 +756,7 @@ class RefLibOp
 
             CopyInputVector(data_p, M * 2 * 2 * sizeof(float));
 
-            fftwbuf chirp_mem;
-            chirp_mem.alloc(M * 2, sizeof(std::complex<float>));
+            fftwbuf chirp_mem(M * 2, sizeof(std::complex<float>));
 
             chirp_fft(N, M, data->node->direction, (local_fftwf_complex*)chirp_mem.data);
 
@@ -783,8 +790,7 @@ class RefLibOp
 
             CopyInputVector(data_p, M * 2 * 2 * sizeof(float));
 
-            fftwbuf chirp_mem;
-            chirp_mem.alloc(M * 2, sizeof(std::complex<float>));
+            fftwbuf chirp_mem(M * 2, sizeof(std::complex<float>));
 
             chirp(N, M, data->node->direction, (local_fftwf_complex*)chirp_mem.data);
 
@@ -866,8 +872,7 @@ public:
             break;
         }
 
-        fftwbuf tmp_mem;
-        tmp_mem.alloc(out_size, sizeof(std::complex<float>));
+        fftwbuf tmp_mem(out_size, sizeof(std::complex<float>));
 
         // Copy the device information to out local buffer:
         hipMemcpy(tmp_mem.data, bufOut, tmp_mem.bufsize(), hipMemcpyDeviceToHost);
