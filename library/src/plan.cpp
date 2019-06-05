@@ -1472,6 +1472,7 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
                                                OperatingBuffer& flipOut,
                                                OperatingBuffer& obOutBuf)
 {
+    std::cout << "TraverseTreeAssignBuffersLogicA: " << PrintScheme(scheme) << std::endl;
     if(parent == nullptr)
     {
         // Set flipIn, flipOut, and oboutBuf for the root node.
@@ -1546,6 +1547,8 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
             // real-to-complex
 
             // complex FFT kernel
+            childNodes[0]->obIn         = obIn;
+            childNodes[0]->obOut        = obIn;
             childNodes[0]->inArrayType  = rocfft_array_type_complex_interleaved;
             childNodes[0]->outArrayType = rocfft_array_type_complex_interleaved;
             childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
@@ -1570,6 +1573,8 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
             childNodes[0]->obOut = obOut;
 
             // complex FFT kernel
+            childNodes[1]->obIn         = obOut;
+            childNodes[1]->obOut        = obOut;
             childNodes[1]->inArrayType  = rocfft_array_type_complex_interleaved;
             childNodes[1]->outArrayType = rocfft_array_type_complex_interleaved;
             childNodes[1]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
