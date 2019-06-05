@@ -850,6 +850,12 @@ public:
         case CS_KERNEL_COPY_HERM_TO_CMPLX:
             return; // not implemented
             break;
+        case CS_KERNEL_STOCKHAM_BLOCK_RC:
+            return; // FIXME: temp
+            break;
+        case CS_KERNEL_STOCKHAM_BLOCK_CC:
+            return; // FIXME: temp
+            break;
         case CS_KERNEL_COPY_CMPLX_TO_HERM:
             checklength = libout.size / 2 + 1;
             break;

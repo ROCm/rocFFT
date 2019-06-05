@@ -276,8 +276,7 @@ void TransformPowX(const ExecPlan&       execPlan,
         {
             hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
         }
-        std::cout << "attempting kernel: " << i << "\n";
-        fflush(stdout);
+        std::cout << "attempting kernel: " << i << std::endl;
 #endif
 
         DevFnCall fn = execPlan.devFnCall[i];

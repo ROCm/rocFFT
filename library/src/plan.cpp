@@ -657,8 +657,8 @@ void TreeNode::BuildRealEven()
     cfftPlan->dimension = dimension;
     cfftPlan->length    = length;
     cfftPlan->length[0] = cfftPlan->length[0] / 2;
-    cfftPlan->inStride  = inStride;
-    cfftPlan->outStride = outStride;
+    cfftPlan->inStride  = inStride; // FIXME: deal with padding, placeness
+    cfftPlan->outStride = outStride; // FIXME: deal with padding, placeness
 
     cfftPlan->inArrayType  = rocfft_array_type_complex_interleaved;
     cfftPlan->outArrayType = rocfft_array_type_complex_interleaved;
@@ -708,12 +708,12 @@ void TreeNode::BuildRealEven()
         if(dimension == 1)
         {
             TreeNode* prePlan     = TreeNode::CreateNode(this);
+            prePlan->scheme       = CS_KERNEL_CMPLX_TO_R;
             prePlan->dimension    = 1;
             prePlan->length       = {length[0] / 2};
             prePlan->inArrayType  = rocfft_array_type_hermitian_interleaved;
-            prePlan->outArrayType = rocfft_array_type_real;
+            prePlan->outArrayType = rocfft_array_type_complex_interleaved;
 
-            prePlan->scheme = CS_KERNEL_CMPLX_TO_R;
             childNodes.push_back(prePlan);
         }
         else
@@ -1467,12 +1467,19 @@ void TreeNode::RecursiveBuildTree()
 
 // Assign buffers, taking into account out-of-place transposes and
 // padded buffers.
+// NB: this recursive function modifies the parameters in the parent call.
 void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
                                                OperatingBuffer& flipOut,
                                                OperatingBuffer& obOutBuf)
 {
     if(parent == nullptr)
     {
+        // Set flipIn, flipOut, and oboutBuf for the root node.
+
+        assert(flipIn == OB_UNINIT);
+        assert(flipOut == OB_UNINIT);
+        assert(obOutBuf == OB_UNINIT);
+
         switch(scheme)
         {
         case CS_REAL_TRANSFORM_USING_CMPLX:
@@ -1481,9 +1488,12 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
             obOutBuf = OB_TEMP_CMPLX_FOR_REAL;
             break;
         case CS_REAL_TRANSFORM_EVEN:
-            flipIn   = OB_USER_IN;
+            // The sub-transform is always in-place.
+            flipIn = (direction == -1 || placement == rocfft_placement_inplace) ? OB_USER_IN
+                                                                                : OB_USER_OUT;
             flipOut  = OB_TEMP;
-            obOutBuf = OB_USER_OUT;
+            obOutBuf = (direction == -1 || placement == rocfft_placement_inplace) ? OB_USER_IN
+                                                                                  : OB_USER_OUT;
             break;
         case CS_BLUESTEIN:
             flipIn   = OB_TEMP_BLUESTEIN;
@@ -1529,43 +1539,47 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         assert(parent == nullptr);
 
         obIn  = OB_USER_IN;
-        obOut = OB_USER_OUT;
+        obOut = placement == rocfft_placement_inplace ? OB_USER_IN : OB_USER_OUT;
 
         if(direction == -1)
         {
             // real-to-complex
+
             // complex FFT kernel
-            childNodes[0]->obIn  = OB_USER_IN;
-            childNodes[0]->obOut = OB_USER_IN;
-            childNodes[0]->TraverseTreeAssignBuffersLogicA(childNodes[0]->obIn,
-                                                           flipIn,
-                                                           childNodes[0]->obIn);
-            childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipIn, obOutBuf);
+            childNodes[0]->inArrayType  = rocfft_array_type_complex_interleaved;
+            childNodes[0]->outArrayType = rocfft_array_type_complex_interleaved;
+            childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
 
             size_t cs = childNodes[0]->childNodes.size();
             if(cs)
             {
-                assert(childNodes[0]->childNodes[0]->obIn == OB_USER_IN);
-                assert(childNodes[0]->childNodes[cs - 1]->obOut == OB_USER_IN);
+                assert(childNodes[0]->childNodes[0]->obIn == obIn);
+                assert(childNodes[0]->childNodes[cs - 1]->obOut == obIn);
             }
 
             // real-to-complex post kernel
-            childNodes[1]->obIn  = OB_USER_IN;
-            childNodes[1]->obOut = OB_USER_OUT;
+            childNodes[1]->obIn  = obIn;
+            childNodes[1]->obOut = obOut;
         }
         else
         {
             // complex-to-real
+
             // complex-to-real pre kernel
-            childNodes[0]->obIn  = OB_USER_IN;
-            childNodes[0]->obOut = OB_USER_OUT;
+            childNodes[0]->obIn  = obIn;
+            childNodes[0]->obOut = obOut;
 
             // complex FFT kernel
-            childNodes[1]->obIn  = OB_USER_OUT;
-            childNodes[1]->obOut = OB_USER_OUT;
-            childNodes[1]->TraverseTreeAssignBuffersLogicA(childNodes[0]->obOut,
-                                                           flipOut,
-                                                           childNodes[0]->obOut);
+            childNodes[1]->inArrayType  = rocfft_array_type_complex_interleaved;
+            childNodes[1]->outArrayType = rocfft_array_type_complex_interleaved;
+            childNodes[1]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
+
+            size_t cs = childNodes[1]->childNodes.size();
+            if(cs)
+            {
+                assert(childNodes[1]->childNodes[0]->obIn == obOut);
+                assert(childNodes[1]->childNodes[cs - 1]->obOut == obOut);
+            }
         }
     }
     break;
@@ -1756,6 +1770,7 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         }
         else
         {
+            // FIXME: why?
             assert(obIn == flipIn);
             assert(obIn == obOut);
 
@@ -1817,10 +1832,9 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
     case CS_2D_RTRT:
     case CS_3D_RTRT:
     {
-        if(parent == nullptr)
-            childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? obOutBuf : OB_USER_IN;
-        else
-            childNodes[0]->obIn = obOutBuf;
+        childNodes[0]->obIn = (parent == nullptr)
+                                  ? (placement == rocfft_placement_inplace) ? obOutBuf : OB_USER_IN
+                                  : obOutBuf;
 
         childNodes[0]->obOut = obOutBuf;
 
@@ -1894,6 +1908,7 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
     }
 }
 
+// Set placement variable and in/out array types, if not already set.
 void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn,
                                                   const rocfft_array_type rootOut)
 {
@@ -1906,10 +1921,10 @@ void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn
             switch(obIn)
             {
             case OB_USER_IN:
-                inArrayType = rootIn;
+                inArrayType = (parent == nullptr) ? rootIn : parent->inArrayType;
                 break;
             case OB_USER_OUT:
-                inArrayType = rootOut;
+                inArrayType = (parent == nullptr) ? rootOut : parent->outArrayType;
                 break;
             case OB_TEMP:
                 inArrayType = rocfft_array_type_complex_interleaved;
@@ -1932,10 +1947,10 @@ void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn
             switch(obOut)
             {
             case OB_USER_IN:
-                outArrayType = rootIn;
+                outArrayType = (parent == nullptr) ? rootIn : parent->inArrayType;
                 break;
             case OB_USER_OUT:
-                outArrayType = rootOut;
+                outArrayType = (parent == nullptr) ? rootOut : parent->outArrayType;
                 break;
             case OB_TEMP:
                 outArrayType = rocfft_array_type_complex_interleaved;
@@ -1960,6 +1975,7 @@ void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn
     }
 }
 
+// Set strides and distances
 void TreeNode::TraverseTreeAssignParamsLogicA()
 {
     switch(scheme)
@@ -2357,7 +2373,10 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         else
         {
             // here we don't have B info right away, we get it through its parent
-            assert((parent->obOut == OB_USER_OUT) || (parent->obOut == OB_TEMP_CMPLX_FOR_REAL));
+
+            // FIXME: what is this assert for?
+            assert(parent->obOut == OB_USER_OUT || parent->obOut == OB_TEMP_CMPLX_FOR_REAL
+                   || parent->scheme == CS_REAL_TRANSFORM_EVEN);
 
             // T-> B
             col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
@@ -2937,14 +2956,12 @@ void ProcessNode(ExecPlan& execPlan)
     assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->dimension);
 
     execPlan.rootPlan->RecursiveBuildTree();
-    OperatingBuffer flipIn, flipOut, obOutBuf;
 
     assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->inStride.size());
     assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->outStride.size());
 
+    OperatingBuffer flipIn = OB_UNINIT, flipOut = OB_UNINIT, obOutBuf = OB_UNINIT;
     execPlan.rootPlan->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
-    assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->inStride.size());
-    assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->outStride.size());
 
     execPlan.rootPlan->TraverseTreeAssignPlacementsLogicA(execPlan.rootPlan->inArrayType,
                                                           execPlan.rootPlan->outArrayType);
@@ -2983,18 +3000,28 @@ void PrintNode(std::ostream& os, const ExecPlan& execPlan)
         {
             if((*curr_p)->placement == rocfft_placement_inplace)
             {
-                for(size_t i = 0; i < ((*curr_p)->inStride.size()); i++)
+                for(size_t i = 0; i < (*curr_p)->inStride.size(); i++)
                 {
-                    if(((*curr_p)->inStride[i]) != ((*curr_p)->outStride[i]))
+                    const int infact  = (*curr_p)->inArrayType == rocfft_array_type_real ? 1 : 2;
+                    const int outfact = (*curr_p)->outArrayType == rocfft_array_type_real ? 1 : 2;
+                    if(outfact * (*curr_p)->inStride[i] != infact * (*curr_p)->outStride[i])
+                    {
                         os << "error in stride assignments" << std::endl;
-                    if(((*curr_p)->iDist) != ((*curr_p)->oDist))
+                    }
+                    if(outfact * (*curr_p)->iDist != infact * (*curr_p)->oDist)
+                    {
                         os << "error in dist assignments" << std::endl;
+                    }
                 }
             }
 
-            if(((*prev_p)->scheme != CS_KERNEL_CHIRP) && ((*curr_p)->scheme != CS_KERNEL_CHIRP))
+            if((*prev_p)->scheme != CS_KERNEL_CHIRP && (*curr_p)->scheme != CS_KERNEL_CHIRP)
+            {
                 if((*prev_p)->obOut != (*curr_p)->obIn)
+                {
                     os << "error in buffer assignments" << std::endl;
+                }
+            }
 
             prev_p = curr_p;
             curr_p++;
