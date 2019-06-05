@@ -1978,6 +1978,9 @@ void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn
 // Set strides and distances
 void TreeNode::TraverseTreeAssignParamsLogicA()
 {
+    assert(length.size() == inStride.size());
+    assert(length.size() == outStride.size());
+
     switch(scheme)
     {
     case CS_REAL_TRANSFORM_USING_CMPLX:
@@ -2017,9 +2020,6 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
     {
         assert(childNodes.size() == 2);
 
-        assert(length.size() == inStride.size());
-        assert(length.size() == outStride.size());
-
         // FIXME: check strides and dists.
 
         // FIXME: what happens if there is a user-specified stride and
@@ -2029,11 +2029,13 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         {
             // forward transform, r2c
 
+            // iDist is in reals, subplan->iDist is in complexes
+
             TreeNode* fftPlan  = childNodes[0];
             fftPlan->inStride  = inStride;
-            fftPlan->iDist     = iDist;
-            fftPlan->outStride = outStride;
-            fftPlan->oDist     = oDist;
+            fftPlan->iDist     = iDist / 2;
+            fftPlan->outStride = inStride;
+            fftPlan->oDist     = iDist / 2;
             fftPlan->TraverseTreeAssignParamsLogicA();
             assert(fftPlan->length.size() == fftPlan->inStride.size());
             assert(fftPlan->length.size() == fftPlan->outStride.size());
@@ -2041,7 +2043,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
             TreeNode* postPlan = childNodes[1];
             assert(postPlan->scheme == CS_KERNEL_R_TO_CMPLX);
             postPlan->inStride  = {inStride[0]};
-            postPlan->iDist     = iDist;
+            postPlan->iDist     = iDist / 2;
             postPlan->outStride = {outStride[0]};
             postPlan->oDist     = oDist;
             assert(postPlan->length.size() == postPlan->inStride.size());
@@ -2051,18 +2053,20 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         {
             // backward transform, c2r
 
+            // oDist is in reals, subplan->oDist is in complexes
+
             TreeNode* prePlan = childNodes[0];
             assert(prePlan->scheme == CS_KERNEL_CMPLX_TO_R);
             prePlan->inStride  = {inStride[0]};
             prePlan->iDist     = iDist;
             prePlan->outStride = {outStride[0]};
-            prePlan->oDist     = oDist / 2 + 1;
+            prePlan->oDist     = oDist / 2;
             assert(prePlan->length.size() == prePlan->inStride.size());
             assert(prePlan->length.size() == prePlan->outStride.size());
 
             TreeNode* fftPlan  = childNodes[1];
             fftPlan->inStride  = outStride;
-            fftPlan->iDist     = oDist / 2 + 1;
+            fftPlan->iDist     = oDist / 2;
             fftPlan->outStride = outStride;
             fftPlan->oDist     = fftPlan->iDist;
             fftPlan->TraverseTreeAssignParamsLogicA();
