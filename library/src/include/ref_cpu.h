@@ -7,6 +7,7 @@
 #include <complex>
 #include <cstdio>
 #include <dlfcn.h>
+#include <functional>
 #include <iostream>
 #include <stdlib.h>
 
@@ -184,8 +185,9 @@ class RefLibOp
                                   ? sizeof(float)
                                   : sizeof(std::complex<float>);
 
-        size_t insize  = 0;
-        size_t outsize = 0;
+        size_t     insize  = 0;
+        size_t     outsize = 0;
+        const auto batch   = data->node->batch;
 
         // TODO: what about strides, etc?
         switch(data->node->scheme)
@@ -197,27 +199,29 @@ class RefLibOp
         case CS_KERNEL_FFT_MUL:
         case CS_KERNEL_PAD_MUL:
         case CS_KERNEL_RES_MUL:
-            insize = data->node->batch;
-            for(size_t i = 1; i < data->node->length.size(); i++)
-                insize *= data->node->length[i];
+            insize = std::accumulate(data->node->length.begin(),
+                                     data->node->length.end(),
+                                     batch,
+                                     std::multiplies<size_t>());
             insize *= data->node->lengthBlue;
             outsize = insize;
             break;
         case CS_KERNEL_R_TO_CMPLX:
-            insize      = data->node->length[0];
-            outsize     = data->node->length[0] + 1;
+            insize      = batch * data->node->length[0];
+            outsize     = batch * (data->node->length[0] + 1);
             in_typesize = sizeof(std::complex<float>);
             break;
         case CS_KERNEL_CMPLX_TO_R:
-            insize       = data->node->length[0] + 1;
-            outsize      = data->node->length[0];
+            insize       = batch * (data->node->length[0] + 1);
+            outsize      = batch * data->node->length[0];
             in_typesize  = sizeof(std::complex<float>);
             out_typesize = sizeof(std::complex<float>);
             break;
         default:
-            insize = data->node->batch;
-            for(size_t i = 0; i < data->node->length.size(); i++)
-                insize *= data->node->length[i];
+            insize  = std::accumulate(data->node->length.begin(),
+                                     data->node->length.end(),
+                                     batch,
+                                     std::multiplies<size_t>());
             outsize = insize;
         }
 
@@ -252,9 +256,8 @@ class RefLibOp
                     std::vector<size_t>  length,
                     std::vector<size_t>  stride)
     {
-        size_t lenSize = 1;
-        for(size_t i = 0; i < length.size(); i++)
-            lenSize *= length[i];
+        size_t lenSize
+            = std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
 
         size_t b = 0;
         while(b < batch)
@@ -266,8 +269,7 @@ class RefLibOp
             bool   obreak       = false;
 
             std::vector<size_t> current;
-            for(size_t i = 0; i < length.size(); i++)
-                current.push_back(0);
+            current.assign(length.size(), 0);
 
             while(true)
             {
@@ -646,11 +648,12 @@ class RefLibOp
         {
             // Post-processing stage of 1D real-to-complex transform, out-of-place
             const size_t halfN = data->node->length[0];
+            const size_t batch = data->node->batch;
 
-            assert(fftwin.size == halfN);
-            assert(fftwout.size == halfN + 1);
+            assert(fftwin.size == batch * halfN);
+            assert(fftwout.size == batch * (halfN + 1));
 
-            std::complex<float>* input  = (std::complex<float>*)fftwin.data;
+            const auto           input  = (std::complex<float>*)fftwin.data;
             std::complex<float>* output = (std::complex<float>*)fftwout.data;
 
             size_t output_idx_base = 0;
@@ -661,14 +664,18 @@ class RefLibOp
 
             const float overN = 0.5 / halfN;
 
-            for(int r = 0; r < halfN; ++r)
+            for(int ibatch = 0; ibatch < batch; ++ibatch)
             {
-                const auto omegaNr
-                    = std::exp(std::complex<float>(0.0f, (float)(-2.0f * M_PI * r * overN)));
-                output[r] = input[r] * half * (one - I * omegaNr)
-                            + conj(input[halfN - r]) * half * (one + I * omegaNr);
+                const auto bin  = input + ibatch * halfN;
+                auto       bout = output + ibatch * (halfN + 1);
+                for(int r = 0; r < halfN; ++r)
+                {
+                    const auto omegaNr
+                        = std::exp(std::complex<float>(0.0f, (float)(-2.0f * M_PI * r * overN)));
+                    bout[r] = bin[r] * half * (one - I * omegaNr)
+                              + conj(bin[halfN - r]) * half * (one + I * omegaNr);
+                }
             }
-
             output[output_idx_base + halfN]
                 = std::complex<float>(input[0].real() - input[0].imag(), 0);
         }
@@ -677,24 +684,30 @@ class RefLibOp
         {
             // Pre-processing stage of 1D complex-to-real transform, out-of-place
             const size_t halfN = data->node->length[0];
+            const size_t batch = data->node->batch;
 
-            assert(fftwin.size == halfN + 1);
-            assert(fftwout.size == halfN);
+            assert(fftwin.size == batch * (halfN + 1));
+            assert(fftwout.size == batch * halfN);
             assert(fftwin.typesize == sizeof(std::complex<float>));
             assert(fftwout.typesize == sizeof(std::complex<float>));
 
-            std::complex<float>* input  = (std::complex<float>*)fftwin.data;
-            std::complex<float>* output = (std::complex<float>*)fftwout.data;
+            const std::complex<float>* input  = (std::complex<float>*)fftwin.data;
+            std::complex<float>*       output = (std::complex<float>*)fftwout.data;
 
             const float               overN = 0.5 / halfN;
             const std::complex<float> I(0, 1);
             const std::complex<float> one(1, 0);
 
-            for(int r = 0; r < halfN; ++r)
+            for(int ibatch = 0; ibatch < batch; ++ibatch)
             {
-                const auto omegaNr = std::exp(std::complex<float>(0, 2.0 * M_PI * r * overN));
-                output[r]
-                    = input[r] * (one + I * omegaNr) + conj(input[halfN - r]) * (one - I * omegaNr);
+                const auto bin  = input + ibatch * (halfN + 1);
+                auto       bout = output + ibatch * halfN;
+                for(int r = 0; r < halfN; ++r)
+                {
+                    const auto omegaNr = std::exp(std::complex<float>(0, 2.0 * M_PI * r * overN));
+                    bout[r]
+                        = bin[r] * (one + I * omegaNr) + conj(bin[halfN - r]) * (one - I * omegaNr);
+                }
             }
         }
         break;
@@ -969,16 +982,15 @@ public:
 
 #if 0
         std::complex<float>* in      = (std::complex<float>*)fftwin.data;
-        size_t               beg_idx = 0;
-        size_t               end_idx = libout.size;
+
         std::cout << "input:" << std::endl;
-        for(size_t i = beg_idx; i < fftwin.size; ++i)
+        for(size_t i = 0; i < fftwin.size; ++i)
         {
             std::cout << i << "\t(" << in[i].real() << ", " << in[i].imag() << ")\n";
         }
 
         std::cout << "lib output vs cpu output:" << std::endl;
-        for(size_t i = beg_idx; i < libout.size; ++i)
+        for(size_t i = 0; i < libout.size; ++i)
         {
             std::cout << i << "\t(" << lb[i].real() << "," << lb[i].imag() << ")"
                       << "\t(" << ot[i].real() << "," << ot[i].imag() << ")\n";
