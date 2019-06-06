@@ -44,7 +44,8 @@ void PlanPowX(ExecPlan& execPlan)
             execPlan.execSeq[i]->twiddles = twiddles_create(
                 execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false, false);
         }
-        else if(execPlan.execSeq[i]->scheme == CS_KERNEL_R_TO_CMPLX)
+        else if((execPlan.execSeq[i]->scheme == CS_KERNEL_R_TO_CMPLX)
+                || (execPlan.execSeq[i]->scheme == CS_KERNEL_CMPLX_TO_R))
         {
             execPlan.execSeq[i]->twiddles = twiddles_create(
                 execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false, true);

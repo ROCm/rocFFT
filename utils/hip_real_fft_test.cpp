@@ -386,7 +386,7 @@ void r2c_1d_post_process(size_t const N,
                          hipStream_t  rocfft_stream)
 {
     const size_t block_size = 512;
-    size_t       blocks     = (N / 4 - 1) / block_size + 1;
+    size_t       blocks     = (N / 4 + 1 - 1) / block_size + 1;
 
     if(high_dimension > 65535 || batch > 65535)
         printf("2D and 3D or batch is too big; not implemented\n");
@@ -489,7 +489,7 @@ void real_1d_pre_post_process(size_t const N,
                               hipStream_t  rocfft_stream)
 {
     const size_t block_size = 512;
-    size_t       blocks     = (N / 4 - 1) / block_size + 1;
+    size_t       blocks     = (N / 4 + 1 - 1) / block_size + 1;
 
     if(high_dimension > 65535 || batch > 65535)
         printf("2D and 3D or batch is too big; not implemented\n");

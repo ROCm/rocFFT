@@ -32,11 +32,21 @@ void* twiddles_create_pr(size_t N, size_t threshold, bool large, bool no_radices
     }
     else
     {
-        TwiddleTableLarge<T> twTable(N); // does not generate radices
-        std::tie(ns, twtc) = twTable.GenerateTwiddleTable(); // calculate twiddles on host side
+        if(no_radices)
+        {
+            TwiddleTable<T> twTable(N);
+            twtc = twTable.GenerateTwiddleTable();
+            hipMalloc(&twts, N * sizeof(T));
+            hipMemcpy(twts, twtc, N * sizeof(T), hipMemcpyHostToDevice);
+        }
+        else
+        {
+            TwiddleTableLarge<T> twTable(N); // does not generate radices
+            std::tie(ns, twtc) = twTable.GenerateTwiddleTable(); // calculate twiddles on host side
 
-        hipMalloc(&twts, ns * sizeof(T));
-        hipMemcpy(twts, twtc, ns * sizeof(T), hipMemcpyHostToDevice);
+            hipMalloc(&twts, ns * sizeof(T));
+            hipMemcpy(twts, twtc, ns * sizeof(T), hipMemcpyHostToDevice);
+        }
     }
 
     return twts;

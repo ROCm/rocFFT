@@ -414,7 +414,7 @@ void real_1d_pre_post_process(size_t const N,
                               hipStream_t  rocfft_stream)
 {
     const size_t block_size = 512;
-    size_t       blocks     = (N / 4 - 1) / block_size + 1;
+    size_t       blocks     = (N / 4 + 1 - 1) / block_size + 1;
 
     dim3 grid(blocks, high_dimension, batch);
     dim3 threads(block_size, 1, 1);
@@ -465,10 +465,12 @@ void real_1d_pre_post(const void* data_p, void* back_p)
     size_t input_distance  = data->node->iDist;
     size_t output_distance = data->node->oDist;
 
-    size_t input_stride
-        = (data->node->length.size() > 1) ? data->node->inStride[1] : input_distance;
-    size_t output_stride
-        = (data->node->length.size() > 1) ? data->node->outStride[1] : output_distance;
+    //Fixme!!!
+    //std::cout << "data->node->length.size() " << data->node->length.size() << std::endl;
+    size_t input_stride = 1;
+    //= (data->node->length.size() > 1) ? data->node->inStride[1] : input_distance;
+    size_t output_stride = 1;
+    //= (data->node->length.size() > 1) ? data->node->outStride[1] : output_distance;
 
     void* input_buffer  = data->bufIn[0];
     void* output_buffer = data->bufOut[0];
