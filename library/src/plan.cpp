@@ -71,6 +71,30 @@ std::string PrintScheme(ComputeScheme cs)
     return ComputeSchemetoString.at(cs);
 }
 
+std::string PrintOperatingBuffer(const OperatingBuffer ob)
+{
+    std::map<OperatingBuffer, const char*> BuffertoString
+        = {{ENUMSTR(OB_UNINIT)},
+           {ENUMSTR(OB_USER_IN)},
+           {ENUMSTR(OB_USER_OUT)},
+           {ENUMSTR(OB_TEMP)},
+           {ENUMSTR(OB_TEMP_CMPLX_FOR_REAL)},
+           {ENUMSTR(OB_TEMP_BLUESTEIN)}};
+    return BuffertoString.at(ob);
+}
+
+std::string PrintOperatingBufferCode(const OperatingBuffer ob)
+{
+    std::map<OperatingBuffer, const char*> BuffertoString
+        = {{OB_UNINIT, "ERR"},
+           {OB_USER_IN, "A"},
+           {OB_USER_OUT, "B"},
+           {OB_TEMP, "T"},
+           {OB_TEMP_CMPLX_FOR_REAL, "C"},
+           {OB_TEMP_BLUESTEIN, "S"}};
+    return BuffertoString.at(ob);
+}
+
 // clang-format on
 rocfft_status rocfft_plan_description_set_scale_float(rocfft_plan_description description,
                                                       const float             scale)
@@ -1472,7 +1496,18 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
                                                OperatingBuffer& flipOut,
                                                OperatingBuffer& obOutBuf)
 {
+#if 0
+    auto here = this;
+    auto up = parent;
+    while(up != nullptr && here != up)
+    {
+        here = up;
+        up = parent->parent;
+        std::cout << "\t";
+    }
     std::cout << "TraverseTreeAssignBuffersLogicA: " << PrintScheme(scheme) << std::endl;
+#endif
+
     if(parent == nullptr)
     {
         // Set flipIn, flipOut, and oboutBuf for the root node.
@@ -1515,11 +1550,20 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         assert(parent == nullptr);
         assert(childNodes.size() == 3);
 
-        childNodes[0]->obIn  = OB_USER_IN;
+        assert((direction == -1 && childNodes[0]->scheme == CS_KERNEL_COPY_R_TO_CMPLX)
+               || (direction == 1 && childNodes[0]->scheme == CS_KERNEL_COPY_HERM_TO_CMPLX));
+
+        obIn  = OB_USER_IN;
+        obOut = placement == rocfft_placement_inplace ? OB_USER_IN : OB_USER_OUT;
+
+        assert((direction == -1 && childNodes[0]->scheme == CS_KERNEL_COPY_R_TO_CMPLX)
+               || (direction == 1 && childNodes[0]->scheme == CS_KERNEL_COPY_HERM_TO_CMPLX));
+
+        childNodes[0]->obIn  = obIn;
         childNodes[0]->obOut = OB_TEMP_CMPLX_FOR_REAL;
 
         childNodes[1]->obIn  = OB_TEMP_CMPLX_FOR_REAL;
-        childNodes[1]->obOut = OB_TEMP_CMPLX_FOR_REAL;
+        childNodes[1]->obOut = flipIn;
         childNodes[1]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
         size_t cs = childNodes[1]->childNodes.size();
         if(cs)
@@ -1528,11 +1572,10 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
             assert(childNodes[1]->childNodes[cs - 1]->obOut == OB_TEMP_CMPLX_FOR_REAL);
         }
 
+        assert((direction == -1 && childNodes[2]->scheme == CS_KERNEL_COPY_CMPLX_TO_HERM)
+               || (direction == 1 && childNodes[2]->scheme == CS_KERNEL_COPY_CMPLX_TO_R));
         childNodes[2]->obIn  = OB_TEMP_CMPLX_FOR_REAL;
-        childNodes[2]->obOut = OB_USER_OUT;
-
-        obIn  = childNodes[0]->obIn;
-        obOut = childNodes[2]->obOut;
+        childNodes[2]->obOut = obOut;
     }
     break;
     case CS_REAL_TRANSFORM_EVEN:
@@ -1598,14 +1641,19 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         flipOut  = OB_TEMP;
         obOutBuf = OB_TEMP_BLUESTEIN;
 
-        childNodes[0]->obIn  = OB_TEMP_BLUESTEIN;
+        obIn  = (parent == nullptr) ? OB_USER_IN : savFlipIn;
+        obOut = (parent == nullptr)
+                    ? (placement == rocfft_placement_inplace) ? OB_USER_IN : OB_USER_OUT
+                    : savOutBuf;
+
+        assert(childNodes.size() == 7);
+
+        assert(childNodes[0]->scheme == CS_KERNEL_CHIRP);
+        childNodes[0]->obIn  = obIn;
         childNodes[0]->obOut = OB_TEMP_BLUESTEIN;
 
-        childNodes[1]->obIn
-            = (parent == nullptr)
-                  ? ((placement == rocfft_placement_inplace) ? OB_USER_OUT : OB_USER_IN)
-                  : obIn;
-
+        assert(childNodes[1]->scheme == CS_KERNEL_PAD_MUL);
+        childNodes[1]->obIn  = OB_TEMP_BLUESTEIN;
         childNodes[1]->obOut = OB_TEMP_BLUESTEIN;
 
         childNodes[2]->obIn  = OB_TEMP_BLUESTEIN;
@@ -1616,6 +1664,7 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         childNodes[3]->obOut = OB_TEMP_BLUESTEIN;
         childNodes[3]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
 
+        assert(childNodes[4]->scheme == CS_KERNEL_FFT_MUL);
         childNodes[4]->obIn  = OB_TEMP_BLUESTEIN;
         childNodes[4]->obOut = OB_TEMP_BLUESTEIN;
 
@@ -1623,11 +1672,9 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         childNodes[5]->obOut = OB_TEMP_BLUESTEIN;
         childNodes[5]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
 
+        assert(childNodes[6]->scheme == CS_KERNEL_RES_MUL);
         childNodes[6]->obIn  = OB_TEMP_BLUESTEIN;
-        childNodes[6]->obOut = (parent == nullptr) ? OB_USER_OUT : obOut;
-
-        obIn  = childNodes[1]->obIn;
-        obOut = childNodes[6]->obOut;
+        childNodes[6]->obOut = obOut;
 
         flipIn   = savFlipIn;
         flipOut  = savFlipOut;
@@ -1903,13 +1950,19 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         }
     }
 
-    // Verify that all operating buffers have been assigned
+    // Assert that all operating buffers have been assigned
     assert(obIn != OB_UNINIT);
     assert(obOut != OB_UNINIT);
     for(int i = 0; i < childNodes.size(); ++i)
     {
         assert(childNodes[i]->obIn != OB_UNINIT);
         assert(childNodes[i]->obOut != OB_UNINIT);
+    }
+
+    // Assert that the kernel chain is connected
+    for(int i = 1; i < childNodes.size(); ++i)
+    {
+        assert(childNodes[i - 1]->obOut == childNodes[i]->obIn);
     }
 }
 
@@ -2918,37 +2971,12 @@ void TreeNode::Print(std::ostream& os, const int indent) const
     }
     os << std::endl << indentStr.c_str() << "TTD: " << transTileDir;
     os << std::endl << indentStr.c_str() << "large1D: " << large1D;
-    os << std::endl
-       << indentStr.c_str() << "lengthBlue: " << lengthBlue << std::endl
-       << indentStr.c_str();
+    os << std::endl << indentStr.c_str() << "lengthBlue: " << lengthBlue << std::endl;
 
-    if(obIn == OB_USER_IN)
-        os << "A -> ";
-    else if(obIn == OB_USER_OUT)
-        os << "B -> ";
-    else if(obIn == OB_TEMP)
-        os << "T -> ";
-    else if(obIn == OB_TEMP_CMPLX_FOR_REAL)
-        os << "C -> ";
-    else if(obIn == OB_TEMP_BLUESTEIN)
-        os << "S -> ";
-    else
-        os << "ERR -> ";
-
-    if(obOut == OB_USER_IN)
-        os << "A";
-    else if(obOut == OB_USER_OUT)
-        os << "B";
-    else if(obOut == OB_TEMP)
-        os << "T";
-    else if(obOut == OB_TEMP_CMPLX_FOR_REAL)
-        os << "C";
-    else if(obOut == OB_TEMP_BLUESTEIN)
-        os << "S";
-    else
-        os << "ERR";
-
-    os << std::endl;
+    os << indentStr << PrintOperatingBuffer(obIn) << " -> " << PrintOperatingBuffer(obOut)
+       << std::endl;
+    os << indentStr << PrintOperatingBufferCode(obIn) << " -> " << PrintOperatingBufferCode(obOut)
+       << std::endl;
 
     if(childNodes.size())
     {
