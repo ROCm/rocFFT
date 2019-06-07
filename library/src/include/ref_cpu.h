@@ -668,7 +668,7 @@ class RefLibOp
             {
                 const auto bin  = input + ibatch * halfN;
                 auto       bout = output + ibatch * (halfN + 1);
-                bout[0] = std::complex<float>(bin[0].real() + bin[0].imag());
+                bout[0]         = std::complex<float>(bin[0].real() + bin[0].imag());
                 for(int r = 1; r < halfN; ++r)
                 {
                     const auto omegaNr
