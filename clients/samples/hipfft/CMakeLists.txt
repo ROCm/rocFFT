@@ -2,6 +2,12 @@
 # Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
 ################################################################################
 
+CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
+
+find_package(hip)
+find_package(rocfft)
+find_package(FFTW3f)
+
 # ########################################################################
 # The following check are hacks to get compiles working for CUDA backend
 # These should be removed in the future.
@@ -26,7 +32,7 @@ foreach( sample ${sample_list} )
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
   )
 
-  target_link_libraries( ${sample} PRIVATE roc::rocfft ${FFTW_LIBRARIES} )
+  target_link_libraries( ${sample} PRIVATE roc::rocfft fftw3 fftw3f )
 
   target_compile_features( ${sample} PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
 
