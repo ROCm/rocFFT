@@ -183,12 +183,6 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
             {
                 if(description->inArrayType != description->outArrayType)
                     return rocfft_status_invalid_array_type;
-                if(description->inStrides != description->outStrides)
-                    return rocfft_status_invalid_strides;
-                if(description->inDist != description->outDist)
-                    return rocfft_status_invalid_distance;
-                if(description->inOffset != description->outOffset)
-                    return rocfft_status_invalid_offset;
             }
             break;
         case rocfft_transform_type_real_forward:
