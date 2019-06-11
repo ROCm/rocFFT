@@ -58,7 +58,8 @@ int transform(size_t*                 lengths,
               int                     deviceId,
               int                     platformId,
               bool                    printInfo,
-              unsigned                profile_count)
+              unsigned                profile_count,
+              const int               ntrial)
 {
     //	Our command line does not specify what dimension FFT we wish to
     //    transform; we decode
@@ -156,6 +157,8 @@ int transform(size_t*                 lengths,
         number_of_output_buffers        = 1;
         size_of_output_buffers_in_bytes = outfftBatchSize * sizeof(T);
         break;
+    default:
+        throw std::runtime_error("Invalid input array format");
     }
 
     // Fill the input buffers
@@ -526,6 +529,8 @@ int transform(size_t*                 lengths,
             }
             break;
         }
+        default:
+            throw std::runtime_error("Invalid input array format");
         }
     }
 
@@ -542,32 +547,36 @@ int transform(size_t*                 lengths,
 
     HIP_V_THROW(hipDeviceSynchronize(), "hipDeviceSynchronize failed");
 
+    std::vector<float>  gpu_time(ntrial);
+    std::vector<double> wall_time(ntrial);
+
     if(profile_count > 1)
     {
         Timer tr;
-        tr.Start();
 
         hipEvent_t start, stop;
         HIP_V_THROW(hipEventCreate(&start), "hipEventCreate failed");
         HIP_V_THROW(hipEventCreate(&stop), "hipEventCreate failed");
 
-        HIP_V_THROW(hipEventRecord(start), "hipEventRecord failed");
-
-        for(unsigned i = 0; i < profile_count; ++i)
+        for(int itrial = 0; itrial < ntrial; ++itrial)
         {
-            LIB_V_THROW(rocfft_execute(plan, input_device_buffers, BuffersOut, info),
-                        "rocfft_execute failed");
-            // HIP_V_THROW( hipDeviceSynchronize(), "hipDeviceSynchronize failed" );
+            tr.Start();
+            HIP_V_THROW(hipEventRecord(start), "hipEventRecord failed");
+            for(unsigned i = 0; i < profile_count; ++i)
+            {
+                LIB_V_THROW(rocfft_execute(plan, input_device_buffers, BuffersOut, info),
+                            "rocfft_execute failed");
+                // HIP_V_THROW( hipDeviceSynchronize(), "hipDeviceSynchronize failed" );
+            }
+
+            HIP_V_THROW(hipEventRecord(stop), "hipEventRecord failed");
+            HIP_V_THROW(hipEventSynchronize(stop), "hipEventSynchronize failed");
+
+            hipEventElapsedTime(&gpu_time[itrial], start, stop);
+            gpu_time[itrial] /= (float)profile_count;
+
+            wall_time[itrial] = tr.Sample() / ((double)profile_count);
         }
-
-        HIP_V_THROW(hipEventRecord(stop), "hipEventRecord failed");
-        HIP_V_THROW(hipEventSynchronize(stop), "hipEventSynchronize failed");
-
-        double wtime = tr.Sample() / ((double)profile_count);
-
-        float gpu_time;
-        hipEventElapsedTime(&gpu_time, start, stop);
-        gpu_time /= (float)profile_count;
 
         HIP_V_THROW(hipDeviceSynchronize(), "hipDeviceSynchronize failed");
 
@@ -602,10 +611,31 @@ int transform(size_t*                 lengths,
                 bytes *= sizeof(double);
         }
 
-        std::cout << "\nExecution gpu time: " << gpu_time << " ms" << std::endl;
-        std::cout << "Execution wall time: " << 1000.0 * wtime << " ms" << std::endl;
-        std::cout << "Execution gflops (wall time): " << (opsconst) / (1e9 * wtime) << std::endl;
-        std::cout << "Bandwidth GB/s (wall time): " << (bytes) / (1e9 * wtime) << std::endl;
+        std::cout << "\nExecution gpu time:";
+        for(const auto& i : gpu_time)
+        {
+            std::cout << " " << i;
+        }
+        std::cout << " ms" << std::endl;
+        std::cout << "Execution wall time:";
+        for(const auto& i : wall_time)
+        {
+            std::cout << " " << 1e3 * i;
+        }
+        std::cout << " ms" << std::endl;
+        std::cout << "Execution gflops (wall time):";
+        for(const auto& i : wall_time)
+        {
+            std::cout << " " << opsconst / (1e9 * i);
+        }
+        std::cout << std::endl;
+
+        std::cout << "Bandwidth GB/s (wall time):";
+        for(const auto& i : wall_time)
+        {
+            std::cout << " " << bytes / (1e9 * i);
+        }
+        std::cout << std::endl;
     }
 
     if(workBuffer)
@@ -843,88 +873,77 @@ int main(int argc, char* argv[])
 
     int tret = 0;
 
+    // Number of trials
+    int ntrial = 1;
+
     try
     {
+        // clang-format off
+        // clang-format doesn't handle boost program options very well
+        
         // Declare the supported options.
         po::options_description desc("rocfft rider command line options");
-        desc.add_options()("help,h", "produces this help message")(
-            "version,v", "Print queryable version information from the rocfft library")(
-            "info,i", "Print queryable information of all the runtimes and devices")(
-            "printChosen", "Print queryable information of the selected runtime and device")(
-            "platform",
-            po::value<int>(&platformId)->default_value(0),
-            "Select a specific platform id as it is reported by info")(
-            "device",
-            po::value<int>(&deviceId)->default_value(0),
-            "Select a specific device id as it is reported by info")(
-            "notInPlace,o", "Not in-place FFT transform (default: in-place)")(
-            "double", "Double precision transform (default: single)")(
-            "transformType,t",
-            po::value<rocfft_transform_type>(&transformType)
-                ->default_value(rocfft_transform_type_complex_forward),
-            "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
-            "forward\n3) real inverse")("lenX,x",
-                                        po::value<size_t>(&lengths[0])->default_value(1024),
-                                        "Specify the length of the 1st dimension of a test array")(
-            "lenY,y",
-            po::value<size_t>(&lengths[1])->default_value(1),
-            "Specify the length of the 2nd dimension of a test array")(
-            "lenZ,z",
-            po::value<size_t>(&lengths[2])->default_value(1),
-            "Specify the length of the 3rd dimension of a test array")(
-            "isX",
-            po::value<size_t>(&iStrides[0])->default_value(1),
-            "Specify the input stride of the 1st dimension of a test array")(
-            "isY",
-            po::value<size_t>(&iStrides[1])->default_value(0),
-            "Specify the input stride of the 2nd dimension of a test array")(
-            "isZ",
-            po::value<size_t>(&iStrides[2])->default_value(0),
-            "Specify the input stride of the 3rd dimension of a test array")(
-            "iD",
-            po::value<size_t>(&iStrides[3])->default_value(0),
-            "input distance between successive members when batch size > 1")(
-            "osX",
-            po::value<size_t>(&oStrides[0])->default_value(1),
-            "Specify the output stride of the 1st dimension of a test array")(
-            "osY",
-            po::value<size_t>(&oStrides[1])->default_value(0),
-            "Specify the output stride of the 2nd dimension of a test array")(
-            "osZ",
-            po::value<size_t>(&oStrides[2])->default_value(0),
-            "Specify the output stride of the 3rd dimension of a test array")(
-            "oD",
-            po::value<size_t>(&oStrides[3])->default_value(0),
-            "output distance between successive members when batch size > 1")(
-            "scale", po::value<double>(&scale)->default_value(1.0), "Specify the scaling factor ")(
-            "iOff0",
-            po::value<size_t>(&iOffset[0])->default_value(0),
-            "Specify the offset for first/only input buffer")(
-            "iOff1",
-            po::value<size_t>(&iOffset[1])->default_value(0),
-            "Specify the offset for second input buffer")(
-            "oOff0",
-            po::value<size_t>(&oOffset[0])->default_value(0),
-            "Specify the offset for first/only output buffer")(
-            "oOff1",
-            po::value<size_t>(&oOffset[1])->default_value(0),
-            "Specify the offset for second output buffer")(
-            "batchSize,b",
-            po::value<size_t>(&batchSize)->default_value(1),
-            "If this value is greater than one, arrays will be used ")(
-            "profile,p",
-            po::value<unsigned>(&profile_count)->default_value(1),
-            "Time and report the kernel speed of the FFT (default: profiling off)")(
-            "inArrType",
-            po::value<rocfft_array_type>(&inArrType)
-                ->default_value(rocfft_array_type_complex_interleaved),
-            "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
-            "hermitian interleaved\n4) hermitian planar")(
-            "outArrType",
-            po::value<rocfft_array_type>(&outArrType)
-                ->default_value(rocfft_array_type_complex_interleaved),
-            "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
-            "hermitian interleaved\n4) hermitian planar");
+        desc.add_options()("help,h", "produces this help message")
+            ("version,v", "Print queryable version information from the rocfft library")
+            ("info,i", "Print queryable information of all the runtimes and devices")
+            ("printChosen", "Print queryable information of the selected runtime and device")
+            ("platform", po::value<int>(&platformId)->default_value(0),
+             "Select a specific platform id as it is reported by info")
+            ("device", po::value<int>(&deviceId)->default_value(0),
+             "Select a specific device id as it is reported by info")
+            ("ntrial,N", po::value<int>(&ntrial)->default_value(1),
+             "Trial size for the problem")
+            ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
+            ("double", "Double precision transform (default: single)")
+            ("transformType,t", po::value<rocfft_transform_type>(&transformType)
+             ->default_value(rocfft_transform_type_complex_forward),
+             "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
+             "forward\n3) real inverse")
+            ("lenX,x", po::value<size_t>(&lengths[0])->default_value(1024),
+             "Specify the length of the 1st dimension of a test array")
+            ("lenY,y", po::value<size_t>(&lengths[1])->default_value(1),
+             "Specify the length of the 2nd dimension of a test array")
+            ("lenZ,z", po::value<size_t>(&lengths[2])->default_value(1),
+             "Specify the length of the 3rd dimension of a test array")
+            ("isX", po::value<size_t>(&iStrides[0])->default_value(1),
+             "Specify the input stride of the 1st dimension of a test array")
+            ("isY", po::value<size_t>(&iStrides[1])->default_value(0),
+             "Specify the input stride of the 2nd dimension of a test array")
+            ( "isZ", po::value<size_t>(&iStrides[2])->default_value(0),
+              "Specify the input stride of the 3rd dimension of a test array")
+            ( "iD", po::value<size_t>(&iStrides[3])->default_value(0),
+              "input distance between successive members when batch size > 1")
+            ( "osX", po::value<size_t>(&oStrides[0])->default_value(1),
+              "Specify the output stride of the 1st dimension of a test array")
+            ( "osY", po::value<size_t>(&oStrides[1])->default_value(0),
+              "Specify the output stride of the 2nd dimension of a test array")
+            ( "osZ", po::value<size_t>(&oStrides[2])->default_value(0),
+              "Specify the output stride of the 3rd dimension of a test array")
+            ( "oD", po::value<size_t>(&oStrides[3])->default_value(0),
+              "output distance between successive members when batch size > 1")
+            ("scale", po::value<double>(&scale)->default_value(1.0), "Specify the scaling factor ")
+            ( "iOff0", po::value<size_t>(&iOffset[0])->default_value(0),
+              "Specify the offset for first/only input buffer")
+            ( "iOff1", po::value<size_t>(&iOffset[1])->default_value(0),
+              "Specify the offset for second input buffer")
+            ( "oOff0", po::value<size_t>(&oOffset[0])->default_value(0),
+              "Specify the offset for first/only output buffer")
+            ( "oOff1", po::value<size_t>(&oOffset[1])->default_value(0),
+              "Specify the offset for second output buffer")
+            ( "batchSize,b", po::value<size_t>(&batchSize)->default_value(1),
+              "If this value is greater than one, arrays will be used ")
+            ( "profile,p", po::value<unsigned>(&profile_count)->default_value(1),
+              "Time and report the kernel speed of the FFT (default: profiling off)")
+            ( "inArrType", po::value<rocfft_array_type>(&inArrType)
+              ->default_value(rocfft_array_type_complex_interleaved),
+              "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
+              "hermitian interleaved\n4) hermitian planar")
+            ( "outArrType", po::value<rocfft_array_type>(&outArrType)
+              ->default_value(rocfft_array_type_complex_interleaved),
+              "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
+              "hermitian interleaved\n4) hermitian planar");
+
+        // clang-format on
 
         po::variables_map vm;
         po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -1097,6 +1116,7 @@ int main(int argc, char* argv[])
         }
 
         if(precision == rocfft_precision_single)
+        {
             tret = transform<float>(lengths,
                                     iStrides,
                                     oStrides,
@@ -1113,8 +1133,11 @@ int main(int argc, char* argv[])
                                     deviceId,
                                     platformId,
                                     printInfo,
-                                    profile_count);
+                                    profile_count,
+                                    ntrial);
+        }
         else
+        {
             tret = transform<double>(lengths,
                                      iStrides,
                                      oStrides,
@@ -1131,7 +1154,9 @@ int main(int argc, char* argv[])
                                      deviceId,
                                      platformId,
                                      printInfo,
-                                     profile_count);
+                                     profile_count,
+                                     ntrial);
+        }
     }
     catch(std::exception& e)
     {
