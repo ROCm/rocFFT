@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # #############################################################################
 # Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
 #
@@ -20,7 +21,7 @@
 # THE SOFTWARE.
 # #############################################################################
 
-#!/usr/bin/env bash
+
 # Author: Kent Knox
 
 
