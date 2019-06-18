@@ -165,17 +165,26 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     // Check plan validity
     if(description != nullptr)
     {
+        // We do not currently support planar formats.
+        // TODO: remove these checks when complex planar format is enabled.
+        if(description->inArrayType == rocfft_array_type_complex_planar
+           || description->outArrayType == rocfft_array_type_complex_planar)
+            return rocfft_status_invalid_array_type;
+        if(description->inArrayType == rocfft_array_type_hermitian_planar
+           || description->outArrayType == rocfft_array_type_hermitian_planar)
+            return rocfft_status_invalid_array_type;
+
         switch(transform_type)
         {
         case rocfft_transform_type_complex_forward:
         case rocfft_transform_type_complex_inverse:
             // We need complex input data
             if(!((description->inArrayType == rocfft_array_type_complex_interleaved)
-                 || (description->inArrayType == rocfft_array_type_complex_interleaved)))
+                 || (description->inArrayType == rocfft_array_type_complex_planar)))
                 return rocfft_status_invalid_array_type;
             // We need complex output data
             if(!((description->outArrayType == rocfft_array_type_complex_interleaved)
-                 || (description->outArrayType == rocfft_array_type_complex_interleaved)))
+                 || (description->outArrayType == rocfft_array_type_complex_planar)))
                 return rocfft_status_invalid_array_type;
             // In-place transform requires that the input and output
             // format be identical
