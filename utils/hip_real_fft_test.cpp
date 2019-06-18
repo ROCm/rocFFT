@@ -202,8 +202,12 @@ __global__ void r2c_1d_post_process_basic_kernel(size_t input_size,
     size_t idx_p = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     size_t idx_q = (input_size / 2) - idx_p;
 
-    COMPLEX p(input[idx_p].x, input[idx_p].y);
-    COMPLEX q(input[idx_q].x, input[idx_q].y);
+    COMPLEX p, q;
+    if (idx_p <= input_size / 4)
+    {
+        p = COMPLEX(input[idx_p].x, input[idx_p].y);
+        q = COMPLEX(input[idx_q].x, input[idx_q].y);
+    }
 
     if(IN_PLACE)
     {
@@ -261,8 +265,12 @@ __global__ void r2c_1d_post_process_kernel(size_t   input_size,
     size_t idx_p = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     size_t idx_q = (input_size >> 1) - idx_p;
 
-    T p = input[idx_p];
-    T q = input[idx_q];
+    T p, q;
+    if(idx_p <= input_size >> 2)
+    {
+        p = input[idx_p];
+        q = input[idx_q];
+    }
 
     if(IN_PLACE)
     {
@@ -321,8 +329,12 @@ __global__ void real_1d_pre_post_process_kernel(size_t   input_size,
     size_t idx_p = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     size_t idx_q = (input_size >> 1) - idx_p;
 
-    T p = input[idx_p];
-    T q = input[idx_q];
+    T p, q;
+    if(idx_p <= input_size >> 2)
+    {
+        p = input[idx_p];
+        q = input[idx_q];
+    }
 
     if(IN_PLACE)
     {

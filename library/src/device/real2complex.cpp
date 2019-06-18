@@ -349,8 +349,12 @@ __global__ void real_1d_pre_post_process_kernel(size_t   input_size,
     size_t idx_p = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     size_t idx_q = (input_size >> 1) - idx_p;
 
-    T p = input[idx_p];
-    T q = input[idx_q];
+    T p, q;
+    if(idx_p <= input_size >> 2)
+    {
+        p = input[idx_p];
+        q = input[idx_q];
+    }
 
     if(IN_PLACE)
     {
@@ -465,12 +469,8 @@ void real_1d_pre_post(const void* data_p, void* back_p)
     size_t input_distance  = data->node->iDist;
     size_t output_distance = data->node->oDist;
 
-    //Fixme!!!
-    //std::cout << "data->node->length.size() " << data->node->length.size() << std::endl;
-    size_t input_stride = 1;
-    //= (data->node->length.size() > 1) ? data->node->inStride[1] : input_distance;
-    size_t output_stride = 1;
-    //= (data->node->length.size() > 1) ? data->node->outStride[1] : output_distance;
+    size_t input_stride = (data->node->length.size() > 1) ? data->node->inStride[1] : input_distance;
+    size_t output_stride = (data->node->length.size() > 1) ? data->node->outStride[1] : output_distance;
 
     void* input_buffer  = data->bufIn[0];
     void* output_buffer = data->bufOut[0];

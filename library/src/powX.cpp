@@ -165,11 +165,11 @@ void PlanPowX(ExecPlan& execPlan)
             break;
         case CS_KERNEL_R_TO_CMPLX:
             ptr = &r2c_1d_post;
-            // FIXME: specify grid params
+            // specify grid params only if the kernel from code generator
             break;
         case CS_KERNEL_CMPLX_TO_R:
             ptr = &c2r_1d_pre;
-            // FIXME: specify grid params
+            // specify grid params only if the kernel from code generator
             break;
         case CS_KERNEL_CHIRP:
             ptr      = &FN_PRFX(chirp);
