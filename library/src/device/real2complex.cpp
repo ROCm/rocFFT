@@ -487,8 +487,10 @@ void real_1d_pre_post(const void* data_p, void* back_p)
     size_t input_distance  = data->node->iDist;
     size_t output_distance = data->node->oDist;
 
-    size_t input_stride = (data->node->length.size() > 1) ? data->node->inStride[1] : input_distance;
-    size_t output_stride = (data->node->length.size() > 1) ? data->node->outStride[1] : output_distance;
+    size_t input_stride
+        = (data->node->length.size() > 1) ? data->node->inStride[1] : input_distance;
+    size_t output_stride
+        = (data->node->length.size() > 1) ? data->node->outStride[1] : output_distance;
 
     void* input_buffer  = data->bufIn[0];
     void* output_buffer = data->bufOut[0];
