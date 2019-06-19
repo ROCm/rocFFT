@@ -304,7 +304,7 @@ __global__ void r2c_1d_post_process_kernel(size_t   input_size,
 // T is memory allocation type, could be float2 or double2.
 // Each thread handles 2 points.
 template <typename T, bool IN_PLACE, bool R2C>
-__global__ void real_1d_pre_post_process_kernel(size_t   input_size,
+__global__ void real_1d_pre_post_process_kernel(size_t   half_N,
                                                 size_t   input_stride,
                                                 size_t   output_stride,
                                                 T*       input,
@@ -327,10 +327,10 @@ __global__ void real_1d_pre_post_process_kernel(size_t   input_size,
     output += output_offset;
 
     size_t idx_p = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
-    size_t idx_q = (input_size >> 1) - idx_p;
+    size_t idx_q = half_N - idx_p;
 
     T p, q;
-    if(idx_p <= input_size >> 2)
+    if(idx_p <= half_N >> 1)
     {
         p = input[idx_p];
         q = input[idx_q];
@@ -356,7 +356,7 @@ __global__ void real_1d_pre_post_process_kernel(size_t   input_size,
             output[idx_p].y = p.x - q.x;
         }
     }
-    else if(idx_p <= input_size >> 2)
+    else if(idx_p <= half_N >> 1)
     {
         T u(p.x + q.x, p.y - q.y); // p + conj(q)
         T v(p.x - q.x, p.y + q.y); // p - conj(q)
@@ -488,7 +488,7 @@ void r2c_1d_post_process(size_t const N,
 
 // GPU intermediate host code
 template <typename T, bool R2C>
-void real_1d_pre_post_process(size_t const N,
+void real_1d_pre_post_process(size_t const half_N,
                               size_t       batch,
                               T*           d_input,
                               T*           d_output,
@@ -501,7 +501,7 @@ void real_1d_pre_post_process(size_t const N,
                               hipStream_t  rocfft_stream)
 {
     const size_t block_size = 512;
-    size_t       blocks     = (N / 4 + 1 - 1) / block_size + 1;
+    size_t       blocks     = (half_N / 2 + 1 - 1) / block_size + 1;
 
     if(high_dimension > 65535 || batch > 65535)
         printf("2D and 3D or batch is too big; not implemented\n");
@@ -522,7 +522,7 @@ void real_1d_pre_post_process(size_t const N,
                            threads,
                            0,
                            rocfft_stream,
-                           N,
+                           half_N,
                            input_stride,
                            output_stride,
                            d_input,
@@ -538,7 +538,7 @@ void real_1d_pre_post_process(size_t const N,
                            threads,
                            0,
                            rocfft_stream,
-                           N,
+                           half_N,
                            input_stride,
                            output_stride,
                            d_input,
@@ -622,7 +622,7 @@ void r2c_1d_gpu_post_process_test(size_t const N, size_t batch, float const* inp
     //r2c_1d_post_process<float2>(N, batch, d_input, d_input, d_twiddles,
     //                            high_dimension, input_stride, output_stride,
     //                            input_distance, output_distance, 0);
-    real_1d_pre_post_process<float2, true>(N,
+    real_1d_pre_post_process<float2, true>(N/2,
                                            batch,
                                            d_input,
                                            d_input,
@@ -640,7 +640,7 @@ void r2c_1d_gpu_post_process_test(size_t const N, size_t batch, float const* inp
     //r2c_1d_post_process<float2>(N, batch, d_input, d_output, d_twiddles,
     //                            high_dimension, input_stride, output_stride,
     //                            input_distance, output_distance, 0);
-    //real_1d_pre_post_process<float2, true>(N, batch, d_input, d_output, d_twiddles,
+    //real_1d_pre_post_process<float2, true>(N/2, batch, d_input, d_output, d_twiddles,
     //                            high_dimension, input_stride, output_stride,
     //                            input_distance, output_distance, 0);
     //hipMemcpy(outputs, d_output, sizeof(float2) * (N/2+1) * batch, hipMemcpyDeviceToHost);
@@ -772,7 +772,7 @@ void c2r_1d_gpu_pre_process_test(size_t const N, size_t batch, cplx const* input
         = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * (N / 2) * batch);
 
     // in-place test
-    real_1d_pre_post_process<float2, false>(N,
+    real_1d_pre_post_process<float2, false>(N/2,
                                             batch,
                                             d_input,
                                             d_input,
@@ -787,7 +787,7 @@ void c2r_1d_gpu_pre_process_test(size_t const N, size_t batch, cplx const* input
     hipMemcpy(work_in_out, d_input, total_output_bytes, hipMemcpyDeviceToHost);
 
     // out-place test
-    //real_1d_pre_post_process<float2, false>(N, batch, d_input, d_output, d_twiddles,
+    //real_1d_pre_post_process<float2, false>(N/2, batch, d_input, d_output, d_twiddles,
     //                            high_dimension, input_stride, output_stride,
     //                            input_distance, output_distance, 0);
     //hipMemcpy(work_in_out, d_output, total_output_bytes, hipMemcpyDeviceToHost);
