@@ -49,15 +49,15 @@ function display_help()
 supported_distro( )
 {
     if [ -z ${ID+foo} ]; then
-	printf "supported_distro(): \$ID must be set\n"
-	exit 2
+        printf "supported_distro(): \$ID must be set\n"
+        exit 2
     fi
 
     case "${ID}" in
-	ubuntu|centos|rhel|fedora)
+        ubuntu|centos|rhel|fedora)
             true
             ;;
-	*)  printf "This script is currently supported on Ubuntu, CentOS, RHEL and Fedora\n"
+        *)  printf "This script is currently supported on Ubuntu, CentOS, RHEL and Fedora\n"
             exit 2
             ;;
     esac
@@ -68,7 +68,7 @@ supported_distro( )
 check_exit_code( )
 {
     if (( $? != 0 )); then
-	exit $?
+        exit $?
     fi
 }
 
@@ -82,13 +82,13 @@ check_install_dir() {
     while [[ ${dir} != ${lastdir}  ]]
     do
 	#echo ${dir}
-	if [ -d "${dir}" ]; then
-	    if [ -w ${dir} ]; then
-		indir_is_ok=0
-	    fi
-	    break
-	fi
-	dir="$(dirname "$dir")"
+        if [ -d "${dir}" ]; then
+            if [ -w ${dir} ]; then
+                indir_is_ok=0
+            fi
+            break
+        fi
+        dir="$(dirname "$dir")"
     done
     return ${indir_is_ok}
 }
@@ -100,11 +100,11 @@ elevate_if_not_root( )
     local uid=$(id -u)
 
     if (( ${uid} )); then
-	sudo $@
-	check_exit_code
+        sudo $@
+        check_exit_code
     else
-	$@
-	check_exit_code
+        $@
+        check_exit_code
     fi
 }
 
@@ -114,10 +114,10 @@ install_apt_packages( )
 {
     package_dependencies=("$@")
     for package in "${package_dependencies[@]}"; do
-	if [[ $(dpkg-query --show --showformat='${db:Status-Abbrev}\n' ${package} 2> /dev/null | grep -q "ii"; echo $?) -ne 0 ]]; then
-	    printf "\033[32mInstalling \033[33m${package}\033[32m from distro package manager\033[0m\n"
-	    elevate_if_not_root apt install -y --no-install-recommends ${package}
-	fi
+        if [[ $(dpkg-query --show --showformat='${db:Status-Abbrev}\n' ${package} 2> /dev/null | grep -q "ii"; echo $?) -ne 0 ]]; then
+            printf "\033[32mInstalling \033[33m${package}\033[32m from distro package manager\033[0m\n"
+            elevate_if_not_root apt install -y --no-install-recommends ${package}
+        fi
     done
 }
 
@@ -127,10 +127,10 @@ install_yum_packages( )
 {
     package_dependencies=("$@")
     for package in "${package_dependencies[@]}"; do
-	if [[ $(yum list installed ${package} &> /dev/null; echo $? ) -ne 0 ]]; then
-	    printf "\033[32mInstalling \033[33m${package}\033[32m from distro package manager\033[0m\n"
-	    elevate_if_not_root yum -y --nogpgcheck install ${package}
-	fi
+        if [[ $(yum list installed ${package} &> /dev/null; echo $? ) -ne 0 ]]; then
+            printf "\033[32mInstalling \033[33m${package}\033[32m from distro package manager\033[0m\n"
+            elevate_if_not_root yum -y --nogpgcheck install ${package}
+        fi
     done
 }
 
@@ -140,10 +140,10 @@ install_dnf_packages( )
 {
     package_dependencies=("$@")
     for package in "${package_dependencies[@]}"; do
-	if [[ $(dnf list installed ${package} &> /dev/null; echo $? ) -ne 0 ]]; then
-	    printf "\033[32mInstalling \033[33m${package}\033[32m from distro package manager\033[0m\n"
-	    elevate_if_not_root dnf install -y ${package}
-	fi
+        if [[ $(dnf list installed ${package} &> /dev/null; echo $? ) -ne 0 ]]; then
+            printf "\033[32mInstalling \033[33m${package}\033[32m from distro package manager\033[0m\n"
+            elevate_if_not_root dnf install -y ${package}
+        fi
     done
 }
 
@@ -153,13 +153,13 @@ install_dnf_packages( )
 install_packages( )
 {
     if [ -z ${ID+foo} ]; then
-	printf "install_packages(): \$ID must be set\n"
-	exit 2
+        printf "install_packages(): \$ID must be set\n"
+        exit 2
     fi
 
     if [ -z ${build_clients+foo} ]; then
-	printf "install_packages(): \$build_clients must be set\n"
-	exit 2
+        printf "install_packages(): \$build_clients must be set\n"
+        exit 2
     fi
 
     # dependencies needed for rocfft and clients to build
@@ -168,10 +168,10 @@ install_packages( )
     local library_dependencies_fedora=( "make" "cmake" "hip_hcc" "gcc-c++" "libcxx-devel" "rpm-build" )
 
     if [[ "${build_cuda}" == true ]]; then
-	# Ideally, this could be cuda-cufft-dev, but the package name has a version number in it
-	library_dependencies_ubuntu+=( "cuda" )
-	library_dependencies_centos+=( "" ) # how to install cuda on centos?
-	library_dependencies_fedora+=( "" ) # how to install cuda on fedora?
+        # Ideally, this could be cuda-cufft-dev, but the package name has a version number in it
+        library_dependencies_ubuntu+=( "cuda" )
+        library_dependencies_centos+=( "" ) # how to install cuda on centos?
+        library_dependencies_fedora+=( "" ) # how to install cuda on fedora?
     fi
 
     local client_dependencies_ubuntu=( "libfftw3-dev" "libboost-program-options-dev" )
@@ -179,36 +179,36 @@ install_packages( )
     local client_dependencies_fedora=( "fftw-devel" "boost-devel" )
 
     case "${ID}" in
-	ubuntu)
-	    # elevate_if_not_root apt update
-	    install_apt_packages "${library_dependencies_ubuntu[@]}"
+        ubuntu)
+            # elevate_if_not_root apt update
+            install_apt_packages "${library_dependencies_ubuntu[@]}"
 
-	    if [[ "${build_clients}" == true ]]; then
-		install_apt_packages "${client_dependencies_ubuntu[@]}"
-	    fi
-	    ;;
+            if [[ "${build_clients}" == true ]]; then
+            install_apt_packages "${client_dependencies_ubuntu[@]}"
+            fi
+            ;;
 
-	centos|rhel)
-	    # elevate_if_not_root yum -y update
-	    install_yum_packages "${library_dependencies_centos[@]}"
+        centos|rhel)
+            # elevate_if_not_root yum -y update
+            install_yum_packages "${library_dependencies_centos[@]}"
 
-	    if [[ "${build_clients}" == true ]]; then
-		install_yum_packages "${client_dependencies_centos[@]}"
-	    fi
-	    ;;
+            if [[ "${build_clients}" == true ]]; then
+                install_yum_packages "${client_dependencies_centos[@]}"
+            fi
+            ;;
 
-	fedora)
-	    # elevate_if_not_root dnf -y update
-	    install_dnf_packages "${library_dependencies_fedora[@]}"
+        fedora)
+            # elevate_if_not_root dnf -y update
+            install_dnf_packages "${library_dependencies_fedora[@]}"
 
-	    if [[ "${build_clients}" == true ]]; then
-		install_dnf_packages "${client_dependencies_fedora[@]}"
-	    fi
-	    ;;
-	*)
-	    echo "This script is currently supported on Ubuntu, CentOS, RHEL and Fedora"
-	    exit 2
-	    ;;
+            if [[ "${build_clients}" == true ]]; then
+                install_dnf_packages "${client_dependencies_fedora[@]}"
+            fi
+            ;;
+        *)
+            echo "This script is currently supported on Ubuntu, CentOS, RHEL and Fedora"
+            exit 2
+            ;;
     esac
 }
 
@@ -269,34 +269,34 @@ eval set -- "${GETOPT_PARSE}"
 
 while true; do
     case "${1}" in
-	-h|--help)
+        -h|--help)
             display_help
             exit 0
             ;;
-	-i|--install)
+        -i|--install)
             install_package=true
             shift ;;
-	-d|--dependencies)
+        -d|--dependencies)
             install_dependencies=true
             shift ;;
-	-c|--clients)
+        -c|--clients)
             build_clients=true
             shift ;;
-	-g|--debug)
+        -g|--debug)
             build_release=false
             shift ;;
-	--cuda)
+        --cuda)
             build_cuda=true
             shift ;;
-	--hip-clang)
+        --hip-clang)
             build_hip_clang=true
             shift ;;
-	--prefix)
-	    echo $2
+        --prefix)
+            echo $2
             install_prefix=${2}
             shift 2 ;;
-	--) shift ; break ;;
-	*)  echo "Unexpected command line parameter received; aborting";
+        --) shift ; break ;;
+        *)  echo "Unexpected command line parameter received; aborting";
             exit 1
             ;;
     esac
@@ -382,17 +382,17 @@ if [[ "${build_cuda}" == false ]]; then
 
     # Build library with AMD toolchain because of existense of device kernels
     if [[ "${build_clients}" == true ]]; then
-	CXX=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX=${install_prefix} -DCPACK_PACKAGING_INSTALL_PREFIX=/opt/rocm ../..
+        CXX=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX=${install_prefix} -DCPACK_PACKAGING_INSTALL_PREFIX=/opt/rocm ../..
     else
-	CXX=${compiler} ${cmake_executable} ${cmake_common_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX=${install_prefix} -DCPACK_PACKAGING_INSTALL_PREFIX=/opt/rocm ../..
+        CXX=${compiler} ${cmake_executable} ${cmake_common_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX=${install_prefix} -DCPACK_PACKAGING_INSTALL_PREFIX=/opt/rocm ../..
     fi
     check_exit_code
     make -j$(nproc)
     check_exit_code
     if ( check_install_dir ${install_prefix} ) ; then
-	make install
+        make install
     else
-	elevate_if_not_root make install
+        elevate_if_not_root make install
     fi
     check_exit_code
 
@@ -416,18 +416,18 @@ else
     make -j$(nproc)
     check_exit_code
     if ( check_install_dir ${install_prefix} ) ; then
-	make install
+        make install
     else
-	elevate_if_not_root make install
+        elevate_if_not_root make install
     fi
     check_exit_code
     
     # Build cuda clients with default host compiler
     if [[ "${build_clients}" == true ]]; then
-	pushd clients
+        pushd clients
         ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCMAKE_PREFIX_PATH="$(pwd)/../rocfft-install;$(pwd)/../deps/deps-install" ../../../clients
         make -j$(nproc)
-	popd
+        popd
     fi
 fi
 
@@ -443,15 +443,15 @@ if [[ "${install_package}" == true ]]; then
         check_exit_code
     fi
     case "${ID}" in
-	ubuntu)
+        ubuntu)
             elevate_if_not_root dpkg -i rocfft-*.deb
-	    ;;
-	centos|rhel)
+            ;;
+        centos|rhel)
             elevate_if_not_root yum -y localinstall rocfft-*.rpm
-	    ;;
-	fedora)
+            ;;
+        fedora)
             elevate_if_not_root dnf install rocfft-*.rpm
-	    ;;
+            ;;
     esac
 
 fi
