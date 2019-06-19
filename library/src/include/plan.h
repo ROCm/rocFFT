@@ -23,6 +23,7 @@
 #ifndef PLAN_H
 #define PLAN_H
 
+#include <array>
 #include <cstring>
 #include <vector>
 
@@ -65,14 +66,14 @@ struct rocfft_plan_description_t
 
     rocfft_array_type inArrayType, outArrayType;
 
-    size_t inStrides[3];
-    size_t outStrides[3];
+    std::array<size_t, 3> inStrides;
+    std::array<size_t, 3> outStrides;
 
     size_t inDist;
     size_t outDist;
 
-    size_t inOffset[2];
-    size_t outOffset[2];
+    std::array<size_t, 2> inOffset;
+    std::array<size_t, 2> outOffset;
 
     double scale;
 
@@ -81,21 +82,14 @@ struct rocfft_plan_description_t
         inArrayType  = rocfft_array_type_complex_interleaved;
         outArrayType = rocfft_array_type_complex_interleaved;
 
-        inStrides[0] = 0;
-        inStrides[1] = 0;
-        inStrides[2] = 0;
-
-        outStrides[0] = 0;
-        outStrides[1] = 0;
-        outStrides[2] = 0;
+        inStrides.fill(0);
+        outStrides.fill(0);
 
         inDist  = 0;
         outDist = 0;
 
-        inOffset[0]  = 0;
-        inOffset[1]  = 0;
-        outOffset[0] = 0;
-        outOffset[1] = 0;
+        inOffset.fill(0);
+        outOffset.fill(0);
 
         scale = 1.0;
     }
@@ -103,9 +97,9 @@ struct rocfft_plan_description_t
 
 struct rocfft_plan_t
 {
-    size_t rank;
-    size_t lengths[3];
-    size_t batch;
+    size_t                rank;
+    std::array<size_t, 3> lengths;
+    size_t                batch;
 
     rocfft_result_placement placement;
     rocfft_transform_type   transformType;
@@ -122,9 +116,7 @@ struct rocfft_plan_t
         , precision(rocfft_precision_single)
         , base_type_size(sizeof(float))
     {
-        lengths[0] = 1;
-        lengths[1] = 1;
-        lengths[2] = 1;
+        lengths.fill(1);
     }
 
     bool operator<(const rocfft_plan_t& b) const

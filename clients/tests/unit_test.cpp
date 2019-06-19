@@ -91,3 +91,48 @@ TEST(rocfft_UnitTest, sample_code_iterative)
         hipFree(x);
     }
 }
+
+TEST(rocfft_UnitTest, plan_description)
+{
+    rocfft_plan_description desc = nullptr;
+    EXPECT_TRUE(rocfft_status_success == rocfft_plan_description_create(&desc));
+
+    rocfft_array_type in_array_type  = rocfft_array_type_complex_interleaved;
+    rocfft_array_type out_array_type = rocfft_array_type_complex_interleaved;
+
+    size_t rank = 1;
+
+    size_t i_strides[3] = {1, 1, 1};
+    size_t o_strides[3] = {1, 1, 1};
+
+    size_t idist = 0;
+    size_t odist = 0;
+
+    rocfft_plan plan   = NULL;
+    size_t      length = 8;
+
+    EXPECT_TRUE(rocfft_status_success
+                == rocfft_plan_description_set_data_layout(desc,
+                                                           in_array_type,
+                                                           out_array_type,
+                                                           0,
+                                                           0,
+                                                           rank,
+                                                           i_strides,
+                                                           idist,
+                                                           rank,
+                                                           o_strides,
+                                                           odist));
+    EXPECT_TRUE(rocfft_status_success
+                == rocfft_plan_create(&plan,
+                                      rocfft_placement_inplace,
+                                      rocfft_transform_type_complex_forward,
+                                      rocfft_precision_single,
+                                      rank,
+                                      &length,
+                                      1,
+                                      desc));
+
+    EXPECT_TRUE(rocfft_status_success == rocfft_plan_description_destroy(desc));
+    EXPECT_TRUE(rocfft_status_success == rocfft_plan_destroy(plan));
+}

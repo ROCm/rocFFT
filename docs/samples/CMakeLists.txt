@@ -28,7 +28,7 @@ PROJECT(rocfft_samples CXX)
 find_package(hip)
 find_package(rocfft)
 
-set (samples complex_1d real2complex_1d)
+set (samples complex_1d complex_2d complex_3d real2complex_1d real2complex_2d real2complex_3d)
 
 foreach( exe ${samples} )
   add_executable(${exe} "${exe}.cpp")

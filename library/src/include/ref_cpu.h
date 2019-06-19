@@ -503,6 +503,7 @@ class RefLibOp
             // TODO: what about the real transpose case?
             std::complex<float>* ot = (std::complex<float>*)fftwout.data;
             std::complex<float>* in = (std::complex<float>*)fftwin.data;
+
             CopyInputVector(data_p);
 
             size_t howmany = data->node->batch;
