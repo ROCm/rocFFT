@@ -42,7 +42,7 @@ __global__ void transpose_var1(T*          twiddles_large,
     // wgUnroll ][ wgTileExtent.x ];
 
     constexpr size_t TWIDTH = 64 / (sizeof(T) / 8);
-    __shared__ T lds[TWIDTH][TWIDTH];
+    __shared__ T     lds[TWIDTH][TWIDTH];
 
     size_t currDimIndex;
     size_t rowSizeinUnits;

@@ -403,8 +403,7 @@ class RefLibOp
 
         switch(data->node->scheme)
         {
-        case CS_KERNEL_STOCKHAM:
-        {
+        case CS_KERNEL_STOCKHAM: {
             RefLibHandle&             refHandle = RefLibHandle::GetRefLibHandle();
             ftype_fftwf_plan_many_dft local_fftwf_plan_many_dft
                 = (ftype_fftwf_plan_many_dft)dlsym(refHandle.fftw3f_lib, "fftwf_plan_many_dft");
@@ -438,8 +437,7 @@ class RefLibOp
             local_fftwf_destroy_plan(p);
         }
         break;
-        case CS_KERNEL_TRANSPOSE:
-        {
+        case CS_KERNEL_TRANSPOSE: {
             CopyInputVector(data_p);
 
             size_t howmany = data->node->batch;
@@ -503,8 +501,7 @@ class RefLibOp
             }
         }
         break;
-        case CS_KERNEL_COPY_R_TO_CMPLX:
-        {
+        case CS_KERNEL_COPY_R_TO_CMPLX: {
             size_t in_size_bytes = (data->node->iDist * data->node->batch) * sizeof(float);
 
             std::vector<float, fftwAllocator<float>> tmp_mem(data->node->iDist * data->node->batch);
@@ -525,8 +522,7 @@ class RefLibOp
             }
         }
         break;
-        case CS_KERNEL_COPY_CMPLX_TO_HERM:
-        {
+        case CS_KERNEL_COPY_CMPLX_TO_HERM: {
             // assump the input is complex, the output is hermitian on take the first
             // [N/2 + 1] elements
             size_t in_size_bytes = (data->node->iDist * data->node->batch) * 2 * sizeof(float);
@@ -555,8 +551,7 @@ class RefLibOp
             }
         }
         break;
-        case CS_KERNEL_COPY_HERM_TO_CMPLX:
-        {
+        case CS_KERNEL_COPY_HERM_TO_CMPLX: {
             // assump the input is hermitian, the output is complex on take the first
             // [N/2 + 1] elements
             size_t in_size_bytes = (data->node->iDist * data->node->batch) * 2 * sizeof(float);
@@ -593,15 +588,13 @@ class RefLibOp
                 }
             }
         }
-        case CS_KERNEL_CHIRP:
-        {
+        case CS_KERNEL_CHIRP: {
             size_t N = data->node->length[0];
             size_t M = data->node->lengthBlue;
             chirp(N, M, data->node->direction, (local_fftwf_complex*)ot.data());
         }
         break;
-        case CS_KERNEL_PAD_MUL:
-        {
+        case CS_KERNEL_PAD_MUL: {
             CopyInputVector(data_p);
 
             size_t howmany = data->node->batch;
@@ -638,8 +631,7 @@ class RefLibOp
             }
         }
         break;
-        case CS_KERNEL_FFT_MUL:
-        {
+        case CS_KERNEL_FFT_MUL: {
             size_t M = data->node->lengthBlue;
             size_t N = data->node->parent->length[0];
 
@@ -667,8 +659,7 @@ class RefLibOp
             }
         }
         break;
-        case CS_KERNEL_RES_MUL:
-        {
+        case CS_KERNEL_RES_MUL: {
             size_t M = data->node->lengthBlue;
             size_t N = data->node->length[0];
 

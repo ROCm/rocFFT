@@ -247,17 +247,17 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_double( rocfft_pla
  * output buffer
  *  */
 ROCFFT_EXPORT rocfft_status
-              rocfft_plan_description_set_data_layout(rocfft_plan_description description,
-                                                      rocfft_array_type       in_array_type,
-                                                      rocfft_array_type       out_array_type,
-                                                      const size_t*           in_offsets,
-                                                      const size_t*           out_offsets,
-                                                      size_t                  in_strides_size,
-                                                      const size_t*           in_strides,
-                                                      size_t                  in_distance,
-                                                      size_t                  out_strides_size,
-                                                      const size_t*           out_strides,
-                                                      size_t                  out_distance);
+    rocfft_plan_description_set_data_layout(rocfft_plan_description description,
+                                            rocfft_array_type       in_array_type,
+                                            rocfft_array_type       out_array_type,
+                                            const size_t*           in_offsets,
+                                            const size_t*           out_offsets,
+                                            size_t                  in_strides_size,
+                                            const size_t*           in_strides,
+                                            size_t                  in_distance,
+                                            size_t                  out_strides_size,
+                                            const size_t*           out_strides,
+                                            size_t                  out_distance);
 
 /*! @brief Get library version string
  *
