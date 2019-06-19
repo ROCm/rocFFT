@@ -79,7 +79,7 @@ protected:
     // Character output
     static void print_value(std::ostream& os, char c)
     {
-        char s[] {c, 0};
+        char s[]{c, 0};
         os << std::quoted(s, '\'');
     }
 
@@ -102,13 +102,13 @@ protected:
     /************************************************************************************
      * Print tuples
      ************************************************************************************/
-    template <typename TUP, size_t idx = std::tuple_size<TUP> {}>
+    template <typename TUP, size_t idx = std::tuple_size<TUP>{}>
     struct print_tuple_recurse
     {
         template <typename F>
         __attribute__((always_inline)) void operator()(F& print_argument, const TUP& tuple)
         {
-            print_tuple_recurse<TUP, idx - 2> {}(print_argument, tuple);
+            print_tuple_recurse<TUP, idx - 2>{}(print_argument, tuple);
             print_argument(std::get<idx - 2>(tuple), std::get<idx - 1>(tuple));
         }
     };
@@ -126,7 +126,7 @@ protected:
     template <typename TUP>
     static void print_tuple(std::ostream& os, const TUP& tuple)
     {
-        static_assert(std::tuple_size<TUP> {} % 2 == 0, "Tuple size must be even");
+        static_assert(std::tuple_size<TUP>{} % 2 == 0, "Tuple size must be even");
 
         // delim starts as "- {" and becomes "," afterwards
         auto print_argument = [&, delim = "- {"](auto&& name, auto&& value) mutable {
@@ -134,7 +134,7 @@ protected:
             print_value(os, value);
             delim = ",";
         };
-        print_tuple_recurse<TUP> {}(print_argument, tuple);
+        print_tuple_recurse<TUP>{}(print_argument, tuple);
         os << " }" << std::endl;
     }
 
@@ -143,16 +143,16 @@ protected:
      ************************************************************************************/
     // Workaround for compilers which don't implement C++14 enum hash (LWG 2148)
     template <typename T>
-    static typename std::enable_if<std::is_enum<T> {}, size_t>::type hash(const T& x)
+    static typename std::enable_if<std::is_enum<T>{}, size_t>::type hash(const T& x)
     {
-        return std::hash<typename std::underlying_type<T>::type> {}(x);
+        return std::hash<typename std::underlying_type<T>::type>{}(x);
     }
 
     // Default hash for non-enum types
     template <typename T>
-    static typename std::enable_if<!std::is_enum<T> {}, size_t>::type hash(const T& x)
+    static typename std::enable_if<!std::is_enum<T>{}, size_t>::type hash(const T& x)
     {
-        return std::hash<T> {}(x);
+        return std::hash<T>{}(x);
     }
 
     // C-style string hash since std::hash does not hash them
@@ -171,12 +171,12 @@ protected:
     }
 
     // Combine tuple value hashes, computing hash of all tuple values
-    template <typename TUP, size_t idx = std::tuple_size<TUP> {}>
+    template <typename TUP, size_t idx = std::tuple_size<TUP>{}>
     struct tuple_hash_recurse
     {
         __attribute__((always_inline)) size_t operator()(const TUP& tup)
         {
-            size_t seed = tuple_hash_recurse<TUP, idx - 2> {}(tup);
+            size_t seed = tuple_hash_recurse<TUP, idx - 2>{}(tup);
             return seed ^ (hash(std::get<idx - 1>(tup)) + 0x9e3779b9 + (seed << 6) + (seed >> 2));
         }
     };
@@ -195,10 +195,10 @@ protected:
     template <typename TUP>
     struct hash_t
     {
-        static_assert(std::tuple_size<TUP> {} % 2 == 0, "Tuple size must be even");
+        static_assert(std::tuple_size<TUP>{} % 2 == 0, "Tuple size must be even");
         size_t operator()(const TUP& x) const
         {
-            return tuple_hash_recurse<TUP> {}(x);
+            return tuple_hash_recurse<TUP>{}(x);
         }
     };
 
@@ -225,13 +225,13 @@ protected:
     }
 
     // Recursively compare tuple values, short-circuiting
-    template <typename TUP, size_t idx = std::tuple_size<TUP> {}>
+    template <typename TUP, size_t idx = std::tuple_size<TUP>{}>
     struct tuple_equal_recurse
     {
         bool operator()(const TUP& t1, const TUP& t2)
         {
             return equal(std::get<idx - 1>(t1), std::get<idx - 1>(t2))
-                   && tuple_equal_recurse<TUP, idx - 2> {}(t1, t2);
+                   && tuple_equal_recurse<TUP, idx - 2>{}(t1, t2);
         }
     };
 
@@ -249,10 +249,10 @@ protected:
     template <typename TUP>
     struct equal_t
     {
-        static_assert(std::tuple_size<TUP> {} % 2 == 0, "Tuple size must be even");
+        static_assert(std::tuple_size<TUP>{} % 2 == 0, "Tuple size must be even");
         __attribute__((flatten)) bool operator()(const TUP& x, const TUP& y) const
         {
-            return tuple_equal_recurse<TUP> {}(x, y);
+            return tuple_equal_recurse<TUP>{}(x, y);
         }
     };
 };
@@ -304,7 +304,7 @@ public:
         // If new entry inserted, replace nullptr with new value
         // If tuple already exists, atomically increment count
         if(inserted)
-            p->second = new std::atomic_size_t {1};
+            p->second = new std::atomic_size_t{1};
         else
             ++*p->second;
     }

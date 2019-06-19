@@ -118,8 +118,7 @@ namespace StockhamGenerator
             // Butterfly for different radices
             switch(radix)
             {
-            case 2:
-            {
+            case 2: {
                 if(cReg)
                 {
                     bflyStr += "(*R1) = (*R0) - (*R1);\n\t"
@@ -134,8 +133,7 @@ namespace StockhamGenerator
                 }
             }
             break;
-            case 3:
-            {
+            case 3: {
                 if(fwd)
                 {
                     if(cReg)
@@ -200,8 +198,7 @@ namespace StockhamGenerator
                 }
             }
             break;
-            case 4:
-            {
+            case 4: {
                 if(fwd)
                 {
                     if(cReg)
@@ -262,8 +259,7 @@ namespace StockhamGenerator
                 }
             }
             break;
-            case 5:
-            {
+            case 5: {
                 if(fwd)
                 {
                     if(cReg)
@@ -388,8 +384,7 @@ namespace StockhamGenerator
                 }
             }
             break;
-            case 6:
-            {
+            case 6: {
                 if(fwd)
                 {
                     if(cReg)
@@ -606,8 +601,7 @@ namespace StockhamGenerator
                 }
             }
             break;
-            case 7:
-            {
+            case 7: {
                 static const char* C7SFR = "\
 					/*FFT7 Forward Real */ \n\
 					\n\
@@ -956,8 +950,7 @@ namespace StockhamGenerator
             }
             break;
 
-            case 8:
-            {
+            case 8: {
                 if(fwd)
                 {
                     if(cReg)
@@ -1136,8 +1129,7 @@ namespace StockhamGenerator
                 }
             }
             break;
-            case 10:
-            {
+            case 10: {
                 if(fwd)
                 {
                     if(cReg)
@@ -1506,8 +1498,7 @@ namespace StockhamGenerator
                 }
             }
             break;
-            case 11:
-            {
+            case 11: {
                 static const char* radix11str = " \
 						fptype p0, p1, p2, p3, p4, p5, p6, p7, p8, p9; \n\
 						p0 = ((*R1).x - (*R10).x)*dir; \n\
@@ -1674,8 +1665,7 @@ namespace StockhamGenerator
                 bflyStr += radix11str;
             }
             break;
-            case 13:
-            {
+            case 13: {
 
                 static const char* radix13str = " \
 						fptype p0, p1, p2, p3, p4, p5, p6, p7, p8, p9;\n\

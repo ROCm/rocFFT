@@ -109,10 +109,10 @@ DLL_PUBLIC hipfftResult hipfftMakePlan1d(hipfftHandle plan,
                                          size_t*      workSize);
 
 DLL_PUBLIC hipfftResult
-           hipfftMakePlan2d(hipfftHandle plan, int nx, int ny, hipfftType type, size_t* workSize);
+    hipfftMakePlan2d(hipfftHandle plan, int nx, int ny, hipfftType type, size_t* workSize);
 
 DLL_PUBLIC hipfftResult
-           hipfftMakePlan3d(hipfftHandle plan, int nx, int ny, int nz, hipfftType type, size_t* workSize);
+    hipfftMakePlan3d(hipfftHandle plan, int nx, int ny, int nz, hipfftType type, size_t* workSize);
 
 DLL_PUBLIC hipfftResult hipfftMakePlanMany(hipfftHandle plan,
                                            int          rank,
@@ -183,10 +183,10 @@ DLL_PUBLIC hipfftResult hipfftGetSize1d(hipfftHandle plan,
                                         size_t*      workSize);
 
 DLL_PUBLIC hipfftResult
-           hipfftGetSize2d(hipfftHandle plan, int nx, int ny, hipfftType type, size_t* workSize);
+    hipfftGetSize2d(hipfftHandle plan, int nx, int ny, hipfftType type, size_t* workSize);
 
 DLL_PUBLIC hipfftResult
-           hipfftGetSize3d(hipfftHandle plan, int nx, int ny, int nz, hipfftType type, size_t* workSize);
+    hipfftGetSize3d(hipfftHandle plan, int nx, int ny, int nz, hipfftType type, size_t* workSize);
 
 DLL_PUBLIC hipfftResult hipfftGetSizeMany(hipfftHandle plan,
                                           int          rank,
