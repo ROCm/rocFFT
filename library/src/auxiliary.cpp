@@ -27,6 +27,7 @@
 #include "logging.h"
 #include "rocfft.h"
 #include "rocfft_hip.h"
+#include <iostream>
 
 /*******************************************************************************
  * Static handle data
