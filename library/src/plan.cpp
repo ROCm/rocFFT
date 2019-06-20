@@ -699,8 +699,11 @@ ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, const size_t le
 
 void TreeNode::BuildRealEven()
 {
-    assert(dimension == 1); // FIXME: temp
-    assert(length[0] % 2 == 0);
+    // TODO: remove when multi-dimensional transforms are implemented
+    assert(dimension == 1);
+
+    // Last dimension must be even:
+    assert(length[dimension - 1] % 2 == 0);
 
     scheme = CS_REAL_TRANSFORM_EVEN;
 
@@ -708,8 +711,8 @@ void TreeNode::BuildRealEven()
     cfftPlan->dimension = dimension;
     cfftPlan->length    = length;
     cfftPlan->length[0] = cfftPlan->length[0] / 2;
-    cfftPlan->inStride  = inStride; // FIXME: deal with padding, placeness
-    cfftPlan->outStride = outStride; // FIXME: deal with padding, placeness
+    cfftPlan->inStride  = inStride; // TODO: deal with padding, placeness
+    cfftPlan->outStride = outStride; // TODO: deal with padding, placeness
 
     cfftPlan->inArrayType  = rocfft_array_type_complex_interleaved;
     cfftPlan->outArrayType = rocfft_array_type_complex_interleaved;
@@ -1836,7 +1839,7 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         }
         else
         {
-            // FIXME: why?
+            // TODO: document why
             assert(obIn == flipIn);
             assert(obIn == obOut);
 
@@ -2085,11 +2088,6 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
     break;
     case CS_REAL_TRANSFORM_EVEN: {
         assert(childNodes.size() == 2);
-
-        // FIXME: check strides and dists.
-
-        // FIXME: what happens if there is a user-specified stride and
-        // dist?  What if they aren't even?
 
         if(direction == -1)
         {
@@ -2441,7 +2439,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         {
             // here we don't have B info right away, we get it through its parent
 
-            // FIXME: what is this assert for?
+            // TODO: what is this assert for?
             assert(parent->obOut == OB_USER_OUT || parent->obOut == OB_TEMP_CMPLX_FOR_REAL
                    || parent->scheme == CS_REAL_TRANSFORM_EVEN);
 

@@ -341,8 +341,8 @@ void TransformPowX(const ExecPlan&       execPlan,
             {
                 std::cout << "x: " << x << " kernel output result: " << f_out[x].x << " "
                           << f_out[x].y << "\n";
-                // FIXME: what about real output?
-                // FIXME: what about batches?
+                // TODO: what about real output?
+                // TODO: what about batches?
             }
             break;
         case 2:
@@ -358,11 +358,11 @@ void TransformPowX(const ExecPlan&       execPlan,
 
             break;
         case 3:
-            // FIXME
+            // TODO
             break;
         default:
             break;
-            //FIXME
+            // TODO
         }
 
         std::cout << "\n---------------------------------------------\n";

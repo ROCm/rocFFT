@@ -874,19 +874,14 @@ public:
             break;
         case CS_KERNEL_FFT_MUL:
         case CS_KERNEL_PAD_MUL:
+            // TODO: document
             bufOut = ((char*)bufOut + 2 * 2 * sizeof(float) * data->node->lengthBlue);
             break;
         case CS_KERNEL_COPY_CMPLX_TO_R:
-            return; // not implemented
-            break;
         case CS_KERNEL_COPY_HERM_TO_CMPLX:
-            return; // not implemented
-            break;
         case CS_KERNEL_STOCKHAM_BLOCK_RC:
-            return; // FIXME: temp
-            break;
         case CS_KERNEL_STOCKHAM_BLOCK_CC:
-            return; // FIXME: temp
+            return; // not implemented
             break;
         case CS_KERNEL_COPY_CMPLX_TO_HERM:
             checklength = libout.size / 2 + 1;

@@ -622,7 +622,7 @@ void r2c_1d_gpu_post_process_test(size_t const N, size_t batch, float const* inp
     //r2c_1d_post_process<float2>(N, batch, d_input, d_input, d_twiddles,
     //                            high_dimension, input_stride, output_stride,
     //                            input_distance, output_distance, 0);
-    real_1d_pre_post_process<float2, true>(N/2,
+    real_1d_pre_post_process<float2, true>(N / 2,
                                            batch,
                                            d_input,
                                            d_input,
@@ -772,7 +772,7 @@ void c2r_1d_gpu_pre_process_test(size_t const N, size_t batch, cplx const* input
         = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * (N / 2) * batch);
 
     // in-place test
-    real_1d_pre_post_process<float2, false>(N/2,
+    real_1d_pre_post_process<float2, false>(N / 2,
                                             batch,
                                             d_input,
                                             d_input,
