@@ -342,7 +342,7 @@ void complex2hermitian(const void* data_p, void* back_p)
 // T is memory allocation type, could be float2 or double2.
 // Each thread handles 2 points.
 template <typename T, bool IN_PLACE, bool R2C>
-__global__ void real_1d_pre_post_process_kernel(size_t   input_size,
+__global__ void real_1d_pre_post_process_kernel(size_t   half_N,
                                                 size_t   input_stride,
                                                 size_t   output_stride,
                                                 T*       input,
@@ -365,10 +365,14 @@ __global__ void real_1d_pre_post_process_kernel(size_t   input_size,
     output += output_offset;
 
     size_t idx_p = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
-    size_t idx_q = (input_size >> 1) - idx_p;
+    size_t idx_q = half_N - idx_p;
 
-    T p = input[idx_p];
-    T q = input[idx_q];
+    T p, q;
+    if(idx_p <= half_N >> 1)
+    {
+        p = input[idx_p];
+        q = input[idx_q];
+    }
 
     if(IN_PLACE)
     {
@@ -390,7 +394,7 @@ __global__ void real_1d_pre_post_process_kernel(size_t   input_size,
             output[idx_p].y = p.x - q.x;
         }
     }
-    else if(idx_p <= input_size >> 2)
+    else if(idx_p <= half_N >> 1)
     {
         T u(p.x + q.x, p.y - q.y); // p + conj(q)
         T v(p.x - q.x, p.y + q.y); // p - conj(q)
@@ -419,7 +423,7 @@ __global__ void real_1d_pre_post_process_kernel(size_t   input_size,
 
 // GPU intermediate host code
 template <typename T, bool R2C>
-void real_1d_pre_post_process(size_t const N,
+void real_1d_pre_post_process(size_t const half_N,
                               size_t       batch,
                               T*           d_input,
                               T*           d_output,
@@ -432,7 +436,10 @@ void real_1d_pre_post_process(size_t const N,
                               hipStream_t  rocfft_stream)
 {
     const size_t block_size = 512;
-    size_t       blocks     = (N / 4 + 1 - 1) / block_size + 1;
+    size_t       blocks     = (half_N / 2 + 1 - 1) / block_size + 1;
+
+    if(high_dimension > 65535 || batch > 65535)
+        printf("2D and 3D or batch is too big; not implemented\n");
 
     dim3 grid(blocks, high_dimension, batch);
     dim3 threads(block_size, 1, 1);
@@ -444,7 +451,7 @@ void real_1d_pre_post_process(size_t const N,
                            threads,
                            0,
                            rocfft_stream,
-                           N,
+                           half_N,
                            input_stride,
                            output_stride,
                            d_input,
@@ -460,7 +467,7 @@ void real_1d_pre_post_process(size_t const N,
                            threads,
                            0,
                            rocfft_stream,
-                           N,
+                           half_N,
                            input_stride,
                            output_stride,
                            d_input,
@@ -478,17 +485,15 @@ void real_1d_pre_post(const void* data_p, void* back_p)
 
     // input_size is the innermost dimension
     // the upper level provides always N/2, that is regular complex fft size
-    size_t input_size = data->node->length[0] * 2;
+    size_t half_N = data->node->length[0];
 
     size_t input_distance  = data->node->iDist;
     size_t output_distance = data->node->oDist;
 
-    //Fixme!!!
-    //std::cout << "data->node->length.size() " << data->node->length.size() << std::endl;
-    size_t input_stride = 1;
-    //= (data->node->length.size() > 1) ? data->node->inStride[1] : input_distance;
-    size_t output_stride = 1;
-    //= (data->node->length.size() > 1) ? data->node->outStride[1] : output_distance;
+    size_t input_stride
+        = (data->node->length.size() > 1) ? data->node->inStride[1] : input_distance;
+    size_t output_stride
+        = (data->node->length.size() > 1) ? data->node->outStride[1] : output_distance;
 
     void* input_buffer  = data->bufIn[0];
     void* output_buffer = data->bufOut[0];
@@ -505,7 +510,7 @@ void real_1d_pre_post(const void* data_p, void* back_p)
 
     if(data->node->precision == rocfft_precision_single)
     {
-        real_1d_pre_post_process<float2, R2C>(input_size,
+        real_1d_pre_post_process<float2, R2C>(half_N,
                                               batch,
                                               (float2*)input_buffer,
                                               (float2*)output_buffer,
@@ -519,7 +524,7 @@ void real_1d_pre_post(const void* data_p, void* back_p)
     }
     else
     {
-        real_1d_pre_post_process<double2, R2C>(input_size,
+        real_1d_pre_post_process<double2, R2C>(half_N,
                                                batch,
                                                (double2*)input_buffer,
                                                (double2*)output_buffer,
