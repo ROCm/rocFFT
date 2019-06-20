@@ -109,7 +109,7 @@ TEST(hipfftTest, CheckBufferSizeD2Z)
     }
     else
     {
-        EXPECT_TRUE(workSize == 2 * n * sizeof(float));
+        EXPECT_TRUE(workSize == 2 * n * sizeof(double));
     }
 
     EXPECT_TRUE(hipfftDestroy(plan) == HIPFFT_SUCCESS);
@@ -130,7 +130,7 @@ TEST(hipfftTest, CheckBufferSizeZ2D)
     }
     else
     {
-        EXPECT_TRUE(workSize == 2 * n * sizeof(float));
+        EXPECT_TRUE(workSize == 2 * n * sizeof(double));
     }
 
     EXPECT_TRUE(hipfftDestroy(plan) == HIPFFT_SUCCESS);
