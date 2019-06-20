@@ -24,6 +24,7 @@
 #include "helper_math.h"
 #endif
 
+#include <iostream>
 #include "logging.h"
 #include "rocfft.h"
 #include "rocfft_hip.h"
