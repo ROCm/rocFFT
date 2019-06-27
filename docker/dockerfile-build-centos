@@ -19,8 +19,11 @@ RUN yum install -y \
     clang-devel \
     gcc-c++ \
     gcc-gfortran \
-    gtest-devel \
     gtest \
+    gtest-devel \
+    lapack \
+    lapack-devel \
+    lapack-static \
     fftw-devel \
     pkgconfig \
     python27 \
@@ -42,14 +45,3 @@ RUN echo '#!/bin/bash' | tee /etc/profile.d/devtoolset7.sh && echo \
 RUN useradd --create-home -u ${user_uid} -o -G video --shell /bin/bash jenkins && \
     echo '%video ALL=(ALL) NOPASSWD:ALL' | tee /etc/sudoers.d/sudo-nopasswd && \
     chmod 400 /etc/sudoers.d/sudo-nopasswd
-    
-ARG ROCFFT_SRC_ROOT=/usr/local/src/rocFFT
-
-# Clone rocfft repo
-# Build client dependencies and install into /usr/local (LAPACK & GTEST)
-RUN mkdir -p ${ROCFFT_SRC_ROOT} && cd ${ROCFFT_SRC_ROOT} && \
-    git clone -b develop --depth=1 https://github.com/ROCmSoftwarePlatform/rocFFT . && \
-    mkdir -p build/deps && cd build/deps && \
-    cmake3 -DBUILD_BOOST=OFF ${ROCFFT_SRC_ROOT}/deps && \
-    make -j $(nproc) install && \
-    rm -rf ${ROCFFT_SRC_ROOT}
