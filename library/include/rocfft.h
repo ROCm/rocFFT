@@ -183,10 +183,10 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_create(rocfft_plan*                  pla
  *  @param[in] info execution info handle created by
  * rocfft_execution_info_create
  *  */
-ROCFFT_EXPORT rocfft_status rocfft_execute(const rocfft_plan           plan,
-                                           void*                       in_buffer[],
-                                           void*                       out_buffer[],
-                                           const rocfft_execution_info info);
+ROCFFT_EXPORT rocfft_status rocfft_execute(const rocfft_plan     plan,
+                                           void*                 in_buffer[],
+                                           void*                 out_buffer[],
+                                           rocfft_execution_info info);
 
 /*! @brief Destroy an FFT plan
  *  @details This API frees the plan. This function destructs a plan after it is
@@ -208,7 +208,7 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan
  *  @param[in] description description handle
  *  @param[in] scale scaling factor
  *  */
-ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description description, double scale );
+ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description description, const double scale );
 #endif
 
 /// @brief Set data layout
