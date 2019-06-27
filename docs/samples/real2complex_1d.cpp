@@ -36,7 +36,7 @@ int main()
     // The problem size
     const size_t N = 8;
 
-    std::cout << "Complex 1d in-place FFT example\n";
+    std::cout << "Real/complex 1d in-place FFT example\n";
 
     // Initialize data on the host
     std::vector<float> cx(N);

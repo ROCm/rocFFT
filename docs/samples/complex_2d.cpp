@@ -37,7 +37,7 @@ int main()
     const size_t Nx = 8;
     const size_t Ny = 8;
 
-    std::cout << "Complex 1d in-place FFT example\n";
+    std::cout << "Complex 2d in-place FFT example\n";
 
     // Initialize data on the host
     std::vector<float2> cx(Nx * Ny);

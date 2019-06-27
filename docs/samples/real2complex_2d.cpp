@@ -39,7 +39,7 @@ int main()
 
     const size_t Nycomplex = Ny / 2 + 1;
 
-    std::cout << "Complex 1d in-place FFT example\n";
+    std::cout << "Real/complex 2d in-place FFT example\n";
 
     // Initialize data on the host
     std::vector<float> cx(Nx * Ny);
