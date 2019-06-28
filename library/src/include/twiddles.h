@@ -100,6 +100,25 @@ public:
 
         return wc;
     }
+
+    T* GenerateTwiddleTable()
+    {
+        const double TWO_PI = -6.283185307179586476925286766559;
+
+        // Generate the table
+        size_t nt = 0;
+        for(size_t i = 0; i < N; i++)
+        {
+            double c, s;
+            sincos(TWO_PI * i / N, &s, &c);
+
+            wc[nt].x = c;
+            wc[nt].y = s;
+            nt++;
+        }
+
+        return wc;
+    }
 };
 
 // Twiddle factors table for large N > 4096
@@ -160,7 +179,7 @@ public:
     }
 };
 
-void* twiddles_create(size_t N, rocfft_precision precision, bool large);
+void* twiddles_create(size_t N, rocfft_precision precision, bool large, bool no_radices);
 void  twiddles_delete(void* twt);
 
 #endif // defined( TWIDDLES_H )

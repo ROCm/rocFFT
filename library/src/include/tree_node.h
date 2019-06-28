@@ -40,6 +40,10 @@ enum ComputeScheme
     CS_KERNEL_COPY_HERM_TO_CMPLX,
     CS_KERNEL_COPY_CMPLX_TO_R,
 
+    CS_REAL_TRANSFORM_EVEN,
+    CS_KERNEL_R_TO_CMPLX,
+    CS_KERNEL_CMPLX_TO_R,
+
     CS_BLUESTEIN,
     CS_KERNEL_CHIRP,
     CS_KERNEL_PAD_MUL,
@@ -82,10 +86,14 @@ private:
         , lengthBlue(0)
         , iOffset(0)
         , oOffset(0)
+        , iDist(0)
+        , oDist(0)
         , transTileDir(TTD_IP_HOR)
         , twiddles(nullptr)
         , twiddles_large(nullptr)
         , devKernArg(nullptr)
+        , inArrayType(rocfft_array_type_unset)
+        , outArrayType(rocfft_array_type_unset)
     {
         if(p != nullptr)
         {
@@ -206,6 +214,8 @@ public:
 
     // Real-complex and complex-real node builder:
     void BuildReal();
+    void BuildRealEven();
+    void BuildRealEmbed();
 
     // 1D node builers:
     void Build1D();

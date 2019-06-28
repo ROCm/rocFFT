@@ -42,6 +42,7 @@
 
 #include "real2complex.h"
 
+//#define TMP_DEBUG
 #ifdef TMP_DEBUG
 #include "rocfft_hip.h"
 #endif
@@ -59,13 +60,19 @@ void PlanPowX(ExecPlan& execPlan)
            || (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC))
         {
             execPlan.execSeq[i]->twiddles = twiddles_create(
-                execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false);
+                execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false, false);
+        }
+        else if((execPlan.execSeq[i]->scheme == CS_KERNEL_R_TO_CMPLX)
+                || (execPlan.execSeq[i]->scheme == CS_KERNEL_CMPLX_TO_R))
+        {
+            execPlan.execSeq[i]->twiddles = twiddles_create(
+                2 * execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false, true);
         }
 
         if(execPlan.execSeq[i]->large1D != 0)
         {
             execPlan.execSeq[i]->twiddles_large = twiddles_create(
-                execPlan.execSeq[i]->large1D, execPlan.execSeq[i]->precision, true);
+                execPlan.execSeq[i]->large1D, execPlan.execSeq[i]->precision, true, false);
         }
     }
     // copy host buffer to device buffer
@@ -173,6 +180,14 @@ void PlanPowX(ExecPlan& execPlan)
             gp.tpb_x = 512;
             gp.tpb_y = 1;
             break;
+        case CS_KERNEL_R_TO_CMPLX:
+            ptr = &r2c_1d_post;
+            // specify grid params only if the kernel from code generator
+            break;
+        case CS_KERNEL_CMPLX_TO_R:
+            ptr = &c2r_1d_pre;
+            // specify grid params only if the kernel from code generator
+            break;
         case CS_KERNEL_CHIRP:
             ptr      = &FN_PRFX(chirp);
             gp.tpb_x = 64;
@@ -185,7 +200,7 @@ void PlanPowX(ExecPlan& execPlan)
             break;
         default:
             std::cout << "should not be in this case" << std::endl;
-            std::cout << "scheme: " << execPlan.execSeq[i]->scheme << std::endl;
+            std::cout << "scheme: " << PrintScheme(execPlan.execSeq[i]->scheme) << std::endl;
         }
 
         execPlan.devFnCall.push_back(ptr);
@@ -201,30 +216,15 @@ void TransformPowX(const ExecPlan&       execPlan,
     assert(execPlan.execSeq.size() == execPlan.devFnCall.size());
     assert(execPlan.execSeq.size() == execPlan.gridParam.size());
 
-    // for(size_t i=0; i<5; i++) //multiple kernels involving transpose
-    for(size_t i = 0; i < execPlan.execSeq.size(); i++) // multiple kernels involving transpose
+    for(size_t i = 0; i < execPlan.execSeq.size(); i++)
     {
         DeviceCallIn  data;
         DeviceCallOut back;
 
-        data.node = execPlan.execSeq[i];
-        if(info == nullptr) // if info is not specified, use the default 0 stream
-        {
-            data.rocfft_stream = 0;
-        }
-        else // use the specified stream
-        {
-            data.rocfft_stream = info->rocfft_stream;
-        }
-        size_t inBytes;
-        if(data.node->precision == rocfft_precision_single)
-        {
-            inBytes = sizeof(float) * 2;
-        }
-        else
-        {
-            inBytes = sizeof(double) * 2;
-        }
+        data.node          = execPlan.execSeq[i];
+        data.rocfft_stream = (info == nullptr) ? 0 : info->rocfft_stream;
+        size_t inBytes     = (data.node->precision == rocfft_precision_single) ? sizeof(float) * 2
+                                                                           : sizeof(double) * 2;
 
         switch(data.node->obIn)
         {
@@ -246,7 +246,11 @@ void TransformPowX(const ExecPlan&       execPlan,
                                        + data.node->iOffset)
                                           * inBytes);
             break;
+        case OB_UNINIT:
+            std::cerr << "Error: operating buffer not initialized for kernel!\n";
+            assert(data.node->obIn != OB_UNINIT);
         default:
+            std::cerr << "Error: operating buffer not specified for kernel!\n";
             assert(false);
         }
 
@@ -290,18 +294,25 @@ void TransformPowX(const ExecPlan&       execPlan,
         {
             hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
         }
-        printf("attempting kernel: %zu\n", i);
-        fflush(stdout);
+        std::cout << "attempting kernel: " << i << std::endl;
 #endif
 
         DevFnCall fn = execPlan.devFnCall[i];
         if(fn)
         {
 #ifdef REF_DEBUG
-            // verify results for simple and five-stage scheme not for RC, CC scheme
-            printf("\n---------------------------------------------\n");
-            printf("\n\nkernel: %zu\n", i);
-            fflush(stdout);
+            std::cout << "\n---------------------------------------------\n";
+            std::cout << "\n\nkernel: " << i << std::endl;
+            std::cout << "\tscheme: " << PrintScheme(execPlan.execSeq[i]->scheme) << std::endl;
+            std::cout << "\tlength:";
+            for(int ilen = 0; ilen < execPlan.execSeq[i]->length.size(); ++ilen)
+            {
+                std::cout << " " << execPlan.execSeq[i]->length[ilen];
+            }
+            std::cout << std::endl;
+            std::cout << "\tbatch: " << execPlan.execSeq[i]->batch << std::endl;
+            std::cout << "\tiDist: " << execPlan.execSeq[i]->iDist << std::endl;
+            std::cout << "\toDist: " << execPlan.execSeq[i]->oDist << std::endl;
             RefLibOp refLibOp(&data);
 #endif
             fn(&data, &back); // execution kernel here
@@ -311,35 +322,50 @@ void TransformPowX(const ExecPlan&       execPlan,
         }
         else
         {
-            printf("null ptr function call error\n");
+            std::cout << "null ptr function call error\n";
         }
 
 #ifdef TMP_DEBUG
         hipDeviceSynchronize();
-        printf("executed kernel: %zu\n", i);
-        fflush(stdout);
+        std::cout << "executed kernel: " << i << std::endl;
         hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
-        printf("copied from device\n");
+        std::cout << "copied from device\n";
 
-        // if(i == 0 || i == 2 || i == 4)
+        float2* f_in  = (float2*)dbg_in;
+        float2* f_out = (float2*)dbg_out;
+        // temporary print out the kernel output
+        switch(data.node->length.size())
         {
-            float2* f_in  = (float2*)dbg_in;
-            float2* f_out = (float2*)dbg_out;
-            // temporary print out the kernel output
+        case 1:
+            for(size_t x = 0; x < data.node->length[0]; x++)
+            {
+                std::cout << "x: " << x << " kernel output result: " << f_out[x].x << " "
+                          << f_out[x].y << "\n";
+                // TODO: what about real output?
+                // TODO: what about batches?
+            }
+            break;
+        case 2:
             for(size_t y = 0; y < data.node->length[1]; y++)
             {
                 for(size_t x = 0; x < data.node->length[0]; x++)
                 {
-                    printf("x=%zu, y=%zu, kernel output result = %f, %f\n",
-                           x,
-                           y,
-                           f_out[y * data.node->length[0] + x].x,
-                           f_out[y * data.node->length[0] + x].y);
+                    std::cout << "x: " << x << " y: " << y
+                              << " kernel output result: " << f_out[y * data.node->length[0] + x].x
+                              << " " << f_out[y * data.node->length[0] + x].y << "\n";
                 }
             }
+
+            break;
+        case 3:
+            // TODO
+            break;
+        default:
+            break;
+            // TODO
         }
 
-        printf("\n---------------------------------------------\n");
+        std::cout << "\n---------------------------------------------\n";
         free(dbg_out);
         free(dbg_in);
 #endif

@@ -39,6 +39,9 @@ size_t* kargs_create(std::vector<size_t> length,
     while(i < 3 * KERN_ARGS_ARRAY_WIDTH)
         devkHost[i++] = 0;
 
+    assert(length.size() == inStride.size());
+    assert(length.size() == outStride.size());
+
     i = 0;
     while(i < length.size())
     {

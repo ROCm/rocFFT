@@ -29,12 +29,12 @@
 
 #include "tree_node.h"
 
-#define MIN(A, B) (((A) < (B)) ? (A) : (B))
-
 static inline bool IsPo2(size_t u)
 {
     return (u != 0) && (0 == (u & (u - 1)));
 }
+
+std::string PrintScheme(ComputeScheme cs);
 
 inline bool SupportedLength(size_t len)
 {

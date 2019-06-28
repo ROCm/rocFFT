@@ -634,6 +634,9 @@ private:
                 }
                 break;
             }
+            default:
+                throw std::runtime_error("incorrect input format");
+
             } // end switch
         } // end if
     } // end check

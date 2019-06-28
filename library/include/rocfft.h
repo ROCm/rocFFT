@@ -98,6 +98,7 @@ typedef enum rocfft_array_type_e
     rocfft_array_type_real,
     rocfft_array_type_hermitian_interleaved,
     rocfft_array_type_hermitian_planar,
+    rocfft_array_type_unset,
 } rocfft_array_type;
 
 /*! @brief Execution mode */
@@ -200,64 +201,58 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_destroy(rocfft_plan plan);
  *  @param[in] description description handle
  *  @param[in] scale scaling factor
  *  */
-ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan_description description, float scale );
+ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan_description description, const float scale );
 
 /*! @brief Set scaling factor in double precision
  *  @details This is one of plan description functions to specify optional additional plan properties using the description handle. This API specifies scaling factor.
  *  @param[in] description description handle
  *  @param[in] scale scaling factor
  *  */
-ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description description, double scale );
+ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description description, const double scale );
 #endif
 
-/*! @brief Set data layout
- *
- *  @details This is one of plan description functions to specify optional
- * additional plan properties using the description handle. This API specifies
- * the layout of buffers.
- *  This function can be used to specify input and output array types. Not all
- * combinations of array types
- *  are supported and error code will be returned for unsupported cases.
- * Additionally, input and output buffer
- *  offsets can be specified. The function can be used to specify custom layout
- * of data, with the ability to
- *  specify stride between consecutive elements in all dimensions. Also,
- * distance between transform data members
- *  can be specified. The library will choose appropriate defaults if
- * offsets/strides are set to null ptr and/or distances set to 0.
- *
- *  @param[in] description description handle
- *  @param[in] in_array_type array type of input buffer
- *  @param[in] out_array_type array type of output buffer
- *  @param[in] in_offsets offsets, in element units, to start of data in input
- * buffer
- *  @param[in] out_offsets offsets, in element units, to start of data in output
- * buffer
- *  @param[in] in_strides_size size of in_strides array (must be equal to
- * transform dimensions)
- *  @param[in] in_strides array of strides, in each dimension, of input buffer;
- * if set to null ptr library chooses defaults
- *  @param[in] in_distance distance between start of each data instance in input
- * buffer
- *  @param[in] out_strides_size size of out_strides array (must be equal to
- * transform dimensions)
- *  @param[in] out_strides array of strides, in each dimension, of output
- * buffer; if set to null ptr library chooses defaults
- *  @param[in] out_distance distance between start of each data instance in
- * output buffer
- *  */
+/// @brief Set data layout
+///
+/// @details This is one of plan description functions to specify
+///  optional additional plan properties using the description
+///  handle. This API specifies the layout of buffers.
+///
+/// This function can be used to specify input and output array
+/// types. Not all combinations of array types are supported and error
+/// code will be returned for unsupported cases.  Additionally, input
+/// and output buffer offsets can be specified. The function can be
+/// used to specify custom layout of data, with the ability to specify
+/// stride between consecutive elements in all dimensions. Also,
+/// distance between transform data members can be specified. The
+/// library will choose appropriate defaults if offsets/strides are
+/// set to null ptr and/or distances set to 0.
+///
+/// @param[in, out] description description handle
+/// @param[in] in_array_type array type of input buffer
+/// @param[in] out_array_type array type of output buffer
+/// @param[in] in_offsets offsets, in element units, to start of data in input buffer
+/// @param[in] out_offsets offsets, in element units, to start of data in output buffer
+/// @param[in] in_strides_size size of in_strides array (must be equal to transform dimensions)
+/// @param[in] in_strides array of strides, in each dimension, of
+///  input buffer; if set to null ptr library chooses defaults
+/// @param[in] in_distance distance between start of each data instance in input buffer
+/// @param[in] out_strides_size size of out_strides array (must be
+/// equal to transform dimensions)
+/// @param[in] out_strides array of strides, in each dimension, of
+///  output buffer; if set to null ptr library chooses defaults
+/// @param[in] out_distance distance between start of each data instance in output buffer
 ROCFFT_EXPORT rocfft_status
     rocfft_plan_description_set_data_layout(rocfft_plan_description description,
-                                            rocfft_array_type       in_array_type,
-                                            rocfft_array_type       out_array_type,
+                                            const rocfft_array_type in_array_type,
+                                            const rocfft_array_type out_array_type,
                                             const size_t*           in_offsets,
                                             const size_t*           out_offsets,
-                                            size_t                  in_strides_size,
+                                            const size_t            in_strides_size,
                                             const size_t*           in_strides,
-                                            size_t                  in_distance,
-                                            size_t                  out_strides_size,
+                                            const size_t            in_distance,
+                                            const size_t            out_strides_size,
                                             const size_t*           out_strides,
-                                            size_t                  out_distance);
+                                            const size_t            out_distance);
 
 /*! @brief Get library version string
  *
@@ -336,7 +331,7 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_destroy(rocfft_execution_info 
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_work_buffer(rocfft_execution_info info,
                                                                   void*                 work_buffer,
-                                                                  size_t size_in_bytes);
+                                                                  const size_t size_in_bytes);
 
 #if 0
 /*! @brief Set execution mode in execution info
@@ -346,7 +341,8 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_work_buffer(rocfft_executi
  *  @param[in] info execution info handle
  *  @param[in] mode execution mode
  *  */
-ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_mode( rocfft_execution_info info, rocfft_execution_mode mode );
+ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_mode( rocfft_execution_info info,
+                                                            const rocfft_execution_mode mode );
 #endif
 
 /*! @brief Set stream in execution info
