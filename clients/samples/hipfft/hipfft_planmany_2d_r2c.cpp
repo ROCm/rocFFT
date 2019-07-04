@@ -1,103 +1,69 @@
-#include <iomanip>
-#include <iostream>
-
-#include <fftw3.h>
+#include <complex>
 #include <hip/hip_runtime.h>
 #include <hipfft.h>
+#include <iostream>
+#include <vector>
 
 int main()
 {
-    ///------------------------------------------------------------------------
-    /// fftwf_plan_many_dft_r2c vs hipfftPlanMany
-    /// 2D R2C forward in-place
+    std::cout << "2D double-precision real-to-complex transform using advanced interface\n";
 
-    float checksum[3] = {0, 0, 0}; // 0 for input, 1 for fftw cpu result, 2 for hipfft gpu result
-    int   rank        = 2;
-    int   n[2]        = {5, 6};
-    int   howmany     = 3; // batch size
+    int rank    = 2;
+    int n[2]    = {4, 5};
+    int howmany = 3; // batch size
 
-    unsigned flags                       = FFTW_ESTIMATE;
-    int      n1_complex_elements         = n[1] / 2 + 1;
-    int      n1_padding_real_elements    = n1_complex_elements * 2;
-    int      total_padding_real_elements = n[0] * n1_padding_real_elements * howmany;
-    int      total_bytes                 = sizeof(float) * total_padding_real_elements;
+    int n1_complex_elements      = n[1] / 2 + 1;
+    int n1_padding_real_elements = n1_complex_elements * 2;
 
     int istride    = 1;
-    int ostride    = 1;
-    int inembed[2] = {n[0], n1_padding_real_elements};
-    int onembed[2] = {n[0], n1_complex_elements};
-    int idist      = n[0] * n1_padding_real_elements;
-    int odist      = n[0] * n1_complex_elements;
+    int ostride    = istride;
+    int inembed[2] = {istride * n[0], istride * n1_padding_real_elements};
+    int onembed[2] = {ostride * n[0], ostride * n1_complex_elements};
+    int idist      = inembed[0] * inembed[1];
+    int odist      = onembed[0] * onembed[1];
 
-    float*         cpu_in_out = new float[total_padding_real_elements];
-    fftwf_complex* cpu_out    = (fftwf_complex*)fftw_malloc(total_bytes);
+    std::cout << "n: " << n[0] << " " << n[1] << "\n"
+              << "howmany: " << howmany << "\n"
+              << "istride: " << istride << "\tostride: " << ostride << "\n"
+              << "inembed: " << inembed[0] << " " << inembed[1] << "\n"
+              << "onembed: " << onembed[0] << " " << onembed[1] << "\n"
+              << "idist: " << idist << "\todist: " << odist << "\n"
+              << std::endl;
 
-    const fftwf_plan fftwPlan = fftwf_plan_many_dft_r2c(rank,
-                                                        n,
-                                                        howmany,
-                                                        cpu_in_out,
-                                                        inembed,
-                                                        istride,
-                                                        idist,
-                                                        (fftwf_complex*)cpu_in_out,
-                                                        onembed,
-                                                        ostride,
-                                                        odist,
-                                                        flags);
+    std::vector<float> data(howmany * idist);
+    const auto         total_bytes = data.size() * sizeof(decltype(data)::value_type);
 
-    for(int i = 0; i < total_padding_real_elements; i++)
+    std::cout << "input:\n";
+    std::fill(data.begin(), data.end(), 0.0);
+    for(int ibatch = 0; ibatch < howmany; ++ibatch)
     {
-        cpu_in_out[i] = (i + 20) % 11;
-        checksum[0] += cpu_in_out[i];
-    }
-
-    std::cout.setf(std::ios::fixed);
-    std::cout.setf(std::ios::right);
-    std::cout << "fftw inputs:---------------------------------------------\n";
-    for(int i = 0; i < howmany; i++)
-    {
-        std::cout << "----------batch " << i << std::endl;
-        for(int j = 0; j < n[0]; j++)
+        for(int i = 0; i < n[0]; i++)
         {
-            for(int k = 0; k < n1_padding_real_elements; k++)
+            for(int j = 0; j < n[1]; j++)
             {
-                int idx = i * n[0] * n1_padding_real_elements + j * n1_padding_real_elements + k;
-                std::cout << "[" << j << ", " << k << "]: (" << std::setprecision(2) << std::setw(6)
-                          << cpu_in_out[idx] << ") ";
-                checksum[0] += cpu_in_out[idx];
+                const auto pos = ibatch * idist + istride * (i * inembed[1] + j);
+                data[pos]      = i + ibatch + j;
             }
-            std::cout << std::endl;
         }
     }
-
-    fftwf_execute(fftwPlan);
-
-    std::cout << "fftw outputs:--------------------------------------------\n";
-    for(int i = 0; i < howmany; i++)
+    for(int ibatch = 0; ibatch < howmany; ++ibatch)
     {
-        std::cout << "----------batch " << i << std::endl;
-        for(int j = 0; j < n[0]; j++)
+        std::cout << "batch: " << ibatch << "\n";
+        for(int i = 0; i < inembed[0]; i++)
         {
-            for(int k = 0; k < n1_padding_real_elements; k++)
+            for(int j = 0; j < inembed[1]; j++)
             {
-                int idx = i * n[0] * n1_padding_real_elements + j * n1_padding_real_elements + k;
-                std::cout << "[" << j << ", " << k << "]: (" << std::setprecision(2) << std::setw(6)
-                          << cpu_in_out[idx] << ") ";
-                checksum[1] += cpu_in_out[idx];
+                const auto pos = ibatch * idist + i * inembed[1] + j;
+                std::cout << data[pos] << " ";
             }
-            std::cout << std::endl;
+            std::cout << "\n";
         }
+        std::cout << "\n";
     }
-
-    // reinitialize
-    for(int i = 0; i < total_padding_real_elements; i++)
-    {
-        cpu_in_out[i] = (i + 20) % 11;
-    }
+    std::cout << std::endl;
 
     hipfftHandle hipForwardPlan;
     hipfftResult result;
-
     result = hipfftPlanMany(&hipForwardPlan,
                             rank,
                             n,
@@ -110,39 +76,33 @@ int main()
                             HIPFFT_R2C,
                             howmany);
 
-    hipfftReal* gpu_in_out;
-    hipMalloc((void**)&gpu_in_out, total_bytes);
-    hipMemcpy(gpu_in_out, (void*)cpu_in_out, total_bytes, hipMemcpyHostToDevice);
+    hipfftReal* gpu_data;
+    hipMalloc((void**)&gpu_data, total_bytes);
+    hipMemcpy(gpu_data, (void*)data.data(), total_bytes, hipMemcpyHostToDevice);
 
-    result = hipfftExecR2C(hipForwardPlan, gpu_in_out, (hipfftComplex*)gpu_in_out);
+    result = hipfftExecR2C(hipForwardPlan, gpu_data, (hipfftComplex*)gpu_data);
 
-    hipMemcpy((void*)cpu_in_out, gpu_in_out, total_bytes, hipMemcpyDeviceToHost);
+    hipMemcpy((void*)data.data(), gpu_data, total_bytes, hipMemcpyDeviceToHost);
 
-    std::cout << "hipfft outputs:------------------------------------------\n";
-    for(int i = 0; i < howmany; i++)
+    std::cout << "output:\n";
+    const std::complex<float>* output = (std::complex<float>*)data.data();
+    for(int ibatch = 0; ibatch < howmany; ++ibatch)
     {
-        std::cout << "----------batch " << i << std::endl;
-        for(int j = 0; j < n[0]; j++)
+        std::cout << "batch: " << ibatch << "\n";
+        for(int i = 0; i < onembed[0]; i++)
         {
-            for(int k = 0; k < n1_padding_real_elements; k++)
+            for(int j = 0; j < onembed[1]; j++)
             {
-                int idx = i * n[0] * n1_padding_real_elements + j * n1_padding_real_elements + k;
-                std::cout << "[" << j << ", " << k << "]: (" << std::setprecision(2) << std::setw(6)
-                          << cpu_in_out[idx] << ") ";
-                checksum[2] += cpu_in_out[idx];
+                const auto pos = ibatch * odist + i * onembed[1] + j;
+                std::cout << output[pos] << " ";
             }
-            std::cout << std::endl;
+            std::cout << "\n";
         }
+        std::cout << "\n";
     }
-
-    std::cout << "\n----------------------------------------------------\n"
-              << "Final sum, input: " << checksum[0] << ", fftw result: " << checksum[1]
-              << ", hipfft result: " << checksum[2] << std::endl;
+    std::cout << std::endl;
 
     hipfftDestroy(hipForwardPlan);
-    hipFree(gpu_in_out);
-
-    fftwf_destroy_plan(fftwPlan);
-    fftwf_free(cpu_in_out);
+    hipFree(gpu_data);
     return 0;
 }

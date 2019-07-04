@@ -6,33 +6,18 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 
 find_package(hip)
 find_package(rocfft)
-find_package(FFTW3f)
 
-# ########################################################################
-# The following check are hacks to get compiles working for CUDA backend
-# These should be removed in the future.
-
-# NVCC can not compile fftw.3 header file appropriately before v3.3.5
-# https://github.com/FFTW/fftw3/issues/18
-# v3.3.5 is installed by default on Ubuntu 16, workaround is to trick fftw3
-# into thinking nvcc is an Intel compiler as desribed in above issue
-if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-  add_definitions( -D__INTEL_COMPILER )
-endif( )
-# ########################################################################
-
-set( sample_list hipfft_planmany_2d_r2c hipfft_planmany_2d_z2z hipfft_setworkarea)
+set( sample_list hipfft_planmany_2d_z2z hipfft_planmany_2d_r2c hipfft_setworkarea)
 
 foreach( sample ${sample_list} )
 
   add_executable( ${sample} ${sample}.cpp )
 
   target_include_directories( ${sample}
-    PRIVATE $<BUILD_INTERFACE:${FFTW_INCLUDE_DIRS}>
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+    PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
   )
 
-  target_link_libraries( ${sample} PRIVATE roc::rocfft fftw3 fftw3f )
+  target_link_libraries( ${sample} PRIVATE roc::rocfft)
 
   target_compile_features( ${sample} PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
 

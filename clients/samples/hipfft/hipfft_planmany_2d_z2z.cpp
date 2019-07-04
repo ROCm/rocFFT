@@ -20,119 +20,101 @@
 * THE SOFTWARE.
 *******************************************************************************/
 
-#include <iomanip>
-#include <iostream>
-
-#include <fftw3.h>
+#include <complex>
 #include <hip/hip_runtime.h>
 #include <hipfft.h>
-
-using namespace std;
+#include <iostream>
 
 int main()
 {
-    ///------------------------------------------------------------------------
-    /// 2d Z2Z forward hipfftPlanMany explicit params
+    std::cout << "2D double-precision complex-to-complex transform using advanced interface\n";
 
-    int      rank    = 2;
-    int      n[2]    = {5, 6};
-    int      howmany = 3;
-    int      idist   = n[0] * n[1];
-    int      odist   = n[0] * n[1];
-    int      istride = 1;
-    int      ostride = 1; // array is contiguous in memory
-    int *    inembed = n, *onembed = n;
-    int      sign        = FFTW_FORWARD;
-    unsigned flags       = FFTW_PATIENT;
-    size_t   total_bytes = sizeof(fftw_complex) * howmany * n[0] * n[1];
+    int rank    = 2;
+    int n[2]    = {4, 5};
+    int howmany = 3;
 
-    fftw_complex* fftw_in  = (fftw_complex*)fftw_malloc(total_bytes);
-    fftw_complex* fftw_out = (fftw_complex*)fftw_malloc(total_bytes);
+    // array is contiguous in memory
+    int istride = 1;
+    // in-place transforms require istride=ostride
+    int ostride = istride;
 
-    const fftw_plan fftwPlan = fftw_plan_many_dft(rank,
-                                                  n,
-                                                  howmany,
-                                                  fftw_in,
-                                                  inembed,
-                                                  istride,
-                                                  idist,
-                                                  fftw_out,
-                                                  onembed,
-                                                  ostride,
-                                                  odist,
-                                                  sign,
-                                                  flags);
+    // we choose to have no padding around our data:
+    int inembed[2] = {istride * n[0], istride * n[1]};
+    // in-place transforms require inembed=oneembed:
+    int onembed[2] = {inembed[0], inembed[1]};
 
-    for(int i = 0; i < n[0]; i++)
-        for(int j = 0; j < n[1]; j++)
-        {
-            fftw_in[i * n[1] + j][0] = fftw_in[i * n[1] + j][1] = (i * n[1] + j + 1 + 30) % 12;
-            fftw_out[i * n[1] + j][0] = fftw_out[i * n[1] + j][1] = 0;
-        }
+    int idist = inembed[0] * inembed[1];
+    int odist = onembed[0] * onembed[1];
 
-    fftw_execute(fftwPlan);
+    std::cout << "n: " << n[0] << " " << n[1] << "\n"
+              << "howmany: " << howmany << "\n"
+              << "istride: " << istride << "\tostride: " << ostride << "\n"
+              << "inembed: " << inembed[0] << " " << inembed[1] << "\n"
+              << "onembed: " << onembed[0] << " " << onembed[1] << "\n"
+              << "idist: " << idist << "\todist: " << odist << "\n"
+              << std::endl;
 
-    std::cout << "fftw inputs:\n";
-    std::cout.setf(ios::fixed);
-    std::cout.setf(ios::right);
-    std::cout.setf(ios::showpos);
-    for(int i = 0; i < n[0]; i++)
+    std::vector<std::complex<double>> data(howmany * idist);
+    const auto total_bytes = data.size() * sizeof(decltype(data)::value_type);
+
+    std::cout << "input:\n";
+    std::fill(data.begin(), data.end(), 0.0);
+    for(int ibatch = 0; ibatch < howmany; ++ibatch)
     {
-        for(int j = 0; j < n[1]; j++)
+        for(int i = 0; i < n[0]; i++)
         {
-            std::cout << "[" << i << ", " << j << "] : (" << setprecision(2) << setw(6)
-                      << fftw_in[i * n[1] + j][0] << ", " << setprecision(2) << setw(6)
-                      << fftw_in[i * n[1] + j][1] << ")  ";
+            for(int j = 0; j < n[1]; j++)
+            {
+                const auto pos = ibatch * idist + istride * (i * inembed[1] + j);
+                data[pos]      = std::complex<double>(i + ibatch, j);
+            }
         }
-        std::cout << std::endl;
     }
-    std::cout << "fftw outputs:\n";
-    for(int i = 0; i < n[0]; i++)
+    for(int ibatch = 0; ibatch < howmany; ++ibatch)
     {
-        for(int j = 0; j < n[1]; j++)
+        std::cout << "batch: " << ibatch << "\n";
+        for(int i = 0; i < inembed[0]; i++)
         {
-            std::cout << "[" << i << ", " << j << "] : (" << setprecision(2) << setw(6)
-                      << fftw_out[i * n[1] + j][0] << ", " << setprecision(2) << setw(6)
-                      << fftw_out[i * n[1] + j][1] << ")  ";
+            for(int j = 0; j < inembed[1]; j++)
+            {
+                const auto pos = ibatch * idist + i * inembed[1] + j;
+                std::cout << data[pos] << " ";
+            }
+            std::cout << "\n";
         }
-        std::cout << std::endl;
+        std::cout << "\n";
     }
-
-    for(int i = 0; i < n[0]; i++)
-        for(int j = 0; j < n[1]; j++)
-        {
-            fftw_out[i * n[1] + j][0] = fftw_out[i * n[1] + j][1] = 0;
-        }
+    std::cout << std::endl;
 
     hipfftHandle hipPlan;
     hipfftResult result;
-
     result = hipfftPlanMany(
         &hipPlan, rank, n, inembed, istride, idist, onembed, ostride, odist, HIPFFT_Z2Z, howmany);
 
     hipfftDoubleComplex* d_in_out;
     hipMalloc((void**)&d_in_out, total_bytes);
-    hipMemcpy(d_in_out, (void*)fftw_in, total_bytes, hipMemcpyHostToDevice);
+    hipMemcpy(d_in_out, (void*)data.data(), total_bytes, hipMemcpyHostToDevice);
 
     result = hipfftExecZ2Z(hipPlan, d_in_out, d_in_out, HIPFFT_FORWARD);
 
-    hipMemcpy((void*)fftw_out, d_in_out, total_bytes, hipMemcpyDeviceToHost);
+    hipMemcpy((void*)data.data(), d_in_out, total_bytes, hipMemcpyDeviceToHost);
 
-    std::cout << "hipfft outputs:\n";
-    for(int i = 0; i < n[0]; i++)
+    std::cout << "output:\n";
+    for(int ibatch = 0; ibatch < howmany; ++ibatch)
     {
-        for(int j = 0; j < n[1]; j++)
+        std::cout << "batch: " << ibatch << "\n";
+        for(int i = 0; i < onembed[0]; i++)
         {
-            std::cout << "[" << i << ", " << j << "] : (" << setprecision(2) << setw(6)
-                      << fftw_out[i * n[1] + j][0] << ", " << setprecision(2) << setw(6)
-                      << fftw_out[i * n[1] + j][1] << ")  ";
+            for(int j = 0; j < onembed[1]; j++)
+            {
+                const auto pos = ibatch * odist + i * onembed[1] + j;
+                std::cout << data[pos] << " ";
+            }
+            std::cout << "\n";
         }
-        std::cout << std::endl;
+        std::cout << "\n";
     }
-
-    fftw_destroy_plan(fftwPlan);
-    fftw_free(fftw_in);
-    fftw_free(fftw_out);
+    std::cout << std::endl;
 
     hipFree(d_in_out);
 }
