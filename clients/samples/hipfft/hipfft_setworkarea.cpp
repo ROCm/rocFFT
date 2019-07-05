@@ -21,8 +21,8 @@
 *******************************************************************************/
 
 #include <complex>
-#include <iostream>
 #include <hipfft.h>
+#include <iostream>
 
 using namespace std;
 
