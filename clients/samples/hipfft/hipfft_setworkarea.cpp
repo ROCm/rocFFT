@@ -22,8 +22,6 @@
 
 #include <complex>
 #include <iostream>
-
-#include <hip/hip_runtime.h>
 #include <hipfft.h>
 
 using namespace std;
