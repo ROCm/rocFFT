@@ -36,7 +36,8 @@ inline hipError_t
     {
     case hipSuccess: /**< No error */
         break;
-    default: {
+    default:
+    {
         std::stringstream tmp;
         tmp << "HIP_V_THROWERROR< ";
         // tmp << prettyPrintclFFTStatus( res );
@@ -65,7 +66,8 @@ inline rocfft_status lib_V_Throw(rocfft_status      res,
     {
     case rocfft_status_success: /**< No error */
         break;
-    default: {
+    default:
+    {
         std::stringstream tmp;
         tmp << "LIB_V_THROWERROR< ";
         // tmp << prettyPrintclFFTStatus( res );

@@ -594,7 +594,8 @@ private:
         {
             switch(_input_layout)
             {
-            case rocfft_array_type_complex_interleaved: {
+            case rocfft_array_type_complex_interleaved:
+            {
                 if((_output_layout == rocfft_array_type_complex_planar)
                    || (_output_layout == rocfft_array_type_hermitian_planar))
                 {
@@ -603,7 +604,8 @@ private:
                 }
                 break;
             }
-            case rocfft_array_type_complex_planar: {
+            case rocfft_array_type_complex_planar:
+            {
                 if((_output_layout == rocfft_array_type_complex_interleaved)
                    || (_output_layout == rocfft_array_type_hermitian_interleaved))
                 {
@@ -612,7 +614,8 @@ private:
                 }
                 break;
             }
-            case rocfft_array_type_hermitian_interleaved: {
+            case rocfft_array_type_hermitian_interleaved:
+            {
                 if(_output_layout != rocfft_array_type_real)
                 {
                     throw std::runtime_error("Cannot use the same buffer for "
@@ -620,12 +623,14 @@ private:
                 }
                 break;
             }
-            case rocfft_array_type_hermitian_planar: {
+            case rocfft_array_type_hermitian_planar:
+            {
                 throw std::runtime_error("Cannot use the same buffer for "
                                          "planar->interleaved in-place transforms");
                 break;
             }
-            case rocfft_array_type_real: {
+            case rocfft_array_type_real:
+            {
                 if((_output_layout == rocfft_array_type_complex_planar)
                    || (_output_layout == rocfft_array_type_hermitian_planar))
                 {

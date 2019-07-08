@@ -466,7 +466,8 @@ class RefLibOp
 
         switch(data->node->scheme)
         {
-        case CS_KERNEL_STOCKHAM: {
+        case CS_KERNEL_STOCKHAM:
+        {
             RefLibHandle&             refHandle = RefLibHandle::GetRefLibHandle();
             ftype_fftwf_plan_many_dft local_fftwf_plan_many_dft
                 = (ftype_fftwf_plan_many_dft)dlsym(refHandle.fftw3f_lib, "fftwf_plan_many_dft");
@@ -499,7 +500,8 @@ class RefLibOp
             local_fftwf_destroy_plan(p);
         }
         break;
-        case CS_KERNEL_TRANSPOSE: {
+        case CS_KERNEL_TRANSPOSE:
+        {
             // TODO: what about the real transpose case?
             std::complex<float>* ot = (std::complex<float>*)fftwout.data;
             std::complex<float>* in = (std::complex<float>*)fftwin.data;
@@ -567,7 +569,8 @@ class RefLibOp
             }
         }
         break;
-        case CS_KERNEL_COPY_R_TO_CMPLX: {
+        case CS_KERNEL_COPY_R_TO_CMPLX:
+        {
             std::complex<float>* ot = (std::complex<float>*)fftwout.data;
             size_t in_size_bytes    = (data->node->iDist * data->node->batch) * sizeof(float);
 
@@ -592,7 +595,8 @@ class RefLibOp
             }
         }
         break;
-        case CS_KERNEL_COPY_CMPLX_TO_HERM: {
+        case CS_KERNEL_COPY_CMPLX_TO_HERM:
+        {
             std::complex<float>* ot = (std::complex<float>*)fftwout.data;
             // assump the input is complex, the output is hermitian on take the first
             // [N/2 + 1] elements
@@ -622,7 +626,8 @@ class RefLibOp
             }
         }
         break;
-        case CS_KERNEL_COPY_HERM_TO_CMPLX: {
+        case CS_KERNEL_COPY_HERM_TO_CMPLX:
+        {
             std::complex<float>* ot = (std::complex<float>*)fftwout.data;
             // assump the input is hermitian, the output is complex on take the first
             // [N/2 + 1] elements
@@ -662,7 +667,8 @@ class RefLibOp
             }
         }
         break;
-        case CS_KERNEL_R_TO_CMPLX: {
+        case CS_KERNEL_R_TO_CMPLX:
+        {
             // Post-processing stage of 1D real-to-complex transform, out-of-place
             const size_t halfN = data->node->length[0];
             const size_t batch = data->node->batch;
@@ -698,7 +704,8 @@ class RefLibOp
                 = std::complex<float>(input[0].real() - input[0].imag(), 0);
         }
         break;
-        case CS_KERNEL_CMPLX_TO_R: {
+        case CS_KERNEL_CMPLX_TO_R:
+        {
             // Pre-processing stage of 1D complex-to-real transform, out-of-place
             const size_t halfN = data->node->length[0];
             const size_t batch = data->node->batch;
@@ -728,13 +735,15 @@ class RefLibOp
             }
         }
         break;
-        case CS_KERNEL_CHIRP: {
+        case CS_KERNEL_CHIRP:
+        {
             size_t N = data->node->length[0];
             size_t M = data->node->lengthBlue;
             chirp(N, M, data->node->direction, (local_fftwf_complex*)fftwout.data);
         }
         break;
-        case CS_KERNEL_PAD_MUL: {
+        case CS_KERNEL_PAD_MUL:
+        {
             std::complex<float>* in = (std::complex<float>*)fftwin.data;
             std::complex<float>* ot = (std::complex<float>*)fftwout.data;
             CopyInputVector(data_p);
@@ -775,7 +784,8 @@ class RefLibOp
             }
         }
         break;
-        case CS_KERNEL_FFT_MUL: {
+        case CS_KERNEL_FFT_MUL:
+        {
             std::complex<float>* in = (std::complex<float>*)fftwin.data;
             std::complex<float>* ot = (std::complex<float>*)fftwout.data;
             size_t               M  = data->node->lengthBlue;
@@ -808,7 +818,8 @@ class RefLibOp
             }
         }
         break;
-        case CS_KERNEL_RES_MUL: {
+        case CS_KERNEL_RES_MUL:
+        {
             std::complex<float>* in = (std::complex<float>*)fftwin.data;
             std::complex<float>* ot = (std::complex<float>*)fftwout.data;
             size_t               M  = data->node->lengthBlue;
@@ -900,7 +911,8 @@ public:
 
         switch(data->node->scheme)
         {
-        case CS_KERNEL_TRANSPOSE: {
+        case CS_KERNEL_TRANSPOSE:
+        {
             std::vector<size_t> length_transpose_output;
             length_transpose_output.push_back(data->node->length[1]);
             length_transpose_output.push_back(data->node->length[0]);
@@ -914,7 +926,8 @@ public:
                        data->node->outStride);
         }
         break;
-        case CS_KERNEL_CHIRP: {
+        case CS_KERNEL_CHIRP:
+        {
             std::vector<size_t> length_chirp;
             length_chirp.push_back(data->node->lengthBlue);
             CopyVector((local_fftwf_complex*)libout.data,
@@ -925,7 +938,8 @@ public:
                        data->node->outStride);
         }
         break;
-        case CS_KERNEL_PAD_MUL: {
+        case CS_KERNEL_PAD_MUL:
+        {
             std::vector<size_t> length_ot;
             length_ot.push_back(data->node->lengthBlue);
             for(size_t i = 1; i < data->node->length.size(); i++)
@@ -947,7 +961,8 @@ public:
             //assert(batch == 1);
             return; // TODO
             break;
-        default: {
+        default:
+        {
             CopyVector((local_fftwf_complex*)libout.data,
                        (local_fftwf_complex*)tmp_mem.data,
                        data->node->batch,

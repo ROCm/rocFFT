@@ -1,6 +1,6 @@
 #!/usr/bin/env groovy
 // This shared library is available at https://github.com/ROCmSoftwarePlatform/rocJENKINS/
-@Library('rocJenkins@clang9') _
+@Library('rocJenkins') _
 
 // This is file for internal AMD use.
 // If you are interested in running your own Jenkins, please raise a github issue for assistance.
@@ -30,12 +30,12 @@ import java.nio.file.Path;
 rocFFTCI:
 {
 
-    def rocfft = new rocProject('rocfft')
+    def rocfft = new rocProject('rocFFT')
     // customize for project
     rocfft.paths.build_command = './install.sh -c'
 
     // Define test architectures, optional rocm version argument is available
-    def nodes = new dockerNodes(['gfx906 && centos7', 'gfx900'], rocfft)
+    def nodes = new dockerNodes(['gfx906 && centos7', 'gfx900 && ubuntu'], rocfft)
 
     boolean formatCheck = true
 
@@ -44,24 +44,15 @@ rocFFTCI:
         platform, project->
 
         project.paths.construct_build_prefix()
+        
         def command
 
-        if(platform.jenkinsLabel.contains('centos'))
-        {
-            command = """#!/usr/bin/env bash
-                    set -x
-                    cd ${project.paths.project_build_prefix}
-                    LD_LIBRARY_PATH=/opt/rocm/hcc/lib CXX=${project.compiler.compiler_path} sudo ${project.paths.build_command}id
-                    """
-        }
-        else
-        {
-            command = """#!/usr/bin/env bash
-                    set -x
-                    cd ${project.paths.project_build_prefix}
-                    LD_LIBRARY_PATH=/opt/rocm/hcc/lib CXX=${project.compiler.compiler_path} ${project.paths.build_command}
-                    """
-        }
+        command = """#!/usr/bin/env bash
+                set -x
+                cd ${project.paths.project_build_prefix}
+                LD_LIBRARY_PATH=/opt/rocm/hcc/lib CXX=${project.compiler.compiler_path} ${project.paths.build_command}
+                """
+
         platform.runCommand(this, command)
     }
 
@@ -103,9 +94,10 @@ rocFFTCI:
             command = """
                     set -x
                     cd ${project.paths.project_build_prefix}/build/release
-                    sudo rm -rf package && sudo mkdir -p package
-                    sudo mv *.rpm package/
-                    sudo rpm -qlp package/*.rpm
+                    make package
+                    rm -rf package && mkdir -p package
+                    mv *.rpm package/
+                    rpm -qlp package/*.rpm
                 """
 
             platform.runCommand(this, command)

@@ -99,7 +99,8 @@ void PlanPowX(ExecPlan& execPlan)
 
         switch(execPlan.execSeq[i]->scheme)
         {
-        case CS_KERNEL_STOCKHAM: {
+        case CS_KERNEL_STOCKHAM:
+        {
             // get working group size and number of transforms
             size_t workGroupSize;
             size_t numTransforms;
