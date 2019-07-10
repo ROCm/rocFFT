@@ -446,7 +446,7 @@ void real_1d_pre_post_process(size_t const half_N,
 
     if(d_input == d_output)
     {
-        hipLaunchKernelGGL(real_1d_pre_post_process_kernel<T, true, R2C>,
+        hipLaunchKernelGGL((real_1d_pre_post_process_kernel<T, true, R2C>),
                            grid,
                            threads,
                            0,
@@ -462,7 +462,7 @@ void real_1d_pre_post_process(size_t const half_N,
     }
     else
     {
-        hipLaunchKernelGGL(real_1d_pre_post_process_kernel<T, false, R2C>,
+        hipLaunchKernelGGL((real_1d_pre_post_process_kernel<T, false, R2C>),
                            grid,
                            threads,
                            0,
