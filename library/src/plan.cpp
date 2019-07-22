@@ -40,8 +40,7 @@
 #define VERSION_STRING (TO_STR(rocfft_version_major) "." \
                         TO_STR(rocfft_version_minor) "." \
                         TO_STR(rocfft_version_patch) "." \
-                        TO_STR(rocfft_version_tweak) "-" \
-			TO_STR(rocfft_version_commit_id))
+                        TO_STR(rocfft_version_tweak) )
 
 std::string PrintScheme(ComputeScheme cs)
 {

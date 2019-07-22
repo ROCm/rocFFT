@@ -1008,7 +1008,7 @@ hipfftResult hipfftGetVersion(int* version)
     char v[256];
     ROC_FFT_CHECK_INVALID_VALUE(rocfft_get_version_string(v, 256));
 
-    // assume maximum 2 digts for each, so xx.xx.xx.xx -> xxxxxxxx
+    //export major.minor.patch only, ignore tweak
     std::ostringstream       result;
     std::vector<std::string> sections;
 
@@ -1019,22 +1019,12 @@ hipfftResult hipfftGetVersion(int* version)
         sections.push_back(tmp_str);
     }
 
-    for(size_t i = 0; i < sections.size(); i++)
+    for(size_t i = 0; i < sections.size()-1; i++)
     {
-        std::vector<std::string> sl;
-        // remove potential git tag string
-        std::istringstream iss(sections[i]);
-        while(std::getline(iss, tmp_str, '-'))
-        {
-            sl.push_back(tmp_str);
-        }
-        if(sl[0].size() == 0)
-            result << "00";
-        else if(sl[0].size() == 1)
-            result << "0" << sl[0][0];
+        if (sections[i].size() == 1)
+            result << "0" << sections[i];
         else
-            result << sl[0].at(sl[0].size() - 2) << sl[0].at(sl[0].size() - 1);
-    }
+            result << sections[i];
 
     *version = std::stoi(result.str());
     return HIPFFT_SUCCESS;
