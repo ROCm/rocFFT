@@ -118,21 +118,9 @@ include( ROCMInstallTargets )
 include( ROCMPackageConfigHelpers )
 include( ROCMInstallSymlinks )
 
-
-set ( VERSION_STRING "0.9.4." )
-# Check if BUILD_NUMBER is defined in a Jenkins envirnment
-if ($ENV{BUILD_NUMBER} )
-  string(CONCAT BUILD_VERSION ${VERSION_STRING} $ENV{BUILD_NUMBER}) 
-else ()
-  string(CONCAT BUILD_VERSION ${VERSION_STRING} "0") 
-endif ()
-rocm_setup_version( VERSION ${BUILD_VERSION} NO_GIT_TAG_VERSION )
-
-# Get the git tag version
-include ( cmake/version.cmake )
-rocm_get_git_commit_id ( ${PROJECT_NAME}_VERSION_COMMIT_ID )
-
-
+# Using standardized versioning from rocm-cmake
+set ( VERSION_STRING "0.9.4" )
+rocm_setup_version( VERSION ${VERSION_STRING} )
 
 # Append our library helper cmake path and the cmake path for hip (for convenience)
 # Users may override HIP path by specifying their own in CMAKE_MODULE_PATH
