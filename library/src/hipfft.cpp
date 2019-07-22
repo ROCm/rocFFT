@@ -1025,6 +1025,7 @@ hipfftResult hipfftGetVersion(int* version)
             result << "0" << sections[i];
         else
             result << sections[i];
+    }
 
     *version = std::stoi(result.str());
     return HIPFFT_SUCCESS;
