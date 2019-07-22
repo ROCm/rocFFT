@@ -117,5 +117,5 @@ rocm_create_package_clients(LIB_NAME rocfft
                             DESCRIPTION "Radeon Open Compute FFT library"
                             MAINTAINER "Kent Knox <kent.knox@amd.com>"
                             SECTION "dev"
-                            VERSION ${BUILD_VERSION})
+                            VERSION ${rocfft_VERSION})
 endif()
