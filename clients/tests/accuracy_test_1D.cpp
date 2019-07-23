@@ -66,6 +66,8 @@ protected:
 #define MIX_RANGE                                                                                \
     6, 10, 12, 15, 20, 30, 120, 150, 225, 240, 300, 486, 600, 900, 1250, 1500, 1875, 2160, 2187, \
         2250, 2500, 3000, 4000, 12000, 24000, 72000
+#define PRIME_RANGE \
+    7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97
 
 #define LARGE_RANGE                                                                               \
     4096, 4050, 4000, 3888, 3840, 3750, 3645, 3600, 3456, 3375, 3240, 3200, 3125, 3072, 3000,     \
@@ -77,10 +79,11 @@ protected:
         160, 150, 144, 135, 128, 125, 120, 108, 100, 96, 90, 81, 80, 75, 72, 64, 60, 54, 50, 48,  \
         45, 40, 36, 32, 30, 27, 25,\ 24, 20, 18, 16, 15, 12, 10, 9, 8, 6, 5, 4, 3, 2, 1
 
-static std::vector<size_t> pow2_range = {POW2_RANGE};
-static std::vector<size_t> pow3_range = {POW3_RANGE};
-static std::vector<size_t> pow5_range = {POW5_RANGE};
-static std::vector<size_t> mix_range  = {MIX_RANGE};
+static std::vector<size_t> pow2_range  = {POW2_RANGE};
+static std::vector<size_t> pow3_range  = {POW3_RANGE};
+static std::vector<size_t> pow5_range  = {POW5_RANGE};
+static std::vector<size_t> mix_range   = {MIX_RANGE};
+static std::vector<size_t> prime_range = {PRIME_RANGE};
 
 static size_t batch_range[] = {1};
 
@@ -410,6 +413,14 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow_mix_1D,
 INSTANTIATE_TEST_CASE_P(rocfft_pow_random_1D,
                         accuracy_test_complex,
                         Combine(ValuesIn(generate_random(20)),
+                                ValuesIn(batch_range),
+                                ValuesIn(placeness_range),
+                                ValuesIn(transform_range),
+                                ValuesIn(stride_range)));
+
+INSTANTIATE_TEST_CASE_P(rocfft_prime_1D,
+                        accuracy_test_complex,
+                        Combine(ValuesIn(prime_range),
                                 ValuesIn(batch_range),
                                 ValuesIn(placeness_range),
                                 ValuesIn(transform_range),
