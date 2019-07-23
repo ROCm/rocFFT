@@ -1019,9 +1019,9 @@ hipfftResult hipfftGetVersion(int* version)
         sections.push_back(tmp_str);
     }
 
-    for(size_t i = 0; i < sections.size()-1; i++)
+    for(size_t i = 0; i < sections.size() - 1; i++)
     {
-        if (sections[i].size() == 1)
+        if(sections[i].size() == 1)
             result << "0" << sections[i];
         else
             result << sections[i];

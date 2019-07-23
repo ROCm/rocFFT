@@ -404,8 +404,8 @@ __global__ void real_1d_pre_post_process_kernel(size_t   half_N,
 
         if(R2C)
         {
-            u = u*0.5;
-            v = v*0.5;
+            u = u * 0.5;
+            v = v * 0.5;
         }
         else
         {
