@@ -21,12 +21,14 @@
 *******************************************************************************/
 
 #include <complex>
+#include <hip/hip_runtime_api.h>
 #include <hipfft.h>
 #include <iostream>
 
 int main()
 {
-    std::cout << "2D double-precision complex-to-complex transform using advanced interface\n";
+    std::cout
+        << "hipfft 2D double-precision complex-to-complex transform using advanced interface\n";
 
     int rank    = 2;
     int n[2]    = {4, 5};

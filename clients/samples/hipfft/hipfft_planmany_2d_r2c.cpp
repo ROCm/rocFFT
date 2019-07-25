@@ -19,14 +19,16 @@
 * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 * THE SOFTWARE.
 *******************************************************************************/
+
 #include <complex>
+#include <hip/hip_runtime_api.h>
 #include <hipfft.h>
 #include <iostream>
 #include <vector>
 
 int main()
 {
-    std::cout << "2D double-precision real-to-complex transform using advanced interface\n";
+    std::cout << "hipfft 2D single-precision real-to-complex transform using advanced interface\n";
 
     int rank    = 2;
     int n[2]    = {4, 5};

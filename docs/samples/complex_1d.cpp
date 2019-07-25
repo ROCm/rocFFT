@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -33,36 +34,32 @@
 
 int main()
 {
-    // The problem size
-    const size_t N = 8;
-
     std::cout << "Complex 1d in-place FFT example\n";
 
-    // Initialize data on the host
-    std::vector<float2> cx(N);
-    for(size_t i = 0; i < N; i++)
-    {
-        cx[i].x = i;
-        cx[i].y = 0;
-    }
+    // The problem size
+    const size_t N = 11;
 
+    // Initialize data on the host
     std::cout << "Input:\n";
+    std::vector<std::complex<float>> cx(N);
     for(size_t i = 0; i < N; i++)
     {
-        std::cout << "( " << cx[i].x << "," << cx[i].y << ") ";
+        cx[i] = std::complex<float>(i, 0);
     }
-    std::cout << "\n";
+    for(size_t i = 0; i < N; i++)
+    {
+        std::cout << cx[i] << " ";
+    }
+    std::cout << std::endl;
 
     rocfft_setup();
 
-    // Create HIP device object.
+    // Create HIP device object and copy data:
     float2* x;
     hipMalloc(&x, cx.size() * sizeof(decltype(cx)::value_type));
-
-    //  Copy data to device
     hipMemcpy(x, cx.data(), cx.size() * sizeof(decltype(cx)::value_type), hipMemcpyHostToDevice);
 
-    // Create plans
+    // Create forward plan
     rocfft_plan forward = NULL;
     rocfft_plan_create(&forward,
                        rocfft_placement_inplace,
@@ -73,7 +70,16 @@ int main()
                        1, // Number of transforms
                        NULL); // Description
 
-    // Create plans
+    // We may need work memory, which is passed via rocfft_execution_info
+    rocfft_execution_info forwardinfo;
+    rocfft_execution_info_create(&forwardinfo);
+    size_t fbuffersize = 0;
+    rocfft_plan_get_work_buffer_size(forward, &fbuffersize);
+    void* fbuffer;
+    hipMalloc(&fbuffer, fbuffersize);
+    rocfft_execution_info_set_work_buffer(forwardinfo, fbuffer, fbuffersize);
+
+    // Create backward plan
     rocfft_plan backward = NULL;
     rocfft_plan_create(&backward,
                        rocfft_placement_inplace,
@@ -84,43 +90,51 @@ int main()
                        1, // Number of transforms
                        NULL); // Description
 
+    rocfft_execution_info backwardinfo;
+    rocfft_execution_info_create(&backwardinfo);
+    size_t bbuffersize = 0;
+    rocfft_plan_get_work_buffer_size(backward, &bbuffersize);
+    void* bbuffer;
+    hipMalloc(&bbuffer, bbuffersize);
+    rocfft_execution_info_set_work_buffer(backwardinfo, bbuffer, bbuffersize);
+
     // Execute the forward transform
     rocfft_execute(forward,
                    (void**)&x, // in_buffer
                    NULL, // out_buffer
-                   NULL); // execution info
+                   forwardinfo); // execution info
 
     // Copy result back to host
-    std::vector<float2> cy(N);
+    std::vector<std::complex<float>> cy(N);
     hipMemcpy(cy.data(), x, cy.size() * sizeof(decltype(cy)::value_type), hipMemcpyDeviceToHost);
 
     std::cout << "Transformed:\n";
     for(size_t i = 0; i < cy.size(); i++)
     {
-        std::cout << "( " << cy[i].x << "," << cy[i].y << ") ";
+        std::cout << cy[i] << " ";
     }
-    std::cout << "\n";
+    std::cout << std::endl;
 
     // Execute the backward transform
     rocfft_execute(backward,
                    (void**)&x, // in_buffer
                    NULL, // out_buffer
-                   NULL); // execution info
+                   backwardinfo); // execution info
 
     hipMemcpy(cy.data(), x, cy.size() * sizeof(decltype(cy)::value_type), hipMemcpyDeviceToHost);
     std::cout << "Transformed back:\n";
     for(size_t i = 0; i < cy.size(); i++)
     {
-        std::cout << "( " << cy[i].x << "," << cy[i].y << ") ";
+        std::cout << cy[i] << " ";
     }
-    std::cout << "\n";
+    std::cout << std::endl;
 
     const float overN = 1.0f / N;
     float       error = 0.0f;
     for(size_t i = 0; i < cx.size(); i++)
     {
-        float diff
-            = std::max(std::abs(cx[i].x - cy[i].x * overN), std::abs(cx[i].y - cy[i].y * overN));
+        float diff = std::max(std::abs(cx[i].real() - cy[i].real() * overN),
+                              std::abs(cx[i].imag() - cy[i].imag() * overN));
         if(diff > error)
         {
             error = diff;
