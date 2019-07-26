@@ -368,7 +368,7 @@ __global__ void real_1d_pre_post_process_kernel(size_t   half_N,
     size_t idx_q = half_N - idx_p;
 
     T p, q;
-    if(idx_p <= half_N >> 1)
+    if(idx_p <= half_N >> 1 && idx_p > 0)
     {
         p = input[idx_p];
         q = input[idx_q];
@@ -383,13 +383,15 @@ __global__ void real_1d_pre_post_process_kernel(size_t   half_N,
     {
         if(R2C)
         {
-            output[idx_p].x = p.x + p.y;
-            output[idx_p].y = 0;
-            output[idx_q].x = p.x - p.y;
-            output[idx_q].y = 0;
+            output[half_N].x = input[0].x - input[0].y;
+            output[half_N].y = 0;
+            output[0].x      = input[0].x + input[0].y;
+            output[0].y      = 0;
         }
         else
         {
+            T p             = input[0];
+            T q             = input[half_N];
             output[idx_p].x = p.x + q.x;
             output[idx_p].y = p.x - q.x;
         }
