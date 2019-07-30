@@ -155,7 +155,7 @@ find_package( hip REQUIRED CONFIG PATHS /opt/rocm )
 find_package( CUDA QUIET )
 
 # CMake list of machine targets
-set( AMDGPU_TARGETS gfx803;gfx900;gfx906 CACHE STRING "List of specific machine types for library to target" )
+set( AMDGPU_TARGETS gfx803;gfx900;gfx906;gfx908 CACHE STRING "List of specific machine types for library to target" )
 
 add_subdirectory( library )
 
