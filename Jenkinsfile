@@ -35,7 +35,8 @@ rocFFTCI:
     rocfft.paths.build_command = './install.sh -c'
 
     // Define test architectures, optional rocm version argument is available
-    def nodes = new dockerNodes(['gfx906 && centos7', 'gfx900 && ubuntu'], rocfft)
+    def nodes = new dockerNodes(['gfx900 && ubuntu', 'gfx906 && ubuntu', 'gfx906 && centos7', 'gfx900 && ubuntu && hip-clang',
+                'gfx906 && ubuntu && hip-clang'], rocfft)
 
     boolean formatCheck = true
 
@@ -45,14 +46,25 @@ rocFFTCI:
 
         project.paths.construct_build_prefix()
         
-        def command
-
-        command = """#!/usr/bin/env bash
-                set -x
-                cd ${project.paths.project_build_prefix}
-                LD_LIBRARY_PATH=/opt/rocm/hcc/lib CXX=${project.compiler.compiler_path} ${project.paths.build_command}
+        def command 
+        
+        if(platform.jenkinsLabel.contains('hip-clang'))
+        {
+            command = """#!/usr/bin/env bash
+                    set -x
+                    cd ${project.paths.project_build_prefix}
+                    LD_LIBRARY_PATH=/opt/rocm/hcc/lib CXX=/opt/rocm/bin/hipcc ${project.paths.build_command} --hip-clang
                 """
-
+        }
+        else
+        {
+            command = """#!/usr/bin/env bash
+                    set -x
+                    cd ${project.paths.project_build_prefix}
+                    LD_LIBRARY_PATH=/opt/rocm/hcc/lib CXX=/opt/rocm/bin/hcc ${project.paths.build_command}
+                """
+        }
+        
         platform.runCommand(this, command)
     }
 
@@ -102,6 +114,10 @@ rocFFTCI:
 
             platform.runCommand(this, command)
             platform.archiveArtifacts(this, """${project.paths.project_build_prefix}/build/release/package/*.rpm""")        
+        }
+        else if(platform.jenkinsLabel.contains('hip-clang'))
+        {
+            packageCommand = null
         }
         else
         {
