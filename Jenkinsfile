@@ -35,8 +35,7 @@ rocFFTCI:
     rocfft.paths.build_command = './install.sh -c'
 
     // Define test architectures, optional rocm version argument is available
-    def nodes = new dockerNodes(['gfx900 && ubuntu', 'gfx906 && ubuntu', 'gfx906 && centos7', 'gfx900 && ubuntu && hip-clang',
-                'gfx906 && ubuntu && hip-clang'], rocfft)
+    def nodes = new dockerNodes(['gfx900 && ubuntu && hip-clang','gfx906 && ubuntu && hip-clang'], rocfft)
 
     boolean formatCheck = true
 
@@ -53,7 +52,7 @@ rocFFTCI:
             command = """#!/usr/bin/env bash
                     set -x
                     cd ${project.paths.project_build_prefix}
-                    LD_LIBRARY_PATH=/opt/rocm/hcc/lib CXX=/opt/rocm/bin/hipcc ${project.paths.build_command} --hip-clang
+                    LD_LIBRARY_PATH=/opt/rocm/lib CXX=/opt/rocm/bin/hipcc ${project.paths.build_command} --hip-clang
                 """
         }
         else
@@ -87,7 +86,7 @@ rocFFTCI:
             command = """#!/usr/bin/env bash
                     set -x
                     cd ${project.paths.project_build_prefix}/build/release/clients/staging
-                    LD_LIBRARY_PATH=/opt/rocm/hcc/lib GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./rocfft-test --gtest_output=xml --gtest_color=yes
+                    LD_LIBRARY_PATH=/opt/rocm/lib GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./rocfft-test --gtest_output=xml --gtest_color=yes
                 """
         }
         
