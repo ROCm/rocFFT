@@ -24,6 +24,7 @@
 #include <hip/hip_runtime_api.h>
 #include <hipfft.h>
 #include <iostream>
+#include <vector>
 
 int main()
 {

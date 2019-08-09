@@ -22,6 +22,7 @@
 
 #include <complex>
 #include <iostream>
+#include <vector>
 
 #include <hip/hip_runtime.h>
 #include <hipfft.h>
