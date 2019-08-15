@@ -28,9 +28,6 @@ find_package(rocfft)
 set( sample_list hipfft_1d_z2z hipfft_1d_d2z hipfft_2d_z2z hipfft_2d_d2z hipfft_3d_z2z
   hipfft_3d_d2z hipfft_planmany_2d_z2z hipfft_planmany_2d_r2c hipfft_setworkarea)
 
-
-set(CMAKE_CXX_FLAG = "${CMAKE_CXX_FLAG} -hc")
-
 foreach( sample ${sample_list} )
 
   add_executable( ${sample} ${sample}.cpp )
@@ -61,7 +58,7 @@ foreach( sample ${sample_list} )
   if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
     # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
     # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
-    target_compile_options( ${sample} PRIVATE -Wno-unused-command-line-argument )
+    target_compile_options( ${sample} PRIVATE -Wno-unused-command-line-argument -hc)
 
     # foreach( target ${AMDGPU_TARGETS} )
     #   target_link_libraries( ${sample} PRIVATE --amdgpu-target=${target} )

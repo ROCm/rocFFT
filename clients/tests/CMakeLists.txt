@@ -107,7 +107,7 @@ endif( )
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
   # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
   # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
-  target_compile_options( rocfft-test PRIVATE -Wno-unused-command-line-argument )
+  target_compile_options( rocfft-test PRIVATE -Wno-unused-command-line-argument -hc)
 
   # foreach( target ${AMDGPU_TARGETS} )
   #   target_link_libraries( rocfft-test PRIVATE --amdgpu-target=${target} )
