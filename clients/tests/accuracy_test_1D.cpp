@@ -128,7 +128,8 @@ protected:
     virtual void TearDown() {}
 };
 
-class accuracy_test_real : public ::TestWithParam<std::tuple<size_t, size_t>>
+class accuracy_test_real
+    : public ::TestWithParam<std::tuple<size_t, size_t, rocfft_result_placement>>
 {
 protected:
     accuracy_test_real() {}
@@ -257,10 +258,10 @@ TEST_P(accuracy_test_real, normal_1D_real_interleaved_to_hermitian_interleaved_s
 {
     size_t                  N         = std::get<0>(GetParam());
     size_t                  batch     = std::get<1>(GetParam());
-    rocfft_result_placement placeness = rocfft_placement_notinplace; // must be non-inplace
+    rocfft_result_placement placeness = std::get<2>(GetParam());
     rocfft_transform_type   transform_type
         = rocfft_transform_type_real_forward; // must be real forward
-    size_t stride = 1;
+    size_t stride = 1; // FIXME: enable strides
 
     try
     {
@@ -277,10 +278,10 @@ TEST_P(accuracy_test_real, normal_1D_real_interleaved_to_hermitian_interleaved_d
 {
     size_t                  N         = std::get<0>(GetParam());
     size_t                  batch     = std::get<1>(GetParam());
-    rocfft_result_placement placeness = rocfft_placement_notinplace; // must be non-inplace
+    rocfft_result_placement placeness = std::get<2>(GetParam());
     rocfft_transform_type   transform_type
         = rocfft_transform_type_real_forward; // must be real forward
-    size_t stride = 1;
+    size_t stride = 1; // FIXME: enable strides
 
     try
     {
@@ -336,7 +337,7 @@ TEST_P(accuracy_test_real, normal_1D_hermitian_interleaved_to_real_interleaved_s
 {
     size_t                  N         = std::get<0>(GetParam());
     size_t                  batch     = std::get<1>(GetParam());
-    rocfft_result_placement placeness = rocfft_placement_notinplace; // must be non-inplace
+    rocfft_result_placement placeness = std::get<2>(GetParam());
     rocfft_transform_type   transform_type
         = rocfft_transform_type_real_inverse; // must be real inverse
     size_t stride = 1;
@@ -356,7 +357,7 @@ TEST_P(accuracy_test_real, normal_1D_hermitian_interleaved_to_real_interleaved_d
 {
     size_t                  N         = std::get<0>(GetParam());
     size_t                  batch     = std::get<1>(GetParam());
-    rocfft_result_placement placeness = rocfft_placement_notinplace; // must be non-inplace
+    rocfft_result_placement placeness = std::get<2>(GetParam());
     rocfft_transform_type   transform_type
         = rocfft_transform_type_real_inverse; // must be real inverse
     size_t stride = 1;
@@ -427,27 +428,37 @@ INSTANTIATE_TEST_CASE_P(rocfft_prime_1D,
                                 ValuesIn(stride_range)));
 
 // *****************************************************
-// REAL  HERMITIAN
+// REAL HERMITIAN
 // *****************************************************
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_1D,
                         accuracy_test_real,
-                        Combine(ValuesIn(pow2_range), ValuesIn(batch_range)));
+                        Combine(ValuesIn(pow2_range),
+                                ValuesIn(batch_range),
+                                ValuesIn(placeness_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow3_1D,
                         accuracy_test_real,
-                        Combine(ValuesIn(pow3_range), ValuesIn(batch_range)));
+                        Combine(ValuesIn(pow3_range),
+                                ValuesIn(batch_range),
+                                ValuesIn(placeness_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow5_1D,
                         accuracy_test_real,
-                        Combine(ValuesIn(pow5_range), ValuesIn(batch_range)));
+                        Combine(ValuesIn(pow5_range),
+                                ValuesIn(batch_range),
+                                ValuesIn(placeness_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow_mix_1D,
                         accuracy_test_real,
-                        Combine(ValuesIn(mix_range), ValuesIn(batch_range)));
+                        Combine(ValuesIn(mix_range),
+                                ValuesIn(batch_range),
+                                ValuesIn(placeness_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_prime_1D,
                         accuracy_test_real,
-                        Combine(ValuesIn(prime_range), ValuesIn(batch_range)));
+                        Combine(ValuesIn(prime_range),
+                                ValuesIn(batch_range),
+                                ValuesIn(placeness_range)));
 
 // *****************************************************
 // *****************************************************
