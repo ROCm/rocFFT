@@ -1,24 +1,22 @@
-/******************************************************************************
-* Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*******************************************************************************/
+// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
 #pragma once
 #if !defined(BUFFER_H)
@@ -37,8 +35,6 @@
 #include <utility>
 #include <vector>
 
-/*****************************************************/
-/*****************************************************/
 template <typename T>
 bool floats_are_about_equal(T a, T b)
 {
@@ -46,15 +42,12 @@ bool floats_are_about_equal(T a, T b)
     if(fabs(a) < 0.00001f && fabs(b) < 0.00001f)
         return true;
     // . . . and if not, we'll see if they're the same-ish
-    return (fabs(a - b) > fabs(a * tolerance)) ? false : true;
+    return fabs(a - b) <= fabs(a * tolerance);
 }
 
-/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
-/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
 struct index_t
 {
     size_t x, y, z, batch;
-
     index_t(size_t inx, size_t iny, size_t inz, size_t inbatch)
         : x(inx)
         , y(iny)
@@ -64,18 +57,15 @@ struct index_t
     }
 };
 
-/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
-/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
 template <class T>
 class buffer
 {
 private:
-    // we need to save the requested length x, because
-    // if we change the buffer from complex to real,
-    // (as in a round-trip test) we need to be able to
-    // get back to the original length of x. in the case
-    // of an odd transform length, that's not possible
-    // due to round-off error unless we explicitly save it
+    // we need to save the requested length x, because if we change
+    // the buffer from complex to real, (as in a round-trip test) we
+    // need to be able to get back to the original length of x. in the
+    // case of an odd transform length, that's not possible due to
+    // round-off error unless we explicitly save it.
     size_t                  _requested_length_x;
     size_t                  _number_of_dimensions;
     size_t                  _batch_size;
@@ -105,7 +95,6 @@ private:
     };
 
 public:
-    /*****************************************************/
     buffer(const size_t                  dimensions_in,
            const size_t*                 lengths_in,
            const size_t*                 strides_in,
@@ -134,13 +123,11 @@ public:
         clear();
     }
 
-    /*****************************************************/
     ~buffer() {}
 
-    /*****************************************************/
-    // this assignment operator only copies _data_.
-    // it does not change the rest of the buffer information
-    // and in fact, it requires that the buffer sizes be the same going in
+    // This assignment operator only copies _data_.  it does not
+    // change the rest of the buffer information and in fact, it
+    // requires that the buffer sizes be the same going in.
     buffer<T>& operator=(buffer<T>& that)
     {
         if(this->is_real() != that.is_real() || this->is_hermitian() != that.is_hermitian()
@@ -198,41 +185,25 @@ public:
     }
 
 private:
-    /*****************************************************/
-    void preinitialize_lengths_to_1_1_1()
-    {
-        _lengths.clear();
-
-        for(int i = 0; i < max_dimension; ++i)
-        {
-            _lengths.push_back(1);
-        }
-    }
-
-    /*****************************************************/
     void initialize_lengths(const size_t* lengths_in)
     {
-        preinitialize_lengths_to_1_1_1();
-
+        _lengths.resize(3);
+        std::fill(_lengths.begin(), _lengths.end(), 1);
         for(size_t i = 0; i < _number_of_dimensions; ++i)
         {
             _lengths[i] = lengths_in[i];
         }
-
         _requested_length_x = _lengths[dimx];
         adjust_length_x_for_hermitian_buffers();
     }
 
-    /*****************************************************/
     void adjust_length_x_for_hermitian_buffers()
     {
-        // complex-to-complex transforms do not require any change
-        // to the number of points in the buffer
-
-        // real buffers also never require a change to the number of
-        // points in the buffer
-
-        // a hermitian buffer with a length of "X" will actually
+        // Complex-to-complex transforms do not require any change
+        // to the number of points in the buffer.
+        // Real buffers also never require a change to the number of
+        // points in the buffer.
+        // A hermitian buffer with a length of "X" will actually
         // have X/2 + 1 points (the other half-ish are conjugates
         // and do not need to be stored). lenY and lenZ are never
         // modified
@@ -242,22 +213,10 @@ private:
         }
     }
 
-    /*****************************************************/
-    void preinitialize_strides_to_1_1_1()
-    {
-        _strides.clear();
-
-        for(int i = 0; i < max_dimension; ++i)
-        {
-            _strides.push_back(1);
-        }
-    }
-
-    /*****************************************************/
     void initialize_strides(const size_t* strides_in) // TODO: stride may introduce bugs
     {
-        preinitialize_strides_to_1_1_1();
-
+        _strides.resize(3);
+        std::fill(_strides.begin(), _strides.end(), 1);
         // we need to calculate the strides if tightly packed
         if(strides_in == nullptr || strides_in[0] == 1)
         {
@@ -266,7 +225,6 @@ private:
             {
                 _strides[i] = _strides[i - 1] * _lengths[i - 1];
             }
-
             _tightly_packed_strides = true;
         }
         // we do not need to calculate anything if the user specifies strides
@@ -277,31 +235,26 @@ private:
             {
                 _strides[i] = strides_in[i];
             }
-
             _tightly_packed_strides = false;
         }
     }
 
-    /*****************************************************/
     void initialize_distance(const size_t distance_in)
     {
         if(distance_in == tightly_packed)
         {
             // calculate distance if not passed in
             _distance = _lengths[_number_of_dimensions - 1] * _strides[_number_of_dimensions - 1];
-
             _tightly_packed_distance = true;
         }
         else
         {
             // or copy it if passed in
-            _distance = distance_in;
-
+            _distance                = distance_in;
             _tightly_packed_distance = false;
         }
     }
 
-    /*****************************************************/
     void create_buffer_memory()
     {
         if(is_real())
@@ -309,7 +262,6 @@ private:
             // just one real buffer
             _the_buffers.push_back(
                 buffer_memory<T>(total_number_of_points_including_data_and_intervening()));
-
             increase_memory_allocation_for_real_in_place_buffers();
         }
         else if(is_planar())
@@ -329,16 +281,13 @@ private:
         }
     }
 
-    /*****************************************************/
     size_t amount_of_extra_padding_per_x()
     {
-        if(length(dimx) % 2 == 0) // even lengths of x add 2 per row
-            return 2;
-        else // odd lengths of x add 1 per row
-            return 1;
+        // even lengths of x add 2 per row
+        // odd lengths of x add 1 per row
+        return (length(dimx) % 2 == 0) ? 2 : 1;
     }
 
-    /*****************************************************/
     void adjust_strides_and_distance_for_in_place_real_buffer()
     {
         if(is_real())
@@ -386,20 +335,17 @@ private:
             throw std::runtime_error("this buffer is unreal and shouldn't be adjusting strides");
     }
 
-    /*****************************************************/
     void increase_memory_allocation_for_real_in_place_buffers()
     {
-        // when performing an in-place, real-to-hermitian transform,
+        // When performing an in-place, real-to-hermitian transform,
         // we want a little extra space to account for the larger size
         // of the hermitian output.
-
-        // each row in the X dimension should have enough space for 2 extra reals
+        // Each row in the X dimension should have enough space for 2 extra reals
         // (to account for the one extra complex number that will be put
-        // into the buffer after the transform)
-
-        // we don't want to change the length, because the number of points
+        // into the buffer after the transform).
+        // We don't want to change the length, because the number of points
         // in the transform isn't changing. we only want to change the
-        // amount of memory reserved
+        // amount of memory reserved.
         if(is_real())
         {
             if(is_in_place())
@@ -419,25 +365,20 @@ private:
         }
     }
 
-    /*****************************************************/
     size_t index(const size_t x, const size_t y = 0, const size_t z = 0, const size_t batch = 0)
     {
         size_t interleaved_offset = 1;
-
-        // if this buffer is interleaved, the index should actually be double what
+        // If this buffer is interleaved, the index should actually be double what
         // it appears.
         // interleaved_offset will accomplish this magical doubling.
         if(is_interleaved())
             interleaved_offset = 2;
-
         size_t the_index
             = (stride(dimx) * x + stride(dimy) * y + stride(dimz) * z + distance() * batch)
               * interleaved_offset;
-
         return the_index;
     }
 
-    /*****************************************************/
     size_t
         next_index(const size_t x, const size_t y = 0, const size_t z = 0, const size_t batch = 0)
     {
@@ -455,7 +396,6 @@ private:
             return index(0, 0, 0, batch + 1);
     }
 
-    /*****************************************************/
     bool points_are_about_equal(buffer<T>& other_buffer, size_t x, size_t y, size_t z, size_t batch)
     {
         if(is_real())
@@ -470,7 +410,6 @@ private:
             throw std::runtime_error("invalid layout in points_are_about_equal()");
     }
 
-    /*****************************************************/
     size_t buffer_mismatches(buffer<T>& other_buffer, bool compare_method)
     {
         std::vector<index_t> mismatched_point_indices;
@@ -611,7 +550,6 @@ private:
     }
 
 public:
-    /*****************************************************/
     bool operator==(buffer<T>& other_buffer)
     {
         // complexity of each dimension must be the same
@@ -649,13 +587,9 @@ public:
         size_t number_deaths = 0;
         number_deaths += buffer_mismatches(other_buffer, comparison_type);
 
-        if(number_deaths == 0)
-            return true;
-        else
-            return false;
+        return (number_deaths == 0);
     }
 
-    /*****************************************************/
     bool operator!=(buffer<T>& other_buffer)
     {
         return !(*this == other_buffer);
@@ -794,7 +728,6 @@ public:
                     }
     }
 
-    /*****************************************************/
     // strides and distance are those of the output (that is, the new hermitian
     // buffer)
     void change_real_to_hermitian(const size_t* strides_in, const size_t distance_in)
@@ -812,7 +745,6 @@ public:
         initialize_distance(distance_in);
     }
 
-    /*****************************************************/
     // strides and distance are those of the output (that is, the new real buffer)
     void change_hermitian_to_real(const size_t* strides_in, const size_t distance_in)
     {
@@ -829,41 +761,35 @@ public:
         initialize_distance(distance_in);
     }
 
-    /*****************************************************/
     bool is_real()
     {
         return _layout == rocfft_array_type_real;
     }
 
-    /*****************************************************/
     bool is_complex()
     {
         return _layout == rocfft_array_type_complex_interleaved
                || _layout == rocfft_array_type_complex_planar;
     }
 
-    /*****************************************************/
     bool is_hermitian()
     {
         return _layout == rocfft_array_type_hermitian_interleaved
                || _layout == rocfft_array_type_hermitian_planar;
     }
 
-    /*****************************************************/
     bool is_planar()
     {
         return _layout == rocfft_array_type_complex_planar
                || _layout == rocfft_array_type_hermitian_planar;
     }
 
-    /*****************************************************/
     bool is_interleaved()
     {
         return _layout == rocfft_array_type_complex_interleaved
                || _layout == rocfft_array_type_hermitian_interleaved;
     }
 
-    /*****************************************************/
     bool is_in_place()
     {
         if(_placeness == rocfft_placement_inplace)
@@ -874,7 +800,6 @@ public:
             throw std::runtime_error("invalid placeness value in is_in_place()");
     }
 
-    /*****************************************************/
     T* interleaved_ptr()
     {
         if(is_interleaved())
@@ -883,7 +808,6 @@ public:
             throw std::runtime_error("interleaved_ptr() is only available on interleaved buffers");
     }
 
-    /*****************************************************/
     T* real_ptr()
     {
         if(is_planar() || is_real())
@@ -892,7 +816,6 @@ public:
             throw std::runtime_error("real() is only available on real and planar buffers");
     }
 
-    /*****************************************************/
     T* imag_ptr()
     {
         if(is_planar())
@@ -901,7 +824,6 @@ public:
             throw std::runtime_error("imag_ptr() is only available on planar buffers");
     }
 
-    /*****************************************************/
     T real(const size_t x, const size_t y = 0, const size_t z = 0, const size_t batch = 0)
     {
         size_t this_index = index(x, y, z, batch);
@@ -913,7 +835,6 @@ public:
         return this_value;
     }
 
-    /*****************************************************/
     T imag(const size_t x, const size_t y = 0, const size_t z = 0, const size_t batch = 0)
     {
         size_t this_index = index(x, y, z, batch);
@@ -930,7 +851,6 @@ public:
             throw std::runtime_error("invalid layout type in imag()");
     }
 
-    /*****************************************************/
     std::complex<T>
         complex(const size_t x, const size_t y = 0, const size_t z = 0, const size_t batch = 0)
     {
@@ -945,13 +865,11 @@ public:
             throw std::runtime_error("invalid layout type in complex()");
     }
 
-    /*****************************************************/
     size_t number_of_dimensions()
     {
         return _number_of_dimensions;
     }
 
-    /*****************************************************/
     size_t number_of_data_points_single_batch()
     {
         size_t number_of_points = 1;
@@ -962,13 +880,11 @@ public:
         return number_of_points;
     }
 
-    /*****************************************************/
     size_t number_of_data_points()
     {
         return number_of_data_points_single_batch() * batch_size();
     }
 
-    /*****************************************************/
     // note that this returns the size in number of points and
     // does not take layout into consideration. this will yield
     // the same number for real, interleaved, and planar layouts.
@@ -980,7 +896,6 @@ public:
         return distance() * batch_size();
     }
 
-    /*****************************************************/
     // note that this will return the size of ONE BUFFER in bytes
     // for real and interleaved, that doesn't change anything
     // for planar, you will get the size of the real _or_ the imaginary
@@ -990,43 +905,36 @@ public:
         return _the_buffers[0].size_in_bytes();
     }
 
-    /*****************************************************/
     size_t length(size_t dim)
     {
         return _lengths[dim];
     }
 
-    /*****************************************************/
     size_t stride(size_t dim)
     {
         return _strides[dim];
     }
 
-    /*****************************************************/
     size_t* lengths()
     {
         return &_lengths[0];
     }
 
-    /*****************************************************/
     size_t* strides()
     {
         return &_strides[0];
     }
 
-    /*****************************************************/
     size_t batch_size()
     {
         return _batch_size;
     }
 
-    /*****************************************************/
     size_t distance()
     {
         return _distance;
     }
 
-    /*****************************************************/
     void clear()
     {
         // for all batches
@@ -1037,7 +945,6 @@ public:
             set_all_to_value(0.0f, 0.0f);
     }
 
-    /*****************************************************/
     void set_one_data_point(
         T real, const size_t x, const size_t y, const size_t z, const size_t batch)
     {
@@ -1053,7 +960,6 @@ public:
                                      "complex or hermitian buffer");
     }
 
-    /*****************************************************/
     void set_one_data_point(
         T real, T imag, const size_t x, const size_t y, const size_t z, const size_t batch)
     {
@@ -1080,11 +986,9 @@ public:
         }
     }
 
-    /*****************************************************/
     void set_all_to_value(T real)
     {
         // for all batches
-
         for(size_t batch = 0; batch < batch_size(); batch++)
         {
             for(size_t z = 0; z < length(dimz); z++)
@@ -1100,11 +1004,9 @@ public:
         }
     }
 
-    /*****************************************************/
     void set_all_to_value(T real, T imag)
     {
         // for all batches
-
         for(size_t batch = 0; batch < batch_size(); batch++)
         {
             for(size_t z = 0; z < length(dimz); z++)
@@ -1120,11 +1022,9 @@ public:
         }
     }
 
-    /*****************************************************/
     void set_all_to_linear_increase()
     {
         // for all batches
-
         size_t val = 1;
         for(size_t batch = 0; batch < batch_size(); batch++)
         {
@@ -1152,11 +1052,9 @@ public:
         }
     }
 
-    /*****************************************************/
     void set_all_to_sawtooth(T amplitude)
     {
         // for all batches
-
         for(size_t batch = 0; batch < batch_size(); batch++)
         {
             for(size_t z = 0; z < length(dimz); z++)
@@ -1225,8 +1123,6 @@ public:
         }
     }
 
-    /*****************************************************/
-
     void set_all_to_random()
     {
         // for all batches
@@ -1265,7 +1161,6 @@ public:
         }
     }
 
-    /*****************************************************/
     void set_all_to_impulse()
     {
         // for all batches
@@ -1282,7 +1177,6 @@ public:
         }
     }
 
-    /*****************************************************/
     void scale_data(T scale)
     {
         // for all batches
@@ -1316,7 +1210,6 @@ public:
         }
     }
 
-    /*****************************************************/
     void make_sure_padding_was_not_overwritten()
     {
         // check before and after memory first

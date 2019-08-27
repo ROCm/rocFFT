@@ -1,24 +1,22 @@
-/******************************************************************************
-* Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*******************************************************************************/
+// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
 #pragma once
 #if !defined(FFTWTRANSFORM_H)
@@ -66,20 +64,22 @@ public:
                    fftw_direction            direction,
                    fftw_transform_type       type)
     {
-        // we need to swap x,y,z dimensions because of a row-column discrepancy
-        // between rocfft and fftw
+        // We need to swap x,y,z dimensions because of a row-column
+        // discrepancy between rocfft and fftw.
         int lengths[max_dimension] = {z, y, x};
 
-        if(type == c2c)
+        // Because we swapped dimensions up above, we need to start at
+        // the end of the array and count backwards to get the correct
+        // dimensions passed in to fftw.
+        // e.g. if max_dimension is 3 and number_of_dimensions is 2:
+        // lengths = {dimz, dimy, dimx}
+        // lengths + 3 - 2 = lengths + 1
+        // so we will skip dimz and pass in a pointer to {dimy, dimx}
+
+        switch(type)
         {
+        case c2c:
             plan = fftwf_plan_many_dft(num_dimensions,
-                                       // because we swapped dimensions up above, we need to start
-                                       // at the end of the array and count backwards to get the
-                                       // correct dimensions passed in to fftw
-                                       // e.g. if max_dimension is 3 and number_of_dimensions is 2:
-                                       // lengths = {dimz, dimy, dimx}
-                                       // lengths + 3 - 2 = lengths + 1
-                                       // so we will skip dimz and pass in a pointer to {dimy, dimx}
                                        lengths + max_dimension - num_dimensions,
                                        batch_size,
                                        input_ptr,
@@ -92,55 +92,38 @@ public:
                                        num_points_in_single_batch * output_strides[0],
                                        direction,
                                        FFTW_ESTIMATE);
-        }
-        else if(type == r2c)
-        {
-            plan = fftwf_plan_many_dft_r2c(
-                num_dimensions,
-                // because we swapped dimensions up above, we need to start
-                // at the end of the array and count backwards to get the
-                // correct dimensions passed in to fftw
-                // e.g. if max_dimension is 3 and number_of_dimensions is 2:
-                // lengths = {dimz, dimy, dimx}
-                // lengths + 3 - 2 = lengths + 1
-                // so we will skip dimz and pass in a pointer to {dimy, dimx}
-                lengths + max_dimension - num_dimensions,
-                batch_size,
-                reinterpret_cast<float*>(input_ptr),
-                NULL,
-                1,
-                num_points_in_single_batch, // TODO for strides
-                output_ptr,
-                NULL,
-                1,
-                (x / 2 + 1) * y * z,
-                FFTW_ESTIMATE);
-        }
-        else if(type == c2r)
-        {
-            plan = fftwf_plan_many_dft_c2r(
-                num_dimensions,
-                // because we swapped dimensions up above, we need to start
-                // at the end of the array and count backwards to get the
-                // correct dimensions passed in to fftw
-                // e.g. if max_dimension is 3 and number_of_dimensions is 2:
-                // lengths = {dimz, dimy, dimx}
-                // lengths + 3 - 2 = lengths + 1
-                // so we will skip dimz and pass in a pointer to {dimy, dimx}
-                lengths + max_dimension - num_dimensions,
-                batch_size,
-                input_ptr,
-                NULL,
-                1,
-                (x / 2 + 1) * y * z,
-                reinterpret_cast<float*>(output_ptr),
-                NULL,
-                1,
-                num_points_in_single_batch, // TODO for strides
-                FFTW_ESTIMATE);
-        }
-        else
+            break;
+        case r2c:
+            plan = fftwf_plan_many_dft_r2c(num_dimensions,
+                                           lengths + max_dimension - num_dimensions,
+                                           batch_size,
+                                           reinterpret_cast<float*>(input_ptr),
+                                           NULL,
+                                           1,
+                                           num_points_in_single_batch, // TODO for strides
+                                           output_ptr,
+                                           NULL,
+                                           1,
+                                           (x / 2 + 1) * y * z,
+                                           FFTW_ESTIMATE);
+            break;
+        case c2r:
+            plan = fftwf_plan_many_dft_c2r(num_dimensions,
+                                           lengths + max_dimension - num_dimensions,
+                                           batch_size,
+                                           input_ptr,
+                                           NULL,
+                                           1,
+                                           (x / 2 + 1) * y * z,
+                                           reinterpret_cast<float*>(output_ptr),
+                                           NULL,
+                                           1,
+                                           num_points_in_single_batch, // TODO for strides
+                                           FFTW_ESTIMATE);
+            break;
+        default:
             throw std::runtime_error("invalid transform type in <float>make_plan");
+        }
     }
 
     fftw_wrapper(int                       x,
@@ -209,16 +192,18 @@ public:
         // between rocfft and fftw
         int lengths[max_dimension] = {z, y, x};
 
-        if(type == c2c)
+        // Because we swapped dimensions up above, we need to start at
+        // the end of the array and count backwards to get the correct
+        // dimensions passed in to fftw.
+        // e.g. if max_dimension is 3 and number_of_dimensions is 2:
+        // lengths = {dimz, dimy, dimx}
+        // lengths + 3 - 2 = lengths + 1
+        // so we will skip dimz and pass in a pointer to {dimy, dimx}
+
+        switch(type)
         {
+        case c2c:
             plan = fftw_plan_many_dft(num_dimensions,
-                                      // because we swapped dimensions up above, we need to start
-                                      // at the end of the array and count backwards to get the
-                                      // correct dimensions passed in to fftw
-                                      // e.g. if max_dimension is 3 and number_of_dimensions is 2:
-                                      // lengths = {dimz, dimy, dimx}
-                                      // lengths + 3 - 2 = lengths + 1
-                                      // so we will skip dimz and pass in a pointer to {dimy, dimx}
                                       lengths + max_dimension - num_dimensions,
                                       batch_size,
                                       input_ptr,
@@ -231,55 +216,38 @@ public:
                                       num_points_in_single_batch * output_strides[0],
                                       direction,
                                       FFTW_ESTIMATE);
-        }
-        else if(type == r2c)
-        {
-            plan = fftw_plan_many_dft_r2c(
-                num_dimensions,
-                // because we swapped dimensions up above, we need to start
-                // at the end of the array and count backwards to get the
-                // correct dimensions passed in to fftw
-                // e.g. if max_dimension is 3 and number_of_dimensions is 2:
-                // lengths = {dimz, dimy, dimx}
-                // lengths + 3 - 2 = lengths + 1
-                // so we will skip dimz and pass in a pointer to {dimy, dimx}
-                lengths + max_dimension - num_dimensions,
-                batch_size,
-                reinterpret_cast<double*>(input_ptr),
-                NULL,
-                1,
-                num_points_in_single_batch, // TODO for strides
-                output_ptr,
-                NULL,
-                1,
-                (x / 2 + 1) * y * z,
-                FFTW_ESTIMATE);
-        }
-        else if(type == c2r)
-        {
-            plan = fftw_plan_many_dft_c2r(
-                num_dimensions,
-                // because we swapped dimensions up above, we need to start
-                // at the end of the array and count backwards to get the
-                // correct dimensions passed in to fftw
-                // e.g. if max_dimension is 3 and number_of_dimensions is 2:
-                // lengths = {dimz, dimy, dimx}
-                // lengths + 3 - 2 = lengths + 1
-                // so we will skip dimz and pass in a pointer to {dimy, dimx}
-                lengths + max_dimension - num_dimensions,
-                batch_size,
-                input_ptr,
-                NULL,
-                1,
-                (x / 2 + 1) * y * z,
-                reinterpret_cast<double*>(output_ptr),
-                NULL,
-                1,
-                num_points_in_single_batch, // TODO for strides
-                FFTW_ESTIMATE);
-        }
-        else
+            break;
+        case r2c:
+            plan = fftw_plan_many_dft_r2c(num_dimensions,
+                                          lengths + max_dimension - num_dimensions,
+                                          batch_size,
+                                          reinterpret_cast<double*>(input_ptr),
+                                          NULL,
+                                          1,
+                                          num_points_in_single_batch, // TODO for strides
+                                          output_ptr,
+                                          NULL,
+                                          1,
+                                          (x / 2 + 1) * y * z,
+                                          FFTW_ESTIMATE);
+            break;
+        case c2r:
+            plan = fftw_plan_many_dft_c2r(num_dimensions,
+                                          lengths + max_dimension - num_dimensions,
+                                          batch_size,
+                                          input_ptr,
+                                          NULL,
+                                          1,
+                                          (x / 2 + 1) * y * z,
+                                          reinterpret_cast<double*>(output_ptr),
+                                          NULL,
+                                          1,
+                                          num_points_in_single_batch, // TODO for strides
+                                          FFTW_ESTIMATE);
+            break;
+        default:
             throw std::runtime_error("invalid transform type in <double>make_plan");
+        }
     }
 
     fftw_wrapper(int                       x,
@@ -325,8 +293,6 @@ public:
     }
 };
 
-/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
-/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
 template <typename T, typename fftw_T>
 class fftw
 {
@@ -350,7 +316,6 @@ private:
     T _forward_scale, _backward_scale;
 
 public:
-    /*****************************************************/
     fftw(const std::vector<size_t>     lengths_in,
          const size_t                  batch_size_in,
          std::vector<size_t>           input_strides_in,
@@ -398,62 +363,64 @@ public:
         clear_data_buffer();
     }
 
-    /*****************************************************/
     ~fftw() {}
 
-    /*****************************************************/
     rocfft_array_type initialized_input_layout()
     {
-        if(_type == c2c)
+        switch(_type)
+        {
+        case c2c:
             return rocfft_array_type_complex_interleaved;
-        else if(_type == r2c)
+        case r2c:
             return rocfft_array_type_real;
-        else if(_type == c2r)
+        case c2r:
             return rocfft_array_type_hermitian_interleaved;
-        else
+        default:
             throw std::runtime_error("invalid transform type in initialized_input_layout");
+        }
     }
 
-    /*****************************************************/
     rocfft_array_type initialized_output_layout()
     {
-        if(_type == c2c)
+        switch(_type)
+        {
+        case c2c:
             return rocfft_array_type_complex_interleaved;
-        else if(_type == r2c)
+        case r2c:
             return rocfft_array_type_hermitian_interleaved;
-        else if(_type == c2r)
+        case c2r:
             return rocfft_array_type_real;
-        else
+        default:
             throw std::runtime_error("invalid transform type in initialized_input_layout");
+        }
     }
-    /*****************************************************/
+
     std::vector<size_t> initialized_lengths(const size_t  number_of_dimensions,
                                             const size_t* lengths_in)
     {
         std::vector<size_t> lengths(3, 1); // start with 1, 1, 1
-
         for(size_t i = 0; i < number_of_dimensions; i++)
         {
             lengths[i] = lengths_in[i];
         }
-
         return lengths;
     }
 
-    /*****************************************************/
     T* input_ptr()
     {
-        if(_input_layout == rocfft_array_type_real)
+        switch(_input_layout)
+        {
+        case rocfft_array_type_real:
             return input.real_ptr();
-        else if(_input_layout == rocfft_array_type_complex_interleaved)
+        case rocfft_array_type_complex_interleaved:
             return input.interleaved_ptr();
-        else if(_input_layout == rocfft_array_type_hermitian_interleaved)
+        case rocfft_array_type_hermitian_interleaved:
             return input.interleaved_ptr();
-        else
+        default:
             throw std::runtime_error("invalid layout in fftw::input_ptr");
+        }
     }
 
-    /*****************************************************/
     T* output_ptr()
     {
         if(_output_layout == rocfft_array_type_real)
@@ -468,7 +435,6 @@ public:
 
     // you must call either set_forward_transform() or
     // set_backward_transform() before setting the input buffer
-    /*****************************************************/
     void set_forward_transform()
     {
         if(_type != c2c)
@@ -494,7 +460,6 @@ public:
         }
     }
 
-    /*****************************************************/
     void set_backward_transform()
     {
         if(_type != c2c)
@@ -520,79 +485,66 @@ public:
         }
     }
 
-    /*****************************************************/
     size_t size_of_data_in_bytes()
     {
         return input.size_in_bytes();
     }
 
-    /*****************************************************/
     void forward_scale(T in)
     {
         _forward_scale = in;
     }
 
-    /*****************************************************/
     void backward_scale(T in)
     {
         _backward_scale = in;
     }
 
-    /*****************************************************/
     T forward_scale()
     {
         return _forward_scale;
     }
 
-    /*****************************************************/
     T backward_scale()
     {
         return _backward_scale;
     }
 
-    /*****************************************************/
     void set_data_to_value(T value)
     {
         input.set_all_to_value(value);
     }
 
-    /*****************************************************/
     void set_data_to_value(T real_value, T imag_value)
     {
         input.set_all_to_value(real_value, imag_value);
     }
 
-    /*****************************************************/
     void set_data_to_sawtooth(T max)
     {
         input.set_all_to_sawtooth(max);
     }
 
-    /*****************************************************/
     void set_data_to_increase_linearly()
     {
         input.set_all_to_linear_increase();
     }
 
-    /*****************************************************/
     void set_data_to_impulse()
     {
         input.set_all_to_impulse();
     }
 
-    /*****************************************************/
     void set_data_to_random()
     {
         input.set_all_to_random();
     }
 
-    /*****************************************************/
     void set_data_to_buffer(buffer<T> other_buffer)
     {
         input = other_buffer;
     }
 
-    /*****************************************************/
     void clear_data_buffer()
     {
         if(_input_layout == rocfft_array_type_real)
@@ -605,7 +557,6 @@ public:
         }
     }
 
-    /*****************************************************/
     void transform()
     {
         fftw_guts.execute();
@@ -633,13 +584,11 @@ public:
             throw std::runtime_error("invalid transform type in fftw::transform()");
     }
 
-    /*****************************************************/
     buffer<T>& result()
     {
         return output;
     }
 
-    /*****************************************************/
     buffer<T>& input_buffer()
     {
         return input;

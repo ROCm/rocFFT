@@ -1,24 +1,22 @@
-/******************************************************************************
-* Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*******************************************************************************/
+// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
 #pragma once
 #if !defined(ROCFFT_TRANSFORM_H)
@@ -30,15 +28,6 @@
 #include "test_constants.h"
 #include <iostream>
 #include <vector>
-
-using namespace std;
-
-//    unique_ptr is a smart pointer that retains sole ownership of an object
-//    through a pointer and destroys that object
-//    when the unique_ptr goes out of scope. No two unique_ptr instances can
-//    manage the same object.
-//    Custom deleter functions for our unique_ptr smart pointer class
-//    In my version 1, I do not use it
 
 template <class T>
 rocfft_status rocfft_plan_create_template(rocfft_plan*                  plan,
@@ -52,8 +41,6 @@ rocfft_status rocfft_plan_create_template(rocfft_plan*                  plan,
 template <class T>
 rocfft_status rocfft_set_scale_template(const rocfft_plan_description description, const T scale);
 
-/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
-/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
 template <class T>
 class rocfft
 {
@@ -68,8 +55,8 @@ private:
     rocfft_execution_info   info;
     rocfft_transform_type   _transformation_direction;
 
-    vector<size_t> lengths;
-    size_t         batch_size;
+    std::vector<size_t> lengths;
+    size_t              batch_size;
 
     std::vector<size_t> input_strides;
     std::vector<size_t> output_strides;
@@ -88,7 +75,6 @@ private:
     void*  device_workspace;
 
 public:
-    /*****************************************************/
     rocfft(const std::vector<size_t>     lengths_in,
            const size_t                  batch_size_in,
            const std::vector<size_t>     input_strides_in,
@@ -131,8 +117,7 @@ public:
 
         // verbose_output();// DEBUG
 
-        /********************create plan and perform the FFT transformation
-     * *********************************/
+        // create plan and perform the FFT transformation
 
         input_device_buffers[0]  = NULL;
         input_device_buffers[1]  = NULL;
@@ -149,18 +134,14 @@ public:
         info = NULL;
 
         initialize_plan();
-
-        /*****************************************************/
     }
-    catch(const exception&)
+    catch(const std::exception&)
     {
         throw;
     }
 
-    /*****************************************************/
     void initialize_resource()
     {
-
         // size_in_butes is calculated in Class input buffer
         if(is_planar(_input_layout))
         {
@@ -202,7 +183,6 @@ public:
         }
     }
 
-    /*****************************************************/
     void initialize_plan()
     {
 
@@ -239,10 +219,8 @@ public:
         }
     }
 
-    /*****************************************************/
     void set_layouts()
     {
-
         LIB_V_THROW(rocfft_plan_description_create(&desc), "rocfft_plan_description_create failed");
         // TODO offset non-packed data; only works for 1D now
 
@@ -279,7 +257,6 @@ public:
                     "rocfft_plan_create failed");
     }
 
-    /*****************************************************/
     void transform(bool explicit_intermediate_buffer = use_explicit_intermediate_buffer)
     {
 
@@ -314,115 +291,93 @@ public:
         }
     }
 
-    /*****************************************************/
     void verbose_output()
     {
-
-        cout << "transform parameters as seen by rocfft:" << endl;
-
+        std::cout << "transform parameters as seen by rocfft:" << std::endl;
         if(_placement == rocfft_placement_inplace)
-            cout << "in-place" << endl;
+            std::cout << "in-place" << std::endl;
         else
-            cout << "out-of-place" << endl;
-
-        cout << "input buffer byte size " << input.size_in_bytes() << endl;
-        cout << "output buffer byte size " << output.size_in_bytes() << endl;
+            std::cout << "out-of-place" << std::endl;
+        std::cout << "input buffer byte size " << input.size_in_bytes() << std::endl;
+        std::cout << "output buffer byte size " << output.size_in_bytes() << std::endl;
     }
 
-    /*****************************************************/
     bool is_real(const rocfft_array_type layout)
     {
         return layout == rocfft_array_type_real;
     }
 
-    /*****************************************************/
     bool is_planar(const rocfft_array_type layout)
     {
         return (layout == rocfft_array_type_complex_planar
                 || layout == rocfft_array_type_hermitian_planar);
     }
 
-    /*****************************************************/
     bool is_interleaved(const rocfft_array_type layout)
     {
         return (layout == rocfft_array_type_complex_interleaved
                 || layout == rocfft_array_type_hermitian_interleaved);
     }
 
-    /*****************************************************/
     bool is_complex(const rocfft_array_type layout)
     {
         return (layout == rocfft_array_type_complex_interleaved
                 || layout == rocfft_array_type_complex_planar);
     }
 
-    /*****************************************************/
     bool is_hermitian(const rocfft_array_type layout)
     {
         return (layout == rocfft_array_type_hermitian_interleaved
                 || layout == rocfft_array_type_hermitian_planar);
     }
 
-    /*****************************************************/
     void set_data_to_value(T real)
     {
         input.set_all_to_value(real);
     }
 
-    /*****************************************************/
     void set_data_to_value(T real, T imag)
     {
         input.set_all_to_value(real, imag);
     }
 
-    /*****************************************************/
     void set_data_to_sawtooth(T max)
     {
         input.set_all_to_sawtooth(max);
     }
 
-    /*****************************************************/
     void set_data_to_impulse()
     {
         input.set_all_to_impulse();
     }
 
-    /*****************************************************/
     void set_data_to_random()
     {
         input.set_all_to_random();
     }
 
-    /*****************************************************/
     void set_data_to_buffer(buffer<T> other_buffer)
     {
         input = other_buffer;
     }
 
-    /*****************************************************/
     buffer<T>& input_buffer()
     {
         return input;
     }
 
-    /*****************************************************/
     buffer<T>& output_buffer()
     {
         return output;
     }
 
-    /*****************************************************/
     // Do not need to check placement valid or not. the checking has been done at
     // the very beginning in the constructor
     buffer<T>& result()
     {
-        if(_placement == rocfft_placement_inplace)
-            return input;
-        else
-            return output;
+        return (_placement == rocfft_placement_inplace) ? input : output;
     }
 
-    /*****************************************************/
     ~rocfft()
     {
         for(int i = 0; i < 2; i++)
@@ -430,15 +385,20 @@ public:
             if(input_device_buffers[i] != NULL)
             {
                 hipFree(input_device_buffers[i]);
+                input_device_buffers[i] = NULL;
             }
             if(output_device_buffers[i] != NULL)
             {
                 hipFree(output_device_buffers[i]);
+                output_device_buffers[i] = NULL;
             }
         }
 
         if(device_workspace != NULL)
+        {
             hipFree(device_workspace);
+            device_workspace = NULL;
+        }
 
         if(desc != NULL)
         {
@@ -457,10 +417,8 @@ public:
     }
 
 private:
-    /*****************************************************/
     void write_local_input_buffer_to_gpu()
     {
-
         // size_in_bytes is calculated in input buffer
         if(is_planar(_input_layout))
         {
@@ -495,7 +453,6 @@ private:
 
     void read_gpu_result_to_output_buffer()
     {
-
         if(is_planar(_output_layout))
         {
             HIP_V_THROW(hipMemcpy(output.real_ptr(),
@@ -529,7 +486,6 @@ private:
 
     void read_gpu_result_to_input_buffer()
     {
-
         if(is_planar(_input_layout))
         {
             HIP_V_THROW(hipMemcpy(input.real_ptr(),
