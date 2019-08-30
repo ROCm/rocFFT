@@ -54,10 +54,10 @@ supported_distro( )
     fi
 
     case "${ID}" in
-        ubuntu|centos|rhel|fedora)
+        ubuntu|centos|rhel|fedora|sles)
             true
             ;;
-        *)  printf "This script is currently supported on Ubuntu, CentOS, RHEL and Fedora\n"
+        *)  printf "This script is currently supported on Ubuntu, CentOS, RHEL, Fedora, and SLES\n"
             exit 2
             ;;
     esac
@@ -147,6 +147,19 @@ install_dnf_packages( )
     done
 }
 
+# Take an array of packages as input, and install those packages with 'zypper' if they are
+# not already installed
+install_zypper_packages( )
+{
+    package_dependencies=("$@")
+    for package in "${package_dependencies[@]}"; do
+        if [[ $(yum list installed ${package} &> /dev/null; echo $? ) -ne 0 ]]; then
+            printf "\033[32mInstalling \033[33m${package}\033[32m from distro package manager\033[0m\n"
+            elevate_if_not_root zypper -n --no-gpg-checks install ${package}
+        fi
+    done
+}
+
 # Take an array of packages as input, and delegate the work to the appropriate distro
 # installer prereq: ${ID} must be defined before calling prereq: ${build_clients} must be
 # defined before calling
@@ -166,17 +179,20 @@ install_packages( )
     local library_dependencies_ubuntu=( "make" "cmake-curses-gui" "hip_hcc" "pkg-config" )
     local library_dependencies_centos=( "epel-release" "make" "cmake3" "hip_hcc" "gcc-c++" "rpm-build" )
     local library_dependencies_fedora=( "make" "cmake" "hip_hcc" "gcc-c++" "libcxx-devel" "rpm-build" )
+    local library_dependencies_sles=( "make" "cmake" "hip_hcc" "gcc-c++" "gcc-fortran" "libcxxtools9" "rpm-build" )
 
     if [[ "${build_cuda}" == true ]]; then
         # Ideally, this could be cuda-cufft-dev, but the package name has a version number in it
         library_dependencies_ubuntu+=( "cuda" )
         library_dependencies_centos+=( "" ) # how to install cuda on centos?
         library_dependencies_fedora+=( "" ) # how to install cuda on fedora?
+        library_dependencies_sles+=( "" ) # how to install cuda on fedora?
     fi
 
     local client_dependencies_ubuntu=( "libfftw3-dev" "libboost-program-options-dev" )
     local client_dependencies_centos=( "fftw-devel" "boost-devel" )
     local client_dependencies_fedora=( "fftw-devel" "boost-devel" )
+    local client_dependencies_sles=( "fftw3-devel" "libboost_program_options1_66_0-devel" "pkg-config" "dpkg")
 
     case "${ID}" in
         ubuntu)
@@ -205,8 +221,17 @@ install_packages( )
                 install_dnf_packages "${client_dependencies_fedora[@]}"
             fi
             ;;
+        
+        sles)
+            # elevate_if_not_root zypper -n update
+            install_zypper_packages "${library_dependencies_sles[@]}"
+
+            if [[ "${build_clients}" == true ]]; then
+                install_zypper_packages "${client_dependencies_sles[@]}"
+            fi
+            ;;
         *)
-            echo "This script is currently supported on Ubuntu, CentOS, RHEL and Fedora"
+            echo "This script is currently supported on Ubuntu, CentOS, RHEL, Fedora, and SLES"
             exit 2
             ;;
     esac
@@ -451,6 +476,9 @@ if [[ "${install_package}" == true ]]; then
             ;;
         fedora)
             elevate_if_not_root dnf install rocfft-*.rpm
+            ;;
+        sles)
+            elevate_if_not_root zypper -n --no-gpg-checks install rocfft-*.rpm
             ;;
     esac
 

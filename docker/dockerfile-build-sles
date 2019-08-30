@@ -2,7 +2,7 @@
 ARG base_image
 
 FROM ${base_image}
-LABEL maintainer="kent.knox@amd"
+LABEL maintainer="fei.zheng@amd.com"
 
 ARG user_uid
 
@@ -13,24 +13,22 @@ ARG user_uid
 # * rocfft-test: gfortran, googletest
 # * rocfft-bench: libboost-program-options-dev
 # * libhsakmt.so: libnuma1
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+RUN zypper -n update && zypper -n install\
     rock-dkms \
     sudo \
-    build-essential \
     ca-certificates \
     git \
+    gcc-c++ \
+    gcc-fortran \
     make \
     cmake \
-    libfftw3-dev \
-    pkg-config \
-    python2.7 \
-    python-yaml \
-    gfortran \
-    libboost-program-options-dev \
-    libnuma1 \
-    && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    fftw3-devel \
+    rpm-build \
+    dpkg \
+    python2-PyYAML \
+    libboost_program_options1_66_0-devel\
+    libcxxtools9 \
+    libnuma1 
 
 # docker pipeline runs containers with particular uid
 # create a jenkins user with this specific uid so it can use sudo priviledges

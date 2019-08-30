@@ -32,10 +32,10 @@ rocFFTCI:
 
     def rocfft = new rocProject('rocFFT')
     // customize for project
-    rocfft.paths.build_command = './install.sh -c'
+    rocfft.paths.build_command = 'sudo ./install.sh -c'
 
     // Define test architectures, optional rocm version argument is available
-    def nodes = new dockerNodes(['gfx900 && ubuntu', 'gfx906 && ubuntu', 'gfx900 && centos7', 'gfx906 && centos7','gfx906 && ubuntu && hip-clang'], rocfft)
+    def nodes = new dockerNodes(['gfx900 && ubuntu', 'gfx906 && centos', 'gfx900 && sles', 'gfx906 && sles', 'gfx900 && centos7 && hip-clang','gfx906 && ubuntu && hip-clang'], rocfft)
 
     boolean formatCheck = true
 
@@ -71,24 +71,11 @@ rocFFTCI:
     {
         platform, project->
 
-        def command
-        
-        if(platform.jenkinsLabel.contains('centos'))
-        {
-            command = """#!/usr/bin/env bash
+        def command = """#!/usr/bin/env bash
                     set -x
                     cd ${project.paths.project_build_prefix}/build/release/clients/staging
-                    LD_LIBRARY_PATH=/opt/rocm/hcc/lib GTEST_LISTENER=NO_PASS_LINE_IN_LOG sudo ./rocfft-test --gtest_output=xml --gtest_color=yes
+                    LD_LIBRARY_PATH=/opt/rocm/lib GTEST_LISTENER=NO_PASS_LINE_IN_LOG sudo ./rocfft-test --gtest_output=xml --gtest_color=yes
                 """
-        }
-        else
-        {
-            command = """#!/usr/bin/env bash
-                    set -x
-                    cd ${project.paths.project_build_prefix}/build/release/clients/staging
-                    LD_LIBRARY_PATH=/opt/rocm/lib GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./rocfft-test --gtest_output=xml --gtest_color=yes
-                """
-        }
         
         platform.runCommand(this, command)
         junit "${project.paths.project_build_prefix}/build/release/clients/staging/*.xml"
@@ -100,7 +87,11 @@ rocFFTCI:
 
         def command 
         
-        if(platform.jenkinsLabel.contains('centos'))
+        if(platform.jenkinsLabel.contains('hip-clang'))
+        {
+            packageCommand = null
+        }
+        else if(platform.jenkinsLabel.contains('centos'))
         {
             command = """
                     set -x
@@ -114,20 +105,30 @@ rocFFTCI:
             platform.runCommand(this, command)
             platform.archiveArtifacts(this, """${project.paths.project_build_prefix}/build/release/package/*.rpm""")        
         }
-        else if(platform.jenkinsLabel.contains('hip-clang'))
+        else if(platform.jenkinsLabel.contains('sles'))
         {
-            packageCommand = null
+            command = """
+                    set -x
+                    cd ${project.paths.project_build_prefix}/build/release
+                    sudo make package
+                    rm -rf package && sudo mkdir -p package
+                    sudo mv *.rpm package/
+                    rpm -qlp package/*.rpm
+                """
+
+            platform.runCommand(this, command)
+            platform.archiveArtifacts(this, """${project.paths.project_build_prefix}/build/release/package/*.rpm""")        
         }
         else
         {
             command = """
                     set -x
                     cd ${project.paths.project_build_prefix}/build/release
-                    make package
-                    rm -rf package && mkdir -p package
-                    mv *.deb package/
-		    make package_clients
- 		    mv clients/*.deb package                   
+                    sudo make package
+                    rm -rf package && sudo mkdir -p package
+                    sudo mv *.deb package/
+		    sudo make package_clients
+ 		    sudo mv clients/*.deb package                   
                 """
 
             platform.runCommand(this, command)
