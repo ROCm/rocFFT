@@ -1,30 +1,25 @@
-/******************************************************************************
-* Copyright (c) 2019 - present Advanced Micro Devices, Inc. All rights reserved.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*******************************************************************************/
+// Copyright (c) 2019 - present Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
-#include <algorithm>
 #include <cassert>
-#include <cmath>
-#include <cstdio>
-#include <cstdlib>
+#include <complex>
 #include <iostream>
 #include <vector>
 
@@ -32,31 +27,31 @@
 
 #include "rocfft.h"
 
-int main()
+int main(int argc, char* argv[])
 {
-    // The problem size
-    const size_t Nx = 8;
-    const size_t Ny = 8;
+    std::cout << "rocFFT complex 2d FFT example\n";
 
-    std::cout << "Complex 2d in-place FFT example\n";
+    // The problem size
+    const size_t Nx      = (argc < 2) ? 8 : atoi(argv[1]);
+    const size_t Ny      = (argc < 3) ? 8 : atoi(argv[2]);
+    const bool   inplace = (argc < 4) ? false : atoi(argv[3]);
+    std::cout << "Nx: " << Nx << "\tNy: " << Ny << "\tin-place: " << inplace << std::endl;
 
     // Initialize data on the host
-    std::vector<float2> cx(Nx * Ny);
+    std::cout << "Input:\n";
+    std::vector<std::complex<float>> cx(Nx * Ny);
     for(size_t i = 0; i < Nx; i++)
     {
         for(size_t j = 0; j < Ny; j++)
         {
-            cx[i * Ny + j].x = i + j;
-            cx[i * Ny + j].y = 0;
+            cx[i * Ny + j] = std::complex<float>(i + j, 0.0);
         }
     }
-
-    std::cout << "Input:\n";
     for(size_t i = 0; i < Nx; i++)
     {
         for(size_t j = 0; j < Ny; j++)
         {
-            std::cout << "( " << cx[i * Ny + j].x << "," << cx[i * Ny + j].y << ") ";
+            std::cout << cx[i * Ny + j] << " ";
         }
         std::cout << "\n";
     }
@@ -64,21 +59,25 @@ int main()
 
     rocfft_setup();
 
-    // Create HIP device object.
-    float2* x;
+    // Create HIP device object and copy data:
+    float2* x = NULL;
     hipMalloc(&x, cx.size() * sizeof(decltype(cx)::value_type));
-
-    //  Copy data to device
+    float2* y = inplace ? (float2*)x : NULL;
+    if(!inplace)
+    {
+        hipMalloc(&y, cx.size() * sizeof(decltype(cx)::value_type));
+    }
     hipMemcpy(x, cx.data(), cx.size() * sizeof(decltype(cx)::value_type), hipMemcpyHostToDevice);
 
-    const size_t lengths[2] = {Nx, Ny};
+    // Length are in reverse order because rocfft is column-major.
+    const size_t lengths[2] = {Ny, Nx};
 
-    rocfft_status status;
+    rocfft_status status = rocfft_status_success;
 
     // Create plans
     rocfft_plan forward = NULL;
     status              = rocfft_plan_create(&forward,
-                                rocfft_placement_inplace,
+                                inplace ? rocfft_placement_inplace : rocfft_placement_notinplace,
                                 rocfft_transform_type_complex_forward,
                                 rocfft_precision_single,
                                 2, // Dimensions
@@ -87,21 +86,22 @@ int main()
                                 NULL); // Description
     assert(status == rocfft_status_success);
 
-    rocfft_execution_info forward_info;
-    status = rocfft_execution_info_create(&forward_info);
+    // We may need work memory, which is passed via rocfft_execution_info
+    rocfft_execution_info forwardinfo = NULL;
+    status                            = rocfft_execution_info_create(&forwardinfo);
     assert(status == rocfft_status_success);
     size_t fbuffersize = 0;
     status             = rocfft_plan_get_work_buffer_size(forward, &fbuffersize);
     assert(status == rocfft_status_success);
-    void* fbuffer;
+    void* fbuffer = NULL;
     hipMalloc(&fbuffer, fbuffersize);
-    status = rocfft_execution_info_set_work_buffer(forward_info, fbuffer, fbuffersize);
+    status = rocfft_execution_info_set_work_buffer(forwardinfo, fbuffer, fbuffersize);
     assert(status == rocfft_status_success);
 
     // Create plans
     rocfft_plan backward = NULL;
     status               = rocfft_plan_create(&backward,
-                                rocfft_placement_inplace,
+                                inplace ? rocfft_placement_inplace : rocfft_placement_notinplace,
                                 rocfft_transform_type_complex_inverse,
                                 rocfft_precision_single,
                                 2, // Dimensions
@@ -110,34 +110,35 @@ int main()
                                 NULL); // Description
     assert(status == rocfft_status_success);
 
-    rocfft_execution_info backward_info;
-    status = rocfft_execution_info_create(&backward_info);
+    // Execution info for the backward transform:
+    rocfft_execution_info backwardinfo = NULL;
+    status                             = rocfft_execution_info_create(&backwardinfo);
     assert(status == rocfft_status_success);
     size_t bbuffersize = 0;
     status             = rocfft_plan_get_work_buffer_size(backward, &bbuffersize);
     assert(status == rocfft_status_success);
-    void* bbuffer;
+    void* bbuffer = NULL;
     hipMalloc(&bbuffer, bbuffersize);
-    status = rocfft_execution_info_set_work_buffer(backward_info, bbuffer, bbuffersize);
+    status = rocfft_execution_info_set_work_buffer(backwardinfo, bbuffer, bbuffersize);
     assert(status == rocfft_status_success);
 
     // Execute the forward transform
     status = rocfft_execute(forward,
                             (void**)&x, // in_buffer
-                            NULL, // out_buffer
-                            forward_info); // execution info
+                            (void**)&y, // out_buffer
+                            forwardinfo); // execution info
     assert(status == rocfft_status_success);
 
     // Copy result back to host
-    std::vector<float2> cy(cx.size());
-    hipMemcpy(cy.data(), x, cy.size() * sizeof(decltype(cy)::value_type), hipMemcpyDeviceToHost);
+    std::vector<std::complex<float>> cy(cx.size());
+    hipMemcpy(cy.data(), y, cy.size() * sizeof(decltype(cy)::value_type), hipMemcpyDeviceToHost);
 
     std::cout << "Transformed:\n";
     for(size_t i = 0; i < Nx; i++)
     {
         for(size_t j = 0; j < Ny; j++)
         {
-            std::cout << "( " << cy[i * Ny + j].x << "," << cy[i * Ny + j].y << ") ";
+            std::cout << cy[i * Ny + j] << " ";
         }
         std::cout << "\n";
     }
@@ -145,9 +146,9 @@ int main()
 
     // Execute the backward transform
     status = rocfft_execute(backward,
-                            (void**)&x, // in_buffer
-                            NULL, // out_buffer
-                            backward_info); // execution info
+                            (void**)&y, // in_buffer
+                            (void**)&x, // out_buffer
+                            backwardinfo); // execution info
     assert(status == rocfft_status_success);
 
     hipMemcpy(cy.data(), x, cy.size() * sizeof(decltype(cy)::value_type), hipMemcpyDeviceToHost);
@@ -156,7 +157,7 @@ int main()
     {
         for(size_t j = 0; j < Ny; j++)
         {
-            std::cout << "( " << cy[i * Ny + j].x << "," << cy[i * Ny + j].y << ") ";
+            std::cout << cy[i * Ny + j] << " ";
         }
         std::cout << "\n";
     }
@@ -166,8 +167,8 @@ int main()
     float       error = 0.0f;
     for(size_t i = 0; i < cx.size(); i++)
     {
-        float diff
-            = std::max(std::abs(cx[i].x - cy[i].x * overN), std::abs(cx[i].y - cy[i].y * overN));
+        float diff = std::max(std::abs(cx[i].real() - cy[i].real() * overN),
+                              std::abs(cx[i].imag() - cy[i].imag() * overN));
         if(diff > error)
         {
             error = diff;
@@ -176,12 +177,16 @@ int main()
     std::cout << "Maximum error: " << error << "\n";
 
     hipFree(x);
+    if(!inplace)
+    {
+        hipFree(y);
+    }
+    hipFree(fbuffer);
+    hipFree(bbuffer);
 
     // Destroy plans
     rocfft_plan_destroy(forward);
     rocfft_plan_destroy(backward);
 
     rocfft_cleanup();
-
-    return 0;
 }
