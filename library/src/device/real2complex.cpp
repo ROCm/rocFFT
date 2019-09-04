@@ -1,30 +1,30 @@
-/******************************************************************************
-* Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*******************************************************************************/
+// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
 #include "./kernels/common.h"
 #include "kernel_launch.h"
 #include "rocfft.h"
 #include "rocfft_hip.h"
+
 #include <iostream>
+#include <numeric>
 
 template <typename T>
 __global__ void real2complex_kernel(size_t          input_size,
@@ -336,20 +336,18 @@ void complex2hermitian(const void* data_p, void* back_p)
     return;
 }
 
-/*============================================================================================*/
-
-// GPU kernel for 1d r2c post-process and c2r pre-process
+// GPU kernel for 1d r2c post-process
 // T is memory allocation type, could be float2 or double2.
 // Each thread handles 2 points.
-template <typename T, bool IN_PLACE, bool R2C>
-__global__ void real_1d_pre_post_process_kernel(size_t   half_N,
-                                                size_t   input_stride,
-                                                size_t   output_stride,
-                                                T*       input,
-                                                size_t   input_distance,
-                                                T*       output,
-                                                size_t   output_distance,
-                                                T const* twiddles)
+template <typename T, bool IN_PLACE>
+__global__ void real_post_process_kernel(size_t   half_N,
+                                         size_t   input_stride,
+                                         size_t   output_stride,
+                                         T*       input,
+                                         size_t   input_distance,
+                                         T*       output,
+                                         size_t   output_distance,
+                                         T const* twiddles)
 {
     size_t input_offset = hipBlockIdx_z * input_distance; // batch offset
 
@@ -381,20 +379,10 @@ __global__ void real_1d_pre_post_process_kernel(size_t   half_N,
 
     if(idx_p == 0)
     {
-        if(R2C)
-        {
-            output[half_N].x = input[0].x - input[0].y;
-            output[half_N].y = 0;
-            output[0].x      = input[0].x + input[0].y;
-            output[0].y      = 0;
-        }
-        else
-        {
-            T p             = input[0];
-            T q             = input[half_N];
-            output[idx_p].x = p.x + q.x;
-            output[idx_p].y = p.x - q.x;
-        }
+        output[half_N].x = input[0].x - input[0].y;
+        output[half_N].y = 0;
+        output[0].x      = input[0].x + input[0].y;
+        output[0].y      = 0;
     }
     else if(idx_p <= half_N >> 1)
     {
@@ -404,16 +392,8 @@ __global__ void real_1d_pre_post_process_kernel(size_t   half_N,
         T twd_p = twiddles[idx_p];
         T twd_q = twiddles[idx_q];
 
-        if(R2C)
-        {
-            u = u * 0.5;
-            v = v * 0.5;
-        }
-        else
-        {
-            twd_p.x = -twd_p.x;
-            twd_q.x = -twd_q.x;
-        }
+        u = u * 0.5;
+        v = v * 0.5;
 
         output[idx_p].x = u.x + v.x * twd_p.y + v.y * twd_p.x;
         output[idx_p].y = u.y + v.y * twd_p.y - v.x * twd_p.x;
@@ -423,13 +403,66 @@ __global__ void real_1d_pre_post_process_kernel(size_t   half_N,
     }
 }
 
+// Preprocess kernel for complex-to-real transform.
+template <typename Tcomplex>
+__global__ void real_pre_process_kernel(const size_t    half_N,
+                                        const size_t    iDist1D,
+                                        const size_t    oDist1D,
+                                        const Tcomplex* input0,
+                                        const size_t    iDist,
+                                        Tcomplex*       output0,
+                                        const size_t    oDist,
+                                        Tcomplex const* twiddles)
+{
+    const size_t idx_p = blockIdx.x * blockDim.x + threadIdx.x;
+    const size_t idx_q = half_N - idx_p;
+
+    if(idx_p <= half_N >> 1)
+    {
+        // blockIdx.y gives the multi-dimensional offset
+        // blockIdx.z gives the batch offset
+        const Tcomplex* input  = input0 + blockIdx.y * iDist1D + blockIdx.z * iDist;
+        Tcomplex*       output = output0 + blockIdx.y * oDist1D + blockIdx.z * oDist;
+
+        const Tcomplex p = input[idx_p];
+        const Tcomplex q = input[idx_q];
+
+        if(idx_p == 0)
+        {
+            // NB: multi-dimensional transforms may have non-zero imaginary part at index 0.
+            // However, the Nyquist frequency is guaranteed to be purely real for even-length
+            // transforms.
+            output[idx_p].x = p.x - p.y + q.x;
+            output[idx_p].y = p.x + p.y - q.x;
+        }
+        else
+        {
+            const Tcomplex u(p.x + q.x, p.y - q.y); // p + conj(q)
+            const Tcomplex v(p.x - q.x, p.y + q.y); // p - conj(q)
+
+            const Tcomplex twd_p(-twiddles[idx_p].x, twiddles[idx_p].y);
+            // NB: twd_q = -conj(twd_p)
+
+            output[idx_p].x = u.x + v.x * twd_p.y + v.y * twd_p.x;
+            output[idx_p].y = u.y + v.y * twd_p.y - v.x * twd_p.x;
+
+            output[idx_q].x = u.x - v.x * twd_p.y - v.y * twd_p.x;
+            output[idx_q].y = -u.y + v.y * twd_p.y - v.x * twd_p.x;
+
+            // const T twd_q(-twiddles[idx_q].x, twiddles[idx_q].y);
+            // output[idx_q].x = u.x - v.x * twd_q.y + v.y * twd_q.x;
+            // output[idx_q].y = -u.y + v.y * twd_q.y + v.x * twd_q.x;
+        }
+    }
+}
+
 // GPU intermediate host code
-template <typename T, bool R2C>
+template <typename Tcomplex, bool R2C>
 void real_1d_pre_post_process(size_t const half_N,
                               size_t       batch,
-                              T*           d_input,
-                              T*           d_output,
-                              T*           d_twiddles,
+                              Tcomplex*    d_input,
+                              Tcomplex*    d_output,
+                              Tcomplex*    d_twiddles,
                               size_t       high_dimension,
                               size_t       input_stride,
                               size_t       output_stride,
@@ -446,9 +479,10 @@ void real_1d_pre_post_process(size_t const half_N,
     dim3 grid(blocks, high_dimension, batch);
     dim3 threads(block_size, 1, 1);
 
-    if(d_input == d_output)
+    if(R2C)
     {
-        hipLaunchKernelGGL((real_1d_pre_post_process_kernel<T, true, R2C>),
+        hipLaunchKernelGGL((d_input == d_output) ? (real_post_process_kernel<Tcomplex, true>)
+                                                 : (real_post_process_kernel<Tcomplex, false>),
                            grid,
                            threads,
                            0,
@@ -464,14 +498,17 @@ void real_1d_pre_post_process(size_t const half_N,
     }
     else
     {
-        hipLaunchKernelGGL((real_1d_pre_post_process_kernel<T, false, R2C>),
+        const size_t iDist1D = input_stride;
+        const size_t oDist1D = output_stride;
+
+        hipLaunchKernelGGL((real_pre_process_kernel<Tcomplex>),
                            grid,
                            threads,
                            0,
                            rocfft_stream,
                            half_N,
-                           input_stride,
-                           output_stride,
+                           iDist1D,
+                           oDist1D,
                            d_input,
                            input_distance,
                            d_output,
@@ -492,10 +529,9 @@ void real_1d_pre_post(const void* data_p, void* back_p)
     size_t input_distance  = data->node->iDist;
     size_t output_distance = data->node->oDist;
 
-    size_t input_stride
-        = (data->node->length.size() > 1) ? data->node->inStride[1] : input_distance;
-    size_t output_stride
-        = (data->node->length.size() > 1) ? data->node->outStride[1] : output_distance;
+    // Strides are actually distances between contiguous data vectors.
+    size_t input_stride  = data->node->inStride[0];
+    size_t output_stride = data->node->outStride[0];
 
     void* input_buffer  = data->bufIn[0];
     void* output_buffer = data->bufOut[0];

@@ -26,9 +26,12 @@
 #include "radix_table.h"
 #include "repo.h"
 #include "rocfft.h"
+
+#include <algorithm>
 #include <assert.h>
 #include <iostream>
 #include <map>
+#include <numeric>
 #include <sstream>
 #include <vector>
 
@@ -692,11 +695,8 @@ ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, const size_t le
 
 void TreeNode::BuildRealEven()
 {
-    // TODO: remove when multi-dimensional transforms are implemented
-    assert(dimension == 1);
-
-    // Last dimension must be even:
-    assert(length[dimension - 1] % 2 == 0);
+    // Fastet moving dimension must be even:
+    assert(length[0] % 2 == 0);
 
     scheme = CS_REAL_TRANSFORM_EVEN;
 
@@ -752,25 +752,15 @@ void TreeNode::BuildRealEven()
         assert(outArrayType == rocfft_array_type_real);
         assert(outStride[0] == 1); // assumed contigous for now
 
-        if(dimension == 1)
-        {
-            TreeNode* prePlan     = TreeNode::CreateNode(this);
-            prePlan->scheme       = CS_KERNEL_CMPLX_TO_R;
-            prePlan->dimension    = 1;
-            prePlan->length       = {length[0] / 2};
-            prePlan->inArrayType  = rocfft_array_type_hermitian_interleaved;
-            prePlan->outArrayType = rocfft_array_type_complex_interleaved;
-
-            childNodes.push_back(prePlan);
-        }
-        else
-        {
-            // TODO: change the batch of the prePlan so that we do the
-            // all of the x-rows in one batch of prePlan, and then
-            // push_back one prePlan for (batch) times.  Setting up
-            // parameters correctly, of course.
-            assert(false);
-        }
+        TreeNode* prePlan  = TreeNode::CreateNode(this);
+        prePlan->scheme    = CS_KERNEL_CMPLX_TO_R;
+        prePlan->dimension = 1;
+        prePlan->length    = length;
+        prePlan->length[0] /= 2;
+        prePlan->batch        = batch;
+        prePlan->inArrayType  = rocfft_array_type_hermitian_interleaved;
+        prePlan->outArrayType = rocfft_array_type_complex_interleaved;
+        childNodes.push_back(prePlan);
 
         // cfftPlan works in-place on the output buffer.
         // NB: the output buffer is real, but we treat it as complex
@@ -817,7 +807,9 @@ void TreeNode::BuildRealEmbed()
 
 void TreeNode::BuildReal()
 {
-    if(inStride[0] == 1 && outStride[0] == 1 && length[0] % 2 == 0 && dimension == 1)
+    // TODO: all data must be contiguous, in fact.
+    if(inStride[0] == 1 && outStride[0] == 1 && length[0] % 2 == 0
+       && (dimension == 1 || direction == 1))
     {
         BuildRealEven();
     }
@@ -2154,18 +2146,39 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
 
             TreeNode* prePlan = childNodes[0];
             assert(prePlan->scheme == CS_KERNEL_CMPLX_TO_R);
-            prePlan->inStride  = {inStride[0]};
-            prePlan->iDist     = iDist;
-            prePlan->outStride = {outStride[0]};
-            prePlan->oDist     = oDist / 2;
+
+            // FIXME: placeness?
+            prePlan->iDist = iDist;
+            prePlan->oDist = oDist / 2;
+
+            // Strrides are actually distances for multimensional transforms.
+            // Only the first value is used, but we require dimension values.
+            prePlan->inStride.resize(dimension);
+            prePlan->inStride[0] = length[0] / 2 + 1;
+            std::fill(prePlan->inStride.begin() + 1, prePlan->inStride.end(), 0);
+
+            // Strides are in complex types
+            prePlan->outStride.resize(dimension);
+            prePlan->outStride[0] = length[0] / 2 + (placement == rocfft_placement_inplace ? 1 : 0);
+            std::fill(prePlan->outStride.begin() + 1, prePlan->outStride.end(), 0);
+
             assert(prePlan->length.size() == prePlan->inStride.size());
             assert(prePlan->length.size() == prePlan->outStride.size());
 
-            TreeNode* fftPlan  = childNodes[1];
+            TreeNode* fftPlan = childNodes[1];
+            // Transform the strides from real to complex.
+
             fftPlan->inStride  = outStride;
             fftPlan->iDist     = oDist / 2;
             fftPlan->outStride = outStride;
             fftPlan->oDist     = fftPlan->iDist;
+            // The strides must be translated from real to complex.
+            for(int i = 1; i < fftPlan->inStride.size(); ++i)
+            {
+                fftPlan->inStride[i] /= 2;
+                fftPlan->outStride[i] /= 2;
+            }
+
             fftPlan->TraverseTreeAssignParamsLogicA();
             assert(fftPlan->length.size() == fftPlan->inStride.size());
             assert(fftPlan->length.size() == fftPlan->outStride.size());
@@ -2710,8 +2723,8 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
             padding = 64;
 
         // B -> B
-        assert((row1Plan->obOut == OB_USER_OUT) || (row1Plan->obOut == OB_TEMP_CMPLX_FOR_REAL)
-               || (row1Plan->obOut == OB_TEMP_BLUESTEIN));
+        // assert((row1Plan->obOut == OB_USER_OUT) || (row1Plan->obOut == OB_TEMP_CMPLX_FOR_REAL)
+        //        || (row1Plan->obOut == OB_TEMP_BLUESTEIN));
         row1Plan->inStride = inStride;
         row1Plan->iDist    = iDist;
 
@@ -2746,8 +2759,8 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         row2Plan->TraverseTreeAssignParamsLogicA();
 
         // T -> B
-        assert((trans2Plan->obOut == OB_USER_OUT) || (trans2Plan->obOut == OB_TEMP_CMPLX_FOR_REAL)
-               || (trans2Plan->obOut == OB_TEMP_BLUESTEIN));
+        // assert((trans2Plan->obOut == OB_USER_OUT) || (trans2Plan->obOut == OB_TEMP_CMPLX_FOR_REAL)
+        //        || (trans2Plan->obOut == OB_TEMP_BLUESTEIN));
         trans2Plan->inStride = row2Plan->outStride;
         trans2Plan->iDist    = row2Plan->oDist;
 
@@ -2762,8 +2775,8 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         TreeNode* colPlan = childNodes[1];
 
         // B -> B
-        assert((rowPlan->obOut == OB_USER_OUT) || (rowPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
-               || (rowPlan->obOut == OB_TEMP_BLUESTEIN));
+        // assert((rowPlan->obOut == OB_USER_OUT) || (rowPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
+        //        || (rowPlan->obOut == OB_TEMP_BLUESTEIN));
         rowPlan->inStride = inStride;
         rowPlan->iDist    = iDist;
 

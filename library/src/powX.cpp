@@ -282,17 +282,21 @@ void TransformPowX(const ExecPlan&       execPlan,
         data.gridParam = execPlan.gridParam[i];
 
 #ifdef TMP_DEBUG
-        size_t in_size       = data.node->iDist * data.node->batch;
+        size_t in_size = data.node->iDist * data.node->batch;
+        // FIXME: real data? double precision
         size_t in_size_bytes = in_size * 2 * sizeof(float);
         void*  dbg_in        = malloc(in_size_bytes);
+        hipDeviceSynchronize();
         hipMemcpy(dbg_in, data.bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
-        size_t out_size       = data.node->oDist * data.node->batch;
+        size_t out_size = data.node->oDist * data.node->batch;
+        // FIXME: real data? double precision
         size_t out_size_bytes = out_size * 2 * sizeof(float);
         void*  dbg_out        = malloc(out_size_bytes);
         memset(dbg_out, 0x40, out_size_bytes);
         if(data.node->placement != rocfft_placement_inplace)
         {
+            hipDeviceSynchronize();
             hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
         }
         std::cout << "attempting kernel: " << i << std::endl;
@@ -305,18 +309,34 @@ void TransformPowX(const ExecPlan&       execPlan,
             std::cout << "\n---------------------------------------------\n";
             std::cout << "\n\nkernel: " << i << std::endl;
             std::cout << "\tscheme: " << PrintScheme(execPlan.execSeq[i]->scheme) << std::endl;
-            std::cout << "\tlength:";
-            for(int ilen = 0; ilen < execPlan.execSeq[i]->length.size(); ++ilen)
+            std::cout << "\tlength: ";
+            for(const auto& i : execPlan.execSeq[i]->length)
             {
-                std::cout << " " << execPlan.execSeq[i]->length[ilen];
+                std::cout << i << " ";
             }
             std::cout << std::endl;
-            std::cout << "\tbatch: " << execPlan.execSeq[i]->batch << std::endl;
-            std::cout << "\tiDist: " << execPlan.execSeq[i]->iDist << std::endl;
-            std::cout << "\toDist: " << execPlan.execSeq[i]->oDist << std::endl;
+            std::cout << "\tbatch:   " << execPlan.execSeq[i]->batch << std::endl;
+            std::cout << "\tiDist:   " << execPlan.execSeq[i]->iDist << std::endl;
+            std::cout << "\toDist:   " << execPlan.execSeq[i]->oDist << std::endl;
+            std::cout << "\tiStride: ";
+            for(const auto& i : execPlan.execSeq[i]->inStride)
+            {
+                std::cout << i << " ";
+            }
+            std::cout << std::endl;
+            std::cout << "\toStride: ";
+            for(const auto& i : execPlan.execSeq[i]->outStride)
+            {
+                std::cout << i << " ";
+            }
+            std::cout << std::endl;
+
             RefLibOp refLibOp(&data);
 #endif
-            fn(&data, &back); // execution kernel here
+
+            // execution kernel:
+            fn(&data, &back);
+
 #ifdef REF_DEBUG
             refLibOp.VerifyResult(&data);
 #endif
@@ -335,37 +355,16 @@ void TransformPowX(const ExecPlan&       execPlan,
         float2* f_in  = (float2*)dbg_in;
         float2* f_out = (float2*)dbg_out;
         // temporary print out the kernel output
-        switch(data.node->length.size())
+        std::cout << "input:" << std::endl;
+        for(size_t i = 0; i < data.node->iDist * data.node->batch; i++)
         {
-        case 1:
-            for(size_t x = 0; x < data.node->length[0]; x++)
-            {
-                std::cout << "x: " << x << " kernel output result: " << f_out[x].x << " "
-                          << f_out[x].y << "\n";
-                // TODO: what about real output?
-                // TODO: what about batches?
-            }
-            break;
-        case 2:
-            for(size_t y = 0; y < data.node->length[1]; y++)
-            {
-                for(size_t x = 0; x < data.node->length[0]; x++)
-                {
-                    std::cout << "x: " << x << " y: " << y
-                              << " kernel output result: " << f_out[y * data.node->length[0] + x].x
-                              << " " << f_out[y * data.node->length[0] + x].y << "\n";
-                }
-            }
-
-            break;
-        case 3:
-            // TODO
-            break;
-        default:
-            break;
-            // TODO
+            std::cout << f_in[i].x << " " << f_in[i].y << "\n";
         }
-
+        std::cout << "output:" << std::endl;
+        for(size_t i = 0; i < data.node->oDist * data.node->batch; i++)
+        {
+            std::cout << f_out[i].x << " " << f_out[i].y << "\n";
+        }
         std::cout << "\n---------------------------------------------\n";
         free(dbg_out);
         free(dbg_in);
