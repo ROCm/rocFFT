@@ -64,14 +64,12 @@ foreach( sample ${sample_list} )
   endif( )
 
 
-  if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
-    # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
-    # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
-    target_compile_options( ${sample} PRIVATE -Wno-unused-command-line-argument -hc)
+if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$")
+  target_compile_options( ${sample} PRIVATE -Wno-unused-command-line-argument -hc )
+endif( )
 
-    # foreach( target ${AMDGPU_TARGETS} )
-    #   target_link_libraries( ${sample} PRIVATE --amdgpu-target=${target} )
-    # endforeach( )
-  endif( )
+if(HIP_PLATFORM STREQUAL "hip-clang")
+  target_compile_options( ${sample} PRIVATE -Wno-unused-command-line-argument )
+endif( )
 
 endforeach( )
