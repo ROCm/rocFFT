@@ -482,7 +482,7 @@ void real_1d_pre_post_process(size_t const half_N,
     if(R2C)
     {
         hipLaunchKernelGGL(((d_input == d_output) ? (real_post_process_kernel<Tcomplex, true>)
-                                                 : (real_post_process_kernel<Tcomplex, false>)),
+                                                  : (real_post_process_kernel<Tcomplex, false>)),
                            grid,
                            threads,
                            0,
