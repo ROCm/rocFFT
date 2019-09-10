@@ -25,7 +25,6 @@
 #include "buffer.h"
 #include <fftw3.h>
 #include <vector>
-// only buffer interface need rocfft variable
 
 enum fftw_direction
 {
@@ -40,15 +39,36 @@ enum fftw_transform_type
     c2r
 };
 
-template <typename T, typename fftw_T>
+// C++ traits to translate float->fftwf_complex and
+// double->fftw_complex.
+// The correct FFTW complex type can be accessed via, for example,
+// using complex_t = typename fftwtrait<Tfloat>::complex_t;
+template <typename Tfloat>
+struct fftwtrait;
+template <>
+struct fftwtrait<float>
+{
+public:
+    using complex_t = fftwf_complex;
+};
+template <>
+struct fftwtrait<double>
+{
+public:
+    using complex_t = fftw_complex;
+};
+
+template <typename Tfloat>
 class fftw_wrapper
 {
 };
 
 template <>
-class fftw_wrapper<float, fftwf_complex>
+class fftw_wrapper<float>
 {
 public:
+    using complex_t = typename fftwtrait<float>::complex_t;
+
     fftwf_plan plan;
 
     void make_plan(int                       x,
@@ -56,8 +76,8 @@ public:
                    int                       z,
                    int                       num_dimensions,
                    int                       batch_size,
-                   fftwf_complex*            input_ptr,
-                   fftwf_complex*            output_ptr,
+                   complex_t*                input_ptr,
+                   complex_t*                output_ptr,
                    int                       num_points_in_single_batch,
                    const std::vector<size_t> input_strides,
                    const std::vector<size_t> output_strides,
@@ -131,8 +151,8 @@ public:
                  int                       z,
                  int                       num_dimensions,
                  int                       batch_size,
-                 fftwf_complex*            input_ptr,
-                 fftwf_complex*            output_ptr,
+                 complex_t*                input_ptr,
+                 complex_t*                output_ptr,
                  int                       num_points_in_single_batch,
                  const std::vector<size_t> input_strides,
                  const std::vector<size_t> output_strides,
@@ -170,9 +190,11 @@ public:
 };
 
 template <>
-class fftw_wrapper<double, fftw_complex>
+class fftw_wrapper<double>
 {
 public:
+    using complex_t = typename fftwtrait<double>::complex_t;
+
     fftw_plan plan;
 
     void make_plan(int                       x,
@@ -180,8 +202,8 @@ public:
                    int                       z,
                    int                       num_dimensions,
                    int                       batch_size,
-                   fftw_complex*             input_ptr,
-                   fftw_complex*             output_ptr,
+                   complex_t*                input_ptr,
+                   complex_t*                output_ptr,
                    int                       num_points_in_single_batch,
                    const std::vector<size_t> input_strides,
                    const std::vector<size_t> output_strides,
@@ -255,8 +277,8 @@ public:
                  int                       z,
                  int                       num_dimensions,
                  int                       batch_size,
-                 fftw_complex*             input_ptr,
-                 fftw_complex*             output_ptr,
+                 complex_t*                input_ptr,
+                 complex_t*                output_ptr,
                  int                       num_points_in_single_batch,
                  const std::vector<size_t> input_strides,
                  const std::vector<size_t> output_strides,
@@ -293,10 +315,11 @@ public:
     }
 };
 
-template <typename T, typename fftw_T>
+template <typename T>
 class fftw
 {
 private:
+    using complex_t                             = typename fftwtrait<T>::complex_t;
     static const size_t tightly_packed_distance = 0;
 
     fftw_direction      _direction;
@@ -309,9 +332,9 @@ private:
     std::vector<size_t> input_strides;
     std::vector<size_t> output_strides;
 
-    buffer<T>               input;
-    buffer<T>               output;
-    fftw_wrapper<T, fftw_T> fftw_guts;
+    buffer<T>       input;
+    buffer<T>       output;
+    fftw_wrapper<T> fftw_guts;
 
     T _forward_scale, _backward_scale;
 
@@ -352,8 +375,8 @@ public:
                     (int)_lengths[dimz],
                     (int)lengths_in.size(),
                     (int)batch_size_in,
-                    reinterpret_cast<fftw_T*>(input_ptr()),
-                    reinterpret_cast<fftw_T*>(output_ptr()),
+                    reinterpret_cast<complex_t*>(input_ptr()),
+                    reinterpret_cast<complex_t*>(output_ptr()),
                     (int)(_lengths[dimx] * _lengths[dimy] * _lengths[dimz]),
                     input_strides,
                     output_strides,
@@ -450,8 +473,8 @@ public:
                                 (int)_lengths[dimz],
                                 (int)input.number_of_dimensions(),
                                 (int)input.batch_size(),
-                                reinterpret_cast<fftw_T*>(input.interleaved_ptr()),
-                                reinterpret_cast<fftw_T*>(output.interleaved_ptr()),
+                                reinterpret_cast<complex_t*>(input.interleaved_ptr()),
+                                reinterpret_cast<complex_t*>(output.interleaved_ptr()),
                                 (int)(_lengths[dimx] * _lengths[dimy] * _lengths[dimz]),
                                 input_strides,
                                 output_strides,
@@ -475,8 +498,8 @@ public:
                                 (int)_lengths[dimz],
                                 (int)input.number_of_dimensions(),
                                 (int)input.batch_size(),
-                                reinterpret_cast<fftw_T*>(input.interleaved_ptr()),
-                                reinterpret_cast<fftw_T*>(output.interleaved_ptr()),
+                                reinterpret_cast<complex_t*>(input.interleaved_ptr()),
+                                reinterpret_cast<complex_t*>(output.interleaved_ptr()),
                                 (int)(_lengths[dimx] * _lengths[dimy] * _lengths[dimz]),
                                 input_strides,
                                 output_strides,

@@ -25,7 +25,6 @@
 #include "../rider/misc.h" // to use LIB_V_THROW and HIP_V_THROW
 #include "buffer.h"
 #include "rocfft.h"
-#include "test_constants.h"
 #include <iostream>
 #include <vector>
 

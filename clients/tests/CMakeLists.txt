@@ -70,7 +70,6 @@ set(rocfft_test_source
   )
 
 set(rocfft_test_includes
-  accuracy_test_common.h
   buffer_memory.h
   buffer.h
   rocfft_transform.h

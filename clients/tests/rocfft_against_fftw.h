@@ -1,24 +1,22 @@
-/******************************************************************************
-* Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*******************************************************************************/
+// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
 #include <gtest/gtest.h>
 #include <math.h>
@@ -28,14 +26,11 @@
 #include "fftw_transform.h"
 #include "rocfft.h"
 #include "rocfft_transform.h"
-#include "test_constants.h"
 
-/*****************************************************
-           Complex to Complex
-*****************************************************/
+// Complex to Complex
 // dimension is inferred from lengths.size()
 // tightly packed is inferred from strides.empty()
-template <class T, class fftw_T>
+template <class Tfloat>
 void complex_to_complex(data_pattern            pattern,
                         rocfft_transform_type   transform_type,
                         std::vector<size_t>     lengths,
@@ -47,22 +42,22 @@ void complex_to_complex(data_pattern            pattern,
                         rocfft_array_type       in_array_type,
                         rocfft_array_type       out_array_type,
                         rocfft_result_placement placeness,
-                        T                       scale = 1.0f)
+                        Tfloat                  scale = 1.0f)
 {
+    using complex_t = typename fftwtrait<Tfloat>::complex_t;
+    rocfft<Tfloat> test_fft(lengths,
+                            batch,
+                            input_strides,
+                            output_strides,
+                            input_distance,
+                            output_distance,
+                            in_array_type,
+                            out_array_type,
+                            placeness,
+                            transform_type,
+                            scale);
 
-    rocfft<T> test_fft(lengths,
-                       batch,
-                       input_strides,
-                       output_strides,
-                       input_distance,
-                       output_distance,
-                       in_array_type,
-                       out_array_type,
-                       placeness,
-                       transform_type,
-                       scale);
-
-    fftw<T, fftw_T> reference(lengths, batch, input_strides, output_strides, placeness, c2c);
+    fftw<Tfloat> reference(lengths, batch, input_strides, output_strides, placeness, c2c);
 
     switch(pattern)
     {
@@ -106,40 +101,39 @@ void complex_to_complex(data_pattern            pattern,
     EXPECT_EQ(true, test_fft.result() == reference.result());
 }
 
-/*****************************************************
-           Real to Hermitian
-*****************************************************/
+// Real to complex
 
 // dimension is inferred from lengths.size()
 // tightly packed is inferred from strides.empty()
 // input layout is always real
-template <class T, class fftw_T>
-void real_to_hermitian(data_pattern            pattern,
-                       rocfft_transform_type   transform_type,
-                       std::vector<size_t>     lengths,
-                       size_t                  batch,
-                       std::vector<size_t>     input_strides,
-                       std::vector<size_t>     output_strides,
-                       size_t                  input_distance,
-                       size_t                  output_distance,
-                       rocfft_array_type       in_array_type,
-                       rocfft_array_type       out_array_type,
-                       rocfft_result_placement placeness,
-                       T                       scale = 1.0f)
+template <class Tfloat>
+void real_to_complex(data_pattern            pattern,
+                     rocfft_transform_type   transform_type,
+                     std::vector<size_t>     lengths,
+                     size_t                  batch,
+                     std::vector<size_t>     input_strides,
+                     std::vector<size_t>     output_strides,
+                     size_t                  input_distance,
+                     size_t                  output_distance,
+                     rocfft_array_type       in_array_type,
+                     rocfft_array_type       out_array_type,
+                     rocfft_result_placement placeness,
+                     Tfloat                  scale = 1.0f)
 {
-    rocfft<T> test_fft(lengths,
-                       batch,
-                       input_strides,
-                       output_strides,
-                       input_distance,
-                       output_distance,
-                       in_array_type,
-                       out_array_type,
-                       placeness,
-                       transform_type,
-                       scale);
+    rocfft<Tfloat> test_fft(lengths,
+                            batch,
+                            input_strides,
+                            output_strides,
+                            input_distance,
+                            output_distance,
+                            in_array_type,
+                            out_array_type,
+                            placeness,
+                            transform_type,
+                            scale);
 
-    fftw<T, fftw_T> reference(lengths, batch, input_strides, output_strides, placeness, r2c);
+    using complex_t = typename fftwtrait<Tfloat>::complex_t;
+    fftw<Tfloat> reference(lengths, batch, input_strides, output_strides, placeness, r2c);
 
     switch(pattern)
     {
@@ -156,7 +150,7 @@ void real_to_hermitian(data_pattern            pattern,
         test_fft.set_data_to_random();
         break;
     default:
-        throw std::runtime_error("invalid pattern type in real_to_hermitian()");
+        throw std::runtime_error("invalid pattern type in real_to_complex");
     }
 
     reference.set_data_to_buffer(test_fft.input_buffer());
@@ -170,29 +164,28 @@ void real_to_hermitian(data_pattern            pattern,
     EXPECT_EQ(true, test_fft.result() == reference.result());
 }
 
-/*****************************************************
-           Hermitian to Real
-*****************************************************/
+// Complex to real
 
 // dimension is inferred from lengths.size()
 // tightly packed is inferred from strides.empty()
-// input layout is always hermitian
-template <class T, class fftw_T>
-void hermitian_to_real(data_pattern            pattern,
-                       rocfft_transform_type   transform_type,
-                       std::vector<size_t>     lengths,
-                       size_t                  batch,
-                       std::vector<size_t>     input_strides,
-                       std::vector<size_t>     output_strides,
-                       size_t                  input_distance,
-                       size_t                  output_distance,
-                       rocfft_array_type       in_array_type,
-                       rocfft_array_type       out_array_type,
-                       rocfft_result_placement placeness,
-                       T                       scale = 1.0f)
+// input layout is always complex
+template <class Tfloat>
+void complex_to_real(data_pattern            pattern,
+                     rocfft_transform_type   transform_type,
+                     std::vector<size_t>     lengths,
+                     size_t                  batch,
+                     std::vector<size_t>     input_strides,
+                     std::vector<size_t>     output_strides,
+                     size_t                  input_distance,
+                     size_t                  output_distance,
+                     rocfft_array_type       in_array_type,
+                     rocfft_array_type       out_array_type,
+                     rocfft_result_placement placeness,
+                     Tfloat                  scale = 1.0f)
 {
-    // will perform a real to hermitian first
-    fftw<T, fftw_T> data_maker(lengths, batch, output_strides, input_strides, placeness, r2c);
+    // will perform a real to complex first
+    using complex_t = typename fftwtrait<Tfloat>::complex_t;
+    fftw<Tfloat> data_maker(lengths, batch, output_strides, input_strides, placeness, r2c);
 
     switch(pattern)
     {
@@ -209,25 +202,25 @@ void hermitian_to_real(data_pattern            pattern,
         data_maker.set_data_to_random();
         break;
     default:
-        throw std::runtime_error("invalid pattern type in hermitian_to_real()");
+        throw std::runtime_error("invalid pattern type in complex_to_real()");
     }
 
     data_maker.transform();
 
-    rocfft<T> test_fft(lengths,
-                       batch,
-                       input_strides,
-                       output_strides,
-                       input_distance,
-                       output_distance,
-                       in_array_type,
-                       out_array_type,
-                       placeness,
-                       transform_type,
-                       scale);
+    rocfft<Tfloat> test_fft(lengths,
+                            batch,
+                            input_strides,
+                            output_strides,
+                            input_distance,
+                            output_distance,
+                            in_array_type,
+                            out_array_type,
+                            placeness,
+                            transform_type,
+                            scale);
     test_fft.set_data_to_buffer(data_maker.result());
 
-    fftw<T, fftw_T> reference(lengths, batch, input_strides, output_strides, placeness, c2r);
+    fftw<Tfloat> reference(lengths, batch, input_strides, output_strides, placeness, c2r);
     reference.set_data_to_buffer(data_maker.result());
 
     // if we're starting with unequal data, we're destined for failure

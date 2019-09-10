@@ -1,24 +1,22 @@
-/******************************************************************************
-* Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*******************************************************************************/
+// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
 #pragma once
 #if !defined(BUFFER_MEMORY_H)
@@ -33,8 +31,6 @@ uint64_t float_as_hex(double a);
 uint32_t nan_as_hex(float a);
 uint64_t nan_as_hex(double a);
 
-/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
-/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
 template <class T>
 class buffer_memory
 {
@@ -60,7 +56,6 @@ private:
     std::vector<T> memory;
 
 public:
-    /*****************************************************/
     // requested_number_of_floats should already take into account any strides,
     // batch size, data layout (real, complex, hermitian, interleaved, planar)
     buffer_memory(size_t requested_number_of_floats)
@@ -72,10 +67,8 @@ public:
         clear();
     }
 
-    /*****************************************************/
     ~buffer_memory() {}
 
-    /*****************************************************/
     buffer_memory<T>& operator=(const buffer_memory<T>& that)
     {
         this->cookie_size                   = that.cookie_size;
@@ -86,7 +79,6 @@ public:
         return *this;
     }
 
-    /*****************************************************/
     void check_memory_boundaries()
     {
         for(size_t i = 0; i < cookie_size; ++i)
@@ -99,13 +91,11 @@ public:
         }
     }
 
-    /*****************************************************/
     void clear()
     {
         memset(&memory[0], ~0x0, memory_size_including_cookies * sizeof(T));
     }
 
-    /*****************************************************/
     // note that this is in units of T (float or double)
     // also see: size_in_bytes()
     size_t size()
@@ -113,14 +103,12 @@ public:
         return size_in_bytes() / sizeof(T);
     }
 
-    /*****************************************************/
     // returns the amount of memory currently allocated to the buffer in bytes
     size_t size_in_bytes()
     {
         return (memory_size_including_cookies - 2 * cookie_size) * sizeof(T);
     }
 
-    /*****************************************************/
     // N.B. memory will be cleared after this
     void increase_allocated_memory(size_t amount)
     {
@@ -132,13 +120,11 @@ public:
         clear();
     }
 
-    /*****************************************************/
     T* ptr()
     {
         return &memory[0] + cookie_size;
     }
 
-    /*****************************************************/
     T& operator[](size_t index)
     {
         if(index >= size())
