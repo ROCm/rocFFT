@@ -71,12 +71,12 @@ static std::vector<size_t> generate_random(size_t number_run)
 
 class accuracy_test_complex
     : public ::testing::TestWithParam<
-          std::tuple<size_t, size_t, rocfft_result_placement, rocfft_transform_type, size_t>>
+          std::tuple<size_t, size_t, rocfft_result_placement, size_t, rocfft_transform_type>>
 {
 };
 
 class accuracy_test_real
-    : public ::testing::TestWithParam<std::tuple<size_t, size_t, rocfft_result_placement>>
+    : public ::testing::TestWithParam<std::tuple<size_t, size_t, rocfft_result_placement, size_t>>
 {
 };
 
@@ -121,8 +121,8 @@ TEST_P(accuracy_test_complex, normal_1D_complex_interleaved_to_complex_interleav
     size_t                  N              = std::get<0>(GetParam());
     size_t                  batch          = std::get<1>(GetParam());
     rocfft_result_placement placeness      = std::get<2>(GetParam());
-    rocfft_transform_type   transform_type = std::get<3>(GetParam());
-    size_t                  stride         = std::get<4>(GetParam());
+    size_t                  stride         = std::get<3>(GetParam());
+    rocfft_transform_type   transform_type = std::get<4>(GetParam());
 
     try
     {
@@ -140,8 +140,8 @@ TEST_P(accuracy_test_complex, normal_1D_complex_interleaved_to_complex_interleav
     size_t                  N              = std::get<0>(GetParam());
     size_t                  batch          = std::get<1>(GetParam());
     rocfft_result_placement placeness      = std::get<2>(GetParam());
-    rocfft_transform_type   transform_type = std::get<3>(GetParam());
-    size_t                  stride         = std::get<4>(GetParam());
+    size_t                  stride         = std::get<3>(GetParam());
+    rocfft_transform_type   transform_type = std::get<4>(GetParam());
 
     try
     {
@@ -194,9 +194,9 @@ TEST_P(accuracy_test_real, normal_1D_real_to_complex_interleaved_single_precisio
     size_t                  N         = std::get<0>(GetParam());
     size_t                  batch     = std::get<1>(GetParam());
     rocfft_result_placement placeness = std::get<2>(GetParam());
+    size_t                  stride    = std::get<3>(GetParam());
     rocfft_transform_type   transform_type
         = rocfft_transform_type_real_forward; // must be real forward
-    size_t stride = 1; // FIXME: enable strides
 
     try
     {
@@ -213,9 +213,9 @@ TEST_P(accuracy_test_real, normal_1D_real_to_complex_interleaved_double_precisio
     size_t                  N         = std::get<0>(GetParam());
     size_t                  batch     = std::get<1>(GetParam());
     rocfft_result_placement placeness = std::get<2>(GetParam());
+    size_t                  stride    = std::get<3>(GetParam());
     rocfft_transform_type   transform_type
         = rocfft_transform_type_real_forward; // must be real forward
-    size_t stride = 1; // FIXME: enable strides
 
     try
     {
@@ -267,9 +267,9 @@ TEST_P(accuracy_test_real, normal_1D_complex_interleaved_to_real_single_precisio
     size_t                  N         = std::get<0>(GetParam());
     size_t                  batch     = std::get<1>(GetParam());
     rocfft_result_placement placeness = std::get<2>(GetParam());
+    size_t                  stride    = std::get<3>(GetParam());
     rocfft_transform_type   transform_type
         = rocfft_transform_type_real_inverse; // must be real inverse
-    size_t stride = 1;
 
     try
     {
@@ -286,9 +286,9 @@ TEST_P(accuracy_test_real, normal_1D_complex_interleaved_to_real_double_precisio
     size_t                  N         = std::get<0>(GetParam());
     size_t                  batch     = std::get<1>(GetParam());
     rocfft_result_placement placeness = std::get<2>(GetParam());
+    size_t                  stride    = std::get<3>(GetParam());
     rocfft_transform_type   transform_type
         = rocfft_transform_type_real_inverse; // must be real inverse
-    size_t stride = 1;
 
     try
     {
@@ -306,79 +306,84 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow2_1D,
                         ::testing::Combine(ValuesIn(pow2_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
-                                           ValuesIn(transform_range),
-                                           ValuesIn(stride_range)));
+                                           ValuesIn(stride_range),
+                                           ValuesIn(transform_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow3_1D,
                         accuracy_test_complex,
                         ::testing::Combine(ValuesIn(pow3_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
-                                           ValuesIn(transform_range),
-                                           ValuesIn(stride_range)));
+                                           ValuesIn(stride_range),
+                                           ValuesIn(transform_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow5_1D,
                         accuracy_test_complex,
                         ::testing::Combine(ValuesIn(pow5_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
-                                           ValuesIn(transform_range),
-                                           ValuesIn(stride_range)));
+                                           ValuesIn(stride_range),
+                                           ValuesIn(transform_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow_mix_1D,
                         accuracy_test_complex,
                         ::testing::Combine(ValuesIn(mix_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
-                                           ValuesIn(transform_range),
-                                           ValuesIn(stride_range)));
+                                           ValuesIn(stride_range),
+                                           ValuesIn(transform_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow_random_1D,
                         accuracy_test_complex,
                         ::testing::Combine(ValuesIn(generate_random(20)),
                                            ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
-                                           ValuesIn(transform_range),
-                                           ValuesIn(stride_range)));
+                                           ValuesIn(stride_range),
+                                           ValuesIn(transform_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_prime_1D,
                         accuracy_test_complex,
                         ::testing::Combine(ValuesIn(prime_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
-                                           ValuesIn(transform_range),
-                                           ValuesIn(stride_range)));
+                                           ValuesIn(stride_range),
+                                           ValuesIn(transform_range)));
 
 // Real/complex
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_1D,
                         accuracy_test_real,
                         ::testing::Combine(ValuesIn(pow2_range),
                                            ValuesIn(batch_range),
-                                           ValuesIn(placeness_range)));
+                                           ValuesIn(placeness_range),
+                                           ValuesIn(stride_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow3_1D,
                         accuracy_test_real,
                         ::testing::Combine(ValuesIn(pow3_range),
                                            ValuesIn(batch_range),
-                                           ValuesIn(placeness_range)));
+                                           ValuesIn(placeness_range),
+                                           ValuesIn(stride_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow5_1D,
                         accuracy_test_real,
                         ::testing::Combine(ValuesIn(pow5_range),
                                            ValuesIn(batch_range),
-                                           ValuesIn(placeness_range)));
+                                           ValuesIn(placeness_range),
+                                           ValuesIn(stride_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow_mix_1D,
                         accuracy_test_real,
                         ::testing::Combine(ValuesIn(mix_range),
                                            ValuesIn(batch_range),
-                                           ValuesIn(placeness_range)));
+                                           ValuesIn(placeness_range),
+                                           ValuesIn(stride_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_prime_1D,
                         accuracy_test_real,
                         ::testing::Combine(ValuesIn(prime_range),
                                            ValuesIn(batch_range),
-                                           ValuesIn(placeness_range)));
+                                           ValuesIn(placeness_range),
+                                           ValuesIn(stride_range)));
 
 // TESTS disabled by default since they take a long time to execute
 // TO enable this tests
