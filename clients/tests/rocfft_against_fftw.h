@@ -18,6 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#pragma once
+#ifndef ROCFFT_AGAINST_FFTW
+#define ROCFFT_AGAINST_FFTW
+
 #include <gtest/gtest.h>
 #include <math.h>
 #include <stdexcept>
@@ -27,37 +31,72 @@
 #include "rocfft.h"
 #include "rocfft_transform.h"
 
+// Create an easy-to-read string from the test parameters.
+inline std::string testparams2str(const std::vector<size_t>&    length,
+                                  const std::vector<size_t>&    istride,
+                                  const std::vector<size_t>&    ostride,
+                                  const size_t                  batch,
+                                  const rocfft_result_placement placeness)
+{
+    std::ostringstream msg;
+    msg << "length:";
+    for(const auto& i : length)
+    {
+        msg << " " << i;
+    }
+    msg << ", istride:";
+    for(const auto& i : istride)
+    {
+        msg << " " << i;
+    }
+    msg << ", ostride:";
+    for(const auto& i : ostride)
+    {
+        msg << " " << i;
+    }
+    msg << ", batch: " << batch;
+    if(placeness == rocfft_placement_inplace)
+    {
+        msg << ", inplace";
+    }
+    else
+    {
+        msg << ", outofplace";
+    }
+    return msg.str();
+}
+
 // Complex to Complex
-// dimension is inferred from lengths.size()
+// dimension is inferred from length.size()
 // tightly packed is inferred from strides.empty()
 template <class Tfloat>
 void complex_to_complex(data_pattern            pattern,
                         rocfft_transform_type   transform_type,
-                        std::vector<size_t>     lengths,
+                        std::vector<size_t>     length,
                         size_t                  batch,
-                        std::vector<size_t>     input_strides,
-                        std::vector<size_t>     output_strides,
-                        size_t                  input_distance,
-                        size_t                  output_distance,
+                        std::vector<size_t>     istride,
+                        std::vector<size_t>     ostride,
+                        size_t                  idist,
+                        size_t                  odist,
                         rocfft_array_type       in_array_type,
                         rocfft_array_type       out_array_type,
                         rocfft_result_placement placeness,
                         Tfloat                  scale = 1.0f)
 {
     using complex_t = typename fftwtrait<Tfloat>::complex_t;
-    rocfft<Tfloat> test_fft(lengths,
+    rocfft<Tfloat> test_fft(length,
                             batch,
-                            input_strides,
-                            output_strides,
-                            input_distance,
-                            output_distance,
+                            istride,
+                            ostride,
+                            idist,
+                            odist,
                             in_array_type,
                             out_array_type,
                             placeness,
                             transform_type,
                             scale);
 
-    fftw<Tfloat> reference(lengths, batch, input_strides, output_strides, placeness, c2c);
+    fftw<Tfloat> reference(length, batch, istride, ostride, placeness, c2c);
 
     switch(pattern)
     {
@@ -98,34 +137,35 @@ void complex_to_complex(data_pattern            pattern,
     reference.transform();
     test_fft.transform();
 
-    EXPECT_EQ(true, test_fft.result() == reference.result());
+    EXPECT_EQ(true, test_fft.result() == reference.result())
+        << testparams2str(length, istride, ostride, batch, placeness) << "\n";
 }
 
 // Real to complex
 
-// dimension is inferred from lengths.size()
+// dimension is inferred from length.size()
 // tightly packed is inferred from strides.empty()
 // input layout is always real
 template <class Tfloat>
 void real_to_complex(data_pattern            pattern,
                      rocfft_transform_type   transform_type,
-                     std::vector<size_t>     lengths,
+                     std::vector<size_t>     length,
                      size_t                  batch,
-                     std::vector<size_t>     input_strides,
-                     std::vector<size_t>     output_strides,
-                     size_t                  input_distance,
-                     size_t                  output_distance,
+                     std::vector<size_t>     istride,
+                     std::vector<size_t>     ostride,
+                     size_t                  idist,
+                     size_t                  odist,
                      rocfft_array_type       in_array_type,
                      rocfft_array_type       out_array_type,
                      rocfft_result_placement placeness,
                      Tfloat                  scale = 1.0f)
 {
-    rocfft<Tfloat> test_fft(lengths,
+    rocfft<Tfloat> test_fft(length,
                             batch,
-                            input_strides,
-                            output_strides,
-                            input_distance,
-                            output_distance,
+                            istride,
+                            ostride,
+                            idist,
+                            odist,
                             in_array_type,
                             out_array_type,
                             placeness,
@@ -133,7 +173,7 @@ void real_to_complex(data_pattern            pattern,
                             scale);
 
     using complex_t = typename fftwtrait<Tfloat>::complex_t;
-    fftw<Tfloat> reference(lengths, batch, input_strides, output_strides, placeness, r2c);
+    fftw<Tfloat> reference(length, batch, istride, ostride, placeness, r2c);
 
     switch(pattern)
     {
@@ -161,23 +201,24 @@ void real_to_complex(data_pattern            pattern,
     test_fft.transform();
     reference.transform();
 
-    EXPECT_EQ(true, test_fft.result() == reference.result());
+    EXPECT_EQ(true, test_fft.result() == reference.result())
+        << testparams2str(length, istride, ostride, batch, placeness) << "\n";
 }
 
 // Complex to real
 
-// dimension is inferred from lengths.size()
+// dimension is inferred from length.size()
 // tightly packed is inferred from strides.empty()
 // input layout is always complex
 template <class Tfloat>
 void complex_to_real(data_pattern            pattern,
                      rocfft_transform_type   transform_type,
-                     std::vector<size_t>     lengths,
+                     std::vector<size_t>     length,
                      size_t                  batch,
-                     std::vector<size_t>     input_strides,
-                     std::vector<size_t>     output_strides,
-                     size_t                  input_distance,
-                     size_t                  output_distance,
+                     std::vector<size_t>     istride,
+                     std::vector<size_t>     ostride,
+                     size_t                  idist,
+                     size_t                  odist,
                      rocfft_array_type       in_array_type,
                      rocfft_array_type       out_array_type,
                      rocfft_result_placement placeness,
@@ -185,7 +226,7 @@ void complex_to_real(data_pattern            pattern,
 {
     // will perform a real to complex first
     using complex_t = typename fftwtrait<Tfloat>::complex_t;
-    fftw<Tfloat> data_maker(lengths, batch, output_strides, input_strides, placeness, r2c);
+    fftw<Tfloat> data_maker(length, batch, ostride, istride, placeness, r2c);
 
     switch(pattern)
     {
@@ -207,12 +248,12 @@ void complex_to_real(data_pattern            pattern,
 
     data_maker.transform();
 
-    rocfft<Tfloat> test_fft(lengths,
+    rocfft<Tfloat> test_fft(length,
                             batch,
-                            input_strides,
-                            output_strides,
-                            input_distance,
-                            output_distance,
+                            istride,
+                            ostride,
+                            idist,
+                            odist,
                             in_array_type,
                             out_array_type,
                             placeness,
@@ -220,11 +261,13 @@ void complex_to_real(data_pattern            pattern,
                             scale);
     test_fft.set_data_to_buffer(data_maker.result());
 
-    fftw<Tfloat> reference(lengths, batch, input_strides, output_strides, placeness, c2r);
+    fftw<Tfloat> reference(length, batch, istride, ostride, placeness, c2r);
     reference.set_data_to_buffer(data_maker.result());
 
     // if we're starting with unequal data, we're destined for failure
-    EXPECT_EQ(true, test_fft.input_buffer() == reference.input_buffer());
+    EXPECT_EQ(true, test_fft.input_buffer() == reference.input_buffer())
+        << "complex-to-real setup phase failed"
+        << testparams2str(length, istride, ostride, batch, placeness) << "\n";
 
     // test_fft.backward_scale( scale );// rocFFT kernels do not take scale for
     // inverse
@@ -234,5 +277,8 @@ void complex_to_real(data_pattern            pattern,
     test_fft.transform();
     reference.transform();
 
-    EXPECT_EQ(true, test_fft.result() == reference.result());
+    EXPECT_EQ(true, test_fft.result() == reference.result())
+        << testparams2str(length, istride, ostride, batch, placeness) << "\n";
 }
+
+#endif
