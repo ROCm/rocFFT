@@ -30,7 +30,7 @@ import java.nio.file.Path;
 rocFFTCI:
 {
 
-    def rocfft = new rocProject('rocFFT')
+    def rocfft = new rocProject('rocFFT-internal')
     // customize for project
     rocfft.paths.build_command = 'sudo ./install.sh -c'
 
