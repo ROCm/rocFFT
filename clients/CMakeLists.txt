@@ -115,7 +115,7 @@ if (BUILD_CLIENTS_SAMPLES OR  BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SELFTEST OR B
 
 rocm_create_package_clients(LIB_NAME rocfft
                             DESCRIPTION "Radeon Open Compute FFT library"
-                            MAINTAINER "Kent Knox <kent.knox@amd.com>"
+                            MAINTAINER "rocfft-maintainer@amd.com"
                             SECTION "dev"
                             VERSION ${rocfft_VERSION})
 endif()

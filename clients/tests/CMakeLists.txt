@@ -20,11 +20,13 @@
 # THE SOFTWARE.
 # #############################################################################
 
-# set( Boost_DEBUG ON )
+find_package( Boost COMPONENTS program_options REQUIRED)
+set( Boost_DEBUG ON )
 set( Boost_USE_MULTITHREADED ON )
 set( Boost_DETAILED_FAILURE_MSG ON )
 set( Boost_ADDITIONAL_VERSIONS 1.65.1 1.65 )
 set( Boost_USE_STATIC_LIBS OFF )
+
 
 # ########################################################################
 # The following check are hacks to get compiles working for CUDA backend
@@ -44,17 +46,11 @@ if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
 endif( )
 # ########################################################################
 
-find_package( Boost COMPONENTS program_options )
+if(NOT Boost_LIBRARIES)
+  # Fixes a bug in Boost's CMAKE where Boost_LIBRARIES is not set.
+  set(Boost_LIBRARIES Boost::program_options)
+endif()
 
-if( NOT Boost_FOUND )
-  message( STATUS "Dynamic boost libraries not found. Attempting to find static libraries " )
-  set( Boost_USE_STATIC_LIBS ON )
-  find_package( Boost COMPONENTS program_options )
-
-  if( NOT Boost_FOUND )
-    message( FATAL_ERROR "boost is a required dependency and is not found;  try adding boost path to CMAKE_PREFIX_PATH" )
-  endif( )
-endif( )
 
 find_package( GTest REQUIRED )
 find_package( FFTW 3.0 REQUIRED MODULE COMPONENTS FLOAT DOUBLE )
@@ -80,7 +76,12 @@ set(rocfft_test_includes
 
 add_executable( rocfft-test ${rocfft_test_source} ${rocfft_test_includes} )
 
-target_compile_features( rocfft-test PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
+target_compile_features( rocfft-test
+  PRIVATE
+  cxx_static_assert
+  cxx_nullptr
+  cxx_auto_type )
+
 target_include_directories( rocfft-test
   PRIVATE
     $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
@@ -89,7 +90,12 @@ target_include_directories( rocfft-test
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/misc/include>
 )
 
-target_link_libraries( rocfft-test PRIVATE roc::rocfft ${GTEST_LIBRARIES} ${FFTW_LIBRARIES} ${Boost_LIBRARIES} )
+target_link_libraries( rocfft-test
+  PRIVATE
+  roc::rocfft
+  ${GTEST_LIBRARIES}
+  ${FFTW_LIBRARIES}
+  ${Boost_LIBRARIES} )
 
 if( CUDA_FOUND )
   target_include_directories( rocfft-test
@@ -113,7 +119,8 @@ endif( )
 
 set( THREADS_PREFER_PTHREAD_FLAG ON )
 find_package( Threads REQUIRED )
-target_link_libraries( rocfft-test PRIVATE Threads::Threads )
+target_link_libraries( rocfft-test PRIVATE Threads::Threads)
 
 set_target_properties( rocfft-test PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
-set_target_properties( rocfft-test PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+set_target_properties( rocfft-test
+  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
