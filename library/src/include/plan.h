@@ -104,6 +104,7 @@ struct rocfft_plan_t
     rocfft_result_placement placement;
     rocfft_transform_type   transformType;
     rocfft_precision        precision;
+    int                     padding; // it is only for 8 bytes alignment
     size_t                  base_type_size;
 
     rocfft_plan_description_t desc;
@@ -115,6 +116,7 @@ struct rocfft_plan_t
         , transformType(rocfft_transform_type_complex_forward)
         , precision(rocfft_precision_single)
         , base_type_size(sizeof(float))
+        , padding(0)
     {
         lengths.fill(1);
     }
@@ -123,6 +125,10 @@ struct rocfft_plan_t
     {
         const rocfft_plan_t& a = *this;
 
+        assert(sizeof(rocfft_plan_t) % 8 == 0);
+        // The below memcmp() works only with 8 bytes alignment,
+        // and also potentially depends on implementation of std::array.
+        // The better way should be comparison with each attribute.
         return (memcmp(&a, &b, sizeof(rocfft_plan_t)) < 0 ? true : false);
     }
 };

@@ -28,6 +28,8 @@
 extern "C" {
 #endif // __cplusplus
 
+#include "rocfft.h"
+
 DLL_PUBLIC rocfft_status rocfft_plan_create_internal(rocfft_plan             plan,
                                                      rocfft_result_placement placement,
                                                      rocfft_transform_type   transform_type,
@@ -40,6 +42,9 @@ DLL_PUBLIC rocfft_status rocfft_plan_create_internal(rocfft_plan             pla
 
 // plan allocation only
 DLL_PUBLIC rocfft_status rocfft_plan_allocate(rocfft_plan* plan);
+
+DLL_PUBLIC rocfft_status rocfft_repo_get_unique_plan_count(size_t* count);
+DLL_PUBLIC rocfft_status rocfft_repo_get_total_plan_count(size_t* count);
 
 #ifdef __cplusplus
 }

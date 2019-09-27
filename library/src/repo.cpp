@@ -31,11 +31,15 @@
 
 // Implementation of Class Repo
 
+std::mutex Repo::mtx;
+
 void Repo::CreatePlan(rocfft_plan plan)
 {
-    Repo& repo = Repo::GetRepo();
+    Repo&                       repo = Repo::GetRepo();
+    std::lock_guard<std::mutex> lck(mtx);
+
     // see if the repo has already stored the plan or not
-    std::map<rocfft_plan_t, ExecPlan>::const_iterator it = repo.planUnique.find(*plan);
+    auto it = repo.planUnique.find(*plan);
     if(it == repo.planUnique.end()) // if not found
     {
         TreeNode* rootPlan = TreeNode::CreateNode();
@@ -71,27 +75,60 @@ void Repo::CreatePlan(rocfft_plan plan)
 
         PlanPowX(execPlan); // PlanPowX enqueues the GPU kernels by function
         // pointers but does not execute kernels
-        repo.planUnique[*plan] = execPlan; // add this plan into member planUnique (type of map)
-        repo.execLookup[plan]  = execPlan; // add this plan into member execLookup (type of map)
+        repo.planUnique[*plan] = std::pair<ExecPlan, int>(
+            execPlan, 1); // add this plan into member planUnique (type of map)
+        repo.execLookup[plan] = execPlan; // add this plan into member execLookup (type of map)
     }
     else // find the stored plan
     {
-        repo.execLookup[plan] = it->second; // retrieve this plan and put it into member execLookup
+        repo.execLookup[plan]
+            = it->second.first; // retrieve this plan and put it into member execLookup
+        it->second.second++;
     }
 }
-// according to input plan, return the corresponding execPlan
+// According to input plan, return the corresponding execPlan
 void Repo::GetPlan(rocfft_plan plan, ExecPlan& execPlan)
 {
-    Repo& repo = Repo::GetRepo();
-
+    Repo&                       repo = Repo::GetRepo();
+    std::lock_guard<std::mutex> lck(mtx);
     if(repo.execLookup.find(plan) != repo.execLookup.end())
         execPlan = repo.execLookup[plan];
 }
 
+// Remove the plan from Repo and release its ExecPlan resources if it is the last reference
 void Repo::DeletePlan(rocfft_plan plan)
 {
-    Repo&                                     repo = Repo::GetRepo();
-    std::map<rocfft_plan, ExecPlan>::iterator it   = repo.execLookup.find(plan);
+    Repo&                       repo = Repo::GetRepo();
+    std::lock_guard<std::mutex> lck(mtx);
+    auto                        it = repo.execLookup.find(plan);
     if(it != repo.execLookup.end())
+    {
         repo.execLookup.erase(it);
+    }
+
+    auto it_u = repo.planUnique.find(*plan);
+    if(it_u != repo.planUnique.end())
+    {
+        it_u->second.second--;
+        if(it_u->second.second <= 0)
+        {
+            TreeNode::DeleteNode(it_u->second.first.rootPlan);
+            it_u->second.first.rootPlan = nullptr;
+            repo.planUnique.erase(it_u);
+        }
+    }
+}
+
+size_t Repo::GetUniquePlanCount()
+{
+    Repo&                       repo = Repo::GetRepo();
+    std::lock_guard<std::mutex> lck(mtx);
+    return repo.planUnique.size();
+}
+
+size_t Repo::GetTotalPlanCount()
+{
+    Repo&                       repo = Repo::GetRepo();
+    std::lock_guard<std::mutex> lck(mtx);
+    return repo.execLookup.size();
 }

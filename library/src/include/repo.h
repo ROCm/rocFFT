@@ -25,12 +25,16 @@
 
 #include "tree_node.h"
 #include <map>
+#include <mutex>
 
 class Repo
 {
     Repo() {}
-    std::map<rocfft_plan_t, ExecPlan> planUnique;
-    std::map<rocfft_plan, ExecPlan>   execLookup;
+
+    // planUnique has unique rocfft_plan_t and ExecPlan, and a reference counter
+    std::map<rocfft_plan_t, std::pair<ExecPlan, int>> planUnique;
+    std::map<rocfft_plan, ExecPlan>                   execLookup;
+    static std::mutex                                 mtx;
 
 public:
     Repo(const Repo&) = delete; // delete is a c++11 feature, prohibit copy constructor
@@ -44,18 +48,21 @@ public:
 
     ~Repo()
     {
-        std::map<rocfft_plan_t, ExecPlan>::iterator it = planUnique.begin();
+        // in case there are plans left without calling DeletePlan()
+        auto it = planUnique.begin();
         while(it != planUnique.end())
         {
-            TreeNode::DeleteNode(it->second.rootPlan);
-            it->second.rootPlan = nullptr;
+            TreeNode::DeleteNode(it->second.first.rootPlan);
+            it->second.first.rootPlan = nullptr;
             it++;
         }
     }
 
-    static void CreatePlan(rocfft_plan plan);
-    static void GetPlan(rocfft_plan plan, ExecPlan& execPlan);
-    static void DeletePlan(rocfft_plan plan);
+    static void   CreatePlan(rocfft_plan plan);
+    static void   GetPlan(rocfft_plan plan, ExecPlan& execPlan);
+    static void   DeletePlan(rocfft_plan plan);
+    static size_t GetUniquePlanCount();
+    static size_t GetTotalPlanCount();
 };
 
 #endif // REPO_H

@@ -534,6 +534,10 @@ rocfft_status rocfft_plan_destroy(rocfft_plan plan)
 {
     log_trace(__func__, "plan", plan);
 
+    // Remove itself from Repo first, and then delete itself
+    Repo& repo = Repo::GetRepo();
+    repo.DeletePlan(plan);
+
     if(plan != nullptr)
         delete plan;
 
@@ -690,6 +694,20 @@ ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, const size_t le
     if(len < sizeof(v))
         return rocfft_status_invalid_arg_value;
     memcpy(buf, v, sizeof(v));
+    return rocfft_status_success;
+}
+
+ROCFFT_EXPORT rocfft_status rocfft_repo_get_unique_plan_count(size_t* count)
+{
+    Repo& repo = Repo::GetRepo();
+    *count     = repo.GetUniquePlanCount();
+    return rocfft_status_success;
+}
+
+ROCFFT_EXPORT rocfft_status rocfft_repo_get_total_plan_count(size_t* count)
+{
+    Repo& repo = Repo::GetRepo();
+    *count     = repo.GetTotalPlanCount();
     return rocfft_status_success;
 }
 
