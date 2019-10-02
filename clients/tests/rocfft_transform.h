@@ -28,7 +28,7 @@
 #include <iostream>
 #include <vector>
 
-template <class T>
+template <class Tfloat>
 rocfft_status rocfft_plan_create_template(rocfft_plan*                  plan,
                                           rocfft_result_placement       placement,
                                           rocfft_transform_type         transform_type,
@@ -37,10 +37,11 @@ rocfft_status rocfft_plan_create_template(rocfft_plan*                  plan,
                                           size_t                        number_of_transforms,
                                           const rocfft_plan_description description);
 
-template <class T>
-rocfft_status rocfft_set_scale_template(const rocfft_plan_description description, const T scale);
+template <class Tfloat>
+rocfft_status rocfft_set_scale_template(const rocfft_plan_description description,
+                                        const Tfloat                  scale);
 
-template <class T>
+template <class Tfloat>
 class rocfft
 {
 private:
@@ -57,18 +58,18 @@ private:
     std::vector<size_t> lengths;
     size_t              batch_size;
 
-    std::vector<size_t> input_strides;
-    std::vector<size_t> output_strides;
+    std::vector<size_t> istride;
+    std::vector<size_t> ostride;
     // hipStream_t stream;
 
     //[0] for REAL, [1] for IMAG part, IMAG is not used if data type is real
     void* input_device_buffers[2];
     void* output_device_buffers[2];
 
-    buffer<T> input;
-    buffer<T> output;
+    buffer<Tfloat> input;
+    buffer<Tfloat> output;
 
-    T scale;
+    Tfloat scale;
 
     size_t device_workspace_size;
     void*  device_workspace;
@@ -76,20 +77,20 @@ private:
 public:
     rocfft(const std::vector<size_t>     lengths_in,
            const size_t                  batch_size_in,
-           const std::vector<size_t>     input_strides_in,
-           const std::vector<size_t>     output_strides_in,
-           const size_t                  input_distance_in,
-           const size_t                  output_distance_in,
+           const std::vector<size_t>     istride_in,
+           const std::vector<size_t>     ostride_in,
+           const size_t                  idist_in,
+           const size_t                  odist_in,
            const rocfft_array_type       input_layout_in,
            const rocfft_array_type       output_layout_in,
            const rocfft_result_placement placement_in,
            const rocfft_transform_type   transform_type_in,
-           const T                       scale_in)
+           const Tfloat                  scale_in)
     try : dim(lengths_in.size()),
           lengths(lengths_in),
           batch_size(batch_size_in),
-          input_strides(input_strides_in),
-          output_strides(output_strides_in),
+          istride(istride_in),
+          ostride(ostride_in),
           _input_layout(input_layout_in),
           _output_layout(output_layout_in),
           _placement(placement_in),
@@ -98,16 +99,16 @@ public:
           device_workspace_size(0),
           input(lengths_in.size(),
                 lengths_in.data(),
-                input_strides_in.data(),
+                istride_in.data(),
                 batch_size_in,
-                input_distance_in,
+                idist_in,
                 _input_layout,
                 _placement),
           output(lengths_in.size(),
                  lengths_in.data(),
-                 output_strides_in.data(),
+                 ostride_in.data(),
                  batch_size_in,
-                 output_distance_in,
+                 odist_in,
                  _output_layout,
                  _placement)
     {
@@ -185,15 +186,15 @@ public:
     void initialize_plan()
     {
 
-        if(input_strides[0] == 1 && output_strides[0] == 1 && scale == 1.0)
+        if(istride[0] == 1 && ostride[0] == 1 && scale == 1.0)
         {
-            LIB_V_THROW(rocfft_plan_create_template<T>(&plan,
-                                                       _placement,
-                                                       _transformation_direction,
-                                                       dim,
-                                                       lengths.data(),
-                                                       batch_size,
-                                                       NULL),
+            LIB_V_THROW(rocfft_plan_create_template<Tfloat>(&plan,
+                                                            _placement,
+                                                            _transformation_direction,
+                                                            dim,
+                                                            lengths.data(),
+                                                            batch_size,
+                                                            NULL),
                         "rocfft_plan_create failed"); // simply case plan create
         }
         else
@@ -223,10 +224,10 @@ public:
         LIB_V_THROW(rocfft_plan_description_create(&desc), "rocfft_plan_description_create failed");
         // TODO offset non-packed data; only works for 1D now
 
-        size_t output_distance = output_strides[0] * lengths[0]; // TODO
+        size_t odist = ostride[0] * lengths[0]; // TODO
         if(is_hermitian(_output_layout)) // if real to hermitian
         {
-            output_distance = output_distance / 2 + 1;
+            odist = odist / 2 + 1;
         }
 
         LIB_V_THROW(rocfft_plan_description_set_data_layout(desc,
@@ -234,25 +235,25 @@ public:
                                                             _output_layout,
                                                             0,
                                                             0,
-                                                            input_strides.size(),
-                                                            input_strides.data(),
-                                                            input_strides[0] * lengths[0],
-                                                            output_strides.size(),
-                                                            output_strides.data(),
-                                                            output_distance),
+                                                            istride.size(),
+                                                            istride.data(),
+                                                            istride[0] * lengths[0],
+                                                            ostride.size(),
+                                                            ostride.data(),
+                                                            odist),
                     "rocfft_plan_description_data_layout failed");
 
         // In rocfft, scale must be set before plan create
-        LIB_V_THROW(rocfft_set_scale_template<T>(desc, scale),
+        LIB_V_THROW(rocfft_set_scale_template<Tfloat>(desc, scale),
                     "rocfft_plan_descrption_set_scale failed");
 
-        LIB_V_THROW(rocfft_plan_create_template<T>(&plan,
-                                                   _placement,
-                                                   _transformation_direction,
-                                                   dim,
-                                                   lengths.data(),
-                                                   batch_size,
-                                                   desc),
+        LIB_V_THROW(rocfft_plan_create_template<Tfloat>(&plan,
+                                                        _placement,
+                                                        _transformation_direction,
+                                                        dim,
+                                                        lengths.data(),
+                                                        batch_size,
+                                                        desc),
                     "rocfft_plan_create failed");
     }
 
@@ -330,17 +331,17 @@ public:
                 || layout == rocfft_array_type_hermitian_planar);
     }
 
-    void set_data_to_value(T real)
+    void set_data_to_value(Tfloat real)
     {
         input.set_all_to_value(real);
     }
 
-    void set_data_to_value(T real, T imag)
+    void set_data_to_value(Tfloat real, Tfloat imag)
     {
         input.set_all_to_value(real, imag);
     }
 
-    void set_data_to_sawtooth(T max)
+    void set_data_to_sawtooth(Tfloat max)
     {
         input.set_all_to_sawtooth(max);
     }
@@ -355,24 +356,24 @@ public:
         input.set_all_to_random();
     }
 
-    void set_data_to_buffer(buffer<T> other_buffer)
+    void set_data_to_buffer(buffer<Tfloat> other_buffer)
     {
         input = other_buffer;
     }
 
-    buffer<T>& input_buffer()
+    buffer<Tfloat>& input_buffer()
     {
         return input;
     }
 
-    buffer<T>& output_buffer()
+    buffer<Tfloat>& output_buffer()
     {
         return output;
     }
 
     // Do not need to check placement valid or not. the checking has been done at
     // the very beginning in the constructor
-    buffer<T>& result()
+    buffer<Tfloat>& result()
     {
         return (_placement == rocfft_placement_inplace) ? input : output;
     }

@@ -35,8 +35,8 @@
 #include <utility>
 #include <vector>
 
-template <typename T>
-bool floats_are_about_equal(T a, T b)
+template <typename Tfloat>
+bool floats_are_about_equal(Tfloat a, Tfloat b)
 {
     // explicit check to see if a and b are both zero-ish . . .
     if(fabs(a) < 0.00001f && fabs(b) < 0.00001f)
@@ -57,7 +57,7 @@ struct index_t
     }
 };
 
-template <class T>
+template <class Tfloat>
 class buffer
 {
 private:
@@ -85,7 +85,7 @@ private:
     // _the_buffers[im] will hold the imaginary portion (planar only)
     // if interleaved:
     // _the_buffers[interleaved] will hold the whole banana
-    std::vector<buffer_memory<T>> _the_buffers;
+    std::vector<buffer_memory<Tfloat>> _the_buffers;
 
     enum
     {
@@ -128,7 +128,7 @@ public:
     // This assignment operator only copies _data_.  it does not
     // change the rest of the buffer information and in fact, it
     // requires that the buffer sizes be the same going in.
-    buffer<T>& operator=(buffer<T>& that)
+    buffer<Tfloat>& operator=(buffer<Tfloat>& that)
     {
         if(this->is_real() != that.is_real() || this->is_hermitian() != that.is_hermitian()
            || this->is_complex() != that.is_complex())
@@ -261,23 +261,23 @@ private:
         {
             // just one real buffer
             _the_buffers.push_back(
-                buffer_memory<T>(total_number_of_points_including_data_and_intervening()));
+                buffer_memory<Tfloat>(total_number_of_points_including_data_and_intervening()));
             increase_memory_allocation_for_real_in_place_buffers();
         }
         else if(is_planar())
         {
             // one real buffer
             _the_buffers.push_back(
-                buffer_memory<T>(total_number_of_points_including_data_and_intervening()));
+                buffer_memory<Tfloat>(total_number_of_points_including_data_and_intervening()));
             // and one imaginary buffer
             _the_buffers.push_back(
-                buffer_memory<T>(total_number_of_points_including_data_and_intervening()));
+                buffer_memory<Tfloat>(total_number_of_points_including_data_and_intervening()));
         }
         else if(is_interleaved())
         {
             // one double-wide interleaved buffer
             _the_buffers.push_back(
-                buffer_memory<T>(2 * total_number_of_points_including_data_and_intervening()));
+                buffer_memory<Tfloat>(2 * total_number_of_points_including_data_and_intervening()));
         }
     }
 
@@ -396,21 +396,22 @@ private:
             return index(0, 0, 0, batch + 1);
     }
 
-    bool points_are_about_equal(buffer<T>& other_buffer, size_t x, size_t y, size_t z, size_t batch)
+    bool points_are_about_equal(
+        buffer<Tfloat>& other_buffer, size_t x, size_t y, size_t z, size_t batch)
     {
         if(is_real())
-            return floats_are_about_equal<T>(real(x, y, z, batch),
-                                             other_buffer.real(x, y, z, batch));
+            return floats_are_about_equal<Tfloat>(real(x, y, z, batch),
+                                                  other_buffer.real(x, y, z, batch));
         else if(is_complex() || is_hermitian())
-            return (
-                floats_are_about_equal<T>(real(x, y, z, batch), other_buffer.real(x, y, z, batch))
-                && floats_are_about_equal<T>(imag(x, y, z, batch),
-                                             other_buffer.imag(x, y, z, batch)));
+            return (floats_are_about_equal<Tfloat>(real(x, y, z, batch),
+                                                   other_buffer.real(x, y, z, batch))
+                    && floats_are_about_equal<Tfloat>(imag(x, y, z, batch),
+                                                      other_buffer.imag(x, y, z, batch)));
         else
             throw std::runtime_error("invalid layout in points_are_about_equal()");
     }
 
-    size_t buffer_mismatches(buffer<T>& other_buffer, bool compare_method)
+    size_t buffer_mismatches(buffer<Tfloat>& other_buffer, bool compare_method)
     {
         std::vector<index_t> mismatched_point_indices;
 
@@ -550,7 +551,7 @@ private:
     }
 
 public:
-    bool operator==(buffer<T>& other_buffer)
+    bool operator==(buffer<Tfloat>& other_buffer)
     {
         // complexity of each dimension must be the same
         // but does not compare their stride. other_buffer's stride can be different
@@ -590,17 +591,17 @@ public:
         return (number_deaths == 0);
     }
 
-    bool operator!=(buffer<T>& other_buffer)
+    bool operator!=(buffer<Tfloat>& other_buffer)
     {
         return !(*this == other_buffer);
     }
 
-    void operator*=(buffer<T>& other_buffer)
+    void operator*=(buffer<Tfloat>& other_buffer)
     {
-        size_t the_index;
-        T*     base_ptr;
-        T*     real_ptr;
-        T*     imag_ptr;
+        size_t  the_index;
+        Tfloat* base_ptr;
+        Tfloat* real_ptr;
+        Tfloat* imag_ptr;
 
         if(is_interleaved())
         {
@@ -660,19 +661,19 @@ public:
     // Calculates a 3 point average of other_buffer and
     // multiplies with buffer
     // only real layout is supported for other_buffer currently
-    void multiply_3pt_average(buffer<T>& other_buffer)
+    void multiply_3pt_average(buffer<Tfloat>& other_buffer)
     {
         if(!other_buffer.is_real())
         {
             throw std::runtime_error("only real layout is supported currently for other_buffer");
         }
 
-        size_t the_index, o_the_index;
-        T *    base_ptr, *o_base_ptr;
-        T*     real_ptr;
-        T*     imag_ptr;
-        T      o_prev_val, o_next_val;
-        T      average;
+        size_t  the_index, o_the_index;
+        Tfloat *base_ptr, *o_base_ptr;
+        Tfloat* real_ptr;
+        Tfloat* imag_ptr;
+        Tfloat  o_prev_val, o_next_val;
+        Tfloat  average;
 
         if(is_interleaved())
         {
@@ -800,7 +801,7 @@ public:
             throw std::runtime_error("invalid placeness value in is_in_place()");
     }
 
-    T* interleaved_ptr()
+    Tfloat* interleaved_ptr()
     {
         if(is_interleaved())
             return _the_buffers[interleaved].ptr();
@@ -808,7 +809,7 @@ public:
             throw std::runtime_error("interleaved_ptr() is only available on interleaved buffers");
     }
 
-    T* real_ptr()
+    Tfloat* real_ptr()
     {
         if(is_planar() || is_real())
             return _the_buffers[re].ptr();
@@ -816,7 +817,7 @@ public:
             throw std::runtime_error("real() is only available on real and planar buffers");
     }
 
-    T* imag_ptr()
+    Tfloat* imag_ptr()
     {
         if(is_planar())
             return _the_buffers[im].ptr();
@@ -824,18 +825,18 @@ public:
             throw std::runtime_error("imag_ptr() is only available on planar buffers");
     }
 
-    T real(const size_t x, const size_t y = 0, const size_t z = 0, const size_t batch = 0)
+    Tfloat real(const size_t x, const size_t y = 0, const size_t z = 0, const size_t batch = 0)
     {
         size_t this_index = index(x, y, z, batch);
 
         // all layouts will have a real component
         // using [re] will catch the real component for
         // layout::interleaved as well
-        T this_value = _the_buffers[re][this_index];
+        Tfloat this_value = _the_buffers[re][this_index];
         return this_value;
     }
 
-    T imag(const size_t x, const size_t y = 0, const size_t z = 0, const size_t batch = 0)
+    Tfloat imag(const size_t x, const size_t y = 0, const size_t z = 0, const size_t batch = 0)
     {
         size_t this_index = index(x, y, z, batch);
 
@@ -851,14 +852,14 @@ public:
             throw std::runtime_error("invalid layout type in imag()");
     }
 
-    std::complex<T>
+    std::complex<Tfloat>
         complex(const size_t x, const size_t y = 0, const size_t z = 0, const size_t batch = 0)
     {
         if(is_real())
             throw std::runtime_error("complex() is not available for this real buffer");
         else if(is_complex() || is_hermitian())
         {
-            std::complex<T> this_complex(real(x, y, z, batch), imag(x, y, z, batch));
+            std::complex<Tfloat> this_complex(real(x, y, z, batch), imag(x, y, z, batch));
             return this_complex;
         }
         else
@@ -946,12 +947,12 @@ public:
     }
 
     void set_one_data_point(
-        T real, const size_t x, const size_t y, const size_t z, const size_t batch)
+        Tfloat real, const size_t x, const size_t y, const size_t z, const size_t batch)
     {
         if(is_real())
         {
-            T*     base_ptr   = _the_buffers[re].ptr();
-            size_t real_index = index(x, y, z, batch);
+            Tfloat* base_ptr   = _the_buffers[re].ptr();
+            size_t  real_index = index(x, y, z, batch);
 
             *(base_ptr + real_index) = real;
         }
@@ -960,16 +961,20 @@ public:
                                      "complex or hermitian buffer");
     }
 
-    void set_one_data_point(
-        T real, T imag, const size_t x, const size_t y, const size_t z, const size_t batch)
+    void set_one_data_point(Tfloat       real,
+                            Tfloat       imag,
+                            const size_t x,
+                            const size_t y,
+                            const size_t z,
+                            const size_t batch)
     {
         if(is_real())
             throw std::runtime_error("attempting to use complex data point setter for real buffer");
         else if(is_interleaved())
         {
-            T*     base_ptr   = _the_buffers[interleaved].ptr();
-            size_t real_index = index(x, y, z, batch);
-            size_t imag_index
+            Tfloat* base_ptr   = _the_buffers[interleaved].ptr();
+            size_t  real_index = index(x, y, z, batch);
+            size_t  imag_index
                 = real_index + 1; // the imaginary component immediately follows the real
 
             *(base_ptr + real_index) = real;
@@ -977,16 +982,16 @@ public:
         }
         else // planar
         {
-            T*     real_ptr  = _the_buffers[re].ptr();
-            T*     imag_ptr  = _the_buffers[im].ptr();
-            size_t the_index = index(x, y, z, batch);
+            Tfloat* real_ptr  = _the_buffers[re].ptr();
+            Tfloat* imag_ptr  = _the_buffers[im].ptr();
+            size_t  the_index = index(x, y, z, batch);
 
             *(real_ptr + the_index) = real;
             *(imag_ptr + the_index) = imag;
         }
     }
 
-    void set_all_to_value(T real)
+    void set_all_to_value(Tfloat real)
     {
         // for all batches
         for(size_t batch = 0; batch < batch_size(); batch++)
@@ -1004,7 +1009,7 @@ public:
         }
     }
 
-    void set_all_to_value(T real, T imag)
+    void set_all_to_value(Tfloat real, Tfloat imag)
     {
         // for all batches
         for(size_t batch = 0; batch < batch_size(); batch++)
@@ -1036,13 +1041,17 @@ public:
                     {
                         if(is_real())
                         {
-                            set_one_data_point(static_cast<T>(val), x, y, z, batch);
+                            set_one_data_point(static_cast<Tfloat>(val), x, y, z, batch);
                         }
 
                         else
                         {
-                            set_one_data_point(
-                                static_cast<T>(val), static_cast<T>(val) + 0.5f, x, y, z, batch);
+                            set_one_data_point(static_cast<Tfloat>(val),
+                                               static_cast<Tfloat>(val) + 0.5f,
+                                               x,
+                                               y,
+                                               z,
+                                               batch);
                         }
 
                         ++val;
@@ -1052,7 +1061,7 @@ public:
         }
     }
 
-    void set_all_to_sawtooth(T amplitude)
+    void set_all_to_sawtooth(Tfloat amplitude)
     {
         // for all batches
         for(size_t batch = 0; batch < batch_size(); batch++)
@@ -1067,10 +1076,10 @@ public:
                     // at T
                     // if there are an odd number of points in the whole period,
                     // we'll make a stop at 0 in the middle of the jump
-                    T value = 1.0 * (y + 1);
+                    Tfloat value = 1.0 * (y + 1);
                     // if (value > 1e3) value /= 1e3;
 
-                    T per_point_delta = amplitude / (length(dimx) / 2);
+                    Tfloat per_point_delta = amplitude / (length(dimx) / 2);
                     // inner most dimension
                     for(size_t x = 0; x < length(dimx); x++)
                     {
@@ -1089,7 +1098,7 @@ public:
                             //        obscuring errors)
                             // value = (T)x/1000; //for debug
                             // if( x % 2 == 0 ) value *= -1;// change the sign, for debug
-                            T imag = -2.0 * value;
+                            Tfloat imag = -2.0 * value;
                             //    imag = 0.0;// let element 0 and last to be real for
                             //    hermitian input
                             set_one_data_point(value, imag, x, y, z, batch);
@@ -1148,12 +1157,16 @@ public:
                         // printf("value=%d\n", value);
                         if(is_real())
                         {
-                            set_one_data_point(static_cast<T>(value), x, y, z, batch);
+                            set_one_data_point(static_cast<Tfloat>(value), x, y, z, batch);
                         }
                         else
                         {
-                            set_one_data_point(
-                                static_cast<T>(value), static_cast<T>(value), x, y, z, batch);
+                            set_one_data_point(static_cast<Tfloat>(value),
+                                               static_cast<Tfloat>(value),
+                                               x,
+                                               y,
+                                               z,
+                                               batch);
                         }
                     }
                 }
@@ -1170,14 +1183,18 @@ public:
         {
             if(is_real())
                 set_one_data_point(
-                    static_cast<T>(number_of_data_points_single_batch()), 0, 0, 0, batch);
+                    static_cast<Tfloat>(number_of_data_points_single_batch()), 0, 0, 0, batch);
             else
-                set_one_data_point(
-                    static_cast<T>(number_of_data_points_single_batch()), 0.0f, 0, 0, 0, batch);
+                set_one_data_point(static_cast<Tfloat>(number_of_data_points_single_batch()),
+                                   0.0f,
+                                   0,
+                                   0,
+                                   0,
+                                   batch);
         }
     }
 
-    void scale_data(T scale)
+    void scale_data(Tfloat scale)
     {
         // for all batches
 
@@ -1191,17 +1208,17 @@ public:
                     {
                         if(is_real())
                         {
-                            T this_value   = real(x, y, z, batch);
-                            T scaled_value = this_value * scale;
+                            Tfloat this_value   = real(x, y, z, batch);
+                            Tfloat scaled_value = this_value * scale;
                             set_one_data_point(scaled_value, x, y, z, batch);
                         }
                         else
                         {
-                            T this_real = real(x, y, z, batch);
-                            T this_imag = imag(x, y, z, batch);
+                            Tfloat this_real = real(x, y, z, batch);
+                            Tfloat this_imag = imag(x, y, z, batch);
 
-                            T scaled_real = this_real * scale;
-                            T scaled_imag = this_imag * scale;
+                            Tfloat scaled_real = this_real * scale;
+                            Tfloat scaled_imag = this_imag * scale;
                             set_one_data_point(scaled_real, scaled_imag, x, y, z, batch);
                         }
                     }
@@ -1240,8 +1257,8 @@ public:
                             {
                                 for(size_t i = this_point + 1; i < next_point; i++)
                                 {
-                                    T this_real = _the_buffers[re][i];
-                                    T this_imag = _the_buffers[im][i];
+                                    Tfloat this_real = _the_buffers[re][i];
+                                    Tfloat this_imag = _the_buffers[im][i];
 
                                     if(nan_as_hex(this_real) != float_as_hex(this_real)
                                        || nan_as_hex(this_imag) != float_as_hex(this_imag))
@@ -1257,7 +1274,7 @@ public:
                             {
                                 for(size_t i = this_point + 1; i < next_point; i++)
                                 {
-                                    T this_real = _the_buffers[re][i];
+                                    Tfloat this_real = _the_buffers[re][i];
 
                                     if(nan_as_hex(this_real) != float_as_hex(this_real))
                                     {
@@ -1275,7 +1292,7 @@ public:
                                 // imaginary value of the point
                                 for(size_t i = this_point + 2; i < next_point; i++)
                                 {
-                                    T this_real = _the_buffers[interleaved][i];
+                                    Tfloat this_real = _the_buffers[interleaved][i];
 
                                     if(nan_as_hex(this_real) != float_as_hex(this_real))
                                     {

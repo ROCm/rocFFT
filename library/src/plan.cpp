@@ -826,8 +826,7 @@ void TreeNode::BuildRealEmbed()
 void TreeNode::BuildReal()
 {
     // TODO: all data must be contiguous, in fact.
-    if(inStride[0] == 1 && outStride[0] == 1 && length[0] % 2 == 0
-       && (dimension == 1 || direction == 1))
+    if(inStride[0] == 1 && outStride[0] == 1 && length[0] % 2 == 0 && dimension == 1)
     {
         BuildRealEven();
     }

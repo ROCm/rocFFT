@@ -429,11 +429,10 @@ __global__ void real_pre_process_kernel(const size_t    half_N,
 
         if(idx_p == 0)
         {
-            // NB: multi-dimensional transforms may have non-zero imaginary part at index 0.
-            // However, the Nyquist frequency is guaranteed to be purely real for even-length
-            // transforms.
-            output[idx_p].x = p.x - p.y + q.x;
-            output[idx_p].y = p.x + p.y - q.x;
+            // NB: multi-dimensional transforms may have non-zero
+            // imaginary part at index 0 or at the Nyquist frequency.
+            output[idx_p].x = p.x - p.y + q.x + q.y;
+            output[idx_p].y = p.x + p.y - q.x + q.y;
         }
         else
         {

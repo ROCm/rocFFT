@@ -31,6 +31,20 @@
 #include "rocfft.h"
 #include "rocfft_transform.h"
 
+// Return the precision enum for rocFFT based upon the type.
+template <typename Tfloat>
+inline rocfft_precision precision_selector();
+template <>
+inline rocfft_precision precision_selector<float>()
+{
+    return rocfft_precision_single;
+}
+template <>
+inline rocfft_precision precision_selector<double>()
+{
+    return rocfft_precision_double;
+}
+
 // Create an easy-to-read string from the test parameters.
 inline std::string testparams2str(const std::vector<size_t>&    length,
                                   const std::vector<size_t>&    istride,
@@ -83,7 +97,6 @@ void complex_to_complex(data_pattern            pattern,
                         rocfft_result_placement placeness,
                         Tfloat                  scale = 1.0f)
 {
-    using complex_t = typename fftwtrait<Tfloat>::complex_t;
     rocfft<Tfloat> test_fft(length,
                             batch,
                             istride,
@@ -172,7 +185,7 @@ void real_to_complex(data_pattern            pattern,
                             transform_type,
                             scale);
 
-    using complex_t = typename fftwtrait<Tfloat>::complex_t;
+    using fftw_complex_type = typename fftw_trait<Tfloat>::fftw_complex_type;
     fftw<Tfloat> reference(length, batch, istride, ostride, placeness, r2c);
 
     switch(pattern)
@@ -225,7 +238,6 @@ void complex_to_real(data_pattern            pattern,
                      Tfloat                  scale = 1.0f)
 {
     // will perform a real to complex first
-    using complex_t = typename fftwtrait<Tfloat>::complex_t;
     fftw<Tfloat> data_maker(length, batch, ostride, istride, placeness, r2c);
 
     switch(pattern)
