@@ -31,17 +31,6 @@
 //#include <boost/program_options.hpp>
 // namespace po = boost::program_options;
 
-// global for test use
-
-size_t number_of_random_tests;
-time_t random_test_parameter_seed;
-float  tolerance;
-double rmse_tolerance;
-bool   verbose;
-
-bool suppress_output = false;
-bool comparison_type = root_mean_square;
-
 int main(int argc, char* argv[])
 {
 
@@ -72,15 +61,6 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    if( vm.count( "verbose" ) )
-    {
-        verbose = true;
-    }
-    else
-    {
-        verbose = false;
-    }
-
     //    Create a new argc,argv to pass to InitGoogleTest
     //    First parameter of course is the name of this program
     std::vector< const char* > myArgv;
@@ -89,15 +69,6 @@ int main(int argc, char* argv[])
     if( argc > 0 )
         myArgv.push_back( *argv );
 
-    if( vm.count( "pointwise" ) )
-    {
-        comparison_type = pointwise_compare;
-    }
-    else
-    {
-        comparison_type = root_mean_square;
-    }
-
     int myArgc    = static_cast< int >( myArgv.size( ) );
 
 #endif
@@ -105,16 +76,6 @@ int main(int argc, char* argv[])
     char v[256];
     rocfft_get_version_string(v, 256);
     std::cout << "rocFFT version: " << v << std::endl;
-
-    tolerance = 0.001f;
-
-    // this rmse_tolerance is not absolute; it is for a 4096-point single
-    // precision transform
-    // the actual rmse tolerance is this value times sqrt(problem-size/4096)
-    rmse_tolerance = 0.00002;
-
-    std::cout << "Result comparison tolerance is " << tolerance << std::endl;
-    std::cout << "Result comparison RMSE relative tolerance is " << rmse_tolerance << std::endl;
 
     //::testing::InitGoogleTest( &myArgc, const_cast< char** >( &myArgv[ 0 ] ) );
 

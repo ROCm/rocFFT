@@ -193,6 +193,6 @@ TEST(hipfftTest, RunR2C)
     nrmse = sqrt(nrmse);
     nrmse /= maxv;
 
-    EXPECT_TRUE(nrmse < rmse_tolerance);
+    EXPECT_TRUE(nrmse < type_epsilon<double>());
     fftw_free(ref_out);
 }

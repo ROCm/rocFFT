@@ -60,15 +60,11 @@ set(rocfft_test_source
   accuracy_test_1D.cpp
   accuracy_test_2D.cpp
   unit_test.cpp
-  template.cpp
   hipfft_test.cpp
   misc/source/test_exception.cpp
   )
 
 set(rocfft_test_includes
-  buffer_memory.h
-  buffer.h
-  rocfft_transform.h
   fftw_transform.h
   rocfft_against_fftw.h
   misc/include/test_exception.h
