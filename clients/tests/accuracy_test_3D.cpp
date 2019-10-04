@@ -34,22 +34,38 @@ using ::testing::ValuesIn;
 
 // Set parameters
 
-// TODO: {4096, 8192} fails with new test infrastructure.
-static std::vector<std::vector<size_t>> pow2_range
-    = {{2, 4}, {8, 16}, {32, 128}, {256, 512}, {1024, 2048}};
-// TODO: {2187, 6561} fails with the new test infrastructure.
-static std::vector<std::vector<size_t>> pow3_range = {{3, 9}, {27, 81}, {243, 729}};
-// TODO: {3125, 15625} fails with the new test infrastructure.
-static std::vector<std::vector<size_t>> pow5_range  = {{5, 25}, {125, 625}};
-static std::vector<std::vector<size_t>> prime_range = {
-    {7, 25}, {11, 625}, {13, 15625}, {1, 11}, {11, 1}, {8191, 243}, {7, 11}, {7, 32}, {1009, 1009}};
+static std::vector<std::vector<size_t>> pow2_range = {{2, 2, 2},
+                                                      {4, 2, 2},
+                                                      {2, 4, 2},
+                                                      {2, 2, 4},
+                                                      {4, 4, 2},
+                                                      {4, 2, 4},
+                                                      {2, 4, 4},
+                                                      {4, 4, 4},
+                                                      {2, 16, 16},
+                                                      {16, 16, 16},
+                                                      {32, 2, 32},
+                                                      {32, 32, 32},
+                                                      {64, 64, 2},
+                                                      {64, 64, 64},
+                                                      {128, 128, 128},
+                                                      {128, 4, 128},
+                                                      {256, 256, 8},
+                                                      {256, 256, 256}};
+
+static std::vector<std::vector<size_t>> pow3_range = {{3, 3, 3}, {9, 9, 9}, {27, 27, 27}};
+
+static std::vector<std::vector<size_t>> mix_range
+    = {{3, 2, 2}, {3, 3, 2}, {3, 2, 3}, {2, 3, 3}, {2, 3, 5}, {2, 3, 11}, {216, 216, 216}};
 
 static size_t batch_range[] = {1};
 
-static size_t stride_range[] = {1}; // 1: assume packed data
+static size_t stride_range[] = {1};
 
-static rocfft_result_placement placeness_range[]
-    = {rocfft_placement_notinplace, rocfft_placement_inplace};
+// static rocfft_result_placement placeness_range[]
+//     = {rocfft_placement_notinplace, rocfft_placement_inplace};
+rocfft_result_placement placeness_range[] = {rocfft_placement_inplace};
+// TODO: re-enable when out-of-place c2c 3D transforms are fixed.
 
 // Real/complex transform test framework is only set up for out-of-place transforms:
 // TODO: fix the test suite and add coverage for in-place transforms.
@@ -63,7 +79,7 @@ static data_pattern pattern_range[] = {sawtooth};
 
 // Test suite classes:
 
-class accuracy_test_complex_2D : public ::testing::TestWithParam<std::tuple<std::vector<size_t>,
+class accuracy_test_complex_3D : public ::testing::TestWithParam<std::tuple<std::vector<size_t>,
                                                                             size_t,
                                                                             rocfft_result_placement,
                                                                             size_t,
@@ -80,7 +96,7 @@ protected:
         rocfft_cleanup();
     }
 };
-class accuracy_test_real_2D
+class accuracy_test_real_3D
     : public ::testing::TestWithParam<
           std::tuple<std::vector<size_t>, size_t, rocfft_result_placement, size_t, data_pattern>>
 {
@@ -97,7 +113,7 @@ protected:
 
 //  Complex to complex
 template <typename Tfloat>
-void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>     length,
+void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>     length,
                                                           size_t                  batch,
                                                           rocfft_result_placement placeness,
                                                           rocfft_transform_type   transform_type,
@@ -106,8 +122,9 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
 {
     using fftw_complex_type = typename fftw_trait<Tfloat>::fftw_complex_type;
 
-    const size_t Nx      = length[1];
-    const size_t Ny      = length[0];
+    const size_t Nx      = length[2];
+    const size_t Ny      = length[1];
+    const size_t Nz      = length[0];
     const bool   inplace = placeness == rocfft_placement_inplace;
     int          sign
         = transform_type == rocfft_transform_type_complex_forward ? FFTW_FORWARD : FFTW_BACKWARD;
@@ -116,10 +133,13 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     ASSERT_TRUE(stride == 1) << "Failure: test assumes contiguous data:";
 
     // Dimension configuration:
-    std::array<fftw_iodim64, 2> dims;
+    std::array<fftw_iodim64, 3> dims;
+    dims[2].n  = Nz;
+    dims[2].is = stride;
+    dims[2].os = stride;
     dims[1].n  = Ny;
-    dims[1].is = stride;
-    dims[1].os = stride;
+    dims[1].is = dims[2].n * dims[2].is;
+    dims[1].os = dims[2].n * dims[2].os;
     dims[0].n  = Nx;
     dims[0].is = dims[1].n * dims[1].is;
     dims[0].os = dims[1].n * dims[1].os;
@@ -180,61 +200,61 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
 
     // Set up the GPU plan:
     rocfft_status fft_status = rocfft_status_success;
-    rocfft_plan   forward    = NULL;
+    rocfft_plan   gpu_plan   = NULL;
     fft_status
-        = rocfft_plan_create(&forward,
+        = rocfft_plan_create(&gpu_plan,
                              inplace ? rocfft_placement_inplace : rocfft_placement_notinplace,
                              transform_type,
                              precision_selector<Tfloat>(),
-                             2, // Dimensions
+                             length.size(), // Dimensions
                              length.data(), // lengths
                              1, // Number of transforms
                              NULL); // Description  // TODO: enable
-    // needed for strides!
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
 
-    // The real-to-complex transform uses work memory, which is passed
-    // via a rocfft_execution_info struct.
-    rocfft_execution_info forwardinfo = NULL;
-    fft_status                        = rocfft_execution_info_create(&forwardinfo);
+    rocfft_execution_info planinfo = NULL;
+    fft_status                     = rocfft_execution_info_create(&planinfo);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT execution info creation failure";
-    size_t forwardworkbuffersize = 0;
-    fft_status = rocfft_plan_get_work_buffer_size(forward, &forwardworkbuffersize);
+    size_t workbuffersize = 0;
+    fft_status            = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT get buffer size get failure";
-    void* forwardwbuffer = NULL;
-    if(forwardworkbuffersize > 0)
+    void* wbuffer = NULL;
+    if(workbuffersize > 0)
     {
-        hip_status = hipMalloc(&forwardwbuffer, forwardworkbuffersize);
+        hip_status = hipMalloc(&wbuffer, workbuffersize);
         ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-        fft_status = rocfft_execution_info_set_work_buffer(
-            forwardinfo, forwardwbuffer, forwardworkbuffersize);
+        fft_status = rocfft_execution_info_set_work_buffer(planinfo, wbuffer, workbuffersize);
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
-    srandom(3);
-
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);
+    srandom(3);
     for(size_t i = 0; i < Nx; i++)
     {
         for(size_t j = 0; j < Ny; j++)
         {
-            // TODO: make pattern variable?
-            std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
-                                     (Tfloat)rand() / (Tfloat)RAND_MAX);
-            //std::complex<Tfloat> val(i,j);
-            cpu_in[dims[0].is * i + dims[1].is * j] = val;
+            for(size_t k = 0; k < Nz; k++)
+            {
+                // TODO: make pattern variable?
+                std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
+                                         (Tfloat)rand() / (Tfloat)RAND_MAX);
+                cpu_in[dims[0].is * i + dims[1].is * j + dims[2].is * k] = val;
+            }
         }
     }
 
     if(verbose > 1)
     {
-        std::cout << "input:\n";
         for(size_t i = 0; i < Nx; i++)
         {
             for(size_t j = 0; j < Ny; j++)
             {
-                std::cout << cpu_in[dims[0].is * i + dims[1].is * j] << " ";
+                for(size_t k = 0; k < Nz; k++)
+                {
+                    std::cout << cpu_in[dims[0].is * i + dims[1].is * j + dims[2].is * k] << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -246,10 +266,10 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
 
     // Execute the GPU transform:
-    fft_status = rocfft_execute(forward, // plan
+    fft_status = rocfft_execute(gpu_plan, // plan
                                 (void**)&gpu_in, // in_buffer
                                 (void**)&gpu_out, // out_buffer
-                                forwardinfo); // execution info
+                                planinfo); // execution info
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
 
     // Execute the CPU transform:
@@ -262,7 +282,11 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
         {
             for(size_t j = 0; j < Ny; j++)
             {
-                std::cout << cpu_out[dims[0].os * i + dims[1].os * j] << " ";
+                for(size_t k = 0; k < Nz; k++)
+                {
+                    std::cout << cpu_out[dims[0].os * i + dims[1].os * j + dims[2].is * k] << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -282,7 +306,12 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
         {
             for(size_t j = 0; j < Ny; j++)
             {
-                std::cout << gpu_out_comp[dims[0].os * i + dims[1].os * j] << " ";
+                for(size_t k = 0; k < Nz; k++)
+                {
+                    std::cout << gpu_out_comp[dims[0].os * i + dims[1].os * j + dims[2].is * k]
+                              << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -295,9 +324,12 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     {
         for(size_t j = 0; j < Ny; j++)
         {
-            auto val = cpu_out[dims[0].os * i + dims[1].os * j];
-            Linfnorm = std::max(std::abs(val), Linfnorm);
-            L2norm += std::abs(val) * std::abs(val);
+            for(size_t k = 0; k < Nz; k++)
+            {
+                auto val = cpu_out[dims[0].os * i + dims[1].os * j + dims[2].is * k];
+                Linfnorm = std::max(std::abs(val), Linfnorm);
+                L2norm += std::abs(val) * std::abs(val);
+            }
         }
     }
     L2norm = sqrt(L2norm);
@@ -309,26 +341,29 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     {
         for(size_t j = 0; j < Ny; j++)
         {
-            const int pos  = dims[0].os * i + dims[1].os * j;
-            Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
-            Linfdiff       = std::max(diff, Linfdiff);
-            L2diff += diff * diff;
-            if(std::abs(diff) / (Linfnorm * log(Nx * Ny)) >= type_epsilon<Tfloat>())
+            for(size_t k = 0; k < Nz; k++)
             {
-                nwrong++;
-                if(verbose > 1)
+                const int pos  = dims[0].os * i + dims[1].os * j + dims[2].is * k;
+                Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
+                Linfdiff       = std::max(diff, Linfdiff);
+                L2diff += diff * diff;
+                if(std::abs(diff) / (Linfnorm * log(Nx * Ny)) >= type_epsilon<Tfloat>())
                 {
-                    std::cout << "(i,j): " << i << " " << j << " cpu: " << cpu_out[pos]
-                              << " gpu: " << gpu_out_comp[pos] << "\n";
+                    nwrong++;
+                    if(verbose > 1)
+                    {
+                        std::cout << "(i,j): " << i << " " << j << " cpu: " << cpu_out[pos]
+                                  << " gpu: " << gpu_out_comp[pos] << "\n";
+                    }
                 }
             }
         }
     }
     L2diff = sqrt(L2diff);
 
-    Tfloat L2error   = L2diff / (L2norm * sqrt(log(Nx * Ny)));
-    Tfloat Linferror = Linfdiff / (Linfnorm * log(Nx * Ny));
-    if(verbose > 1)
+    Tfloat L2error   = L2diff / (L2norm * sqrt(log(Nx * Ny * Nz)));
+    Tfloat Linferror = Linfdiff / (Linfnorm * log(Nx * Ny * Nz));
+    if(verbose)
     {
         std::cout << "nwrong: " << nwrong << std::endl;
         std::cout << "relative L2 error: " << L2error << std::endl;
@@ -348,20 +383,20 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
         hipFree(gpu_out);
         fftw_free(cpu_out);
     }
-    if(forwardwbuffer != NULL)
+    if(wbuffer != NULL)
     {
-        hipFree(forwardwbuffer);
+        hipFree(wbuffer);
     }
 
     // Destroy plans:
-    rocfft_plan_destroy(forward);
+    rocfft_plan_destroy(gpu_plan);
     fftw_destroy_plan_type(cpu_plan);
 }
 
 // Implemetation of complex-to-complex tests for float and double:
 
-TEST_P(accuracy_test_complex_2D,
-       normal_2D_complex_interleaved_to_complex_interleaved_single_precision)
+TEST_P(accuracy_test_complex_3D,
+       normal_3D_complex_interleaved_to_complex_interleaved_single_precision)
 {
     std::vector<size_t>     length         = std::get<0>(GetParam());
     size_t                  batch          = std::get<1>(GetParam());
@@ -372,7 +407,7 @@ TEST_P(accuracy_test_complex_2D,
 
     try
     {
-        normal_2D_complex_interleaved_to_complex_interleaved<float>(
+        normal_3D_complex_interleaved_to_complex_interleaved<float>(
             length, batch, placeness, transform_type, stride, pattern);
     }
     catch(const std::exception& err)
@@ -381,8 +416,8 @@ TEST_P(accuracy_test_complex_2D,
     }
 }
 
-TEST_P(accuracy_test_complex_2D,
-       normal_2D_complex_interleaved_to_complex_interleaved_double_precision)
+TEST_P(accuracy_test_complex_3D,
+       normal_3D_complex_interleaved_to_complex_interleaved_double_precision)
 {
     std::vector<size_t>     length         = std::get<0>(GetParam());
     size_t                  batch          = std::get<1>(GetParam());
@@ -393,7 +428,7 @@ TEST_P(accuracy_test_complex_2D,
 
     try
     {
-        normal_2D_complex_interleaved_to_complex_interleaved<double>(
+        normal_3D_complex_interleaved_to_complex_interleaved<double>(
             length, batch, placeness, transform_type, stride, pattern);
     }
     catch(const std::exception& err)
@@ -401,14 +436,10 @@ TEST_P(accuracy_test_complex_2D,
         handle_exception(err);
     }
 }
-
-// Populate test cases from parameter combinations:
-
-// Real to complex
 
 // Templated test function for real to complex:
 template <typename Tfloat>
-void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
+void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
                                            size_t                  batch,
                                            rocfft_result_placement placeness,
                                            rocfft_transform_type   transform_type,
@@ -417,25 +448,29 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
 {
     using fftw_complex_type = typename fftw_trait<Tfloat>::fftw_complex_type;
 
-    const size_t Nx      = length[1];
-    const size_t Ny      = length[0];
+    const size_t Nx      = length[2];
+    const size_t Ny      = length[1];
+    const size_t Nz      = length[0];
     const bool   inplace = placeness == rocfft_placement_inplace;
 
     // TODO: add coverage for non-unit stride.
     ASSERT_TRUE(stride == 1) << "Failure: test assumes contiguous data:";
 
     // TODO: add logic to deal with discontiguous data in Nystride
-    const size_t Nycomplex = Ny / 2 + 1;
-    const size_t Nystride  = inplace ? 2 * Nycomplex : Ny;
+    const size_t Nzcomplex = Nz / 2 + 1;
+    const size_t Nzstride  = inplace ? 2 * Nzcomplex : Nz;
 
     // Dimension configuration:
-    std::array<fftw_iodim64, 2> dims;
+    std::array<fftw_iodim64, 3> dims;
+    dims[2].n  = Nz;
+    dims[2].is = stride;
+    dims[2].os = stride;
     dims[1].n  = Ny;
-    dims[1].is = stride;
-    dims[1].os = stride;
+    dims[1].is = Nzstride * dims[2].is;
+    dims[1].os = (dims[2].n / 2 + 1) * dims[2].os;
     dims[0].n  = Nx;
-    dims[0].is = Nystride * dims[1].is;
-    dims[0].os = (dims[1].n / 2 + 1) * dims[1].os;
+    dims[0].is = dims[1].n * dims[1].is;
+    dims[0].os = dims[1].n * dims[1].os;
 
     const size_t isize = dims[0].n * dims[0].is;
     const size_t osize = dims[0].n * dims[0].os;
@@ -493,46 +528,75 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
 
     // Set up the GPU plan:
     rocfft_status fft_status = rocfft_status_success;
-    rocfft_plan   forward    = NULL;
+
+    rocfft_plan_description gpu_description = NULL;
+    fft_status                              = rocfft_plan_description_create(&gpu_description);
+    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT description creation failure";
+
+    std::vector<size_t> istride = {static_cast<size_t>(dims[2].is),
+                                   static_cast<size_t>(dims[1].is),
+                                   static_cast<size_t>(dims[0].is)};
+    std::vector<size_t> ostride = {static_cast<size_t>(dims[2].os),
+                                   static_cast<size_t>(dims[1].os),
+                                   static_cast<size_t>(dims[0].os)};
+
+    fft_status = rocfft_plan_description_set_data_layout(gpu_description,
+                                                         rocfft_array_type_real,
+                                                         rocfft_array_type_hermitian_interleaved,
+                                                         NULL,
+                                                         NULL,
+                                                         istride.size(),
+                                                         istride.data(),
+                                                         0,
+                                                         ostride.size(),
+                                                         ostride.data(),
+                                                         0);
+    ASSERT_TRUE(fft_status == rocfft_status_success)
+        << "rocFFT data layout failure: " << fft_status;
+
+    rocfft_plan gpu_plan = NULL;
     fft_status
-        = rocfft_plan_create(&forward,
+        = rocfft_plan_create(&gpu_plan,
                              inplace ? rocfft_placement_inplace : rocfft_placement_notinplace,
                              rocfft_transform_type_real_forward,
                              precision_selector<Tfloat>(),
-                             2, // Dimensions
+                             length.size(), // Dimensions
                              length.data(), // lengths
                              1, // Number of transforms
-                             NULL); // Description  // TODO: enable
+                             gpu_description);
     // needed for strides!
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
 
     // The real-to-complex transform uses work memory, which is passed
     // via a rocfft_execution_info struct.
-    rocfft_execution_info forwardinfo = NULL;
-    fft_status                        = rocfft_execution_info_create(&forwardinfo);
+    rocfft_execution_info planinfo = NULL;
+    fft_status                     = rocfft_execution_info_create(&planinfo);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT execution info creation failure";
-    size_t forwardworkbuffersize = 0;
-    fft_status = rocfft_plan_get_work_buffer_size(forward, &forwardworkbuffersize);
+    size_t workbuffersize = 0;
+    fft_status            = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT get buffer size get failure";
-    void* forwardwbuffer = NULL;
-    if(forwardworkbuffersize > 0)
+    void* wbuffer = NULL;
+    if(workbuffersize > 0)
     {
-        hip_status = hipMalloc(&forwardwbuffer, forwardworkbuffersize);
+        hip_status = hipMalloc(&wbuffer, workbuffersize);
         ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-        fft_status = rocfft_execution_info_set_work_buffer(
-            forwardinfo, forwardwbuffer, forwardworkbuffersize);
+        fft_status = rocfft_execution_info_set_work_buffer(planinfo, wbuffer, workbuffersize);
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
     // Set up the data:
-    srandom(3);
     std::fill(cpu_in, cpu_in + isize, 0.0);
+    srandom(3);
     for(size_t i = 0; i < Nx; i++)
     {
         for(size_t j = 0; j < Ny; j++)
         {
-            // TODO: make pattern variable
-            cpu_in[i * Nystride + j] = (Tfloat)rand() / (Tfloat)RAND_MAX;
+            for(size_t k = 0; k < Nz; k++)
+            {
+                // TODO: make pattern variable
+                Tfloat val = (Tfloat)rand() / (Tfloat)RAND_MAX;
+                cpu_in[i * dims[0].is + j * dims[1].is + k * dims[2].is] = val;
+            }
         }
     }
 
@@ -543,7 +607,11 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
         {
             for(size_t j = 0; j < Ny; j++)
             {
-                std::cout << cpu_in[i * Nystride + j] << " ";
+                for(size_t k = 0; k < Nz; k++)
+                {
+                    std::cout << cpu_in[i * dims[0].is + j * dims[1].is + k * dims[2].is] << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -551,13 +619,13 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
     }
 
     hip_status = hipMemcpy(gpu_in, cpu_in, isize * sizeof(Tfloat), hipMemcpyHostToDevice);
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+    ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
 
     // Execute the GPU transform:
-    fft_status = rocfft_execute(forward, // plan
+    fft_status = rocfft_execute(gpu_plan, // plan
                                 (void**)&gpu_in, // in_buffer
                                 (void**)&gpu_out, // out_buffer
-                                forwardinfo); // execution info
+                                planinfo); // execution info
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
 
     // Execute the CPU transform:
@@ -568,9 +636,13 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
         std::cout << "cpu_out:\n";
         for(size_t i = 0; i < Nx; i++)
         {
-            for(size_t j = 0; j < Nycomplex; j++)
+            for(size_t j = 0; j < Ny; j++)
             {
-                std::cout << cpu_out[i * Nycomplex + j] << " ";
+                for(size_t k = 0; k < Nzcomplex; k++)
+                {
+                    std::cout << cpu_out[dims[0].os * i + dims[1].os * j + dims[2].os * k] << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -588,9 +660,14 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
         std::cout << "gpu_out:\n";
         for(size_t i = 0; i < Nx; i++)
         {
-            for(size_t j = 0; j < Nycomplex; j++)
+            for(size_t j = 0; j < Ny; j++)
             {
-                std::cout << gpu_out_comp[i * Nycomplex + j] << " ";
+                for(size_t k = 0; k < Nzcomplex; k++)
+                {
+                    std::cout << gpu_out_comp[dims[0].os * i + dims[1].os * j + dims[2].os * k]
+                              << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -603,21 +680,24 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
     Tfloat Linfnorm = 0.0;
     for(size_t i = 0; i < Nx; i++)
     {
-        for(size_t j = 0; j < Nycomplex; j++)
+        for(size_t j = 0; j < Ny; j++)
         {
-            const int pos  = i * Nycomplex + j;
-            Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
-            Linfnorm       = std::max(std::abs(cpu_out[pos]), Linfnorm);
-            L2norm += std::abs(cpu_out[pos]) * std::abs(cpu_out[pos]);
-            Linfdiff = std::max(diff, Linfdiff);
-            L2diff += diff * diff;
+            for(size_t k = 0; k < Nzcomplex; k++)
+            {
+                const int pos  = i * dims[0].os + j * dims[1].os + k * dims[2].os;
+                Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
+                Linfnorm       = std::max(std::abs(cpu_out[pos]), Linfnorm);
+                L2norm += std::abs(cpu_out[pos]) * std::abs(cpu_out[pos]);
+                Linfdiff = std::max(diff, Linfdiff);
+                L2diff += diff * diff;
+            }
         }
     }
     L2norm = sqrt(L2norm);
     L2diff = sqrt(L2diff);
 
-    Tfloat L2error   = L2diff / (L2norm * sqrt(log(Nx * Ny)));
-    Tfloat Linferror = Linfdiff / (Linfnorm * log(Nx * Ny));
+    Tfloat L2error   = L2diff / (L2norm * sqrt(log(Nx * Ny * Nz)));
+    Tfloat Linferror = Linfdiff / (Linfnorm * log(Nx * Ny * Nz));
     if(verbose)
     {
         std::cout << "relative L2 error: " << L2error << std::endl;
@@ -637,19 +717,191 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
         hipFree(gpu_out);
         fftw_free(cpu_out);
     }
-    if(forwardwbuffer != NULL)
+    if(wbuffer != NULL)
     {
-        hipFree(forwardwbuffer);
+        hipFree(wbuffer);
     }
 
     // Destroy plans:
-    rocfft_plan_destroy(forward);
+    rocfft_plan_description_destroy(gpu_description);
+    rocfft_plan_destroy(gpu_plan);
     fftw_destroy_plan_type(cpu_plan);
+}
+
+// Impose Hermitian symmetry on a 3D complex array of size Nx x Ny * (Nz / 2 + 1).
+template <typename Tfloat>
+void imposeHermitianSymmetry(std::complex<Tfloat>* data, const std::array<fftw_iodim64, 3>& dims)
+{
+    const size_t Nx = dims[0].n;
+    const size_t Ny = dims[1].n;
+    const size_t Nz = dims[2].n;
+
+    // Origin:
+    data[0].imag(0.0);
+    if(Nx % 2 == 0)
+    {
+        // x-Nyquist is real-valued
+        data[dims[0].is * (Nx / 2)].imag(0.0);
+    }
+    if(Ny % 2 == 0)
+    {
+        // y-Nyquist is real-valued
+        data[dims[1].is * (Ny / 2)].imag(0.0);
+    }
+    if(Nz % 2 == 0)
+    {
+        // y-Nyquist is real-valued
+        data[dims[2].is * (Nz / 2)].imag(0.0);
+    }
+    if(Nx % 2 == 0 && Ny % 2 == 0)
+    {
+        // xy-Nyquist is real-valued
+        data[dims[0].is * (Nx / 2) + dims[1].is * (Ny / 2)].imag(0.0);
+    }
+    if(Nx % 2 == 0 && Nz % 2 == 0)
+    {
+        // xz-Nyquist is real-valued
+        data[dims[0].is * (Nx / 2) + dims[2].is * (Nz / 2)].imag(0.0);
+    }
+    if(Ny % 2 == 0 && Nz % 2 == 0)
+    {
+        // yz-Nyquist is real-valued
+        data[dims[1].is * (Ny / 2) + dims[2].is * (Nz / 2)].imag(0.0);
+    }
+    if(Nx % 2 == 0 && Ny % 2 == 0 && Nz % 2 == 0)
+    {
+        // xyz-Nyquist is real-valued
+        data[dims[0].is * (Nx / 2) + dims[1].is * (Ny / 2) + dims[2].is * (Nz / 2)].imag(0.0);
+    }
+
+    // x-axis:
+    for(int i = 1; i < Nx / 2 + 1; ++i)
+    {
+        data[dims[0].is * (Nx - i)] = std::conj(data[dims[0].is * i]);
+    }
+    // y-axis:
+    for(int j = 1; j < Ny / 2 + 1; ++j)
+    {
+        data[dims[1].is * (Ny - j)] = std::conj(data[dims[1].is * j]);
+    }
+    // x-y plane:
+    for(int i = 1; i < Nx / 2 + 1; ++i)
+    {
+        for(int j = 1; j < Ny; ++j)
+        {
+            data[dims[0].is * (Nx - i) + dims[1].is * (Ny - j)]
+                = std::conj(data[dims[0].is * i + dims[1].is * j]);
+        }
+    }
+
+    // x-Nyquist plane:
+    if(Nx % 2 == 0)
+    {
+        // x-axis:
+        for(int j = 1; j < Ny / 2 + 1; ++j)
+        {
+            data[dims[0].is * (Nx / 2) + dims[1].is * j]
+                = std::conj(data[dims[0].is * (Nx / 2) + dims[1].is * (Ny - j)]);
+        }
+    }
+
+    // y-Nyquist plane:
+    if(Ny % 2 == 0)
+    {
+        // x-axis:
+        for(int i = 1; i < Nx / 2 + 1; ++i)
+        {
+            data[dims[0].is * (Nx - i) + dims[1].is * (Ny / 2)]
+                = std::conj(data[dims[0].is * i + dims[1].is * (Ny / 2)]);
+        }
+    }
+
+    // z-Nyquist plane:
+    if(Nz % 2 == 0)
+    {
+        // x-axis:
+        for(int i = 1; i < Nx / 2 + 1; ++i)
+        {
+            data[dims[0].is * (Nx - i) + dims[2].is * (Nz / 2)]
+                = std::conj(data[dims[0].is * i + dims[2].is * (Nz / 2)]);
+        }
+        // y-axis:
+        for(int j = 1; j < Ny / 2 + 1; ++j)
+        {
+            data[dims[1].is * (Ny - j) + dims[2].is * (Nz / 2)]
+                = std::conj(data[dims[1].is * j + dims[2].is * (Nz / 2)]);
+        }
+        // x-Nyquist plane:
+        if(Nx % 2 == 0)
+        {
+            for(int j = 1; j < Ny / 2 + 1; ++j)
+            {
+                data[dims[0].is * (Nx / 2) + dims[1].is * j + dims[2].is * (Nz / 2)] = std::conj(
+                    data[dims[0].is * (Nx / 2) + dims[1].is * (Ny - j) + dims[2].is * (Nz / 2)]);
+            }
+        }
+
+        // y-Nyquist plane:
+        if(Ny % 2 == 0)
+        {
+            // x-axis:
+            for(int i = 1; i < Nx / 2 + 1; ++i)
+            {
+                data[dims[0].is * (Nx - i) + dims[1].is * (Ny / 2) + dims[2].is * (Nz / 2)]
+                    = std::conj(
+                        data[dims[0].is * i + dims[1].is * (Ny / 2) + dims[2].is * (Nz / 2)]);
+            }
+        }
+        // x-y plane:
+        for(int i = 1; i < Nx / 2 + 1; ++i)
+        {
+            for(int j = 1; j < Ny; ++j)
+            {
+                data[dims[0].is * (Nx - i) + dims[1].is * (Ny - j) + dims[2].is * (Nz / 2)]
+                    = std::conj(data[dims[0].is * i + dims[1].is * j + dims[2].is * (Nz / 2)]);
+            }
+        }
+    }
+}
+
+// Check for exact Hermitian symmetry on a 3D complex array of size Nx x Ny * (Nz / 2 + 1).
+template <typename Tfloat>
+bool isHermitianSymmetric(std::complex<Tfloat>* data, const std::array<fftw_iodim64, 3>& dims)
+{
+    for(int i = 0; i < dims[0].n; ++i)
+    {
+        int i0 = (dims[0].n - i) % dims[0].n;
+        for(int j = 0; j < dims[1].n; ++j)
+        {
+            int j0 = (dims[1].n - j) % dims[1].n;
+            for(int k = 0; k < dims[2].n / 2 + 1; ++k)
+            {
+                int k0 = (dims[2].n - k) % dims[2].n;
+                if(k0 < dims[2].n / 2 + 1)
+                {
+                    auto pos  = dims[0].is * i + dims[1].is * j + dims[2].is * k;
+                    auto pos0 = dims[0].is * i0 + dims[1].is * j0 + dims[2].is * k0;
+                    if(data[pos] != std::conj(data[pos0]))
+                    {
+                        if(verbose > 1)
+                        {
+                            std::cout << "i,j,k:    " << i << "," << j << "," << k << " -> " << pos
+                                      << " -> " << data[pos] << std::endl;
+                            std::cout << "i0,j0,k0: " << i0 << "," << j0 << "," << k0 << " -> "
+                                      << pos0 << " -> " << data[pos0] << std::endl;
+                        }
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    return true;
 }
 
 // Templated test function for real to complex:
 template <typename Tfloat>
-void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
+void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
                                            size_t                  batch,
                                            rocfft_result_placement placeness,
                                            rocfft_transform_type   transform_type,
@@ -658,25 +910,29 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
 {
     using fftw_complex_type = typename fftw_trait<Tfloat>::fftw_complex_type;
 
-    const size_t Nx      = length[1];
-    const size_t Ny      = length[0];
+    const size_t Nx      = length[2];
+    const size_t Ny      = length[1];
+    const size_t Nz      = length[0];
     const bool   inplace = placeness == rocfft_placement_inplace;
 
     // TODO: add coverage for non-unit stride.
     ASSERT_TRUE(stride == 1) << "Failure: test assumes contiguous data:";
 
     // TODO: add logic to deal with discontiguous data in Nystride
-    const size_t Nycomplex = Ny / 2 + 1;
-    const size_t Nystride  = inplace ? 2 * Nycomplex : Ny;
+    const size_t Nzcomplex = Nz / 2 + 1;
+    const size_t Nzstride  = inplace ? 2 * Nzcomplex : Nz;
 
     // Dimension configuration:
-    std::array<fftw_iodim64, 2> dims;
+    std::array<fftw_iodim64, 3> dims;
+    dims[2].n  = Nz;
+    dims[2].is = stride;
+    dims[2].os = stride;
     dims[1].n  = Ny;
-    dims[1].is = stride;
-    dims[1].os = stride;
+    dims[1].is = (dims[2].n / 2 + 1) * dims[2].is;
+    dims[1].os = Nzstride * dims[2].os;
     dims[0].n  = Nx;
-    dims[0].is = (dims[1].n / 2 + 1) * dims[1].is;
-    dims[0].os = Nystride * dims[1].os;
+    dims[0].is = dims[1].n * dims[1].is;
+    dims[0].os = dims[1].n * dims[1].os;
 
     const size_t isize = dims[0].n * dims[0].is;
     const size_t osize = dims[0].n * dims[0].os;
@@ -737,10 +993,12 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
     fft_status                              = rocfft_plan_description_create(&gpu_description);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT description creation failure";
 
-    std::vector<size_t> istride
-        = {static_cast<size_t>(dims[1].is), static_cast<size_t>(dims[0].is)};
-    std::vector<size_t> ostride
-        = {static_cast<size_t>(dims[1].os), static_cast<size_t>(dims[0].os)};
+    std::vector<size_t> istride = {static_cast<size_t>(dims[2].is),
+                                   static_cast<size_t>(dims[1].is),
+                                   static_cast<size_t>(dims[0].is)};
+    std::vector<size_t> ostride = {static_cast<size_t>(dims[2].os),
+                                   static_cast<size_t>(dims[1].os),
+                                   static_cast<size_t>(dims[0].os)};
 
     fft_status = rocfft_plan_description_set_data_layout(gpu_description,
                                                          rocfft_array_type_hermitian_interleaved,
@@ -762,7 +1020,7 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
                              inplace ? rocfft_placement_inplace : rocfft_placement_notinplace,
                              rocfft_transform_type_real_inverse,
                              precision_selector<Tfloat>(),
-                             2, // Dimensions
+                             length.size(), // Dimensions
                              length.data(), // lengths
                              1, // Number of transforms
                              gpu_description);
@@ -787,69 +1045,45 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
-    srandom(3);
-
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);
+    srandom(3);
     for(size_t i = 0; i < dims[0].n; i++)
     {
-        for(size_t j = 0; j < dims[1].n / 2 + 1; j++)
+        for(size_t j = 0; j < dims[1].n; j++)
         {
-            // TODO: make pattern variable
-            cpu_in[i * Nycomplex + j] = std::complex<Tfloat>((Tfloat)rand() / (Tfloat)RAND_MAX,
-                                                             (Tfloat)rand() / (Tfloat)RAND_MAX);
+            for(size_t k = 0; k < dims[2].n / 2 + 1; k++)
+            {
+                // TODO: make pattern variable
+                std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
+                                         (Tfloat)rand() / (Tfloat)RAND_MAX);
+                cpu_in[dims[0].is * i + dims[1].is * j + dims[2].is * k] = val;
+            }
         }
     }
 
     // Impose Hermitian symmetry:
-    // origin:
-    cpu_in[0].imag(0.0);
-
-    if(Nx % 2 == 0)
-    {
-        // x-Nyquist is real-valued
-        cpu_in[dims[0].is * (Nx / 2)].imag(0.0);
-    }
-    if(Ny % 2 == 0)
-    {
-        // y-Nyquist is real-valued
-        cpu_in[dims[1].is * (Ny / 2)].imag(0.0);
-    }
-    if(Nx % 2 == 0 && Ny % 2 == 0)
-    {
-        // xy-Nyquist is real-valued
-        cpu_in[dims[0].is * (Nx / 2) + dims[1].is * (Ny / 2)].imag(0.0);
-    }
-
-    // x-axis:
-    for(int i = 1; i < Nx / 2; ++i)
-    {
-        cpu_in[dims[0].is * (Nx - i)] = std::conj(cpu_in[dims[0].is * i]);
-    }
-
-    // y-Nyquist:
-    if(Ny % 2 == 0)
-    {
-        for(int i = 1; i < Nx / 2; ++i)
-        {
-            cpu_in[dims[0].is * (Nx - i) + dims[1].is * (Ny / 2)]
-                = std::conj(cpu_in[dims[0].is * i + dims[1].is * (Ny / 2)]);
-        }
-    }
+    imposeHermitianSymmetry(cpu_in, dims);
 
     if(verbose > 1)
     {
         std::cout << "\ninput:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t i = 0; i < dims[0].n; i++)
         {
-            for(size_t j = 0; j < Nycomplex; j++)
+            for(size_t j = 0; j < dims[1].n; j++)
             {
-                std::cout << cpu_in[dims[0].is * i + dims[1].is * j] << " ";
+                for(size_t k = 0; k < dims[2].n / 2 + 1; k++)
+                {
+                    std::cout << cpu_in[dims[0].is * i + dims[1].is * j + dims[2].is * k] << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
         std::cout << std::endl;
     }
+
+    ASSERT_TRUE(isHermitianSymmetric(cpu_in, dims));
 
     hip_status
         = hipMemcpy(gpu_in, cpu_in, isize * sizeof(std::complex<Tfloat>), hipMemcpyHostToDevice);
@@ -872,7 +1106,11 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
         {
             for(size_t j = 0; j < dims[1].n; j++)
             {
-                std::cout << cpu_out[i * dims[0].os + j * dims[1].os] << " ";
+                for(size_t k = 0; k < dims[2].n; k++)
+                {
+                    std::cout << cpu_out[dims[0].os * i + dims[1].os * j + dims[2].os * k] << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -883,7 +1121,7 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
     std::vector<Tfloat> gpu_out_comp(osize);
     hip_status
         = hipMemcpy(gpu_out_comp.data(), gpu_out, osize * sizeof(Tfloat), hipMemcpyDeviceToHost);
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+    ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
 
     if(verbose > 1)
     {
@@ -892,7 +1130,12 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
         {
             for(size_t j = 0; j < dims[1].n; j++)
             {
-                std::cout << gpu_out_comp[i * dims[0].os + j * dims[1].os] << " ";
+                for(size_t k = 0; k < dims[2].n; k++)
+                {
+                    std::cout << gpu_out_comp[dims[0].os * i + dims[1].os * j + dims[2].os * k]
+                              << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -907,19 +1150,22 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
     {
         for(size_t j = 0; j < dims[1].n; j++)
         {
-            const int pos  = dims[0].os * i + dims[1].os * j;
-            Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
-            Linfnorm       = std::max(std::abs(cpu_out[pos]), Linfnorm);
-            L2norm += std::abs(cpu_out[pos]) * std::abs(cpu_out[pos]);
-            Linfdiff = std::max(diff, Linfdiff);
-            L2diff += diff * diff;
+            for(size_t k = 0; k < dims[2].n; k++)
+            {
+                const int pos  = dims[0].os * i + dims[1].os * j + dims[2].os * k;
+                Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
+                Linfnorm       = std::max(std::abs(cpu_out[pos]), Linfnorm);
+                L2norm += std::abs(cpu_out[pos]) * std::abs(cpu_out[pos]);
+                Linfdiff = std::max(diff, Linfdiff);
+                L2diff += diff * diff;
+            }
         }
     }
     L2norm = sqrt(L2norm);
     L2diff = sqrt(L2diff);
 
-    Tfloat L2error   = L2diff / (L2norm * sqrt(log(Nx * Ny)));
-    Tfloat Linferror = Linfdiff / (Linfnorm * log(Nx * Ny));
+    Tfloat L2error   = L2diff / (L2norm * sqrt(log(Nx * Ny * Nz)));
+    Tfloat Linferror = Linfdiff / (Linfnorm * log(Nx * Ny * Nz));
     if(verbose)
     {
         std::cout << "relative L2 error: " << L2error << std::endl;
@@ -952,7 +1198,7 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
 
 // Implemetation of real-to-complex tests for float and double:
 
-TEST_P(accuracy_test_real_2D, normal_2D_real_to_complex_interleaved_single_precision)
+TEST_P(accuracy_test_real_3D, normal_3D_real_to_complex_interleaved_single_precision)
 {
     std::vector<size_t>     length         = std::get<0>(GetParam());
     size_t                  batch          = std::get<1>(GetParam());
@@ -963,7 +1209,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_real_to_complex_interleaved_single_preci
 
     try
     {
-        normal_2D_real_to_complex_interleaved<float>(
+        normal_3D_real_to_complex_interleaved<float>(
             length, batch, placeness, transform_type, stride, pattern);
     }
     catch(const std::exception& err)
@@ -972,7 +1218,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_real_to_complex_interleaved_single_preci
     }
 }
 
-TEST_P(accuracy_test_real_2D, normal_2D_real_to_complex_interleaved_double_precision)
+TEST_P(accuracy_test_real_3D, normal_3D_real_to_complex_interleaved_double_precision)
 {
     std::vector<size_t>     length         = std::get<0>(GetParam());
     size_t                  batch          = std::get<1>(GetParam());
@@ -983,7 +1229,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_real_to_complex_interleaved_double_preci
 
     try
     {
-        normal_2D_real_to_complex_interleaved<double>(
+        normal_3D_real_to_complex_interleaved<double>(
             length, batch, placeness, transform_type, stride, pattern);
     }
     catch(const std::exception& err)
@@ -992,9 +1238,9 @@ TEST_P(accuracy_test_real_2D, normal_2D_real_to_complex_interleaved_double_preci
     }
 }
 
-// Implemetation of complex-to-real tests for float and double:
+// Implemetation of real-to-complex tests for float and double:
 
-TEST_P(accuracy_test_real_2D, normal_2D_complex_interleaved_to_real_single_precision)
+TEST_P(accuracy_test_real_3D, normal_3D_complex_interleaved_to_real_single_precision)
 {
     std::vector<size_t>     length    = std::get<0>(GetParam());
     size_t                  batch     = std::get<1>(GetParam());
@@ -1006,7 +1252,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_complex_interleaved_to_real_single_preci
 
     try
     {
-        normal_2D_complex_interleaved_to_real<float>(
+        normal_3D_complex_interleaved_to_real<float>(
             length, batch, placeness, transform_type, stride, pattern);
     }
     catch(const std::exception& err)
@@ -1015,7 +1261,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_complex_interleaved_to_real_single_preci
     }
 }
 
-TEST_P(accuracy_test_real_2D, normal_2D_complex_interleaved_to_real_double_precision)
+TEST_P(accuracy_test_real_3D, normal_3D_complex_interleaved_to_real_double_precision)
 {
     std::vector<size_t>     length    = std::get<0>(GetParam());
     size_t                  batch     = std::get<1>(GetParam());
@@ -1027,7 +1273,7 @@ TEST_P(accuracy_test_real_2D, normal_2D_complex_interleaved_to_real_double_preci
 
     try
     {
-        normal_2D_complex_interleaved_to_real<double>(
+        normal_3D_complex_interleaved_to_real<double>(
             length, batch, placeness, transform_type, stride, pattern);
     }
     catch(const std::exception& err)
@@ -1037,8 +1283,8 @@ TEST_P(accuracy_test_real_2D, normal_2D_complex_interleaved_to_real_double_preci
 }
 
 // Complex-to-complex:
-INSTANTIATE_TEST_CASE_P(rocfft_pow2_2D,
-                        accuracy_test_complex_2D,
+INSTANTIATE_TEST_CASE_P(rocfft_pow2_3D,
+                        accuracy_test_complex_3D,
                         ::testing::Combine(ValuesIn(pow2_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
@@ -1046,8 +1292,8 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow2_2D,
                                            ValuesIn(pattern_range),
                                            ValuesIn(transform_range)));
 
-INSTANTIATE_TEST_CASE_P(rocfft_pow3_2D,
-                        accuracy_test_complex_2D,
+INSTANTIATE_TEST_CASE_P(rocfft_pow3_3D,
+                        accuracy_test_complex_3D,
                         ::testing::Combine(ValuesIn(pow3_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
@@ -1055,53 +1301,70 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow3_2D,
                                            ValuesIn(pattern_range),
                                            ValuesIn(transform_range)));
 
-INSTANTIATE_TEST_CASE_P(rocfft_pow5_2D,
-                        accuracy_test_complex_2D,
-                        ::testing::Combine(ValuesIn(pow5_range),
+INSTANTIATE_TEST_CASE_P(rocfft_mix_3D,
+                        accuracy_test_complex_3D,
+                        ::testing::Combine(ValuesIn(mix_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range),
                                            ValuesIn(transform_range)));
 
-INSTANTIATE_TEST_CASE_P(rocfft_prime_2D,
-                        accuracy_test_complex_2D,
-                        ::testing::Combine(ValuesIn(prime_range),
-                                           ValuesIn(batch_range),
-                                           ValuesIn(placeness_range),
-                                           ValuesIn(stride_range),
-                                           ValuesIn(pattern_range),
-                                           ValuesIn(transform_range)));
+// INSTANTIATE_TEST_CASE_P(rocfft_pow5_3D,
+//                         accuracy_test_complex_3D,
+//                         ::testing::Combine(ValuesIn(pow5_range),
+//                                            ValuesIn(batch_range),
+//                                            ValuesIn(placeness_range),
+//                                            ValuesIn(stride_range),
+//                                            ValuesIn(pattern_range),
+//                                            ValuesIn(transform_range)));
+
+// INSTANTIATE_TEST_CASE_P(rocfft_prime_3D,
+//                         accuracy_test_complex_3D,
+//                         ::testing::Combine(ValuesIn(prime_range),
+//                                            ValuesIn(batch_range),
+//                                            ValuesIn(placeness_range),
+//                                            ValuesIn(stride_range),
+//                                            ValuesIn(pattern_range),
+//                                            ValuesIn(transform_range)));
 
 // Complex to real and real-to-complex:
-INSTANTIATE_TEST_CASE_P(rocfft_pow2_2D,
-                        accuracy_test_real_2D,
+INSTANTIATE_TEST_CASE_P(rocfft_pow2_3D,
+                        accuracy_test_real_3D,
                         ::testing::Combine(ValuesIn(pow2_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(rc_placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range)));
 
-INSTANTIATE_TEST_CASE_P(rocfft_pow3_2D,
-                        accuracy_test_real_2D,
+INSTANTIATE_TEST_CASE_P(rocfft_pow3_3D,
+                        accuracy_test_real_3D,
                         ::testing::Combine(ValuesIn(pow3_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(rc_placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range)));
 
-INSTANTIATE_TEST_CASE_P(rocfft_pow5_2D,
-                        accuracy_test_real_2D,
-                        ::testing::Combine(ValuesIn(pow5_range),
+INSTANTIATE_TEST_CASE_P(rocfft_mix_3D,
+                        accuracy_test_real_3D,
+                        ::testing::Combine(ValuesIn(mix_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(rc_placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range)));
 
-INSTANTIATE_TEST_CASE_P(rocfft_prime_2D,
-                        accuracy_test_real_2D,
-                        ::testing::Combine(ValuesIn(pow5_range),
-                                           ValuesIn(batch_range),
-                                           ValuesIn(rc_placeness_range),
-                                           ValuesIn(stride_range),
-                                           ValuesIn(pattern_range)));
+// INSTANTIATE_TEST_CASE_P(rocfft_pow5_3D,
+//                         accuracy_test_real_3D,
+//                         ::testing::Combine(ValuesIn(pow5_range),
+//                                            ValuesIn(batch_range),
+//                                            ValuesIn(rc_placeness_range),
+//                                            ValuesIn(stride_range),
+//                                            ValuesIn(pattern_range)));
+
+// INSTANTIATE_TEST_CASE_P(rocfft_prime_3D,
+//                         accuracy_test_real_3D,
+//                         ::testing::Combine(ValuesIn(pow5_range),
+//                                            ValuesIn(batch_range),
+//                                            ValuesIn(rc_placeness_range),
+//                                            ValuesIn(stride_range),
+//                                            ValuesIn(pattern_range)));

@@ -23,7 +23,8 @@
 #define TESTCONSTANTS_H
 
 #include <stdexcept>
-
 void handle_exception(const std::exception& except);
+
+extern int verbose;
 
 #endif

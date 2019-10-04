@@ -123,18 +123,22 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
     const size_t isize = dims[0].n * dims[0].is;
     const size_t osize = dims[0].n * dims[0].os;
 
-    // if(inplace)
-    //     std::cout << "in-place\n";
-    // else
-    //     std::cout << "out-of-place\n";
-    // for (int i = 0; i < dims.size(); ++i) {
-    //     std::cout << "dim " << i << std::endl;
-    //     std::cout << "\tn: " << dims[i].n << std::endl;
-    //     std::cout << "\tis: " << dims[i].is << std::endl;
-    //     std::cout << "\tos: " << dims[i].os << std::endl;
-    // }
-    // std::cout << "isize: " << isize << "\n";
-    // std::cout << "osize: " << osize << "\n";
+    if(verbose)
+    {
+        if(inplace)
+            std::cout << "in-place\n";
+        else
+            std::cout << "out-of-place\n";
+        for(int i = 0; i < dims.size(); ++i)
+        {
+            std::cout << "dim " << i << std::endl;
+            std::cout << "\tn: " << dims[i].n << std::endl;
+            std::cout << "\tis: " << dims[i].is << std::endl;
+            std::cout << "\tos: " << dims[i].os << std::endl;
+        }
+        std::cout << "isize: " << isize << "\n";
+        std::cout << "osize: " << osize << "\n";
+    }
 
     // Batch configuration:
     std::array<fftw_iodim64, 1> howmany_dims;
@@ -215,19 +219,15 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
         cpu_in[dims[0].is * i] = val;
     }
 
-    // for(int i = 0; i < isize; ++i) {
-    //     std::cout << cpu_in[i] << " ";
-    // }
-    // std::cout << std::endl;
-    // for(size_t i = 0; i < Nx; i++)
-    // {
-    //     for(size_t j = 0; j < Ny; j++)
-    //     {
-    //         std::cout << cpu_in[dims[0].is * i + dims[1].is * j] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-    // std::cout << std::endl;
+    if(verbose > 1)
+    {
+        std::cout << "input:\n";
+        for(size_t i = 0; i < N; i++)
+        {
+            std::cout << cpu_in[dims[0].is] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     hip_status
         = hipMemcpy(gpu_in, cpu_in, isize * sizeof(std::complex<Tfloat>), hipMemcpyHostToDevice);
@@ -243,16 +243,15 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
     // Execute the CPU transform:
     fftw_execute_type<Tfloat>(cpu_plan);
 
-    // std::cout << "cpu_out:\n";
-    // for(size_t i = 0; i < Nx; i++)
-    // {
-    //     for(size_t j = 0; j < Ny; j++)
-    //     {
-    //         std::cout << cpu_out[dims[0].os * i + dims[1].os *j] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-    // std::cout << std::endl;
+    if(verbose > 1)
+    {
+        std::cout << "cpu_out:\n";
+        for(size_t i = 0; i < N; i++)
+        {
+            std::cout << cpu_out[dims[0].os] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     // Copy the data back and compare:
     fftw_vector<std::complex<Tfloat>> gpu_out_comp(osize);
@@ -260,16 +259,15 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
         gpu_out_comp.data(), gpu_out, osize * sizeof(std::complex<Tfloat>), hipMemcpyDeviceToHost);
     ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
 
-    // std::cout << "gpu_out:\n";
-    // for(size_t i = 0; i < Nx; i++)
-    // {
-    //     for(size_t j = 0; j < Ny; j++)
-    //     {
-    //         std::cout << gpu_out_comp[dims[0].os * i + dims[1].os * j] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-    // std::cout << std::endl;
+    if(verbose > 1)
+    {
+        std::cout << "gpu_out:\n";
+        for(size_t i = 0; i < N; i++)
+        {
+            std::cout << gpu_out_comp[dims[0].os * i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     Tfloat L2norm   = 0.0;
     Tfloat Linfnorm = 0.0;
@@ -293,18 +291,24 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
         if(std::abs(diff) / (Linfnorm * log(N)) >= type_epsilon<Tfloat>())
         {
             nwrong++;
-            // std::cout << "(i,j): " << i << " " << j << " cpu: " << cpu_out[pos]
-            //           << " gpu: " << gpu_out_comp[pos] << "\n";
+            if(verbose > 1)
+            {
+                std::cout << "i: " << i << " cpu: " << cpu_out[pos] << " gpu: " << gpu_out_comp[pos]
+                          << "\n";
+            }
         }
     }
 
     L2diff = sqrt(L2diff);
 
-    //std::cout << "nwrong: " << nwrong << std::endl;
     Tfloat L2error   = L2diff / (L2norm * sqrt(log(N)));
     Tfloat Linferror = Linfdiff / (Linfnorm * log(N));
-    // std::cout << "relative L2 error: " << L2error << std::endl;
-    // std::cout << "relative Linf error: " << Linferror << std::endl;
+    if(verbose)
+    {
+        std::cout << "nwrong: " << nwrong << std::endl;
+        std::cout << "relative L2 error: " << L2error << std::endl;
+        std::cout << "relative Linf error: " << Linferror << std::endl;
+    }
 
     EXPECT_TRUE(L2error < type_epsilon<Tfloat>())
         << "Tolerance failure: L2error: " << L2error << ", tolerance: " << type_epsilon<Tfloat>();
@@ -396,18 +400,22 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
     const size_t isize = (inplace ? Ncomplex * 2 : dims[0].n) * dims[0].is;
     const size_t osize = Ncomplex * dims[0].os;
 
-    // if(inplace)
-    //     std::cout << "in-place\n";
-    // else
-    //     std::cout << "out-of-place\n";
-    // for (int i = 0; i < dims.size(); ++i) {
-    //     std::cout << "dim " << i << std::endl;
-    //     std::cout << "\tn: " << dims[i].n << std::endl;
-    //     std::cout << "\tis: " << dims[i].is << std::endl;
-    //     std::cout << "\tos: " << dims[i].os << std::endl;
-    // }
-    // std::cout << "isize: " << isize << "\n";
-    // std::cout << "osize: " << osize << "\n";
+    if(verbose)
+    {
+        if(inplace)
+            std::cout << "in-place\n";
+        else
+            std::cout << "out-of-place\n";
+        for(int i = 0; i < dims.size(); ++i)
+        {
+            std::cout << "dim " << i << std::endl;
+            std::cout << "\tn: " << dims[i].n << std::endl;
+            std::cout << "\tis: " << dims[i].is << std::endl;
+            std::cout << "\tos: " << dims[i].os << std::endl;
+        }
+        std::cout << "isize: " << isize << "\n";
+        std::cout << "osize: " << osize << "\n";
+    }
 
     // Batch configuration:
     std::array<fftw_iodim64, 1> howmany_dims;
@@ -484,10 +492,15 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
         cpu_in[i * dims[0].is] = (Tfloat)rand() / (Tfloat)RAND_MAX;
     }
 
-    // for(int i = 0; i < isize; ++i) {
-    //     std::cout << cpu_in[i] << " ";
-    // }
-    // std::cout << std::endl;
+    if(verbose > 1)
+    {
+        std::cout << "input:\n";
+        for(int i = 0; i < isize; ++i)
+        {
+            std::cout << cpu_in[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     hip_status = hipMemcpy(gpu_in, cpu_in, isize * sizeof(Tfloat), hipMemcpyHostToDevice);
     ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
@@ -502,12 +515,15 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
     // Execute the CPU transform:
     fftw_execute_type<Tfloat>(cpu_plan);
 
-    // std::cout << "cpu_out:\n";
-    // for(size_t i = 0; i < Ncomplex; i++)
-    // {
-    //     std::cout << cpu_out[i * dims[0].os] << " ";
-    // }
-    // std::cout << std::endl;
+    if(verbose > 1)
+    {
+        std::cout << "cpu_out:\n";
+        for(size_t i = 0; i < Ncomplex; i++)
+        {
+            std::cout << cpu_out[i * dims[0].os] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     // Copy the data back and compare:
     fftw_vector<std::complex<Tfloat>> gpu_out_comp(osize);
@@ -515,12 +531,15 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
         gpu_out_comp.data(), gpu_out, osize * sizeof(std::complex<Tfloat>), hipMemcpyDeviceToHost);
     ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
 
-    // std::cout << "gpu_out:\n";
-    // for(size_t i = 0; i < gpu_out_comp.size(); i++)
-    // {
-    //     std::cout << gpu_out_comp[i * dims[0].os] << " ";
-    // }
-    // std::cout << std::endl;
+    if(verbose > 1)
+    {
+        std::cout << "gpu_out:\n";
+        for(size_t i = 0; i < gpu_out_comp.size(); i++)
+        {
+            std::cout << gpu_out_comp[i * dims[0].os] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     Tfloat L2diff   = 0.0;
     Tfloat Linfdiff = 0.0;
@@ -542,8 +561,11 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
 
     Tfloat L2error   = L2diff / (L2norm * sqrt(log(N)));
     Tfloat Linferror = Linfdiff / (Linfnorm * log(N));
-    // std::cout << "relative L2 error: " << L2error << std::endl;
-    // std::cout << "relative Linf error: " << Linferror << std::endl;
+    if(verbose)
+    {
+        std::cout << "relative L2 error: " << L2error << std::endl;
+        std::cout << "relative Linf error: " << Linferror << std::endl;
+    }
 
     EXPECT_TRUE(L2error < type_epsilon<Tfloat>())
         << "Tolerance failure: L2error: " << L2error << ", tolerance: " << type_epsilon<Tfloat>();
@@ -635,19 +657,22 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
     const size_t isize = Ncomplex * dims[0].is;
     const size_t osize = (inplace ? Ncomplex * 2 : dims[0].n) * dims[0].os;
 
-    // if(inplace)
-    //     std::cout << "in-place\n";
-    // else
-    //     std::cout << "out-of-place\n";
-    // for(int i = 0; i < dims.size(); ++i)
-    // {
-    //     std::cout << "dim " << i << std::endl;
-    //     std::cout << "\tn: " << dims[i].n << std::endl;
-    //     std::cout << "\tis: " << dims[i].is << std::endl;
-    //     std::cout << "\tos: " << dims[i].os << std::endl;
-    // }
-    // std::cout << "isize: " << isize << "\n";
-    // std::cout << "osize: " << osize << "\n";
+    if(verbose)
+    {
+        if(inplace)
+            std::cout << "in-place\n";
+        else
+            std::cout << "out-of-place\n";
+        for(int i = 0; i < dims.size(); ++i)
+        {
+            std::cout << "dim " << i << std::endl;
+            std::cout << "\tn: " << dims[i].n << std::endl;
+            std::cout << "\tis: " << dims[i].is << std::endl;
+            std::cout << "\tos: " << dims[i].os << std::endl;
+        }
+        std::cout << "isize: " << isize << "\n";
+        std::cout << "osize: " << osize << "\n";
+    }
 
     // Batch configuration:
     std::array<fftw_iodim64, 1> howmany_dims;
@@ -759,21 +784,15 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
         cpu_in[dims[0].is * (N / 2)].imag(0.0);
     }
 
-    // for(int i = 0; i < isize; ++i) {
-    //     std::cout << cpu_in[i] << " ";
-    // }
-    // std::cout << std::endl;
-
-    // std::cout << "\ninput:\n";
-    // for(size_t i = 0; i < Nx; i++)
-    // {
-    //     for(size_t j = 0; j < Nycomplex; j++)
-    //     {
-    //         std::cout << cpu_in[dims[0].is * i + dims[1].is * j] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-    // std::cout << std::endl;
+    if(verbose > 1)
+    {
+        std::cout << "\ninput:\n";
+        for(size_t i = 0; i < N / 2 + 1; i++)
+        {
+            std::cout << cpu_in[dims[0].is * i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     hip_status
         = hipMemcpy(gpu_in, cpu_in, isize * sizeof(std::complex<Tfloat>), hipMemcpyHostToDevice);
@@ -789,16 +808,19 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
     // Execute the CPU transform:
     fftw_execute_type<Tfloat>(cpu_plan);
 
-    // std::cout << "cpu_out:\n";
-    // for(size_t i = 0; i < dims[0].n; i++)
-    // {
-    //     for(size_t j = 0; j < dims[1].n; j++)
-    //     {
-    //         std::cout << cpu_out[i * dims[0].os + j * dims[1].os] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-    // std::cout << std::endl;
+    if(verbose > 1)
+    {
+        std::cout << "cpu_out:\n";
+        for(size_t i = 0; i < dims[0].n; i++)
+        {
+            for(size_t j = 0; j < dims[1].n; j++)
+            {
+                std::cout << cpu_out[i * dims[0].os + j * dims[1].os] << " ";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << std::endl;
+    }
 
     // Copy the data back and compare:
     std::vector<Tfloat> gpu_out_comp(osize);
@@ -806,16 +828,19 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
         = hipMemcpy(gpu_out_comp.data(), gpu_out, osize * sizeof(Tfloat), hipMemcpyDeviceToHost);
     ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
 
-    // std::cout << "gpu_out:\n";
-    // for(size_t i = 0; i < dims[0].n; i++)
-    // {
-    //     for(size_t j = 0; j < dims[1].n; j++)
-    //     {
-    //         std::cout << gpu_out_comp[i * dims[0].os + j * dims[1].os] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-    // std::cout << std::endl;
+    if(verbose > 1)
+    {
+        std::cout << "gpu_out:\n";
+        for(size_t i = 0; i < dims[0].n; i++)
+        {
+            for(size_t j = 0; j < dims[1].n; j++)
+            {
+                std::cout << gpu_out_comp[i * dims[0].os + j * dims[1].os] << " ";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << std::endl;
+    }
 
     Tfloat L2diff   = 0.0;
     Tfloat Linfdiff = 0.0;
@@ -837,8 +862,11 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
 
     Tfloat L2error   = L2diff / (L2norm * sqrt(log(N)));
     Tfloat Linferror = Linfdiff / (Linfnorm * log(N));
-    // std::cout << "relative L2 error: " << L2error << std::endl;
-    // std::cout << "relative Linf error: " << Linferror << std::endl;
+    if(verbose)
+    {
+        std::cout << "relative L2 error: " << L2error << std::endl;
+        std::cout << "relative Linf error: " << Linferror << std::endl;
+    }
 
     EXPECT_TRUE(L2error < type_epsilon<Tfloat>())
         << "Tolerance failure: L2error: " << L2error << ", tolerance: " << type_epsilon<Tfloat>();

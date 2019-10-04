@@ -28,58 +28,39 @@
 #include "rocfft.h"
 #include "test_constants.h"
 
-//#include <boost/program_options.hpp>
-// namespace po = boost::program_options;
+#include <boost/program_options.hpp>
+namespace po = boost::program_options;
+
+int verbose = 0;
 
 int main(int argc, char* argv[])
 {
+    // NB: If we initialize gtest first, then it removes all of its own command-line
+    // arguments and sets argc and argv correctly; no need to jump through hoops for
+    // boost::program_options.
+    ::testing::InitGoogleTest(&argc, argv);
 
-#if 0
     // Declare the supported options.
-    po::options_description desc( "rocFFT Runtime Test command line options" );
-    desc.add_options()
-        ( "help,h",             "produces this help message" )
-        ( "verbose,v",          "print out detailed information for the tests" )
-        ( "noVersion",          "Don't print version information from the rocFFT library" )
-        ( "pointwise,p",        "Do a pointwise comparison to determine test correctness (default: use root mean square)" )
-        ( "tolerance,t",        po::value< float >( &tolerance )->default_value( 0.001f ),   "tolerance level to use when determining test pass/fail" )
-        ( "numRandom,r",        po::value< size_t >( &number_of_random_tests )->default_value( 2000 ),   "number of random tests to run" )
-        ;
-
-    //    Parse the command line options, ignore unrecognized options and collect them into a vector of strings
+    po::options_description desc("rocFFT Runtime Test command line options");
+    desc.add_options()("help,h", "produces this help message")(
+        "verbose,v",
+        po::value<int>()->default_value(0)->implicit_value(1),
+        "print out detailed information for the tests.");
     po::variables_map vm;
-    po::parsed_options parsed = po::command_line_parser( argc, argv ).options( desc ).allow_unregistered( ).run( );
-    po::store( parsed, vm );
-    po::notify( vm );
-    std::vector< std::string > to_pass_further = po::collect_unrecognized( parsed.options, po::include_positional );
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
 
-    std::cout << std::endl;
-
-    if( vm.count( "help" ) )
+    if(vm.count("help"))
     {
         std::cout << desc << std::endl;
         return 0;
     }
 
-    //    Create a new argc,argv to pass to InitGoogleTest
-    //    First parameter of course is the name of this program
-    std::vector< const char* > myArgv;
-
-    //    Push back a pointer to the executable name
-    if( argc > 0 )
-        myArgv.push_back( *argv );
-
-    int myArgc    = static_cast< int >( myArgv.size( ) );
-
-#endif
+    verbose = vm["verbose"].as<int>();
 
     char v[256];
     rocfft_get_version_string(v, 256);
     std::cout << "rocFFT version: " << v << std::endl;
-
-    //::testing::InitGoogleTest( &myArgc, const_cast< char** >( &myArgv[ 0 ] ) );
-
-    ::testing::InitGoogleTest(&argc, argv);
 
     return RUN_ALL_TESTS();
 }

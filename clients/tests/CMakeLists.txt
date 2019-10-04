@@ -59,6 +59,7 @@ set(rocfft_test_source
   gtest_main.cpp
   accuracy_test_1D.cpp
   accuracy_test_2D.cpp
+  accuracy_test_3D.cpp
   unit_test.cpp
   hipfft_test.cpp
   misc/source/test_exception.cpp
