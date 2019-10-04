@@ -34,29 +34,13 @@ using ::testing::ValuesIn;
 
 // Set parameters
 
-static std::vector<std::vector<size_t>> pow2_range = {{2, 2, 2},
-                                                      {4, 2, 2},
-                                                      {2, 4, 2},
-                                                      {2, 2, 4},
-                                                      {4, 4, 2},
-                                                      {4, 2, 4},
-                                                      {2, 4, 4},
-                                                      {4, 4, 4},
-                                                      {2, 16, 16},
-                                                      {16, 16, 16},
-                                                      {32, 2, 32},
-                                                      {32, 32, 32},
-                                                      {64, 64, 2},
-                                                      {64, 64, 64},
-                                                      {128, 128, 128},
-                                                      {128, 4, 128},
-                                                      {256, 256, 8},
-                                                      {256, 256, 256}};
+static size_t pow2_range[] = {2, 4, 32, 128, 256};
 
-static std::vector<std::vector<size_t>> pow3_range = {{3, 3, 3}, {9, 9, 9}, {27, 27, 27}};
+static size_t pow3_range[] = {3, 9, 27, 81, 243};
 
-static std::vector<std::vector<size_t>> mix_range
-    = {{3, 2, 2}, {3, 3, 2}, {3, 2, 3}, {2, 3, 3}, {2, 3, 5}, {2, 3, 11}, {216, 216, 216}};
+static size_t pow5_range[] = {5, 25, 125};
+
+static size_t prime_range[] = {7, 11, 13, 17, 19, 23, 29};
 
 static size_t batch_range[] = {1};
 
@@ -64,7 +48,7 @@ static size_t stride_range[] = {1};
 
 // static rocfft_result_placement placeness_range[]
 //     = {rocfft_placement_notinplace, rocfft_placement_inplace};
-rocfft_result_placement placeness_range[] = {rocfft_placement_inplace};
+static rocfft_result_placement placeness_range[] = {rocfft_placement_inplace};
 // TODO: re-enable when out-of-place c2c 3D transforms are fixed.
 
 // Real/complex transform test framework is only set up for out-of-place transforms:
@@ -79,7 +63,9 @@ static data_pattern pattern_range[] = {sawtooth};
 
 // Test suite classes:
 
-class accuracy_test_complex_3D : public ::testing::TestWithParam<std::tuple<std::vector<size_t>,
+class accuracy_test_complex_3D : public ::testing::TestWithParam<std::tuple<size_t,
+                                                                            size_t,
+                                                                            size_t,
                                                                             size_t,
                                                                             rocfft_result_placement,
                                                                             size_t,
@@ -98,7 +84,7 @@ protected:
 };
 class accuracy_test_real_3D
     : public ::testing::TestWithParam<
-          std::tuple<std::vector<size_t>, size_t, rocfft_result_placement, size_t, data_pattern>>
+          std::tuple<size_t, size_t, size_t, size_t, rocfft_result_placement, size_t, data_pattern>>
 {
 protected:
     void SetUp() override
@@ -398,12 +384,15 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
 TEST_P(accuracy_test_complex_3D,
        normal_3D_complex_interleaved_to_complex_interleaved_single_precision)
 {
-    std::vector<size_t>     length         = std::get<0>(GetParam());
-    size_t                  batch          = std::get<1>(GetParam());
-    rocfft_result_placement placeness      = std::get<2>(GetParam());
-    size_t                  stride         = std::get<3>(GetParam());
-    data_pattern            pattern        = std::get<4>(GetParam());
-    rocfft_transform_type   transform_type = std::get<5>(GetParam());
+    std::vector<size_t> length(3);
+    length[0]                              = std::get<0>(GetParam());
+    length[1]                              = std::get<1>(GetParam());
+    length[2]                              = std::get<2>(GetParam());
+    size_t                  batch          = std::get<3>(GetParam());
+    rocfft_result_placement placeness      = std::get<4>(GetParam());
+    size_t                  stride         = std::get<5>(GetParam());
+    data_pattern            pattern        = std::get<6>(GetParam());
+    rocfft_transform_type   transform_type = std::get<7>(GetParam());
 
     try
     {
@@ -419,13 +408,15 @@ TEST_P(accuracy_test_complex_3D,
 TEST_P(accuracy_test_complex_3D,
        normal_3D_complex_interleaved_to_complex_interleaved_double_precision)
 {
-    std::vector<size_t>     length         = std::get<0>(GetParam());
-    size_t                  batch          = std::get<1>(GetParam());
-    rocfft_result_placement placeness      = std::get<2>(GetParam());
-    size_t                  stride         = std::get<3>(GetParam());
-    data_pattern            pattern        = std::get<4>(GetParam());
-    rocfft_transform_type   transform_type = std::get<5>(GetParam());
-
+    std::vector<size_t> length(3);
+    length[0]                              = std::get<0>(GetParam());
+    length[1]                              = std::get<1>(GetParam());
+    length[2]                              = std::get<2>(GetParam());
+    size_t                  batch          = std::get<3>(GetParam());
+    rocfft_result_placement placeness      = std::get<4>(GetParam());
+    size_t                  stride         = std::get<5>(GetParam());
+    data_pattern            pattern        = std::get<6>(GetParam());
+    rocfft_transform_type   transform_type = std::get<7>(GetParam());
     try
     {
         normal_3D_complex_interleaved_to_complex_interleaved<double>(
@@ -1200,11 +1191,14 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
 
 TEST_P(accuracy_test_real_3D, normal_3D_real_to_complex_interleaved_single_precision)
 {
-    std::vector<size_t>     length         = std::get<0>(GetParam());
-    size_t                  batch          = std::get<1>(GetParam());
-    rocfft_result_placement placeness      = std::get<2>(GetParam());
-    size_t                  stride         = std::get<3>(GetParam());
-    data_pattern            pattern        = std::get<4>(GetParam());
+    std::vector<size_t> length(3);
+    length[0]                              = std::get<0>(GetParam());
+    length[1]                              = std::get<1>(GetParam());
+    length[2]                              = std::get<2>(GetParam());
+    size_t                  batch          = std::get<3>(GetParam());
+    rocfft_result_placement placeness      = std::get<4>(GetParam());
+    size_t                  stride         = std::get<5>(GetParam());
+    data_pattern            pattern        = std::get<6>(GetParam());
     rocfft_transform_type   transform_type = rocfft_transform_type_real_forward;
 
     try
@@ -1220,13 +1214,15 @@ TEST_P(accuracy_test_real_3D, normal_3D_real_to_complex_interleaved_single_preci
 
 TEST_P(accuracy_test_real_3D, normal_3D_real_to_complex_interleaved_double_precision)
 {
-    std::vector<size_t>     length         = std::get<0>(GetParam());
-    size_t                  batch          = std::get<1>(GetParam());
-    rocfft_result_placement placeness      = std::get<2>(GetParam());
-    size_t                  stride         = std::get<3>(GetParam());
-    data_pattern            pattern        = std::get<4>(GetParam());
+    std::vector<size_t> length(3);
+    length[0]                              = std::get<0>(GetParam());
+    length[1]                              = std::get<1>(GetParam());
+    length[2]                              = std::get<2>(GetParam());
+    size_t                  batch          = std::get<3>(GetParam());
+    rocfft_result_placement placeness      = std::get<4>(GetParam());
+    size_t                  stride         = std::get<5>(GetParam());
+    data_pattern            pattern        = std::get<6>(GetParam());
     rocfft_transform_type   transform_type = rocfft_transform_type_real_forward;
-
     try
     {
         normal_3D_real_to_complex_interleaved<double>(
@@ -1242,11 +1238,14 @@ TEST_P(accuracy_test_real_3D, normal_3D_real_to_complex_interleaved_double_preci
 
 TEST_P(accuracy_test_real_3D, normal_3D_complex_interleaved_to_real_single_precision)
 {
-    std::vector<size_t>     length    = std::get<0>(GetParam());
-    size_t                  batch     = std::get<1>(GetParam());
-    rocfft_result_placement placeness = std::get<2>(GetParam());
-    size_t                  stride    = std::get<3>(GetParam());
-    data_pattern            pattern   = std::get<4>(GetParam());
+    std::vector<size_t> length(3);
+    length[0]                         = std::get<0>(GetParam());
+    length[1]                         = std::get<1>(GetParam());
+    length[2]                         = std::get<2>(GetParam());
+    size_t                  batch     = std::get<3>(GetParam());
+    rocfft_result_placement placeness = std::get<4>(GetParam());
+    size_t                  stride    = std::get<5>(GetParam());
+    data_pattern            pattern   = std::get<6>(GetParam());
     rocfft_transform_type   transform_type
         = rocfft_transform_type_real_inverse; // must be real inverse
 
@@ -1263,11 +1262,14 @@ TEST_P(accuracy_test_real_3D, normal_3D_complex_interleaved_to_real_single_preci
 
 TEST_P(accuracy_test_real_3D, normal_3D_complex_interleaved_to_real_double_precision)
 {
-    std::vector<size_t>     length    = std::get<0>(GetParam());
-    size_t                  batch     = std::get<1>(GetParam());
-    rocfft_result_placement placeness = std::get<2>(GetParam());
-    size_t                  stride    = std::get<3>(GetParam());
-    data_pattern            pattern   = std::get<4>(GetParam());
+    std::vector<size_t> length(3);
+    length[0]                         = std::get<0>(GetParam());
+    length[1]                         = std::get<1>(GetParam());
+    length[2]                         = std::get<2>(GetParam());
+    size_t                  batch     = std::get<3>(GetParam());
+    rocfft_result_placement placeness = std::get<4>(GetParam());
+    size_t                  stride    = std::get<5>(GetParam());
+    data_pattern            pattern   = std::get<6>(GetParam());
     rocfft_transform_type   transform_type
         = rocfft_transform_type_real_inverse; // must be real inverse
 
@@ -1286,6 +1288,8 @@ TEST_P(accuracy_test_real_3D, normal_3D_complex_interleaved_to_real_double_preci
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_3D,
                         accuracy_test_complex_3D,
                         ::testing::Combine(ValuesIn(pow2_range),
+                                           ValuesIn(pow2_range),
+                                           ValuesIn(pow2_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
@@ -1295,6 +1299,30 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow2_3D,
 INSTANTIATE_TEST_CASE_P(rocfft_pow3_3D,
                         accuracy_test_complex_3D,
                         ::testing::Combine(ValuesIn(pow3_range),
+                                           ValuesIn(pow3_range),
+                                           ValuesIn(pow3_range),
+                                           ValuesIn(batch_range),
+                                           ValuesIn(placeness_range),
+                                           ValuesIn(stride_range),
+                                           ValuesIn(pattern_range),
+                                           ValuesIn(transform_range)));
+
+INSTANTIATE_TEST_CASE_P(rocfft_pow5_3D,
+                        accuracy_test_complex_3D,
+                        ::testing::Combine(ValuesIn(pow5_range),
+                                           ValuesIn(pow5_range),
+                                           ValuesIn(pow5_range),
+                                           ValuesIn(batch_range),
+                                           ValuesIn(placeness_range),
+                                           ValuesIn(stride_range),
+                                           ValuesIn(pattern_range),
+                                           ValuesIn(transform_range)));
+
+INSTANTIATE_TEST_CASE_P(rocfft_prime_3D,
+                        accuracy_test_complex_3D,
+                        ::testing::Combine(ValuesIn(prime_range),
+                                           ValuesIn(prime_range),
+                                           ValuesIn(prime_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
@@ -1303,43 +1331,42 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow3_3D,
 
 INSTANTIATE_TEST_CASE_P(rocfft_mix_3D,
                         accuracy_test_complex_3D,
-                        ::testing::Combine(ValuesIn(mix_range),
+                        ::testing::Combine(ValuesIn(pow2_range),
+                                           ValuesIn(pow3_range),
+                                           ValuesIn(prime_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range),
                                            ValuesIn(transform_range)));
-
-// INSTANTIATE_TEST_CASE_P(rocfft_pow5_3D,
-//                         accuracy_test_complex_3D,
-//                         ::testing::Combine(ValuesIn(pow5_range),
-//                                            ValuesIn(batch_range),
-//                                            ValuesIn(placeness_range),
-//                                            ValuesIn(stride_range),
-//                                            ValuesIn(pattern_range),
-//                                            ValuesIn(transform_range)));
-
-// INSTANTIATE_TEST_CASE_P(rocfft_prime_3D,
-//                         accuracy_test_complex_3D,
-//                         ::testing::Combine(ValuesIn(prime_range),
-//                                            ValuesIn(batch_range),
-//                                            ValuesIn(placeness_range),
-//                                            ValuesIn(stride_range),
-//                                            ValuesIn(pattern_range),
-//                                            ValuesIn(transform_range)));
 
 // Complex to real and real-to-complex:
-INSTANTIATE_TEST_CASE_P(rocfft_pow2_3D,
+
+INSTANTIATE_TEST_CASE_P(rocfft_pow3_3D,
                         accuracy_test_real_3D,
-                        ::testing::Combine(ValuesIn(pow2_range),
+                        ::testing::Combine(ValuesIn(pow3_range),
+                                           ValuesIn(pow3_range),
+                                           ValuesIn(pow3_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(rc_placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range)));
 
-INSTANTIATE_TEST_CASE_P(rocfft_pow3_3D,
+INSTANTIATE_TEST_CASE_P(rocfft_pow5_3D,
                         accuracy_test_real_3D,
-                        ::testing::Combine(ValuesIn(pow3_range),
+                        ::testing::Combine(ValuesIn(pow5_range),
+                                           ValuesIn(pow5_range),
+                                           ValuesIn(pow5_range),
+                                           ValuesIn(batch_range),
+                                           ValuesIn(rc_placeness_range),
+                                           ValuesIn(stride_range),
+                                           ValuesIn(pattern_range)));
+
+INSTANTIATE_TEST_CASE_P(rocfft_prime_3D,
+                        accuracy_test_real_3D,
+                        ::testing::Combine(ValuesIn(prime_range),
+                                           ValuesIn(prime_range),
+                                           ValuesIn(prime_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(rc_placeness_range),
                                            ValuesIn(stride_range),
@@ -1347,24 +1374,10 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow3_3D,
 
 INSTANTIATE_TEST_CASE_P(rocfft_mix_3D,
                         accuracy_test_real_3D,
-                        ::testing::Combine(ValuesIn(mix_range),
+                        ::testing::Combine(ValuesIn(pow2_range),
+                                           ValuesIn(pow3_range),
+                                           ValuesIn(prime_range),
                                            ValuesIn(batch_range),
                                            ValuesIn(rc_placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range)));
-
-// INSTANTIATE_TEST_CASE_P(rocfft_pow5_3D,
-//                         accuracy_test_real_3D,
-//                         ::testing::Combine(ValuesIn(pow5_range),
-//                                            ValuesIn(batch_range),
-//                                            ValuesIn(rc_placeness_range),
-//                                            ValuesIn(stride_range),
-//                                            ValuesIn(pattern_range)));
-
-// INSTANTIATE_TEST_CASE_P(rocfft_prime_3D,
-//                         accuracy_test_real_3D,
-//                         ::testing::Combine(ValuesIn(pow5_range),
-//                                            ValuesIn(batch_range),
-//                                            ValuesIn(rc_placeness_range),
-//                                            ValuesIn(stride_range),
-//                                            ValuesIn(pattern_range)));
