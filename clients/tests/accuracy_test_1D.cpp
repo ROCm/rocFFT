@@ -51,6 +51,9 @@ static size_t real_complex_batch_range[] = {1};
 
 static size_t stride_range[] = {1};
 
+static size_t stride_range_for_prime[]
+    = {1, 2, 3, 64, 65}; //TODO: this will be merged back to stride_range
+
 static rocfft_result_placement placeness_range[]
     = {rocfft_placement_notinplace, rocfft_placement_inplace};
 
@@ -1094,7 +1097,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_prime_1D,
                         ::testing::Combine(ValuesIn(prime_range),
                                            ValuesIn(complex_batch_range),
                                            ValuesIn(placeness_range),
-                                           ValuesIn(stride_range),
+                                           ValuesIn(stride_range_for_prime),
                                            ValuesIn(transform_range)));
 
 // Real/complex

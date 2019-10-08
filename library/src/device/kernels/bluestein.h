@@ -104,14 +104,16 @@ __global__ void mul_device(const size_t  numof,
     iOffset += counter_mod * stride_in[1];
     oOffset += counter_mod * stride_out[1];
 
-    tx = tx % numof;
+    tx          = tx % numof;
+    size_t iIdx = tx * stride_in[0];
+    size_t oIdx = tx * stride_out[0];
     if(scheme == 0)
     {
         output += oOffset;
 
-        T out        = output[tx];
-        output[tx].x = input[tx].x * out.x - input[tx].y * out.y;
-        output[tx].y = input[tx].x * out.y + input[tx].y * out.x;
+        T out          = output[oIdx];
+        output[oIdx].x = input[iIdx].x * out.x - input[iIdx].y * out.y;
+        output[oIdx].y = input[iIdx].x * out.y + input[iIdx].y * out.x;
     }
     else if(scheme == 1)
     {
@@ -124,12 +126,12 @@ __global__ void mul_device(const size_t  numof,
 
         if(tx < N)
         {
-            output[tx].x = input[tx].x * chirp[tx].x + input[tx].y * chirp[tx].y;
-            output[tx].y = -input[tx].x * chirp[tx].y + input[tx].y * chirp[tx].x;
+            output[oIdx].x = input[iIdx].x * chirp[tx].x + input[iIdx].y * chirp[tx].y;
+            output[oIdx].y = -input[iIdx].x * chirp[tx].y + input[iIdx].y * chirp[tx].x;
         }
         else
         {
-            output[tx] = lib_make_vector2<T>(0, 0);
+            output[oIdx] = lib_make_vector2<T>(0, 0);
         }
     }
     else if(scheme == 2)
@@ -142,8 +144,8 @@ __global__ void mul_device(const size_t  numof,
         output += oOffset;
 
         real_type_t<T> MI = 1.0 / (real_type_t<T>)M;
-        output[tx].x      = MI * (input[tx].x * chirp[tx].x + input[tx].y * chirp[tx].y);
-        output[tx].y      = MI * (-input[tx].x * chirp[tx].y + input[tx].y * chirp[tx].x);
+        output[oIdx].x    = MI * (input[iIdx].x * chirp[tx].x + input[iIdx].y * chirp[tx].y);
+        output[oIdx].y    = MI * (-input[iIdx].x * chirp[tx].y + input[iIdx].y * chirp[tx].x);
     }
 }
 
