@@ -186,7 +186,33 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
 
     // Set up the GPU plan:
     rocfft_status fft_status = rocfft_status_success;
-    rocfft_plan   gpu_plan   = NULL;
+
+    rocfft_plan_description gpu_description = NULL;
+    fft_status                              = rocfft_plan_description_create(&gpu_description);
+    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT description creation failure";
+
+    std::vector<size_t> istride = {static_cast<size_t>(dims[2].is),
+                                   static_cast<size_t>(dims[1].is),
+                                   static_cast<size_t>(dims[0].is)};
+    std::vector<size_t> ostride = {static_cast<size_t>(dims[2].os),
+                                   static_cast<size_t>(dims[1].os),
+                                   static_cast<size_t>(dims[0].os)};
+
+    fft_status = rocfft_plan_description_set_data_layout(gpu_description,
+                                                         rocfft_array_type_complex_interleaved,
+                                                         rocfft_array_type_complex_interleaved,
+                                                         NULL,
+                                                         NULL,
+                                                         istride.size(),
+                                                         istride.data(),
+                                                         0,
+                                                         ostride.size(),
+                                                         ostride.data(),
+                                                         0);
+    ASSERT_TRUE(fft_status == rocfft_status_success)
+        << "rocFFT data layout failure: " << fft_status;
+
+    rocfft_plan gpu_plan = NULL;
     fft_status
         = rocfft_plan_create(&gpu_plan,
                              inplace ? rocfft_placement_inplace : rocfft_placement_notinplace,
@@ -194,8 +220,8 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
                              precision_selector<Tfloat>(),
                              length.size(), // Dimensions
                              length.data(), // lengths
-                             1, // Number of transforms
-                             NULL); // Description  // TODO: enable
+                             batch, // Number of transforms
+                             NULL); // Description
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
 
     rocfft_execution_info planinfo = NULL;
@@ -553,9 +579,8 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
                              precision_selector<Tfloat>(),
                              length.size(), // Dimensions
                              length.data(), // lengths
-                             1, // Number of transforms
+                             batch, // Number of transforms
                              gpu_description);
-    // needed for strides!
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
 
     // The real-to-complex transform uses work memory, which is passed
@@ -979,7 +1004,8 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
     ASSERT_TRUE(cpu_plan != NULL) << "FFTW plan creation failure";
 
     // Set up the GPU plan:
-    rocfft_status           fft_status      = rocfft_status_success;
+    rocfft_status fft_status = rocfft_status_success;
+
     rocfft_plan_description gpu_description = NULL;
     fft_status                              = rocfft_plan_description_create(&gpu_description);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT description creation failure";
@@ -1013,7 +1039,7 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
                              precision_selector<Tfloat>(),
                              length.size(), // Dimensions
                              length.data(), // lengths
-                             1, // Number of transforms
+                             batch, // Number of transforms
                              gpu_description);
     ASSERT_TRUE(fft_status == rocfft_status_success)
         << "rocFFT plan creation failure: " << fft_status;

@@ -202,11 +202,10 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
                              inplace ? rocfft_placement_inplace : rocfft_placement_notinplace,
                              transform_type,
                              precision_selector<Tfloat>(),
-                             1, // Dimensions
+                             length.size(), // Dimension
                              length.data(), // lengths
-                             1, // Number of transforms
+                             batch, // Number of transforms
                              gpu_description); // Description
-    // needed for strides!
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
 
     // The real-to-complex transform uses work memory, which is passed
@@ -226,10 +225,9 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
-    srandom(3);
-
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);
+    srandom(3);
     for(size_t i = 0; i < N; i++)
     {
         std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
@@ -496,11 +494,10 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
                              inplace ? rocfft_placement_inplace : rocfft_placement_notinplace,
                              rocfft_transform_type_real_forward,
                              precision_selector<Tfloat>(),
-                             dims.size(), // Dimensions
+                             length.size(), // Dimension
                              length.data(), // lengths
-                             1, // Number of transforms
+                             batch, // Number of transforms
                              gpu_description); // Description
-    // needed for strides!
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
 
     // The real-to-complex transform uses work memory, which is passed
@@ -523,6 +520,7 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
 
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);
+    srandom(3);
     for(size_t i = 0; i < N; i++)
     {
         // TODO: make pattern variable
@@ -770,9 +768,9 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
                              inplace ? rocfft_placement_inplace : rocfft_placement_notinplace,
                              rocfft_transform_type_real_inverse,
                              precision_selector<Tfloat>(),
-                             length.size(), // Dimensions
+                             length.size(), // Dimension
                              length.data(), // lengths
-                             1, // Number of transforms
+                             batch, // Number of transforms
                              gpu_description);
     ASSERT_TRUE(fft_status == rocfft_status_success)
         << "rocFFT plan creation failure: " << fft_status;
@@ -795,10 +793,9 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
-    srandom(3);
-
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);
+    srandom(3);
     for(size_t i = 0; i < Ncomplex; i++)
     {
         // TODO: make pattern variable
