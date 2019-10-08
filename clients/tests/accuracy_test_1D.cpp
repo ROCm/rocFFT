@@ -111,9 +111,6 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
     int        sign
         = transform_type == rocfft_transform_type_complex_forward ? FFTW_FORWARD : FFTW_BACKWARD;
 
-    // TODO: add coverage for non-unit stride.
-    ASSERT_TRUE(stride == 1) << "Failure: test assumes contiguous data:";
-
     // Dimension configuration:
     std::array<fftw_iodim64, 1> dims;
     dims[0].n  = N;
@@ -177,34 +174,55 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
     // Set up the GPU plan:
     std::vector<size_t> length     = {N};
     rocfft_status       fft_status = rocfft_status_success;
-    rocfft_plan         forward    = NULL;
+
+    rocfft_plan_description gpu_description = NULL;
+    fft_status                              = rocfft_plan_description_create(&gpu_description);
+    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT description creation failure";
+
+    std::vector<size_t> istride = {static_cast<size_t>(dims[0].is)};
+    std::vector<size_t> ostride = {static_cast<size_t>(dims[0].os)};
+
+    fft_status = rocfft_plan_description_set_data_layout(gpu_description,
+                                                         rocfft_array_type_complex_interleaved,
+                                                         rocfft_array_type_complex_interleaved,
+                                                         NULL,
+                                                         NULL,
+                                                         istride.size(),
+                                                         istride.data(),
+                                                         0,
+                                                         ostride.size(),
+                                                         ostride.data(),
+                                                         0);
+    ASSERT_TRUE(fft_status == rocfft_status_success)
+        << "rocFFT data layout failure: " << fft_status;
+
+    rocfft_plan gpu_plan = NULL;
     fft_status
-        = rocfft_plan_create(&forward,
+        = rocfft_plan_create(&gpu_plan,
                              inplace ? rocfft_placement_inplace : rocfft_placement_notinplace,
                              transform_type,
                              precision_selector<Tfloat>(),
                              1, // Dimensions
                              length.data(), // lengths
                              1, // Number of transforms
-                             NULL); // Description  // TODO: enable
+                             gpu_description); // Description
     // needed for strides!
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
 
     // The real-to-complex transform uses work memory, which is passed
     // via a rocfft_execution_info struct.
-    rocfft_execution_info forwardinfo = NULL;
-    fft_status                        = rocfft_execution_info_create(&forwardinfo);
+    rocfft_execution_info planinfo = NULL;
+    fft_status                     = rocfft_execution_info_create(&planinfo);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT execution info creation failure";
-    size_t forwardworkbuffersize = 0;
-    fft_status = rocfft_plan_get_work_buffer_size(forward, &forwardworkbuffersize);
+    size_t workbuffersize = 0;
+    fft_status            = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT get buffer size get failure";
-    void* forwardwbuffer = NULL;
-    if(forwardworkbuffersize > 0)
+    void* wbuffer = NULL;
+    if(workbuffersize > 0)
     {
-        hip_status = hipMalloc(&forwardwbuffer, forwardworkbuffersize);
+        hip_status = hipMalloc(&wbuffer, workbuffersize);
         ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-        fft_status = rocfft_execution_info_set_work_buffer(
-            forwardinfo, forwardwbuffer, forwardworkbuffersize);
+        fft_status = rocfft_execution_info_set_work_buffer(planinfo, wbuffer, workbuffersize);
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
@@ -234,10 +252,10 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
     ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
 
     // Execute the GPU transform:
-    fft_status = rocfft_execute(forward, // plan
+    fft_status = rocfft_execute(gpu_plan, // plan
                                 (void**)&gpu_in, // in_buffer
                                 (void**)&gpu_out, // out_buffer
-                                forwardinfo); // execution info
+                                planinfo); // execution info
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
 
     // Execute the CPU transform:
@@ -323,13 +341,13 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
         hipFree(gpu_out);
         fftw_free(cpu_out);
     }
-    if(forwardwbuffer != NULL)
+    if(wbuffer != NULL)
     {
-        hipFree(forwardwbuffer);
+        hipFree(wbuffer);
     }
 
     // Destroy plans:
-    rocfft_plan_destroy(forward);
+    rocfft_plan_destroy(gpu_plan);
     fftw_destroy_plan_type(cpu_plan);
 }
 
@@ -385,9 +403,6 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
     std::vector<size_t> length = {N};
     using fftw_complex_type    = typename fftw_trait<Tfloat>::fftw_complex_type;
     const bool inplace         = placeness == rocfft_placement_inplace;
-
-    // TODO: add coverage for non-unit stride.
-    ASSERT_TRUE(stride == 1) << "Failure: test assumes contiguous data:";
 
     const size_t Ncomplex = N / 2 + 1;
 
@@ -453,7 +468,29 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
 
     // Set up the GPU plan:
     rocfft_status fft_status = rocfft_status_success;
-    rocfft_plan   forward    = NULL;
+
+    rocfft_plan_description gpu_description = NULL;
+    fft_status                              = rocfft_plan_description_create(&gpu_description);
+    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT description creation failure";
+
+    std::vector<size_t> istride = {static_cast<size_t>(dims[0].is)};
+    std::vector<size_t> ostride = {static_cast<size_t>(dims[0].os)};
+
+    fft_status = rocfft_plan_description_set_data_layout(gpu_description,
+                                                         rocfft_array_type_real,
+                                                         rocfft_array_type_hermitian_interleaved,
+                                                         NULL,
+                                                         NULL,
+                                                         istride.size(),
+                                                         istride.data(),
+                                                         0,
+                                                         ostride.size(),
+                                                         ostride.data(),
+                                                         0);
+    ASSERT_TRUE(fft_status == rocfft_status_success)
+        << "rocFFT data layout failure: " << fft_status;
+
+    rocfft_plan forward = NULL;
     fft_status
         = rocfft_plan_create(&forward,
                              inplace ? rocfft_placement_inplace : rocfft_placement_notinplace,
@@ -462,7 +499,7 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
                              dims.size(), // Dimensions
                              length.data(), // lengths
                              1, // Number of transforms
-                             NULL); // Description  // TODO: enable
+                             gpu_description); // Description
     // needed for strides!
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
 
@@ -642,9 +679,6 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
     std::vector<size_t> length  = {N};
     const bool          inplace = placeness == rocfft_placement_inplace;
 
-    // TODO: add coverage for non-unit stride.
-    ASSERT_TRUE(stride == 1) << "Failure: test assumes contiguous data:";
-
     // TODO: add logic to deal with discontiguous data in Nystride
     const size_t Ncomplex = N / 2 + 1;
 
@@ -713,10 +747,8 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
     fft_status                              = rocfft_plan_description_create(&gpu_description);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT description creation failure";
 
-    std::vector<size_t> istride
-        = {static_cast<size_t>(dims[1].is), static_cast<size_t>(dims[0].is)};
-    std::vector<size_t> ostride
-        = {static_cast<size_t>(dims[1].os), static_cast<size_t>(dims[0].os)};
+    std::vector<size_t> istride = {static_cast<size_t>(dims[0].is)};
+    std::vector<size_t> ostride = {static_cast<size_t>(dims[0].os)};
 
     fft_status = rocfft_plan_description_set_data_layout(gpu_description,
                                                          rocfft_array_type_hermitian_interleaved,
