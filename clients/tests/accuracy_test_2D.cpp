@@ -44,7 +44,7 @@ static std::vector<std::vector<size_t>> pow5_range  = {{5, 25}, {125, 625}};
 static std::vector<std::vector<size_t>> prime_range = {
     {7, 25}, {11, 625}, {13, 15625}, {1, 11}, {11, 1}, {8191, 243}, {7, 11}, {7, 32}, {1009, 1009}};
 
-static size_t batch_range[] = {1};
+static size_t batch_range[] = {1, 2};
 
 static size_t stride_range[] = {1};
 
@@ -112,9 +112,6 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     int          sign
         = transform_type == rocfft_transform_type_complex_forward ? FFTW_FORWARD : FFTW_BACKWARD;
 
-    // TODO: add coverage for non-unit stride.
-    ASSERT_TRUE(stride == 1) << "Failure: test assumes contiguous data:";
-
     // Dimension configuration:
     std::array<fftw_iodim64, 2> dims;
     dims[1].n  = Ny;
@@ -124,8 +121,14 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     dims[0].is = dims[1].n * dims[1].is;
     dims[0].os = dims[1].n * dims[1].os;
 
-    const size_t isize = dims[0].n * dims[0].is;
-    const size_t osize = dims[0].n * dims[0].os;
+    // Batch configuration:
+    std::array<fftw_iodim64, 1> howmany_dims;
+    howmany_dims[0].n  = batch;
+    howmany_dims[0].is = dims[0].n * dims[0].is;
+    howmany_dims[0].os = dims[0].n * dims[0].os;
+
+    const size_t isize = howmany_dims[0].n * howmany_dims[0].is;
+    const size_t osize = howmany_dims[0].n * howmany_dims[0].os;
 
     if(verbose)
     {
@@ -140,15 +143,13 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
             std::cout << "\tis: " << dims[i].is << std::endl;
             std::cout << "\tos: " << dims[i].os << std::endl;
         }
+        std::cout << "howmany_dims:\n";
+        std::cout << "\tn: " << howmany_dims[0].n << std::endl;
+        std::cout << "\tis: " << howmany_dims[0].is << std::endl;
+        std::cout << "\tos: " << howmany_dims[0].os << std::endl;
         std::cout << "isize: " << isize << "\n";
         std::cout << "osize: " << osize << "\n";
     }
-
-    // Batch configuration:
-    std::array<fftw_iodim64, 1> howmany_dims;
-    howmany_dims[0].n  = batch;
-    howmany_dims[0].is = isize;
-    howmany_dims[0].os = osize;
 
     // Set up buffers:
     // Local data buffer:
@@ -236,26 +237,35 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);
     srandom(3);
-    for(size_t i = 0; i < Nx; i++)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < Ny; j++)
+        for(size_t i = 0; i < Nx; i++)
         {
-            // TODO: make pattern variable?
-            std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
-                                     (Tfloat)rand() / (Tfloat)RAND_MAX);
-            //std::complex<Tfloat> val(i,j);
-            cpu_in[dims[0].is * i + dims[1].is * j] = val;
+            for(size_t j = 0; j < Ny; j++)
+            {
+                // TODO: make pattern variable?
+                std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
+                                         (Tfloat)rand() / (Tfloat)RAND_MAX);
+                cpu_in[howmany_dims[0].is * ibatch + dims[0].is * i + dims[1].is * j] = val;
+            }
         }
     }
 
     if(verbose > 1)
     {
         std::cout << "input:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < Ny; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
             {
-                std::cout << cpu_in[dims[0].is * i + dims[1].is * j] << " ";
+                for(size_t j = 0; j < Ny; j++)
+                {
+                    std::cout
+                        << cpu_in[howmany_dims[0].is * ibatch + dims[0].is * i + dims[1].is * j]
+                        << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -279,11 +289,18 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     if(verbose > 1)
     {
         std::cout << "cpu_out:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < Ny; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
             {
-                std::cout << cpu_out[dims[0].os * i + dims[1].os * j] << " ";
+                for(size_t j = 0; j < Ny; j++)
+                {
+                    std::cout
+                        << cpu_out[howmany_dims[0].os * ibatch + dims[0].os * i + dims[1].os * j]
+                        << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -299,11 +316,18 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     if(verbose > 1)
     {
         std::cout << "gpu_out:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < Ny; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
             {
-                std::cout << gpu_out_comp[dims[0].os * i + dims[1].os * j] << " ";
+                for(size_t j = 0; j < Ny; j++)
+                {
+                    std::cout << gpu_out_comp[howmany_dims[0].os * ibatch + dims[0].os * i
+                                              + dims[1].os * j]
+                              << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -312,13 +336,16 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
 
     Tfloat L2norm   = 0.0;
     Tfloat Linfnorm = 0.0;
-    for(size_t i = 0; i < Nx; i++)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < Ny; j++)
+        for(size_t i = 0; i < Nx; i++)
         {
-            auto val = cpu_out[dims[0].os * i + dims[1].os * j];
-            Linfnorm = std::max(std::abs(val), Linfnorm);
-            L2norm += std::abs(val) * std::abs(val);
+            for(size_t j = 0; j < Ny; j++)
+            {
+                auto val = cpu_out[howmany_dims[0].os * ibatch + dims[0].os * i + dims[1].os * j];
+                Linfnorm = std::max(std::abs(val), Linfnorm);
+                L2norm += std::abs(val) * std::abs(val);
+            }
         }
     }
     L2norm = sqrt(L2norm);
@@ -326,21 +353,25 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     Tfloat L2diff   = 0.0;
     Tfloat Linfdiff = 0.0;
     int    nwrong   = 0;
-    for(size_t i = 0; i < Nx; i++)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < Ny; j++)
+        for(size_t i = 0; i < Nx; i++)
         {
-            const int pos  = dims[0].os * i + dims[1].os * j;
-            Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
-            Linfdiff       = std::max(diff, Linfdiff);
-            L2diff += diff * diff;
-            if(std::abs(diff) / (Linfnorm * log(Nx * Ny)) >= type_epsilon<Tfloat>())
+            for(size_t j = 0; j < Ny; j++)
             {
-                nwrong++;
-                if(verbose > 1)
+                const int pos  = howmany_dims[0].os * ibatch + dims[0].os * i + dims[1].os * j;
+                Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
+                Linfdiff       = std::max(diff, Linfdiff);
+                L2diff += diff * diff;
+                if(std::abs(diff) / (Linfnorm * log(Nx * Ny)) >= type_epsilon<Tfloat>())
                 {
-                    std::cout << "(i,j): " << i << " " << j << " cpu: " << cpu_out[pos]
-                              << " gpu: " << gpu_out_comp[pos] << "\n";
+                    nwrong++;
+                    if(verbose > 1)
+                    {
+                        std::cout << "ibatch: " << ibatch << ", (i,j): " << i << " " << j
+                                  << ", cpu: " << cpu_out[pos] << ", gpu: " << gpu_out_comp[pos]
+                                  << "\n";
+                    }
                 }
             }
         }
@@ -375,6 +406,8 @@ void normal_2D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     }
 
     // Destroy plans:
+    rocfft_execution_info_destroy(planinfo);
+    rocfft_plan_description_destroy(gpu_description);
     rocfft_plan_destroy(gpu_plan);
     fftw_destroy_plan_type(cpu_plan);
 }
@@ -423,10 +456,6 @@ TEST_P(accuracy_test_complex_2D,
     }
 }
 
-// Populate test cases from parameter combinations:
-
-// Real to complex
-
 // Templated test function for real to complex:
 template <typename Tfloat>
 void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
@@ -442,9 +471,6 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
     const size_t Ny      = length[0];
     const bool   inplace = placeness == rocfft_placement_inplace;
 
-    // TODO: add coverage for non-unit stride.
-    ASSERT_TRUE(stride == 1) << "Failure: test assumes contiguous data:";
-
     // TODO: add logic to deal with discontiguous data in Nystride
     const size_t Nycomplex = Ny / 2 + 1;
     const size_t Nystride  = inplace ? 2 * Nycomplex : Ny;
@@ -458,8 +484,14 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
     dims[0].is = Nystride * dims[1].is;
     dims[0].os = (dims[1].n / 2 + 1) * dims[1].os;
 
-    const size_t isize = dims[0].n * dims[0].is;
-    const size_t osize = dims[0].n * dims[0].os;
+    // Batch configuration:
+    std::array<fftw_iodim64, 1> howmany_dims;
+    howmany_dims[0].n  = batch;
+    howmany_dims[0].is = dims[0].n * dims[0].is;
+    howmany_dims[0].os = dims[0].n * dims[0].os;
+
+    const size_t isize = howmany_dims[0].n * howmany_dims[0].is;
+    const size_t osize = howmany_dims[0].n * howmany_dims[0].os;
 
     if(verbose)
     {
@@ -474,15 +506,13 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
             std::cout << "\tis: " << dims[i].is << std::endl;
             std::cout << "\tos: " << dims[i].os << std::endl;
         }
+        std::cout << "howmany_dims:\n";
+        std::cout << "\tn: " << howmany_dims[0].n << std::endl;
+        std::cout << "\tis: " << howmany_dims[0].is << std::endl;
+        std::cout << "\tos: " << howmany_dims[0].os << std::endl;
         std::cout << "isize: " << isize << "\n";
         std::cout << "osize: " << osize << "\n";
     }
-
-    // Batch configuration:
-    std::array<fftw_iodim64, 1> howmany_dims;
-    howmany_dims[0].n  = batch;
-    howmany_dims[0].is = isize;
-    howmany_dims[0].os = osize;
 
     // Set up buffers:
     // Local data buffer:
@@ -568,25 +598,36 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
     }
 
     // Set up the data:
-    srandom(3);
     std::fill(cpu_in, cpu_in + isize, 0.0);
-    for(size_t i = 0; i < Nx; i++)
+    srandom(3);
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < Ny; j++)
+        for(size_t i = 0; i < Nx; i++)
         {
-            // TODO: make pattern variable
-            cpu_in[i * Nystride + j] = (Tfloat)rand() / (Tfloat)RAND_MAX;
+            for(size_t j = 0; j < Ny; j++)
+            {
+                // TODO: make pattern variable
+                cpu_in[howmany_dims[0].is * ibatch + dims[0].is * i + dims[1].is * j]
+                    = (Tfloat)rand() / (Tfloat)RAND_MAX;
+            }
         }
     }
 
     if(verbose > 1)
     {
         std::cout << "input:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < Ny; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
             {
-                std::cout << cpu_in[i * Nystride + j] << " ";
+                for(size_t j = 0; j < Ny; j++)
+                {
+                    std::cout
+                        << cpu_in[howmany_dims[0].is * ibatch + dims[0].is * i + dims[1].is * j]
+                        << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -609,11 +650,18 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
     if(verbose > 1)
     {
         std::cout << "cpu_out:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < Nycomplex; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
             {
-                std::cout << cpu_out[i * Nycomplex + j] << " ";
+                for(size_t j = 0; j < Nycomplex; j++)
+                {
+                    std::cout
+                        << cpu_out[howmany_dims[0].os * ibatch + dims[0].os * i + dims[1].os * j]
+                        << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -629,11 +677,18 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
     if(verbose > 1)
     {
         std::cout << "gpu_out:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < Nycomplex; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
             {
-                std::cout << gpu_out_comp[i * Nycomplex + j] << " ";
+                for(size_t j = 0; j < Nycomplex; j++)
+                {
+                    std::cout << gpu_out_comp[howmany_dims[0].os * ibatch + dims[0].os * i
+                                              + dims[1].os * j]
+                              << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -644,16 +699,19 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
     Tfloat Linfdiff = 0.0;
     Tfloat L2norm   = 0.0;
     Tfloat Linfnorm = 0.0;
-    for(size_t i = 0; i < Nx; i++)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < Nycomplex; j++)
+        for(size_t i = 0; i < Nx; i++)
         {
-            const int pos  = i * Nycomplex + j;
-            Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
-            Linfnorm       = std::max(std::abs(cpu_out[pos]), Linfnorm);
-            L2norm += std::abs(cpu_out[pos]) * std::abs(cpu_out[pos]);
-            Linfdiff = std::max(diff, Linfdiff);
-            L2diff += diff * diff;
+            for(size_t j = 0; j < Nycomplex; j++)
+            {
+                const int pos  = howmany_dims[0].os * ibatch + dims[0].os * i + dims[1].os * j;
+                Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
+                Linfnorm       = std::max(std::abs(cpu_out[pos]), Linfnorm);
+                L2norm += std::abs(cpu_out[pos]) * std::abs(cpu_out[pos]);
+                Linfdiff = std::max(diff, Linfdiff);
+                L2diff += diff * diff;
+            }
         }
     }
     L2norm = sqrt(L2norm);
@@ -686,8 +744,99 @@ void normal_2D_real_to_complex_interleaved(std::vector<size_t>     length,
     }
 
     // Destroy plans:
+    rocfft_execution_info_destroy(planinfo);
+    rocfft_plan_description_destroy(gpu_description);
     rocfft_plan_destroy(gpu_plan);
     fftw_destroy_plan_type(cpu_plan);
+}
+
+// Impose Hermitian symmetry on a 3D complex array of size Nx * (Ny / 2 + 1) with batches.
+template <typename Tfloat>
+void imposeHermitianSymmetry(std::complex<Tfloat>*              data,
+                             const std::array<fftw_iodim64, 2>& dims,
+                             const fftw_iodim64                 howmany_dims)
+{
+    auto Nx = dims[0].n;
+    auto Ny = dims[1].n;
+
+    for(size_t ibatch = 0; ibatch < howmany_dims.n; ++ibatch)
+    {
+        // origin:
+        data[howmany_dims.is * ibatch + 0].imag(0.0);
+
+        if(Nx % 2 == 0)
+        {
+            // x-Nyquist is real-valued
+            data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2)].imag(0.0);
+        }
+        if(Ny % 2 == 0)
+        {
+            // y-Nyquist is real-valued
+            data[howmany_dims.is * ibatch + dims[1].is * (Ny / 2)].imag(0.0);
+        }
+        if(Nx % 2 == 0 && Ny % 2 == 0)
+        {
+            // xy-Nyquist is real-valued
+            data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2) + dims[1].is * (Ny / 2)].imag(
+                0.0);
+        }
+
+        // x-axis:
+        for(int i = 1; i < Nx / 2 + 1; ++i)
+        {
+            data[howmany_dims.is * ibatch + dims[0].is * (Nx - i)]
+                = std::conj(data[howmany_dims.is * ibatch + dims[0].is * i]);
+        }
+
+        // y-Nyquist:
+        if(Ny % 2 == 0)
+        {
+            for(int i = 1; i < Nx / 2 + 1; ++i)
+            {
+                data[howmany_dims.is * ibatch + dims[0].is * (Nx - i) + dims[1].is * (Ny / 2)]
+                    = std::conj(
+                        data[howmany_dims.is * ibatch + dims[0].is * i + dims[1].is * (Ny / 2)]);
+            }
+        }
+    }
+}
+
+// Check for exact Hermitian symmetry on a 2D complex array of size Nx  * (Ny / 2 + 1)
+// with multiple batches.
+template <typename Tfloat>
+bool isHermitianSymmetric(std::complex<Tfloat>*              data,
+                          const std::array<fftw_iodim64, 2>& dims,
+                          const fftw_iodim64                 howmany_dims)
+{
+    for(size_t ibatch = 0; ibatch < howmany_dims.n; ++ibatch)
+    {
+        for(int i = 0; i < dims[0].n; ++i)
+        {
+            int i0 = (dims[0].n - i) % dims[0].n;
+            for(int j = 0; j < dims[1].n / 2 + 1; ++j)
+            {
+                int j0 = (dims[1].n - j) % dims[1].n;
+                if(j0 < dims[1].n / 2 + 1)
+                {
+                    auto pos  = howmany_dims.is * ibatch + dims[0].is * i + dims[1].is * j;
+                    auto pos0 = howmany_dims.is * ibatch + dims[0].is * i0 + dims[1].is * j0;
+                    if(data[pos] != std::conj(data[pos0]))
+                    {
+                        if(verbose)
+                        {
+                            std::cout << "ibatch: " << ibatch << std::endl;
+                            std::cout << "i,j:    " << i << "," << j << " -> " << pos << " -> "
+                                      << data[pos] << std::endl;
+                            std::cout << "i0,j0:  " << i0 << "," << j0 << " -> " << pos0 << " -> "
+                                      << data[pos0] << std::endl;
+                        }
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    return true;
 }
 
 // Templated test function for real to complex:
@@ -705,9 +854,6 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
     const size_t Ny      = length[0];
     const bool   inplace = placeness == rocfft_placement_inplace;
 
-    // TODO: add coverage for non-unit stride.
-    ASSERT_TRUE(stride == 1) << "Failure: test assumes contiguous data:";
-
     // TODO: add logic to deal with discontiguous data in Nystride
     const size_t Nycomplex = Ny / 2 + 1;
     const size_t Nystride  = inplace ? 2 * Nycomplex : Ny;
@@ -721,8 +867,14 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
     dims[0].is = (dims[1].n / 2 + 1) * dims[1].is;
     dims[0].os = Nystride * dims[1].os;
 
-    const size_t isize = dims[0].n * dims[0].is;
-    const size_t osize = dims[0].n * dims[0].os;
+    // Batch configuration:
+    std::array<fftw_iodim64, 1> howmany_dims;
+    howmany_dims[0].n  = batch;
+    howmany_dims[0].is = dims[0].n * dims[0].is;
+    howmany_dims[0].os = dims[0].n * dims[0].os;
+
+    const size_t isize = howmany_dims[0].n * howmany_dims[0].is;
+    const size_t osize = howmany_dims[0].n * howmany_dims[0].os;
 
     if(verbose)
     {
@@ -737,15 +889,13 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
             std::cout << "\tis: " << dims[i].is << std::endl;
             std::cout << "\tos: " << dims[i].os << std::endl;
         }
+        std::cout << "howmany_dims:\n";
+        std::cout << "\tn: " << howmany_dims[0].n << std::endl;
+        std::cout << "\tis: " << howmany_dims[0].is << std::endl;
+        std::cout << "\tos: " << howmany_dims[0].os << std::endl;
         std::cout << "isize: " << isize << "\n";
         std::cout << "osize: " << osize << "\n";
     }
-
-    // Batch configuration:
-    std::array<fftw_iodim64, 1> howmany_dims;
-    howmany_dims[0].n  = batch;
-    howmany_dims[0].is = isize;
-    howmany_dims[0].os = osize;
 
     // Set up buffers:
     // Local data buffer:
@@ -814,84 +964,62 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
 
     // The real-to-complex transform uses work memory, which is passed
     // via a rocfft_execution_info struct.
-    rocfft_execution_info gpu_planinfo = NULL;
-    fft_status                         = rocfft_execution_info_create(&gpu_planinfo);
+    rocfft_execution_info planinfo = NULL;
+    fft_status                     = rocfft_execution_info_create(&planinfo);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT execution info creation failure";
-    size_t gpu_planworkbuffersize = 0;
-    fft_status = rocfft_plan_get_work_buffer_size(gpu_plan, &gpu_planworkbuffersize);
+    size_t workbuffersize = 0;
+    fft_status            = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT get buffer size get failure";
-    void* gpu_planwbuffer = NULL;
-    if(gpu_planworkbuffersize > 0)
+    void* wbuffer = NULL;
+    if(workbuffersize > 0)
     {
-        hip_status = hipMalloc(&gpu_planwbuffer, gpu_planworkbuffersize);
+        hip_status = hipMalloc(&wbuffer, workbuffersize);
         ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-        fft_status = rocfft_execution_info_set_work_buffer(
-            gpu_planinfo, gpu_planwbuffer, gpu_planworkbuffersize);
+        fft_status = rocfft_execution_info_set_work_buffer(planinfo, wbuffer, workbuffersize);
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);
     srandom(3);
-    for(size_t i = 0; i < dims[0].n; i++)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < dims[1].n / 2 + 1; j++)
+        for(size_t i = 0; i < dims[0].n; i++)
         {
-            // TODO: make pattern variable
-            cpu_in[i * Nycomplex + j] = std::complex<Tfloat>((Tfloat)rand() / (Tfloat)RAND_MAX,
-                                                             (Tfloat)rand() / (Tfloat)RAND_MAX);
+            for(size_t j = 0; j < dims[1].n / 2 + 1; j++)
+            {
+                // TODO: make pattern variable
+                cpu_in[howmany_dims[0].is * ibatch + dims[0].is * i + dims[1].is * j]
+                    = std::complex<Tfloat>((Tfloat)rand() / (Tfloat)RAND_MAX,
+                                           (Tfloat)rand() / (Tfloat)RAND_MAX);
+            }
         }
     }
 
-    // Impose Hermitian symmetry:
-    // origin:
-    cpu_in[0].imag(0.0);
-
-    if(Nx % 2 == 0)
-    {
-        // x-Nyquist is real-valued
-        cpu_in[dims[0].is * (Nx / 2)].imag(0.0);
-    }
-    if(Ny % 2 == 0)
-    {
-        // y-Nyquist is real-valued
-        cpu_in[dims[1].is * (Ny / 2)].imag(0.0);
-    }
-    if(Nx % 2 == 0 && Ny % 2 == 0)
-    {
-        // xy-Nyquist is real-valued
-        cpu_in[dims[0].is * (Nx / 2) + dims[1].is * (Ny / 2)].imag(0.0);
-    }
-
-    // x-axis:
-    for(int i = 1; i < Nx / 2; ++i)
-    {
-        cpu_in[dims[0].is * (Nx - i)] = std::conj(cpu_in[dims[0].is * i]);
-    }
-
-    // y-Nyquist:
-    if(Ny % 2 == 0)
-    {
-        for(int i = 1; i < Nx / 2; ++i)
-        {
-            cpu_in[dims[0].is * (Nx - i) + dims[1].is * (Ny / 2)]
-                = std::conj(cpu_in[dims[0].is * i + dims[1].is * (Ny / 2)]);
-        }
-    }
+    imposeHermitianSymmetry(cpu_in, dims, howmany_dims[0]);
 
     if(verbose > 1)
     {
         std::cout << "\ninput:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < Nycomplex; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
             {
-                std::cout << cpu_in[dims[0].is * i + dims[1].is * j] << " ";
+                for(size_t j = 0; j < Nycomplex; j++)
+                {
+                    std::cout
+                        << cpu_in[howmany_dims[0].is * ibatch + dims[0].is * i + dims[1].is * j]
+                        << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
         std::cout << std::endl;
     }
+
+    ASSERT_TRUE(isHermitianSymmetric(cpu_in, dims, howmany_dims[0]));
 
     hip_status
         = hipMemcpy(gpu_in, cpu_in, isize * sizeof(std::complex<Tfloat>), hipMemcpyHostToDevice);
@@ -901,7 +1029,7 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
     fft_status = rocfft_execute(gpu_plan, // plan
                                 (void**)&gpu_in, // in_buffer
                                 (void**)&gpu_out, // out_buffer
-                                gpu_planinfo); // execution info
+                                planinfo); // execution info
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
 
     // Execute the CPU transform:
@@ -910,11 +1038,18 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
     if(verbose > 1)
     {
         std::cout << "cpu_out:\n";
-        for(size_t i = 0; i < dims[0].n; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < dims[1].n; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < dims[0].n; i++)
             {
-                std::cout << cpu_out[i * dims[0].os + j * dims[1].os] << " ";
+                for(size_t j = 0; j < dims[1].n; j++)
+                {
+                    std::cout
+                        << cpu_out[howmany_dims[0].os * ibatch + dims[0].os * i + dims[1].os * j]
+                        << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -930,11 +1065,18 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
     if(verbose > 1)
     {
         std::cout << "gpu_out:\n";
-        for(size_t i = 0; i < dims[0].n; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < dims[1].n; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < dims[0].n; i++)
             {
-                std::cout << gpu_out_comp[i * dims[0].os + j * dims[1].os] << " ";
+                for(size_t j = 0; j < dims[1].n; j++)
+                {
+                    std::cout << gpu_out_comp[howmany_dims[0].os * ibatch + dims[0].os * i
+                                              + dims[1].os * j]
+                              << " ";
+                }
+                std::cout << std::endl;
             }
             std::cout << std::endl;
         }
@@ -945,16 +1087,19 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
     Tfloat Linfdiff = 0.0;
     Tfloat L2norm   = 0.0;
     Tfloat Linfnorm = 0.0;
-    for(size_t i = 0; i < dims[0].n; i++)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < dims[1].n; j++)
+        for(size_t i = 0; i < dims[0].n; i++)
         {
-            const int pos  = dims[0].os * i + dims[1].os * j;
-            Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
-            Linfnorm       = std::max(std::abs(cpu_out[pos]), Linfnorm);
-            L2norm += std::abs(cpu_out[pos]) * std::abs(cpu_out[pos]);
-            Linfdiff = std::max(diff, Linfdiff);
-            L2diff += diff * diff;
+            for(size_t j = 0; j < dims[1].n; j++)
+            {
+                const int pos  = howmany_dims[0].os * ibatch + dims[0].os * i + dims[1].os * j;
+                Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
+                Linfnorm       = std::max(std::abs(cpu_out[pos]), Linfnorm);
+                L2norm += std::abs(cpu_out[pos]) * std::abs(cpu_out[pos]);
+                Linfdiff = std::max(diff, Linfdiff);
+                L2diff += diff * diff;
+            }
         }
     }
     L2norm = sqrt(L2norm);
@@ -981,12 +1126,13 @@ void normal_2D_complex_interleaved_to_real(std::vector<size_t>     length,
         hipFree(gpu_out);
         fftw_free(cpu_out);
     }
-    if(gpu_planwbuffer != NULL)
+    if(wbuffer != NULL)
     {
-        hipFree(gpu_planwbuffer);
+        hipFree(wbuffer);
     }
 
     // Destroy plans:
+    rocfft_execution_info_destroy(planinfo);
     rocfft_plan_description_destroy(gpu_description);
     rocfft_plan_destroy(gpu_plan);
     fftw_destroy_plan_type(cpu_plan);

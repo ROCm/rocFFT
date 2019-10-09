@@ -377,6 +377,7 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
     }
 
     // Destroy plans:
+    rocfft_execution_info_destroy(planinfo);
     rocfft_plan_description_destroy(gpu_description);
     rocfft_plan_destroy(gpu_plan);
     fftw_destroy_plan_type(cpu_plan);
@@ -526,9 +527,9 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
     ASSERT_TRUE(fft_status == rocfft_status_success)
         << "rocFFT data layout failure: " << fft_status;
 
-    rocfft_plan forward = NULL;
+    rocfft_plan gpu_plan = NULL;
     fft_status
-        = rocfft_plan_create(&forward,
+        = rocfft_plan_create(&gpu_plan,
                              inplace ? rocfft_placement_inplace : rocfft_placement_notinplace,
                              rocfft_transform_type_real_forward,
                              precision_selector<Tfloat>(),
@@ -540,19 +541,18 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
 
     // The real-to-complex transform uses work memory, which is passed
     // via a rocfft_execution_info struct.
-    rocfft_execution_info forwardinfo = NULL;
-    fft_status                        = rocfft_execution_info_create(&forwardinfo);
+    rocfft_execution_info planinfo = NULL;
+    fft_status                     = rocfft_execution_info_create(&planinfo);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT execution info creation failure";
-    size_t forwardworkbuffersize = 0;
-    fft_status = rocfft_plan_get_work_buffer_size(forward, &forwardworkbuffersize);
+    size_t workbuffersize = 0;
+    fft_status            = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT get buffer size get failure";
-    void* forwardwbuffer = NULL;
-    if(forwardworkbuffersize > 0)
+    void* wbuffer = NULL;
+    if(workbuffersize > 0)
     {
-        hip_status = hipMalloc(&forwardwbuffer, forwardworkbuffersize);
+        hip_status = hipMalloc(&wbuffer, workbuffersize);
         ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-        fft_status = rocfft_execution_info_set_work_buffer(
-            forwardinfo, forwardwbuffer, forwardworkbuffersize);
+        fft_status = rocfft_execution_info_set_work_buffer(planinfo, wbuffer, workbuffersize);
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
@@ -587,10 +587,10 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
     ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
 
     // Execute the GPU transform:
-    fft_status = rocfft_execute(forward, // plan
+    fft_status = rocfft_execute(gpu_plan, // plan
                                 (void**)&gpu_in, // in_buffer
                                 (void**)&gpu_out, // out_buffer
-                                forwardinfo); // execution info
+                                planinfo); // execution info
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
 
     // Execute the CPU transform:
@@ -689,14 +689,15 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
         hipFree(gpu_out);
         fftw_free(cpu_out);
     }
-    if(forwardwbuffer != NULL)
+    if(wbuffer != NULL)
     {
-        hipFree(forwardwbuffer);
+        hipFree(wbuffer);
     }
 
     // Destroy plans:
+    rocfft_execution_info_destroy(planinfo);
     rocfft_plan_description_destroy(gpu_description);
-    rocfft_plan_destroy(forward);
+    rocfft_plan_destroy(gpu_plan);
     fftw_destroy_plan_type(cpu_plan);
 }
 
@@ -856,8 +857,8 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
 
     // The real-to-complex transform uses work memory, which is passed
     // via a rocfft_execution_info struct.
-    rocfft_execution_info gpu_planinfo = NULL;
-    fft_status                         = rocfft_execution_info_create(&gpu_planinfo);
+    rocfft_execution_info planinfo = NULL;
+    fft_status                     = rocfft_execution_info_create(&planinfo);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT execution info creation failure";
     size_t gpu_planworkbuffersize = 0;
     fft_status = rocfft_plan_get_work_buffer_size(gpu_plan, &gpu_planworkbuffersize);
@@ -868,7 +869,7 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
         hip_status = hipMalloc(&gpu_planwbuffer, gpu_planworkbuffersize);
         ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
         fft_status = rocfft_execution_info_set_work_buffer(
-            gpu_planinfo, gpu_planwbuffer, gpu_planworkbuffersize);
+            planinfo, gpu_planwbuffer, gpu_planworkbuffersize);
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
@@ -920,7 +921,7 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
     fft_status = rocfft_execute(gpu_plan, // plan
                                 (void**)&gpu_in, // in_buffer
                                 (void**)&gpu_out, // out_buffer
-                                gpu_planinfo); // execution info
+                                planinfo); // execution info
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
 
     // Execute the CPU transform:
@@ -1008,6 +1009,7 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
     }
 
     // Destroy plans:
+    rocfft_execution_info_destroy(planinfo);
     rocfft_plan_description_destroy(gpu_description);
     rocfft_plan_destroy(gpu_plan);
     fftw_destroy_plan_type(cpu_plan);

@@ -42,7 +42,7 @@ static size_t pow5_range[] = {5, 25, 125};
 
 static size_t prime_range[] = {7, 11, 13, 17, 19, 23, 29};
 
-static size_t batch_range[] = {1};
+static size_t batch_range[] = {1, 2};
 
 static size_t stride_range[] = {1};
 
@@ -115,9 +115,6 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     int          sign
         = transform_type == rocfft_transform_type_complex_forward ? FFTW_FORWARD : FFTW_BACKWARD;
 
-    // TODO: add coverage for non-unit stride.
-    ASSERT_TRUE(stride == 1) << "Failure: test assumes contiguous data:";
-
     // Dimension configuration:
     std::array<fftw_iodim64, 3> dims;
     dims[2].n  = Nz;
@@ -130,8 +127,14 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     dims[0].is = dims[1].n * dims[1].is;
     dims[0].os = dims[1].n * dims[1].os;
 
-    const size_t isize = dims[0].n * dims[0].is;
-    const size_t osize = dims[0].n * dims[0].os;
+    // Batch configuration:
+    std::array<fftw_iodim64, 1> howmany_dims;
+    howmany_dims[0].n  = batch;
+    howmany_dims[0].is = dims[0].n * dims[0].is;
+    howmany_dims[0].os = dims[0].n * dims[0].os;
+
+    const size_t isize = howmany_dims[0].n * howmany_dims[0].is;
+    const size_t osize = howmany_dims[0].n * howmany_dims[0].os;
 
     if(verbose)
     {
@@ -146,15 +149,13 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
             std::cout << "\tis: " << dims[i].is << std::endl;
             std::cout << "\tos: " << dims[i].os << std::endl;
         }
+        std::cout << "howmany_dims:\n";
+        std::cout << "\tn: " << howmany_dims[0].n << std::endl;
+        std::cout << "\tis: " << howmany_dims[0].is << std::endl;
+        std::cout << "\tos: " << howmany_dims[0].os << std::endl;
         std::cout << "isize: " << isize << "\n";
         std::cout << "osize: " << osize << "\n";
     }
-
-    // Batch configuration:
-    std::array<fftw_iodim64, 1> howmany_dims;
-    howmany_dims[0].n  = batch;
-    howmany_dims[0].is = isize;
-    howmany_dims[0].os = osize;
 
     // Set up buffers:
     // Local data buffer:
@@ -221,7 +222,7 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
                              length.size(), // Dimensions
                              length.data(), // lengths
                              batch, // Number of transforms
-                             NULL); // Description
+                             gpu_description); // Description
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
 
     rocfft_execution_info planinfo = NULL;
@@ -242,21 +243,7 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);
     srandom(3);
-    for(size_t i = 0; i < Nx; i++)
-    {
-        for(size_t j = 0; j < Ny; j++)
-        {
-            for(size_t k = 0; k < Nz; k++)
-            {
-                // TODO: make pattern variable?
-                std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
-                                         (Tfloat)rand() / (Tfloat)RAND_MAX);
-                cpu_in[dims[0].is * i + dims[1].is * j + dims[2].is * k] = val;
-            }
-        }
-    }
-
-    if(verbose > 1)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
         for(size_t i = 0; i < Nx; i++)
         {
@@ -264,7 +251,34 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
             {
                 for(size_t k = 0; k < Nz; k++)
                 {
-                    std::cout << cpu_in[dims[0].is * i + dims[1].is * j + dims[2].is * k] << " ";
+                    // TODO: make pattern variable?
+                    std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
+                                             (Tfloat)rand() / (Tfloat)RAND_MAX);
+                    cpu_in[howmany_dims[0].is * ibatch + dims[0].is * i + dims[1].is * j
+                           + dims[2].is * k]
+                        = val;
+                }
+            }
+        }
+    }
+
+    if(verbose > 1)
+    {
+        std::cout << "input:\n";
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
+        {
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
+            {
+                for(size_t j = 0; j < Ny; j++)
+                {
+                    for(size_t k = 0; k < Nz; k++)
+                    {
+                        std::cout << cpu_in[howmany_dims[0].is * ibatch + dims[0].is * i
+                                            + dims[1].is * j + dims[2].is * k]
+                                  << " ";
+                    }
+                    std::cout << std::endl;
                 }
                 std::cout << std::endl;
             }
@@ -290,13 +304,20 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     if(verbose > 1)
     {
         std::cout << "cpu_out:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < Ny; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
             {
-                for(size_t k = 0; k < Nz; k++)
+                for(size_t j = 0; j < Ny; j++)
                 {
-                    std::cout << cpu_out[dims[0].os * i + dims[1].os * j + dims[2].is * k] << " ";
+                    for(size_t k = 0; k < Nz; k++)
+                    {
+                        std::cout << cpu_out[howmany_dims[0].os * ibatch + dims[0].os * i
+                                             + dims[1].os * j + dims[2].is * k]
+                                  << " ";
+                    }
+                    std::cout << std::endl;
                 }
                 std::cout << std::endl;
             }
@@ -314,14 +335,20 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     if(verbose > 1)
     {
         std::cout << "gpu_out:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < Ny; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
             {
-                for(size_t k = 0; k < Nz; k++)
+                for(size_t j = 0; j < Ny; j++)
                 {
-                    std::cout << gpu_out_comp[dims[0].os * i + dims[1].os * j + dims[2].is * k]
-                              << " ";
+                    for(size_t k = 0; k < Nz; k++)
+                    {
+                        std::cout << gpu_out_comp[howmany_dims[0].os * ibatch + dims[0].os * i
+                                                  + dims[1].os * j + dims[2].is * k]
+                                  << " ";
+                    }
+                    std::cout << std::endl;
                 }
                 std::cout << std::endl;
             }
@@ -332,15 +359,19 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
 
     Tfloat L2norm   = 0.0;
     Tfloat Linfnorm = 0.0;
-    for(size_t i = 0; i < Nx; i++)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < Ny; j++)
+        for(size_t i = 0; i < Nx; i++)
         {
-            for(size_t k = 0; k < Nz; k++)
+            for(size_t j = 0; j < Ny; j++)
             {
-                auto val = cpu_out[dims[0].os * i + dims[1].os * j + dims[2].is * k];
-                Linfnorm = std::max(std::abs(val), Linfnorm);
-                L2norm += std::abs(val) * std::abs(val);
+                for(size_t k = 0; k < Nz; k++)
+                {
+                    auto val = cpu_out[howmany_dims[0].os * ibatch + dims[0].os * i + dims[1].os * j
+                                       + dims[2].is * k];
+                    Linfnorm = std::max(std::abs(val), Linfnorm);
+                    L2norm += std::abs(val) * std::abs(val);
+                }
             }
         }
     }
@@ -349,23 +380,28 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     Tfloat L2diff   = 0.0;
     Tfloat Linfdiff = 0.0;
     int    nwrong   = 0;
-    for(size_t i = 0; i < Nx; i++)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < Ny; j++)
+        for(size_t i = 0; i < Nx; i++)
         {
-            for(size_t k = 0; k < Nz; k++)
+            for(size_t j = 0; j < Ny; j++)
             {
-                const int pos  = dims[0].os * i + dims[1].os * j + dims[2].is * k;
-                Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
-                Linfdiff       = std::max(diff, Linfdiff);
-                L2diff += diff * diff;
-                if(std::abs(diff) / (Linfnorm * log(Nx * Ny)) >= type_epsilon<Tfloat>())
+                for(size_t k = 0; k < Nz; k++)
                 {
-                    nwrong++;
-                    if(verbose > 1)
+                    const int pos = howmany_dims[0].os * ibatch + dims[0].os * i + dims[1].os * j
+                                    + dims[2].is * k;
+                    Tfloat diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
+                    Linfdiff    = std::max(diff, Linfdiff);
+                    L2diff += diff * diff;
+                    if(std::abs(diff) / (Linfnorm * log(Nx * Ny * Nz)) >= type_epsilon<Tfloat>())
                     {
-                        std::cout << "(i,j): " << i << " " << j << " cpu: " << cpu_out[pos]
-                                  << " gpu: " << gpu_out_comp[pos] << "\n";
+                        nwrong++;
+                        if(verbose > 1)
+                        {
+                            std::cout << "ibatch: " << ibatch << ", (i,j,k): " << i << " " << j
+                                      << " " << k << ", cpu: " << cpu_out[pos]
+                                      << ", gpu: " << gpu_out_comp[pos] << "\n";
+                        }
                     }
                 }
             }
@@ -401,6 +437,8 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
     }
 
     // Destroy plans:
+    rocfft_execution_info_destroy(planinfo);
+    rocfft_plan_description_destroy(gpu_description);
     rocfft_plan_destroy(gpu_plan);
     fftw_destroy_plan_type(cpu_plan);
 }
@@ -470,9 +508,6 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
     const size_t Nz      = length[0];
     const bool   inplace = placeness == rocfft_placement_inplace;
 
-    // TODO: add coverage for non-unit stride.
-    ASSERT_TRUE(stride == 1) << "Failure: test assumes contiguous data:";
-
     // TODO: add logic to deal with discontiguous data in Nystride
     const size_t Nzcomplex = Nz / 2 + 1;
     const size_t Nzstride  = inplace ? 2 * Nzcomplex : Nz;
@@ -489,8 +524,14 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
     dims[0].is = dims[1].n * dims[1].is;
     dims[0].os = dims[1].n * dims[1].os;
 
-    const size_t isize = dims[0].n * dims[0].is;
-    const size_t osize = dims[0].n * dims[0].os;
+    // Batch configuration:
+    std::array<fftw_iodim64, 1> howmany_dims;
+    howmany_dims[0].n  = batch;
+    howmany_dims[0].is = dims[0].n * dims[0].is;
+    howmany_dims[0].os = dims[0].n * dims[0].os;
+
+    const size_t isize = howmany_dims[0].n * howmany_dims[0].is;
+    const size_t osize = howmany_dims[0].n * howmany_dims[0].os;
 
     if(verbose)
     {
@@ -505,15 +546,13 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
             std::cout << "\tis: " << dims[i].is << std::endl;
             std::cout << "\tos: " << dims[i].os << std::endl;
         }
+        std::cout << "howmany_dims:\n";
+        std::cout << "\tn: " << howmany_dims[0].n << std::endl;
+        std::cout << "\tis: " << howmany_dims[0].is << std::endl;
+        std::cout << "\tos: " << howmany_dims[0].os << std::endl;
         std::cout << "isize: " << isize << "\n";
         std::cout << "osize: " << osize << "\n";
     }
-
-    // Batch configuration:
-    std::array<fftw_iodim64, 1> howmany_dims;
-    howmany_dims[0].n  = batch;
-    howmany_dims[0].is = isize;
-    howmany_dims[0].os = osize;
 
     // Set up buffers:
     // Local data buffer:
@@ -603,15 +642,20 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);
     srandom(3);
-    for(size_t i = 0; i < Nx; i++)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < Ny; j++)
+        for(size_t i = 0; i < Nx; i++)
         {
-            for(size_t k = 0; k < Nz; k++)
+            for(size_t j = 0; j < Ny; j++)
             {
-                // TODO: make pattern variable
-                Tfloat val = (Tfloat)rand() / (Tfloat)RAND_MAX;
-                cpu_in[i * dims[0].is + j * dims[1].is + k * dims[2].is] = val;
+                for(size_t k = 0; k < Nz; k++)
+                {
+                    // TODO: make pattern variable
+                    Tfloat val = (Tfloat)rand() / (Tfloat)RAND_MAX;
+                    cpu_in[howmany_dims[0].is * ibatch + dims[0].is * i + dims[1].is * j
+                           + dims[2].is * k]
+                        = val;
+                }
             }
         }
     }
@@ -619,13 +663,20 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
     if(verbose > 1)
     {
         std::cout << "input:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < Ny; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
             {
-                for(size_t k = 0; k < Nz; k++)
+                for(size_t j = 0; j < Ny; j++)
                 {
-                    std::cout << cpu_in[i * dims[0].is + j * dims[1].is + k * dims[2].is] << " ";
+                    for(size_t k = 0; k < Nz; k++)
+                    {
+                        std::cout << cpu_in[howmany_dims[0].is * ibatch + dims[0].is * i
+                                            + dims[1].is * j + dims[2].is * k]
+                                  << " ";
+                    }
+                    std::cout << std::endl;
                 }
                 std::cout << std::endl;
             }
@@ -650,13 +701,20 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
     if(verbose > 1)
     {
         std::cout << "cpu_out:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < Ny; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
             {
-                for(size_t k = 0; k < Nzcomplex; k++)
+                for(size_t j = 0; j < Ny; j++)
                 {
-                    std::cout << cpu_out[dims[0].os * i + dims[1].os * j + dims[2].os * k] << " ";
+                    for(size_t k = 0; k < Nzcomplex; k++)
+                    {
+                        std::cout << cpu_out[howmany_dims[0].os * ibatch + dims[0].os * i
+                                             + dims[1].os * j + dims[2].os * k]
+                                  << " ";
+                    }
+                    std::cout << std::endl;
                 }
                 std::cout << std::endl;
             }
@@ -674,14 +732,20 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
     if(verbose > 1)
     {
         std::cout << "gpu_out:\n";
-        for(size_t i = 0; i < Nx; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < Ny; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < Nx; i++)
             {
-                for(size_t k = 0; k < Nzcomplex; k++)
+                for(size_t j = 0; j < Ny; j++)
                 {
-                    std::cout << gpu_out_comp[dims[0].os * i + dims[1].os * j + dims[2].os * k]
-                              << " ";
+                    for(size_t k = 0; k < Nzcomplex; k++)
+                    {
+                        std::cout << gpu_out_comp[howmany_dims[0].os * ibatch + dims[0].os * i
+                                                  + dims[1].os * j + dims[2].os * k]
+                                  << " ";
+                    }
+                    std::cout << std::endl;
                 }
                 std::cout << std::endl;
             }
@@ -694,18 +758,22 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
     Tfloat Linfdiff = 0.0;
     Tfloat L2norm   = 0.0;
     Tfloat Linfnorm = 0.0;
-    for(size_t i = 0; i < Nx; i++)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < Ny; j++)
+        for(size_t i = 0; i < Nx; i++)
         {
-            for(size_t k = 0; k < Nzcomplex; k++)
+            for(size_t j = 0; j < Ny; j++)
             {
-                const int pos  = i * dims[0].os + j * dims[1].os + k * dims[2].os;
-                Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
-                Linfnorm       = std::max(std::abs(cpu_out[pos]), Linfnorm);
-                L2norm += std::abs(cpu_out[pos]) * std::abs(cpu_out[pos]);
-                Linfdiff = std::max(diff, Linfdiff);
-                L2diff += diff * diff;
+                for(size_t k = 0; k < Nzcomplex; k++)
+                {
+                    const int pos = howmany_dims[0].os * ibatch + dims[0].os * i + dims[1].os * j
+                                    + dims[2].os * k;
+                    Tfloat diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
+                    Linfnorm    = std::max(std::abs(cpu_out[pos]), Linfnorm);
+                    L2norm += std::abs(cpu_out[pos]) * std::abs(cpu_out[pos]);
+                    Linfdiff = std::max(diff, Linfdiff);
+                    L2diff += diff * diff;
+                }
             }
         }
     }
@@ -739,121 +807,97 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
     }
 
     // Destroy plans:
+    rocfft_execution_info_destroy(planinfo);
     rocfft_plan_description_destroy(gpu_description);
     rocfft_plan_destroy(gpu_plan);
     fftw_destroy_plan_type(cpu_plan);
 }
 
-// Impose Hermitian symmetry on a 3D complex array of size Nx x Ny * (Nz / 2 + 1).
+// Impose Hermitian symmetry on a 3D complex array of size Nx * Ny * (Nz / 2 + 1).
 template <typename Tfloat>
-void imposeHermitianSymmetry(std::complex<Tfloat>* data, const std::array<fftw_iodim64, 3>& dims)
+void imposeHermitianSymmetry(std::complex<Tfloat>*              data,
+                             const std::array<fftw_iodim64, 3>& dims,
+                             const fftw_iodim64                 howmany_dims)
 {
     const size_t Nx = dims[0].n;
     const size_t Ny = dims[1].n;
     const size_t Nz = dims[2].n;
 
-    // Origin:
-    data[0].imag(0.0);
-    if(Nx % 2 == 0)
+    for(size_t ibatch = 0; ibatch < howmany_dims.n; ++ibatch)
     {
-        // x-Nyquist is real-valued
-        data[dims[0].is * (Nx / 2)].imag(0.0);
-    }
-    if(Ny % 2 == 0)
-    {
-        // y-Nyquist is real-valued
-        data[dims[1].is * (Ny / 2)].imag(0.0);
-    }
-    if(Nz % 2 == 0)
-    {
-        // y-Nyquist is real-valued
-        data[dims[2].is * (Nz / 2)].imag(0.0);
-    }
-    if(Nx % 2 == 0 && Ny % 2 == 0)
-    {
-        // xy-Nyquist is real-valued
-        data[dims[0].is * (Nx / 2) + dims[1].is * (Ny / 2)].imag(0.0);
-    }
-    if(Nx % 2 == 0 && Nz % 2 == 0)
-    {
-        // xz-Nyquist is real-valued
-        data[dims[0].is * (Nx / 2) + dims[2].is * (Nz / 2)].imag(0.0);
-    }
-    if(Ny % 2 == 0 && Nz % 2 == 0)
-    {
-        // yz-Nyquist is real-valued
-        data[dims[1].is * (Ny / 2) + dims[2].is * (Nz / 2)].imag(0.0);
-    }
-    if(Nx % 2 == 0 && Ny % 2 == 0 && Nz % 2 == 0)
-    {
-        // xyz-Nyquist is real-valued
-        data[dims[0].is * (Nx / 2) + dims[1].is * (Ny / 2) + dims[2].is * (Nz / 2)].imag(0.0);
-    }
-
-    // x-axis:
-    for(int i = 1; i < Nx / 2 + 1; ++i)
-    {
-        data[dims[0].is * (Nx - i)] = std::conj(data[dims[0].is * i]);
-    }
-    // y-axis:
-    for(int j = 1; j < Ny / 2 + 1; ++j)
-    {
-        data[dims[1].is * (Ny - j)] = std::conj(data[dims[1].is * j]);
-    }
-    // x-y plane:
-    for(int i = 1; i < Nx / 2 + 1; ++i)
-    {
-        for(int j = 1; j < Ny; ++j)
+        // Origin:
+        data[howmany_dims.is * ibatch + 0].imag(0.0);
+        if(Nx % 2 == 0)
         {
-            data[dims[0].is * (Nx - i) + dims[1].is * (Ny - j)]
-                = std::conj(data[dims[0].is * i + dims[1].is * j]);
+            // x-Nyquist is real-valued
+            data[dims[howmany_dims.is * ibatch + 0].is * (Nx / 2)].imag(0.0);
         }
-    }
-
-    // x-Nyquist plane:
-    if(Nx % 2 == 0)
-    {
-        // x-axis:
-        for(int j = 1; j < Ny / 2 + 1; ++j)
+        if(Ny % 2 == 0)
         {
-            data[dims[0].is * (Nx / 2) + dims[1].is * j]
-                = std::conj(data[dims[0].is * (Nx / 2) + dims[1].is * (Ny - j)]);
+            // y-Nyquist is real-valued
+            data[howmany_dims.is * ibatch + dims[1].is * (Ny / 2)].imag(0.0);
         }
-    }
+        if(Nz % 2 == 0)
+        {
+            // y-Nyquist is real-valued
+            data[howmany_dims.is * ibatch + dims[2].is * (Nz / 2)].imag(0.0);
+        }
+        if(Nx % 2 == 0 && Ny % 2 == 0)
+        {
+            // xy-Nyquist is real-valued
+            data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2) + dims[1].is * (Ny / 2)].imag(
+                0.0);
+        }
+        if(Nx % 2 == 0 && Nz % 2 == 0)
+        {
+            // xz-Nyquist is real-valued
+            data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2) + dims[2].is * (Nz / 2)].imag(
+                0.0);
+        }
+        if(Ny % 2 == 0 && Nz % 2 == 0)
+        {
+            // yz-Nyquist is real-valued
+            data[howmany_dims.is * ibatch + dims[1].is * (Ny / 2) + dims[2].is * (Nz / 2)].imag(
+                0.0);
+        }
+        if(Nx % 2 == 0 && Ny % 2 == 0 && Nz % 2 == 0)
+        {
+            // xyz-Nyquist is real-valued
+            data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2) + dims[1].is * (Ny / 2)
+                 + dims[2].is * (Nz / 2)]
+                .imag(0.0);
+        }
 
-    // y-Nyquist plane:
-    if(Ny % 2 == 0)
-    {
         // x-axis:
         for(int i = 1; i < Nx / 2 + 1; ++i)
         {
-            data[dims[0].is * (Nx - i) + dims[1].is * (Ny / 2)]
-                = std::conj(data[dims[0].is * i + dims[1].is * (Ny / 2)]);
-        }
-    }
-
-    // z-Nyquist plane:
-    if(Nz % 2 == 0)
-    {
-        // x-axis:
-        for(int i = 1; i < Nx / 2 + 1; ++i)
-        {
-            data[dims[0].is * (Nx - i) + dims[2].is * (Nz / 2)]
-                = std::conj(data[dims[0].is * i + dims[2].is * (Nz / 2)]);
+            data[howmany_dims.is * ibatch + dims[0].is * (Nx - i)]
+                = std::conj(data[howmany_dims.is * ibatch + dims[0].is * i]);
         }
         // y-axis:
         for(int j = 1; j < Ny / 2 + 1; ++j)
         {
-            data[dims[1].is * (Ny - j) + dims[2].is * (Nz / 2)]
-                = std::conj(data[dims[1].is * j + dims[2].is * (Nz / 2)]);
+            data[howmany_dims.is * ibatch + dims[1].is * (Ny - j)]
+                = std::conj(data[howmany_dims.is * ibatch + dims[1].is * j]);
         }
+        // x-y plane:
+        for(int i = 1; i < Nx / 2 + 1; ++i)
+        {
+            for(int j = 1; j < Ny; ++j)
+            {
+                data[howmany_dims.is * ibatch + dims[0].is * (Nx - i) + dims[1].is * (Ny - j)]
+                    = std::conj(data[howmany_dims.is * ibatch + dims[0].is * i + dims[1].is * j]);
+            }
+        }
+
         // x-Nyquist plane:
         if(Nx % 2 == 0)
         {
+            // x-axis:
             for(int j = 1; j < Ny / 2 + 1; ++j)
             {
-                data[dims[0].is * (Nx / 2) + dims[1].is * j + dims[2].is * (Nz / 2)] = std::conj(
-                    data[dims[0].is * (Nx / 2) + dims[1].is * (Ny - j) + dims[2].is * (Nz / 2)]);
+                data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2) + dims[1].is * j] = std::conj(
+                    data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2) + dims[1].is * (Ny - j)]);
             }
         }
 
@@ -863,18 +907,63 @@ void imposeHermitianSymmetry(std::complex<Tfloat>* data, const std::array<fftw_i
             // x-axis:
             for(int i = 1; i < Nx / 2 + 1; ++i)
             {
-                data[dims[0].is * (Nx - i) + dims[1].is * (Ny / 2) + dims[2].is * (Nz / 2)]
+                data[howmany_dims.is * ibatch + dims[0].is * (Nx - i) + dims[1].is * (Ny / 2)]
                     = std::conj(
-                        data[dims[0].is * i + dims[1].is * (Ny / 2) + dims[2].is * (Nz / 2)]);
+                        data[howmany_dims.is * ibatch + dims[0].is * i + dims[1].is * (Ny / 2)]);
             }
         }
-        // x-y plane:
-        for(int i = 1; i < Nx / 2 + 1; ++i)
+
+        // z-Nyquist plane:
+        if(Nz % 2 == 0)
         {
-            for(int j = 1; j < Ny; ++j)
+            // x-axis:
+            for(int i = 1; i < Nx / 2 + 1; ++i)
             {
-                data[dims[0].is * (Nx - i) + dims[1].is * (Ny - j) + dims[2].is * (Nz / 2)]
-                    = std::conj(data[dims[0].is * i + dims[1].is * j + dims[2].is * (Nz / 2)]);
+                data[howmany_dims.is * ibatch + dims[0].is * (Nx - i) + dims[2].is * (Nz / 2)]
+                    = std::conj(
+                        data[howmany_dims.is * ibatch + dims[0].is * i + dims[2].is * (Nz / 2)]);
+            }
+            // y-axis:
+            for(int j = 1; j < Ny / 2 + 1; ++j)
+            {
+                data[howmany_dims.is * ibatch + dims[1].is * (Ny - j) + dims[2].is * (Nz / 2)]
+                    = std::conj(
+                        data[howmany_dims.is * ibatch + dims[1].is * j + dims[2].is * (Nz / 2)]);
+            }
+            // x-Nyquist plane:
+            if(Nx % 2 == 0)
+            {
+                for(int j = 1; j < Ny / 2 + 1; ++j)
+                {
+                    data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2) + dims[1].is * j
+                         + dims[2].is * (Nz / 2)]
+                        = std::conj(data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2)
+                                         + dims[1].is * (Ny - j) + dims[2].is * (Nz / 2)]);
+                }
+            }
+
+            // y-Nyquist plane:
+            if(Ny % 2 == 0)
+            {
+                // x-axis:
+                for(int i = 1; i < Nx / 2 + 1; ++i)
+                {
+                    data[howmany_dims.is * ibatch + dims[0].is * (Nx - i) + dims[1].is * (Ny / 2)
+                         + dims[2].is * (Nz / 2)]
+                        = std::conj(data[howmany_dims.is * ibatch + dims[0].is * i
+                                         + dims[1].is * (Ny / 2) + dims[2].is * (Nz / 2)]);
+                }
+            }
+            // x-y plane:
+            for(int i = 1; i < Nx / 2 + 1; ++i)
+            {
+                for(int j = 1; j < Ny; ++j)
+                {
+                    data[howmany_dims.is * ibatch + dims[0].is * (Nx - i) + dims[1].is * (Ny - j)
+                         + dims[2].is * (Nz / 2)]
+                        = std::conj(data[howmany_dims.is * ibatch + dims[0].is * i + dims[1].is * j
+                                         + dims[2].is * (Nz / 2)]);
+                }
             }
         }
     }
@@ -882,31 +971,39 @@ void imposeHermitianSymmetry(std::complex<Tfloat>* data, const std::array<fftw_i
 
 // Check for exact Hermitian symmetry on a 3D complex array of size Nx x Ny * (Nz / 2 + 1).
 template <typename Tfloat>
-bool isHermitianSymmetric(std::complex<Tfloat>* data, const std::array<fftw_iodim64, 3>& dims)
+bool isHermitianSymmetric(std::complex<Tfloat>*              data,
+                          const std::array<fftw_iodim64, 3>& dims,
+                          const fftw_iodim64                 howmany_dims)
 {
-    for(int i = 0; i < dims[0].n; ++i)
+    for(size_t ibatch = 0; ibatch < howmany_dims.n; ++ibatch)
     {
-        int i0 = (dims[0].n - i) % dims[0].n;
-        for(int j = 0; j < dims[1].n; ++j)
+        for(int i = 0; i < dims[0].n; ++i)
         {
-            int j0 = (dims[1].n - j) % dims[1].n;
-            for(int k = 0; k < dims[2].n / 2 + 1; ++k)
+            int i0 = (dims[0].n - i) % dims[0].n;
+            for(int j = 0; j < dims[1].n; ++j)
             {
-                int k0 = (dims[2].n - k) % dims[2].n;
-                if(k0 < dims[2].n / 2 + 1)
+                int j0 = (dims[1].n - j) % dims[1].n;
+                for(int k = 0; k < dims[2].n / 2 + 1; ++k)
                 {
-                    auto pos  = dims[0].is * i + dims[1].is * j + dims[2].is * k;
-                    auto pos0 = dims[0].is * i0 + dims[1].is * j0 + dims[2].is * k0;
-                    if(data[pos] != std::conj(data[pos0]))
+                    int k0 = (dims[2].n - k) % dims[2].n;
+                    if(k0 < dims[2].n / 2 + 1)
                     {
-                        if(verbose > 1)
+                        auto pos = howmany_dims.is * ibatch + dims[0].is * i + dims[1].is * j
+                                   + dims[2].is * k;
+                        auto pos0 = howmany_dims.is * ibatch + dims[0].is * i0 + dims[1].is * j0
+                                    + dims[2].is * k0;
+                        if(data[pos] != std::conj(data[pos0]))
                         {
-                            std::cout << "i,j,k:    " << i << "," << j << "," << k << " -> " << pos
-                                      << " -> " << data[pos] << std::endl;
-                            std::cout << "i0,j0,k0: " << i0 << "," << j0 << "," << k0 << " -> "
-                                      << pos0 << " -> " << data[pos0] << std::endl;
+                            if(verbose)
+                            {
+                                std::cout << "ibatch: " << ibatch << std::endl;
+                                std::cout << "i,j,k:    " << i << "," << j << "," << k << " -> "
+                                          << pos << " -> " << data[pos] << std::endl;
+                                std::cout << "i0,j0,k0: " << i0 << "," << j0 << "," << k0 << " -> "
+                                          << pos0 << " -> " << data[pos0] << std::endl;
+                            }
+                            return false;
                         }
-                        return false;
                     }
                 }
             }
@@ -931,9 +1028,6 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
     const size_t Nz      = length[0];
     const bool   inplace = placeness == rocfft_placement_inplace;
 
-    // TODO: add coverage for non-unit stride.
-    ASSERT_TRUE(stride == 1) << "Failure: test assumes contiguous data:";
-
     // TODO: add logic to deal with discontiguous data in Nystride
     const size_t Nzcomplex = Nz / 2 + 1;
     const size_t Nzstride  = inplace ? 2 * Nzcomplex : Nz;
@@ -950,8 +1044,14 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
     dims[0].is = dims[1].n * dims[1].is;
     dims[0].os = dims[1].n * dims[1].os;
 
-    const size_t isize = dims[0].n * dims[0].is;
-    const size_t osize = dims[0].n * dims[0].os;
+    // Batch configuration:
+    std::array<fftw_iodim64, 1> howmany_dims;
+    howmany_dims[0].n  = batch;
+    howmany_dims[0].is = dims[0].n * dims[0].is;
+    howmany_dims[0].os = dims[0].n * dims[0].os;
+
+    const size_t isize = howmany_dims[0].n * howmany_dims[0].is;
+    const size_t osize = howmany_dims[0].n * howmany_dims[0].os;
 
     if(verbose)
     {
@@ -966,15 +1066,13 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
             std::cout << "\tis: " << dims[i].is << std::endl;
             std::cout << "\tos: " << dims[i].os << std::endl;
         }
+        std::cout << "howmany_dims:\n";
+        std::cout << "\tn: " << howmany_dims[0].n << std::endl;
+        std::cout << "\tis: " << howmany_dims[0].is << std::endl;
+        std::cout << "\tos: " << howmany_dims[0].os << std::endl;
         std::cout << "isize: " << isize << "\n";
         std::cout << "osize: " << osize << "\n";
     }
-
-    // Batch configuration:
-    std::array<fftw_iodim64, 1> howmany_dims;
-    howmany_dims[0].n  = batch;
-    howmany_dims[0].is = isize;
-    howmany_dims[0].os = osize;
 
     // Set up buffers:
     // Local data buffer:
@@ -1046,8 +1144,8 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
 
     // The real-to-complex transform uses work memory, which is passed
     // via a rocfft_execution_info struct.
-    rocfft_execution_info gpu_planinfo = NULL;
-    fft_status                         = rocfft_execution_info_create(&gpu_planinfo);
+    rocfft_execution_info planinfo = NULL;
+    fft_status                     = rocfft_execution_info_create(&planinfo);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT execution info creation failure";
     size_t gpu_planworkbuffersize = 0;
     fft_status = rocfft_plan_get_work_buffer_size(gpu_plan, &gpu_planworkbuffersize);
@@ -1058,7 +1156,7 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
         hip_status = hipMalloc(&gpu_planwbuffer, gpu_planworkbuffersize);
         ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
         fft_status = rocfft_execution_info_set_work_buffer(
-            gpu_planinfo, gpu_planwbuffer, gpu_planworkbuffersize);
+            planinfo, gpu_planwbuffer, gpu_planworkbuffersize);
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
@@ -1080,18 +1178,25 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
     }
 
     // Impose Hermitian symmetry:
-    imposeHermitianSymmetry(cpu_in, dims);
+    imposeHermitianSymmetry(cpu_in, dims, howmany_dims[0]);
 
     if(verbose > 1)
     {
         std::cout << "\ninput:\n";
-        for(size_t i = 0; i < dims[0].n; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < dims[1].n; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < dims[0].n; i++)
             {
-                for(size_t k = 0; k < dims[2].n / 2 + 1; k++)
+                for(size_t j = 0; j < dims[1].n; j++)
                 {
-                    std::cout << cpu_in[dims[0].is * i + dims[1].is * j + dims[2].is * k] << " ";
+                    for(size_t k = 0; k < dims[2].n / 2 + 1; k++)
+                    {
+                        std::cout << cpu_in[howmany_dims[0].os * ibatch + dims[0].is * i
+                                            + dims[1].is * j + dims[2].is * k]
+                                  << " ";
+                    }
+                    std::cout << std::endl;
                 }
                 std::cout << std::endl;
             }
@@ -1100,7 +1205,7 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
         std::cout << std::endl;
     }
 
-    ASSERT_TRUE(isHermitianSymmetric(cpu_in, dims));
+    ASSERT_TRUE(isHermitianSymmetric(cpu_in, dims, howmany_dims[0]));
 
     hip_status
         = hipMemcpy(gpu_in, cpu_in, isize * sizeof(std::complex<Tfloat>), hipMemcpyHostToDevice);
@@ -1110,7 +1215,7 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
     fft_status = rocfft_execute(gpu_plan, // plan
                                 (void**)&gpu_in, // in_buffer
                                 (void**)&gpu_out, // out_buffer
-                                gpu_planinfo); // execution info
+                                planinfo); // execution info
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
 
     // Execute the CPU transform:
@@ -1119,13 +1224,20 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
     if(verbose > 1)
     {
         std::cout << "cpu_out:\n";
-        for(size_t i = 0; i < dims[0].n; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < dims[1].n; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < dims[0].n; i++)
             {
-                for(size_t k = 0; k < dims[2].n; k++)
+                for(size_t j = 0; j < dims[1].n; j++)
                 {
-                    std::cout << cpu_out[dims[0].os * i + dims[1].os * j + dims[2].os * k] << " ";
+                    for(size_t k = 0; k < dims[2].n; k++)
+                    {
+                        std::cout << cpu_out[howmany_dims[0].os * ibatch + dims[0].os * i
+                                             + dims[1].os * j + dims[2].os * k]
+                                  << " ";
+                    }
+                    std::cout << std::endl;
                 }
                 std::cout << std::endl;
             }
@@ -1143,14 +1255,20 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
     if(verbose > 1)
     {
         std::cout << "gpu_out:\n";
-        for(size_t i = 0; i < dims[0].n; i++)
+        for(size_t ibatch = 0; ibatch < batch; ++ibatch)
         {
-            for(size_t j = 0; j < dims[1].n; j++)
+            std::cout << "ibatch: " << ibatch << std::endl;
+            for(size_t i = 0; i < dims[0].n; i++)
             {
-                for(size_t k = 0; k < dims[2].n; k++)
+                for(size_t j = 0; j < dims[1].n; j++)
                 {
-                    std::cout << gpu_out_comp[dims[0].os * i + dims[1].os * j + dims[2].os * k]
-                              << " ";
+                    for(size_t k = 0; k < dims[2].n; k++)
+                    {
+                        std::cout << gpu_out_comp[howmany_dims[0].os * ibatch + dims[0].os * i
+                                                  + dims[1].os * j + dims[2].os * k]
+                                  << " ";
+                    }
+                    std::cout << std::endl;
                 }
                 std::cout << std::endl;
             }
@@ -1163,18 +1281,22 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
     Tfloat Linfdiff = 0.0;
     Tfloat L2norm   = 0.0;
     Tfloat Linfnorm = 0.0;
-    for(size_t i = 0; i < dims[0].n; i++)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < dims[1].n; j++)
+        for(size_t i = 0; i < dims[0].n; i++)
         {
-            for(size_t k = 0; k < dims[2].n; k++)
+            for(size_t j = 0; j < dims[1].n; j++)
             {
-                const int pos  = dims[0].os * i + dims[1].os * j + dims[2].os * k;
-                Tfloat    diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
-                Linfnorm       = std::max(std::abs(cpu_out[pos]), Linfnorm);
-                L2norm += std::abs(cpu_out[pos]) * std::abs(cpu_out[pos]);
-                Linfdiff = std::max(diff, Linfdiff);
-                L2diff += diff * diff;
+                for(size_t k = 0; k < dims[2].n; k++)
+                {
+                    const int pos = howmany_dims[0].os * ibatch + dims[0].os * i + dims[1].os * j
+                                    + dims[2].os * k;
+                    Tfloat diff = std::abs(cpu_out[pos] - gpu_out_comp[pos]);
+                    Linfnorm    = std::max(std::abs(cpu_out[pos]), Linfnorm);
+                    L2norm += std::abs(cpu_out[pos]) * std::abs(cpu_out[pos]);
+                    Linfdiff = std::max(diff, Linfdiff);
+                    L2diff += diff * diff;
+                }
             }
         }
     }
@@ -1208,6 +1330,7 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
     }
 
     // Destroy plans:
+    rocfft_execution_info_destroy(planinfo);
     rocfft_plan_description_destroy(gpu_description);
     rocfft_plan_destroy(gpu_plan);
     fftw_destroy_plan_type(cpu_plan);
