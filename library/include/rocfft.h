@@ -32,7 +32,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif // __cplusplus
+#endif /* __cplusplus */
 
 #include <cstddef>
 
@@ -211,36 +211,38 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan
 ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description description, const double scale );
 #endif
 
-/// @brief Set data layout
-///
-/// @details This is one of plan description functions to specify
-///  optional additional plan properties using the description
-///  handle. This API specifies the layout of buffers.
-///
-/// This function can be used to specify input and output array
-/// types. Not all combinations of array types are supported and error
-/// code will be returned for unsupported cases.  Additionally, input
-/// and output buffer offsets can be specified. The function can be
-/// used to specify custom layout of data, with the ability to specify
-/// stride between consecutive elements in all dimensions. Also,
-/// distance between transform data members can be specified. The
-/// library will choose appropriate defaults if offsets/strides are
-/// set to null ptr and/or distances set to 0.
-///
-/// @param[in, out] description description handle
-/// @param[in] in_array_type array type of input buffer
-/// @param[in] out_array_type array type of output buffer
-/// @param[in] in_offsets offsets, in element units, to start of data in input buffer
-/// @param[in] out_offsets offsets, in element units, to start of data in output buffer
-/// @param[in] in_strides_size size of in_strides array (must be equal to transform dimensions)
-/// @param[in] in_strides array of strides, in each dimension, of
-///  input buffer; if set to null ptr library chooses defaults
-/// @param[in] in_distance distance between start of each data instance in input buffer
-/// @param[in] out_strides_size size of out_strides array (must be
-/// equal to transform dimensions)
-/// @param[in] out_strides array of strides, in each dimension, of
-///  output buffer; if set to null ptr library chooses defaults
-/// @param[in] out_distance distance between start of each data instance in output buffer
+/*!
+ *  @brief Set data layout
+ * 
+ *  @details This is one of plan description functions to specify
+ *   optional additional plan properties using the description
+ *   handle. This API specifies the layout of buffers.
+ * 
+ *  This function can be used to specify input and output array
+ *  types. Not all combinations of array types are supported and error
+ *  code will be returned for unsupported cases.  Additionally, input
+ *  and output buffer offsets can be specified. The function can be
+ *  used to specify custom layout of data, with the ability to specify
+ *  stride between consecutive elements in all dimensions. Also,
+ *  distance between transform data members can be specified. The
+ *  library will choose appropriate defaults if offsets/strides are
+ *  set to null ptr and/or distances set to 0.
+ * 
+ *  @param[in, out] description description handle
+ *  @param[in] in_array_type array type of input buffer
+ *  @param[in] out_array_type array type of output buffer
+ *  @param[in] in_offsets offsets, in element units, to start of data in input buffer
+ *  @param[in] out_offsets offsets, in element units, to start of data in output buffer
+ *  @param[in] in_strides_size size of in_strides array (must be equal to transform dimensions)
+ *  @param[in] in_strides array of strides, in each dimension, of
+ *   input buffer; if set to null ptr library chooses defaults
+ *  @param[in] in_distance distance between start of each data instance in input buffer
+ *  @param[in] out_strides_size size of out_strides array (must be
+ *  equal to transform dimensions)
+ *  @param[in] out_strides array of strides, in each dimension, of
+ *   output buffer; if set to null ptr library chooses defaults
+ *  @param[in] out_distance distance between start of each data instance in output buffer
+ */
 ROCFFT_EXPORT rocfft_status
     rocfft_plan_description_set_data_layout(rocfft_plan_description description,
                                             const rocfft_array_type in_array_type,
@@ -383,6 +385,6 @@ typedef enum rocfft_layer_mode_
 
 #ifdef __cplusplus
 }
-#endif // __cplusplus
+#endif /* __cplusplus */
 
-#endif // __ROCFFT_H__
+#endif /* __ROCFFT_H__ */
