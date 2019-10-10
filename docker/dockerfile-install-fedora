@@ -2,7 +2,7 @@
 ARG base_image
 
 FROM ${base_image}
-LABEL maintainer="kent.knox@amd"
+LABEL maintainer="rocfft-maintainer@amd.com"
 
 # Copy the rpm package of rocfft into the container from host
 COPY *.rpm /tmp/

@@ -19,7 +19,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 # #############################################################################
-# Author: Kent Knox
 
 # The ROCm platform requires Ubuntu 16.04 or Fedora 24, which has cmake 3.5
 cmake_minimum_required( VERSION 3.5 )

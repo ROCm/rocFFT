@@ -158,7 +158,7 @@ set( ROCFFT_CONFIG_DIR "\${CPACK_PACKAGING_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDI
 rocm_create_package(
     NAME ${package_name}
     DESCRIPTION "Radeon Open Compute FFT library"
-    MAINTAINER "Kent Knox <kent.knox@amd.com>"
+    MAINTAINER "rocfft-maintainer@amd.com"
     LDCONFIG
     LDCONFIG_DIR ${ROCFFT_CONFIG_DIR}
 )
