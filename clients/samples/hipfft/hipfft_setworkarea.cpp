@@ -29,7 +29,7 @@ int main()
     std::cout << "hipfft 1D single-precision real-to-complex transform showing work memory usage\n";
 
     int major_version;
-    hipfftGetProperty(MAJOR_VERSION, &major_version);
+    hipfftGetProperty(HIPFFT_MAJOR_VERSION, &major_version);
     std::cout << "hipFFT major_version " << major_version << std::endl;
 
     const size_t N        = 9;

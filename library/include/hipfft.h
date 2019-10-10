@@ -66,9 +66,9 @@ typedef enum hipfftType_t
 
 typedef enum hipfftLibraryPropertyType_t
 {
-    MAJOR_VERSION,
-    MINOR_VERSION,
-    PATCH_LEVEL
+    HIPFFT_MAJOR_VERSION,
+    HIPFFT_MINOR_VERSION,
+    HIPFFT_PATCH_LEVEL
 } hipfftLibraryPropertyType;
 
 #define HIPFFT_FORWARD -1

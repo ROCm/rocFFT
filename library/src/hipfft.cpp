@@ -1040,11 +1040,11 @@ hipfftResult hipfftGetProperty(hipfftLibraryPropertyType type, int* value)
     int minor = (full - major * 10000) / 100;
     int patch = (full - major * 10000 - minor * 100);
 
-    if(type == MAJOR_VERSION)
+    if(type == HIPFFT_MAJOR_VERSION)
         *value = major;
-    else if(type == MINOR_VERSION)
+    else if(type == HIPFFT_MINOR_VERSION)
         *value = minor;
-    else if(type == PATCH_LEVEL)
+    else if(type == HIPFFT_PATCH_LEVEL)
         *value = patch;
     else
         return HIPFFT_INVALID_TYPE;
