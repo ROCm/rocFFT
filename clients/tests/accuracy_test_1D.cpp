@@ -44,10 +44,7 @@ static std::vector<size_t> mix_range
 static std::vector<size_t> prime_range
     = {7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97};
 
-static size_t complex_batch_range[] = {1, 2};
-
-// TODO: add batch tests for r/c cases.
-static size_t real_complex_batch_range[] = {1};
+static size_t batch_range[] = {1, 2};
 
 static size_t stride_range[] = {1};
 
@@ -200,10 +197,10 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
                                                          NULL,
                                                          istride.size(),
                                                          istride.data(),
-                                                         0,
+                                                         howmany_dims[0].is,
                                                          ostride.size(),
                                                          ostride.data(),
-                                                         0);
+                                                         howmany_dims[0].os);
     ASSERT_TRUE(fft_status == rocfft_status_success)
         << "rocFFT data layout failure: " << fft_status;
 
@@ -219,8 +216,6 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
                              gpu_description); // Description
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
 
-    // The real-to-complex transform uses work memory, which is passed
-    // via a rocfft_execution_info struct.
     rocfft_execution_info planinfo = NULL;
     fft_status                     = rocfft_execution_info_create(&planinfo);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT execution info creation failure";
@@ -262,6 +257,15 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
             std::cout << std::endl;
         }
     }
+    if(verbose > 2)
+    {
+        std::cout << "flat input:\n";
+        for(size_t i = 0; i < isize; ++i)
+        {
+            std::cout << cpu_in[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     hip_status
         = hipMemcpy(gpu_in, cpu_in, isize * sizeof(std::complex<Tfloat>), hipMemcpyHostToDevice);
@@ -290,6 +294,15 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
             std::cout << std::endl;
         }
     }
+    if(verbose > 2)
+    {
+        std::cout << "flat cpu output:\n";
+        for(size_t i = 0; i < osize; ++i)
+        {
+            std::cout << cpu_out[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     // Copy the data back and compare:
     fftw_vector<std::complex<Tfloat>> gpu_out_comp(osize);
@@ -308,6 +321,15 @@ void normal_1D_complex_interleaved_to_complex_interleaved(size_t                
                 std::cout << gpu_out_comp[howmany_dims[0].os * ibatch + dims[0].os * i] << " ";
             }
             std::cout << std::endl;
+        }
+        std::cout << std::endl;
+    }
+    if(verbose > 2)
+    {
+        std::cout << "flat gpu output:\n";
+        for(size_t i = 0; i < osize; ++i)
+        {
+            std::cout << gpu_out_comp[i] << " ";
         }
         std::cout << std::endl;
     }
@@ -448,7 +470,6 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
     std::array<fftw_iodim64, 1> howmany_dims;
     howmany_dims[0].n  = batch;
     howmany_dims[0].is = (inplace ? Ncomplex * 2 : dims[0].n) * dims[0].is;
-    ;
     howmany_dims[0].os = Ncomplex * dims[0].os;
 
     const size_t isize = howmany_dims[0].n * howmany_dims[0].is;
@@ -520,10 +541,10 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
                                                          NULL,
                                                          istride.size(),
                                                          istride.data(),
-                                                         0,
+                                                         howmany_dims[0].is,
                                                          ostride.size(),
                                                          ostride.data(),
-                                                         0);
+                                                         howmany_dims[0].os);
     ASSERT_TRUE(fft_status == rocfft_status_success)
         << "rocFFT data layout failure: " << fft_status;
 
@@ -582,6 +603,15 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
             std::cout << std::endl;
         }
     }
+    if(verbose > 2)
+    {
+        std::cout << "flat input:\n";
+        for(size_t i = 0; i < isize; ++i)
+        {
+            std::cout << cpu_in[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     hip_status = hipMemcpy(gpu_in, cpu_in, isize * sizeof(Tfloat), hipMemcpyHostToDevice);
     ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
@@ -609,6 +639,15 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
             std::cout << std::endl;
         }
     }
+    if(verbose > 2)
+    {
+        std::cout << "flat cpu output:\n";
+        for(size_t i = 0; i < osize; ++i)
+        {
+            std::cout << cpu_out[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     // Copy the data back and compare:
     fftw_vector<std::complex<Tfloat>> gpu_out_comp(osize);
@@ -628,6 +667,15 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
             }
             std::cout << std::endl;
         }
+    }
+    if(verbose > 2)
+    {
+        std::cout << "flat gpu output:\n";
+        for(size_t i = 0; i < osize; ++i)
+        {
+            std::cout << gpu_out_comp[i] << " ";
+        }
+        std::cout << std::endl;
     }
 
     Tfloat L2norm   = 0.0;
@@ -835,10 +883,10 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
                                                          NULL,
                                                          istride.size(),
                                                          istride.data(),
-                                                         0,
+                                                         howmany_dims[0].is,
                                                          ostride.size(),
                                                          ostride.data(),
-                                                         0);
+                                                         howmany_dims[0].os);
     ASSERT_TRUE(fft_status == rocfft_status_success)
         << "rocFFT data layout failure: " << fft_status;
 
@@ -912,6 +960,15 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
             std::cout << std::endl;
         }
     }
+    if(verbose > 2)
+    {
+        std::cout << "flat input:\n";
+        for(size_t i = 0; i < isize; ++i)
+        {
+            std::cout << cpu_in[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     hip_status
         = hipMemcpy(gpu_in, cpu_in, isize * sizeof(std::complex<Tfloat>), hipMemcpyHostToDevice);
@@ -940,6 +997,15 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
             std::cout << std::endl;
         }
     }
+    if(verbose > 2)
+    {
+        std::cout << "flat cpu output:\n";
+        for(size_t i = 0; i < osize; ++i)
+        {
+            std::cout << cpu_out[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     // Copy the data back and compare:
     std::vector<Tfloat> gpu_out_comp(osize);
@@ -959,6 +1025,15 @@ void normal_1D_complex_interleaved_to_real(size_t                  N,
             }
             std::cout << std::endl;
         }
+    }
+    if(verbose > 2)
+    {
+        std::cout << "flat gpu output:\n";
+        for(size_t i = 0; i < osize; ++i)
+        {
+            std::cout << gpu_out_comp[i] << " ";
+        }
+        std::cout << std::endl;
     }
 
     Tfloat L2diff   = 0.0;
@@ -1057,7 +1132,7 @@ TEST_P(accuracy_test_real, normal_1D_complex_interleaved_to_real_double_precisio
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_1D,
                         accuracy_test_complex,
                         ::testing::Combine(ValuesIn(pow2_range),
-                                           ValuesIn(complex_batch_range),
+                                           ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(transform_range)));
@@ -1065,7 +1140,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow2_1D,
 INSTANTIATE_TEST_CASE_P(rocfft_pow3_1D,
                         accuracy_test_complex,
                         ::testing::Combine(ValuesIn(pow3_range),
-                                           ValuesIn(complex_batch_range),
+                                           ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(transform_range)));
@@ -1073,7 +1148,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow3_1D,
 INSTANTIATE_TEST_CASE_P(rocfft_pow5_1D,
                         accuracy_test_complex,
                         ::testing::Combine(ValuesIn(pow5_range),
-                                           ValuesIn(complex_batch_range),
+                                           ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(transform_range)));
@@ -1081,7 +1156,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow5_1D,
 INSTANTIATE_TEST_CASE_P(rocfft_pow_mix_1D,
                         accuracy_test_complex,
                         ::testing::Combine(ValuesIn(mix_range),
-                                           ValuesIn(complex_batch_range),
+                                           ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(transform_range)));
@@ -1089,7 +1164,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow_mix_1D,
 INSTANTIATE_TEST_CASE_P(rocfft_pow_random_1D,
                         accuracy_test_complex,
                         ::testing::Combine(ValuesIn(generate_random(20)),
-                                           ValuesIn(complex_batch_range),
+                                           ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(transform_range)));
@@ -1097,7 +1172,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow_random_1D,
 INSTANTIATE_TEST_CASE_P(rocfft_prime_1D,
                         accuracy_test_complex,
                         ::testing::Combine(ValuesIn(prime_range),
-                                           ValuesIn(complex_batch_range),
+                                           ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range_for_prime),
                                            ValuesIn(transform_range)));
@@ -1106,35 +1181,35 @@ INSTANTIATE_TEST_CASE_P(rocfft_prime_1D,
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_1D,
                         accuracy_test_real,
                         ::testing::Combine(ValuesIn(pow2_range),
-                                           ValuesIn(real_complex_batch_range),
+                                           ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow3_1D,
                         accuracy_test_real,
                         ::testing::Combine(ValuesIn(pow3_range),
-                                           ValuesIn(real_complex_batch_range),
+                                           ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow5_1D,
                         accuracy_test_real,
                         ::testing::Combine(ValuesIn(pow5_range),
-                                           ValuesIn(real_complex_batch_range),
+                                           ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow_mix_1D,
                         accuracy_test_real,
                         ::testing::Combine(ValuesIn(mix_range),
-                                           ValuesIn(real_complex_batch_range),
+                                           ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_prime_1D,
                         accuracy_test_real,
                         ::testing::Combine(ValuesIn(prime_range),
-                                           ValuesIn(real_complex_batch_range),
+                                           ValuesIn(batch_range),
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range)));
 

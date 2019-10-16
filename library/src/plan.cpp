@@ -2168,7 +2168,7 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
             prePlan->iDist = iDist;
             prePlan->oDist = oDist / 2;
 
-            // Strrides are actually distances for multimensional transforms.
+            // Strides are actually distances for multimensional transforms.
             // Only the first value is used, but we require dimension values.
             prePlan->inStride.resize(dimension);
             prePlan->inStride[0] = length[0] / 2 + 1;
