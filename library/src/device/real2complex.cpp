@@ -57,42 +57,16 @@ __global__ void real2complex_kernel(size_t          input_size,
     }
 }
 
-/*! \brief auxiliary function
-
-    convert a real vector into a complex one by padding the imaginary part with
-   0.
-
-    @param[in]
-    input_size
-           size of input buffer
-
-    @param[in]
-    input_buffer
-          data type : float or double
-
-    @param[in]
-    input_distance
-          distance between consecutive batch members for input buffer
-
-    @param[in,output]
-    output_buffer
-          data type : complex type (float2 or double2)
-
-    @param[in]
-    output_distance
-           distance between consecutive batch members for output buffer
-
-    @param[in]
-    batch
-           number of transforms
-
-    @param[in]
-    precision
-          data type of input buffer. rocfft_precision_single or
-   rocfft_precsion_double
-
-    ********************************************************************/
-
+/// \brief auxiliary function
+///    convert a real vector into a complex one by padding the imaginary part with  0.
+///    @param[in] input_size, size of input buffer
+///    @param[in] input_buffer, data type : float or double
+///    @param[in] idist, distance between consecutive batch members for input buffer
+///    @param[in,output] output_buffer, data type : complex type (float2 or double2)
+///    @param[in] odist, distance between consecutive batch members for output buffer
+///    @param[in] batch, number of transforms
+///    @param[in] precision, data type of input buffer. rocfft_precision_single or
+///                          rocfft_precsion_double
 void real2complex(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
@@ -123,8 +97,8 @@ void real2complex(const void* data_p, void* back_p)
 
     size_t blocks = (input_size - 1) / 512 + 1;
 
-    if(high_dimension > 65535 || batch > 65535)
-        printf("2D and 3D or batch is too big; not implemented\n");
+    // TODO: verify with API that high_dimension and batch aren't too big.
+
     // the z dimension is used for batching,
     // if 2D or 3D, the number of blocks along y will multiple high dimensions
     // notice the maximum # of thread blocks in y & z is 65535 according to HIP &&
@@ -161,23 +135,19 @@ void real2complex(const void* data_p, void* back_p)
                            (double2*)output_buffer,
                            output_distance);
 
-    /*float2* tmp; tmp = (float2*)malloc(sizeof(float2)*output_distance*batch);
-  hipMemcpy(tmp, output_buffer, sizeof(float2)*output_distance*batch,
-  hipMemcpyDeviceToHost);
+    // float2* tmp; tmp = (float2*)malloc(sizeof(float2)*output_distance*batch);
+    // hipMemcpy(tmp, output_buffer, sizeof(float2)*output_distance*batch,
+    //           hipMemcpyDeviceToHost);
 
-  for(size_t j=0;j<data->node->length[1]; j++)
-  {
-      for(size_t i=0; i<data->node->length[0]; i++)
-      {
-          printf("kernel output[%zu][%zu]=(%f, %f) \n", j, i,
-  tmp[j*data->node->outStride[1] + i].x, tmp[j*data->node->outStride[1] + i].y);
-      }
-  }*/
-
-    return;
+    // for(size_t j=0;j<data->node->length[1]; j++)
+    // {
+    //     for(size_t i=0; i<data->node->length[0]; i++)
+    //     {
+    //         printf("kernel output[%zu][%zu]=(%f, %f) \n", j, i,
+    //                tmp[j*data->node->outStride[1] + i].x, tmp[j*data->node->outStride[1] + i].y);
+    //     }
+    // }
 }
-
-/*============================================================================================*/
 
 template <typename T>
 __global__ void complex2hermitian_kernel(size_t input_size,
@@ -212,46 +182,20 @@ __global__ void complex2hermitian_kernel(size_t input_size,
     }
 }
 
-/*! \brief auxiliary function
-
-    read from input_buffer and store the first  [1 + input_size/2] elements to
-   the output_buffer
-
-    @param[in]
-    input_size
-           size of input buffer
-
-    @param[in]
-    input_buffer
-          data type dictated by precision parameter but complex type (float2 or
-   double2)
-
-    @param[in]
-    input_distance
-           distance between consecutive batch members for input buffer
-
-    @param[in,output]
-    output_buffer
-          data type dictated by precision parameter but complex type (float2 or
-   double2)
-          but only store first [1 + input_size/2] elements according to
-   conjugate symmetry
-
-    @param[in]
-    output_distance
-           distance between consecutive batch members for output buffer
-
-    @param[in]
-    batch
-           number of transforms
-
-    @param[in]
-    precision
-           data type of input and output buffer. rocfft_precision_single or
-   rocfft_precsion_double
-
-    ********************************************************************/
-
+/// \brief auxiliary function
+///   read from input_buffer and store the first  [1 + input_size/2] elements to
+///   the output_buffer
+/// @param[in] input_size, size of input buffer
+/// @param[in] input_buffer, data type dictated by precision parameter but complex type
+///                          (float2 or double2)
+/// @param[in] idist, distance between consecutive batch members for input buffer
+/// @param[in,output] output_buffer, data type dictated by precision parameter but complex
+///                   type (float2 or double2) but only store first [1 + input_size/2]
+///                   elements according to conjugate symmetry
+/// @param[in] odist, distance between consecutive batch members for output buffer
+/// @param[in] batch, number of transforms
+/// @param[in] precision, data type of input and output buffer. rocfft_precision_single or
+///            rocfft_precsion_double
 void complex2hermitian(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
@@ -282,8 +226,8 @@ void complex2hermitian(const void* data_p, void* back_p)
 
     size_t blocks = (input_size - 1) / 512 + 1;
 
-    if(high_dimension > 65535 || batch > 65535)
-        printf("2D and 3D or batch is too big; not implemented\n");
+    // TODO: verify with API that high_dimension and batch aren't too big.
+
     // the z dimension is used for batching,
     // if 2D or 3D, the number of blocks along y will multiple high dimensions
     // notice the maximum # of thread blocks in y & z is 65535 according to HIP &&
@@ -293,18 +237,18 @@ void complex2hermitian(const void* data_p, void* back_p)
 
     hipStream_t rocfft_stream = data->rocfft_stream;
 
-    /*float2* tmp; tmp = (float2*)malloc(sizeof(float2)*input_distance*batch);
-  hipMemcpy(tmp, input_buffer, sizeof(float2)*input_distance*batch,
-  hipMemcpyDeviceToHost);
+    // float2* tmp; tmp = (float2*)malloc(sizeof(float2)*input_distance*batch);
+    // hipMemcpy(tmp, input_buffer, sizeof(float2)*input_distance*batch,
+    //           hipMemcpyDeviceToHost);
 
-  for(size_t j=0;j<data->node->length[1]; j++)
-  {
-      for(size_t i=0; i<data->node->length[0]; i++)
-      {
-          printf("kernel output[%zu][%zu]=(%f, %f) \n", j, i,
-  tmp[j*data->node->outStride[1] + i].x, tmp[j*data->node->outStride[1] + i].y);
-      }
-  }*/
+    // for(size_t j=0;j<data->node->length[1]; j++)
+    // {
+    //     for(size_t i=0; i<data->node->length[0]; i++)
+    //     {
+    //         printf("kernel output[%zu][%zu]=(%f, %f) \n", j, i,
+    //                tmp[j*data->node->outStride[1] + i].x, tmp[j*data->node->outStride[1] + i].y);
+    //     }
+    // }
 
     if(precision == rocfft_precision_single)
         hipLaunchKernelGGL(complex2hermitian_kernel<float2>,
@@ -337,45 +281,25 @@ void complex2hermitian(const void* data_p, void* back_p)
 }
 
 // GPU kernel for 1d r2c post-process
-// T is memory allocation type, could be float2 or double2.
+// Tcomplex is memory allocation type, could be float2 or double2.
 // Each thread handles 2 points.
-template <typename T, bool IN_PLACE>
-__global__ void real_post_process_kernel(size_t   half_N,
-                                         size_t   input_stride,
-                                         size_t   output_stride,
-                                         T*       input,
-                                         size_t   input_distance,
-                                         T*       output,
-                                         size_t   output_distance,
-                                         T const* twiddles)
+template <typename Tcomplex>
+__global__ void real_post_process_kernel(const size_t    half_N,
+                                         const size_t    iDist1D,
+                                         const size_t    oDist1D,
+                                         const Tcomplex* input0,
+                                         const size_t    iDist,
+                                         Tcomplex*       output0,
+                                         const size_t    oDist,
+                                         Tcomplex const* twiddles)
 {
-    size_t input_offset = hipBlockIdx_z * input_distance; // batch offset
+    // blockIdx.y gives the multi-dimensional offset
+    // blockIdx.z gives the batch offset
+    const Tcomplex* input  = input0 + blockIdx.y * iDist1D + blockIdx.z * iDist;
+    Tcomplex*       output = output0 + blockIdx.y * oDist1D + blockIdx.z * oDist;
 
-    size_t output_offset = hipBlockIdx_z * output_distance; // batch offset
-
-    input_offset += hipBlockIdx_y * input_stride; // notice for 1D, hipBlockIdx_y
-    // == 0 and thus has no effect
-    // for input_offset
-    output_offset += hipBlockIdx_y * output_stride; // notice for 1D, hipBlockIdx_y == 0 and
-    // thus has no effect for output_offset
-
-    input += input_offset;
-    output += output_offset;
-
-    size_t idx_p = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
-    size_t idx_q = half_N - idx_p;
-
-    T p, q;
-    if(idx_p <= half_N >> 1 && idx_p > 0)
-    {
-        p = input[idx_p];
-        q = input[idx_q];
-    }
-
-    if(IN_PLACE)
-    {
-        __syncthreads(); //it reqires only for in-place
-    }
+    const size_t idx_p = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+    const size_t idx_q = half_N - idx_p;
 
     if(idx_p == 0)
     {
@@ -386,20 +310,23 @@ __global__ void real_post_process_kernel(size_t   half_N,
     }
     else if(idx_p <= half_N >> 1)
     {
-        T u(p.x + q.x, p.y - q.y); // p + conj(q)
-        T v(p.x - q.x, p.y + q.y); // p - conj(q)
+        const Tcomplex p = input[idx_p];
+        const Tcomplex q = input[idx_q];
 
-        T twd_p = twiddles[idx_p];
-        T twd_q = twiddles[idx_q];
+        const Tcomplex u(0.5 * (p.x + q.x), 0.5 * (p.y - q.y)); // 0.5*(p + conj(q))
+        const Tcomplex v(0.5 * (p.x - q.x), 0.5 * (p.y + q.y)); // 0.5*(p - conj(q))
 
-        u = u * 0.5;
-        v = v * 0.5;
+        const Tcomplex twd_p = twiddles[idx_p];
+        output[idx_p].x      = u.x + v.x * twd_p.y + v.y * twd_p.x;
+        output[idx_p].y      = u.y + v.y * twd_p.y - v.x * twd_p.x;
 
-        output[idx_p].x = u.x + v.x * twd_p.y + v.y * twd_p.x;
-        output[idx_p].y = u.y + v.y * twd_p.y - v.x * twd_p.x;
+        // NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y)
+        // Tcomplex twd_q = twiddles[idx_q];
+        // output[idx_q].x = u.x - v.x * twd_q.y + v.y * twd_q.x;
+        // output[idx_q].y = -u.y + v.y * twd_q.y + v.x * twd_q.x;
 
-        output[idx_q].x = u.x - v.x * twd_q.y + v.y * twd_q.x;
-        output[idx_q].y = -u.y + v.y * twd_q.y + v.x * twd_q.x;
+        output[idx_q].x = u.x - v.x * twd_p.y - v.y * twd_p.x;
+        output[idx_q].y = -u.y + v.y * twd_p.y - v.x * twd_p.x;
     }
 }
 
@@ -472,23 +399,24 @@ void real_1d_pre_post_process(size_t const half_N,
     const size_t block_size = 512;
     size_t       blocks     = (half_N / 2 + 1 - 1) / block_size + 1;
 
-    if(high_dimension > 65535 || batch > 65535)
-        printf("2D and 3D or batch is too big; not implemented\n");
+    // TODO: verify with API that high_dimension and batch aren't too big.
+
+    const size_t iDist1D = input_stride;
+    const size_t oDist1D = output_stride;
 
     dim3 grid(blocks, high_dimension, batch);
     dim3 threads(block_size, 1, 1);
 
     if(R2C)
     {
-        hipLaunchKernelGGL(((d_input == d_output) ? (real_post_process_kernel<Tcomplex, true>)
-                                                  : (real_post_process_kernel<Tcomplex, false>)),
+        hipLaunchKernelGGL((real_post_process_kernel<Tcomplex>),
                            grid,
                            threads,
                            0,
                            rocfft_stream,
                            half_N,
-                           input_stride,
-                           output_stride,
+                           iDist1D,
+                           oDist1D,
                            d_input,
                            input_distance,
                            d_output,
@@ -497,9 +425,6 @@ void real_1d_pre_post_process(size_t const half_N,
     }
     else
     {
-        const size_t iDist1D = input_stride;
-        const size_t oDist1D = output_stride;
-
         hipLaunchKernelGGL((real_pre_process_kernel<Tcomplex>),
                            grid,
                            threads,
