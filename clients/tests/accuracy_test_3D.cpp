@@ -206,10 +206,10 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
                                                          NULL,
                                                          istride.size(),
                                                          istride.data(),
-                                                         0,
+                                                         howmany_dims[0].is,
                                                          ostride.size(),
                                                          ostride.data(),
-                                                         0);
+                                                         howmany_dims[0].os);
     ASSERT_TRUE(fft_status == rocfft_status_success)
         << "rocFFT data layout failure: " << fft_status;
 
@@ -286,6 +286,15 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
         }
         std::cout << std::endl;
     }
+    if(verbose > 2)
+    {
+        std::cout << "flat input:\n";
+        for(size_t i = 0; i < isize; ++i)
+        {
+            std::cout << cpu_in[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     hip_status
         = hipMemcpy(gpu_in, cpu_in, isize * sizeof(std::complex<Tfloat>), hipMemcpyHostToDevice);
@@ -325,6 +334,15 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
         }
         std::cout << std::endl;
     }
+    if(verbose > 2)
+    {
+        std::cout << "flat cpu output:\n";
+        for(size_t i = 0; i < osize; ++i)
+        {
+            std::cout << cpu_out[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     // Copy the data back and compare:
     fftw_vector<std::complex<Tfloat>> gpu_out_comp(osize);
@@ -353,6 +371,15 @@ void normal_3D_complex_interleaved_to_complex_interleaved(std::vector<size_t>   
                 std::cout << std::endl;
             }
             std::cout << std::endl;
+        }
+        std::cout << std::endl;
+    }
+    if(verbose > 2)
+    {
+        std::cout << "flat gpu output:\n";
+        for(size_t i = 0; i < osize; ++i)
+        {
+            std::cout << gpu_out_comp[i] << " ";
         }
         std::cout << std::endl;
     }
@@ -603,10 +630,10 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
                                                          NULL,
                                                          istride.size(),
                                                          istride.data(),
-                                                         0,
+                                                         howmany_dims[0].is,
                                                          ostride.size(),
                                                          ostride.data(),
-                                                         0);
+                                                         howmany_dims[0].os);
     ASSERT_TRUE(fft_status == rocfft_status_success)
         << "rocFFT data layout failure: " << fft_status;
 
@@ -684,6 +711,15 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
         }
         std::cout << std::endl;
     }
+    if(verbose > 2)
+    {
+        std::cout << "flat input:\n";
+        for(size_t i = 0; i < isize; ++i)
+        {
+            std::cout << cpu_in[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     hip_status = hipMemcpy(gpu_in, cpu_in, isize * sizeof(Tfloat), hipMemcpyHostToDevice);
     ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
@@ -722,6 +758,15 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
         }
         std::cout << std::endl;
     }
+    if(verbose > 2)
+    {
+        std::cout << "flat cpu output:\n";
+        for(size_t i = 0; i < osize; ++i)
+        {
+            std::cout << cpu_out[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     // Copy the data back and compare:
     fftw_vector<std::complex<Tfloat>> gpu_out_comp(osize);
@@ -750,6 +795,15 @@ void normal_3D_real_to_complex_interleaved(std::vector<size_t>     length,
                 std::cout << std::endl;
             }
             std::cout << std::endl;
+        }
+        std::cout << std::endl;
+    }
+    if(verbose > 2)
+    {
+        std::cout << "flat gpu output:\n";
+        for(size_t i = 0; i < osize; ++i)
+        {
+            std::cout << gpu_out_comp[i] << " ";
         }
         std::cout << std::endl;
     }
@@ -1122,10 +1176,10 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
                                                          NULL,
                                                          istride.size(),
                                                          istride.data(),
-                                                         0,
+                                                         howmany_dims[0].is,
                                                          ostride.size(),
                                                          ostride.data(),
-                                                         0);
+                                                         howmany_dims[0].os);
     ASSERT_TRUE(fft_status == rocfft_status_success)
         << "rocFFT data layout failure: " << fft_status;
 
@@ -1204,6 +1258,15 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
         }
         std::cout << std::endl;
     }
+    if(verbose > 2)
+    {
+        std::cout << "flat input:\n";
+        for(size_t i = 0; i < isize; ++i)
+        {
+            std::cout << cpu_in[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     ASSERT_TRUE(isHermitianSymmetric(cpu_in, dims, howmany_dims[0]));
 
@@ -1245,6 +1308,15 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
         }
         std::cout << std::endl;
     }
+    if(verbose > 2)
+    {
+        std::cout << "flat cpu output:\n";
+        for(size_t i = 0; i < osize; ++i)
+        {
+            std::cout << cpu_out[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     // Copy the data back and compare:
     std::vector<Tfloat> gpu_out_comp(osize);
@@ -1273,6 +1345,15 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
                 std::cout << std::endl;
             }
             std::cout << std::endl;
+        }
+        std::cout << std::endl;
+    }
+    if(verbose > 2)
+    {
+        std::cout << "flat gpu output:\n";
+        for(size_t i = 0; i < osize; ++i)
+        {
+            std::cout << gpu_out_comp[i] << " ";
         }
         std::cout << std::endl;
     }
