@@ -283,7 +283,8 @@ void complex2hermitian(const void* data_p, void* back_p)
 // GPU kernel for 1d r2c post-process
 // Tcomplex is memory allocation type, could be float2 or double2.
 // Each thread handles 2 points.
-template <typename Tcomplex>
+// When N is divisible by 4, one value is handled separately; this is controlled by Ndiv4.
+template <typename Tcomplex, bool Ndiv4>
 __global__ void real_post_process_kernel(const size_t    half_N,
                                          const size_t    iDist1D,
                                          const size_t    oDist1D,
@@ -293,45 +294,60 @@ __global__ void real_post_process_kernel(const size_t    half_N,
                                          const size_t    oDist,
                                          Tcomplex const* twiddles)
 {
-    // blockIdx.y gives the multi-dimensional offset
-    // blockIdx.z gives the batch offset
-    const Tcomplex* input  = input0 + blockIdx.y * iDist1D + blockIdx.z * iDist;
-    Tcomplex*       output = output0 + blockIdx.y * oDist1D + blockIdx.z * oDist;
 
     const size_t idx_p = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     const size_t idx_q = half_N - idx_p;
 
-    if(idx_p == 0)
+    const auto quarter_N = (half_N + 1) / 2;
+
+    if(idx_p < quarter_N)
     {
-        output[half_N].x = input[0].x - input[0].y;
-        output[half_N].y = 0;
-        output[0].x      = input[0].x + input[0].y;
-        output[0].y      = 0;
-    }
-    else if(idx_p <= half_N >> 1)
-    {
-        const Tcomplex p = input[idx_p];
-        const Tcomplex q = input[idx_q];
+        // blockIdx.y gives the multi-dimensional offset
+        // blockIdx.z gives the batch offset
+        const Tcomplex* input  = input0 + blockIdx.y * iDist1D + blockIdx.z * iDist;
+        Tcomplex*       output = output0 + blockIdx.y * oDist1D + blockIdx.z * oDist;
 
-        const Tcomplex u(0.5 * (p.x + q.x), 0.5 * (p.y - q.y)); // 0.5*(p + conj(q))
-        const Tcomplex v(0.5 * (p.x - q.x), 0.5 * (p.y + q.y)); // 0.5*(p - conj(q))
+        if(idx_p == 0)
+        {
+            output[half_N].x = input[0].x - input[0].y;
+            output[half_N].y = 0;
+            output[0].x      = input[0].x + input[0].y;
+            output[0].y      = 0;
 
-        const Tcomplex twd_p = twiddles[idx_p];
-        output[idx_p].x      = u.x + v.x * twd_p.y + v.y * twd_p.x;
-        output[idx_p].y      = u.y + v.y * twd_p.y - v.x * twd_p.x;
+            if(Ndiv4)
+            {
+                output[quarter_N].x = input[quarter_N].x;
+                output[quarter_N].y = -input[quarter_N].y;
+            }
+        }
+        else
+        {
+            const Tcomplex p = input[idx_p];
+            const Tcomplex q = input[idx_q];
 
-        // NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y)
-        // Tcomplex twd_q = twiddles[idx_q];
-        // output[idx_q].x = u.x - v.x * twd_q.y + v.y * twd_q.x;
-        // output[idx_q].y = -u.y + v.y * twd_q.y + v.x * twd_q.x;
+            const Tcomplex u(0.5 * (p.x + q.x), 0.5 * (p.y - q.y)); // 0.5*(p + conj(q))
+            const Tcomplex v(0.5 * (p.x - q.x), 0.5 * (p.y + q.y)); // 0.5*(p - conj(q))
 
-        output[idx_q].x = u.x - v.x * twd_p.y - v.y * twd_p.x;
-        output[idx_q].y = -u.y + v.y * twd_p.y - v.x * twd_p.x;
+            const Tcomplex twd_p = twiddles[idx_p];
+            output[idx_p].x      = u.x + v.x * twd_p.y + v.y * twd_p.x;
+            output[idx_p].y      = u.y + v.y * twd_p.y - v.x * twd_p.x;
+
+            // NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y)
+            // Tcomplex twd_q = twiddles[idx_q];
+            // output[idx_q].x = u.x - v.x * twd_q.y + v.y * twd_q.x;
+            // output[idx_q].y = -u.y + v.y * twd_q.y + v.x * twd_q.x;
+
+            output[idx_q].x = u.x - v.x * twd_p.y - v.y * twd_p.x;
+            output[idx_q].y = -u.y + v.y * twd_p.y - v.x * twd_p.x;
+        }
     }
 }
 
-// Preprocess kernel for complex-to-real transform.
-template <typename Tcomplex>
+// GPU kernel for 1d c2r post-process
+// Tcomplex is memory allocation type, could be float2 or double2.
+// Each thread handles 2 points.
+// When N is divisible by 4, one value is handled separately; this is controlled by Ndiv4.
+template <typename Tcomplex, bool Ndiv4>
 __global__ void real_pre_process_kernel(const size_t    half_N,
                                         const size_t    iDist1D,
                                         const size_t    oDist1D,
@@ -344,25 +360,36 @@ __global__ void real_pre_process_kernel(const size_t    half_N,
     const size_t idx_p = blockIdx.x * blockDim.x + threadIdx.x;
     const size_t idx_q = half_N - idx_p;
 
-    if(idx_p <= half_N >> 1)
+    const auto quarter_N = (half_N + 1) / 2;
+
+    if(idx_p < quarter_N)
     {
         // blockIdx.y gives the multi-dimensional offset
         // blockIdx.z gives the batch offset
         const Tcomplex* input  = input0 + blockIdx.y * iDist1D + blockIdx.z * iDist;
         Tcomplex*       output = output0 + blockIdx.y * oDist1D + blockIdx.z * oDist;
 
-        const Tcomplex p = input[idx_p];
-        const Tcomplex q = input[idx_q];
-
         if(idx_p == 0)
         {
             // NB: multi-dimensional transforms may have non-zero
             // imaginary part at index 0 or at the Nyquist frequency.
-            output[idx_p].x = p.x - p.y + q.x + q.y;
-            output[idx_p].y = p.x + p.y - q.x + q.y;
+
+            const Tcomplex p = input[idx_p];
+            const Tcomplex q = input[idx_q];
+            output[idx_p].x  = p.x - p.y + q.x + q.y;
+            output[idx_p].y  = p.x + p.y - q.x + q.y;
+
+            if(Ndiv4)
+            {
+                output[quarter_N].x = 2.0 * input[quarter_N].x;
+                output[quarter_N].y = -2.0 * input[quarter_N].y;
+            }
         }
         else
         {
+            const Tcomplex p = input[idx_p];
+            const Tcomplex q = input[idx_q];
+
             const Tcomplex u(p.x + q.x, p.y - q.y); // p + conj(q)
             const Tcomplex v(p.x - q.x, p.y + q.y); // p - conj(q)
 
@@ -397,7 +424,8 @@ void real_1d_pre_post_process(size_t const half_N,
                               hipStream_t  rocfft_stream)
 {
     const size_t block_size = 512;
-    size_t       blocks     = (half_N / 2 + 1 - 1) / block_size + 1;
+    size_t       blocks     = ((half_N + 1) / 2 + block_size - 1) / block_size;
+    // The total number of 1D threads is N / 4, rounded up.
 
     // TODO: verify with API that high_dimension and batch aren't too big.
 
@@ -407,9 +435,14 @@ void real_1d_pre_post_process(size_t const half_N,
     dim3 grid(blocks, high_dimension, batch);
     dim3 threads(block_size, 1, 1);
 
+    const bool Ndiv4 = half_N % 2 == 0;
+
+    // std::cout << "grid: " << grid.x << " " << grid.y << " " << grid.z << std::endl;
+    // std::cout << "threads: " << threads.x << " " << threads.y << " " << threads.z << std::endl;
     if(R2C)
     {
-        hipLaunchKernelGGL((real_post_process_kernel<Tcomplex>),
+        hipLaunchKernelGGL((Ndiv4 ? real_post_process_kernel<Tcomplex, true>
+                                  : real_post_process_kernel<Tcomplex, false>),
                            grid,
                            threads,
                            0,
@@ -425,7 +458,8 @@ void real_1d_pre_post_process(size_t const half_N,
     }
     else
     {
-        hipLaunchKernelGGL((real_pre_process_kernel<Tcomplex>),
+        hipLaunchKernelGGL((Ndiv4 ? real_pre_process_kernel<Tcomplex, true>
+                                  : real_pre_process_kernel<Tcomplex, false>),
                            grid,
                            threads,
                            0,
