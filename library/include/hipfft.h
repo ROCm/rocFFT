@@ -26,7 +26,11 @@
 #include <hip/hip_complex.h>
 #include <hip/hip_runtime_api.h>
 
+#ifdef _WIN32
+#define DLL_PUBLIC __declspec(dllexport)
+#else
 #define DLL_PUBLIC __attribute__((visibility("default")))
+#endif
 
 #ifdef __cplusplus
 extern "C" {

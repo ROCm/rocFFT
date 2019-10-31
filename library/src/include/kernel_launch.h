@@ -24,7 +24,9 @@
 #define KERNEL_LAUNCH_SINGLE
 
 #define FN_PRFX(X) rocfft_internal_##X
+#ifndef __clang__
 #include "error.h"
+#endif
 #include "kargs.h"
 #include "kernel_launch_generator.h"
 #include "rocfft.h"

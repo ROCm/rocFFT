@@ -109,8 +109,8 @@ public:
         size_t nt = 0;
         for(size_t i = 0; i < N; i++)
         {
-            double c, s;
-            sincos(TWO_PI * i / N, &s, &c);
+            double c = cos(TWO_PI * i / N);
+            double s = sin(TWO_PI * i / N);
 
             wc[nt].x = c;
             wc[nt].y = s;

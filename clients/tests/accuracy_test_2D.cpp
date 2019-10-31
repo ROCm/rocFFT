@@ -19,11 +19,11 @@
 // THE SOFTWARE.
 
 #include <algorithm>
+#include <array>
 #include <complex>
 #include <gtest/gtest.h>
 #include <math.h>
 #include <stdexcept>
-#include <unistd.h>
 #include <vector>
 
 #include "fftw_transform.h"

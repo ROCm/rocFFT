@@ -23,7 +23,11 @@
 #ifndef __ROCFFT_PRIVATE_H__
 #define __ROCFFT_PRIVATE_H__
 
+#ifdef _WIN32
+#define DLL_PUBLIC __declspec(dllexport)
+#else
 #define DLL_PUBLIC __attribute__((visibility("default")))
+#endif
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus

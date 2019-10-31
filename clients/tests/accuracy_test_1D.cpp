@@ -18,10 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include <array>
 #include <gtest/gtest.h>
 #include <math.h>
 #include <stdexcept>
-#include <unistd.h>
 #include <vector>
 
 #include "fftw_transform.h"

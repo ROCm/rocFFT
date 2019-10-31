@@ -34,7 +34,9 @@
 extern "C" {
 #endif /* __cplusplus */
 
+#ifndef _WIN32
 #include <cstddef>
+#endif
 
 /*! @brief Pointer type to plan structure
  *  @details This type is used to declare a plan handle that can be initialized
