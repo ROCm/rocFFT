@@ -2641,9 +2641,6 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         }
         else
         {
-            // here we don't have B info right away, we get it through its parent
-            assert((parent->obOut == OB_USER_OUT) || (parent->obOut == OB_TEMP_CMPLX_FOR_REAL));
-
             // T -> B
             col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
             col2colPlan->inStride.push_back(inStride[0]);
