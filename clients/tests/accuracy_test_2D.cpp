@@ -34,8 +34,9 @@ using ::testing::ValuesIn;
 
 // Set parameters
 
-// TODO: 4096 and 8192 fail with new test infrastructure.
-static std::vector<size_t> pow2_range = {4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048};
+// TODO: enable 16384, 32768 when omp support is available (takes too
+// long!)
+static std::vector<size_t> pow2_range = {4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192};
 
 // TODO: 2187 and 6561 fail with the new test infrastructure.
 static std::vector<size_t> pow3_range = {3, 27, 81, 243, 729};

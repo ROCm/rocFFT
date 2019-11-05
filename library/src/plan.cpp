@@ -1869,15 +1869,11 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         }
         else
         {
-            // TODO: document why
-            assert(obIn == flipIn);
-            assert(obIn == obOut);
-
-            childNodes[0]->obIn  = flipIn;
+            childNodes[0]->obIn  = obIn;
             childNodes[0]->obOut = flipOut;
 
             childNodes[1]->obIn  = flipOut;
-            childNodes[1]->obOut = flipIn;
+            childNodes[1]->obOut = obOut;
         }
     }
     break;
@@ -2465,9 +2461,6 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
     {
         TreeNode* col2colPlan = childNodes[0];
         TreeNode* row2colPlan = childNodes[1];
-
-        if(parent != NULL)
-            assert(obIn == obOut);
 
         if((obOut == OB_USER_OUT) || (obOut == OB_TEMP_CMPLX_FOR_REAL))
         {
