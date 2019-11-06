@@ -1,24 +1,22 @@
-/******************************************************************************
-* Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*******************************************************************************/
+// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
 #include <atomic>
 #include <cassert>
@@ -49,8 +47,8 @@
 
 std::atomic<bool> fn_checked(false);
 
-/* this function is called during creation of plan : enqueue the HIP kernels by
- * function pointers*/
+// This function is called during creation of plan : enqueue the HIP kernels by function
+// pointers
 void PlanPowX(ExecPlan& execPlan)
 {
     for(size_t i = 0; i < execPlan.execSeq.size(); i++)
@@ -309,6 +307,10 @@ void TransformPowX(const ExecPlan&       execPlan,
             std::cout << "\n---------------------------------------------\n";
             std::cout << "\n\nkernel: " << i << std::endl;
             std::cout << "\tscheme: " << PrintScheme(execPlan.execSeq[i]->scheme) << std::endl;
+            std::cout << "\titype: " << PrintArrayType(execPlan.execSeq[i]->inArrayType)
+                      << std::endl;
+            std::cout << "\totype: " << PrintArrayType(execPlan.execSeq[i]->outArrayType)
+                      << std::endl;
             std::cout << "\tlength: ";
             for(const auto& i : execPlan.execSeq[i]->length)
             {
@@ -316,18 +318,18 @@ void TransformPowX(const ExecPlan&       execPlan,
             }
             std::cout << std::endl;
             std::cout << "\tbatch:   " << execPlan.execSeq[i]->batch << std::endl;
-            std::cout << "\tiDist:   " << execPlan.execSeq[i]->iDist << std::endl;
-            std::cout << "\toDist:   " << execPlan.execSeq[i]->oDist << std::endl;
-            std::cout << "\tiStride: ";
+            std::cout << "\tidist:   " << execPlan.execSeq[i]->iDist << std::endl;
+            std::cout << "\todist:   " << execPlan.execSeq[i]->oDist << std::endl;
+            std::cout << "\tistride:";
             for(const auto& i : execPlan.execSeq[i]->inStride)
             {
-                std::cout << i << " ";
+                std::cout << " " << i;
             }
             std::cout << std::endl;
-            std::cout << "\toStride: ";
+            std::cout << "\tostride:";
             for(const auto& i : execPlan.execSeq[i]->outStride)
             {
-                std::cout << i << " ";
+                std::cout << " " << i;
             }
             std::cout << std::endl;
 

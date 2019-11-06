@@ -1,7 +1,22 @@
-
-/*******************************************************************************
- * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
- ******************************************************************************/
+// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
 #ifndef TREE_NODE_H
 #define TREE_NODE_H
@@ -43,6 +58,7 @@ enum ComputeScheme
     CS_REAL_TRANSFORM_EVEN,
     CS_KERNEL_R_TO_CMPLX,
     CS_KERNEL_CMPLX_TO_R,
+    CS_REAL_2D_EVEN,
 
     CS_BLUESTEIN,
     CS_KERNEL_CHIRP,
@@ -213,31 +229,81 @@ public:
     void RecursiveBuildTree();
 
     // Real-complex and complex-real node builder:
-    void BuildReal();
-    void BuildRealEven();
-    void BuildRealEmbed();
+    void build_real();
+    void build_real_embed();
+    void build_real_even_1D();
+    void build_real_even_2D();
 
-    // 1D node builers:
-    void Build1D();
-    void Build1DBluestein();
-    void Build1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLength1);
-    void Build1DCS_L1D_CC(const size_t divLength0, const size_t divLength1);
-    void Build1DCS_L1D_CRT(const size_t divLength0, const size_t divLength1);
+    // 1D node builders:
+    void build_1D();
+    void build_1DBluestein();
+    void build_1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLength1);
+    void build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength1);
+    void build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLength1);
 
+    // 2D node builders:
+    void build_CS_2D_RTRT();
+    void build_CS_2D_RTRT_real();
+
+    // Buffer assignment:
+    void assign_buffers_CS_REAL_TRANSFORM_USING_CMPLX(OperatingBuffer& flipIn,
+                                                      OperatingBuffer& flipOut,
+                                                      OperatingBuffer& obOutBuf);
+    void assign_buffers_CS_REAL_TRANSFORM_EVEN(OperatingBuffer& flipIn,
+                                               OperatingBuffer& flipOut,
+                                               OperatingBuffer& obOutBuf);
+    void assign_buffers_CS_REAL_2D_EVEN(OperatingBuffer& flipIn,
+                                        OperatingBuffer& flipOut,
+                                        OperatingBuffer& obOutBuf);
+    void assign_buffers_CS_BLUESTEIN(OperatingBuffer& flipIn,
+                                     OperatingBuffer& flipOut,
+                                     OperatingBuffer& obOutBuf);
+    void assign_buffers_CS_L1D_TRTRT(OperatingBuffer& flipIn,
+                                     OperatingBuffer& flipOut,
+                                     OperatingBuffer& obOutBuf);
+    void assign_buffers_CS_L1D_CC(OperatingBuffer& flipIn,
+                                  OperatingBuffer& flipOut,
+                                  OperatingBuffer& obOutBuf);
+    void assign_buffers_CS_L1D_CRT(OperatingBuffer& flipIn,
+                                   OperatingBuffer& flipOut,
+                                   OperatingBuffer& obOutBuf);
+    void assign_buffers_CS_RTRT(OperatingBuffer& flipIn,
+                                OperatingBuffer& flipOut,
+                                OperatingBuffer& obOutBuf);
+    void assign_buffers_CS_RC(OperatingBuffer& flipIn,
+                              OperatingBuffer& flipOut,
+                              OperatingBuffer& obOutBuf);
     void TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
                                          OperatingBuffer& flipOut,
                                          OperatingBuffer& obOutBuf);
     void TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn, rocfft_array_type rootOut);
+
+    // Set strides and distances:
+    void assign_params_CS_REAL_TRANSFORM_USING_CMPLX();
+    void assign_params_CS_REAL_TRANSFORM_EVEN();
+    void assign_params_CS_REAL_2D_EVEN();
+    void assign_params_CS_L1D_CC();
+    void assign_params_CS_L1D_CRT();
+    void assign_params_CS_BLUESTEIN();
+    void assign_params_CS_L1D_TRTRT();
+    void assign_params_CS_2D_RTRT();
+    void assign_params_CS_2D_RC_STRAIGHT();
+    void assign_params_CS_3D_RTRT();
+    void assign_params_CS_3D_RC_STRAIGHT();
     void TraverseTreeAssignParamsLogicA();
+
+    // Determine work memory requirements:
     void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode*>& seq,
                                         size_t&                 tmpBufSize,
                                         size_t&                 cmplxForRealSize,
                                         size_t&                 blueSize,
                                         size_t&                 chirpSize);
+
+    // Output plan information for debug purposes:
     void Print(std::ostream& os = std::cout, int indent = 0) const;
 
     // logic B - using in-place transposes, todo
-    void RecursiveBuildTreeLogicB();
+    //void RecursiveBuildTreeLogicB();
 };
 
 extern "C" {

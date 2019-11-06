@@ -286,14 +286,16 @@ void complex2hermitian(const void* data_p, void* back_p)
 // When N is divisible by 4, one value is handled separately; this is controlled by Ndiv4.
 template <typename Tcomplex, bool Ndiv4>
 __global__ void real_post_process_kernel(const size_t    half_N,
-                                         const size_t    iDist1D,
-                                         const size_t    oDist1D,
+                                         const size_t    idist1D,
+                                         const size_t    odist1D,
                                          const Tcomplex* input0,
-                                         const size_t    iDist,
+                                         const size_t    idist,
                                          Tcomplex*       output0,
-                                         const size_t    oDist,
+                                         const size_t    odist,
                                          Tcomplex const* twiddles)
 {
+    // blockIdx.y gives the multi-dimensional offset
+    // blockIdx.z gives the batch offset
 
     const size_t idx_p = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     const size_t idx_q = half_N - idx_p;
@@ -304,8 +306,8 @@ __global__ void real_post_process_kernel(const size_t    half_N,
     {
         // blockIdx.y gives the multi-dimensional offset
         // blockIdx.z gives the batch offset
-        const Tcomplex* input  = input0 + blockIdx.y * iDist1D + blockIdx.z * iDist;
-        Tcomplex*       output = output0 + blockIdx.y * oDist1D + blockIdx.z * oDist;
+        const Tcomplex* input  = input0 + blockIdx.y * idist1D + blockIdx.z * idist;
+        Tcomplex*       output = output0 + blockIdx.y * odist1D + blockIdx.z * odist;
 
         if(idx_p == 0)
         {
@@ -349,12 +351,12 @@ __global__ void real_post_process_kernel(const size_t    half_N,
 // When N is divisible by 4, one value is handled separately; this is controlled by Ndiv4.
 template <typename Tcomplex, bool Ndiv4>
 __global__ void real_pre_process_kernel(const size_t    half_N,
-                                        const size_t    iDist1D,
-                                        const size_t    oDist1D,
+                                        const size_t    idist1D,
+                                        const size_t    odist1D,
                                         const Tcomplex* input0,
-                                        const size_t    iDist,
+                                        const size_t    idist,
                                         Tcomplex*       output0,
-                                        const size_t    oDist,
+                                        const size_t    odist,
                                         Tcomplex const* twiddles)
 {
     const size_t idx_p = blockIdx.x * blockDim.x + threadIdx.x;
@@ -364,10 +366,12 @@ __global__ void real_pre_process_kernel(const size_t    half_N,
 
     if(idx_p < quarter_N)
     {
-        // blockIdx.y gives the multi-dimensional offset
-        // blockIdx.z gives the batch offset
-        const Tcomplex* input  = input0 + blockIdx.y * iDist1D + blockIdx.z * iDist;
-        Tcomplex*       output = output0 + blockIdx.y * oDist1D + blockIdx.z * oDist;
+        // blockIdx.y gives the multi-dimensional offset, stride is [i/o]dist1D.
+        // blockIdx.z gives the batch offset, stride is [i/o]dist.
+        // clang format off
+        const Tcomplex* input  = input0 + idist1D * blockIdx.y + idist * blockIdx.z;
+        Tcomplex*       output = output0 + odist1D * blockIdx.y + odist * blockIdx.z;
+        // clang format on
 
         if(idx_p == 0)
         {
@@ -417,10 +421,10 @@ void real_1d_pre_post_process(size_t const half_N,
                               Tcomplex*    d_output,
                               Tcomplex*    d_twiddles,
                               size_t       high_dimension,
-                              size_t       input_stride,
-                              size_t       output_stride,
-                              size_t       input_distance,
-                              size_t       output_distance,
+                              size_t       istride,
+                              size_t       ostride,
+                              size_t       idist,
+                              size_t       odist,
                               hipStream_t  rocfft_stream)
 {
     const size_t block_size = 512;
@@ -429,8 +433,13 @@ void real_1d_pre_post_process(size_t const half_N,
 
     // TODO: verify with API that high_dimension and batch aren't too big.
 
-    const size_t iDist1D = input_stride;
-    const size_t oDist1D = output_stride;
+    const size_t idist1D = istride;
+    const size_t odist1D = ostride;
+
+    // std::cout << "idist1D: " << idist1D << std::endl;
+    // std::cout << "odist1D: " << odist1D << std::endl;
+    // std::cout << "high_dimension: " << high_dimension << std::endl;
+    // std::cout << "batch: " << batch << std::endl;
 
     dim3 grid(blocks, high_dimension, batch);
     dim3 threads(block_size, 1, 1);
@@ -439,6 +448,7 @@ void real_1d_pre_post_process(size_t const half_N,
 
     // std::cout << "grid: " << grid.x << " " << grid.y << " " << grid.z << std::endl;
     // std::cout << "threads: " << threads.x << " " << threads.y << " " << threads.z << std::endl;
+
     if(R2C)
     {
         hipLaunchKernelGGL((Ndiv4 ? real_post_process_kernel<Tcomplex, true>
@@ -448,12 +458,12 @@ void real_1d_pre_post_process(size_t const half_N,
                            0,
                            rocfft_stream,
                            half_N,
-                           iDist1D,
-                           oDist1D,
+                           idist1D,
+                           odist1D,
                            d_input,
-                           input_distance,
+                           idist,
                            d_output,
-                           output_distance,
+                           odist,
                            d_twiddles);
     }
     else
@@ -465,12 +475,12 @@ void real_1d_pre_post_process(size_t const half_N,
                            0,
                            rocfft_stream,
                            half_N,
-                           iDist1D,
-                           oDist1D,
+                           idist1D,
+                           odist1D,
                            d_input,
-                           input_distance,
+                           idist,
                            d_output,
-                           output_distance,
+                           odist,
                            d_twiddles);
     }
 }
@@ -484,25 +494,19 @@ void real_1d_pre_post(const void* data_p, void* back_p)
     // the upper level provides always N/2, that is regular complex fft size
     size_t half_N = data->node->length[0];
 
-    size_t input_distance  = data->node->iDist;
-    size_t output_distance = data->node->oDist;
-
-    // Strides are actually distances between contiguous data vectors.
-    size_t input_stride  = data->node->inStride[0];
-    size_t output_stride = data->node->outStride[0];
+    const size_t idist = data->node->iDist;
+    const size_t odist = data->node->oDist;
 
     void* input_buffer  = data->bufIn[0];
     void* output_buffer = data->bufOut[0];
 
-    size_t batch          = data->node->batch;
-    size_t high_dimension = 1;
-    if(data->node->length.size() > 1)
-    {
-        for(int i = 1; i < data->node->length.size(); i++)
-        {
-            high_dimension *= data->node->length[i];
-        }
-    }
+    size_t batch = data->node->batch;
+
+    const size_t high_dimension = std::accumulate(
+        data->node->length.begin() + 1, data->node->length.end(), 1, std::multiplies<size_t>());
+    // Strides are actually distances between contiguous data vectors.
+    const size_t istride = high_dimension > 1 ? data->node->inStride[1] : 0;
+    const size_t ostride = high_dimension > 1 ? data->node->outStride[1] : 0;
 
     if(data->node->precision == rocfft_precision_single)
     {
@@ -512,10 +516,10 @@ void real_1d_pre_post(const void* data_p, void* back_p)
                                               (float2*)output_buffer,
                                               (float2*)(data->node->twiddles),
                                               high_dimension,
-                                              input_stride,
-                                              output_stride,
-                                              input_distance,
-                                              output_distance,
+                                              istride,
+                                              ostride,
+                                              idist,
+                                              odist,
                                               data->rocfft_stream);
     }
     else
@@ -526,10 +530,10 @@ void real_1d_pre_post(const void* data_p, void* back_p)
                                                (double2*)output_buffer,
                                                (double2*)(data->node->twiddles),
                                                high_dimension,
-                                               input_stride,
-                                               output_stride,
-                                               input_distance,
-                                               output_distance,
+                                               istride,
+                                               ostride,
+                                               idist,
+                                               odist,
                                                data->rocfft_stream);
     }
 }
