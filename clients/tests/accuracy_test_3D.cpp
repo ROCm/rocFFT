@@ -884,7 +884,7 @@ void imposeHermitianSymmetry(std::complex<Tfloat>*              data,
         if(Nx % 2 == 0)
         {
             // x-Nyquist is real-valued
-            data[dims[howmany_dims.is * ibatch + 0].is * (Nx / 2)].imag(0.0);
+            data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2)].imag(0.0);
         }
         if(Ny % 2 == 0)
         {
@@ -1572,6 +1572,15 @@ INSTANTIATE_TEST_CASE_P(rocfft_mix_3D,
 
 // Complex to real and real-to-complex:
 
+INSTANTIATE_TEST_CASE_P(rocfft_pow2_3D,
+                        accuracy_test_real_3D,
+                        ::testing::Combine(ValuesIn(pow2_range),
+                                           ValuesIn(pow2_range),
+                                           ValuesIn(pow2_range),
+                                           ValuesIn(batch_range),
+                                           ValuesIn(rc_placeness_range),
+                                           ValuesIn(stride_range),
+                                           ValuesIn(pattern_range)));
 INSTANTIATE_TEST_CASE_P(rocfft_pow3_3D,
                         accuracy_test_real_3D,
                         ::testing::Combine(ValuesIn(pow3_range),
