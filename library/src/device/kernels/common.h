@@ -236,8 +236,8 @@ __device__ T TWLstep4(T* twiddles, size_t u)
 
 #define TWIDDLE_STEP_MUL_FWD(TWFUNC, TWIDDLES, INDEX, REG) \
     {                                                      \
-        T     W = TWFUNC(TWIDDLES, INDEX);                 \
-        float TR, TI;                                      \
+        T              W = TWFUNC(TWIDDLES, INDEX);        \
+        real_type_t<T> TR, TI;                             \
         TR    = (W.x * REG.x) - (W.y * REG.y);             \
         TI    = (W.y * REG.x) + (W.x * REG.y);             \
         REG.x = TR;                                        \
@@ -246,8 +246,8 @@ __device__ T TWLstep4(T* twiddles, size_t u)
 
 #define TWIDDLE_STEP_MUL_INV(TWFUNC, TWIDDLES, INDEX, REG) \
     {                                                      \
-        T     W = TWFUNC(TWIDDLES, INDEX);                 \
-        float TR, TI;                                      \
+        T              W = TWFUNC(TWIDDLES, INDEX);        \
+        real_type_t<T> TR, TI;                             \
         TR    = (W.x * REG.x) + (W.y * REG.y);             \
         TI    = -(W.y * REG.x) + (W.x * REG.y);            \
         REG.x = TR;                                        \
