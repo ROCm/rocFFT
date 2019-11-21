@@ -64,10 +64,14 @@ static std::vector<size_t> generate_random(size_t number_run)
     size_t              RAND_MAX_NUMBER = 6;
     for(size_t r = 0; r < number_run; r++)
     {
-        // generate a integer number between [0, RAND_MAX-1]
-        size_t i = (size_t)(rand() % RAND_MAX_NUMBER);
-        size_t j = (size_t)(rand() % RAND_MAX_NUMBER);
-        size_t k = (size_t)(rand() % RAND_MAX_NUMBER);
+        // generate a integer number between [0, RAND_MAX - 1]
+        size_t i, j, k;
+        do
+        {
+            i = (size_t)(rand() % RAND_MAX_NUMBER);
+            j = (size_t)(rand() % RAND_MAX_NUMBER);
+            k = (size_t)(rand() % RAND_MAX_NUMBER);
+        } while(i + j + k == 0);
         output.push_back(pow(2, i) * pow(3, j) * pow(5, k));
     }
     return output;
