@@ -93,13 +93,13 @@ elseif( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
   set( CMAKE_C_COMPILE_OPTIONS_VISIBILITY_INLINES_HIDDEN "-Xcompiler ${CMAKE_C_COMPILE_OPTIONS_VISIBILITY_INLINES_HIDDEN}" )
   set( CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY_INLINES_HIDDEN "-Xcompiler ${CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY_INLINES_HIDDEN}" )
 elseif( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
-  message( STATUS "HCC compiler set; ROCm backend selected [ CXX=/opt/rocm/bin/hcc cmake ... ]" )
+  message( STATUS "HCC compiler set; ROCm backend selected" )
 endif( )
 
 # This finds the rocm-cmake project, and installs it if not found
 # rocm-cmake contains common cmake code for rocm projects to help setup and install
 set( PROJECT_EXTERN_DIR ${CMAKE_CURRENT_BINARY_DIR}/extern )
-find_package( ROCM CONFIG QUIET PATHS /opt/rocm )
+find_package( ROCM CONFIG QUIET PATHS)
 if( NOT ROCM_FOUND )
   set( rocm_cmake_tag "master" CACHE STRING "rocm-cmake tag to download" )
   file( DOWNLOAD https://github.com/RadeonOpenCompute/rocm-cmake/archive/${rocm_cmake_tag}.zip
@@ -125,9 +125,6 @@ rocm_setup_version( VERSION ${VERSION_STRING} )
 # Users may override HIP path by specifying their own in CMAKE_MODULE_PATH
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
-# NOTE:  workaround until hcc & hip cmake modules fixes symlink logic in their config files; remove when fixed
-list( APPEND CMAKE_PREFIX_PATH /opt/rocm/hcc /opt/rocm/hip )
-
 # Enable verbose output
 option( BUILD_VERBOSE "Output additional build information" OFF )
 
@@ -143,11 +140,11 @@ set(CMAKE_INSTALL_LIBDIR "lib" CACHE INTERNAL "Installation directory for librar
 # Find HCC/HIP dependencies
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$|.*/hipcc$" )
   message( STATUS "Building with ROCm tools" )
-  find_package( hcc REQUIRED CONFIG PATHS /opt/rocm )
+  find_package( hcc REQUIRED CONFIG PATHS )
 endif( )
 
 # Hip headers required of all clients; clients use hip to allocate device memory
-find_package( hip REQUIRED CONFIG PATHS /opt/rocm )
+find_package( hip REQUIRED CONFIG PATHS )
 
 # Quietly look for CUDA, but if not found it's not an error
 # The presense of hip is not sufficient to determine if we want a rocm or cuda backend

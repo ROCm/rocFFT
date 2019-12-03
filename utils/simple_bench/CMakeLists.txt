@@ -22,7 +22,7 @@
 
 cmake_minimum_required( VERSION 2.8.12 )
 
-set (CMAKE_CXX_COMPILER "/opt/rocm/bin/hipcc")
+set (CMAKE_CXX_COMPILER "hipcc")
 set (CMAKE_CXX_FLAGS "-I .")
 
 set(benchmark_fft_source

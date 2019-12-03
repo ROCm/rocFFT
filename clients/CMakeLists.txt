@@ -51,7 +51,7 @@ set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 # if rocfft is not a target, then we know clients are built separately from the library and we must search
 # for the rocfft package
 if( NOT TARGET rocfft )
-  find_package( rocfft REQUIRED CONFIG PATHS /opt/rocm/rocfft )
+  find_package( rocfft REQUIRED CONFIG PATHS )
 endif( )
 
 # Hip headers required of all clients; clients use hip to allocate device memory
