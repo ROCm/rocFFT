@@ -150,34 +150,6 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
         std::cout << "osize: " << osize << "\n";
     }
 
-    // Set up buffers:
-    // Local data buffer:
-    std::complex<Tfloat>* cpu_in = fftw_alloc_type<std::complex<Tfloat>>(isize);
-    // Output buffer
-    std::complex<Tfloat>* cpu_out = inplace ? cpu_in : fftw_alloc_type<std::complex<Tfloat>>(osize);
-
-    std::complex<Tfloat>* gpu_in     = NULL;
-    hipError_t            hip_status = hipSuccess;
-    hip_status                       = hipMalloc(&gpu_in, isize * sizeof(std::complex<Tfloat>));
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-    std::complex<Tfloat>* gpu_out = inplace ? gpu_in : NULL;
-    if(!inplace)
-    {
-        hip_status = hipMalloc(&gpu_out, osize * sizeof(std::complex<Tfloat>));
-        ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-    }
-
-    // Set up the CPU plan:
-    auto cpu_plan = fftw_plan_guru64_dft<Tfloat>(dims.size(),
-                                                 dims.data(),
-                                                 howmany_dims.size(),
-                                                 howmany_dims.data(),
-                                                 reinterpret_cast<fftw_complex_type*>(cpu_in),
-                                                 reinterpret_cast<fftw_complex_type*>(cpu_out),
-                                                 sign,
-                                                 FFTW_ESTIMATE);
-    ASSERT_TRUE(cpu_plan != NULL) << "FFTW plan creation failure";
-
     // Set up the GPU plan:
     rocfft_status fft_status = rocfft_status_success;
 
@@ -224,6 +196,33 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
     size_t workbuffersize = 0;
     fft_status            = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT get buffer size get failure";
+
+    if(!vram_fits_problem(isize * sizeof(std::complex<Tfloat>),
+                          inplace ? 0 : osize * sizeof(std::complex<Tfloat>),
+                          workbuffersize))
+    {
+        std::cout << "problem doesn't fit on device; skipping problem\n";
+
+        rocfft_execution_info_destroy(planinfo);
+        rocfft_plan_description_destroy(gpu_description);
+        rocfft_plan_destroy(gpu_plan);
+
+        return;
+    }
+
+    hipError_t hip_status = hipSuccess;
+
+    std::complex<Tfloat>* gpu_in = NULL;
+    hip_status                   = hipMalloc(&gpu_in, isize * sizeof(std::complex<Tfloat>));
+    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+
+    std::complex<Tfloat>* gpu_out = inplace ? gpu_in : NULL;
+    if(!inplace)
+    {
+        hip_status = hipMalloc(&gpu_out, osize * sizeof(std::complex<Tfloat>));
+        ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+    }
+
     void* wbuffer = NULL;
     if(workbuffersize > 0)
     {
@@ -232,6 +231,23 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
         fft_status = rocfft_execution_info_set_work_buffer(planinfo, wbuffer, workbuffersize);
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
+
+    // Set up buffers:
+    // Local data buffer:
+    std::complex<Tfloat>* cpu_in = fftw_alloc_type<std::complex<Tfloat>>(isize);
+    // Output buffer
+    std::complex<Tfloat>* cpu_out = inplace ? cpu_in : fftw_alloc_type<std::complex<Tfloat>>(osize);
+
+    // Set up the CPU plan:
+    auto cpu_plan = fftw_plan_guru64_dft<Tfloat>(dims.size(),
+                                                 dims.data(),
+                                                 howmany_dims.size(),
+                                                 howmany_dims.data(),
+                                                 reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                                 reinterpret_cast<fftw_complex_type*>(cpu_out),
+                                                 sign,
+                                                 FFTW_ESTIMATE);
+    ASSERT_TRUE(cpu_plan != NULL) << "FFTW plan creation failure";
 
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);
@@ -282,7 +298,7 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
 
     hip_status
         = hipMemcpy(gpu_in, cpu_in, isize * sizeof(std::complex<Tfloat>), hipMemcpyHostToDevice);
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+    ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
 
     // Execute the GPU transform:
     fft_status = rocfft_execute(gpu_plan, // plan
@@ -328,7 +344,7 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
     fftw_vector<std::complex<Tfloat>> gpu_out_comp(osize);
     hip_status = hipMemcpy(
         gpu_out_comp.data(), gpu_out, osize * sizeof(std::complex<Tfloat>), hipMemcpyDeviceToHost);
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+    ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
 
     if(verbose > 1)
     {
@@ -544,34 +560,6 @@ void normal_2D_real_to_complex_interleaved(size_t                  Nx,
         std::cout << "osize: " << osize << "\n";
     }
 
-    // Set up buffers:
-    // Local data buffer:
-    Tfloat* cpu_in = fftw_alloc_type<Tfloat>(isize);
-    // Output buffer
-    std::complex<Tfloat>* cpu_out
-        = inplace ? (std::complex<Tfloat>*)cpu_in : fftw_alloc_type<std::complex<Tfloat>>(osize);
-
-    Tfloat*    gpu_in     = NULL;
-    hipError_t hip_status = hipSuccess;
-    hip_status            = hipMalloc(&gpu_in, isize * sizeof(Tfloat));
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-    std::complex<Tfloat>* gpu_out = inplace ? (std::complex<Tfloat>*)gpu_in : NULL;
-    if(!inplace)
-    {
-        hip_status = hipMalloc(&gpu_out, osize * sizeof(std::complex<Tfloat>));
-        ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-    }
-
-    // Set up the CPU plan:
-    auto cpu_plan = fftw_plan_guru64_r2c<Tfloat>(dims.size(),
-                                                 dims.data(),
-                                                 howmany_dims.size(),
-                                                 howmany_dims.data(),
-                                                 cpu_in,
-                                                 reinterpret_cast<fftw_complex_type*>(cpu_out),
-                                                 FFTW_ESTIMATE);
-    ASSERT_TRUE(cpu_plan != NULL) << "FFTW plan creation failure";
-
     // Set up the GPU plan:
     rocfft_status fft_status = rocfft_status_success;
 
@@ -618,6 +606,32 @@ void normal_2D_real_to_complex_interleaved(size_t                  Nx,
     size_t workbuffersize = 0;
     fft_status            = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT get buffer size get failure";
+
+    if(!vram_fits_problem(isize * sizeof(Tfloat),
+                          inplace ? 0 : osize * sizeof(std::complex<Tfloat>),
+                          workbuffersize))
+    {
+        std::cout << "problem doesn't fit on device; skipping problem\n";
+
+        rocfft_execution_info_destroy(planinfo);
+        rocfft_plan_description_destroy(gpu_description);
+        rocfft_plan_destroy(gpu_plan);
+
+        return;
+    }
+
+    hipError_t hip_status = hipSuccess;
+
+    Tfloat* gpu_in = NULL;
+    hip_status     = hipMalloc(&gpu_in, isize * sizeof(Tfloat));
+    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+    std::complex<Tfloat>* gpu_out = inplace ? (std::complex<Tfloat>*)gpu_in : NULL;
+    if(!inplace)
+    {
+        hip_status = hipMalloc(&gpu_out, osize * sizeof(std::complex<Tfloat>));
+        ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+    }
+
     void* wbuffer = NULL;
     if(workbuffersize > 0)
     {
@@ -626,6 +640,23 @@ void normal_2D_real_to_complex_interleaved(size_t                  Nx,
         fft_status = rocfft_execution_info_set_work_buffer(planinfo, wbuffer, workbuffersize);
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
+
+    // Set up buffers:
+    // Local data buffer:
+    Tfloat* cpu_in = fftw_alloc_type<Tfloat>(isize);
+    // Output buffer
+    std::complex<Tfloat>* cpu_out
+        = inplace ? (std::complex<Tfloat>*)cpu_in : fftw_alloc_type<std::complex<Tfloat>>(osize);
+
+    // Set up the CPU plan:
+    auto cpu_plan = fftw_plan_guru64_r2c<Tfloat>(dims.size(),
+                                                 dims.data(),
+                                                 howmany_dims.size(),
+                                                 howmany_dims.data(),
+                                                 cpu_in,
+                                                 reinterpret_cast<fftw_complex_type*>(cpu_out),
+                                                 FFTW_ESTIMATE);
+    ASSERT_TRUE(cpu_plan != NULL) << "FFTW plan creation failure";
 
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);
@@ -674,7 +705,7 @@ void normal_2D_real_to_complex_interleaved(size_t                  Nx,
     }
 
     hip_status = hipMemcpy(gpu_in, cpu_in, isize * sizeof(Tfloat), hipMemcpyHostToDevice);
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+    ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
 
     // Execute the GPU transform:
     fft_status = rocfft_execute(gpu_plan, // plan
@@ -720,7 +751,7 @@ void normal_2D_real_to_complex_interleaved(size_t                  Nx,
     fftw_vector<std::complex<Tfloat>> gpu_out_comp(osize);
     hip_status = hipMemcpy(
         gpu_out_comp.data(), gpu_out, osize * sizeof(std::complex<Tfloat>), hipMemcpyDeviceToHost);
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+    ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
 
     if(verbose > 1)
     {
@@ -954,33 +985,6 @@ void normal_2D_complex_interleaved_to_real(size_t                  Nx,
         std::cout << "osize: " << osize << "\n";
     }
 
-    // Set up buffers:
-    // Local data buffer:
-    std::complex<Tfloat>* cpu_in = fftw_alloc_type<std::complex<Tfloat>>(isize);
-    // Output buffer
-    Tfloat* cpu_out = inplace ? (Tfloat*)cpu_in : fftw_alloc_type<Tfloat>(osize);
-
-    std::complex<Tfloat>* gpu_in     = NULL;
-    hipError_t            hip_status = hipSuccess;
-    hip_status                       = hipMalloc(&gpu_in, isize * sizeof(std::complex<Tfloat>));
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-    Tfloat* gpu_out = inplace ? (Tfloat*)gpu_in : NULL;
-    if(!inplace)
-    {
-        hip_status = hipMalloc(&gpu_out, osize * sizeof(Tfloat));
-        ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-    }
-
-    // Set up the CPU plan:
-    auto cpu_plan = fftw_plan_guru64_c2r<Tfloat>(dims.size(),
-                                                 dims.data(),
-                                                 howmany_dims.size(),
-                                                 howmany_dims.data(),
-                                                 reinterpret_cast<fftw_complex_type*>(cpu_in),
-                                                 cpu_out,
-                                                 FFTW_ESTIMATE);
-    ASSERT_TRUE(cpu_plan != NULL) << "FFTW plan creation failure";
-
     // Set up the GPU plan:
     rocfft_status           fft_status      = rocfft_status_success;
     rocfft_plan_description gpu_description = NULL;
@@ -1027,6 +1031,32 @@ void normal_2D_complex_interleaved_to_real(size_t                  Nx,
     size_t workbuffersize = 0;
     fft_status            = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT get buffer size get failure";
+
+    if(!vram_fits_problem(isize * sizeof(std::complex<Tfloat>),
+                          inplace ? 0 : osize * sizeof(Tfloat),
+                          workbuffersize))
+    {
+        std::cout << "problem doesn't fit on device; skipping problem\n";
+
+        rocfft_execution_info_destroy(planinfo);
+        rocfft_plan_description_destroy(gpu_description);
+        rocfft_plan_destroy(gpu_plan);
+
+        return;
+    }
+
+    hipError_t hip_status = hipSuccess;
+
+    std::complex<Tfloat>* gpu_in = NULL;
+    hip_status                   = hipMalloc(&gpu_in, isize * sizeof(std::complex<Tfloat>));
+    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+    Tfloat* gpu_out = inplace ? (Tfloat*)gpu_in : NULL;
+    if(!inplace)
+    {
+        hip_status = hipMalloc(&gpu_out, osize * sizeof(Tfloat));
+        ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+    }
+
     void* wbuffer = NULL;
     if(workbuffersize > 0)
     {
@@ -1035,6 +1065,22 @@ void normal_2D_complex_interleaved_to_real(size_t                  Nx,
         fft_status = rocfft_execution_info_set_work_buffer(planinfo, wbuffer, workbuffersize);
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
+
+    // Set up buffers:
+    // Local data buffer:
+    std::complex<Tfloat>* cpu_in = fftw_alloc_type<std::complex<Tfloat>>(isize);
+    // Output buffer
+    Tfloat* cpu_out = inplace ? (Tfloat*)cpu_in : fftw_alloc_type<Tfloat>(osize);
+
+    // Set up the CPU plan:
+    auto cpu_plan = fftw_plan_guru64_c2r<Tfloat>(dims.size(),
+                                                 dims.data(),
+                                                 howmany_dims.size(),
+                                                 howmany_dims.data(),
+                                                 reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                                 cpu_out,
+                                                 FFTW_ESTIMATE);
+    ASSERT_TRUE(cpu_plan != NULL) << "FFTW plan creation failure";
 
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);

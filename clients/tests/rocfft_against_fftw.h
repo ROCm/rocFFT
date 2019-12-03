@@ -45,4 +45,14 @@ inline rocfft_precision precision_selector<double>()
     return rocfft_precision_double;
 }
 
+// Check if the required buffers fit in the device vram.
+inline bool
+    vram_fits_problem(const size_t isize, const size_t osize, const size_t wsize, int deviceId = 0)
+{
+    hipDeviceProp_t prop;
+    auto            retval = hipGetDeviceProperties(&prop, deviceId);
+    assert(retval == hipSuccess);
+    return prop.totalGlobalMem > isize + osize + wsize;
+}
+
 #endif
