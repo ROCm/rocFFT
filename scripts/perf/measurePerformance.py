@@ -74,8 +74,8 @@ parser.add_argument('-z', '--lengthz',
     dest='lengthz', default='1',
     help='length(s) of z to test; must be factors of 1, 2, 3, or 5 with rocFFT; may be a range or a comma-delimited list. e.g., 16-128 or 1200 or 16,32768 (default 1)')
 parser.add_argument('-reps',
-    dest='reps', default='10',
-    help='Number of repetitions (default 10)')
+    dest='reps', default='1',
+    help='Number of samples (default 1)')
 parser.add_argument('-prime_factor', '--prime_factor',
     dest='prime_factor', default='2',
     help='only test the prime factors within the specified range of lengthx/y/z. Select from 2,3,5, and 7. Example: -prime_factor 2,3')
@@ -653,18 +653,20 @@ for params in test_combinations:
         transformType = '3'
 
     #set up arguments here
-    arguments = [client_prefix+ executable(args.library),
-                 '--device ' + device,
-                 '-x', lengthx,
-                 '-y', lengthy,
-                 '-z', lengthz,
-                 '--batchSize', batchSize,
+    arguments = [client_prefix + executable(args.library),
+                 '--device', device,
+                 '--length', lengthx]
+    if int(lengthy) > 1:
+        arguments.append(lengthy)
+    if int(lengthz) > 1:
+        arguments.append(lengthz)
+    arguments += ['--batchSize', batchSize,
                  '-t', transformType,
-                 '--inArrType', inlayout,
-                 '--outArrType',outlayout,
+                 '--itype', inlayout,
+                 '--otype',outlayout,
                  placeness,
                  precision,
-                 '-p', args.reps]
+                 '-N', args.reps]
 
 
     writeline = True
@@ -700,7 +702,7 @@ for params in test_combinations:
             thisResult = re.search('\d+\.*\d*e*-*\d*$', output[-1])
             thisResult = float(thisResult.group(0))
             gflops_result.append(thisResult)
-
+            
             thisResult = ('{:11d}'.format(params.x), '{:11d}'.format(params.y), '{:11d}'.format(params.z),\
                 '{:>11s}'.format(batchSize), '{:>7s}'.format(params.device), \
                 '{:>6s}'.format(params.inlayout), '{:>7s}'.format(params.outlayout), \
@@ -716,6 +718,7 @@ for params in test_combinations:
 
         except:
 			printLog('ERROR: Exception occurs in GFLOP parsing')
+
     else:
         if(len(output) > 0):
             if output[0].find('nan') or output[0].find('inf'):

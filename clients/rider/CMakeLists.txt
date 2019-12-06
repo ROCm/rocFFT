@@ -47,7 +47,7 @@ set( Boost_USE_MULTITHREADED ON )
 # set( Boost_ADDITIONAL_VERSIONS 1.65.1 1.65 )
 # set( Boost_USE_STATIC_LIBS OFF )
 
-set( rocfft_rider_source rider.cpp misc.cpp )
+set( rocfft_rider_source rider.cpp )
 set( rocfft_rider_includes rider.h misc.h )
 
 add_executable( rocfft-rider ${rocfft_rider_source} ${rocfft_rider_includes} )
