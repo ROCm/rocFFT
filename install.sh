@@ -173,10 +173,10 @@ install_packages( )
     fi
 
     # dependencies needed for rocfft and clients to build
-    local library_dependencies_ubuntu=( "make" "cmake-curses-gui" "hip_hcc" "pkg-config" )
-    local library_dependencies_centos=( "epel-release" "make" "cmake3" "hip_hcc" "gcc-c++" "rpm-build" )
-    local library_dependencies_fedora=( "make" "cmake" "hip_hcc" "gcc-c++" "libcxx-devel" "rpm-build" )
-    local library_dependencies_sles=( "make" "cmake" "hip_hcc" "gcc-c++" "gcc-fortran" "libcxxtools9" "rpm-build" )
+    local library_dependencies_ubuntu=( "make" "cmake-curses-gui" "rocm-dev" "pkg-config" )
+    local library_dependencies_centos=( "epel-release" "make" "cmake3" "rocm-dev" "gcc-c++" "rpm-build" )
+    local library_dependencies_fedora=( "make" "cmake" "rocm-dev" "gcc-c++" "libcxx-devel" "rpm-build" )
+    local library_dependencies_sles=( "make" "cmake" "rocm-dev" "gcc-c++" "gcc-fortran" "libcxxtools9" "rpm-build" )
 
     if [[ "${build_cuda}" == true ]]; then
         # Ideally, this could be cuda-cufft-dev, but the package name has a version number in it
