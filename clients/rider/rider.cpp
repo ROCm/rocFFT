@@ -651,7 +651,7 @@ int main(int argc, char* argv[])
           ->default_value(rocfft_array_type_complex_interleaved),
           "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
-        ("length",  po::value<std::vector<size_t>>(&length)->multitoken()->required(), "Lengths.")
+        ("length",  po::value<std::vector<size_t>>(&length)->multitoken(), "Lengths.")
         ("istride", po::value<std::vector<size_t>>(&istride)->multitoken(), "Input strides.")
         ("ostride", po::value<std::vector<size_t>>(&ostride)->multitoken(), "Output strides.")
         ("ioffset", po::value<std::vector<size_t>>(&ioffset)->multitoken(), "Input offsets.")
@@ -674,6 +674,13 @@ int main(int argc, char* argv[])
         char v[256];
         rocfft_get_version_string(v, 256);
         std::cout << "version " << v << std::endl;
+        return 0;
+    }
+
+    if(!vm.count("length"))
+    {
+        std::cout << "Please specify transform length!" << std::endl;
+        std::cout << desc << std::endl;
         return 0;
     }
 
