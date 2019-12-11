@@ -933,12 +933,41 @@ int main(int argc, char* argv[])
 
     if(idist == 0)
     {
-        idist = length[length.size() - 1] * istride[istride.size() - 1];
+
+        if(transformType == rocfft_transform_type_real_inverse && length.size() == 1)
+        {
+            idist = length[0] / 2 + 1;
+        }
+        else
+        {
+            idist = length[length.size() - 1] * istride[istride.size() - 1];
+        }
+
+        // in-place 1D transforms need extra dist.
+        if(transformType == rocfft_transform_type_real_forward && length.size() == 1
+           && place == rocfft_placement_inplace)
+        {
+            idist += 2;
+        }
     }
 
     if(odist == 0)
     {
-        odist = length[length.size() - 1] * ostride[ostride.size() - 1];
+        if(transformType == rocfft_transform_type_real_forward && length.size() == 1)
+        {
+            odist = length[0] / 2 + 1;
+        }
+        else
+        {
+            odist = length[length.size() - 1] * ostride[ostride.size() - 1];
+        }
+
+        // in-place 1D transforms need extra dist.
+        if(transformType == rocfft_transform_type_real_inverse && length.size() == 1
+           && place == rocfft_placement_inplace)
+        {
+            odist += 2;
+        }
     }
 
     // Final validation:
