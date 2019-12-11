@@ -47,13 +47,14 @@ rocFFTCI:
         String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_BENCHMARKS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON'
         String hipClangArgs = platform.jenkinsLabel.contains('hip-clang') ? '-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang' : ''
         String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
+        String sudo = platform.jenkinsLabel.contains('sles') ? 'sudo' : ''
 
         def command = """#!/usr/bin/env bash
                     set -x
                     cd ${project.paths.project_build_prefix}
                     mkdir build && cd build
-                    ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/${compiler} ${clientArgs} ${hipClangArgs} ..
-                    make -j\$(nproc)
+                    ${sudo} ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/${compiler} ${clientArgs} ${hipClangArgs} ..
+                    ${sudo} make -j\$(nproc)
                 """
         platform.runCommand(this, command)
     }
