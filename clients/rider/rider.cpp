@@ -644,11 +644,11 @@ int main(int argc, char* argv[])
         ( "batchSize,b", po::value<size_t>(&nbatch)->default_value(1),
           "If this value is greater than one, arrays will be used ")
         ( "itype", po::value<rocfft_array_type>(&itype)
-          ->default_value(rocfft_array_type_complex_interleaved),
+          ->default_value(rocfft_array_type_unset),
           "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
         ( "otype", po::value<rocfft_array_type>(&otype)
-          ->default_value(rocfft_array_type_complex_interleaved),
+          ->default_value(rocfft_array_type_unset),
           "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
         ("length",  po::value<std::vector<size_t>>(&length)->multitoken(), "Lengths.")
@@ -753,6 +753,55 @@ int main(int argc, char* argv[])
 
     std::cout << std::flush;
 
+    // Check that format choices are supported
+    if(transformType != rocfft_transform_type_real_forward
+       && transformType != rocfft_transform_type_real_inverse)
+    {
+        if(place == rocfft_placement_inplace && itype != otype)
+        {
+            throw std::runtime_error(
+                "In-place transforms must have identical input and output types");
+        }
+    }
+
+    // Set default data formats if not yet specified:
+    if(itype == rocfft_array_type_unset)
+    {
+        switch(transformType)
+        {
+        case rocfft_transform_type_complex_forward:
+        case rocfft_transform_type_complex_inverse:
+            itype = rocfft_array_type_complex_interleaved;
+            break;
+        case rocfft_transform_type_real_forward:
+            itype = rocfft_array_type_real;
+            break;
+        case rocfft_transform_type_real_inverse:
+            itype = rocfft_array_type_hermitian_interleaved;
+            break;
+        default:
+            throw std::runtime_error("Invalid transform type");
+        }
+    }
+    if(otype == rocfft_array_type_unset)
+    {
+        switch(transformType)
+        {
+        case rocfft_transform_type_complex_forward:
+        case rocfft_transform_type_complex_inverse:
+            otype = rocfft_array_type_complex_interleaved;
+            break;
+        case rocfft_transform_type_real_forward:
+            otype = rocfft_array_type_hermitian_interleaved;
+            break;
+        case rocfft_transform_type_real_inverse:
+            otype = rocfft_array_type_real;
+            break;
+        default:
+            throw std::runtime_error("Invalid transform type");
+        }
+    }
+
     switch(itype)
     {
     case rocfft_array_type_complex_interleaved:
@@ -777,16 +826,6 @@ int main(int argc, char* argv[])
         throw std::runtime_error("Invalid Input array type format");
     }
 
-    // Check that format choices are supported
-    if(transformType != rocfft_transform_type_real_forward
-       && transformType != rocfft_transform_type_real_inverse)
-    {
-        if(place == rocfft_placement_inplace && itype != otype)
-        {
-            throw std::runtime_error(
-                "In-place transforms must have identical input and output types");
-        }
-    }
     bool okformat = true;
     switch(itype)
     {
