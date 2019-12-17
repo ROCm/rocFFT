@@ -59,6 +59,7 @@ enum ComputeScheme
     CS_KERNEL_R_TO_CMPLX,
     CS_KERNEL_CMPLX_TO_R,
     CS_REAL_2D_EVEN,
+    CS_REAL_3D_EVEN,
 
     CS_BLUESTEIN,
     CS_KERNEL_CHIRP,
@@ -199,10 +200,11 @@ public:
         if(!node)
             return;
 
-        std::vector<TreeNode*>::iterator children_p;
-        for(children_p = node->childNodes.begin(); children_p != node->childNodes.end();
+        for(auto children_p = node->childNodes.begin(); children_p != node->childNodes.end();
             children_p++)
+        {
             DeleteNode(*children_p); // recursively delete allocated nodes
+        }
 
         if(node->twiddles)
         {
@@ -223,6 +225,7 @@ public:
         }
 
         delete node;
+        node = NULL;
     }
 
     // Main tree builder:
@@ -233,6 +236,7 @@ public:
     void build_real_embed();
     void build_real_even_1D();
     void build_real_even_2D();
+    void build_real_even_3D();
 
     // 1D node builders:
     void build_1D();
@@ -245,6 +249,9 @@ public:
     void build_CS_2D_RTRT();
     void build_CS_2D_RTRT_real();
 
+    // 3D node builders:
+    void build_CS_3D_RTRT();
+
     // Buffer assignment:
     void assign_buffers_CS_REAL_TRANSFORM_USING_CMPLX(OperatingBuffer& flipIn,
                                                       OperatingBuffer& flipOut,
@@ -253,6 +260,9 @@ public:
                                                OperatingBuffer& flipOut,
                                                OperatingBuffer& obOutBuf);
     void assign_buffers_CS_REAL_2D_EVEN(OperatingBuffer& flipIn,
+                                        OperatingBuffer& flipOut,
+                                        OperatingBuffer& obOutBuf);
+    void assign_buffers_CS_REAL_3D_EVEN(OperatingBuffer& flipIn,
                                         OperatingBuffer& flipOut,
                                         OperatingBuffer& obOutBuf);
     void assign_buffers_CS_BLUESTEIN(OperatingBuffer& flipIn,
@@ -282,6 +292,7 @@ public:
     void assign_params_CS_REAL_TRANSFORM_USING_CMPLX();
     void assign_params_CS_REAL_TRANSFORM_EVEN();
     void assign_params_CS_REAL_2D_EVEN();
+    void assign_params_CS_REAL_3D_EVEN();
     void assign_params_CS_L1D_CC();
     void assign_params_CS_L1D_CRT();
     void assign_params_CS_BLUESTEIN();

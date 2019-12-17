@@ -1,24 +1,22 @@
-/******************************************************************************
-* Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*******************************************************************************/
+// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
 #ifndef TRANSPOSE_H
 #define TRANSPOSE_H
@@ -26,15 +24,11 @@
 #include "common.h"
 #include "rocfft_hip.h"
 
-/*
-   transpose input of size m * n (up to DIM_X * DIM_X) to output of size n * m
-   input, output are in device memory
-   shared memory of size DIM_X*DIM_X is allocated size_ternally as working space
-
-   Assume DIM_X by DIM_Y threads are reading & wrting a tile size DIM_X * DIM_X
-   DIM_X is divisible by DIM_Y
-*/
-
+// Transpose input of size m * n (up to DIM_X * DIM_X) to output of size n * m
+// input, output are in device memory.
+// Shared memory of size DIM_X*DIM_X is allocated size_ternally as working space.
+// Assume DIM_X by DIM_Y threads are reading & writing a tile size DIM_X * DIM_X
+// DIM_X is divisible by DIM_Y.
 template <typename T, size_t DIM_X, size_t DIM_Y, bool WITH_TWL, int TWL, int DIR, bool ALL>
 __device__ void transpose_tile_device(const T*     input,
                                       T*           output,
@@ -180,15 +174,10 @@ __device__ void transpose_tile_device(const T*     input,
     }
 }
 
-/*
-   transpose input of size m * n to output of size n * m
-   input, output are in device memory
-
-   2D grid and 2D thread block (DIM_X, DIM_Y)
-
-   Assume DIM_X by DIM_Y threads are transposing a tile DIM_X * DIM_X
-*/
-
+// Transpose input of size m * n to output of size n * m input, output is in device
+// memory.
+// 2D grid and 2D thread block (DIM_X, DIM_Y).
+// Assume DIM_X by DIM_Y threads are transposing a tile DIM_X * DIM_X.
 template <typename T, size_t DIM_X, size_t DIM_Y, bool WITH_TWL, int TWL, int DIR, bool ALL>
 __global__ void transpose_kernel2(const T* input,
                                   T*       output,
