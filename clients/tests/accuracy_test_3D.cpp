@@ -49,14 +49,7 @@ static size_t batch_range[] = {1, 2};
 
 static size_t stride_range[] = {1};
 
-// static rocfft_result_placement placeness_range[]
-//     = {rocfft_placement_notinplace, rocfft_placement_inplace};
-static rocfft_result_placement placeness_range[] = {rocfft_placement_inplace};
-// TODO: re-enable when out-of-place c2c 3D transforms are fixed.
-
-// Real/complex transform test framework is only set up for out-of-place transforms:
-// TODO: fix the test suite and add coverage for in-place transforms.
-static rocfft_result_placement rc_placeness_range[]
+static rocfft_result_placement placeness_range[]
     = {rocfft_placement_notinplace, rocfft_placement_inplace};
 
 static rocfft_transform_type transform_range[]
@@ -1633,7 +1626,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow2_3D,
                                            ValuesIn(pow2_range),
                                            ValuesIn(pow2_range),
                                            ValuesIn(batch_range),
-                                           ValuesIn(rc_placeness_range),
+                                           ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range)));
 INSTANTIATE_TEST_CASE_P(rocfft_pow3_3D,
@@ -1642,7 +1635,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow3_3D,
                                            ValuesIn(pow3_range),
                                            ValuesIn(pow3_range),
                                            ValuesIn(batch_range),
-                                           ValuesIn(rc_placeness_range),
+                                           ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range)));
 
@@ -1652,7 +1645,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow5_3D,
                                            ValuesIn(pow5_range),
                                            ValuesIn(pow5_range),
                                            ValuesIn(batch_range),
-                                           ValuesIn(rc_placeness_range),
+                                           ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range)));
 
@@ -1662,7 +1655,7 @@ INSTANTIATE_TEST_CASE_P(rocfft_prime_3D,
                                            ValuesIn(prime_range),
                                            ValuesIn(prime_range),
                                            ValuesIn(batch_range),
-                                           ValuesIn(rc_placeness_range),
+                                           ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range)));
 
@@ -1672,6 +1665,6 @@ INSTANTIATE_TEST_CASE_P(rocfft_mix_3D,
                                            ValuesIn(pow3_range),
                                            ValuesIn(prime_range),
                                            ValuesIn(batch_range),
-                                           ValuesIn(rc_placeness_range),
+                                           ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range)));
