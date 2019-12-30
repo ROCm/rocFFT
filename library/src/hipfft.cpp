@@ -317,7 +317,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                         dry_run));
         break;
     default:
-        assert(false);
+        return HIPFFT_PARSE_ERROR;
     }
 
     size_t tmpBufferSize = 0;
