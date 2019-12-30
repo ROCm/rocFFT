@@ -844,31 +844,19 @@ namespace StockhamGenerator
                             }
                             else
                             {
+                                passStr += rType + "wx, wy, rx, ry;\n\t\t";
+                                passStr += "wx = W.x; wy = W.y;\n\t\t";
+                                passStr += "rx = " + regRealIndex + "; ry = " + regImagIndex
+                                           + ";\n\t\t";
                                 if(fwd)
                                 {
-                                    passStr += "TR = (W.x * ";
-                                    passStr += regRealIndex;
-                                    passStr += ") - (W.y * ";
-                                    passStr += regImagIndex;
-                                    passStr += ");\n\t\t";
-                                    passStr += "TI = (W.y * ";
-                                    passStr += regRealIndex;
-                                    passStr += ") + (W.x * ";
-                                    passStr += regImagIndex;
-                                    passStr += ");\n\t\t";
+                                    passStr += "TR = wx * rx - wy * ry;\n\t\t";
+                                    passStr += "TI = wy * rx + wx * ry;\n\t\t";
                                 }
                                 else
                                 {
-                                    passStr += "TR =  (W.x * ";
-                                    passStr += regRealIndex;
-                                    passStr += ") + (W.y * ";
-                                    passStr += regImagIndex;
-                                    passStr += ");\n\t\t";
-                                    passStr += "TI = -(W.y * ";
-                                    passStr += regRealIndex;
-                                    passStr += ") + (W.x * ";
-                                    passStr += regImagIndex;
-                                    passStr += ");\n\t\t";
+                                    passStr += "TR = wx * rx + wy * ry;\n\t\t";
+                                    passStr += "TI = - wy * rx + wx * ry;\n\t\t";
                                 }
                             }
 
