@@ -326,21 +326,17 @@ __global__ void real_post_process_kernel(const size_t    half_N,
         {
             const Tcomplex p = input[idx_p];
             const Tcomplex q = input[idx_q];
-
-            const Tcomplex u(0.5 * (p.x + q.x), 0.5 * (p.y - q.y)); // 0.5*(p + conj(q))
-            const Tcomplex v(0.5 * (p.x - q.x), 0.5 * (p.y + q.y)); // 0.5*(p - conj(q))
+            const Tcomplex u = 0.5 * (p + q);
+            const Tcomplex v = 0.5 * (p - q);
 
             const Tcomplex twd_p = twiddles[idx_p];
-            output[idx_p].x      = u.x + v.x * twd_p.y + v.y * twd_p.x;
-            output[idx_p].y      = u.y + v.y * twd_p.y - v.x * twd_p.x;
+            // NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y);
 
-            // NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y)
-            // Tcomplex twd_q = twiddles[idx_q];
-            // output[idx_q].x = u.x - v.x * twd_q.y + v.y * twd_q.x;
-            // output[idx_q].y = -u.y + v.y * twd_q.y + v.x * twd_q.x;
+            output[idx_p].x = u.x + v.x * twd_p.y + u.y * twd_p.x;
+            output[idx_p].y = v.y + u.y * twd_p.y - v.x * twd_p.x;
 
-            output[idx_q].x = u.x - v.x * twd_p.y - v.y * twd_p.x;
-            output[idx_q].y = -u.y + v.y * twd_p.y - v.x * twd_p.x;
+            output[idx_q].x = u.x - v.x * twd_p.y - u.y * twd_p.x;
+            output[idx_q].y = -v.y + u.y * twd_p.y - v.x * twd_p.x;
         }
     }
 }
@@ -394,21 +390,17 @@ __global__ void real_pre_process_kernel(const size_t    half_N,
             const Tcomplex p = input[idx_p];
             const Tcomplex q = input[idx_q];
 
-            const Tcomplex u(p.x + q.x, p.y - q.y); // p + conj(q)
-            const Tcomplex v(p.x - q.x, p.y + q.y); // p - conj(q)
+            const Tcomplex u = p + q;
+            const Tcomplex v = p - q;
 
-            const Tcomplex twd_p(-twiddles[idx_p].x, twiddles[idx_p].y);
-            // NB: twd_q = -conj(twd_p)
+            const Tcomplex twd_p = twiddles[idx_p];
+            // NB: twd_q = -conj(twd_p);
 
-            output[idx_p].x = u.x + v.x * twd_p.y + v.y * twd_p.x;
-            output[idx_p].y = u.y + v.y * twd_p.y - v.x * twd_p.x;
+            output[idx_p].x = u.x + v.x * twd_p.y - u.y * twd_p.x;
+            output[idx_p].y = v.y + u.y * twd_p.y + v.x * twd_p.x;
 
-            output[idx_q].x = u.x - v.x * twd_p.y - v.y * twd_p.x;
-            output[idx_q].y = -u.y + v.y * twd_p.y - v.x * twd_p.x;
-
-            // const T twd_q(-twiddles[idx_q].x, twiddles[idx_q].y);
-            // output[idx_q].x = u.x - v.x * twd_q.y + v.y * twd_q.x;
-            // output[idx_q].y = -u.y + v.y * twd_q.y + v.x * twd_q.x;
+            output[idx_q].x = u.x - v.x * twd_p.y + u.y * twd_p.x;
+            output[idx_q].y = -v.y + u.y * twd_p.y + v.x * twd_p.x;
         }
     }
 }

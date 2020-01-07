@@ -351,9 +351,9 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
         if(plan->autoAllocate)
         {
             if(plan->workBuffer)
-                if(hipFree(plan->workBuffer) != HIP_SUCCESS)
+                if(hipFree(plan->workBuffer) != hipSuccess)
                     return HIPFFT_ALLOC_FAILED;
-            if(hipMalloc(&plan->workBuffer, workBufferSize) != HIP_SUCCESS)
+            if(hipMalloc(&plan->workBuffer, workBufferSize) != hipSuccess)
                 return HIPFFT_ALLOC_FAILED;
         }
         ROC_FFT_CHECK_INVALID_VALUE(
@@ -496,8 +496,6 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
 
     size_t number_of_transforms = batch;
 
-    size_t workBufferSize = 0;
-
     rocfft_plan_description desc = nullptr;
     if((inembed != nullptr) || (onembed != nullptr))
     {
@@ -561,10 +559,6 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
             break;
         case HIPFFT_C2C:
         case HIPFFT_Z2Z:
-            in_array_type  = rocfft_array_type_complex_interleaved;
-            out_array_type = rocfft_array_type_complex_interleaved;
-            break;
-        defaut:
             in_array_type  = rocfft_array_type_complex_interleaved;
             out_array_type = rocfft_array_type_complex_interleaved;
             break;

@@ -84,7 +84,10 @@ add_library( rocfft-device
   )
 add_library( roc::rocfft-device ALIAS rocfft-device )
 target_compile_features( rocfft-device PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
-target_compile_options (rocfft-device PRIVATE -fno-gpu-rdc)
+
+if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" OR HIP_PLATFORM STREQUAL "hip-clang")
+  target_compile_options (rocfft-device PRIVATE -fno-gpu-rdc)
+endif()
 
 # Remove this check when we no longer build with older rocm stack(ie < 1.8.2)
 if(TARGET hip::device)
@@ -94,7 +97,7 @@ target_link_libraries( rocfft-device PRIVATE hip::hip_hcc hip::hip_device hcc::h
 endif()
 
 if(HIP_PLATFORM STREQUAL "nvcc")
-    target_compile_options( rocfft-device PRIVATE "-gencode arch=compute_50,code=sm_50 -gencode arch=compute_52,code=sm_52 -gencode arch=compute_30,code=sm_30" )
+    target_compile_options( rocfft-device PRIVATE "-gencode arch=compute_75,code=sm_75 -gencode arch=compute_70,code=sm_70 -gencode arch=compute_60,code=sm_60" )
 endif()
 
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" OR HIP_PLATFORM STREQUAL "hip-clang")

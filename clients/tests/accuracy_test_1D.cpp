@@ -688,7 +688,7 @@ void normal_1D_real_to_complex_interleaved(size_t                  N,
     fftw_vector<std::complex<Tfloat>> gpu_out_comp(osize);
     hip_status = hipMemcpy(
         gpu_out_comp.data(), gpu_out, osize * sizeof(std::complex<Tfloat>), hipMemcpyDeviceToHost);
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
+    ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure " << hipGetErrorString(hip_status);
 
     if(verbose > 1)
     {

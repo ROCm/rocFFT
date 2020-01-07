@@ -233,7 +233,8 @@ __global__ void hermitian2complex_kernel(size_t hermitian_size,
     {
         T res      = input[0];
         outputs[0] = res;
-        outputc[0] = T(res.x, -res.y);
+        res.y      = -res.y;
+        outputc[0] = res;
     }
 }
 

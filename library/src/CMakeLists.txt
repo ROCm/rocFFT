@@ -111,7 +111,13 @@ set_target_properties( rocfft PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BIN
 set_target_properties( rocfft PROPERTIES DEBUG_POSTFIX "-d" )
 set_target_properties( rocfft PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON )
 
-set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
+#TODO:
+# hipcc(with nvcc backend) build has problem for share library visibility,
+# need to figure out the reason and enable visibility "hidden" for nvcc eventually.
+if(NOT HIP_PLATFORM STREQUAL "nvcc")
+    set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
+endif()
+
 generate_export_header( rocfft EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft-export.h )
 
 # Following Boost conventions of prefixing 'lib' on static built libraries, across all platforms

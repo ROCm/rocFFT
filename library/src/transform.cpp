@@ -86,7 +86,9 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
 
     if(execPlan.workBufSize > 0)
     {
+#ifndef __NVCC__
         assert(info != nullptr);
+#endif
         assert(info->workBufferSize >= (execPlan.workBufSize * 2 * plan->base_type_size));
     }
 
