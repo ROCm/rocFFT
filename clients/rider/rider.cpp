@@ -38,6 +38,39 @@ bool increment_colmajor(std::vector<T1>& index, const std::vector<T2>& length)
     return !std::all_of(index.begin(), index.end(), [](int i) { return i == 0; });
 }
 
+// Output a formatted general-dimensional array with given length and stride in batches separated by
+// dist.
+template <class Toutput, class T1, class T2>
+void printbuffer(const std::vector<Toutput>& output,
+                 const std::vector<T1>       length,
+                 const std::vector<T2>       stride,
+                 const size_t                nbatch,
+                 const size_t                dist)
+{
+    for(size_t b = 0; b < nbatch; b++)
+    {
+        std::vector<int> index(length.size());
+        std::fill(index.begin(), index.end(), 0);
+        do
+        {
+            const int i = std::inner_product(index.begin(), index.end(), stride.begin(), b * dist);
+            std::cout << output[i] << " ";
+            for(int i = 0; i < index.size(); ++i)
+            {
+                if(index[i] == (length[i] - 1))
+                {
+                    std::cout << "\n";
+                }
+                else
+                {
+                    break;
+                }
+            }
+        } while(increment_colmajor(index, length));
+        std::cout << std::endl;
+    }
+}
+
 // Perform a transform using rocFFT.  We assume that all input is valid at this point.
 // ntrial is the number of trials; if this is 0, then we just do a correctness check.
 template <typename T>
@@ -56,7 +89,8 @@ int transform(const std::vector<size_t> length,
               rocfft_transform_type     transformType,
               double                    scale,
               int                       deviceId,
-              const int                 ntrial)
+              const int                 ntrial,
+              const int                 verbose)
 {
     HIP_V_THROW(hipSetDevice(deviceId), " hipSetDevice failed");
 
@@ -143,6 +177,12 @@ int transform(const std::vector<size_t> length,
             } while(increment_colmajor(index, length));
         }
 
+        if(verbose)
+        {
+            std::cout << "input:\n";
+            printbuffer(input, length, istride, nbatch, idist);
+        }
+
         HIP_V_THROW(hipMemcpy(ibuffer[0], input.data(), isize, hipMemcpyHostToDevice),
                     "hipMemcpy failed");
     }
@@ -186,6 +226,12 @@ int transform(const std::vector<size_t> length,
             size_t p3 = b * idist;
             input[p3] = delta;
         }
+        if(verbose)
+        {
+            std::cout << "\ninput:\n";
+            printbuffer(input, length, istride, nbatch, idist);
+        }
+
         HIP_V_THROW(hipMemcpy(ibuffer[0], input.data(), isize, hipMemcpyHostToDevice),
                     "hipMemcpy failed");
     }
@@ -228,6 +274,13 @@ int transform(const std::vector<size_t> length,
 
             } while(increment_colmajor(index, length));
         }
+
+        if(verbose)
+        {
+            std::cout << "\ninput:\n";
+            printbuffer(input, length, istride, nbatch, idist);
+        }
+
         HIP_V_THROW(hipMemcpy(ibuffer[0], input.data(), isize, hipMemcpyHostToDevice),
                     "hipMemcpy failed");
     }
@@ -409,6 +462,12 @@ int transform(const std::vector<size_t> length,
                     }
                 } while(increment_colmajor(index, length));
             }
+
+            if(verbose)
+            {
+                std::cout << "output:\n";
+                printbuffer(output, length, ostride, nbatch, odist);
+            }
         }
         break;
         case rocfft_array_type_hermitian_planar:
@@ -487,6 +546,12 @@ int transform(const std::vector<size_t> length,
                         break;
                     }
                 } while(increment_colmajor(index, length));
+            }
+
+            if(verbose)
+            {
+                std::cout << "output:\n";
+                printbuffer(output, length, ostride, nbatch, odist);
             }
         }
         break;
@@ -587,6 +652,9 @@ int main(int argc, char* argv[])
     // This helps with mixing output of both wide and narrow characters to the screen
     std::ios::sync_with_stdio(false);
 
+    // Control output verbosity:
+    int verbose;
+
     // hip Device number for running tests:
     int deviceId;
 
@@ -626,10 +694,9 @@ int main(int argc, char* argv[])
     po::options_description desc("rocfft rider command line options");
     desc.add_options()("help,h", "produces this help message")
         ("version,v", "Print queryable version information from the rocfft library")
-        ("device", po::value<int>(&deviceId)->default_value(0),
-         "Select a specific device id")
-        ("ntrial,N", po::value<int>(&ntrial)->default_value(1),
-         "Trial size for the problem")
+        ("device", po::value<int>(&deviceId)->default_value(0), "Select a specific device id")
+        ("verbose", po::value<int>(&verbose)->implicit_value(0), "Control output verbosity")
+        ("ntrial,N", po::value<int>(&ntrial)->default_value(1), "Trial size for the problem")
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
         ("double", "Double precision transform (default: single)")
         ("transformType,t", po::value<rocfft_transform_type>(&transformType)
@@ -1039,7 +1106,8 @@ int main(int argc, char* argv[])
                                     transformType,
                                     scale,
                                     deviceId,
-                                    ntrial);
+                                    ntrial,
+                                    verbose);
         }
         else
         {
@@ -1058,7 +1126,8 @@ int main(int argc, char* argv[])
                                      transformType,
                                      scale,
                                      deviceId,
-                                     ntrial);
+                                     ntrial,
+                                     verbose);
         }
     }
     catch(std::exception& e)
