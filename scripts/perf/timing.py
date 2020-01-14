@@ -43,6 +43,9 @@ def runcase(workingdir,
     cmd = []
     cmd.append(prog)
 
+    cmd.append("--verbose")
+    cmd.append("0")
+    
     cmd.append("-N")
     cmd.append("10")
 
