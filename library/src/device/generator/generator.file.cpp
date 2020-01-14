@@ -31,8 +31,6 @@ extern "C" rocfft_status initParams(FFTKernelGenKeyParams& params,
       Parameter : basic plan info
      =================================================================== */
 
-    params.fft_outputLayout = params.fft_inputLayout = rocfft_array_type_complex_interleaved;
-
     params.blockCompute = blockCompute;
 
     params.blockComputeType = blockComputeType;
@@ -352,7 +350,7 @@ extern "C" void
             str += "#include \"rocfft_kernel_" + str_len + name_suffix + ".h\" \n";
             str += "POWX_LARGE_SBCC_GENERATOR( rocfft_internal_dfn_" + short_name_precision
                    + "_op_ci_ci_sbcc_" + str_len + ", fft_fwd_op_len" + str_len + name_suffix
-                   + ", fft_back_op_len" + str_len + name_suffix + "," + complex_case_precision
+                   + ", fft_back_op_len" + str_len + name_suffix + ", " + complex_case_precision
                    + ")\n";
         }
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
@@ -361,7 +359,7 @@ extern "C" void
             str += "#include \"rocfft_kernel_" + str_len + name_suffix + ".h\" \n";
             str += "POWX_LARGE_SBRC_GENERATOR( rocfft_internal_dfn_" + short_name_precision
                    + "_op_ci_ci_sbrc_" + str_len + ", fft_fwd_op_len" + str_len + name_suffix
-                   + ", fft_back_op_len" + str_len + name_suffix + "," + complex_case_precision
+                   + ", fft_back_op_len" + str_len + name_suffix + ", " + complex_case_precision
                    + ")\n";
         }
     }

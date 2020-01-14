@@ -309,6 +309,9 @@ public:
                                         size_t&                 cmplxForRealSize,
                                         size_t&                 blueSize,
                                         size_t&                 chirpSize);
+    void ReviseLeafsArrayType(std::vector<TreeNode*>& seq,
+                              rocfft_array_type const rootInArrayType,
+                              rocfft_array_type const rootOutArrayType);
 
     // Output plan information for debug purposes:
     void Print(std::ostream& os = std::cout, int indent = 0) const;

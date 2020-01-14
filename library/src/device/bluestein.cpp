@@ -79,46 +79,6 @@ void rocfft_internal_chirp(const void* data_p, void* back_p)
             N, M, (double2*)data->bufOut[0], data->node->twiddles_large, twl, dir, rocfft_stream);
 }
 
-template <typename T>
-rocfft_status mul_launch(size_t      numof,
-                         size_t      totalWI,
-                         size_t      N,
-                         size_t      M,
-                         const T*    A,
-                         T*          B,
-                         size_t      dim,
-                         size_t*     lengths,
-                         size_t*     stride_in,
-                         size_t*     stride_out,
-                         int         dir,
-                         int         scheme,
-                         hipStream_t rocfft_stream)
-{
-
-    dim3 grid((totalWI - 1) / 64 + 1);
-    dim3 threads(64);
-
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<T>),
-                       dim3(grid),
-                       dim3(threads),
-                       0,
-                       rocfft_stream,
-                       numof,
-                       totalWI,
-                       N,
-                       M,
-                       A,
-                       B,
-                       dim,
-                       lengths,
-                       stride_in,
-                       stride_out,
-                       dir,
-                       scheme);
-
-    return rocfft_status_success;
-}
-
 void rocfft_internal_mul(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
@@ -126,6 +86,8 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
     size_t N = data->node->length[0];
     size_t M = data->node->lengthBlue;
 
+    // TODO:: fix the local scheme with enum class and pass it
+    //        into kernel as a template parameter
     int scheme = 0; // fft mul
     if(data->node->scheme == CS_KERNEL_PAD_MUL)
     {
@@ -146,20 +108,28 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
         cBytes = sizeof(double) * 2;
     }
 
-    void* bufIn  = data->bufIn[0];
-    void* bufOut = data->bufOut[0];
+    void* bufIn0  = data->bufIn[0];
+    void* bufOut0 = data->bufOut[0];
+    void* bufIn1  = data->bufIn[1];
+    void* bufOut1 = data->bufOut[1];
+
+    // TODO: Not all in/out interleaved/planar combinations support for all 3
+    // schemes until we figure out the buffer offset for planar format.
+    // At least, planar for CS_KERNEL_PAD_MUL input and CS_KERNEL_RES_MUL output
+    // are good enough for current strategy(check TreeNode::ReviseLeafsArrayType).
+    // That is why we add asserts below.
 
     size_t numof = 0;
     if(scheme == 0)
     {
-        bufIn  = ((char*)bufIn + M * cBytes);
-        bufOut = ((char*)bufOut + 2 * M * cBytes);
+        bufIn0  = ((char*)bufIn0 + M * cBytes);
+        bufOut0 = ((char*)bufOut0 + 2 * M * cBytes);
 
         numof = M;
     }
     else if(scheme == 1)
     {
-        bufOut = ((char*)bufOut + M * cBytes);
+        bufOut0 = ((char*)bufOut0 + M * cBytes);
 
         numof = M;
     }
@@ -177,32 +147,201 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
 
     hipStream_t rocfft_stream = data->rocfft_stream;
 
-    if(data->node->precision == rocfft_precision_single)
-        mul_launch<float2>(numof,
-                           count,
-                           N,
-                           M,
-                           (const float2*)bufIn,
-                           (float2*)bufOut,
-                           data->node->length.size(),
-                           data->node->devKernArg,
-                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
-                           data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
-                           dir,
-                           scheme,
-                           rocfft_stream);
-    else
-        mul_launch<double2>(numof,
-                            count,
-                            N,
-                            M,
-                            (const double2*)bufIn,
-                            (double2*)bufOut,
-                            data->node->length.size(),
-                            data->node->devKernArg,
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
-                            dir,
-                            scheme,
-                            rocfft_stream);
+    dim3 grid((count - 1) / 64 + 1);
+    dim3 threads(64);
+
+    if(data->node->inArrayType == rocfft_array_type_complex_interleaved
+       && data->node->outArrayType == rocfft_array_type_complex_interleaved)
+    {
+        if(data->node->precision == rocfft_precision_single)
+        {
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<float2>),
+                               dim3(grid),
+                               dim3(threads),
+                               0,
+                               rocfft_stream,
+                               numof,
+                               count,
+                               N,
+                               M,
+                               (const float2*)bufIn0,
+                               (float2*)bufOut0,
+                               data->node->length.size(),
+                               data->node->devKernArg,
+                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               dir,
+                               scheme);
+        }
+        else
+        {
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<double2>),
+                               dim3(grid),
+                               dim3(threads),
+                               0,
+                               rocfft_stream,
+                               numof,
+                               count,
+                               N,
+                               M,
+                               (const double2*)bufIn0,
+                               (double2*)bufOut0,
+                               data->node->length.size(),
+                               data->node->devKernArg,
+                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               dir,
+                               scheme);
+        }
+    }
+    else if(data->node->inArrayType == rocfft_array_type_complex_planar
+            && data->node->outArrayType == rocfft_array_type_complex_interleaved)
+    {
+        assert(scheme != 0);
+        assert(scheme != 2);
+
+        if(data->node->precision == rocfft_precision_single)
+        {
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<float2>),
+                               dim3(grid),
+                               dim3(threads),
+                               0,
+                               rocfft_stream,
+                               numof,
+                               count,
+                               N,
+                               M,
+                               (const real_type_t<float2>*)bufIn0,
+                               (const real_type_t<float2>*)bufIn1,
+                               (float2*)bufOut0,
+                               data->node->length.size(),
+                               data->node->devKernArg,
+                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               dir,
+                               scheme);
+        }
+        else
+        {
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<double2>),
+                               dim3(grid),
+                               dim3(threads),
+                               0,
+                               rocfft_stream,
+                               numof,
+                               count,
+                               N,
+                               M,
+                               (const real_type_t<double2>*)bufIn0,
+                               (const real_type_t<double2>*)bufIn1,
+                               (double2*)bufOut0,
+                               data->node->length.size(),
+                               data->node->devKernArg,
+                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               dir,
+                               scheme);
+        }
+    }
+    else if(data->node->inArrayType == rocfft_array_type_complex_interleaved
+            && data->node->outArrayType == rocfft_array_type_complex_planar)
+    {
+        assert(scheme != 0);
+        assert(scheme != 1);
+
+        if(data->node->precision == rocfft_precision_single)
+        {
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<float2>),
+                               dim3(grid),
+                               dim3(threads),
+                               0,
+                               rocfft_stream,
+                               numof,
+                               count,
+                               N,
+                               M,
+                               (const float2*)bufIn0,
+                               (real_type_t<float2>*)bufOut0,
+                               (real_type_t<float2>*)bufOut1,
+                               data->node->length.size(),
+                               data->node->devKernArg,
+                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               dir,
+                               scheme);
+        }
+        else
+        {
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<double2>),
+                               dim3(grid),
+                               dim3(threads),
+                               0,
+                               rocfft_stream,
+                               numof,
+                               count,
+                               N,
+                               M,
+                               (const double2*)bufIn0,
+                               (real_type_t<double2>*)bufOut0,
+                               (real_type_t<double2>*)bufOut1,
+                               data->node->length.size(),
+                               data->node->devKernArg,
+                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               dir,
+                               scheme);
+        }
+    }
+    else if(data->node->inArrayType == rocfft_array_type_complex_planar
+            && data->node->outArrayType == rocfft_array_type_complex_planar)
+    {
+        assert(scheme != 0);
+        assert(scheme != 1);
+        assert(scheme != 2);
+
+        if(data->node->precision == rocfft_precision_single)
+        {
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<float2>),
+                               dim3(grid),
+                               dim3(threads),
+                               0,
+                               rocfft_stream,
+                               numof,
+                               count,
+                               N,
+                               M,
+                               (const real_type_t<float2>*)bufIn0,
+                               (const real_type_t<float2>*)bufIn1,
+                               (real_type_t<float2>*)bufOut0,
+                               (real_type_t<float2>*)bufOut1,
+                               data->node->length.size(),
+                               data->node->devKernArg,
+                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               dir,
+                               scheme);
+        }
+        else
+        {
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<double2>),
+                               dim3(grid),
+                               dim3(threads),
+                               0,
+                               rocfft_stream,
+                               numof,
+                               count,
+                               N,
+                               M,
+                               (const real_type_t<double2>*)bufIn0,
+                               (const real_type_t<double2>*)bufIn1,
+                               (real_type_t<double2>*)bufOut0,
+                               (real_type_t<double2>*)bufOut1,
+                               data->node->length.size(),
+                               data->node->devKernArg,
+                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               dir,
+                               scheme);
+        }
+    }
 }

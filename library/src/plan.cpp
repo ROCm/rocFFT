@@ -246,15 +246,6 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     // Check plan validity
     if(description != nullptr)
     {
-        // We do not currently support planar formats.
-        // TODO: remove these checks when complex planar format is enabled.
-        if(description->inArrayType == rocfft_array_type_complex_planar
-           || description->outArrayType == rocfft_array_type_complex_planar)
-            return rocfft_status_invalid_array_type;
-        if(description->inArrayType == rocfft_array_type_hermitian_planar
-           || description->outArrayType == rocfft_array_type_hermitian_planar)
-            return rocfft_status_invalid_array_type;
-
         switch(transform_type)
         {
         case rocfft_transform_type_complex_forward:
@@ -280,8 +271,8 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
             if(description->inArrayType != rocfft_array_type_real)
                 return rocfft_status_invalid_array_type;
             // Output must be Hermitian
-            if(!((description->outArrayType == rocfft_array_type_hermitian_interleaved)
-                 || (description->outArrayType == rocfft_array_type_hermitian_planar)))
+            if(!((description->outArrayType == rocfft_array_type_hermitian_interleaved)))
+                // TODO: support || (description->outArrayType == rocfft_array_type_hermitian_planar)))
                 return rocfft_status_invalid_array_type;
             // In-place transform must output to interleaved format
             if((placement == rocfft_placement_inplace)
@@ -293,8 +284,8 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
             if(description->outArrayType != rocfft_array_type_real)
                 return rocfft_status_invalid_array_type;
             // Intput must be Hermitian
-            if(!((description->inArrayType == rocfft_array_type_hermitian_interleaved)
-                 || (description->inArrayType == rocfft_array_type_hermitian_planar)))
+            if(!((description->inArrayType == rocfft_array_type_hermitian_interleaved)))
+                // TODO: support || (description->inArrayType == rocfft_array_type_hermitian_planar)))
                 return rocfft_status_invalid_array_type;
             // In-place transform must have interleaved input
             if((placement == rocfft_placement_inplace)
@@ -1452,6 +1443,11 @@ void TreeNode::build_1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLen
 
 void TreeNode::build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength1)
 {
+    //  Note:
+    //  The kernel CS_KERNEL_STOCKHAM_BLOCK_CC and CS_KERNEL_STOCKHAM_BLOCK_RC
+    //  are only enabled for outplace for now. Check more details in generator.file.cpp,
+    //  and in generated kernel_lunch_single_large.cpp.h
+
     // first plan, column-to-column
     TreeNode* col2colPlan = TreeNode::CreateNode(this);
 
@@ -2572,6 +2568,13 @@ void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn
     if(parent != nullptr)
     {
         placement = (obIn == obOut) ? rocfft_placement_inplace : rocfft_placement_notinplace;
+        // if (this->scheme == CS_KERNEL_TRANSPOSE)
+        // {
+        //     std::cout << " obIn " << obIn << ", obOut " << obOut
+        //               << " rootIn " << rootIn << ", rootOut " << rootOut
+        //               << " inArrayType " << inArrayType << ", outArrayType " << outArrayType
+        //               << std::endl;
+        // }
 
         if(inArrayType == rocfft_array_type_unset)
         {
@@ -2604,7 +2607,7 @@ void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn
             switch(obOut)
             {
             case OB_USER_IN:
-                outArrayType = (parent == nullptr) ? rootIn : parent->inArrayType;
+                outArrayType = (parent == nullptr) ? rootIn : parent->outArrayType;
                 break;
             case OB_USER_OUT:
                 outArrayType = (parent == nullptr) ? rootOut : parent->outArrayType;
@@ -3767,6 +3770,74 @@ void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode*>& seq,
     }
 }
 
+// Revise leaf nodes inArrayType and outArrayType to work with planar format
+void TreeNode::ReviseLeafsArrayType(std::vector<TreeNode*>& seq,
+                                    rocfft_array_type const rootInArrayType,
+                                    rocfft_array_type const rootOutArrayType)
+{
+    // Let's use 'I->I', 'I->P', 'P->I', 'P->P' to denote the cases we need support.
+    // To support planar format, one of the simple ways is:
+    //   - keep the orignal logic for 'I->I'
+    //   - For 'P->I', make the 1st leaf node to 'P->I' only
+    //   - For 'I->P', make the last leaf node to 'I->P' only
+    // We could change the schedule after when tunning performance,
+    // i.e. force all leaf nodes 'P->P' if all nodes support it.
+
+    if((inArrayType == rocfft_array_type_complex_interleaved
+        && outArrayType == rocfft_array_type_complex_interleaved)
+       || (inArrayType == rocfft_array_type_real
+           && outArrayType == rocfft_array_type_hermitian_interleaved)
+       || (inArrayType == rocfft_array_type_hermitian_interleaved
+           && outArrayType == rocfft_array_type_real))
+    {
+        return;
+    }
+
+    if(inArrayType == rocfft_array_type_complex_planar
+       || inArrayType == rocfft_array_type_hermitian_planar)
+    {
+        if(seq.front()->scheme != CS_KERNEL_CHIRP)
+        {
+            // make sure the 1st leaf node to 'planar -> interleaved'
+            seq.front()->inArrayType = rocfft_array_type_complex_planar;
+        }
+        else // bluestein is different, we need to change the input of the 2nd node only.
+        {
+            assert(seq.front()->scheme == CS_KERNEL_CHIRP);
+            assert(seq.at(1)->scheme == CS_KERNEL_PAD_MUL);
+            if(seq.size() > 2 && seq.at(1)->scheme == CS_KERNEL_PAD_MUL)
+                seq.at(1)->inArrayType = rocfft_array_type_complex_planar;
+        }
+    }
+
+    if(outArrayType == rocfft_array_type_complex_planar
+       || outArrayType == rocfft_array_type_hermitian_planar)
+    {
+        // make sure the last leaf node to 'interleaved -> planar'
+        seq.back()->outArrayType = rocfft_array_type_complex_planar;
+    }
+
+    // force any node using OB_USER_IN or OB_USER_OUT as output buf to be planar
+    if(seq.size() >= 3)
+    {
+        for(size_t i = seq.size() - 2; i >= 1; i--)
+        {
+            if((rootInArrayType == rocfft_array_type_complex_planar
+                || rootInArrayType == rocfft_array_type_hermitian_planar)
+               && seq[i]->obOut == OB_USER_IN)
+            {
+                seq[i]->outArrayType = seq[i + 1]->inArrayType = rootInArrayType;
+            }
+            if((rootOutArrayType == rocfft_array_type_complex_planar
+                || rootOutArrayType == rocfft_array_type_hermitian_planar)
+               && seq[i]->obOut == OB_USER_OUT)
+            {
+                seq[i]->outArrayType = seq[i + 1]->inArrayType = rootOutArrayType;
+            }
+        }
+    }
+}
+
 void TreeNode::Print(std::ostream& os, const int indent) const
 {
     std::string indentStr;
@@ -3896,6 +3967,13 @@ void ProcessNode(ExecPlan& execPlan)
     size_t chirpSize        = 0;
     execPlan.rootPlan->TraverseTreeCollectLeafsLogicA(
         execPlan.execSeq, tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
+
+    // Note:
+    // Revising leaf nods array type is one way to support planar format.
+    // We could do it also in TraverseTreeAssignBuffersLogicA().
+    execPlan.rootPlan->ReviseLeafsArrayType(
+        execPlan.execSeq, execPlan.rootPlan->inArrayType, execPlan.rootPlan->outArrayType);
+
     execPlan.workBufSize      = tmpBufSize + cmplxForRealSize + blueSize + chirpSize;
     execPlan.tmpWorkBufSize   = tmpBufSize;
     execPlan.copyWorkBufSize  = cmplxForRealSize;

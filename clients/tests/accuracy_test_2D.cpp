@@ -58,6 +58,9 @@ static rocfft_transform_type transform_range[]
 
 static data_pattern pattern_range[] = {sawtooth};
 
+static rocfft_array_type c2c_array_range[]
+    = {rocfft_array_type_complex_interleaved, rocfft_array_type_complex_planar};
+
 // Test suite classes:
 
 class accuracy_test_complex_2D : public ::testing::TestWithParam<std::tuple<size_t,
@@ -66,7 +69,9 @@ class accuracy_test_complex_2D : public ::testing::TestWithParam<std::tuple<size
                                                                             rocfft_result_placement,
                                                                             size_t,
                                                                             data_pattern,
-                                                                            rocfft_transform_type>>
+                                                                            rocfft_transform_type,
+                                                                            rocfft_array_type,
+                                                                            rocfft_array_type>>
 {
 protected:
     void SetUp() override
@@ -95,13 +100,15 @@ protected:
 
 //  Complex to complex
 template <typename Tfloat>
-void normal_2D_complex_interleaved_to_complex_interleaved(size_t                  Nx,
-                                                          size_t                  Ny,
-                                                          size_t                  batch,
-                                                          rocfft_result_placement placeness,
-                                                          rocfft_transform_type   transform_type,
-                                                          size_t                  stride,
-                                                          data_pattern            pattern)
+void normal_2D_complex_to_complex(size_t                  Nx,
+                                  size_t                  Ny,
+                                  size_t                  batch,
+                                  rocfft_result_placement placeness,
+                                  rocfft_transform_type   transform_type,
+                                  size_t                  stride,
+                                  data_pattern            pattern,
+                                  rocfft_array_type       in_array_type,
+                                  rocfft_array_type       out_array_type)
 {
     using fftw_complex_type = typename fftw_trait<Tfloat>::fftw_complex_type;
 
@@ -110,6 +117,38 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
     const bool inplace = placeness == rocfft_placement_inplace;
     int        sign
         = transform_type == rocfft_transform_type_complex_forward ? FFTW_FORWARD : FFTW_BACKWARD;
+
+    // filter out the invalid case and skip it
+    bool valid = false;
+    if(inplace)
+    {
+        if((in_array_type == rocfft_array_type_complex_interleaved
+            && out_array_type == rocfft_array_type_complex_interleaved)
+           || (in_array_type == rocfft_array_type_complex_planar
+               && out_array_type == rocfft_array_type_complex_planar))
+        {
+            valid = true;
+        }
+    }
+    else
+    {
+        if((in_array_type == rocfft_array_type_complex_interleaved
+            && out_array_type == rocfft_array_type_complex_interleaved)
+           || (in_array_type == rocfft_array_type_complex_interleaved
+               && out_array_type == rocfft_array_type_complex_planar)
+           || (in_array_type == rocfft_array_type_complex_planar
+               && out_array_type == rocfft_array_type_complex_interleaved)
+           || (in_array_type == rocfft_array_type_complex_planar
+               && out_array_type == rocfft_array_type_complex_planar))
+        {
+            valid = true;
+        }
+    }
+
+    if(!valid)
+    {
+        return;
+    }
 
     // Dimension configuration:
     std::array<fftw_iodim64, 2> dims;
@@ -163,8 +202,8 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
         = {static_cast<size_t>(dims[1].os), static_cast<size_t>(dims[0].os)};
 
     fft_status = rocfft_plan_description_set_data_layout(gpu_description,
-                                                         rocfft_array_type_complex_interleaved,
-                                                         rocfft_array_type_complex_interleaved,
+                                                         in_array_type,
+                                                         out_array_type,
                                                          NULL,
                                                          NULL,
                                                          istride.size(),
@@ -188,8 +227,6 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
                              gpu_description); // Description
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
 
-    // The real-to-complex transform uses work memory, which is passed
-    // via a rocfft_execution_info struct.
     rocfft_execution_info planinfo = NULL;
     fft_status                     = rocfft_execution_info_create(&planinfo);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT execution info creation failure";
@@ -210,17 +247,48 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
         return;
     }
 
-    hipError_t hip_status = hipSuccess;
+    void*                 gpu_in_bufs[2]  = {NULL, NULL};
+    void*                 gpu_out_bufs[2] = {NULL, NULL};
+    std::complex<Tfloat>* gpu_in          = NULL;
+    hipError_t            hip_status      = hipSuccess;
 
-    std::complex<Tfloat>* gpu_in = NULL;
-    hip_status                   = hipMalloc(&gpu_in, isize * sizeof(std::complex<Tfloat>));
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-
-    std::complex<Tfloat>* gpu_out = inplace ? gpu_in : NULL;
-    if(!inplace)
+    if(in_array_type == rocfft_array_type_complex_interleaved)
     {
-        hip_status = hipMalloc(&gpu_out, osize * sizeof(std::complex<Tfloat>));
-        ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+        hip_status = hipMalloc(&gpu_in_bufs[0], isize * sizeof(std::complex<Tfloat>));
+        ASSERT_TRUE(hip_status == hipSuccess)
+            << "hipMalloc failure, size " << isize * sizeof(std::complex<Tfloat>);
+    }
+    else
+    {
+        hip_status = hipMalloc(&gpu_in_bufs[0], isize * sizeof(Tfloat));
+        ASSERT_TRUE(hip_status == hipSuccess)
+            << "hipMalloc failure, size " << isize * sizeof(std::complex<Tfloat>);
+        hip_status = hipMalloc(&gpu_in_bufs[1], isize * sizeof(Tfloat));
+        ASSERT_TRUE(hip_status == hipSuccess)
+            << "hipMalloc failure, size " << isize * sizeof(std::complex<Tfloat>);
+    }
+
+    if(inplace)
+    {
+        gpu_out_bufs[0] = gpu_in_bufs[0];
+        gpu_out_bufs[1] = gpu_in_bufs[1];
+    }
+    else
+    {
+        if(out_array_type == rocfft_array_type_complex_interleaved)
+        {
+            hip_status = hipMalloc(&gpu_out_bufs[0], osize * sizeof(std::complex<Tfloat>));
+            ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
+        }
+        else
+        {
+            hip_status = hipMalloc(&gpu_out_bufs[0], osize * sizeof(Tfloat));
+            ASSERT_TRUE(hip_status == hipSuccess)
+                << "hipMalloc failure, size " << osize * sizeof(std::complex<Tfloat>);
+            hip_status = hipMalloc(&gpu_out_bufs[1], osize * sizeof(Tfloat));
+            ASSERT_TRUE(hip_status == hipSuccess)
+                << "hipMalloc failure, size " << osize * sizeof(std::complex<Tfloat>);
+        }
     }
 
     void* wbuffer = NULL;
@@ -232,10 +300,11 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
-    // Set up buffers:
-    // Local data buffer:
+    // Set up cpu buffers:
     std::complex<Tfloat>* cpu_in = fftw_alloc_type<std::complex<Tfloat>>(isize);
-    // Output buffer
+    Tfloat*               cpu_tmp_planar_bufs[2];
+    cpu_tmp_planar_bufs[0]        = new Tfloat[isize];
+    cpu_tmp_planar_bufs[1]        = new Tfloat[isize];
     std::complex<Tfloat>* cpu_out = inplace ? cpu_in : fftw_alloc_type<std::complex<Tfloat>>(osize);
 
     // Set up the CPU plan:
@@ -262,6 +331,12 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
                 std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
                                          (Tfloat)rand() / (Tfloat)RAND_MAX);
                 cpu_in[howmany_dims[0].is * ibatch + dims[0].is * i + dims[1].is * j] = val;
+                cpu_tmp_planar_bufs[0]
+                                   [howmany_dims[0].is * ibatch + dims[0].is * i + dims[1].is * j]
+                    = val.real();
+                cpu_tmp_planar_bufs[1]
+                                   [howmany_dims[0].is * ibatch + dims[0].is * i + dims[1].is * j]
+                    = val.imag();
             }
         }
     }
@@ -296,14 +371,26 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
         std::cout << std::endl;
     }
 
-    hip_status
-        = hipMemcpy(gpu_in, cpu_in, isize * sizeof(std::complex<Tfloat>), hipMemcpyHostToDevice);
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
+    if(in_array_type == rocfft_array_type_complex_interleaved)
+    {
+        hip_status = hipMemcpy(
+            gpu_in_bufs[0], cpu_in, isize * sizeof(std::complex<Tfloat>), hipMemcpyHostToDevice);
+        ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
+    }
+    else
+    {
+        hip_status = hipMemcpy(
+            gpu_in_bufs[0], cpu_tmp_planar_bufs[0], isize * sizeof(Tfloat), hipMemcpyHostToDevice);
+        ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
+        hip_status = hipMemcpy(
+            gpu_in_bufs[1], cpu_tmp_planar_bufs[1], isize * sizeof(Tfloat), hipMemcpyHostToDevice);
+        ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
+    }
 
     // Execute the GPU transform:
     fft_status = rocfft_execute(gpu_plan, // plan
-                                (void**)&gpu_in, // in_buffer
-                                (void**)&gpu_out, // out_buffer
+                                (void**)&gpu_in_bufs, // in_buffer
+                                (void**)&gpu_out_bufs, // out_buffer
                                 planinfo); // execution info
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
 
@@ -342,9 +429,29 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
 
     // Copy the data back and compare:
     fftw_vector<std::complex<Tfloat>> gpu_out_comp(osize);
-    hip_status = hipMemcpy(
-        gpu_out_comp.data(), gpu_out, osize * sizeof(std::complex<Tfloat>), hipMemcpyDeviceToHost);
-    ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
+
+    if(out_array_type == rocfft_array_type_complex_interleaved)
+    {
+        hip_status = hipMemcpy(gpu_out_comp.data(),
+                               gpu_out_bufs[0],
+                               osize * sizeof(std::complex<Tfloat>),
+                               hipMemcpyDeviceToHost);
+        ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
+    }
+    else
+    {
+        hip_status = hipMemcpy(
+            cpu_tmp_planar_bufs[0], gpu_out_bufs[0], osize * sizeof(Tfloat), hipMemcpyDeviceToHost);
+        ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
+        hip_status = hipMemcpy(
+            cpu_tmp_planar_bufs[1], gpu_out_bufs[1], osize * sizeof(Tfloat), hipMemcpyDeviceToHost);
+        ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
+        for(size_t i = 0; i < osize; i++)
+        {
+            gpu_out_comp[i]
+                = std::complex<Tfloat>(cpu_tmp_planar_bufs[0][i], cpu_tmp_planar_bufs[1][i]);
+        }
+    }
 
     if(verbose > 1)
     {
@@ -435,11 +542,15 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
                                                     << ", tolerance: " << type_epsilon<Tfloat>();
 
     // Free GPU memory:
-    hipFree(gpu_in);
+    hipFree(gpu_in_bufs[0]);
+    hipFree(gpu_in_bufs[1]);
     fftw_free(cpu_in);
+    delete[] cpu_tmp_planar_bufs[0];
+    delete[] cpu_tmp_planar_bufs[1];
     if(!inplace)
     {
-        hipFree(gpu_out);
+        hipFree(gpu_out_bufs[0]);
+        hipFree(gpu_out_bufs[1]);
         fftw_free(cpu_out);
     }
     if(wbuffer != NULL)
@@ -456,8 +567,7 @@ void normal_2D_complex_interleaved_to_complex_interleaved(size_t                
 
 // Implemetation of complex-to-complex tests for float and double:
 
-TEST_P(accuracy_test_complex_2D,
-       normal_2D_complex_interleaved_to_complex_interleaved_single_precision)
+TEST_P(accuracy_test_complex_2D, normal_2D_complex_to_complex_single_precision)
 {
     size_t                  Nx             = std::get<0>(GetParam());
     size_t                  Ny             = std::get<1>(GetParam());
@@ -466,11 +576,20 @@ TEST_P(accuracy_test_complex_2D,
     size_t                  stride         = std::get<4>(GetParam());
     data_pattern            pattern        = std::get<5>(GetParam());
     rocfft_transform_type   transform_type = std::get<6>(GetParam());
+    rocfft_array_type       in_array_type  = std::get<7>(GetParam());
+    rocfft_array_type       out_array_type = std::get<8>(GetParam());
 
     try
     {
-        normal_2D_complex_interleaved_to_complex_interleaved<float>(
-            Nx, Ny, batch, placeness, transform_type, stride, pattern);
+        normal_2D_complex_to_complex<float>(Nx,
+                                            Ny,
+                                            batch,
+                                            placeness,
+                                            transform_type,
+                                            stride,
+                                            pattern,
+                                            in_array_type,
+                                            out_array_type);
     }
     catch(const std::exception& err)
     {
@@ -478,8 +597,7 @@ TEST_P(accuracy_test_complex_2D,
     }
 }
 
-TEST_P(accuracy_test_complex_2D,
-       normal_2D_complex_interleaved_to_complex_interleaved_double_precision)
+TEST_P(accuracy_test_complex_2D, normal_2D_complex_to_complex_double_precision)
 {
 
     size_t                  Nx             = std::get<0>(GetParam());
@@ -489,11 +607,20 @@ TEST_P(accuracy_test_complex_2D,
     size_t                  stride         = std::get<4>(GetParam());
     data_pattern            pattern        = std::get<5>(GetParam());
     rocfft_transform_type   transform_type = std::get<6>(GetParam());
+    rocfft_array_type       in_array_type  = std::get<7>(GetParam());
+    rocfft_array_type       out_array_type = std::get<8>(GetParam());
 
     try
     {
-        normal_2D_complex_interleaved_to_complex_interleaved<double>(
-            Nx, Ny, batch, placeness, transform_type, stride, pattern);
+        normal_2D_complex_to_complex<double>(Nx,
+                                             Ny,
+                                             batch,
+                                             placeness,
+                                             transform_type,
+                                             stride,
+                                             pattern,
+                                             in_array_type,
+                                             out_array_type);
     }
     catch(const std::exception& err)
     {
@@ -1367,7 +1494,9 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow2_2D,
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range),
-                                           ValuesIn(transform_range)));
+                                           ValuesIn(transform_range),
+                                           ValuesIn(c2c_array_range),
+                                           ValuesIn(c2c_array_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow3_2D,
                         accuracy_test_complex_2D,
@@ -1377,7 +1506,9 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow3_2D,
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range),
-                                           ValuesIn(transform_range)));
+                                           ValuesIn(transform_range),
+                                           ValuesIn(c2c_array_range),
+                                           ValuesIn(c2c_array_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_pow5_2D,
                         accuracy_test_complex_2D,
@@ -1387,7 +1518,9 @@ INSTANTIATE_TEST_CASE_P(rocfft_pow5_2D,
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range),
-                                           ValuesIn(transform_range)));
+                                           ValuesIn(transform_range),
+                                           ValuesIn(c2c_array_range),
+                                           ValuesIn(c2c_array_range)));
 
 INSTANTIATE_TEST_CASE_P(rocfft_prime_2D,
                         accuracy_test_complex_2D,
@@ -1397,7 +1530,9 @@ INSTANTIATE_TEST_CASE_P(rocfft_prime_2D,
                                            ValuesIn(placeness_range),
                                            ValuesIn(stride_range),
                                            ValuesIn(pattern_range),
-                                           ValuesIn(transform_range)));
+                                           ValuesIn(transform_range),
+                                           ValuesIn(c2c_array_range),
+                                           ValuesIn(c2c_array_range)));
 
 // Complex to real and real-to-complex:
 INSTANTIATE_TEST_CASE_P(rocfft_pow2_2D,

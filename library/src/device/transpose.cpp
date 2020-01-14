@@ -32,11 +32,11 @@
 /// @param[in]    A pointer storing batch_count of A matrix on the GPU.
 /// @param[inout] B pointer storing batch_count of B matrix on the GPU.
 /// @param[in]    count size_t number of matrices processed
-template <typename T, int TRANSPOSE_DIM_X, int TRANSPOSE_DIM_Y>
+template <typename T, typename TA, typename TB, int TRANSPOSE_DIM_X, int TRANSPOSE_DIM_Y>
 rocfft_status rocfft_transpose_outofplace_template(size_t      m,
                                                    size_t      n,
-                                                   const T*    A,
-                                                   T*          B,
+                                                   const TA*   A,
+                                                   TB*         B,
                                                    void*       twiddles_large,
                                                    size_t      count,
                                                    size_t      dim,
@@ -58,9 +58,10 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
     if(scheme == 0)
     {
         // Create a map from the parameters to the templated function:
-        std::map<std::tuple<int, int, bool>,
-                 decltype(&HIP_KERNEL_NAME(
-                     transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, -1, true>))>
+        std::map<
+            std::tuple<int, int, bool>,
+            decltype(&HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, -1, true>))>
             tmap;
         // Fill the map with explicitly instantiated templates:
 
@@ -68,69 +69,98 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
         tmap.emplace(
             std::make_tuple(0, -1, true),
             &HIP_KERNEL_NAME(
-                transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 0, -1, true>));
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 0, -1, true>));
+        tmap.emplace(std::make_tuple(0, -1, false),
+                     &HIP_KERNEL_NAME(transpose_kernel2<T,
+                                                        TA,
+                                                        TB,
+                                                        TRANSPOSE_DIM_X,
+                                                        TRANSPOSE_DIM_Y,
+                                                        true,
+                                                        0,
+                                                        -1,
+                                                        false>));
         tmap.emplace(
-            std::make_tuple(0, -1, false),
+            std::make_tuple(0, 1, true),
             &HIP_KERNEL_NAME(
-                transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 0, -1, false>));
-        tmap.emplace(std::make_tuple(0, 1, true),
-                     &HIP_KERNEL_NAME(
-                         transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 0, 1, true>));
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 0, 1, true>));
         tmap.emplace(
             std::make_tuple(0, 1, false),
             &HIP_KERNEL_NAME(
-                transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 0, 1, false>));
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 0, 1, false>));
 
         // twl=2:
         tmap.emplace(
             std::make_tuple(2, -1, true),
             &HIP_KERNEL_NAME(
-                transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, -1, true>));
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, -1, true>));
+        tmap.emplace(std::make_tuple(2, -1, false),
+                     &HIP_KERNEL_NAME(transpose_kernel2<T,
+                                                        TA,
+                                                        TB,
+                                                        TRANSPOSE_DIM_X,
+                                                        TRANSPOSE_DIM_Y,
+                                                        true,
+                                                        2,
+                                                        -1,
+                                                        false>));
         tmap.emplace(
-            std::make_tuple(2, -1, false),
+            std::make_tuple(2, 1, true),
             &HIP_KERNEL_NAME(
-                transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, -1, false>));
-        tmap.emplace(std::make_tuple(2, 1, true),
-                     &HIP_KERNEL_NAME(
-                         transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, 1, true>));
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, 1, true>));
         tmap.emplace(
             std::make_tuple(2, 1, false),
             &HIP_KERNEL_NAME(
-                transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, 1, false>));
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 2, 1, false>));
 
         // twl=3:
         tmap.emplace(
             std::make_tuple(3, -1, true),
             &HIP_KERNEL_NAME(
-                transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, -1, true>));
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, -1, true>));
+        tmap.emplace(std::make_tuple(3, -1, false),
+                     &HIP_KERNEL_NAME(transpose_kernel2<T,
+                                                        TA,
+                                                        TB,
+                                                        TRANSPOSE_DIM_X,
+                                                        TRANSPOSE_DIM_Y,
+                                                        true,
+                                                        3,
+                                                        -1,
+                                                        false>));
         tmap.emplace(
-            std::make_tuple(3, -1, false),
+            std::make_tuple(3, 1, true),
             &HIP_KERNEL_NAME(
-                transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, -1, false>));
-        tmap.emplace(std::make_tuple(3, 1, true),
-                     &HIP_KERNEL_NAME(
-                         transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, 1, true>));
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, 1, true>));
         tmap.emplace(
             std::make_tuple(3, 1, false),
             &HIP_KERNEL_NAME(
-                transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, 1, false>));
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 3, 1, false>));
 
         // twl=4:
         tmap.emplace(
             std::make_tuple(4, -1, true),
             &HIP_KERNEL_NAME(
-                transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, -1, true>));
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, -1, true>));
+        tmap.emplace(std::make_tuple(4, -1, false),
+                     &HIP_KERNEL_NAME(transpose_kernel2<T,
+                                                        TA,
+                                                        TB,
+                                                        TRANSPOSE_DIM_X,
+                                                        TRANSPOSE_DIM_Y,
+                                                        true,
+                                                        4,
+                                                        -1,
+                                                        false>));
         tmap.emplace(
-            std::make_tuple(4, -1, false),
+            std::make_tuple(4, 1, true),
             &HIP_KERNEL_NAME(
-                transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, -1, false>));
-        tmap.emplace(std::make_tuple(4, 1, true),
-                     &HIP_KERNEL_NAME(
-                         transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, 1, true>));
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, 1, true>));
         tmap.emplace(
             std::make_tuple(4, 1, false),
             &HIP_KERNEL_NAME(
-                transpose_kernel2<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, 1, false>));
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, 1, false>));
+        // clang-format on
 
         // Tuple containing template parameters for transpose.
         const std::tuple<int, int, bool> tparams = std::make_tuple(twl, dir, noCorner);
@@ -162,9 +192,10 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
     else
     {
         if(noCorner)
+        {
             hipLaunchKernelGGL(
                 HIP_KERNEL_NAME(
-                    transpose_kernel2_scheme<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true>),
+                    transpose_kernel2_scheme<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true>),
                 dim3(grid),
                 dim3(threads),
                 0,
@@ -177,10 +208,12 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
                 stride_in,
                 stride_out,
                 scheme);
+        }
         else
+        {
             hipLaunchKernelGGL(
                 HIP_KERNEL_NAME(
-                    transpose_kernel2_scheme<T, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, false>),
+                    transpose_kernel2_scheme<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, false>),
                 dim3(grid),
                 dim3(threads),
                 0,
@@ -193,6 +226,7 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
                 stride_in,
                 stride_out,
                 scheme);
+        }
     }
 
     return rocfft_status_success;
@@ -255,42 +289,269 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
     for(size_t i = extraDimStart; i < data->node->length.size(); i++)
         count *= data->node->length[i];
 
-    if(data->node->precision == rocfft_precision_single)
-    {
+    // double2 must use 32 otherwise exceed the shared memory (LDS) size
 
-        rocfft_transpose_outofplace_template<float2, 64, 16>(
-            m,
-            n,
-            (const float2*)data->bufIn[0],
-            (float2*)data->bufOut[0],
-            data->node->twiddles_large,
-            count,
-            data->node->length.size(),
-            data->node->devKernArg,
-            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
-            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
-            twl,
-            dir,
-            scheme,
-            rocfft_stream);
+    // FIXME: push planar ptr on device in better way!!!
+    if(data->node->inArrayType == rocfft_array_type_complex_planar
+       && data->node->outArrayType == rocfft_array_type_complex_interleaved)
+    {
+        if(data->node->precision == rocfft_precision_single)
+        {
+            cmplx_float_planar in_planar;
+            in_planar.R = (real_type_t<float2>*)data->bufIn[0];
+            in_planar.I = (real_type_t<float2>*)data->bufIn[1];
+
+            void* d_in_planar;
+            hipMalloc(&d_in_planar, sizeof(cmplx_float_planar));
+            hipMemcpy(d_in_planar, &in_planar, sizeof(cmplx_float_planar), hipMemcpyHostToDevice);
+
+            rocfft_transpose_outofplace_template<cmplx_float,
+                                                 cmplx_float_planar,
+                                                 cmplx_float,
+                                                 64,
+                                                 16>(
+                m,
+                n,
+                (const cmplx_float_planar*)d_in_planar,
+                (cmplx_float*)data->bufOut[0],
+                data->node->twiddles_large,
+                count,
+                data->node->length.size(),
+                data->node->devKernArg,
+                data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                twl,
+                dir,
+                scheme,
+                rocfft_stream);
+
+            hipFree(d_in_planar);
+        }
+        else
+        {
+            cmplx_double_planar in_planar;
+            in_planar.R = (real_type_t<double2>*)data->bufIn[0];
+            in_planar.I = (real_type_t<double2>*)data->bufIn[1];
+
+            void* d_in_planar;
+            hipMalloc(&d_in_planar, sizeof(cmplx_double_planar));
+            hipMemcpy(d_in_planar, &in_planar, sizeof(cmplx_double_planar), hipMemcpyHostToDevice);
+
+            rocfft_transpose_outofplace_template<cmplx_double,
+                                                 cmplx_double_planar,
+                                                 cmplx_double,
+                                                 32,
+                                                 32>(
+                m,
+                n,
+                (const cmplx_double_planar*)d_in_planar,
+                (double2*)data->bufOut[0],
+                data->node->twiddles_large,
+                count,
+                data->node->length.size(),
+                data->node->devKernArg,
+                data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                twl,
+                dir,
+                scheme,
+                rocfft_stream);
+
+            hipFree(d_in_planar);
+        }
+    }
+    else if(data->node->inArrayType == rocfft_array_type_complex_interleaved
+            && data->node->outArrayType == rocfft_array_type_complex_planar)
+    {
+        if(data->node->precision == rocfft_precision_single)
+        {
+            cmplx_float_planar out_planar;
+            out_planar.R = (real_type_t<float2>*)data->bufOut[0];
+            out_planar.I = (real_type_t<float2>*)data->bufOut[1];
+
+            void* d_out_planar;
+            hipMalloc(&d_out_planar, sizeof(cmplx_float_planar));
+            hipMemcpy(d_out_planar, &out_planar, sizeof(cmplx_float_planar), hipMemcpyHostToDevice);
+
+            rocfft_transpose_outofplace_template<cmplx_float,
+                                                 cmplx_float,
+                                                 cmplx_float_planar,
+                                                 64,
+                                                 16>(
+                m,
+                n,
+                (const cmplx_float*)data->bufIn[0],
+                (cmplx_float_planar*)d_out_planar,
+                data->node->twiddles_large,
+                count,
+                data->node->length.size(),
+                data->node->devKernArg,
+                data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                twl,
+                dir,
+                scheme,
+                rocfft_stream);
+
+            hipFree(d_out_planar);
+        }
+        else
+        {
+            cmplx_double_planar out_planar;
+            out_planar.R = (real_type_t<double2>*)data->bufOut[0];
+            out_planar.I = (real_type_t<double2>*)data->bufOut[1];
+
+            void* d_out_planar;
+            hipMalloc(&d_out_planar, sizeof(cmplx_double_planar));
+            hipMemcpy(
+                d_out_planar, &out_planar, sizeof(cmplx_double_planar), hipMemcpyHostToDevice);
+
+            rocfft_transpose_outofplace_template<cmplx_double,
+                                                 cmplx_double,
+                                                 cmplx_double_planar,
+                                                 32,
+                                                 32>(
+                m,
+                n,
+                (const cmplx_double*)data->bufIn[0],
+                (cmplx_double_planar*)d_out_planar,
+                data->node->twiddles_large,
+                count,
+                data->node->length.size(),
+                data->node->devKernArg,
+                data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                twl,
+                dir,
+                scheme,
+                rocfft_stream);
+
+            hipFree(d_out_planar);
+        }
+    }
+    else if(data->node->inArrayType == rocfft_array_type_complex_planar
+            && data->node->outArrayType == rocfft_array_type_complex_planar)
+    {
+        if(data->node->precision == rocfft_precision_single)
+        {
+            cmplx_float_planar in_planar;
+            in_planar.R = (real_type_t<float2>*)data->bufIn[0];
+            in_planar.I = (real_type_t<float2>*)data->bufIn[1];
+            cmplx_float_planar out_planar;
+            out_planar.R = (real_type_t<float2>*)data->bufOut[0];
+            out_planar.I = (real_type_t<float2>*)data->bufOut[1];
+
+            void* d_in_planar;
+            hipMalloc(&d_in_planar, sizeof(cmplx_float_planar));
+            hipMemcpy(d_in_planar, &in_planar, sizeof(cmplx_float_planar), hipMemcpyHostToDevice);
+
+            void* d_out_planar;
+            hipMalloc(&d_out_planar, sizeof(cmplx_float_planar));
+            hipMemcpy(d_out_planar, &out_planar, sizeof(cmplx_float_planar), hipMemcpyHostToDevice);
+
+            rocfft_transpose_outofplace_template<cmplx_float,
+                                                 cmplx_float_planar,
+                                                 cmplx_float_planar,
+                                                 64,
+                                                 16>(
+                m,
+                n,
+                (const cmplx_float_planar*)d_in_planar,
+                (cmplx_float_planar*)d_out_planar,
+                data->node->twiddles_large,
+                count,
+                data->node->length.size(),
+                data->node->devKernArg,
+                data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                twl,
+                dir,
+                scheme,
+                rocfft_stream);
+
+            hipFree(d_in_planar);
+            hipFree(d_out_planar);
+        }
+        else
+        {
+            cmplx_double_planar in_planar;
+            in_planar.R = (real_type_t<double2>*)data->bufIn[0];
+            in_planar.I = (real_type_t<double2>*)data->bufIn[1];
+            cmplx_double_planar out_planar;
+            out_planar.R = (real_type_t<double2>*)data->bufOut[0];
+            out_planar.I = (real_type_t<double2>*)data->bufOut[1];
+
+            void* d_in_planar;
+            hipMalloc(&d_in_planar, sizeof(cmplx_double_planar));
+            hipMemcpy(d_in_planar, &in_planar, sizeof(cmplx_double_planar), hipMemcpyHostToDevice);
+
+            void* d_out_planar;
+            hipMalloc(&d_out_planar, sizeof(cmplx_double_planar));
+            hipMemcpy(
+                d_out_planar, &out_planar, sizeof(cmplx_double_planar), hipMemcpyHostToDevice);
+
+            rocfft_transpose_outofplace_template<cmplx_double,
+                                                 cmplx_double_planar,
+                                                 cmplx_double_planar,
+                                                 32,
+                                                 32>(
+                m,
+                n,
+                (const cmplx_double_planar*)(&in_planar),
+                (cmplx_double_planar*)(&out_planar),
+                data->node->twiddles_large,
+                count,
+                data->node->length.size(),
+                data->node->devKernArg,
+                data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                twl,
+                dir,
+                scheme,
+                rocfft_stream);
+
+            hipFree(d_in_planar);
+            hipFree(d_out_planar);
+        }
     }
     else
     {
-        rocfft_transpose_outofplace_template<double2, 32, 32>(
-            m,
-            n,
-            (const double2*)data->bufIn[0],
-            (double2*)data->bufOut[0],
-            data->node->twiddles_large,
-            count,
-            data->node->length.size(),
-            data->node->devKernArg,
-            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
-            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
-            twl,
-            dir,
-            scheme,
-            rocfft_stream);
-        // double2 must use 32 otherwise exceed the shared memory (LDS) size
+        //FIXME:
+        //  there are more cases than
+        //      if(data->node->inArrayType == rocfft_array_type_complex_interleaved
+        //      && data->node->outArrayType == rocfft_array_type_complex_interleaved)
+        //  fall into this default case which might to correct
+        if(data->node->precision == rocfft_precision_single)
+            rocfft_transpose_outofplace_template<cmplx_float, cmplx_float, cmplx_float, 64, 16>(
+                m,
+                n,
+                (const cmplx_float*)data->bufIn[0],
+                (cmplx_float*)data->bufOut[0],
+                data->node->twiddles_large,
+                count,
+                data->node->length.size(),
+                data->node->devKernArg,
+                data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                twl,
+                dir,
+                scheme,
+                rocfft_stream);
+        else
+            rocfft_transpose_outofplace_template<cmplx_double, cmplx_double, cmplx_double, 32, 32>(
+                m,
+                n,
+                (const cmplx_double*)data->bufIn[0],
+                (cmplx_double*)data->bufOut[0],
+                data->node->twiddles_large,
+                count,
+                data->node->length.size(),
+                data->node->devKernArg,
+                data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                twl,
+                dir,
+                scheme,
+                rocfft_stream);
     }
 }

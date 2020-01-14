@@ -238,6 +238,61 @@ __global__ void hermitian2complex_kernel(size_t hermitian_size,
     }
 }
 
+template <typename T>
+__global__ void hermitian2complex_kernel(size_t          hermitian_size,
+                                         size_t          dim_0,
+                                         size_t          dim_1,
+                                         size_t          dim_2,
+                                         size_t          input_stride,
+                                         size_t          output_stride,
+                                         real_type_t<T>* inputRe,
+                                         real_type_t<T>* inputIm,
+                                         size_t          input_distance,
+                                         T*              output,
+                                         size_t          output_distance)
+{
+    size_t tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+
+    size_t input_offset   = hipBlockIdx_z * input_distance;
+    size_t outputs_offset = hipBlockIdx_z * output_distance; // straight copy
+    size_t outputc_offset = hipBlockIdx_z * output_distance; // conjugate copy
+
+    // straight copy indices
+    size_t is0 = tid;
+    size_t is1 = hipBlockIdx_y % dim_1;
+    size_t is2 = hipBlockIdx_y / dim_1;
+
+    // conjugate copy indices
+    size_t ic0 = (is0 == 0) ? 0 : dim_0 - is0;
+    size_t ic1 = (is1 == 0) ? 0 : dim_1 - is1;
+    size_t ic2 = (is2 == 0) ? 0 : dim_2 - is2;
+
+    input_offset += hipBlockIdx_y * input_stride + is0; // notice for 1D,
+    // hipBlockIdx_y == 0 and
+    // thus has no effect for
+    // input_offset
+    outputs_offset += (is2 * dim_1 + is1) * output_stride + is0;
+    outputc_offset += (ic2 * dim_1 + ic1) * output_stride + ic0;
+
+    inputRe += input_offset;
+    inputIm += input_offset;
+    T* outputs = output + outputs_offset;
+    T* outputc = output + outputc_offset;
+
+    if((is0 == 0) || (is0 * 2 == dim_0)) // simply write the element to output
+    {
+        outputs[0] = T(inputRe[0], inputIm[0]);
+        return;
+    }
+
+    if(is0 < hermitian_size)
+    {
+        T res      = T(inputRe[0], inputIm[0]);
+        outputs[0] = res;
+        outputc[0] = T(res.x, -res.y);
+    }
+}
+
 /*! \brief auxiliary function
 
     read from input_buffer of hermitian structure into an output_buffer of
@@ -349,38 +404,78 @@ void hermitian2complex(const void* data_p, void* back_p)
       }
   }*/
 
-    if(precision == rocfft_precision_single)
-        hipLaunchKernelGGL(hermitian2complex_kernel<float2>,
-                           grid,
-                           threads,
-                           0,
-                           rocfft_stream,
-                           hermitian_size,
-                           dim_0,
-                           dim_1,
-                           dim_2,
-                           input_stride,
-                           output_stride,
-                           (float2*)input_buffer,
-                           input_distance,
-                           (float2*)output_buffer,
-                           output_distance);
-    else
-        hipLaunchKernelGGL(hermitian2complex_kernel<double2>,
-                           grid,
-                           threads,
-                           0,
-                           rocfft_stream,
-                           hermitian_size,
-                           dim_0,
-                           dim_1,
-                           dim_2,
-                           input_stride,
-                           output_stride,
-                           (double2*)input_buffer,
-                           input_distance,
-                           (double2*)output_buffer,
-                           output_distance);
+    if(data->node->inArrayType == rocfft_array_type_hermitian_interleaved)
+    {
+        if(precision == rocfft_precision_single)
+            hipLaunchKernelGGL(hermitian2complex_kernel<float2>,
+                               grid,
+                               threads,
+                               0,
+                               rocfft_stream,
+                               hermitian_size,
+                               dim_0,
+                               dim_1,
+                               dim_2,
+                               input_stride,
+                               output_stride,
+                               (float2*)input_buffer,
+                               input_distance,
+                               (float2*)output_buffer,
+                               output_distance);
+        else
+            hipLaunchKernelGGL(hermitian2complex_kernel<double2>,
+                               grid,
+                               threads,
+                               0,
+                               rocfft_stream,
+                               hermitian_size,
+                               dim_0,
+                               dim_1,
+                               dim_2,
+                               input_stride,
+                               output_stride,
+                               (double2*)input_buffer,
+                               input_distance,
+                               (double2*)output_buffer,
+                               output_distance);
+    }
+    else if(data->node->inArrayType == rocfft_array_type_hermitian_planar)
+    {
+        if(precision == rocfft_precision_single)
+            hipLaunchKernelGGL(hermitian2complex_kernel<float2>,
+                               grid,
+                               threads,
+                               0,
+                               rocfft_stream,
+                               hermitian_size,
+                               dim_0,
+                               dim_1,
+                               dim_2,
+                               input_stride,
+                               output_stride,
+                               (float*)data->bufOut[0],
+                               (float*)data->bufOut[1],
+                               input_distance,
+                               (float2*)output_buffer,
+                               output_distance);
+        else
+            hipLaunchKernelGGL(hermitian2complex_kernel<double2>,
+                               grid,
+                               threads,
+                               0,
+                               rocfft_stream,
+                               hermitian_size,
+                               dim_0,
+                               dim_1,
+                               dim_2,
+                               input_stride,
+                               output_stride,
+                               (double*)data->bufOut[0],
+                               (double*)data->bufOut[1],
+                               input_distance,
+                               (double2*)output_buffer,
+                               output_distance);
+    }
 
     /*float2* tmpo; tmpo = (float2*)malloc(sizeof(float2)*output_distance*batch);
   hipMemcpy(tmpo, output_buffer, sizeof(float2)*output_distance*batch,

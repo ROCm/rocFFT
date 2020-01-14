@@ -149,6 +149,7 @@ void real2complex(const void* data_p, void* back_p)
     // }
 }
 
+// The complex to hermitian simple copy kernel for interleaved format
 template <typename T>
 __global__ void complex2hermitian_kernel(size_t input_size,
                                          size_t input_stride,
@@ -179,6 +180,43 @@ __global__ void complex2hermitian_kernel(size_t input_size,
     // redundancy
     {
         output[tid] = input[tid];
+    }
+}
+
+// The planar overload function of the above interleaved one
+template <typename T>
+__global__ void complex2hermitian_kernel(size_t          input_size,
+                                         size_t          input_stride,
+                                         size_t          output_stride,
+                                         T*              input,
+                                         size_t          input_distance,
+                                         real_type_t<T>* outputRe,
+                                         real_type_t<T>* outputIm,
+                                         size_t          output_distance)
+{
+
+    size_t input_offset = hipBlockIdx_z * input_distance; // batch offset
+
+    size_t output_offset = hipBlockIdx_z * output_distance; // batch
+
+    input_offset += hipBlockIdx_y * input_stride; // notice for 1D, hipBlockIdx_y
+    // == 0 and thus has no effect
+    // for input_offset
+    output_offset += hipBlockIdx_y * output_stride; // notice for 1D, hipBlockIdx_y == 0 and
+    // thus has no effect for output_offset
+
+    input += input_offset;
+    outputRe += output_offset;
+    outputIm += output_offset;
+
+    size_t tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+
+    if(tid < (1 + input_size / 2)) // only read and write the first
+    // [input_size/2+1] elements due to conjugate
+    // redundancy
+    {
+        outputRe[tid] = input[tid].x;
+        outputIm[tid] = input[tid].y;
     }
 }
 
@@ -250,32 +288,72 @@ void complex2hermitian(const void* data_p, void* back_p)
     //     }
     // }
 
-    if(precision == rocfft_precision_single)
-        hipLaunchKernelGGL(complex2hermitian_kernel<float2>,
-                           grid,
-                           threads,
-                           0,
-                           rocfft_stream,
-                           input_size,
-                           input_stride,
-                           output_stride,
-                           (float2*)input_buffer,
-                           input_distance,
-                           (float2*)output_buffer,
-                           output_distance);
+    // TODO: check the input type
+    if(data->node->outArrayType == rocfft_array_type_hermitian_interleaved)
+    {
+        if(precision == rocfft_precision_single)
+            hipLaunchKernelGGL(complex2hermitian_kernel<float2>,
+                               grid,
+                               threads,
+                               0,
+                               rocfft_stream,
+                               input_size,
+                               input_stride,
+                               output_stride,
+                               (float2*)input_buffer,
+                               input_distance,
+                               (float2*)output_buffer,
+                               output_distance);
+        else
+            hipLaunchKernelGGL(complex2hermitian_kernel<double2>,
+                               grid,
+                               threads,
+                               0,
+                               rocfft_stream,
+                               input_size,
+                               input_stride,
+                               output_stride,
+                               (double2*)input_buffer,
+                               input_distance,
+                               (double2*)output_buffer,
+                               output_distance);
+    }
+    else if(data->node->outArrayType == rocfft_array_type_hermitian_planar)
+    {
+        if(precision == rocfft_precision_single)
+            hipLaunchKernelGGL(complex2hermitian_kernel<float2>,
+                               grid,
+                               threads,
+                               0,
+                               rocfft_stream,
+                               input_size,
+                               input_stride,
+                               output_stride,
+                               (float2*)input_buffer,
+                               input_distance,
+                               (float*)data->bufOut[0],
+                               (float*)data->bufOut[1],
+                               output_distance);
+        else
+            hipLaunchKernelGGL(complex2hermitian_kernel<double2>,
+                               grid,
+                               threads,
+                               0,
+                               rocfft_stream,
+                               input_size,
+                               input_stride,
+                               output_stride,
+                               (double2*)input_buffer,
+                               input_distance,
+                               (double*)data->bufOut[0],
+                               (double*)data->bufOut[1],
+                               output_distance);
+    }
     else
-        hipLaunchKernelGGL(complex2hermitian_kernel<double2>,
-                           grid,
-                           threads,
-                           0,
-                           rocfft_stream,
-                           input_size,
-                           input_stride,
-                           output_stride,
-                           (double2*)input_buffer,
-                           input_distance,
-                           (double2*)output_buffer,
-                           output_distance);
+    {
+        assert(0);
+        std::cout << "Unsupported output format in complex2hermitian kernel!" << std::endl;
+    }
 
     return;
 }
