@@ -30,13 +30,11 @@ Usage:
 \t\t-Z <int>    maximum problem size in Z direction
 \t\t-f <string> precision: float(default) or double
 \t\t-b <int>    batch size
-\t\t-g <int>    device number
-\t\t-t <string> data type: time or gflops (default: time)'''
+\t\t-g <int>    device number'''
 
 def runcase(workingdir,
             length, direction, rcfft, inplace, ntrial,
-            precision, nbatch,
-            datatype, devicenum, logfilename):
+            precision, nbatch, devicenum, logfilename):
     progname = "rocfft-rider"
     prog = os.path.join(workingdir, progname)
     
@@ -115,29 +113,17 @@ def runcase(workingdir,
     if rc == 0:
         # ferr.seek(0)
         # cerr = ferr.read()
-        if datatype == "time":
-            searchstr = "Execution gpu time: "
-            for line in cout.split("\n"):
-                #print(line)
-                if line.startswith(searchstr):
-                    # Line ends with "ms", so remove that.
-                    ms_string = line[len(searchstr):-2]
-                    #print(ms_string)
-                    for val in ms_string.split():
-                        #print(val)
-                        vals.append(1e-3 * float(val))
-            print("seconds: ", vals)
-        elif datatype == "gflops":
-            searchstr = "Execution gflops (wall time): "
-            for line in cout.split("\n"):
-                #print(line)
-                if line.startswith(searchstr):
-                    gf_string = line[len(searchstr):]
-                    print(gf_string)
-                    for val in gf_string.split():
-                        #print(val)
-                        vals.append(1e-3 * float(val))
-            print("gflops: ", vals)
+        searchstr = "Execution gpu time: "
+        for line in cout.split("\n"):
+            #print(line)
+            if line.startswith(searchstr):
+                # Line ends with "ms", so remove that.
+                ms_string = line[len(searchstr):-2]
+                #print(ms_string)
+                for val in ms_string.split():
+                    #print(val)
+                    vals.append(1e-3 * float(val))
+        print("seconds: ", vals)
                         
                         
     else:
@@ -167,12 +153,11 @@ def main(argv):
     inplace = False
     precision = "float"
     nbatch = 1
-    datatype = "time"
     radix = 2
     devicenum = 0
     
     try:
-        opts, args = getopt.getopt(argv,"hb:d:D:IN:o:Rt:w:x:X:y:Y:z:Z:f:r:g:")
+        opts, args = getopt.getopt(argv,"hb:d:D:IN:o:Rw:x:X:y:Y:z:Z:f:r:g:")
     except getopt.GetoptError:
         print("error in parsing arguments.")
         print(usage)
@@ -226,12 +211,6 @@ def main(argv):
                 print(usage)
                 sys.exit(1)
             precision = arg
-        elif opt in ("-t"):
-            if arg not in ["time", "gflops"]:
-                print("data type must be time or gflops")
-                print(usage)
-                sys.exit(1)
-            datatype = arg
         elif opt in ("-g"):
             devicenum = int(arg)
 
@@ -249,7 +228,6 @@ def main(argv):
     print("real/complex FFT? " + str(rcfft))
     print("in-place? " + str(inplace))
     print("batch-size: " + str(nbatch))
-    print("data type: " + datatype)
     print("radix: " + str(radix))
     print("device number: " + str(devicenum))
     
@@ -263,6 +241,17 @@ def main(argv):
     print("log filename: "  + logfilename)
     logfile = open(logfilename, "w+")
     metadatastring = "# " + " ".join(sys.argv)  + "\n"
+    metadatastring += "# "
+    metadatastring += "dimension"
+    metadatastring += "\txlength"
+    if(dimension > 1):
+        metadatastring += "\tylength"
+    if(dimension > 2):
+        metadatastring += "\tzlength"
+    metadatastring += "\tnbatch"
+    metadatastring += "\tnsample"
+    metadatastring += "\tsamples ..."
+    metadatastring += "\n"
     logfile.write(metadatastring)
     logfile.close()
 
@@ -284,11 +273,20 @@ def main(argv):
         
         seconds = runcase(workingdir,
                           length, direction, rcfft, inplace, ntrial,
-                          precision, nbatch,
-                          datatype, devicenum, logfilename)
+                          precision, nbatch, devicenum, logfilename)
         #print(seconds)
         with open(outfilename, 'a') as outfile:
+            outfile.write(str(dimension))
+            outfile.write("\t")
             outfile.write(str(xval))
+            outfile.write("\t")
+            if(dimension > 1):
+                outfile.write(str(yval))
+                outfile.write("\t")
+            if(dimension > 2):
+                outfile.write(str(zval))
+                outfile.write("\t")
+            outfile.write(str(nbatch))
             outfile.write("\t")
             outfile.write(str(len(seconds)))
             for second in seconds:

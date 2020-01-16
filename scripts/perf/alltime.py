@@ -18,7 +18,7 @@ Usage:
 \t\t              appendable; defaults to "dir0", "dir1", etc.
 \t\t-l          Specify labels for runs
 \t\t              appendable; defaults to "dir0", "dir1", etc.
-\t\t-o          output directory
+\t\t-w          output directory for graphs and final document
 \t\t-S          plot speedup (default: 1, disabled: 0)
 \t\t-t          data type: time (default) or gflops or roofline
 \t\t-y          secondary acix type: none or gflops
@@ -726,6 +726,8 @@ def main(argv):
                 print(usage)
                 sys.exit(1)
             runtype = arg
+            if runtype == "efficiency":
+                datatype = "roofline"
         elif opt in ("-f"):
             goodvals = ["pdf", "docx"]
             if arg not in goodvals:

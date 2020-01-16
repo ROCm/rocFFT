@@ -166,43 +166,54 @@ string[] testlist = listfromcsv(filenames);
 
 // Data containers:
 real[][] x = new real[testlist.length][];
-//real[][] y = new real[testlist.length][];
-// real[][] ly = new real[testlist.length][];
-// real[][] hy = new real[testlist.length][];
 real[][][] data = new real[testlist.length][][];
 real xmax = 0.0;
 real xmin = inf;
 
-// Get the data from the file:
-for(int n = 0; n < testlist.length; ++n)
+// Read the data from the rocFFT-formatted data file.
+void readfiles(string[] testlist, real[][] x, real[][][] data)
 {
-    string filename = testlist[n];
-    write(filename);
-    data[n] = new real[][];
+// Get the data from the file:
+    for(int n = 0; n < testlist.length; ++n)
+    {
+        string filename = testlist[n];
+        write(filename);
+        data[n] = new real[][];
 
-    int dataidx = 0;
-    bool moretoread = true;
-    file fin = input(filename);
-    while(moretoread) {
-        int a = fin; // Problem size
-        if(a == 0) {
-            moretoread = false;
-            break;
-        }
-       
-        int N = fin; // Number of data points
-        if (N > 0) {
-            xmax = max(a,xmax);
-            xmin = min(a,xmin);
-            x[n].push(a);
-            data[n][dataidx] = new real[N];
-            for(int i = 0; i < N; ++i) {
-                data[n][dataidx][i] = fin;
+        int dataidx = 0;
+        bool moretoread = true;
+        file fin = input(filename);
+        while(moretoread) {
+            int dim = fin; // Problem dimension
+            if(dim == 0) {
+                moretoread = false;
+                break;
             }
-            ++dataidx;
+            int xval = fin; // x-length
+            if(dim > 1) {
+                int yval = fin; // y-length
+            }
+            if(dim > 2) {
+                int zval = fin; // z-length
+            }
+            int nbatch = fin; // batch size
+            
+            int N = fin; // Number of data points
+            if (N > 0) {
+                xmax = max(xval, xmax);
+                xmin = min(xval, xmin);
+                x[n].push(xval);
+                data[n][dataidx] = new real[N];
+                for(int i = 0; i < N; ++i) {
+                    data[n][dataidx][i] = fin;
+                }
+                ++dataidx;
+            }
         }
     }
 }
+
+readfiles(testlist, x, data);
 
 // Plot the primary graph:
 for(int n = 0; n < x.length; ++n)
