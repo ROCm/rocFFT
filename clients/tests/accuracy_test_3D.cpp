@@ -1389,16 +1389,21 @@ void normal_3D_complex_interleaved_to_real(std::vector<size_t>     length,
     // Set up the data:
     std::fill(cpu_in, cpu_in + isize, 0.0);
     srandom(3);
-    for(size_t i = 0; i < dims[0].n; i++)
+    for(size_t ibatch = 0; ibatch < batch; ++ibatch)
     {
-        for(size_t j = 0; j < dims[1].n; j++)
+        for(size_t i = 0; i < dims[0].n; i++)
         {
-            for(size_t k = 0; k < dims[2].n / 2 + 1; k++)
+            for(size_t j = 0; j < dims[1].n; j++)
             {
-                // TODO: make pattern variable
-                std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
-                                         (Tfloat)rand() / (Tfloat)RAND_MAX);
-                cpu_in[dims[0].is * i + dims[1].is * j + dims[2].is * k] = val;
+                for(size_t k = 0; k < dims[2].n / 2 + 1; k++)
+                {
+                    // TODO: make pattern variable
+                    std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
+                                             (Tfloat)rand() / (Tfloat)RAND_MAX);
+                    cpu_in[howmany_dims[0].is * ibatch + dims[0].is * i + dims[1].is * j
+                           + dims[2].is * k]
+                        = val;
+                }
             }
         }
     }
