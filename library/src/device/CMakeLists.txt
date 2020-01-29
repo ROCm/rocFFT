@@ -77,11 +77,22 @@ set( rocfft_device_source
 
 prepend_path( "../.." rocfft_headers_public relative_rocfft_device_headers_public )
 
-add_library( rocfft-device
-  ${rocfft_device_source}
-  ${relative_rocfft_device_headers_public}
-  ${gen_headers}
-  )
+if(NOT SINGLELIB)
+  add_library( rocfft-device
+    ${rocfft_device_source}
+    ${relative_rocfft_device_headers_public}
+    ${gen_headers}
+    )
+else()
+  # Compile the device lib as a static library, which is then linked into librocfft.so
+  # Useful for testing purposes.
+    add_library( rocfft-device STATIC
+    ${rocfft_device_source}
+    ${relative_rocfft_device_headers_public}
+    ${gen_headers}
+    )
+endif()
+
 add_library( roc::rocfft-device ALIAS rocfft-device )
 target_compile_features( rocfft-device PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
 
