@@ -89,12 +89,12 @@ int main()
     {
         printf("element %d: input %f, %f; FFTW result %f, %f; hipFFT result %f, %f \n",
                (int)i,
-               cx[i].x,
-               cx[i].y,
-               out[i][0],
-               out[i][1],
-               y[i].x,
-               y[i].y);
+               (float)cx[i].x,
+               (float)x[i].y,
+               (float)out[i][0],
+               (float)out[i][1],
+               (float)y[i].x,
+               (float)y[i].y);
         double err = fabs(out[i][0] - y[i].x) + fabs(out[i][1] - y[i].y);
         if(err > error)
         {
