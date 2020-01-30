@@ -1889,10 +1889,10 @@ void TreeNode::assign_buffers_CS_REAL_TRANSFORM_EVEN(OperatingBuffer& flipIn,
         childNodes[0]->obOut = obOut;
 
         // complex FFT kernel
-        childNodes[1]->obIn         = obOut;
-        childNodes[1]->obOut        = obOut;
-        flipIn                      = OB_USER_OUT;
-        flipOut                     = OB_TEMP;
+        childNodes[1]->obIn  = obOut;
+        childNodes[1]->obOut = obOut;
+        flipIn               = placement == rocfft_placement_inplace ? OB_USER_IN : OB_USER_OUT;
+        flipOut              = OB_TEMP;
         childNodes[1]->inArrayType  = rocfft_array_type_complex_interleaved;
         childNodes[1]->outArrayType = rocfft_array_type_complex_interleaved;
         childNodes[1]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
@@ -2355,9 +2355,6 @@ void TreeNode::assign_buffers_CS_L1D_CRT(OperatingBuffer& flipIn,
     }
     else
     {
-        assert(obIn == flipIn);
-        assert(obIn == obOut);
-
         childNodes[0]->obIn  = flipIn;
         childNodes[0]->obOut = flipOut;
 
@@ -2928,9 +2925,6 @@ void TreeNode::assign_params_CS_L1D_CRT()
     }
     else
     {
-        // here we don't have B info right away, we get it through its parent
-        assert((parent->obOut == OB_USER_OUT) || (parent->obOut == OB_TEMP_CMPLX_FOR_REAL));
-
         // T -> B
         col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
         col2colPlan->inStride.push_back(inStride[0]);
