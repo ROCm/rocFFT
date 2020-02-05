@@ -150,8 +150,10 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
     dim3 grid((count - 1) / 64 + 1);
     dim3 threads(64);
 
-    if(data->node->inArrayType == rocfft_array_type_complex_interleaved
-       && data->node->outArrayType == rocfft_array_type_complex_interleaved)
+    if((data->node->inArrayType == rocfft_array_type_complex_interleaved
+        || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)
+       && (data->node->outArrayType == rocfft_array_type_complex_interleaved
+           || data->node->outArrayType == rocfft_array_type_hermitian_interleaved))
     {
         if(data->node->precision == rocfft_precision_single)
         {
@@ -194,8 +196,10 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
                                scheme);
         }
     }
-    else if(data->node->inArrayType == rocfft_array_type_complex_planar
-            && data->node->outArrayType == rocfft_array_type_complex_interleaved)
+    else if((data->node->inArrayType == rocfft_array_type_complex_planar
+             || data->node->inArrayType == rocfft_array_type_hermitian_planar)
+            && (data->node->outArrayType == rocfft_array_type_complex_interleaved
+                || data->node->outArrayType == rocfft_array_type_hermitian_interleaved))
     {
         assert(scheme != 0);
         assert(scheme != 2);
@@ -243,8 +247,10 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
                                scheme);
         }
     }
-    else if(data->node->inArrayType == rocfft_array_type_complex_interleaved
-            && data->node->outArrayType == rocfft_array_type_complex_planar)
+    else if((data->node->inArrayType == rocfft_array_type_complex_interleaved
+             || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)
+            && (data->node->outArrayType == rocfft_array_type_complex_planar
+                || data->node->outArrayType == rocfft_array_type_hermitian_planar))
     {
         assert(scheme != 0);
         assert(scheme != 1);
@@ -292,8 +298,10 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
                                scheme);
         }
     }
-    else if(data->node->inArrayType == rocfft_array_type_complex_planar
-            && data->node->outArrayType == rocfft_array_type_complex_planar)
+    else if((data->node->inArrayType == rocfft_array_type_complex_planar
+             || data->node->inArrayType == rocfft_array_type_hermitian_planar)
+            && (data->node->outArrayType == rocfft_array_type_complex_planar
+                || data->node->outArrayType == rocfft_array_type_hermitian_planar))
     {
         assert(scheme != 0);
         assert(scheme != 1);
@@ -343,5 +351,10 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
                                dir,
                                scheme);
         }
+    }
+    else
+    {
+        assert(0);
+        std::cout << "Unsported array type in bluestein kernel launch!\n";
     }
 }

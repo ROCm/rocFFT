@@ -231,7 +231,7 @@ public:
     // Main tree builder:
     void RecursiveBuildTree();
 
-    // Real-complex and complex-real node builder:
+    // Real-complex and complex-real node builders:
     void build_real();
     void build_real_embed();
     void build_real_even_1D();
@@ -245,14 +245,16 @@ public:
     void build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength1);
     void build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLength1);
 
-    // 2D node builders:
+    // 2D node builder:
     void build_CS_2D_RTRT();
-    void build_CS_2D_RTRT_real();
 
-    // 3D node builders:
+    // 3D node builder:
     void build_CS_3D_RTRT();
 
     // Buffer assignment:
+    void TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
+                                         OperatingBuffer& flipOut,
+                                         OperatingBuffer& obOutBuf);
     void assign_buffers_CS_REAL_TRANSFORM_USING_CMPLX(OperatingBuffer& flipIn,
                                                       OperatingBuffer& flipOut,
                                                       OperatingBuffer& obOutBuf);
@@ -283,12 +285,12 @@ public:
     void assign_buffers_CS_RC(OperatingBuffer& flipIn,
                               OperatingBuffer& flipOut,
                               OperatingBuffer& obOutBuf);
-    void TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
-                                         OperatingBuffer& flipOut,
-                                         OperatingBuffer& obOutBuf);
+
+    // Set placement variable and in/out array types
     void TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn, rocfft_array_type rootOut);
 
     // Set strides and distances:
+    void TraverseTreeAssignParamsLogicA();
     void assign_params_CS_REAL_TRANSFORM_USING_CMPLX();
     void assign_params_CS_REAL_TRANSFORM_EVEN();
     void assign_params_CS_REAL_2D_EVEN();
@@ -301,7 +303,6 @@ public:
     void assign_params_CS_2D_RC_STRAIGHT();
     void assign_params_CS_3D_RTRT();
     void assign_params_CS_3D_RC_STRAIGHT();
-    void TraverseTreeAssignParamsLogicA();
 
     // Determine work memory requirements:
     void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode*>& seq,
@@ -309,9 +310,6 @@ public:
                                         size_t&                 cmplxForRealSize,
                                         size_t&                 blueSize,
                                         size_t&                 chirpSize);
-    void ReviseLeafsArrayType(std::vector<TreeNode*>& seq,
-                              rocfft_array_type const rootInArrayType,
-                              rocfft_array_type const rootOutArrayType);
 
     // Output plan information for debug purposes:
     void Print(std::ostream& os = std::cout, int indent = 0) const;

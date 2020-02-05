@@ -281,15 +281,17 @@ __global__ void hermitian2complex_kernel(size_t          hermitian_size,
 
     if((is0 == 0) || (is0 * 2 == dim_0)) // simply write the element to output
     {
-        outputs[0] = T(inputRe[0], inputIm[0]);
+        outputs[0].x = inputRe[0];
+        outputs[0].y = inputIm[0];
         return;
     }
 
     if(is0 < hermitian_size)
     {
-        T res      = T(inputRe[0], inputIm[0]);
-        outputs[0] = res;
-        outputc[0] = T(res.x, -res.y);
+        outputs[0].x = inputRe[0];
+        outputs[0].y = inputIm[0];
+        outputc[0].x = inputRe[0];
+        outputc[0].y = -inputIm[0];
     }
 }
 
@@ -453,8 +455,8 @@ void hermitian2complex(const void* data_p, void* back_p)
                                dim_2,
                                input_stride,
                                output_stride,
-                               (float*)data->bufOut[0],
-                               (float*)data->bufOut[1],
+                               (float*)data->bufIn[0],
+                               (float*)data->bufIn[1],
                                input_distance,
                                (float2*)output_buffer,
                                output_distance);
@@ -470,8 +472,8 @@ void hermitian2complex(const void* data_p, void* back_p)
                                dim_2,
                                input_stride,
                                output_stride,
-                               (double*)data->bufOut[0],
-                               (double*)data->bufOut[1],
+                               (double*)data->bufIn[0],
+                               (double*)data->bufIn[1],
                                input_distance,
                                (double2*)output_buffer,
                                output_distance);

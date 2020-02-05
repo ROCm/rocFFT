@@ -151,7 +151,10 @@ struct Handler<cmplx_float_planar>
 {
     static __host__ __device__ inline float2 read(cmplx_float_planar const* in, size_t idx)
     {
-        return float2(in->R[idx], in->I[idx]);
+        float2 t;
+        t.x = in->R[idx];
+        t.y = in->I[idx];
+        return t;
     }
 
     static __host__ __device__ inline void write(cmplx_float_planar* out, size_t idx, float2 v)
@@ -166,7 +169,10 @@ struct Handler<cmplx_double_planar>
 {
     static __host__ __device__ inline double2 read(cmplx_double_planar const* in, size_t idx)
     {
-        return double2(in->R[idx], in->I[idx]);
+        double2 t;
+        t.x = in->R[idx];
+        t.y = in->I[idx];
+        return t;
     }
 
     static __host__ __device__ inline void write(cmplx_double_planar* out, size_t idx, double2 v)

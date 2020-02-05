@@ -292,8 +292,10 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
     // double2 must use 32 otherwise exceed the shared memory (LDS) size
 
     // FIXME: push planar ptr on device in better way!!!
-    if(data->node->inArrayType == rocfft_array_type_complex_planar
-       && data->node->outArrayType == rocfft_array_type_complex_interleaved)
+    if((data->node->inArrayType == rocfft_array_type_complex_planar
+        || data->node->inArrayType == rocfft_array_type_hermitian_planar)
+       && (data->node->outArrayType == rocfft_array_type_complex_interleaved
+           || data->node->outArrayType == rocfft_array_type_hermitian_interleaved))
     {
         if(data->node->precision == rocfft_precision_single)
         {
@@ -360,8 +362,10 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
             hipFree(d_in_planar);
         }
     }
-    else if(data->node->inArrayType == rocfft_array_type_complex_interleaved
-            && data->node->outArrayType == rocfft_array_type_complex_planar)
+    else if((data->node->inArrayType == rocfft_array_type_complex_interleaved
+             || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)
+            && (data->node->outArrayType == rocfft_array_type_complex_planar
+                || data->node->outArrayType == rocfft_array_type_hermitian_planar))
     {
         if(data->node->precision == rocfft_precision_single)
         {
@@ -429,8 +433,10 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
             hipFree(d_out_planar);
         }
     }
-    else if(data->node->inArrayType == rocfft_array_type_complex_planar
-            && data->node->outArrayType == rocfft_array_type_complex_planar)
+    else if((data->node->inArrayType == rocfft_array_type_complex_planar
+             || data->node->inArrayType == rocfft_array_type_hermitian_planar)
+            && (data->node->outArrayType == rocfft_array_type_complex_planar
+                || data->node->outArrayType == rocfft_array_type_hermitian_planar))
     {
         if(data->node->precision == rocfft_precision_single)
         {
