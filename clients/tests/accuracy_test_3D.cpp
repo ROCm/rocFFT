@@ -1175,19 +1175,19 @@ void imposeHermitianSymmetry(std::complex<Tfloat>*              data,
         }
 
         // x-axis:
-        for(int i = 1; i < Nx / 2 + 1; ++i)
+        for(int i = 1; i < (Nx + 1) / 2; ++i)
         {
             data[howmany_dims.is * ibatch + dims[0].is * (Nx - i)]
                 = std::conj(data[howmany_dims.is * ibatch + dims[0].is * i]);
         }
         // y-axis:
-        for(int j = 1; j < Ny / 2 + 1; ++j)
+        for(int j = 1; j < (Ny + 1) / 2; ++j)
         {
             data[howmany_dims.is * ibatch + dims[1].is * (Ny - j)]
                 = std::conj(data[howmany_dims.is * ibatch + dims[1].is * j]);
         }
         // x-y plane:
-        for(int i = 1; i < Nx / 2 + 1; ++i)
+        for(int i = 1; i < (Nx + 1) / 2; ++i)
         {
             for(int j = 1; j < Ny; ++j)
             {
@@ -1200,7 +1200,7 @@ void imposeHermitianSymmetry(std::complex<Tfloat>*              data,
         if(Nx % 2 == 0)
         {
             // x-axis:
-            for(int j = 1; j < Ny / 2 + 1; ++j)
+            for(int j = 1; j < (Ny + 1) / 2; ++j)
             {
                 data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2) + dims[1].is * j] = std::conj(
                     data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2) + dims[1].is * (Ny - j)]);
@@ -1211,7 +1211,7 @@ void imposeHermitianSymmetry(std::complex<Tfloat>*              data,
         if(Ny % 2 == 0)
         {
             // x-axis:
-            for(int i = 1; i < Nx / 2 + 1; ++i)
+            for(int i = 1; i < (Nx + 1) / 2; ++i)
             {
                 data[howmany_dims.is * ibatch + dims[0].is * (Nx - i) + dims[1].is * (Ny / 2)]
                     = std::conj(
@@ -1223,14 +1223,14 @@ void imposeHermitianSymmetry(std::complex<Tfloat>*              data,
         if(Nz % 2 == 0)
         {
             // x-axis:
-            for(int i = 1; i < Nx / 2 + 1; ++i)
+            for(int i = 1; i < (Nx + 1) / 2; ++i)
             {
                 data[howmany_dims.is * ibatch + dims[0].is * (Nx - i) + dims[2].is * (Nz / 2)]
                     = std::conj(
                         data[howmany_dims.is * ibatch + dims[0].is * i + dims[2].is * (Nz / 2)]);
             }
             // y-axis:
-            for(int j = 1; j < Ny / 2 + 1; ++j)
+            for(int j = 1; j < (Ny + 1) / 2; ++j)
             {
                 data[howmany_dims.is * ibatch + dims[1].is * (Ny - j) + dims[2].is * (Nz / 2)]
                     = std::conj(
@@ -1239,7 +1239,7 @@ void imposeHermitianSymmetry(std::complex<Tfloat>*              data,
             // x-Nyquist plane:
             if(Nx % 2 == 0)
             {
-                for(int j = 1; j < Ny / 2 + 1; ++j)
+                for(int j = 1; j < (Ny + 1) / 2; ++j)
                 {
                     data[howmany_dims.is * ibatch + dims[0].is * (Nx / 2) + dims[1].is * j
                          + dims[2].is * (Nz / 2)]
@@ -1252,7 +1252,7 @@ void imposeHermitianSymmetry(std::complex<Tfloat>*              data,
             if(Ny % 2 == 0)
             {
                 // x-axis:
-                for(int i = 1; i < Nx / 2 + 1; ++i)
+                for(int i = 1; i < (Nx + 1) / 2; ++i)
                 {
                     data[howmany_dims.is * ibatch + dims[0].is * (Nx - i) + dims[1].is * (Ny / 2)
                          + dims[2].is * (Nz / 2)]
@@ -1261,7 +1261,7 @@ void imposeHermitianSymmetry(std::complex<Tfloat>*              data,
                 }
             }
             // x-y plane:
-            for(int i = 1; i < Nx / 2 + 1; ++i)
+            for(int i = 1; i < (Nx + 1) / 2; ++i)
             {
                 for(int j = 1; j < Ny; ++j)
                 {

@@ -1088,7 +1088,7 @@ void imposeHermitianSymmetry(std::complex<Tfloat>*              data,
         }
 
         // x-axis:
-        for(int i = 1; i < Nx / 2 + 1; ++i)
+        for(int i = 1; i < (Nx + 1) / 2; ++i)
         {
             data[howmany_dims.is * ibatch + dims[0].is * (Nx - i)]
                 = std::conj(data[howmany_dims.is * ibatch + dims[0].is * i]);
@@ -1097,7 +1097,7 @@ void imposeHermitianSymmetry(std::complex<Tfloat>*              data,
         // y-Nyquist:
         if(Ny % 2 == 0)
         {
-            for(int i = 1; i < Nx / 2 + 1; ++i)
+            for(int i = 1; i < (Nx + 1) / 2; ++i)
             {
                 data[howmany_dims.is * ibatch + dims[0].is * (Nx - i) + dims[1].is * (Ny / 2)]
                     = std::conj(

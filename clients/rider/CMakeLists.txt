@@ -36,68 +36,93 @@
 # into thinking nvcc is an Intel compiler as desribed in above issue
 if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
   set( Boost_COMPILER "" )
-  set( BOOST_LIBRARYDIR "/usr/lib/x86_64-linux-gnu/" )  # Don't know why we need this yet
 endif( )
 # ########################################################################
 
 find_package( Boost COMPONENTS program_options REQUIRED)
 set( Boost_DEBUG ON )
 set( Boost_USE_MULTITHREADED ON )
-# set( Boost_DETAILED_FAILURE_MSG ON )
-# set( Boost_ADDITIONAL_VERSIONS 1.65.1 1.65 )
-# set( Boost_USE_STATIC_LIBS OFF )
-
-set( rocfft_rider_source rider.cpp )
-set( rocfft_rider_includes rider.h misc.h )
-
-add_executable( rocfft-rider ${rocfft_rider_source} ${rocfft_rider_includes} )
-
-target_compile_features( rocfft-rider
-  PRIVATE
-  cxx_static_assert
-  cxx_nullptr
-  cxx_auto_type )
-
-target_include_directories( rocfft-rider
-  PRIVATE
-    $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/misc/include>
-)
-
 if(NOT Boost_LIBRARIES)
   # Fixes a bug in Boost's CMAKE where Boost_LIBRARIES is not set.
   set(Boost_LIBRARIES Boost::program_options)
 endif()
 
-target_link_libraries( rocfft-rider
-  PRIVATE
-  roc::rocfft
-  ${Boost_LIBRARIES} )
 
-if( CUDA_FOUND )
-  target_include_directories( rocfft-rider
+set( rider_list rocfft-rider dyna-rocfft-rider )
+foreach( rider ${rider_list})
+  
+  if(${rider} STREQUAL "rocfft-rider")
+    add_executable( ${rider} rider.cpp rider.h misc.h )
+  else()
+    add_executable( ${rider} dyna-rider.cpp rider.h misc.h )
+  endif()
+
+  target_compile_features( ${rider}
     PRIVATE
+    cxx_static_assert
+    cxx_nullptr
+    cxx_auto_type )
+
+  target_compile_features( ${rider}
+    PRIVATE
+    cxx_static_assert
+    cxx_nullptr
+    cxx_auto_type )
+
+  target_include_directories( ${rider}
+    PRIVATE
+    $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/misc/include>
+    )
+
+  if(${rider} STREQUAL "rocfft-rider")
+    target_link_libraries( ${rider}
+      PRIVATE
+      roc::rocfft
+      ${Boost_LIBRARIES} )
+  else()
+    target_link_libraries( ${rider} 
+      PRIVATE
+      ${CMAKE_DL_LIBS}
+      ${Boost_LIBRARIES} )
+
+    # We need to include both rocfft.h and rocfft-export.h
+    target_include_directories( ${rider}
+      PRIVATE
+      ${CMAKE_BINARY_DIR}/include
+      ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
+      )
+  endif()
+  
+  if( CUDA_FOUND )
+    target_include_directories( ${rider}
+      PRIVATE
       $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
       $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
-    )
-  target_compile_definitions( rocfft-rider PRIVATE __HIP_PLATFORM_NVCC__ )
-  target_link_libraries( rocfft-rider PRIVATE ${CUDA_LIBRARIES} )
-else( )
-  target_link_libraries( rocfft-rider PRIVATE hip::hip_hcc )
-endif( )
+      )
+    target_compile_definitions( ${rider} PRIVATE __HIP_PLATFORM_NVCC__ )
+    target_link_libraries( ${rider} PRIVATE ${CUDA_LIBRARIES} )
+  else( )
+    target_link_libraries( ${rider} PRIVATE hip::hip_hcc )
+  endif( )
 
-if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$")
-  target_compile_options( rocfft-rider PRIVATE -Wno-unused-command-line-argument -hc )
-endif( )
+  if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$")
+    target_compile_options( ${rider} PRIVATE -Wno-unused-command-line-argument -hc )
+  endif( )
 
-if(HIP_PLATFORM STREQUAL "hip-clang")
-  target_compile_options( rocfft-rider PRIVATE -Wno-unused-command-line-argument )
-endif( )
+  if(HIP_PLATFORM STREQUAL "hip-clang")
+    target_compile_options( ${rider} PRIVATE -Wno-unused-command-line-argument )
+  endif( )
+  
 
-set( THREADS_PREFER_PTHREAD_FLAG ON )
-find_package( Threads REQUIRED )
-target_link_libraries( rocfft-rider PRIVATE Threads::Threads)
+  set( THREADS_PREFER_PTHREAD_FLAG ON )
+  find_package( Threads REQUIRED )
+  target_link_libraries( ${rider} PRIVATE Threads::Threads)
+  
 
-set_target_properties( rocfft-rider PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
-set_target_properties( rocfft-rider
-  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+  set_target_properties( ${rider} PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
+
+  set_target_properties( ${rider}
+    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+  
+endforeach()

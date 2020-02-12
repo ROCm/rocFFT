@@ -1,75 +1,34 @@
-/*******************************************************************************
- * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
- ******************************************************************************/
+// Copyright (c) 2020 - present Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
 #include <cmath>
 #include <cstddef>
-#include <functional>
 #include <iostream>
-#include <numeric>
 #include <sstream>
+
+#include "./misc.h"
 
 #include "./rider.h"
 #include "rocfft.h"
 #include <boost/program_options.hpp>
-
-#include "./misc.h"
-
 namespace po = boost::program_options;
-
-// Increment the index (column-major) for looping over arbitrary dimensional loops with
-// dimensions length.
-template <class T1, class T2>
-bool increment_colmajor(std::vector<T1>& index, const std::vector<T2>& length)
-{
-    for(int idim = 0; idim < length.size(); ++idim)
-    {
-        if(index[idim] < length[idim])
-        {
-            if(++index[idim] == length[idim])
-            {
-                index[idim] = 0;
-                continue;
-            }
-            break;
-        }
-    }
-    // End the loop when we get back to the start:
-    return !std::all_of(index.begin(), index.end(), [](int i) { return i == 0; });
-}
-
-// Output a formatted general-dimensional array with given length and stride in batches separated by
-// dist.
-template <class Toutput, class T1, class T2>
-void printbuffer(const std::vector<Toutput>& output,
-                 const std::vector<T1>       length,
-                 const std::vector<T2>       stride,
-                 const size_t                nbatch,
-                 const size_t                dist)
-{
-    for(size_t b = 0; b < nbatch; b++)
-    {
-        std::vector<int> index(length.size());
-        std::fill(index.begin(), index.end(), 0);
-        do
-        {
-            const int i = std::inner_product(index.begin(), index.end(), stride.begin(), b * dist);
-            std::cout << output[i] << " ";
-            for(int i = 0; i < index.size(); ++i)
-            {
-                if(index[i] == (length[i] - 1))
-                {
-                    std::cout << "\n";
-                }
-                else
-                {
-                    break;
-                }
-            }
-        } while(increment_colmajor(index, length));
-        std::cout << std::endl;
-    }
-}
 
 // Perform a transform using rocFFT.  We assume that all input is valid at this point.
 // ntrial is the number of trials; if this is 0, then we just do a correctness check.
@@ -140,157 +99,11 @@ int transform(const std::vector<size_t> length,
         osize *= sizeof(T);
     }
 
-    std::vector<void*> ibuffer;
-    std::vector<void*> obuffer;
+    std::vector<void*> ibuffer = alloc_buffer(precision, itype, idist, nbatch);
+    std::vector<void*> obuffer = alloc_buffer(precision, otype, odist, nbatch);
 
-    for(unsigned i = 0; i < number_of_input_buffers; i++)
-    {
-        ibuffer.push_back(NULL);
-        HIP_V_THROW(hipMalloc(&ibuffer[i], isize), "hipMalloc failed");
-    }
-
-    for(unsigned i = 0; i < number_of_output_buffers; i++)
-    {
-        obuffer.push_back(NULL);
-        if(place != rocfft_placement_inplace)
-            HIP_V_THROW(hipMalloc(&obuffer[i], osize), "hipMalloc failed");
-    }
-
-    // Fill the input buffers
-    switch(itype)
-    {
-    case rocfft_array_type_complex_interleaved:
-    {
-        std::vector<std::complex<T>> input(idist * nbatch);
-
-        // Input data is constant; output should be delta.
-        std::fill(input.begin(), input.end(), 0.0);
-        for(size_t b = 0; b < nbatch; b++)
-        {
-            std::vector<int> index(length.size());
-            std::fill(index.begin(), index.end(), 0);
-            do
-            {
-                int i = std::inner_product(index.begin(), index.end(), istride.begin(), b * idist);
-                input[i] = 1.0;
-
-            } while(increment_colmajor(index, length));
-        }
-
-        if(verbose)
-        {
-            std::cout << "input:\n";
-            printbuffer(input, length, istride, nbatch, idist);
-        }
-
-        HIP_V_THROW(hipMemcpy(ibuffer[0], input.data(), isize, hipMemcpyHostToDevice),
-                    "hipMemcpy failed");
-    }
-    break;
-    case rocfft_array_type_complex_planar:
-    {
-        std::vector<T> real(idist * nbatch);
-        std::vector<T> imag(idist * nbatch);
-
-        // Input data is constant; output should be delta.
-        std::fill(real.begin(), real.end(), 0.0);
-        std::fill(imag.begin(), imag.end(), 0.0);
-        for(size_t b = 0; b < nbatch; b++)
-        {
-            std::vector<int> index(length.size());
-            std::fill(index.begin(), index.end(), 0);
-            do
-            {
-                int i = std::inner_product(index.begin(), index.end(), istride.begin(), b * idist);
-                real[i] = 1.0;
-                imag[i] = 0.0;
-
-            } while(increment_colmajor(index, length));
-        }
-
-        HIP_V_THROW(hipMemcpy(ibuffer[0], real.data(), isize, hipMemcpyHostToDevice),
-                    "hipMemcpy failed");
-        HIP_V_THROW(hipMemcpy(ibuffer[1], imag.data(), isize, hipMemcpyHostToDevice),
-                    "hipMemcpy failed");
-    }
-    break;
-    case rocfft_array_type_hermitian_interleaved:
-    {
-        std::vector<std::complex<T>> input(idist * nbatch);
-
-        // Input data is the delta function; output should be constant.
-        T delta = std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
-        std::fill(input.begin(), input.end(), 0.0);
-        for(size_t b = 0; b < nbatch; b++)
-        {
-            size_t p3 = b * idist;
-            input[p3] = delta;
-        }
-        if(verbose)
-        {
-            std::cout << "\ninput:\n";
-            printbuffer(input, length, istride, nbatch, idist);
-        }
-
-        HIP_V_THROW(hipMemcpy(ibuffer[0], input.data(), isize, hipMemcpyHostToDevice),
-                    "hipMemcpy failed");
-    }
-    break;
-    case rocfft_array_type_hermitian_planar:
-    {
-        std::vector<T> real(isize);
-        std::vector<T> imag(isize);
-
-        // Input data is the delta function; output should be constant.
-        std::fill(real.begin(), real.end(), 0.0);
-        std::fill(imag.begin(), imag.end(), 0.0);
-        T delta = std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
-        for(size_t b = 0; b < nbatch; b++)
-        {
-            size_t p3 = b * idist;
-            real[p3]  = delta;
-        }
-        HIP_V_THROW(hipMemcpy(ibuffer[0], real.data(), isize, hipMemcpyHostToDevice),
-                    "hipMemcpy failed");
-        HIP_V_THROW(hipMemcpy(ibuffer[1], imag.data(), isize, hipMemcpyHostToDevice),
-                    "hipMemcpy failed");
-    }
-    break;
-    case rocfft_array_type_real:
-    {
-        std::vector<T> input(idist * nbatch);
-
-        // Input data is constant; output should be delta.
-        std::fill(input.begin(), input.end(), 0.0);
-        for(size_t b = 0; b < nbatch; b++)
-        {
-            std::vector<int> index(length.size());
-            std::fill(index.begin(), index.end(), 0);
-            do
-            {
-                const int i
-                    = std::inner_product(index.begin(), index.end(), istride.begin(), b * idist);
-                input[i] = 1.0;
-
-            } while(increment_colmajor(index, length));
-        }
-
-        if(verbose)
-        {
-            std::cout << "\ninput:\n";
-            printbuffer(input, length, istride, nbatch, idist);
-        }
-
-        HIP_V_THROW(hipMemcpy(ibuffer[0], input.data(), isize, hipMemcpyHostToDevice),
-                    "hipMemcpy failed");
-    }
-    break;
-    default:
-    {
-        throw std::runtime_error("Input layout format not yet supported");
-    }
-    break;
-    }
+    // Fill the input buffers (FIXME: deprecated function)
+    fill_ibuffer<T>(ibuffer, itype, length, istride, idist, nbatch, verbose);
 
     LIB_V_THROW(rocfft_setup(), " rocfft_setup failed");
 
@@ -466,7 +279,7 @@ int transform(const std::vector<size_t> length,
             if(verbose)
             {
                 std::cout << "output:\n";
-                printbuffer(output, length, ostride, nbatch, odist);
+                printbuffer(output.data(), length, ostride, nbatch, odist);
             }
         }
         break;
@@ -551,7 +364,7 @@ int transform(const std::vector<size_t> length,
             if(verbose)
             {
                 std::cout << "output:\n";
-                printbuffer(output, length, ostride, nbatch, odist);
+                printbuffer(output.data(), length, ostride, nbatch, odist);
             }
         }
         break;
@@ -595,58 +408,6 @@ int transform(const std::vector<size_t> length,
     return checkflag ? -1 : 0;
 }
 
-// This is used with the program_options class so that the user can type an integer on the
-// command line and we store into an enum varaible
-template <class _Elem, class _Traits>
-std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits>& stream,
-                                               rocfft_array_type&                  atype)
-{
-    unsigned tmp;
-    stream >> tmp;
-    atype = rocfft_array_type(tmp);
-    return stream;
-}
-
-// similarly for transform type
-template <class _Elem, class _Traits>
-std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits>& stream,
-                                               rocfft_transform_type&              ttype)
-{
-    unsigned tmp;
-    stream >> tmp;
-    ttype = rocfft_transform_type(tmp);
-    return stream;
-}
-
-// Given a length vector, set the rest of the strides.
-// The optinal argument stride1 is useful for setting contiguous-ish data for in-place
-// real/complex transforms.
-template <class T>
-std::vector<T> contiguous_stride(const std::vector<T>& length, const int stride1 = 0)
-{
-    std::vector<T> stride;
-    stride.push_back(1);
-    if(stride1 == 0)
-    {
-        for(auto i = 1; i < length.size(); ++i)
-        {
-            stride.push_back(stride[i - 1] * length[i - 1]);
-        }
-    }
-    else
-    {
-        if(length.size() > 1)
-        {
-            stride.push_back(stride1);
-        }
-        for(auto i = 2; i < length.size(); ++i)
-        {
-            stride.push_back(stride[i - 1] * length[i - 1]);
-        }
-    }
-    return stride;
-}
-
 int main(int argc, char* argv[])
 {
     // This helps with mixing output of both wide and narrow characters to the screen
@@ -687,10 +448,10 @@ int main(int argc, char* argv[])
     size_t idist;
     size_t odist;
 
+    // Declare the supported options.
+
     // clang-format doesn't handle boost program options very well:
     // clang-format off
-        
-    // Declare the supported options.
     po::options_description desc("rocfft rider command line options");
     desc.add_options()("help,h", "produces this help message")
         ("version,v", "Print queryable version information from the rocfft library")
@@ -723,7 +484,6 @@ int main(int argc, char* argv[])
         ("ostride", po::value<std::vector<size_t>>(&ostride)->multitoken(), "Output strides.")
         ("ioffset", po::value<std::vector<size_t>>(&ioffset)->multitoken(), "Input offsets.")
         ("ooffset", po::value<std::vector<size_t>>(&ooffset)->multitoken(), "Output offsets.");
-
     // clang-format on
 
     po::variables_map vm;
@@ -820,271 +580,10 @@ int main(int argc, char* argv[])
 
     std::cout << std::flush;
 
-    // Check that format choices are supported
-    if(transformType != rocfft_transform_type_real_forward
-       && transformType != rocfft_transform_type_real_inverse)
-    {
-        if(place == rocfft_placement_inplace && itype != otype)
-        {
-            throw std::runtime_error(
-                "In-place transforms must have identical input and output types");
-        }
-    }
-
     // Set default data formats if not yet specified:
-    if(itype == rocfft_array_type_unset)
-    {
-        switch(transformType)
-        {
-        case rocfft_transform_type_complex_forward:
-        case rocfft_transform_type_complex_inverse:
-            itype = rocfft_array_type_complex_interleaved;
-            break;
-        case rocfft_transform_type_real_forward:
-            itype = rocfft_array_type_real;
-            break;
-        case rocfft_transform_type_real_inverse:
-            itype = rocfft_array_type_hermitian_interleaved;
-            break;
-        default:
-            throw std::runtime_error("Invalid transform type");
-        }
-    }
-    if(otype == rocfft_array_type_unset)
-    {
-        switch(transformType)
-        {
-        case rocfft_transform_type_complex_forward:
-        case rocfft_transform_type_complex_inverse:
-            otype = rocfft_array_type_complex_interleaved;
-            break;
-        case rocfft_transform_type_real_forward:
-            otype = rocfft_array_type_hermitian_interleaved;
-            break;
-        case rocfft_transform_type_real_inverse:
-            otype = rocfft_array_type_real;
-            break;
-        default:
-            throw std::runtime_error("Invalid transform type");
-        }
-    }
-
-    switch(itype)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_interleaved:
-    case rocfft_array_type_hermitian_planar:
-    case rocfft_array_type_real:
-        break;
-    default:
-        throw std::runtime_error("Invalid Input array type format");
-    }
-
-    switch(otype)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_interleaved:
-    case rocfft_array_type_hermitian_planar:
-    case rocfft_array_type_real:
-        break;
-    default:
-        throw std::runtime_error("Invalid Input array type format");
-    }
-
-    bool okformat = true;
-    switch(itype)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_complex_planar:
-        okformat = (otype == rocfft_array_type_complex_interleaved
-                    || otype == rocfft_array_type_complex_planar);
-        break;
-    case rocfft_array_type_hermitian_interleaved:
-    case rocfft_array_type_hermitian_planar:
-        okformat = otype == rocfft_array_type_real;
-        break;
-    case rocfft_array_type_real:
-        okformat = (otype == rocfft_array_type_hermitian_interleaved
-                    || otype == rocfft_array_type_hermitian_planar);
-        break;
-    default:
-        throw std::runtime_error("Invalid Input array type format");
-    }
-    switch(otype)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_interleaved:
-    case rocfft_array_type_hermitian_planar:
-    case rocfft_array_type_real:
-        break;
-    default:
-        okformat = false;
-    }
-    if(!okformat)
-    {
-        throw std::runtime_error("Invalid combination of Input/Output array type formats");
-    }
-
-    if(!istride.empty() && istride.size() != length.size())
-    {
-        throw std::runtime_error("Transform dimension doesn't match input stride length");
-    }
-
-    if(!ostride.empty() && ostride.size() != length.size())
-    {
-        throw std::runtime_error("Transform dimension doesn't match output stride length");
-    }
-
-    if((transformType == rocfft_transform_type_complex_forward)
-       || (transformType == rocfft_transform_type_complex_inverse))
-    {
-        // Complex-to-complex transform
-
-        // User-specified strides must match for in-place transforms:
-        if(place == rocfft_placement_inplace && !istride.empty() && !ostride.empty()
-           && istride != ostride)
-        {
-            throw std::runtime_error("In-place transforms require istride == ostride");
-        }
-
-        // If the user only specified istride, use that for ostride for in-place
-        // transforms.
-        if(place == rocfft_placement_inplace && !istride.empty() && ostride.empty())
-        {
-            ostride = istride;
-        }
-
-        // If the strides are empty, we use contiguous data.
-        if(istride.empty())
-        {
-            istride = contiguous_stride(length);
-        }
-        if(ostride.empty())
-        {
-            ostride = contiguous_stride(length);
-        }
-    }
-    else
-    {
-        // Real/complex transform
-        const bool forward = itype == rocfft_array_type_real;
-        const bool inplace = place == rocfft_placement_inplace;
-
-        // Length of complex data
-        auto clength = length;
-        clength[0]   = length[0] / 2 + 1;
-
-        if(inplace)
-        {
-            // Fastest index must be contiguous.
-            if(!istride.empty() && istride[0] != 1)
-            {
-                throw std::runtime_error(
-                    "In-place real/complex transforms require contiguous input data.");
-            }
-            if(!ostride.empty() && ostride[0] != 1)
-            {
-                throw std::runtime_error(
-                    "In-place real/complex transforms require contiguous output data.");
-            }
-            if(!istride.empty() && !ostride.empty())
-            {
-                for(int i = 1; i < length.size(); ++i)
-                {
-                    if(forward && istride[i] != 2 * ostride[i])
-                    {
-                        throw std::runtime_error(
-                            "In-place real-to-complex transforms strides are inconsistent.");
-                    }
-                    if(!forward && 2 * istride[i] != ostride[i])
-                    {
-                        throw std::runtime_error(
-                            "In-place complex-to-real transforms strides are inconsistent.");
-                    }
-                }
-            }
-        }
-
-        if(istride.empty())
-        {
-            if(forward)
-            {
-                // real data
-                istride = contiguous_stride(length, inplace ? clength[0] * 2 : 0);
-            }
-            else
-            {
-                // complex data
-                istride = contiguous_stride(clength);
-            }
-        }
-
-        if(ostride.empty())
-        {
-            if(forward)
-            {
-                // complex data
-                ostride = contiguous_stride(clength);
-            }
-            else
-            {
-                // real data
-                ostride = contiguous_stride(length, inplace ? clength[0] * 2 : 0);
-            }
-        }
-    }
-
-    if(idist == 0)
-    {
-
-        if(transformType == rocfft_transform_type_real_inverse && length.size() == 1)
-        {
-            idist = length[0] / 2 + 1;
-        }
-        else
-        {
-            idist = length[length.size() - 1] * istride[istride.size() - 1];
-        }
-
-        // in-place 1D transforms need extra dist.
-        if(transformType == rocfft_transform_type_real_forward && length.size() == 1
-           && place == rocfft_placement_inplace)
-        {
-            idist += 2;
-        }
-    }
-
-    if(odist == 0)
-    {
-        if(transformType == rocfft_transform_type_real_forward && length.size() == 1)
-        {
-            odist = length[0] / 2 + 1;
-        }
-        else
-        {
-            odist = length[length.size() - 1] * ostride[ostride.size() - 1];
-        }
-
-        // in-place 1D transforms need extra dist.
-        if(transformType == rocfft_transform_type_real_inverse && length.size() == 1
-           && place == rocfft_placement_inplace)
-        {
-            odist += 2;
-        }
-    }
-
-    // Final validation:
-    if(istride.size() != length.size())
-    {
-        throw std::runtime_error("Setup failed; inconsistent istride and length.");
-    }
-    if(ostride.size() != length.size())
-    {
-        throw std::runtime_error("Setup failed; inconsistent ostride and length.");
-    }
+    check_set_iotypes(place, transformType, itype, otype);
+    check_set_iostride(place, transformType, length, itype, otype, istride, ostride);
+    set_iodist(place, transformType, length, istride, ostride, idist, odist);
 
     int tret = 0;
     try

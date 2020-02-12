@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 # a timing script for FFTs and convolutions using OpenMP
 
@@ -15,12 +15,13 @@ usage = '''A timing script for rocfft
 
 Usage:
 \ttiming.py
+\t\t-w <string> set working directory for rocfft-rider
+\t\t-i <string> directory for dloaded libs (appendable)
+\t\t-o <string> name of output file (appendable for dload)
 \t\t-D <-1,1>   default: -1 (forward).  Direction of transform
 \t\t-I          make transform in-place
 \t\t-N <int>    number of tests per problem size
-\t\t-o <string> name of output file
 \t\t-R          set transform to be real/complex or complex/real
-\t\t-w <string> set working directory for rocfft-rider
 \t\t-d <1,2,3>  default: dimension of transform
 \t\t-x <int>    minimum problem size in x direction
 \t\t-X <int>    maximum problem size in x direction
@@ -30,12 +31,16 @@ Usage:
 \t\t-Z <int>    maximum problem size in Z direction
 \t\t-f <string> precision: float(default) or double
 \t\t-b <int>    batch size
-\t\t-g <int>    device number'''
+\t\t-g <int>    device number
+'''
+
 
 def runcase(workingdir,
+            dload, libdir,
             length, direction, rcfft, inplace, ntrial,
             precision, nbatch, devicenum, logfilename):
-    progname = "rocfft-rider"
+    
+    progname = "dyna-rocfft-rider" if dload else "rocfft-rider"
     prog = os.path.join(workingdir, progname)
     
     cmd = []
@@ -43,10 +48,14 @@ def runcase(workingdir,
 
     cmd.append("--verbose")
     cmd.append("0")
-    
-    cmd.append("-N")
-    cmd.append("10")
 
+    if dload:
+        cmd.append("--lib")
+        for val in libdir:
+            cmd.append(val)
+
+    cmd.append("-N")
+    cmd.append(str(ntrial))
     
     cmd.append("--length")
     for val in length:
@@ -117,14 +126,14 @@ def runcase(workingdir,
         for line in cout.split("\n"):
             #print(line)
             if line.startswith(searchstr):
+                vals.append([])
                 # Line ends with "ms", so remove that.
-                ms_string = line[len(searchstr):-2]
+                ms_string = line[len(searchstr): -2]
                 #print(ms_string)
                 for val in ms_string.split():
                     #print(val)
-                    vals.append(1e-3 * float(val))
+                    vals[len(vals) - 1].append(1e-3 * float(val))
         print("seconds: ", vals)
-                        
                         
     else:
         print("\twell, that didn't work")
@@ -138,7 +147,23 @@ def runcase(workingdir,
     
 
 def main(argv):
+    # Options to determine which binary is to be run:
     workingdir = "."
+    libdir = []
+    outfilename = []
+    logfilename = "timing.log"
+
+    # GPU device number:
+    devicenum = 0
+
+    # Experiment parameters:
+    ntrial = 10
+        
+    # Problem size parameters:
+    direction = -1
+    inplace = False
+    rcfft = False
+    precision = "float"
     dimension = 1
     xmin = 2
     xmax = 1024
@@ -146,18 +171,11 @@ def main(argv):
     ymax = 1024
     zmin = 2
     zmax = 1024
-    ntrial = 10
-    outfilename = "timing.dat"
-    direction = -1
-    rcfft = False
-    inplace = False
-    precision = "float"
-    nbatch = 1
     radix = 2
-    devicenum = 0
-    
+    nbatch = 1
+
     try:
-        opts, args = getopt.getopt(argv,"hb:d:D:IN:o:Rw:x:X:y:Y:z:Z:f:r:g:")
+        opts, args = getopt.getopt(argv,"hb:d:i:D:IN:o:Rw:x:X:y:Y:z:Z:f:r:g:")
     except getopt.GetoptError:
         print("error in parsing arguments.")
         print(usage)
@@ -166,12 +184,19 @@ def main(argv):
         if opt in ("-h"):
             print(usage)
             exit(0)
-        elif opt in ("-d"):
-            dimension = int(arg)
-            if not dimension in {1,2,3}:
-                print("invalid dimension")
-                print(usage)
-                sys.exit(1)
+        elif opt in ("-w"):
+            workingdir = arg
+        elif opt in ("-o"):
+            outfilename.append(arg)
+        elif opt in ("-i"):
+            libdir.append(arg)
+            
+        elif opt in ("-g"):
+            devicenum = int(arg)
+            
+        elif opt in ("-N"):
+            ntrial = int(arg)
+            
         elif opt in ("-D"):
             if(int(arg) in [-1,1]):
                 direction = int(arg)
@@ -181,14 +206,20 @@ def main(argv):
                 sys.exit(1)
         elif opt in ("-I"):
             inplace = True
-        elif opt in ("-o"):
-            outfilename = arg
         elif opt in ("-R"):
             rcfft = True
-        elif opt in ("-w"):
-            workingdir = arg
-        elif opt in ("-N"):
-            ntrial = int(arg)
+        elif opt in ("-f"):
+            if arg not in ["float", "double"]:
+                print("precision must be float or double")
+                print(usage)
+                sys.exit(1)
+            precision = arg
+        elif opt in ("-d"):
+            dimension = int(arg)
+            if not dimension in {1,2,3}:
+                print("invalid dimension")
+                print(usage)
+                sys.exit(1)
         elif opt in ("-x"):
             xmin = int(arg)
         elif opt in ("-X"):
@@ -205,19 +236,22 @@ def main(argv):
             nbatch = int(arg)
         elif opt in ("-r"):
             radix = int(arg)
-        elif opt in ("-f"):
-            if arg not in ["float", "double"]:
-                print("precision must be float or double")
-                print(usage)
-                sys.exit(1)
-            precision = arg
-        elif opt in ("-g"):
-            devicenum = int(arg)
 
+    dload = len(libdir) > 0
             
+    if dload:
+        print("Using dyna-rider")
+    else:
+        print("Using normal rider")
+        
     print("workingdir: "+ workingdir)
-    print("outfilename: "+ outfilename)
+    print("outfilename: "+ ",".join(outfilename))
+    print("libdir: "+ ",".join(libdir))
+
+    print("device number: " + str(devicenum))
+    
     print("ntrial: " + str(ntrial))
+    
     print("dimension: " + str(dimension))
     print("xmin: "+ str(xmin) + " xmax: " + str(xmax))
     if dimension > 1:
@@ -229,17 +263,13 @@ def main(argv):
     print("in-place? " + str(inplace))
     print("batch-size: " + str(nbatch))
     print("radix: " + str(radix))
-    print("device number: " + str(devicenum))
     
-    progname = "rocfft-rider"
+    progname = "dyna-rocfft-rider" if dload else "rocfft-rider"
     prog = os.path.join(workingdir, progname)
     if not os.path.isfile(prog):
         print("**** Error: unable to find " + prog)
         sys.exit(1)
 
-    logfilename = outfilename + ".log"
-    print("log filename: "  + logfilename)
-    logfile = open(logfilename, "w+")
     metadatastring = "# " + " ".join(sys.argv)  + "\n"
     metadatastring += "# "
     metadatastring += "dimension"
@@ -252,13 +282,23 @@ def main(argv):
     metadatastring += "\tnsample"
     metadatastring += "\tsamples ..."
     metadatastring += "\n"
-    logfile.write(metadatastring)
-    logfile.close()
+        
+    # The log file is stored alongside each data output file.
+    for idx in range(len(outfilename)):
+        logfilename = outfilename[idx] + ".log"
+        if not os.path.exists(os.path.dirname(logfilename)):
+            os.makedirs(os.path.dirname(logfilename))
+        print("log filename: "  + logfilename)
+        logfile = open(logfilename, "w+")
+        logfile.write(metadatastring)
+        logfile.close()
 
-    outfile = open(outfilename, "w+")
-    outfile.write(metadatastring)
-    outfile.close()
+        outfile = open(outfilename[idx], "w+")
+        outfile.write(metadatastring)
+        outfile.close()
 
+    maxtrial = ntrial * xmax * ymax * zmax
+            
     xval = xmin
     yval = ymin
     zval = zmin
@@ -270,29 +310,35 @@ def main(argv):
             length.append(yval)
         if dimension > 2:
             length.append(zval)
-        
+        #N = max(ntrial, min(maxtrial // (xval * yval * zval), 20)) # FIXME: set upper bound to higher
+        N = ntrial
+        print(N)
+            
         seconds = runcase(workingdir,
-                          length, direction, rcfft, inplace, ntrial,
+                          dload, libdir,
+                          length, direction, rcfft, inplace, N,
                           precision, nbatch, devicenum, logfilename)
         #print(seconds)
-        with open(outfilename, 'a') as outfile:
-            outfile.write(str(dimension))
-            outfile.write("\t")
-            outfile.write(str(xval))
-            outfile.write("\t")
-            if(dimension > 1):
-                outfile.write(str(yval))
+        for idx, vals in enumerate(seconds):
+            with open(outfilename[idx], 'a') as outfile:
+                outfile.write(str(dimension))
                 outfile.write("\t")
-            if(dimension > 2):
-                outfile.write(str(zval))
+                outfile.write(str(xval))
                 outfile.write("\t")
-            outfile.write(str(nbatch))
-            outfile.write("\t")
-            outfile.write(str(len(seconds)))
-            for second in seconds:
+                if(dimension > 1):
+                    outfile.write(str(yval))
+                    outfile.write("\t")
+                if(dimension > 2):
+                    outfile.write(str(zval))
+                    outfile.write("\t")
+                outfile.write(str(nbatch))
                 outfile.write("\t")
-                outfile.write(str(second))
-            outfile.write("\n")
+                outfile.write(str(len(seconds[idx])))
+                for second in seconds[idx]:
+                    outfile.write("\t")
+                    outfile.write(str(second))
+                outfile.write("\n")
+
         xval *= radix
         if dimension > 1:
             yval *= radix
