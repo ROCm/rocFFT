@@ -23,7 +23,10 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 
 find_package(hip)
-find_package(rocfft)
+
+if( NOT TARGET rocfft )
+  find_package(rocfft)
+endif( )
 
 find_package( Boost COMPONENTS program_options REQUIRED)
 set( Boost_DEBUG ON )
