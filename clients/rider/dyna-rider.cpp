@@ -57,9 +57,10 @@ rocfft_plan make_plan(void*                         libhandle,
     auto procfft_setup = (decltype(&rocfft_setup))dlsym(libhandle, "rocfft_setup");
     if(procfft_setup == NULL)
         exit(1);
-    auto procfft_cleanup = (decltype(&rocfft_cleanup))dlsym(libhandle, "rocfft_cleanup");
     auto procfft_plan_description_create = (decltype(&rocfft_plan_description_create))dlsym(
         libhandle, "rocfft_plan_description_create");
+    auto procfft_plan_description_destroy = (decltype(&rocfft_plan_description_destroy))dlsym(
+        libhandle, "rocfft_plan_description_destroy");
     auto procfft_plan_description_set_data_layout
         = (decltype(&rocfft_plan_description_set_data_layout))dlsym(
             libhandle, "rocfft_plan_description_set_data_layout");
@@ -87,6 +88,8 @@ rocfft_plan make_plan(void*                         libhandle,
 
     procfft_plan_create(
         &plan, place, transformType, precision, length.size(), length.data(), nbatch, desc);
+
+    LIB_V_THROW(procfft_plan_description_destroy(desc), "rocfft_plan_description_destroy failed");
 
     return plan;
 }
