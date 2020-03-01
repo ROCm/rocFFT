@@ -174,10 +174,10 @@ install_packages( )
     fi
 
     # dependencies needed for rocfft and clients to build
-    local library_dependencies_ubuntu=( "make" "cmake-curses-gui" "rocm-dev" "pkg-config" )
-    local library_dependencies_centos=( "epel-release" "make" "cmake3" "rocm-dev" "gcc-c++" "rpm-build" )
-    local library_dependencies_fedora=( "make" "cmake" "rocm-dev" "gcc-c++" "libcxx-devel" "rpm-build" )
-    local library_dependencies_sles=( "make" "cmake" "rocm-dev" "gcc-c++" "gcc-fortran" "libcxxtools9" "rpm-build" )
+    local library_dependencies_ubuntu=( "make" "cmake-curses-gui" "pkg-config" )
+    local library_dependencies_centos=( "epel-release" "make" "cmake3" "gcc-c++" "rpm-build" )
+    local library_dependencies_fedora=( "make" "cmake" "gcc-c++" "libcxx-devel" "rpm-build" )
+    local library_dependencies_sles=( "make" "cmake" "gcc-c++" "gcc-fortran" "libcxxtools9" "rpm-build" )
 
     if [[ "${build_cuda}" == true ]]; then
         # Ideally, this could be cuda-cufft-dev, but the package name has a version number in it
@@ -428,11 +428,11 @@ if [[ "${build_cuda}" == false ]]; then
         cmake_client_options=" "
     fi
     if [[ "${build_relocatable}" == true ]]; then
-        CXX=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX=${rocm_path} -DCPACK_PACKAGING_INSTALL_PREFIX=${rocm_path} \
+        CXX=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX="${rocm_path}" -DCPACK_PACKAGING_INSTALL_PREFIX="${rocm_path}" \
         -DCMAKE_PREFIX_PATH="${rocm_path} ${rocm_path}/hcc ${rocm_path}/hip" \
-        -DCMAKE_SHARED_LINKER_FLAGS=${rocm_rpath} \
+        -DCMAKE_SHARED_LINKER_FLAGS="${rocm_rpath}" \
         -DROCM_DISABLE_LDCONFIG=ON \
-        ../..
+	../..
     else
         CXX=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX=${install_prefix} -DCPACK_PACKAGING_INSTALL_PREFIX=/opt/rocm ../..
     fi
