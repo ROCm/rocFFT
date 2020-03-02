@@ -20,10 +20,6 @@
 * THE SOFTWARE.
 *******************************************************************************/
 
-#if defined(__NVCC__)
-#include "helper_math.h"
-#endif
-
 #include "logging.h"
 #include "rocfft.h"
 #include "rocfft_hip.h"

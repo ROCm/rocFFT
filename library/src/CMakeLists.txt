@@ -34,18 +34,6 @@ function( prepend_path prefix source_list_of_files return_list_of_files )
   set( ${return_list_of_files} ${new_list} PARENT_SCOPE )
 endfunction( )
 
-function( cuda_find_samples_inc_dir header_dir )
-  find_path( CUDA_SAMPLES_INCLUDE_DIR
-  NAMES helper_math.h
-  HINTS
-      ${NVCUDASAMPLES_ROOT}/common/inc
-      $ENV{NVCUDASAMPLES_ROOT}/common/inc
-  PATHS
-      /usr/local/cuda/samples/common/inc
-  )
-  set( ${header_dir} ${CUDA_SAMPLES_INCLUDE_DIR} PARENT_SCOPE )
-endfunction( )
-
 # ########################################################################
 # Main
 # ########################################################################
@@ -92,14 +80,11 @@ if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" OR HIP_PLATFORM STREQUAL "hip-clang")
   foreach( target ${AMDGPU_TARGETS} )
     target_link_libraries( rocfft PRIVATE --amdgpu-target=${target} )
   endforeach( )
-else( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-  cuda_find_samples_inc_dir( cuda_samples_inc_dir )
 endif( )
 
 target_include_directories( rocfft
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
-          $<BUILD_INTERFACE:${cuda_samples_inc_dir}>
   PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
           $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
           $<INSTALL_INTERFACE:include>
