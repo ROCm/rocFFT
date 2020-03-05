@@ -7,12 +7,12 @@ pushd ../..
 
 
 # Compile two libs with 
-mkdir build
+mkdir build -p
 pushd build
 cmake -DCMAKE_CXX_COMPILER=hcc -DSINGLELIB=on -DCMAKE_BUILD_TYPE=Release -DBUILD_CLIENTS_SAMPLES=on -DBUILD_CLIENTS_RIDER=on  .. && make -j$(nproc)
 popd
 
-mkdir build1
+mkdir build1 -p
 pushd build1
 cmake -DCMAKE_CXX_COMPILER=hcc -DSINGLELIB=on -DCMAKE_BUILD_TYPE=Release -DBUILD_CLIENTS_SAMPLES=on -DBUILD_CLIENTS_RIDER=on  .. && make -j$(nproc) 
 popd

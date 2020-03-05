@@ -39,10 +39,10 @@ def runcase(workingdir,
             dload, libdir,
             length, direction, rcfft, inplace, ntrial,
             precision, nbatch, devicenum, logfilename):
-    
+
     progname = "dyna-rocfft-rider" if dload else "rocfft-rider"
     prog = os.path.join(workingdir, progname)
-    
+
     cmd = []
     cmd.append(prog)
 
@@ -56,21 +56,21 @@ def runcase(workingdir,
 
     cmd.append("-N")
     cmd.append(str(ntrial))
-    
+
     cmd.append("--length")
     for val in length:
         cmd.append(str(val))
-    
+
     print(precision)
     if precision == "double":
         cmd.append("--double")
-        
+
     cmd.append("-b")
     cmd.append(str(nbatch))
 
     cmd.append("--device")
     cmd.append(str(devicenum))
-    
+
     ttype = -1
     itype = ""
     otype = ""
@@ -98,8 +98,8 @@ def runcase(workingdir,
 
     cmd.append("--otype")
     cmd.append(str(otype))
-    
-    
+
+
     print(cmd)
     print(" ".join(cmd))
 
@@ -118,7 +118,7 @@ def runcase(workingdir,
     logfile.write(" ".join(cmd))
     logfile.write(cout)
     logfile.close()
-    
+
     if rc == 0:
         # ferr.seek(0)
         # cerr = ferr.read()
@@ -134,17 +134,17 @@ def runcase(workingdir,
                     #print(val)
                     vals[len(vals) - 1].append(1e-3 * float(val))
         print("seconds: ", vals)
-                        
+
     else:
         print("\twell, that didn't work")
         print(rc)
         print(" ".join(cmd))
         return []
-                
+
     fout.close()
-    
+
     return vals
-    
+
 
 def main(argv):
     # Options to determine which binary is to be run:
@@ -158,7 +158,7 @@ def main(argv):
 
     # Experiment parameters:
     ntrial = 10
-        
+
     # Problem size parameters:
     direction = -1
     inplace = False
@@ -190,13 +190,13 @@ def main(argv):
             outfilename.append(arg)
         elif opt in ("-i"):
             libdir.append(arg)
-            
+
         elif opt in ("-g"):
             devicenum = int(arg)
-            
+
         elif opt in ("-N"):
             ntrial = int(arg)
-            
+
         elif opt in ("-D"):
             if(int(arg) in [-1,1]):
                 direction = int(arg)
@@ -238,20 +238,20 @@ def main(argv):
             radix = int(arg)
 
     dload = len(libdir) > 0
-            
+
     if dload:
         print("Using dyna-rider")
     else:
         print("Using normal rider")
-        
+
     print("workingdir: "+ workingdir)
     print("outfilename: "+ ",".join(outfilename))
     print("libdir: "+ ",".join(libdir))
 
     print("device number: " + str(devicenum))
-    
+
     print("ntrial: " + str(ntrial))
-    
+
     print("dimension: " + str(dimension))
     print("xmin: "+ str(xmin) + " xmax: " + str(xmax))
     if dimension > 1:
@@ -263,7 +263,7 @@ def main(argv):
     print("in-place? " + str(inplace))
     print("batch-size: " + str(nbatch))
     print("radix: " + str(radix))
-    
+
     progname = "dyna-rocfft-rider" if dload else "rocfft-rider"
     prog = os.path.join(workingdir, progname)
     if not os.path.isfile(prog):
@@ -282,7 +282,7 @@ def main(argv):
     metadatastring += "\tnsample"
     metadatastring += "\tsamples ..."
     metadatastring += "\n"
-        
+
     # The log file is stored alongside each data output file.
     for idx in range(len(outfilename)):
         logfilename = outfilename[idx] + ".log"
@@ -298,7 +298,7 @@ def main(argv):
         outfile.close()
 
     maxtrial = ntrial * xmax * ymax * zmax
-            
+
     xval = xmin
     yval = ymin
     zval = zmin
@@ -313,7 +313,7 @@ def main(argv):
         #N = max(ntrial, min(maxtrial // (xval * yval * zval), 20)) # FIXME: set upper bound to higher
         N = ntrial
         print(N)
-            
+
         seconds = runcase(workingdir,
                           dload, libdir,
                           length, direction, rcfft, inplace, N,
@@ -344,9 +344,9 @@ def main(argv):
             yval *= radix
         if dimension > 2:
             zval *= radix
-        
-    
-    
+
+
+
 if __name__ == "__main__":
     main(sys.argv[1:])
-                        
+

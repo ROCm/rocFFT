@@ -1,7 +1,7 @@
-#!/usr/bin/python3
-
-import sys, getopt
-import numpy as np
+#!/usr/bin/env python3
+import argparse
+from collections import OrderedDict
+import sys
 from math import *
 import subprocess
 import os
@@ -9,29 +9,12 @@ import re # regexp package
 import shutil
 import tempfile
 
-usage = '''A timing script rocfft that generates a lot of data
+import commandrunner as cr
 
-Usage:
-\talltime.py
-\t\t-b          Specify binary for dload executable (optional)
-\t\t-i          Append to list of binary directories (appendable)
-\t\t-o          Specify output directories for raw data
-\t\t              appendable; defaults to "dir0", "dir1", etc.
-\t\t-l          Specify labels for runs
-\t\t              appendable; defaults to "dir0", "dir1", etc.
-\t\t-w          output directory for graphs and final document
-\t\t-S          plot speedup (default: 1, disabled: 0)
-\t\t-t          data type: time (default) or gflops or roofline
-\t\t-y          secondary acix type: none or gflops
-\t\t-s          short run
-\t\t-T          do not perform FFTs; just generate document
-\t\t-f          document format: pdf (default) or docx
-\t\t-g          generate graphs via Asymptote: 0(default) or 1
-\t\t-d          device number (default: 0)
-\t\t-N          Number of samples (default: 10)
-\t\t-D          dims to test. default: 1,2,3
-\t\t-R          runtype: report benchmark or efficiency
-'''
+try:
+    import numpy as np
+except ImportError:
+    np = None
 
 def nextpow(val, radix):
     x = 1
@@ -40,191 +23,296 @@ def nextpow(val, radix):
     return x
 
 # A class for generating data for figures.
-class rundata:
-    def __init__(self, label,
+class RocWavesArgumentSet(cr.ArgumentSetABC):
+    def _define_consistent_arguments(self):
+        self.consistent_args['nbatch'] = cr.RequiredArgument('-b')
+        self.consistent_args['min_size_x'] = cr.RequiredArgument('-x')
+        self.consistent_args['max_size_x'] = cr.RequiredArgument('-X')
+        self.consistent_args['min_size_y'] = cr.OptionalArgument('-y')
+        self.consistent_args['max_size_y'] = cr.OptionalArgument('-Y')
+        self.consistent_args['min_size_z'] = cr.OptionalArgument('-z')
+        self.consistent_args['max_size_z'] = cr.OptionalArgument('-Z')
+        self.consistent_args['radix'] = cr.RequiredArgument('-r')
+        self.consistent_args['direction'] = cr.RequiredArgument('-D')
+        self.consistent_args['dimension'] = cr.RequiredArgument('-d')
+        self.consistent_args['precision'] = cr.RequiredArgument('-f')
+        self.consistent_args['inplace'] = cr.OptionalFlagArgument('-I')
+        self.consistent_args['fft_type_is_r2c'] = cr.OptionalFlagArgument('-R')
+
+    def _define_variable_arguments(self):
+        self.variable_args['nsample'] = cr.RequiredArgument('-N') # TODO: This flag is not currently passed along
+        self.variable_args['idir'] = cr.RequiredArgument('-w')
+        self.variable_args['output_file'] = cr.RequiredArgument('-o')
+
+    def __init__(self, combine_executables, labelsuffix,
                  dimension, minsize, maxsize, nbatch, radix, ratio, ffttype,
                  direction, inplace):
-        self.dimension = dimension
+        cr.ArgumentSetABC.__init__(
+                self,
+                combine_executables = combine_executables,
+                nbatch = nbatch,
+                min_size_x = minsize,
+                max_size_x = maxsize,
+                radix = radix,
+                direction = direction,
+                dimension = dimension,
+                precision = "double",
+                inplace = inplace,
+                fft_type_is_r2c = (ffttype == "r2c"),
+                )
+        if dimension > 1:
+            self.set('min_size_y', minsize * ratio[0])
+            self.set('max_size_y', maxsize * ratio[0])
+
+        if dimension > 2:
+            self.set('min_size_z', minsize * ratio[1])
+            self.set('max_size_z', maxsize * ratio[1])
+
+        self.labelsuffix = labelsuffix
         self.minsize = minsize
         self.maxsize = maxsize
-        self.nbatch = nbatch
-        self.radix = radix
         self.ratio = ratio
         self.ffttype = ffttype
-        self.precision = "double"
-        self.inplace = inplace
-        self.direction = direction
-        self.label = label
 
-    def outfilename(self, odir):
+    def get_output_basename(self):
         outfile = ""
-        outfile += "radix" + str(self.radix)
-        outfile += "_dim" + str(self.dimension)
-        outfile += "_" + self.precision
-        outfile += "_n" + str(self.nbatch)
-        if self.direction == 1:
+        outfile += "radix" + str(self._radix)
+        outfile += "_dim" + str(self._dimension)
+        outfile += "_" + self._precision
+        outfile += "_n" + str(self._nbatch)
+        if self._direction == 1:
             outfile += "_inv"
-        if self.dimension > 1:
+        if self._dimension > 1:
             outfile += "_ratio" + "_" + str(self.ratio[0])
-        if self.dimension > 2:
+        if self._dimension > 2:
             outfile += "_" + str(self.ratio[1])
         outfile += "_" + self.ffttype
-        if self.inplace:
+        if self._inplace:
             outfile += "_inplace"
         else:
             outfile += "_outofplace"
         outfile += ".dat"
-        outfile = os.path.join(odir, outfile)
         return outfile
-        
-    def runcmd(self, nsample, indirlist, outdirlist, dloadexe):
-        cmd = [os.path.join(sys.path[0],"timing.py")]
 
-        if dloadexe == None:
-            # When not using dload, we just have one input and output dir.
-            cmd.append("-w")
-            cmd.append(os.path.abspath(indirlist[0]))
-            cmd.append("-o")
-            cmd.append(self.outfilename(outdirlist[0]))
+    def get_caption(self, similar_keys):
+        caption = []
+        if 'dimension' in similar_keys:
+            caption.append('{}D'.format(self._dimension))
+
+        if 'inplace' in similar_keys:
+            caption.append('in-place' if self._inplace else 'out-of-place')
+
+        if 'fft_type_is_r2c' in similar_keys and 'direction' in similar_keys:
+            direction_str = 'complex-to-complex'
+            if self._fft_type_is_r2c and self._direction == 1:
+                direction_str = 'complex-to-real'
+            if self._fft_type_is_r2c and self._direction == 0:
+                direction_str = 'real-to-complex'
+            caption.append(direction_str + ' transforms')
+
+        if self._dimension > 1:
+            if 'max_size_y' in similar_keys:
+                ratio_str = 'aspect ratio N:{}N'.format('' if self.ratio[0] == 1 else self.ratio[0])
+                if self._dimension > 2:
+                    ratio_str += ':{}N'.format('' if self.ratio[1] == 1 else self.ratio[1])
+                caption.append(ratio_str)
+
+        if 'radix' in similar_keys:
+            caption.append('radix {}'.format(self._radix))
+
+        if 'nbatch' in similar_keys:
+            caption.append('batch size {}'.format(self._nbatch))
+        return ', '.join(caption[:-1]) + ' and {}.'.format(caption[-1])
+
+    def collect_timing(self, run_configuration):
+        output_filename = self.get_output_file(run_configuration)
+        rv = {}
+        print('Processing {}'.format(output_filename))
+        if os.path.exists(output_filename) and np is not None:
+            # The output format is not consistent enough to justify using an out of the box reader.
+            # raw_tsv = np.genfromtxt(output_filename,
+            #                         delimiter='\t',
+            #                         skip_header = 1,
+            #                         names = None, # would only work if there is a label for each sub-sample
+            #                         invalid_raise=False,
+            #                         )
+            # # For each xlength, store all of the samples
+            # if raw_tsv.ndim == 1:
+            #     raw_tsv = [raw_tsv] # For a single line in the CSV, genfromtxt unfortunately returns a 1D array
+            # for tsv_line in raw_tsv:
+            #     if len(tsv_line) > 0:
+            #         dim = int(tsv_line[0])
+            #         if len(tsv_line) > dim+3:
+            #             xlength = int(tsv_line[1])
+            #             samples = tsv_line[dim+3:]
+            #             rv[xlength] = samples
+            #         else:
+            #             print('WARNING: Could not parse {}'.format(output_filename))
+            with open(output_filename, 'r') as raw_tsv:
+                for line in raw_tsv.readlines():
+                    # remove comment by splittling on `#` and taking the first segment
+                    stripped_line = line.split('#')[0].strip()
+                    if stripped_line:
+                        split_line = stripped_line.split('\t')
+                        # Parse dimension
+                        dimension = int(split_line[0]) if len(split_line) > 0 else 0
+                        read_idx = 1
+                        volume_size = 1
+                        # Parse volume size
+                        for i in range(dimension):
+                            if len(split_line) > read_idx:
+                                volume_size *= int(split_line[read_idx])
+                                read_idx += 1
+                        # Parse num batches
+                        num_batches = int(split_line[read_idx]) if len(split_line) > read_idx else 0
+                        read_idx += 1
+                        # Parse num samples
+                        num_samples = int(split_line[read_idx]) if len(split_line) > read_idx else 0
+                        read_idx += 1
+                        # Check consistency
+                        if num_samples > 0:
+                            samples = [float(x) for x in split_line[read_idx:]]
+                            if len(samples) != num_samples:
+                                print('WARNING: Inconsistency when parsing TSV')
+                            rv[volume_size] = samples
+
         else:
-            cmd.append("-w")
-            cmd.append(dloadexe)
-            for indir in indirlist:
-                cmd.append("-i")
-                cmd.append(indir)
-            for outdir in outdirlist:
-                cmd.append("-o")
-                cmd.append(self.outfilename(outdir))
-        
-        cmd.append("-N")
-        cmd.append(str(nsample))
-        
-        cmd.append("-b")
-        cmd.append(str(self.nbatch))
-        
-        cmd.append("-x")
-        cmd.append(str(self.minsize))
-        cmd.append("-X")
-        cmd.append(str(self.maxsize))
+            print('{} does not exist'.format(output_filename))
+        return rv
 
-        if self.dimension > 1:
-            cmd.append("-y")
-            cmd.append(str(self.minsize * self.ratio[0]))
-            cmd.append("-Y")
-            cmd.append(str(self.maxsize * self.ratio[0]))
+class StaticRiderArgumentSet(RocWavesArgumentSet):
+    def _define_variable_arguments(self):
+        self.variable_args['nsample'] = cr.RequiredArgument('-N') # TODO: This flag is not currently passed along
+        self.variable_args['idir'] = cr.RequiredArgument('-w')
+        self.variable_args['output_file'] = cr.RequiredArgument('-o')
 
-        if self.dimension > 2:
-            cmd.append("-z")
-            cmd.append(str(self.minsize * self.ratio[1]))
-            cmd.append("-Z")
-            cmd.append(str(self.maxsize * self.ratio[1]))
+    def __init__(self, *args, **kwargs):
+        RocWavesArgumentSet.__init__(self, False, *args, **kwargs)
 
-        cmd.append("-r")
-        cmd.append(str(self.radix))
-
-        cmd.append("-D")
-        cmd.append(str(self.direction))
-        
-        cmd.append("-d")
-        cmd.append(str(self.dimension))
-
-        cmd.append("-f")
-        cmd.append(self.precision)
-        
-        if self.ffttype == "r2c":
-            cmd.append("-R")
-            
-        return cmd
-
-    def executerun(self, nsample, indirlist, outdirlist, dloadexe):
-        fout = tempfile.TemporaryFile(mode="w+")
-        ferr = tempfile.TemporaryFile(mode="w+")
-
-        if dloadexe != None:
-            cmd = self.runcmd(nsample, indirlist, outdirlist, dloadexe)
-            print(" ".join(cmd))
-            proc = subprocess.Popen(cmd,
-                                    stdout=fout, stderr=ferr,
-                                    env=os.environ.copy())
-            
-            # FIXME: copy log to multiple outputs?
-            
-            proc.wait()
-            rc = proc.returncode
-            if rc != 0:
-                print("****fail****")
-            
+    def get_full_command(self, run_configuration):
+        timingscript = './timing.py'
+        if not os.path.exists(timingscript):
+            timingscript = os.path.join(os.path.dirname(os.path.realpath(__file__)), timingscript)
         else:
-            for idx in range(min(len(indirlist), len(outdirlist))):
-                print(idx, ":", indirlist[idx], "->", outdirlist[idx], flush=True)
-                cmd = self.runcmd(nsample, [indirlist[idx]], [outdirlist[idx]], None)
-                print(" ".join(cmd))
-                proc = subprocess.Popen(cmd,
-                                        stdout=fout, stderr=ferr,
-                                        env=os.environ.copy())
-                proc.wait()
-                rc = proc.returncode
-                if rc != 0:
-                    print("****fail****")
+            timingscript = os.path.abspath(timingscript)
+        if not os.path.exists(timingscript):
+            raise RuntimeError("Unable to find {}!".format(timingscript))
 
-        return 0
+        self.set('nsample', run_configuration.num_runs)
+        self.set('idir', os.path.abspath(run_configuration.executable_directory))
+        self.set('output_file', os.path.abspath(self.get_output_file(run_configuration)))
+
+        return [timingscript] + self.get_args()
+
+class DynaRiderArgumentSet(RocWavesArgumentSet):
+    def _define_variable_arguments(self):
+        self.variable_args['nsample'] = cr.RequiredArgument('-N') # TODO: This flag is not currently passed along
+        self.variable_args['dload_binary'] = cr.RequiredArgument('-w')
+        self.variable_args['input_libraries'] = cr.RepeatedArgument('-i')
+        self.variable_args['output_files'] = cr.RepeatedArgument('-o')
+
+    def __init__(self, *args, **kwargs):
+        RocWavesArgumentSet.__init__(self, True, *args, **kwargs)
+
+    def get_interleaved_command(self, run_configurations):
+        timingscript = './timing.py'
+        if not os.path.exists(timingscript):
+            timingscript = os.path.join(os.path.dirname(os.path.realpath(__file__)), timingscript)
+        else:
+            timingscript = os.path.abspath(timingscript)
+        if not os.path.exists(timingscript):
+            raise RuntimeError("Unable to find {}!".format(timingscript))
+
+        self.set('nsample', run_configurations[0].num_runs)
+        self.set('dload_binary', os.path.abspath(self.user_args.dload_binary))
+        self.set('input_libraries', [os.path.abspath(run_configuration.executable_directory) for run_configuration in run_configurations])
+        self.set('output_files', [os.path.abspath(self.get_output_file(run_configuration)) for run_configuration in run_configurations])
+
+        return [timingscript] + self.get_args()
+
+class RocFftRunConfiguration(cr.RunConfiguration):
+    def __init__(self, user_args, *args, **kwargs):
+        cr.RunConfiguration.__init__(self, user_args, *args, **kwargs)
+        self.num_runs = user_args.num_runs
 
 
 # Figure class, which contains runs and provides commands to generate figures.
-class figure:
-    def __init__(self, name, caption):
-        self.name = name
-        self.runs = []
-        self.caption = caption
-    
+class figure(cr.Comparison):
+    def __init__(self, filename):
+        cr.Comparison.__init__(self, filename=filename)
+        self.runs = self.argument_sets
+
     def inputfiles(self, outdirlist):
-        import os
         files = []
         for run in self.runs:
             for outdir in outdirlist:
-                files.append(run.outfilename(outdir))
-        print(files)
+                files.append(os.path.join(outdir, run.get_output_basename()))
         return files
 
     def labels(self, labellist):
         labels = []
         for run in self.runs:
             for label in labellist:
-                labels.append(label + run.label)
+                labels.append(label + " " + run.labelsuffix)
         return labels
-    
-    def filename(self, outdir, docformat):
-        outfigure = self.name
+
+    def getfilename(self, outdir, docformat):
+        outfigure = self.get_name()
         outfigure += ".pdf"
         # if docformat == "pdf":
         #     outfigure += ".pdf"
         # if docformat == "docx":
         #     outfigure += ".png"
         return os.path.join(outdir, outfigure)
-        
-    def asycmd(self, docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2):
+
+    def plot(self, run_configurations, axes):
+        label_map = OrderedDict()
+        xlengths_map = OrderedDict()
+        samples_map = OrderedDict()
+        # Combine equivalent run configurations
+        for run_configuration in run_configurations:
+            for run in self.runs:
+                key = run_configuration.get_id() + run.get_hash()
+                xlengths = xlengths_map[key] if key in xlengths_map else []
+                samples = samples_map[key] if key in samples_map else []
+                for xlength, subsamples in run.collect_timing(run_configuration).items():
+                    for sample in subsamples:
+                        xlengths.append(xlength)
+                        samples.append(sample)
+                label_map[key] = run_configuration.label + ' ' + run.labelsuffix
+                xlengths_map[key] = xlengths
+                samples_map[key] = samples
+        for key in label_map:
+            axes.loglog(xlengths_map[key], samples_map[key], '.',
+                        label = label_map[key],
+                        markersize = 3,
+                        )
+        axes.set_xlabel('x-length (integer)')
+        axes.set_ylabel('Time (s)')
+
+    def asycmd(self, run_configurations):
+        docdir = self.user_args.documentation_directory
+        docformat = self.user_args.doc_format
+        datatype = self.user_args.data_type
+        ncompare =  len(run_configurations) if self.user_args.speedup else 0
+        secondtype = self.user_args.second_type
+        just1dc2crad2 = (self.user_args.run_type == ["efficiency"])
+        outdirlist = [run_configuration.output_directory for run_configuration in run_configurations]
+        labellist = [run_configuration.label for run_configuration in run_configurations]
         asycmd = ["asy"]
-        
+
         asycmd.append("-f")
         asycmd.append("pdf")
-        # if docformat == "pdf":
-        #     asycmd.append("-f")
-        #     asycmd.append("pdf")
-        # if docformat == "docx":
-        #     asycmd.append("-f")
-        #     asycmd.append("png")
-        #     asycmd.append("-render")
-        #     asycmd.append("8")
-        asycmd.append(os.path.join(sys.path[0],"datagraphs.asy"))
 
-               
+        asycmd.append("datagraphs.asy")
+
+
         asycmd.append("-u")
         inputfiles = self.inputfiles(outdirlist)
         asycmd.append('filenames="' + ",".join(inputfiles) + '"')
 
         asycmd.append("-u")
-        labels = self.labels(labellist)
-        asycmd.append('legendlist="' + ",".join(labels) + '"')
+        asycmd.append('legendlist="' + ",".join(self.labels(labellist)) + '"')
 
         asycmd.append("-u")
         asycmd.append('speedup=' + str(ncompare))
@@ -232,7 +320,7 @@ class figure:
         if just1dc2crad2 :
             asycmd.append("-u")
             asycmd.append('just1dc2crad2=true')
-            
+
         if secondtype == "gflops":
             asycmd.append("-u")
             asycmd.append('secondarygflops=true')
@@ -249,12 +337,12 @@ class figure:
                 gpuid = f.read()
                 asycmd.append("-u")
                 asycmd.append('gpuid="' + gpuid.strip() + '"')
-                        
+
         if len(self.runs) > 0:
             asycmd.append("-u")
-            asycmd.append('batchsize=' + str(self.runs[0].nbatch))
+            asycmd.append('batchsize=' + str(self.runs[0]._nbatch))
             asycmd.append("-u")
-            asycmd.append('problemdim=' + str(self.runs[0].dimension))
+            asycmd.append('problemdim=' + str(self.runs[0]._dimension))
             asycmd.append("-u")
             val = 1
             for rat in self.runs[0].ratio:
@@ -265,41 +353,45 @@ class figure:
                 asycmd.append("realcomplex=true")
             else:
                 asycmd.append("realcomplex=false")
-            
-            
+
+        asyfilename = self.getfilename(docdir, docformat)
         asycmd.append("-o")
-        asycmd.append(self.filename(docdir, docformat) )
-                    
-        return asycmd
+        asycmd.append(asyfilename)
+        return asycmd, asyfilename
 
-    def executeasy(self, docdir, outdirs, labellist, docformat, datatype, ncompare, secondtype,
-                   just1dc2crad2):
-        fout = tempfile.TemporaryFile(mode="w+")
-        ferr = tempfile.TemporaryFile(mode="w+")
-        asyproc = subprocess.Popen(self.asycmd(docdir, outdirs, labellist, 
-                                               docformat, datatype, ncompare, secondtype,
-                                               just1dc2crad2),
-                                   stdout=fout, stderr=ferr, env=os.environ.copy(),
-                                   cwd = sys.path[0])
-        asyproc.wait()
-        asyrc = asyproc.returncode
-        if asyrc != 0:
-            print("****asy fail****")
-            fout.seek(0)
-            cout = fout.read()
-            print(cout)
-            ferr.seek(0)
-            cerr = ferr.read()
-            print(cerr)
-        return asyrc
+    def custom_plot(self, run_configurations, is_make_plot):
+        asycmd, asyfilename = self.asycmd(run_configurations)
+        if is_make_plot:
+            print(" ".join(asycmd))
 
-# Function for generating figures for benchmark output    
-def benchfigs(rundims, shortrun):
+            fout = tempfile.TemporaryFile(mode="w+")
+            ferr = tempfile.TemporaryFile(mode="w+")
+            asyproc = subprocess.Popen(asycmd,
+                                    stdout=fout, stderr=ferr, env=os.environ.copy(), cwd = os.sys.path[0])
+            asyproc.wait()
+            asyrc = asyproc.returncode
+            if asyrc != 0:
+                print("****asy fail****")
+                fout.seek(0)
+                cout = fout.read()
+                print(cout)
+                ferr.seek(0)
+                cerr = ferr.read()
+                print(cerr)
+        nsample = run_configurations[0].num_runs
+        plot_caption = self.get_caption()
+        plot_caption += " Each data point represents the median of " + str(nsample) + " values, with error bars showing the 95% confidence interval for the median.  All transforms are double-precision."
+        return asyfilename, plot_caption
+
+# Function for generating figures for benchmark output
+def benchfigs(rundims, shortrun, dynarider):
+    rundata = DynaRiderArgumentSet if dynarider else StaticRiderArgumentSet
     figs = []
     # FFT directions
     forwards = -1
     backwards = 1
-    
+
+
     if 1 in rundims:
         dimension = 1
 
@@ -309,29 +401,24 @@ def benchfigs(rundims, shortrun):
         max1d = 4000 if shortrun else 536870912
 
         for inplace in [True, False]:
-            fig = figure("1d_c2c" + ("inplace" if inplace else "outofplace"),
-                         "1D complex transforms " + ("in-place" if inplace else "out-of-place"))
+            fig = figure(filename="1d_c2c" + ("inplace" if inplace else "outofplace"))
             for radix in [2, 3]:
-                fig.runs.append( rundata("radix " + str(radix),
+                fig.runs.append( rundata("radix " + str(radix) ,
                                          dimension, nextpow(min1d, radix), max1d, nbatch,
                                          radix, [], "c2c", forwards, inplace) )
             figs.append(fig)
 
         for inplace in [True, False]:
-            fig = figure("1d_r2c" + ("inplace" if inplace else "outofplace")
-                         , "1D real-to-complex transforms " \
-                         + ("in-place" if inplace else "out-of-place"))
+            fig = figure(filename="1d_r2c" + ("inplace" if inplace else "outofplace"))
             for radix in [2, 3]:
-                fig.runs.append( rundata("radix " + str(radix),
+                fig.runs.append( rundata("radix " + str(radix) ,
                                          dimension, nextpow(min1d, radix), max1d, nbatch,
                                          radix, [], "r2c", forwards, inplace) )
             figs.append(fig)
 
-            
+
         for inplace in [True, False]:
-            fig = figure("1d_c2r" + ("inplace" if inplace else "outofplace"),
-                         "1D complex-to-real transforms " \
-                         + ("in-place" if inplace else "out-of-place"))
+            fig = figure(filename="1d_c2r" + ("inplace" if inplace else "outofplace"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix) ,
                                          dimension, nextpow(min1d, radix), max1d, nbatch,
@@ -347,34 +434,26 @@ def benchfigs(rundims, shortrun):
         max2d = 8192 if shortrun else 32768
 
         for inplace in [True, False]:
-            fig = figure("2d_c2c" + ("inplace" if inplace else "outofplace"),
-                         "2D complex transforms " + ("in-place" if inplace else "out-of-place"))
+            fig = figure(filename="2d_c2c" + ("inplace" if inplace else "outofplace"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix), dimension,
-                                         nextpow(min2d, radix), max2d, nbatch, radix, [1],
-                                         "c2c",
+                                         nextpow(min2d, radix), max2d, nbatch, radix, [1], "c2c",
                                          forwards, inplace) )
             figs.append(fig)
 
         for inplace in [True, False]:
-            fig = figure("2d_r2c" + ("inplace" if inplace else "outofplace"),
-                         "2D real-to-complex transforms " \
-                         + ("in-place" if inplace else "out-of-place"))
+            fig = figure(filename="2d_r2c" + ("inplace" if inplace else "outofplace"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix), dimension,
-                                         nextpow(min2d, radix), max2d, nbatch, radix, [1],
-                                         "r2c",
+                                         nextpow(min2d, radix), max2d, nbatch, radix, [1], "r2c",
                                          forwards, inplace) )
             figs.append(fig)
 
         for inplace in [True, False]:
-            fig = figure("2d_c2r" + ("inplace" if inplace else "outofplace"),
-                         "2D complex-to-real transforms " \
-                         + ("in-place" if inplace else "out-of-place"))
+            fig = figure(filename="2d_c2r" + ("inplace" if inplace else "outofplace"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix), dimension,
-                                         nextpow(min2d, radix), max2d, nbatch, radix, [1],
-                                         "r2c",
+                                         nextpow(min2d, radix), max2d, nbatch, radix, [1], "r2c",
                                          backwards, inplace) )
             figs.append(fig)
 
@@ -383,44 +462,38 @@ def benchfigs(rundims, shortrun):
         min3d = 16
         max3d = 128 if shortrun else 1024
         nbatch = 1
-        
+
         for inplace in [True]:
-            fig = figure("3d_c2c" + ("inplace" if inplace else "outofplace"),
-                         "3D complex transforms " + ("in-place" if inplace else "out-of-place"))
+            fig = figure(filename="3d_c2c" + ("inplace" if inplace else "outofplace"))
             for radix in [2, 3, 5]:
                 fig.runs.append( rundata("radix " + str(radix), dimension,
-                                         nextpow(min3d, radix), max3d, nbatch, radix, [1,1],
-                                         "c2c",
+                                        nextpow(min3d, radix), max3d, nbatch, radix, [1,1],
+                                        "c2c",
+                                        forwards, inplace) )
+            figs.append(fig)
+
+        for inplace in [True, False]:
+            fig = figure(filename="3d_r2c" + ("inplace" if inplace else "outofplace"))
+            for radix in [2, 3]:
+                fig.runs.append( rundata("radix " + str(radix), dimension,
+                                         nextpow(min3d, radix), max3d, nbatch, radix, [1,1], "r2c",
                                          forwards, inplace) )
             figs.append(fig)
 
         for inplace in [True, False]:
-            fig = figure("3d_r2c" + ("inplace" if inplace else "outofplace")
-                         , "3D real-to-complex transforms " \
-                         + ("in-place" if inplace else "out-of-place"))
+            fig = figure(filename="3d_c2r" + ("inplace" if inplace else "outofplace"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix), dimension,
-                                         nextpow(min3d, radix), max3d, nbatch, radix, [1,1],
-                                         "r2c",
-                                         forwards, inplace) )
-            figs.append(fig)
-
-        for inplace in [True, False]:
-            fig = figure("3d_c2r" + ("inplace" if inplace else "outofplace"),
-                         "3D complex-to-real transforms " \
-                         + ("in-place" if inplace else "out-of-place"))
-            for radix in [2, 3]:
-                fig.runs.append( rundata("radix " + str(radix), dimension,
-                                         nextpow(min3d, radix), max3d, nbatch, radix, [1,1],
-                                         "r2c",
+                                         nextpow(min3d, radix), max3d, nbatch, radix, [1,1], "r2c",
                                          backwards, inplace) )
             figs.append(fig)
 
     return figs
 
-def efficiencyfigs(rundims, shortrun):
+def efficiencyfigs(rundims, shortrun, dynarider):
+    rundata = DynaRiderArgumentSet if dynarider else StaticRiderArgumentSet
     figs = []
-    
+
     # FFT directions
     forwards = -1
     backwards = 1
@@ -434,10 +507,9 @@ def efficiencyfigs(rundims, shortrun):
     max1d = 1048576 if shortrun else 268435456 #pow(2,28) gives a floating type :(
     nbatch = 1
     while max1d > min1d:
-        fig = figure("1d_c2c_batch" + str(nbatch) + "_radix" + str(radix),
-                     "1D complex transforms " + ("in-place" if inplace else "out-of-place") + " radix " + str(radix) + " batch " + str(nbatch) )
+        fig = figure(filename="1d_c2c_batch" + str(nbatch) + "_radix" + str(radix))
 
-        fig.runs.append( rundata("radix " + str(radix),
+        fig.runs.append( rundata("",
                                  dimension, nextpow(min1d, radix), max1d, nbatch,
                                  radix, [], "c2c", forwards, inplace) )
         figs.append(fig)
@@ -448,28 +520,26 @@ def efficiencyfigs(rundims, shortrun):
     return figs
 
 # Function for generating figures for a performance report
-def reportfigs(rundims, shortrun):
+def reportfigs(rundims, shortrun, dynarider):
+    rundata = DynaRiderArgumentSet if dynarider else StaticRiderArgumentSet
     figs = []
-    
+
     # FFT directions
     forwards = -1
     backwards = 1
 
     inplace = True
-    
+
     if 1 in rundims:
         dimension = 1
 
         for min1d, max1d, nbatch in [[1024,536870912,1], [8,32768,100000]]:
 
             for radix in [2, 3, 5, 7]:
-                fig = figure("1d_c2c" \
+                fig = figure(filename="1d_c2c" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
-                             "1D complex transforms with radix " + str(radix)\
-                             + " and batch size " + str(nbatch) + "." )
-
-                fig.runs.append( rundata("radix " + str(radix),
+                             + "_batch" + str(nbatch))
+                fig.runs.append( rundata("",
                                          dimension, nextpow(min1d, radix),
                                          max1d, nbatch,
                                          radix, [], "c2c", forwards,
@@ -477,13 +547,10 @@ def reportfigs(rundims, shortrun):
                 figs.append(fig)
 
             for radix in [2, 3, 5, 7]:
-                fig = figure("1d_r2c"\
+                fig = figure(filename="1d_r2c"\
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
-                             "1D real-to-complex transforms with radix "\
-                             + str(radix) \
-                             + " and batch size " + str(nbatch) + ".")
-                fig.runs.append( rundata("radix " + str(radix),
+                             + "_batch" + str(nbatch))
+                fig.runs.append( rundata("",
                                          dimension, nextpow(min1d, radix),
                                          max1d, nbatch,
                                          radix, [], "r2c", forwards,
@@ -491,13 +558,10 @@ def reportfigs(rundims, shortrun):
                 figs.append(fig)
 
             for radix in [2, 3, 5, 7]:
-                fig = figure("1d_c2r" \
+                fig = figure(filename="1d_c2r" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
-                             "1D complex-to-real transforms with radix " \
-                             + str(radix) \
-                             + " and batch size " + str(nbatch) + "." )
-                fig.runs.append( rundata("radix " + str(radix),
+                             + "_batch" + str(nbatch))
+                fig.runs.append( rundata("radix "+str(radix),
                                          dimension, nextpow(min1d, radix),
                                          max1d, nbatch,
                                          radix, [], "r2c", backwards,
@@ -510,12 +574,10 @@ def reportfigs(rundims, shortrun):
         for min2d, max2d, nbatch in [[128,32768,1], [64,8192,100]]:
 
             for radix in [2, 3, 5]:
-                fig = figure("2d_c2c" \
+                fig = figure(filename="2d_c2c" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch) ,
-                             "2D complex transforms with radix " + str(radix)\
-                             + " and batch size " + str(nbatch) + ".")
-                fig.runs.append( rundata( "radix "+ str(radix),
+                             + "_batch" + str(nbatch))
+                fig.runs.append( rundata("radix "+ str(radix),
                                          dimension,
                                          nextpow(min2d, radix), max2d,
                                          nbatch,
@@ -524,14 +586,11 @@ def reportfigs(rundims, shortrun):
                 figs.append(fig)
 
             for radix in [2, 3, 5]:
-                fig = figure("2d_r2c" \
+                fig = figure(filename="2d_r2c" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
-                             "2D real-to-complex transforms with radix "\
-                             + str(radix) \
-                             + " and batch size " + str(nbatch) + ".")
+                             + "_batch" + str(nbatch))
 
-                fig.runs.append( rundata( "radix " + str(radix),
+                fig.runs.append( rundata("radix " + str(radix),
                                          dimension,
                                          nextpow(min2d, radix), max2d,
                                          nbatch,
@@ -540,12 +599,9 @@ def reportfigs(rundims, shortrun):
                 figs.append(fig)
 
             for radix in [2, 3, 5]:
-                fig = figure("2d_c2r" \
+                fig = figure(filename="2d_c2r" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
-                             "2D complex-to-real transforms with radix "\
-                             + str(radix) +\
-                             " and batch size " + str(nbatch) + ".")
+                             + "_batch" + str(nbatch))
                 fig.runs.append( rundata("radix " + str(radix),
                                          dimension,
                                          nextpow(min2d, radix), max2d,
@@ -556,26 +612,19 @@ def reportfigs(rundims, shortrun):
 
 
             for radix in [2]:
-                fig = figure("2d_c2c_r2" \
+                fig = figure(filename="2d_c2c_r2" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
-                             "2D complex transforms "\
-                             + "with aspect ratio N:2N with radix "\
-                             + str(radix) + " and batch size " + str(nbatch) \
-                             + ".")
-                fig.runs.append( rundata( "radix 2",
+                             + "_batch" + str(nbatch))
+                fig.runs.append( rundata("radix 2",
                                          dimension, min2d, max2d, nbatch, 2,
                                          [2], "c2c",
                                          forwards, inplace) )
                 figs.append(fig)
 
             for radix in [2]:
-                fig = figure("2d_r2c_r2" \
+                fig = figure(filename="2d_r2c_r2" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
-                             "2D real-to-complex transforms with radix "\
-                             + str(radix) \
-                             + " and batch size " + str(nbatch) + ".")
+                             + "_batch" + str(nbatch))
                 fig.runs.append( rundata("radix 2",
                                          dimension, min2d, max2d, nbatch, 2,
                                          [2], "r2c",
@@ -586,14 +635,11 @@ def reportfigs(rundims, shortrun):
         dimension = 3
 
         for min3d, max3d, nbatch in [[16,128,1],[4,64,100]]:
-                
+
             for radix in [2, 3, 5]:
-                fig = figure("3d_c2c" \
+                fig = figure(filename="3d_c2c" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
-                             "3D complex transforms with radix "\
-                             + str(radix) \
-                             + " and batch size " + str(nbatch) + ".")
+                             + "_batch" + str(nbatch))
                 fig.runs.append( rundata("radix " + str(radix),
                                          dimension,
                                          nextpow(min3d, radix), max3d,
@@ -603,12 +649,9 @@ def reportfigs(rundims, shortrun):
                 figs.append(fig)
 
             for radix in [2, 3]:
-                fig = figure("3d_r2c" \
+                fig = figure(filename="3d_r2c" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
-                             "3D real-to-complex transforms with radix "\
-                             + str(radix)\
-                             + " and batch size " + str(nbatch) + ".")
+                             + "_batch" + str(nbatch))
 
                 fig.runs.append( rundata("radix " + str(radix),
                                          dimension,
@@ -619,12 +662,9 @@ def reportfigs(rundims, shortrun):
                 figs.append(fig)
 
 
-            fig = figure("3d_c2r" \
+            fig = figure(filename="3d_c2r" \
                          + "_radix" + str(radix) \
-                         + "_batch" + str(nbatch),
-                         "3D complex-to-real transforms with radix "\
-                         + str(radix)
-                         + " and batch size " + str(nbatch) + ".")
+                         + "_batch" + str(nbatch))
             for radix in [2]:
                 fig.runs.append( rundata("radix " + str(radix),
                                          dimension,
@@ -634,249 +674,125 @@ def reportfigs(rundims, shortrun):
                                          backwards, inplace) )
             figs.append(fig)
 
-            fig = figure("3d_c2c_aspect" \
+            fig = figure(filename="3d_c2c_aspect" \
                          + "_radix" + str(radix) \
-                         + "_batch" + str(nbatch),
-                         "3D complex transforms "\
-                         + "with aspect ratio N:N:16N with radix "\
-                         + str(radix)\
-                         + " and batch size " + str(nbatch) + ".")
+                         + "_batch" + str(nbatch))
             fig.runs.append( rundata("radix 2",
                                      dimension, min3d, max3d, nbatch, 2,
                                      [1,16], "c2c",
                                      forwards, inplace) )
             figs.append(fig)
 
-            fig = figure("3d_r2c_aspect" \
+            fig = figure(filename="3d_r2c_aspect" \
                          + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
-                         "3D real-to-complex transforms " \
-                         + "with aspect ratio N:N:16N with radix " \
-                         + str(radix)\
-                         + " and batch size " + str(nbatch) + ".")
+                         + "_batch" + str(nbatch))
             fig.runs.append( rundata("radix 2",
                                      dimension, min3d, max3d, nbatch, 2,
                                      [1,16], "r2c",
                                      forwards, inplace) )
             figs.append(fig)
-        
+
     return figs
 
 
 def main(argv):
-    dloadexe = None
-    
-    indirlist = []
-    outdirlist = []
-    labellist = []
+    def str2bool(v):
+        if isinstance(v, bool):
+            return v
+        if v.lower() in ('yes', 'true', 't', 'y', '1'):
+            return True
+        elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+            return False
+        else:
+            raise argparse.ArgumentTypeError('Boolean value or next flag expected.')
+    # WARNING: The approach to using booleans is not compatible with purely positional arguments
+    #    because `--bool-option <positional arg>` would attempt to convert the positional argument
+    #    to a boolean. Otherwise, it is more intuitive and flexible than enable/disable flags.
 
-    docdir = "doc"
-    
-    dryrun = False
-    nbatch = 1
-    speedup = True
-    datatype = "time"
-    shortrun = False
-    docformat = "pdf"
-    devicenum = 0
-    doAsy = True
-    nsample = 10
-    rundims = [1,2,3]
-    runtype = "benchmark"
-    secondtype = "none"
-    
-    try:
-        opts, args = getopt.getopt(argv,"hb:D:f:Tt:i:o:l:S:sg:d:N:R:w:y:")
-    except getopt.GetoptError:
-        print("error in parsing arguments.")
-        print(usage)
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt in ("-h"):
-            print(usage)
-            exit(0)
-        elif opt in ("-b"):
-            dloadexe = os.path.abspath(arg)
-        elif opt in ("-i"):
-            indirlist.append(arg)
-        elif opt in ("-i"):
-            indirlist.append(arg)
-        elif opt in ("-o"):
-            outdirlist.append(arg)
-        elif opt in ("-l"):
-            labellist.append(arg)
-        elif opt in ("-w"):
-            docdir = arg
-        elif opt in ("-T"):
-            dryrun = True
-        elif opt in ("-s"):
-            shortrun = True
-        elif opt in ("-g"):
-            if int(arg) == 0:
-                doAsy = False
-            if int(arg) == 1:
-                doAsy = True
-        elif opt in ("-d"):
-            devicenum = int(arg)
-        elif opt in ("-D"):
-            rundims = []
-            for val in arg.split(','):
-                rundims.append(int(val))
-        elif opt in ("-N"):
-            nsample = int(arg)
-        elif opt in ("-S"):
-            if int(arg) == 0:
-                speedup = False
-            if int(arg) == 1:
-                speedup = True
-        elif opt in ("-t"):
-            if arg not in ["time", "gflops", "roofline"]:
-                print("data type must be time or gflops or roofline")
-                print(usage)
-                sys.exit(1)
-            datatype = arg
-        elif opt in ("-y"):
-            if arg not in ["none", "gflops"]:
-                print("data type must be gflops or none")
-                print(usage)
-                sys.exit(1)
-            secondtype = arg
-        elif opt in ("-R"):
-            if arg not in ["report", "benchmark", "efficiency"]:
-                print("data type must be gflops or none")
-                print(usage)
-                sys.exit(1)
-            runtype = arg
-            if runtype == "efficiency":
-                datatype = "roofline"
-        elif opt in ("-f"):
-            goodvals = ["pdf", "docx"]
-            if arg not in goodvals:
-                print("error: format must in " + " ".join(goodvals))
-                print(usage)
-                sys.exit(1)
-            docformat = arg
+    parser = argparse.ArgumentParser()
 
+    parser.add_argument('-s', '--is-short-run',
+                        type=str2bool, nargs='?', const=True, default=False,
+                        help='Run a shorter test.')
+    parser.add_argument('-D', '--dimension', default=[1,2,3], type=int, nargs='+',
+                        help='Space separated list of dimensions to run.')
+    parser.add_argument('-N', '--num-runs', default=10, type=int,
+                        help='Number of times to run each test.')
+    parser.add_argument('-b', '--dload-binary', default=None,
+                        help='Optional binary for combining different dynamic libraries into a single executable using dload.')
+    parser.add_argument('-S', '--speedup',
+                        type=str2bool, nargs='?', const=True, default=True,
+                        help='Plot speedup with respect to the first run.')
+    parser.add_argument('-t', '--data-type', default='time',
+                        choices = ['time', 'gflops', 'roofline'],
+                        help='Primary axis dataype.')
+    parser.add_argument('-y', '--second-type', default='none',
+                        choices = ['none', 'gflops'],
+                        help='Secondary axis dataype.')
+    parser.add_argument('-R', '--run-type', default=['benchmark'], nargs='+',
+                        choices=['report', 'benchmark', 'efficiency'],
+                        help='Secondary axis dataype.')
+    parser.add_argument('-f', '--doc-format', default='pdf',
+                        choices=['pdf', 'docx'],
+                        help='Documentation output format.')
+    user_args = cr.parse_input_arguments(parser)
+
+    command_runner = cr.CommandRunner(user_args, RocFftRunConfiguration)
+
+    if user_args.num_repititions > 1 and command_runner.is_make_document():
+        print("WARNING - document generation does not support multiple coarse grained runs")
+        import time
+        time.sleep(5)
+
+    rundims = user_args.dimension
     print("rundims:")
     print(rundims)
-    
-    if not dryrun:
-        if dloadexe == None:
-            for indir in indirlist:
-                if not binaryisok(indir, "rocfft-rider"):
-                    print("unable to find " + "rocfft-rider" + " in " + indir)
-                    print("please specify with -i")
-                    sys.exit(1)
-        else:
-            if not binaryisok(dloadexe, "dyna-rocfft-rider"):
-                print("unable to find " + "dyna-rocfft-rider" + " in " + dloadexe)
-                
-                for indir in indirlist:
-                    if not binaryisok(indir, "librocfft.so"):
-                        print("unable to find " + "librocfft.so" + " in " + indir)
-                        print("please specify with -i")
-                        sys.exit(1)
-            
 
-    print("input directories:", indirlist)
-                
-    if len(indirlist) > len(labellist):
-        for i in range(len(labellist), len(indirlist)):
-            labellist.append("dir" + str(i))
-    print("run labels:", labellist)
-    
-    for idx in range(len(indirlist)):
-        indirlist[idx] = os.path.abspath(indirlist[idx])
+    indirlist = command_runner.executable_directories
+    outdirlist = command_runner.output_directories
+    labellist = command_runner.labels
 
-    if len(indirlist) > len(outdirlist):
-        for i in range(len(outdirlist), len(indirlist)):
-            outdirlist.append(os.path.abspath("dir" + str(i)))
+    # if command_runner.is_run_tool():
+    #     for indir in indirlist:
+    #         if not binaryisok(indir, "rocfft-rider"):
+    #             print("unable to find " + "rocfft-rider" + " in " + indir)
+    #             print("please specify with -i")
+    #             sys.exit(1)
 
-    for idx in range(len(outdirlist)):
-        outdirlist[idx] = os.path.abspath(outdirlist[idx])
-    print("data output directories:", outdirlist)
-
-            
-    if shortrun:
+    if user_args.is_short_run:
         print("short run")
-    print("output format: " + docformat)
-    print("device number: " + str(devicenum))
+    print("output format: " + user_args.doc_format)
+    print("device number: " + str(user_args.device_num))
 
-    docdir = os.path.abspath(docdir)
-    
-    print("document output in", docdir)
-    if not os.path.exists(docdir):
-        os.makedirs(docdir)
-    
-    for outdir in outdirlist:
-        if not os.path.exists(outdir):
-            os.makedirs(outdir)
-
-            
-    if not dryrun:
-        import getspecs
-        specs = "Host info:\n"
-        specs += "\thostname: " + getspecs.gethostname() + "\n"
-        specs += "\tcpu info: " + getspecs.getcpu() + "\n"
-        specs += "\tram: " + getspecs.getram() + "\n"
-        specs += "\tdistro: " + getspecs.getdistro() + "\n"
-        specs += "\tkernel version: " + getspecs.getkernel() + "\n"
-        specs += "\trocm version: " + getspecs.getrocmversion() + "\n"
-        specs += "Device info:\n"
-        specs += "\tdevice: " + getspecs.getdeviceinfo(devicenum) + "\n"
-        specs += "\tvbios version: " + getspecs.getvbios(devicenum) + "\n"
-        specs += "\tvram: " + getspecs.getvram(devicenum) + "\n"
-        specs += "\tperformance level: " + getspecs.getperflevel(devicenum) + "\n"
-        specs += "\tsystem clock: " + getspecs.getsclk(devicenum) + "\n"
-        specs += "\tmemory clock: " + getspecs.getmclk(devicenum) + "\n"
-
-        
-        for outdir in outdirlist:
-            with open(os.path.join(outdir, "specs.txt"), "w+") as f:
-                f.write(specs)
-
-            with open(os.path.join(outdir, "gpuid.txt"), "w") as f:
-                f.write(getspecs.getgpuid(devicenum))
+    command_runner.setup_system()
 
     figs = []
 
-    if runtype == "benchmark":
-        figs = benchfigs(rundims, shortrun)
-    if runtype == "report":
-        figs = reportfigs(rundims, shortrun)
-    if runtype == "efficiency":
-        figs = efficiencyfigs(rundims, shortrun)
-    just1dc2crad2 = runtype == "efficiency"
+    dynarider = user_args.dload_binary is not None
+    if "benchmark" in user_args.run_type:
+        figs += benchfigs(rundims, user_args.is_short_run, dynarider)
+    if "report" in user_args.run_type:
+        figs += reportfigs(rundims, user_args.is_short_run, dynarider)
+    if "efficiency" in user_args.run_type:
+        figs += efficiencyfigs(rundims, user_args.is_short_run, dynarider)
+    just1dc2crad2 = user_args.run_type == "efficiency"
 
     for idx, fig in enumerate(figs):
         for idx2, fig2 in enumerate(figs):
-            if idx != idx2 and fig.name == fig2.name:
+            if idx != idx2 and fig.get_name() == fig2.get_name():
                 print("figures have the same name!")
-                print(fig.name)
-                print(fig2.name)
+                print(fig.get_name())
+                print(fig.runs)
+                print(fig2.get_name())
+                print(fig2.runs)
                 sys.exit(1)
-    
-    for fig in figs:
-        print(fig.name)
-        # Run the tests and put output in the outdirs:
-        for run in fig.runs:
-            if not dryrun:
-                run.executerun(nsample, indirlist, outdirlist, dloadexe)
 
-        # Compile the data in the outdirs into figures in docdir:
-        ncompare = len(indirlist) if speedup else 0
-        print(fig.labels(labellist))
-        #plotgflops = runtype == "submission" and not datatype == "gflops"
-        print(fig.asycmd(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2))
-        fig.executeasy(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2)
+    command_runner.add_comparisons(figs)
 
-    # Make the document in docdir:
-    if docformat == "pdf":
-        maketex(figs, docdir, outdirlist, labellist, nsample, secondtype)
-    if docformat == "docx":
-        makedocx(figs, docdir, nsample, secondtype)
+    command_runner.execute()
 
-    print("Finished!  Output in " + docdir)
+    command_runner.show_plots()
+    command_runner.output_summary()
 
 def binaryisok(dirname, progname):
     prog = os.path.join(dirname, progname)
@@ -888,99 +804,7 @@ for a radix-2 transform, and half that for in the case of \
 real-complex transforms.  The rocFFT operation count may differ from \
 this value: GFLOP/s is provided for the sake of comparison only.'''
 
-# Function for generating a tex document in PDF format.
-def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype):
-    
-    header = '''\documentclass[12pt]{article}
-\\usepackage{graphicx}
-\\usepackage{url}
-\\author{Malcolm Roberts}
-\\begin{document}
-'''
-    texstring = header
-
-    texstring += "\n\\section{Introduction}\n"
-    
-    texstring += "Each data point represents the median of " + str(nsample) + " values, with error bars showing the 95\\% confidence interval for the median.  All transforms are double-precision.\n\n"
-
-    if secondtype == "gflops":
-        texstring += gflopstext + "\n\n"
-
-    
-    texstring += "\\vspace{1cm}\n"
-    
-    # texstring += "\\begin{tabular}{ll}"
-    # texstring += labelA +" &\\url{"+ dirA+"} \\\\\n"
-    # if not dirB == None:
-    #     texstring += labelB +" &\\url{"+ dirB+"} \\\\\n"
-    # texstring += "\\end{tabular}\n\n"
-
-    # texstring += "\\vspace{1cm}\n"
-    
-    texstring += "\n\\section{Device Specification}\n"
-    for idx in range(len(outdirlist)):
-        texstring += "\n\\subsection{" + labellist[idx]  + "}\n"
-        specfilename = os.path.join(outdirlist[idx], "specs.txt")
-        if os.path.isfile(specfilename):
-            specs = ""
-            with open(specfilename, "r") as f:
-                specs = f.read()
-
-            for line in specs.split("\n"):
-                if line.startswith("Host info"):
-                    texstring += "\\noindent " + line
-                    texstring += "\\begin{itemize}\n"
-                elif line.startswith("Device info"):
-                    texstring += "\\end{itemize}\n"
-                    texstring += line 
-                    texstring += "\\begin{itemize}\n"
-                else:
-                    if line.strip() != "":
-                        texstring += "\\item " + line + "\n"
-            texstring += "\\end{itemize}\n"
-            texstring += "\n"
-        
-    texstring += "\\clearpage\n"
-
-    texstring += "\n\\section{Figures}\n"
-    
-    for idx, fig in enumerate(figs):
-        print(fig.filename(docdir, "pdf"))
-        print(fig.caption)
-        texstring += '''
-\\centering
-\\begin{figure}[htbp]
-   \\includegraphics[width=\\textwidth]{'''
-        texstring += fig.filename("", "pdf")
-        texstring += '''}
-   \\caption{''' + fig.caption + '''}
-\\end{figure}
-'''
-        if (idx % 2) == 0:
-            texstring += "\\clearpage\n"
-            
-    texstring += "\n\\end{document}\n"
-   
-    fname = os.path.join(docdir, 'figs.tex')
-
-    with open(fname, 'w') as outfile:
-        outfile.write(texstring)
-
-    fout = open(os.path.join(docdir, "texcmd.log"), 'w+')
-    ferr = open(os.path.join(docdir, "texcmd.err"), 'w+')
-                    
-    latexcmd = ["latexmk", "-pdf", 'figs.tex']
-    print(" ".join(latexcmd))
-    texproc =  subprocess.Popen(latexcmd, cwd=docdir, stdout=fout, stderr=ferr,
-                                env=os.environ.copy())
-    texproc.wait()
-    fout.close()
-    ferr.close()
-    texrc = texproc.returncode
-    if texrc != 0:
-        print("****tex fail****")
-
-# Confert a PDF to an EMF using pdf2svg and inkscape.        
+# Confert a PDF to an EMF using pdf2svg and inkscape.
 def pdf2emf(pdfname):
     svgname = pdfname.replace(".pdf",".svg")
     cmd_pdf2svg = ["pdf2svg", pdfname, svgname]
@@ -997,7 +821,7 @@ def pdf2emf(pdfname):
     if proc.returncode != 0:
         print("svg2emf failed!")
         sys.exit(1)
-    
+
     return emfname
 
 # Function for generating a docx using emf files and the docx package.
@@ -1012,7 +836,7 @@ def makedocx(figs, outdir, nsample, secondtype):
 
     if secondtype == "gflops":
         document.add_paragraph(gflopstext)
-                               
+
     specfilename = os.path.join(outdir, "specs.txt")
     if os.path.isfile(specfilename):
         with open(specfilename, "r") as f:
@@ -1021,14 +845,14 @@ def makedocx(figs, outdir, nsample, secondtype):
             document.add_paragraph(line)
 
     for fig in figs:
-        print(fig.filename(outdir, "docx"))
-        print(fig.caption)
-        emfname = pdf2emf(fig.filename(outdir, "docx"))
+        print(fig.getfilename(outdir, "docx"))
+        print(fig.get_caption())
+        emfname = pdf2emf(fig.getfilename(outdir, "docx"))
         document.add_picture(emfname, width=docx.shared.Inches(6))
-        document.add_paragraph(fig.caption)
-                         
+        document.add_paragraph(fig.get_caption())
+
     document.save(os.path.join(outdir,'figs.docx'))
-    
+
 if __name__ == "__main__":
     main(sys.argv[1:])
-                        
+
