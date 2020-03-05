@@ -55,7 +55,7 @@ foreach( sample ${sample_list} )
     target_compile_definitions( ${sample} PRIVATE __HIP_PLATFORM_NVCC__ )
     target_link_libraries( ${sample} PRIVATE ${CUDA_LIBRARIES} )
   else( )
-    target_link_libraries( ${sample} PRIVATE hip::hip_hcc )
+    target_link_libraries( ${sample} PRIVATE hip::device )
   endif( )
 
 if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$")

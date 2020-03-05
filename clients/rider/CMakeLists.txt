@@ -103,7 +103,7 @@ foreach( rider ${rider_list})
     target_compile_definitions( ${rider} PRIVATE __HIP_PLATFORM_NVCC__ )
     target_link_libraries( ${rider} PRIVATE ${CUDA_LIBRARIES} )
   else( )
-    target_link_libraries( ${rider} PRIVATE hip::hip_hcc )
+    target_link_libraries( ${rider} PRIVATE hip::device )
   endif( )
 
   if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$")

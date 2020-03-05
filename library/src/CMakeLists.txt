@@ -65,11 +65,12 @@ add_library( roc::rocfft ALIAS rocfft )
 target_compile_features( rocfft PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
 
 # Remove this check when we no longer build with older rocm stack(ie < 1.8.2)
-if(TARGET hip::device)
-target_link_libraries( rocfft PRIVATE hip::device )
+if(CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
+  target_link_libraries( rocfft PRIVATE hip::device )
 else()
-target_link_libraries( rocfft PRIVATE hip::hip_hcc hip::hip_device hcc::hccshared )
+  target_link_libraries( rocfft PRIVATE hip::device  hcc::hccshared )
 endif()
+
 target_link_libraries( rocfft PRIVATE rocfft-device )
 
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" OR HIP_PLATFORM STREQUAL "hip-clang")

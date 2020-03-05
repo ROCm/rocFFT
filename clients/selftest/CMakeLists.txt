@@ -79,7 +79,7 @@ if( CUDA_FOUND )
   target_compile_definitions( rocfft-selftest PRIVATE __HIP_PLATFORM_NVCC__ )
   target_link_libraries( rocfft-selftest PRIVATE ${CUDA_LIBRARIES} )
 else( )
-  target_link_libraries( rocfft-selftest PRIVATE hip::hip_hcc )
+  target_link_libraries( rocfft-selftest PRIVATE hip::device )
 endif( )
 
 if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$")

@@ -102,10 +102,10 @@ if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" OR HIP_PLATFORM STREQUAL "hip-clang")
 endif()
 
 # Remove this check when we no longer build with older rocm stack(ie < 1.8.2)
-if(TARGET hip::device)
+if(CMAKE_CXX_COMPILER MATCHES ".*/hipcc$")
 target_link_libraries( rocfft-device PRIVATE hip::device )
 else()
-target_link_libraries( rocfft-device PRIVATE hip::hip_hcc hip::hip_device hcc::hccshared )
+target_link_libraries( rocfft-device PRIVATE hip::device  hcc::hccshared )
 endif()
 
 if(HIP_PLATFORM STREQUAL "nvcc")
