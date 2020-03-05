@@ -34,6 +34,7 @@ def runCI =
     {
         platform, project->
 
+        project.timeout.test = 600
         commonGroovy.runTestCommand(platform, project)
     }
 
