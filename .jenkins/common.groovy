@@ -10,10 +10,21 @@ def runCompileCommand(platform, project, jobName, boolean debug=false)
     String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug' : '-DCMAKE_BUILD_TYPE=Release'
     String hipClangArgs = jobName.contains('hipclang') ? '-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang' : ''
     String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
-    String sudo = platform.jenkinsLabel.contains('sles') ? 'sudo' : ''
+    String sudo = platform.jenkinsLabel.contains('sles') ? 'sudo -E' : ''
 
     def command = """#!/usr/bin/env bash
                 set -x
+
+                ls /fftw/lib
+
+                export FFTW_ROOT=/fftw
+                export FFTW_INCLUDE_PATH=\${FFTW_ROOT}/include
+                export FFTW_LIB_PATH=\${FFTW_ROOT}/lib
+                export LD_LIBRARY_PATH=\${FFTW_LIB_PATH}:\$LD_LIBRARY_PATH
+                export CPLUS_INCLUDE_PATH=\${FFTW_INCLUDE_PATH}:\${CPLUS_INCLUDE_PATH}
+                export CMAKE_PREFIX_PATH=\${FFTW_LIB_PATH}/cmake/fftw3:\${CMAKE_PREFIX_PATH}
+                export CMAKE_PREFIX_PATH=\${FFTW_LIB_PATH}/cmake/fftw3f:\${CMAKE_PREFIX_PATH}
+
                 cd ${project.paths.project_build_prefix}
                 mkdir build && cd build
                 ${sudo} ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/${compiler} ${buildTypeArg} ${clientArgs} ${hipClangArgs} ..

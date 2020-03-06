@@ -22,7 +22,7 @@ RUN yum install -y \
     clang-devel \
     gcc-c++ \
     gcc-gfortran \
-    fftw-devel \
+    wget \
     pkgconfig \
     python27 \
     python34 \
@@ -34,6 +34,18 @@ RUN yum install -y \
 
 RUN echo '#!/bin/bash' | tee /etc/profile.d/devtoolset7.sh && echo \
     'source scl_source enable devtoolset-7' >>/etc/profile.d/devtoolset7.sh
+
+#Compile FFTW
+RUN cd ~/ && \
+    wget http://fftw.org/fftw-3.3.8.tar.gz && \
+    ls && \
+    tar -xvf fftw-3.3.8.tar.gz && \
+    cd fftw-3.3.8/ && \
+    ./configure --prefix=/fftw --enable-openmp --enable-shared --enable-avx2 --enable-float && make -j && make install && \
+    make clean && \
+    ./configure --prefix=/fftw --enable-openmp --enable-shared --enable-avx2 && make -j && make install && \
+    cd .. && \
+    rm -rf fftw-*
 
 # docker pipeline runs containers with particular uid
 # create a jenkins user with this specific uid so it can use sudo priviledges

@@ -21,7 +21,7 @@ RUN zypper refresh && zypper -n install\
     gcc-fortran \
     make \
     cmake \
-    fftw3-devel \
+    wget \
     rpm-build \
     dpkg \
     python2-PyYAML \
@@ -29,6 +29,18 @@ RUN zypper refresh && zypper -n install\
     libcxxtools9 \
     libnuma1 \
     pkg-config 
+
+#Compile FFTW
+RUN cd ~/ && \
+    wget http://fftw.org/fftw-3.3.8.tar.gz && \
+    ls && \
+    tar -xvf fftw-3.3.8.tar.gz && \
+    cd fftw-3.3.8/ && \
+    ./configure --prefix=/fftw --enable-openmp --enable-shared --enable-avx2 --enable-float && make -j && make install && \
+    make clean && \
+    ./configure --prefix=/fftw --enable-openmp --enable-shared --enable-avx2 && make -j && make install && \
+    cd .. && \
+    rm -rf fftw-*
 
 # docker pipeline runs containers with particular uid
 # create a jenkins user with this specific uid so it can use sudo priviledges

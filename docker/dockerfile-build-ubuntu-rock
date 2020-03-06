@@ -21,7 +21,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     git \
     make \
     cmake \
-    libfftw3-dev \
+    wget \
     pkg-config \
     python2.7 \
     python-yaml \
@@ -31,6 +31,18 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+#Compile FFTW
+RUN cd ~/ && \
+    wget http://fftw.org/fftw-3.3.8.tar.gz && \
+    ls && \
+    tar -xvf fftw-3.3.8.tar.gz && \
+    cd fftw-3.3.8/ && \
+    ./configure --prefix=/fftw --enable-openmp --enable-shared --enable-avx2 --enable-float && make -j && make install && \
+    make clean && \
+    ./configure --prefix=/fftw --enable-openmp --enable-shared --enable-avx2 && make -j && make install && \
+    cd .. && \
+    rm -rf fftw-*
 
 # docker pipeline runs containers with particular uid
 # create a jenkins user with this specific uid so it can use sudo priviledges
