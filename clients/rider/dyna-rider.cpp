@@ -36,8 +36,6 @@
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
-#include "./misc.h"
-
 // Given a libhandle from dload, return a plan to a rocFFT plan with the given parameters.
 rocfft_plan make_plan(void*                         libhandle,
                       const rocfft_result_placement place,
@@ -224,8 +222,8 @@ int main(int argc, char* argv[])
 
     // clang-format doesn't handle boost program options very well:
     // clang-format off
-    po::options_description desc("rocfft rider command line options");
-    desc.add_options()("help,h", "produces this help message")
+    po::options_description opdesc("rocfft rider command line options");
+    opdesc.add_options()("help,h", "produces this help message")
         ("version,v", "Print queryable version information from the rocfft library")
         ("device", po::value<int>(&deviceId)->default_value(0), "Select a specific device id")
         ("verbose", po::value<int>(&verbose)->implicit_value(0), "Control output verbosity")
@@ -257,30 +255,22 @@ int main(int argc, char* argv[])
         ("ostride", po::value<std::vector<size_t>>(&ostride)->multitoken(), "Output strides.")
         ("ioffset", po::value<std::vector<size_t>>(&ioffset)->multitoken(), "Input offsets.")
         ("ooffset", po::value<std::vector<size_t>>(&ooffset)->multitoken(), "Output offsets.");
-    // // clang-format on
+    // clang-format on
 
     po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::store(po::parse_command_line(argc, argv, opdesc), vm);
     po::notify(vm);
-    
+
     if(vm.count("help"))
     {
-        std::cout << desc << std::endl;
+        std::cout << opdesc << std::endl;
         return 0;
     }
 
-    if(vm.count("lib"))
-    {
-        std::cout << "library directories:";
-        for(const auto &l : libdir)
-            std::cout <<" " << l;
-        std::cout << std::endl;
-    }
-    
     if(!vm.count("length"))
     {
         std::cout << "Please specify transform length!" << std::endl;
-        std::cout << desc << std::endl;
+        std::cout << opdesc << std::endl;
         return 0;
     }
 
@@ -289,33 +279,138 @@ int main(int argc, char* argv[])
     const rocfft_precision precision
         = vm.count("double") ? rocfft_precision_double : rocfft_precision_single;
 
-    
-    // Set default data formats if not yet specified:
-    check_set_iotypes(place, transformType, itype, otype);
-    check_set_iostride(place, transformType, length, itype, otype, istride, ostride);
-    set_iodist(place, transformType, length, istride, ostride, idist, odist);
+    if(vm.count("notInPlace"))
+    {
+        std::cout << "out-of-place\n";
+    }
+    else
+    {
+        std::cout << "in-place\n";
+    }
 
-    // Real / complex transforms have different input and output lengths:
-    std::vector<size_t> ilength = length;
+    if(vm.count("ntrial"))
+    {
+        std::cout << "Running profile with " << ntrial << " samples\n";
+    }
+
+    if(vm.count("length"))
+    {
+        std::cout << "length:";
+        for(auto& i : length)
+            std::cout << " " << i;
+        std::cout << "\n";
+    }
+
+    if(vm.count("istride"))
+    {
+        std::cout << "istride:";
+        for(auto& i : istride)
+            std::cout << " " << i;
+        std::cout << "\n";
+    }
+    if(vm.count("ostride"))
+    {
+        std::cout << "ostride:";
+        for(auto& i : ostride)
+            std::cout << " " << i;
+        std::cout << "\n";
+    }
+
+    if(idist > 0)
+    {
+        std::cout << "idist: " << idist << "\n";
+    }
+    if(odist > 0)
+    {
+        std::cout << "odist: " << odist << "\n";
+    }
+
+    if(vm.count("ioffset"))
+    {
+        std::cout << "ioffset:";
+        for(auto& i : ioffset)
+            std::cout << " " << i;
+        std::cout << "\n";
+    }
+    if(vm.count("ooffset"))
+    {
+        std::cout << "ooffset:";
+        for(auto& i : ooffset)
+            std::cout << " " << i;
+        std::cout << "\n";
+    }
+
+    std::cout << std::flush;
+
+    // Set default data formats if not yet specified:
+    const size_t dim     = length.size();
+    auto         ilength = length;
     if(transformType == rocfft_transform_type_real_inverse)
     {
-        ilength[0] = length[0] / 2 + 1;
+        ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
     }
-    std::vector<size_t> olength = length;
+    if(istride.size() == 0)
+    {
+        istride = compute_stride(ilength,
+                                 1,
+                                 place == rocfft_placement_inplace
+                                     && transformType == rocfft_transform_type_real_forward);
+    }
+    auto olength = length;
     if(transformType == rocfft_transform_type_real_forward)
     {
-        olength[0] = length[0] / 2 + 1;
+        olength[dim - 1] = olength[dim - 1] / 2 + 1;
     }
-    
+    if(ostride.size() == 0)
+    {
+        ostride = compute_stride(olength,
+                                 1,
+                                 place == rocfft_placement_inplace
+                                     && transformType == rocfft_transform_type_real_inverse);
+    }
+    check_set_iotypes(place, transformType, itype, otype);
+    if(idist == 0)
+    {
+        idist = set_idist(place, transformType, length, istride);
+    }
+    if(odist == 0)
+    {
+        odist = set_odist(place, transformType, length, ostride);
+    }
+
+    if(verbose > 0)
+    {
+        std::cout << "FFT  params:\n";
+        std::cout << "\tilength:";
+        for(auto i : ilength)
+            std::cout << " " << i;
+        std::cout << "\n";
+        std::cout << "\tistride:";
+        for(auto i : istride)
+            std::cout << " " << i;
+        std::cout << "\n";
+        std::cout << "\tidist: " << idist << std::endl;
+
+        std::cout << "\tolength:";
+        for(auto i : olength)
+            std::cout << " " << i;
+        std::cout << "\n";
+        std::cout << "\tostride:";
+        for(auto i : ostride)
+            std::cout << " " << i;
+        std::cout << "\n";
+        std::cout << "\todist: " << odist << std::endl;
+    }
+
     std::vector<rocfft_plan> plan;
-    
+
     size_t wbuffer_size = 0;
 
     // Set up shared object handles
     std::vector<void*> handles;
     for(int idx = 0; idx < libdir.size(); ++idx)
     {
-        void* libhandle = dlopen ((libdir[idx] + "/librocfft.so").c_str(), RTLD_LAZY);
+        void* libhandle = dlopen((libdir[idx] + "/librocfft.so").c_str(), RTLD_LAZY);
         if(libhandle == NULL)
         {
             std::cout << "Failed to open " << libdir[idx] << std::endl;
@@ -323,15 +418,37 @@ int main(int argc, char* argv[])
         }
         handles.push_back(libhandle);
     }
-        
+
     // Set up plans:
     for(int idx = 0; idx < libdir.size(); ++idx)
     {
+        // Create column-major parameters for rocFFT:
+        auto length_cm  = length;
+        auto istride_cm = istride;
+        auto ostride_cm = ostride;
+        for(int idx = 0; idx < dim / 2; ++idx)
+        {
+            const auto toidx = dim - idx - 1;
+            std::swap(istride_cm[idx], istride_cm[toidx]);
+            std::swap(ostride_cm[idx], ostride_cm[toidx]);
+            std::swap(length_cm[idx], length_cm[toidx]);
+        }
+
         std::cout << idx << ": " << libdir[idx] << std::endl;
-        plan.push_back( make_plan(handles[idx],
-                                 place, transformType,
-                                 length, istride, ostride, idist, odist, ioffset, ooffset, nbatch, 
-                                 precision, itype, otype));
+        plan.push_back(make_plan(handles[idx],
+                                 place,
+                                 transformType,
+                                 length_cm,
+                                 istride_cm,
+                                 ostride_cm,
+                                 idist,
+                                 odist,
+                                 ioffset,
+                                 ooffset,
+                                 nbatch,
+                                 precision,
+                                 itype,
+                                 otype));
         show_plan(handles[idx], plan[idx]);
         wbuffer_size = std::max(wbuffer_size, get_wbuffersize(handles[idx], plan[idx]));
     }
@@ -353,38 +470,30 @@ int main(int argc, char* argv[])
     }
 
     // Input data:
-    const std::vector<std::vector<char>> input
-        = compute_input(precision, itype, length, istride, idist, nbatch);
+    const auto input = compute_input(precision, itype, length, istride, idist, nbatch);
 
-    if(verbose)
+    if(verbose > 1)
     {
-        std::cout << "input:\n";
+        std::cout << "GPU input:\n";
         printbuffer(precision, itype, input, ilength, istride, nbatch, idist);
-        std::cout << "ilength:";
-        for(auto i : ilength)
-            std::cout << " " << i;
-        std::cout << std::endl;
     }
 
     // GPU input and output buffers:
     std::vector<void*> ibuffer = alloc_buffer(precision, itype, idist, nbatch);
-    std::vector<void*> obuffer = alloc_buffer(precision, otype, odist, nbatch);
-    
-    if(ibuffer.size() != input.size())
-    {
-        std::cout << "incompatible cpu and host buffer sizes\n";
-        exit(1);
-    }
+    std::vector<void*> obuffer = (place == rocfft_placement_inplace)
+                                     ? ibuffer
+                                     : alloc_buffer(precision, otype, odist, nbatch);
 
     if(handles.size())
     {
         // Run a kernel once to load the instructions on the GPU:
-    
+
         // Copy the input data to the GPU:
         for(int idx = 0; idx < input.size(); ++idx)
         {
-            HIP_V_THROW(hipMemcpy(ibuffer[0], input[0].data(), input[0].size(),
-                                  hipMemcpyHostToDevice), "hipMemcpy failed");
+            HIP_V_THROW(
+                hipMemcpy(ibuffer[0], input[0].data(), input[0].size(), hipMemcpyHostToDevice),
+                "hipMemcpy failed");
         }
         // Run the plan using its associated rocFFT library:
         for(int idx = 0; idx < handles.size(); ++idx)
@@ -392,7 +501,7 @@ int main(int argc, char* argv[])
             run_plan(handles[idx], plan[idx], info[idx], ibuffer.data(), obuffer.data());
         }
     }
-        
+
     // Execution times for loaded libraries:
     std::vector<std::vector<double>> time(libdir.size());
 
@@ -409,36 +518,30 @@ int main(int argc, char* argv[])
         // iid to just let things run:
         // if(ndone[idx] > ntrial)
         //     continue;
-            
+
         // Copy the input data to the GPU:
         for(int idx = 0; idx < input.size(); ++idx)
         {
-            HIP_V_THROW(hipMemcpy(ibuffer[idx], input[idx].data(), input[idx].size(),
-                                  hipMemcpyHostToDevice), "hipMemcpy failed");
+            HIP_V_THROW(
+                hipMemcpy(
+                    ibuffer[idx], input[idx].data(), input[idx].size(), hipMemcpyHostToDevice),
+                "hipMemcpy failed");
         }
-            
+
         // Run the plan using its associated rocFFT library:
-        time[idx].push_back(run_plan(handles[idx], plan[idx], info[idx],
-                                        ibuffer.data(), obuffer.data()));
-            
-        if(verbose > 1)
+        time[idx].push_back(
+            run_plan(handles[idx], plan[idx], info[idx], ibuffer.data(), obuffer.data()));
+
+        if(verbose > 2)
         {
-            // Copy the output back to the host and display
-            std::vector<std::vector<char>> output(input.size());
+            auto output = allocate_host_buffer(precision, otype, olength, ostride, odist, nbatch);
             for(int idx = 0; idx < output.size(); ++idx)
             {
-                const size_t osize = (precision == rocfft_precision_double)
-                    ? bufsize<double>(otype, odist, nbatch)
-                    : bufsize<float>(otype, odist, nbatch);
-                output[idx].resize(osize);
-                hipMemcpy(output[idx].data(),
-                          (place == rocfft_placement_inplace) ? ibuffer[0] : obuffer[0],
-                          osize,
-                          hipMemcpyDeviceToHost);
-                std::cout << "output:\n";
-                printbuffer(precision, otype, output, olength, ostride, nbatch, odist);
+                hipMemcpy(
+                    output[idx].data(), obuffer[idx], output[idx].size(), hipMemcpyDeviceToHost);
             }
-                
+            std::cout << "GPU output:\n";
+            printbuffer(precision, otype, output, olength, ostride, nbatch, odist);
         }
     }
 
@@ -446,7 +549,7 @@ int main(int argc, char* argv[])
     for(int idx = 0; idx < time.size(); ++idx)
     {
         std::cout << "\nExecution gpu time:";
-        for(auto &i : time[idx])
+        for(auto& i : time[idx])
         {
             std::cout << " " << i;
         }
@@ -459,11 +562,11 @@ int main(int argc, char* argv[])
         destroy_info(handles[idx], info[idx]);
         destroy_plan(handles[idx], plan[idx]);
         dlclose(handles[idx]);
-    }    
+    }
     hipFree(wbuffer);
-    for(auto & buf : ibuffer)
+    for(auto& buf : ibuffer)
         hipFree(buf);
-    for(auto & buf : obuffer)
+    for(auto& buf : obuffer)
         hipFree(buf);
 
     return 0;

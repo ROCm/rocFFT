@@ -55,4 +55,146 @@ inline bool
     return prop.totalGlobalMem > isize + osize + wsize;
 }
 
+// Perform and out-of-place computation on contiguous data and then return this in an
+// an object which will destruct correctly.
+template <typename Tfloat, typename Tallocator>
+inline std::vector<std::vector<char, Tallocator>>
+    fftw_transform(const std::vector<fftw_iodim64> dims,
+                   const std::vector<fftw_iodim64> howmany_dims,
+                   const rocfft_transform_type     transformType,
+                   const size_t                    osize,
+                   void*                           cpu_in)
+{
+    typename fftw_trait<Tfloat>::fftw_plan_type cpu_plan = NULL;
+    using fftw_complex_type = typename fftw_trait<Tfloat>::fftw_complex_type;
+
+    std::vector<std::vector<char, Tallocator>> output(1);
+    switch(transformType)
+    {
+    case rocfft_transform_type_complex_forward:
+        output[0].resize(osize * sizeof(fftw_complex_type));
+        cpu_plan
+            = fftw_plan_guru64_dft<Tfloat>(dims.size(),
+                                           dims.data(),
+                                           howmany_dims.size(),
+                                           howmany_dims.data(),
+                                           reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                           reinterpret_cast<fftw_complex_type*>(output[0].data()),
+                                           -1,
+                                           FFTW_ESTIMATE);
+        break;
+    case rocfft_transform_type_complex_inverse:
+        output[0].resize(osize * sizeof(fftw_complex_type));
+        cpu_plan
+            = fftw_plan_guru64_dft<Tfloat>(dims.size(),
+                                           dims.data(),
+                                           howmany_dims.size(),
+                                           howmany_dims.data(),
+                                           reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                           reinterpret_cast<fftw_complex_type*>(output[0].data()),
+                                           1,
+                                           FFTW_ESTIMATE);
+        break;
+    case rocfft_transform_type_real_forward:
+        output[0].resize(osize * sizeof(fftw_complex_type));
+        cpu_plan
+            = fftw_plan_guru64_r2c<Tfloat>(dims.size(),
+                                           dims.data(),
+                                           howmany_dims.size(),
+                                           howmany_dims.data(),
+                                           reinterpret_cast<Tfloat*>(cpu_in),
+                                           reinterpret_cast<fftw_complex_type*>(output[0].data()),
+                                           FFTW_ESTIMATE);
+        break;
+    case rocfft_transform_type_real_inverse:
+        output[0].resize(osize * sizeof(Tfloat));
+        cpu_plan = fftw_plan_guru64_c2r<Tfloat>(dims.size(),
+                                                dims.data(),
+                                                howmany_dims.size(),
+                                                howmany_dims.data(),
+                                                reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                                reinterpret_cast<Tfloat*>(output[0].data()),
+                                                FFTW_ESTIMATE);
+        break;
+    }
+
+    // Execute the CPU transform:
+    fftw_execute_type<Tfloat>(cpu_plan);
+
+    fftw_destroy_plan_type(cpu_plan);
+    return output;
+}
+
+// Given input in a std::vector<char>, perform a FFT using FFTW of type given in
+// transformType with the data layout given in length, istride, etc.
+template <typename Tallocator>
+inline std::vector<std::vector<char, Tallocator>>
+    fftw_via_rocfft(const std::vector<size_t>&                  length,
+                    const std::vector<size_t>&                  istride,
+                    const std::vector<size_t>&                  ostride,
+                    const size_t                                nbatch,
+                    const size_t                                idist,
+                    const size_t                                odist,
+                    const rocfft_precision                      precision,
+                    const rocfft_transform_type                 transformType,
+                    std::vector<std::vector<char, Tallocator>>& input)
+{
+    const size_t dim = length.size();
+
+    // Dimension configuration:
+    std::vector<fftw_iodim64> dims(length.size());
+    for(int idx = 0; idx < length.size(); ++idx)
+    {
+        dims[idx].n  = length[idx];
+        dims[idx].is = istride[idx];
+        dims[idx].os = ostride[idx];
+    }
+
+    // Batch configuration:
+    std::vector<fftw_iodim64> howmany_dims(1);
+    howmany_dims[0].n  = nbatch;
+    howmany_dims[0].is = idist;
+    howmany_dims[0].os = odist;
+
+    switch(precision)
+    {
+    case rocfft_precision_single:
+        return fftw_transform<float, Tallocator>(
+            dims, howmany_dims, transformType, odist * nbatch, (void*)input[0].data());
+        break;
+    case rocfft_precision_double:
+        return fftw_transform<double, Tallocator>(
+            dims, howmany_dims, transformType, odist * nbatch, (void*)input[0].data());
+        break;
+    }
+}
+
+// Given a rocfft_array_type, return the non-planar version.
+inline rocfft_array_type make_type_contiguous(const rocfft_array_type type)
+{
+    auto contiguous_type = type;
+    if(type == rocfft_array_type_complex_planar)
+        contiguous_type = rocfft_array_type_complex_interleaved;
+    if(type == rocfft_array_type_hermitian_planar)
+        contiguous_type = rocfft_array_type_hermitian_interleaved;
+    return contiguous_type;
+}
+
+// Given a precision, return the acceptable tolerance.
+inline double type_epsilon(const rocfft_precision precision)
+{
+    switch(precision)
+    {
+    case rocfft_precision_single:
+        return type_epsilon<float>();
+        break;
+    case rocfft_precision_double:
+        return type_epsilon<double>();
+        break;
+    default:
+        throw std::runtime_error("Invalid precision");
+        return 0.0;
+    }
+}
+
 #endif

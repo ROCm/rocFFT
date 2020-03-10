@@ -57,6 +57,7 @@ find_package( FFTW 3.0 REQUIRED MODULE COMPONENTS FLOAT DOUBLE )
 
 set(rocfft_test_source
   gtest_main.cpp
+  accuracy_test.cpp
   accuracy_test_1D.cpp
   accuracy_test_2D.cpp
   accuracy_test_3D.cpp

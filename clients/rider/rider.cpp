@@ -23,8 +23,6 @@
 #include <iostream>
 #include <sstream>
 
-#include "./misc.h"
-
 #include "./rider.h"
 #include "rocfft.h"
 #include <boost/program_options.hpp>
@@ -167,7 +165,6 @@ int main(int argc, char* argv[])
             std::cout << " " << i;
         std::cout << "\n";
     }
-
     if(vm.count("ostride"))
     {
         std::cout << "ostride:";
@@ -176,11 +173,11 @@ int main(int argc, char* argv[])
         std::cout << "\n";
     }
 
-    if(vm.count("idist"))
+    if(idist > 0)
     {
         std::cout << "idist: " << idist << "\n";
     }
-    if(vm.count("odist"))
+    if(odist > 0)
     {
         std::cout << "odist: " << odist << "\n";
     }
@@ -203,9 +200,76 @@ int main(int argc, char* argv[])
     std::cout << std::flush;
 
     // Set default data formats if not yet specified:
+    const size_t dim     = length.size();
+    auto         ilength = length;
+    if(transformType == rocfft_transform_type_real_inverse)
+    {
+        ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
+    }
+    if(istride.size() == 0)
+    {
+        istride = compute_stride(ilength,
+                                 1,
+                                 place == rocfft_placement_inplace
+                                     && transformType == rocfft_transform_type_real_forward);
+    }
+    auto olength = length;
+    if(transformType == rocfft_transform_type_real_forward)
+    {
+        olength[dim - 1] = olength[dim - 1] / 2 + 1;
+    }
+    if(ostride.size() == 0)
+    {
+        ostride = compute_stride(olength,
+                                 1,
+                                 place == rocfft_placement_inplace
+                                     && transformType == rocfft_transform_type_real_inverse);
+    }
     check_set_iotypes(place, transformType, itype, otype);
-    check_set_iostride(place, transformType, length, itype, otype, istride, ostride);
-    set_iodist(place, transformType, length, istride, ostride, idist, odist);
+    if(idist == 0)
+    {
+        idist = set_idist(place, transformType, length, istride);
+    }
+    if(odist == 0)
+    {
+        odist = set_odist(place, transformType, length, ostride);
+    }
+
+    if(verbose > 0)
+    {
+        std::cout << "FFT  params:\n";
+        std::cout << "\tilength:";
+        for(auto i : ilength)
+            std::cout << " " << i;
+        std::cout << "\n";
+        std::cout << "\tistride:";
+        for(auto i : istride)
+            std::cout << " " << i;
+        std::cout << "\n";
+        std::cout << "\tidist: " << idist << std::endl;
+
+        std::cout << "\tolength:";
+        for(auto i : olength)
+            std::cout << " " << i;
+        std::cout << "\n";
+        std::cout << "\tostride:";
+        for(auto i : ostride)
+            std::cout << " " << i;
+        std::cout << "\n";
+        std::cout << "\todist: " << odist << std::endl;
+    }
+
+    // Create column-major parameters for rocFFT:
+    auto length_cm  = length;
+    auto istride_cm = istride;
+    auto ostride_cm = ostride;
+    for(int idx = 0; idx < dim / 2; ++idx)
+    {
+        const auto toidx = dim - idx - 1;
+        std::swap(istride_cm[idx], istride_cm[toidx]);
+        std::swap(ostride_cm[idx], ostride_cm[toidx]);
+        std::swap(length_cm[idx], length_cm[toidx]);
+    }
 
     // Create FFT description
     rocfft_plan_description desc = NULL;
@@ -215,18 +279,18 @@ int main(int argc, char* argv[])
                                                         otype,
                                                         ioffset.data(),
                                                         ooffset.data(),
-                                                        istride.size(),
-                                                        istride.data(),
+                                                        istride_cm.size(),
+                                                        istride_cm.data(),
                                                         idist,
-                                                        ostride.size(),
-                                                        ostride.data(),
+                                                        ostride_cm.size(),
+                                                        ostride_cm.data(),
                                                         odist),
                 "rocfft_plan_description_data_layout failed");
 
     // Create the plan
     rocfft_plan plan = NULL;
     rocfft_plan_create(
-        &plan, place, transformType, precision, length.size(), length.data(), nbatch, desc);
+        &plan, place, transformType, precision, length_cm.size(), length_cm.data(), nbatch, desc);
 
     // Get work buffer size and allocated info-associated work buffer is necessary
     size_t workBufferSize = 0;
@@ -242,12 +306,19 @@ int main(int argc, char* argv[])
     }
 
     // Input data:
-    const std::vector<std::vector<char>> input
-        = compute_input(precision, itype, length, istride, idist, nbatch);
+    const auto input = compute_input(precision, itype, length, istride, idist, nbatch);
+
+    if(verbose > 1)
+    {
+        std::cout << "GPU input:\n";
+        printbuffer(precision, itype, input, ilength, istride, nbatch, idist);
+    }
 
     // GPU input and output buffers:
     std::vector<void*> ibuffer = alloc_buffer(precision, itype, idist, nbatch);
-    std::vector<void*> obuffer = alloc_buffer(precision, otype, odist, nbatch);
+    std::vector<void*> obuffer = (place == rocfft_placement_inplace)
+                                     ? ibuffer
+                                     : alloc_buffer(precision, otype, odist, nbatch);
 
     // Run the transform several times and record the execution time:
     std::vector<double> gpu_time(ntrial);
@@ -277,6 +348,18 @@ int main(int argc, char* argv[])
         float time;
         hipEventElapsedTime(&time, start, stop);
         gpu_time[itrial] = time;
+
+        if(verbose > 2)
+        {
+            auto output = allocate_host_buffer(precision, otype, olength, ostride, odist, nbatch);
+            for(int idx = 0; idx < output.size(); ++idx)
+            {
+                hipMemcpy(
+                    output[idx].data(), obuffer[idx], output[idx].size(), hipMemcpyDeviceToHost);
+            }
+            std::cout << "GPU output:\n";
+            printbuffer(precision, otype, output, olength, ostride, nbatch, odist);
+        }
     }
 
     std::cout << "\nExecution gpu time:";

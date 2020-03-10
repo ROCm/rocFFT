@@ -27,27 +27,6 @@
 #include <fftw3.h>
 #include <vector>
 
-enum data_pattern
-{
-    impulse,
-    sawtooth,
-    value,
-    erratic
-};
-
-enum fftw_direction
-{
-    forward  = -1,
-    backward = +1
-};
-
-enum fftw_transform_type
-{
-    c2c,
-    r2c,
-    c2r
-};
-
 // Function to return maximum error for float and double types.
 template <typename Tfloat>
 inline double type_epsilon();
@@ -300,5 +279,25 @@ inline typename fftw_trait<double>::fftw_plan_type
 {
     return fftw_plan_guru64_dft_c2r(rank, dims, howmany_rank, howmany_dims, in, out, flags);
 }
+
+// Allocator / deallocator for FFTW arrays.
+template <typename Tdata>
+class fftwAllocator : public std::allocator<Tdata>
+{
+public:
+    template <typename U>
+    struct rebind
+    {
+        typedef fftwAllocator other;
+    };
+    Tdata* allocate(size_t n)
+    {
+        return (Tdata*)fftw_malloc(sizeof(Tdata) * n);
+    }
+    void deallocate(Tdata* data, std::size_t size)
+    {
+        fftw_free(data);
+    }
+};
 
 #endif

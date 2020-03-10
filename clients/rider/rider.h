@@ -1,6 +1,22 @@
-/*******************************************************************************
- * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
- ******************************************************************************/
+// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
 
 #ifndef RIDER_H
 #define RIDER_H
@@ -9,37 +25,59 @@
 #include <hip/hip_runtime_api.h>
 #include <vector>
 
-#include "misc.h"
+#include "../client_utils.h"
 #include "rocfft.h"
 
-// Given a length vector, set the rest of the strides.
-// The optional argument stride1 is useful for setting contiguous-ish data for in-place
-// real/complex transforms.
-template <class T>
-std::vector<T> contiguous_stride(const std::vector<T>& length, const int stride1 = 0)
+// This is used to either wrap a HIP function call, or to explicitly check a variable
+// for an error condition.  If an error occurs, we throw.
+// Note: std::runtime_error does not take unicode strings as input, so only strings
+// supported
+inline hipError_t
+    hip_V_Throw(hipError_t res, const std::string& msg, size_t lineno, const std::string& fileName)
 {
-    std::vector<T> stride;
-    stride.push_back(1);
-    if(stride1 == 0)
+    if(res != hipSuccess)
     {
-        for(auto i = 1; i < length.size(); ++i)
-        {
-            stride.push_back(stride[i - 1] * length[i - 1]);
-        }
+        std::stringstream tmp;
+        tmp << "HIP_V_THROWERROR< ";
+        tmp << res;
+        tmp << " > (";
+        tmp << fileName;
+        tmp << " Line: ";
+        tmp << lineno;
+        tmp << "): ";
+        tmp << msg;
+        std::string errorm(tmp.str());
+        std::cout << errorm << std::endl;
+        throw std::runtime_error(errorm);
     }
-    else
-    {
-        if(length.size() > 1)
-        {
-            stride.push_back(stride1);
-        }
-        for(auto i = 2; i < length.size(); ++i)
-        {
-            stride.push_back(stride[i - 1] * length[i - 1]);
-        }
-    }
-    return stride;
+    return res;
 }
+
+inline rocfft_status lib_V_Throw(rocfft_status      res,
+                                 const std::string& msg,
+                                 size_t             lineno,
+                                 const std::string& fileName)
+{
+    if(res != rocfft_status_success)
+    {
+        std::stringstream tmp;
+        tmp << "LIB_V_THROWERROR< ";
+        tmp << res;
+        tmp << " > (";
+        tmp << fileName;
+        tmp << " Line: ";
+        tmp << lineno;
+        tmp << "): ";
+        tmp << msg;
+        std::string errorm(tmp.str());
+        std::cout << errorm << std::endl;
+        throw std::runtime_error(errorm);
+    }
+    return res;
+}
+
+#define HIP_V_THROW(_status, _message) hip_V_Throw(_status, _message, __LINE__, __FILE__)
+#define LIB_V_THROW(_status, _message) lib_V_Throw(_status, _message, __LINE__, __FILE__)
 
 // Check that the input and output types are consistent.
 void check_iotypes(const rocfft_result_placement place,
@@ -207,11 +245,11 @@ void check_set_iostride(const rocfft_result_placement place,
         // If the strides are empty, we use contiguous data.
         if(istride.empty())
         {
-            istride = contiguous_stride(length);
+            istride = compute_stride(length);
         }
         if(ostride.empty())
         {
-            ostride = contiguous_stride(length);
+            ostride = compute_stride(length);
         }
     }
     else
@@ -260,12 +298,12 @@ void check_set_iostride(const rocfft_result_placement place,
             if(forward)
             {
                 // real data
-                istride = contiguous_stride(length, inplace ? clength[0] * 2 : 0);
+                istride = compute_stride(length, inplace ? clength[0] * 2 : 0);
             }
             else
             {
                 // complex data
-                istride = contiguous_stride(clength);
+                istride = compute_stride(clength);
             }
         }
 
@@ -274,12 +312,12 @@ void check_set_iostride(const rocfft_result_placement place,
             if(forward)
             {
                 // complex data
-                ostride = contiguous_stride(clength);
+                ostride = compute_stride(clength);
             }
             else
             {
                 // real data
-                ostride = contiguous_stride(length, inplace ? clength[0] * 2 : 0);
+                ostride = compute_stride(length, inplace ? clength[0] * 2 : 0);
             }
         }
     }
@@ -292,457 +330,6 @@ void check_set_iostride(const rocfft_result_placement place,
     {
         throw std::runtime_error("Setup failed; inconsistent ostride and length.");
     }
-}
-
-// Set the input and output distance for batched transforms, if not already set.
-void set_iodist(const rocfft_result_placement place,
-                const rocfft_transform_type   transformType,
-                const std::vector<size_t>&    length,
-                const std::vector<size_t>&    istride,
-                const std::vector<size_t>&    ostride,
-                size_t&                       idist,
-                size_t&                       odist)
-{
-    if(idist == 0)
-    {
-        if(transformType == rocfft_transform_type_real_inverse && length.size() == 1)
-        {
-            idist = length[0] / 2 + 1;
-        }
-        else
-        {
-            idist = length[length.size() - 1] * istride[istride.size() - 1];
-        }
-
-        // in-place 1D transforms need extra dist.
-        if(transformType == rocfft_transform_type_real_forward && length.size() == 1
-           && place == rocfft_placement_inplace)
-        {
-            idist += 2;
-        }
-    }
-
-    if(odist == 0)
-    {
-        if(transformType == rocfft_transform_type_real_forward && length.size() == 1)
-        {
-            odist = length[0] / 2 + 1;
-        }
-        else
-        {
-            odist = length[length.size() - 1] * ostride[ostride.size() - 1];
-        }
-
-        // in-place 1D transforms need extra dist.
-        if(transformType == rocfft_transform_type_real_inverse && length.size() == 1
-           && place == rocfft_placement_inplace)
-        {
-            odist += 2;
-        }
-    }
-}
-
-// Given a data type, a dist, and a batch size, return the required device buffer size.
-template <class Tfloat>
-size_t bufsize(const rocfft_array_type type, const size_t dist, const size_t nbatch)
-{
-    size_t size = dist * nbatch;
-    switch(type)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_hermitian_interleaved:
-        size *= sizeof(std::complex<Tfloat>);
-        break;
-    default:
-        size *= sizeof(Tfloat);
-    }
-    return size;
-}
-
-// Given a data type and precision, the distance between batches, and the batch size,
-// allocate the required device buffer(s).
-std::vector<void*> alloc_buffer(const rocfft_precision  precision,
-                                const rocfft_array_type type,
-                                const size_t            dist,
-                                const size_t            nbatch)
-{
-    size_t size = precision == rocfft_precision_double ? bufsize<double>(type, dist, nbatch)
-                                                       : bufsize<float>(type, dist, nbatch);
-
-    unsigned number_of_buffers = 0;
-    switch(type)
-    {
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_planar:
-        number_of_buffers = 2;
-        break;
-    default:
-        number_of_buffers = 1;
-    }
-
-    std::vector<void*> buffer;
-    for(unsigned i = 0; i < number_of_buffers; i++)
-    {
-        buffer.push_back(NULL);
-        HIP_V_THROW(hipMalloc(&buffer[i], size), "hipMalloc failed");
-    }
-
-    return buffer;
-}
-
-// Given a buffer of complex values stored in a vector of chars (or two vectors in the
-// case of planar format), impose Hermitian symmetry.
-// NB: length is the dimensions of the FFT, not the data layout dimensions.
-template <class Tfloat>
-void impose_hermitian_symmetry(std::vector<std::vector<char>>& vals,
-                               const std::vector<size_t>&      length,
-                               const std::vector<size_t>&      istride,
-                               const size_t                    idist,
-                               const size_t                    nbatch)
-{
-
-    // NB: the fall-through algorithm only works with row-major data, so we reverse the
-    // indices here.
-    std::vector<size_t> rlength(length.size());
-    std::vector<size_t> ristride(istride.size());
-    for(int i = 0; i < length.size(); ++i)
-    {
-        rlength[i]  = length[length.size() - i - 1];
-        ristride[i] = istride[istride.size() - i - 1];
-    }
-
-    switch(vals.size())
-    {
-    case 1:
-    {
-        // Complex interleaved data
-        for(int ibatch = 0; ibatch < nbatch; ++ibatch)
-        {
-            auto data = ((std::complex<Tfloat>*)vals[0].data()) + ibatch * idist;
-            switch(length.size())
-            {
-
-            case 3:
-                if(rlength[2] % 2 == 0)
-                {
-                    data[ristride[2] * (rlength[2] / 2)].imag(0.0);
-                }
-                if(rlength[0] % 2 == 0 && rlength[2] % 2 == 0)
-                {
-                    data[ristride[0] * (rlength[0] / 2) + ristride[2] * (rlength[2] / 2)].imag(0.0);
-                }
-                if(rlength[1] % 2 == 0 && rlength[2] % 2 == 0)
-                {
-                    data[ristride[1] * (rlength[1] / 2) + ristride[2] * (rlength[2] / 2)].imag(0.0);
-                }
-
-                if(rlength[0] % 2 == 0 && rlength[1] % 2 == 0 && rlength[2] % 2 == 0)
-                {
-                    data[ristride[0] * (rlength[0] / 2) + ristride[1] * (rlength[1] / 2)
-                         + ristride[2] * (rlength[2] / 2)]
-                        .imag(0.0);
-                }
-
-                // y-axis:
-                for(int j = 1; j < (rlength[1] + 1) / 2; ++j)
-                {
-                    data[ristride[1] * (rlength[1] - j)] = std::conj(data[ristride[1] * j]);
-                }
-
-                if(rlength[1] % 2 == 0)
-                {
-                    // x-axis:
-                    for(int i = 1; i < (rlength[0] + 1) / 2; ++i)
-                    {
-                        data[ristride[0] * (rlength[0] - i) + ristride[1] * (rlength[1] / 2)]
-                            = std::conj(data[ristride[0] * i + ristride[1] * (rlength[1] / 2)]);
-                    }
-                }
-
-                if(rlength[0] % 2 == 0)
-                {
-                    for(int j = 1; j < (rlength[1] + 1) / 2; ++j)
-                    {
-                        data[ristride[1] * (rlength[1] - j)] = std::conj(data[ristride[1] * j]);
-                    }
-                }
-
-                if(rlength[1] % 2 == 0)
-                {
-                    for(int i = 1; i < (rlength[0] + 1) / 2; ++i)
-                    {
-                        data[ristride[0] * (rlength[0] - i)] = std::conj(data[ristride[0] * i]);
-                    }
-                }
-
-                // x-y plane:
-                for(int i = 1; i < (rlength[0] + 1) / 2; ++i)
-                {
-                    for(int j = 1; j < rlength[1]; ++j)
-                    {
-                        data[ristride[0] * (rlength[0] - i) + ristride[1] * (rlength[1] - j)]
-                            = std::conj(data[ristride[0] * i + ristride[1] * j]);
-                    }
-                }
-
-                if(rlength[2] % 2 == 0)
-                {
-                    // x-axis:
-                    for(int i = 1; i < (rlength[0] + 1) / 2; ++i)
-                    {
-                        data[ristride[0] * (rlength[0] - i) + ristride[2] * (rlength[2] / 2)]
-                            = std::conj(data[ristride[0] * i + ristride[2] * (rlength[2] / 2)]);
-                    }
-
-                    // y-axis:
-                    for(int j = 1; j < (length[1] + 1) / 2; ++j)
-                    {
-                        data[ristride[1] * (length[1] - j) + ristride[2] * (rlength[2] / 2)]
-                            = std::conj(data[ristride[1] * j + ristride[2] * (rlength[2] / 2)]);
-                    }
-
-                    if(rlength[0] % 2 == 0)
-                    {
-                        for(int j = 1; j < (rlength[1] + 1) / 2; ++j)
-                        {
-                            data[ristride[1] * (rlength[1] - j) + ristride[2] * (rlength[2] / 2)]
-                                = std::conj(data[ristride[1] * j + ristride[2] * (rlength[2] / 2)]);
-                        }
-                    }
-                    if(rlength[1] % 2 == 0)
-                    {
-                        for(int i = 1; i < (rlength[0] + 1) / 2; ++i)
-                        {
-                            data[ristride[0] * (rlength[0] - i) + ristride[2] * (rlength[2] / 2)]
-                                = std::conj(data[ristride[0] * i + ristride[2] * (rlength[2] / 2)]);
-                        }
-                    }
-
-                    // x-y plane:
-                    for(int i = 1; i < (rlength[0] + 1) / 2; ++i)
-                    {
-                        for(int j = 1; j < rlength[1]; ++j)
-                        {
-                            data[ristride[0] * (rlength[0] - i) + ristride[1] * (rlength[1] - j)
-                                 + ristride[2] * (rlength[2] / 2)]
-                                = std::conj(data[ristride[0] * i + ristride[1] * j
-                                                 + ristride[2] * (rlength[2] / 2)]);
-                        }
-                    }
-                }
-
-                // fall-through
-
-            case 2:
-
-                if(rlength[1] % 2 == 0)
-                {
-                    data[ristride[1] * (rlength[1] / 2)].imag(0.0);
-                }
-
-                if(rlength[0] % 2 == 0 && rlength[1] % 2 == 0)
-                {
-                    data[ristride[0] * (rlength[0] / 2) + ristride[1] * (rlength[1] / 2)].imag(0.0);
-                }
-
-                for(int i = 1; i < (rlength[0] + 1) / 2; ++i)
-                {
-                    data[ristride[0] * (rlength[0] - i)] = std::conj(data[ristride[0] * i]);
-                }
-
-                if(rlength[1] % 2 == 0)
-                {
-                    for(int i = 1; i < (rlength[0] + 1) / 2; ++i)
-                    {
-                        data[ristride[0] * (rlength[0] - i) + ristride[1] * (rlength[1] / 2)]
-                            = std::conj(data[ristride[0] * i + ristride[1] * (rlength[1] / 2)]);
-                    }
-                }
-
-                // fall-through
-
-            case 1:
-                data[0].imag(0.0);
-
-                if(rlength[0] % 2 == 0)
-                {
-                    data[ristride[0] * (rlength[0] / 2)].imag(0.0);
-                }
-                break;
-
-            default:
-                throw std::runtime_error("Invalid dimension for imposeHermitianSymmetry");
-                break;
-            }
-        }
-        break;
-    }
-    case 2:
-    {
-        // Complex planar data
-        for(int ibatch = 0; ibatch < nbatch; ++ibatch)
-        {
-            auto rdata = ((Tfloat*)vals[0].data()) + ibatch * idist;
-            auto idata = ((Tfloat*)vals[1].data()) + ibatch * idist;
-            switch(length.size())
-            {
-            case 3:
-                // FIXME: implement
-            case 2:
-                // FIXME: implement
-
-            case 1:
-                idata[0] = 0.0;
-                if(length[0] % 2 == 0)
-                {
-                    idata[istride[0] * (length[0] / 2)] = 0.0;
-                }
-                break;
-            default:
-                throw std::runtime_error("Invalid dimension for imposeHermitianSymmetry");
-                break;
-            }
-        }
-        break;
-    }
-    default:
-        throw std::runtime_error("Invalid data type");
-        break;
-    }
-}
-
-// Given an array type and transform length, strides, etc, load random floats in [0,1]
-// into the input array of floats/doubles or complex floats/doubles, which is stored in a
-// vector of chars (or two vectors in the case of planar format).
-template <class Tfloat>
-void set_input(std::vector<std::vector<char>>& input,
-               const rocfft_array_type         itype,
-               const std::vector<size_t>&      length,
-               const std::vector<size_t>&      istride,
-               const size_t                    idist,
-               const size_t                    nbatch)
-{
-    switch(itype)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_hermitian_interleaved:
-    {
-        auto idata = (std::complex<Tfloat>*)input[0].data();
-        for(size_t b = 0; b < nbatch; b++)
-        {
-            std::vector<int> index(length.size());
-            do
-            {
-                const int i
-                    = std::inner_product(index.begin(), index.end(), istride.begin(), b * idist);
-                const std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
-                                               (Tfloat)rand() / (Tfloat)RAND_MAX);
-                idata[i] = val;
-            } while(increment_colmajor(index, length));
-        }
-        break;
-    }
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_planar:
-    {
-        auto ireal = (Tfloat*)input[0].data();
-        auto iimag = (Tfloat*)input[1].data();
-        for(size_t b = 0; b < nbatch; b++)
-        {
-            std::vector<int> index(length.size());
-            do
-            {
-                const int i
-                    = std::inner_product(index.begin(), index.end(), istride.begin(), b * idist);
-                const std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
-                                               (Tfloat)rand() / (Tfloat)RAND_MAX);
-                ireal[i] = val.real();
-                iimag[i] = val.imag();
-            } while(increment_colmajor(index, length));
-        }
-        break;
-    }
-    case rocfft_array_type_real:
-    {
-        auto idata = (Tfloat*)input[0].data();
-        for(size_t b = 0; b < nbatch; b++)
-        {
-            std::vector<int> index(length.size());
-            do
-            {
-                const int i
-                    = std::inner_product(index.begin(), index.end(), istride.begin(), b * idist);
-                const Tfloat val = (Tfloat)rand() / (Tfloat)RAND_MAX;
-                idata[i]         = val;
-            } while(increment_colmajor(index, length));
-        }
-        break;
-    }
-    default:
-        throw std::runtime_error("Input layout format not yet supported");
-        break;
-    }
-}
-
-// Given a data type and dimensions, fill the buffer, imposing Hermitian symmetry if
-// necessary.
-// NB: length is the logical size of the FFT, and not necessarily the data dimensions
-std::vector<std::vector<char>> compute_input(const rocfft_precision     precision,
-                                             const rocfft_array_type    itype,
-                                             const std::vector<size_t>& length,
-                                             const std::vector<size_t>& istride,
-                                             const size_t               idist,
-                                             const size_t               nbatch)
-{
-
-    const int ninput
-        = (itype == rocfft_array_type_complex_planar || itype == rocfft_array_type_hermitian_planar)
-              ? 2
-              : 1;
-
-    std::vector<std::vector<char>> input(ninput);
-
-    const bool iscomplex = (itype == rocfft_array_type_complex_interleaved
-                            || itype == rocfft_array_type_hermitian_interleaved);
-
-    const size_t isize = idist * nbatch * (iscomplex ? 2 : 1)
-                         * (precision == rocfft_precision_double ? sizeof(double) : sizeof(float));
-
-    for(auto& i : input)
-    {
-        i.resize(isize);
-        std::fill(i.begin(), i.end(), 0.0);
-    }
-
-    std::vector<size_t> ilength = length;
-    if(itype == rocfft_array_type_complex_interleaved
-       || itype == rocfft_array_type_hermitian_interleaved)
-    {
-        ilength[0] = length[0] / 2 + 1;
-    }
-
-    if(precision == rocfft_precision_double)
-    {
-        set_input<double>(input, itype, ilength, istride, idist, nbatch);
-    }
-    else
-    {
-        set_input<float>(input, itype, ilength, istride, idist, nbatch);
-    }
-
-    if(itype == rocfft_array_type_hermitian_interleaved
-       || itype == rocfft_array_type_hermitian_planar)
-    {
-        if(precision == rocfft_precision_double)
-        {
-            impose_hermitian_symmetry<double>(input, length, istride, idist, nbatch);
-        }
-        else
-        {
-            impose_hermitian_symmetry<float>(input, length, istride, idist, nbatch);
-        }
-    }
-    return input;
 }
 
 #endif // RIDER_H

@@ -52,9 +52,9 @@ set( rider_list rocfft-rider dyna-rocfft-rider )
 foreach( rider ${rider_list})
   
   if(${rider} STREQUAL "rocfft-rider")
-    add_executable( ${rider} rider.cpp rider.h misc.h )
+    add_executable( ${rider} rider.cpp rider.h )
   else()
-    add_executable( ${rider} dyna-rider.cpp rider.h misc.h )
+    add_executable( ${rider} dyna-rider.cpp rider.h )
   endif()
 
   target_compile_features( ${rider}
