@@ -169,15 +169,40 @@ inline std::vector<std::vector<char, Tallocator>>
     }
 }
 
-// Given a rocfft_array_type, return the non-planar version.
-inline rocfft_array_type make_type_contiguous(const rocfft_array_type type)
+// Given a transform type, return the contiguous input type.
+inline rocfft_array_type contiguous_itype(const rocfft_transform_type transformType)
 {
-    auto contiguous_type = type;
-    if(type == rocfft_array_type_complex_planar)
-        contiguous_type = rocfft_array_type_complex_interleaved;
-    if(type == rocfft_array_type_hermitian_planar)
-        contiguous_type = rocfft_array_type_hermitian_interleaved;
-    return contiguous_type;
+    switch(transformType)
+    {
+    case rocfft_transform_type_complex_forward:
+    case rocfft_transform_type_complex_inverse:
+        return rocfft_array_type_complex_interleaved;
+    case rocfft_transform_type_real_forward:
+        return rocfft_array_type_real;
+    case rocfft_transform_type_real_inverse:
+        return rocfft_array_type_hermitian_interleaved;
+    default:
+        throw std::runtime_error("Invalid transform type");
+    }
+    return rocfft_array_type_complex_interleaved;
+}
+
+// Given a transform type, return the contiguous output type.
+inline rocfft_array_type contiguous_otype(const rocfft_transform_type transformType)
+{
+    switch(transformType)
+    {
+    case rocfft_transform_type_complex_forward:
+    case rocfft_transform_type_complex_inverse:
+        return rocfft_array_type_complex_interleaved;
+    case rocfft_transform_type_real_forward:
+        return rocfft_array_type_hermitian_interleaved;
+    case rocfft_transform_type_real_inverse:
+        return rocfft_array_type_real;
+    default:
+        throw std::runtime_error("Invalid transform type");
+    }
+    return rocfft_array_type_complex_interleaved;
 }
 
 // Given a precision, return the acceptable tolerance.
