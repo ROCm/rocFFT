@@ -30,93 +30,6 @@
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
 
-// Print the test parameters
-void print_params(const std::vector<size_t>&    length,
-                  const size_t                  istride0,
-                  const size_t                  ostride0,
-                  const size_t                  nbatch,
-                  const rocfft_result_placement place,
-                  const rocfft_precision        precision,
-                  const rocfft_transform_type   transformType,
-                  const rocfft_array_type       itype,
-                  const rocfft_array_type       otype)
-{
-    std::cout << "length:";
-    for(const auto& i : length)
-        std::cout << " " << i;
-    std::cout << "\n";
-    std::cout << "istride0: " << istride0 << "\n";
-    std::cout << "ostride0: " << ostride0 << "\n";
-    std::cout << "nbatch: " << nbatch << "\n";
-    if(place == rocfft_placement_inplace)
-        std::cout << "in-place\n";
-    else
-        std::cout << "out-of-place\n";
-    if(precision == rocfft_precision_single)
-        std::cout << "single-precision\n";
-    else
-        std::cout << "double-precision\n";
-    switch(transformType)
-    {
-    case rocfft_transform_type_complex_forward:
-        std::cout << "complex forward:\t";
-        break;
-    case rocfft_transform_type_complex_inverse:
-        std::cout << "complex inverse:\t";
-        break;
-    case rocfft_transform_type_real_forward:
-        std::cout << "real forward:\t";
-        break;
-    case rocfft_transform_type_real_inverse:
-        std::cout << "real inverse:\t";
-        break;
-    }
-    switch(itype)
-    {
-    case rocfft_array_type_complex_interleaved:
-        std::cout << "rocfft_array_type_complex_interleaved";
-        break;
-    case rocfft_array_type_complex_planar:
-        std::cout << "rocfft_array_type_complex_planar";
-        break;
-    case rocfft_array_type_real:
-        std::cout << "rocfft_array_type_real";
-        break;
-    case rocfft_array_type_hermitian_interleaved:
-        std::cout << "rocfft_array_type_hermitian_interleaved";
-        break;
-    case rocfft_array_type_hermitian_planar:
-        std::cout << "rocfft_array_type_hermitian_planar";
-        break;
-    case rocfft_array_type_unset:
-        std::cout << "rocfft_array_type_unset";
-        break;
-    }
-    std::cout << " -> ";
-    switch(otype)
-    {
-    case rocfft_array_type_complex_interleaved:
-        std::cout << "rocfft_array_type_complex_interleaved";
-        break;
-    case rocfft_array_type_complex_planar:
-        std::cout << "rocfft_array_type_complex_planar";
-        break;
-    case rocfft_array_type_real:
-        std::cout << "rocfft_array_type_real";
-        break;
-    case rocfft_array_type_hermitian_interleaved:
-        std::cout << "rocfft_array_type_hermitian_interleaved";
-        break;
-    case rocfft_array_type_hermitian_planar:
-        std::cout << "rocfft_array_type_hermitian_planar";
-        break;
-    case rocfft_array_type_unset:
-        std::cout << "rocfft_array_type_unset";
-        break;
-    }
-    std::cout << std::endl;
-}
-
 // Compute a FFT using rocFFT and compare with the provided CPU reference computation.
 void rocfft_transform(const std::vector<size_t>                                  length,
                       const size_t                                               istride0,
@@ -482,7 +395,7 @@ TEST_P(accuracy_test, vs_fftw)
 
     const size_t dim = length.size();
 
-    // Input data:
+    // Input cpu parameters:
     auto ilength = length;
     if(transformType == rocfft_transform_type_real_inverse)
         ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
@@ -491,6 +404,7 @@ TEST_P(accuracy_test, vs_fftw)
     const auto cpu_idist
         = set_idist(rocfft_placement_notinplace, transformType, length, cpu_istride);
 
+    // Output cpu parameters:
     auto olength = length;
     if(transformType == rocfft_transform_type_real_forward)
         olength[dim - 1] = olength[dim - 1] / 2 + 1;
