@@ -381,15 +381,13 @@ void rocfft_transform(const std::vector<size_t>                                 
 // Test for comparison between FFTW and rocFFT.
 TEST_P(accuracy_test, vs_fftw)
 {
-    const std::vector<size_t>   length         = std::get<0>(GetParam());
-    const std::vector<size_t>   istride0_range = std::get<1>(GetParam());
-    const std::vector<size_t>   ostride0_range = std::get<2>(GetParam());
-    const std::vector<size_t>   batch_range    = std::get<3>(GetParam());
-    const rocfft_precision      precision      = std::get<4>(GetParam());
-    const rocfft_transform_type transformType  = std::get<5>(GetParam());
-    const std::vector<std::pair<rocfft_array_type, rocfft_array_type>> iotypes
-        = std::get<6>(GetParam());
-    const std::vector<rocfft_result_placement> place_range = std::get<7>(GetParam());
+    const std::vector<size_t>                  length         = std::get<0>(GetParam());
+    const std::vector<size_t>                  istride0_range = std::get<1>(GetParam());
+    const std::vector<size_t>                  ostride0_range = std::get<2>(GetParam());
+    const std::vector<size_t>                  batch_range    = std::get<3>(GetParam());
+    const rocfft_precision                     precision      = std::get<4>(GetParam());
+    const rocfft_transform_type                transformType  = std::get<5>(GetParam());
+    const std::vector<rocfft_result_placement> place_range    = std::get<6>(GetParam());
 
     // NB: Input data is row-major.
 
@@ -491,12 +489,12 @@ TEST_P(accuracy_test, vs_fftw)
     // Set up GPU computations:
     for(const auto nbatch : batch_range)
     {
-        for(const auto iotype : iotypes)
+        for(const auto place : place_range)
         {
-            const rocfft_array_type itype = iotype.first;
-            const rocfft_array_type otype = iotype.second;
-            for(const auto place : place_range)
+            for(const auto iotype : iotypes(transformType, place))
             {
+                const rocfft_array_type itype = iotype.first;
+                const rocfft_array_type otype = iotype.second;
                 for(const auto istride0 : istride0_range)
                 {
                     for(const auto ostride0 : ostride0_range)

@@ -137,15 +137,14 @@ inline void print_params(const std::vector<size_t>&    length,
 }
 
 // Base gtest class for comparison with FFTW.
-class accuracy_test : public ::testing::TestWithParam<
-                          std::tuple<std::vector<size_t>, // length
-                                     std::vector<size_t>, // istride
-                                     std::vector<size_t>, // ostride
-                                     std::vector<size_t>, // batch
-                                     rocfft_precision,
-                                     rocfft_transform_type,
-                                     std::vector<std::pair<rocfft_array_type, rocfft_array_type>>,
-                                     std::vector<rocfft_result_placement>>>
+class accuracy_test
+    : public ::testing::TestWithParam<std::tuple<std::vector<size_t>, // length
+                                                 std::vector<size_t>, // istride
+                                                 std::vector<size_t>, // ostride
+                                                 std::vector<size_t>, // batch
+                                                 rocfft_precision,
+                                                 rocfft_transform_type,
+                                                 std::vector<rocfft_result_placement>>>
 {
 protected:
     void SetUp() override
@@ -198,7 +197,7 @@ inline std::vector<std::vector<size_t>>
 
 // Return the valid rocFFT input and output types for a given transform type.
 inline std::vector<std::pair<rocfft_array_type, rocfft_array_type>>
-    iotypes(const rocfft_transform_type transformType)
+    iotypes(const rocfft_transform_type transformType, const rocfft_result_placement place)
 {
     std::vector<std::pair<rocfft_array_type, rocfft_array_type>> iotypes;
     switch(transformType)
@@ -208,23 +207,32 @@ inline std::vector<std::pair<rocfft_array_type, rocfft_array_type>>
         iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
             rocfft_array_type_complex_interleaved, rocfft_array_type_complex_interleaved));
         iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
-            rocfft_array_type_complex_planar, rocfft_array_type_complex_interleaved));
-        iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
-            rocfft_array_type_complex_interleaved, rocfft_array_type_complex_planar));
-        iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
             rocfft_array_type_complex_planar, rocfft_array_type_complex_planar));
+        if(place == rocfft_placement_notinplace)
+        {
+            iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
+                rocfft_array_type_complex_planar, rocfft_array_type_complex_interleaved));
+            iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
+                rocfft_array_type_complex_interleaved, rocfft_array_type_complex_planar));
+        }
         break;
     case rocfft_transform_type_real_forward:
         iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
             rocfft_array_type_real, rocfft_array_type_hermitian_interleaved));
-        iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
-            rocfft_array_type_real, rocfft_array_type_hermitian_planar));
+        if(place == rocfft_placement_notinplace)
+        {
+            iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
+                rocfft_array_type_real, rocfft_array_type_hermitian_planar));
+        }
         break;
     case rocfft_transform_type_real_inverse:
         iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
             rocfft_array_type_hermitian_interleaved, rocfft_array_type_real));
-        iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
-            rocfft_array_type_hermitian_planar, rocfft_array_type_real));
+        if(place == rocfft_placement_notinplace)
+        {
+            iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
+                rocfft_array_type_hermitian_planar, rocfft_array_type_real));
+        }
         break;
     default:
         throw std::runtime_error("Invalid transform type");
