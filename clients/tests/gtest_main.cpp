@@ -63,7 +63,7 @@ int main(int argc, char* argv[])
     po::options_description opdesc("rocFFT Runtime Test command line options");
     opdesc.add_options()("help,h", "produces this help message")(
         "verbose,v",
-        po::value<int>()->default_value(0)->implicit_value(1),
+        po::value<int>()->default_value(0),
         "print out detailed information for the tests.")
         ("transformType,t", po::value<rocfft_transform_type>(&transformType)
          ->default_value(rocfft_transform_type_complex_forward),
