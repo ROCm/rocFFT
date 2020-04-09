@@ -79,7 +79,7 @@ bool plotxval(real x) {
 
 real nkernels(real N)
 {
-    // rocfft-rider-d  -x $(asy -c "2^27") -y 1 -z 1 -N 1 --double -b 1 --device 0 --transformType 0 --inArrType 0 --outArrType 0 | grep KERNEL | wc -l
+    // rocfft-rider-d  --length $(asy -c "2^27") | grep KERNEL | wc -l
     // Number of kernels for c2c 1D transforms.
     if (N <= 2^11)
         return 1.0;

@@ -1416,4 +1416,128 @@ inline std::vector<std::vector<char, Allocator>> compute_input(const rocfft_prec
     return input;
 }
 
+// Check that the input and output types are consistent.
+inline void check_iotypes(const rocfft_result_placement place,
+                          const rocfft_transform_type   transformType,
+                          const rocfft_array_type       itype,
+                          const rocfft_array_type       otype)
+{
+    switch(itype)
+    {
+    case rocfft_array_type_complex_interleaved:
+    case rocfft_array_type_complex_planar:
+    case rocfft_array_type_hermitian_interleaved:
+    case rocfft_array_type_hermitian_planar:
+    case rocfft_array_type_real:
+        break;
+    default:
+        throw std::runtime_error("Invalid Input array type format");
+    }
+
+    switch(otype)
+    {
+    case rocfft_array_type_complex_interleaved:
+    case rocfft_array_type_complex_planar:
+    case rocfft_array_type_hermitian_interleaved:
+    case rocfft_array_type_hermitian_planar:
+    case rocfft_array_type_real:
+        break;
+    default:
+        throw std::runtime_error("Invalid Input array type format");
+    }
+
+    // Check that format choices are supported
+    if(transformType != rocfft_transform_type_real_forward
+       && transformType != rocfft_transform_type_real_inverse)
+    {
+        if(place == rocfft_placement_inplace && itype != otype)
+        {
+            throw std::runtime_error(
+                "In-place transforms must have identical input and output types");
+        }
+    }
+
+    bool okformat = true;
+    switch(itype)
+    {
+    case rocfft_array_type_complex_interleaved:
+    case rocfft_array_type_complex_planar:
+        okformat = (otype == rocfft_array_type_complex_interleaved
+                    || otype == rocfft_array_type_complex_planar);
+        break;
+    case rocfft_array_type_hermitian_interleaved:
+    case rocfft_array_type_hermitian_planar:
+        okformat = otype == rocfft_array_type_real;
+        break;
+    case rocfft_array_type_real:
+        okformat = (otype == rocfft_array_type_hermitian_interleaved
+                    || otype == rocfft_array_type_hermitian_planar);
+        break;
+    default:
+        throw std::runtime_error("Invalid Input array type format");
+    }
+    switch(otype)
+    {
+    case rocfft_array_type_complex_interleaved:
+    case rocfft_array_type_complex_planar:
+    case rocfft_array_type_hermitian_interleaved:
+    case rocfft_array_type_hermitian_planar:
+    case rocfft_array_type_real:
+        break;
+    default:
+        okformat = false;
+    }
+    if(!okformat)
+    {
+        throw std::runtime_error("Invalid combination of Input/Output array type formats");
+    }
+}
+
+// Check that the input and output types are consistent.  If they are unset, assign
+// default values based on the transform type.
+inline void check_set_iotypes(const rocfft_result_placement place,
+                              const rocfft_transform_type   transformType,
+                              rocfft_array_type&            itype,
+                              rocfft_array_type&            otype)
+{
+    if(itype == rocfft_array_type_unset)
+    {
+        switch(transformType)
+        {
+        case rocfft_transform_type_complex_forward:
+        case rocfft_transform_type_complex_inverse:
+            itype = rocfft_array_type_complex_interleaved;
+            break;
+        case rocfft_transform_type_real_forward:
+            itype = rocfft_array_type_real;
+            break;
+        case rocfft_transform_type_real_inverse:
+            itype = rocfft_array_type_hermitian_interleaved;
+            break;
+        default:
+            throw std::runtime_error("Invalid transform type");
+        }
+    }
+    if(otype == rocfft_array_type_unset)
+    {
+        switch(transformType)
+        {
+        case rocfft_transform_type_complex_forward:
+        case rocfft_transform_type_complex_inverse:
+            otype = rocfft_array_type_complex_interleaved;
+            break;
+        case rocfft_transform_type_real_forward:
+            otype = rocfft_array_type_hermitian_interleaved;
+            break;
+        case rocfft_transform_type_real_inverse:
+            otype = rocfft_array_type_real;
+            break;
+        default:
+            throw std::runtime_error("Invalid transform type");
+        }
+    }
+
+    check_iotypes(place, transformType, itype, otype);
+}
+
 #endif

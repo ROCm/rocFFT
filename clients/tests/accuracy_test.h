@@ -24,30 +24,127 @@
 #define ACCURACY_TEST
 
 #include "../client_utils.h"
+#include "fftw_transform.h"
 #include "rocfft.h"
+#include "rocfft_against_fftw.h"
 #include <vector>
 
-void print_params(const std::vector<size_t>&    length,
-                  const size_t                  istride0,
-                  const size_t                  ostride0,
-                  const size_t                  nbatch,
-                  const rocfft_result_placement place,
-                  const rocfft_precision        precision,
-                  const rocfft_transform_type   transformType,
-                  const rocfft_array_type       itype,
-                  const rocfft_array_type       otype);
+// Compute the rocFFT transform and verify the accuracy against the provided CPU data.
+void rocfft_transform(const std::vector<size_t>                                  length,
+                      const size_t                                               istride0,
+                      const size_t                                               ostride0,
+                      const size_t                                               nbatch,
+                      const rocfft_precision                                     precision,
+                      const rocfft_transform_type                                transformType,
+                      const rocfft_array_type                                    itype,
+                      const rocfft_array_type                                    otype,
+                      const rocfft_result_placement                              place,
+                      const std::vector<size_t>&                                 cpu_istride,
+                      const std::vector<size_t>&                                 cpu_ostride,
+                      const size_t                                               cpu_idist,
+                      const size_t                                               cpu_odist,
+                      const rocfft_array_type                                    cpu_itype,
+                      const rocfft_array_type                                    cpu_otype,
+                      const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_input_copy,
+                      const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_output,
+                      const std::pair<double, double> cpu_output_L2Linfnorm);
+
+// Print the test parameters
+inline void print_params(const std::vector<size_t>&    length,
+                         const size_t                  istride0,
+                         const size_t                  ostride0,
+                         const size_t                  nbatch,
+                         const rocfft_result_placement place,
+                         const rocfft_precision        precision,
+                         const rocfft_transform_type   transformType,
+                         const rocfft_array_type       itype,
+                         const rocfft_array_type       otype)
+{
+    std::cout << "length:";
+    for(const auto& i : length)
+        std::cout << " " << i;
+    std::cout << "\n";
+    std::cout << "istride0: " << istride0 << "\n";
+    std::cout << "ostride0: " << ostride0 << "\n";
+    std::cout << "nbatch: " << nbatch << "\n";
+    if(place == rocfft_placement_inplace)
+        std::cout << "in-place\n";
+    else
+        std::cout << "out-of-place\n";
+    if(precision == rocfft_precision_single)
+        std::cout << "single-precision\n";
+    else
+        std::cout << "double-precision\n";
+    switch(transformType)
+    {
+    case rocfft_transform_type_complex_forward:
+        std::cout << "complex forward:\t";
+        break;
+    case rocfft_transform_type_complex_inverse:
+        std::cout << "complex inverse:\t";
+        break;
+    case rocfft_transform_type_real_forward:
+        std::cout << "real forward:\t";
+        break;
+    case rocfft_transform_type_real_inverse:
+        std::cout << "real inverse:\t";
+        break;
+    }
+    switch(itype)
+    {
+    case rocfft_array_type_complex_interleaved:
+        std::cout << "rocfft_array_type_complex_interleaved";
+        break;
+    case rocfft_array_type_complex_planar:
+        std::cout << "rocfft_array_type_complex_planar";
+        break;
+    case rocfft_array_type_real:
+        std::cout << "rocfft_array_type_real";
+        break;
+    case rocfft_array_type_hermitian_interleaved:
+        std::cout << "rocfft_array_type_hermitian_interleaved";
+        break;
+    case rocfft_array_type_hermitian_planar:
+        std::cout << "rocfft_array_type_hermitian_planar";
+        break;
+    case rocfft_array_type_unset:
+        std::cout << "rocfft_array_type_unset";
+        break;
+    }
+    std::cout << " -> ";
+    switch(otype)
+    {
+    case rocfft_array_type_complex_interleaved:
+        std::cout << "rocfft_array_type_complex_interleaved";
+        break;
+    case rocfft_array_type_complex_planar:
+        std::cout << "rocfft_array_type_complex_planar";
+        break;
+    case rocfft_array_type_real:
+        std::cout << "rocfft_array_type_real";
+        break;
+    case rocfft_array_type_hermitian_interleaved:
+        std::cout << "rocfft_array_type_hermitian_interleaved";
+        break;
+    case rocfft_array_type_hermitian_planar:
+        std::cout << "rocfft_array_type_hermitian_planar";
+        break;
+    case rocfft_array_type_unset:
+        std::cout << "rocfft_array_type_unset";
+        break;
+    }
+    std::cout << std::endl;
+}
 
 // Base gtest class for comparison with FFTW.
 class accuracy_test
     : public ::testing::TestWithParam<std::tuple<std::vector<size_t>, // length
-                                                 size_t, // istride
-                                                 size_t, // ostride
-                                                 size_t, // batch
+                                                 std::vector<size_t>, // istride
+                                                 std::vector<size_t>, // ostride
+                                                 std::vector<size_t>, // batch
                                                  rocfft_precision,
-                                                 std::tuple<rocfft_transform_type,
-                                                            rocfft_array_type,
-                                                            rocfft_array_type,
-                                                            rocfft_result_placement>>>
+                                                 rocfft_transform_type,
+                                                 std::vector<rocfft_result_placement>>>
 {
 protected:
     void SetUp() override
@@ -60,161 +157,12 @@ protected:
     }
 };
 
-// C2C direct data layout options
-const static std::vector<
-    std::
-        tuple<rocfft_transform_type, rocfft_array_type, rocfft_array_type, rocfft_result_placement>>
-    c2c_direct_range{std::make_tuple<rocfft_transform_type,
-                                     rocfft_array_type,
-                                     rocfft_array_type,
-                                     rocfft_result_placement>(rocfft_transform_type_complex_forward,
-                                                              rocfft_array_type_complex_interleaved,
-                                                              rocfft_array_type_complex_interleaved,
-                                                              rocfft_placement_inplace),
-                     std::make_tuple<rocfft_transform_type,
-                                     rocfft_array_type,
-                                     rocfft_array_type,
-                                     rocfft_result_placement>(rocfft_transform_type_complex_forward,
-                                                              rocfft_array_type_complex_interleaved,
-                                                              rocfft_array_type_complex_interleaved,
-                                                              rocfft_placement_notinplace),
-
-                     std::make_tuple<rocfft_transform_type,
-                                     rocfft_array_type,
-                                     rocfft_array_type,
-                                     rocfft_result_placement>(rocfft_transform_type_complex_forward,
-                                                              rocfft_array_type_complex_planar,
-                                                              rocfft_array_type_complex_interleaved,
-                                                              rocfft_placement_notinplace),
-                     std::make_tuple<rocfft_transform_type,
-                                     rocfft_array_type,
-                                     rocfft_array_type,
-                                     rocfft_result_placement>(rocfft_transform_type_complex_forward,
-                                                              rocfft_array_type_complex_interleaved,
-                                                              rocfft_array_type_complex_planar,
-                                                              rocfft_placement_notinplace),
-
-                     std::make_tuple<rocfft_transform_type,
-                                     rocfft_array_type,
-                                     rocfft_array_type,
-                                     rocfft_result_placement>(rocfft_transform_type_complex_forward,
-                                                              rocfft_array_type_complex_planar,
-                                                              rocfft_array_type_complex_planar,
-                                                              rocfft_placement_inplace),
-                     std::make_tuple<rocfft_transform_type,
-                                     rocfft_array_type,
-                                     rocfft_array_type,
-                                     rocfft_result_placement>(rocfft_transform_type_complex_forward,
-                                                              rocfft_array_type_complex_planar,
-                                                              rocfft_array_type_complex_planar,
-                                                              rocfft_placement_notinplace)};
-// C2C inverse data layout options
-const static std::vector<
-    std::
-        tuple<rocfft_transform_type, rocfft_array_type, rocfft_array_type, rocfft_result_placement>>
-    c2c_inverse_range{
-        std::make_tuple<rocfft_transform_type,
-                        rocfft_array_type,
-                        rocfft_array_type,
-                        rocfft_result_placement>(rocfft_transform_type_complex_inverse,
-                                                 rocfft_array_type_complex_interleaved,
-                                                 rocfft_array_type_complex_interleaved,
-                                                 rocfft_placement_inplace),
-        std::make_tuple<rocfft_transform_type,
-                        rocfft_array_type,
-                        rocfft_array_type,
-                        rocfft_result_placement>(rocfft_transform_type_complex_inverse,
-                                                 rocfft_array_type_complex_interleaved,
-                                                 rocfft_array_type_complex_interleaved,
-                                                 rocfft_placement_notinplace),
-
-        std::make_tuple<rocfft_transform_type,
-                        rocfft_array_type,
-                        rocfft_array_type,
-                        rocfft_result_placement>(rocfft_transform_type_complex_inverse,
-                                                 rocfft_array_type_complex_planar,
-                                                 rocfft_array_type_complex_interleaved,
-                                                 rocfft_placement_notinplace),
-        std::make_tuple<rocfft_transform_type,
-                        rocfft_array_type,
-                        rocfft_array_type,
-                        rocfft_result_placement>(rocfft_transform_type_complex_inverse,
-                                                 rocfft_array_type_complex_interleaved,
-                                                 rocfft_array_type_complex_planar,
-                                                 rocfft_placement_notinplace),
-
-        std::make_tuple<rocfft_transform_type,
-                        rocfft_array_type,
-                        rocfft_array_type,
-                        rocfft_result_placement>(rocfft_transform_type_complex_inverse,
-                                                 rocfft_array_type_complex_planar,
-                                                 rocfft_array_type_complex_planar,
-                                                 rocfft_placement_inplace),
-
-        std::make_tuple<rocfft_transform_type,
-                        rocfft_array_type,
-                        rocfft_array_type,
-                        rocfft_result_placement>(rocfft_transform_type_complex_inverse,
-                                                 rocfft_array_type_complex_planar,
-                                                 rocfft_array_type_complex_planar,
-                                                 rocfft_placement_notinplace)};
-
-// R2C data layout options
-const static std::vector<
-    std::
-        tuple<rocfft_transform_type, rocfft_array_type, rocfft_array_type, rocfft_result_placement>>
-    r2c_range{std::make_tuple<rocfft_transform_type,
-                              rocfft_array_type,
-                              rocfft_array_type,
-                              rocfft_result_placement>(rocfft_transform_type_real_forward,
-                                                       rocfft_array_type_real,
-                                                       rocfft_array_type_hermitian_interleaved,
-                                                       rocfft_placement_inplace),
-              std::make_tuple<rocfft_transform_type,
-                              rocfft_array_type,
-                              rocfft_array_type,
-                              rocfft_result_placement>(rocfft_transform_type_real_forward,
-                                                       rocfft_array_type_real,
-                                                       rocfft_array_type_hermitian_interleaved,
-                                                       rocfft_placement_notinplace),
-              std::make_tuple<rocfft_transform_type,
-                              rocfft_array_type,
-                              rocfft_array_type,
-                              rocfft_result_placement>(rocfft_transform_type_real_forward,
-                                                       rocfft_array_type_real,
-                                                       rocfft_array_type_hermitian_planar,
-                                                       rocfft_placement_notinplace)};
-// C2R data layout options
-const static std::vector<
-    std::
-        tuple<rocfft_transform_type, rocfft_array_type, rocfft_array_type, rocfft_result_placement>>
-    c2r_range{std::make_tuple<rocfft_transform_type,
-                              rocfft_array_type,
-                              rocfft_array_type,
-                              rocfft_result_placement>(rocfft_transform_type_real_inverse,
-                                                       rocfft_array_type_hermitian_interleaved,
-                                                       rocfft_array_type_real,
-                                                       rocfft_placement_inplace),
-              std::make_tuple<rocfft_transform_type,
-                              rocfft_array_type,
-                              rocfft_array_type,
-                              rocfft_result_placement>(rocfft_transform_type_real_inverse,
-                                                       rocfft_array_type_hermitian_interleaved,
-                                                       rocfft_array_type_real,
-                                                       rocfft_placement_notinplace),
-
-              std::make_tuple<rocfft_transform_type,
-                              rocfft_array_type,
-                              rocfft_array_type,
-                              rocfft_result_placement>(rocfft_transform_type_real_inverse,
-                                                       rocfft_array_type_hermitian_planar,
-                                                       rocfft_array_type_real,
-                                                       rocfft_placement_notinplace)};
-
 const static std::vector<size_t> batch_range = {1, 2};
 
 const static std::vector<rocfft_precision> precision_range
     = {rocfft_precision_single, rocfft_precision_double};
+const static std::vector<rocfft_result_placement> place_range
+    = {rocfft_placement_inplace, rocfft_placement_notinplace};
 
 // Given a vector of vector of lengths, generate all permutations.
 inline std::vector<std::vector<size_t>>
@@ -245,6 +193,51 @@ inline std::vector<std::vector<size_t>>
         } while(increment_colmajor(index, looplength));
     }
     return output;
+}
+
+// Return the valid rocFFT input and output types for a given transform type.
+inline std::vector<std::pair<rocfft_array_type, rocfft_array_type>>
+    iotypes(const rocfft_transform_type transformType, const rocfft_result_placement place)
+{
+    std::vector<std::pair<rocfft_array_type, rocfft_array_type>> iotypes;
+    switch(transformType)
+    {
+    case rocfft_transform_type_complex_forward:
+    case rocfft_transform_type_complex_inverse:
+        iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
+            rocfft_array_type_complex_interleaved, rocfft_array_type_complex_interleaved));
+        iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
+            rocfft_array_type_complex_planar, rocfft_array_type_complex_planar));
+        if(place == rocfft_placement_notinplace)
+        {
+            iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
+                rocfft_array_type_complex_planar, rocfft_array_type_complex_interleaved));
+            iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
+                rocfft_array_type_complex_interleaved, rocfft_array_type_complex_planar));
+        }
+        break;
+    case rocfft_transform_type_real_forward:
+        iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
+            rocfft_array_type_real, rocfft_array_type_hermitian_interleaved));
+        if(place == rocfft_placement_notinplace)
+        {
+            iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
+                rocfft_array_type_real, rocfft_array_type_hermitian_planar));
+        }
+        break;
+    case rocfft_transform_type_real_inverse:
+        iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
+            rocfft_array_type_hermitian_interleaved, rocfft_array_type_real));
+        if(place == rocfft_placement_notinplace)
+        {
+            iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
+                rocfft_array_type_hermitian_planar, rocfft_array_type_real));
+        }
+        break;
+    default:
+        throw std::runtime_error("Invalid transform type");
+    }
+    return iotypes;
 }
 
 #endif
