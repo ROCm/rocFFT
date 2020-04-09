@@ -26,19 +26,24 @@
 #include <iostream>
 #include <numeric>
 
-// GPU kernel for 1d r2c post-process
+// NB: The kernel arguments for the buffers are void* instead of Tcomplex* (or the corresponding
+// real type) in order to maintain the signature so that we can add the pointer to a std::map.  If
+// we find another solution for organizing the calling structure, we should be explicit with the
+// type.
+
+// Interleaved version of r2c post-process kernel
 // Tcomplex is memory allocation type, could be float2 or double2.
 // Each thread handles 2 points.
 // When N is divisible by 4, one value is handled separately; this is controlled by Ndiv4.
 template <typename Tcomplex, bool Ndiv4>
-__global__ static void real_post_process_kernel(const size_t    half_N,
-                                                const size_t    idist1D,
-                                                const size_t    odist1D,
-                                                const Tcomplex* input0,
-                                                const size_t    idist,
-                                                Tcomplex*       output0,
-                                                const size_t    odist,
-                                                Tcomplex const* twiddles)
+__global__ static void real_post_process_kernel(const size_t half_N,
+                                                const size_t idist1D,
+                                                const size_t odist1D,
+                                                const void*  input0,
+                                                const size_t idist,
+                                                void*        output0,
+                                                const size_t odist,
+                                                const void*  twiddles0)
 {
     // blockIdx.y gives the multi-dimensional offset
     // blockIdx.z gives the batch offset
@@ -47,13 +52,16 @@ __global__ static void real_post_process_kernel(const size_t    half_N,
     const size_t idx_q = half_N - idx_p;
 
     const auto quarter_N = (half_N + 1) / 2;
+    const auto twiddles  = (Tcomplex*)twiddles0;
 
     if(idx_p < quarter_N)
     {
         // blockIdx.y gives the multi-dimensional offset
         // blockIdx.z gives the batch offset
-        const Tcomplex* input  = input0 + blockIdx.y * idist1D + blockIdx.z * idist;
-        Tcomplex*       output = output0 + blockIdx.y * odist1D + blockIdx.z * odist;
+        // clang format off
+        const auto input  = (Tcomplex*)(input0) + blockIdx.y * idist1D + blockIdx.z * idist;
+        auto       output = (Tcomplex*)(output0) + blockIdx.y * odist1D + blockIdx.z * odist;
+        // clang format on
 
         if(idx_p == 0)
         {
@@ -87,17 +95,17 @@ __global__ static void real_post_process_kernel(const size_t    half_N,
     }
 }
 
-// Overloaded version of the above for planar format
+// Planar version of r2c post-process kernel
 template <typename Tcomplex, bool Ndiv4>
-__global__ static void real_post_process_kernel(const size_t           half_N,
-                                                const size_t           idist1D,
-                                                const size_t           odist1D,
-                                                const Tcomplex*        input0,
-                                                const size_t           idist,
-                                                real_type_t<Tcomplex>* output0Re,
-                                                real_type_t<Tcomplex>* output0Im,
-                                                const size_t           odist,
-                                                Tcomplex const*        twiddles)
+__global__ static void real_post_process_kernel_planar(const size_t half_N,
+                                                       const size_t idist1D,
+                                                       const size_t odist1D,
+                                                       const void*  input0,
+                                                       const size_t idist,
+                                                       void*        output0,
+                                                       void*        output1,
+                                                       const size_t odist,
+                                                       const void*  twiddles0)
 {
     // blockIdx.y gives the multi-dimensional offset
     // blockIdx.z gives the batch offset
@@ -106,14 +114,19 @@ __global__ static void real_post_process_kernel(const size_t           half_N,
     const size_t idx_q = half_N - idx_p;
 
     const auto quarter_N = (half_N + 1) / 2;
+    const auto twiddles  = (Tcomplex*)twiddles0;
 
     if(idx_p < quarter_N)
     {
         // blockIdx.y gives the multi-dimensional offset
         // blockIdx.z gives the batch offset
-        const Tcomplex*        input    = input0 + blockIdx.y * idist1D + blockIdx.z * idist;
-        real_type_t<Tcomplex>* outputRe = output0Re + blockIdx.y * odist1D + blockIdx.z * odist;
-        real_type_t<Tcomplex>* outputIm = output0Im + blockIdx.y * odist1D + blockIdx.z * odist;
+        // clang format off
+        const auto input = (Tcomplex*)(input0) + blockIdx.y * idist1D + blockIdx.z * idist;
+        auto       outputRe
+            = (real_type_t<Tcomplex>*)(output0) + blockIdx.y * odist1D + blockIdx.z * odist;
+        auto outputIm
+            = (real_type_t<Tcomplex>*)(output1) + blockIdx.y * odist1D + blockIdx.z * odist;
+        // clang format on
 
         if(idx_p == 0)
         {
@@ -147,32 +160,137 @@ __global__ static void real_post_process_kernel(const size_t           half_N,
     }
 }
 
-// GPU kernel for 1d c2r pre-process
+// Entrance function for r2c post-processing kernel
+void r2c_1d_post(const void* data_p, void*)
+{
+    // Map to interleaved kernels:
+    std::map<std::tuple<rocfft_precision, bool>, decltype(&real_post_process_kernel<float2, true>)>
+        kernelmap;
+    kernelmap.emplace(std::make_tuple(rocfft_precision_single, true),
+                      &(real_post_process_kernel<float2, true>));
+    kernelmap.emplace(std::make_tuple(rocfft_precision_single, false),
+                      &(real_post_process_kernel<float2, false>));
+    kernelmap.emplace(std::make_tuple(rocfft_precision_double, true),
+                      &(real_post_process_kernel<double2, true>));
+    kernelmap.emplace(std::make_tuple(rocfft_precision_double, false),
+                      &(real_post_process_kernel<double2, false>));
+
+    // Map to planar kernels:
+    std::map<std::tuple<rocfft_precision, bool>,
+             decltype(&real_post_process_kernel_planar<float2, true>)>
+        kernelmap_planar;
+    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_single, true),
+                             &(real_post_process_kernel_planar<float2, true>));
+    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_single, false),
+                             &(real_post_process_kernel_planar<float2, false>));
+    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_double, true),
+                             &(real_post_process_kernel_planar<double2, true>));
+    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_double, false),
+                             &(real_post_process_kernel_planar<double2, false>));
+
+    const DeviceCallIn* data = (DeviceCallIn*)data_p;
+
+    // Input_size is the innermost dimension
+    // The upper level provides always N/2, that is regular complex fft size
+    const size_t half_N = data->node->length[0];
+
+    const size_t idist = data->node->iDist;
+    const size_t odist = data->node->oDist;
+
+    const void* bufIn0  = data->bufIn[0];
+    void*       bufOut0 = data->bufOut[0];
+    void*       bufOut1 = data->bufOut[1];
+
+    const size_t batch = data->node->batch;
+
+    const size_t high_dimension = std::accumulate(
+        data->node->length.begin() + 1, data->node->length.end(), 1, std::multiplies<size_t>());
+    // Strides are actually distances between contiguous data vectors.
+    const size_t istride = high_dimension > 1 ? data->node->inStride[1] : 0;
+    const size_t ostride = high_dimension > 1 ? data->node->outStride[1] : 0;
+
+    const bool                               Ndiv4  = half_N % 2 == 0;
+    const std::tuple<rocfft_precision, bool> params = std::make_tuple(data->node->precision, Ndiv4);
+
+    const size_t block_size = 512;
+    size_t       blocks     = ((half_N + 1) / 2 + block_size - 1) / block_size;
+    // The total number of 1D threads is N / 4, rounded up.
+
+    dim3 grid(blocks, high_dimension, batch);
+    dim3 threads(block_size, 1, 1);
+
+    const size_t idist1D = istride;
+    const size_t odist1D = ostride;
+
+    try
+    {
+        if(data->node->outArrayType == rocfft_array_type_hermitian_interleaved)
+        {
+            hipLaunchKernelGGL(kernelmap.at(params),
+                               grid,
+                               threads,
+                               0,
+                               data->rocfft_stream,
+                               half_N,
+                               idist1D,
+                               odist1D,
+                               bufIn0,
+                               idist,
+                               bufOut0,
+                               odist,
+                               data->node->twiddles);
+        }
+        else
+        {
+            hipLaunchKernelGGL(kernelmap_planar.at(params),
+                               grid,
+                               threads,
+                               0,
+                               data->rocfft_stream,
+                               half_N,
+                               idist1D,
+                               odist1D,
+                               bufIn0,
+                               idist,
+                               bufOut0,
+                               bufOut1,
+                               odist,
+                               data->node->twiddles);
+        }
+    }
+    catch(std::exception& e)
+    {
+        std::cout << e.what() << std::endl;
+    }
+}
+
+// Interleaved version of c2r pre-process kernel
 // Tcomplex is memory allocation type, could be float2 or double2.
 // Each thread handles 2 points.
 // When N is divisible by 4, one value is handled separately; this is controlled by Ndiv4.
 template <typename Tcomplex, bool Ndiv4>
-__global__ static void real_pre_process_kernel(const size_t    half_N,
-                                               const size_t    idist1D,
-                                               const size_t    odist1D,
-                                               const Tcomplex* input0,
-                                               const size_t    idist,
-                                               Tcomplex*       output0,
-                                               const size_t    odist,
-                                               Tcomplex const* twiddles)
+__global__ static void real_pre_process_kernel(const size_t half_N,
+                                               const size_t idist1D,
+                                               const size_t odist1D,
+                                               const void*  input0,
+                                               const size_t idist,
+                                               void*        output0,
+                                               const size_t odist,
+                                               const void*  twiddles0)
 {
     const size_t idx_p = blockIdx.x * blockDim.x + threadIdx.x;
     const size_t idx_q = half_N - idx_p;
 
     const auto quarter_N = (half_N + 1) / 2;
+    const auto twiddles  = (Tcomplex*)twiddles0;
 
     if(idx_p < quarter_N)
     {
         // blockIdx.y gives the multi-dimensional offset, stride is [i/o]dist1D.
         // blockIdx.z gives the batch offset, stride is [i/o]dist.
         // clang format off
-        const Tcomplex* input  = input0 + idist1D * blockIdx.y + idist * blockIdx.z;
-        Tcomplex*       output = output0 + odist1D * blockIdx.y + odist * blockIdx.z;
+        const auto input  = (Tcomplex*)(input0) + idist1D * blockIdx.y + idist * blockIdx.z;
+        auto       output = (Tcomplex*)(output0) + odist1D * blockIdx.y + odist * blockIdx.z;
         // clang format on
 
         if(idx_p == 0)
@@ -211,31 +329,34 @@ __global__ static void real_pre_process_kernel(const size_t    half_N,
     }
 }
 
-// Overloaded version of the above for planar format
+// Planar version of c2r pre-process kernel
 template <typename Tcomplex, bool Ndiv4>
-__global__ static void real_pre_process_kernel(const size_t           half_N,
-                                               const size_t           idist1D,
-                                               const size_t           odist1D,
-                                               real_type_t<Tcomplex>* input0Re,
-                                               real_type_t<Tcomplex>* input0Im,
-                                               const size_t           idist,
-                                               Tcomplex*              output0,
-                                               const size_t           odist,
-                                               const Tcomplex* const  twiddles)
+__global__ static void real_pre_process_kernel_planar(const size_t      half_N,
+                                                      const size_t      idist1D,
+                                                      const size_t      odist1D,
+                                                      const void*       input0,
+                                                      const void*       input1,
+                                                      const size_t      idist,
+                                                      void*             output0,
+                                                      const size_t      odist,
+                                                      const void* const twiddles0)
 {
     const size_t idx_p = blockIdx.x * blockDim.x + threadIdx.x;
     const size_t idx_q = half_N - idx_p;
 
     const auto quarter_N = (half_N + 1) / 2;
+    const auto twiddles  = (Tcomplex*)twiddles0;
 
     if(idx_p < quarter_N)
     {
         // blockIdx.y gives the multi-dimensional offset, stride is [i/o]dist1D.
         // blockIdx.z gives the batch offset, stride is [i/o]dist.
         // clang format off
-        const real_type_t<Tcomplex>* inputRe = input0Re + idist1D * blockIdx.y + idist * blockIdx.z;
-        const real_type_t<Tcomplex>* inputIm = input0Im + idist1D * blockIdx.y + idist * blockIdx.z;
-        Tcomplex*                    output  = output0 + odist1D * blockIdx.y + odist * blockIdx.z;
+        const auto inputRe
+            = (real_type_t<Tcomplex>*)(input0) + idist1D * blockIdx.y + idist * blockIdx.z;
+        const auto inputIm
+            = (real_type_t<Tcomplex>*)(input1) + idist1D * blockIdx.y + idist * blockIdx.z;
+        auto output = (Tcomplex*)(output0) + odist1D * blockIdx.y + odist * blockIdx.z;
         // clang format on
 
         if(idx_p == 0)
@@ -280,261 +401,49 @@ __global__ static void real_pre_process_kernel(const size_t           half_N,
     }
 }
 
-// GPU intermediate host code
-template <typename Tcomplex, bool R2C>
-static void real_1d_pre_post_process(const size_t half_N,
-                                     const size_t batch,
-                                     Tcomplex*    d_input,
-                                     Tcomplex*    d_output,
-                                     Tcomplex*    d_twiddles,
-                                     const size_t high_dimension,
-                                     const size_t istride,
-                                     const size_t ostride,
-                                     const size_t idist,
-                                     const size_t odist,
-                                     hipStream_t  rocfft_stream)
+// Entrance function for c2r pre-processing kernel
+void c2r_1d_pre(const void* data_p, void*)
 {
-    const size_t block_size = 512;
-    size_t       blocks     = ((half_N + 1) / 2 + block_size - 1) / block_size;
-    // The total number of 1D threads is N / 4, rounded up.
+    // map to interleaved kernels
+    std::map<std::tuple<rocfft_precision, bool>, decltype(&real_pre_process_kernel<double2, true>)>
+        kernelmap;
+    kernelmap.emplace(std::make_tuple(rocfft_precision_single, true),
+                      &(real_pre_process_kernel<float2, true>));
+    kernelmap.emplace(std::make_tuple(rocfft_precision_single, false),
+                      &(real_pre_process_kernel<float2, false>));
+    kernelmap.emplace(std::make_tuple(rocfft_precision_double, true),
+                      &(real_pre_process_kernel<double2, true>));
+    kernelmap.emplace(std::make_tuple(rocfft_precision_double, false),
+                      &(real_pre_process_kernel<double2, false>));
 
-    // TODO: verify with API that high_dimension and batch aren't too big.
+    // map to planar kernels
+    std::map<std::tuple<rocfft_precision, bool>,
+             decltype(&real_pre_process_kernel_planar<double2, true>)>
+        kernelmap_planar;
+    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_single, true),
+                             &(real_pre_process_kernel_planar<float2, true>));
+    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_single, false),
+                             &(real_pre_process_kernel_planar<float2, false>));
+    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_double, true),
+                             &(real_pre_process_kernel_planar<double2, true>));
+    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_double, false),
+                             &(real_pre_process_kernel_planar<double2, false>));
 
-    const size_t idist1D = istride;
-    const size_t odist1D = ostride;
+    const DeviceCallIn* data = (DeviceCallIn*)data_p;
 
-    // std::cout << "idist1D: " << idist1D << std::endl;
-    // std::cout << "odist1D: " << odist1D << std::endl;
-    // std::cout << "high_dimension: " << high_dimension << std::endl;
-    // std::cout << "batch: " << batch << std::endl;
-
-    dim3 grid(blocks, high_dimension, batch);
-    dim3 threads(block_size, 1, 1);
-
-    const bool Ndiv4 = half_N % 2 == 0;
-
-    // std::cout << "grid: " << grid.x << " " << grid.y << " " << grid.z << std::endl;
-    // std::cout << "threads: " << threads.x << " " << threads.y << " " << threads.z << std::endl;
-
-    if(R2C)
-    {
-        if(Ndiv4)
-            hipLaunchKernelGGL((real_post_process_kernel<Tcomplex, true>),
-                               grid,
-                               threads,
-                               0,
-                               rocfft_stream,
-                               half_N,
-                               idist1D,
-                               odist1D,
-                               d_input,
-                               idist,
-                               d_output,
-                               odist,
-                               d_twiddles);
-        else
-            hipLaunchKernelGGL((real_post_process_kernel<Tcomplex, false>),
-                               grid,
-                               threads,
-                               0,
-                               rocfft_stream,
-                               half_N,
-                               idist1D,
-                               odist1D,
-                               d_input,
-                               idist,
-                               d_output,
-                               odist,
-                               d_twiddles);
-    }
-    else
-    {
-        if(Ndiv4)
-            hipLaunchKernelGGL((real_pre_process_kernel<Tcomplex, true>),
-                               grid,
-                               threads,
-                               0,
-                               rocfft_stream,
-                               half_N,
-                               idist1D,
-                               odist1D,
-                               d_input,
-                               idist,
-                               d_output,
-                               odist,
-                               d_twiddles);
-        else
-            hipLaunchKernelGGL((real_pre_process_kernel<Tcomplex, false>),
-                               grid,
-                               threads,
-                               0,
-                               rocfft_stream,
-                               half_N,
-                               idist1D,
-                               odist1D,
-                               d_input,
-                               idist,
-                               d_output,
-                               odist,
-                               d_twiddles);
-    }
-}
-
-// Overloaded version of the above for planar format
-// For R2C, d_real is the input, d_complexRe and d_complexIm are outputs.
-// For C2R, d_complexRe and d_complexIm are inputs, and d_real is output.
-template <typename Tcomplex, bool R2C>
-static void real_1d_pre_post_process(const size_t           half_N,
-                                     const size_t           batch,
-                                     Tcomplex*              d_real,
-                                     real_type_t<Tcomplex>* d_complexRe,
-                                     real_type_t<Tcomplex>* d_complexIm,
-                                     Tcomplex*              d_twiddles,
-                                     const size_t           high_dimension,
-                                     const size_t           istride,
-                                     const size_t           ostride,
-                                     const size_t           idist,
-                                     const size_t           odist,
-                                     hipStream_t            rocfft_stream)
-{
-    const size_t block_size = 512;
-    size_t       blocks     = ((half_N + 1) / 2 + block_size - 1) / block_size;
-    // The total number of 1D threads is N / 4, rounded up.
-
-    // TODO: verify with API that high_dimension and batch aren't too big.
-
-    const size_t idist1D = istride;
-    const size_t odist1D = ostride;
-
-    // std::cout << "idist1D: " << idist1D << std::endl;
-    // std::cout << "odist1D: " << odist1D << std::endl;
-    // std::cout << "high_dimension: " << high_dimension << std::endl;
-    // std::cout << "batch: " << batch << std::endl;
-    // std::cout << "d_complexRe: " << &d_complexRe << ", d_complexIm " << &d_complexIm << std::endl;
-    dim3 grid(blocks, high_dimension, batch);
-    dim3 threads(block_size, 1, 1);
-
-    const bool Ndiv4 = half_N % 2 == 0;
-
-    // std::cout << "grid: " << grid.x << " " << grid.y << " " << grid.z << std::endl;
-    // std::cout << "threads: " << threads.x << " " << threads.y << " " << threads.z << std::endl;
-
-    if(R2C)
-    {
-        if(Ndiv4)
-            hipLaunchKernelGGL((real_post_process_kernel<Tcomplex, true>),
-                               grid,
-                               threads,
-                               0,
-                               rocfft_stream,
-                               half_N,
-                               idist1D,
-                               odist1D,
-                               d_real,
-                               idist,
-                               d_complexRe,
-                               d_complexIm,
-                               odist,
-                               d_twiddles);
-        else
-            hipLaunchKernelGGL((real_post_process_kernel<Tcomplex, false>),
-                               grid,
-                               threads,
-                               0,
-                               rocfft_stream,
-                               half_N,
-                               idist1D,
-                               odist1D,
-                               d_real,
-                               idist,
-                               d_complexRe,
-                               d_complexIm,
-                               odist,
-                               d_twiddles);
-    }
-    else
-    {
-        if(Ndiv4)
-            hipLaunchKernelGGL((real_pre_process_kernel<Tcomplex, true>),
-                               grid,
-                               threads,
-                               0,
-                               rocfft_stream,
-                               half_N,
-                               idist1D,
-                               odist1D,
-                               d_complexRe,
-                               d_complexIm,
-                               idist,
-                               d_real,
-                               odist,
-                               d_twiddles);
-        else
-            hipLaunchKernelGGL((real_pre_process_kernel<Tcomplex, false>),
-                               grid,
-                               threads,
-                               0,
-                               rocfft_stream,
-                               half_N,
-                               idist1D,
-                               odist1D,
-                               d_complexRe,
-                               d_complexIm,
-                               idist,
-                               d_real,
-                               odist,
-                               d_twiddles);
-    }
-}
-
-// Local macro, to shorten the redundant expression
-// in the below real_1d_pre_post()
-#define RUN_REAL_1D_PRE_POST_INTERLEAVED(PRECISION, BUF_IN, BUF_OUT)             \
-    real_1d_pre_post_process<PRECISION, R2C>(half_N,                             \
-                                             batch,                              \
-                                             (PRECISION*)BUF_IN,                 \
-                                             (PRECISION*)BUF_OUT,                \
-                                             (PRECISION*)(data->node->twiddles), \
-                                             high_dimension,                     \
-                                             istride,                            \
-                                             ostride,                            \
-                                             idist,                              \
-                                             odist,                              \
-                                             data->rocfft_stream)
-
-#define RUN_REAL_1D_PRE_POST_PLANAR(                                             \
-    PRECISION, PRECISION_REAL, BUF_REAL, BUF_COMPLEX_RE, BUF_COMPLEX_IM)         \
-    real_1d_pre_post_process<PRECISION, R2C>(half_N,                             \
-                                             batch,                              \
-                                             (PRECISION*)BUF_REAL,               \
-                                             (PRECISION_REAL*)BUF_COMPLEX_RE,    \
-                                             (PRECISION_REAL*)BUF_COMPLEX_IM,    \
-                                             (PRECISION*)(data->node->twiddles), \
-                                             high_dimension,                     \
-                                             istride,                            \
-                                             ostride,                            \
-                                             idist,                              \
-                                             odist,                              \
-                                             data->rocfft_stream)
-
-template <bool R2C>
-static void real_1d_pre_post(const void* data_p, void* back_p)
-{
-    DeviceCallIn* data = (DeviceCallIn*)data_p;
-
-    // input_size is the innermost dimension
-    // the upper level provides always N/2, that is regular complex fft size
-    size_t half_N = data->node->length[0];
+    // Input_size is the innermost dimension
+    // The upper level provides always N/2, that is regular complex fft size
+    const size_t half_N = data->node->length[0];
 
     const size_t idist = data->node->iDist;
     const size_t odist = data->node->oDist;
 
-    void* bufIn0  = data->bufIn[0];
-    void* bufOut0 = data->bufOut[0];
-    void* bufIn1  = data->bufIn[1];
-    void* bufOut1 = data->bufOut[1];
+    const void* bufIn0  = data->bufIn[0];
+    const void* bufIn1  = data->bufIn[1];
+    void*       bufOut0 = data->bufOut[0];
+    void*       bufOut1 = data->bufOut[1];
 
-    size_t batch = data->node->batch;
+    const size_t batch = data->node->batch;
 
     const size_t high_dimension = std::accumulate(
         data->node->length.begin() + 1, data->node->length.end(), 1, std::multiplies<size_t>());
@@ -542,46 +451,57 @@ static void real_1d_pre_post(const void* data_p, void* back_p)
     const size_t istride = high_dimension > 1 ? data->node->inStride[1] : 0;
     const size_t ostride = high_dimension > 1 ? data->node->outStride[1] : 0;
 
-    if((R2C && data->node->inArrayType == rocfft_array_type_complex_interleaved
-        && data->node->outArrayType == rocfft_array_type_hermitian_interleaved)
-       || ((!R2C) && data->node->inArrayType == rocfft_array_type_hermitian_interleaved
-           && data->node->outArrayType == rocfft_array_type_complex_interleaved))
-    { // case for regular real <-> hermitian interleaved
-        if(data->node->precision == rocfft_precision_single)
-            RUN_REAL_1D_PRE_POST_INTERLEAVED(float2, bufIn0, bufOut0);
-        else
-            RUN_REAL_1D_PRE_POST_INTERLEAVED(double2, bufIn0, bufOut0);
-    }
-    else if(R2C && data->node->inArrayType == rocfft_array_type_complex_interleaved
-            && data->node->outArrayType == rocfft_array_type_hermitian_planar)
-    { // case for real to hermitian planar
-        if(data->node->precision == rocfft_precision_single)
-            RUN_REAL_1D_PRE_POST_PLANAR(float2, float, bufIn0, bufOut0, bufOut1);
-        else
-            RUN_REAL_1D_PRE_POST_PLANAR(double2, double, bufIn0, bufOut0, bufOut1);
-    }
-    else if((!R2C) && data->node->inArrayType == rocfft_array_type_hermitian_planar
-            && data->node->outArrayType == rocfft_array_type_complex_interleaved)
-    { // case for hermitian planar to real
-        if(data->node->precision == rocfft_precision_single)
-            RUN_REAL_1D_PRE_POST_PLANAR(float2, float, bufOut0, bufIn0, bufIn1);
-        else
-            RUN_REAL_1D_PRE_POST_PLANAR(double2, double, bufOut0, bufIn0, bufIn1);
-    }
-    else
+    const bool                               Ndiv4  = half_N % 2 == 0;
+    const std::tuple<rocfft_precision, bool> params = std::make_tuple(data->node->precision, Ndiv4);
+
+    const size_t block_size = 512;
+    size_t       blocks     = ((half_N + 1) / 2 + block_size - 1) / block_size;
+    // The total number of 1D threads is N / 4, rounded up.
+
+    dim3 grid(blocks, high_dimension, batch);
+    dim3 threads(block_size, 1, 1);
+
+    const size_t idist1D = istride;
+    const size_t odist1D = ostride;
+
+    try
     {
-        assert(0);
-        std::cout << "Unsupported array type in real_1d_pre_post\n";
-        return;
+        if(data->node->inArrayType == rocfft_array_type_hermitian_interleaved)
+        {
+            hipLaunchKernelGGL(kernelmap.at(params),
+                               grid,
+                               threads,
+                               0,
+                               data->rocfft_stream,
+                               half_N,
+                               idist1D,
+                               odist1D,
+                               bufIn0,
+                               idist,
+                               bufOut0,
+                               odist,
+                               data->node->twiddles);
+        }
+        else
+        {
+            hipLaunchKernelGGL(kernelmap_planar.at(params),
+                               grid,
+                               threads,
+                               0,
+                               data->rocfft_stream,
+                               half_N,
+                               idist1D,
+                               odist1D,
+                               bufIn0,
+                               bufIn1,
+                               idist,
+                               bufOut0,
+                               odist,
+                               data->node->twiddles);
+        }
     }
-}
-
-void r2c_1d_post(const void* data_p, void* back_p)
-{
-    real_1d_pre_post<true>(data_p, back_p);
-}
-
-void c2r_1d_pre(const void* data_p, void* back_p)
-{
-    real_1d_pre_post<false>(data_p, back_p);
+    catch(std::exception& e)
+    {
+        std::cout << e.what() << std::endl;
+    }
 }
