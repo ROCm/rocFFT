@@ -9,7 +9,7 @@ ARG user_uid
 # The centOS container has an older version of the rocFFT package installed
 RUN yum remove -y rocfft
 
-RUN yum install -y \
+RUN yum install -y --nogpgcheck\
     sudo \
     rock-dkms \
     centos-release-scl \
