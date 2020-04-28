@@ -1255,7 +1255,7 @@ inline size_t set_idist(const rocfft_result_placement place,
     if(transformType == rocfft_transform_type_real_forward && dim == 1
        && place == rocfft_placement_inplace)
     {
-        idist += 2 * istride[0];
+        idist = 2 * (length[0] / 2 + 1) * istride[0];
     }
     return idist;
 }
@@ -1267,8 +1267,9 @@ inline size_t set_odist(const rocfft_result_placement place,
                         const std::vector<size_t>&    length,
                         const std::vector<size_t>&    ostride)
 {
-    size_t odist = 0;
-    if(transformType == rocfft_transform_type_real_forward && length.size() == 1)
+    const size_t dim   = length.size();
+    size_t       odist = 0;
+    if(transformType == rocfft_transform_type_real_forward && dim == 1)
     {
         odist = (length[0] / 2 + 1) * ostride[0];
     }
@@ -1277,10 +1278,10 @@ inline size_t set_odist(const rocfft_result_placement place,
         odist = length[0] * ostride[0];
     }
     // in-place 1D transforms need extra dist.
-    if(transformType == rocfft_transform_type_real_inverse && length.size() == 1
+    if(transformType == rocfft_transform_type_real_inverse && dim == 1
        && place == rocfft_placement_inplace)
     {
-        odist += 2 * ostride[0];
+        odist = 2 * (length[0] / 2 + 1) * ostride[0];
     }
     return odist;
 }
