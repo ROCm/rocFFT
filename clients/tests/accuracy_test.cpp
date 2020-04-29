@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 #include <math.h>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -309,16 +310,11 @@ void rocfft_transform(const std::vector<size_t>                                 
     }
 
     // Compute the Linfinity and L2 norm of the GPU output:
-    auto L2LinfnormGPU
-        = LinfL2norm(gpu_output, olength, nbatch, precision, otype, gpu_ostride, gpu_odist);
-    if(verbose > 2)
-    {
-        std::cout << "GPU output Linf norm: " << L2LinfnormGPU.first << "\n";
-        std::cout << "GPU output L2 norm:   " << L2LinfnormGPU.second << "\n";
-    }
-
-    EXPECT_TRUE(std::isfinite(L2LinfnormGPU.first));
-    EXPECT_TRUE(std::isfinite(L2LinfnormGPU.second));
+    std::pair<double, double> L2LinfnormGPU;
+    std::thread               normthread([&]() {
+        L2LinfnormGPU
+            = LinfL2norm(gpu_output, olength, nbatch, precision, otype, gpu_ostride, gpu_odist);
+    });
 
     // Compute the l-infinity and l-2 distance between the CPU and GPU output:
     auto linfl2diff = LinfL2diff(cpu_output,
@@ -332,6 +328,17 @@ void rocfft_transform(const std::vector<size_t>                                 
                                  otype,
                                  gpu_ostride,
                                  gpu_odist);
+    normthread.join();
+
+    if(verbose > 2)
+    {
+        std::cout << "GPU output Linf norm: " << L2LinfnormGPU.first << "\n";
+        std::cout << "GPU output L2 norm:   " << L2LinfnormGPU.second << "\n";
+    }
+
+    EXPECT_TRUE(std::isfinite(L2LinfnormGPU.first));
+    EXPECT_TRUE(std::isfinite(L2LinfnormGPU.second));
+
     if(verbose > 1)
     {
         std::cout << "L2 diff: " << linfl2diff.first << "\n";
