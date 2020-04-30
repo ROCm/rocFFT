@@ -69,6 +69,7 @@ int main(int argc, char* argv[])
          ->default_value(rocfft_transform_type_complex_forward),
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
          "forward\n3) real inverse")
+        ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
         ("double", "Double precision transform (default: single)")
         ( "itype", po::value<rocfft_array_type>(&itype)
           ->default_value(rocfft_array_type_unset),
@@ -95,6 +96,7 @@ int main(int argc, char* argv[])
         std::cout << opdesc << std::endl;
         return 0;
     }
+    place     = vm.count("notInPlace") ? rocfft_placement_notinplace : rocfft_placement_inplace;
     precision = vm.count("double") ? rocfft_precision_double : rocfft_precision_single;
 
     verbose = vm["verbose"].as<int>();
