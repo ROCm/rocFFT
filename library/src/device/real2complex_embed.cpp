@@ -324,6 +324,6 @@ void complex2hermitian(const void* data_p, void* back_p)
     else
     {
         assert(0);
-        std::cout << "Unsupported output format in complex2hermitian kernel!" << std::endl;
+        rocfft_cout << "Unsupported output format in complex2hermitian kernel!" << std::endl;
     }
 }

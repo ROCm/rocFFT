@@ -7,6 +7,7 @@ target_compile_features( rocfft-kernel-generator PRIVATE cxx_static_assert cxx_n
 
 set_target_properties( rocfft-kernel-generator PROPERTIES CXX_EXTENSIONS NO )
 set_target_properties( rocfft-kernel-generator PROPERTIES DEBUG_POSTFIX "-d" )
+set_target_properties( rocfft-kernel-generator PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON )
 
 target_include_directories( rocfft-kernel-generator
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/>

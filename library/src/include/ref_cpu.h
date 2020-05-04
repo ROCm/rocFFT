@@ -70,26 +70,26 @@ class RefLibHandle
 
         if(!env_value_fftw3f)
         {
-            std::cout << "error finding fftw3f lib, set env variable ROCFFT_DBG_FFTW3F_LIB"
-                      << std::endl;
+            rocfft_cout << "error finding fftw3f lib, set env variable ROCFFT_DBG_FFTW3F_LIB"
+                        << std::endl;
         }
 
         if(!env_value_fftw3)
         {
-            std::cout << "error finding fftw3 lib, set env variable ROCFFT_DBG_FFTW3_LIB"
-                      << std::endl;
+            rocfft_cout << "error finding fftw3 lib, set env variable ROCFFT_DBG_FFTW3_LIB"
+                        << std::endl;
         }
 
         fftw3f_lib = dlopen(env_value_fftw3f, RTLD_NOW);
         if(!fftw3f_lib)
         {
-            std::cout << "error in fftw3f dlopen" << std::endl;
+            rocfft_cout << "error in fftw3f dlopen" << std::endl;
         }
 
         fftw3_lib = dlopen(env_value_fftw3, RTLD_NOW);
         if(!fftw3_lib)
         {
-            std::cout << "error in fftw3 dlopen" << std::endl;
+            rocfft_cout << "error in fftw3 dlopen" << std::endl;
         }
     }
 
@@ -617,8 +617,8 @@ class RefLibOp
                 elements *= data->node->length[d];
             }
 
-            std::cout << "iDist: " << data->node->iDist << " Dist: " << data->node->oDist
-                      << " in complex2hermitian kernel\n";
+            rocfft_cout << "iDist: " << data->node->iDist << " Dist: " << data->node->oDist
+                        << " in complex2hermitian kernel\n";
             for(size_t b = 0; b < data->node->batch; b++)
             {
                 for(size_t i = 0; i < elements; i++) // TODO: only work for 1D cases
@@ -644,8 +644,8 @@ class RefLibOp
             size_t output_size = data->node->length[0];
             size_t input_size  = output_size / 2 + 1;
 
-            std::cout << "iDist: " << data->node->iDist << " Dist: " << data->node->oDist
-                      << " in hermitian2complex kernel\n";
+            rocfft_cout << "iDist: " << data->node->iDist << " Dist: " << data->node->oDist
+                        << " in hermitian2complex kernel\n";
 
             for(size_t b = 0; b < data->node->batch; b++)
             {
@@ -858,7 +858,7 @@ class RefLibOp
         default:
             // assert(false);
             // do not terminate the program but only tells not implemented
-            std::cout << "Not implemented\n";
+            rocfft_cout << "Not implemented\n";
         }
     }
 
@@ -998,22 +998,22 @@ public:
         rmse         = sqrt(rmse / (double)checklength);
         double nrmse = rmse / maxMag;
 
-        std::cout << "rmse: " << rmse << std::endl << "nrmse: " << nrmse << std::endl;
-        std::cout << "---------------------------------------------" << std::endl;
+        rocfft_cout << "rmse: " << rmse << std::endl << "nrmse: " << nrmse << std::endl;
+        rocfft_cout << "---------------------------------------------" << std::endl;
 
 #if 0
         std::complex<float>* in      = (std::complex<float>*)fftwin.data;
 
-        std::cout << "input:" << std::endl;
+        rocfft_cout << "input:" << std::endl;
         for(size_t i = 0; i < fftwin.size; ++i)
         {
-            std::cout << i << "\t(" << in[i].real() << ", " << in[i].imag() << ")\n";
+            rocfft_cout << i << "\t(" << in[i].real() << ", " << in[i].imag() << ")\n";
         }
 
-        std::cout << "lib output vs cpu output:" << std::endl;
+        rocfft_cout << "lib output vs cpu output:" << std::endl;
         for(size_t i = 0; i < libout.size; ++i)
         {
-            std::cout << i << "\t(" << lb[i].real() << "," << lb[i].imag() << ")"
+            rocfft_cout << i << "\t(" << lb[i].real() << "," << lb[i].imag() << ")"
                       << "\t(" << ot[i].real() << "," << ot[i].imag() << ")\n";
         }
 #endif

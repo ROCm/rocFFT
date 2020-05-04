@@ -22,10 +22,12 @@
 #include "hip/hip_vector_types.h"
 #include "private.h"
 #include "rocfft.h"
+#include <boost/scope_exit.hpp>
 #include <condition_variable>
+#include <fstream>
 #include <gtest/gtest.h>
-#include <iostream>
 #include <mutex>
+#include <regex>
 #include <thread>
 #include <vector>
 
@@ -270,4 +272,60 @@ TEST(rocfft_UnitTest, cache_plans_in_repo_multithreading)
     EXPECT_TRUE(plan_total_count == 0);
 
     rocfft_cleanup();
+}
+
+// Check whether logs can be emitted from multiple threads properly
+TEST(rocfft_UnitTest, log_multithreading)
+{
+    static const int   NUM_THREADS          = 10;
+    static const int   NUM_ITERS_PER_THREAD = 50;
+    static const char* TRACE_FILE           = "trace.log";
+
+    // ask for trace logging, since that's the easiest to trigger
+    setenv("ROCFFT_LAYER", "1", 1);
+    setenv("ROCFFT_LOG_TRACE_PATH", TRACE_FILE, 1);
+
+    // clean up environment and temporary file when we exit
+    BOOST_SCOPE_EXIT_ALL(=)
+    {
+        unsetenv("ROCFFT_LAYER");
+        unsetenv("ROCFFT_LOG_TRACE_PATH");
+        remove(TRACE_FILE);
+    };
+
+    rocfft_setup();
+
+    // run a whole bunch of threads in parallel, each one doing
+    // something small that will write to the trace log
+    std::vector<std::thread> threads;
+    threads.reserve(NUM_THREADS);
+    for(int i = 0; i < NUM_THREADS; ++i)
+    {
+        threads.emplace_back([]() {
+            for(int j = 0; j < NUM_ITERS_PER_THREAD; ++j)
+            {
+                rocfft_plan_description desc;
+                rocfft_plan_description_create(&desc);
+                rocfft_plan_description_destroy(desc);
+            }
+        });
+    }
+
+    for(auto& t : threads)
+    {
+        t.join();
+    }
+
+    rocfft_cleanup();
+
+    // now verify that the trace log has one message per line, with nothing garbled
+    std::ifstream trace_log(TRACE_FILE);
+    std::string   line;
+    std::regex    validator("^rocfft_(setup|cleanup|plan_description_(create|destroy),"
+                         "description,0x[0-9a-f]+)$");
+    while(std::getline(trace_log, line))
+    {
+        bool res = std::regex_match(line, validator);
+        ASSERT_TRUE(res) << "line contains invalid content: " << line;
+    }
 }

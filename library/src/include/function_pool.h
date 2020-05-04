@@ -87,7 +87,7 @@ public:
         {
             if(it->second == nullptr)
             {
-                std::cout << "null ptr registered in function_map_single" << std::endl;
+                rocfft_cout << "null ptr registered in function_map_single" << std::endl;
             }
         }
 
@@ -97,7 +97,7 @@ public:
         {
             if(it->second == nullptr)
             {
-                std::cout << "null ptr registered in function_map_double" << std::endl;
+                rocfft_cout << "null ptr registered in function_map_double" << std::endl;
             }
         }
     }

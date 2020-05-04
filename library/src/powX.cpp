@@ -200,8 +200,8 @@ void PlanPowX(ExecPlan& execPlan)
             gp.tpb_x = 64;
             break;
         default:
-            std::cout << "should not be in this case" << std::endl;
-            std::cout << "scheme: " << PrintScheme(execPlan.execSeq[i]->scheme) << std::endl;
+            rocfft_cout << "should not be in this case" << std::endl;
+            rocfft_cout << "scheme: " << PrintScheme(execPlan.execSeq[i]->scheme) << std::endl;
         }
 
         execPlan.devFnCall.push_back(ptr);
@@ -324,7 +324,7 @@ void TransformPowX(const ExecPlan&       execPlan,
         // - move the below into DeviceCallIn
         // - fix it for real data
 
-        std::cout << "--- --- scheme " << PrintScheme(data.node->scheme) << std::endl;
+        rocfft_cout << "--- --- scheme " << PrintScheme(data.node->scheme) << std::endl;
 
         const size_t in_size = data.node->iDist * data.node->batch;
         size_t       base_type_size
@@ -373,50 +373,50 @@ void TransformPowX(const ExecPlan&       execPlan,
         const size_t out_size_bytes = out_size * base_type_size;
         void*        dbg_out        = malloc(out_size_bytes);
 
-        //std::cout << "data.node->iDist " << data.node->iDist << ", data.node->batch " << data.node->batch << std::endl;
-        //std::cout << "in_size " << in_size << ", out_size " << out_size << std::endl;
-        //std::cout << "in_size_bytes " << in_size_bytes << ", out_size_bytes " << out_size_bytes << std::endl;
+        //rocfft_cout << "data.node->iDist " << data.node->iDist << ", data.node->batch " << data.node->batch << std::endl;
+        //rocfft_cout << "in_size " << in_size << ", out_size " << out_size << std::endl;
+        //rocfft_cout << "in_size_bytes " << in_size_bytes << ", out_size_bytes " << out_size_bytes << std::endl;
         // memset(dbg_out, 0x40, out_size_bytes);
         // if(data.node->placement != rocfft_placement_inplace)
         // {
         //     hipDeviceSynchronize();
         //     hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
         // }
-        std::cout << "attempting kernel: " << i << std::endl;
+        rocfft_cout << "attempting kernel: " << i << std::endl;
 #endif
 
         DevFnCall fn = execPlan.devFnCall[i];
         if(fn)
         {
 #ifdef REF_DEBUG
-            std::cout << "\n---------------------------------------------\n";
-            std::cout << "\n\nkernel: " << i << std::endl;
-            std::cout << "\tscheme: " << PrintScheme(execPlan.execSeq[i]->scheme) << std::endl;
-            std::cout << "\titype: " << PrintArrayType(execPlan.execSeq[i]->inArrayType)
-                      << std::endl;
-            std::cout << "\totype: " << PrintArrayType(execPlan.execSeq[i]->outArrayType)
-                      << std::endl;
-            std::cout << "\tlength: ";
+            rocfft_cout << "\n---------------------------------------------\n";
+            rocfft_cout << "\n\nkernel: " << i << std::endl;
+            rocfft_cout << "\tscheme: " << PrintScheme(execPlan.execSeq[i]->scheme) << std::endl;
+            rocfft_cout << "\titype: " << PrintArrayType(execPlan.execSeq[i]->inArrayType)
+                        << std::endl;
+            rocfft_cout << "\totype: " << PrintArrayType(execPlan.execSeq[i]->outArrayType)
+                        << std::endl;
+            rocfft_cout << "\tlength: ";
             for(const auto& i : execPlan.execSeq[i]->length)
             {
-                std::cout << i << " ";
+                rocfft_cout << i << " ";
             }
-            std::cout << std::endl;
-            std::cout << "\tbatch:   " << execPlan.execSeq[i]->batch << std::endl;
-            std::cout << "\tidist:   " << execPlan.execSeq[i]->iDist << std::endl;
-            std::cout << "\todist:   " << execPlan.execSeq[i]->oDist << std::endl;
-            std::cout << "\tistride:";
+            rocfft_cout << std::endl;
+            rocfft_cout << "\tbatch:   " << execPlan.execSeq[i]->batch << std::endl;
+            rocfft_cout << "\tidist:   " << execPlan.execSeq[i]->iDist << std::endl;
+            rocfft_cout << "\todist:   " << execPlan.execSeq[i]->oDist << std::endl;
+            rocfft_cout << "\tistride:";
             for(const auto& i : execPlan.execSeq[i]->inStride)
             {
-                std::cout << " " << i;
+                rocfft_cout << " " << i;
             }
-            std::cout << std::endl;
-            std::cout << "\tostride:";
+            rocfft_cout << std::endl;
+            rocfft_cout << "\tostride:";
             for(const auto& i : execPlan.execSeq[i]->outStride)
             {
-                std::cout << " " << i;
+                rocfft_cout << " " << i;
             }
-            std::cout << std::endl;
+            rocfft_cout << std::endl;
 
             RefLibOp refLibOp(&data);
 #endif
@@ -430,19 +430,19 @@ void TransformPowX(const ExecPlan&       execPlan,
         }
         else
         {
-            std::cout << "null ptr function call error\n";
+            rocfft_cout << "null ptr function call error\n";
         }
 
 #ifdef TMP_DEBUG
         hipError_t err = hipPeekAtLastError();
         if(err != hipSuccess)
         {
-            std::cout << "Error: " << hipGetErrorName(err) << ", " << hipGetErrorString(err)
-                      << std::endl;
+            rocfft_cout << "Error: " << hipGetErrorName(err) << ", " << hipGetErrorString(err)
+                        << std::endl;
             exit(-1);
         }
         hipDeviceSynchronize();
-        std::cout << "executed kernel: " << i << std::endl;
+        rocfft_cout << "executed kernel: " << i << std::endl;
 
         ss.str("");
         ss << "kernel_" << i << "_output_real.bin";
@@ -477,20 +477,20 @@ void TransformPowX(const ExecPlan&       execPlan,
         realPart.close();
         imagPart.close();
 
-        std::cout << "copied from device\n";
+        rocfft_cout << "copied from device\n";
 
         // temporary print out the kernel output
-        // std::cout << "input:" << std::endl;
+        // rocfft_cout << "input:" << std::endl;
         // for(size_t i = 0; i < data.node->iDist * data.node->batch; i++)
         // {
-        //     std::cout << f_in[i].x << " " << f_in[i].y << "\n";
+        //     rocfft_cout << f_in[i].x << " " << f_in[i].y << "\n";
         // }
-        // std::cout << "output:" << std::endl;
+        // rocfft_cout << "output:" << std::endl;
         // for(size_t i = 0; i < data.node->oDist * data.node->batch; i++)
         // {
-        //     std::cout << f_out[i].x << " " << f_out[i].y << "\n";
+        //     rocfft_cout << f_out[i].x << " " << f_out[i].y << "\n";
         // }
-        // std::cout << "\n---------------------------------------------\n";
+        // rocfft_cout << "\n---------------------------------------------\n";
         free(dbg_out);
         free(dbg_in);
 #endif

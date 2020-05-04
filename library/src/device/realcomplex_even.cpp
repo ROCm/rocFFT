@@ -260,7 +260,7 @@ void r2c_1d_post(const void* data_p, void*)
     }
     catch(std::exception& e)
     {
-        std::cout << e.what() << std::endl;
+        rocfft_cout << e.what() << std::endl;
     }
 }
 
@@ -502,6 +502,6 @@ void c2r_1d_pre(const void* data_p, void*)
     }
     catch(std::exception& e)
     {
-        std::cout << e.what() << std::endl;
+        rocfft_cout << e.what() << std::endl;
     }
 }

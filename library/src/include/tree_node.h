@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "kargs.h"
+#include "rocfft_ostream.hpp"
 #include "twiddles.h"
 
 enum OperatingBuffer
@@ -312,7 +313,7 @@ public:
                                         size_t&                 chirpSize);
 
     // Output plan information for debug purposes:
-    void Print(std::ostream& os = std::cout, int indent = 0) const;
+    void Print(rocfft_ostream& os = rocfft_cout, int indent = 0) const;
 
     // logic B - using in-place transposes, todo
     //void RecursiveBuildTreeLogicB();
@@ -362,6 +363,6 @@ struct ExecPlan
 };
 
 void ProcessNode(ExecPlan& execPlan);
-void PrintNode(std::ostream& os, const ExecPlan& execPlan);
+void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan);
 
 #endif // TREE_NODE_H

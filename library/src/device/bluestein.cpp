@@ -355,6 +355,6 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
     else
     {
         assert(0);
-        std::cout << "Unsported array type in bluestein kernel launch!\n";
+        rocfft_cout << "Unsported array type in bluestein kernel launch!\n";
     }
 }

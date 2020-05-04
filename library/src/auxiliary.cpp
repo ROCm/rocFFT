@@ -23,27 +23,27 @@
 #include "logging.h"
 #include "rocfft.h"
 #include "rocfft_hip.h"
-#include <iostream>
+#include "rocfft_ostream.hpp"
+#include <fcntl.h>
+#include <memory>
 
 /*******************************************************************************
  * Static handle data
  ******************************************************************************/
-static std::ofstream log_trace_ofs;
-static std::ofstream log_bench_ofs;
-static std::ofstream log_profile_ofs;
+int log_trace_fd   = -1;
+int log_bench_fd   = -1;
+int log_profile_fd = -1;
 
 /**
  *  @brief Logging function
  *
  *  @details
- *  open_log_stream Open stream log_os for logging.
+ *  open_log_stream Open a file descriptor for logging.
  *                  If the environment variable with name
  * environment_variable_name
- *                  is not set, then stream log_os to std::cerr.
+ *                  is not set, then leave the fd untouched.
  *                  Else open a file at the full logfile path contained in
  *                  the environment variable.
- *                  If opening the file suceeds, stream to the file
- *                  else stream to std::cerr.
  *
  *  @param[in]
  *  environment_variable_name   const char*
@@ -51,36 +51,20 @@ static std::ofstream log_profile_ofs;
  *                              the full logfile path.
  *
  *  @parm[out]
- *  log_os      std::ostream*&
- *              Output stream. Stream to std:cerr if environment_variable_name
- *              is not set, else set to stream to log_ofs
- *
- *  @parm[out]
- *  log_ofs     std::ofstream&
- *              Output file stream. If log_ofs->is_open()==true, then log_os
- *              will stream to log_ofs. Else it will stream to std::cerr.
+ *  log_fd      int&
+ *              Output file descriptor.
  */
 
-static void open_log_stream(const char*    environment_variable_name,
-                            std::ostream*& log_os,
-                            std::ofstream& log_ofs)
+static void open_log_stream(const char* environment_variable_name, int& log_fd)
 
 {
-    // By default, output to cerr
-    log_os = &std::cerr;
-
     // if environment variable is set, open file at logfile_pathname contained in
     // the
     // environment variable
     auto logfile_pathname = getenv(environment_variable_name);
     if(logfile_pathname)
     {
-        log_ofs.open(logfile_pathname, std::ios_base::trunc);
-
-        // if log_ofs is open, then stream to log_ofs, else log_os is already set to
-        // std::cerr
-        if(log_ofs.is_open())
-            log_os = &log_ofs;
+        log_fd = open(logfile_pathname, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
     }
 }
 
@@ -97,19 +81,15 @@ rocfft_status rocfft_setup()
 
         // open log_trace file
         if(layer_mode & rocfft_layer_mode_log_trace)
-            open_log_stream(
-                "ROCFFT_LOG_TRACE_PATH", LogSingleton::GetInstance().GetTraceOS(), log_trace_ofs);
+            open_log_stream("ROCFFT_LOG_TRACE_PATH", log_trace_fd);
 
         // open log_bench file
         if(layer_mode & rocfft_layer_mode_log_bench)
-            open_log_stream(
-                "ROCFFT_LOG_BENCH_PATH", LogSingleton::GetInstance().GetBenchOS(), log_bench_ofs);
+            open_log_stream("ROCFFT_LOG_BENCH_PATH", log_bench_fd);
 
         // open log_profile file
         if(layer_mode & rocfft_layer_mode_log_profile)
-            open_log_stream("ROCFFT_LOG_PROFILE_PATH",
-                            LogSingleton::GetInstance().GetProfileOS(),
-                            log_profile_ofs);
+            open_log_stream("ROCFFT_LOG_PROFILE_PATH", log_profile_fd);
     }
 
     log_trace(__func__);
@@ -119,20 +99,25 @@ rocfft_status rocfft_setup()
 // library cleanup function, called once in program after end of library use
 rocfft_status rocfft_cleanup()
 {
+    log_trace(__func__);
+
+    LogSingleton::GetInstance().SetLayerMode(rocfft_layer_mode_none);
     // Close log files
-    if(log_trace_ofs.is_open())
+    if(log_trace_fd != -1)
     {
-        log_trace_ofs.close();
+        close(log_trace_fd);
+        log_trace_fd = -1;
     }
-    if(log_bench_ofs.is_open())
+    if(log_bench_fd != -1)
     {
-        log_bench_ofs.close();
+        close(log_bench_fd);
+        log_bench_fd = -1;
     }
-    if(log_profile_ofs.is_open())
+    if(log_profile_fd != -1)
     {
-        log_profile_ofs.close();
+        close(log_profile_fd);
+        log_profile_fd = -1;
     }
 
-    log_trace(__func__);
     return rocfft_status_success;
 }

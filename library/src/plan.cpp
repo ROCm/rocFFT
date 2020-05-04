@@ -24,10 +24,10 @@
 #include "radix_table.h"
 #include "repo.h"
 #include "rocfft.h"
+#include "rocfft_ostream.hpp"
 
 #include <algorithm>
 #include <assert.h>
-#include <iostream>
 #include <map>
 #include <numeric>
 #include <sstream>
@@ -554,128 +554,129 @@ rocfft_status rocfft_plan_get_work_buffer_size(const rocfft_plan plan, size_t* s
 rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
 {
     log_trace(__func__, "plan", plan);
-    std::cout << std::endl;
-    std::cout << "precision: "
-              << ((plan->precision == rocfft_precision_single) ? "single" : "double") << std::endl;
+    rocfft_cout << std::endl;
+    rocfft_cout << "precision: "
+                << ((plan->precision == rocfft_precision_single) ? "single" : "double")
+                << std::endl;
 
-    std::cout << "transform type: ";
+    rocfft_cout << "transform type: ";
     switch(plan->transformType)
     {
     case rocfft_transform_type_complex_forward:
-        std::cout << "complex forward";
+        rocfft_cout << "complex forward";
         break;
     case rocfft_transform_type_complex_inverse:
-        std::cout << "complex inverse";
+        rocfft_cout << "complex inverse";
         break;
     case rocfft_transform_type_real_forward:
-        std::cout << "real forward";
+        rocfft_cout << "real forward";
         break;
     case rocfft_transform_type_real_inverse:
-        std::cout << "real inverse";
+        rocfft_cout << "real inverse";
         break;
     }
-    std::cout << std::endl;
+    rocfft_cout << std::endl;
 
-    std::cout << "result placement: ";
+    rocfft_cout << "result placement: ";
     switch(plan->placement)
     {
     case rocfft_placement_inplace:
-        std::cout << "in-place";
+        rocfft_cout << "in-place";
         break;
     case rocfft_placement_notinplace:
-        std::cout << "not in-place";
+        rocfft_cout << "not in-place";
         break;
     }
-    std::cout << std::endl;
-    std::cout << std::endl;
+    rocfft_cout << std::endl;
+    rocfft_cout << std::endl;
 
-    std::cout << "input array type: ";
+    rocfft_cout << "input array type: ";
     switch(plan->desc.inArrayType)
     {
     case rocfft_array_type_complex_interleaved:
-        std::cout << "complex interleaved";
+        rocfft_cout << "complex interleaved";
         break;
     case rocfft_array_type_complex_planar:
-        std::cout << "complex planar";
+        rocfft_cout << "complex planar";
         break;
     case rocfft_array_type_real:
-        std::cout << "real";
+        rocfft_cout << "real";
         break;
     case rocfft_array_type_hermitian_interleaved:
-        std::cout << "hermitian interleaved";
+        rocfft_cout << "hermitian interleaved";
         break;
     case rocfft_array_type_hermitian_planar:
-        std::cout << "hermitian planar";
+        rocfft_cout << "hermitian planar";
         break;
     default:
-        std::cout << "unset";
+        rocfft_cout << "unset";
         break;
     }
-    std::cout << std::endl;
+    rocfft_cout << std::endl;
 
-    std::cout << "output array type: ";
+    rocfft_cout << "output array type: ";
     switch(plan->desc.outArrayType)
     {
     case rocfft_array_type_complex_interleaved:
-        std::cout << "complex interleaved";
+        rocfft_cout << "complex interleaved";
         break;
     case rocfft_array_type_complex_planar:
-        std::cout << "comple planar";
+        rocfft_cout << "comple planar";
         break;
     case rocfft_array_type_real:
-        std::cout << "real";
+        rocfft_cout << "real";
         break;
     case rocfft_array_type_hermitian_interleaved:
-        std::cout << "hermitian interleaved";
+        rocfft_cout << "hermitian interleaved";
         break;
     case rocfft_array_type_hermitian_planar:
-        std::cout << "hermitian planar";
+        rocfft_cout << "hermitian planar";
         break;
     default:
-        std::cout << "unset";
+        rocfft_cout << "unset";
         break;
     }
-    std::cout << std::endl;
-    std::cout << std::endl;
+    rocfft_cout << std::endl;
+    rocfft_cout << std::endl;
 
-    std::cout << "dimensions: " << plan->rank << std::endl;
+    rocfft_cout << "dimensions: " << plan->rank << std::endl;
 
-    std::cout << "lengths: " << plan->lengths[0];
+    rocfft_cout << "lengths: " << plan->lengths[0];
     for(size_t i = 1; i < plan->rank; i++)
-        std::cout << ", " << plan->lengths[i];
-    std::cout << std::endl;
-    std::cout << "batch size: " << plan->batch << std::endl;
-    std::cout << std::endl;
+        rocfft_cout << ", " << plan->lengths[i];
+    rocfft_cout << std::endl;
+    rocfft_cout << "batch size: " << plan->batch << std::endl;
+    rocfft_cout << std::endl;
 
-    std::cout << "input offset: " << plan->desc.inOffset[0];
+    rocfft_cout << "input offset: " << plan->desc.inOffset[0];
     if((plan->desc.inArrayType == rocfft_array_type_complex_planar)
        || (plan->desc.inArrayType == rocfft_array_type_hermitian_planar))
-        std::cout << ", " << plan->desc.inOffset[1];
-    std::cout << std::endl;
+        rocfft_cout << ", " << plan->desc.inOffset[1];
+    rocfft_cout << std::endl;
 
-    std::cout << "output offset: " << plan->desc.outOffset[0];
+    rocfft_cout << "output offset: " << plan->desc.outOffset[0];
     if((plan->desc.outArrayType == rocfft_array_type_complex_planar)
        || (plan->desc.outArrayType == rocfft_array_type_hermitian_planar))
-        std::cout << ", " << plan->desc.outOffset[1];
-    std::cout << std::endl;
-    std::cout << std::endl;
+        rocfft_cout << ", " << plan->desc.outOffset[1];
+    rocfft_cout << std::endl;
+    rocfft_cout << std::endl;
 
-    std::cout << "input strides: " << plan->desc.inStrides[0];
+    rocfft_cout << "input strides: " << plan->desc.inStrides[0];
     for(size_t i = 1; i < plan->rank; i++)
-        std::cout << ", " << plan->desc.inStrides[i];
-    std::cout << std::endl;
+        rocfft_cout << ", " << plan->desc.inStrides[i];
+    rocfft_cout << std::endl;
 
-    std::cout << "output strides: " << plan->desc.outStrides[0];
+    rocfft_cout << "output strides: " << plan->desc.outStrides[0];
     for(size_t i = 1; i < plan->rank; i++)
-        std::cout << ", " << plan->desc.outStrides[i];
-    std::cout << std::endl;
+        rocfft_cout << ", " << plan->desc.outStrides[i];
+    rocfft_cout << std::endl;
 
-    std::cout << "input distance: " << plan->desc.inDist << std::endl;
-    std::cout << "output distance: " << plan->desc.outDist << std::endl;
-    std::cout << std::endl;
+    rocfft_cout << "input distance: " << plan->desc.inDist << std::endl;
+    rocfft_cout << "output distance: " << plan->desc.outDist << std::endl;
+    rocfft_cout << std::endl;
 
-    std::cout << "scale: " << plan->desc.scale << std::endl;
-    std::cout << std::endl;
+    rocfft_cout << "scale: " << plan->desc.scale << std::endl;
+    rocfft_cout << std::endl;
 
     return rocfft_status_success;
 }
@@ -1820,7 +1821,7 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
         up   = parent->parent;
         tabs += "\t";
     }
-    std::cout << "TraverseTreeAssignBuffersLogicA: " << PrintScheme(scheme) << ": "
+    rocfft_cout << "TraverseTreeAssignBuffersLogicA: " << PrintScheme(scheme) << ": "
               << PrintOperatingBuffer(obIn) << " -> " << PrintOperatingBuffer(obOut) << "\n"
               << tabs << "\tobIn: " << PrintOperatingBuffer(obIn) << "\n"
               << tabs << "\tobOut: " << PrintOperatingBuffer(obOut) << "\n"
@@ -2214,10 +2215,10 @@ void TreeNode::assign_buffers_CS_REAL_3D_EVEN(OperatingBuffer& flipIn,
     }
 
 #if 0
-    std::cout << PrintScheme(scheme) << std::endl;
+    rocfft_cout << PrintScheme(scheme) << std::endl;
     for(int i = 0; i < childNodes.size(); ++i)
     {
-        std::cout << i << ": " << PrintScheme(childNodes[i]->scheme) << " : "
+        rocfft_cout << i << ": " << PrintScheme(childNodes[i]->scheme) << " : "
                   << PrintOperatingBuffer(childNodes[i]->obIn) << " -> "
                   << PrintOperatingBuffer(childNodes[i]->obOut) << std::endl;
     }
@@ -2548,7 +2549,7 @@ void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn
         placement = (obIn == obOut) ? rocfft_placement_inplace : rocfft_placement_notinplace;
         // if (this->scheme == CS_KERNEL_TRANSPOSE)
         // {
-        //     std::cout << " obIn " << obIn << ", obOut " << obOut << " rootIn " << rootIn
+        //     rocfft_cout << " obIn " << obIn << ", obOut " << obOut << " rootIn " << rootIn
         //               << ", rootOut " << rootOut << " inArrayType " << inArrayType
         //               << ", outArrayType " << outArrayType << std::endl;
         // }
@@ -2648,19 +2649,19 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         up   = parent->parent;
         tabs += "\t";
     }
-    std::cout << tabs << "TraverseTreeAssignParamsLogicA: " << PrintScheme(scheme) << std::endl;
-    std::cout << tabs << "\tlength:";
+    rocfft_cout << tabs << "TraverseTreeAssignParamsLogicA: " << PrintScheme(scheme) << std::endl;
+    rocfft_cout << tabs << "\tlength:";
     for(auto i : length)
-        std::cout << i << " ";
-    std::cout << std::endl;
-    std::cout << tabs << "\tistride:";
+        rocfft_cout << i << " ";
+    rocfft_cout << std::endl;
+    rocfft_cout << tabs << "\tistride:";
     for(auto i : inStride)
-        std::cout << i << " ";
-    std::cout << std::endl;
-    std::cout << tabs << "\tostride:";
+        rocfft_cout << i << " ";
+    rocfft_cout << std::endl;
+    rocfft_cout << tabs << "\tostride:";
     for(auto i : outStride)
-        std::cout << i << " ";
-    std::cout << std::endl;
+        rocfft_cout << i << " ";
+    rocfft_cout << std::endl;
 #endif
 
     assert(length.size() == inStride.size());
@@ -3769,7 +3770,7 @@ void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode*>& seq,
     }
 }
 
-void TreeNode::Print(std::ostream& os, const int indent) const
+void TreeNode::Print(rocfft_ostream& os, const int indent) const
 {
     std::string indentStr;
     int         i = indent;
@@ -3906,7 +3907,7 @@ void ProcessNode(ExecPlan& execPlan)
     execPlan.chirpWorkBufSize = chirpSize;
 }
 
-void PrintNode(std::ostream& os, const ExecPlan& execPlan)
+void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan)
 {
     os << "**********************************************************************"
           "*********"

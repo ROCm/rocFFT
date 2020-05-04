@@ -182,11 +182,11 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
         }
         catch(std::exception& e)
         {
-            std::cout << "scheme: " << scheme << std::endl;
-            std::cout << "twl: " << twl << std::endl;
-            std::cout << "dir: " << dir << std::endl;
-            std::cout << "noCorner: " << noCorner << std::endl;
-            std::cout << e.what() << '\n';
+            rocfft_cout << "scheme: " << scheme << std::endl;
+            rocfft_cout << "twl: " << twl << std::endl;
+            rocfft_cout << "dir: " << dir << std::endl;
+            rocfft_cout << "noCorner: " << noCorner << std::endl;
+            rocfft_cout << e.what() << '\n';
         }
     }
     else

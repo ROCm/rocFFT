@@ -81,7 +81,7 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
     repo.GetPlan(plan, execPlan);
 
 #ifdef DEBUG
-    PrintNode(std::cout, execPlan);
+    PrintNode(rocfft_cout, execPlan);
 #endif
 
     if(execPlan.workBufSize > 0)
