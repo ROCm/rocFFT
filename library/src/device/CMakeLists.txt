@@ -20,9 +20,9 @@
 # THE SOFTWARE.
 # #############################################################################
 
-# ########################################################################
-# A helper function to prefix a source list of files with a common path into a new list (non-destructive)
-# ########################################################################
+
+# A helper function to prefix a source list of files with a common
+# path into a new list (non-destructive)
 function( prepend_path prefix source_list_of_files return_list_of_files )
   foreach( file ${${source_list_of_files}} )
     if(IS_ABSOLUTE ${file} )
@@ -34,18 +34,17 @@ function( prepend_path prefix source_list_of_files return_list_of_files )
   set( ${return_list_of_files} ${new_list} PARENT_SCOPE )
 endfunction( )
 
-# ########################################################################
-# Main
-# ########################################################################
 
 # This builds the generator executable
 add_subdirectory( generator )
 
-# This includes an explicit list (all possible) of files the generator currently outputs
+# This includes an explicit list (all possible) of files the generator
+# currently outputs
 include( generator/generated-kernels.cmake )
 
 set( generator_pattern all CACHE STRING "FFT kernels to generate" )
-set_property( CACHE generator_pattern PROPERTY STRINGS pow2 pow3 pow5 "pow2,3" "pow2,5" "pow3,5" all )
+set_property( CACHE generator_pattern PROPERTY STRINGS pow2 pow3 pow5
+  "pow2,3" "pow2,5" "pow3,5" all )
 
 set( gen_headers ${kernels_launch} ${kernels_all} )
 if( generator_pattern STREQUAL "pow2" )
@@ -56,14 +55,16 @@ elseif( generator_pattern STREQUAL "pow5" )
     set( gen_headers ${kernels_launch} ${kernels_pow5} )
 endif()
 
-# add_custom_command will create source output files, that are used in a target below
-# In order for the dependencies to work in cmake, add_custom_command must be in the same
-# CMakeLists.txt file as the target [rocfft-device]
+# add_custom_command will create source output files, that are used in
+# a target below
+# In order for the dependencies to work in cmake, add_custom_command
+# must be in the same CMakeLists.txt file as the target
+# [rocfft-device]
 add_custom_command(
   OUTPUT ${gen_headers}
-  COMMAND rocfft-kernel-generator ${generator_pattern} ${small_kernels_group_num}
+  COMMAND rocfft-kernel-generator ${generator_pattern}
+  ${small_kernels_group_num}
   DEPENDS rocfft-kernel-generator
-#  WORKING_DIRECTORY ${kernel_path}
   COMMENT "Generator producing device kernels for rocfft-device"
 )
 
@@ -74,53 +75,46 @@ set( rocfft_device_source
   real2complex_embed.cpp
   complex2real_embed.cpp
   realcomplex_even.cpp
-)
+  )
 
-prepend_path( "../.." rocfft_headers_public relative_rocfft_device_headers_public )
+prepend_path( "../.."
+  rocfft_headers_public relative_rocfft_device_headers_public )
 
 if(NOT SINGLELIB)
   add_library( rocfft-device
     ${rocfft_device_source}
     ${relative_rocfft_device_headers_public}
-    ${gen_headers}
-    )
+    ${gen_headers} )
 else()
-  # Compile the device lib as a static library, which is then linked into librocfft.so
-  # Useful for testing purposes.
-    add_library( rocfft-device STATIC
+  # Compile the device lib as a static library, which is then linked
+  # into librocfft.so Useful for testing purposes.
+  add_library( rocfft-device STATIC
     ${rocfft_device_source}
     ${relative_rocfft_device_headers_public}
     ${gen_headers}
     )
+  set_property(TARGET rocfft-device PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()
 
 add_library( roc::rocfft-device ALIAS rocfft-device )
-target_compile_features( rocfft-device PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
+target_compile_features( rocfft-device PRIVATE
+  cxx_static_assert cxx_nullptr cxx_auto_type )
 
-if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" OR HIP_PLATFORM STREQUAL "hip-clang")
-  target_compile_options (rocfft-device PRIVATE -fno-gpu-rdc)
-endif()
 
-# Remove this check when we no longer build with older rocm stack(ie < 1.8.2)
-if(CMAKE_CXX_COMPILER MATCHES ".*/hipcc$")
-target_link_libraries( rocfft-device PRIVATE hip::device )
-else()
-target_link_libraries( rocfft-device PRIVATE hip::device  hcc::hccshared )
+if( CMAKE_CXX_COMPILER MATCHES ".*/hcc" )
+  target_link_libraries( rocfft-device PRIVATE hip::device )
 endif()
 
 if(HIP_PLATFORM STREQUAL "nvcc")
-    target_compile_options( rocfft-device PRIVATE "-gencode arch=compute_75,code=sm_75 -gencode arch=compute_70,code=sm_70 -gencode arch=compute_60,code=sm_60" )
+  target_compile_options( rocfft-device PRIVATE
+    "-gencode arch=compute_75,code=sm_75"
+    "-gencode arch=compute_70,code=sm_70"
+    "-gencode arch=compute_60,code=sm_60" )
+    target_compile_options( rocfft-device PRIVATE -Xcompiler -fPIC)
+else()
+  target_compile_options( rocfft-device PRIVATE -fno-gpu-rdc )
+  target_link_libraries( rocfft-device PRIVATE hcc::hccshared )
 endif()
-
-if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" OR HIP_PLATFORM STREQUAL "hip-clang")
-  # Remove following when hcc is fixed; hcc emits following spurious warning ROCm v1.6.1
-  # "clang-5.0: warning: argument unused during compilation: '-isystem /opt/rocm/include'"
-  target_compile_options( rocfft-device PRIVATE -Wno-unused-command-line-argument )
-
-  foreach( target ${AMDGPU_TARGETS} )
-    target_link_libraries( rocfft-device PRIVATE --amdgpu-target=${target} )
-  endforeach( )
-endif( )
 
 target_include_directories( rocfft-device
   PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -134,19 +128,22 @@ target_include_directories( rocfft-device
 
 rocm_set_soversion( rocfft-device ${rocfft_SOVERSION} )
 set_target_properties( rocfft-device PROPERTIES CXX_EXTENSIONS NO )
-set_target_properties( rocfft-device PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+set_target_properties( rocfft-device PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+  "${PROJECT_BINARY_DIR}/staging" )
 set_target_properties( rocfft-device PROPERTIES DEBUG_POSTFIX "-d" )
-set_target_properties( rocfft-device PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON )
+set_target_properties( rocfft-device PROPERTIES CXX_STANDARD 14
+  CXX_STANDARD_REQUIRED ON )
 
-# Following Boost conventions of prefixing 'lib' on static built libraries, across all platforms
+# Following Boost conventions of prefixing 'lib' on static built
+# libraries, across all platforms
 if( NOT BUILD_SHARED_LIBS )
   set_target_properties( rocfft-device PROPERTIES PREFIX "lib" )
 endif( )
 
 rocm_install_targets(
-  TARGETS rocfft-device
-  PREFIX rocfft
-)
-#         PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
+  TARGETS
+  rocfft-device
+  PREFIX
+  rocfft )
 
 rocm_install_symlink_subdir( rocfft )

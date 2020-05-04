@@ -37,7 +37,7 @@ function display_help()
     echo "    [-c|--clients] build library clients too (combines with -i & -d)"
     echo "    [-g|--debug] -DCMAKE_BUILD_TYPE=Debug (default is =Release)"
     echo "    [-r]--relocatable] create a package to support relocatable ROCm"
-    echo "    [--cuda] build library for cuda backend"
+    #echo "    [--cuda] build library for cuda backend"
     echo "    [--hip-clang] build library for amdgpu backend using hip-clang"
 }
 
@@ -179,14 +179,6 @@ install_packages( )
     local library_dependencies_fedora=( "make" "cmake" "gcc-c++" "libcxx-devel" "rpm-build" )
     local library_dependencies_sles=( "make" "cmake" "gcc-c++" "gcc-fortran" "libcxxtools9" "rpm-build" )
 
-    if [[ "${build_cuda}" == true ]]; then
-        # Ideally, this could be cuda-cufft-dev, but the package name has a version number in it
-        library_dependencies_ubuntu+=( "cuda" )
-        library_dependencies_centos+=( "" ) # how to install cuda on centos?
-        library_dependencies_fedora+=( "" ) # how to install cuda on fedora?
-        library_dependencies_sles+=( "" ) # how to install cuda on fedora?
-    fi
-
     local client_dependencies_ubuntu=( "libfftw3-dev" "libboost-program-options-dev" )
     local client_dependencies_centos=( "fftw-devel" "boost-devel" )
     local client_dependencies_fedora=( "fftw-devel" "boost-devel" )
@@ -267,7 +259,6 @@ install_package=false
 install_dependencies=false
 install_prefix=rocfft-install
 build_clients=false
-build_cuda=false
 build_release=true
 build_relocatable=false
 
@@ -278,7 +269,7 @@ build_relocatable=false
 # check if we have a modern version of getopt that can handle whitespace and long parameters
 getopt -T
 if [[ $? -eq 4 ]]; then
-    GETOPT_PARSE=$(getopt --name "${0}" -o 'hidcgr' --long 'help,install,clients,dependencies,debug,cuda,hip-clang,prefix:,relocatable' --options hicgdr -- "$@")
+    GETOPT_PARSE=$(getopt --name "${0}" -o 'hidcgr' --long 'help,install,clients,dependencies,debug,hip-clang,prefix:,relocatable' --options hicgdr -- "$@")
 else
     echo "Need a new version of getopt"
     exit 1
@@ -311,9 +302,6 @@ while true; do
             shift ;;
         -g|--debug)
             build_release=false
-            shift ;;
-        --cuda)
-            build_cuda=true
             shift ;;
         --hip-clang)
             build_hip_clang=true
@@ -412,7 +400,7 @@ if [[ "${build_clients}" == true ]]; then
 fi
 
 compiler="hcc"
-if [[ "${build_cuda}" == true || "${build_hip_clang}" == true ]]; then
+if [[ "${build_hip_clang}" == true ]]; then
     compiler="hipcc"
 fi
 
@@ -421,65 +409,29 @@ if [[ "${build_hip_clang}" == true ]]; then
 fi
 
 # On ROCm platforms, hcc compiler can build everything
-if [[ "${build_cuda}" == false ]]; then
 
-    # Build library with AMD toolchain because of existense of device kernels
-    if [[ "${build_clients}" == false ]]; then
-        cmake_client_options=" "
-    fi
-    if [[ "${build_relocatable}" == true ]]; then
-        CXX=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DCPACK_PACKAGING_INSTALL_PREFIX="${rocm_path}" \
-        -DCMAKE_PREFIX_PATH="${rocm_path} ${rocm_path}/hcc ${rocm_path}/hip" \
-        -DCMAKE_SHARED_LINKER_FLAGS="${rocm_rpath}" \
-        -DROCM_DISABLE_LDCONFIG=ON \
-	../..
-    else
-        CXX=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX=${install_prefix} -DCPACK_PACKAGING_INSTALL_PREFIX=/opt/rocm ../..
-    fi
-    check_exit_code
-    make -j$(nproc)
-    check_exit_code
-    if ( check_install_dir ${install_prefix} ) ; then
-        make install
-    else
-        elevate_if_not_root make install
-    fi
-    check_exit_code
-
-
-else
-    # The nvidia compile is a little more complicated, in that we split compiling the
-    # library from the clients.  We use the hipcc compiler to build the rocfft library
-    # for a cuda backend (hipcc offloads the compile to nvcc).  However, we run into a
-    # compiler incompatibility compiling the clients between nvcc and fftw3.h 3.3.4
-    # headers.  The incompatibility is fixed in fft v3.3.6, but that is not shipped by
-    # default on Ubuntu
-
-    # As a workaround, since clients do not contain device code, we opt to build clients
-    # with the native compiler on the platform.  The compiler cmake chooses during
-    # configuration time is mostly unchangeable, so we launch multiple cmake invocation
-    # with a different compiler on each.
-
-    # Build library only with hipcc as compiler
-    CXX=${compiler} ${cmake_executable} ${cmake_common_options} -DCMAKE_INSTALL_PREFIX=${install_prefix} -DCPACK_PACKAGE_INSTALL_DIRECTORY=/opt/rocm ../..
-    check_exit_code
-    make -j$(nproc)
-    check_exit_code
-    if ( check_install_dir ${install_prefix} ) ; then
-        make install
-    else
-        elevate_if_not_root make install
-    fi
-    check_exit_code
-    
-    # Build cuda clients with default host compiler
-    if [[ "${build_clients}" == true ]]; then
-        pushd clients
-        ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCMAKE_PREFIX_PATH="$(pwd)/../rocfft-install;$(pwd)/../deps/deps-install" ../../../clients
-        make -j$(nproc)
-        popd
-    fi
+# Build library with AMD toolchain because of existense of device kernels
+if [[ "${build_clients}" == false ]]; then
+    cmake_client_options=" "
 fi
+if [[ "${build_relocatable}" == true ]]; then
+    CXX=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DCPACK_PACKAGING_INSTALL_PREFIX="${rocm_path}" \
+       -DCMAKE_PREFIX_PATH="${rocm_path} ${rocm_path}/hcc ${rocm_path}/hip" \
+       -DCMAKE_SHARED_LINKER_FLAGS="${rocm_rpath}" \
+       -DROCM_DISABLE_LDCONFIG=ON \
+       ../..
+else
+    CXX=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX=${install_prefix} -DCPACK_PACKAGING_INSTALL_PREFIX=/opt/rocm ../..
+fi
+check_exit_code
+make -j$(nproc)
+check_exit_code
+if ( check_install_dir ${install_prefix} ) ; then
+    make install
+else
+    elevate_if_not_root make install
+fi
+check_exit_code
 
 # #################################################
 # install

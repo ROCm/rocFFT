@@ -1,4 +1,3 @@
-
 # #############################################################################
 # Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
 #
@@ -21,32 +20,11 @@
 # THE SOFTWARE.
 # #############################################################################
 
-
-# ########################################################################
-# The following check are hacks to get compiles working for CUDA backend
-# These should be removed in the future.
-
-# If hipcc is set as compiler, we are compiling for CUDA backend and
-# nvcc complains of illegal -dumpversion flag because cmake thinks nvcc is a GNU compiler
-# A workaround is setting boost compiler explicitely
-
-# NVCC can not compile fftw.3 header file appropriately before v3.3.5
-# https://github.com/FFTW/fftw3/issues/18
-# v3.3.5 is installed by default on Ubuntu 16, workaround is to trick fftw3
-# into thinking nvcc is an Intel compiler as desribed in above issue
-if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-  set( Boost_COMPILER "" )
-endif( )
-# ########################################################################
-
 find_package( Boost COMPONENTS program_options REQUIRED)
-set( Boost_DEBUG ON )
-set( Boost_USE_MULTITHREADED ON )
 if(NOT Boost_LIBRARIES)
   # Fixes a bug in Boost's CMAKE where Boost_LIBRARIES is not set.
   set(Boost_LIBRARIES Boost::program_options)
 endif()
-
 
 set( rider_list rocfft-rider dyna-rocfft-rider )
 foreach( rider ${rider_list})
@@ -94,33 +72,13 @@ foreach( rider ${rider_list})
       )
   endif()
   
-  if( CUDA_FOUND )
-    target_include_directories( ${rider}
-      PRIVATE
-      $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
-      $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
-      )
-    target_compile_definitions( ${rider} PRIVATE __HIP_PLATFORM_NVCC__ )
-    target_link_libraries( ${rider} PRIVATE ${CUDA_LIBRARIES} )
-  else( )
+  # hipcc find this automatically, but hcc does not
+  if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
     target_link_libraries( ${rider} PRIVATE hip::device )
-  endif( )
-
-  if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$")
-    target_compile_options( ${rider} PRIVATE -Wno-unused-command-line-argument -hc )
-  endif( )
-
-  if(HIP_PLATFORM STREQUAL "hip-clang")
-    target_compile_options( ${rider} PRIVATE -Wno-unused-command-line-argument )
-  endif( )
+  endif()
   
-
-  set( THREADS_PREFER_PTHREAD_FLAG ON )
-  find_package( Threads REQUIRED )
-  target_link_libraries( ${rider} PRIVATE Threads::Threads)
-  
-
-  set_target_properties( ${rider} PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
+  set_target_properties( ${rider} PROPERTIES DEBUG_POSTFIX "-d"
+    CXX_EXTENSIONS NO )
 
   set_target_properties( ${rider}
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )

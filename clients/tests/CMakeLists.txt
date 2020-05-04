@@ -27,30 +27,10 @@ set( Boost_DETAILED_FAILURE_MSG ON )
 set( Boost_ADDITIONAL_VERSIONS 1.65.1 1.65 )
 set( Boost_USE_STATIC_LIBS OFF )
 
-
-# ########################################################################
-# The following check are hacks to get compiles working for CUDA backend
-# These should be removed in the future.
-
-# If hipcc is set as compiler, we are compiling for CUDA backend and
-# nvcc complains of illegal -dumpversion flag because cmake thinks nvcc is a GNU compiler
-# A workaround is setting boost compiler explicitely
-
-# NVCC can not compile fftw.3 header file appropriately before v3.3.5
-# https://github.com/FFTW/fftw3/issues/18
-# v3.3.5 is installed by default on Ubuntu 16, workaround is to trick fftw3
-# into thinking nvcc is an Intel compiler as desribed in above issue
-if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-  set( Boost_COMPILER "" )
-  set( BOOST_LIBRARYDIR "/usr/lib/x86_64-linux-gnu/" )  # Don't know why we need this yet
-endif( )
-# ########################################################################
-
 if(NOT Boost_LIBRARIES)
   # Fixes a bug in Boost's CMAKE where Boost_LIBRARIES is not set.
   set(Boost_LIBRARIES Boost::program_options)
 endif()
-
 
 find_package( GTest REQUIRED )
 find_package( FFTW 3.0 REQUIRED MODULE COMPONENTS FLOAT DOUBLE )
@@ -96,7 +76,13 @@ target_link_libraries( rocfft-test
   ${FFTW_LIBRARIES}
   ${Boost_LIBRARIES} )
 
-if( CUDA_FOUND )
+# hipcc find this automatically, but hcc does not
+if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
+  target_link_libraries( rocfft-test PRIVATE hip::device )
+endif()
+
+
+if( USE_CUDA )
   target_include_directories( rocfft-test
     PRIVATE
       $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
@@ -104,22 +90,12 @@ if( CUDA_FOUND )
     )
   target_compile_definitions( rocfft-test PRIVATE __HIP_PLATFORM_NVCC__ )
   target_link_libraries( rocfft-test PRIVATE ${CUDA_LIBRARIES} )
-else( )
-  target_link_libraries( rocfft-test PRIVATE hip::device )
-endif( )
-
-if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$")
-  target_compile_options( rocfft-test PRIVATE -Wno-unused-command-line-argument -hc )
-endif( )
-
-if(HIP_PLATFORM STREQUAL "hip-clang")
+else()
   target_compile_options( rocfft-test PRIVATE -Wno-unused-command-line-argument )
 endif( )
 
-set( THREADS_PREFER_PTHREAD_FLAG ON )
-find_package( Threads REQUIRED )
-target_link_libraries( rocfft-test PRIVATE Threads::Threads)
-
-set_target_properties( rocfft-test PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
+set_target_properties( rocfft-test
+  PROPERTIES DEBUG_POSTFIX "-d"
+  CXX_EXTENSIONS NO )
 set_target_properties( rocfft-test
   PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )

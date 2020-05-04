@@ -20,15 +20,8 @@
 # THE SOFTWARE.
 # #############################################################################
 
-# The following helper functions wrap common cmake functions.  They are
-# used to cope with a few wierdnesses of hipcc/nvcc.
-# ########################################################################
-# HELPER FUNCTIONS
-# ########################################################################
 
-# ########################################################################
 # target_compile_features() override
-# ########################################################################
 function( target_compile_features target_name )
   # With Cmake v3.5, hipcc (with nvcc backend) does not work with target_compile_features
   # Turn on -std=c++11 manually
@@ -39,9 +32,7 @@ function( target_compile_features target_name )
   endif( )
 endfunction( )
 
-# ########################################################################
 # target_link_libraries() override
-# ########################################################################
 function( target_link_libraries target_name )
   # hipcc takes care of finding hip library dependencies internally; remove
   # explicit mentions of them so cmake doesn't complain on nvcc path
@@ -62,17 +53,17 @@ function( target_link_libraries target_name )
   endif( )
 endfunction( )
 
-# ########################################################################
-# Main
-# ########################################################################
+
 
 # This is incremented when the ABI to the library changes
 set( rocfft_SOVERSION 0.1 )
 
 list( APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake )
 
-# This option only works for make/nmake and the ninja generators, but no reason it shouldn't be on all the time
-# This tells cmake to create a compile_commands.json file that can be used with clang tooling or vim
+# This option only works for make/nmake and the ninja generators, but
+# no reason it shouldn't be on all the time.
+# This tells cmake to create a compile_commands.json file that can be
+# used with clang tooling or vim.
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 
 set(CMAKE_CXX_FLAGS_DEBUG "-DDEBUG ${CMAKE_CXX_FLAGS_DEBUG}")
@@ -146,14 +137,9 @@ endif( )
 
 set( CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "\${CPACK_PACKAGING_INSTALL_PREFIX}" "\${CPACK_PACKAGING_INSTALL_PREFIX}/include" "\${CPACK_PACKAGING_INSTALL_PREFIX}/lib" "\${CPACK_PACKAGING_INSTALL_PREFIX}/lib/cmake" )
 
-# Give rocfft compiled for CUDA backend a different name
-if( NOT CUDA_FOUND )
-  set( package_name rocfft )
-else( )
-  set( package_name rocfft-alt )
-endif( )
-
 set( ROCFFT_CONFIG_DIR "\${CPACK_PACKAGING_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}" CACHE PATH "Path placed into ldconfig file" )
+
+set( package_name rocfft )
 
 rocm_create_package(
     NAME ${package_name}

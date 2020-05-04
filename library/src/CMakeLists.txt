@@ -34,40 +34,35 @@ function( prepend_path prefix source_list_of_files return_list_of_files )
   set( ${return_list_of_files} ${new_list} PARENT_SCOPE )
 endfunction( )
 
-# ########################################################################
-# Main
-# ########################################################################
-
 set( package_targets rocfft )
 
-# Package that helps me set visibility for function names exported from shared library
+# Package that helps me set visibility for function names exported
+# from shared library
 include( GenerateExportHeader )
 
 add_subdirectory( device )
 
 # The following is a list of implementation files defining the library
 set( rocfft_source
-      auxiliary.cpp
-      plan.cpp
-      transform.cpp
-      hipfft.cpp
-      repo.cpp
-      powX.cpp
-      get_radix.cpp
-      twiddles.cpp
-      kargs.cpp
-    )
+  auxiliary.cpp
+  plan.cpp
+  transform.cpp
+  hipfft.cpp
+  repo.cpp
+  powX.cpp
+  get_radix.cpp
+  twiddles.cpp
+  kargs.cpp
+  )
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 
 add_library( rocfft ${rocfft_source} ${relative_rocfft_headers_public} )
 add_library( roc::rocfft ALIAS rocfft )
-target_compile_features( rocfft PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
+target_compile_features( rocfft PRIVATE cxx_static_assert cxx_nullptr
+  cxx_auto_type )
 
-# Remove this check when we no longer build with older rocm stack(ie < 1.8.2)
-if(CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-  target_link_libraries( rocfft PRIVATE hip::device )
-else()
+if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
   target_link_libraries( rocfft PRIVATE hip::device  hcc::hccshared )
 endif()
 
@@ -85,11 +80,11 @@ endif( )
 
 target_include_directories( rocfft
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
-          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
+  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
   PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
-          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
-          $<INSTALL_INTERFACE:include>
-)
+  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  )
 
 rocm_set_soversion( rocfft ${rocfft_SOVERSION} )
 set_target_properties( rocfft PROPERTIES CXX_EXTENSIONS NO )
@@ -101,7 +96,7 @@ set_target_properties( rocfft PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED O
 # hipcc(with nvcc backend) build has problem for share library visibility,
 # need to figure out the reason and enable visibility "hidden" for nvcc eventually.
 if(NOT HIP_PLATFORM STREQUAL "nvcc")
-    set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
+  set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
 endif()
 
 generate_export_header( rocfft EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft-export.h )
@@ -117,10 +112,10 @@ endif( )
 rocm_install_targets(
   TARGETS ${package_targets} 
   INCLUDE
-    ${CMAKE_SOURCE_DIR}/library/include
-    ${CMAKE_BINARY_DIR}/include
+  ${CMAKE_SOURCE_DIR}/library/include
+  ${CMAKE_BINARY_DIR}/include
   PREFIX rocfft
-)
+  )
 #         PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
 
 rocm_export_targets(
@@ -128,6 +123,6 @@ rocm_export_targets(
   PREFIX rocfft
   DEPENDS PACKAGE hip
   NAMESPACE roc::
- )
+  )
 
 rocm_install_symlink_subdir( rocfft )

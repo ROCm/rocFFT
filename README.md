@@ -26,6 +26,13 @@ cmake -DCMAKE_CXX_COMPILER=hcc ..
 
 A static library can be compiled by using the option `-DBUILD_SHARED_LIBS=off`
 
+The hip-clang compiler (https://github.com/ROCm-Developer-Tools/HIP/blob/master/INSTALL.md#hip-clang), one must specify 
+`-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang` to cmake.
+
+One can use nvcc as a backend compiler by passing the option `-DUSE_CUDA=yes`
+and setting `HIP_PLATFORM=nvcc` in your environment.
+
+
 rocfft-rider is a client which will run general transforms and is
 useful for performance analysis.  Compilation is enabled via the
 `-DBUILD_CLIENTS_RIDER=on` cmake option.  rocfft-rider uses boost
