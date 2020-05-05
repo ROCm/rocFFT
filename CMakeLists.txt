@@ -114,7 +114,8 @@ set(CMAKE_INSTALL_LIBDIR "lib" CACHE INTERNAL
 
 # Find HCC/HIP dependencies
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$|.*/hipcc$" )
-  find_package( hcc REQUIRED CONFIG PATHS )
+  message( STATUS "Building with ROCm tools" )
+  find_package( hip REQUIRED CONFIG PATHS )
 endif( )
 
 # Hip headers required of all clients; clients use hip to allocate
