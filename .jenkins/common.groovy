@@ -47,16 +47,9 @@ def runTestCommand (platform, project)
 
 def runPackageCommand(platform, project, jobName)
 {
-    if(jobName.contains('hipclang'))
-    {
-        packageCommand = null
-    }
-    else
-    {
-        def packageHelper = platform.makePackage(platform.jenkinsLabel,"${project.paths.project_build_prefix}/build",true)
-        platform.runCommand(this, packageHelper[0])
-        platform.archiveArtifacts(this, packageHelper[1])
-    }
+    def packageHelper = platform.makePackage(platform.jenkinsLabel,"${project.paths.project_build_prefix}/build",true)
+    platform.runCommand(this, packageHelper[0])
+    platform.archiveArtifacts(this, packageHelper[1])
 }
 
 return this
