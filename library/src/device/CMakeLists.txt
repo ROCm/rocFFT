@@ -113,7 +113,6 @@ if(HIP_PLATFORM STREQUAL "nvcc")
     target_compile_options( rocfft-device PRIVATE -Xcompiler -fPIC)
 else()
   target_compile_options( rocfft-device PRIVATE -fno-gpu-rdc )
-  target_link_libraries( rocfft-device PRIVATE hcc::hccshared )
 endif()
 
 target_include_directories( rocfft-device

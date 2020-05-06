@@ -64,7 +64,7 @@ target_compile_features( rocfft PRIVATE cxx_static_assert cxx_nullptr
   cxx_auto_type )
 
 if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
-  target_link_libraries( rocfft PRIVATE hip::device  hcc::hccshared )
+  target_link_libraries( rocfft PRIVATE hip::device )
 endif()
 
 target_link_libraries( rocfft PRIVATE rocfft-device )
