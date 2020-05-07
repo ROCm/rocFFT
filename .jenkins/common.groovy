@@ -8,6 +8,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false)
     String compiler = jobName.contains('hipclang') ? 'hipcc' : 'hcc'
     String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_BENCHMARKS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON'
     String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug' : '-DCMAKE_BUILD_TYPE=Release'
+    String buildTypeDir = debug ? 'debug' : 'release'
     String hipClangArgs = jobName.contains('hipclang') ? '-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang' : ''
     String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
     String sudo = platform.jenkinsLabel.contains('sles') ? 'sudo -E' : ''
@@ -26,8 +27,8 @@ def runCompileCommand(platform, project, jobName, boolean debug=false)
                 export CMAKE_PREFIX_PATH=\${FFTW_LIB_PATH}/cmake/fftw3f:\${CMAKE_PREFIX_PATH}
 
                 cd ${project.paths.project_build_prefix}
-                mkdir build && cd build
-                ${sudo} ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/${compiler} ${buildTypeArg} ${clientArgs} ${hipClangArgs} ..
+                mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
+                ${sudo} ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/${compiler} ${buildTypeArg} ${clientArgs} ${hipClangArgs} ../..
                 ${sudo} make -j\$(nproc)
             """
     platform.runCommand(this, command)
@@ -39,7 +40,7 @@ def runTestCommand (platform, project)
 
     def command = """#!/usr/bin/env bash
                 set -x
-                cd ${project.paths.project_build_prefix}/build/clients/staging
+                cd ${project.paths.project_build_prefix}/build/release/clients/staging
                 ${sudo} LD_LIBRARY_PATH=/opt/rocm/lib GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./rocfft-test --gtest_color=yes
             """
     platform.runCommand(this, command)
@@ -47,7 +48,7 @@ def runTestCommand (platform, project)
 
 def runPackageCommand(platform, project, jobName)
 {
-    def packageHelper = platform.makePackage(platform.jenkinsLabel,"${project.paths.project_build_prefix}/build",true)
+    def packageHelper = platform.makePackage(platform.jenkinsLabel,"${project.paths.project_build_prefix}/build/release",true)
     platform.runCommand(this, packageHelper[0])
     platform.archiveArtifacts(this, packageHelper[1])
 }
