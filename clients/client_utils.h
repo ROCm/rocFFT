@@ -51,8 +51,53 @@ std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits
     return stream;
 }
 
-// Increment the index (column-major) for looping over arbitrary dimensional loops with
-// dimensions length.
+template <typename T1, typename T2>
+static bool increment_base(T1& index, const T2& length)
+{
+    static_assert(std::is_integral<T1>::value, "Integral required.");
+    static_assert(std::is_integral<T2>::value, "Integral required.");
+    if(index < length - 1)
+    {
+        ++index;
+        return true;
+    }
+    index = 0;
+    return false;
+}
+
+// Increment the index (column-major) for looping over 1, 2, and 3 dimensions length.
+template <typename T1, typename T2>
+static bool increment_colmajor(T1& index, const T2& length)
+{
+    static_assert(std::is_integral<T1>::value, "Integral required.");
+    static_assert(std::is_integral<T2>::value, "Integral required.");
+    return increment_base(index, length);
+}
+
+template <typename T1, typename T2>
+static bool increment_colmajor(std::tuple<T1, T1>& index, const std::tuple<T2, T2>& length)
+{
+    if(increment_base(std::get<0>(index), std::get<0>(length)))
+        // we incremented ok, nothing further to do
+        return true;
+    // otherwise, we rolled over
+    return increment_base(std::get<1>(index), std::get<1>(length));
+}
+
+template <typename T1, typename T2>
+static bool increment_colmajor(std::tuple<T1, T1, T1>& index, const std::tuple<T2, T2, T2>& length)
+{
+    if(increment_base(std::get<0>(index), std::get<0>(length)))
+        // we incremented ok, nothing further to do
+        return true;
+    if(increment_base(std::get<1>(index), std::get<1>(length)))
+        // we incremented ok, nothing further to do
+        return true;
+    // otherwise, we rolled over
+    return increment_base(std::get<2>(index), std::get<2>(length));
+}
+
+// Increment column-major index over arbitrary dimension length
 template <typename T1, typename T2>
 inline bool increment_colmajor(std::vector<T1>& index, const std::vector<T2>& length)
 {
@@ -73,8 +118,39 @@ inline bool increment_colmajor(std::vector<T1>& index, const std::vector<T2>& le
     return !std::all_of(index.begin(), index.end(), [](int i) { return i == 0; });
 }
 
-// Increment the index (row-major) for looping over arbitrary dimensional loops with
-// dimensions length.
+// Increment the index (row-major) for looping over 1, 2, and 3 dimensions length.
+template <typename T1, typename T2>
+static bool increment_rowmajor(T1& index, const T2& length)
+{
+    static_assert(std::is_integral<T1>::value, "Integral required.");
+    static_assert(std::is_integral<T2>::value, "Integral required.");
+    return increment_base(index, length);
+}
+
+template <typename T1, typename T2>
+static bool increment_rowmajor(std::tuple<T1, T1>& index, const std::tuple<T2, T2>& length)
+{
+    if(increment_base(std::get<1>(index), std::get<1>(length)))
+        // we incremented ok, nothing further to do
+        return true;
+    // otherwise, we rolled over
+    return increment_base(std::get<0>(index), std::get<0>(length));
+}
+
+template <typename T1, typename T2>
+static bool increment_rowmajor(std::tuple<T1, T1, T1>& index, const std::tuple<T2, T2, T2>& length)
+{
+    if(increment_base(std::get<2>(index), std::get<2>(length)))
+        // we incremented ok, nothing further to do
+        return true;
+    if(increment_base(std::get<1>(index), std::get<1>(length)))
+        // we incremented ok, nothing further to do
+        return true;
+    // otherwise, we rolled over
+    return increment_base(std::get<0>(index), std::get<0>(length));
+}
+
+// Increment row-major index over arbitrary dimension length
 template <typename T1, typename T2>
 bool increment_rowmajor(std::vector<T1>& index, const std::vector<T2>& length)
 {
@@ -93,6 +169,35 @@ bool increment_rowmajor(std::vector<T1>& index, const std::vector<T2>& length)
     }
     // End the loop when we get back to the start:
     return !std::all_of(index.begin(), index.end(), [](int i) { return i == 0; });
+}
+
+// specialized computation of index given 1-, 2-, 3- dimension length + stride
+template <typename T1, typename T2>
+int compute_index(T1 length, T2 stride, size_t base)
+{
+    static_assert(std::is_integral<T1>::value, "Integral required.");
+    static_assert(std::is_integral<T2>::value, "Integral required.");
+    return (length * stride) + base;
+}
+
+template <typename T1, typename T2>
+int compute_index(const std::tuple<T1, T1>& length, const std::tuple<T2, T2>& stride, size_t base)
+{
+    static_assert(std::is_integral<T1>::value, "Integral required.");
+    static_assert(std::is_integral<T2>::value, "Integral required.");
+    return (std::get<0>(length) * std::get<0>(stride)) + (std::get<1>(length) * std::get<1>(stride))
+           + base;
+}
+
+template <typename T1, typename T2>
+int compute_index(const std::tuple<T1, T1, T1>& length,
+                  const std::tuple<T2, T2, T2>& stride,
+                  size_t                        base)
+{
+    static_assert(std::is_integral<T1>::value, "Integral required.");
+    static_assert(std::is_integral<T2>::value, "Integral required.");
+    return (std::get<0>(length) * std::get<0>(stride)) + (std::get<1>(length) * std::get<1>(stride))
+           + (std::get<2>(length) * std::get<2>(stride)) + base;
 }
 
 // Output a formatted general-dimensional array with given length and stride in batches
@@ -286,31 +391,27 @@ inline std::vector<T1> compute_stride(const std::vector<T1>& length,
 // a buffer with strides ostride and length odist between batches.  The input and output
 // types are identical.
 template <typename Tval, typename Tint1, typename Tint2, typename Tint3>
-inline void copy_buffers_1to1(const Tval*               input,
-                              Tval*                     output,
-                              const std::vector<Tint1>& length,
-                              const size_t              nbatch,
-                              const std::vector<Tint2>& istride,
-                              const size_t              idist,
-                              const std::vector<Tint3>& ostride,
-                              const size_t              odist)
+inline void copy_buffers_1to1(const Tval*  input,
+                              Tval*        output,
+                              const Tint1& length,
+                              const size_t nbatch,
+                              const Tint2& istride,
+                              const size_t idist,
+                              const Tint3& ostride,
+                              const size_t odist)
 {
     bool   idx_equals_odx = istride == ostride && idist == odist;
     size_t idx_base       = 0;
     size_t odx_base       = 0;
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
-        std::vector<int> index(length.size());
-        std::fill(index.begin(), index.end(), 0);
+        Tint1 index;
+        memset(&index, 0, sizeof(index));
         do
         {
-            const int idx
-                = std::inner_product(index.begin(), index.end(), istride.begin(), idx_base);
-            const int odx
-                = idx_equals_odx
-                      ? idx
-                      : std::inner_product(index.begin(), index.end(), ostride.begin(), odx_base);
-            output[odx] = input[idx];
+            const int idx = compute_index(index, istride, idx_base);
+            const int odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+            output[odx]   = input[idx];
         } while(increment_rowmajor(index, length));
     }
 }
@@ -319,32 +420,28 @@ inline void copy_buffers_1to1(const Tval*               input,
 // a buffer with strides ostride and length odist between batches.  The input type is
 // planar and the output type is complex interleaved.
 template <typename Tval, typename Tint1, typename Tint2, typename Tint3>
-inline void copy_buffers_2to1(const Tval*               input0,
-                              const Tval*               input1,
-                              std::complex<Tval>*       output,
-                              const std::vector<Tint1>& length,
-                              const size_t              nbatch,
-                              const std::vector<Tint2>& istride,
-                              const size_t              idist,
-                              const std::vector<Tint3>& ostride,
-                              const size_t              odist)
+inline void copy_buffers_2to1(const Tval*         input0,
+                              const Tval*         input1,
+                              std::complex<Tval>* output,
+                              const Tint1&        length,
+                              const size_t        nbatch,
+                              const Tint2&        istride,
+                              const size_t        idist,
+                              const Tint3&        ostride,
+                              const size_t        odist)
 {
     bool   idx_equals_odx = istride == ostride && idist == odist;
     size_t idx_base       = 0;
     size_t odx_base       = 0;
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
-        std::vector<int> index(length.size());
-        std::fill(index.begin(), index.end(), 0);
+        Tint1 index;
+        memset(&index, 0, sizeof(index));
         do
         {
-            const int idx
-                = std::inner_product(index.begin(), index.end(), istride.begin(), idx_base);
-            const int odx
-                = idx_equals_odx
-                      ? idx
-                      : std::inner_product(index.begin(), index.end(), ostride.begin(), odx_base);
-            output[odx] = std::complex<Tval>(input0[idx], input1[idx]);
+            const int idx = compute_index(index, istride, idx_base);
+            const int odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+            output[odx]   = std::complex<Tval>(input0[idx], input1[idx]);
         } while(increment_rowmajor(index, length));
     }
 }
@@ -356,11 +453,11 @@ template <typename Tval, typename Tint1, typename Tint2, typename Tint3>
 inline void copy_buffers_1to2(const std::complex<Tval>* input,
                               Tval*                     output0,
                               Tval*                     output1,
-                              const std::vector<Tint1>& length,
+                              const Tint1&              length,
                               const size_t              nbatch,
-                              const std::vector<Tint2>& istride,
+                              const Tint2&              istride,
                               const size_t              idist,
-                              const std::vector<Tint3>& ostride,
+                              const Tint3&              ostride,
                               const size_t              odist)
 {
     bool   idx_equals_odx = istride == ostride && idist == odist;
@@ -368,18 +465,14 @@ inline void copy_buffers_1to2(const std::complex<Tval>* input,
     size_t odx_base       = 0;
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
-        std::vector<int> index(length.size());
-        std::fill(index.begin(), index.end(), 0);
+        Tint1 index;
+        memset(&index, 0, sizeof(index));
         do
         {
-            const int idx
-                = std::inner_product(index.begin(), index.end(), istride.begin(), idx_base);
-            const int odx
-                = idx_equals_odx
-                      ? idx
-                      : std::inner_product(index.begin(), index.end(), ostride.begin(), odx_base);
-            output0[odx] = input[idx].real();
-            output1[odx] = input[idx].imag();
+            const int idx = compute_index(index, istride, idx_base);
+            const int odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+            output0[odx]  = input[idx].real();
+            output1[odx]  = input[idx].imag();
         } while(increment_rowmajor(index, length));
     }
 }
@@ -394,14 +487,14 @@ template <typename Tallocator1,
           typename Tint3>
 inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& input,
                          std::vector<std::vector<char, Tallocator2>>&       output,
-                         const std::vector<Tint1>&                          length,
+                         const Tint1&                                       length,
                          const size_t                                       nbatch,
                          const rocfft_precision                             precision,
                          const rocfft_array_type                            itype,
-                         const std::vector<Tint2>&                          istride,
+                         const Tint2&                                       istride,
                          const size_t                                       idist,
                          const rocfft_array_type                            otype,
-                         const std::vector<Tint3>&                          ostride,
+                         const Tint3&                                       ostride,
                          const size_t                                       odist)
 {
     if(itype == otype)
@@ -539,18 +632,79 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
     }
 }
 
+// unroll arbitrary-dimension copy_buffers into specializations for 1-, 2-, 3-dimensions
+template <typename Tallocator1,
+          typename Tallocator2,
+          typename Tint1,
+          typename Tint2,
+          typename Tint3>
+inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& input,
+                         std::vector<std::vector<char, Tallocator2>>&       output,
+                         const std::vector<Tint1>&                          length,
+                         const size_t                                       nbatch,
+                         const rocfft_precision                             precision,
+                         const rocfft_array_type                            itype,
+                         const std::vector<Tint2>&                          istride,
+                         const size_t                                       idist,
+                         const rocfft_array_type                            otype,
+                         const std::vector<Tint3>&                          ostride,
+                         const size_t                                       odist)
+{
+    switch(length.size())
+    {
+    case 1:
+        return copy_buffers(input,
+                            output,
+                            length[0],
+                            nbatch,
+                            precision,
+                            itype,
+                            istride[0],
+                            idist,
+                            otype,
+                            ostride[0],
+                            odist);
+    case 2:
+        return copy_buffers(input,
+                            output,
+                            std::make_tuple(length[0], length[1]),
+                            nbatch,
+                            precision,
+                            itype,
+                            std::make_tuple(istride[0], istride[1]),
+                            idist,
+                            otype,
+                            std::make_tuple(ostride[0], ostride[1]),
+                            odist);
+    case 3:
+        return copy_buffers(input,
+                            output,
+                            std::make_tuple(length[0], length[1], length[2]),
+                            nbatch,
+                            precision,
+                            itype,
+                            std::make_tuple(istride[0], istride[1], istride[2]),
+                            idist,
+                            otype,
+                            std::make_tuple(ostride[0], ostride[1], ostride[2]),
+                            odist);
+    default:
+        abort();
+    }
+}
+
 // Compute the L-infinity and L-2 distance between two buffers with strides istride and
 // length idist between batches to a buffer with strides ostride and length odist between
 // batches.  Both buffers are of complex type.
 template <typename Tcomplex, typename Tint1, typename Tint2, typename Tint3>
-inline std::pair<double, double> LinfL2diff_1to1_complex(const Tcomplex*           input,
-                                                         const Tcomplex*           output,
-                                                         const std::vector<Tint1>& length,
-                                                         const size_t              nbatch,
-                                                         const std::vector<Tint2>& istride,
-                                                         const size_t              idist,
-                                                         const std::vector<Tint3>& ostride,
-                                                         const size_t              odist)
+inline std::pair<double, double> LinfL2diff_1to1_complex(const Tcomplex* input,
+                                                         const Tcomplex* output,
+                                                         const Tint1&    length,
+                                                         const size_t    nbatch,
+                                                         const Tint2&    istride,
+                                                         const size_t    idist,
+                                                         const Tint3&    ostride,
+                                                         const size_t    odist)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -560,16 +714,13 @@ inline std::pair<double, double> LinfL2diff_1to1_complex(const Tcomplex*        
     size_t odx_base       = 0;
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
-        std::vector<int> index(length.size());
-        std::fill(index.begin(), index.end(), 0);
+        Tint1 index;
+        memset(&index, 0, sizeof(index));
+
         do
         {
-            const int idx
-                = std::inner_product(index.begin(), index.end(), istride.begin(), idx_base);
-            const int odx
-                = idx_equals_odx
-                      ? idx
-                      : std::inner_product(index.begin(), index.end(), ostride.begin(), odx_base);
+            const int    idx   = compute_index(index, istride, idx_base);
+            const int    odx   = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
             const double rdiff = std::abs(output[odx].real() - input[idx].real());
             linf               = std::max(rdiff, linf);
             l2 += rdiff * rdiff;
@@ -587,14 +738,14 @@ inline std::pair<double, double> LinfL2diff_1to1_complex(const Tcomplex*        
 // length idist between batches to a buffer with strides ostride and length odist between
 // batches.  Both buffers are of real type.
 template <typename Tfloat, typename Tint1, typename Tint2, typename Tint3>
-inline std::pair<double, double> LinfL2diff_1to1_real(const Tfloat*             input,
-                                                      const Tfloat*             output,
-                                                      const std::vector<Tint1>& length,
-                                                      const size_t              nbatch,
-                                                      const std::vector<Tint2>& istride,
-                                                      const size_t              idist,
-                                                      const std::vector<Tint3>& ostride,
-                                                      const size_t              odist)
+inline std::pair<double, double> LinfL2diff_1to1_real(const Tfloat* input,
+                                                      const Tfloat* output,
+                                                      const Tint1&  length,
+                                                      const size_t  nbatch,
+                                                      const Tint2&  istride,
+                                                      const size_t  idist,
+                                                      const Tint3&  ostride,
+                                                      const size_t  odist)
 {
     double linf           = 0.0;
     double l2             = 0.0;
@@ -603,16 +754,12 @@ inline std::pair<double, double> LinfL2diff_1to1_real(const Tfloat*             
     size_t odx_base       = 0;
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
-        std::vector<int> index(length.size());
-        std::fill(index.begin(), index.end(), 0);
+        Tint1 index;
+        memset(&index, 0, sizeof(index));
         do
         {
-            const int idx
-                = std::inner_product(index.begin(), index.end(), istride.begin(), idx_base);
-            const int odx
-                = idx_equals_odx
-                      ? idx
-                      : std::inner_product(index.begin(), index.end(), ostride.begin(), odx_base);
+            const int    idx  = compute_index(index, istride, idx_base);
+            const int    odx  = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
             const double diff = std::abs(output[odx] - input[idx]);
             linf              = std::max(diff, linf);
             l2 += diff * diff;
@@ -629,11 +776,11 @@ template <typename Tval, typename T1, typename T2, typename T3>
 inline std::pair<double, double> LinfL2diff_1to2(const std::complex<Tval>* input,
                                                  const Tval*               output0,
                                                  const Tval*               output1,
-                                                 const std::vector<T1>&    length,
+                                                 const T1&                 length,
                                                  const size_t              nbatch,
-                                                 const std::vector<T2>&    istride,
+                                                 const T2&                 istride,
                                                  const size_t              idist,
-                                                 const std::vector<T3>&    ostride,
+                                                 const T3&                 ostride,
                                                  const size_t              odist)
 {
     double linf           = 0.0;
@@ -643,16 +790,12 @@ inline std::pair<double, double> LinfL2diff_1to2(const std::complex<Tval>* input
     size_t odx_base       = 0;
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
-        std::vector<int> index(length.size());
-        std::fill(index.begin(), index.end(), 0);
+        T1 index;
+        memset(&index, 0, sizeof(index));
         do
         {
-            const int idx
-                = std::inner_product(index.begin(), index.end(), istride.begin(), idx_base);
-            const int odx
-                = idx_equals_odx
-                      ? idx
-                      : std::inner_product(index.begin(), index.end(), ostride.begin(), odx_base);
+            const int    idx   = compute_index(index, istride, idx_base);
+            const int    odx   = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
             const double rdiff = std::abs(output0[odx] - input[idx].real());
             linf               = std::max(rdiff, linf);
             l2 += rdiff * rdiff;
@@ -676,14 +819,14 @@ template <typename Tallocator1,
 inline std::pair<double, double>
     LinfL2diff(const std::vector<std::vector<char, Tallocator1>>& input,
                const std::vector<std::vector<char, Tallocator2>>& output,
-               const std::vector<Tint1>&                          length,
+               const Tint1&                                       length,
                const size_t                                       nbatch,
                const rocfft_precision                             precision,
                const rocfft_array_type                            itype,
-               const std::vector<Tint2>&                          istride,
+               const Tint2&                                       istride,
                const size_t                                       idist,
                const rocfft_array_type                            otype,
-               const std::vector<Tint3>&                          ostride,
+               const Tint3&                                       ostride,
                const size_t                                       odist)
 {
     auto LinfL2 = std::make_pair<double, double>(0.0, 0.0);
@@ -828,14 +971,76 @@ inline std::pair<double, double>
     return LinfL2;
 }
 
+// unroll arbitrary-dimension LinfL2diff into specializations for 1-, 2-, 3-dimensions
+template <typename Tallocator1,
+          typename Tallocator2,
+          typename Tint1,
+          typename Tint2,
+          typename Tint3>
+inline std::pair<double, double>
+    LinfL2diff(const std::vector<std::vector<char, Tallocator1>>& input,
+               const std::vector<std::vector<char, Tallocator2>>& output,
+               const std::vector<Tint1>&                          length,
+               const size_t                                       nbatch,
+               const rocfft_precision                             precision,
+               const rocfft_array_type                            itype,
+               const std::vector<Tint2>&                          istride,
+               const size_t                                       idist,
+               const rocfft_array_type                            otype,
+               const std::vector<Tint3>&                          ostride,
+               const size_t                                       odist)
+{
+    switch(length.size())
+    {
+    case 1:
+        return LinfL2diff(input,
+                          output,
+                          length[0],
+                          nbatch,
+                          precision,
+                          itype,
+                          istride[0],
+                          idist,
+                          otype,
+                          ostride[0],
+                          odist);
+    case 2:
+        return LinfL2diff(input,
+                          output,
+                          std::make_tuple(length[0], length[1]),
+                          nbatch,
+                          precision,
+                          itype,
+                          std::make_tuple(istride[0], istride[1]),
+                          idist,
+                          otype,
+                          std::make_tuple(ostride[0], ostride[1]),
+                          odist);
+    case 3:
+        return LinfL2diff(input,
+                          output,
+                          std::make_tuple(length[0], length[1], length[2]),
+                          nbatch,
+                          precision,
+                          itype,
+                          std::make_tuple(istride[0], istride[1], istride[2]),
+                          idist,
+                          otype,
+                          std::make_tuple(ostride[0], ostride[1], ostride[2]),
+                          odist);
+    default:
+        abort();
+    }
+}
+
 // Compute the L-infinity and L-2 norm of abuffer with strides istride and
 // length idist.  Data is std::complex.
 template <typename Tcomplex, typename T1, typename T2>
-inline std::pair<double, double> LinfL2norm_complex(const Tcomplex*        input,
-                                                    const std::vector<T1>& length,
-                                                    const size_t           nbatch,
-                                                    const std::vector<T2>& istride,
-                                                    const size_t           idist)
+inline std::pair<double, double> LinfL2norm_complex(const Tcomplex* input,
+                                                    const T1&       length,
+                                                    const size_t    nbatch,
+                                                    const T2&       istride,
+                                                    const size_t    idist)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -843,12 +1048,11 @@ inline std::pair<double, double> LinfL2norm_complex(const Tcomplex*        input
     size_t idx_base = 0;
     for(size_t b = 0; b < nbatch; b++, idx_base += idist)
     {
-        std::vector<int> index(length.size());
-        std::fill(index.begin(), index.end(), 0);
+        T1 index;
+        memset(&index, 0, sizeof(index));
         do
         {
-            const int idx
-                = std::inner_product(index.begin(), index.end(), istride.begin(), idx_base);
+            const int idx = compute_index(index, istride, idx_base);
 
             const double rval = std::abs(input[idx].real());
             linf              = std::max(rval, linf);
@@ -866,11 +1070,11 @@ inline std::pair<double, double> LinfL2norm_complex(const Tcomplex*        input
 // Compute the L-infinity and L-2 norm of abuffer with strides istride and
 // length idist.  Data is real-valued.
 template <typename Tfloat, typename T1, typename T2>
-inline std::pair<double, double> LinfL2norm_real(const Tfloat*          input,
-                                                 const std::vector<T1>& length,
-                                                 const size_t           nbatch,
-                                                 const std::vector<T2>& istride,
-                                                 const size_t           idist)
+inline std::pair<double, double> LinfL2norm_real(const Tfloat* input,
+                                                 const T1&     length,
+                                                 const size_t  nbatch,
+                                                 const T2&     istride,
+                                                 const size_t  idist)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -878,12 +1082,11 @@ inline std::pair<double, double> LinfL2norm_real(const Tfloat*          input,
     size_t idx_base = 0;
     for(size_t b = 0; b < nbatch; b++, idx_base += idist)
     {
-        std::vector<int> index(length.size());
-        std::fill(index.begin(), index.end(), 0);
+        T1 index;
+        memset(&index, 0, sizeof(index));
         do
         {
-            const int idx
-                = std::inner_product(index.begin(), index.end(), istride.begin(), idx_base);
+            const int    idx = compute_index(index, istride, idx_base);
             const double val = std::abs(input[idx]);
             linf             = std::max(val, linf);
             l2 += val * val;
@@ -898,11 +1101,11 @@ inline std::pair<double, double> LinfL2norm_real(const Tfloat*          input,
 template <typename Tallocator1, typename T1, typename T2>
 inline std::pair<double, double>
     LinfL2norm(const std::vector<std::vector<char, Tallocator1>>& input,
-               const std::vector<T1>&                             length,
+               const T1&                                          length,
                const size_t                                       nbatch,
                const rocfft_precision                             precision,
                const rocfft_array_type                            itype,
-               const std::vector<T2>&                             istride,
+               const T2&                                          istride,
                const size_t                                       idist)
 {
     auto LinfL2 = std::make_pair<double, double>(0.0, 0.0);
@@ -965,6 +1168,42 @@ inline std::pair<double, double>
 
     LinfL2.second = sqrt(LinfL2.second);
     return LinfL2;
+}
+
+// unroll arbitrary-dimension LinfL2norm into specializations for 1-, 2-, 3-dimensions
+template <typename Tallocator1, typename T1, typename T2>
+inline std::pair<double, double>
+    LinfL2norm(const std::vector<std::vector<char, Tallocator1>>& input,
+               const std::vector<T1>&                             length,
+               const size_t                                       nbatch,
+               const rocfft_precision                             precision,
+               const rocfft_array_type                            itype,
+               const std::vector<T2>&                             istride,
+               const size_t                                       idist)
+{
+    switch(length.size())
+    {
+    case 1:
+        return LinfL2norm(input, length[0], nbatch, precision, itype, istride[0], idist);
+    case 2:
+        return LinfL2norm(input,
+                          std::make_tuple(length[0], length[1]),
+                          nbatch,
+                          precision,
+                          itype,
+                          std::make_tuple(istride[0], istride[1]),
+                          idist);
+    case 3:
+        return LinfL2norm(input,
+                          std::make_tuple(length[0], length[1], length[2]),
+                          nbatch,
+                          precision,
+                          itype,
+                          std::make_tuple(istride[0], istride[1], istride[2]),
+                          idist);
+    default:
+        abort();
+    }
 }
 
 // Given a buffer of complex values stored in a vector of chars (or two vectors in the

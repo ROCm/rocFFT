@@ -27,9 +27,11 @@
 #include "fftw_transform.h"
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
+#include <thread>
 #include <vector>
 
 // Compute the rocFFT transform and verify the accuracy against the provided CPU data.
+// If cpu_output_thread is non-null, join on that thread before looking at cpu_output.
 void rocfft_transform(const std::vector<size_t>                                  length,
                       const size_t                                               istride0,
                       const size_t                                               ostride0,
@@ -47,7 +49,8 @@ void rocfft_transform(const std::vector<size_t>                                 
                       const rocfft_array_type                                    cpu_otype,
                       const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_input_copy,
                       const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_output,
-                      const std::pair<double, double> cpu_output_L2Linfnorm);
+                      const std::pair<double, double>& cpu_output_L2Linfnorm,
+                      std::thread*                     cpu_output_thread = nullptr);
 
 // Print the test parameters
 inline void print_params(const std::vector<size_t>&    length,
