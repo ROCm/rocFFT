@@ -1587,11 +1587,11 @@ inline size_t var_size(const rocfft_precision precision, const rocfft_array_type
 }
 
 // Given a data type and precision, the distance between batches, and the batch size,
-// allocate the required device buffer(s).
-inline std::vector<void*> alloc_buffer(const rocfft_precision  precision,
-                                       const rocfft_array_type type,
-                                       const size_t            dist,
-                                       const size_t            nbatch)
+// return the required buffer size(s).
+inline std::vector<size_t> buffer_sizes(const rocfft_precision  precision,
+                                        const rocfft_array_type type,
+                                        const size_t            dist,
+                                        const size_t            nbatch)
 {
     const size_t size              = nbatch * dist * var_size(precision, type);
     unsigned     number_of_buffers = 0;
@@ -1604,12 +1604,12 @@ inline std::vector<void*> alloc_buffer(const rocfft_precision  precision,
     default:
         number_of_buffers = 1;
     }
-    std::vector<void*> buffer(number_of_buffers);
+    std::vector<size_t> sizes(number_of_buffers);
     for(unsigned i = 0; i < number_of_buffers; i++)
     {
-        hipMalloc(&buffer[i], size);
+        sizes[i] = size;
     }
-    return buffer;
+    return sizes;
 }
 
 // Given a data type and precision, the distance between batches, and the batch size,

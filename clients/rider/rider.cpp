@@ -314,11 +314,40 @@ int main(int argc, char* argv[])
         printbuffer(precision, itype, input, ilength, istride, nbatch, idist);
     }
 
+    hipError_t hip_status = hipSuccess;
+
     // GPU input and output buffers:
-    std::vector<void*> ibuffer = alloc_buffer(precision, itype, idist, nbatch);
-    std::vector<void*> obuffer = (place == rocfft_placement_inplace)
-                                     ? ibuffer
-                                     : alloc_buffer(precision, otype, odist, nbatch);
+    auto               ibuffer_sizes = buffer_sizes(precision, itype, idist, nbatch);
+    std::vector<void*> ibuffer(ibuffer_sizes.size());
+    for(unsigned int i = 0; i < ibuffer.size(); ++i)
+    {
+        hip_status = hipMalloc(&ibuffer[i], ibuffer_sizes[i]);
+        if(hip_status != hipSuccess)
+        {
+            std::cerr << "hipMalloc failed!\n";
+            exit(1);
+        }
+    }
+
+    std::vector<void*> obuffer;
+    if(place == rocfft_placement_inplace)
+    {
+        obuffer = ibuffer;
+    }
+    else
+    {
+        auto obuffer_sizes = buffer_sizes(precision, otype, odist, nbatch);
+        obuffer.resize(obuffer_sizes.size());
+        for(unsigned int i = 0; i < obuffer.size(); ++i)
+        {
+            hip_status = hipMalloc(&obuffer[i], obuffer_sizes[i]);
+            if(hip_status != hipSuccess)
+            {
+                std::cerr << "hipMalloc failed!\n";
+                exit(1);
+            }
+        }
+    }
 
     // Run the transform several times and record the execution time:
     std::vector<double> gpu_time(ntrial);

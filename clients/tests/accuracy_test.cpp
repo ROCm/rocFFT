@@ -231,12 +231,12 @@ void rocfft_transform(const std::vector<size_t>                                 
     hipError_t hip_status = hipSuccess;
 
     // Allocate work memory and associate with the execution info
-    void* wbuffer = NULL;
+    gpubuf wbuffer;
     if(workbuffersize > 0)
     {
-        hip_status = hipMalloc(&wbuffer, workbuffersize);
-        EXPECT_TRUE(hip_status == hipSuccess) << "hipMalloc failure";
-        fft_status = rocfft_execution_info_set_work_buffer(info, wbuffer, workbuffersize);
+        hip_status = wbuffer.alloc(workbuffersize);
+        EXPECT_TRUE(hip_status == hipSuccess) << "hipMalloc failure for work buffer";
+        fft_status = rocfft_execution_info_set_work_buffer(info, wbuffer.data(), workbuffersize);
         EXPECT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
@@ -269,23 +269,53 @@ void rocfft_transform(const std::vector<size_t>                                 
     }
 
     // GPU input and output buffers:
-    std::vector<void*> ibuffer = alloc_buffer(precision, itype, gpu_idist, nbatch);
-    std::vector<void*> obuffer = (place == rocfft_placement_inplace)
-                                     ? ibuffer
-                                     : alloc_buffer(precision, otype, gpu_odist, nbatch);
+    auto                ibuffer_sizes = buffer_sizes(precision, itype, gpu_idist, nbatch);
+    std::vector<gpubuf> ibuffer(ibuffer_sizes.size());
+    std::vector<void*>  pibuffer(ibuffer_sizes.size());
+    for(unsigned int i = 0; i < ibuffer.size(); ++i)
+    {
+        hip_status = ibuffer[i].alloc(ibuffer_sizes[i]);
+        ASSERT_TRUE(hip_status == hipSuccess)
+            << "hipMalloc failure for input buffer " << i << " size " << ibuffer_sizes[i];
+        pibuffer[i] = ibuffer[i].data();
+    }
+
+    std::vector<gpubuf> obuffer;
+    if(place == rocfft_placement_inplace)
+    {
+        obuffer = ibuffer;
+    }
+    else
+    {
+        auto obuffer_sizes = buffer_sizes(precision, otype, gpu_odist, nbatch);
+        obuffer.resize(obuffer_sizes.size());
+        for(unsigned int i = 0; i < obuffer.size(); ++i)
+        {
+            hip_status = obuffer[i].alloc(obuffer_sizes[i]);
+            ASSERT_TRUE(hip_status == hipSuccess)
+                << "hipMalloc failure for output buffer " << i << " size " << obuffer_sizes[i];
+        }
+    }
+    std::vector<void*> pobuffer(obuffer.size());
+    for(unsigned int i = 0; i < obuffer.size(); ++i)
+    {
+        pobuffer[i] = obuffer[i].data();
+    }
 
     // Copy the input data to the GPU:
     for(int idx = 0; idx < gpu_input.size(); ++idx)
     {
-        hip_status = hipMemcpy(
-            ibuffer[idx], gpu_input[idx].data(), gpu_input[idx].size(), hipMemcpyHostToDevice);
+        hip_status = hipMemcpy(ibuffer[idx].data(),
+                               gpu_input[idx].data(),
+                               gpu_input[idx].size(),
+                               hipMemcpyHostToDevice);
         EXPECT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
     }
 
     // Execute the transform:
     fft_status = rocfft_execute(gpu_plan, // plan
-                                (void**)ibuffer.data(), // in buffers
-                                (void**)obuffer.data(), // out buffers
+                                (void**)pibuffer.data(), // in buffers
+                                (void**)pobuffer.data(), // out buffers
                                 info); // execution info
     EXPECT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
 
@@ -294,8 +324,10 @@ void rocfft_transform(const std::vector<size_t>                                 
         precision, otype, olength, gpu_ostride, gpu_odist, nbatch);
     for(int idx = 0; idx < gpu_output.size(); ++idx)
     {
-        hip_status = hipMemcpy(
-            gpu_output[idx].data(), obuffer[idx], gpu_output[idx].size(), hipMemcpyDeviceToHost);
+        hip_status = hipMemcpy(gpu_output[idx].data(),
+                               obuffer[idx].data(),
+                               gpu_output[idx].size(),
+                               hipMemcpyDeviceToHost);
         EXPECT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
     }
 
@@ -368,24 +400,6 @@ void rocfft_transform(const std::vector<size_t>                                 
     desc = NULL;
     rocfft_execution_info_destroy(info);
     info = NULL;
-    if(wbuffer)
-    {
-        hipFree(wbuffer);
-        wbuffer = NULL;
-    }
-    for(auto& buf : ibuffer)
-    {
-        hipFree(buf);
-        buf = NULL;
-    }
-    if(place != rocfft_placement_inplace)
-    {
-        for(auto& buf : obuffer)
-        {
-            hipFree(buf);
-            buf = NULL;
-        }
-    }
 }
 
 // Test for comparison between FFTW and rocFFT.
