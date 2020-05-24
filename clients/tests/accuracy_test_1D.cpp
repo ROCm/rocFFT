@@ -222,3 +222,25 @@ INSTANTIATE_TEST_CASE_P(prime_1D_real_inverse,
                                            ValuesIn(precision_range),
                                            ::testing::Values(rocfft_transform_type_real_inverse),
                                            ::testing::Values(place_range)));
+// NB:
+// We have known non-unit strides issues for 1D:
+// - C2C middle size(for instance, single precision, 8192)
+// - C2C large size(for instance, single precision, 524288)
+// We need to fix non-unit strides first, and then address non-unit strides + batch tests.
+// Then check these problems of R2C and C2R. After that, we could open arbitrary permutations in the main tests.
+//
+// The below test covers non-unit strides, pow of 2, middle sizes, which has SBCC/SBRC kernels invloved.
+static std::vector<size_t>              pow2_range_for_stride   = {4096, 8192};
+static std::vector<size_t>              stride_range_for_pow2   = {2, 3};
+static std::vector<std::vector<size_t>> v_pow2_range_for_stride = {pow2_range_for_stride};
+const static std::vector<size_t>        batch_range_for_stride
+    = {1}; //FIXME: extend more after fix stride + batch issue.
+INSTANTIATE_TEST_CASE_P(pow2_1D_complex_forward_stride,
+                        accuracy_test,
+                        ::testing::Combine(ValuesIn(generate_lengths(v_pow2_range_for_stride)),
+                                           ::testing::Values(stride_range_for_pow2),
+                                           ::testing::Values(stride_range_for_pow2),
+                                           ::testing::Values(batch_range_for_stride),
+                                           ValuesIn(precision_range),
+                                           ::testing::Values(rocfft_transform_type_complex_forward),
+                                           ::testing::Values(place_range)));

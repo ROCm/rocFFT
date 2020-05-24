@@ -298,6 +298,10 @@ namespace StockhamGenerator
                 loop += "*lengths[0]";
             loop += ";\n";
 
+            // the most inner part of offset calc needs to count stride[1] for SBCC
+            if(blockComputeType == BCT_C2C)
+                loop += "\t" + offset_name1 + " *= (" + stride_name1 + "[1]);\n";
+
             if(output == true)
             {
                 loop += "\t" + offset_name2 + " += (counter_mod/" + sub_string + ")*";
@@ -306,6 +310,10 @@ namespace StockhamGenerator
                 if(blockComputeType == BCT_C2R) // only for output
                     loop += "*lengths[0]";
                 loop += ";\n";
+
+                // the most inner part of offset calc needs to count stride[1] for SBRC
+                if(blockComputeType == BCT_R2C)
+                    loop += "\t" + offset_name2 + " *= (" + stride_name2 + "[1]);\n";
             }
 
             str += loop;
@@ -1200,10 +1208,17 @@ namespace StockhamGenerator
 
                         if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_C2R))
                         {
+                            // start to calc the global read offset
                             bufOffset.clear();
                             bufOffset += "(me%";
                             bufOffset += std::to_string(blockWidth);
-                            bufOffset += ") + ";
+
+                            if(blockComputeType
+                               == BCT_C2C) // the most inner part of offset calc needs to count stride[1] for SBCC
+                                bufOffset += ") * stride_in[1] + ";
+                            else
+                                bufOffset += ") + ";
+
                             bufOffset += "(me/";
                             bufOffset += std::to_string(blockWidth);
                             bufOffset += ")*stride_in[0] + t*stride_in[0]*";
@@ -1458,11 +1473,20 @@ namespace StockhamGenerator
                         if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
                         {
                             {
+                                // start to calc the global write offset
                                 str += "\t\t";
                                 str += writeBuf;
                                 str += "[(me%";
                                 str += std::to_string(blockWidth);
-                                str += ") + ";
+
+                                if(blockComputeType
+                                   == BCT_R2C) // the most inner part of offset calc needs to count stride[1] for SBRC
+                                    str += ((placeness == rocfft_placement_inplace)
+                                                ? ") * stride_in[1] + "
+                                                : ") * stride_out[1] + ");
+                                else
+                                    str += ") + ";
+
                                 str += "(me/";
                                 str += std::to_string(blockWidth);
                                 str += ((placeness == rocfft_placement_inplace)
