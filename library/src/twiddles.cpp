@@ -45,8 +45,13 @@ void* twiddles_create_pr(size_t N, size_t threshold, bool large, bool no_radices
             twtc    = twTable.GenerateTwiddleTable(radices); // calculate twiddles on host side
         }
 
-        hipMalloc(&twts, N * sizeof(T));
-        hipMemcpy(twts, twtc, N * sizeof(T), hipMemcpyHostToDevice);
+        if(hipMalloc(&twts, N * sizeof(T)) != hipSuccess)
+            return nullptr;
+        if(hipMemcpy(twts, twtc, N * sizeof(T), hipMemcpyHostToDevice) != hipSuccess)
+        {
+            hipFree(twts);
+            return nullptr;
+        }
     }
     else
     {
@@ -54,16 +59,26 @@ void* twiddles_create_pr(size_t N, size_t threshold, bool large, bool no_radices
         {
             TwiddleTable<T> twTable(N);
             twtc = twTable.GenerateTwiddleTable();
-            hipMalloc(&twts, N * sizeof(T));
-            hipMemcpy(twts, twtc, N * sizeof(T), hipMemcpyHostToDevice);
+            if(hipMalloc(&twts, N * sizeof(T)) != hipSuccess)
+                return nullptr;
+            if(hipMemcpy(twts, twtc, N * sizeof(T), hipMemcpyHostToDevice) != hipSuccess)
+            {
+                hipFree(twts);
+                return nullptr;
+            }
         }
         else
         {
             TwiddleTableLarge<T> twTable(N); // does not generate radices
             std::tie(ns, twtc) = twTable.GenerateTwiddleTable(); // calculate twiddles on host side
 
-            hipMalloc(&twts, ns * sizeof(T));
-            hipMemcpy(twts, twtc, ns * sizeof(T), hipMemcpyHostToDevice);
+            if(hipMalloc(&twts, ns * sizeof(T)) != hipSuccess)
+                return nullptr;
+            if(hipMemcpy(twts, twtc, ns * sizeof(T), hipMemcpyHostToDevice) != hipSuccess)
+            {
+                hipFree(twts);
+                return nullptr;
+            }
         }
     }
 

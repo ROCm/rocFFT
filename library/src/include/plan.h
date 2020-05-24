@@ -132,6 +132,6 @@ struct rocfft_plan_t
     }
 };
 
-void PlanPowX(ExecPlan& execPlan);
+bool PlanPowX(ExecPlan& execPlan);
 
 #endif // PLAN_H

@@ -444,12 +444,13 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     //     return rocfft_status_invalid_dimensions;
     // }
 
+    rocfft_status ret = rocfft_status_success;
     if(!dry_run)
     {
         Repo& repo = Repo::GetRepo();
-        repo.CreatePlan(p); // add this plan into repo, incurs computation, see repo.cpp
+        ret = repo.CreatePlan(p); // add this plan into repo, incurs computation, see repo.cpp
     }
-    return rocfft_status_success;
+    return ret;
 }
 
 rocfft_status rocfft_plan_allocate(rocfft_plan* plan)

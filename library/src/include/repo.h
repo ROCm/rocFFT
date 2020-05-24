@@ -58,11 +58,11 @@ public:
         }
     }
 
-    static void   CreatePlan(rocfft_plan plan);
-    static void   GetPlan(rocfft_plan plan, ExecPlan& execPlan);
-    static void   DeletePlan(rocfft_plan plan);
-    static size_t GetUniquePlanCount();
-    static size_t GetTotalPlanCount();
+    static rocfft_status CreatePlan(rocfft_plan plan);
+    static void          GetPlan(rocfft_plan plan, ExecPlan& execPlan);
+    static void          DeletePlan(rocfft_plan plan);
+    static size_t        GetUniquePlanCount();
+    static size_t        GetTotalPlanCount();
 };
 
 #endif // REPO_H

@@ -33,7 +33,7 @@
 
 std::mutex Repo::mtx;
 
-void Repo::CreatePlan(rocfft_plan plan)
+rocfft_status Repo::CreatePlan(rocfft_plan plan)
 {
     Repo&                       repo = Repo::GetRepo();
     std::lock_guard<std::mutex> lck(mtx);
@@ -73,7 +73,12 @@ void Repo::CreatePlan(rocfft_plan plan)
         if(LOG_TRACE_ENABLED())
             PrintNode(*LogSingleton::GetInstance().GetTraceOS(), execPlan);
 
-        PlanPowX(execPlan); // PlanPowX enqueues the GPU kernels by function
+        if(!PlanPowX(execPlan)) // PlanPowX enqueues the GPU kernels by function
+        {
+            TreeNode::DeleteNode(execPlan.rootPlan); // Release allocated resources before return.
+            return rocfft_status_failure;
+        }
+
         // pointers but does not execute kernels
         repo.planUnique[*plan] = std::pair<ExecPlan, int>(
             execPlan, 1); // add this plan into member planUnique (type of map)
@@ -85,6 +90,8 @@ void Repo::CreatePlan(rocfft_plan plan)
             = it->second.first; // retrieve this plan and put it into member execLookup
         it->second.second++;
     }
+
+    return rocfft_status_success;
 }
 // According to input plan, return the corresponding execPlan
 void Repo::GetPlan(rocfft_plan plan, ExecPlan& execPlan)

@@ -49,9 +49,10 @@
 
 std::atomic<bool> fn_checked(false);
 
-// This function is called during creation of plan : enqueue the HIP kernels by function
-// pointers
-void PlanPowX(ExecPlan& execPlan)
+// This function is called during creation of plan: enqueue the HIP kernels by function
+// pointers. Return true if everything goes well. Any internal device memory allocation
+// failure returns false right away.
+bool PlanPowX(ExecPlan& execPlan)
 {
     for(size_t i = 0; i < execPlan.execSeq.size(); i++)
     {
@@ -61,18 +62,24 @@ void PlanPowX(ExecPlan& execPlan)
         {
             execPlan.execSeq[i]->twiddles = twiddles_create(
                 execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false, false);
+            if(execPlan.execSeq[i]->twiddles == nullptr)
+                return false;
         }
         else if((execPlan.execSeq[i]->scheme == CS_KERNEL_R_TO_CMPLX)
                 || (execPlan.execSeq[i]->scheme == CS_KERNEL_CMPLX_TO_R))
         {
             execPlan.execSeq[i]->twiddles = twiddles_create(
                 2 * execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false, true);
+            if(execPlan.execSeq[i]->twiddles == nullptr)
+                return false;
         }
 
         if(execPlan.execSeq[i]->large1D != 0)
         {
             execPlan.execSeq[i]->twiddles_large = twiddles_create(
                 execPlan.execSeq[i]->large1D, execPlan.execSeq[i]->precision, true, false);
+            if(execPlan.execSeq[i]->twiddles_large == nullptr)
+                return false;
         }
     }
     // copy host buffer to device buffer
@@ -83,6 +90,8 @@ void PlanPowX(ExecPlan& execPlan)
                                                        execPlan.execSeq[i]->outStride,
                                                        execPlan.execSeq[i]->iDist,
                                                        execPlan.execSeq[i]->oDist);
+        if(execPlan.execSeq[i]->devKernArg == nullptr)
+            return false;
     }
 
     if(!fn_checked)
@@ -207,6 +216,8 @@ void PlanPowX(ExecPlan& execPlan)
         execPlan.devFnCall.push_back(ptr);
         execPlan.gridParam.push_back(gp);
     }
+
+    return true;
 }
 
 void TransformPowX(const ExecPlan&       execPlan,

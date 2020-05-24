@@ -31,7 +31,8 @@ size_t* kargs_create(std::vector<size_t> length,
                      size_t              oDist)
 {
     void* devk;
-    hipMalloc(&devk, 3 * KERN_ARGS_ARRAY_WIDTH * sizeof(size_t));
+    if(hipMalloc(&devk, 3 * KERN_ARGS_ARRAY_WIDTH * sizeof(size_t)) != hipSuccess)
+        return nullptr;
 
     size_t devkHost[3 * KERN_ARGS_ARRAY_WIDTH];
 
@@ -54,7 +55,12 @@ size_t* kargs_create(std::vector<size_t> length,
     devkHost[i + 1 * KERN_ARGS_ARRAY_WIDTH] = iDist;
     devkHost[i + 2 * KERN_ARGS_ARRAY_WIDTH] = oDist;
 
-    hipMemcpy(devk, devkHost, 3 * KERN_ARGS_ARRAY_WIDTH * sizeof(size_t), hipMemcpyHostToDevice);
+    if(hipMemcpy(devk, devkHost, 3 * KERN_ARGS_ARRAY_WIDTH * sizeof(size_t), hipMemcpyHostToDevice)
+       != hipSuccess)
+    {
+        hipFree(devk);
+        return nullptr;
+    }
     return (size_t*)devk;
 }
 
