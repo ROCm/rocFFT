@@ -49,10 +49,35 @@ inline rocfft_precision precision_selector<double>()
 inline bool
     vram_fits_problem(const size_t isize, const size_t osize, const size_t wsize, int deviceId = 0)
 {
+    const size_t prob_size = isize + osize + wsize;
+
+    // Check device total memory:
     hipDeviceProp_t prop;
     auto            retval = hipGetDeviceProperties(&prop, deviceId);
     assert(retval == hipSuccess);
-    return prop.totalGlobalMem > isize + osize + wsize;
+
+    if(prop.totalGlobalMem < prob_size)
+    {
+        return false;
+    }
+
+    // Check free and total available memory:
+    size_t free  = 0;
+    size_t total = 0;
+    retval       = hipMemGetInfo(&free, &total);
+    assert(retval == hipSuccess);
+
+    if(total < prob_size)
+    {
+        return false;
+    }
+
+    if(free < prob_size)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 // Perform and out-of-place computation on contiguous data and then return this in an

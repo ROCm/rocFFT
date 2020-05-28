@@ -211,9 +211,19 @@ void rocfft_transform(const std::vector<size_t>                                 
     const size_t isize_t = var_size(precision, itype);
     const size_t osize_t = var_size(precision, otype);
 
+    // Numbers of input and output buffers:
+    const int nibuffer
+        = (itype == rocfft_array_type_complex_planar || itype == rocfft_array_type_hermitian_planar)
+              ? 2
+              : 1;
+    const int nobuffer
+        = (otype == rocfft_array_type_complex_planar || otype == rocfft_array_type_hermitian_planar)
+              ? 2
+              : 1;
+
     // Check if the problem fits on the device; if it doesn't skip it.
-    if(!vram_fits_problem(isize * isize_t,
-                          (place == rocfft_placement_inplace) ? 0 : osize * osize_t,
+    if(!vram_fits_problem(nibuffer * isize * isize_t,
+                          (place == rocfft_placement_inplace) ? 0 : nobuffer * osize * osize_t,
                           workbuffersize))
     {
         rocfft_plan_destroy(gpu_plan);
