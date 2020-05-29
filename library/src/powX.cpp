@@ -22,11 +22,13 @@
 #include <cassert>
 #include <cstddef>
 #include <iostream>
+#include <numeric>
 #include <unordered_map>
 #include <vector>
 
 #include "rocfft.h"
 
+#include "logging.h"
 #include "plan.h"
 #include "repo.h"
 #include "transform.h"
@@ -220,6 +222,62 @@ bool PlanPowX(ExecPlan& execPlan)
     return true;
 }
 
+static size_t data_size_bytes(const std::vector<size_t>& lengths,
+                              rocfft_precision           precision,
+                              rocfft_array_type          type)
+{
+    // first compute the raw number of elements
+    size_t elems = std::accumulate(lengths.begin(), lengths.end(), 1, std::multiplies<size_t>());
+    // size of each element
+    size_t elemsize = (precision == rocfft_precision_single ? sizeof(float) : sizeof(double));
+    switch(type)
+    {
+    case rocfft_array_type_complex_interleaved:
+    case rocfft_array_type_complex_planar:
+        // complex needs two numbers per element
+        return 2 * elems * elemsize;
+    case rocfft_array_type_real:
+        // real needs one number per element
+        return elems * elemsize;
+    case rocfft_array_type_hermitian_interleaved:
+    case rocfft_array_type_hermitian_planar:
+    {
+        // hermitian requires 2 numbers per element, but innermost
+        // dimension is cut down to roughly half
+        size_t non_innermost = elems / lengths[0];
+        return 2 * non_innermost * elemsize * ((lengths[0] / 2) + 1);
+    }
+    case rocfft_array_type_unset:
+        // we should really have an array type at this point
+        return 0;
+    }
+}
+
+static float execution_bandwidth_GB_per_s(size_t data_size_bytes, float duration_ms)
+{
+    // divide bytes by (1000000 * milliseconds) to get GB/s
+    return static_cast<float>(data_size_bytes) / (1000000.0 * duration_ms);
+}
+
+// NOTE: HIP returns the maximum global frequency in kHz, which might
+// not be the actual frequency when the transform ran.  This function
+// might also return 0.0 if the bandwidth can't be queried.
+static float max_memory_bandwidth_GB_per_s()
+{
+    int deviceid = 0;
+    hipGetDevice(&deviceid);
+    int max_memory_clock_kHz = 0;
+    int memory_bus_width     = 0;
+    hipDeviceGetAttribute(&max_memory_clock_kHz, hipDeviceAttributeMemoryClockRate, deviceid);
+    hipDeviceGetAttribute(&memory_bus_width, hipDeviceAttributeMemoryBusWidth, deviceid);
+    auto max_memory_clock_MHz = static_cast<float>(max_memory_clock_kHz) / 1024.0;
+    // multiply by 2.0 because transfer is bidirectional
+    // divide by 8.0 because bus width is in bits and we want bytes
+    // divide by 1000 to convert MB to GB
+    float result = (max_memory_clock_MHz * 2.0 * memory_bus_width / 8.0) / 1000.0;
+    return result;
+}
+
 void TransformPowX(const ExecPlan&       execPlan,
                    void*                 in_buffer[],
                    void*                 out_buffer[],
@@ -228,6 +286,17 @@ void TransformPowX(const ExecPlan&       execPlan,
     assert(execPlan.execSeq.size() == execPlan.devFnCall.size());
     assert(execPlan.execSeq.size() == execPlan.gridParam.size());
 
+    // we can log profile information if we're on the null stream,
+    // since we will be able to wait for the transform to finish
+    bool       emit_profile_log = LOG_TRACE_ENABLED() && !info->rocfft_stream;
+    float      max_memory_bw    = 0.0;
+    hipEvent_t start, stop;
+    if(emit_profile_log)
+    {
+        hipEventCreate(&start);
+        hipEventCreate(&stop);
+        max_memory_bw = max_memory_bandwidth_GB_per_s();
+    }
     for(size_t i = 0; i < execPlan.execSeq.size(); i++)
     {
         DeviceCallIn  data;
@@ -403,10 +472,8 @@ void TransformPowX(const ExecPlan&       execPlan,
             rocfft_cout << "\n---------------------------------------------\n";
             rocfft_cout << "\n\nkernel: " << i << std::endl;
             rocfft_cout << "\tscheme: " << PrintScheme(execPlan.execSeq[i]->scheme) << std::endl;
-            rocfft_cout << "\titype: " << PrintArrayType(execPlan.execSeq[i]->inArrayType)
-                        << std::endl;
-            rocfft_cout << "\totype: " << PrintArrayType(execPlan.execSeq[i]->outArrayType)
-                        << std::endl;
+            rocfft_cout << "\titype: " << execPlan.execSeq[i]->inArrayType << std::endl;
+            rocfft_cout << "\totype: " << execPlan.execSeq[i]->outArrayType << std::endl;
             rocfft_cout << "\tlength: ";
             for(const auto& i : execPlan.execSeq[i]->length)
             {
@@ -433,7 +500,49 @@ void TransformPowX(const ExecPlan&       execPlan,
 #endif
 
             // execution kernel:
+            if(emit_profile_log)
+                hipEventRecord(start);
             fn(&data, &back);
+            if(emit_profile_log)
+                hipEventRecord(stop);
+
+            // If we were on the null stream, measure elapsed time
+            // and emit profile logging.  If a stream was given, we
+            // can't wait for the transform to finish, so we can't
+            // emit any information.
+            if(emit_profile_log)
+            {
+                hipEventSynchronize(stop);
+                size_t in_size_bytes = data_size_bytes(
+                    data.node->length, data.node->precision, data.node->inArrayType);
+                size_t out_size_bytes = data_size_bytes(
+                    data.node->length, data.node->precision, data.node->outArrayType);
+                size_t total_size_bytes = in_size_bytes + out_size_bytes;
+
+                float duration_ms = 0.0f;
+                hipEventElapsedTime(&duration_ms, start, stop);
+                auto exec_bw
+                    = execution_bandwidth_GB_per_s(in_size_bytes + out_size_bytes, duration_ms);
+                auto efficiency_pct = 0.0;
+                if(max_memory_bw != 0.0)
+                    efficiency_pct = 100.0 * exec_bw / max_memory_bw;
+                log_profile(__func__,
+                            "scheme",
+                            PrintScheme(execPlan.execSeq[i]->scheme),
+                            "duration_ms",
+                            duration_ms,
+                            "in_size",
+                            std::make_pair(static_cast<const size_t*>(data.node->length.data()),
+                                           data.node->length.size()),
+                            "total_size_bytes",
+                            total_size_bytes,
+                            "exec_GB_s",
+                            exec_bw,
+                            "max_mem_GB_s",
+                            max_memory_bw,
+                            "bw_efficiency_pct",
+                            efficiency_pct);
+            }
 
 #ifdef REF_DEBUG
             refLibOp.VerifyResult(&data);
@@ -505,5 +614,10 @@ void TransformPowX(const ExecPlan&       execPlan,
         free(dbg_out);
         free(dbg_in);
 #endif
+    }
+    if(emit_profile_log)
+    {
+        hipEventDestroy(start);
+        hipEventDestroy(stop);
     }
 }

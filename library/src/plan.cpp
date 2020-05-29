@@ -115,18 +115,6 @@ std::string PrintOperatingBufferCode(const OperatingBuffer ob)
     return BuffertoString.at(ob);
 }
 
-std::string PrintArrayType(const rocfft_array_type x)
-{
-    const std::map<rocfft_array_type, const char*> array_type_to_string
-        = {{ENUMSTR(rocfft_array_type_complex_interleaved)},
-           {ENUMSTR(rocfft_array_type_complex_planar)},
-           {ENUMSTR(rocfft_array_type_real)},
-           {ENUMSTR(rocfft_array_type_hermitian_interleaved)},
-           {ENUMSTR(rocfft_array_type_hermitian_planar)},
-           {ENUMSTR(rocfft_array_type_unset)}};
-    return array_type_to_string.at(x);
-}
-
 rocfft_status rocfft_plan_description_set_scale_float(rocfft_plan_description description,
                                                       const float             scale)
 {
@@ -139,6 +127,14 @@ rocfft_status rocfft_plan_description_set_scale_double(rocfft_plan_description d
 {
     description->scale = scale;
     return rocfft_status_success;
+}
+
+static size_t offset_count(rocfft_array_type type)
+{
+    // planar data has 2 sets of offsets, otherwise we have one
+    return type == rocfft_array_type_complex_planar || type == rocfft_array_type_hermitian_planar
+               ? 2
+               : 1;
 }
 
 rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description description,
@@ -161,19 +157,15 @@ rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description de
               "out_array_type",
               out_array_type,
               "in_offsets",
-              in_offsets,
+              std::make_pair(in_offsets, offset_count(in_array_type)),
               "out_offsets",
-              out_offsets,
-              "in_strides_size",
-              in_strides_size,
+              std::make_pair(out_offsets, offset_count(out_array_type)),
               "in_strides",
-              in_strides,
+              std::make_pair(in_strides, in_strides_size),
               "in_distance",
               in_distance,
-              "out_strides_size",
-              out_strides_size,
               "out_strides",
-              out_strides,
+              std::make_pair(out_strides, out_strides_size),
               "out_distance",
               out_distance);
 
@@ -481,7 +473,7 @@ rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
     log_trace(__func__,
               "plan",
               *plan,
-              "placment",
+              "placement",
               placement,
               "transform_type",
               transform_type,
@@ -490,9 +482,7 @@ rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
               "dimensions",
               dimensions,
               "lengths",
-              log_len[0],
-              log_len[1],
-              log_len[2],
+              std::make_pair(lengths, dimensions),
               "number_of_transforms",
               number_of_transforms,
               "description",

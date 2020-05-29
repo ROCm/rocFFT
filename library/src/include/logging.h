@@ -191,22 +191,10 @@ public:
 // log_profile will call argument_profile to profile actual arguments,
 // keeping count of the number of times each set of arguments is used
 template <typename... Ts>
-inline void log_profile(const char* func, Ts&&... xs)
+inline void log_profile(Ts&&... xs)
 {
-    if(!LOG_PROFILE_ENABLED())
-    {
-        // Make a tuple with the arguments
-        auto tup = std::make_tuple("rocfft_function", func, xs...);
-
-        // Set up profile
-        static argument_profile<decltype(tup)> profile(*LogSingleton::GetInstance().GetProfileOS());
-
-        // Add at_quick_exit handler in case the program exits early
-        static int aqe = at_quick_exit([] { profile.~argument_profile(); });
-
-        // Profile the tuple
-        profile(std::move(tup));
-    }
+    if(LOG_PROFILE_ENABLED())
+        log_arguments(*LogSingleton::GetInstance().GetProfileOS(), ",", std::forward<Ts>(xs)...);
 }
 
 /********************************************

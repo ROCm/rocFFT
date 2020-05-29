@@ -33,7 +33,6 @@ static inline bool IsPo2(size_t u)
 }
 
 std::string PrintScheme(ComputeScheme cs);
-std::string PrintArrayType(const rocfft_array_type x);
 
 inline bool SupportedLength(size_t len)
 {

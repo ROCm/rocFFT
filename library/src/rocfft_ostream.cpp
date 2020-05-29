@@ -172,7 +172,7 @@ ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, double x)
     else
     {
         out = s;
-        snprintf(s, sizeof(s) - 2, "%.17g", x);
+        snprintf(s, sizeof(s) - 2, "%.4g", x);
 
         // If no decimal point or exponent, append .0 to indicate floating point
         for(char* end = s; *end != '.' && *end != 'e' && *end != 'E'; ++end)
@@ -188,6 +188,11 @@ ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, double x)
     }
     os.os << out;
     return os;
+}
+
+ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, float f)
+{
+    return os << static_cast<double>(f);
 }
 
 // bool output
@@ -331,4 +336,91 @@ rocfft_ostream::worker::worker(int fd)
 
     // Detatch from the worker thread
     thread.detach();
+}
+
+// output of rocfft-specific types
+rocfft_ostream& operator<<(rocfft_ostream& os, rocfft_transform_type type)
+{
+    switch(type)
+    {
+    case rocfft_transform_type_complex_forward:
+        os << "complex_forward";
+        break;
+    case rocfft_transform_type_complex_inverse:
+        os << "complex_inverse";
+        break;
+    case rocfft_transform_type_real_forward:
+        os << "real_forward";
+        break;
+    case rocfft_transform_type_real_inverse:
+        os << "real_inverse";
+        break;
+    }
+    return os;
+}
+rocfft_ostream& operator<<(rocfft_ostream& os, rocfft_precision precision)
+{
+    switch(precision)
+    {
+    case rocfft_precision_single:
+        os << "single";
+        break;
+    case rocfft_precision_double:
+        os << "double";
+        break;
+    }
+    return os;
+}
+rocfft_ostream& operator<<(rocfft_ostream& os, rocfft_result_placement placement)
+{
+    switch(placement)
+    {
+    case rocfft_placement_inplace:
+        os << "inplace";
+        break;
+    case rocfft_placement_notinplace:
+        os << "notinplace";
+        break;
+    }
+    return os;
+}
+rocfft_ostream& operator<<(rocfft_ostream& os, rocfft_array_type type)
+{
+    switch(type)
+    {
+    case rocfft_array_type_complex_interleaved:
+        os << "complex_interleaved";
+        break;
+    case rocfft_array_type_complex_planar:
+        os << "complex_planar";
+        break;
+    case rocfft_array_type_real:
+        os << "real";
+        break;
+    case rocfft_array_type_hermitian_interleaved:
+        os << "hermitian_interleaved";
+        break;
+    case rocfft_array_type_hermitian_planar:
+        os << "hermitian_planar";
+        break;
+    case rocfft_array_type_unset:
+        os << "unset";
+        break;
+    }
+    return os;
+}
+rocfft_ostream& operator<<(rocfft_ostream& os, std::pair<const size_t*, size_t> array)
+{
+    os << "[";
+    if(array.first)
+    {
+        for(const size_t* s = array.first; s != array.first + array.second; ++s)
+        {
+            if(s != array.first)
+                os << ",";
+            os << *s;
+        }
+    }
+    os << "]";
+    return os;
 }

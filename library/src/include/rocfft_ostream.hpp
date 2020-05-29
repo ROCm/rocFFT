@@ -263,6 +263,7 @@ public:
 
     // Floating-point output
     friend rocfft_ostream& operator<<(rocfft_ostream& os, double x);
+    friend rocfft_ostream& operator<<(rocfft_ostream& os, float f);
 
     // Integer output
     friend rocfft_ostream& operator<<(rocfft_ostream& os, int32_t x)
@@ -306,6 +307,15 @@ public:
 
     // IO Manipulators
     friend rocfft_ostream& operator<<(rocfft_ostream& os, std::ostream& (*pf)(std::ostream&));
+
+    // rocfft-specific enums and types
+    friend rocfft_ostream& operator<<(rocfft_ostream& os, rocfft_transform_type type);
+    friend rocfft_ostream& operator<<(rocfft_ostream& os, rocfft_precision precision);
+    friend rocfft_ostream& operator<<(rocfft_ostream& os, rocfft_result_placement placement);
+    friend rocfft_ostream& operator<<(rocfft_ostream& os, rocfft_array_type type);
+    // array of size_t's with length of that array, for strides,
+    // offsets, etc
+    friend rocfft_ostream& operator<<(rocfft_ostream& os, std::pair<const size_t*, size_t> array);
 };
 
 #endif
