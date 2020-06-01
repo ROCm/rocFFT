@@ -22,8 +22,11 @@
 /// @brief googletest based unit tester for rocfft
 ///
 
+#include <fstream>
 #include <gtest/gtest.h>
 #include <iostream>
+#include <streambuf>
+#include <string>
 
 #include "accuracy_test.h"
 #include "fftw_transform.h"
@@ -50,6 +53,9 @@ std::vector<size_t>     length;
 size_t                  istride0;
 size_t                  ostride0;
 
+// Control whether we use FFTW's wisdom (which we use to imply FFTW_MEASURE).
+bool use_fftw_wisdom = false;
+
 int main(int argc, char* argv[])
 {
     // NB: If we initialize gtest first, then it removes all of its own command-line
@@ -57,13 +63,16 @@ int main(int argc, char* argv[])
     // boost::program_options.
     ::testing::InitGoogleTest(&argc, argv);
 
+    // Filename for fftw and fftwf wisdom.
+    std::string fftw_wisdom_filename;
+
     // Declare the supported options.
     // clang-format doesn't handle boost program options very well:
     // clang-format off
     po::options_description opdesc("rocFFT Runtime Test command line options");
-    opdesc.add_options()("help,h", "produces this help message")(
-        "verbose,v",
-        po::value<int>()->default_value(0),
+    opdesc.add_options()
+        ("help,h", "produces this help message")
+        ("verbose,v",  po::value<int>()->default_value(0),
         "print out detailed information for the tests.")
         ("transformType,t", po::value<rocfft_transform_type>(&transformType)
          ->default_value(rocfft_transform_type_complex_forward),
@@ -85,8 +94,13 @@ int main(int argc, char* argv[])
         ( "istride0", po::value<size_t>(&istride0)->default_value(1),
           "Input stride ")
         ( "ostride0", po::value<size_t>(&ostride0)->default_value(1),
-          "Output stride ");
+          "Output stride ")
+        ("wise,w", "use FFTW wisdom")
+        ("wisdomfile,W",
+         po::value<std::string>(&fftw_wisdom_filename)->default_value("wisdom3.txt"),
+         "FFTW3 wisdom filename");
     // clang-format on
+
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, opdesc), vm);
     po::notify(vm);
@@ -101,6 +115,11 @@ int main(int argc, char* argv[])
 
     verbose = vm["verbose"].as<int>();
 
+    if(vm.count("wise"))
+    {
+        use_fftw_wisdom = true;
+    }
+
     if(length.size() == 0)
     {
         length.push_back(8);
@@ -111,7 +130,66 @@ int main(int argc, char* argv[])
     rocfft_get_version_string(v, 256);
     std::cout << "rocFFT version: " << v << std::endl;
 
-    return RUN_ALL_TESTS();
+    if(use_fftw_wisdom)
+    {
+        if(verbose)
+        {
+            std::cout << "Using " << fftw_wisdom_filename << " wisdom file\n";
+        }
+        std::ifstream fftw_wisdom_file(fftw_wisdom_filename);
+        std::string   allwisdom = std::string(std::istreambuf_iterator<char>(fftw_wisdom_file),
+                                            std::istreambuf_iterator<char>());
+
+        std::string fftw_wisdom;
+        std::string fftwf_wisdom;
+
+        bool               load_wisdom  = false;
+        bool               load_fwisdom = false;
+        std::istringstream input;
+        input.str(allwisdom);
+        // Separate the single-precision and double-precision wisdom:
+        for(std::string line; std::getline(input, line);)
+        {
+            if(line.rfind("(fftw", 0) == 0 && line.find("fftw_wisdom") != std::string::npos)
+            {
+                load_wisdom = true;
+            }
+            if(line.rfind("(fftw", 0) == 0 && line.find("fftwf_wisdom") != std::string::npos)
+            {
+                load_fwisdom = true;
+            }
+            if(load_wisdom)
+            {
+                fftw_wisdom.append(line + "\n");
+            }
+            if(load_fwisdom)
+            {
+                fftwf_wisdom.append(line + "\n");
+            }
+            if(line.rfind(")", 0) == 0)
+            {
+                load_wisdom  = false;
+                load_fwisdom = false;
+            }
+        }
+        fftw_import_wisdom_from_string(fftw_wisdom.c_str());
+        fftwf_import_wisdom_from_string(fftwf_wisdom.c_str());
+    }
+
+    auto retval = RUN_ALL_TESTS();
+
+    if(use_fftw_wisdom)
+    {
+        std::string fftw_wisdom  = std::string(fftw_export_wisdom_to_string());
+        std::string fftwf_wisdom = std::string(fftwf_export_wisdom_to_string());
+        fftw_wisdom.append(std::string(fftwf_export_wisdom_to_string()));
+        std::ofstream fftw_wisdom_file(fftw_wisdom_filename);
+        fftw_wisdom_file << fftw_wisdom;
+        fftw_wisdom_file << fftwf_wisdom;
+        fftw_wisdom_file.close();
+    }
+
+    return retval;
 }
 
 TEST(manual, vs_fftw)

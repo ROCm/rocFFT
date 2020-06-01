@@ -183,6 +183,7 @@ inline typename fftw_trait<Tfloat>::fftw_plan_type
                          typename fftw_trait<Tfloat>::fftw_complex_type* out,
                          int                                             sign,
                          unsigned                                        flags);
+
 template <>
 inline typename fftw_trait<float>::fftw_plan_type
     fftw_plan_guru64_dft<float>(int                                            rank,
@@ -196,6 +197,7 @@ inline typename fftw_trait<float>::fftw_plan_type
 {
     return fftwf_plan_guru64_dft(rank, dims, howmany_rank, howmany_dims, in, out, sign, flags);
 }
+
 template <>
 inline typename fftw_trait<double>::fftw_plan_type
     fftw_plan_guru64_dft<double>(int                                             rank,
@@ -208,6 +210,26 @@ inline typename fftw_trait<double>::fftw_plan_type
                                  unsigned                                        flags)
 {
     return fftw_plan_guru64_dft(rank, dims, howmany_rank, howmany_dims, in, out, sign, flags);
+}
+
+// Template wrappers for FFTW c2c executors:
+template <typename Tfloat>
+inline void fftw_plan_execute_c2c(typename fftw_trait<Tfloat>::fftw_plan_type     plan,
+                                  typename fftw_trait<Tfloat>::fftw_complex_type* in,
+                                  typename fftw_trait<Tfloat>::fftw_complex_type* out);
+template <>
+inline void fftw_plan_execute_c2c<float>(typename fftw_trait<float>::fftw_plan_type     plan,
+                                         typename fftw_trait<float>::fftw_complex_type* in,
+                                         typename fftw_trait<float>::fftw_complex_type* out)
+{
+    fftwf_execute_dft(plan, in, out);
+}
+template <>
+inline void fftw_plan_execute_c2c<double>(typename fftw_trait<double>::fftw_plan_type     plan,
+                                          typename fftw_trait<double>::fftw_complex_type* in,
+                                          typename fftw_trait<double>::fftw_complex_type* out)
+{
+    fftw_execute_dft(plan, in, out);
 }
 
 // Template wrappers for FFTW r2c planners:
@@ -245,6 +267,26 @@ inline typename fftw_trait<double>::fftw_plan_type
     return fftw_plan_guru64_dft_r2c(rank, dims, howmany_rank, howmany_dims, in, out, flags);
 }
 
+// Template wrappers for FFTW r2c executors:
+template <typename Tfloat>
+inline void fftw_plan_execute_r2c(typename fftw_trait<Tfloat>::fftw_plan_type     plan,
+                                  Tfloat*                                         in,
+                                  typename fftw_trait<Tfloat>::fftw_complex_type* out);
+template <>
+inline void fftw_plan_execute_r2c<float>(typename fftw_trait<float>::fftw_plan_type     plan,
+                                         float*                                         in,
+                                         typename fftw_trait<float>::fftw_complex_type* out)
+{
+    fftwf_execute_dft_r2c(plan, in, out);
+}
+template <>
+inline void fftw_plan_execute_r2c<double>(typename fftw_trait<double>::fftw_plan_type     plan,
+                                          double*                                         in,
+                                          typename fftw_trait<double>::fftw_complex_type* out)
+{
+    fftw_execute_dft_r2c(plan, in, out);
+}
+
 // Template wrappers for FFTW c2r planners:
 template <typename Tfloat>
 inline typename fftw_trait<Tfloat>::fftw_plan_type
@@ -278,6 +320,26 @@ inline typename fftw_trait<double>::fftw_plan_type
                                  unsigned                                        flags)
 {
     return fftw_plan_guru64_dft_c2r(rank, dims, howmany_rank, howmany_dims, in, out, flags);
+}
+
+// Template wrappers for FFTW c2r executors:
+template <typename Tfloat>
+inline void fftw_plan_execute_c2r(typename fftw_trait<Tfloat>::fftw_plan_type     plan,
+                                  typename fftw_trait<Tfloat>::fftw_complex_type* in,
+                                  Tfloat*                                         out);
+template <>
+inline void fftw_plan_execute_c2r<float>(typename fftw_trait<float>::fftw_plan_type     plan,
+                                         typename fftw_trait<float>::fftw_complex_type* in,
+                                         float*                                         out)
+{
+    fftwf_execute_dft_c2r(plan, in, out);
+}
+template <>
+inline void fftw_plan_execute_c2r<double>(typename fftw_trait<double>::fftw_plan_type     plan,
+                                          typename fftw_trait<double>::fftw_complex_type* in,
+                                          double*                                         out)
+{
+    fftw_execute_dft_c2r(plan, in, out);
 }
 
 // Allocator / deallocator for FFTW arrays.

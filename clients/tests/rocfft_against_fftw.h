@@ -80,6 +80,8 @@ inline bool
     return true;
 }
 
+extern bool use_fftw_wisdom;
+
 // Perform and out-of-place computation on contiguous data and then return this in an
 // an object which will destruct correctly.
 template <typename Tfloat, typename Tallocator>
@@ -87,64 +89,92 @@ inline std::vector<std::vector<char, Tallocator>>
     fftw_transform(const std::vector<fftw_iodim64> dims,
                    const std::vector<fftw_iodim64> howmany_dims,
                    const rocfft_transform_type     transformType,
+                   const size_t                    isize,
                    const size_t                    osize,
                    void*                           cpu_in)
 {
     typename fftw_trait<Tfloat>::fftw_plan_type cpu_plan = NULL;
     using fftw_complex_type = typename fftw_trait<Tfloat>::fftw_complex_type;
 
+    // NB: Using FFTW_MEASURE implies that the input buffer's data may be destroyed during plan
+    // creation.  Therefore, we create a dummy input buffer.
+    std::vector<char, Tallocator> dummy_input(1);
+
     std::vector<std::vector<char, Tallocator>> output(1);
+
     switch(transformType)
     {
     case rocfft_transform_type_complex_forward:
+    {
+        dummy_input.resize(isize * sizeof(fftw_complex_type));
         output[0].resize(osize * sizeof(fftw_complex_type));
         cpu_plan
             = fftw_plan_guru64_dft<Tfloat>(dims.size(),
                                            dims.data(),
                                            howmany_dims.size(),
                                            howmany_dims.data(),
-                                           reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                           reinterpret_cast<fftw_complex_type*>(dummy_input.data()),
                                            reinterpret_cast<fftw_complex_type*>(output[0].data()),
                                            -1,
-                                           FFTW_ESTIMATE);
-        break;
+                                           use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
+        fftw_plan_execute_c2c<Tfloat>(cpu_plan,
+                                      reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                      reinterpret_cast<fftw_complex_type*>(output[0].data()));
+    }
+    break;
     case rocfft_transform_type_complex_inverse:
+    {
+        dummy_input.resize(isize * sizeof(fftw_complex_type));
         output[0].resize(osize * sizeof(fftw_complex_type));
         cpu_plan
             = fftw_plan_guru64_dft<Tfloat>(dims.size(),
                                            dims.data(),
                                            howmany_dims.size(),
                                            howmany_dims.data(),
-                                           reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                           reinterpret_cast<fftw_complex_type*>(dummy_input.data()),
                                            reinterpret_cast<fftw_complex_type*>(output[0].data()),
                                            1,
-                                           FFTW_ESTIMATE);
-        break;
+                                           use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
+        fftw_plan_execute_c2c<Tfloat>(cpu_plan,
+                                      reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                      reinterpret_cast<fftw_complex_type*>(output[0].data()));
+    }
+    break;
     case rocfft_transform_type_real_forward:
+    {
+        dummy_input.resize(isize * sizeof(Tfloat));
         output[0].resize(osize * sizeof(fftw_complex_type));
         cpu_plan
             = fftw_plan_guru64_r2c<Tfloat>(dims.size(),
                                            dims.data(),
                                            howmany_dims.size(),
                                            howmany_dims.data(),
-                                           reinterpret_cast<Tfloat*>(cpu_in),
+                                           reinterpret_cast<Tfloat*>(dummy_input.data()),
                                            reinterpret_cast<fftw_complex_type*>(output[0].data()),
-                                           FFTW_ESTIMATE);
-        break;
-    case rocfft_transform_type_real_inverse:
-        output[0].resize(osize * sizeof(Tfloat));
-        cpu_plan = fftw_plan_guru64_c2r<Tfloat>(dims.size(),
-                                                dims.data(),
-                                                howmany_dims.size(),
-                                                howmany_dims.data(),
-                                                reinterpret_cast<fftw_complex_type*>(cpu_in),
-                                                reinterpret_cast<Tfloat*>(output[0].data()),
-                                                FFTW_ESTIMATE);
+                                           use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
+        fftw_plan_execute_r2c<Tfloat>(cpu_plan,
+                                      reinterpret_cast<Tfloat*>(cpu_in),
+                                      reinterpret_cast<fftw_complex_type*>(output[0].data()));
         break;
     }
-
-    // Execute the CPU transform:
-    fftw_execute_type<Tfloat>(cpu_plan);
+    case rocfft_transform_type_real_inverse:
+    {
+        dummy_input.resize(isize * sizeof(fftw_complex_type));
+        output[0].resize(osize * sizeof(Tfloat));
+        cpu_plan
+            = fftw_plan_guru64_c2r<Tfloat>(dims.size(),
+                                           dims.data(),
+                                           howmany_dims.size(),
+                                           howmany_dims.data(),
+                                           reinterpret_cast<fftw_complex_type*>(dummy_input.data()),
+                                           reinterpret_cast<Tfloat*>(output[0].data()),
+                                           use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
+        fftw_plan_execute_c2r<Tfloat>(cpu_plan,
+                                      reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                      reinterpret_cast<Tfloat*>(output[0].data()));
+    }
+    break;
+    }
 
     fftw_destroy_plan_type(cpu_plan);
     return output;
@@ -184,12 +214,20 @@ inline std::vector<std::vector<char, Tallocator>>
     switch(precision)
     {
     case rocfft_precision_single:
-        return fftw_transform<float, Tallocator>(
-            dims, howmany_dims, transformType, odist * nbatch, (void*)input[0].data());
+        return fftw_transform<float, Tallocator>(dims,
+                                                 howmany_dims,
+                                                 transformType,
+                                                 idist * nbatch,
+                                                 odist * nbatch,
+                                                 (void*)input[0].data());
         break;
     case rocfft_precision_double:
-        return fftw_transform<double, Tallocator>(
-            dims, howmany_dims, transformType, odist * nbatch, (void*)input[0].data());
+        return fftw_transform<double, Tallocator>(dims,
+                                                  howmany_dims,
+                                                  transformType,
+                                                  idist * nbatch,
+                                                  odist * nbatch,
+                                                  (void*)input[0].data());
         break;
     }
 }
