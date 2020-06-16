@@ -203,7 +203,7 @@ const static std::vector<rocfft_precision> precision_range
 const static std::vector<rocfft_result_placement> place_range
     = {rocfft_placement_inplace, rocfft_placement_notinplace};
 
-// Given a vector of vector of lengths, generate all permutations.
+// Given a vector of vector of lengths, generate all unique permutations.
 inline std::vector<std::vector<size_t>>
     generate_lengths(const std::vector<std::vector<size_t>>& inlengths)
 {
@@ -231,6 +231,9 @@ inline std::vector<std::vector<size_t>>
             output.push_back(length);
         } while(increment_colmajor(index, looplength));
     }
+    // uniquify the result
+    std::sort(output.begin(), output.end());
+    output.erase(std::unique(output.begin(), output.end()), output.end());
     return output;
 }
 
