@@ -208,8 +208,8 @@ void rocfft_transform(const std::vector<size_t>                                 
     const size_t osize = nbatch * gpu_odist;
 
     // Sizes of individual input and output variables
-    const size_t isize_t = var_size(precision, itype);
-    const size_t osize_t = var_size(precision, otype);
+    const size_t isize_t = var_size<size_t>(precision, itype);
+    const size_t osize_t = var_size<size_t>(precision, otype);
 
     // Numbers of input and output buffers:
     const int nibuffer

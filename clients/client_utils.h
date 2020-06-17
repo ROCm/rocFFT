@@ -202,15 +202,15 @@ int compute_index(const std::tuple<T1, T1, T1>& length,
 
 // Output a formatted general-dimensional array with given length and stride in batches
 // separated by dist.
-template <typename Toutput, typename T1, typename T2>
+template <typename Toutput, typename T1, typename T2, typename Tsize>
 inline void printbuffer(const Toutput*         output,
                         const std::vector<T1>& length,
                         const std::vector<T2>& stride,
-                        const size_t           nbatch,
-                        const size_t           dist)
+                        const Tsize            nbatch,
+                        const Tsize            dist)
 {
-    size_t i_base = 0;
-    for(size_t b = 0; b < nbatch; b++, i_base += dist)
+    auto i_base = 0;
+    for(auto b = 0; b < nbatch; b++, i_base += dist)
     {
         std::vector<int> index(length.size());
         std::fill(index.begin(), index.end(), 0);
@@ -1209,19 +1209,19 @@ inline std::pair<double, double>
 // Given a buffer of complex values stored in a vector of chars (or two vectors in the
 // case of planar format), impose Hermitian symmetry.
 // NB: length is the dimensions of the FFT, not the data layout dimensions.
-template <typename Tfloat, typename Tallocator>
+template <typename Tfloat, typename Tallocator, typename Tsize>
 inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>& vals,
-                                      const std::vector<size_t>&                  length,
-                                      const std::vector<size_t>&                  istride,
-                                      const size_t                                idist,
-                                      const size_t                                nbatch)
+                                      const std::vector<Tsize>&                   length,
+                                      const std::vector<Tsize>&                   istride,
+                                      const Tsize                                 idist,
+                                      const Tsize                                 nbatch)
 {
     switch(vals.size())
     {
     case 1:
     {
         // Complex interleaved data
-        for(int ibatch = 0; ibatch < nbatch; ++ibatch)
+        for(auto ibatch = 0; ibatch < nbatch; ++ibatch)
         {
             auto data = ((std::complex<Tfloat>*)vals[0].data()) + ibatch * idist;
             switch(length.size())
@@ -1251,7 +1251,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 }
 
                 // y-axis:
-                for(int j = 1; j < (length[1] + 1) / 2; ++j)
+                for(auto j = 1; j < (length[1] + 1) / 2; ++j)
                 {
                     data[istride[1] * (length[1] - j)] = std::conj(data[istride[1] * j]);
                 }
@@ -1259,7 +1259,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 if(length[0] % 2 == 0)
                 {
                     // y-axis at x-nyquist
-                    for(int j = 1; j < (length[1] + 1) / 2; ++j)
+                    for(auto j = 1; j < (length[1] + 1) / 2; ++j)
                     {
                         // clang format off
                         data[istride[0] * (length[0] / 2) + istride[1] * (length[1] - j)]
@@ -1269,7 +1269,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 }
 
                 // x-axis:
-                for(int i = 1; i < (length[0] + 1) / 2; ++i)
+                for(auto i = 1; i < (length[0] + 1) / 2; ++i)
                 {
                     data[istride[0] * (length[0] - i)] = std::conj(data[istride[0] * i]);
                 }
@@ -1277,7 +1277,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 if(length[1] % 2 == 0)
                 {
                     // x-axis at y-nyquist
-                    for(int i = 1; i < (length[0] + 1) / 2; ++i)
+                    for(auto i = 1; i < (length[0] + 1) / 2; ++i)
                     {
                         // clang format off
                         data[istride[0] * (length[0] - i) + istride[1] * (length[1] / 2)]
@@ -1287,9 +1287,9 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 }
 
                 // x-y plane:
-                for(int i = 1; i < (length[0] + 1) / 2; ++i)
+                for(auto i = 1; i < (length[0] + 1) / 2; ++i)
                 {
-                    for(int j = 1; j < length[1]; ++j)
+                    for(auto j = 1; j < length[1]; ++j)
                     {
                         // clang format off
                         data[istride[0] * (length[0] - i) + istride[1] * (length[1] - j)]
@@ -1301,7 +1301,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 if(length[2] % 2 == 0)
                 {
                     // x-axis at z-nyquist
-                    for(int i = 1; i < (length[0] + 1) / 2; ++i)
+                    for(auto i = 1; i < (length[0] + 1) / 2; ++i)
                     {
                         data[istride[0] * (length[0] - i) + istride[2] * (length[2] / 2)]
                             = std::conj(data[istride[0] * i + istride[2] * (length[2] / 2)]);
@@ -1309,7 +1309,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                     if(length[1] % 2 == 0)
                     {
                         // x-axis at yz-nyquist
-                        for(int i = 1; i < (length[0] + 1) / 2; ++i)
+                        for(auto i = 1; i < (length[0] + 1) / 2; ++i)
                         {
                             data[istride[0] * (length[0] - i) + istride[2] * (length[2] / 2)]
                                 = std::conj(data[istride[0] * i + istride[2] * (length[2] / 2)]);
@@ -1317,7 +1317,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                     }
 
                     // y-axis: at z-nyquist
-                    for(int j = 1; j < (length[1] + 1) / 2; ++j)
+                    for(auto j = 1; j < (length[1] + 1) / 2; ++j)
                     {
                         data[istride[1] * (length[1] - j) + istride[2] * (length[2] / 2)]
                             = std::conj(data[istride[1] * j + istride[2] * (length[2] / 2)]);
@@ -1326,7 +1326,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                     if(length[0] % 2 == 0)
                     {
                         // y-axis: at xz-nyquist
-                        for(int j = 1; j < (length[1] + 1) / 2; ++j)
+                        for(auto j = 1; j < (length[1] + 1) / 2; ++j)
                         {
                             // clang format off
                             data[istride[0] * (length[0] / 2) + istride[1] * (length[1] - j)
@@ -1338,9 +1338,9 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                     }
 
                     // x-y plane: at z-nyquist
-                    for(int i = 1; i < (length[0] + 1) / 2; ++i)
+                    for(auto i = 1; i < (length[0] + 1) / 2; ++i)
                     {
-                        for(int j = 1; j < length[1]; ++j)
+                        for(auto j = 1; j < length[1]; ++j)
                         {
                             // clang format off
                             data[istride[0] * (length[0] - i) + istride[1] * (length[1] - j)
@@ -1364,14 +1364,14 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                     data[istride[0] * (length[0] / 2) + istride[1] * (length[1] / 2)].imag(0.0);
                 }
 
-                for(int i = 1; i < (length[0] + 1) / 2; ++i)
+                for(auto i = 1; i < (length[0] + 1) / 2; ++i)
                 {
                     data[istride[0] * (length[0] - i)] = std::conj(data[istride[0] * i]);
                 }
 
                 if(length[1] % 2 == 0)
                 {
-                    for(int i = 1; i < (length[0] + 1) / 2; ++i)
+                    for(auto i = 1; i < (length[0] + 1) / 2; ++i)
                     {
                         data[istride[0] * (length[0] - i) + istride[1] * (length[1] / 2)]
                             = std::conj(data[istride[0] * i + istride[1] * (length[1] / 2)]);
@@ -1399,7 +1399,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
     case 2:
     {
         // Complex planar data
-        for(int ibatch = 0; ibatch < nbatch; ++ibatch)
+        for(auto ibatch = 0; ibatch < nbatch; ++ibatch)
         {
             auto rdata = ((Tfloat*)vals[0].data()) + ibatch * idist;
             auto idata = ((Tfloat*)vals[1].data()) + ibatch * idist;
@@ -1435,22 +1435,22 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
 // into the input array of floats/doubles or complex floats/doubles, which is stored in a
 // vector of chars (or two vectors in the case of planar format).
 // lengths are the memory lengths (ie not the transform parameters)
-template <typename Tfloat, typename Tallocator>
+template <typename Tfloat, typename Tallocator, typename Tsize>
 inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
                       const rocfft_array_type                     itype,
-                      const std::vector<size_t>&                  length,
-                      const std::vector<size_t>&                  istride,
-                      const size_t                                idist,
-                      const size_t                                nbatch)
+                      const std::vector<Tsize>&                   length,
+                      const std::vector<Tsize>&                   istride,
+                      const Tsize                                 idist,
+                      const Tsize                                 nbatch)
 {
     switch(itype)
     {
     case rocfft_array_type_complex_interleaved:
     case rocfft_array_type_hermitian_interleaved:
     {
-        auto   idata  = (std::complex<Tfloat>*)input[0].data();
-        size_t i_base = 0;
-        for(size_t b = 0; b < nbatch; b++, i_base += idist)
+        auto  idata  = (std::complex<Tfloat>*)input[0].data();
+        Tsize i_base = 0;
+        for(auto b = 0; b < nbatch; b++, i_base += idist)
         {
             std::vector<int> index(length.size());
             do
@@ -1470,7 +1470,7 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
         auto   ireal  = (Tfloat*)input[0].data();
         auto   iimag  = (Tfloat*)input[1].data();
         size_t i_base = 0;
-        for(size_t b = 0; b < nbatch; b++, i_base += idist)
+        for(auto b = 0; b < nbatch; b++, i_base += idist)
         {
             std::vector<int> index(length.size());
             do
@@ -1487,9 +1487,9 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
     }
     case rocfft_array_type_real:
     {
-        auto   idata  = (Tfloat*)input[0].data();
-        size_t i_base = 0;
-        for(size_t b = 0; b < nbatch; b++, i_base += idist)
+        auto  idata  = (Tfloat*)input[0].data();
+        Tsize i_base = 0;
+        for(auto b = 0; b < nbatch; b++, i_base += idist)
         {
             std::vector<int> index(length.size());
             do
@@ -1510,13 +1510,14 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
 
 // Compute the idist for a given transform based on the placeness, transform type, and
 // data layout.
+template <typename Tsize>
 inline size_t set_idist(const rocfft_result_placement place,
                         const rocfft_transform_type   transformType,
-                        const std::vector<size_t>&    length,
-                        const std::vector<size_t>&    istride)
+                        const std::vector<Tsize>&     length,
+                        const std::vector<Tsize>&     istride)
 {
-    const size_t dim   = length.size();
-    size_t       idist = 0;
+    const Tsize dim   = length.size();
+    Tsize       idist = 0;
     if(transformType == rocfft_transform_type_real_inverse && dim == 1)
     {
         idist = (length[0] / 2 + 1) * istride[0];
@@ -1537,13 +1538,14 @@ inline size_t set_idist(const rocfft_result_placement place,
 
 // Compute the odist for a given transform based on the placeness, transform type, and
 // data layout.
+template <typename Tsize>
 inline size_t set_odist(const rocfft_result_placement place,
                         const rocfft_transform_type   transformType,
-                        const std::vector<size_t>&    length,
-                        const std::vector<size_t>&    ostride)
+                        const std::vector<Tsize>&     length,
+                        const std::vector<Tsize>&     ostride)
 {
-    const size_t dim   = length.size();
-    size_t       odist = 0;
+    const Tsize dim   = length.size();
+    Tsize       odist = 0;
     if(transformType == rocfft_transform_type_real_forward && dim == 1)
     {
         odist = (length[0] / 2 + 1) * ostride[0];
@@ -1562,7 +1564,8 @@ inline size_t set_odist(const rocfft_result_placement place,
 }
 
 // Determine the size of the data type given the precision and type.
-inline size_t var_size(const rocfft_precision precision, const rocfft_array_type type)
+template <typename Tsize>
+inline Tsize var_size(const rocfft_precision precision, const rocfft_array_type type)
 {
     size_t var_size = 0;
     switch(precision)
@@ -1588,13 +1591,14 @@ inline size_t var_size(const rocfft_precision precision, const rocfft_array_type
 
 // Given a data type and precision, the distance between batches, and the batch size,
 // return the required buffer size(s).
-inline std::vector<size_t> buffer_sizes(const rocfft_precision  precision,
-                                        const rocfft_array_type type,
-                                        const size_t            dist,
-                                        const size_t            nbatch)
+template <typename Tsize>
+inline std::vector<Tsize> buffer_sizes(const rocfft_precision  precision,
+                                       const rocfft_array_type type,
+                                       const Tsize             dist,
+                                       const Tsize             nbatch)
 {
-    const size_t size              = nbatch * dist * var_size(precision, type);
-    unsigned     number_of_buffers = 0;
+    const Tsize size              = nbatch * dist * var_size<Tsize>(precision, type);
+    unsigned    number_of_buffers = 0;
     switch(type)
     {
     case rocfft_array_type_complex_planar:
@@ -1604,7 +1608,7 @@ inline std::vector<size_t> buffer_sizes(const rocfft_precision  precision,
     default:
         number_of_buffers = 1;
     }
-    std::vector<size_t> sizes(number_of_buffers);
+    std::vector<Tsize> sizes(number_of_buffers);
     for(unsigned i = 0; i < number_of_buffers; i++)
     {
         sizes[i] = size;
@@ -1614,23 +1618,23 @@ inline std::vector<size_t> buffer_sizes(const rocfft_precision  precision,
 
 // Given a data type and precision, the distance between batches, and the batch size,
 // allocate the required host buffer(s).
-template <typename Allocator = std::allocator<char>>
+template <typename Allocator = std::allocator<char>, typename Tsize>
 inline std::vector<std::vector<char, Allocator>>
-    allocate_host_buffer(const rocfft_precision     precision,
-                         const rocfft_array_type    type,
-                         const std::vector<size_t>& length,
-                         const std::vector<size_t>& stride,
-                         const size_t               dist,
-                         const size_t               nbatch)
+    allocate_host_buffer(const rocfft_precision    precision,
+                         const rocfft_array_type   type,
+                         const std::vector<Tsize>& length,
+                         const std::vector<Tsize>& stride,
+                         const Tsize               dist,
+                         const Tsize               nbatch)
 {
     const int nbuf
         = (type == rocfft_array_type_complex_planar || type == rocfft_array_type_hermitian_planar)
               ? 2
               : 1;
     std::vector<std::vector<char, Allocator>> buffers(nbuf);
-    const bool   iscomplex = (type == rocfft_array_type_complex_interleaved
+    const bool  iscomplex = (type == rocfft_array_type_complex_interleaved
                             || type == rocfft_array_type_hermitian_interleaved);
-    const size_t size      = dist * nbatch * var_size(precision, type);
+    const Tsize size      = dist * nbatch * var_size<Tsize>(precision, type);
     for(auto& i : buffers)
     {
         i.resize(size);
@@ -1641,16 +1645,16 @@ inline std::vector<std::vector<char, Allocator>>
 // Given a data type and dimensions, fill the buffer, imposing Hermitian symmetry if
 // necessary.
 // NB: length is the logical size of the FFT, and not necessarily the data dimensions
-template <typename Allocator = std::allocator<char>>
-inline std::vector<std::vector<char, Allocator>> compute_input(const rocfft_precision     precision,
-                                                               const rocfft_array_type    itype,
-                                                               const std::vector<size_t>& length,
-                                                               const std::vector<size_t>& istride,
-                                                               const size_t               idist,
-                                                               const size_t               nbatch,
+template <typename Allocator = std::allocator<char>, typename Tsize>
+inline std::vector<std::vector<char, Allocator>> compute_input(const rocfft_precision    precision,
+                                                               const rocfft_array_type   itype,
+                                                               const std::vector<Tsize>& length,
+                                                               const std::vector<Tsize>& istride,
+                                                               const Tsize               idist,
+                                                               const Tsize               nbatch,
                                                                const bool make_contiguous = false)
 {
-    const size_t dim = length.size();
+    const Tsize dim = length.size();
 
     auto input = allocate_host_buffer<Allocator>(precision, itype, length, istride, idist, nbatch);
 
@@ -1659,7 +1663,7 @@ inline std::vector<std::vector<char, Allocator>> compute_input(const rocfft_prec
         std::fill(i.begin(), i.end(), 0.0);
     }
 
-    std::vector<size_t> ilength = length;
+    std::vector<Tsize> ilength = length;
     if(itype == rocfft_array_type_hermitian_interleaved
        || itype == rocfft_array_type_hermitian_planar)
     {
