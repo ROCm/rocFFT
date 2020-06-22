@@ -1,23 +1,3 @@
-def _subprocess_helper(cmd, *args, **kwargs):
-    import subprocess
-    import tempfile
-    fout = tempfile.TemporaryFile(mode="w+")
-    ferr = tempfile.TemporaryFile(mode="w+")
-    cout = ""
-    success = False
-    try:
-        p = subprocess.Popen(cmd, stdout=fout, stderr=ferr, *args, **kwargs)
-        p.wait()
-        fout.seek(0)
-        cout = fout.read()
-        success = True
-    except subprocess.CalledProcessError:
-        pass
-    except FileNotFoundError:
-        pass
-    return success, cout
-
-
 # Get the hostname
 def gethostname():
     import socket
@@ -26,11 +6,15 @@ def gethostname():
 
 # Get the host cpu information
 def getcpu():
+    import subprocess, tempfile
     cmd = ["lscpu"]
-    success, cout = _subprocess_helper(cmd)
-    if not success:
-        return "N/A"
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd,stdout=fout, stderr=ferr)
+    p.wait()
     cpulist = ""
+    fout.seek(0)
+    cout = fout.read()
     searchstr = "Model name:"
     for line in cout.split("\n"):
         if line.startswith(searchstr):
@@ -42,53 +26,71 @@ def getkernel():
     import subprocess
     cmd = ["uname", "-r"]
     import tempfile
-    success, cout = _subprocess_helper(cmd)
-    if not success:
-        return "N/A"
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd,stdout=fout, stderr=ferr)
+    p.wait()
+    fout.seek(0)
+    cout = fout.read()
     return cout.strip()
 
 # Get the host ram size
 def getram():
-    import re
+    import subprocess, tempfile, re
     cmd = ["lshw", "-class",  "memory"]
-    success, cout = _subprocess_helper(cmd)
-    if not success:
-        return "N/A"
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd,stdout=fout, stderr=ferr)
+    p.wait()
+    fout.seek(0)
+    cout = fout.read()
     searchstr = "size:"
     for line in cout.split("\n"):
         m = re.search(searchstr, line)
         if not m == None:
             return line.strip()[len(searchstr):].strip()
 
-# Get the Linux distro information
+# Get the Linux distro information        
 def getdistro():
+    import subprocess, tempfile
     cmd = ["lsb_release", "-a"]
-    success, cout = _subprocess_helper(cmd)
-    if not success:
-        return "N/A"
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd,stdout=fout, stderr=ferr)
+    p.wait()
+    fout.seek(0)
+    cout = fout.read()
     searchstr = "Description:"
     for line in cout.split("\n"):
         if line.startswith(searchstr):
             return line[len(searchstr):].strip()
 
-# Get the version number for rocm
+# Get the version number for rocm        
 def getrocmversion():
+    import subprocess, tempfile
     cmd = ["apt", "show", "rocm-libs"]
-    success, cout = _subprocess_helper(cmd)
-    if not success:
-        return "N/A"
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd,stdout=fout, stderr=ferr)
+    p.wait()
+    fout.seek(0)
+    cout = fout.read()
     searchstr = "Version:"
     for line in cout.split("\n"):
         if line.startswith(searchstr):
             return line[len(searchstr):].strip()
 
-
-# Get the vbios version for the specified device
+        
+# Get the vbios version for the specified device        
 def getvbios(devicenum):
+    import subprocess, tempfile
     cmd = ["/opt/rocm/bin/rocm-smi", "-v", "-d", str(devicenum)]
-    success, cout = _subprocess_helper(cmd)
-    if not success:
-        return "N/A"
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd,stdout=fout, stderr=ferr)
+    p.wait()
+    fout.seek(0)
+    cout = fout.read()
     searchstr = "GPU["+str(devicenum)+"]"
     for line in cout.split("\n"):
         if line.startswith(searchstr):
@@ -98,13 +100,16 @@ def getvbios(devicenum):
     return ""
 
 def getgpuid(devicenum):
-    import re
+    import subprocess, tempfile, re
     name = ""
     # We also use rocm-smi to get more info
     cmd = ["/opt/rocm/bin/rocm-smi", "-i", "-d", str(devicenum)]
-    success, cout = _subprocess_helper(cmd)
-    if not success:
-        return "N/A"
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd,stdout=fout, stderr=ferr)
+    p.wait()
+    fout.seek(0)
+    cout = fout.read()
     searchstr = "GPU["+str(devicenum)+"]"
     for line in cout.split("\n"):
         if line.startswith(searchstr):
@@ -114,14 +119,17 @@ def getgpuid(devicenum):
             name += " " + line.strip()
             name = name.replace(" ", "")
     return name
-
+        
 # Get the name of the device from lshw which has index devicenum
 def getdeviceinfo(devicenum):
-    import re
+    import subprocess, tempfile, re
     cmd = ["lshw", "-C", "video"]
-    success, cout = _subprocess_helper(cmd)
-    if not success:
-        return "N/A"
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd,stdout=fout, stderr=ferr)
+    p.wait()
+    fout.seek(0)
+    cout = fout.read()
     searchstr = "-display"
     indices = []
     name = ""
@@ -136,14 +144,17 @@ def getdeviceinfo(devicenum):
                 name += line[pos+1:].strip()
     name += " " + getgpuid(devicenum)
     return name
-
-# Get the vram for the specified device
+    
+# Get the vram for the specified device        
 def getvram(devicenum):
-    import re
+    import subprocess, tempfile, re
     cmd = ["/opt/rocm/bin/rocm-smi", "--showmeminfo", "vram", "-d", str(devicenum)]
-    success, cout = _subprocess_helper(cmd)
-    if not success:
-        return "N/A"
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd,stdout=fout, stderr=ferr)
+    p.wait()
+    fout.seek(0)
+    cout = fout.read()
     searchstr = "GPU["+str(devicenum)+"]"
     for line in cout.split("\n"):
         if line.startswith(searchstr):
@@ -155,13 +166,16 @@ def getvram(devicenum):
             pos = line.find("used")
             return line[:pos].strip()
 
-# Get the performance level for the specified device
+# Get the performance level for the specified device        
 def getperflevel(devicenum):
-    import re
+    import subprocess, tempfile, re
     cmd = ["/opt/rocm/bin/rocm-smi", "-p", "-d", str(devicenum)]
-    success, cout = _subprocess_helper(cmd)
-    if not success:
-        return "N/A"
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd,stdout=fout, stderr=ferr)
+    p.wait()
+    fout.seek(0)
+    cout = fout.read()
     searchstr = "GPU["+str(devicenum)+"]"
     for line in cout.split("\n"):
         if line.startswith(searchstr):
@@ -172,11 +186,14 @@ def getperflevel(devicenum):
 
 # Get the memory clock for the specified device
 def getmclk(devicenum):
-    import re
+    import subprocess, tempfile, re
     cmd = ["/opt/rocm/bin/rocm-smi", "--showclocks", "-d", str(devicenum)]
-    success, cout = _subprocess_helper(cmd)
-    if not success:
-        return "N/A"
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd,stdout=fout, stderr=ferr)
+    p.wait()
+    fout.seek(0)
+    cout = fout.read()
     searchstr = "mclk"
     for line in cout.split("\n"):
         m = re.search(searchstr, line)
@@ -185,13 +202,16 @@ def getmclk(devicenum):
             p1 = line.find(")")
             return line[p0+1:p1]
 
-# Get the system clock for the specified device
+# Get the system clock for the specified device        
 def getsclk(devicenum):
-    import re
+    import subprocess, tempfile, re
     cmd = ["/opt/rocm/bin/rocm-smi", "--showclocks", "-d", str(devicenum)]
-    success, cout = _subprocess_helper(cmd)
-    if not success:
-        return "N/A"
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd,stdout=fout, stderr=ferr)
+    p.wait()
+    fout.seek(0)
+    cout = fout.read()
     searchstr = "sclk"
     for line in cout.split("\n"):
         m = re.search(searchstr, line)
