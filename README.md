@@ -42,9 +42,9 @@ rocfft-test runs functionality tests and uses FFTW, Google test, and
 boost program options.  Compilation is enabled by calling cmake with the `-DBUILD_CLIENTS_TESTS=on` option.
 
 To install the clients depencencies on Ubuntu, run
-`sudo apt install libgtest-dev libfftw3 libboost-program-options-dev`
+`sudo apt install libgtest-dev libfftw3-dev libboost-program-options-dev`
 
-The file `install.sh` is a bash script is a wrapper for the cmake
+The file `install.sh` is a bash script that is a wrapper for the cmake
 script, which also install dependencies on certain Linux
 distributions.  The preferred method for compiling rocFFT is to call
 cmake directly.

@@ -30,7 +30,7 @@
 
 #include <dlfcn.h>
 
-#include "./rider.h"
+#include "rider.h"
 #include "rocfft.h"
 
 #include <boost/program_options.hpp>
@@ -98,6 +98,9 @@ void destroy_plan(void* libhandle, rocfft_plan& plan)
     auto procfft_plan_destroy
         = (decltype(&rocfft_plan_destroy))dlsym(libhandle, "rocfft_plan_destroy");
     procfft_plan_destroy(plan);
+    auto procfft_cleanup = (decltype(&rocfft_cleanup))dlsym(libhandle, "rocfft_cleanup");
+    if(procfft_cleanup)
+        procfft_cleanup();
 }
 
 // Given a libhandle from dload and a rocFFT execution info structure, destroy the info.
@@ -112,7 +115,6 @@ void destroy_info(void* libhandle, rocfft_execution_info& info)
 // buffer is required.
 size_t get_wbuffersize(void* libhandle, const rocfft_plan& plan)
 {
-    auto procfft_cleanup = (decltype(&rocfft_cleanup))dlsym(libhandle, "rocfft_cleanup");
     auto procfft_plan_get_work_buffer_size = (decltype(&rocfft_plan_get_work_buffer_size))dlsym(
         libhandle, "rocfft_plan_get_work_buffer_size");
 
@@ -341,6 +343,10 @@ int main(int argc, char* argv[])
     }
 
     std::cout << std::flush;
+
+    // Fixme: set the device id properly after the IDs are synced
+    // bewteen hip runtime and rocm-smi.
+    // HIP_V_THROW(hipSetDevice(deviceId), "set device failed!");
 
     // Set default data formats if not yet specified:
     const size_t dim     = length.size();

@@ -1,4 +1,4 @@
-// Copyright (c) 2020 - present Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "./rider.h"
+#include "rider.h"
 #include "rocfft.h"
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
@@ -199,6 +199,12 @@ int main(int argc, char* argv[])
 
     std::cout << std::flush;
 
+    rocfft_setup();
+
+    // Fixme: set the device id properly after the IDs are synced
+    // bewteen hip runtime and rocm-smi.
+    // HIP_V_THROW(hipSetDevice(deviceId), "set device failed!");
+
     // Set default data formats if not yet specified:
     const size_t dim     = length.size();
     auto         ilength = length;
@@ -349,6 +355,15 @@ int main(int argc, char* argv[])
         }
     }
 
+    // Warm up once:
+    for(int idx = 0; idx < input.size(); ++idx)
+    {
+        HIP_V_THROW(
+            hipMemcpy(ibuffer[idx], input[idx].data(), input[idx].size(), hipMemcpyHostToDevice),
+            "hipMemcpy failed");
+    }
+    rocfft_execute(plan, ibuffer.data(), obuffer.data(), info);
+
     // Run the transform several times and record the execution time:
     std::vector<double> gpu_time(ntrial);
 
@@ -419,4 +434,6 @@ int main(int argc, char* argv[])
         hipFree(buf);
     for(auto& buf : obuffer)
         hipFree(buf);
+
+    rocfft_cleanup();
 }
