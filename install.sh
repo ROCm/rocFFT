@@ -261,6 +261,7 @@ install_prefix=rocfft-install
 build_clients=false
 build_release=true
 build_relocatable=false
+build_hip_clang=true
 
 # #################################################
 # Parameter parsing
