@@ -836,8 +836,11 @@ namespace StockhamGenerator
                     str += std::to_string(blockWGS);
                 else
                     str += std::to_string(workGroupSize);
-                str += " transforms: " + std::to_string(numTrans)
-                       + " Passes: " + std::to_string(numPasses) + "\n";
+                str += ", ";
+                if(!blockCompute)
+                    str += "maximum ";
+                str += "transforms: " + std::to_string(numTrans)
+                       + ", Passes: " + std::to_string(numPasses) + "\n";
                 // FFT kernel begin
                 // Function signature
                 str += "template <typename T, StrideBin sb>\n";
@@ -1361,10 +1364,14 @@ namespace StockhamGenerator
                         str += std::to_string(workGroupSizePerTrans);
                         str += ");\n\n";
                     }
+                    str += "\t";
                 }
 
                 str += "\t// Perform FFT input: lwb(In) ; output: lwb(Out); working "
                        "space: lds \n";
+
+                if(blockCompute)
+                    str += "\t";
                 str += "\t// rw, b, me% control read/write; then ldsOffset, lwb, lds\n";
 
                 std::string ldsOff;
