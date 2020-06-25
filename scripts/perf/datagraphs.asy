@@ -80,16 +80,16 @@ bool plotxval(real x) {
 real nkernels(real N)
 {
     // rocfft-rider-d  --length $(asy -c "2^27") | grep KERNEL | wc -l
-    // Number of kernels for c2c 1D transforms.
-    if (N <= 2^11)
+    // Number of kernels for double-precision c2c 1D transforms.
+    if (N <= 2^12)
         return 1.0;
-    if (N <= 2^15)
+    if (N <= 2^16)
         return 2.0;
-    if (N <= 2^17)
+    if (N <= 2^18)
         return 3.0;
-    if (N <= 2^22)
+    if (N <= 2^24)
         return 5.0;
-    if (N <= 2^26)
+    if (N <= 2^28)
         return 6.0;
     return 7.0;
 }
@@ -191,23 +191,27 @@ void readfiles(string[] testlist, real[][] x, real[][][] data)
             }
             int xval = fin; // x-length
             if(dim > 1) {
-                int yval = fin; // y-length
+                int yval = fin; // y-length; ignored
             }
             if(dim > 2) {
-                int zval = fin; // z-length
+                int zval = fin; // z-length; ignored
             }
             int nbatch = fin; // batch size
-            
+	    
             int N = fin; // Number of data points
             if (N > 0) {
-                xmax = max(xval, xmax);
-                xmin = min(xval, xmin);
-                x[n].push(xval);
-                data[n][dataidx] = new real[N];
+	      real[] xvals = new real[N];
                 for(int i = 0; i < N; ++i) {
-                    data[n][dataidx][i] = fin;
+		  xvals[i] = fin;
                 }
-                ++dataidx;
+		if(max(xvals) > 0.0) {
+		  // Only add data if the data isn't all zero.
+		  xmax = max(xval, xmax);
+		  xmin = min(xval, xmin);
+		  x[n].push(xval);
+		  data[n][dataidx] = xvals;
+		  ++dataidx;
+		}
             }
         }
     }
