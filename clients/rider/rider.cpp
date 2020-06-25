@@ -320,19 +320,12 @@ int main(int argc, char* argv[])
         printbuffer(precision, itype, input, ilength, istride, nbatch, idist);
     }
 
-    hipError_t hip_status = hipSuccess;
-
     // GPU input and output buffers:
     auto               ibuffer_sizes = buffer_sizes(precision, itype, idist, nbatch);
     std::vector<void*> ibuffer(ibuffer_sizes.size());
     for(unsigned int i = 0; i < ibuffer.size(); ++i)
     {
-        hip_status = hipMalloc(&ibuffer[i], ibuffer_sizes[i]);
-        if(hip_status != hipSuccess)
-        {
-            std::cerr << "hipMalloc failed!\n";
-            exit(1);
-        }
+        HIP_V_THROW(hipMalloc(&ibuffer[i], ibuffer_sizes[i]), "Creating input Buffer failed");
     }
 
     std::vector<void*> obuffer;
@@ -346,12 +339,7 @@ int main(int argc, char* argv[])
         obuffer.resize(obuffer_sizes.size());
         for(unsigned int i = 0; i < obuffer.size(); ++i)
         {
-            hip_status = hipMalloc(&obuffer[i], obuffer_sizes[i]);
-            if(hip_status != hipSuccess)
-            {
-                std::cerr << "hipMalloc failed!\n";
-                exit(1);
-            }
+            HIP_V_THROW(hipMalloc(&obuffer[i], obuffer_sizes[i]), "Creating output Buffer failed");
         }
     }
 
