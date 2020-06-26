@@ -22,10 +22,10 @@ using namespace StockhamGenerator;
             Initial parameter used to generate kernels
 =================================================================== */
 
-extern "C" rocfft_status initParams(FFTKernelGenKeyParams& params,
-                                    std::vector<size_t>    fft_N,
-                                    bool                   blockCompute,
-                                    BlockComputeType       blockComputeType)
+rocfft_status initParams(FFTKernelGenKeyParams& params,
+                         std::vector<size_t>    fft_N,
+                         bool                   blockCompute,
+                         BlockComputeType       blockComputeType)
 {
     /* =====================================================================
       Parameter : basic plan info
@@ -122,7 +122,7 @@ extern "C" rocfft_status initParams(FFTKernelGenKeyParams& params,
 /* =====================================================================
    Write butterfly device function to *.h file
 =================================================================== */
-extern "C" void WriteButterflyToFile(std::string& str, int LEN)
+void WriteButterflyToFile(std::string& str, int LEN)
 {
 
     std::ofstream file;
@@ -141,8 +141,8 @@ extern "C" void WriteButterflyToFile(std::string& str, int LEN)
 /* =====================================================================
    Write CPU functions (launching kernel) header to file
 =================================================================== */
-extern "C" void WriteCPUHeaders(std::vector<size_t>                            support_list,
-                                std::vector<std::tuple<size_t, ComputeScheme>> large1D_list)
+void WriteCPUHeaders(std::vector<size_t>                            support_list,
+                     std::vector<std::tuple<size_t, ComputeScheme>> large1D_list)
 {
 
     std::string str;
@@ -227,8 +227,9 @@ extern "C" void WriteCPUHeaders(std::vector<size_t>                            s
    Write CPU functions (launching a single kernel)
    implementation to *.cpp.h file for small sizes
 =================================================================== */
-extern "C" void
-    write_cpu_function_small(std::vector<size_t> support_list, std::string precision, int group_num)
+void write_cpu_function_small(std::vector<size_t> support_list,
+                              std::string         precision,
+                              int                 group_num)
 {
     if(support_list.size() < group_num)
     {
@@ -312,9 +313,8 @@ extern "C" void
    to *.cpp.h file for large sizes
 =================================================================== */
 
-extern "C" void
-    write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> large1D_list,
-                             std::string                                    precision)
+void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> large1D_list,
+                              std::string                                    precision)
 {
     std::string str;
 
@@ -390,8 +390,8 @@ extern "C" void
 /* =====================================================================
    Add CPU funtions to function pools (a hash map)
 =================================================================== */
-extern "C" void AddCPUFunctionToPool(std::vector<size_t>                            support_list,
-                                     std::vector<std::tuple<size_t, ComputeScheme>> large1D_list)
+void AddCPUFunctionToPool(std::vector<size_t>                            support_list,
+                          std::vector<std::tuple<size_t, ComputeScheme>> large1D_list)
 {
     std::string str;
 
@@ -523,7 +523,7 @@ void WriteKernelToFile(std::string& str, std::string LEN)
     file.close();
 }
 
-extern "C" void generate_kernel(size_t len, ComputeScheme scheme)
+void generate_kernel(size_t len, ComputeScheme scheme)
 {
     std::string           programCode;
     FFTKernelGenKeyParams params;

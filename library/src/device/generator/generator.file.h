@@ -8,27 +8,26 @@
 
 #include "generator.param.h"
 
-extern "C" rocfft_status initParams(FFTKernelGenKeyParams& params,
-                                    std::vector<size_t>    fft_N,
-                                    bool                   blockCompute,
-                                    BlockComputeType       blockComputeType);
+rocfft_status initParams(FFTKernelGenKeyParams& params,
+                         std::vector<size_t>    fft_N,
+                         bool                   blockCompute,
+                         BlockComputeType       blockComputeType);
 
-extern "C" void WriteButterflyToFile(std::string& str, int LEN);
+void WriteButterflyToFile(std::string& str, int LEN);
 
-extern "C" void WriteCPUHeaders(std::vector<size_t>                            support_list,
-                                std::vector<std::tuple<size_t, ComputeScheme>> large1D_list);
+void WriteCPUHeaders(std::vector<size_t>                            support_list,
+                     std::vector<std::tuple<size_t, ComputeScheme>> large1D_list);
 
-extern "C" void write_cpu_function_small(std::vector<size_t> support_list,
-                                         std::string         precision,
-                                         int                 group_num);
+void write_cpu_function_small(std::vector<size_t> support_list,
+                              std::string         precision,
+                              int                 group_num);
 
-extern "C" void
-    write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> large1D_list,
-                             std::string                                    precision);
+void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> large1D_list,
+                              std::string                                    precision);
 
-extern "C" void AddCPUFunctionToPool(std::vector<size_t>                            support_list,
-                                     std::vector<std::tuple<size_t, ComputeScheme>> large1D_list);
+void AddCPUFunctionToPool(std::vector<size_t>                            support_list,
+                          std::vector<std::tuple<size_t, ComputeScheme>> large1D_list);
 
-extern "C" void generate_kernel(size_t len, ComputeScheme scheme);
+void generate_kernel(size_t len, ComputeScheme scheme);
 
 #endif // generator_file_H
