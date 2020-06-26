@@ -248,6 +248,7 @@ public:
 
     // 2D node builder:
     void build_CS_2D_RTRT();
+    void build_CS_2D_RC();
 
     // 3D node builder:
     void build_CS_3D_RTRT();

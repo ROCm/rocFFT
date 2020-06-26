@@ -730,7 +730,25 @@ void TreeNode::RecursiveBuildTree()
         if(scheme == CS_KERNEL_TRANSPOSE)
             return;
 
-        if(MultiDimFuseKernelsAvailable)
+        // NB:
+        //   This is part of the fuse kernels, will merge back to the below
+        //   when all work of CS_KERNEL_2D_SINGLE and CS_2D_RC done. We will
+        //   have a clear function to define which case falls in which scheme.
+        //
+        //   For CS_2D_RC, we are reusing SBCC kernel for 1D middle size. The
+        //   current implementation of 1D SBCC supports only 64, 128, and 256.
+        //   However, technically no LDS limitation along the fast dimension
+        //   on upper bound for 2D SBCC cases, and even should not limit to pow
+        //   of 2. Now the limitation along the fast dimension on upper bound
+        //   is the decomposition under, such as rows FFT going for 1DCS_L1D_CC,
+        //   which need decomposition capability and refactoring buffer
+        //   assignment.
+        if((length[1] == 256 || length[1] == 128 || length[1] == 64)
+           && (length[0] >= 64 && IsPo2(length[0]) && length[0] <= 2048))
+        {
+            scheme = CS_2D_RC;
+        }
+        else if(MultiDimFuseKernelsAvailable)
         {
             // conditions to choose which scheme
             if((length[0] * length[1]) <= 2048)
@@ -758,35 +776,7 @@ void TreeNode::RecursiveBuildTree()
             break;
         case CS_2D_RC:
         {
-            // row fft
-            TreeNode* rowPlan = TreeNode::CreateNode(this);
-
-            rowPlan->length.push_back(length[0]);
-            rowPlan->dimension = 1;
-            rowPlan->length.push_back(length[1]);
-
-            for(size_t index = 2; index < length.size(); index++)
-            {
-                rowPlan->length.push_back(length[index]);
-            }
-
-            rowPlan->RecursiveBuildTree();
-            childNodes.push_back(rowPlan);
-
-            // column fft
-            TreeNode* colPlan = TreeNode::CreateNode(this);
-
-            colPlan->length.push_back(length[1]);
-            colPlan->dimension = 1;
-            colPlan->length.push_back(length[0]);
-
-            for(size_t index = 2; index < length.size(); index++)
-            {
-                colPlan->length.push_back(length[index]);
-            }
-
-            colPlan->scheme = CS_KERNEL_2D_STOCKHAM_BLOCK_CC;
-            childNodes.push_back(colPlan);
+            build_CS_2D_RC();
         }
         break;
         case CS_KERNEL_2D_SINGLE:
@@ -1661,6 +1651,40 @@ void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLengt
     childNodes.push_back(transPlan);
 }
 
+void TreeNode::build_CS_2D_RC()
+{
+    // row fft
+    auto rowPlan = TreeNode::CreateNode(this);
+
+    rowPlan->length.push_back(length[0]);
+    rowPlan->dimension = 1;
+    rowPlan->length.push_back(length[1]);
+
+    for(size_t index = 2; index < length.size(); index++)
+    {
+        rowPlan->length.push_back(length[index]);
+    }
+
+    rowPlan->RecursiveBuildTree();
+    childNodes.push_back(rowPlan);
+
+    // column fft
+    auto colPlan = TreeNode::CreateNode(this);
+
+    colPlan->length.push_back(length[1]);
+    colPlan->dimension = 1;
+    colPlan->length.push_back(length[0]);
+    colPlan->large1D = 0; // No twiddle factor in sbcc kernel
+
+    for(size_t index = 2; index < length.size(); index++)
+    {
+        colPlan->length.push_back(length[index]);
+    }
+
+    colPlan->scheme = CS_KERNEL_STOCKHAM_BLOCK_CC;
+    childNodes.push_back(colPlan);
+}
+
 void TreeNode::build_CS_2D_RTRT()
 {
     // first row fft
@@ -2512,22 +2536,37 @@ void TreeNode::assign_buffers_CS_RC(OperatingBuffer& flipIn,
                                     OperatingBuffer& flipOut,
                                     OperatingBuffer& obOutBuf)
 {
-    if(parent == nullptr)
-        childNodes[0]->obIn = (placement == rocfft_placement_inplace) ? obOutBuf : OB_USER_IN;
+    if((obIn == OB_UNINIT) && (obOut == OB_UNINIT))
+    {
+        if(parent == nullptr)
+        {
+            childNodes[0]->obIn  = (placement == rocfft_placement_inplace) ? obOutBuf : OB_USER_IN;
+            childNodes[0]->obOut = OB_TEMP;
+
+            childNodes[1]->obIn  = OB_TEMP;
+            childNodes[1]->obOut = obOutBuf;
+        }
+        else
+        {
+
+            childNodes[0]->obIn  = flipIn;
+            childNodes[0]->obOut = flipOut;
+
+            childNodes[1]->obIn  = flipOut;
+            childNodes[1]->obOut = flipIn;
+        }
+
+        obIn  = childNodes[0]->obIn;
+        obOut = childNodes[1]->obOut;
+    }
     else
-        childNodes[0]->obIn = obOutBuf;
+    {
+        childNodes[0]->obIn  = obIn;
+        childNodes[0]->obOut = flipOut;
 
-    childNodes[0]->obOut = obOutBuf;
-
-    flipIn  = obOutBuf;
-    flipOut = OB_TEMP;
-    childNodes[0]->TraverseTreeAssignBuffersLogicA(flipIn, flipOut, obOutBuf);
-
-    childNodes[1]->obIn  = obOutBuf;
-    childNodes[1]->obOut = obOutBuf;
-
-    obIn  = childNodes[0]->obIn;
-    obOut = childNodes[1]->obOut;
+        childNodes[1]->obIn  = flipOut;
+        childNodes[1]->obOut = obOut;
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

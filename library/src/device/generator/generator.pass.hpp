@@ -742,6 +742,7 @@ namespace StockhamGenerator
                             }
                             else // 2, 3, or 4-step twiddle
                             {
+                                passStr += "\n\tif(TwdLarge)";
                                 passStr += "\n\t{\n\t\t";
                                 passStr += twType;
                                 passStr += " W = ";
@@ -1752,7 +1753,15 @@ namespace StockhamGenerator
             std::string regB4Type = RegBaseType<PR>(4);
 
             // Function attribute
-            passStr += "template <typename T, StrideBin sb> \n";
+            if(name_suffix == "_sbcc") // // the blockCompute BCT_C2C algorithm use only
+            {
+                passStr += "template <typename T, StrideBin sb, bool TwdLarge>\n";
+            }
+            else
+            {
+                passStr += "template <typename T, StrideBin sb>\n";
+            }
+
             passStr += "__device__ void\n";
 
             // Function name
@@ -1762,7 +1771,7 @@ namespace StockhamGenerator
             passStr += "(const " + regB2Type + " *twiddles, ";
             if(name_suffix == "_sbcc")
                 passStr += "const " + regB2Type
-                           + " *twiddles_large, "; // the blockCompute BCT_C2C algorithm use
+                           + " *twiddles_large, "; // the blockCompute BCT_C2C algorithm use only
             // one more twiddle parameter
             passStr += "const size_t stride_in, const size_t stride_out, ";
             passStr += "unsigned int rw, unsigned int b, ";

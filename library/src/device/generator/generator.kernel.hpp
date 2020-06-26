@@ -202,6 +202,11 @@ namespace StockhamGenerator
         std::string name_suffix; // use to specify kernel & device functions names to
         // avoid naming conflict.
 
+        bool NeedsLargeTwiddles() // sbcc kernel needs large twiddle table parameter
+        {
+            return (blockCompute && blockComputeType == BCT_C2C) ? true : false;
+        }
+
         inline std::string IterRegs(const std::string& pfx, bool initComma = true)
         {
             std::string str = "";
@@ -641,7 +646,15 @@ namespace StockhamGenerator
                         bool fwd;
                         fwd = d ? false : true;
 
-                        str += "template <typename T, StrideBin sb> \n";
+                        if(NeedsLargeTwiddles())
+                        {
+                            str += "template <typename T, StrideBin sb, bool TwdLarge>\n";
+                        }
+                        else
+                        {
+                            str += "template <typename T, StrideBin sb>\n";
+                        }
+
                         str += "__device__ void \n";
 
                         if(fwd)
@@ -652,10 +665,9 @@ namespace StockhamGenerator
                         str += "_device";
 
                         str += "(const T *twiddles, ";
-                        if(blockCompute && name_suffix == "_sbcc")
+                        if(NeedsLargeTwiddles())
                             str += "const T *twiddles_large, "; // the blockCompute BCT_C2C
-                        // algorithm use one more twiddle
-                        // parameter
+                        // algorithm use one more twiddle parameter
                         str += "const size_t stride_in, const size_t stride_out, unsigned int "
                                "rw, unsigned int b, ";
                         str += "unsigned int me, unsigned int ldsOffset, ";
@@ -697,9 +709,15 @@ namespace StockhamGenerator
                         {
                             str += "\t";
                             str += PassName(0, fwd, length, name_suffix);
-                            str += "<T, sb>(twiddles, ";
-                            if(blockCompute && name_suffix == "_sbcc")
-                                str += "twiddles_large, "; // the blockCompute BCT_C2C algorithm use
+                            if(NeedsLargeTwiddles())
+                            {
+                                str += "<T, sb, TwdLarge>(twiddles, twiddles_large, "; // the blockCompute BCT_C2C algorithm use
+                            }
+                            else
+                            {
+                                str += "<T, sb>(twiddles, ";
+                            }
+
                             // one more twiddle parameter
                             str += "stride_in, stride_out, rw, b, me, 0, 0,";
 
@@ -725,10 +743,16 @@ namespace StockhamGenerator
                                 str += exTab;
                                 str += "\t";
                                 str += PassName(p->GetPosition(), fwd, length, name_suffix);
-                                str += "<T, sb>(twiddles, ";
                                 // the blockCompute BCT_C2C algorithm use one more twiddle parameter
-                                if(blockCompute && name_suffix == "_sbcc")
-                                    str += "twiddles_large, ";
+                                if(NeedsLargeTwiddles())
+                                {
+                                    str += "<T, sb, TwdLarge>(twiddles, twiddles_large, ";
+                                }
+                                else
+                                {
+                                    str += "<T, sb>(twiddles, ";
+                                }
+
                                 str += "stride_in, stride_out, rw, b, me, ";
 
                                 std::string ldsArgs;
@@ -843,7 +867,14 @@ namespace StockhamGenerator
                        + ", Passes: " + std::to_string(numPasses) + "\n";
                 // FFT kernel begin
                 // Function signature
-                str += "template <typename T, StrideBin sb>\n";
+                if(NeedsLargeTwiddles())
+                {
+                    str += "template <typename T, StrideBin sb, bool TwdLarge>\n";
+                }
+                else
+                {
+                    str += "template <typename T, StrideBin sb>\n";
+                }
                 str += "__global__ void \n";
 
                 // kernel name
@@ -862,12 +893,11 @@ namespace StockhamGenerator
                 */
                 str += "( ";
                 str += "const " + r2Type + " * __restrict__ twiddles, ";
-                if(blockCompute && name_suffix == "_sbcc")
+                if(NeedsLargeTwiddles())
                 {
                     str += "const " + r2Type
                            + " * __restrict__ twiddles_large, "; // blockCompute introduce
-                    // one more twiddle
-                    // parameter
+                    // one more twiddle parameter
                 }
                 str += "const size_t dim, const size_t *lengths, ";
                 str += "const size_t *stride_in, ";
@@ -1406,9 +1436,15 @@ namespace StockhamGenerator
                 else
                     str += "back_len";
                 str += std::to_string(length) + name_suffix;
-                str += "_device<T, sb>(twiddles, ";
-                if(blockCompute && name_suffix == "_sbcc")
-                    str += "twiddles_large, ";
+                if(NeedsLargeTwiddles())
+                {
+                    str += "_device<T, sb, TwdLarge>(twiddles, twiddles_large, ";
+                }
+                else
+                {
+                    str += "_device<T, sb>(twiddles, ";
+                }
+
                 str += "stride_in[0], ";
                 str += ((placeness == rocfft_placement_inplace) ? "stride_in[0], "
                                                                 : "stride_out[0], ");
