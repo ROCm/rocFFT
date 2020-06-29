@@ -1073,8 +1073,10 @@ namespace StockhamGenerator
                     str += "\tfor(int i=1; i<dim; i++){\n";
                     str += "\t\tupper_count *= lengths[i];\n";
                     str += "\t}\n";
-                    str += "\tunsigned int rw = (me < (upper_count ";
-                    str += " - batch*";
+                    str += "\t// do signed math to guard against underflow\n";
+                    str += "\tunsigned int rw = (static_cast<int>(me) < "
+                           "(static_cast<int>(upper_count) ";
+                    str += " - static_cast<int>(batch)*";
                     str += std::to_string(numTrans);
                     str += ")*";
                     str += std::to_string(workGroupSizePerTrans);
