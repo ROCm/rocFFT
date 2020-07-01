@@ -3843,6 +3843,9 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     os << std::endl << indentStr.c_str();
     os << ((placement == rocfft_placement_inplace) ? "inplace" : "not inplace");
 
+    os << "\n" << indentStr.c_str();
+    os << ((precision == rocfft_precision_single) ? "single-precision" : "double-precision");
+
     os << std::endl << indentStr.c_str();
     os << "array type: ";
     switch(inArrayType)
