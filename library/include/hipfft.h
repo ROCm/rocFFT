@@ -32,11 +32,11 @@
 #define DLL_PUBLIC __attribute__((visibility("default")))
 #endif
 
+#include <cstddef>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <cstddef>
 
 typedef enum hipfftResult_t
 {
