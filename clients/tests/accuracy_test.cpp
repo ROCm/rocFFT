@@ -31,6 +31,71 @@
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
 
+// Given an array type, return the name as a string.
+std::string array_type_name(const rocfft_array_type type)
+{
+    switch(type)
+    {
+    case rocfft_array_type_complex_interleaved:
+        return "rocfft_array_type_complex_interleaved";
+    case rocfft_array_type_complex_planar:
+        return "rocfft_array_type_complex_planar";
+    case rocfft_array_type_real:
+        return "rocfft_array_type_real";
+    case rocfft_array_type_hermitian_interleaved:
+        return "rocfft_array_type_hermitian_interleaved";
+    case rocfft_array_type_hermitian_planar:
+        return "rocfft_array_type_hermitian_planar";
+    case rocfft_array_type_unset:
+        return "rocfft_array_type_unset";
+    }
+    return "";
+}
+
+// Function to return a string with the gpu parameters.
+std::string gpu_params(const std::vector<size_t>&    gpu_ilength_cm,
+                       const std::vector<size_t>&    gpu_istride_cm,
+                       const size_t                  gpu_idist,
+                       const std::vector<size_t>&    gpu_ostride_cm,
+                       const size_t                  gpu_odist,
+                       const size_t                  nbatch,
+                       const rocfft_precision        precision,
+                       const rocfft_result_placement place,
+                       const rocfft_array_type       itype,
+                       const rocfft_array_type       otype)
+{
+    std::stringstream ss;
+    ss << "\nGPU params:\n";
+    ss << "\tgpu_ilength_cm:";
+    for(auto i : gpu_ilength_cm)
+        ss << " " << i;
+    ss << "\n";
+    ss << "\tgpu_istride_cm:";
+    for(auto i : gpu_istride_cm)
+        ss << " " << i;
+    ss << "\n";
+    ss << "\tgpu_idist: " << gpu_idist << "\n";
+
+    ss << "\tgpu_ostride_cm:";
+    for(auto i : gpu_ostride_cm)
+        ss << " " << i;
+    ss << "\n";
+    ss << "\tgpu_odist: " << gpu_odist << "\n";
+
+    ss << "\tbatch: " << nbatch << "\n";
+
+    if(place == rocfft_placement_inplace)
+        ss << "\tin-place\n";
+    else
+        ss << "\tout-of-place\n";
+    ss << "\t" << array_type_name(itype) << " -> " << array_type_name(otype) << "\n";
+    if(precision == rocfft_precision_single)
+        ss << "\tsingle-precision\n";
+    else
+        ss << "\tdouble-precision\n";
+    return ss.str();
+}
+
 // Compute a FFT using rocFFT and compare with the provided CPU reference computation.
 void rocfft_transform(const std::vector<size_t>                                  length,
                       const size_t                                               istride0,
@@ -141,26 +206,16 @@ void rocfft_transform(const std::vector<size_t>                                 
 
     if(verbose > 1)
     {
-        std::cout << "GPU params:\n";
-        std::cout << "\tgpu_ilength_cm:";
-        for(auto i : gpu_ilength_cm)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tgpu_istride_cm:";
-        for(auto i : gpu_istride_cm)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tgpu_idist: " << gpu_idist << std::endl;
-
-        std::cout << "\tgpu_olength_cm:";
-        for(auto i : gpu_olength_cm)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tgpu_ostride_cm:";
-        for(auto i : gpu_ostride_cm)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tgpu_odist: " << gpu_odist << std::endl;
+        std::cout << gpu_params(gpu_ilength_cm,
+                                gpu_istride_cm,
+                                gpu_idist,
+                                gpu_ostride_cm,
+                                gpu_odist,
+                                nbatch,
+                                precision,
+                                place,
+                                itype,
+                                otype);
     }
 
     // Create FFT description
@@ -286,7 +341,17 @@ void rocfft_transform(const std::vector<size_t>                                 
     {
         hip_status = ibuffer[i].alloc(ibuffer_sizes[i]);
         ASSERT_TRUE(hip_status == hipSuccess)
-            << "hipMalloc failure for input buffer " << i << " size " << ibuffer_sizes[i];
+            << "hipMalloc failure for input buffer " << i << " size " << ibuffer_sizes[i]
+            << gpu_params(gpu_ilength_cm,
+                          gpu_istride_cm,
+                          gpu_idist,
+                          gpu_ostride_cm,
+                          gpu_odist,
+                          nbatch,
+                          precision,
+                          place,
+                          itype,
+                          otype);
         pibuffer[i] = ibuffer[i].data();
     }
 
@@ -303,7 +368,17 @@ void rocfft_transform(const std::vector<size_t>                                 
         {
             hip_status = obuffer[i].alloc(obuffer_sizes[i]);
             ASSERT_TRUE(hip_status == hipSuccess)
-                << "hipMalloc failure for output buffer " << i << " size " << obuffer_sizes[i];
+                << "hipMalloc failure for output buffer " << i << " size " << obuffer_sizes[i]
+                << gpu_params(gpu_ilength_cm,
+                              gpu_istride_cm,
+                              gpu_idist,
+                              gpu_ostride_cm,
+                              gpu_odist,
+                              nbatch,
+                              precision,
+                              place,
+                              itype,
+                              otype);
         }
     }
     std::vector<void*> pobuffer(obuffer.size());
@@ -381,8 +456,26 @@ void rocfft_transform(const std::vector<size_t>                                 
         std::cout << "GPU output L2 norm:   " << L2LinfnormGPU.second << "\n";
     }
 
-    EXPECT_TRUE(std::isfinite(L2LinfnormGPU.first));
-    EXPECT_TRUE(std::isfinite(L2LinfnormGPU.second));
+    EXPECT_TRUE(std::isfinite(L2LinfnormGPU.first)) << gpu_params(gpu_ilength_cm,
+                                                                  gpu_istride_cm,
+                                                                  gpu_idist,
+                                                                  gpu_ostride_cm,
+                                                                  gpu_odist,
+                                                                  nbatch,
+                                                                  precision,
+                                                                  place,
+                                                                  itype,
+                                                                  otype);
+    EXPECT_TRUE(std::isfinite(L2LinfnormGPU.second)) << gpu_params(gpu_ilength_cm,
+                                                                   gpu_istride_cm,
+                                                                   gpu_idist,
+                                                                   gpu_ostride_cm,
+                                                                   gpu_odist,
+                                                                   nbatch,
+                                                                   precision,
+                                                                   place,
+                                                                   itype,
+                                                                   otype);
 
     if(verbose > 1)
     {
@@ -397,12 +490,33 @@ void rocfft_transform(const std::vector<size_t>                                 
                 < type_epsilon(precision))
         << "Linf test failed.  Linf:" << linfl2diff.first << "\tnormalized Linf: "
         << linfl2diff.first / (cpu_output_L2Linfnorm.first * log(total_length))
-        << "\tepsilon: " << type_epsilon(precision);
+        << "\tepsilon: " << type_epsilon(precision)
+        << gpu_params(gpu_ilength_cm,
+                      gpu_istride_cm,
+                      gpu_idist,
+                      gpu_ostride_cm,
+                      gpu_odist,
+                      nbatch,
+                      precision,
+                      place,
+                      itype,
+                      otype);
+
     EXPECT_TRUE(linfl2diff.second / (cpu_output_L2Linfnorm.second * sqrt(log(total_length)))
                 < type_epsilon(precision))
         << "L2 test failed. L2: " << linfl2diff.second << "\tnormalized L2: "
         << linfl2diff.second / (cpu_output_L2Linfnorm.second * sqrt(log(total_length)))
-        << "\tepsilon: " << type_epsilon(precision);
+        << "\tepsilon: " << type_epsilon(precision)
+        << gpu_params(gpu_ilength_cm,
+                      gpu_istride_cm,
+                      gpu_idist,
+                      gpu_ostride_cm,
+                      gpu_odist,
+                      nbatch,
+                      precision,
+                      place,
+                      itype,
+                      otype);
 
     rocfft_plan_destroy(gpu_plan);
     gpu_plan = NULL;
