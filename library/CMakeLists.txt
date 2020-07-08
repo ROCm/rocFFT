@@ -127,8 +127,13 @@ add_subdirectory( src )
 # endif( )
 
 # Package specific CPACK vars
-set( CPACK_DEBIAN_PACKAGE_DEPENDS "rocm-dev (>= 2.5.27)" )
-set( CPACK_RPM_PACKAGE_REQUIRES "rocm-dev >= 2.5.27" )
+if( HIP_RUNTIME STREQUAL "ROCclr" )
+  set( CPACK_DEBIAN_PACKAGE_DEPENDS "hip-rocclr (>= 3.5.0)" )
+  set( CPACK_RPM_PACKAGE_REQUIRES "hip-rocclr >= 3.5.0" )
+elseif( HIP_RUNTIME STREQUAL "cuda" )
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "hip-nvcc (>= 3.5.0)")
+  set(CPACK_RPM_PACKAGE_REQUIRES "hip-nvcc >= 3.5.0")
+endif( )
 set( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE.md" )
 
 if( NOT CPACK_PACKAGING_INSTALL_PREFIX )
