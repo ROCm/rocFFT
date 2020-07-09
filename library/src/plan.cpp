@@ -730,13 +730,19 @@ void TreeNode::RecursiveBuildTree()
         if(scheme == CS_KERNEL_TRANSPOSE)
             return;
 
-        scheme = CS_2D_RTRT;
+        scheme = CS_2D_RTRT; // The default worst 2d scheme, which still can handle all cases.
 
-        // NB:
-        //   This is part of the fuse kernels, will merge back to the below
-        //   when all work of CS_KERNEL_2D_SINGLE and CS_2D_RC done. We will
-        //   have a clear function to define which case falls in which scheme.
-        //
+        // TODO: Check the cases fit into single kernel scheme CS_KERNEL_2D_SINGLE
+        // if(...)
+        // {
+        //     // conditions to choose which scheme
+        //     if((length[0] * length[1]) <= 2048)
+        //     {
+        //         scheme = CS_KERNEL_2D_SINGLE;
+        //     }
+        // }
+
+        // Check the cases fit into two kernels scheme CS_2D_RC.
         //   For CS_2D_RC, we are reusing SBCC kernel for 1D middle size. The
         //   current implementation of 1D SBCC supports only 64, 128, and 256.
         //   However, technically no LDS limitation along the fast dimension
@@ -749,14 +755,6 @@ void TreeNode::RecursiveBuildTree()
             if(length[0] % bwd == 0)
             {
                 scheme = CS_2D_RC;
-            }
-        }
-        else if(MultiDimFuseKernelsAvailable)
-        {
-            // conditions to choose which scheme
-            if((length[0] * length[1]) <= 2048)
-            {
-                scheme = CS_KERNEL_2D_SINGLE;
             }
         }
 
