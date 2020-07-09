@@ -730,6 +730,8 @@ void TreeNode::RecursiveBuildTree()
         if(scheme == CS_KERNEL_TRANSPOSE)
             return;
 
+        scheme = CS_2D_RTRT;
+
         // NB:
         //   This is part of the fuse kernels, will merge back to the below
         //   when all work of CS_KERNEL_2D_SINGLE and CS_2D_RC done. We will
@@ -739,14 +741,15 @@ void TreeNode::RecursiveBuildTree()
         //   current implementation of 1D SBCC supports only 64, 128, and 256.
         //   However, technically no LDS limitation along the fast dimension
         //   on upper bound for 2D SBCC cases, and even should not limit to pow
-        //   of 2. Now the limitation along the fast dimension on upper bound
-        //   is the decomposition under, such as rows FFT going for 1DCS_L1D_CC,
-        //   which need decomposition capability and refactoring buffer
-        //   assignment.
-        if((length[1] == 256 || length[1] == 128 || length[1] == 64)
-           && (length[0] >= 64 && IsPo2(length[0]) && length[0] <= 2048))
+        //   of 2.
+        if((length[1] == 256 || length[1] == 128 || length[1] == 64) && (length[0] >= 64))
         {
-            scheme = CS_2D_RC;
+            size_t bwd, wgs, lds;
+            GetBlockComputeTable(length[1], bwd, wgs, lds);
+            if(length[0] % bwd == 0)
+            {
+                scheme = CS_2D_RC;
+            }
         }
         else if(MultiDimFuseKernelsAvailable)
         {
@@ -755,18 +758,6 @@ void TreeNode::RecursiveBuildTree()
             {
                 scheme = CS_KERNEL_2D_SINGLE;
             }
-            else if(length[1] <= 256)
-            {
-                scheme = CS_2D_RC;
-            }
-            else
-            {
-                scheme = CS_2D_RTRT;
-            }
-        }
-        else
-        {
-            scheme = CS_2D_RTRT;
         }
 
         switch(scheme)
@@ -2543,14 +2534,17 @@ void TreeNode::assign_buffers_CS_RC(OperatingBuffer& flipIn,
             childNodes[0]->obIn  = (placement == rocfft_placement_inplace) ? obOutBuf : OB_USER_IN;
             childNodes[0]->obOut = OB_TEMP;
 
+            childNodes[0]->TraverseTreeAssignBuffersLogicA(flipOut, flipIn, obOutBuf);
+
             childNodes[1]->obIn  = OB_TEMP;
             childNodes[1]->obOut = obOutBuf;
         }
         else
         {
-
             childNodes[0]->obIn  = flipIn;
             childNodes[0]->obOut = flipOut;
+
+            childNodes[0]->TraverseTreeAssignBuffersLogicA(flipOut, flipIn, obOutBuf);
 
             childNodes[1]->obIn  = flipOut;
             childNodes[1]->obOut = flipIn;
