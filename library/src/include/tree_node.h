@@ -253,38 +253,68 @@ public:
     // 3D node builder:
     void build_CS_3D_RTRT();
 
+    // State maintained while traversing the tree.
+    //
+    // Preparation and execution of the tree basically involves a
+    // depth-first traversal.  At each step, the logic working on a
+    // node could want to know details of:
+    //
+    // 1. the node itself (i.e. this)
+    // 2. the node's parent (i.e. this->parent), if present
+    // 3. the most recently traversed leaf node, which may be:
+    //    - not present, or
+    //    - an earlier sibling of this node, or
+    //    - the last leaf visited from some other parent
+    // 4. the root node's input/output parameters
+    //
+    // The TraverseState struct stores 3 and 4.
+    struct TraverseState;
+    // Assign the input buffer for this kernel
+    void SetInputBuffer(TraverseState& state);
+
     // Buffer assignment:
-    void TraverseTreeAssignBuffersLogicA(OperatingBuffer& flipIn,
+    void TraverseTreeAssignBuffersLogicA(TraverseState&   state,
+                                         OperatingBuffer& flipIn,
                                          OperatingBuffer& flipOut,
                                          OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_REAL_TRANSFORM_USING_CMPLX(OperatingBuffer& flipIn,
+    void assign_buffers_CS_REAL_TRANSFORM_USING_CMPLX(TraverseState&   state,
+                                                      OperatingBuffer& flipIn,
                                                       OperatingBuffer& flipOut,
                                                       OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_REAL_TRANSFORM_EVEN(OperatingBuffer& flipIn,
+    void assign_buffers_CS_REAL_TRANSFORM_EVEN(TraverseState&   state,
+                                               OperatingBuffer& flipIn,
                                                OperatingBuffer& flipOut,
                                                OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_REAL_2D_EVEN(OperatingBuffer& flipIn,
+    void assign_buffers_CS_REAL_2D_EVEN(TraverseState&   state,
+                                        OperatingBuffer& flipIn,
                                         OperatingBuffer& flipOut,
                                         OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_REAL_3D_EVEN(OperatingBuffer& flipIn,
+    void assign_buffers_CS_REAL_3D_EVEN(TraverseState&   state,
+                                        OperatingBuffer& flipIn,
                                         OperatingBuffer& flipOut,
                                         OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_BLUESTEIN(OperatingBuffer& flipIn,
+    void assign_buffers_CS_BLUESTEIN(TraverseState&   state,
+                                     OperatingBuffer& flipIn,
                                      OperatingBuffer& flipOut,
                                      OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_L1D_TRTRT(OperatingBuffer& flipIn,
+    void assign_buffers_CS_L1D_TRTRT(TraverseState&   state,
+                                     OperatingBuffer& flipIn,
                                      OperatingBuffer& flipOut,
                                      OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_L1D_CC(OperatingBuffer& flipIn,
+    void assign_buffers_CS_L1D_CC(TraverseState&   state,
+                                  OperatingBuffer& flipIn,
                                   OperatingBuffer& flipOut,
                                   OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_L1D_CRT(OperatingBuffer& flipIn,
+    void assign_buffers_CS_L1D_CRT(TraverseState&   state,
+                                   OperatingBuffer& flipIn,
                                    OperatingBuffer& flipOut,
                                    OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_RTRT(OperatingBuffer& flipIn,
+    void assign_buffers_CS_RTRT(TraverseState&   state,
+                                OperatingBuffer& flipIn,
                                 OperatingBuffer& flipOut,
                                 OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_RC(OperatingBuffer& flipIn,
+    void assign_buffers_CS_RC(TraverseState&   state,
+                              OperatingBuffer& flipIn,
                               OperatingBuffer& flipOut,
                               OperatingBuffer& obOutBuf);
 

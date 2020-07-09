@@ -222,6 +222,44 @@ INSTANTIATE_TEST_CASE_P(prime_1D_real_inverse,
                                            ValuesIn(precision_range),
                                            ::testing::Values(rocfft_transform_type_real_inverse),
                                            ::testing::Values(place_range)));
+
+static std::vector<std::vector<size_t>> vmix_range = {mix_range};
+INSTANTIATE_TEST_CASE_P(mix_1D_complex_forward,
+                        accuracy_test,
+                        ::testing::Combine(ValuesIn(generate_lengths(vmix_range)),
+                                           ::testing::Values(stride_range),
+                                           ::testing::Values(stride_range),
+                                           ::testing::Values(batch_range),
+                                           ValuesIn(precision_range),
+                                           ::testing::Values(rocfft_transform_type_complex_forward),
+                                           ::testing::Values(place_range)));
+INSTANTIATE_TEST_CASE_P(mix_1D_complex_inverse,
+                        accuracy_test,
+                        ::testing::Combine(ValuesIn(generate_lengths(vmix_range)),
+                                           ::testing::Values(stride_range),
+                                           ::testing::Values(stride_range),
+                                           ::testing::Values(batch_range),
+                                           ValuesIn(precision_range),
+                                           ::testing::Values(rocfft_transform_type_complex_inverse),
+                                           ::testing::Values(place_range)));
+INSTANTIATE_TEST_CASE_P(mix_1D_real_forward,
+                        accuracy_test,
+                        ::testing::Combine(ValuesIn(generate_lengths(vmix_range)),
+                                           ::testing::Values(stride_range),
+                                           ::testing::Values(stride_range),
+                                           ::testing::Values(batch_range),
+                                           ValuesIn(precision_range),
+                                           ::testing::Values(rocfft_transform_type_real_forward),
+                                           ::testing::Values(place_range)));
+INSTANTIATE_TEST_CASE_P(mix_1D_real_inverse,
+                        accuracy_test,
+                        ::testing::Combine(ValuesIn(generate_lengths(vmix_range)),
+                                           ::testing::Values(stride_range),
+                                           ::testing::Values(stride_range),
+                                           ::testing::Values(batch_range),
+                                           ValuesIn(precision_range),
+                                           ::testing::Values(rocfft_transform_type_real_inverse),
+                                           ::testing::Values(place_range)));
 // NB:
 // We have known non-unit strides issues for 1D:
 // - C2C middle size(for instance, single precision, 8192)

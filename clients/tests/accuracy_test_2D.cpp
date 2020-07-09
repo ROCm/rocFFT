@@ -38,11 +38,9 @@ using ::testing::ValuesIn;
 // long!)
 static std::vector<size_t> pow2_range = {4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192};
 
-// TODO: 2187 and 6561 fail with the new test infrastructure.
-static std::vector<size_t> pow3_range = {3, 27, 81, 243, 729};
+static std::vector<size_t> pow3_range = {3, 27, 81, 243, 729, 2187, 6561};
 
-// TODO: 3125 and 15625 fail with the new test infrastructure.
-static std::vector<size_t> pow5_range = {5, 25, 125, 625};
+static std::vector<size_t> pow5_range = {5, 25, 125, 625, 3125, 15625};
 
 static std::vector<size_t> prime_range = {7, 11, 13, 17, 19, 23, 29, 263, 269, 271, 277};
 
