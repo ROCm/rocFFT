@@ -29,6 +29,7 @@
 #include <vector>
 
 #include <dlfcn.h>
+#include <link.h>
 
 #include "rider.h"
 #include "rocfft.h"
@@ -421,6 +422,17 @@ int main(int argc, char* argv[])
         {
             std::cout << "Failed to open " << libdir[idx] << std::endl;
             exit(1);
+        }
+        struct link_map* link = nullptr;
+        dlinfo(libhandle, RTLD_DI_LINKMAP, &link);
+        for(; link != nullptr; link = link->l_next)
+        {
+            if(strstr(link->l_name, "librocfft-device") != nullptr)
+            {
+                std::cerr << "Error: Library " << libdir[idx] << " depends on librocfft-device.\n";
+                std::cerr << "All libraries need to be built with -DSINGLELIB=on.\n";
+                exit(1);
+            }
         }
         handles.push_back(libhandle);
     }
