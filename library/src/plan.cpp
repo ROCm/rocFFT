@@ -2584,31 +2584,19 @@ void TreeNode::assign_buffers_CS_RC(TraverseState&   state,
             childNodes[0]->SetInputBuffer(state);
             childNodes[0]->obOut = OB_TEMP;
 
-<<<<<<< HEAD
-            childNodes[1]->SetInputBuffer(state);
-=======
-            childNodes[0]->TraverseTreeAssignBuffersLogicA(flipOut, flipIn, obOutBuf);
+            childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obOutBuf);
 
-            childNodes[1]->obIn  = OB_TEMP;
->>>>>>> support more cases for 2d with 2 kernels
+            childNodes[1]->SetInputBuffer(state);
             childNodes[1]->obOut = obOutBuf;
         }
         else
         {
-<<<<<<< HEAD
-
             childNodes[0]->SetInputBuffer(state);
             childNodes[0]->obOut = flipOut;
 
+            childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obOutBuf);
+            
             childNodes[1]->SetInputBuffer(state);
-=======
-            childNodes[0]->obIn  = flipIn;
-            childNodes[0]->obOut = flipOut;
-
-            childNodes[0]->TraverseTreeAssignBuffersLogicA(flipOut, flipIn, obOutBuf);
-
-            childNodes[1]->obIn  = flipOut;
->>>>>>> support more cases for 2d with 2 kernels
             childNodes[1]->obOut = flipIn;
         }
 
