@@ -2583,7 +2583,6 @@ void TreeNode::assign_buffers_CS_RC(TraverseState&   state,
         {
             childNodes[0]->SetInputBuffer(state);
             childNodes[0]->obOut = OB_TEMP;
-
             childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obOutBuf);
 
             childNodes[1]->SetInputBuffer(state);
@@ -2593,9 +2592,8 @@ void TreeNode::assign_buffers_CS_RC(TraverseState&   state,
         {
             childNodes[0]->SetInputBuffer(state);
             childNodes[0]->obOut = flipOut;
-
             childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obOutBuf);
-            
+
             childNodes[1]->SetInputBuffer(state);
             childNodes[1]->obOut = flipIn;
         }
@@ -2606,6 +2604,7 @@ void TreeNode::assign_buffers_CS_RC(TraverseState&   state,
     {
         childNodes[0]->SetInputBuffer(state);
         childNodes[0]->obOut = flipOut;
+        childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obOutBuf);
 
         childNodes[1]->SetInputBuffer(state);
         childNodes[1]->obOut = obOut;
