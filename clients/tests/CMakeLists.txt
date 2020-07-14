@@ -94,6 +94,13 @@ else()
   target_compile_options( rocfft-test PRIVATE -Wno-unused-command-line-argument )
 endif( )
 
+option( BUILD_CLIENTS_TESTS_OPENMP "Build tests with OpenMP" ON )
+
+if( BUILD_CLIENTS_TESTS_OPENMP )
+  target_compile_options(rocfft-test PRIVATE -fopenmp -DBUILD_CLIENTS_TESTS_OPENMP)
+  target_link_libraries(rocfft-test PRIVATE -fopenmp -L${HIP_CLANG_ROOT}/lib -Wl,-rpath=${HIP_CLANG_ROOT}/lib)
+endif()
+
 set_target_properties( rocfft-test
   PROPERTIES DEBUG_POSTFIX "-d"
   CXX_EXTENSIONS NO )
