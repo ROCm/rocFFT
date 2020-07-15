@@ -947,7 +947,6 @@ void TreeNode::build_real_even_1D()
 
         // cfftPlan works in-place on the input buffer.
         // NB: the input buffer is real, but we treat it as complex
-        cfftPlan->obOut = obIn;
         cfftPlan->RecursiveBuildTree();
         childNodes.push_back(cfftPlan);
 
@@ -974,7 +973,6 @@ void TreeNode::build_real_even_1D()
 
         // cfftPlan works in-place on the output buffer.
         // NB: the output buffer is real, but we treat it as complex
-        cfftPlan->obIn = obOut;
         cfftPlan->RecursiveBuildTree();
         childNodes.push_back(cfftPlan);
         break;
@@ -1828,13 +1826,15 @@ void TreeNode::SetInputBuffer(TraverseState& state)
         return n->childNodes.empty() && n->scheme != CS_KERNEL_CHIRP;
     });
     if(prevLeaf == rev_end)
-        // there is no earlier leaf node, so we should use the user's
-        // input for this node
+    {
+        // There is no earlier leaf node, so we should use the user's input for this node.
         obIn = state.rootPlan->obIn;
+    }
     else
-        // there is an earlier leaf node, so we have to use its output
-        // as this node's input
+    {
+        // There is an earlier leaf node, so we have to use its output as this node's input.
         obIn = (*prevLeaf)->obOut;
+    }
 }
 
 // Assign buffers, taking into account out-of-place transposes and
@@ -1868,14 +1868,6 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(TraverseState&   state,
             flipOut  = OB_TEMP;
             obOutBuf = OB_TEMP_CMPLX_FOR_REAL;
             break;
-        case CS_REAL_TRANSFORM_EVEN:
-            // The sub-transform is always in-place.
-            flipIn = (direction == -1 || placement == rocfft_placement_inplace) ? OB_USER_IN
-                                                                                : OB_USER_OUT;
-            flipOut  = OB_TEMP;
-            obOutBuf = (direction == -1 || placement == rocfft_placement_inplace) ? OB_USER_IN
-                                                                                  : OB_USER_OUT;
-            break;
         case CS_BLUESTEIN:
             flipIn   = OB_TEMP_BLUESTEIN;
             flipOut  = OB_TEMP;
@@ -1899,12 +1891,12 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(TraverseState&   state,
         tabs += "\t";
     }
     rocfft_cout << "TraverseTreeAssignBuffersLogicA: " << PrintScheme(scheme) << ": "
-              << PrintOperatingBuffer(obIn) << " -> " << PrintOperatingBuffer(obOut) << "\n"
-              << tabs << "\tobIn: " << PrintOperatingBuffer(obIn) << "\n"
-              << tabs << "\tobOut: " << PrintOperatingBuffer(obOut) << "\n"
-              << tabs << "\tflipIn: " << PrintOperatingBuffer(flipIn) << "\n"
-              << tabs << "\tflipOut: " << PrintOperatingBuffer(flipOut) << "\n"
-              << tabs << "\tobOutBuf: " << PrintOperatingBuffer(obOutBuf) << std::endl;
+                << PrintOperatingBuffer(obIn) << " -> " << PrintOperatingBuffer(obOut) << "\n"
+                << tabs << "\tobIn: " << PrintOperatingBuffer(obIn) << "\n"
+                << tabs << "\tobOut: " << PrintOperatingBuffer(obOut) << "\n"
+                << tabs << "\tflipIn: " << PrintOperatingBuffer(flipIn) << "\n"
+                << tabs << "\tflipOut: " << PrintOperatingBuffer(flipOut) << "\n"
+                << tabs << "\tobOutBuf: " << PrintOperatingBuffer(obOutBuf) << std::endl;
 #endif
 
     switch(scheme)
@@ -2034,11 +2026,6 @@ void TreeNode::assign_buffers_CS_REAL_TRANSFORM_EVEN(TraverseState&   state,
                                                      OperatingBuffer& flipOut,
                                                      OperatingBuffer& obOutBuf)
 {
-    if(parent == nullptr)
-    {
-        obOut = placement == rocfft_placement_inplace ? OB_USER_IN : OB_USER_OUT;
-    }
-
     if(direction == -1)
     {
         // real-to-complex
@@ -2048,14 +2035,9 @@ void TreeNode::assign_buffers_CS_REAL_TRANSFORM_EVEN(TraverseState&   state,
         childNodes[0]->obOut        = obIn;
         childNodes[0]->inArrayType  = rocfft_array_type_complex_interleaved;
         childNodes[0]->outArrayType = rocfft_array_type_complex_interleaved;
+        flipIn                      = obIn;
+        obOutBuf                    = obIn;
         childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
-
-        size_t cs = childNodes[0]->childNodes.size();
-        if(cs)
-        {
-            assert(childNodes[0]->childNodes[0]->obIn == obIn);
-            assert(childNodes[0]->childNodes[cs - 1]->obOut == obIn);
-        }
 
         // real-to-complex post kernel
         childNodes[1]->SetInputBuffer(state);
@@ -2090,15 +2072,6 @@ void TreeNode::assign_buffers_CS_REAL_TRANSFORM_EVEN(TraverseState&   state,
         childNodes[1]->inArrayType  = rocfft_array_type_complex_interleaved;
         childNodes[1]->outArrayType = rocfft_array_type_complex_interleaved;
         childNodes[1]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
-
-        size_t cs = childNodes[1]->childNodes.size();
-        if(cs)
-        {
-            assert(childNodes[1]->childNodes[0]->obIn == obOut);
-            assert(childNodes[1]->childNodes[cs - 1]->obOut == obOut);
-        }
-        assert(childNodes[1]->obIn == obOut);
-        assert(childNodes[1]->obOut == obOut);
     }
 }
 
@@ -2110,18 +2083,24 @@ void TreeNode::assign_buffers_CS_REAL_2D_EVEN(TraverseState&   state,
     assert(scheme == CS_REAL_2D_EVEN);
     assert(parent == nullptr);
 
+    obOut = OB_USER_OUT;
+
     if(direction == -1)
     {
         // RTRT
 
+        flipIn  = obIn;
+        flipOut = OB_TEMP;
+
         childNodes[0]->SetInputBuffer(state);
-        childNodes[0]->obOut        = obOutBuf;
+        childNodes[0]->obOut        = obOut;
         childNodes[0]->inArrayType  = inArrayType;
         childNodes[0]->outArrayType = outArrayType;
-
-        flipIn  = OB_USER_OUT;
-        flipOut = OB_TEMP;
         childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
+
+        flipIn   = OB_TEMP;
+        flipOut  = obOut;
+        obOutBuf = obOut;
 
         childNodes[1]->SetInputBuffer(state);
         childNodes[1]->obOut        = OB_TEMP;
@@ -2130,18 +2109,14 @@ void TreeNode::assign_buffers_CS_REAL_2D_EVEN(TraverseState&   state,
 
         childNodes[2]->SetInputBuffer(state);
         childNodes[2]->obOut = OB_TEMP;
-        flipIn               = OB_TEMP;
-        flipOut              = obOutBuf;
         childNodes[2]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
         childNodes[2]->inArrayType  = rocfft_array_type_complex_interleaved;
         childNodes[2]->outArrayType = rocfft_array_type_complex_interleaved;
 
         childNodes[3]->SetInputBuffer(state);
-        childNodes[3]->obOut        = obOutBuf;
+        childNodes[3]->obOut        = obOut;
         childNodes[3]->inArrayType  = rocfft_array_type_complex_interleaved;
         childNodes[3]->outArrayType = outArrayType;
-
-        obOut = childNodes[childNodes.size() - 1]->obOut;
     }
     else
     { // TRTR
@@ -2177,8 +2152,6 @@ void TreeNode::assign_buffers_CS_REAL_2D_EVEN(TraverseState&   state,
         flipIn  = OB_TEMP;
         flipOut = OB_USER_OUT;
         childNodes[3]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
-
-        obOut = OB_USER_OUT;
     }
 }
 
@@ -2190,6 +2163,8 @@ void TreeNode::assign_buffers_CS_REAL_3D_EVEN(TraverseState&   state,
     assert(scheme == CS_REAL_3D_EVEN);
     assert(parent == nullptr);
 
+    obOut = OB_USER_OUT;
+
     if(direction == -1)
     {
         // RTRTRT
@@ -2197,14 +2172,19 @@ void TreeNode::assign_buffers_CS_REAL_3D_EVEN(TraverseState&   state,
         // NB: for out-of-place transforms, we can't fit the result of the first r2c transform into
         // the input buffer.
 
+        flipIn  = obIn;
+        flipOut = OB_TEMP;
+
         // R: r2c
         childNodes[0]->SetInputBuffer(state);
         childNodes[0]->obOut        = obOutBuf;
         childNodes[0]->inArrayType  = inArrayType;
         childNodes[0]->outArrayType = outArrayType;
-        flipIn                      = OB_USER_OUT;
-        flipOut                     = OB_TEMP;
         childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
+
+        flipIn   = OB_TEMP;
+        flipOut  = obOut;
+        obOutBuf = obOut;
 
         // T
         childNodes[1]->SetInputBuffer(state);
@@ -2239,8 +2219,6 @@ void TreeNode::assign_buffers_CS_REAL_3D_EVEN(TraverseState&   state,
         childNodes[5]->outArrayType = outArrayType;
         childNodes[5]->SetInputBuffer(state);
         childNodes[5]->obOut = obOutBuf;
-
-        obOut = childNodes[childNodes.size() - 1]->obOut;
     }
     else
     { // TRTR
@@ -2409,8 +2387,6 @@ void TreeNode::assign_buffers_CS_L1D_TRTRT(TraverseState&   state,
     }
     else
     {
-        assert(obIn == obOut);
-
         if(obOut == obOutBuf)
         {
             if(childNodes[1]->obOut == OB_TEMP)
