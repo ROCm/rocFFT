@@ -23,8 +23,11 @@
 
 #include <algorithm>
 #include <complex>
+#include <iostream>
 #include <numeric>
 #include <omp.h>
+#include <tuple>
+#include <vector>
 
 #include "rocfft.h"
 #include <hip/hip_runtime_api.h>
