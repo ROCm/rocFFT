@@ -17,11 +17,11 @@ are available for each release on the releases tab.
 
 ## Building from source
 
-rocFFT is compiled with hcc and uses cmake.  To compile the library one calls,
+rocFFT is compiled with hipcc and uses cmake.  To compile the library one calls,
 for example, the following commands:
 ```
 mkdir build && cd build
-cmake -DCMAKE_CXX_COMPILER=hcc .. 
+cmake -DCMAKE_CXX_COMPILER=hipcc .. 
 ```
 
 A static library can be compiled by using the option `-DBUILD_SHARED_LIBS=off`
