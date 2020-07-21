@@ -218,15 +218,15 @@ int main(int argc, char* argv[])
     size_t idist;
     size_t odist;
 
-    // Vector of directories which contain librocfft.so
-    std::vector<std::string> libdir;
+    // Vector of test target libraries
+    std::vector<std::string> libs;
 
     // Declare the supported options.
 
     // clang-format doesn't handle boost program options very well:
     // clang-format off
     po::options_description opdesc("rocfft rider command line options");
-    opdesc.add_options()("help,h", "produces this help message")
+    opdesc.add_options()("help,h", "Produces this help message")
         ("version,v", "Print queryable version information from the rocfft library")
         ("device", po::value<int>(&deviceId)->default_value(0), "Select a specific device id")
         ("verbose", po::value<int>(&verbose)->default_value(0), "Control output verbosity")
@@ -238,9 +238,9 @@ int main(int argc, char* argv[])
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
          "forward\n3) real inverse")
         ( "idist", po::value<size_t>(&idist)->default_value(0),
-          "input distance between successive members when batch size > 1")
+          "Input distance between successive members when batch size > 1")
         ( "odist", po::value<size_t>(&odist)->default_value(0),
-          "output distance between successive members when batch size > 1")
+          "Output distance between successive members when batch size > 1")
         // ("scale", po::value<double>(&scale)->default_value(1.0), "Specify the scaling factor ")
         ( "batchSize,b", po::value<size_t>(&nbatch)->default_value(1),
           "If this value is greater than one, arrays will be used ")
@@ -252,7 +252,8 @@ int main(int argc, char* argv[])
           ->default_value(rocfft_array_type_unset),
           "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
-        ("lib",  po::value<std::vector<std::string>>(&libdir)->multitoken(), "libdirs.")
+        ("lib",  po::value<std::vector<std::string>>(&libs)->multitoken(),
+         "Set test target library full path(appendable).")
         ("length",  po::value<std::vector<size_t>>(&length)->multitoken(), "Lengths.")
         ("istride", po::value<std::vector<size_t>>(&istride)->multitoken(), "Input strides.")
         ("ostride", po::value<std::vector<size_t>>(&ostride)->multitoken(), "Output strides.")
@@ -415,12 +416,12 @@ int main(int argc, char* argv[])
 
     // Set up shared object handles
     std::vector<void*> handles;
-    for(int idx = 0; idx < libdir.size(); ++idx)
+    for(int idx = 0; idx < libs.size(); ++idx)
     {
-        void* libhandle = dlopen((libdir[idx] + "/librocfft.so").c_str(), RTLD_LAZY);
+        void* libhandle = dlopen((libs[idx]).c_str(), RTLD_LAZY);
         if(libhandle == NULL)
         {
-            std::cout << "Failed to open " << libdir[idx] << std::endl;
+            std::cout << "Failed to open " << libs[idx] << std::endl;
             exit(1);
         }
         struct link_map* link = nullptr;
@@ -429,7 +430,7 @@ int main(int argc, char* argv[])
         {
             if(strstr(link->l_name, "librocfft-device") != nullptr)
             {
-                std::cerr << "Error: Library " << libdir[idx] << " depends on librocfft-device.\n";
+                std::cerr << "Error: Library " << libs[idx] << " depends on librocfft-device.\n";
                 std::cerr << "All libraries need to be built with -DSINGLELIB=on.\n";
                 exit(1);
             }
@@ -438,7 +439,7 @@ int main(int argc, char* argv[])
     }
 
     // Set up plans:
-    for(int idx = 0; idx < libdir.size(); ++idx)
+    for(int idx = 0; idx < libs.size(); ++idx)
     {
         // Create column-major parameters for rocFFT:
         auto length_cm  = length;
@@ -452,7 +453,7 @@ int main(int argc, char* argv[])
             std::swap(length_cm[idx], length_cm[toidx]);
         }
 
-        std::cout << idx << ": " << libdir[idx] << std::endl;
+        std::cout << idx << ": " << libs[idx] << std::endl;
         plan.push_back(make_plan(handles[idx],
                                  place,
                                  transformType,
@@ -482,7 +483,7 @@ int main(int argc, char* argv[])
 
     // Associate the work buffer to the invidual libraries:
     std::vector<rocfft_execution_info> info;
-    for(int idx = 0; idx < libdir.size(); ++idx)
+    for(int idx = 0; idx < libs.size(); ++idx)
     {
         info.push_back(make_execinfo(handles[idx], wbuffer_size, wbuffer));
     }
@@ -538,11 +539,11 @@ int main(int argc, char* argv[])
     }
 
     // Execution times for loaded libraries:
-    std::vector<std::vector<double>> time(libdir.size());
+    std::vector<std::vector<double>> time(libs.size());
 
     // Run the FFTs from the different libraries in random order until they all have at
     // least ntrial times.
-    std::vector<int> ndone(libdir.size());
+    std::vector<int> ndone(libs.size());
     std::fill(ndone.begin(), ndone.end(), 0);
     while(!std::all_of(ndone.begin(), ndone.end(), [&ntrial](int i) { return i >= ntrial; }))
     {
