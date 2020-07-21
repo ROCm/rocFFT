@@ -186,14 +186,8 @@ class accuracy_test
                                                  std::vector<rocfft_result_placement>>>
 {
 protected:
-    void SetUp() override
-    {
-        rocfft_setup();
-    }
-    void TearDown() override
-    {
-        rocfft_cleanup();
-    }
+    void SetUp() override {}
+    void TearDown() override {}
 };
 
 const static std::vector<size_t> batch_range = {1, 2};
