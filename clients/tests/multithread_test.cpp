@@ -177,13 +177,18 @@ struct Test_Transform
         // Copy result back to host
         if(device_mem_out && !host_mem_out.empty())
         {
+	  
             EXPECT_EQ(hipMemcpy(host_mem_out.data(),
                                 device_mem_out,
                                 host_mem_out.size() * sizeof(float2),
                                 hipMemcpyDeviceToHost),
                       hipSuccess);
 
-            // compare data we got to the original
+            // Compare data we got to the original.
+	    // We're running 2 transforms (forward+inverse), so we
+            // should tolerate 2x the error of a single transform.
+	    std::vector<std::pair<size_t, size_t>> linf_failures;
+            const double MAX_TRANSFORM_ERROR = 2 * type_epsilon<float>();
             auto diff = LinfL2diff_1to1_complex(
                 reinterpret_cast<const std::complex<float>*>(host_mem_in.data()),
                 reinterpret_cast<const std::complex<float>*>(host_mem_out.data()),
@@ -193,10 +198,9 @@ struct Test_Transform
                 1,
                 host_mem_in.size(),
                 1,
-                host_mem_out.size());
-            // we're running 2 transforms (forward+inverse), so we
-            // should tolerate 2x the error of a single transform
-            const double MAX_TRANSFORM_ERROR = 2 * type_epsilon<float>();
+                host_mem_out.size(),
+		linf_failures,
+		MAX_TRANSFORM_ERROR);
             EXPECT_LT(diff.first, MAX_TRANSFORM_ERROR);
             EXPECT_LT(diff.second, MAX_TRANSFORM_ERROR);
 
