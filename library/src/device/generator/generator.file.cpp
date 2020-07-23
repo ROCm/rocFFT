@@ -141,8 +141,9 @@ void WriteButterflyToFile(std::string& str, int LEN)
 /* =====================================================================
    Write CPU functions (launching kernel) header to file
 =================================================================== */
-void WriteCPUHeaders(std::vector<size_t>                            support_list,
-                     std::vector<std::tuple<size_t, ComputeScheme>> large1D_list)
+void WriteCPUHeaders(const std::vector<size_t>&                                    support_list,
+                     const std::vector<std::tuple<size_t, ComputeScheme>>&         large1D_list,
+                     const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D)
 {
 
     std::string str;
@@ -202,6 +203,26 @@ void WriteCPUHeaders(std::vector<size_t>                            support_list
         {
             str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc_";
             str += str_len + "(const void *data_p, void *back_p);\n";
+        }
+    }
+
+    str += "\n";
+    // write 2d fused
+    for(const auto& kernel : support_list_2D)
+    {
+        std::string str_len_1 = std::to_string(std::get<0>(kernel));
+        std::string str_len_2 = std::to_string(std::get<1>(kernel));
+
+        std::string suffix = str_len_1;
+        suffix += "_";
+        suffix += str_len_2;
+        suffix += "(const void *data_p, void *back_p);\n";
+
+        ComputeScheme scheme = std::get<2>(kernel);
+        if(scheme == CS_KERNEL_2D_SINGLE)
+        {
+            str += "void rocfft_internal_dfn_sp_ci_ci_2D_" + suffix;
+            str += "void rocfft_internal_dfn_dp_ci_ci_2D_" + suffix;
         }
     }
 
@@ -388,10 +409,76 @@ void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> lar
 }
 
 /* =====================================================================
+   Write CPU functions for launching fused 2D kernels to *.cpp.h
+=================================================================== */
+
+void write_cpu_function_2D(const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& list_2D,
+                           const std::string&                                            precision)
+{
+    std::string complex_case_precision = "float2";
+    std::string short_name_precision   = "sp";
+
+    if(precision == "double")
+    {
+        complex_case_precision = "double2";
+        short_name_precision   = "dp";
+    }
+
+    std::string   headerFileName = "kernel_launch_" + precision + "_2D.cpp.h";
+    std::ofstream file(headerFileName);
+    if(!file.is_open())
+    {
+        // can't continue, fail the build
+        std::cout << "Failed to open " << headerFileName << " for writing, aborting\n";
+        abort();
+    }
+    file << "#include \"kernel_launch.h\"\n";
+
+    for(const auto& kernel : list_2D)
+    {
+        std::string str_len_1     = std::to_string(std::get<0>(kernel));
+        std::string str_len_2     = std::to_string(std::get<1>(kernel));
+        std::string length_suffix = "_2D_" + str_len_1 + "_" + str_len_2;
+
+        file << "#include \"rocfft_kernel" << length_suffix << ".h\"\n";
+
+        ComputeScheme scheme = std::get<2>(kernel);
+        if(scheme == CS_KERNEL_2D_SINGLE)
+        {
+            // reuse the POWX_SMALL_GENERATOR because we're ultimately
+            // calling those kernels in the same way
+            file << "POWX_SMALL_GENERATOR(rocfft_internal_dfn_" << short_name_precision << "_ci_ci"
+                 << length_suffix << ", fft_fwd_ip" << length_suffix << ", fft_back_ip"
+                 << length_suffix << ", fft_fwd_op" << length_suffix << ", fft_back_op"
+                 << length_suffix << ", " << complex_case_precision << ")\n";
+        }
+        else
+        {
+            // not implemented yet
+            abort();
+        }
+    }
+    file.close();
+
+    std::string sourceFileName = "kernel_launch_" + precision + "_2D.cpp";
+    file.open(sourceFileName);
+    if(!file.is_open())
+    {
+        std::cout << "File: " << sourceFileName << " could not be opened, exiting ...."
+                  << std::endl;
+    }
+    file << "#include \"" << headerFileName << "\"";
+    file.close();
+}
+
+/* =====================================================================
    Add CPU funtions to function pools (a hash map)
 =================================================================== */
-void AddCPUFunctionToPool(std::vector<size_t>                            support_list,
-                          std::vector<std::tuple<size_t, ComputeScheme>> large1D_list)
+void AddCPUFunctionToPool(
+    const std::vector<size_t>&                                    support_list,
+    const std::vector<std::tuple<size_t, ComputeScheme>>&         large1D_list,
+    const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D_single,
+    const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D_double)
 {
     std::string str;
 
@@ -478,6 +565,43 @@ void AddCPUFunctionToPool(std::vector<size_t>                            support
         }
     }
 
+    for(const auto& kernel : support_list_2D_single)
+    {
+        std::string   str_len_1 = std::to_string(std::get<0>(kernel));
+        std::string   str_len_2 = std::to_string(std::get<1>(kernel));
+        ComputeScheme scheme    = std::get<2>(kernel);
+        if(scheme == CS_KERNEL_2D_SINGLE)
+        {
+            str += "\tfunction_map_single_2D[std::make_tuple(" + str_len_1 + ", " + str_len_2
+                   + ", CS_KERNEL_2D_SINGLE)] = "
+                     "&rocfft_internal_dfn_sp_ci_ci_2D_"
+                   + str_len_1 + "_" + str_len_2 + ";\n";
+        }
+        else
+        {
+            // not implemented yet!
+            abort();
+        }
+    }
+    for(const auto& kernel : support_list_2D_double)
+    {
+        std::string   str_len_1 = std::to_string(std::get<0>(kernel));
+        std::string   str_len_2 = std::to_string(std::get<1>(kernel));
+        ComputeScheme scheme    = std::get<2>(kernel);
+        if(scheme == CS_KERNEL_2D_SINGLE)
+        {
+            str += "\tfunction_map_double_2D[std::make_tuple(" + str_len_1 + ", " + str_len_2
+                   + ", CS_KERNEL_2D_SINGLE)] = "
+                     "&rocfft_internal_dfn_dp_ci_ci_2D_"
+                   + str_len_1 + "_" + str_len_2 + ";\n";
+        }
+        else
+        {
+            // not implemented yet!
+            abort();
+        }
+    }
+
     str += "}\n";
 
     std::ofstream file;
@@ -518,6 +642,9 @@ void WriteKernelToFile(std::string& str, std::string LEN)
     {
         std::cout << "File: " << fileName << " could not be opened, exiting ...." << std::endl;
     }
+
+    // multiple include protection
+    file << "#pragma once\n";
 
     file << str;
     file.close();
@@ -578,5 +705,48 @@ void generate_kernel(size_t len, ComputeScheme scheme)
         kernel.GenerateKernel(programCode);
 
         WriteKernelToFile(programCode, std::to_string(len) + params.name_suffix);
+    }
+}
+void generate_2D_kernels(const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& kernels)
+{
+    for(const auto& kernel : kernels)
+    {
+        std::string   programCode;
+        size_t        len1   = std::get<0>(kernel);
+        size_t        len2   = std::get<1>(kernel);
+        ComputeScheme scheme = std::get<2>(kernel);
+
+        // if we were able to insert, this size must be new
+        programCode += "#include \"rocfft_kernel_" + std::to_string(len1) + ".h\"\n";
+        if(len1 != len2)
+            programCode += "#include \"rocfft_kernel_" + std::to_string(len2) + ".h\"\n";
+
+        if(scheme == CS_KERNEL_2D_SINGLE)
+        {
+            // parameters for each dimension
+            FFTKernelGenKeyParams params1;
+            FFTKernelGenKeyParams params2;
+            // column-by-column transform can't possibly be unit stride
+            params2.forceNonUnitStride = true;
+
+            std::vector<size_t> fft_N(1, len1);
+            // here the C2C is not enabled,
+            // as the third parameter is set
+            // as false
+            initParams(params1, fft_N, false, BCT_C2C);
+            fft_N.front() = len2;
+            initParams(params2, fft_N, false, BCT_C2C);
+
+            Kernel2D kernel(params1, params2);
+            kernel.GenerateGlobalKernel(programCode);
+
+            std::string file_suffix = "2D_" + std::to_string(len1) + "_" + std::to_string(len2);
+            WriteKernelToFile(programCode, file_suffix);
+        }
+        else
+        {
+            // not handled yet
+            abort();
+        }
     }
 }

@@ -98,6 +98,46 @@ void* twiddles_create(size_t N, rocfft_precision precision, bool large, bool no_
     }
 }
 
+template <typename T>
+void* twiddles_create_2D_pr(size_t N1, size_t N2)
+{
+    std::vector<size_t> radices;
+
+    TwiddleTable<T> twTable1(N1);
+    TwiddleTable<T> twTable2(N2);
+    // generate twiddles for each dimension separately
+    radices    = GetRadices(N1);
+    auto twtc1 = twTable1.GenerateTwiddleTable(radices);
+    radices    = GetRadices(N2);
+    auto twtc2 = twTable2.GenerateTwiddleTable(radices);
+
+    // glue those two twiddle tables together in one malloc that we
+    // give to the kernel
+    T* twts = nullptr;
+    if(hipMalloc(&twts, (N1 + N2) * sizeof(T)) != hipSuccess)
+        return nullptr;
+    if(hipMemcpy(twts, twtc1, N1 * sizeof(T), hipMemcpyHostToDevice) != hipSuccess
+       || hipMemcpy(twts + N1, twtc2, N2 * sizeof(T), hipMemcpyHostToDevice) != hipSuccess)
+    {
+        hipFree(twts);
+        return nullptr;
+    }
+    return twts;
+}
+
+void* twiddles_create_2D(size_t N1, size_t N2, rocfft_precision precision)
+{
+    if(precision == rocfft_precision_single)
+        return twiddles_create_2D_pr<float2>(N1, N2);
+    else if(precision == rocfft_precision_double)
+        return twiddles_create_2D_pr<double2>(N1, N2);
+    else
+    {
+        assert(false);
+        return nullptr;
+    }
+}
+
 void twiddles_delete(void* twt)
 {
     if(twt)

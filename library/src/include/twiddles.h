@@ -180,6 +180,7 @@ public:
 };
 
 void* twiddles_create(size_t N, rocfft_precision precision, bool large, bool no_radices);
+void* twiddles_create_2D(size_t N1, size_t N2, rocfft_precision precision);
 void  twiddles_delete(void* twt);
 
 #endif // defined( TWIDDLES_H )

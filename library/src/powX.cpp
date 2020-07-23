@@ -75,6 +75,13 @@ bool PlanPowX(ExecPlan& execPlan)
             if(execPlan.execSeq[i]->twiddles == nullptr)
                 return false;
         }
+        else if(execPlan.execSeq[i]->scheme == CS_KERNEL_2D_SINGLE)
+        {
+            // create one set of twiddles for each dimension
+            execPlan.execSeq[i]->twiddles = twiddles_create_2D(execPlan.execSeq[i]->length[0],
+                                                               execPlan.execSeq[i]->length[1],
+                                                               execPlan.execSeq[i]->precision);
+        }
 
         if(execPlan.execSeq[i]->large1D != 0)
         {
@@ -210,6 +217,32 @@ bool PlanPowX(ExecPlan& execPlan)
             ptr      = &FN_PRFX(mul);
             gp.tpb_x = 64;
             break;
+        case CS_KERNEL_2D_SINGLE:
+        {
+            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
+                      ? function_pool::get_function_single_2D(
+                          std::make_tuple(execPlan.execSeq[i]->length[0],
+                                          execPlan.execSeq[i]->length[1],
+                                          CS_KERNEL_2D_SINGLE))
+                      : function_pool::get_function_double_2D(
+                          std::make_tuple(execPlan.execSeq[i]->length[0],
+                                          execPlan.execSeq[i]->length[1],
+                                          CS_KERNEL_2D_SINGLE));
+            // Run one threadblock per transform, since we're
+            // combining a row transform and a column transform in
+            // one kernel.  The transform must not cross threadblock
+            // boundaries, or else we are unable to make the row
+            // transform finish completely before starting the column
+            // transform.
+            gp.b_x = execPlan.execSeq[i]->batch;
+            // if we're doing 3D transform, we need to repeat the 2D
+            // transform in the 3rd dimension
+            if(execPlan.execSeq[i]->length.size() > 2)
+                gp.b_x *= execPlan.execSeq[i]->length[2];
+            gp.tpb_x = Get2DSingleThreadCount(
+                execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->length[1], GetWGSAndNT);
+            break;
+        }
         default:
             rocfft_cout << "should not be in this case" << std::endl;
             rocfft_cout << "scheme: " << PrintScheme(execPlan.execSeq[i]->scheme) << std::endl;

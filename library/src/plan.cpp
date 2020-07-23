@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "plan.h"
+#include "hip/hip_runtime_api.h"
 #include "logging.h"
 #include "private.h"
 #include "radix_table.h"
@@ -730,11 +731,42 @@ void TreeNode::RecursiveBuildTree()
         if(scheme == CS_KERNEL_TRANSPOSE)
             return;
 
-        // NB:
-        //   This is part of the fuse kernels, will merge back to the below
-        //   when all work of CS_KERNEL_2D_SINGLE and CS_2D_RC done. We will
-        //   have a clear function to define which case falls in which scheme.
+        // First choice is 2D_SINGLE kernel, if the problem will fit into LDS.
+        // Next best is CS_2D_RC.  Last resort is RTRT.
         //
+        // Get actual LDS size, to check if we can run a 2D_SINGLE
+        // kernel that will fit the problem into LDS.
+        //
+        // NOTE: This is potentially problematic in a heterogeneous
+        // multi-device environment.  The device we query now could
+        // differ from the device we run the plan on.  That said,
+        // it's vastly more common to have multiples of the same
+        // device in the real world.
+        int ldsSize;
+        int deviceid;
+        // if this fails, device 0 is a reasonable default
+        if(hipGetDevice(&deviceid) != hipSuccess)
+        {
+            log_trace(__func__, "warning", "hipGetDevice failed - using device 0");
+            deviceid = 0;
+        }
+        // if this fails, giving 0 to Single2DSizes will assume
+        // normal size for contemporary hardware
+        if(hipDeviceGetAttribute(
+               &ldsSize, hipDeviceAttributeMaxSharedMemoryPerMultiprocessor, deviceid)
+           != hipSuccess)
+        {
+            log_trace(
+                __func__,
+                "warning",
+                "hipDeviceGetAttribute failed - assuming normal LDS size for current hardware");
+            ldsSize = 0;
+        }
+        const auto single2DSizes = Single2DSizes(ldsSize, precision, GetWGSAndNT);
+        if(std::find(
+               single2DSizes.begin(), single2DSizes.end(), std::make_pair(length[0], length[1]))
+           != single2DSizes.end())
+            scheme = CS_KERNEL_2D_SINGLE;
         //   For CS_2D_RC, we are reusing SBCC kernel for 1D middle size. The
         //   current implementation of 1D SBCC supports only 64, 128, and 256.
         //   However, technically no LDS limitation along the fast dimension
@@ -743,8 +775,9 @@ void TreeNode::RecursiveBuildTree()
         //   is the decomposition under, such as rows FFT going for 1DCS_L1D_CC,
         //   which need decomposition capability and refactoring buffer
         //   assignment.
-        if((length[1] == 256 || length[1] == 128 || length[1] == 64)
-           && (length[0] >= 64 && IsPo2(length[0]) && length[0] <= 2048))
+        //
+        else if((length[1] == 256 || length[1] == 128 || length[1] == 64)
+                && (length[0] >= 64 && IsPo2(length[0]) && length[0] <= 2048))
         {
             scheme = CS_2D_RC;
         }
@@ -781,6 +814,7 @@ void TreeNode::RecursiveBuildTree()
         break;
         case CS_KERNEL_2D_SINGLE:
         {
+            // shouldn't need anything more - top-level plan has all the info
         }
         break;
 
@@ -4025,6 +4059,14 @@ void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan)
     }
 
     execPlan.rootPlan->Print(os, 0);
+
+    os << "GridParams\n";
+    for(const auto& gp : execPlan.gridParam)
+    {
+        os << "  b[" << gp.b_x << "," << gp.b_y << "," << gp.b_z << "] tpb[" << gp.tpb_x << ","
+           << gp.tpb_y << "," << gp.tpb_z << "]\n";
+    }
+    os << "End GridParams\n";
 
     os << "======================================================================"
           "========="

@@ -25,6 +25,7 @@
 #define RADIX_TABLE_H
 
 #include <assert.h>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <vector>
@@ -327,5 +328,78 @@ inline void DetermineSizes(const size_t& length, size_t& workGroupSize, size_t& 
 
 std::vector<size_t> GetRadices(size_t length);
 void                GetWGSAndNT(size_t length, size_t& workGroupSize, size_t& numTransforms);
+
+// Get the number of threads required for a 2D_SINGLE kernel
+static size_t Get2DSingleThreadCount(size_t                                        length0,
+                                     size_t                                        length1,
+                                     std::function<void(size_t, size_t&, size_t&)> _GetWGSAndNT)
+{
+    size_t workGroupSize0;
+    size_t numTransforms0;
+    _GetWGSAndNT(length0, workGroupSize0, numTransforms0);
+    size_t workGroupSize1;
+    size_t numTransforms1;
+    _GetWGSAndNT(length1, workGroupSize1, numTransforms1);
+
+    size_t cnPerWI0 = (numTransforms0 * length0) / workGroupSize0;
+    size_t cnPerWI1 = (numTransforms1 * length1) / workGroupSize1;
+
+    size_t complexNumsPerTransform = length0 * length1;
+    size_t numThreads0             = complexNumsPerTransform / cnPerWI0;
+    size_t numThreads1             = complexNumsPerTransform / cnPerWI1;
+    return std::max(numThreads0, numThreads1);
+}
+
+// Available sizes for 2D single kernels, for a given size of LDS.
+//
+// Specify 0 for LDS size to assume maximum size in current hardware
+// - this is meant to be used at compile time to decide what 2D
+// single kernels to generate code for.
+//
+// At runtime you would pass the actual LDS size for the device.
+static std::vector<std::pair<size_t, size_t>>
+    Single2DSizes(size_t                                        ldsSizeBytes,
+                  rocfft_precision                              precision,
+                  std::function<void(size_t, size_t&, size_t&)> _GetWGSAndNT)
+{
+    std::vector<std::pair<size_t, size_t>> retval;
+    // maximum amount of LDS we assume can exist, to put a limit on
+    // what functions to generate
+    static const size_t MAX_LDS_SIZE_BYTES = 64 * 1024;
+    if(ldsSizeBytes == 0)
+        ldsSizeBytes = MAX_LDS_SIZE_BYTES;
+    else
+        ldsSizeBytes = std::min(ldsSizeBytes, MAX_LDS_SIZE_BYTES);
+
+    size_t elementSizeBytes = precision == rocfft_precision_single ? sizeof(float) : sizeof(double);
+    // assume each element is complex, since that's what we need to
+    // store temporarily during the transform
+    elementSizeBytes *= 2;
+
+    // compute power-of-2 sizes
+
+    // arbitrarily chosen max size that we want to generate code for
+    static const size_t MAX_2D_POW2 = 512;
+    static const size_t MIN_2D_POW2 = 4;
+    for(size_t i = MAX_2D_POW2; i >= MIN_2D_POW2; i /= 2)
+    {
+        for(size_t j = MAX_2D_POW2; j >= MIN_2D_POW2; j /= 2)
+        {
+            // Make sure the LDS storage needed fits in the total LDS
+            // available.
+            //
+            // 2x the space needs to be allocated - we currently need
+            // to store both the semi-transformed data as well as
+            // separate butterfly temp space (which works out to the
+            // same size)
+            if(i * j * elementSizeBytes * 2 <= ldsSizeBytes)
+                // Also make sure we're not launching too many threads,
+                // since each transform is done by a single workgroup
+                if(Get2DSingleThreadCount(i, j, _GetWGSAndNT) < MAX_WORK_GROUP_SIZE)
+                    retval.push_back(std::make_pair(i, j));
+        }
+    }
+    return retval;
+}
 
 #endif // defined( RADIX_TABLE_H )

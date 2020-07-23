@@ -502,6 +502,43 @@ class RefLibOp
             local_fftwf_destroy_plan(p);
         }
         break;
+        case CS_KERNEL_2D_SINGLE:
+        {
+            RefLibHandle&             refHandle = RefLibHandle::GetRefLibHandle();
+            ftype_fftwf_plan_many_dft local_fftwf_plan_many_dft
+                = (ftype_fftwf_plan_many_dft)dlsym(refHandle.fftw3f_lib, "fftwf_plan_many_dft");
+            ftype_fftwf_execute local_fftwf_execute
+                = (ftype_fftwf_execute)dlsym(refHandle.fftw3f_lib, "fftwf_execute");
+            ftype_fftwf_destroy_plan local_fftwf_destroy_plan
+                = (ftype_fftwf_destroy_plan)dlsym(refHandle.fftw3f_lib, "fftwf_destroy_plan");
+
+            // fftw does row-major indexing and we have column-major,
+            // so give N1, N0
+            int n[2]    = {static_cast<int>(data->node->length[1]),
+                        static_cast<int>(data->node->length[0])};
+            int howmany = data->node->batch;
+            for(size_t i = 2; i < data->node->length.size(); i++)
+                howmany *= data->node->length[i];
+
+            void* p = local_fftwf_plan_many_dft(2,
+                                                n,
+                                                howmany,
+                                                (local_fftwf_complex*)fftwin.data,
+                                                NULL,
+                                                1,
+                                                n[0],
+                                                (local_fftwf_complex*)fftwout.data,
+                                                NULL,
+                                                1,
+                                                n[0],
+                                                (data->node->direction == -1) ? LOCAL_FFTW_FORWARD
+                                                                              : LOCAL_FFTW_BACKWARD,
+                                                LOCAL_FFTW_ESTIMATE);
+            CopyInputVector(data_p);
+            local_fftwf_execute(p);
+            local_fftwf_destroy_plan(p);
+        }
+        break;
         case CS_KERNEL_TRANSPOSE:
         {
             // TODO: what about the real transpose case?

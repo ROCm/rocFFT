@@ -56,6 +56,21 @@ int generate_support_size_list(std::vector<size_t>& support_size_list,
     return 0;
 }
 
+std::vector<std::tuple<size_t, size_t, ComputeScheme>>
+    generate_support_size_list_2D(rocfft_precision precision)
+{
+    std::vector<std::tuple<size_t, size_t, ComputeScheme>> retval;
+    KernelCoreSpecs                                        kcs;
+    auto GetWGSAndNT = [&kcs](size_t length, size_t& workGroupSize, size_t& numTransforms) {
+        return kcs.GetWGSAndNT(length, workGroupSize, numTransforms);
+    };
+    for(const auto& s : Single2DSizes(0, precision, GetWGSAndNT))
+    {
+        retval.push_back(std::make_tuple(s.first, s.second, CS_KERNEL_2D_SINGLE));
+    }
+    return retval;
+}
+
 int main(int argc, char* argv[])
 {
 
@@ -138,6 +153,11 @@ int main(int argc, char* argv[])
         }
     }
 
+    // generate 2D fused kernels
+    // FIXME: make this controllable via cmdline?
+    auto support_size_list_2D_single = generate_support_size_list_2D(rocfft_precision_single);
+    auto support_size_list_2D_double = generate_support_size_list_2D(rocfft_precision_double);
+
     /*
       for(size_t i=7;i<=2401;i*=7){
           printf("Generating len %d FFT kernels\n", (int)i);
@@ -183,14 +203,22 @@ int main(int argc, char* argv[])
         generate_kernel(std::get<0>(my_tuple), std::get<1>(my_tuple));
     }
 
+    // write big size CPU functions; one file for one size
     write_cpu_function_large(large1D_list, "single");
     write_cpu_function_large(large1D_list, "double");
 
-    // write big size CPU functions; one file for one size
+    // write 2D fused kernels
+    write_cpu_function_2D(support_size_list_2D_single, "single");
+    write_cpu_function_2D(support_size_list_2D_double, "double");
+    // generated code is all templated so we can generate the largest
+    // number of sizes and decide at runtime whether the
+    // double-precision variants can be used based on available LDS
+    generate_2D_kernels(support_size_list_2D_single);
 
     // printf("Write CPU functions declaration to *.h file \n");
-    WriteCPUHeaders(support_size_list, large1D_list);
+    WriteCPUHeaders(support_size_list, large1D_list, support_size_list_2D_single);
 
     // printf("Add CPU function into hash map \n");
-    AddCPUFunctionToPool(support_size_list, large1D_list);
+    AddCPUFunctionToPool(
+        support_size_list, large1D_list, support_size_list_2D_single, support_size_list_2D_double);
 }
