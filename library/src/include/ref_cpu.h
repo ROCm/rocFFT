@@ -65,31 +65,31 @@ class RefLibHandle
         : fftw3f_lib(nullptr)
         , fftw3_lib(nullptr)
     {
-        char* env_value_fftw3f = getenv("ROCFFT_DBG_FFTW3F_LIB");
-        char* env_value_fftw3  = getenv("ROCFFT_DBG_FFTW3_LIB");
+        const char* fftw3f_lib_path = getenv("ROCFFT_DBG_FFTW3F_LIB");
+        const char* fftw3_lib_path  = getenv("ROCFFT_DBG_FFTW3_LIB");
 
-        if(!env_value_fftw3f)
+        if(!fftw3f_lib_path)
         {
-            rocfft_cout << "error finding fftw3f lib, set env variable ROCFFT_DBG_FFTW3F_LIB"
-                        << std::endl;
+            fftw3f_lib_path = "libfftw3f.so";
         }
 
-        if(!env_value_fftw3)
+        if(!fftw3_lib_path)
         {
-            rocfft_cout << "error finding fftw3 lib, set env variable ROCFFT_DBG_FFTW3_LIB"
-                        << std::endl;
+            fftw3_lib_path = "libfftw3.so";
         }
 
-        fftw3f_lib = dlopen(env_value_fftw3f, RTLD_NOW);
+        fftw3f_lib = dlopen(fftw3f_lib_path, RTLD_NOW);
         if(!fftw3f_lib)
         {
-            rocfft_cout << "error in fftw3f dlopen" << std::endl;
+            rocfft_cout << "error opening " << fftw3f_lib_path << ": " << dlerror() << std::endl;
+            rocfft_cout << "set env variable ROCFFT_DBG_FFTW3F_LIB to a valid path\n";
         }
 
-        fftw3_lib = dlopen(env_value_fftw3, RTLD_NOW);
+        fftw3_lib = dlopen(fftw3_lib_path, RTLD_NOW);
         if(!fftw3_lib)
         {
-            rocfft_cout << "error in fftw3 dlopen" << std::endl;
+            rocfft_cout << "error opening " << fftw3_lib_path << ": " << dlerror() << std::endl;
+            rocfft_cout << "set env variable ROCFFT_DBG_FFTW3_LIB to a valid path\n";
         }
     }
 
@@ -110,13 +110,13 @@ public:
 
     ~RefLibHandle()
     {
-        if(!fftw3f_lib)
+        if(fftw3f_lib)
         {
             dlclose(fftw3f_lib);
             fftw3f_lib = nullptr;
         }
 
-        if(!fftw3_lib)
+        if(fftw3_lib)
         {
             dlclose(fftw3_lib);
             fftw3_lib = nullptr;
