@@ -355,18 +355,19 @@ void rocfft_transform(const std::vector<size_t>                                 
         pibuffer[i] = ibuffer[i].data();
     }
 
-    std::vector<gpubuf> obuffer;
+    std::vector<gpubuf>  obuffer_data;
+    std::vector<gpubuf>* obuffer = &obuffer_data;
     if(place == rocfft_placement_inplace)
     {
-        obuffer = ibuffer;
+        obuffer = &ibuffer;
     }
     else
     {
         auto obuffer_sizes = buffer_sizes(precision, otype, gpu_odist, nbatch);
-        obuffer.resize(obuffer_sizes.size());
-        for(unsigned int i = 0; i < obuffer.size(); ++i)
+        obuffer_data.resize(obuffer_sizes.size());
+        for(unsigned int i = 0; i < obuffer_data.size(); ++i)
         {
-            hip_status = obuffer[i].alloc(obuffer_sizes[i]);
+            hip_status = obuffer_data[i].alloc(obuffer_sizes[i]);
             ASSERT_TRUE(hip_status == hipSuccess)
                 << "hipMalloc failure for output buffer " << i << " size " << obuffer_sizes[i]
                 << gpu_params(gpu_ilength_cm,
@@ -381,10 +382,10 @@ void rocfft_transform(const std::vector<size_t>                                 
                               otype);
         }
     }
-    std::vector<void*> pobuffer(obuffer.size());
-    for(unsigned int i = 0; i < obuffer.size(); ++i)
+    std::vector<void*> pobuffer(obuffer->size());
+    for(unsigned int i = 0; i < obuffer->size(); ++i)
     {
-        pobuffer[i] = obuffer[i].data();
+        pobuffer[i] = obuffer->at(i).data();
     }
 
     // Copy the input data to the GPU:
@@ -410,7 +411,7 @@ void rocfft_transform(const std::vector<size_t>                                 
     for(int idx = 0; idx < gpu_output.size(); ++idx)
     {
         hip_status = hipMemcpy(gpu_output[idx].data(),
-                               obuffer[idx].data(),
+                               obuffer->at(idx).data(),
                                gpu_output[idx].size(),
                                hipMemcpyDeviceToHost);
         EXPECT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";

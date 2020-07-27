@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 #include "../client_utils.h"
+#include "accuracy_test.h"
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
 #include <gtest/gtest.h>
@@ -58,8 +59,10 @@ struct Test_Transform
         size_t Nbytes = datasize * sizeof(float2);
 
         // Create HIP device buffers
-        EXPECT_EQ(hipMalloc(&device_mem_in, Nbytes), hipSuccess);
-        EXPECT_EQ(hipMalloc(&device_mem_out, Nbytes), hipSuccess);
+        if(device_mem_in.alloc(Nbytes) != hipSuccess)
+            throw std::bad_alloc();
+        if(device_mem_out.alloc(Nbytes) != hipSuccess)
+            throw std::bad_alloc();
 
         // Initialize data
         std::minstd_rand                      gen(seed);
@@ -73,21 +76,20 @@ struct Test_Transform
         }
 
         //  Copy data to device
-        EXPECT_EQ(hipMemcpy(device_mem_in, host_mem_in.data(), Nbytes, hipMemcpyHostToDevice),
-                  hipSuccess);
+        EXPECT_EQ(
+            hipMemcpy(device_mem_in.data(), host_mem_in.data(), Nbytes, hipMemcpyHostToDevice),
+            hipSuccess);
     }
     Test_Transform(const Test_Transform&) = delete;
     void operator=(const Test_Transform&) = delete;
     Test_Transform(Test_Transform&& other)
+        : device_mem_in(std::move(other.device_mem_in))
+        , device_mem_out(std::move(other.device_mem_out))
     {
-        this->stream         = other.stream;
-        other.stream         = nullptr;
-        this->work_buffer    = other.work_buffer;
-        other.work_buffer    = nullptr;
-        this->device_mem_in  = other.device_mem_in;
-        other.device_mem_in  = nullptr;
-        this->device_mem_out = other.device_mem_out;
-        other.device_mem_out = nullptr;
+        this->stream      = other.stream;
+        other.stream      = nullptr;
+        this->work_buffer = other.work_buffer;
+        other.work_buffer = nullptr;
         this->host_mem_in.swap(other.host_mem_in);
         this->host_mem_out.swap(other.host_mem_out);
     }
@@ -133,10 +135,11 @@ struct Test_Transform
                   rocfft_status_success);
 
         // Execute forward plan out-of-place
-        EXPECT_EQ(rocfft_execute(plan, &device_mem_in, &device_mem_out, info),
-                  rocfft_status_success);
+        void* in_ptr  = device_mem_in.data();
+        void* out_ptr = device_mem_out.data();
+        EXPECT_EQ(rocfft_execute(plan, &in_ptr, &out_ptr, info), rocfft_status_success);
         // Execute inverse plan in-place
-        EXPECT_EQ(rocfft_execute(plan_inv, &device_mem_out, nullptr, info), rocfft_status_success);
+        EXPECT_EQ(rocfft_execute(plan_inv, &out_ptr, nullptr, info), rocfft_status_success);
 
         EXPECT_EQ(rocfft_execution_info_destroy(info), rocfft_status_success);
 
@@ -146,7 +149,7 @@ struct Test_Transform
                            1,
                            0, // sharedMemBytes
                            stream, // stream
-                           static_cast<float2*>(device_mem_out),
+                           static_cast<float2*>(device_mem_out.data()),
                            static_cast<float>(host_mem_out.size()));
         ran_transform = true;
     }
@@ -175,21 +178,21 @@ struct Test_Transform
         plan_inv = nullptr;
 
         // Copy result back to host
-        if(device_mem_out && !host_mem_out.empty())
+        if(device_mem_out.data() && !host_mem_out.empty())
         {
-	  
+
             EXPECT_EQ(hipMemcpy(host_mem_out.data(),
-                                device_mem_out,
+                                device_mem_out.data(),
                                 host_mem_out.size() * sizeof(float2),
                                 hipMemcpyDeviceToHost),
                       hipSuccess);
 
             // Compare data we got to the original.
-	    // We're running 2 transforms (forward+inverse), so we
+            // We're running 2 transforms (forward+inverse), so we
             // should tolerate 2x the error of a single transform.
-	    std::vector<std::pair<size_t, size_t>> linf_failures;
-            const double MAX_TRANSFORM_ERROR = 2 * type_epsilon<float>();
-            auto diff = LinfL2diff_1to1_complex(
+            std::vector<std::pair<size_t, size_t>> linf_failures;
+            const double                           MAX_TRANSFORM_ERROR = 2 * type_epsilon<float>();
+            auto                                   diff                = LinfL2diff_1to1_complex(
                 reinterpret_cast<const std::complex<float>*>(host_mem_in.data()),
                 reinterpret_cast<const std::complex<float>*>(host_mem_out.data()),
                 // data is all contiguous, we can treat it as 1d
@@ -199,16 +202,12 @@ struct Test_Transform
                 host_mem_in.size(),
                 1,
                 host_mem_out.size(),
-		linf_failures,
-		MAX_TRANSFORM_ERROR);
+                linf_failures,
+                MAX_TRANSFORM_ERROR);
             EXPECT_LT(diff.first, MAX_TRANSFORM_ERROR);
             EXPECT_LT(diff.second, MAX_TRANSFORM_ERROR);
 
-            // Free device buffers
-            EXPECT_EQ(hipFree(device_mem_in), hipSuccess);
-            device_mem_in = nullptr;
-            EXPECT_EQ(hipFree(device_mem_out), hipSuccess);
-            device_mem_out = nullptr;
+            // Free buffers
             host_mem_in.clear();
             host_mem_out.clear();
         }
@@ -225,8 +224,8 @@ struct Test_Transform
     rocfft_plan         plan_inv         = nullptr;
     size_t              work_buffer_size = 0;
     void*               work_buffer      = nullptr;
-    void*               device_mem_in    = nullptr;
-    void*               device_mem_out   = nullptr;
+    gpubuf              device_mem_in;
+    gpubuf              device_mem_out;
     std::vector<float2> host_mem_in;
     std::vector<float2> host_mem_out;
 
@@ -242,8 +241,15 @@ static void multithread_transform(size_t N, size_t dim, size_t num_threads)
     for(size_t j = 0; j < num_threads; ++j)
     {
         threads.emplace_back([=]() {
-            Test_Transform t(N, dim, j);
-            t.run_transform();
+            try
+            {
+                Test_Transform t(N, dim, j);
+                t.run_transform();
+            }
+            catch(std::bad_alloc& e)
+            {
+                ADD_FAILURE() << "memory allocation failure";
+            }
         });
     }
     for(auto& t : threads)
@@ -262,8 +268,17 @@ static void multistream_transform(size_t N, size_t dim, size_t num_streams)
 
     // get all data ready in parallel
     for(size_t i = 0; i < num_streams; ++i)
-        threads.emplace_back(
-            [=, &transforms]() { transforms[i] = std::make_unique<Test_Transform>(N, dim, i); });
+        threads.emplace_back([=, &transforms]() {
+            try
+            {
+                transforms[i] = std::make_unique<Test_Transform>(N, dim, i);
+            }
+            catch(std::bad_alloc&)
+            {
+                ADD_FAILURE() << "memory allocation failure";
+            }
+        });
+
     for(auto& t : threads)
         t.join();
     threads.clear();
@@ -271,7 +286,12 @@ static void multistream_transform(size_t N, size_t dim, size_t num_streams)
     // now start the actual transforms serially, but in separate
     // streams
     for(auto& t : transforms)
+    {
+        if(!t)
+            // must have failed to allocate memory, abort the test
+            return;
         t->run_transform();
+    }
 
     // clean up
     for(size_t i = 0; i < transforms.size(); ++i)
