@@ -27,6 +27,7 @@
 #include <mutex>
 #include <numeric>
 #include <omp.h>
+#include <random>
 #include <tuple>
 #include <vector>
 
@@ -1728,76 +1729,129 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
 // into the input array of floats/doubles or complex floats/doubles, which is stored in a
 // vector of chars (or two vectors in the case of planar format).
 // lengths are the memory lengths (ie not the transform parameters)
-template <typename Tfloat, typename Tallocator, typename Tsize>
+template <typename Tfloat, typename Tallocator, typename Tint1>
 inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
                       const rocfft_array_type                     itype,
-                      const std::vector<Tsize>&                   length,
-                      const std::vector<Tsize>&                   istride,
-                      const Tsize                                 idist,
-                      const Tsize                                 nbatch)
+                      const Tint1&                                whole_length,
+                      const Tint1&                                istride,
+                      const size_t                                idist,
+                      const size_t                                nbatch)
 {
     switch(itype)
     {
     case rocfft_array_type_complex_interleaved:
     case rocfft_array_type_hermitian_interleaved:
     {
-        auto  idata  = (std::complex<Tfloat>*)input[0].data();
-        Tsize i_base = 0;
+        auto   idata      = (std::complex<Tfloat>*)input[0].data();
+        size_t i_base     = 0;
+        auto   partitions = partition_rowmajor(whole_length);
         for(auto b = 0; b < nbatch; b++, i_base += idist)
         {
-            std::vector<int> index(length.size());
-            do
+#pragma omp parallel for num_threads(partitions.size())
+            for(size_t part = 0; part < partitions.size(); ++part)
             {
-                const int i
-                    = std::inner_product(index.begin(), index.end(), istride.begin(), i_base);
-                const std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
-                                               (Tfloat)rand() / (Tfloat)RAND_MAX);
-                idata[i] = val;
-            } while(increment_rowmajor(index, length));
+                auto         index  = partitions[part].first;
+                const auto   length = partitions[part].second;
+                std::mt19937 gen(compute_index(index, istride, i_base));
+                do
+                {
+                    const int                  i = compute_index(index, istride, i_base);
+                    const std::complex<Tfloat> val((Tfloat)gen() / (Tfloat)gen.max(),
+                                                   (Tfloat)gen() / (Tfloat)gen.max());
+                    idata[i] = val;
+                } while(increment_rowmajor(index, length));
+            }
         }
         break;
     }
     case rocfft_array_type_complex_planar:
     case rocfft_array_type_hermitian_planar:
     {
-        auto   ireal  = (Tfloat*)input[0].data();
-        auto   iimag  = (Tfloat*)input[1].data();
-        size_t i_base = 0;
+        auto   ireal      = (Tfloat*)input[0].data();
+        auto   iimag      = (Tfloat*)input[1].data();
+        size_t i_base     = 0;
+        auto   partitions = partition_rowmajor(whole_length);
         for(auto b = 0; b < nbatch; b++, i_base += idist)
         {
-            std::vector<int> index(length.size());
-            do
+#pragma omp parallel for num_threads(partitions.size())
+            for(size_t part = 0; part < partitions.size(); ++part)
             {
-                const int i
-                    = std::inner_product(index.begin(), index.end(), istride.begin(), i_base);
-                const std::complex<Tfloat> val((Tfloat)rand() / (Tfloat)RAND_MAX,
-                                               (Tfloat)rand() / (Tfloat)RAND_MAX);
-                ireal[i] = val.real();
-                iimag[i] = val.imag();
-            } while(increment_rowmajor(index, length));
+                auto         index  = partitions[part].first;
+                const auto   length = partitions[part].second;
+                std::mt19937 gen(compute_index(index, istride, i_base));
+                do
+                {
+                    const int                  i = compute_index(index, istride, i_base);
+                    const std::complex<Tfloat> val((Tfloat)gen() / (Tfloat)gen.max(),
+                                                   (Tfloat)gen() / (Tfloat)gen.max());
+                    ireal[i] = val.real();
+                    iimag[i] = val.imag();
+                } while(increment_rowmajor(index, length));
+            }
         }
         break;
     }
     case rocfft_array_type_real:
     {
-        auto  idata  = (Tfloat*)input[0].data();
-        Tsize i_base = 0;
+        auto   idata      = (Tfloat*)input[0].data();
+        size_t i_base     = 0;
+        auto   partitions = partition_rowmajor(whole_length);
         for(auto b = 0; b < nbatch; b++, i_base += idist)
         {
-            std::vector<int> index(length.size());
-            do
+#pragma omp parallel for num_threads(partitions.size())
+            for(size_t part = 0; part < partitions.size(); ++part)
             {
-                const int i
-                    = std::inner_product(index.begin(), index.end(), istride.begin(), i_base);
-                const Tfloat val = (Tfloat)rand() / (Tfloat)RAND_MAX;
-                idata[i]         = val;
-            } while(increment_rowmajor(index, length));
+                auto         index  = partitions[part].first;
+                const auto   length = partitions[part].second;
+                std::mt19937 gen(compute_index(index, istride, i_base));
+                do
+                {
+                    const int    i   = compute_index(index, istride, i_base);
+                    const Tfloat val = (Tfloat)gen() / (Tfloat)gen.max();
+                    idata[i]         = val;
+                } while(increment_rowmajor(index, length));
+            }
         }
         break;
     }
     default:
         throw std::runtime_error("Input layout format not yet supported");
         break;
+    }
+}
+
+// unroll set_input for dimension 1, 2, 3
+template <typename Tfloat, typename Tallocator>
+inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
+                      const rocfft_array_type                     itype,
+                      const std::vector<size_t>&                  length,
+                      const std::vector<size_t>&                  istride,
+                      const size_t                                idist,
+                      const size_t                                nbatch)
+{
+    switch(length.size())
+    {
+    case 1:
+        set_input<Tfloat>(input, itype, length[0], istride[0], idist, nbatch);
+        break;
+    case 2:
+        set_input<Tfloat>(input,
+                          itype,
+                          std::make_tuple(length[0], length[1]),
+                          std::make_tuple(istride[0], istride[1]),
+                          idist,
+                          nbatch);
+        break;
+    case 3:
+        set_input<Tfloat>(input,
+                          itype,
+                          std::make_tuple(length[0], length[1], length[2]),
+                          std::make_tuple(istride[0], istride[1], istride[2]),
+                          idist,
+                          nbatch);
+        break;
+    default:
+        abort();
     }
 }
 
