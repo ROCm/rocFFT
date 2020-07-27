@@ -2173,9 +2173,10 @@ namespace StockhamGenerator
             // threadblock.  Each thread needs enough LDS space to do its
             // butterfly operations.
             //
-            // LDS space counts in reals, so needs to be 2x the number of
-            // complex values.
-            return transform_row.length * transform_col.length * 2;
+            // LDS space counts in reals, but needs the same number
+            // of elements as the complex transform has, since we
+            // only store one of real/imag data at a time.
+            return transform_row.length * transform_col.length;
         }
 
         void GenerateSingleGlobalKernelSharedMem(std::string&            str,

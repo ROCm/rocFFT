@@ -371,10 +371,11 @@ static std::vector<std::pair<size_t, size_t>>
     else
         ldsSizeBytes = std::min(ldsSizeBytes, MAX_LDS_SIZE_BYTES);
 
-    size_t elementSizeBytes = precision == rocfft_precision_single ? sizeof(float) : sizeof(double);
+    // size of each real
+    size_t realSizeBytes = precision == rocfft_precision_single ? sizeof(float) : sizeof(double);
     // assume each element is complex, since that's what we need to
     // store temporarily during the transform
-    elementSizeBytes *= 2;
+    size_t elementSizeBytes = 2 * realSizeBytes;
 
     // compute power-of-2 sizes
 
@@ -388,11 +389,11 @@ static std::vector<std::pair<size_t, size_t>>
             // Make sure the LDS storage needed fits in the total LDS
             // available.
             //
-            // 2x the space needs to be allocated - we currently need
+            // 1.5x the space needs to be allocated - we currently need
             // to store both the semi-transformed data as well as
             // separate butterfly temp space (which works out to the
-            // same size)
-            if(i * j * elementSizeBytes * 2 <= ldsSizeBytes)
+            // same size, but in reals)
+            if((i * j * elementSizeBytes) + (i * j * realSizeBytes) <= ldsSizeBytes)
                 // Also make sure we're not launching too many threads,
                 // since each transform is done by a single workgroup
                 if(Get2DSingleThreadCount(i, j, _GetWGSAndNT) < MAX_WORK_GROUP_SIZE)
