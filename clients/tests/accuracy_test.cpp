@@ -355,18 +355,19 @@ void rocfft_transform(const std::vector<size_t>                                 
         pibuffer[i] = ibuffer[i].data();
     }
 
-    std::vector<gpubuf> obuffer;
+    std::vector<gpubuf>  obuffer_data;
+    std::vector<gpubuf>* obuffer = &obuffer_data;
     if(place == rocfft_placement_inplace)
     {
-        obuffer = ibuffer;
+        obuffer = &ibuffer;
     }
     else
     {
         auto obuffer_sizes = buffer_sizes(precision, otype, gpu_odist, nbatch);
-        obuffer.resize(obuffer_sizes.size());
-        for(unsigned int i = 0; i < obuffer.size(); ++i)
+        obuffer_data.resize(obuffer_sizes.size());
+        for(unsigned int i = 0; i < obuffer_data.size(); ++i)
         {
-            hip_status = obuffer[i].alloc(obuffer_sizes[i]);
+            hip_status = obuffer_data[i].alloc(obuffer_sizes[i]);
             ASSERT_TRUE(hip_status == hipSuccess)
                 << "hipMalloc failure for output buffer " << i << " size " << obuffer_sizes[i]
                 << gpu_params(gpu_ilength_cm,
@@ -381,10 +382,10 @@ void rocfft_transform(const std::vector<size_t>                                 
                               otype);
         }
     }
-    std::vector<void*> pobuffer(obuffer.size());
-    for(unsigned int i = 0; i < obuffer.size(); ++i)
+    std::vector<void*> pobuffer(obuffer->size());
+    for(unsigned int i = 0; i < obuffer->size(); ++i)
     {
-        pobuffer[i] = obuffer[i].data();
+        pobuffer[i] = obuffer->at(i).data();
     }
 
     // Copy the input data to the GPU:
@@ -410,7 +411,7 @@ void rocfft_transform(const std::vector<size_t>                                 
     for(int idx = 0; idx < gpu_output.size(); ++idx)
     {
         hip_status = hipMemcpy(gpu_output[idx].data(),
-                               obuffer[idx].data(),
+                               obuffer->at(idx).data(),
                                gpu_output[idx].size(),
                                hipMemcpyDeviceToHost);
         EXPECT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
@@ -437,6 +438,11 @@ void rocfft_transform(const std::vector<size_t>                                 
         cpu_output_thread->join();
 
     // Compute the l-infinity and l-2 distance between the CPU and GPU output:
+    std::vector<std::pair<size_t, size_t>> linf_failures;
+    const auto                             total_length
+        = std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
+    const double linf_cutoff
+        = type_epsilon(precision) * cpu_output_L2Linfnorm.first * log(total_length);
     auto linfl2diff = LinfL2diff(cpu_output,
                                  gpu_output,
                                  olength,
@@ -447,13 +453,22 @@ void rocfft_transform(const std::vector<size_t>                                 
                                  cpu_odist,
                                  otype,
                                  gpu_ostride,
-                                 gpu_odist);
+                                 gpu_odist,
+                                 linf_failures,
+                                 linf_cutoff);
     normthread.join();
 
-    if(verbose > 2)
+    if(verbose > 1)
     {
         std::cout << "GPU output Linf norm: " << L2LinfnormGPU.first << "\n";
         std::cout << "GPU output L2 norm:   " << L2LinfnormGPU.second << "\n";
+        std::cout << "GPU linf norm failures:";
+        std::sort(linf_failures.begin(), linf_failures.end());
+        for(const auto& i : linf_failures)
+        {
+            std::cout << " (" << i.first << "," << i.second << ")";
+        }
+        std::cout << std::endl;
     }
 
     EXPECT_TRUE(std::isfinite(L2LinfnormGPU.first)) << gpu_params(gpu_ilength_cm,
@@ -483,11 +498,8 @@ void rocfft_transform(const std::vector<size_t>                                 
         std::cout << "Linf diff: " << linfl2diff.second << "\n";
     }
 
-    auto total_length = std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
-
     // TODO: handle case where norm is zero?
-    EXPECT_TRUE(linfl2diff.first / (cpu_output_L2Linfnorm.first * log(total_length))
-                < type_epsilon(precision))
+    EXPECT_TRUE(linfl2diff.first < linf_cutoff)
         << "Linf test failed.  Linf:" << linfl2diff.first << "\tnormalized Linf: "
         << linfl2diff.first / (cpu_output_L2Linfnorm.first * log(total_length))
         << "\tepsilon: " << type_epsilon(precision)

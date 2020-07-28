@@ -65,31 +65,31 @@ class RefLibHandle
         : fftw3f_lib(nullptr)
         , fftw3_lib(nullptr)
     {
-        char* env_value_fftw3f = getenv("ROCFFT_DBG_FFTW3F_LIB");
-        char* env_value_fftw3  = getenv("ROCFFT_DBG_FFTW3_LIB");
+        const char* fftw3f_lib_path = getenv("ROCFFT_DBG_FFTW3F_LIB");
+        const char* fftw3_lib_path  = getenv("ROCFFT_DBG_FFTW3_LIB");
 
-        if(!env_value_fftw3f)
+        if(!fftw3f_lib_path)
         {
-            rocfft_cout << "error finding fftw3f lib, set env variable ROCFFT_DBG_FFTW3F_LIB"
-                        << std::endl;
+            fftw3f_lib_path = "libfftw3f.so";
         }
 
-        if(!env_value_fftw3)
+        if(!fftw3_lib_path)
         {
-            rocfft_cout << "error finding fftw3 lib, set env variable ROCFFT_DBG_FFTW3_LIB"
-                        << std::endl;
+            fftw3_lib_path = "libfftw3.so";
         }
 
-        fftw3f_lib = dlopen(env_value_fftw3f, RTLD_NOW);
+        fftw3f_lib = dlopen(fftw3f_lib_path, RTLD_NOW);
         if(!fftw3f_lib)
         {
-            rocfft_cout << "error in fftw3f dlopen" << std::endl;
+            rocfft_cout << "error opening " << fftw3f_lib_path << ": " << dlerror() << std::endl;
+            rocfft_cout << "set env variable ROCFFT_DBG_FFTW3F_LIB to a valid path\n";
         }
 
-        fftw3_lib = dlopen(env_value_fftw3, RTLD_NOW);
+        fftw3_lib = dlopen(fftw3_lib_path, RTLD_NOW);
         if(!fftw3_lib)
         {
-            rocfft_cout << "error in fftw3 dlopen" << std::endl;
+            rocfft_cout << "error opening " << fftw3_lib_path << ": " << dlerror() << std::endl;
+            rocfft_cout << "set env variable ROCFFT_DBG_FFTW3_LIB to a valid path\n";
         }
     }
 
@@ -110,13 +110,13 @@ public:
 
     ~RefLibHandle()
     {
-        if(!fftw3f_lib)
+        if(fftw3f_lib)
         {
             dlclose(fftw3f_lib);
             fftw3f_lib = nullptr;
         }
 
-        if(!fftw3_lib)
+        if(fftw3_lib)
         {
             dlclose(fftw3_lib);
             fftw3_lib = nullptr;
@@ -484,6 +484,43 @@ class RefLibOp
                 howmany *= data->node->length[i];
 
             void* p = local_fftwf_plan_many_dft(1,
+                                                n,
+                                                howmany,
+                                                (local_fftwf_complex*)fftwin.data,
+                                                NULL,
+                                                1,
+                                                n[0],
+                                                (local_fftwf_complex*)fftwout.data,
+                                                NULL,
+                                                1,
+                                                n[0],
+                                                (data->node->direction == -1) ? LOCAL_FFTW_FORWARD
+                                                                              : LOCAL_FFTW_BACKWARD,
+                                                LOCAL_FFTW_ESTIMATE);
+            CopyInputVector(data_p);
+            local_fftwf_execute(p);
+            local_fftwf_destroy_plan(p);
+        }
+        break;
+        case CS_KERNEL_2D_SINGLE:
+        {
+            RefLibHandle&             refHandle = RefLibHandle::GetRefLibHandle();
+            ftype_fftwf_plan_many_dft local_fftwf_plan_many_dft
+                = (ftype_fftwf_plan_many_dft)dlsym(refHandle.fftw3f_lib, "fftwf_plan_many_dft");
+            ftype_fftwf_execute local_fftwf_execute
+                = (ftype_fftwf_execute)dlsym(refHandle.fftw3f_lib, "fftwf_execute");
+            ftype_fftwf_destroy_plan local_fftwf_destroy_plan
+                = (ftype_fftwf_destroy_plan)dlsym(refHandle.fftw3f_lib, "fftwf_destroy_plan");
+
+            // fftw does row-major indexing and we have column-major,
+            // so give N1, N0
+            int n[2]    = {static_cast<int>(data->node->length[1]),
+                        static_cast<int>(data->node->length[0])};
+            int howmany = data->node->batch;
+            for(size_t i = 2; i < data->node->length.size(); i++)
+                howmany *= data->node->length[i];
+
+            void* p = local_fftwf_plan_many_dft(2,
                                                 n,
                                                 howmany,
                                                 (local_fftwf_complex*)fftwin.data,

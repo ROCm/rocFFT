@@ -161,6 +161,7 @@ namespace StockhamGenerator
     template <rocfft_precision PR>
     class Kernel
     {
+    public:
         size_t length; // Length of FFT
         size_t workGroupSize; // Work group size
         size_t cnPerWI; // complex numbers per work-item
@@ -207,6 +208,7 @@ namespace StockhamGenerator
             return (blockCompute && blockComputeType == BCT_C2C) ? true : false;
         }
 
+    private:
         inline std::string IterRegs(const std::string& pfx, bool initComma = true)
         {
             std::string str = "";
@@ -835,6 +837,788 @@ namespace StockhamGenerator
                 }
         }
 
+    public:
+        virtual size_t SharedMemSize(bool ldsInterleaved)
+        {
+            if(blockCompute)
+                return blockLDS;
+            else
+            {
+                size_t ldsSize = halfLds ? length * numTrans : 2 * length * numTrans;
+                return ldsInterleaved ? ldsSize / 2 : ldsSize;
+            }
+        }
+        virtual void GenerateSingleGlobalKernelSharedMem(std::string&            str,
+                                                         bool                    ldsInterleaved,
+                                                         rocfft_result_placement placeness,
+                                                         const std::string&      rType,
+                                                         const std::string&      r2Type)
+        {
+            size_t ldsSize = SharedMemSize(ldsInterleaved);
+            str += "\n\t";
+            str += "__shared__ ";
+            if(blockCompute)
+                str += r2Type;
+            else
+                str += ldsInterleaved ? r2Type : rType;
+            str += " lds[";
+            str += std::to_string(ldsSize);
+            str += "];\n";
+        }
+
+        virtual std::string GlobalKernelFunctionSuffix()
+        {
+            return "_len" + std::to_string(length) + name_suffix;
+        }
+
+        virtual bool StrideParamUnderscore()
+        {
+            return false;
+        }
+        virtual bool LengthParamUnderscore()
+        {
+            return false;
+        }
+        virtual bool IOParamUnderscore()
+        {
+            return false;
+        }
+
+        void GenerateSingleGlobalKernelPrototype(std::string&            str,
+                                                 bool                    fwd,
+                                                 rocfft_result_placement placeness,
+                                                 bool                    inInterleaved,
+                                                 bool                    outInterleaved,
+                                                 bool                    ldsInterleaved,
+                                                 const std::string&      rType,
+                                                 const std::string&      r2Type)
+        {
+            str += "//Kernel configuration: number of threads per thread block: ";
+            if(blockCompute)
+                str += std::to_string(blockWGS);
+            else
+                str += std::to_string(workGroupSize);
+            str += ", ";
+            if(!blockCompute)
+                str += "maximum ";
+            str += "transforms: " + std::to_string(numTrans)
+                   + ", Passes: " + std::to_string(numPasses) + "\n";
+            // FFT kernel begin
+            // Function signature
+            if(NeedsLargeTwiddles())
+            {
+                str += "template <typename T, StrideBin sb, bool TwdLarge>\n";
+            }
+            else
+            {
+                str += "template <typename T, StrideBin sb>\n";
+            }
+            str += "__global__ void \n";
+
+            // kernel name
+            if(fwd)
+                str += "fft_fwd_";
+            else
+                str += "fft_back_";
+            if(placeness == rocfft_placement_notinplace)
+                str += "op"; // outof place
+            else
+                str += "ip"; // inplace
+            str += GlobalKernelFunctionSuffix();
+            /* kernel arguments,
+                    lengths, strides are transferred to kernel as a run-time parameter.
+                    lengths, strides may be high dimension arrays
+                */
+            str += "( ";
+            str += "const " + r2Type + " * __restrict__ twiddles, ";
+            if(NeedsLargeTwiddles())
+            {
+                str += "const " + r2Type
+                       + " * __restrict__ twiddles_large, "; // blockCompute introduce
+                // one more twiddle parameter
+            }
+            str += "const size_t dim, const size_t *";
+            if(LengthParamUnderscore())
+                str += "_";
+            str += "lengths, ";
+            str += "const size_t *";
+            if(StrideParamUnderscore())
+                str += "_";
+            str += "stride_in, ";
+            if(placeness == rocfft_placement_notinplace)
+            {
+                str += "const size_t *";
+                if(StrideParamUnderscore())
+                    str += "_";
+                str += "stride_out, ";
+            }
+            str += "const size_t batch_count, ";
+
+            // Function attributes
+            if(placeness == rocfft_placement_inplace)
+            {
+
+                assert(inInterleaved == outInterleaved);
+
+                if(inInterleaved)
+                {
+                    str += r2Type;
+                    str += " * __restrict__ ";
+                    if(IOParamUnderscore())
+                        str += "_";
+                    str += "gb";
+                    str += ")\n";
+                }
+                else
+                {
+                    str += rType;
+                    str += " * __restrict__ ";
+                    if(IOParamUnderscore())
+                        str += "_";
+                    str += "gbRe, ";
+                    str += rType;
+                    str += " * __restrict__ ";
+                    if(IOParamUnderscore())
+                        str += "_";
+                    str += "gbIm";
+
+                    str += ")\n";
+                }
+            }
+            else
+            {
+                if(inInterleaved)
+                {
+                    // str += "const ";
+                    str += r2Type;
+                    str += " * __restrict__ ";
+                    if(IOParamUnderscore())
+                        str += "_";
+                    str += "gbIn, "; // has to remove const qualifier
+                        // due to HIP on ROCM 1.4
+                }
+                else
+                {
+                    str += rType;
+                    str += " * __restrict__ ";
+                    if(IOParamUnderscore())
+                        str += "_";
+                    str += "gbInRe, ";
+                    // str += "const ";
+                    str += rType;
+                    str += " * __restrict__ ";
+                    if(IOParamUnderscore())
+                        str += "_";
+                    str += "gbInIm, ";
+                }
+
+                if(outInterleaved)
+                {
+                    str += r2Type;
+                    str += " * __restrict__ ";
+                    if(IOParamUnderscore())
+                        str += "_";
+                    str += "gbOut";
+                }
+                else
+                {
+                    str += rType;
+                    str += " * __restrict__ ";
+                    if(IOParamUnderscore())
+                        str += "_";
+                    str += "gbOutRe, ";
+                    str += rType;
+                    str += " * __restrict__ ";
+                    if(IOParamUnderscore())
+                        str += "_";
+                    str += "gbOutIm";
+                }
+
+                str += ")\n";
+            }
+        }
+
+        virtual void GenerateSingleGlobalKernelRWFlag(std::string& str)
+        {
+            // Conditional read-write ('rw') controls each thread behavior when it
+            // is not divisible
+            // for 2D, 3D layout, the "upper_count" viewed by kernels is
+            // batch_count*length[1]*length[2]*...*length[dim-1]
+            // because we flatten other dimensions to 1D dimension when
+            // configurating the thread blocks
+            if((numTrans > 1) && !blockCompute)
+            {
+                str += "\tunsigned int upper_count = batch_count;\n";
+                str += "\tfor(int i=1; i<dim; i++){\n";
+                str += "\t\tupper_count *= lengths[i];\n";
+                str += "\t}\n";
+                str += "\t// do signed math to guard against underflow\n";
+                str += "\tunsigned int rw = (static_cast<int>(me) < "
+                       "(static_cast<int>(upper_count) ";
+                str += " - static_cast<int>(batch)*";
+                str += std::to_string(numTrans);
+                str += ")*";
+                str += std::to_string(workGroupSizePerTrans);
+                str += ") ? 1 : 0;\n\n";
+            }
+            else
+            {
+                str += "\tunsigned int rw = 1;\n\n";
+            }
+
+            // The following lines suppress warning; when rw=1, generator directly
+            // puts 1 as the pass device function
+            str += "\t//suppress warning\n";
+            str += "\t#ifdef __NVCC__\n";
+            str += "\t\t(void)(rw == rw);\n";
+            str += "\t#else\n";
+            str += "\t\t(void)rw;\n";
+            str += "\t#endif\n";
+        }
+
+        virtual void GenerateSingleGlobalKernelIOOffsets(std::string&            str,
+                                                         rocfft_result_placement placeness)
+
+        {
+            /* =====================================================================
+                    Setup memory pointers with offset
+                    =================================================================== */
+
+            if(placeness == rocfft_placement_inplace)
+            {
+
+                if(blockCompute)
+                    str += OffsetCalcBlockCompute("ioOffset", "stride_in", "", "", true, false);
+                else
+                    str += OffsetCalc("ioOffset", "stride_in", "", "", false);
+            }
+            else
+            {
+                if(blockCompute)
+                {
+                    str += OffsetCalcBlockCompute(
+                        "iOffset", "stride_in", "oOffset", "stride_out", true, true);
+                }
+                else
+                {
+                    str += OffsetCalc("iOffset", "stride_in", "oOffset", "stride_out", true);
+                }
+            }
+        }
+
+        virtual void GenerateSingleGlobalKernelBody(std::string&            str,
+                                                    bool                    fwd,
+                                                    rocfft_result_placement placeness,
+                                                    bool                    inInterleaved,
+                                                    bool                    outInterleaved,
+                                                    const std::string&      rType,
+                                                    const std::string&      r2Type)
+        {
+            // Initialize
+            str += "\t";
+            str += "unsigned int me = (unsigned int)hipThreadIdx_x;\n\t";
+            str += "unsigned int batch = (unsigned int)hipBlockIdx_x;";
+            str += "\n";
+
+            // Declare memory pointers
+            str += "\n\t";
+
+            if(placeness == rocfft_placement_inplace)
+            {
+                str += "unsigned int ioOffset = 0;\n\t";
+
+                // Skip if callback is set
+                if(!params.fft_hasPreCallback || !params.fft_hasPostCallback)
+                {
+                    if(inInterleaved)
+                    {
+                        str += r2Type;
+                        str += " *lwb;\n";
+                    }
+                    else
+                    {
+                        str += rType;
+                        str += " *lwbRe;\n\t";
+                        str += rType;
+                        str += " *lwbIm;\n";
+                    }
+                }
+                str += "\n";
+            }
+            else
+            {
+                str += "unsigned int iOffset = 0;\n\t";
+                str += "unsigned int oOffset = 0;\n\t";
+
+                // Skip if precallback is set
+                if(!(params.fft_hasPreCallback))
+                {
+                    if(inInterleaved)
+                    {
+                        str += r2Type;
+                        str += " *lwbIn;\n\t";
+                    }
+                    else
+                    {
+                        str += rType;
+                        str += " *lwbInRe;\n\t";
+                        str += rType;
+                        str += " *lwbInIm;\n\t";
+                    }
+                }
+
+                // Skip if postcallback is set
+                if(!params.fft_hasPostCallback)
+                {
+                    if(outInterleaved)
+                    {
+                        str += r2Type;
+                        str += " *lwbOut;\n";
+                    }
+                    else
+                    {
+                        str += rType;
+                        str += " *lwbOutRe;\n\t";
+                        str += rType;
+                        str += " *lwbOutIm;\n";
+                    }
+                }
+                str += "\n";
+            }
+
+            GenerateSingleGlobalKernelRWFlag(str);
+
+            // printf("fft_3StepTwiddle = %d, lengths = %zu\n",
+            // params.fft_3StepTwiddle, length);
+
+            // Transform index for 3-step twiddles
+            if(params.fft_3StepTwiddle && !blockCompute)
+            {
+                if(numTrans == 1)
+                {
+                    str += "\tunsigned int b = batch%";
+                }
+                else
+                {
+                    str += "\tunsigned int b = (batch*";
+                    str += std::to_string(numTrans);
+                    str += " + (me/";
+                    str += std::to_string(workGroupSizePerTrans);
+                    str += "))%";
+                }
+
+                // str += std::to_string(params.fft_N[1]);
+                str += "lengths[1]";
+                str += ";\n\n";
+            }
+            else
+            {
+                str += "\tunsigned int b = 0;\n\n";
+            }
+
+            GenerateSingleGlobalKernelIOOffsets(str, placeness);
+
+            if(placeness == rocfft_placement_inplace)
+            {
+                str += "\t";
+
+                // Skip if callback is set
+                if(!params.fft_hasPreCallback || !params.fft_hasPostCallback)
+                {
+                    if(inInterleaved)
+                    {
+                        str += "lwb = gb + ioOffset;\n";
+                    }
+                    else
+                    {
+                        str += "lwbRe = gbRe + ioOffset;\n\t";
+                        str += "lwbIm = gbIm + ioOffset;\n";
+                    }
+                }
+                str += "\n";
+            }
+            else
+            {
+                str += "\t";
+
+                // Skip if precallback is set
+                if(!(params.fft_hasPreCallback))
+                {
+                    if(inInterleaved)
+                    {
+                        str += "lwbIn = gbIn + iOffset;\n\t";
+                    }
+                    else
+                    {
+                        str += "lwbInRe = gbInRe + iOffset;\n\t";
+                        str += "lwbInIm = gbInIm + iOffset;\n\t";
+                    }
+                }
+
+                // Skip if postcallback is set
+                if(!params.fft_hasPostCallback)
+                {
+                    if(outInterleaved)
+                    {
+                        str += "lwbOut = gbOut + oOffset;\n";
+                    }
+                    else
+                    {
+                        str += "lwbOutRe = gbOutRe + oOffset;\n\t";
+                        str += "lwbOutIm = gbOutIm + oOffset;\n";
+                    }
+                }
+                str += "\n";
+            }
+
+            /* =====================================================================
+                    blockCompute only: Read data into shared memory (LDS) for blocked
+                    access
+                    =================================================================== */
+
+            if(blockCompute)
+            {
+
+                size_t loopCount = (length * blockWidth) / blockWGS;
+
+                str += "\n\tfor(unsigned int t=0; t<";
+                str += std::to_string(loopCount);
+                str += "; t++)\n\t{\n";
+
+                // get offset
+                std::string bufOffset;
+
+                str += "\t\tT R0;\n";
+
+                for(size_t c = 0; c < 2; c++)
+                {
+                    std::string comp    = "";
+                    std::string readBuf = (placeness == rocfft_placement_inplace) ? "lwb" : "lwbIn";
+                    if(!inInterleaved)
+                        comp = c ? ".y" : ".x";
+                    if(!inInterleaved)
+                        readBuf = (placeness == rocfft_placement_inplace)
+                                      ? (c ? "lwbIm" : "lwbRe")
+                                      : (c ? "lwbInIm" : "lwbInRe");
+
+                    if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_C2R))
+                    {
+                        // start to calc the global read offset
+                        bufOffset.clear();
+                        bufOffset += "(me%";
+                        bufOffset += std::to_string(blockWidth);
+
+                        if(blockComputeType
+                           == BCT_C2C) // the most inner part of offset calc needs to count stride[1] for SBCC
+                            bufOffset += ") * stride_in[1] + ";
+                        else
+                            bufOffset += ") + ";
+
+                        bufOffset += "(me/";
+                        bufOffset += std::to_string(blockWidth);
+                        bufOffset += ")*stride_in[0] + t*stride_in[0]*";
+                        bufOffset += std::to_string(blockWGS / blockWidth);
+
+                        str += "\t\tR0";
+                        str += comp;
+                        str += " = ";
+                        str += readBuf;
+                        str += "[";
+                        str += bufOffset;
+                        str += "];\n";
+                    }
+                    else
+                    {
+                        str += "\t\tR0";
+                        str += comp;
+                        str += " = ";
+                        str += readBuf;
+                        str += "[me + t*";
+                        str += std::to_string(blockWGS);
+                        str += "];\n";
+                    }
+
+                    if(inInterleaved)
+                        break;
+                }
+
+                if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_C2R))
+                {
+                    str += "\t\tlds[t*";
+                    str += std::to_string(blockWGS / blockWidth);
+                    str += " + ";
+                    str += "(me%";
+                    str += std::to_string(blockWidth);
+                    str += ")*";
+                    str += std::to_string(length);
+                    str += " + ";
+                    str += "(me/";
+                    str += std::to_string(blockWidth);
+                    str += ")] = R0;";
+                    str += "\n";
+                }
+                else
+                {
+                    str += "\t\tlds[t*";
+                    str += std::to_string(blockWGS);
+                    str += " + me] = R0;";
+                    str += "\n";
+                }
+
+                str += "\t}\n\n";
+                str += "\t__syncthreads();\n\n";
+            }
+
+            /* =====================================================================
+                    Set rw and 'me'
+                    rw string also contains 'b'
+                    =================================================================== */
+
+            std::string rw, me;
+
+            if(r2c2r && !rcSimple)
+                rw = " rw, b, ";
+            else
+                rw = ((numTrans > 1) || realSpecial) ? " rw, b, " : " 1, b, ";
+
+            if(numTrans > 1)
+            {
+                me += "me%";
+                me += std::to_string(workGroupSizePerTrans);
+                me += ", ";
+            }
+            else
+            {
+                me += "me, ";
+            }
+
+            if(blockCompute)
+            {
+                me = "me%";
+                me += std::to_string(workGroupSizePerTrans);
+                me += ", ";
+            } // me is overwritten if blockCompute true
+
+            // Buffer strings
+            std::string inBuf, outBuf;
+
+            if(placeness == rocfft_placement_inplace)
+            {
+                if(inInterleaved)
+                {
+                    inBuf  = params.fft_hasPreCallback ? "gb, " : "lwb, ";
+                    outBuf = params.fft_hasPostCallback ? "gb" : "lwb";
+                }
+                else
+                {
+                    inBuf  = params.fft_hasPreCallback ? "gbRe, gbIm, " : "lwbRe, lwbIm, ";
+                    outBuf = params.fft_hasPostCallback ? "gbRe, gbIm" : "lwbRe, lwbIm";
+                }
+            }
+            else
+            {
+                if(inInterleaved)
+                    inBuf = params.fft_hasPreCallback ? "gbIn, " : "lwbIn, ";
+                else
+                    inBuf = params.fft_hasPreCallback ? "gbInRe, gbInIm, " : "lwbInRe, lwbInIm, ";
+                if(outInterleaved)
+                    outBuf = params.fft_hasPostCallback ? "gbOut" : "lwbOut";
+                else
+                    outBuf = params.fft_hasPostCallback ? "gbOutRe, gbOutIm" : "lwbOutRe, lwbOutIm";
+            }
+
+            /* =====================================================================
+                    call FFT devices functions in the generated kernel
+                    ===================================================================*/
+
+            if(blockCompute) // for blockCompute, a loop is required, inBuf, outBuf
+            // would be overwritten
+            {
+                str += "\n\tfor(unsigned int t=0; t<";
+                str += std::to_string(blockWidth / (blockWGS / workGroupSizePerTrans));
+                str += "; t++)\n\t{\n\n";
+
+                inBuf  = "lds, ";
+                outBuf = "lds";
+
+                if(params.fft_3StepTwiddle)
+                {
+                    str += "\t\tb = (batch % (lengths[1]/";
+                    str += std::to_string(blockWidth);
+                    // str += std::to_string(params.fft_N[1] / blockWidth);
+                    str += "))*";
+                    str += std::to_string(blockWidth);
+                    str += " + t*";
+                    str += std::to_string(blockWGS / workGroupSizePerTrans);
+                    str += " + (me/";
+                    str += std::to_string(workGroupSizePerTrans);
+                    str += ");\n\n";
+                }
+                str += "\t";
+            }
+
+            str += "\t// Perform FFT input: lwb(In) ; output: lwb(Out); working "
+                   "space: lds \n";
+
+            if(blockCompute)
+                str += "\t";
+            str += "\t// rw, b, me% control read/write; then ldsOffset, lwb, lds\n";
+
+            std::string ldsOff;
+
+            if(blockCompute) // blockCompute changes the ldsOff
+            {
+                ldsOff += "t*";
+                ldsOff += std::to_string(length * (blockWGS / workGroupSizePerTrans));
+                ldsOff += " + (me/";
+                ldsOff += std::to_string(workGroupSizePerTrans);
+                ldsOff += ")*";
+                ldsOff += std::to_string(length);
+                str += "\t";
+            }
+            else
+            {
+                if(numTrans > 1)
+                {
+                    ldsOff += "(me/";
+                    ldsOff += std::to_string(workGroupSizePerTrans);
+                    ldsOff += ")*";
+                    ldsOff += std::to_string(length);
+                }
+                else
+                {
+                    ldsOff += "0";
+                }
+            }
+            str += "\t";
+            if(fwd)
+                str += "fwd_len";
+            else
+                str += "back_len";
+            str += std::to_string(length) + name_suffix;
+            std::string sb = params.forceNonUnitStride ? "SB_NONUNIT" : "sb";
+            if(NeedsLargeTwiddles())
+            {
+                str += "_device<T, " + sb + ", TwdLarge>(twiddles, twiddles_large, ";
+            }
+            else
+            {
+                str += "_device<T, " + sb + ">(twiddles, ";
+            }
+
+            str += "stride_in[0], ";
+            str += ((placeness == rocfft_placement_inplace) ? "stride_in[0], " : "stride_out[0], ");
+
+            str += rw;
+            str += me;
+            str += ldsOff + ", ";
+
+            str += inBuf + outBuf;
+
+            if(numPasses > 1)
+            {
+                str += ", lds"; // only multiple pass use lds
+            }
+            str += ");\n";
+
+            if(blockCompute || realSpecial) // the "}" enclose the loop introduced by blockCompute
+            {
+                str += "\n\t}\n\n";
+            }
+
+            // Write data from shared memory (LDS) for blocked access
+            if(blockCompute)
+            {
+
+                size_t loopCount = (length * blockWidth) / blockWGS;
+
+                str += "\t__syncthreads();\n\n";
+                str += "\n\tfor(unsigned int t=0; t<";
+                str += std::to_string(loopCount);
+                str += "; t++)\n\t{\n";
+
+                if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
+                {
+                    str += "\t\tT R0 = lds[t*";
+                    str += std::to_string(blockWGS / blockWidth);
+                    str += " + ";
+                    str += "(me%";
+                    str += std::to_string(blockWidth);
+                    str += ")*";
+                    str += std::to_string(length);
+                    str += " + ";
+                    str += "(me/";
+                    str += std::to_string(blockWidth);
+                    str += ")];";
+                    str += "\n";
+                }
+                else
+                {
+                    str += "\t\tT R0 = lds[t*";
+                    str += std::to_string(blockWGS);
+                    str += " + me];";
+                    str += "\n";
+                }
+
+                for(size_t c = 0; c < 2; c++)
+                {
+                    std::string comp = "";
+                    std::string writeBuf
+                        = (placeness == rocfft_placement_inplace) ? "lwb" : "lwbOut";
+                    if(!outInterleaved)
+                        comp = c ? ".y" : ".x";
+                    if(!outInterleaved)
+                        writeBuf = (placeness == rocfft_placement_inplace)
+                                       ? (c ? "lwbIm" : "lwbRe")
+                                       : (c ? "lwbOutIm" : "lwbOutRe");
+
+                    if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
+                    {
+                        {
+                            // start to calc the global write offset
+                            str += "\t\t";
+                            str += writeBuf;
+                            str += "[(me%";
+                            str += std::to_string(blockWidth);
+
+                            if(blockComputeType
+                               == BCT_R2C) // the most inner part of offset calc needs to count stride[1] for SBRC
+                                str += ((placeness == rocfft_placement_inplace)
+                                            ? ") * stride_in[1] + "
+                                            : ") * stride_out[1] + ");
+                            else
+                                str += ") + ";
+
+                            str += "(me/";
+                            str += std::to_string(blockWidth);
+                            str += ((placeness == rocfft_placement_inplace)
+                                        ? ")*stride_in[0] + t*stride_in[0]*"
+                                        : ")*stride_out[0] + t*stride_out[0]*");
+                            str += std::to_string(blockWGS / blockWidth);
+                            str += "] = R0";
+                            str += comp;
+                            str += ";\n";
+                        }
+                    }
+                    else
+                    {
+                        str += "\t\t";
+                        str += writeBuf;
+                        str += "[me + t*";
+                        str += std::to_string(blockWGS);
+                        str += "] = R0";
+                        str += comp;
+                        str += ";\n";
+                    }
+
+                    if(outInterleaved)
+                        break;
+                }
+
+                str += "\t}\n\n"; // "}" enclose the loop intrduced
+            } // end if blockCompute
+        }
+
         void GenerateSingleGlobalKernel(std::string&            str,
                                         rocfft_result_placement placeness,
                                         bool                    inInterleaved,
@@ -855,711 +1639,20 @@ namespace StockhamGenerator
                 bool fwd;
                 fwd = d ? false : true;
 
-                str += "//Kernel configuration: number of threads per thread block: ";
-                if(blockCompute)
-                    str += std::to_string(blockWGS);
-                else
-                    str += std::to_string(workGroupSize);
-                str += ", ";
-                if(!blockCompute)
-                    str += "maximum ";
-                str += "transforms: " + std::to_string(numTrans)
-                       + ", Passes: " + std::to_string(numPasses) + "\n";
-                // FFT kernel begin
-                // Function signature
-                if(NeedsLargeTwiddles())
-                {
-                    str += "template <typename T, StrideBin sb, bool TwdLarge>\n";
-                }
-                else
-                {
-                    str += "template <typename T, StrideBin sb>\n";
-                }
-                str += "__global__ void \n";
-
-                // kernel name
-                if(fwd)
-                    str += "fft_fwd_";
-                else
-                    str += "fft_back_";
-                if(placeness == rocfft_placement_notinplace)
-                    str += "op_len"; // outof place
-                else
-                    str += "ip_len"; // inplace
-                str += std::to_string(length) + name_suffix;
-                /* kernel arguments,
-                    lengths, strides are transferred to kernel as a run-time parameter.
-                    lengths, strides may be high dimension arrays
-                */
-                str += "( ";
-                str += "const " + r2Type + " * __restrict__ twiddles, ";
-                if(NeedsLargeTwiddles())
-                {
-                    str += "const " + r2Type
-                           + " * __restrict__ twiddles_large, "; // blockCompute introduce
-                    // one more twiddle parameter
-                }
-                str += "const size_t dim, const size_t *lengths, ";
-                str += "const size_t *stride_in, ";
-                if(placeness == rocfft_placement_notinplace)
-                    str += "const size_t *stride_out, ";
-                str += "const size_t batch_count, ";
-
-                // Function attributes
-                if(placeness == rocfft_placement_inplace)
-                {
-
-                    assert(inInterleaved == outInterleaved);
-
-                    if(inInterleaved)
-                    {
-                        str += r2Type;
-                        str += " * __restrict__   gb";
-
-                        str += ")\n";
-                    }
-                    else
-                    {
-                        str += rType;
-                        str += " * __restrict__   gbRe, ";
-                        str += rType;
-                        str += " * __restrict__   gbIm";
-
-                        str += ")\n";
-                    }
-                }
-                else
-                {
-                    if(inInterleaved)
-                    {
-                        // str += "const ";
-                        str += r2Type;
-                        str += " * __restrict__   gbIn, "; // has to remove const qualifier
-                        // due to HIP on ROCM 1.4
-                    }
-                    else
-                    {
-                        str += rType;
-                        str += " * __restrict__   gbInRe, ";
-                        // str += "const ";
-                        str += rType;
-                        str += " * __restrict__   gbInIm, ";
-                    }
-
-                    if(outInterleaved)
-                    {
-                        str += r2Type;
-                        str += " * __restrict__   gbOut";
-                    }
-                    else
-                    {
-                        str += rType;
-                        str += " * __restrict__   gbOutRe, ";
-                        str += rType;
-                        str += " * __restrict__   gbOutIm";
-                    }
-
-                    str += ")\n";
-                }
-
+                GenerateSingleGlobalKernelPrototype(str,
+                                                    fwd,
+                                                    placeness,
+                                                    inInterleaved,
+                                                    outInterleaved,
+                                                    ldsInterleaved,
+                                                    rType,
+                                                    r2Type);
                 str += "{\n";
-
-                // Initialize
-                str += "\t";
-                str += "unsigned int me = (unsigned int)hipThreadIdx_x;\n\t";
-                str += "unsigned int batch = (unsigned int)hipBlockIdx_x;";
-                str += "\n";
-
                 // Allocate LDS
-                if(blockCompute)
-                {
-                    str += "\n\t";
-                    str += "__shared__ ";
-                    str += r2Type;
-                    str += " lds[";
-                    str += std::to_string(blockLDS);
-                    str += "];\n";
-                }
-                else
-                {
-                    size_t ldsSize = halfLds ? length * numTrans : 2 * length * numTrans;
-                    ldsSize        = ldsInterleaved ? ldsSize / 2 : ldsSize;
-                    if(numPasses > 1)
-                    {
-                        str += "\n\t";
-                        str += "__shared__  ";
-                        str += ldsInterleaved ? r2Type : rType;
-                        str += " lds[";
-                        str += std::to_string(ldsSize);
-                        str += "];\n";
-                    }
-                }
+                GenerateSingleGlobalKernelSharedMem(str, ldsInterleaved, placeness, rType, r2Type);
 
-                // Declare memory pointers
-                str += "\n\t";
-
-                if(placeness == rocfft_placement_inplace)
-                {
-                    str += "unsigned int ioOffset = 0;\n\t";
-
-                    // Skip if callback is set
-                    if(!params.fft_hasPreCallback || !params.fft_hasPostCallback)
-                    {
-                        if(inInterleaved)
-                        {
-                            str += r2Type;
-                            str += " *lwb;\n";
-                        }
-                        else
-                        {
-                            str += rType;
-                            str += " *lwbRe;\n\t";
-                            str += rType;
-                            str += " *lwbIm;\n";
-                        }
-                    }
-                    str += "\n";
-                }
-                else
-                {
-                    str += "unsigned int iOffset = 0;\n\t";
-                    str += "unsigned int oOffset = 0;\n\t";
-
-                    // Skip if precallback is set
-                    if(!(params.fft_hasPreCallback))
-                    {
-                        if(inInterleaved)
-                        {
-                            str += r2Type;
-                            str += " *lwbIn;\n\t";
-                        }
-                        else
-                        {
-                            str += rType;
-                            str += " *lwbInRe;\n\t";
-                            str += rType;
-                            str += " *lwbInIm;\n\t";
-                        }
-                    }
-
-                    // Skip if postcallback is set
-                    if(!params.fft_hasPostCallback)
-                    {
-                        if(outInterleaved)
-                        {
-                            str += r2Type;
-                            str += " *lwbOut;\n";
-                        }
-                        else
-                        {
-                            str += rType;
-                            str += " *lwbOutRe;\n\t";
-                            str += rType;
-                            str += " *lwbOutIm;\n";
-                        }
-                    }
-                    str += "\n";
-                }
-
-                // Conditional read-write ('rw') controls each thread behavior when it
-                // is not divisible
-                // for 2D, 3D layout, the "upper_count" viewed by kernels is
-                // batch_count*length[1]*length[2]*...*length[dim-1]
-                // because we flatten other dimensions to 1D dimension when
-                // configurating the thread blocks
-                if((numTrans > 1) && !blockCompute)
-                {
-                    str += "\tunsigned int upper_count = batch_count;\n";
-                    str += "\tfor(int i=1; i<dim; i++){\n";
-                    str += "\t\tupper_count *= lengths[i];\n";
-                    str += "\t}\n";
-                    str += "\t// do signed math to guard against underflow\n";
-                    str += "\tunsigned int rw = (static_cast<int>(me) < "
-                           "(static_cast<int>(upper_count) ";
-                    str += " - static_cast<int>(batch)*";
-                    str += std::to_string(numTrans);
-                    str += ")*";
-                    str += std::to_string(workGroupSizePerTrans);
-                    str += ") ? 1 : 0;\n\n";
-                }
-                else
-                {
-                    str += "\tunsigned int rw = 1;\n\n";
-                }
-
-                // The following lines suppress warning; when rw=1, generator directly
-                // puts 1 as the pass device function
-                str += "\t//suppress warning\n";
-                str += "\t#ifdef __NVCC__\n";
-                str += "\t\t(void)(rw == rw);\n";
-                str += "\t#else\n";
-                str += "\t\t(void)rw;\n";
-                str += "\t#endif\n";
-
-                // printf("fft_3StepTwiddle = %d, lengths = %zu\n",
-                // params.fft_3StepTwiddle, length);
-
-                // Transform index for 3-step twiddles
-                if(params.fft_3StepTwiddle && !blockCompute)
-                {
-                    if(numTrans == 1)
-                    {
-                        str += "\tunsigned int b = batch%";
-                    }
-                    else
-                    {
-                        str += "\tunsigned int b = (batch*";
-                        str += std::to_string(numTrans);
-                        str += " + (me/";
-                        str += std::to_string(workGroupSizePerTrans);
-                        str += "))%";
-                    }
-
-                    // str += std::to_string(params.fft_N[1]);
-                    str += "lengths[1]";
-                    str += ";\n\n";
-                }
-                else
-                {
-                    str += "\tunsigned int b = 0;\n\n";
-                }
-
-                /* =====================================================================
-                    Setup memory pointers with offset
-                    =================================================================== */
-
-                if(placeness == rocfft_placement_inplace)
-                {
-
-                    if(blockCompute)
-                        str += OffsetCalcBlockCompute("ioOffset", "stride_in", "", "", true, false);
-                    else
-                        str += OffsetCalc("ioOffset", "stride_in", "", "", false);
-
-                    str += "\t";
-
-                    // Skip if callback is set
-                    if(!params.fft_hasPreCallback || !params.fft_hasPostCallback)
-                    {
-                        if(inInterleaved)
-                        {
-                            str += "lwb = gb + ioOffset;\n";
-                        }
-                        else
-                        {
-                            str += "lwbRe = gbRe + ioOffset;\n\t";
-                            str += "lwbIm = gbIm + ioOffset;\n";
-                        }
-                    }
-                    str += "\n";
-                }
-                else
-                {
-                    if(blockCompute)
-                    {
-                        str += OffsetCalcBlockCompute(
-                            "iOffset", "stride_in", "oOffset", "stride_out", true, true);
-                    }
-                    else
-                    {
-                        str += OffsetCalc("iOffset", "stride_in", "oOffset", "stride_out", true);
-                    }
-
-                    str += "\t";
-
-                    // Skip if precallback is set
-                    if(!(params.fft_hasPreCallback))
-                    {
-                        if(inInterleaved)
-                        {
-                            str += "lwbIn = gbIn + iOffset;\n\t";
-                        }
-                        else
-                        {
-                            str += "lwbInRe = gbInRe + iOffset;\n\t";
-                            str += "lwbInIm = gbInIm + iOffset;\n\t";
-                        }
-                    }
-
-                    // Skip if postcallback is set
-                    if(!params.fft_hasPostCallback)
-                    {
-                        if(outInterleaved)
-                        {
-                            str += "lwbOut = gbOut + oOffset;\n";
-                        }
-                        else
-                        {
-                            str += "lwbOutRe = gbOutRe + oOffset;\n\t";
-                            str += "lwbOutIm = gbOutIm + oOffset;\n";
-                        }
-                    }
-                    str += "\n";
-                }
-
-                std::string inOffset;
-                std::string outOffset;
-                if(placeness == rocfft_placement_inplace && !r2c2r)
-                {
-                    inOffset += "ioOffset";
-                    outOffset += "ioOffset";
-                }
-                else
-                {
-                    inOffset += "iOffset";
-                    outOffset += "oOffset";
-                }
-
-                /* =====================================================================
-                    blockCompute only: Read data into shared memory (LDS) for blocked
-                    access
-                    =================================================================== */
-
-                if(blockCompute)
-                {
-
-                    size_t loopCount = (length * blockWidth) / blockWGS;
-
-                    str += "\n\tfor(unsigned int t=0; t<";
-                    str += std::to_string(loopCount);
-                    str += "; t++)\n\t{\n";
-
-                    // get offset
-                    std::string bufOffset;
-
-                    str += "\t\tT R0;\n";
-
-                    for(size_t c = 0; c < 2; c++)
-                    {
-                        std::string comp = "";
-                        std::string readBuf
-                            = (placeness == rocfft_placement_inplace) ? "lwb" : "lwbIn";
-                        if(!inInterleaved)
-                            comp = c ? ".y" : ".x";
-                        if(!inInterleaved)
-                            readBuf = (placeness == rocfft_placement_inplace)
-                                          ? (c ? "lwbIm" : "lwbRe")
-                                          : (c ? "lwbInIm" : "lwbInRe");
-
-                        if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_C2R))
-                        {
-                            // start to calc the global read offset
-                            bufOffset.clear();
-                            bufOffset += "(me%";
-                            bufOffset += std::to_string(blockWidth);
-
-                            if(blockComputeType
-                               == BCT_C2C) // the most inner part of offset calc needs to count stride[1] for SBCC
-                                bufOffset += ") * stride_in[1] + ";
-                            else
-                                bufOffset += ") + ";
-
-                            bufOffset += "(me/";
-                            bufOffset += std::to_string(blockWidth);
-                            bufOffset += ")*stride_in[0] + t*stride_in[0]*";
-                            bufOffset += std::to_string(blockWGS / blockWidth);
-
-                            str += "\t\tR0";
-                            str += comp;
-                            str += " = ";
-                            str += readBuf;
-                            str += "[";
-                            str += bufOffset;
-                            str += "];\n";
-                        }
-                        else
-                        {
-                            str += "\t\tR0";
-                            str += comp;
-                            str += " = ";
-                            str += readBuf;
-                            str += "[me + t*";
-                            str += std::to_string(blockWGS);
-                            str += "];\n";
-                        }
-
-                        if(inInterleaved)
-                            break;
-                    }
-
-                    if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_C2R))
-                    {
-                        str += "\t\tlds[t*";
-                        str += std::to_string(blockWGS / blockWidth);
-                        str += " + ";
-                        str += "(me%";
-                        str += std::to_string(blockWidth);
-                        str += ")*";
-                        str += std::to_string(length);
-                        str += " + ";
-                        str += "(me/";
-                        str += std::to_string(blockWidth);
-                        str += ")] = R0;";
-                        str += "\n";
-                    }
-                    else
-                    {
-                        str += "\t\tlds[t*";
-                        str += std::to_string(blockWGS);
-                        str += " + me] = R0;";
-                        str += "\n";
-                    }
-
-                    str += "\t}\n\n";
-                    str += "\t__syncthreads();\n\n";
-                }
-
-                /* =====================================================================
-                    Set rw and 'me'
-                    rw string also contains 'b'
-                    =================================================================== */
-
-                std::string rw, me;
-
-                if(r2c2r && !rcSimple)
-                    rw = " rw, b, ";
-                else
-                    rw = ((numTrans > 1) || realSpecial) ? " rw, b, " : " 1, b, ";
-
-                if(numTrans > 1)
-                {
-                    me += "me%";
-                    me += std::to_string(workGroupSizePerTrans);
-                    me += ", ";
-                }
-                else
-                {
-                    me += "me, ";
-                }
-
-                if(blockCompute)
-                {
-                    me = "me%";
-                    me += std::to_string(workGroupSizePerTrans);
-                    me += ", ";
-                } // me is overwritten if blockCompute true
-
-                // Buffer strings
-                std::string inBuf, outBuf;
-
-                if(placeness == rocfft_placement_inplace)
-                {
-                    if(inInterleaved)
-                    {
-                        inBuf  = params.fft_hasPreCallback ? "gb, " : "lwb, ";
-                        outBuf = params.fft_hasPostCallback ? "gb" : "lwb";
-                    }
-                    else
-                    {
-                        inBuf  = params.fft_hasPreCallback ? "gbRe, gbIm, " : "lwbRe, lwbIm, ";
-                        outBuf = params.fft_hasPostCallback ? "gbRe, gbIm" : "lwbRe, lwbIm";
-                    }
-                }
-                else
-                {
-                    if(inInterleaved)
-                        inBuf = params.fft_hasPreCallback ? "gbIn, " : "lwbIn, ";
-                    else
-                        inBuf
-                            = params.fft_hasPreCallback ? "gbInRe, gbInIm, " : "lwbInRe, lwbInIm, ";
-                    if(outInterleaved)
-                        outBuf = params.fft_hasPostCallback ? "gbOut" : "lwbOut";
-                    else
-                        outBuf = params.fft_hasPostCallback ? "gbOutRe, gbOutIm"
-                                                            : "lwbOutRe, lwbOutIm";
-                }
-
-                /* =====================================================================
-                    call FFT devices functions in the generated kernel
-                    ===================================================================*/
-
-                if(blockCompute) // for blockCompute, a loop is required, inBuf, outBuf
-                // would be overwritten
-                {
-                    str += "\n\tfor(unsigned int t=0; t<";
-                    str += std::to_string(blockWidth / (blockWGS / workGroupSizePerTrans));
-                    str += "; t++)\n\t{\n\n";
-
-                    inBuf  = "lds, ";
-                    outBuf = "lds";
-
-                    if(params.fft_3StepTwiddle)
-                    {
-                        str += "\t\tb = (batch % (lengths[1]/";
-                        str += std::to_string(blockWidth);
-                        // str += std::to_string(params.fft_N[1] / blockWidth);
-                        str += "))*";
-                        str += std::to_string(blockWidth);
-                        str += " + t*";
-                        str += std::to_string(blockWGS / workGroupSizePerTrans);
-                        str += " + (me/";
-                        str += std::to_string(workGroupSizePerTrans);
-                        str += ");\n\n";
-                    }
-                    str += "\t";
-                }
-
-                str += "\t// Perform FFT input: lwb(In) ; output: lwb(Out); working "
-                       "space: lds \n";
-
-                if(blockCompute)
-                    str += "\t";
-                str += "\t// rw, b, me% control read/write; then ldsOffset, lwb, lds\n";
-
-                std::string ldsOff;
-
-                if(blockCompute) // blockCompute changes the ldsOff
-                {
-                    ldsOff += "t*";
-                    ldsOff += std::to_string(length * (blockWGS / workGroupSizePerTrans));
-                    ldsOff += " + (me/";
-                    ldsOff += std::to_string(workGroupSizePerTrans);
-                    ldsOff += ")*";
-                    ldsOff += std::to_string(length);
-                    str += "\t";
-                }
-                else
-                {
-                    if(numTrans > 1)
-                    {
-                        ldsOff += "(me/";
-                        ldsOff += std::to_string(workGroupSizePerTrans);
-                        ldsOff += ")*";
-                        ldsOff += std::to_string(length);
-                    }
-                    else
-                    {
-                        ldsOff += "0";
-                    }
-                }
-                str += "\t";
-                if(fwd)
-                    str += "fwd_len";
-                else
-                    str += "back_len";
-                str += std::to_string(length) + name_suffix;
-                if(NeedsLargeTwiddles())
-                {
-                    str += "_device<T, sb, TwdLarge>(twiddles, twiddles_large, ";
-                }
-                else
-                {
-                    str += "_device<T, sb>(twiddles, ";
-                }
-
-                str += "stride_in[0], ";
-                str += ((placeness == rocfft_placement_inplace) ? "stride_in[0], "
-                                                                : "stride_out[0], ");
-
-                str += rw;
-                str += me;
-                str += ldsOff + ", ";
-
-                str += inBuf + outBuf;
-
-                if(numPasses > 1)
-                {
-                    str += ", lds"; // only multiple pass use lds
-                }
-                str += ");\n";
-
-                if(blockCompute
-                   || realSpecial) // the "}" enclose the loop introduced by blockCompute
-                {
-                    str += "\n\t}\n\n";
-                }
-
-                // Write data from shared memory (LDS) for blocked access
-                if(blockCompute)
-                {
-
-                    size_t loopCount = (length * blockWidth) / blockWGS;
-
-                    str += "\t__syncthreads();\n\n";
-                    str += "\n\tfor(unsigned int t=0; t<";
-                    str += std::to_string(loopCount);
-                    str += "; t++)\n\t{\n";
-
-                    if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
-                    {
-                        str += "\t\tT R0 = lds[t*";
-                        str += std::to_string(blockWGS / blockWidth);
-                        str += " + ";
-                        str += "(me%";
-                        str += std::to_string(blockWidth);
-                        str += ")*";
-                        str += std::to_string(length);
-                        str += " + ";
-                        str += "(me/";
-                        str += std::to_string(blockWidth);
-                        str += ")];";
-                        str += "\n";
-                    }
-                    else
-                    {
-                        str += "\t\tT R0 = lds[t*";
-                        str += std::to_string(blockWGS);
-                        str += " + me];";
-                        str += "\n";
-                    }
-
-                    for(size_t c = 0; c < 2; c++)
-                    {
-                        std::string comp = "";
-                        std::string writeBuf
-                            = (placeness == rocfft_placement_inplace) ? "lwb" : "lwbOut";
-                        if(!outInterleaved)
-                            comp = c ? ".y" : ".x";
-                        if(!outInterleaved)
-                            writeBuf = (placeness == rocfft_placement_inplace)
-                                           ? (c ? "lwbIm" : "lwbRe")
-                                           : (c ? "lwbOutIm" : "lwbOutRe");
-
-                        if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
-                        {
-                            {
-                                // start to calc the global write offset
-                                str += "\t\t";
-                                str += writeBuf;
-                                str += "[(me%";
-                                str += std::to_string(blockWidth);
-
-                                if(blockComputeType
-                                   == BCT_R2C) // the most inner part of offset calc needs to count stride[1] for SBRC
-                                    str += ((placeness == rocfft_placement_inplace)
-                                                ? ") * stride_in[1] + "
-                                                : ") * stride_out[1] + ");
-                                else
-                                    str += ") + ";
-
-                                str += "(me/";
-                                str += std::to_string(blockWidth);
-                                str += ((placeness == rocfft_placement_inplace)
-                                            ? ")*stride_in[0] + t*stride_in[0]*"
-                                            : ")*stride_out[0] + t*stride_out[0]*");
-                                str += std::to_string(blockWGS / blockWidth);
-                                str += "] = R0";
-                                str += comp;
-                                str += ";\n";
-                            }
-                        }
-                        else
-                        {
-                            str += "\t\t";
-                            str += writeBuf;
-                            str += "[me + t*";
-                            str += std::to_string(blockWGS);
-                            str += "] = R0";
-                            str += comp;
-                            str += ";\n";
-                        }
-
-                        if(outInterleaved)
-                            break;
-                    }
-
-                    str += "\t}\n\n"; // "}" enclose the loop intrduced
-                } // end if blockCompute
+                GenerateSingleGlobalKernelBody(
+                    str, fwd, placeness, inInterleaved, outInterleaved, rType, r2Type);
 
                 str += "}\n\n"; // end the kernel
 
@@ -1586,7 +1679,6 @@ namespace StockhamGenerator
             GenerateSingleGlobalKernel(str, rocfft_placement_notinplace, false, false);
         }
 
-    public:
         Kernel(const FFTKernelGenKeyParams& paramsVal)
             : params(paramsVal)
             , r2c2r(false)
@@ -1852,6 +1944,264 @@ namespace StockhamGenerator
 
             GenerateGlobalKernel(str);
         }
+    };
+
+    // Single pass of a 2D_SINGLE kernel, either to do row transform or
+    // column transform.  This generates templated kernels that don't
+    // care about precision, so just hardcode Kernel's precision arg.
+    class Kernel2D_SINGLE_pass : public Kernel<rocfft_precision_single>
+    {
+    public:
+        Kernel2D_SINGLE_pass(const FFTKernelGenKeyParams& paramsVal, bool _isRowTransform)
+            : Kernel(paramsVal)
+            , isRowTransform(_isRowTransform)
+        {
+        }
+
+        void GenerateSingleGlobalKernelRWFlag(std::string& str) override
+        {
+            str += "\t// set rw for enough threads to cover total number of 2D elements\n";
+            str += "\tunsigned int rw = me < (lengths[0] * lengths[1] / " + std::to_string(cnPerWI)
+                   + ");\n";
+        }
+
+        void GenerateSingleGlobalKernelIOOffsets(std::string&            str,
+                                                 rocfft_result_placement placeness) override
+        {
+            if(isRowTransform)
+            {
+                str += "\t// row transform writes to LDS, so respect non-unit strides for input\n";
+                str += "\t// and assume unit stride for output\n";
+                str += "\tiOffset = batch * _stride_in[2];\n";
+            }
+            else
+            {
+                str += "\t// col transform reads from LDS, so respect non-unit strides for "
+                       "output\n";
+                str += "\t// and assume unit stride for input\n";
+                str += "\toOffset = batch * _stride_in[2];\n";
+            }
+            // HACK: we're doing a single 2D transform per
+            // threadblock to/from LDS.  Convince the IO offset
+            // generating code to assume everything is batch zero,
+            // and use the code above to compensate for actual batch
+            // location only on input or output
+            size_t temp = 0;
+            std::swap(temp, numTrans);
+            Kernel<rocfft_precision_single>::GenerateSingleGlobalKernelIOOffsets(str, placeness);
+            std::swap(temp, numTrans);
+        }
+        bool isRowTransform;
+    };
+    // Generate 2D kernels.  Thus far, we're only generating templated
+    // kernels that don't need to care about precision
+    class Kernel2D : public Kernel<rocfft_precision_single>
+    {
+    public:
+        // size of first dimension is given in paramsVal, second
+        // dimension needs to be specified separately.
+        Kernel2D(const FFTKernelGenKeyParams& paramsVal1, const FFTKernelGenKeyParams& paramsVal2)
+            : Kernel(paramsVal1)
+            , transform_row(paramsVal1, true)
+            , transform_col(paramsVal2, false)
+        {
+            // ensure the row transform knows it's being done for each
+            // column, and vice-versa
+            transform_row.numTrans = transform_col.length;
+            transform_col.numTrans = transform_row.length;
+        }
+
+    private:
+        // give parameters underscore prefixes, since we define mutable
+        // local variables with the normally-expected names
+        bool StrideParamUnderscore() override
+        {
+            return true;
+        }
+        bool LengthParamUnderscore() override
+        {
+            return true;
+        }
+        bool IOParamUnderscore() override
+        {
+            return true;
+        }
+        std::string GlobalKernelFunctionSuffix() override
+        {
+            return "_2D_" + std::to_string(transform_row.length) + "_"
+                   + std::to_string(transform_col.length);
+        }
+
+        void GenerateSingleGlobalKernelBody(std::string&            str,
+                                            bool                    fwd,
+                                            rocfft_result_placement placeness,
+                                            bool                    inInterleaved,
+                                            bool                    outInterleaved,
+                                            const std::string&      rType,
+                                            const std::string&      r2Type) override
+        {
+            str += "\t// use supplied input stride for row transform\n";
+            str += "\tsize_t stride_in[4];\n";
+            str += "\tstride_in[0] = _stride_in[0];\n";
+            str += "\tstride_in[1] = _stride_in[1];\n";
+            str += "\tstride_in[2] = _stride_in[2];\n";
+            str += "\tstride_in[3] = _stride_in[3];\n";
+
+            str += "\t// set unit output stride, since we're writing to LDS\n";
+            str += "\tsize_t stride_out[4];\n";
+            str += "\tstride_out[0] = 1;\n";
+            str += "\tstride_out[1] = _lengths[0];\n";
+            str += "\tstride_out[2] = _lengths[1];\n";
+            str += "\tstride_out[3] = _lengths[2];\n";
+
+            str += "\t// use supplied lengths for row transform\n";
+            str += "\tsize_t lengths[3];\n";
+            str += "\tlengths[0] = _lengths[0];\n";
+            str += "\tlengths[1] = _lengths[1];\n";
+            str += "\tlengths[2] = _lengths[2];\n";
+
+            str += "\t// declare input/output pointers\n";
+            if(placeness == rocfft_placement_inplace)
+            {
+                if(inInterleaved)
+                {
+                    str += "\tT* gbIn = _gb;\n";
+                }
+                else
+                {
+                    str += "\treal_type_t<T>* gbInRe = _gbRe;\n";
+                    str += "\treal_type_t<T>* gbInIm = _gbIm;\n";
+                }
+            }
+            else
+            {
+                if(inInterleaved)
+                {
+                    str += "\tT* gbIn = _gbIn;\n";
+                }
+                else
+                {
+                    str += "\treal_type_t<T>* gbInRe = _gbInRe;\n";
+                    str += "\treal_type_t<T>* gbInIm = _gbInIm;\n";
+                }
+            }
+            str += "\t// write to LDS\n";
+            str += "\tT* gbOut = lds_data;\n";
+            str += "\t// transform each row\n";
+            str += "\t{\n";
+            // force row transform to be out-of-place, interleaved output
+            transform_row.GenerateSingleGlobalKernelBody(
+                str, fwd, rocfft_placement_notinplace, inInterleaved, true, rType, r2Type);
+            str += "\t}\n";
+
+            // row transform is now done, set up column transform
+            str += "\t// we have two twiddle tables back to back in device\n";
+            str += "\t// memory - move to the second table\n";
+            str += "\ttwiddles = twiddles + lengths[0];\n";
+
+            if(placeness == rocfft_placement_notinplace)
+            {
+                str += "\t// write output to original out-of-place destination\n";
+                str += "\tstride_out[0] = _stride_out[1];\n";
+                str += "\tstride_out[1] = _stride_out[0];\n";
+                str += "\tstride_out[2] = _stride_out[2];\n";
+                str += "\tstride_out[3] = _stride_out[3];\n";
+            }
+            else
+            {
+                str += "\t// write output to original in-place destination\n";
+                str += "\tstride_out[0] = _stride_in[1];\n";
+                str += "\tstride_out[1] = _stride_in[0];\n";
+                str += "\tstride_out[2] = _stride_in[2];\n";
+                str += "\tstride_out[3] = _stride_in[3];\n";
+            }
+            str += "\t// get unit stride input from LDS\n";
+            str += "\tstride_in[0] = _lengths[0];\n";
+            str += "\tstride_in[1] = 1;\n";
+            str += "\tstride_in[2] = _lengths[2];\n";
+            str += "\tstride_in[3] = _lengths[3];\n";
+            str += "\t\n";
+            str += "\t// flip dimensions and transform each column\n\n";
+            str += "\tauto temp = lengths[0];\n";
+            str += "\tlengths[0] = lengths[1];\n";
+            str += "\tlengths[1] = temp;\n";
+
+            str += "\t// Let the row transform finish before starting column transform\n";
+            str += "\t__syncthreads();\n";
+
+            str += "\t// declare input/output pointers for column transform\n";
+            if(!inInterleaved)
+                str += "\tT* gbIn = lds_data;\n";
+            else
+                str += "\tgbIn = lds_data;\n";
+            if(placeness == rocfft_placement_inplace)
+            {
+                if(outInterleaved)
+                {
+                    str += "\tgbOut = _gb;\n";
+                }
+                else
+                {
+                    str += "\treal_type_t<T>* gbOutRe = _gbRe;\n";
+                    str += "\treal_type_t<T>* gbOutIm = _gbIm;\n";
+                }
+            }
+            else
+            {
+                if(outInterleaved)
+                {
+                    str += "\tgbOut = _gbOut;\n";
+                }
+                else
+                {
+                    str += "\treal_type_t<T>* gbOutRe = _gbOutRe;\n";
+                    str += "\treal_type_t<T>* gbOutIm = _gbOutIm;\n";
+                }
+            }
+            str += "\t{\n";
+            // for column transform, it's also out-of-place (since
+            // the row transform results were written to LDS, and the
+            // input is always interleaved
+            transform_col.GenerateSingleGlobalKernelBody(
+                str, fwd, rocfft_placement_notinplace, true, outInterleaved, rType, r2Type);
+            str += "\t}\n";
+        }
+
+        size_t SharedMemSize(bool ldsInterleaved) override
+        {
+            // We're trying to do an entire 2D transform in a single
+            // threadblock.  Each thread needs enough LDS space to do its
+            // butterfly operations.
+            //
+            // LDS space counts in reals, but needs the same number
+            // of elements as the complex transform has, since we
+            // only store one of real/imag data at a time.
+            return transform_row.length * transform_col.length;
+        }
+
+        void GenerateSingleGlobalKernelSharedMem(std::string&            str,
+                                                 bool                    ldsInterleaved,
+                                                 rocfft_result_placement placeness,
+                                                 const std::string&      rType,
+                                                 const std::string&      r2Type) override
+        {
+            Kernel<rocfft_precision_single>::GenerateSingleGlobalKernelSharedMem(
+                str, ldsInterleaved, placeness, rType, r2Type);
+            // also need to allocate LDS to store semi-transformed user data
+            //
+            // TODO: Technically this extra space is not necessary -
+            // it's reasonable to put temporary butterfly data in LDS,
+            // and write the semi-transformed data back to that same
+            // LDS buffer.  But currently we have no easy way to make
+            // the LDS usage follow the same stride pattern as the
+            // strided column transform .
+            str += "\t__shared__ T lds_data[" + std::to_string(transform_row.length) + "*"
+                   + std::to_string(transform_col.length) + "];\n";
+        }
+
+        // details of the row and column transforms
+        Kernel2D_SINGLE_pass transform_row;
+        Kernel2D_SINGLE_pass transform_col;
     };
 };
 

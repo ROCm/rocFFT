@@ -15,8 +15,8 @@ usage = '''A timing script for rocfft
 
 Usage:
 \ttiming.py
-\t\t-w <string> set working directory for rocfft-rider
-\t\t-i <string> directory for dloaded libs (appendable)
+\t\t-w <string> set test executable path
+\t\t-i <string> set test libraries for dloaded libs (appendable)
 \t\t-o <string> name of output file (appendable for dload)
 \t\t-D <-1,1>   default: -1 (forward).  Direction of transform
 \t\t-I          make transform in-place
@@ -35,16 +35,13 @@ Usage:
 '''
 
 
-def runcase(workingdir,
+def runcase(prog,
             dload, libdir,
             length, direction, rcfft, inplace, ntrial,
             precision, nbatch, devicenum, logfilename):
     
-    progname = "dyna-rocfft-rider" if dload else "rocfft-rider"
-    prog = os.path.join(workingdir, progname)
-    
     cmd = []
-    cmd.append(prog)
+    cmd.append(os.path.abspath((prog)))
 
     cmd.append("--verbose")
     cmd.append("0")
@@ -52,7 +49,7 @@ def runcase(workingdir,
     if dload:
         cmd.append("--lib")
         for val in libdir:
-            cmd.append(val)
+            cmd.append(os.path.abspath(val))
 
     cmd.append("-N")
     cmd.append(str(ntrial))
@@ -104,7 +101,7 @@ def runcase(workingdir,
     print(" ".join(cmd))
 
     fout = tempfile.TemporaryFile(mode="w+")
-    proc = subprocess.Popen(cmd, cwd=os.path.join(workingdir,"..",".."),
+    proc = subprocess.Popen(cmd, cwd=os.path.join(os.path.dirname(prog),"..",".."),
                             stdout=fout, stderr=fout,
                             env=os.environ.copy())
     proc.wait()
@@ -148,7 +145,7 @@ def runcase(workingdir,
 
 def main(argv):
     # Options to determine which binary is to be run:
-    workingdir = "."
+    prog = ""
     libdir = []
     outfilename = []
     logfilename = "timing.log"
@@ -185,7 +182,7 @@ def main(argv):
             print(usage)
             exit(0)
         elif opt in ("-w"):
-            workingdir = arg
+            prog = arg
         elif opt in ("-o"):
             outfilename.append(arg)
         elif opt in ("-i"):
@@ -244,7 +241,7 @@ def main(argv):
     else:
         print("Using normal rider")
         
-    print("workingdir: "+ workingdir)
+    print("executable: "+ prog)
     print("outfilename: "+ ",".join(outfilename))
     print("libdir: "+ ",".join(libdir))
 
@@ -263,9 +260,7 @@ def main(argv):
     print("in-place? " + str(inplace))
     print("batch-size: " + str(nbatch))
     print("radix: " + str(radix))
-    
-    progname = "dyna-rocfft-rider" if dload else "rocfft-rider"
-    prog = os.path.join(workingdir, progname)
+
     if not os.path.isfile(prog):
         print("**** Error: unable to find " + prog)
         sys.exit(1)
@@ -314,7 +309,7 @@ def main(argv):
         N = ntrial
         print(N)
             
-        seconds = runcase(workingdir,
+        seconds = runcase(prog,
                           dload, libdir,
                           length, direction, rcfft, inplace, N,
                           precision, nbatch, devicenum, logfilename)

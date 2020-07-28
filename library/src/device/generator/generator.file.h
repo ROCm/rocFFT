@@ -15,8 +15,9 @@ rocfft_status initParams(FFTKernelGenKeyParams& params,
 
 void WriteButterflyToFile(std::string& str, int LEN);
 
-void WriteCPUHeaders(std::vector<size_t>                            support_list,
-                     std::vector<std::tuple<size_t, ComputeScheme>> large1D_list);
+void WriteCPUHeaders(const std::vector<size_t>&                                    support_list,
+                     const std::vector<std::tuple<size_t, ComputeScheme>>&         large1D_list,
+                     const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D);
 
 void write_cpu_function_small(std::vector<size_t> support_list,
                               std::string         precision,
@@ -25,9 +26,17 @@ void write_cpu_function_small(std::vector<size_t> support_list,
 void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> large1D_list,
                               std::string                                    precision);
 
-void AddCPUFunctionToPool(std::vector<size_t>                            support_list,
-                          std::vector<std::tuple<size_t, ComputeScheme>> large1D_list);
+void write_cpu_function_2D(const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& list_2D,
+                           const std::string&                                            precision);
+
+void AddCPUFunctionToPool(
+    const std::vector<size_t>&                                    support_list,
+    const std::vector<std::tuple<size_t, ComputeScheme>>&         large1D_list,
+    const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D_single,
+    const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D_double);
 
 void generate_kernel(size_t len, ComputeScheme scheme);
+
+void generate_2D_kernels(const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& kernels);
 
 #endif // generator_file_H

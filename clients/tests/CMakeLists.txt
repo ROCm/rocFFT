@@ -41,6 +41,7 @@ set(rocfft_test_source
   accuracy_test_1D.cpp
   accuracy_test_2D.cpp
   accuracy_test_3D.cpp
+  multithread_test.cpp
   unit_test.cpp
   hipfft_test.cpp
   misc/source/test_exception.cpp
@@ -94,8 +95,16 @@ else()
   target_compile_options( rocfft-test PRIVATE -Wno-unused-command-line-argument )
 endif( )
 
+option( BUILD_CLIENTS_TESTS_OPENMP "Build tests with OpenMP" ON )
+
+if( BUILD_CLIENTS_TESTS_OPENMP )
+  target_compile_options(rocfft-test PRIVATE -fopenmp -DBUILD_CLIENTS_TESTS_OPENMP)
+  target_link_libraries(rocfft-test PRIVATE -fopenmp -L${HIP_CLANG_ROOT}/lib -Wl,-rpath=${HIP_CLANG_ROOT}/lib)
+endif()
+
 set_target_properties( rocfft-test
   PROPERTIES DEBUG_POSTFIX "-d"
-  CXX_EXTENSIONS NO )
+  CXX_EXTENSIONS NO
+  CXX_STANDARD 14 )
 set_target_properties( rocfft-test
   PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )

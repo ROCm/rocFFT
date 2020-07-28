@@ -9,12 +9,13 @@ import re # regexp package
 import shutil
 import tempfile
 
-usage = '''A timing script rocfft that generates a lot of data
+usage = '''A timing script to generate perf data and plot for major fft 1D/2D/3D cases
 
 Usage:
 \talltime.py
-\t\t-b          Specify binary for dload executable (optional)
-\t\t-i          Append to list of binary directories (appendable)
+\t\t-b          Specify dload executable(optional)
+\t\t-i          Specify test libraries for dload or test executables
+\t\t              for regular test(appendable)
 \t\t-o          Specify output directories for raw data
 \t\t              appendable; defaults to "dir0", "dir1", etc.
 \t\t-l          Specify labels for runs
@@ -77,19 +78,19 @@ class rundata:
         outfile = os.path.join(odir, outfile)
         return outfile
         
-    def runcmd(self, nsample, indirlist, outdirlist, dloadexe):
+    def runcmd(self, nsample, inlist, outdirlist, dloadexe):
         cmd = [os.path.join(sys.path[0],"timing.py")]
 
         if dloadexe == None:
             # When not using dload, we just have one input and output dir.
             cmd.append("-w")
-            cmd.append(os.path.abspath(indirlist[0]))
+            cmd.append(os.path.abspath(inlist[0]))
             cmd.append("-o")
             cmd.append(self.outfilename(outdirlist[0]))
         else:
             cmd.append("-w")
             cmd.append(dloadexe)
-            for indir in indirlist:
+            for indir in inlist:
                 cmd.append("-i")
                 cmd.append(indir)
             for outdir in outdirlist:
@@ -136,12 +137,12 @@ class rundata:
             
         return cmd
 
-    def executerun(self, nsample, indirlist, outdirlist, dloadexe):
+    def executerun(self, nsample, inlist, outdirlist, dloadexe):
         fout = tempfile.TemporaryFile(mode="w+")
         ferr = tempfile.TemporaryFile(mode="w+")
 
         if dloadexe != None:
-            cmd = self.runcmd(nsample, indirlist, outdirlist, dloadexe)
+            cmd = self.runcmd(nsample, inlist, outdirlist, dloadexe)
             print(" ".join(cmd))
             proc = subprocess.Popen(cmd,
                                     stdout=fout, stderr=ferr,
@@ -155,9 +156,9 @@ class rundata:
                 print("****fail****")
             
         else:
-            for idx in range(min(len(indirlist), len(outdirlist))):
-                print(idx, ":", indirlist[idx], "->", outdirlist[idx], flush=True)
-                cmd = self.runcmd(nsample, [indirlist[idx]], [outdirlist[idx]], None)
+            for idx in range(min(len(inlist), len(outdirlist))):
+                print(idx, ":", inlist[idx], "->", outdirlist[idx], flush=True)
+                cmd = self.runcmd(nsample, [inlist[idx]], [outdirlist[idx]], None)
                 print(" ".join(cmd))
                 proc = subprocess.Popen(cmd,
                                         stdout=fout, stderr=ferr,
@@ -666,7 +667,7 @@ def reportfigs(rundims, shortrun):
 def main(argv):
     dloadexe = None
     
-    indirlist = []
+    inlist = []
     outdirlist = []
     labellist = []
 
@@ -698,9 +699,7 @@ def main(argv):
         elif opt in ("-b"):
             dloadexe = os.path.abspath(arg)
         elif opt in ("-i"):
-            indirlist.append(arg)
-        elif opt in ("-i"):
-            indirlist.append(arg)
+            inlist.append(arg)
         elif opt in ("-o"):
             outdirlist.append(arg)
         elif opt in ("-l"):
@@ -761,35 +760,29 @@ def main(argv):
     print(rundims)
     
     if not dryrun:
-        if dloadexe == None:
-            for indir in indirlist:
-                if not binaryisok(indir, "rocfft-rider"):
-                    print("unable to find " + "rocfft-rider" + " in " + indir)
-                    print("please specify with -i")
-                    sys.exit(1)
-        else:
-            if not binaryisok(dloadexe, "dyna-rocfft-rider"):
-                print("unable to find " + "dyna-rocfft-rider" + " in " + dloadexe)
-                
-                for indir in indirlist:
-                    if not binaryisok(indir, "librocfft.so"):
-                        print("unable to find " + "librocfft.so" + " in " + indir)
-                        print("please specify with -i")
-                        sys.exit(1)
-            
+        if dloadexe != None:
+            if not os.path.isfile(dloadexe):
+                print("unable to find " + dloadexe)
+                sys.exit(1)
 
-    print("input directories:", indirlist)
+        for i in inlist:
+            if not os.path.isfile(i):
+                print("unable to find " + i)
+                print("please specify with -i")
+                sys.exit(1)
+
+    print("inputs:", inlist)
                 
-    if len(indirlist) > len(labellist):
-        for i in range(len(labellist), len(indirlist)):
+    if len(inlist) > len(labellist):
+        for i in range(len(labellist), len(inlist)):
             labellist.append("dir" + str(i))
     print("run labels:", labellist)
     
-    for idx in range(len(indirlist)):
-        indirlist[idx] = os.path.abspath(indirlist[idx])
+    for idx in range(len(inlist)):
+        inlist[idx] = os.path.abspath(inlist[idx])
 
-    if len(indirlist) > len(outdirlist):
-        for i in range(len(outdirlist), len(indirlist)):
+    if len(inlist) > len(outdirlist):
+        for i in range(len(outdirlist), len(inlist)):
             outdirlist.append(os.path.abspath("dir" + str(i)))
 
     for idx in range(len(outdirlist)):
@@ -861,10 +854,10 @@ def main(argv):
         # Run the tests and put output in the outdirs:
         for run in fig.runs:
             if not dryrun:
-                run.executerun(nsample, indirlist, outdirlist, dloadexe)
+                run.executerun(nsample, inlist, outdirlist, dloadexe)
 
         # Compile the data in the outdirs into figures in docdir:
-        ncompare = len(indirlist) if speedup else 0
+        ncompare = len(inlist) if speedup else 0
         print(fig.labels(labellist))
         #plotgflops = runtype == "submission" and not datatype == "gflops"
         print(fig.asycmd(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2))

@@ -90,7 +90,7 @@ include( ROCMPackageConfigHelpers )
 include( ROCMInstallSymlinks )
 
 # Using standardized versioning from rocm-cmake
-set ( VERSION_STRING "1.0.4" )
+set ( VERSION_STRING "1.0.5" )
 rocm_setup_version( VERSION ${VERSION_STRING} )
 
 # Append our library helper cmake path and the cmake path for hip (for

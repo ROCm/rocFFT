@@ -126,6 +126,7 @@ int main(int argc, char* argv[])
         // TODO: add random size?
     }
 
+    rocfft_setup();
     char v[256];
     rocfft_get_version_string(v, 256);
     std::cout << "rocFFT version: " << v << std::endl;
@@ -189,6 +190,7 @@ int main(int argc, char* argv[])
         fftw_wisdom_file.close();
     }
 
+    rocfft_cleanup();
     return retval;
 }
 

@@ -38,22 +38,36 @@ public:
         : buf(nullptr)
     {
     }
+    // buffers are movable but not copyable
+    gpubuf(gpubuf&& other)
+        : buf(other.buf)
+    {
+        other.buf = nullptr;
+    }
+    gpubuf(const gpubuf&) = delete;
+    gpubuf& operator=(const gpubuf&) = delete;
 
     ~gpubuf()
+    {
+        free();
+    }
+
+    hipError_t alloc(const size_t size)
+    {
+        free();
+        auto ret = hipMalloc(&buf, size);
+        if(ret != hipSuccess)
+            buf = nullptr;
+        return ret;
+    }
+
+    void free()
     {
         if(buf != nullptr)
         {
             hipFree(buf);
             buf = nullptr;
         }
-    }
-
-    hipError_t alloc(const size_t size)
-    {
-        auto ret = hipMalloc(&buf, size);
-        if(ret != hipSuccess)
-            buf = nullptr;
-        return ret;
     }
 
     void* data()
@@ -186,14 +200,8 @@ class accuracy_test
                                                  std::vector<rocfft_result_placement>>>
 {
 protected:
-    void SetUp() override
-    {
-        rocfft_setup();
-    }
-    void TearDown() override
-    {
-        rocfft_cleanup();
-    }
+    void SetUp() override {}
+    void TearDown() override {}
 };
 
 const static std::vector<size_t> batch_range = {1, 2};

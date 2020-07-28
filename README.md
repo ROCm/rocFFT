@@ -17,11 +17,11 @@ are available for each release on the releases tab.
 
 ## Building from source
 
-rocFFT is compiled with hcc and uses cmake.  To compile the library one calls,
+rocFFT is compiled with hipcc and uses cmake.  To compile the library one calls,
 for example, the following commands:
 ```
 mkdir build && cd build
-cmake -DCMAKE_CXX_COMPILER=hcc .. 
+cmake -DCMAKE_CXX_COMPILER=hipcc .. 
 ```
 
 A static library can be compiled by using the option `-DBUILD_SHARED_LIBS=off`
@@ -42,7 +42,8 @@ rocfft-test runs functionality tests and uses FFTW, Google test, and
 boost program options.  Compilation is enabled by calling cmake with the `-DBUILD_CLIENTS_TESTS=on` option.
 
 To install the clients depencencies on Ubuntu, run
-`sudo apt install libgtest-dev libfftw3-dev libboost-program-options-dev`
+`sudo apt install libgtest-dev libfftw3-dev libboost-program-options-dev`.
+We use version 1.10 of gtest.
 
 The file `install.sh` is a bash script that is a wrapper for the cmake
 script, which also install dependencies on certain Linux
