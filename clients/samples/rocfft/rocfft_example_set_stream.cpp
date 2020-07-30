@@ -77,6 +77,8 @@ int main(int argc, char* argv[])
         CHECK_ROCFFT_ERR(rocfft_execution_info_create(&(it.info)));
 
         // set stream
+        // NOTE: The stream must be of type hipStream_t.
+        // It is an error to pass the address of a hipStream_t object.
         CHECK_ROCFFT_ERR(rocfft_execution_info_set_stream(it.info, it.stream));
 
         // create plan
