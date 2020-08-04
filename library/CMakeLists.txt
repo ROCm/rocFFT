@@ -34,9 +34,9 @@ endfunction( )
 
 # target_link_libraries() override
 function( target_link_libraries target_name )
-  # hipcc takes care of finding hip library dependencies internally; remove
-  # explicit mentions of them so cmake doesn't complain on nvcc path
-  if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" AND NOT USE_HIP_CLANG)
+  # Remove explicit mentions of hip library so cmake doesn't complain
+  # on nvcc path.
+  if( USE_CUDA )
     foreach( link_library ${ARGN} )
       if( (link_library MATCHES "^hip::|^hcc::") )
       else( )

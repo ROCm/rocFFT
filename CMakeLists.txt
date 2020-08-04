@@ -35,6 +35,9 @@ else( )
     "Install path prefix, prepended onto install directories" )
 endif( )
 
+# Workaround for missing llvm cmake files in /opt/rocm/lib/cmake. Remove when this is fixed
+list( APPEND CMAKE_PREFIX_PATH /opt/rocm/llvm /opt/rocm )
+
 
 # This has to be initialized before the project() command appears
 # Set the default of CMAKE_BUILD_TYPE to be release, unless user

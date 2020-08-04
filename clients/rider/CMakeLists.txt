@@ -57,12 +57,14 @@ foreach( rider ${rider_list})
     target_link_libraries( ${rider}
       PRIVATE
       roc::rocfft
-      ${Boost_LIBRARIES} )
+      ${Boost_LIBRARIES}
+      )
   else()
     target_link_libraries( ${rider} 
       PRIVATE
       ${CMAKE_DL_LIBS}
-      ${Boost_LIBRARIES} )
+      ${Boost_LIBRARIES}
+      )
 
     # We need to include both rocfft.h and rocfft-export.h
     target_include_directories( ${rider}
@@ -71,12 +73,11 @@ foreach( rider ${rider_list})
       ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
       )
   endif()
-  
-  # hipcc find this automatically, but hcc does not
-  if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$" )
-    target_link_libraries( ${rider} PRIVATE hip::device )
-  endif()
-  
+
+if( NOT BUILD_SHARED_LIBS )
+  target_link_libraries( ${rider} PUBLIC hip::host )
+endif()
+
   set_target_properties( ${rider} PROPERTIES DEBUG_POSTFIX "-d"
     CXX_EXTENSIONS NO )
 
