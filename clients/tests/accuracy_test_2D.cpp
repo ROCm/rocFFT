@@ -44,6 +44,8 @@ static std::vector<size_t> pow5_range = {5, 25, 125, 625, 3125, 15625};
 
 static std::vector<size_t> prime_range = {7, 11, 13, 17, 19, 23, 29, 263, 269, 271, 277};
 
+static std::vector<size_t> mix_range = {5000, 6000, 8000};
+
 static std::vector<size_t> stride_range = {1};
 
 static std::vector<std::vector<size_t>> vpow2_range = {pow2_range, pow2_range};
@@ -199,6 +201,46 @@ INSTANTIATE_TEST_SUITE_P(prime_2D_real_forward,
 INSTANTIATE_TEST_SUITE_P(prime_2D_real_inverse,
                          accuracy_test,
                          ::testing::Combine(ValuesIn(generate_lengths(vprime_range)),
+                                            ::testing::Values(stride_range),
+                                            ::testing::Values(stride_range),
+                                            ::testing::Values(batch_range),
+                                            ValuesIn(precision_range),
+                                            ::testing::Values(rocfft_transform_type_real_inverse),
+                                            ::testing::Values(place_range)));
+
+static std::vector<std::vector<size_t>> vmix_range = {mix_range, mix_range};
+INSTANTIATE_TEST_SUITE_P(
+    mix_2D_complex_forward,
+    accuracy_test,
+    ::testing::Combine(ValuesIn(generate_lengths(vmix_range)),
+                       ::testing::Values(stride_range),
+                       ::testing::Values(stride_range),
+                       ::testing::Values(batch_range),
+                       ValuesIn(precision_range),
+                       ::testing::Values(rocfft_transform_type_complex_forward),
+                       ::testing::Values(place_range)));
+INSTANTIATE_TEST_SUITE_P(
+    mix_2D_complex_inverse,
+    accuracy_test,
+    ::testing::Combine(ValuesIn(generate_lengths(vmix_range)),
+                       ::testing::Values(stride_range),
+                       ::testing::Values(stride_range),
+                       ::testing::Values(batch_range),
+                       ValuesIn(precision_range),
+                       ::testing::Values(rocfft_transform_type_complex_inverse),
+                       ::testing::Values(place_range)));
+INSTANTIATE_TEST_SUITE_P(mix_2D_real_forward,
+                         accuracy_test,
+                         ::testing::Combine(ValuesIn(generate_lengths(vmix_range)),
+                                            ::testing::Values(stride_range),
+                                            ::testing::Values(stride_range),
+                                            ::testing::Values(batch_range),
+                                            ValuesIn(precision_range),
+                                            ::testing::Values(rocfft_transform_type_real_forward),
+                                            ::testing::Values(place_range)));
+INSTANTIATE_TEST_SUITE_P(mix_2D_real_inverse,
+                         accuracy_test,
+                         ::testing::Combine(ValuesIn(generate_lengths(vmix_range)),
                                             ::testing::Values(stride_range),
                                             ::testing::Values(stride_range),
                                             ::testing::Values(batch_range),

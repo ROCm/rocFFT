@@ -2384,7 +2384,7 @@ void TreeNode::assign_buffers_CS_L1D_TRTRT(TraverseState&   state,
     }
     else
     {
-        childNodes[1]->obOut = obOutBuf;
+        childNodes[1]->obOut = flipOut;
 
         if(flipIn != obOutBuf)
         {
@@ -2394,28 +2394,14 @@ void TreeNode::assign_buffers_CS_L1D_TRTRT(TraverseState&   state,
 
     if(obOut == OB_UNINIT)
     {
-        if(flipIn == OB_TEMP)
-        {
-            childNodes[2]->SetInputBuffer(state);
-            childNodes[2]->obOut = obOutBuf;
+        childNodes[2]->SetInputBuffer(state);
+        childNodes[2]->obOut = obOutBuf;
 
-            childNodes[3]->SetInputBuffer(state);
-            childNodes[3]->obOut = OB_TEMP;
+        childNodes[3]->SetInputBuffer(state);
+        childNodes[3]->obOut = OB_TEMP;
 
-            childNodes[4]->SetInputBuffer(state);
-            childNodes[4]->obOut = obOutBuf;
-        }
-        else
-        {
-            childNodes[2]->SetInputBuffer(state);
-            childNodes[2]->obOut = OB_TEMP;
-
-            childNodes[3]->SetInputBuffer(state);
-            childNodes[3]->obOut = OB_TEMP;
-
-            childNodes[4]->SetInputBuffer(state);
-            childNodes[4]->obOut = obOutBuf;
-        }
+        childNodes[4]->SetInputBuffer(state);
+        childNodes[4]->obOut = obOutBuf;
 
         obOut = childNodes[4]->obOut;
     }
@@ -3287,9 +3273,15 @@ void TreeNode::assign_params_CS_L1D_TRTRT()
             assert((parent->obOut == OB_USER_OUT) || (parent->obOut == OB_TEMP_CMPLX_FOR_REAL));
 
             assert(parent->outStride[0] == 1);
-            for(size_t index = 1; index < parent->length.size(); index++)
-                assert(parent->outStride[index]
-                       == (parent->outStride[index - 1] * parent->length[index - 1]));
+            // CS_REAL_2D_EVEN pads the lengths/strides, and mixes
+            // counts between reals and complexes, so the math for
+            // the assert below doesn't work out
+            if(parent->scheme != CS_REAL_2D_EVEN)
+            {
+                for(size_t index = 1; index < parent->length.size(); index++)
+                    assert(parent->outStride[index]
+                           == (parent->outStride[index - 1] * parent->length[index - 1]));
+            }
 
             trans1Plan->outStride.push_back(1);
             trans1Plan->outStride.push_back(trans1Plan->length[1]);
@@ -3313,11 +3305,6 @@ void TreeNode::assign_params_CS_L1D_TRTRT()
     }
     else
     {
-        // TODO: add documentation for assert.
-        assert((row1Plan->obOut == OB_USER_IN) || (row1Plan->obOut == OB_USER_OUT)
-               || (row1Plan->obOut == OB_TEMP_CMPLX_FOR_REAL)
-               || (row1Plan->obOut == OB_TEMP_BLUESTEIN));
-
         row1Plan->outStride.push_back(outStride[0]);
         row1Plan->outStride.push_back(outStride[0] * row1Plan->length[0]);
         row1Plan->oDist = oDist;
