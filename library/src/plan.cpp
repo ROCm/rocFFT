@@ -731,6 +731,8 @@ void TreeNode::RecursiveBuildTree()
         if(scheme == CS_KERNEL_TRANSPOSE)
             return;
 
+        scheme = CS_2D_RTRT; // the default last choice
+
         // First choice is 2D_SINGLE kernel, if the problem will fit into LDS.
         // Next best is CS_2D_RC.  Last resort is RTRT.
         //
@@ -771,35 +773,15 @@ void TreeNode::RecursiveBuildTree()
         //   current implementation of 1D SBCC supports only 64, 128, and 256.
         //   However, technically no LDS limitation along the fast dimension
         //   on upper bound for 2D SBCC cases, and even should not limit to pow
-        //   of 2. Now the limitation along the fast dimension on upper bound
-        //   is the decomposition under, such as rows FFT going for 1DCS_L1D_CC,
-        //   which need decomposition capability and refactoring buffer
-        //   assignment.
-        //
-        else if((length[1] == 256 || length[1] == 128 || length[1] == 64)
-                && (length[0] >= 64 && IsPo2(length[0]) && length[0] <= 2048))
+        //   of 2.
+        if((length[1] == 256 || length[1] == 128 || length[1] == 64) && (length[0] >= 64))
         {
-            scheme = CS_2D_RC;
-        }
-        else if(MultiDimFuseKernelsAvailable)
-        {
-            // conditions to choose which scheme
-            if((length[0] * length[1]) <= 2048)
-            {
-                scheme = CS_KERNEL_2D_SINGLE;
-            }
-            else if(length[1] <= 256)
+            size_t bwd, wgs, lds;
+            GetBlockComputeTable(length[1], bwd, wgs, lds);
+            if(length[0] % bwd == 0)
             {
                 scheme = CS_2D_RC;
             }
-            else
-            {
-                scheme = CS_2D_RTRT;
-            }
-        }
-        else
-        {
-            scheme = CS_2D_RTRT;
         }
 
         switch(scheme)
@@ -2590,15 +2572,16 @@ void TreeNode::assign_buffers_CS_RC(TraverseState&   state,
         {
             childNodes[0]->SetInputBuffer(state);
             childNodes[0]->obOut = OB_TEMP;
+            childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obOutBuf);
 
             childNodes[1]->SetInputBuffer(state);
             childNodes[1]->obOut = obOutBuf;
         }
         else
         {
-
             childNodes[0]->SetInputBuffer(state);
             childNodes[0]->obOut = flipOut;
+            childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obOutBuf);
 
             childNodes[1]->SetInputBuffer(state);
             childNodes[1]->obOut = flipIn;
@@ -2610,6 +2593,7 @@ void TreeNode::assign_buffers_CS_RC(TraverseState&   state,
     {
         childNodes[0]->SetInputBuffer(state);
         childNodes[0]->obOut = flipOut;
+        childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obOutBuf);
 
         childNodes[1]->SetInputBuffer(state);
         childNodes[1]->obOut = obOut;
