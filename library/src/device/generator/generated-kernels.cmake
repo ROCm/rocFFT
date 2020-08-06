@@ -84,6 +84,8 @@ rocfft_kernel_625.h
 set( kernels_all
 rocfft_kernel_1000.h
 rocfft_kernel_100.h
+rocfft_kernel_100_sbcc.h
+rocfft_kernel_100_sbrc.h
 rocfft_kernel_1024.h
 rocfft_kernel_1080.h
 rocfft_kernel_108.h
@@ -253,6 +255,8 @@ rocfft_kernel_800.h
 rocfft_kernel_80.h
 rocfft_kernel_810.h
 rocfft_kernel_81.h
+rocfft_kernel_81_sbcc.h
+rocfft_kernel_81_sbrc.h
 rocfft_kernel_864.h
 rocfft_kernel_8.h
 rocfft_kernel_900.h

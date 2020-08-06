@@ -1327,16 +1327,31 @@ void TreeNode::build_1D()
 
     if(IsPo2(length[0])) // multiple kernels involving transpose
     {
+        // TODO: wrap the below into a function and check with LDS size
         if(length[0] <= 262144 / PrecisionWidth(precision))
         {
             // Enable block compute under these conditions
             if(1 == PrecisionWidth(precision))
             {
-                divLength1 = Pow2Lengths1Single.at(length[0]);
+                if(map1DLengthSingle.find(length[0]) != map1DLengthSingle.end())
+                {
+                    divLength1 = map1DLengthSingle.at(length[0]);
+                }
+                else
+                {
+                    assert(0); // should not happen
+                }
             }
             else
             {
-                divLength1 = Pow2Lengths1Double.at(length[0]);
+                if(map1DLengthDouble.find(length[0]) != map1DLengthDouble.end())
+                {
+                    divLength1 = map1DLengthDouble.at(length[0]);
+                }
+                else
+                {
+                    assert(0); // should not happen
+                }
             }
             scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CS_L1D_CC : CS_L1D_CRT;
         }
@@ -1365,6 +1380,23 @@ void TreeNode::build_1D()
     {
         divLength1 = div1DNoPo2(length[0]);
         scheme     = CS_L1D_TRTRT;
+
+        if(precision == rocfft_precision_single)
+        {
+            if(map1DLengthSingle.find(length[0]) != map1DLengthSingle.end())
+            {
+                divLength1 = map1DLengthSingle.at(length[0]);
+                scheme     = CS_L1D_CC;
+            }
+        }
+        else if(precision == rocfft_precision_double)
+        {
+            if(map1DLengthDouble.find(length[0]) != map1DLengthDouble.end())
+            {
+                divLength1 = map1DLengthDouble.at(length[0]);
+                scheme     = CS_L1D_CC;
+            }
+        }
     }
 
     size_t divLength0 = length[0] / divLength1;

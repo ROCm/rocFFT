@@ -32,6 +32,26 @@ static inline bool IsPo2(size_t u)
     return (u != 0) && (0 == (u & (u - 1)));
 }
 
+// Calculate the maximum pow number with the given base number
+template <int base>
+constexpr size_t PowMax()
+{
+    size_t u = base;
+    while(u < std::numeric_limits<size_t>::max() / base)
+    {
+        u = u * base;
+    }
+    return u;
+}
+
+// Generic function to check is pow of a given base number or not
+template <int base>
+static inline bool IsPow(size_t u)
+{
+    constexpr size_t max = PowMax<base>(); //Practically, we could save this by using 3486784401
+    return (u > 0 && max % u == 0);
+}
+
 std::string PrintScheme(ComputeScheme cs);
 
 inline bool SupportedLength(size_t len)

@@ -119,27 +119,13 @@ private:
             batch     = p->batch;
             direction = p->direction;
         }
-
-        Pow2Lengths1Single.insert(std::make_pair(8192, 64));
-        Pow2Lengths1Single.insert(std::make_pair(16384, 64));
-        Pow2Lengths1Single.insert(std::make_pair(32768, 128));
-        Pow2Lengths1Single.insert(std::make_pair(65536, 256));
-        Pow2Lengths1Single.insert(std::make_pair(131072, 64));
-        Pow2Lengths1Single.insert(std::make_pair(262144, 64));
-
-        Pow2Lengths1Double.insert(std::make_pair(4096, 64));
-        Pow2Lengths1Double.insert(std::make_pair(8192, 64));
-        Pow2Lengths1Double.insert(std::make_pair(16384, 64));
-        Pow2Lengths1Double.insert(std::make_pair(32768, 128));
-        Pow2Lengths1Double.insert(std::make_pair(65536, 64));
-        Pow2Lengths1Double.insert(std::make_pair(131072, 64));
     }
 
     // Maps from length[0] to divLength1 for 1D transforms in
-    // single and double precision for power-of-two transfor sizes
-    // using blocks.
-    std::map<size_t, size_t> Pow2Lengths1Single;
-    std::map<size_t, size_t> Pow2Lengths1Double;
+    // single and double precision using block computing.
+    typedef std::map<size_t, size_t> Map1DLength;
+    static const Map1DLength         map1DLengthSingle;
+    static const Map1DLength         map1DLengthDouble;
 
     // Compute divLength1 from Length[0] for non-power-of-two 1D
     // transform sizes

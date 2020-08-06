@@ -54,6 +54,7 @@ set( rocfft_source
   twiddles.cpp
   kargs.cpp
   rocfft_ostream.cpp
+  tree_node.cpp
   )
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
