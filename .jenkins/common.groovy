@@ -35,21 +35,24 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
     platform.runCommand(this, command)
 }
 
-def runTestCommand (platform, project)
+def runTestCommand (platform, project, boolean debug=false)
 {            
     String sudo = auxiliary.sudo(platform.jenkinsLabel)
+    String testBinaryName = debug ? 'rocfft-test-d' : 'rocfft-test'
+    String directory = debug ? 'debug' : 'release'
 
     def command = """#!/usr/bin/env bash
                 set -x
-                cd ${project.paths.project_build_prefix}/build/release/clients/staging
-                ${sudo} LD_LIBRARY_PATH=/opt/rocm/lib GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./rocfft-test --gtest_color=yes
+                cd ${project.paths.project_build_prefix}/build/${directory}/clients/staging
+                ${sudo} LD_LIBRARY_PATH=/opt/rocm/lib GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --gtest_color=yes
             """
     platform.runCommand(this, command)
 }
 
-def runPackageCommand(platform, project, jobName)
+def runPackageCommand(platform, project, jobName, boolean debug=false)
 {
-    def packageHelper = platform.makePackage(platform.jenkinsLabel,"${project.paths.project_build_prefix}/build/release",true)
+    String directory = debug ? 'debug' : 'release'
+    def packageHelper = platform.makePackage(platform.jenkinsLabel,"${project.paths.project_build_prefix}/build/${directory}",true)
     platform.runCommand(this, packageHelper[0])
     platform.archiveArtifacts(this, packageHelper[1])
 }

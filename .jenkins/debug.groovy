@@ -30,20 +30,32 @@ def runCI =
         commonGroovy.runCompileCommand(platform, project, jobName, true)
     }
 
-    buildProject(prj , formatCheck, nodes.dockerArray, compileCommand, null, null)
+    def testCommand =
+    {
+        platform, project->
+
+        project.timeout.test = 600
+        commonGroovy.runTestCommand(platform, project, true)
+    }
+
+    def packageCommand =
+    {
+        platform, project->
+
+        commonGroovy.runPackageCommand(platform, project, jobName, true)
+    }
+
+
+    buildProject(prj , formatCheck, nodes.dockerArray, compileCommand, testCommand, packageCommand)
 }
 
 ci: { 
     String urlJobName = auxiliary.getTopJobName(env.BUILD_URL)
 
-    def propertyList = ["compute-rocm-dkms-no-npi":[pipelineTriggers([cron('0 1 * * 0')])], 
-                        "compute-rocm-dkms-no-npi-hipclang":[pipelineTriggers([cron('0 1 * * 0')])],
-                        "rocm-docker":[]]
+    def propertyList = ["compute-rocm-dkms-no-npi-hipclang":[pipelineTriggers([cron('0 1 * * 0')])]]
     propertyList = auxiliary.appendPropertyList(propertyList)
 
-    def jobNameList = ["compute-rocm-dkms-no-npi":([ubuntu16:['gfx900'],centos7:['gfx906'],sles15sp1:['gfx908']]), 
-                       "compute-rocm-dkms-no-npi-hipclang":([ubuntu16:['gfx900'],centos7:['gfx906'],sles15sp1:['gfx908']]), 
-                       "rocm-docker":([ubuntu16:['gfx900'],centos7:['gfx906'],sles15sp1:['gfx908']])]
+    def jobNameList = ["compute-rocm-dkms-no-npi-hipclang":([ubuntu18:['gfx900'],centos7:['gfx906']])]
     jobNameList = auxiliary.appendJobNameList(jobNameList)
 
     propertyList.each 
