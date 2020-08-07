@@ -152,14 +152,20 @@ void rocfft_transform(const std::vector<size_t>                                 
            || (itype == rocfft_array_type_complex_planar
                && otype == rocfft_array_type_complex_interleaved))
         {
-            // in-place c2c transforms require identical io types.
+            if(verbose)
+            {
+                std::cout << "In-place c2c transforms require identical io types; skipped.\n";
+            }
             return;
         }
 
         if((itype == rocfft_array_type_real && otype == rocfft_array_type_hermitian_planar)
            || (itype == rocfft_array_type_hermitian_planar && otype == rocfft_array_type_real))
         {
-            // in-place c2c transforms require identical io types.
+            if(verbose)
+            {
+                std::cout << "In-place real/complex transforms cannot use planar types; skipped.\n";
+            }
             return;
         }
     }
