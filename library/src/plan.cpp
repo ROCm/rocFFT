@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "plan.h"
+#include "function_pool.h"
 #include "hip/hip_runtime_api.h"
 #include "logging.h"
 #include "private.h"
@@ -1311,7 +1312,7 @@ void TreeNode::build_1D()
 {
     // Build a node for a 1D FFT
 
-    if(!SupportedLength(length[0]))
+    if(!SupportedLength(precision, length[0]))
     {
         build_1DBluestein();
         return;

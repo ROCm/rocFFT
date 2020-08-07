@@ -265,6 +265,10 @@ rocfft_kernel_960.h
 rocfft_kernel_96.h
 rocfft_kernel_972.h
 rocfft_kernel_9.h
+rocfft_kernel_7.h
+rocfft_kernel_49.h
+rocfft_kernel_84.h
+rocfft_kernel_112.h
 )
 
 set( kernels_launch

@@ -51,6 +51,12 @@ int generate_support_size_list(std::vector<size_t>& support_size_list,
             }
         }
     }
+    // pick relatively common radix-7 sizes - radix-7 in general is
+    // not common enough to justify generating every combination
+    support_size_list.push_back(7);
+    support_size_list.push_back(49);
+    support_size_list.push_back(84);
+    support_size_list.push_back(112);
 
     // printf("Total, there are %d valid combinations\n", counter);
     return 0;
