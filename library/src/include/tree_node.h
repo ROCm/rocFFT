@@ -62,6 +62,10 @@ enum ComputeScheme
     CS_REAL_2D_EVEN,
     CS_REAL_3D_EVEN,
 
+    CS_REAL_TRANSFORM_PAIR,
+    CS_KERNEL_PAIR_PACK,
+    CS_KERNEL_PAIR_UNPACK,
+
     CS_BLUESTEIN,
     CS_KERNEL_CHIRP,
     CS_KERNEL_PAD_MUL,
@@ -94,7 +98,7 @@ enum TransTileDir
 class TreeNode
 {
 private:
-    // disallow public creation
+    // Disallow public creation
     TreeNode(TreeNode* p)
         : parent(p)
         , scheme(CS_NONE)
@@ -102,10 +106,11 @@ private:
         , obOut(OB_UNINIT)
         , large1D(0)
         , lengthBlue(0)
-        , iOffset(0)
-        , oOffset(0)
         , iDist(0)
         , oDist(0)
+        , iOffset(0)
+        , oOffset(0)
+        , pairdim(0)
         , transTileDir(TTD_IP_HOR)
         , twiddles(nullptr)
         , twiddles_large(nullptr)
@@ -132,48 +137,64 @@ private:
     size_t div1DNoPo2(const size_t length0);
 
 public:
+    // Batch size
     size_t batch;
 
-    // transform dimension - note this can be different from data dimension, user
+    // Transform dimension - note this can be different from data dimension, user
     // provided
     size_t dimension;
 
-    // length of the FFT in each dimension, internal value
+    // Length of the FFT in each dimension, internal value
     std::vector<size_t> length;
 
-    // stride of the FFT in each dimension
+    // Stride of the FFT in each dimension
     std::vector<size_t> inStride, outStride;
 
-    // distance between consecutive batch members
+    // Distance between consecutive batch members:
     size_t iDist, oDist;
 
-    int                     direction;
+    // Offsets to start of data in buffer:
+    size_t iOffset, oOffset;
+
+    // The paried dimension for real/complex paired transforms.
+    size_t pairdim;
+
+    // Direction of the transform (-1: forward, +1: inverse)
+    int direction;
+
+    // Data format parameters:
     rocfft_result_placement placement;
     rocfft_precision        precision;
     rocfft_array_type       inArrayType, outArrayType;
 
-    // extra twiddle multiplication for large 1D
+    // Extra twiddle multiplication for large 1D
     size_t large1D;
 
+    // Tree structure:
     TreeNode*              parent;
     std::vector<TreeNode*> childNodes;
 
+    // FIXME: document
     ComputeScheme   scheme;
     OperatingBuffer obIn, obOut;
 
+    // FIXME: document
     TransTileDir transTileDir;
 
+    // FIXME: document
     size_t lengthBlue;
-    size_t iOffset, oOffset;
 
-    // these are device pointers
+    // Device pointers:
     void*   twiddles;
     void*   twiddles_large;
     size_t* devKernArg;
 
 public:
-    TreeNode(const TreeNode&) = delete; // disallow copy constructor
-    TreeNode& operator=(const TreeNode&) = delete; // disallow assignment operator
+    // Disallow copy constructor:
+    TreeNode(const TreeNode&) = delete;
+
+    // Disallow assignment operator:
+    TreeNode& operator=(const TreeNode&) = delete;
 
     // create node (user level) using this function
     static TreeNode* CreateNode(TreeNode* parentNode = nullptr)
@@ -181,7 +202,7 @@ public:
         return new TreeNode(parentNode);
     }
 
-    // destroy node by calling this function
+    // Destroy node by calling this function
     static void DeleteNode(TreeNode* node)
     {
         if(!node)
@@ -224,6 +245,7 @@ public:
     void build_real_even_1D();
     void build_real_even_2D();
     void build_real_even_3D();
+    void build_real_pair();
 
     // 1D node builders:
     void build_1D();
@@ -279,6 +301,10 @@ public:
                                         OperatingBuffer& flipIn,
                                         OperatingBuffer& flipOut,
                                         OperatingBuffer& obOutBuf);
+    void assign_buffers_CS_REAL_TRANSFORM_PAIR(TraverseState&   state,
+                                               OperatingBuffer& flipIn,
+                                               OperatingBuffer& flipOut,
+                                               OperatingBuffer& obOutBuf);
     void assign_buffers_CS_BLUESTEIN(TraverseState&   state,
                                      OperatingBuffer& flipIn,
                                      OperatingBuffer& flipOut,
@@ -313,6 +339,7 @@ public:
     void assign_params_CS_REAL_TRANSFORM_EVEN();
     void assign_params_CS_REAL_2D_EVEN();
     void assign_params_CS_REAL_3D_EVEN();
+    void assign_params_CS_REAL_TRANSFORM_PAIR();
     void assign_params_CS_L1D_CC();
     void assign_params_CS_L1D_CRT();
     void assign_params_CS_BLUESTEIN();
@@ -336,9 +363,7 @@ public:
     //void RecursiveBuildTreeLogicB();
 };
 
-extern "C" {
 typedef void (*DevFnCall)(const void*, void*);
-}
 
 struct GridParam
 {

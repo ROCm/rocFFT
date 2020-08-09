@@ -51,6 +51,8 @@ static std::vector<size_t> prime_range
 
 static std::vector<size_t> stride_range = {1};
 
+const static std::vector<size_t> batch_range_1D = {1, 2, 4};
+
 static std::vector<size_t> stride_range_for_prime
     = {1, 2, 3, 64, 65}; //TODO: this will be merged back to stride_range
 
@@ -80,7 +82,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(ValuesIn(generate_lengths(vpow2_range)),
                        ::testing::Values(stride_range),
                        ::testing::Values(stride_range),
-                       ::testing::Values(batch_range),
+                       ::testing::Values(batch_range_1D),
                        ValuesIn(precision_range),
                        ::testing::Values(rocfft_transform_type_complex_forward),
                        ::testing::Values(place_range)));
@@ -90,7 +92,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(ValuesIn(generate_lengths(vpow2_range)),
                        ::testing::Values(stride_range),
                        ::testing::Values(stride_range),
-                       ::testing::Values(batch_range),
+                       ::testing::Values(batch_range_1D),
                        ValuesIn(precision_range),
                        ::testing::Values(rocfft_transform_type_complex_inverse),
                        ::testing::Values(place_range)));
@@ -99,7 +101,7 @@ INSTANTIATE_TEST_SUITE_P(pow2_1D_real_forward,
                          ::testing::Combine(ValuesIn(generate_lengths(vpow2_range)),
                                             ::testing::Values(stride_range),
                                             ::testing::Values(stride_range),
-                                            ::testing::Values(batch_range),
+                                            ::testing::Values(batch_range_1D),
                                             ValuesIn(precision_range),
                                             ::testing::Values(rocfft_transform_type_real_forward),
                                             ::testing::Values(place_range)));
@@ -108,7 +110,7 @@ INSTANTIATE_TEST_SUITE_P(pow2_1D_real_inverse,
                          ::testing::Combine(ValuesIn(generate_lengths(vpow2_range)),
                                             ::testing::Values(stride_range),
                                             ::testing::Values(stride_range),
-                                            ::testing::Values(batch_range),
+                                            ::testing::Values(batch_range_1D),
                                             ValuesIn(precision_range),
                                             ::testing::Values(rocfft_transform_type_real_inverse),
                                             ::testing::Values(place_range)));
@@ -120,7 +122,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(ValuesIn(generate_lengths(vpow3_range)),
                        ::testing::Values(stride_range),
                        ::testing::Values(stride_range),
-                       ::testing::Values(batch_range),
+                       ::testing::Values(batch_range_1D),
                        ValuesIn(precision_range),
                        ::testing::Values(rocfft_transform_type_complex_forward),
                        ::testing::Values(place_range)));
@@ -130,7 +132,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(ValuesIn(generate_lengths(vpow3_range)),
                        ::testing::Values(stride_range),
                        ::testing::Values(stride_range),
-                       ::testing::Values(batch_range),
+                       ::testing::Values(batch_range_1D),
                        ValuesIn(precision_range),
                        ::testing::Values(rocfft_transform_type_complex_inverse),
                        ::testing::Values(place_range)));
@@ -139,7 +141,7 @@ INSTANTIATE_TEST_SUITE_P(pow3_1D_real_forward,
                          ::testing::Combine(ValuesIn(generate_lengths(vpow3_range)),
                                             ::testing::Values(stride_range),
                                             ::testing::Values(stride_range),
-                                            ::testing::Values(batch_range),
+                                            ::testing::Values(batch_range_1D),
                                             ValuesIn(precision_range),
                                             ::testing::Values(rocfft_transform_type_real_forward),
                                             ::testing::Values(place_range)));
@@ -148,7 +150,7 @@ INSTANTIATE_TEST_SUITE_P(pow3_1D_real_inverse,
                          ::testing::Combine(ValuesIn(generate_lengths(vpow3_range)),
                                             ::testing::Values(stride_range),
                                             ::testing::Values(stride_range),
-                                            ::testing::Values(batch_range),
+                                            ::testing::Values(batch_range_1D),
                                             ValuesIn(precision_range),
                                             ::testing::Values(rocfft_transform_type_real_inverse),
                                             ::testing::Values(place_range)));
@@ -160,7 +162,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(ValuesIn(generate_lengths(vpow5_range)),
                        ::testing::Values(stride_range),
                        ::testing::Values(stride_range),
-                       ::testing::Values(batch_range),
+                       ::testing::Values(batch_range_1D),
                        ValuesIn(precision_range),
                        ::testing::Values(rocfft_transform_type_complex_forward),
                        ::testing::Values(place_range)));
@@ -170,7 +172,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(ValuesIn(generate_lengths(vpow5_range)),
                        ::testing::Values(stride_range),
                        ::testing::Values(stride_range),
-                       ::testing::Values(batch_range),
+                       ::testing::Values(batch_range_1D),
                        ValuesIn(precision_range),
                        ::testing::Values(rocfft_transform_type_complex_inverse),
                        ::testing::Values(place_range)));
@@ -179,7 +181,7 @@ INSTANTIATE_TEST_SUITE_P(pow5_1D_real_forward,
                          ::testing::Combine(ValuesIn(generate_lengths(vpow5_range)),
                                             ::testing::Values(stride_range),
                                             ::testing::Values(stride_range),
-                                            ::testing::Values(batch_range),
+                                            ::testing::Values(batch_range_1D),
                                             ValuesIn(precision_range),
                                             ::testing::Values(rocfft_transform_type_real_forward),
                                             ::testing::Values(place_range)));
@@ -188,7 +190,7 @@ INSTANTIATE_TEST_SUITE_P(pow5_1D_real_inverse,
                          ::testing::Combine(ValuesIn(generate_lengths(vpow5_range)),
                                             ::testing::Values(stride_range),
                                             ::testing::Values(stride_range),
-                                            ::testing::Values(batch_range),
+                                            ::testing::Values(batch_range_1D),
                                             ValuesIn(precision_range),
                                             ::testing::Values(rocfft_transform_type_real_inverse),
                                             ::testing::Values(place_range)));
@@ -240,7 +242,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(ValuesIn(generate_lengths(vprime_range)),
                        ::testing::Values(stride_range_for_prime),
                        ::testing::Values(stride_range_for_prime),
-                       ::testing::Values(batch_range),
+                       ::testing::Values(batch_range_1D),
                        ValuesIn(precision_range),
                        ::testing::Values(rocfft_transform_type_complex_forward),
                        ::testing::Values(place_range)));
@@ -250,7 +252,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(ValuesIn(generate_lengths(vprime_range)),
                        ::testing::Values(stride_range_for_prime),
                        ::testing::Values(stride_range_for_prime),
-                       ::testing::Values(batch_range),
+                       ::testing::Values(batch_range_1D),
                        ValuesIn(precision_range),
                        ::testing::Values(rocfft_transform_type_complex_inverse),
                        ::testing::Values(place_range)));
@@ -259,7 +261,7 @@ INSTANTIATE_TEST_SUITE_P(prime_1D_real_forward,
                          ::testing::Combine(ValuesIn(generate_lengths(vprime_range)),
                                             ::testing::Values(stride_range),
                                             ::testing::Values(stride_range),
-                                            ::testing::Values(batch_range),
+                                            ::testing::Values(batch_range_1D),
                                             ValuesIn(precision_range),
                                             ::testing::Values(rocfft_transform_type_real_forward),
                                             ::testing::Values(place_range)));
@@ -268,7 +270,7 @@ INSTANTIATE_TEST_SUITE_P(prime_1D_real_inverse,
                          ::testing::Combine(ValuesIn(generate_lengths(vprime_range)),
                                             ::testing::Values(stride_range),
                                             ::testing::Values(stride_range),
-                                            ::testing::Values(batch_range),
+                                            ::testing::Values(batch_range_1D),
                                             ValuesIn(precision_range),
                                             ::testing::Values(rocfft_transform_type_real_inverse),
                                             ::testing::Values(place_range)));
@@ -280,7 +282,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(ValuesIn(generate_lengths(vmix_range)),
                        ::testing::Values(stride_range),
                        ::testing::Values(stride_range),
-                       ::testing::Values(batch_range),
+                       ::testing::Values(batch_range_1D),
                        ValuesIn(precision_range),
                        ::testing::Values(rocfft_transform_type_complex_forward),
                        ::testing::Values(place_range)));
@@ -290,7 +292,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(ValuesIn(generate_lengths(vmix_range)),
                        ::testing::Values(stride_range),
                        ::testing::Values(stride_range),
-                       ::testing::Values(batch_range),
+                       ::testing::Values(batch_range_1D),
                        ValuesIn(precision_range),
                        ::testing::Values(rocfft_transform_type_complex_inverse),
                        ::testing::Values(place_range)));
@@ -299,7 +301,7 @@ INSTANTIATE_TEST_SUITE_P(mix_1D_real_forward,
                          ::testing::Combine(ValuesIn(generate_lengths(vmix_range)),
                                             ::testing::Values(stride_range),
                                             ::testing::Values(stride_range),
-                                            ::testing::Values(batch_range),
+                                            ::testing::Values(batch_range_1D),
                                             ValuesIn(precision_range),
                                             ::testing::Values(rocfft_transform_type_real_forward),
                                             ::testing::Values(place_range)));
@@ -308,7 +310,7 @@ INSTANTIATE_TEST_SUITE_P(mix_1D_real_inverse,
                          ::testing::Combine(ValuesIn(generate_lengths(vmix_range)),
                                             ::testing::Values(stride_range),
                                             ::testing::Values(stride_range),
-                                            ::testing::Values(batch_range),
+                                            ::testing::Values(batch_range_1D),
                                             ValuesIn(precision_range),
                                             ::testing::Values(rocfft_transform_type_real_inverse),
                                             ::testing::Values(place_range)));

@@ -92,10 +92,10 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
         assert(info->workBufferSize >= (execPlan.workBufSize * 2 * plan->base_type_size));
     }
 
-    if(plan->placement == rocfft_placement_inplace)
-        TransformPowX(execPlan, in_buffer, in_buffer, info);
-    else
-        TransformPowX(execPlan, in_buffer, out_buffer, info);
+    TransformPowX(execPlan,
+                  in_buffer,
+                  (plan->placement == rocfft_placement_inplace) ? in_buffer : out_buffer,
+                  info);
 
     return rocfft_status_success;
 }

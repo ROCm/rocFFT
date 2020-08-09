@@ -207,6 +207,14 @@ bool PlanPowX(ExecPlan& execPlan)
             ptr = &c2r_1d_pre;
             // specify grid params only if the kernel from code generator
             break;
+        case CS_KERNEL_PAIR_UNPACK:
+            ptr = &complex2pair_unpack;
+            // specify grid params only if the kernel from code generator
+            break;
+        case CS_KERNEL_PAIR_PACK:
+            ptr = &pair2complex_pack;
+            // specify grid params only if the kernel from code generator
+            break;
         case CS_KERNEL_CHIRP:
             ptr      = &FN_PRFX(chirp);
             gp.tpb_x = 64;
@@ -246,6 +254,7 @@ bool PlanPowX(ExecPlan& execPlan)
         default:
             rocfft_cout << "should not be in this case" << std::endl;
             rocfft_cout << "scheme: " << PrintScheme(execPlan.execSeq[i]->scheme) << std::endl;
+            assert(false);
         }
 
         execPlan.devFnCall.push_back(ptr);
@@ -282,6 +291,7 @@ static size_t data_size_bytes(const std::vector<size_t>& lengths,
     }
     case rocfft_array_type_unset:
         // we should really have an array type at this point
+        assert(false);
         return 0;
     }
 }
@@ -311,6 +321,8 @@ static float max_memory_bandwidth_GB_per_s()
     return result;
 }
 
+// Internal plan executor.
+// For in-place transforms, in_buffer == out_buffer.
 void TransformPowX(const ExecPlan&       execPlan,
                    void*                 in_buffer[],
                    void*                 out_buffer[],
@@ -332,102 +344,204 @@ void TransformPowX(const ExecPlan&       execPlan,
     }
     for(size_t i = 0; i < execPlan.execSeq.size(); i++)
     {
-        DeviceCallIn  data;
-        DeviceCallOut back;
-
+        DeviceCallIn data;
         data.node          = execPlan.execSeq[i];
         data.rocfft_stream = (info == nullptr) ? 0 : info->rocfft_stream;
-        size_t inBytes     = (data.node->precision == rocfft_precision_single) ? sizeof(float) * 2
-                                                                           : sizeof(double) * 2;
 
-        switch(data.node->obIn)
+        // Size of complex type
+        const size_t complexTSize = (data.node->precision == rocfft_precision_single)
+                                        ? sizeof(float) * 2
+                                        : sizeof(double) * 2;
+
+        if(data.node->parent != NULL && data.node->parent->scheme == CS_REAL_TRANSFORM_PAIR)
         {
-        case OB_USER_IN:
-            data.bufIn[0] = in_buffer[0];
-            if(data.node->inArrayType == rocfft_array_type_complex_planar
-               || data.node->inArrayType == rocfft_array_type_hermitian_planar)
+            // We conclude that we are performing real/complex paired transform, where the real
+            // values are treated as the real and complex parts of a complex/complex transform in
+            // planar format.
+
+            // We have only implemented forward transforms: TODO: enable inverse.
+            assert(data.node->direction == -1);
+
+            if(data.node->scheme == CS_KERNEL_PAIR_UNPACK)
             {
-                data.bufIn[1] = in_buffer[1];
+                // Tthis node is the unpack plan.
+                switch(data.node->obIn)
+                {
+                case OB_USER_IN:
+                    data.bufIn[0] = in_buffer[0];
+                    break;
+                case OB_TEMP:
+                    data.bufIn[0] = info->workBuffer;
+                    break;
+                default:
+                    rocfft_cerr << "Error: operating buffer not specified for kernel!\n";
+                    assert(false);
+                }
+
+                switch(data.node->obOut)
+                {
+                case OB_USER_OUT:
+                    data.bufOut[0] = out_buffer[0];
+                    if(data.node->outArrayType == rocfft_array_type_hermitian_planar)
+                    {
+                        data.bufOut[1] = out_buffer[1];
+                    }
+                    break;
+                default:
+                    rocfft_cerr << "Error: operating buffer not specified for kernel!\n";
+                    assert(false);
+                }
             }
-            break;
-        case OB_USER_OUT:
-            data.bufIn[0] = out_buffer[0];
-            if(data.node->inArrayType == rocfft_array_type_complex_planar
-               || data.node->inArrayType == rocfft_array_type_hermitian_planar)
+            else
             {
-                data.bufIn[1] = out_buffer[1];
+                // We infer that this node is the real-as-planar c2c transform.
+
+                // TODO: deal with multiple kernels.
+
+                assert(data.node->scheme != CS_KERNEL_PAIR_UNPACK);
+
+                // Size of real type
+                const size_t realTSize = (data.node->precision == rocfft_precision_single)
+                                             ? sizeof(float)
+                                             : sizeof(double);
+
+                // Calculate the pointer to the planar format when using the paired
+                // real/complex method.
+                const ptrdiff_t ioffset
+                    = (execPlan.rootPlan->batch % 2 == 0)
+                          ? realTSize * data.node->iDist / 2
+                          : realTSize * execPlan.rootPlan->inStride[data.node->pairdim];
+                assert(ioffset != 0);
+                // std::cout << "ioffset: " << ioffset << std::endl;
+
+                switch(data.node->obIn)
+                {
+                case OB_USER_IN:
+                    data.bufIn[0] = in_buffer[0];
+                    break;
+                case OB_USER_OUT:
+                    data.bufIn[0] = out_buffer[0];
+                    break;
+                default:
+                    rocfft_cerr << "Error: operating buffer not specified for kernel!\n";
+                    assert(false);
+                }
+                data.bufIn[1] = (void*)((char*)data.bufIn[0] + ioffset);
+
+                switch(data.node->obOut)
+                {
+                case OB_USER_IN:
+                    data.bufOut[0] = data.bufIn[0];
+                    data.bufOut[1] = data.bufIn[1];
+                    break;
+                case OB_USER_OUT:
+                    data.bufOut[0] = out_buffer[0];
+                    break;
+                case OB_TEMP:
+                    data.bufOut[0] = info->workBuffer;
+                    break;
+                default:
+                    rocfft_cerr << "Error: operating buffer not specified for kernel!\n";
+                    assert(false);
+                }
+                data.bufOut[1] = (void*)((char*)data.bufOut[0] + ioffset);
             }
-            break;
-        case OB_TEMP:
-            data.bufIn[0] = info->workBuffer;
-            if(data.node->inArrayType == rocfft_array_type_complex_planar
-               || data.node->inArrayType == rocfft_array_type_hermitian_planar)
-            {
-                // assume planar using the same extra size of memory as
-                // interleaved format, and we just need to split it for
-                // planar.
-                data.bufIn[1]
-                    = (void*)((char*)info->workBuffer + execPlan.workBufSize * inBytes / 2);
-            }
-            break;
-        case OB_TEMP_CMPLX_FOR_REAL:
-            data.bufIn[0] = (void*)((char*)info->workBuffer + execPlan.tmpWorkBufSize * inBytes);
-            break;
-        case OB_TEMP_BLUESTEIN:
-            data.bufIn[0] = (void*)((char*)info->workBuffer
-                                    + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize
-                                       + data.node->iOffset)
-                                          * inBytes);
-            break;
-        case OB_UNINIT:
-            std::cerr << "Error: operating buffer not initialized for kernel!\n";
-            assert(data.node->obIn != OB_UNINIT);
-        default:
-            std::cerr << "Error: operating buffer not specified for kernel!\n";
-            assert(false);
         }
-
-        switch(data.node->obOut)
+        else
         {
-        case OB_USER_IN:
-            data.bufOut[0] = in_buffer[0];
-            if(data.node->outArrayType == rocfft_array_type_complex_planar
-               || data.node->outArrayType == rocfft_array_type_hermitian_planar)
+            // Typical case.
+
+            switch(data.node->obIn)
             {
-                data.bufOut[1] = in_buffer[1];
+            case OB_USER_IN:
+                data.bufIn[0] = in_buffer[0];
+                if(data.node->inArrayType == rocfft_array_type_complex_planar
+                   || data.node->inArrayType == rocfft_array_type_hermitian_planar)
+                {
+                    data.bufIn[1] = in_buffer[1];
+                }
+                break;
+            case OB_USER_OUT:
+                data.bufIn[0] = out_buffer[0];
+                if(data.node->inArrayType == rocfft_array_type_complex_planar
+                   || data.node->inArrayType == rocfft_array_type_hermitian_planar)
+                {
+                    data.bufIn[1] = out_buffer[1];
+                }
+                break;
+            case OB_TEMP:
+                data.bufIn[0] = info->workBuffer;
+                if(data.node->inArrayType == rocfft_array_type_complex_planar
+                   || data.node->inArrayType == rocfft_array_type_hermitian_planar)
+                {
+                    // Assume planar using the same extra size of memory as
+                    // interleaved format, and we just need to split it for
+                    // planar.
+                    data.bufIn[1] = (void*)((char*)info->workBuffer
+                                            + execPlan.workBufSize * complexTSize / 2);
+                }
+                break;
+            case OB_TEMP_CMPLX_FOR_REAL:
+                data.bufIn[0]
+                    = (void*)((char*)info->workBuffer + execPlan.tmpWorkBufSize * complexTSize);
+                break;
+            case OB_TEMP_BLUESTEIN:
+                data.bufIn[0] = (void*)((char*)info->workBuffer
+                                        + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize
+                                           + data.node->iOffset)
+                                              * complexTSize);
+                break;
+            case OB_UNINIT:
+                rocfft_cerr << "Error: operating buffer not initialized for kernel!\n";
+                assert(data.node->obIn != OB_UNINIT);
+            default:
+                rocfft_cerr << "Error: operating buffer not specified for kernel!\n";
+                assert(false);
             }
-            break;
-        case OB_USER_OUT:
-            data.bufOut[0] = out_buffer[0];
-            if(data.node->outArrayType == rocfft_array_type_complex_planar
-               || data.node->outArrayType == rocfft_array_type_hermitian_planar)
+
+            switch(data.node->obOut)
             {
-                data.bufOut[1] = out_buffer[1];
+            case OB_USER_IN:
+                data.bufOut[0] = in_buffer[0];
+                if(data.node->outArrayType == rocfft_array_type_complex_planar
+                   || data.node->outArrayType == rocfft_array_type_hermitian_planar)
+                {
+                    data.bufOut[1] = in_buffer[1];
+                }
+                break;
+            case OB_USER_OUT:
+                data.bufOut[0] = out_buffer[0];
+                if(data.node->outArrayType == rocfft_array_type_complex_planar
+                   || data.node->outArrayType == rocfft_array_type_hermitian_planar)
+                {
+                    data.bufOut[1] = out_buffer[1];
+                }
+                break;
+            case OB_TEMP:
+                data.bufOut[0] = info->workBuffer;
+                if(data.node->outArrayType == rocfft_array_type_complex_planar
+                   || data.node->outArrayType == rocfft_array_type_hermitian_planar)
+                {
+                    // assume planar using the same extra size of memory as
+                    // interleaved format, and we just need to split it for
+                    // planar.
+                    data.bufOut[1] = (void*)((char*)info->workBuffer
+                                             + execPlan.workBufSize * complexTSize / 2);
+                }
+                break;
+            case OB_TEMP_CMPLX_FOR_REAL:
+                data.bufOut[0]
+                    = (void*)((char*)info->workBuffer + execPlan.tmpWorkBufSize * complexTSize);
+                break;
+            case OB_TEMP_BLUESTEIN:
+                data.bufOut[0] = (void*)((char*)info->workBuffer
+                                         + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize
+                                            + data.node->oOffset)
+                                               * complexTSize);
+                break;
+            default:
+                assert(false);
             }
-            break;
-        case OB_TEMP:
-            data.bufOut[0] = info->workBuffer;
-            if(data.node->outArrayType == rocfft_array_type_complex_planar
-               || data.node->outArrayType == rocfft_array_type_hermitian_planar)
-            {
-                // assume planar using the same extra size of memory as
-                // interleaved format, and we just need to split it for
-                // planar.
-                data.bufOut[1]
-                    = (void*)((char*)info->workBuffer + execPlan.workBufSize * inBytes / 2);
-            }
-            break;
-        case OB_TEMP_CMPLX_FOR_REAL:
-            data.bufOut[0] = (void*)((char*)info->workBuffer + execPlan.tmpWorkBufSize * inBytes);
-            break;
-        case OB_TEMP_BLUESTEIN:
-            data.bufOut[0] = (void*)((char*)info->workBuffer
-                                     + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize
-                                        + data.node->oOffset)
-                                           * inBytes);
-            break;
-        default:
-            assert(false);
         }
 
         data.gridParam = execPlan.gridParam[i];
@@ -535,6 +649,7 @@ void TransformPowX(const ExecPlan&       execPlan,
             // execution kernel:
             if(emit_profile_log)
                 hipEventRecord(start);
+            DeviceCallOut back;
             fn(&data, &back);
             if(emit_profile_log)
                 hipEventRecord(stop);

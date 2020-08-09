@@ -42,7 +42,7 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
     auto it = repo.planUnique.find(*plan);
     if(it == repo.planUnique.end()) // if not found
     {
-        TreeNode* rootPlan = TreeNode::CreateNode();
+        auto rootPlan = TreeNode::CreateNode();
 
         rootPlan->dimension = plan->rank;
         rootPlan->batch     = plan->batch;

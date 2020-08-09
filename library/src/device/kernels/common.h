@@ -80,6 +80,28 @@ using real_type_t = typename real_type<T>::type;
 // real_type_t<double2> double_scalar;
 
 template <class T>
+struct complex_type;
+
+template <>
+struct complex_type<float>
+{
+    typedef float2 type;
+};
+
+template <>
+struct complex_type<double>
+{
+    typedef double2 type;
+};
+
+template <class T>
+using complex_type_t = typename complex_type<T>::type;
+
+/// example of using complex_type_t:
+// complex_type_t<float> float_complex_val;
+// complex_type_t<double> double_complex_val;
+
+template <class T>
 struct vector4_type;
 
 template <>

@@ -75,7 +75,8 @@ set( rocfft_device_source
   real2complex_embed.cpp
   complex2real_embed.cpp
   realcomplex_even.cpp
-  )
+  realcomplex_pair.cpp
+)
 
 prepend_path( "../.."
   rocfft_headers_public relative_rocfft_device_headers_public )

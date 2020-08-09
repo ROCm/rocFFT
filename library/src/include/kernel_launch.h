@@ -34,16 +34,18 @@
 #include "tree_node.h"
 #include <iostream>
 
+// FIXME: documentation
 struct DeviceCallIn
 {
     TreeNode* node;
-    void*     bufIn[2]; // TODO, bufIn[1] is never used
-    void*     bufOut[2]; // TODO, bufOut[1] is never used
+    void*     bufIn[2];
+    void*     bufOut[2];
 
     hipStream_t rocfft_stream;
     GridParam   gridParam;
 };
 
+// FIXME: documentation
 struct DeviceCallOut
 {
     int err;
