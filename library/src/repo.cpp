@@ -31,12 +31,16 @@
 
 // Implementation of Class Repo
 
-std::mutex Repo::mtx;
+std::mutex        Repo::mtx;
+std::atomic<bool> Repo::repoDestroyed(false);
 
 rocfft_status Repo::CreatePlan(rocfft_plan plan)
 {
-    Repo&                       repo = Repo::GetRepo();
     std::lock_guard<std::mutex> lck(mtx);
+    if(repoDestroyed)
+        return rocfft_status_failure;
+
+    Repo& repo = Repo::GetRepo();
 
     // see if the repo has already stored the plan or not
     auto it = repo.planUnique.find(*plan);
@@ -96,8 +100,11 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
 // According to input plan, return the corresponding execPlan
 void Repo::GetPlan(rocfft_plan plan, ExecPlan& execPlan)
 {
-    Repo&                       repo = Repo::GetRepo();
     std::lock_guard<std::mutex> lck(mtx);
+    if(repoDestroyed)
+        return;
+
+    Repo& repo = Repo::GetRepo();
     if(repo.execLookup.find(plan) != repo.execLookup.end())
         execPlan = repo.execLookup[plan];
 }
@@ -105,9 +112,12 @@ void Repo::GetPlan(rocfft_plan plan, ExecPlan& execPlan)
 // Remove the plan from Repo and release its ExecPlan resources if it is the last reference
 void Repo::DeletePlan(rocfft_plan plan)
 {
-    Repo&                       repo = Repo::GetRepo();
     std::lock_guard<std::mutex> lck(mtx);
-    auto                        it = repo.execLookup.find(plan);
+    if(repoDestroyed)
+        return;
+
+    Repo& repo = Repo::GetRepo();
+    auto  it   = repo.execLookup.find(plan);
     if(it != repo.execLookup.end())
     {
         repo.execLookup.erase(it);
@@ -128,14 +138,20 @@ void Repo::DeletePlan(rocfft_plan plan)
 
 size_t Repo::GetUniquePlanCount()
 {
-    Repo&                       repo = Repo::GetRepo();
     std::lock_guard<std::mutex> lck(mtx);
+    if(repoDestroyed)
+        return 0;
+
+    Repo& repo = Repo::GetRepo();
     return repo.planUnique.size();
 }
 
 size_t Repo::GetTotalPlanCount()
 {
-    Repo&                       repo = Repo::GetRepo();
     std::lock_guard<std::mutex> lck(mtx);
+    if(repoDestroyed)
+        return 0;
+
+    Repo& repo = Repo::GetRepo();
     return repo.execLookup.size();
 }

@@ -48,6 +48,8 @@ public:
 
     ~Repo()
     {
+        repoDestroyed = true;
+
         // in case there are plans left without calling DeletePlan()
         auto it = planUnique.begin();
         while(it != planUnique.end())
@@ -63,6 +65,13 @@ public:
     static void          DeletePlan(rocfft_plan plan);
     static size_t        GetUniquePlanCount();
     static size_t        GetTotalPlanCount();
+
+    // Repo is a singleton that should only be destroyed on static
+    // deinitialization.  But it's possible for other things to want to
+    // destroy plans at static deinitialization time.  So keep track of
+    // whether the repo has been destroyed, so we can avoid wanting it
+    // again.
+    static std::atomic<bool> repoDestroyed;
 };
 
 #endif // REPO_H
