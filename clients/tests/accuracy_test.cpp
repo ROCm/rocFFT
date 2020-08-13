@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include <boost/scope_exit.hpp>
 #include <gtest/gtest.h>
 #include <math.h>
 #include <stdexcept>
@@ -652,6 +653,14 @@ TEST_P(accuracy_test, vs_fftw)
             printbuffer(precision, cpu_otype, cpu_output, olength, cpu_ostride, nbatch, cpu_odist);
         }
     });
+    // clean up threads if transform throws
+    BOOST_SCOPE_EXIT_ALL(&cpu_output_thread, &cpu_input_L2Linfnorm_thread)
+    {
+        if(cpu_output_thread.joinable())
+            cpu_output_thread.join();
+        if(cpu_input_L2Linfnorm_thread.joinable())
+            cpu_input_L2Linfnorm_thread.join();
+    };
 
     // Set up GPU computations:
     for(const auto nbatch : batch_range)
