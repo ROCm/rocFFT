@@ -2095,9 +2095,12 @@ namespace StockhamGenerator
             str += "\t}\n";
 
             // row transform is now done, set up column transform
-            str += "\t// we have two twiddle tables back to back in device\n";
-            str += "\t// memory - move to the second table\n";
-            str += "\ttwiddles = twiddles + lengths[0];\n";
+            if(transform_row.length != transform_col.length)
+            {
+                str += "\t// we have two twiddle tables back to back in device\n";
+                str += "\t// memory - move to the second table (if nonsquare)\n";
+                str += "\ttwiddles = twiddles + lengths[0];\n";
+            }
 
             if(placeness == rocfft_placement_notinplace)
             {

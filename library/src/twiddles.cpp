@@ -101,6 +101,9 @@ void* twiddles_create(size_t N, rocfft_precision precision, bool large, bool no_
 template <typename T>
 void* twiddles_create_2D_pr(size_t N1, size_t N2)
 {
+    // create just one twiddle table if we can get away with it
+    if(N1 == N2)
+        N2 = 0;
     std::vector<size_t> radices;
 
     TwiddleTable<T> twTable1(N1);
@@ -108,8 +111,12 @@ void* twiddles_create_2D_pr(size_t N1, size_t N2)
     // generate twiddles for each dimension separately
     radices    = GetRadices(N1);
     auto twtc1 = twTable1.GenerateTwiddleTable(radices);
-    radices    = GetRadices(N2);
-    auto twtc2 = twTable2.GenerateTwiddleTable(radices);
+    T*   twtc2 = nullptr;
+    if(N2)
+    {
+        radices = GetRadices(N2);
+        twtc2   = twTable2.GenerateTwiddleTable(radices);
+    }
 
     // glue those two twiddle tables together in one malloc that we
     // give to the kernel
