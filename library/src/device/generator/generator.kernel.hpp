@@ -153,6 +153,11 @@ namespace StockhamGenerator
                 workGroupSize = it->second.workGroupSize;
                 numTransforms = it->second.numTransforms;
             }
+            // if not in the predefined table, then use the algorithm to determine
+            if(workGroupSize == 0)
+            {
+                DetermineSizes(length, workGroupSize, numTransforms);
+            }
         }
     };
 

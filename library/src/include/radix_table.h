@@ -361,6 +361,28 @@ static size_t Get2DSingleThreadCount(size_t                                     
     return std::max(numThreads0, numThreads1);
 }
 
+static void Add2DSingleSize(size_t                                        i,
+                            size_t                                        j,
+                            size_t                                        realSizeBytes,
+                            size_t                                        elementSizeBytes,
+                            size_t                                        ldsSizeBytes,
+                            std::function<void(size_t, size_t&, size_t&)> _GetWGSAndNT,
+                            std::vector<std::pair<size_t, size_t>>&       retval)
+{
+    // Make sure the LDS storage needed fits in the total LDS
+    // available.
+    //
+    // 1.5x the space needs to be allocated - we currently need
+    // to store both the semi-transformed data as well as
+    // separate butterfly temp space (which works out to the
+    // same size, but in reals)
+    if((i * j * elementSizeBytes) + (i * j * realSizeBytes) <= ldsSizeBytes)
+        // Also make sure we're not launching too many threads,
+        // since each transform is done by a single workgroup
+        if(Get2DSingleThreadCount(i, j, _GetWGSAndNT) < MAX_WORK_GROUP_SIZE)
+            retval.push_back(std::make_pair(i, j));
+}
+
 // Available sizes for 2D single kernels, for a given size of LDS.
 //
 // Specify 0 for LDS size to assume maximum size in current hardware
@@ -396,20 +418,18 @@ static std::vector<std::pair<size_t, size_t>>
     for(size_t i = MAX_2D_POW2; i >= MIN_2D_POW2; i /= 2)
     {
         for(size_t j = MAX_2D_POW2; j >= MIN_2D_POW2; j /= 2)
-        {
-            // Make sure the LDS storage needed fits in the total LDS
-            // available.
-            //
-            // 1.5x the space needs to be allocated - we currently need
-            // to store both the semi-transformed data as well as
-            // separate butterfly temp space (which works out to the
-            // same size, but in reals)
-            if((i * j * elementSizeBytes) + (i * j * realSizeBytes) <= ldsSizeBytes)
-                // Also make sure we're not launching too many threads,
-                // since each transform is done by a single workgroup
-                if(Get2DSingleThreadCount(i, j, _GetWGSAndNT) < MAX_WORK_GROUP_SIZE)
-                    retval.push_back(std::make_pair(i, j));
-        }
+            Add2DSingleSize(
+                i, j, realSizeBytes, elementSizeBytes, ldsSizeBytes, _GetWGSAndNT, retval);
+    }
+
+    // compute power-of-3 sizes
+    static const size_t MAX_2D_POW3 = 729;
+    static const size_t MIN_2D_POW3 = 9;
+    for(size_t i = MAX_2D_POW3; i >= MIN_2D_POW3; i /= 3)
+    {
+        for(size_t j = MAX_2D_POW3; j >= MIN_2D_POW3; j /= 3)
+            Add2DSingleSize(
+                i, j, realSizeBytes, elementSizeBytes, ldsSizeBytes, _GetWGSAndNT, retval);
     }
     return retval;
 }

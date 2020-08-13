@@ -411,6 +411,60 @@ void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> lar
 /* =====================================================================
    Write CPU functions for launching fused 2D kernels to *.cpp.h
 =================================================================== */
+// split fused kernels into separate files
+std::string get_2D_type(const std::tuple<size_t, size_t, ComputeScheme>& dim)
+{
+    // NOTE: assume that each size is a power of one prime factor
+
+    // power of 2
+    if(std::get<0>(dim) % 2 == 0 && std::get<1>(dim) % 2 == 0)
+    {
+        return "pow2";
+    }
+    // power of 3
+    else if(std::get<0>(dim) % 3 == 0 && std::get<1>(dim) % 3 == 0)
+    {
+        return "pow3";
+    }
+    // not implemented, fail the build
+    abort();
+}
+
+std::ofstream& open_2D_file(const std::tuple<size_t, size_t, ComputeScheme>& dim,
+                            const std::string&                               precision,
+                            std::map<std::string, std::ofstream>&            files)
+{
+    std::string type = get_2D_type(dim);
+
+    std::string    headerFileName = "kernel_launch_" + precision + "_2D_" + type + ".cpp.h";
+    auto           result         = files.emplace(type, headerFileName);
+    std::ofstream& file           = result.first->second;
+
+    // if it was newly opened, initialize the file
+    if(result.second)
+    {
+        if(!file.is_open())
+        {
+            // can't continue, fail the build
+            std::cout << "Failed to open " << headerFileName << " for writing, aborting\n";
+            abort();
+        }
+        file << "#include \"kernel_launch.h\"\n";
+
+        // write source file to include this header
+        std::string   sourceFileName = "kernel_launch_" + precision + "_2D_" + type + ".cpp";
+        std::ofstream sourceFile(sourceFileName);
+        if(!file.is_open())
+        {
+            // fail build
+            std::cout << "File: " << sourceFileName << " could not be opened, exiting ...."
+                      << std::endl;
+            abort();
+        }
+        sourceFile << "#include \"" << headerFileName << "\"";
+    }
+    return file;
+}
 
 void write_cpu_function_2D(const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& list_2D,
                            const std::string&                                            precision)
@@ -424,21 +478,13 @@ void write_cpu_function_2D(const std::vector<std::tuple<size_t, size_t, ComputeS
         short_name_precision   = "dp";
     }
 
-    std::string   headerFileName = "kernel_launch_" + precision + "_2D.cpp.h";
-    std::ofstream file(headerFileName);
-    if(!file.is_open())
-    {
-        // can't continue, fail the build
-        std::cout << "Failed to open " << headerFileName << " for writing, aborting\n";
-        abort();
-    }
-    file << "#include \"kernel_launch.h\"\n";
-
+    std::map<std::string, std::ofstream> files;
     for(const auto& kernel : list_2D)
     {
-        std::string str_len_1     = std::to_string(std::get<0>(kernel));
-        std::string str_len_2     = std::to_string(std::get<1>(kernel));
-        std::string length_suffix = "_2D_" + str_len_1 + "_" + str_len_2;
+        std::ofstream& file          = open_2D_file(kernel, precision, files);
+        std::string    str_len_1     = std::to_string(std::get<0>(kernel));
+        std::string    str_len_2     = std::to_string(std::get<1>(kernel));
+        std::string    length_suffix = "_2D_" + str_len_1 + "_" + str_len_2;
 
         file << "#include \"rocfft_kernel" << length_suffix << ".h\"\n";
 
@@ -458,17 +504,6 @@ void write_cpu_function_2D(const std::vector<std::tuple<size_t, size_t, ComputeS
             abort();
         }
     }
-    file.close();
-
-    std::string sourceFileName = "kernel_launch_" + precision + "_2D.cpp";
-    file.open(sourceFileName);
-    if(!file.is_open())
-    {
-        std::cout << "File: " << sourceFileName << " could not be opened, exiting ...."
-                  << std::endl;
-    }
-    file << "#include \"" << headerFileName << "\"";
-    file.close();
 }
 
 /* =====================================================================
