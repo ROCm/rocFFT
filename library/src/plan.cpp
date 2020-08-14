@@ -736,77 +736,24 @@ void TreeNode::RecursiveBuildTree()
         if(scheme == CS_KERNEL_TRANSPOSE)
             return;
 
-        scheme = CS_2D_RTRT; // the default last choice
-
         // First choice is 2D_SINGLE kernel, if the problem will fit into LDS.
-        // Next best is CS_2D_RC.  Last resort is RTRT.
-        //
-        // Get actual LDS size, to check if we can run a 2D_SINGLE
-        // kernel that will fit the problem into LDS.
-        //
-        // NOTE: This is potentially problematic in a heterogeneous
-        // multi-device environment.  The device we query now could
-        // differ from the device we run the plan on.  That said,
-        // it's vastly more common to have multiples of the same
-        // device in the real world.
-        int ldsSize;
-        int deviceid;
-        // if this fails, device 0 is a reasonable default
-        if(hipGetDevice(&deviceid) != hipSuccess)
+        // Next best is CS_2D_RC. Last resort is RTRT.
+        if(use_CS_2D_SINGLE())
         {
-            log_trace(__func__, "warning", "hipGetDevice failed - using device 0");
-            deviceid = 0;
+            scheme = CS_KERNEL_2D_SINGLE; // the node has all build info
+            return;
         }
-        // if this fails, giving 0 to Single2DSizes will assume
-        // normal size for contemporary hardware
-        if(hipDeviceGetAttribute(
-               &ldsSize, hipDeviceAttributeMaxSharedMemoryPerMultiprocessor, deviceid)
-           != hipSuccess)
+        else if(use_CS_2D_RC())
         {
-            log_trace(
-                __func__,
-                "warning",
-                "hipDeviceGetAttribute failed - assuming normal LDS size for current hardware");
-            ldsSize = 0;
-        }
-        const auto single2DSizes = Single2DSizes(ldsSize, precision, GetWGSAndNT);
-        if(std::find(
-               single2DSizes.begin(), single2DSizes.end(), std::make_pair(length[0], length[1]))
-           != single2DSizes.end())
-            scheme = CS_KERNEL_2D_SINGLE;
-        //   For CS_2D_RC, we are reusing SBCC kernel for 1D middle size. The
-        //   current implementation of 1D SBCC supports only 64, 128, and 256.
-        //   However, technically no LDS limitation along the fast dimension
-        //   on upper bound for 2D SBCC cases, and even should not limit to pow
-        //   of 2.
-        if((length[1] == 256 || length[1] == 128 || length[1] == 64) && (length[0] >= 64))
-        {
-            size_t bwd, wgs, lds;
-            GetBlockComputeTable(length[1], bwd, wgs, lds);
-            if(length[0] % bwd == 0)
-            {
-                scheme = CS_2D_RC;
-            }
-        }
-
-        switch(scheme)
-        {
-        case CS_2D_RTRT:
-            build_CS_2D_RTRT();
-            break;
-        case CS_2D_RC:
-        {
+            scheme = CS_2D_RC;
             build_CS_2D_RC();
+            return;
         }
-        break;
-        case CS_KERNEL_2D_SINGLE:
+        else
         {
-            // shouldn't need anything more - top-level plan has all the info
-        }
-        break;
-
-        default:
-            assert(false);
+            scheme = CS_2D_RTRT;
+            build_CS_2D_RTRT();
+            return;
         }
     }
     break;
@@ -907,6 +854,62 @@ void TreeNode::RecursiveBuildTree()
     default:
         assert(false);
     }
+}
+
+bool TreeNode::use_CS_2D_SINGLE()
+{
+    // Get actual LDS size, to check if we can run a 2D_SINGLE
+    // kernel that will fit the problem into LDS.
+    //
+    // NOTE: This is potentially problematic in a heterogeneous
+    // multi-device environment.  The device we query now could
+    // differ from the device we run the plan on.  That said,
+    // it's vastly more common to have multiples of the same
+    // device in the real world.
+    int ldsSize;
+    int deviceid;
+    // if this fails, device 0 is a reasonable default
+    if(hipGetDevice(&deviceid) != hipSuccess)
+    {
+        log_trace(__func__, "warning", "hipGetDevice failed - using device 0");
+        deviceid = 0;
+    }
+    // if this fails, giving 0 to Single2DSizes will assume
+    // normal size for contemporary hardware
+    if(hipDeviceGetAttribute(&ldsSize, hipDeviceAttributeMaxSharedMemoryPerMultiprocessor, deviceid)
+       != hipSuccess)
+    {
+        log_trace(__func__,
+                  "warning",
+                  "hipDeviceGetAttribute failed - assuming normal LDS size for current hardware");
+        ldsSize = 0;
+    }
+    const auto single2DSizes = Single2DSizes(ldsSize, precision, GetWGSAndNT);
+    if(std::find(single2DSizes.begin(), single2DSizes.end(), std::make_pair(length[0], length[1]))
+       != single2DSizes.end())
+        return true;
+
+    return false;
+}
+
+bool TreeNode::use_CS_2D_RC()
+{
+    //   For CS_2D_RC, we are reusing SBCC kernel for 1D middle size. The
+    //   current implementation of 1D SBCC supports only 64, 128, and 256.
+    //   However, technically no LDS limitation along the fast dimension
+    //   on upper bound for 2D SBCC cases, and even should not limit to pow
+    //   of 2.
+    if((length[1] == 256 || length[1] == 128 || length[1] == 64) && (length[0] >= 64))
+    {
+        size_t bwd, wgs, lds;
+        GetBlockComputeTable(length[1], bwd, wgs, lds);
+        if(length[0] % bwd == 0)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void TreeNode::build_real()
