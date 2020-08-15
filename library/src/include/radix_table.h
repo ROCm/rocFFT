@@ -431,6 +431,16 @@ static std::vector<std::pair<size_t, size_t>>
             Add2DSingleSize(
                 i, j, realSizeBytes, elementSizeBytes, ldsSizeBytes, _GetWGSAndNT, retval);
     }
+
+    // compute power-of-5 sizes
+    static const size_t MAX_2D_POW5 = 625;
+    static const size_t MIN_2D_POW5 = 25;
+    for(size_t i = MAX_2D_POW5; i >= MIN_2D_POW5; i /= 5)
+    {
+        for(size_t j = MAX_2D_POW5; j >= MIN_2D_POW5; j /= 5)
+            Add2DSingleSize(
+                i, j, realSizeBytes, elementSizeBytes, ldsSizeBytes, _GetWGSAndNT, retval);
+    }
     return retval;
 }
 

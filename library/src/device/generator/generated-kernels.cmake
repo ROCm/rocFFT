@@ -89,6 +89,9 @@ rocfft_kernel_25.h
 rocfft_kernel_3125.h
 rocfft_kernel_5.h
 rocfft_kernel_625.h
+rocfft_kernel_2D_125_25.h
+rocfft_kernel_2D_25_125.h
+rocfft_kernel_2D_25_25.h
 )
 
 set( kernels_all
@@ -167,6 +170,7 @@ rocfft_kernel_2880.h
 rocfft_kernel_288.h
 rocfft_kernel_2916.h
 rocfft_kernel_2.h
+rocfft_kernel_2D_125_25.h
 rocfft_kernel_2D_128_16.h
 rocfft_kernel_2D_128_32.h
 rocfft_kernel_2D_128_4.h
@@ -180,6 +184,8 @@ rocfft_kernel_2D_16_8.h
 rocfft_kernel_2D_243_9.h
 rocfft_kernel_2D_256_4.h
 rocfft_kernel_2D_256_8.h
+rocfft_kernel_2D_25_125.h
+rocfft_kernel_2D_25_25.h
 rocfft_kernel_2D_27_27.h
 rocfft_kernel_2D_27_81.h
 rocfft_kernel_2D_27_9.h
@@ -303,6 +309,8 @@ kernel_launch_single_2D_pow2.cpp
 kernel_launch_double_2D_pow2.cpp
 kernel_launch_single_2D_pow3.cpp
 kernel_launch_double_2D_pow3.cpp
+kernel_launch_single_2D_pow5.cpp
+kernel_launch_double_2D_pow5.cpp
 )
 
 set( small_kernels_group_num 8 )

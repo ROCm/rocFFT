@@ -1,6 +1,7 @@
 /*******************************************************************************
  * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
  ******************************************************************************/
+#include "../../include/plan.h"
 #include "../../include/radix_table.h"
 #include "../../include/tree_node.h"
 #include "rocfft.h"
@@ -415,17 +416,20 @@ void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> lar
 // split fused kernels into separate files
 std::string get_2D_type(const std::tuple<size_t, size_t, ComputeScheme>& dim)
 {
-    // NOTE: assume that each size is a power of one prime factor
-
     // power of 2
-    if(std::get<0>(dim) % 2 == 0 && std::get<1>(dim) % 2 == 0)
+    if(IsPo2(std::get<0>(dim)) && IsPo2(std::get<1>(dim)))
     {
         return "pow2";
     }
     // power of 3
-    else if(std::get<0>(dim) % 3 == 0 && std::get<1>(dim) % 3 == 0)
+    else if(IsPow<3>(std::get<0>(dim)) && IsPow<3>(std::get<1>(dim)))
     {
         return "pow3";
+    }
+    // power of 5
+    else if(IsPow<5>(std::get<0>(dim)) && IsPow<5>(std::get<1>(dim)))
+    {
+        return "pow5";
     }
     // not implemented, fail the build
     abort();
