@@ -185,7 +185,7 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
 
         if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
         {
-            str += "void rocfft_internal_dfn_sp_op_ci_ci_sbcc_";
+            str += "void rocfft_internal_dfn_sp_ci_ci_sbcc_";
             str += str_len + "(const void *data_p, void *back_p);\n";
         }
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
@@ -196,7 +196,7 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
 
         if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
         {
-            str += "void rocfft_internal_dfn_dp_op_ci_ci_sbcc_";
+            str += "void rocfft_internal_dfn_dp_ci_ci_sbcc_";
             str += str_len + "(const void *data_p, void *back_p);\n";
         }
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
@@ -370,9 +370,10 @@ void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> lar
             name_suffix = "_sbcc";
             str += "#include \"rocfft_kernel_" + str_len + name_suffix + ".h\" \n";
             str += "POWX_LARGE_SBCC_GENERATOR( rocfft_internal_dfn_" + short_name_precision
-                   + "_op_ci_ci_sbcc_" + str_len + ", fft_fwd_op_len" + str_len + name_suffix
-                   + ", fft_back_op_len" + str_len + name_suffix + ", " + complex_case_precision
-                   + ")\n";
+                   + "_ci_ci_sbcc_" + str_len + ", fft_fwd_ip_len" + str_len + name_suffix
+                   + ", fft_back_ip_len" + str_len + name_suffix + ", fft_fwd_op_len" + str_len
+                   + name_suffix + ", fft_back_op_len" + str_len + name_suffix + ", "
+                   + complex_case_precision + ")\n";
         }
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
         {
@@ -560,7 +561,7 @@ void AddCPUFunctionToPool(
         {
             str += "\tfunction_map_single[std::make_pair(" + str_len
                    + ", CS_KERNEL_STOCKHAM_BLOCK_CC)] = "
-                     "&rocfft_internal_dfn_sp_op_ci_ci_sbcc_"
+                     "&rocfft_internal_dfn_sp_ci_ci_sbcc_"
                    + str_len + ";\n";
             ;
         }
@@ -586,7 +587,7 @@ void AddCPUFunctionToPool(
         {
             str += "\tfunction_map_double[std::make_pair(" + str_len
                    + ", CS_KERNEL_STOCKHAM_BLOCK_CC)] = "
-                     "&rocfft_internal_dfn_dp_op_ci_ci_sbcc_"
+                     "&rocfft_internal_dfn_dp_ci_ci_sbcc_"
                    + str_len + ";\n";
             ;
         }

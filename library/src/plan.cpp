@@ -2789,38 +2789,19 @@ void TreeNode::assign_buffers_CS_RC(TraverseState&   state,
                                     OperatingBuffer& flipOut,
                                     OperatingBuffer& obOutBuf)
 {
-    if(obOut == OB_UNINIT)
+    childNodes[0]->SetInputBuffer(state);
+    childNodes[0]->obOut = obIn;
+    childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
+    if(childNodes[0]->childNodes.size() != 0 && placement == rocfft_placement_inplace)
     {
-        if(parent == nullptr)
-        {
-            childNodes[0]->SetInputBuffer(state);
-            childNodes[0]->obOut = OB_TEMP;
-            childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obOutBuf);
-
-            childNodes[1]->SetInputBuffer(state);
-            childNodes[1]->obOut = obOutBuf;
-        }
-        else
-        {
-            childNodes[0]->SetInputBuffer(state);
-            childNodes[0]->obOut = flipOut;
-            childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obOutBuf);
-
-            childNodes[1]->SetInputBuffer(state);
-            childNodes[1]->obOut = flipIn;
-        }
-
-        obOut = childNodes[1]->obOut;
+        childNodes[0]->obOut = flipIn;
     }
-    else
-    {
-        childNodes[0]->SetInputBuffer(state);
-        childNodes[0]->obOut = flipOut;
-        childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obOutBuf);
 
-        childNodes[1]->SetInputBuffer(state);
-        childNodes[1]->obOut = obOut;
-    }
+    childNodes[1]->SetInputBuffer(state);
+    childNodes[1]->obOut = obOutBuf;
+
+    obIn  = childNodes[0]->obIn;
+    obOut = childNodes[1]->obOut;
 }
 
 void TreeNode::assign_buffers_CS_3D_RTRTRT(TraverseState&   state,
