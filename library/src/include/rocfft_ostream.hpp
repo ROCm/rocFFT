@@ -235,14 +235,14 @@ public:
     // Implemented as singleton to avoid the static initialization order fiasco
     static rocfft_ostream& cout()
     {
-        static rocfft_ostream cout{STDOUT_FILENO};
+        thread_local rocfft_ostream cout{STDOUT_FILENO};
         return cout;
     }
 
     // Implemented as singleton to avoid the static initialization order fiasco
     static rocfft_ostream& cerr()
     {
-        static rocfft_ostream cerr{STDERR_FILENO};
+        thread_local rocfft_ostream cerr{STDERR_FILENO};
         return cerr;
     }
 
