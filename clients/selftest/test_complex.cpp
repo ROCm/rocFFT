@@ -1427,26 +1427,26 @@ TEST_P(BasicInterfaceSingle3DBasisTest, Inv)
     TestRoutine(t.N0, t.N1, t.N2, 1);
 }
 
-INSTANTIATE_TEST_CASE_P(ListParamTest,
-                        BasicInterfaceDouble1DBasisTest,
-                        ::testing::ValuesIn(Test1DLengths));
-INSTANTIATE_TEST_CASE_P(ListParamTest,
-                        BasicInterfaceSingle1DBasisTest,
-                        ::testing::ValuesIn(Test1DLengths));
+INSTANTIATE_TEST_SUITE_P(ListParamTest,
+                         BasicInterfaceDouble1DBasisTest,
+                         ::testing::ValuesIn(Test1DLengths));
+INSTANTIATE_TEST_SUITE_P(ListParamTest,
+                         BasicInterfaceSingle1DBasisTest,
+                         ::testing::ValuesIn(Test1DLengths));
 
-INSTANTIATE_TEST_CASE_P(ListParamTest,
-                        BasicInterfaceDouble2DBasisTest,
-                        ::testing::ValuesIn(Test2DLengths));
-INSTANTIATE_TEST_CASE_P(ListParamTest,
-                        BasicInterfaceSingle2DBasisTest,
-                        ::testing::ValuesIn(Test2DLengths));
+INSTANTIATE_TEST_SUITE_P(ListParamTest,
+                         BasicInterfaceDouble2DBasisTest,
+                         ::testing::ValuesIn(Test2DLengths));
+INSTANTIATE_TEST_SUITE_P(ListParamTest,
+                         BasicInterfaceSingle2DBasisTest,
+                         ::testing::ValuesIn(Test2DLengths));
 
-INSTANTIATE_TEST_CASE_P(ListParamTest,
-                        BasicInterfaceDouble3DBasisTest,
-                        ::testing::ValuesIn(Test3DLengths));
-INSTANTIATE_TEST_CASE_P(ListParamTest,
-                        BasicInterfaceSingle3DBasisTest,
-                        ::testing::ValuesIn(Test3DLengths));
+INSTANTIATE_TEST_SUITE_P(ListParamTest,
+                         BasicInterfaceDouble3DBasisTest,
+                         ::testing::ValuesIn(Test3DLengths));
+INSTANTIATE_TEST_SUITE_P(ListParamTest,
+                         BasicInterfaceSingle3DBasisTest,
+                         ::testing::ValuesIn(Test3DLengths));
 
 #if 0
 
@@ -1713,14 +1713,14 @@ TEST_P( AdvancedInterfaceSingle3DBasisTest, Fwd ) { TrLen3D t = GetParam(); Test
 TEST_P( AdvancedInterfaceSingle3DBasisTest, Inv ) { TrLen3D t = GetParam(); TestRoutine(t.N0, t.N1, t.N2, 4,  1); }
 
 
-INSTANTIATE_TEST_CASE_P( ListParamTest, AdvancedInterfaceDouble1DBasisTest, ::testing::ValuesIn(Test1DLengths));
-INSTANTIATE_TEST_CASE_P( ListParamTest, AdvancedInterfaceSingle1DBasisTest, ::testing::ValuesIn(Test1DLengths));
+INSTANTIATE_TEST_SUITE_P( ListParamTest, AdvancedInterfaceDouble1DBasisTest, ::testing::ValuesIn(Test1DLengths));
+INSTANTIATE_TEST_SUITE_P( ListParamTest, AdvancedInterfaceSingle1DBasisTest, ::testing::ValuesIn(Test1DLengths));
 
-INSTANTIATE_TEST_CASE_P( ListParamTest, AdvancedInterfaceDouble2DBasisTest, ::testing::ValuesIn(Test2DLengths));
-INSTANTIATE_TEST_CASE_P( ListParamTest, AdvancedInterfaceSingle2DBasisTest, ::testing::ValuesIn(Test2DLengths));
+INSTANTIATE_TEST_SUITE_P( ListParamTest, AdvancedInterfaceDouble2DBasisTest, ::testing::ValuesIn(Test2DLengths));
+INSTANTIATE_TEST_SUITE_P( ListParamTest, AdvancedInterfaceSingle2DBasisTest, ::testing::ValuesIn(Test2DLengths));
 
-INSTANTIATE_TEST_CASE_P( ListParamTest, AdvancedInterfaceDouble3DBasisTest, ::testing::ValuesIn(Test3DLengths));
-INSTANTIATE_TEST_CASE_P( ListParamTest, AdvancedInterfaceSingle3DBasisTest, ::testing::ValuesIn(Test3DLengths));
+INSTANTIATE_TEST_SUITE_P( ListParamTest, AdvancedInterfaceDouble3DBasisTest, ::testing::ValuesIn(Test3DLengths));
+INSTANTIATE_TEST_SUITE_P( ListParamTest, AdvancedInterfaceSingle3DBasisTest, ::testing::ValuesIn(Test3DLengths));
 
 #endif
 
