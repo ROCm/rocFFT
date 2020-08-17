@@ -385,7 +385,7 @@ def benchfigs(rundims, shortrun):
         max3d = 128 if shortrun else 1024
         nbatch = 1
         
-        for inplace in [True]:
+        for inplace in [True, False]:
             fig = figure("3d_c2c" + ("inplace" if inplace else "outofplace"),
                          "3D complex transforms " + ("in-place" if inplace else "out-of-place"))
             for radix in [2, 3, 5]:
