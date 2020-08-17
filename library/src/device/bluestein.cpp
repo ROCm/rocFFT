@@ -72,11 +72,21 @@ void rocfft_internal_chirp(const void* data_p, void* back_p)
     hipStream_t rocfft_stream = data->rocfft_stream;
 
     if(data->node->precision == rocfft_precision_single)
-        chirp_launch<float2>(
-            N, M, (float2*)data->bufOut[0], data->node->twiddles_large, twl, dir, rocfft_stream);
+        chirp_launch<float2>(N,
+                             M,
+                             (float2*)data->bufOut[0],
+                             data->node->twiddles_large.data(),
+                             twl,
+                             dir,
+                             rocfft_stream);
     else
-        chirp_launch<double2>(
-            N, M, (double2*)data->bufOut[0], data->node->twiddles_large, twl, dir, rocfft_stream);
+        chirp_launch<double2>(N,
+                              M,
+                              (double2*)data->bufOut[0],
+                              data->node->twiddles_large.data(),
+                              twl,
+                              dir,
+                              rocfft_stream);
 }
 
 void rocfft_internal_mul(const void* data_p, void* back_p)
@@ -169,9 +179,9 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
                                (const float2*)bufIn0,
                                (float2*)bufOut0,
                                data->node->length.size(),
-                               data->node->devKernArg,
-                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data(),
+                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
                                dir,
                                scheme);
         }
@@ -189,9 +199,9 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
                                (const double2*)bufIn0,
                                (double2*)bufOut0,
                                data->node->length.size(),
-                               data->node->devKernArg,
-                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data(),
+                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
                                dir,
                                scheme);
         }
@@ -219,9 +229,9 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
                                (const real_type_t<float2>*)bufIn1,
                                (float2*)bufOut0,
                                data->node->length.size(),
-                               data->node->devKernArg,
-                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data(),
+                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
                                dir,
                                scheme);
         }
@@ -240,9 +250,9 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
                                (const real_type_t<double2>*)bufIn1,
                                (double2*)bufOut0,
                                data->node->length.size(),
-                               data->node->devKernArg,
-                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data(),
+                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
                                dir,
                                scheme);
         }
@@ -270,9 +280,9 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
                                (real_type_t<float2>*)bufOut0,
                                (real_type_t<float2>*)bufOut1,
                                data->node->length.size(),
-                               data->node->devKernArg,
-                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data(),
+                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
                                dir,
                                scheme);
         }
@@ -291,9 +301,9 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
                                (real_type_t<double2>*)bufOut0,
                                (real_type_t<double2>*)bufOut1,
                                data->node->length.size(),
-                               data->node->devKernArg,
-                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data(),
+                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
                                dir,
                                scheme);
         }
@@ -323,9 +333,9 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
                                (real_type_t<float2>*)bufOut0,
                                (real_type_t<float2>*)bufOut1,
                                data->node->length.size(),
-                               data->node->devKernArg,
-                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data(),
+                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
                                dir,
                                scheme);
         }
@@ -345,9 +355,9 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
                                (real_type_t<double2>*)bufOut0,
                                (real_type_t<double2>*)bufOut1,
                                data->node->length.size(),
-                               data->node->devKernArg,
-                               data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data(),
+                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
                                dir,
                                scheme);
         }

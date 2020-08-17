@@ -30,56 +30,6 @@
 #include <thread>
 #include <vector>
 
-// Simple RAII class for GPU buffers.
-class gpubuf
-{
-public:
-    gpubuf()
-        : buf(nullptr)
-    {
-    }
-    // buffers are movable but not copyable
-    gpubuf(gpubuf&& other)
-        : buf(other.buf)
-    {
-        other.buf = nullptr;
-    }
-    gpubuf(const gpubuf&) = delete;
-    gpubuf& operator=(const gpubuf&) = delete;
-
-    ~gpubuf()
-    {
-        free();
-    }
-
-    hipError_t alloc(const size_t size)
-    {
-        free();
-        auto ret = hipMalloc(&buf, size);
-        if(ret != hipSuccess)
-            buf = nullptr;
-        return ret;
-    }
-
-    void free()
-    {
-        if(buf != nullptr)
-        {
-            hipFree(buf);
-            buf = nullptr;
-        }
-    }
-
-    void* data()
-    {
-        return buf;
-    }
-
-private:
-    // The GPU buffer
-    void* buf;
-};
-
 // Compute the rocFFT transform and verify the accuracy against the provided CPU data.
 // If cpu_output_thread is non-null, join on that thread before looking at cpu_output.
 void rocfft_transform(const std::vector<size_t>                                  length,

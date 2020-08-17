@@ -238,7 +238,7 @@ void r2c_1d_post(const void* data_p, void*)
                                idist,
                                bufOut0,
                                odist,
-                               data->node->twiddles);
+                               data->node->twiddles.data());
         }
         else
         {
@@ -255,7 +255,7 @@ void r2c_1d_post(const void* data_p, void*)
                                bufOut0,
                                bufOut1,
                                odist,
-                               data->node->twiddles);
+                               data->node->twiddles.data());
         }
     }
     catch(std::exception& e)
@@ -480,7 +480,7 @@ void c2r_1d_pre(const void* data_p, void*)
                                idist,
                                bufOut0,
                                odist,
-                               data->node->twiddles);
+                               data->node->twiddles.data());
         }
         else
         {
@@ -497,7 +497,7 @@ void c2r_1d_pre(const void* data_p, void*)
                                idist,
                                bufOut0,
                                odist,
-                               data->node->twiddles);
+                               data->node->twiddles.data());
         }
     }
     catch(std::exception& e)

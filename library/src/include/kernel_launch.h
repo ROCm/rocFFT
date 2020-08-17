@@ -124,10 +124,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                            dim3(data->gridParam.tpb_x),                            \
                                            0,                                                      \
                                            rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles,                       \
+                                           (PRECISION*)data->node->twiddles.data(),                \
                                            data->node->length.size(),                              \
-                                           data->node->devKernArg,                                 \
-                                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,     \
+                                           data->node->devKernArg.data(),                          \
+                                           data->node->devKernArg.data()                           \
+                                               + 1 * KERN_ARGS_ARRAY_WIDTH,                        \
                                            data->node->batch,                                      \
                                            (PRECISION*)data->bufIn[0]);                            \
                     }                                                                              \
@@ -142,10 +143,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                            dim3(data->gridParam.tpb_x),                            \
                                            0,                                                      \
                                            rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles,                       \
+                                           (PRECISION*)data->node->twiddles.data(),                \
                                            data->node->length.size(),                              \
-                                           data->node->devKernArg,                                 \
-                                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,     \
+                                           data->node->devKernArg.data(),                          \
+                                           data->node->devKernArg.data()                           \
+                                               + 1 * KERN_ARGS_ARRAY_WIDTH,                        \
                                            data->node->batch,                                      \
                                            (real_type_t<PRECISION>*)data->bufIn[0],                \
                                            (real_type_t<PRECISION>*)data->bufIn[1]);               \
@@ -164,10 +166,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                            dim3(data->gridParam.tpb_x),                            \
                                            0,                                                      \
                                            rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles,                       \
+                                           (PRECISION*)data->node->twiddles.data(),                \
                                            data->node->length.size(),                              \
-                                           data->node->devKernArg,                                 \
-                                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,     \
+                                           data->node->devKernArg.data(),                          \
+                                           data->node->devKernArg.data()                           \
+                                               + 1 * KERN_ARGS_ARRAY_WIDTH,                        \
                                            data->node->batch,                                      \
                                            (PRECISION*)data->bufIn[0]);                            \
                     }                                                                              \
@@ -182,10 +185,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                            dim3(data->gridParam.tpb_x),                            \
                                            0,                                                      \
                                            rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles,                       \
+                                           (PRECISION*)data->node->twiddles.data(),                \
                                            data->node->length.size(),                              \
-                                           data->node->devKernArg,                                 \
-                                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,     \
+                                           data->node->devKernArg.data(),                          \
+                                           data->node->devKernArg.data()                           \
+                                               + 1 * KERN_ARGS_ARRAY_WIDTH,                        \
                                            data->node->batch,                                      \
                                            (real_type_t<PRECISION>*)data->bufIn[0],                \
                                            (real_type_t<PRECISION>*)data->bufIn[1]);               \
@@ -208,10 +212,10 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                           \
                             0,                                                                     \
                             rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles,                                      \
+                            (PRECISION*)data->node->twiddles.data(),                               \
                             data->node->length.size(),                                             \
-                            data->node->devKernArg,                                                \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
                             data->node->batch,                                                     \
                             (PRECISION*)data->bufIn[0]);                                           \
                     }                                                                              \
@@ -227,10 +231,10 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                           \
                             0,                                                                     \
                             rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles,                                      \
+                            (PRECISION*)data->node->twiddles.data(),                               \
                             data->node->length.size(),                                             \
-                            data->node->devKernArg,                                                \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
                             data->node->batch,                                                     \
                             (real_type_t<PRECISION>*)data->bufIn[0],                               \
                             (real_type_t<PRECISION>*)data->bufIn[1]);                              \
@@ -250,10 +254,10 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                           \
                             0,                                                                     \
                             rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles,                                      \
+                            (PRECISION*)data->node->twiddles.data(),                               \
                             data->node->length.size(),                                             \
-                            data->node->devKernArg,                                                \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
                             data->node->batch,                                                     \
                             (PRECISION*)data->bufIn[0]);                                           \
                     }                                                                              \
@@ -269,10 +273,10 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                           \
                             0,                                                                     \
                             rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles,                                      \
+                            (PRECISION*)data->node->twiddles.data(),                               \
                             data->node->length.size(),                                             \
-                            data->node->devKernArg,                                                \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
                             data->node->batch,                                                     \
                             (real_type_t<PRECISION>*)data->bufIn[0],                               \
                             (real_type_t<PRECISION>*)data->bufIn[1]);                              \
@@ -292,19 +296,20 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                            || data->node->outArrayType                                             \
                                   == rocfft_array_type_hermitian_interleaved))                     \
                     {                                                                              \
-                        hipLaunchKernelGGL(HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT>),  \
-                                           dim3(data->gridParam.b_x),                              \
-                                           dim3(data->gridParam.tpb_x),                            \
-                                           0,                                                      \
-                                           rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles,                       \
-                                           data->node->length.size(),                              \
-                                           data->node->devKernArg,                                 \
-                                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->batch,                                      \
-                                           (PRECISION*)data->bufIn[0],                             \
-                                           (PRECISION*)data->bufOut[0]);                           \
+                        hipLaunchKernelGGL(                                                        \
+                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT>),                 \
+                            dim3(data->gridParam.b_x),                                             \
+                            dim3(data->gridParam.tpb_x),                                           \
+                            0,                                                                     \
+                            rocfft_stream,                                                         \
+                            (PRECISION*)data->node->twiddles.data(),                               \
+                            data->node->length.size(),                                             \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->batch,                                                     \
+                            (PRECISION*)data->bufIn[0],                                            \
+                            (PRECISION*)data->bufOut[0]);                                          \
                     }                                                                              \
                     else if((data->node->inArrayType == rocfft_array_type_complex_interleaved      \
                              || data->node->inArrayType                                            \
@@ -313,20 +318,21 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                 || data->node->outArrayType                                        \
                                        == rocfft_array_type_hermitian_planar))                     \
                     {                                                                              \
-                        hipLaunchKernelGGL(HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT>),  \
-                                           dim3(data->gridParam.b_x),                              \
-                                           dim3(data->gridParam.tpb_x),                            \
-                                           0,                                                      \
-                                           rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles,                       \
-                                           data->node->length.size(),                              \
-                                           data->node->devKernArg,                                 \
-                                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->batch,                                      \
-                                           (PRECISION*)data->bufIn[0],                             \
-                                           (real_type_t<PRECISION>*)data->bufOut[0],               \
-                                           (real_type_t<PRECISION>*)data->bufOut[1]);              \
+                        hipLaunchKernelGGL(                                                        \
+                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT>),                 \
+                            dim3(data->gridParam.b_x),                                             \
+                            dim3(data->gridParam.tpb_x),                                           \
+                            0,                                                                     \
+                            rocfft_stream,                                                         \
+                            (PRECISION*)data->node->twiddles.data(),                               \
+                            data->node->length.size(),                                             \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->batch,                                                     \
+                            (PRECISION*)data->bufIn[0],                                            \
+                            (real_type_t<PRECISION>*)data->bufOut[0],                              \
+                            (real_type_t<PRECISION>*)data->bufOut[1]);                             \
                     }                                                                              \
                     else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
                              || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
@@ -334,20 +340,21 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                 || data->node->outArrayType                                        \
                                        == rocfft_array_type_hermitian_interleaved))                \
                     {                                                                              \
-                        hipLaunchKernelGGL(HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT>),  \
-                                           dim3(data->gridParam.b_x),                              \
-                                           dim3(data->gridParam.tpb_x),                            \
-                                           0,                                                      \
-                                           rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles,                       \
-                                           data->node->length.size(),                              \
-                                           data->node->devKernArg,                                 \
-                                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->batch,                                      \
-                                           (real_type_t<PRECISION>*)data->bufIn[0],                \
-                                           (real_type_t<PRECISION>*)data->bufIn[1],                \
-                                           (PRECISION*)data->bufOut[0]);                           \
+                        hipLaunchKernelGGL(                                                        \
+                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT>),                 \
+                            dim3(data->gridParam.b_x),                                             \
+                            dim3(data->gridParam.tpb_x),                                           \
+                            0,                                                                     \
+                            rocfft_stream,                                                         \
+                            (PRECISION*)data->node->twiddles.data(),                               \
+                            data->node->length.size(),                                             \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->batch,                                                     \
+                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
+                            (real_type_t<PRECISION>*)data->bufIn[1],                               \
+                            (PRECISION*)data->bufOut[0]);                                          \
                     }                                                                              \
                     else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
                              || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
@@ -355,21 +362,22 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                 || data->node->outArrayType                                        \
                                        == rocfft_array_type_hermitian_planar))                     \
                     {                                                                              \
-                        hipLaunchKernelGGL(HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT>),  \
-                                           dim3(data->gridParam.b_x),                              \
-                                           dim3(data->gridParam.tpb_x),                            \
-                                           0,                                                      \
-                                           rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles,                       \
-                                           data->node->length.size(),                              \
-                                           data->node->devKernArg,                                 \
-                                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->batch,                                      \
-                                           (real_type_t<PRECISION>*)data->bufIn[0],                \
-                                           (real_type_t<PRECISION>*)data->bufIn[1],                \
-                                           (real_type_t<PRECISION>*)data->bufOut[0],               \
-                                           (real_type_t<PRECISION>*)data->bufOut[1]);              \
+                        hipLaunchKernelGGL(                                                        \
+                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT>),                 \
+                            dim3(data->gridParam.b_x),                                             \
+                            dim3(data->gridParam.tpb_x),                                           \
+                            0,                                                                     \
+                            rocfft_stream,                                                         \
+                            (PRECISION*)data->node->twiddles.data(),                               \
+                            data->node->length.size(),                                             \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->batch,                                                     \
+                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
+                            (real_type_t<PRECISION>*)data->bufIn[1],                               \
+                            (real_type_t<PRECISION>*)data->bufOut[0],                              \
+                            (real_type_t<PRECISION>*)data->bufOut[1]);                             \
                     }                                                                              \
                 }                                                                                  \
                 else                                                                               \
@@ -380,19 +388,20 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                            || data->node->outArrayType                                             \
                                   == rocfft_array_type_hermitian_interleaved))                     \
                     {                                                                              \
-                        hipLaunchKernelGGL(HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT>), \
-                                           dim3(data->gridParam.b_x),                              \
-                                           dim3(data->gridParam.tpb_x),                            \
-                                           0,                                                      \
-                                           rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles,                       \
-                                           data->node->length.size(),                              \
-                                           data->node->devKernArg,                                 \
-                                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->batch,                                      \
-                                           (PRECISION*)data->bufIn[0],                             \
-                                           (PRECISION*)data->bufOut[0]);                           \
+                        hipLaunchKernelGGL(                                                        \
+                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT>),                \
+                            dim3(data->gridParam.b_x),                                             \
+                            dim3(data->gridParam.tpb_x),                                           \
+                            0,                                                                     \
+                            rocfft_stream,                                                         \
+                            (PRECISION*)data->node->twiddles.data(),                               \
+                            data->node->length.size(),                                             \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->batch,                                                     \
+                            (PRECISION*)data->bufIn[0],                                            \
+                            (PRECISION*)data->bufOut[0]);                                          \
                     }                                                                              \
                     else if((data->node->inArrayType == rocfft_array_type_complex_interleaved      \
                              || data->node->inArrayType                                            \
@@ -401,20 +410,21 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                 || data->node->outArrayType                                        \
                                        == rocfft_array_type_hermitian_planar))                     \
                     {                                                                              \
-                        hipLaunchKernelGGL(HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT>), \
-                                           dim3(data->gridParam.b_x),                              \
-                                           dim3(data->gridParam.tpb_x),                            \
-                                           0,                                                      \
-                                           rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles,                       \
-                                           data->node->length.size(),                              \
-                                           data->node->devKernArg,                                 \
-                                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->batch,                                      \
-                                           (PRECISION*)data->bufIn[0],                             \
-                                           (real_type_t<PRECISION>*)data->bufOut[0],               \
-                                           (real_type_t<PRECISION>*)data->bufOut[1]);              \
+                        hipLaunchKernelGGL(                                                        \
+                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT>),                \
+                            dim3(data->gridParam.b_x),                                             \
+                            dim3(data->gridParam.tpb_x),                                           \
+                            0,                                                                     \
+                            rocfft_stream,                                                         \
+                            (PRECISION*)data->node->twiddles.data(),                               \
+                            data->node->length.size(),                                             \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->batch,                                                     \
+                            (PRECISION*)data->bufIn[0],                                            \
+                            (real_type_t<PRECISION>*)data->bufOut[0],                              \
+                            (real_type_t<PRECISION>*)data->bufOut[1]);                             \
                     }                                                                              \
                     else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
                              || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
@@ -422,20 +432,21 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                 || data->node->outArrayType                                        \
                                        == rocfft_array_type_hermitian_interleaved))                \
                     {                                                                              \
-                        hipLaunchKernelGGL(HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT>), \
-                                           dim3(data->gridParam.b_x),                              \
-                                           dim3(data->gridParam.tpb_x),                            \
-                                           0,                                                      \
-                                           rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles,                       \
-                                           data->node->length.size(),                              \
-                                           data->node->devKernArg,                                 \
-                                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->batch,                                      \
-                                           (real_type_t<PRECISION>*)data->bufIn[0],                \
-                                           (real_type_t<PRECISION>*)data->bufIn[1],                \
-                                           (PRECISION*)data->bufOut[0]);                           \
+                        hipLaunchKernelGGL(                                                        \
+                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT>),                \
+                            dim3(data->gridParam.b_x),                                             \
+                            dim3(data->gridParam.tpb_x),                                           \
+                            0,                                                                     \
+                            rocfft_stream,                                                         \
+                            (PRECISION*)data->node->twiddles.data(),                               \
+                            data->node->length.size(),                                             \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->batch,                                                     \
+                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
+                            (real_type_t<PRECISION>*)data->bufIn[1],                               \
+                            (PRECISION*)data->bufOut[0]);                                          \
                     }                                                                              \
                     else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
                              || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
@@ -443,21 +454,22 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                 || data->node->outArrayType                                        \
                                        == rocfft_array_type_hermitian_planar))                     \
                     {                                                                              \
-                        hipLaunchKernelGGL(HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT>), \
-                                           dim3(data->gridParam.b_x),                              \
-                                           dim3(data->gridParam.tpb_x),                            \
-                                           0,                                                      \
-                                           rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles,                       \
-                                           data->node->length.size(),                              \
-                                           data->node->devKernArg,                                 \
-                                           data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,     \
-                                           data->node->batch,                                      \
-                                           (real_type_t<PRECISION>*)data->bufIn[0],                \
-                                           (real_type_t<PRECISION>*)data->bufIn[1],                \
-                                           (real_type_t<PRECISION>*)data->bufOut[0],               \
-                                           (real_type_t<PRECISION>*)data->bufOut[1]);              \
+                        hipLaunchKernelGGL(                                                        \
+                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT>),                \
+                            dim3(data->gridParam.b_x),                                             \
+                            dim3(data->gridParam.tpb_x),                                           \
+                            0,                                                                     \
+                            rocfft_stream,                                                         \
+                            (PRECISION*)data->node->twiddles.data(),                               \
+                            data->node->length.size(),                                             \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->batch,                                                     \
+                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
+                            (real_type_t<PRECISION>*)data->bufIn[1],                               \
+                            (real_type_t<PRECISION>*)data->bufOut[0],                              \
+                            (real_type_t<PRECISION>*)data->bufOut[1]);                             \
                     }                                                                              \
                 }                                                                                  \
             }                                                                                      \
@@ -477,11 +489,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                           \
                             0,                                                                     \
                             rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles,                                      \
+                            (PRECISION*)data->node->twiddles.data(),                               \
                             data->node->length.size(),                                             \
-                            data->node->devKernArg,                                                \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
                             data->node->batch,                                                     \
                             (PRECISION*)data->bufIn[0],                                            \
                             (PRECISION*)data->bufOut[0]);                                          \
@@ -499,11 +511,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                           \
                             0,                                                                     \
                             rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles,                                      \
+                            (PRECISION*)data->node->twiddles.data(),                               \
                             data->node->length.size(),                                             \
-                            data->node->devKernArg,                                                \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
                             data->node->batch,                                                     \
                             (PRECISION*)data->bufIn[0],                                            \
                             (real_type_t<PRECISION>*)data->bufOut[0],                              \
@@ -521,11 +533,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                           \
                             0,                                                                     \
                             rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles,                                      \
+                            (PRECISION*)data->node->twiddles.data(),                               \
                             data->node->length.size(),                                             \
-                            data->node->devKernArg,                                                \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
                             data->node->batch,                                                     \
                             (real_type_t<PRECISION>*)data->bufIn[0],                               \
                             (real_type_t<PRECISION>*)data->bufIn[1],                               \
@@ -543,11 +555,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                           \
                             0,                                                                     \
                             rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles,                                      \
+                            (PRECISION*)data->node->twiddles.data(),                               \
                             data->node->length.size(),                                             \
-                            data->node->devKernArg,                                                \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
                             data->node->batch,                                                     \
                             (real_type_t<PRECISION>*)data->bufIn[0],                               \
                             (real_type_t<PRECISION>*)data->bufIn[1],                               \
@@ -569,11 +581,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                           \
                             0,                                                                     \
                             rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles,                                      \
+                            (PRECISION*)data->node->twiddles.data(),                               \
                             data->node->length.size(),                                             \
-                            data->node->devKernArg,                                                \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
                             data->node->batch,                                                     \
                             (PRECISION*)data->bufIn[0],                                            \
                             (PRECISION*)data->bufOut[0]);                                          \
@@ -591,11 +603,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                           \
                             0,                                                                     \
                             rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles,                                      \
+                            (PRECISION*)data->node->twiddles.data(),                               \
                             data->node->length.size(),                                             \
-                            data->node->devKernArg,                                                \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
                             data->node->batch,                                                     \
                             (PRECISION*)data->bufIn[0],                                            \
                             (real_type_t<PRECISION>*)data->bufOut[0],                              \
@@ -613,11 +625,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                           \
                             0,                                                                     \
                             rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles,                                      \
+                            (PRECISION*)data->node->twiddles.data(),                               \
                             data->node->length.size(),                                             \
-                            data->node->devKernArg,                                                \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
                             data->node->batch,                                                     \
                             (real_type_t<PRECISION>*)data->bufIn[0],                               \
                             (real_type_t<PRECISION>*)data->bufIn[1],                               \
@@ -635,11 +647,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                           \
                             0,                                                                     \
                             rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles,                                      \
+                            (PRECISION*)data->node->twiddles.data(),                               \
                             data->node->length.size(),                                             \
-                            data->node->devKernArg,                                                \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
+                            data->node->devKernArg.data(),                                         \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
                             data->node->batch,                                                     \
                             (real_type_t<PRECISION>*)data->bufIn[0],                               \
                             (real_type_t<PRECISION>*)data->bufIn[1],                               \
@@ -678,11 +690,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (PRECISION*)data->bufIn[0]);                                        \
                     }                                                                           \
@@ -694,11 +706,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (PRECISION*)data->bufIn[0]);                                        \
                     }                                                                           \
@@ -716,11 +728,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1]);                           \
@@ -733,11 +745,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1]);                           \
@@ -759,11 +771,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (PRECISION*)data->bufIn[0]);                                        \
                     }                                                                           \
@@ -775,11 +787,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (PRECISION*)data->bufIn[0]);                                        \
                     }                                                                           \
@@ -797,11 +809,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1]);                           \
@@ -814,11 +826,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1]);                           \
@@ -843,12 +855,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (PRECISION*)data->bufIn[0],                                         \
                             (PRECISION*)data->bufOut[0]);                                       \
@@ -861,12 +873,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (PRECISION*)data->bufIn[0],                                         \
                             (PRECISION*)data->bufOut[0]);                                       \
@@ -885,12 +897,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (PRECISION*)data->bufIn[0],                                         \
                             (real_type_t<PRECISION>*)data->bufOut[0],                           \
@@ -904,12 +916,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (PRECISION*)data->bufIn[0],                                         \
                             (real_type_t<PRECISION>*)data->bufOut[0],                           \
@@ -930,12 +942,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
@@ -949,12 +961,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
@@ -974,12 +986,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
@@ -994,12 +1006,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
@@ -1023,12 +1035,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (PRECISION*)data->bufIn[0],                                         \
                             (PRECISION*)data->bufOut[0]);                                       \
@@ -1041,12 +1053,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (PRECISION*)data->bufIn[0],                                         \
                             (PRECISION*)data->bufOut[0]);                                       \
@@ -1065,12 +1077,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (PRECISION*)data->bufIn[0],                                         \
                             (real_type_t<PRECISION>*)data->bufOut[0],                           \
@@ -1084,12 +1096,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (PRECISION*)data->bufIn[0],                                         \
                             (real_type_t<PRECISION>*)data->bufOut[0],                           \
@@ -1110,12 +1122,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
@@ -1129,12 +1141,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
@@ -1154,12 +1166,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
@@ -1174,12 +1186,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             dim3(data->gridParam.tpb_x),                                        \
                             0,                                                                  \
                             rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles,                                   \
-                            (PRECISION*)data->node->twiddles_large,                             \
+                            (PRECISION*)data->node->twiddles.data(),                            \
+                            (PRECISION*)data->node->twiddles_large.data(),                      \
                             data->node->length.size(),                                          \
-                            data->node->devKernArg,                                             \
-                            data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,                 \
-                            data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,                 \
+                            data->node->devKernArg.data(),                                      \
+                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
+                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->batch,                                                  \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
@@ -1208,11 +1220,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
                                    rocfft_stream,                                                \
-                                   (PRECISION*)data->node->twiddles,                             \
+                                   (PRECISION*)data->node->twiddles.data(),                      \
                                    data->node->length.size(),                                    \
-                                   data->node->devKernArg,                                       \
-                                   data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,           \
-                                   data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,           \
+                                   data->node->devKernArg.data(),                                \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->batch,                                            \
                                    (PRECISION*)data->bufIn[0],                                   \
                                    (PRECISION*)data->bufOut[0]);                                 \
@@ -1227,11 +1239,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
                                    rocfft_stream,                                                \
-                                   (PRECISION*)data->node->twiddles,                             \
+                                   (PRECISION*)data->node->twiddles.data(),                      \
                                    data->node->length.size(),                                    \
-                                   data->node->devKernArg,                                       \
-                                   data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,           \
-                                   data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,           \
+                                   data->node->devKernArg.data(),                                \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->batch,                                            \
                                    (PRECISION*)data->bufIn[0],                                   \
                                    (real_type_t<PRECISION>*)data->bufOut[0],                     \
@@ -1247,11 +1259,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
                                    rocfft_stream,                                                \
-                                   (PRECISION*)data->node->twiddles,                             \
+                                   (PRECISION*)data->node->twiddles.data(),                      \
                                    data->node->length.size(),                                    \
-                                   data->node->devKernArg,                                       \
-                                   data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,           \
-                                   data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,           \
+                                   data->node->devKernArg.data(),                                \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->batch,                                            \
                                    (real_type_t<PRECISION>*)data->bufIn[0],                      \
                                    (real_type_t<PRECISION>*)data->bufIn[1],                      \
@@ -1267,11 +1279,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
                                    rocfft_stream,                                                \
-                                   (PRECISION*)data->node->twiddles,                             \
+                                   (PRECISION*)data->node->twiddles.data(),                      \
                                    data->node->length.size(),                                    \
-                                   data->node->devKernArg,                                       \
-                                   data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,           \
-                                   data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,           \
+                                   data->node->devKernArg.data(),                                \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->batch,                                            \
                                    (real_type_t<PRECISION>*)data->bufIn[0],                      \
                                    (real_type_t<PRECISION>*)data->bufIn[1],                      \
@@ -1291,11 +1303,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
                                    rocfft_stream,                                                \
-                                   (PRECISION*)data->node->twiddles,                             \
+                                   (PRECISION*)data->node->twiddles.data(),                      \
                                    data->node->length.size(),                                    \
-                                   data->node->devKernArg,                                       \
-                                   data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,           \
-                                   data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,           \
+                                   data->node->devKernArg.data(),                                \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->batch,                                            \
                                    (PRECISION*)data->bufIn[0],                                   \
                                    (PRECISION*)data->bufOut[0]);                                 \
@@ -1310,11 +1322,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
                                    rocfft_stream,                                                \
-                                   (PRECISION*)data->node->twiddles,                             \
+                                   (PRECISION*)data->node->twiddles.data(),                      \
                                    data->node->length.size(),                                    \
-                                   data->node->devKernArg,                                       \
-                                   data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,           \
-                                   data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,           \
+                                   data->node->devKernArg.data(),                                \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->batch,                                            \
                                    (PRECISION*)data->bufIn[0],                                   \
                                    (real_type_t<PRECISION>*)data->bufOut[0],                     \
@@ -1330,11 +1342,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
                                    rocfft_stream,                                                \
-                                   (PRECISION*)data->node->twiddles,                             \
+                                   (PRECISION*)data->node->twiddles.data(),                      \
                                    data->node->length.size(),                                    \
-                                   data->node->devKernArg,                                       \
-                                   data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,           \
-                                   data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,           \
+                                   data->node->devKernArg.data(),                                \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->batch,                                            \
                                    (real_type_t<PRECISION>*)data->bufIn[0],                      \
                                    (real_type_t<PRECISION>*)data->bufIn[1],                      \
@@ -1350,11 +1362,11 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
                                    rocfft_stream,                                                \
-                                   (PRECISION*)data->node->twiddles,                             \
+                                   (PRECISION*)data->node->twiddles.data(),                      \
                                    data->node->length.size(),                                    \
-                                   data->node->devKernArg,                                       \
-                                   data->node->devKernArg + 1 * KERN_ARGS_ARRAY_WIDTH,           \
-                                   data->node->devKernArg + 2 * KERN_ARGS_ARRAY_WIDTH,           \
+                                   data->node->devKernArg.data(),                                \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->batch,                                            \
                                    (real_type_t<PRECISION>*)data->bufIn[0],                      \
                                    (real_type_t<PRECISION>*)data->bufIn[1],                      \

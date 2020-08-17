@@ -49,15 +49,6 @@ public:
     ~Repo()
     {
         repoDestroyed = true;
-
-        // in case there are plans left without calling DeletePlan()
-        auto it = planUnique.begin();
-        while(it != planUnique.end())
-        {
-            TreeNode::DeleteNode(it->second.first.rootPlan);
-            it->second.first.rootPlan = nullptr;
-            it++;
-        }
     }
 
     static rocfft_status CreatePlan(rocfft_plan plan);

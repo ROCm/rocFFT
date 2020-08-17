@@ -780,7 +780,7 @@ void TreeNode::RecursiveBuildTree()
             // And enable this only for cases that lengths are not aligned to
             // 64 because perf issue.
             // See more comments in assign_params_CS_3D_RTRTRT().
-            TreeNode* child0  = TreeNode::CreateNode(this);
+            auto child0       = TreeNode::CreateNode(this);
             child0->length    = length;
             child0->dimension = 2;
             child0->RecursiveBuildTree();
@@ -789,8 +789,6 @@ void TreeNode::RecursiveBuildTree()
             {
                 scheme = CS_3D_RTRTRT;
             }
-
-            DeleteNode(child0);
         }
 
         switch(scheme)
@@ -808,7 +806,7 @@ void TreeNode::RecursiveBuildTree()
         case CS_3D_RC:
         {
             // 2d fft
-            TreeNode* xyPlan = TreeNode::CreateNode(this);
+            auto xyPlan = TreeNode::CreateNode(this);
 
             xyPlan->length.push_back(length[0]);
             xyPlan->length.push_back(length[1]);
@@ -821,10 +819,10 @@ void TreeNode::RecursiveBuildTree()
             }
 
             xyPlan->RecursiveBuildTree();
-            childNodes.push_back(xyPlan);
+            childNodes.emplace_back(std::move(xyPlan));
 
             // z col fft
-            TreeNode* zPlan = TreeNode::CreateNode(this);
+            auto zPlan = TreeNode::CreateNode(this);
 
             zPlan->length.push_back(length[2]);
             zPlan->dimension = 1;
@@ -837,7 +835,7 @@ void TreeNode::RecursiveBuildTree()
             }
 
             zPlan->scheme = CS_KERNEL_3D_STOCKHAM_BLOCK_CC;
-            childNodes.push_back(zPlan);
+            childNodes.emplace_back(std::move(zPlan));
         }
         break;
         case CS_KERNEL_3D_SINGLE:
@@ -966,7 +964,7 @@ void TreeNode::build_real_embed()
     copyHeadPlan->length    = length;
     copyHeadPlan->scheme    = (inArrayType == rocfft_array_type_real) ? CS_KERNEL_COPY_R_TO_CMPLX
                                                                    : CS_KERNEL_COPY_HERM_TO_CMPLX;
-    childNodes.push_back(copyHeadPlan);
+    childNodes.emplace_back(std::move(copyHeadPlan));
 
     // complex fft
     auto fftPlan = TreeNode::CreateNode(this);
@@ -975,7 +973,7 @@ void TreeNode::build_real_embed()
     fftPlan->length    = length;
 
     fftPlan->RecursiveBuildTree();
-    childNodes.push_back(fftPlan);
+    childNodes.emplace_back(std::move(fftPlan));
 
     // tail copy plan
     auto copyTailPlan = TreeNode::CreateNode(this);
@@ -984,7 +982,7 @@ void TreeNode::build_real_embed()
     copyTailPlan->length    = length;
     copyTailPlan->scheme    = (inArrayType == rocfft_array_type_real) ? CS_KERNEL_COPY_CMPLX_TO_HERM
                                                                    : CS_KERNEL_COPY_CMPLX_TO_R;
-    childNodes.push_back(copyTailPlan);
+    childNodes.emplace_back(std::move(copyTailPlan));
 }
 
 void TreeNode::build_real_even_1D()
@@ -1010,7 +1008,7 @@ void TreeNode::build_real_even_1D()
         // cfftPlan works in-place on the input buffer.
         // NB: the input buffer is real, but we treat it as complex
         cfftPlan->RecursiveBuildTree();
-        childNodes.push_back(cfftPlan);
+        childNodes.emplace_back(std::move(cfftPlan));
 
         auto postPlan       = TreeNode::CreateNode(this);
         postPlan->scheme    = CS_KERNEL_R_TO_CMPLX;
@@ -1018,7 +1016,7 @@ void TreeNode::build_real_even_1D()
         postPlan->length    = length;
         postPlan->length[0] /= 2;
 
-        childNodes.push_back(postPlan);
+        childNodes.emplace_back(std::move(postPlan));
         break;
     }
     case 1:
@@ -1031,12 +1029,12 @@ void TreeNode::build_real_even_1D()
         prePlan->length    = length;
         prePlan->length[0] /= 2;
 
-        childNodes.push_back(prePlan);
+        childNodes.emplace_back(std::move(prePlan));
 
         // cfftPlan works in-place on the output buffer.
         // NB: the output buffer is real, but we treat it as complex
         cfftPlan->RecursiveBuildTree();
-        childNodes.push_back(cfftPlan);
+        childNodes.emplace_back(std::move(cfftPlan));
         break;
     }
     default:
@@ -1069,7 +1067,7 @@ void TreeNode::build_real_even_2D()
                 row1Plan->length.push_back(length[index]);
             }
             row1Plan->build_real_even_1D();
-            childNodes.push_back(row1Plan);
+            childNodes.emplace_back(std::move(row1Plan));
         }
 
         {
@@ -1083,7 +1081,7 @@ void TreeNode::build_real_even_2D()
             {
                 trans1Plan->length.push_back(length[index]);
             }
-            childNodes.push_back(trans1Plan);
+            childNodes.emplace_back(std::move(trans1Plan));
         }
 
         {
@@ -1097,7 +1095,7 @@ void TreeNode::build_real_even_2D()
                 row2Plan->length.push_back(length[index]);
             }
             row2Plan->RecursiveBuildTree();
-            childNodes.push_back(row2Plan);
+            childNodes.emplace_back(std::move(row2Plan));
         }
 
         {
@@ -1111,7 +1109,7 @@ void TreeNode::build_real_even_2D()
             {
                 trans2Plan->length.push_back(length[index]);
             }
-            childNodes.push_back(trans2Plan);
+            childNodes.emplace_back(std::move(trans2Plan));
         }
     }
     else
@@ -1129,7 +1127,7 @@ void TreeNode::build_real_even_2D()
             {
                 trans1Plan->length.push_back(length[index]);
             }
-            childNodes.push_back(trans1Plan);
+            childNodes.emplace_back(std::move(trans1Plan));
         }
 
         // c2c row transform
@@ -1143,7 +1141,7 @@ void TreeNode::build_real_even_2D()
                 c2cPlan->length.push_back(length[index]);
             }
             c2cPlan->RecursiveBuildTree();
-            childNodes.push_back(c2cPlan);
+            childNodes.emplace_back(std::move(c2cPlan));
         }
 
         // second transpose
@@ -1157,7 +1155,7 @@ void TreeNode::build_real_even_2D()
             {
                 trans2plan->length.push_back(length[index]);
             }
-            childNodes.push_back(trans2plan);
+            childNodes.emplace_back(std::move(trans2plan));
         }
 
         // c2r row transform
@@ -1171,7 +1169,7 @@ void TreeNode::build_real_even_2D()
                 c2rPlan->length.push_back(length[index]);
             }
             c2rPlan->build_real_even_1D();
-            childNodes.push_back(c2rPlan);
+            childNodes.emplace_back(std::move(c2rPlan));
         }
     }
 }
@@ -1193,7 +1191,7 @@ void TreeNode::build_real_even_3D()
             rcplan->length    = length;
             rcplan->dimension = 1;
             rcplan->build_real_even_1D();
-            childNodes.push_back(rcplan);
+            childNodes.emplace_back(std::move(rcplan));
         }
 
         // first transpose
@@ -1202,7 +1200,7 @@ void TreeNode::build_real_even_3D()
             trans1plan->length    = {length[0] / 2 + 1, length[1], length[2]};
             trans1plan->scheme    = CS_KERNEL_TRANSPOSE_Z_XY;
             trans1plan->dimension = 2;
-            childNodes.push_back(trans1plan);
+            childNodes.emplace_back(std::move(trans1plan));
         }
 
         {
@@ -1213,7 +1211,7 @@ void TreeNode::build_real_even_3D()
             c1plan->dimension = 1;
             c1plan->placement = rocfft_placement_inplace;
             c1plan->RecursiveBuildTree();
-            childNodes.push_back(c1plan);
+            childNodes.emplace_back(std::move(c1plan));
         }
 
         // second transpose
@@ -1222,7 +1220,7 @@ void TreeNode::build_real_even_3D()
             trans2plan->length    = childNodes[childNodes.size() - 1]->length;
             trans2plan->scheme    = CS_KERNEL_TRANSPOSE_Z_XY;
             trans2plan->dimension = 2;
-            childNodes.push_back(trans2plan);
+            childNodes.emplace_back(std::move(trans2plan));
         }
 
         {
@@ -1233,7 +1231,7 @@ void TreeNode::build_real_even_3D()
             c2plan->dimension = 1;
             c2plan->placement = rocfft_placement_inplace;
             c2plan->RecursiveBuildTree();
-            childNodes.push_back(c2plan);
+            childNodes.emplace_back(std::move(c2plan));
         }
 
         // third transpose
@@ -1242,7 +1240,7 @@ void TreeNode::build_real_even_3D()
             trans3->length    = childNodes[childNodes.size() - 1]->length;
             trans3->scheme    = CS_KERNEL_TRANSPOSE_Z_XY;
             trans3->dimension = 2;
-            childNodes.push_back(trans3);
+            childNodes.emplace_back(std::move(trans3));
         }
     }
     else
@@ -1253,7 +1251,7 @@ void TreeNode::build_real_even_3D()
             trans3->length    = {length[0] / 2 + 1, length[1], length[2]};
             trans3->scheme    = CS_KERNEL_TRANSPOSE_XY_Z;
             trans3->dimension = 2;
-            childNodes.push_back(trans3);
+            childNodes.emplace_back(std::move(trans3));
         }
 
         {
@@ -1264,7 +1262,7 @@ void TreeNode::build_real_even_3D()
             c2plan->dimension = 1;
             c2plan->placement = rocfft_placement_inplace;
             c2plan->RecursiveBuildTree();
-            childNodes.push_back(c2plan);
+            childNodes.emplace_back(std::move(c2plan));
         }
 
         // transpose
@@ -1273,7 +1271,7 @@ void TreeNode::build_real_even_3D()
             trans2->length    = childNodes[childNodes.size() - 1]->length;
             trans2->scheme    = CS_KERNEL_TRANSPOSE_XY_Z;
             trans2->dimension = 2;
-            childNodes.push_back(trans2);
+            childNodes.emplace_back(std::move(trans2));
         }
 
         {
@@ -1284,7 +1282,7 @@ void TreeNode::build_real_even_3D()
             c1plan->dimension = 1;
             c1plan->placement = rocfft_placement_inplace;
             c1plan->RecursiveBuildTree();
-            childNodes.push_back(c1plan);
+            childNodes.emplace_back(std::move(c1plan));
         }
 
         // transpose
@@ -1293,7 +1291,7 @@ void TreeNode::build_real_even_3D()
             trans1->length    = childNodes[childNodes.size() - 1]->length;
             trans1->scheme    = CS_KERNEL_TRANSPOSE_XY_Z;
             trans1->dimension = 2;
-            childNodes.push_back(trans1);
+            childNodes.emplace_back(std::move(trans1));
         }
 
         // c2r
@@ -1302,7 +1300,7 @@ void TreeNode::build_real_even_3D()
             crplan->length    = length;
             crplan->dimension = 1;
             crplan->build_real_even_1D();
-            childNodes.push_back(crplan);
+            childNodes.emplace_back(std::move(crplan));
         }
     }
 }
@@ -1360,7 +1358,7 @@ void TreeNode::build_real_pair()
             cplan->inArrayType  = rocfft_array_type_complex_planar;
             cplan->outArrayType = rocfft_array_type_complex_planar;
             cplan->RecursiveBuildTree();
-            childNodes.push_back(cplan);
+            childNodes.emplace_back(std::move(cplan));
         }
 
         // Unpack the results into two Hermitian-symmetric arrays
@@ -1373,7 +1371,7 @@ void TreeNode::build_real_pair()
             unpack->pairdim      = c2c_pairdim;
             unpack->inArrayType  = rocfft_array_type_complex_planar;
             unpack->outArrayType = outArrayType;
-            childNodes.push_back(unpack);
+            childNodes.emplace_back(std::move(unpack));
         }
 
         // TODO: if dimension > 1, then we need to launch a sub-dimensional c2c transform
@@ -1559,7 +1557,7 @@ void TreeNode::build_1DBluestein()
     chirpPlan->direction  = direction;
     chirpPlan->batch      = 1;
     chirpPlan->large1D    = 2 * length[0];
-    childNodes.push_back(chirpPlan);
+    childNodes.emplace_back(std::move(chirpPlan));
 
     auto padmulPlan = TreeNode::CreateNode(this);
 
@@ -1567,7 +1565,7 @@ void TreeNode::build_1DBluestein()
     padmulPlan->length     = length;
     padmulPlan->lengthBlue = lengthBlue;
     padmulPlan->scheme     = CS_KERNEL_PAD_MUL;
-    childNodes.push_back(padmulPlan);
+    childNodes.emplace_back(std::move(padmulPlan));
 
     auto fftiPlan = TreeNode::CreateNode(this);
 
@@ -1582,7 +1580,7 @@ void TreeNode::build_1DBluestein()
     fftiPlan->oOffset = 2 * lengthBlue;
     fftiPlan->scheme  = CS_KERNEL_STOCKHAM;
     fftiPlan->RecursiveBuildTree();
-    childNodes.push_back(fftiPlan);
+    childNodes.emplace_back(std::move(fftiPlan));
 
     auto fftcPlan = TreeNode::CreateNode(this);
 
@@ -1593,7 +1591,7 @@ void TreeNode::build_1DBluestein()
     fftcPlan->iOffset = lengthBlue;
     fftcPlan->oOffset = lengthBlue;
     fftcPlan->RecursiveBuildTree();
-    childNodes.push_back(fftcPlan);
+    childNodes.emplace_back(std::move(fftcPlan));
 
     auto fftmulPlan = TreeNode::CreateNode(this);
 
@@ -1606,7 +1604,7 @@ void TreeNode::build_1DBluestein()
 
     fftmulPlan->lengthBlue = lengthBlue;
     fftmulPlan->scheme     = CS_KERNEL_FFT_MUL;
-    childNodes.push_back(fftmulPlan);
+    childNodes.emplace_back(std::move(fftmulPlan));
 
     auto fftrPlan = TreeNode::CreateNode(this);
 
@@ -1622,7 +1620,7 @@ void TreeNode::build_1DBluestein()
     fftrPlan->iOffset   = 2 * lengthBlue;
     fftrPlan->oOffset   = 2 * lengthBlue;
     fftrPlan->RecursiveBuildTree();
-    childNodes.push_back(fftrPlan);
+    childNodes.emplace_back(std::move(fftrPlan));
 
     auto resmulPlan = TreeNode::CreateNode(this);
 
@@ -1630,7 +1628,7 @@ void TreeNode::build_1DBluestein()
     resmulPlan->length     = length;
     resmulPlan->lengthBlue = lengthBlue;
     resmulPlan->scheme     = CS_KERNEL_RES_MUL;
-    childNodes.push_back(resmulPlan);
+    childNodes.emplace_back(std::move(resmulPlan));
 }
 
 void TreeNode::build_1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLength1)
@@ -1649,7 +1647,7 @@ void TreeNode::build_1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLen
         trans1Plan->length.push_back(length[index]);
     }
 
-    childNodes.push_back(trans1Plan);
+    childNodes.emplace_back(std::move(trans1Plan));
 
     // first row fft
     auto row1Plan = TreeNode::CreateNode(this);
@@ -1669,7 +1667,7 @@ void TreeNode::build_1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLen
     }
 
     row1Plan->RecursiveBuildTree();
-    childNodes.push_back(row1Plan);
+    childNodes.emplace_back(std::move(row1Plan));
 
     // second transpose
     auto trans2Plan = TreeNode::CreateNode(this);
@@ -1687,7 +1685,7 @@ void TreeNode::build_1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLen
         trans2Plan->length.push_back(length[index]);
     }
 
-    childNodes.push_back(trans2Plan);
+    childNodes.emplace_back(std::move(trans2Plan));
 
     // second row fft
     auto row2Plan = TreeNode::CreateNode(this);
@@ -1706,7 +1704,7 @@ void TreeNode::build_1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLen
     // algorithm is set up in a way that row2 does not recurse
     assert(divLength0 <= Large1DThreshold(this->precision));
 
-    childNodes.push_back(row2Plan);
+    childNodes.emplace_back(std::move(row2Plan));
 
     // third transpose
     auto trans3Plan = TreeNode::CreateNode(this);
@@ -1722,7 +1720,7 @@ void TreeNode::build_1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLen
         trans3Plan->length.push_back(length[index]);
     }
 
-    childNodes.push_back(trans3Plan);
+    childNodes.emplace_back(std::move(trans3Plan));
 }
 
 void TreeNode::build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength1)
@@ -1749,7 +1747,7 @@ void TreeNode::build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength
         col2colPlan->length.push_back(length[index]);
     }
 
-    childNodes.push_back(col2colPlan);
+    childNodes.emplace_back(std::move(col2colPlan));
 
     // second plan, row-to-column
     auto row2colPlan = TreeNode::CreateNode(this);
@@ -1765,7 +1763,7 @@ void TreeNode::build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength
         row2colPlan->length.push_back(length[index]);
     }
 
-    childNodes.push_back(row2colPlan);
+    childNodes.emplace_back(std::move(row2colPlan));
 }
 
 void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLength1)
@@ -1787,7 +1785,7 @@ void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLengt
         col2colPlan->length.push_back(length[index]);
     }
 
-    childNodes.push_back(col2colPlan);
+    childNodes.emplace_back(std::move(col2colPlan));
 
     // second plan, row-to-row
     auto row2rowPlan = TreeNode::CreateNode(this);
@@ -1803,7 +1801,7 @@ void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLengt
         row2rowPlan->length.push_back(length[index]);
     }
 
-    childNodes.push_back(row2rowPlan);
+    childNodes.emplace_back(std::move(row2rowPlan));
 
     // third plan, transpose
     auto transPlan = TreeNode::CreateNode(this);
@@ -1819,7 +1817,7 @@ void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLengt
         transPlan->length.push_back(length[index]);
     }
 
-    childNodes.push_back(transPlan);
+    childNodes.emplace_back(std::move(transPlan));
 }
 
 void TreeNode::build_CS_2D_RC()
@@ -1837,7 +1835,7 @@ void TreeNode::build_CS_2D_RC()
     }
 
     rowPlan->RecursiveBuildTree();
-    childNodes.push_back(rowPlan);
+    childNodes.emplace_back(std::move(rowPlan));
 
     // column fft
     auto colPlan = TreeNode::CreateNode(this);
@@ -1853,7 +1851,7 @@ void TreeNode::build_CS_2D_RC()
     }
 
     colPlan->scheme = CS_KERNEL_STOCKHAM_BLOCK_CC;
-    childNodes.push_back(colPlan);
+    childNodes.emplace_back(std::move(colPlan));
 }
 
 void TreeNode::build_CS_2D_RTRT()
@@ -1871,7 +1869,7 @@ void TreeNode::build_CS_2D_RTRT()
     }
 
     row1Plan->RecursiveBuildTree();
-    childNodes.push_back(row1Plan);
+    childNodes.emplace_back(std::move(row1Plan));
 
     // first transpose
     auto trans1Plan = TreeNode::CreateNode(this);
@@ -1887,7 +1885,7 @@ void TreeNode::build_CS_2D_RTRT()
         trans1Plan->length.push_back(length[index]);
     }
 
-    childNodes.push_back(trans1Plan);
+    childNodes.emplace_back(std::move(trans1Plan));
 
     // second row fft
     auto row2Plan = TreeNode::CreateNode(this);
@@ -1902,7 +1900,7 @@ void TreeNode::build_CS_2D_RTRT()
     }
 
     row2Plan->RecursiveBuildTree();
-    childNodes.push_back(row2Plan);
+    childNodes.emplace_back(std::move(row2Plan));
 
     // second transpose
     auto trans2Plan = TreeNode::CreateNode(this);
@@ -1918,7 +1916,7 @@ void TreeNode::build_CS_2D_RTRT()
         trans2Plan->length.push_back(length[index]);
     }
 
-    childNodes.push_back(trans2Plan);
+    childNodes.emplace_back(std::move(trans2Plan));
 }
 
 void TreeNode::build_CS_3D_RTRT()
@@ -1928,14 +1926,14 @@ void TreeNode::build_CS_3D_RTRT()
     xyPlan->length    = length;
     xyPlan->dimension = 2;
     xyPlan->RecursiveBuildTree();
-    childNodes.push_back(xyPlan);
+    childNodes.emplace_back(std::move(xyPlan));
 
     // first transpose
     auto trans1Plan       = TreeNode::CreateNode(this);
     trans1Plan->length    = length;
     trans1Plan->scheme    = CS_KERNEL_TRANSPOSE_XY_Z;
     trans1Plan->dimension = 2;
-    childNodes.push_back(trans1Plan);
+    childNodes.emplace_back(std::move(trans1Plan));
 
     // z fft
     auto zPlan       = TreeNode::CreateNode(this);
@@ -1944,14 +1942,14 @@ void TreeNode::build_CS_3D_RTRT()
     zPlan->length.push_back(length[0]);
     zPlan->length.push_back(length[1]);
     zPlan->RecursiveBuildTree();
-    childNodes.push_back(zPlan);
 
     // second transpose
     auto trans2Plan       = TreeNode::CreateNode(this);
     trans2Plan->length    = zPlan->length;
     trans2Plan->scheme    = CS_KERNEL_TRANSPOSE_Z_XY;
     trans2Plan->dimension = 2;
-    childNodes.push_back(trans2Plan);
+    childNodes.emplace_back(std::move(zPlan));
+    childNodes.emplace_back(std::move(trans2Plan));
 }
 
 void TreeNode::build_CS_3D_RTRTRT()
@@ -1966,14 +1964,14 @@ void TreeNode::build_CS_3D_RTRTRT()
         row_plan->length    = cur_length;
         row_plan->dimension = 1;
         row_plan->RecursiveBuildTree();
-        childNodes.push_back(row_plan);
+        childNodes.emplace_back(std::move(row_plan));
 
         // transpose XY_Z
         auto trans_plan       = TreeNode::CreateNode(this);
         trans_plan->length    = cur_length;
         trans_plan->scheme    = CS_KERNEL_TRANSPOSE_XY_Z;
         trans_plan->dimension = 2;
-        childNodes.push_back(trans_plan);
+        childNodes.emplace_back(std::move(trans_plan));
 
         std::swap(cur_length[2], cur_length[1]);
         std::swap(cur_length[1], cur_length[0]);
@@ -1983,7 +1981,7 @@ void TreeNode::build_CS_3D_RTRTRT()
 struct TreeNode::TraverseState
 {
     TraverseState(const ExecPlan& execPlan)
-        : rootPlan(execPlan.rootPlan)
+        : rootPlan(execPlan.rootPlan.get())
     {
         TraverseFullSequence(rootPlan);
     }
@@ -1997,8 +1995,8 @@ private:
     void TraverseFullSequence(const TreeNode* node)
     {
         fullSeq.push_back(node);
-        for(TreeNode* child : node->childNodes)
-            TraverseFullSequence(child);
+        for(auto& child : node->childNodes)
+            TraverseFullSequence(child.get());
     }
 };
 
@@ -2493,7 +2491,7 @@ void TreeNode::assign_buffers_CS_REAL_TRANSFORM_PAIR(TraverseState&   state,
 {
     if(direction == -1)
     {
-        auto cplan = childNodes[0];
+        auto& cplan = childNodes[0];
         cplan->SetInputBuffer(state);
         if(parent == nullptr)
         {
@@ -2501,7 +2499,7 @@ void TreeNode::assign_buffers_CS_REAL_TRANSFORM_PAIR(TraverseState&   state,
         }
         cplan->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obIn);
 
-        auto unpack = childNodes[1];
+        auto& unpack = childNodes[1];
         assert(unpack->scheme == CS_KERNEL_PAIR_UNPACK);
         // The unpack plan cannot be in-place due to a race condition
         unpack->SetInputBuffer(state);
@@ -3046,9 +3044,9 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
 void TreeNode::assign_params_CS_REAL_TRANSFORM_USING_CMPLX()
 {
     assert(childNodes.size() == 3);
-    auto copyHeadPlan = childNodes[0];
-    auto fftPlan      = childNodes[1];
-    auto copyTailPlan = childNodes[2];
+    auto& copyHeadPlan = childNodes[0];
+    auto& fftPlan      = childNodes[1];
+    auto& copyTailPlan = childNodes[2];
 
     copyHeadPlan->inStride = inStride;
     copyHeadPlan->iDist    = iDist;
@@ -3085,7 +3083,7 @@ void TreeNode::assign_params_CS_REAL_TRANSFORM_EVEN()
 
         // iDist is in reals, subplan->iDist is in complexes
 
-        auto fftPlan      = childNodes[0];
+        auto& fftPlan     = childNodes[0];
         fftPlan->inStride = inStride;
         for(int i = 1; i < fftPlan->inStride.size(); ++i)
         {
@@ -3102,7 +3100,7 @@ void TreeNode::assign_params_CS_REAL_TRANSFORM_EVEN()
         assert(fftPlan->length.size() == fftPlan->inStride.size());
         assert(fftPlan->length.size() == fftPlan->outStride.size());
 
-        auto postPlan = childNodes[1];
+        auto& postPlan = childNodes[1];
         assert(postPlan->scheme == CS_KERNEL_R_TO_CMPLX);
         postPlan->inStride = inStride;
         for(int i = 1; i < postPlan->inStride.size(); ++i)
@@ -3122,7 +3120,7 @@ void TreeNode::assign_params_CS_REAL_TRANSFORM_EVEN()
 
         // oDist is in reals, subplan->oDist is in complexes
 
-        auto prePlan = childNodes[0];
+        auto& prePlan = childNodes[0];
         assert(prePlan->scheme == CS_KERNEL_CMPLX_TO_R);
 
         prePlan->iDist = iDist;
@@ -3138,7 +3136,7 @@ void TreeNode::assign_params_CS_REAL_TRANSFORM_EVEN()
             prePlan->outStride[i] /= 2;
         }
 
-        auto fftPlan = childNodes[1];
+        auto& fftPlan = childNodes[1];
         // Transform the strides from real to complex.
 
         fftPlan->inStride  = outStride;
@@ -3163,8 +3161,8 @@ void TreeNode::assign_params_CS_REAL_TRANSFORM_EVEN()
 
 void TreeNode::assign_params_CS_L1D_CC()
 {
-    auto col2colPlan = childNodes[0];
-    auto row2colPlan = childNodes[1];
+    auto& col2colPlan = childNodes[0];
+    auto& row2colPlan = childNodes[1];
 
     if((obOut == OB_USER_OUT) || (obOut == OB_TEMP_CMPLX_FOR_REAL))
     {
@@ -3283,9 +3281,9 @@ void TreeNode::assign_params_CS_L1D_CC()
 
 void TreeNode::assign_params_CS_L1D_CRT()
 {
-    auto col2colPlan = childNodes[0];
-    auto row2rowPlan = childNodes[1];
-    auto transPlan   = childNodes[2];
+    auto& col2colPlan = childNodes[0];
+    auto& row2rowPlan = childNodes[1];
+    auto& transPlan   = childNodes[2];
 
     if(parent != NULL)
         assert(obIn == obOut);
@@ -3419,13 +3417,13 @@ void TreeNode::assign_params_CS_L1D_CRT()
 
 void TreeNode::assign_params_CS_BLUESTEIN()
 {
-    auto chirpPlan  = childNodes[0];
-    auto padmulPlan = childNodes[1];
-    auto fftiPlan   = childNodes[2];
-    auto fftcPlan   = childNodes[3];
-    auto fftmulPlan = childNodes[4];
-    auto fftrPlan   = childNodes[5];
-    auto resmulPlan = childNodes[6];
+    auto& chirpPlan  = childNodes[0];
+    auto& padmulPlan = childNodes[1];
+    auto& fftiPlan   = childNodes[2];
+    auto& fftcPlan   = childNodes[3];
+    auto& fftmulPlan = childNodes[4];
+    auto& fftrPlan   = childNodes[5];
+    auto& resmulPlan = childNodes[6];
 
     chirpPlan->inStride.push_back(1);
     chirpPlan->iDist = chirpPlan->lengthBlue;
@@ -3482,11 +3480,11 @@ void TreeNode::assign_params_CS_L1D_TRTRT()
     const size_t padding
         = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
 
-    auto trans1Plan = childNodes[0];
-    auto row1Plan   = childNodes[1];
-    auto trans2Plan = childNodes[2];
-    auto row2Plan   = childNodes[3];
-    auto trans3Plan = childNodes[4];
+    auto& trans1Plan = childNodes[0];
+    auto& row1Plan   = childNodes[1];
+    auto& trans2Plan = childNodes[2];
+    auto& row2Plan   = childNodes[3];
+    auto& trans3Plan = childNodes[4];
 
     trans1Plan->inStride.push_back(inStride[0]);
     trans1Plan->inStride.push_back(trans1Plan->length[0]);
@@ -3680,14 +3678,14 @@ void TreeNode::assign_params_CS_2D_RTRT()
     const size_t padding
         = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
 
-    auto row1Plan       = childNodes[0];
+    auto& row1Plan      = childNodes[0];
     row1Plan->inStride  = inStride;
     row1Plan->iDist     = iDist;
     row1Plan->outStride = outStride;
     row1Plan->oDist     = oDist;
     row1Plan->TraverseTreeAssignParamsLogicA();
 
-    auto trans1Plan      = childNodes[1];
+    auto& trans1Plan     = childNodes[1];
     trans1Plan->inStride = row1Plan->outStride;
     trans1Plan->iDist    = row1Plan->oDist;
     trans1Plan->outStride.push_back(1);
@@ -3699,14 +3697,14 @@ void TreeNode::assign_params_CS_2D_RTRT()
         trans1Plan->oDist *= length[index];
     }
 
-    auto row2Plan       = childNodes[2];
+    auto& row2Plan      = childNodes[2];
     row2Plan->inStride  = trans1Plan->outStride;
     row2Plan->iDist     = trans1Plan->oDist;
     row2Plan->outStride = row2Plan->inStride;
     row2Plan->oDist     = row2Plan->iDist;
     row2Plan->TraverseTreeAssignParamsLogicA();
 
-    auto trans2Plan       = childNodes[3];
+    auto& trans2Plan      = childNodes[3];
     trans2Plan->inStride  = row2Plan->outStride;
     trans2Plan->iDist     = row2Plan->oDist;
     trans2Plan->outStride = outStride;
@@ -3723,7 +3721,7 @@ void TreeNode::assign_params_CS_REAL_2D_EVEN()
     const bool forward = inArrayType == rocfft_array_type_real;
     if(forward)
     {
-        auto row1Plan = childNodes[0];
+        auto& row1Plan = childNodes[0];
         {
             // The first sub-plan changes type in real/complex transforms.
             row1Plan->inStride = inStride;
@@ -3735,7 +3733,7 @@ void TreeNode::assign_params_CS_REAL_2D_EVEN()
             row1Plan->TraverseTreeAssignParamsLogicA();
         }
 
-        auto trans1Plan = childNodes[1];
+        auto& trans1Plan = childNodes[1];
         {
             // B -> T
             trans1Plan->inStride = row1Plan->outStride;
@@ -3746,7 +3744,7 @@ void TreeNode::assign_params_CS_REAL_2D_EVEN()
             trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
         }
 
-        auto row2Plan = childNodes[2];
+        auto& row2Plan = childNodes[2];
         {
             // T -> T
             row2Plan->inStride = trans1Plan->outStride;
@@ -3758,7 +3756,7 @@ void TreeNode::assign_params_CS_REAL_2D_EVEN()
             row2Plan->TraverseTreeAssignParamsLogicA();
         }
 
-        auto trans2Plan = childNodes[3];
+        auto& trans2Plan = childNodes[3];
         {
             // T -> B
             trans2Plan->inStride = row2Plan->outStride;
@@ -3770,7 +3768,7 @@ void TreeNode::assign_params_CS_REAL_2D_EVEN()
     }
     else
     {
-        auto trans1Plan = childNodes[0];
+        auto& trans1Plan = childNodes[0];
         {
             trans1Plan->inStride = inStride;
             trans1Plan->iDist    = iDist;
@@ -3779,7 +3777,7 @@ void TreeNode::assign_params_CS_REAL_2D_EVEN()
             trans1Plan->outStride.push_back(trans1Plan->length[1] + padding);
             trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
         }
-        auto c2cPlan = childNodes[1];
+        auto& c2cPlan = childNodes[1];
         {
             c2cPlan->inStride = trans1Plan->outStride;
             c2cPlan->iDist    = trans1Plan->oDist;
@@ -3789,7 +3787,7 @@ void TreeNode::assign_params_CS_REAL_2D_EVEN()
 
             c2cPlan->TraverseTreeAssignParamsLogicA();
         }
-        auto trans2Plan = childNodes[2];
+        auto& trans2Plan = childNodes[2];
         {
             trans2Plan->inStride = trans1Plan->outStride;
             trans2Plan->iDist    = trans1Plan->oDist;
@@ -3797,7 +3795,7 @@ void TreeNode::assign_params_CS_REAL_2D_EVEN()
             trans2Plan->outStride = trans1Plan->inStride;
             trans2Plan->oDist     = trans2Plan->length[0] * trans2Plan->outStride[1];
         }
-        auto c2rPlan = childNodes[3];
+        auto& c2rPlan = childNodes[3];
         {
             c2rPlan->inStride = trans2Plan->outStride;
             c2rPlan->iDist    = trans2Plan->oDist;
@@ -3817,7 +3815,7 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
     const bool forward = inArrayType == rocfft_array_type_real;
     if(forward)
     {
-        auto rcplan = childNodes[0];
+        auto& rcplan = childNodes[0];
         {
             // The first sub-plan changes type in real/complex transforms.
             rcplan->inStride  = inStride;
@@ -3828,7 +3826,7 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
             rcplan->TraverseTreeAssignParamsLogicA();
         }
 
-        auto trans1 = childNodes[1];
+        auto& trans1 = childNodes[1];
         {
             trans1->inStride = rcplan->outStride;
             trans1->iDist    = rcplan->oDist;
@@ -3838,7 +3836,7 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
             trans1->oDist = trans1->iDist;
         }
 
-        auto c1plan = childNodes[2];
+        auto& c1plan = childNodes[2];
         {
             c1plan->inStride  = trans1->outStride;
             c1plan->iDist     = trans1->oDist;
@@ -3848,7 +3846,7 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
             c1plan->TraverseTreeAssignParamsLogicA();
         }
 
-        auto trans2 = childNodes[3];
+        auto& trans2 = childNodes[3];
         {
             trans2->inStride = c1plan->outStride;
             trans2->iDist    = c1plan->oDist;
@@ -3858,7 +3856,7 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
             trans2->oDist = trans2->iDist;
         }
 
-        auto c2plan = childNodes[4];
+        auto& c2plan = childNodes[4];
         {
             c2plan->inStride  = trans2->outStride;
             c2plan->iDist     = trans2->oDist;
@@ -3868,7 +3866,7 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
             c2plan->TraverseTreeAssignParamsLogicA();
         }
 
-        auto trans3 = childNodes[5];
+        auto& trans3 = childNodes[5];
         {
             trans3->inStride  = c2plan->outStride;
             trans3->iDist     = c2plan->oDist;
@@ -3879,7 +3877,7 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
     else
     {
         {
-            auto trans3      = childNodes[0];
+            auto& trans3     = childNodes[0];
             trans3->inStride = inStride;
             trans3->iDist    = iDist;
             trans3->outStride.push_back(1);
@@ -3889,7 +3887,7 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
         }
 
         {
-            auto ccplan       = childNodes[1];
+            auto& ccplan      = childNodes[1];
             ccplan->inStride  = childNodes[0]->outStride;
             ccplan->iDist     = childNodes[0]->oDist;
             ccplan->outStride = ccplan->inStride;
@@ -3899,7 +3897,7 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
         }
 
         {
-            auto trans2      = childNodes[2];
+            auto& trans2     = childNodes[2];
             trans2->inStride = childNodes[1]->outStride;
             trans2->iDist    = childNodes[1]->oDist;
             trans2->outStride.push_back(1);
@@ -3909,7 +3907,7 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
         }
 
         {
-            auto ccplan       = childNodes[3];
+            auto& ccplan      = childNodes[3];
             ccplan->inStride  = childNodes[2]->outStride;
             ccplan->iDist     = childNodes[2]->oDist;
             ccplan->outStride = ccplan->inStride;
@@ -3919,7 +3917,7 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
         }
 
         {
-            auto trans1      = childNodes[4];
+            auto& trans1     = childNodes[4];
             trans1->inStride = childNodes[3]->outStride;
             trans1->iDist    = childNodes[3]->oDist;
             trans1->outStride.push_back(1);
@@ -3928,7 +3926,7 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
             trans1->oDist = trans1->iDist;
         }
 
-        auto crplan = childNodes[5];
+        auto& crplan = childNodes[5];
         {
             crplan->inStride  = childNodes[4]->outStride;
             crplan->iDist     = childNodes[4]->oDist;
@@ -3948,7 +3946,7 @@ void TreeNode::assign_params_CS_REAL_TRANSFORM_PAIR()
 
         // A planar-to-planar c2c node, where we use the next batch (or dimension) as the imaginary
         // part.  Thus, strides and distances are real-value sized.
-        auto cplan       = childNodes[0];
+        auto& cplan      = childNodes[0];
         cplan->inStride  = inStride;
         cplan->iDist     = 2 * iDist;
         cplan->outStride = inStride;
@@ -3956,7 +3954,7 @@ void TreeNode::assign_params_CS_REAL_TRANSFORM_PAIR()
         cplan->TraverseTreeAssignParamsLogicA();
 
         // The unpack plan is real-to-complex.
-        auto unpack = childNodes[1];
+        auto& unpack = childNodes[1];
         assert(unpack->scheme == CS_KERNEL_PAIR_UNPACK);
         unpack->inStride  = inStride;
         unpack->iDist     = 2 * iDist;
@@ -3972,8 +3970,8 @@ void TreeNode::assign_params_CS_REAL_TRANSFORM_PAIR()
 
 void TreeNode::assign_params_CS_2D_RC_STRAIGHT()
 {
-    auto rowPlan = childNodes[0];
-    auto colPlan = childNodes[1];
+    auto& rowPlan = childNodes[0];
+    auto& colPlan = childNodes[1];
 
     // B -> B
     // assert((rowPlan->obOut == OB_USER_OUT) || (rowPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
@@ -4010,7 +4008,7 @@ void TreeNode::assign_params_CS_3D_RTRT()
         = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
 
     // B -> B
-    auto xyPlan = childNodes[0];
+    auto& xyPlan = childNodes[0];
     assert((xyPlan->obOut == OB_USER_OUT) || (xyPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
            || (xyPlan->obOut == OB_TEMP_BLUESTEIN));
     xyPlan->inStride = inStride;
@@ -4022,7 +4020,7 @@ void TreeNode::assign_params_CS_3D_RTRT()
     xyPlan->TraverseTreeAssignParamsLogicA();
 
     // B -> T
-    auto trans1Plan = childNodes[1];
+    auto& trans1Plan = childNodes[1];
     assert(trans1Plan->obOut == OB_TEMP);
     trans1Plan->inStride = xyPlan->outStride;
     trans1Plan->iDist    = xyPlan->oDist;
@@ -4039,7 +4037,7 @@ void TreeNode::assign_params_CS_3D_RTRT()
     }
 
     // T -> T
-    auto zPlan = childNodes[2];
+    auto& zPlan = childNodes[2];
     assert(zPlan->obOut == OB_TEMP);
     zPlan->inStride = trans1Plan->outStride;
     zPlan->iDist    = trans1Plan->oDist;
@@ -4050,7 +4048,7 @@ void TreeNode::assign_params_CS_3D_RTRT()
     zPlan->TraverseTreeAssignParamsLogicA();
 
     // T -> B
-    auto trans2Plan = childNodes[3];
+    auto& trans2Plan = childNodes[3];
     assert((trans2Plan->obOut == OB_USER_OUT) || (trans2Plan->obOut == OB_TEMP_CMPLX_FOR_REAL)
            || (trans2Plan->obOut == OB_TEMP_BLUESTEIN));
     trans2Plan->inStride = zPlan->outStride;
@@ -4081,7 +4079,7 @@ void TreeNode::assign_params_CS_3D_RTRTRT()
 
     for(int i = 0; i < 6; i += 2)
     {
-        auto row_plan = childNodes[i];
+        auto& row_plan = childNodes[i];
         if(i == 0)
         {
             row_plan->inStride  = inStride;
@@ -4098,7 +4096,7 @@ void TreeNode::assign_params_CS_3D_RTRTRT()
         }
         row_plan->TraverseTreeAssignParamsLogicA();
 
-        auto trans_plan      = childNodes[i + 1];
+        auto& trans_plan     = childNodes[i + 1];
         trans_plan->inStride = row_plan->outStride;
         trans_plan->iDist    = row_plan->oDist;
 
@@ -4111,8 +4109,8 @@ void TreeNode::assign_params_CS_3D_RTRTRT()
 
 void TreeNode::assign_params_CS_3D_RC_STRAIGHT()
 {
-    auto xyPlan = childNodes[0];
-    auto zPlan  = childNodes[1];
+    auto& xyPlan = childNodes[0];
+    auto& zPlan  = childNodes[1];
 
     // B -> B
     assert((xyPlan->obOut == OB_USER_OUT) || (xyPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
@@ -4285,10 +4283,9 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
 
     if(childNodes.size())
     {
-        std::vector<TreeNode*>::const_iterator children_p;
-        for(children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
+        for(auto& children_p : childNodes)
         {
-            (*children_p)->Print(os, indent + 1);
+            children_p->Print(os, indent + 1);
         }
     }
     std::cout << std::flush;

@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 #include "../client_utils.h"
 #include "accuracy_test.h"
+#include "gpubuf.h"
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
 #include <gtest/gtest.h>

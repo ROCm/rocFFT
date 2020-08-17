@@ -24,8 +24,10 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <vector>
 
+#include "gpubuf.h"
 #include "kargs.h"
 #include "rocfft_ostream.hpp"
 #include "twiddles.h"
@@ -113,9 +115,6 @@ private:
         , oOffset(0)
         , pairdim(0)
         , transTileDir(TTD_IP_HOR)
-        , twiddles(nullptr)
-        , twiddles_large(nullptr)
-        , devKernArg(nullptr)
         , inArrayType(rocfft_array_type_unset)
         , outArrayType(rocfft_array_type_unset)
     {
@@ -172,8 +171,10 @@ public:
     size_t large1D;
 
     // Tree structure:
-    TreeNode*              parent;
-    std::vector<TreeNode*> childNodes;
+    // non-owning pointer to parent node, may be null
+    TreeNode* parent;
+    // owned pointers to children
+    std::vector<std::unique_ptr<TreeNode>> childNodes;
 
     // FIXME: document
     ComputeScheme   scheme;
@@ -186,9 +187,9 @@ public:
     size_t lengthBlue;
 
     // Device pointers:
-    void*   twiddles;
-    void*   twiddles_large;
-    size_t* devKernArg;
+    gpubuf           twiddles;
+    gpubuf           twiddles_large;
+    gpubuf_t<size_t> devKernArg;
 
 public:
     // Disallow copy constructor:
@@ -198,43 +199,11 @@ public:
     TreeNode& operator=(const TreeNode&) = delete;
 
     // create node (user level) using this function
-    static TreeNode* CreateNode(TreeNode* parentNode = nullptr)
+    static std::unique_ptr<TreeNode> CreateNode(TreeNode* parentNode = nullptr)
     {
-        return new TreeNode(parentNode);
-    }
-
-    // Destroy node by calling this function
-    static void DeleteNode(TreeNode* node)
-    {
-        if(!node)
-            return;
-
-        for(auto children_p = node->childNodes.begin(); children_p != node->childNodes.end();
-            children_p++)
-        {
-            DeleteNode(*children_p); // recursively delete allocated nodes
-        }
-
-        if(node->twiddles)
-        {
-            twiddles_delete(node->twiddles);
-            node->twiddles = nullptr;
-        }
-
-        if(node->twiddles_large)
-        {
-            twiddles_delete(node->twiddles_large);
-            node->twiddles_large = nullptr;
-        }
-
-        if(node->devKernArg)
-        {
-            kargs_delete(node->devKernArg);
-            node->devKernArg = nullptr;
-        }
-
-        delete node;
-        node = NULL;
+        // must use 'new' here instead of std::make_unique because
+        // TreeNode's ctor is private
+        return std::unique_ptr<TreeNode>(new TreeNode(parentNode));
     }
 
     // Main tree builder:
@@ -396,24 +365,20 @@ struct GridParam
 
 struct ExecPlan
 {
-    TreeNode*              rootPlan;
+    // shared pointer allows for ExecPlans to be copyable
+    std::shared_ptr<TreeNode> rootPlan;
+
+    // non-owning pointers to the leaf-node children of rootPlan, which
+    // are the nodes that do actual work
     std::vector<TreeNode*> execSeq;
+
     std::vector<DevFnCall> devFnCall;
     std::vector<GridParam> gridParam;
-    size_t                 workBufSize;
-    size_t                 tmpWorkBufSize;
-    size_t                 copyWorkBufSize;
-    size_t                 blueWorkBufSize;
-    size_t                 chirpWorkBufSize;
-
-    ExecPlan()
-        : rootPlan(nullptr)
-        , workBufSize(0)
-        , tmpWorkBufSize(0)
-        , copyWorkBufSize(0)
-        , blueWorkBufSize(0)
-    {
-    }
+    size_t                 workBufSize      = 0;
+    size_t                 tmpWorkBufSize   = 0;
+    size_t                 copyWorkBufSize  = 0;
+    size_t                 blueWorkBufSize  = 0;
+    size_t                 chirpWorkBufSize = 0;
 };
 
 void ProcessNode(ExecPlan& execPlan);

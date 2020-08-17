@@ -72,21 +72,22 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
         rootPlan->outArrayType = plan->desc.outArrayType;
 
         ExecPlan execPlan;
-        execPlan.rootPlan = rootPlan;
+        execPlan.rootPlan = std::move(rootPlan);
         ProcessNode(execPlan); // TODO: more descriptions are needed
         if(LOG_TRACE_ENABLED())
             PrintNode(*LogSingleton::GetInstance().GetTraceOS(), execPlan);
 
         if(!PlanPowX(execPlan)) // PlanPowX enqueues the GPU kernels by function
         {
-            TreeNode::DeleteNode(execPlan.rootPlan); // Release allocated resources before return.
             return rocfft_status_failure;
         }
 
         // pointers but does not execute kernels
-        repo.planUnique[*plan] = std::pair<ExecPlan, int>(
-            execPlan, 1); // add this plan into member planUnique (type of map)
-        repo.execLookup[plan] = execPlan; // add this plan into member execLookup (type of map)
+
+        // add this plan into member planUnique (type of map)
+        repo.planUnique[*plan] = std::make_pair(execPlan, 1);
+        // add this plan into member execLookup (type of map)
+        repo.execLookup[plan] = execPlan;
     }
     else // find the stored plan
     {
@@ -129,8 +130,6 @@ void Repo::DeletePlan(rocfft_plan plan)
         it_u->second.second--;
         if(it_u->second.second <= 0)
         {
-            TreeNode::DeleteNode(it_u->second.first.rootPlan);
-            it_u->second.first.rootPlan = nullptr;
             repo.planUnique.erase(it_u);
         }
     }
