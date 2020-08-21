@@ -441,6 +441,20 @@ static std::vector<std::pair<size_t, size_t>>
             Add2DSingleSize(
                 i, j, realSizeBytes, elementSizeBytes, ldsSizeBytes, _GetWGSAndNT, retval);
     }
+
+    // mixed pow2-pow3 sizes
+    for(size_t i = MAX_2D_POW2; i >= MIN_2D_POW2; i /= 2)
+    {
+        for(size_t j = MAX_2D_POW3; j >= MIN_2D_POW3; j /= 3)
+            Add2DSingleSize(
+                i, j, realSizeBytes, elementSizeBytes, ldsSizeBytes, _GetWGSAndNT, retval);
+    }
+    for(size_t i = MAX_2D_POW3; i >= MIN_2D_POW3; i /= 3)
+    {
+        for(size_t j = MAX_2D_POW2; j >= MIN_2D_POW2; j /= 2)
+            Add2DSingleSize(
+                i, j, realSizeBytes, elementSizeBytes, ldsSizeBytes, _GetWGSAndNT, retval);
+    }
     return retval;
 }
 
