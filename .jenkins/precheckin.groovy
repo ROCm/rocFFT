@@ -18,7 +18,7 @@ def runCI =
     // Define test architectures, optional rocm version argument is available
     def nodes = new dockerNodes(nodeDetails, jobName, prj)
 
-    boolean formatCheck = true
+    boolean formatCheck = false
 
     def commonGroovy
 
