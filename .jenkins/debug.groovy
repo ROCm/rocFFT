@@ -55,7 +55,7 @@ ci: {
     def propertyList = ["compute-rocm-dkms-no-npi-hipclang":[pipelineTriggers([cron('0 1 * * 0')])]]
     propertyList = auxiliary.appendPropertyList(propertyList)
 
-    def jobNameList = ["compute-rocm-dkms-no-npi-hipclang":([ubuntu18:['gfx900'],centos7:['gfx906']])]
+    def jobNameList = ["compute-rocm-dkms-no-npi-hipclang":([ubuntu18:['gfx900']])]
     jobNameList = auxiliary.appendJobNameList(jobNameList)
 
     propertyList.each 
