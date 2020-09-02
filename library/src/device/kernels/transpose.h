@@ -280,7 +280,6 @@ template <typename T,
 __global__ void transpose_kernel2(const T_I* input,
                                   T_O*       output,
                                   T*         twiddles_large,
-                                  size_t     dim,
                                   size_t*    lengths,
                                   size_t*    stride_in,
                                   size_t*    stride_out)
@@ -293,18 +292,6 @@ __global__ void transpose_kernel2(const T_I* input,
 
     size_t counter_mod = hipBlockIdx_z;
 
-    for(size_t i = dim; i > 2; i--)
-    {
-        size_t currentLength = 1;
-        for(size_t j = 2; j < i; j++)
-        {
-            currentLength *= lengths[j];
-        }
-
-        iOffset += (counter_mod / currentLength) * stride_in[i];
-        oOffset += (counter_mod / currentLength) * stride_out[i];
-        counter_mod = counter_mod % currentLength;
-    }
     iOffset += counter_mod * stride_in[2];
     oOffset += counter_mod * stride_out[2];
 
@@ -353,7 +340,6 @@ template <typename T, typename T_I, typename T_O, size_t DIM_X, size_t DIM_Y, bo
 __global__ void transpose_kernel2_scheme(const T_I*   input,
                                          T_O*         output,
                                          T*           twiddles_large,
-                                         size_t       dim,
                                          size_t*      lengths,
                                          size_t*      stride_in,
                                          size_t*      stride_out,
@@ -367,18 +353,6 @@ __global__ void transpose_kernel2_scheme(const T_I*   input,
 
     size_t counter_mod = hipBlockIdx_z;
 
-    for(size_t i = dim; i > 3; i--)
-    {
-        size_t currentLength = 1;
-        for(size_t j = 3; j < i; j++)
-        {
-            currentLength *= lengths[j];
-        }
-
-        iOffset += (counter_mod / currentLength) * stride_in[i];
-        oOffset += (counter_mod / currentLength) * stride_out[i];
-        counter_mod = counter_mod % currentLength;
-    }
     iOffset += counter_mod * stride_in[3];
     oOffset += counter_mod * stride_out[3];
 
