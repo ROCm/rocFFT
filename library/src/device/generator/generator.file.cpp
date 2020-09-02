@@ -441,6 +441,26 @@ std::string get_2D_type(const std::tuple<size_t, size_t, ComputeScheme>& dim)
     {
         return "mix_pow3_2";
     }
+    // mixed pow3+pow5
+    else if(IsPow<3>(std::get<0>(dim)) && IsPow<5>(std::get<1>(dim)))
+    {
+        return "mix_pow3_5";
+    }
+    // mixed pow5+pow3
+    else if(IsPow<5>(std::get<0>(dim)) && IsPow<3>(std::get<1>(dim)))
+    {
+        return "mix_pow5_3";
+    }
+    // mixed pow2+pow5
+    else if(IsPo2(std::get<0>(dim)) && IsPow<5>(std::get<1>(dim)))
+    {
+        return "mix_pow2_5";
+    }
+    // mixed pow5+pow2
+    else if(IsPow<5>(std::get<0>(dim)) && IsPo2(std::get<1>(dim)))
+    {
+        return "mix_pow5_2";
+    }
     // not implemented, fail the build
     abort();
 }

@@ -255,6 +255,30 @@ rocfft_kernel_2D_9_32.h
 rocfft_kernel_2D_9_4.h
 rocfft_kernel_2D_9_64.h
 rocfft_kernel_2D_9_8.h
+rocfft_kernel_2D_81_25.h
+rocfft_kernel_2D_27_25.h
+rocfft_kernel_2D_9_125.h
+rocfft_kernel_2D_9_25.h
+rocfft_kernel_2D_125_9.h
+rocfft_kernel_2D_25_81.h
+rocfft_kernel_2D_25_27.h
+rocfft_kernel_2D_25_9.h
+rocfft_kernel_2D_64_25.h
+rocfft_kernel_2D_32_25.h
+rocfft_kernel_2D_16_125.h
+rocfft_kernel_2D_16_25.h
+rocfft_kernel_2D_8_125.h
+rocfft_kernel_2D_8_25.h
+rocfft_kernel_2D_4_125.h
+rocfft_kernel_2D_4_25.h
+rocfft_kernel_2D_125_16.h
+rocfft_kernel_2D_125_8.h
+rocfft_kernel_2D_125_4.h
+rocfft_kernel_2D_25_64.h
+rocfft_kernel_2D_25_32.h
+rocfft_kernel_2D_25_16.h
+rocfft_kernel_2D_25_8.h
+rocfft_kernel_2D_25_4.h
 rocfft_kernel_3000.h
 rocfft_kernel_300.h
 rocfft_kernel_3072.h
@@ -351,6 +375,14 @@ kernel_launch_single_2D_mix_pow2_3.cpp
 kernel_launch_double_2D_mix_pow2_3.cpp
 kernel_launch_single_2D_mix_pow3_2.cpp
 kernel_launch_double_2D_mix_pow3_2.cpp
+kernel_launch_single_2D_mix_pow3_5.cpp
+kernel_launch_double_2D_mix_pow3_5.cpp
+kernel_launch_single_2D_mix_pow5_3.cpp
+kernel_launch_double_2D_mix_pow5_3.cpp
+kernel_launch_single_2D_mix_pow2_5.cpp
+kernel_launch_double_2D_mix_pow2_5.cpp
+kernel_launch_single_2D_mix_pow5_2.cpp
+kernel_launch_double_2D_mix_pow5_2.cpp
 )
 
 set( small_kernels_group_num 8 )
