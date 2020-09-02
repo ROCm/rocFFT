@@ -80,7 +80,7 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
     ExecPlan execPlan;
     repo.GetPlan(plan, execPlan);
 
-#ifdef DEBUG
+#if defined(DEBUG) && defined(DEBUG_PLAN_OUTPUT)
     PrintNode(rocfft_cout, execPlan);
 #endif
 
