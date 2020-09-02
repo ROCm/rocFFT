@@ -64,9 +64,6 @@ void complex2real(const void* data_p, void* back_p)
 
     size_t input_size = data->node->length[0];
 
-    if(input_size == 1)
-        return;
-
     size_t input_distance  = data->node->iDist;
     size_t output_distance = data->node->oDist;
 
@@ -142,8 +139,6 @@ void complex2real(const void* data_p, void* back_p)
                            input_distance,
                            (double*)output_buffer,
                            output_distance);
-
-    return;
 }
 
 template <typename T>
@@ -277,9 +272,6 @@ void hermitian2complex(const void* data_p, void* back_p)
 
     size_t dim_0          = data->node->length[0]; // dim_0 is the innermost dimension
     size_t hermitian_size = dim_0 / 2 + 1;
-
-    if(dim_0 == 1)
-        return;
 
     size_t input_distance  = data->node->iDist;
     size_t output_distance = data->node->oDist;
