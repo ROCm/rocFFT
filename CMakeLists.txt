@@ -115,6 +115,11 @@ option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" ON )
 set(CMAKE_INSTALL_LIBDIR "lib" CACHE INTERNAL
   "Installation directory for libraries" FORCE)
 
+# CMake list of machine targets
+set( AMDGPU_TARGETS gfx803;gfx900;gfx906;gfx908 CACHE STRING
+  "List of specific machine types for library to target" )
+set( AMDGPU_TARGETS_SRAM_ECC gfx906;gfx908 )
+
 # Find HCC/HIP dependencies
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$|.*/hipcc$" )
   message( STATUS "Building with ROCm tools" )
@@ -124,10 +129,6 @@ endif( )
 # Hip headers required of all clients; clients use hip to allocate
 # device memory
 find_package( hip REQUIRED CONFIG PATHS )
-
-# CMake list of machine targets
-set( AMDGPU_TARGETS gfx803;gfx900;gfx906;gfx908 CACHE STRING
-  "List of specific machine types for library to target" )
 
 add_subdirectory( library )
 
