@@ -3487,7 +3487,7 @@ void TreeNode::assign_params_CS_L1D_TRTRT()
     auto& trans3Plan = childNodes[4];
 
     trans1Plan->inStride.push_back(inStride[0]);
-    trans1Plan->inStride.push_back(trans1Plan->length[0]);
+    trans1Plan->inStride.push_back(trans1Plan->length[0] * inStride[0]);
     trans1Plan->iDist = iDist;
     for(size_t index = 1; index < length.size(); index++)
         trans1Plan->inStride.push_back(inStride[index]);

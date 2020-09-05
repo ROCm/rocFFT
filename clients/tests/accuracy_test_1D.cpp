@@ -322,7 +322,7 @@ INSTANTIATE_TEST_SUITE_P(mix_1D_real_inverse,
 // Then check these problems of R2C and C2R. After that, we could open arbitrary permutations in the main tests.
 //
 // The below test covers non-unit strides, pow of 2, middle sizes, which has SBCC/SBRC kernels invloved.
-static std::vector<size_t>              pow2_range_for_stride   = {4096, 8192};
+static std::vector<size_t>              pow2_range_for_stride   = {4096, 8192, 524288};
 static std::vector<size_t>              stride_range_for_pow2   = {2, 3};
 static std::vector<std::vector<size_t>> v_pow2_range_for_stride = {pow2_range_for_stride};
 const static std::vector<size_t>        batch_range_for_stride
