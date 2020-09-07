@@ -330,7 +330,7 @@ void r2c_1d_post(const void* data_p, void*)
     const bool                               Ndiv4  = half_N % 2 == 0;
     const std::tuple<rocfft_precision, bool> params = std::make_tuple(data->node->precision, Ndiv4);
 
-    const size_t block_size = 512;
+    const size_t block_size = 64;
     const size_t blocks     = ((half_N + 1) / 2 + block_size - 1) / block_size;
     // The total number of 1D threads is N / 4, rounded up.
 
@@ -605,7 +605,7 @@ void c2r_1d_pre(const void* data_p, void*)
     const bool                               Ndiv4  = half_N % 2 == 0;
     const std::tuple<rocfft_precision, bool> params = std::make_tuple(data->node->precision, Ndiv4);
 
-    const size_t block_size = 512;
+    const size_t block_size = 64;
     const size_t blocks     = ((half_N + 1) / 2 + block_size - 1) / block_size;
     // The total number of 1D threads is N / 4, rounded up.
 
