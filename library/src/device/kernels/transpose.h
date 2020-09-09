@@ -62,7 +62,7 @@
         }                                                                                         \
     }                                                                                             \
                                                                                                   \
-    shared_A[tx1][ty1 + i] = tmp; // the transpose taking place here
+    shared[tx1][ty1 + i] = tmp; // the transpose taking place here
 
 //-----------------------------------------------------------------------------
 // To support planar format with template, we have the below simple conventions.
@@ -213,7 +213,7 @@ __device__ void transpose_tile_device(const T_I*   input,
                                       size_t       stride_0_out,
                                       T*           twiddles_large)
 {
-    __shared__ T shared_A[DIM_X][DIM_X];
+    __shared__ T shared[DIM_X][DIM_X];
 
     size_t tid = hipThreadIdx_x + hipThreadIdx_y * hipBlockDim_x;
     size_t tx1 = tid % DIM_X;
@@ -242,17 +242,17 @@ __device__ void transpose_tile_device(const T_I*   input,
         for(int i = 0; i < DIM_X; i += DIM_Y)
         {
             // reconfigure the threads
-            //output[tx1 + (i + ty1) * ld_out] = shared_A[ty1 + i][tx1];
+            //output[tx1 + (i + ty1) * ld_out] = shared[ty1 + i][tx1];
             if(UNIT_STRIDE_0)
             {
                 Handler<T_O>::write(
-                    output, out_offset + tx1 + (i + ty1) * ld_out, shared_A[ty1 + i][tx1]);
+                    output, out_offset + tx1 + (i + ty1) * ld_out, shared[ty1 + i][tx1]);
             }
             else
             {
                 Handler<T_O>::write(output,
                                     out_offset + tx1 * stride_0_out + (i + ty1) * ld_out,
-                                    shared_A[ty1 + i][tx1]);
+                                    shared[ty1 + i][tx1]);
             }
         }
     }
@@ -283,17 +283,17 @@ __device__ void transpose_tile_device(const T_I*   input,
             // reconfigure the threads
             if(tx1 < m && (ty1 + i) < n)
             {
-                //output[tx1 + (i + ty1) * ld_out] = shared_A[ty1 + i][tx1];
+                //output[tx1 + (i + ty1) * ld_out] = shared[ty1 + i][tx1];
                 if(UNIT_STRIDE_0)
                 {
                     Handler<T_O>::write(
-                        output, out_offset + tx1 + (i + ty1) * ld_out, shared_A[ty1 + i][tx1]);
+                        output, out_offset + tx1 + (i + ty1) * ld_out, shared[ty1 + i][tx1]);
                 }
                 else
                 {
                     Handler<T_O>::write(output,
                                         out_offset + tx1 * stride_0_out + (i + ty1) * ld_out,
-                                        shared_A[ty1 + i][tx1]);
+                                        shared[ty1 + i][tx1]);
                 }
             }
         }

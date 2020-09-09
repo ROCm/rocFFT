@@ -53,8 +53,8 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
     dim3 grid((n - 1) / TRANSPOSE_DIM_X + 1, ((m - 1) / TRANSPOSE_DIM_X + 1), count);
     dim3 threads(TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, 1);
 
-    // working threads match problem sizes, no corner cases
-    const bool noCorner = (n % TRANSPOSE_DIM_X == 0) && (m % TRANSPOSE_DIM_X == 0);
+    // working threads match problem sizes, no partial cases
+    const bool all = (n % TRANSPOSE_DIM_X == 0) && (m % TRANSPOSE_DIM_X == 0);
 
     if(scheme == 0)
     {
@@ -217,9 +217,9 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
                 transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 4, 1, false, false>));
         // clang-format on
 
-        // Tuple containing template parameters for transpose.
+        // Tuple containing template parameters for transpose TWL, DIR, ALL, UNIT_STRIDE_0
         const std::tuple<int, int, bool, bool> tparams
-            = std::make_tuple(twl, dir, noCorner, unit_stride0);
+            = std::make_tuple(twl, dir, all, unit_stride0);
 
         try
         {
@@ -240,7 +240,7 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
             rocfft_cout << "scheme: " << scheme << std::endl;
             rocfft_cout << "twl: " << twl << std::endl;
             rocfft_cout << "dir: " << dir << std::endl;
-            rocfft_cout << "noCorner: " << noCorner << std::endl;
+            rocfft_cout << "all: " << all << std::endl;
             rocfft_cout << e.what() << '\n';
         }
     }
@@ -336,10 +336,8 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
                                                                false,
                                                                false>));
 
-        // Tuple containing template parameters for transpose.
-        const std::tuple<bool, bool, bool> tparams
-            = std::make_tuple(noCorner, unit_stride0, diagonal);
-
+        // Tuple containing template parameters for transpose ALL, UNIT_STRIDE_0, DIAGONAL
+        const std::tuple<bool, bool, bool> tparams = std::make_tuple(all, unit_stride0, diagonal);
         try
         {
             hipLaunchKernelGGL(tmap.at(tparams),
@@ -360,7 +358,7 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
             rocfft_cout << "scheme: " << scheme << std::endl;
             rocfft_cout << "twl: " << twl << std::endl;
             rocfft_cout << "dir: " << dir << std::endl;
-            rocfft_cout << "noCorner: " << noCorner << std::endl;
+            rocfft_cout << "all: " << all << std::endl;
             rocfft_cout << "diagonal: " << diagonal << std::endl;
             rocfft_cout << e.what() << '\n';
         }
