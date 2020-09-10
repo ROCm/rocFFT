@@ -85,7 +85,7 @@ enum ComputeScheme
     CS_KERNEL_2D_SINGLE,
 
     CS_3D_STRAIGHT,
-    CS_3D_RTRTRT,
+    CS_3D_TRTRTR,
     CS_3D_RTRT,
     CS_3D_RC,
     CS_KERNEL_3D_STOCKHAM_BLOCK_CC,
@@ -234,8 +234,8 @@ public:
     // 3D node builders:
     // 3D 4 node builder, R: 2D FFTs, T: transpose XY_Z, R: row FFTs, T: transpose Z_XY
     void build_CS_3D_RTRT();
-    // 3D 6 node builder, R: row FFTs, T: transpose XY_Z, R: row FFTs, T: transpose XY_Z, R: row FFTs, T: transpose XY_Z
-    void build_CS_3D_RTRTRT();
+    // 3D 6 node builder, T: transpose Z_XY, R: row FFTs, T: transpose Z_XY, R: row FFTs, T: transpose Z_XY, R: row FFTs
+    void build_CS_3D_TRTRTR();
 
     // State maintained while traversing the tree.
     //
@@ -305,7 +305,7 @@ public:
                               OperatingBuffer& flipIn,
                               OperatingBuffer& flipOut,
                               OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_3D_RTRTRT(TraverseState&   state,
+    void assign_buffers_CS_3D_TRTRTR(TraverseState&   state,
                                      OperatingBuffer& flipIn,
                                      OperatingBuffer& flipOut,
                                      OperatingBuffer& obOutBuf);
@@ -327,7 +327,7 @@ public:
     void assign_params_CS_2D_RTRT();
     void assign_params_CS_2D_RC_STRAIGHT();
     void assign_params_CS_3D_RTRT();
-    void assign_params_CS_3D_RTRTRT();
+    void assign_params_CS_3D_TRTRTR();
     void assign_params_CS_3D_RC_STRAIGHT();
 
     // Determine work memory requirements:

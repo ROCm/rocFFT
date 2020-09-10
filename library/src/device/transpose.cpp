@@ -338,6 +338,7 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
 
         // Tuple containing template parameters for transpose ALL, UNIT_STRIDE_0, DIAGONAL
         const std::tuple<bool, bool, bool> tparams = std::make_tuple(all, unit_stride0, diagonal);
+
         try
         {
             hipLaunchKernelGGL(tmap.at(tparams),
