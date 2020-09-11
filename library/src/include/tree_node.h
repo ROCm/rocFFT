@@ -60,6 +60,7 @@ enum ComputeScheme
 
     CS_REAL_TRANSFORM_EVEN,
     CS_KERNEL_R_TO_CMPLX,
+    CS_KERNEL_R_TO_CMPLX_TRANSPOSE,
     CS_KERNEL_CMPLX_TO_R,
     CS_REAL_2D_EVEN,
     CS_REAL_3D_EVEN,
@@ -342,6 +343,8 @@ public:
 
     // logic B - using in-place transposes, todo
     //void RecursiveBuildTreeLogicB();
+
+    void RecursiveRemoveNode(TreeNode* node);
 };
 
 typedef void (*DevFnCall)(const void*, void*);

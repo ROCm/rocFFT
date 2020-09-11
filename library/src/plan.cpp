@@ -65,6 +65,7 @@ std::string PrintScheme(ComputeScheme cs)
 
            {ENUMSTR(CS_REAL_TRANSFORM_EVEN)},
            {ENUMSTR(CS_KERNEL_R_TO_CMPLX)},
+           {ENUMSTR(CS_KERNEL_R_TO_CMPLX_TRANSPOSE)},
            {ENUMSTR(CS_KERNEL_CMPLX_TO_R)},
            {ENUMSTR(CS_REAL_2D_EVEN)},
            {ENUMSTR(CS_REAL_3D_EVEN)},
@@ -3065,7 +3066,8 @@ void TreeNode::assign_params_CS_REAL_TRANSFORM_EVEN()
         assert(fftPlan->length.size() == fftPlan->outStride.size());
 
         auto& postPlan = childNodes[1];
-        assert(postPlan->scheme == CS_KERNEL_R_TO_CMPLX);
+        assert(postPlan->scheme == CS_KERNEL_R_TO_CMPLX
+               || postPlan->scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE);
         postPlan->inStride = inStride;
         for(int i = 1; i < postPlan->inStride.size(); ++i)
         {
@@ -4250,6 +4252,57 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     std::cout << std::flush;
 }
 
+void TreeNode::RecursiveRemoveNode(TreeNode* node)
+{
+    for(auto& child : childNodes)
+        child->RecursiveRemoveNode(node);
+    childNodes.erase(std::remove_if(childNodes.begin(),
+                                    childNodes.end(),
+                                    [node](const std::unique_ptr<TreeNode>& child) {
+                                        return child.get() == node;
+                                    }),
+                     childNodes.end());
+}
+
+// remove a leaf node from the plan completely - plan optimization
+// can remove unnecessary nodes to skip unnecessary work.
+void RemoveNode(ExecPlan& execPlan, TreeNode* node)
+{
+    auto& execSeq = execPlan.execSeq;
+    // remove it from the non-owning leaf nodes
+    execSeq.erase(std::remove(execSeq.begin(), execSeq.end(), node), execSeq.end());
+
+    // remove it from the tree structure
+    execPlan.rootPlan->RecursiveRemoveNode(node);
+}
+
+static void OptimizePlan(ExecPlan& execPlan)
+{
+    auto& execSeq = execPlan.execSeq;
+    // combine R_TO_CMPLX and following transpose
+    auto r_to_cmplx = std::find_if(execSeq.begin(), execSeq.end(), [](TreeNode* n) {
+        return n->scheme == CS_KERNEL_R_TO_CMPLX;
+    });
+    if(r_to_cmplx != execSeq.end())
+    {
+        auto transpose = r_to_cmplx + 1;
+        if(transpose != execSeq.end()
+           && ((*transpose)->scheme == CS_KERNEL_TRANSPOSE
+               || (*transpose)->scheme == CS_KERNEL_TRANSPOSE_Z_XY))
+        {
+            (*r_to_cmplx)->obOut        = (*transpose)->obOut;
+            (*r_to_cmplx)->scheme       = CS_KERNEL_R_TO_CMPLX_TRANSPOSE;
+            (*r_to_cmplx)->outArrayType = (*transpose)->outArrayType;
+            (*r_to_cmplx)->placement    = (*r_to_cmplx)->obIn == (*r_to_cmplx)->obOut
+                                           ? rocfft_placement_inplace
+                                           : rocfft_placement_notinplace;
+            (*r_to_cmplx)->outStride = (*transpose)->outStride;
+            (*r_to_cmplx)->oDist     = (*transpose)->oDist;
+            RemoveNode(execPlan, *transpose);
+        }
+    }
+}
+
 void ProcessNode(ExecPlan& execPlan)
 {
     assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->dimension);
@@ -4280,6 +4333,8 @@ void ProcessNode(ExecPlan& execPlan)
     size_t chirpSize        = 0;
     execPlan.rootPlan->TraverseTreeCollectLeafsLogicA(
         execPlan.execSeq, tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
+
+    OptimizePlan(execPlan);
 
     execPlan.workBufSize      = tmpBufSize + cmplxForRealSize + blueSize + chirpSize;
     execPlan.tmpWorkBufSize   = tmpBufSize;

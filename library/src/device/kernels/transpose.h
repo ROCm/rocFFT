@@ -21,6 +21,7 @@
 #ifndef TRANSPOSE_H
 #define TRANSPOSE_H
 
+#include "array_format.h"
 #include "common.h"
 #include "rocfft_hip.h"
 
@@ -63,126 +64,6 @@
     }                                                                                             \
                                                                                                   \
     shared[tx1][ty1 + i] = tmp; // the transpose taking place here
-
-//-----------------------------------------------------------------------------
-// To support planar format with template, we have the below simple conventions.
-// And it might be moved to somewhere to share.
-
-template <typename PRECISION>
-struct planar
-{
-    real_type_t<PRECISION>* R; // points to real part array
-    real_type_t<PRECISION>* I; // points to imag part array
-};
-
-// the default interleaved format
-using cmplx_float  = float2;
-using cmplx_double = double2;
-
-// the planar format
-using cmplx_float_planar  = planar<float2>;
-using cmplx_double_planar = planar<double2>;
-
-template <class T>
-struct cmplx_type;
-
-template <>
-struct cmplx_type<cmplx_float>
-{
-    typedef float2 type;
-};
-
-template <>
-struct cmplx_type<double2>
-{
-    typedef double2 type;
-};
-
-template <>
-struct cmplx_type<cmplx_float_planar>
-{
-    typedef float2 type;
-};
-
-template <>
-struct cmplx_type<cmplx_double_planar>
-{
-    typedef double2 type;
-};
-
-template <class T>
-using cmplx_type_t = typename cmplx_type<T>::type;
-
-template <typename T>
-struct Handler
-{
-};
-
-template <>
-struct Handler<cmplx_float>
-{
-    static __host__ __device__ inline float2 read(cmplx_float const* in, size_t idx)
-    {
-        return in[idx];
-    }
-
-    static __host__ __device__ inline void write(cmplx_float* out, size_t idx, float2 v)
-    {
-        out[idx] = v;
-    }
-};
-
-template <>
-struct Handler<cmplx_double>
-{
-    static __host__ __device__ inline double2 read(cmplx_double const* in, size_t idx)
-    {
-        return in[idx];
-    }
-
-    static __host__ __device__ inline void write(cmplx_double* out, size_t idx, double2 v)
-    {
-        out[idx] = v;
-    }
-};
-
-template <>
-struct Handler<cmplx_float_planar>
-{
-    static __host__ __device__ inline float2 read(cmplx_float_planar const* in, size_t idx)
-    {
-        float2 t;
-        t.x = in->R[idx];
-        t.y = in->I[idx];
-        return t;
-    }
-
-    static __host__ __device__ inline void write(cmplx_float_planar* out, size_t idx, float2 v)
-    {
-        out->R[idx] = v.x;
-        out->I[idx] = v.y;
-    }
-};
-
-template <>
-struct Handler<cmplx_double_planar>
-{
-    static __host__ __device__ inline double2 read(cmplx_double_planar const* in, size_t idx)
-    {
-        double2 t;
-        t.x = in->R[idx];
-        t.y = in->I[idx];
-        return t;
-    }
-
-    static __host__ __device__ inline void write(cmplx_double_planar* out, size_t idx, double2 v)
-    {
-        out->R[idx] = v.x;
-        out->I[idx] = v.y;
-    }
-};
-
-//-----------------------------------------------------------------------------
 
 // - transpose input of size m * n (up to DIM_X * DIM_X) to output of size n * m
 //   input, output are in device memory

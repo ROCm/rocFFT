@@ -28,6 +28,7 @@ void hermitian2complex(const void* data, void* back);
 void complex2real(const void* data, void* back);
 
 void r2c_1d_post(const void* data, void* back);
+void r2c_1d_post_transpose(const void* data, void* back);
 void c2r_1d_pre(const void* data, void* back);
 
 void complex2pair_unpack(const void* data, void* back);

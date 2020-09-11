@@ -56,38 +56,33 @@ std::atomic<bool> fn_checked(false);
 // failure returns false right away.
 bool PlanPowX(ExecPlan& execPlan)
 {
-    for(size_t i = 0; i < execPlan.execSeq.size(); i++)
+    for(const auto& node : execPlan.execSeq)
     {
-        if((execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM)
-           || (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-           || (execPlan.execSeq[i]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC))
+        if((node->scheme == CS_KERNEL_STOCKHAM) || (node->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
+           || (node->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC))
         {
-            execPlan.execSeq[i]->twiddles = twiddles_create(
-                execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false, false);
-            if(execPlan.execSeq[i]->twiddles == nullptr)
+            node->twiddles = twiddles_create(node->length[0], node->precision, false, false);
+            if(node->twiddles == nullptr)
                 return false;
         }
-        else if((execPlan.execSeq[i]->scheme == CS_KERNEL_R_TO_CMPLX)
-                || (execPlan.execSeq[i]->scheme == CS_KERNEL_CMPLX_TO_R))
+        else if((node->scheme == CS_KERNEL_R_TO_CMPLX)
+                || (node->scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE)
+                || (node->scheme == CS_KERNEL_CMPLX_TO_R))
         {
-            execPlan.execSeq[i]->twiddles = twiddles_create(
-                2 * execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->precision, false, true);
-            if(execPlan.execSeq[i]->twiddles == nullptr)
+            node->twiddles = twiddles_create(2 * node->length[0], node->precision, false, true);
+            if(node->twiddles == nullptr)
                 return false;
         }
-        else if(execPlan.execSeq[i]->scheme == CS_KERNEL_2D_SINGLE)
+        else if(node->scheme == CS_KERNEL_2D_SINGLE)
         {
             // create one set of twiddles for each dimension
-            execPlan.execSeq[i]->twiddles = twiddles_create_2D(execPlan.execSeq[i]->length[0],
-                                                               execPlan.execSeq[i]->length[1],
-                                                               execPlan.execSeq[i]->precision);
+            node->twiddles = twiddles_create_2D(node->length[0], node->length[1], node->precision);
         }
 
-        if(execPlan.execSeq[i]->large1D != 0)
+        if(node->large1D != 0)
         {
-            execPlan.execSeq[i]->twiddles_large = twiddles_create(
-                execPlan.execSeq[i]->large1D, execPlan.execSeq[i]->precision, true, false);
-            if(execPlan.execSeq[i]->twiddles_large == nullptr)
+            node->twiddles_large = twiddles_create(node->large1D, node->precision, true, false);
+            if(node->twiddles_large == nullptr)
                 return false;
         }
     }
@@ -201,6 +196,10 @@ bool PlanPowX(ExecPlan& execPlan)
             break;
         case CS_KERNEL_R_TO_CMPLX:
             ptr = &r2c_1d_post;
+            // specify grid params only if the kernel from code generator
+            break;
+        case CS_KERNEL_R_TO_CMPLX_TRANSPOSE:
+            ptr = &r2c_1d_post_transpose;
             // specify grid params only if the kernel from code generator
             break;
         case CS_KERNEL_CMPLX_TO_R:
