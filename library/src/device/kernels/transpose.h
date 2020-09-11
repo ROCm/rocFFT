@@ -313,7 +313,8 @@ template <typename T,
           int    TWL,
           int    DIR,
           bool   ALL,
-          bool   UNIT_STRIDE_0>
+          bool   UNIT_STRIDE_0,
+          bool   DIAGONAL>
 __global__ void transpose_kernel2(const T_I* input,
                                   T_O*       output,
                                   T*         twiddles_large,
@@ -332,8 +333,22 @@ __global__ void transpose_kernel2(const T_I* input,
     iOffset += counter_mod * stride_in[2];
     oOffset += counter_mod * stride_out[2];
 
-    iOffset += blockIdx.x * DIM_X * stride_in[0] + blockIdx.y * DIM_X * ld_in;
-    oOffset += blockIdx.x * DIM_X * ld_out + blockIdx.y * DIM_X * stride_out[0];
+    size_t tileBlockIdx_x, tileBlockIdx_y;
+    if(DIAGONAL) // diagonal reordering
+    {
+        //TODO: template and simplify index calc for square case if necessary
+        size_t bid     = hipBlockIdx_x + gridDim.x * hipBlockIdx_y;
+        tileBlockIdx_y = bid % hipGridDim_y;
+        tileBlockIdx_x = ((bid / hipGridDim_y) + tileBlockIdx_y) % hipGridDim_x;
+    }
+    else
+    {
+        tileBlockIdx_x = hipBlockIdx_x;
+        tileBlockIdx_y = hipBlockIdx_y;
+    }
+
+    iOffset += tileBlockIdx_x * DIM_X * stride_in[0] + tileBlockIdx_y * DIM_X * ld_in;
+    oOffset += tileBlockIdx_x * DIM_X * ld_out + tileBlockIdx_y * DIM_X * stride_out[0];
 
     if(ALL)
     {
@@ -344,8 +359,8 @@ __global__ void transpose_kernel2(const T_I* input,
             oOffset,
             DIM_X,
             DIM_X,
-            hipBlockIdx_x * DIM_X,
-            hipBlockIdx_y * DIM_X,
+            tileBlockIdx_x * DIM_X,
+            tileBlockIdx_y * DIM_X,
             ld_in,
             ld_out,
             stride_in[0],
@@ -356,8 +371,8 @@ __global__ void transpose_kernel2(const T_I* input,
     {
         size_t m  = lengths[1];
         size_t n  = lengths[0];
-        size_t mm = min(m - hipBlockIdx_y * DIM_X, DIM_X); // the corner case along m
-        size_t nn = min(n - hipBlockIdx_x * DIM_X, DIM_X); // the corner case along n
+        size_t mm = min(m - tileBlockIdx_y * DIM_X, DIM_X); // the corner case along m
+        size_t nn = min(n - tileBlockIdx_x * DIM_X, DIM_X); // the corner case along n
         transpose_tile_device<T, T_I, T_O, DIM_X, DIM_Y, WITH_TWL, TWL, DIR, ALL, UNIT_STRIDE_0>(
             input,
             output,
@@ -365,8 +380,8 @@ __global__ void transpose_kernel2(const T_I* input,
             oOffset,
             mm,
             nn,
-            hipBlockIdx_x * DIM_X,
-            hipBlockIdx_y * DIM_X,
+            tileBlockIdx_x * DIM_X,
+            tileBlockIdx_y * DIM_X,
             ld_in,
             ld_out,
             stride_in[0],
