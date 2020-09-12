@@ -421,7 +421,7 @@ int main(int argc, char* argv[])
         void* libhandle = dlopen((libs[idx]).c_str(), RTLD_LAZY);
         if(libhandle == NULL)
         {
-            std::cout << "Failed to open " << libs[idx] << std::endl;
+            std::cout << "Failed to open " << libs[idx] << ", error: " << dlerror() << std::endl;
             exit(1);
         }
         struct link_map* link = nullptr;
