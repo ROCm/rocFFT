@@ -332,7 +332,7 @@ void TransformPowX(const ExecPlan&       execPlan,
 
     // we can log profile information if we're on the null stream,
     // since we will be able to wait for the transform to finish
-    bool       emit_profile_log = LOG_TRACE_ENABLED() && !info->rocfft_stream;
+    bool       emit_profile_log = LOG_PROFILE_ENABLED() && !info->rocfft_stream;
     float      max_memory_bw    = 0.0;
     hipEvent_t start, stop;
     if(emit_profile_log)
