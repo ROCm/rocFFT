@@ -98,6 +98,7 @@ option( BUILD_CLIENTS_TESTS_OPENMP "Build tests with OpenMP" ON )
 if( BUILD_CLIENTS_TESTS_OPENMP )
   target_compile_options(rocfft-test PRIVATE -fopenmp -DBUILD_CLIENTS_TESTS_OPENMP)
   target_link_libraries(rocfft-test PRIVATE -fopenmp -L${HIP_CLANG_ROOT}/lib -Wl,-rpath=${HIP_CLANG_ROOT}/lib)
+  target_include_directories( rocfft-test PRIVATE ${HIP_CLANG_ROOT}/include )
 endif()
 
 set_target_properties( rocfft-test
