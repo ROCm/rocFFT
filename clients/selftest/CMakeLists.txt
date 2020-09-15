@@ -92,9 +92,5 @@ if(HIP_PLATFORM STREQUAL "hip-clang")
   target_compile_options( rocfft-selftest PRIVATE -Wno-unused-command-line-argument )
 endif( )
 
-set( THREADS_PREFER_PTHREAD_FLAG ON )
-find_package( Threads REQUIRED )
-target_link_libraries( rocfft-selftest PRIVATE Threads::Threads )
-
 set_target_properties( rocfft-selftest PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
 set_target_properties( rocfft-selftest PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
