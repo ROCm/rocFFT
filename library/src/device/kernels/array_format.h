@@ -162,6 +162,15 @@ struct cmplx_planar_device_buffer
         deviceBuf.alloc(sizeof(hostBuf));
         hipMemcpy(deviceBuf.data(), &hostBuf, sizeof(hostBuf), hipMemcpyHostToDevice);
     }
+    // if we're given const pointers, cheat and cast away const to
+    // simplify this struct.  the goal of this struct is to
+    // automatically manage the memory, not provide
+    // const-correctness.
+    cmplx_planar_device_buffer(const void* real, const void* imag)
+        : cmplx_planar_device_buffer(const_cast<void*>(real), const_cast<void*>(imag))
+    {
+    }
+
     planar<T>* devicePtr()
     {
         return deviceBuf.data();

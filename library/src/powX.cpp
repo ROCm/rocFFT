@@ -73,6 +73,15 @@ bool PlanPowX(ExecPlan& execPlan)
             if(node->twiddles == nullptr)
                 return false;
         }
+        // need twiddles of the lowest dimension after the transpose is done
+        else if(node->scheme == CS_KERNEL_TRANSPOSE_CMPLX_TO_R)
+        {
+            // C2R transform ends up getting shorter by 1 along that dimension also
+            node->twiddles
+                = twiddles_create(2 * (node->length.back() - 1), node->precision, false, true);
+            if(node->twiddles == nullptr)
+                return false;
+        }
         else if(node->scheme == CS_KERNEL_2D_SINGLE)
         {
             // create one set of twiddles for each dimension
@@ -204,6 +213,10 @@ bool PlanPowX(ExecPlan& execPlan)
             break;
         case CS_KERNEL_CMPLX_TO_R:
             ptr = &c2r_1d_pre;
+            // specify grid params only if the kernel from code generator
+            break;
+        case CS_KERNEL_TRANSPOSE_CMPLX_TO_R:
+            ptr = &transpose_c2r_1d_pre;
             // specify grid params only if the kernel from code generator
             break;
         case CS_KERNEL_PAIR_UNPACK:

@@ -67,6 +67,7 @@ std::string PrintScheme(ComputeScheme cs)
            {ENUMSTR(CS_KERNEL_R_TO_CMPLX)},
            {ENUMSTR(CS_KERNEL_R_TO_CMPLX_TRANSPOSE)},
            {ENUMSTR(CS_KERNEL_CMPLX_TO_R)},
+           {ENUMSTR(CS_KERNEL_TRANSPOSE_CMPLX_TO_R)},
            {ENUMSTR(CS_REAL_2D_EVEN)},
            {ENUMSTR(CS_REAL_3D_EVEN)},
 
@@ -4276,6 +4277,21 @@ void RemoveNode(ExecPlan& execPlan, TreeNode* node)
     execPlan.rootPlan->RecursiveRemoveNode(node);
 }
 
+static rocfft_result_placement EffectivePlacement(OperatingBuffer         obIn,
+                                                  OperatingBuffer         obOut,
+                                                  rocfft_result_placement rootPlacement)
+{
+    if(rootPlacement == rocfft_placement_inplace)
+    {
+        // in == out
+        if((obIn == OB_USER_IN || obIn == OB_USER_OUT)
+           && (obOut == OB_USER_IN || obOut == OB_USER_OUT))
+            return rocfft_placement_inplace;
+    }
+    // otherwise just check if the buffers look different
+    return obIn == obOut ? rocfft_placement_inplace : rocfft_placement_notinplace;
+}
+
 static void OptimizePlan(ExecPlan& execPlan)
 {
     auto& execSeq = execPlan.execSeq;
@@ -4293,11 +4309,54 @@ static void OptimizePlan(ExecPlan& execPlan)
             (*r_to_cmplx)->obOut        = (*transpose)->obOut;
             (*r_to_cmplx)->scheme       = CS_KERNEL_R_TO_CMPLX_TRANSPOSE;
             (*r_to_cmplx)->outArrayType = (*transpose)->outArrayType;
-            (*r_to_cmplx)->placement    = (*r_to_cmplx)->obIn == (*r_to_cmplx)->obOut
-                                           ? rocfft_placement_inplace
-                                           : rocfft_placement_notinplace;
+            (*r_to_cmplx)->placement    = EffectivePlacement(
+                (*r_to_cmplx)->obIn, (*r_to_cmplx)->obOut, execPlan.rootPlan->placement);
+            // transpose must be out-of-place
+            assert((*r_to_cmplx)->placement == rocfft_placement_notinplace);
             (*r_to_cmplx)->outStride = (*transpose)->outStride;
             (*r_to_cmplx)->oDist     = (*transpose)->oDist;
+            RemoveNode(execPlan, *transpose);
+        }
+    }
+    // combine CMPLX_TO_R with preceding transpose
+    auto cmplx_to_r = std::find_if(execSeq.rbegin(), execSeq.rend(), [](TreeNode* n) {
+        return n->scheme == CS_KERNEL_CMPLX_TO_R;
+    });
+    // should be a stockham kernel following the CMPLX_TO_R, so
+    // CMPLX_TO_R can't be the last node either
+    if(cmplx_to_r != execSeq.rend() && cmplx_to_r != execSeq.rbegin())
+    {
+        auto stockham  = cmplx_to_r - 1;
+        auto transpose = cmplx_to_r + 1;
+        if(transpose != execSeq.rend()
+           && ((*transpose)->scheme == CS_KERNEL_TRANSPOSE
+               || (*transpose)->scheme == CS_KERNEL_TRANSPOSE_XY_Z)
+           && cmplx_to_r != execSeq.rbegin())
+        {
+            // connect the transpose operation to the following
+            // transform by default
+            (*cmplx_to_r)->obIn  = (*transpose)->obIn;
+            (*cmplx_to_r)->obOut = (*stockham)->obIn;
+
+            // but transpose needs to be out-of-place, so bring the
+            // temp buffer in if the operation would be effectively
+            // in-place.
+            if(EffectivePlacement(
+                   (*cmplx_to_r)->obIn, (*cmplx_to_r)->obOut, execPlan.rootPlan->placement)
+               == rocfft_placement_inplace)
+            {
+                (*cmplx_to_r)->obOut   = OB_TEMP;
+                (*stockham)->obIn      = OB_TEMP;
+                (*stockham)->placement = EffectivePlacement(
+                    (*stockham)->obIn, (*stockham)->obOut, execPlan.rootPlan->placement);
+            }
+            (*cmplx_to_r)->placement = rocfft_placement_notinplace;
+
+            (*cmplx_to_r)->scheme      = CS_KERNEL_TRANSPOSE_CMPLX_TO_R;
+            (*cmplx_to_r)->inArrayType = (*transpose)->inArrayType;
+            (*cmplx_to_r)->inStride    = (*transpose)->inStride;
+            (*cmplx_to_r)->length      = (*transpose)->length;
+            (*cmplx_to_r)->iDist       = (*transpose)->iDist;
             RemoveNode(execPlan, *transpose);
         }
     }
