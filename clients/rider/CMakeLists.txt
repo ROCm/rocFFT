@@ -51,6 +51,7 @@ foreach( rider ${rider_list})
     PRIVATE
     $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/misc/include>
+    ${HIP_CLANG_ROOT}/include
     )
 
   if(${rider} STREQUAL "rocfft-rider")
@@ -71,6 +72,7 @@ foreach( rider ${rider_list})
       PRIVATE
       ${CMAKE_BINARY_DIR}/include
       ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
+      ${HIP_CLANG_ROOT}/include
       )
   endif()
 
