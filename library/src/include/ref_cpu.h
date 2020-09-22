@@ -23,7 +23,6 @@
 
 #ifdef REF_DEBUG
 
-#include "hipfft.h"
 #include <complex>
 #include <cstdio>
 #include <dlfcn.h>
