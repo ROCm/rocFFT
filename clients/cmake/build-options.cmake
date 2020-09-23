@@ -13,10 +13,6 @@ if( NOT BUILD_CLIENTS_TESTS )
   option( BUILD_CLIENTS_TESTS "Build rocFFT unit tests" OFF )
 endif( )
 
-if( NOT BUILD_CLIENTS_BENCHMARKS )
-  option( BUILD_CLIENTS_BENCHMARKS "Build rocFFT benchmarks" OFF )
-endif( )
-
 if( NOT BUILD_CLIENTS_RIDER )
   option( BUILD_CLIENTS_RIDER "Build rocFFT rider" OFF )
 endif( )
