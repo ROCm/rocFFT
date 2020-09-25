@@ -673,6 +673,13 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
     {                                                                                           \
         DeviceCallIn* data          = (DeviceCallIn*)data_p;                                    \
         hipStream_t   rocfft_stream = data->rocfft_stream;                                      \
+                                                                                                \
+        /* The size of last dimension need to be counted into batch */                          \
+        /* Check how to config thread block in PlanPowX() for SBCC  */                          \
+        const size_t batch = (data->node->length.size() == 3)                                   \
+                                 ? data->node->batch * data->node->length[2]                    \
+                                 : data->node->batch;                                           \
+                                                                                                \
         if(data->node->placement == rocfft_placement_inplace)                                   \
         {                                                                                       \
             if(data->node->direction == -1)                                                     \
@@ -695,7 +702,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->length.size(),                                          \
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (PRECISION*)data->bufIn[0]);                                        \
                     }                                                                           \
                     else                                                                        \
@@ -711,7 +718,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->length.size(),                                          \
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (PRECISION*)data->bufIn[0]);                                        \
                     }                                                                           \
                 }                                                                               \
@@ -733,7 +740,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->length.size(),                                          \
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1]);                           \
                     }                                                                           \
@@ -750,7 +757,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->length.size(),                                          \
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1]);                           \
                     }                                                                           \
@@ -776,7 +783,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->length.size(),                                          \
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (PRECISION*)data->bufIn[0]);                                        \
                     }                                                                           \
                     else                                                                        \
@@ -792,7 +799,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->length.size(),                                          \
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (PRECISION*)data->bufIn[0]);                                        \
                     }                                                                           \
                 }                                                                               \
@@ -814,7 +821,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->length.size(),                                          \
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1]);                           \
                     }                                                                           \
@@ -831,7 +838,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->length.size(),                                          \
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1]);                           \
                     }                                                                           \
@@ -861,7 +868,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (PRECISION*)data->bufIn[0],                                         \
                             (PRECISION*)data->bufOut[0]);                                       \
                     }                                                                           \
@@ -879,7 +886,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (PRECISION*)data->bufIn[0],                                         \
                             (PRECISION*)data->bufOut[0]);                                       \
                     }                                                                           \
@@ -903,7 +910,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (PRECISION*)data->bufIn[0],                                         \
                             (real_type_t<PRECISION>*)data->bufOut[0],                           \
                             (real_type_t<PRECISION>*)data->bufOut[1]);                          \
@@ -922,7 +929,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (PRECISION*)data->bufIn[0],                                         \
                             (real_type_t<PRECISION>*)data->bufOut[0],                           \
                             (real_type_t<PRECISION>*)data->bufOut[1]);                          \
@@ -948,7 +955,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
                             (PRECISION*)data->bufOut[0]);                                       \
@@ -967,7 +974,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
                             (PRECISION*)data->bufOut[0]);                                       \
@@ -992,7 +999,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
                             (real_type_t<PRECISION>*)data->bufOut[0],                           \
@@ -1012,7 +1019,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
                             (real_type_t<PRECISION>*)data->bufOut[0],                           \
@@ -1041,7 +1048,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (PRECISION*)data->bufIn[0],                                         \
                             (PRECISION*)data->bufOut[0]);                                       \
                     }                                                                           \
@@ -1059,7 +1066,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (PRECISION*)data->bufIn[0],                                         \
                             (PRECISION*)data->bufOut[0]);                                       \
                     }                                                                           \
@@ -1083,7 +1090,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (PRECISION*)data->bufIn[0],                                         \
                             (real_type_t<PRECISION>*)data->bufOut[0],                           \
                             (real_type_t<PRECISION>*)data->bufOut[1]);                          \
@@ -1102,7 +1109,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (PRECISION*)data->bufIn[0],                                         \
                             (real_type_t<PRECISION>*)data->bufOut[0],                           \
                             (real_type_t<PRECISION>*)data->bufOut[1]);                          \
@@ -1128,7 +1135,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
                             (PRECISION*)data->bufOut[0]);                                       \
@@ -1147,7 +1154,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
                             (PRECISION*)data->bufOut[0]);                                       \
@@ -1172,7 +1179,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
                             (real_type_t<PRECISION>*)data->bufOut[0],                           \
@@ -1192,7 +1199,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                             data->node->devKernArg.data(),                                      \
                             data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
                             data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->batch,                                                  \
+                            batch,                                                              \
                             (real_type_t<PRECISION>*)data->bufIn[0],                            \
                             (real_type_t<PRECISION>*)data->bufIn[1],                            \
                             (real_type_t<PRECISION>*)data->bufOut[0],                           \
@@ -1208,6 +1215,13 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
     {                                                                                            \
         DeviceCallIn* data          = (DeviceCallIn*)data_p;                                     \
         hipStream_t   rocfft_stream = data->rocfft_stream;                                       \
+                                                                                                 \
+        /* The size of last dimension need to be counted into batch */                           \
+        /* Check how to config thread block in PlanPowX() for SBRC  */                           \
+        const size_t batch = (data->node->length.size() == 3)                                    \
+                                 ? data->node->batch * data->node->length[2]                     \
+                                 : data->node->batch;                                            \
+                                                                                                 \
         if(data->node->direction == -1)                                                          \
         {                                                                                        \
             if((data->node->inArrayType == rocfft_array_type_complex_interleaved                 \
@@ -1225,7 +1239,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data(),                                \
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
-                                   data->node->batch,                                            \
+                                   batch,                                                        \
                                    (PRECISION*)data->bufIn[0],                                   \
                                    (PRECISION*)data->bufOut[0]);                                 \
             }                                                                                    \
@@ -1244,7 +1258,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data(),                                \
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
-                                   data->node->batch,                                            \
+                                   batch,                                                        \
                                    (PRECISION*)data->bufIn[0],                                   \
                                    (real_type_t<PRECISION>*)data->bufOut[0],                     \
                                    (real_type_t<PRECISION>*)data->bufOut[1]);                    \
@@ -1264,7 +1278,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data(),                                \
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
-                                   data->node->batch,                                            \
+                                   batch,                                                        \
                                    (real_type_t<PRECISION>*)data->bufIn[0],                      \
                                    (real_type_t<PRECISION>*)data->bufIn[1],                      \
                                    (PRECISION*)data->bufOut[0]);                                 \
@@ -1284,7 +1298,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data(),                                \
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
-                                   data->node->batch,                                            \
+                                   batch,                                                        \
                                    (real_type_t<PRECISION>*)data->bufIn[0],                      \
                                    (real_type_t<PRECISION>*)data->bufIn[1],                      \
                                    (real_type_t<PRECISION>*)data->bufOut[0],                     \
@@ -1308,7 +1322,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data(),                                \
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
-                                   data->node->batch,                                            \
+                                   batch,                                                        \
                                    (PRECISION*)data->bufIn[0],                                   \
                                    (PRECISION*)data->bufOut[0]);                                 \
             }                                                                                    \
@@ -1327,7 +1341,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data(),                                \
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
-                                   data->node->batch,                                            \
+                                   batch,                                                        \
                                    (PRECISION*)data->bufIn[0],                                   \
                                    (real_type_t<PRECISION>*)data->bufOut[0],                     \
                                    (real_type_t<PRECISION>*)data->bufOut[1]);                    \
@@ -1347,7 +1361,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data(),                                \
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
-                                   data->node->batch,                                            \
+                                   batch,                                                        \
                                    (real_type_t<PRECISION>*)data->bufIn[0],                      \
                                    (real_type_t<PRECISION>*)data->bufIn[1],                      \
                                    (PRECISION*)data->bufOut[0]);                                 \
@@ -1367,7 +1381,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data(),                                \
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,    \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,    \
-                                   data->node->batch,                                            \
+                                   batch,                                                        \
                                    (real_type_t<PRECISION>*)data->bufIn[0],                      \
                                    (real_type_t<PRECISION>*)data->bufIn[1],                      \
                                    (real_type_t<PRECISION>*)data->bufOut[0],                     \

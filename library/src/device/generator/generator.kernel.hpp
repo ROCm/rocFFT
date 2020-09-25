@@ -282,7 +282,11 @@ namespace StockhamGenerator
         {
             std::string str;
 
-            str += "\tsize_t counter_mod = batch;\n";
+            str += "\tsize_t batch_block_size = hipGridDim_x / batch_count; //To opt: it can be "
+                   "calc on host.\n";
+            str += "\tsize_t counter_mod = batch % batch_block_size;\n";
+            str += "\tsize_t batch_local_count = batch / batch_block_size; //To check: technically "
+                   "it should be done in one instruction.\n";
 
             std::string loop;
             loop += "\tfor(int i = dim; i>2; i--){\n"; // dim is a runtime variable
@@ -314,6 +318,8 @@ namespace StockhamGenerator
             if(blockComputeType == BCT_C2C)
                 loop += "\t" + offset_name1 + " *= (" + stride_name1 + "[1]);\n";
 
+            loop += "\t" + offset_name1 + " += (batch_local_count * " + stride_name1 + "[2]);\n";
+
             if(output == true)
             {
                 loop += "\t" + offset_name2 + " += (counter_mod/" + sub_string + ")*";
@@ -326,6 +332,9 @@ namespace StockhamGenerator
                 // the most inner part of offset calc needs to count stride[1] for SBRC
                 if(blockComputeType == BCT_R2C)
                     loop += "\t" + offset_name2 + " *= (" + stride_name2 + "[1]);\n";
+
+                loop
+                    += "\t" + offset_name2 + " += (batch_local_count * " + stride_name2 + "[2]);\n";
             }
 
             str += loop;
