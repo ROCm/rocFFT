@@ -17,9 +17,9 @@ are available for each release on the releases tab.
 
 ## Building from source
 
-rocFFT is compiled with hipcc and uses cmake.  A number of options can
-be provided to cmake, but to the library may be compiled with the
-following commands:
+rocFFT is compiled with hipcc and uses cmake.  There are a number of options
+that can be provided to cmake to customize the build, but the following
+commands will build a shared library for supported AMD GPUs:
 
 ```
 mkdir build && cd build
