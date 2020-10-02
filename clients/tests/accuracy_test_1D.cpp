@@ -325,8 +325,7 @@ INSTANTIATE_TEST_SUITE_P(mix_1D_real_inverse,
 static std::vector<size_t>              pow2_range_for_stride   = {4096, 8192, 524288};
 static std::vector<size_t>              stride_range_for_pow2   = {2, 3};
 static std::vector<std::vector<size_t>> v_pow2_range_for_stride = {pow2_range_for_stride};
-const static std::vector<size_t>        batch_range_for_stride
-    = {1}; //FIXME: extend more after fix stride + batch issue.
+const static std::vector<size_t>        batch_range_for_stride  = {1, 2};
 INSTANTIATE_TEST_SUITE_P(
     pow2_1D_complex_forward_stride,
     accuracy_test,
