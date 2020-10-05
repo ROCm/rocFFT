@@ -123,7 +123,6 @@ __device__ void transpose_tile_device(const T_I*   input,
         for(int i = 0; i < DIM_X; i += DIM_Y)
         {
             // reconfigure the threads
-            //output[tx1 + (i + ty1) * ld_out] = shared[ty1 + i][tx1];
             if(UNIT_STRIDE_0)
             {
                 Handler<T_O>::write(
@@ -164,7 +163,6 @@ __device__ void transpose_tile_device(const T_I*   input,
             // reconfigure the threads
             if(tx1 < m && (ty1 + i) < n)
             {
-                //output[tx1 + (i + ty1) * ld_out] = shared[ty1 + i][tx1];
                 if(UNIT_STRIDE_0)
                 {
                     Handler<T_O>::write(
@@ -271,6 +269,111 @@ __global__ void transpose_kernel2(const T_I* input,
     }
 }
 
+// tiled transpose device function for transpose_scheme
+template <typename T,
+          typename T_I,
+          typename T_O,
+          size_t DIM_X,
+          size_t DIM_Y,
+          bool   ALL,
+          bool   UNIT_STRIDE_0>
+__device__ void transpose_tile_device_scheme(const T_I*   input,
+                                             T_O*         output,
+                                             size_t       in_offset,
+                                             size_t       out_offset,
+                                             const size_t m,
+                                             const size_t n,
+                                             size_t       ld_in,
+                                             size_t       ld_out,
+                                             size_t       stride_0_in,
+                                             size_t       stride_0_out)
+{
+    __shared__ T shared[DIM_X][DIM_X];
+
+    size_t tid = hipThreadIdx_x + hipThreadIdx_y * hipBlockDim_x;
+    size_t tx1 = tid % DIM_X;
+    size_t ty1 = tid / DIM_X;
+
+    if(ALL)
+    {
+#pragma unroll
+        for(int i = 0; i < DIM_X; i += DIM_Y)
+        {
+            T tmp;
+            if(UNIT_STRIDE_0)
+            {
+                tmp = Handler<T_I>::read(input, in_offset + tx1 + (ty1 + i) * ld_in);
+            }
+            else
+            {
+                tmp = Handler<T_I>::read(input, in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in);
+            }
+            shared[tx1][ty1 + i] = tmp; // the transpose taking place here
+        }
+
+        __syncthreads();
+
+#pragma unroll
+        for(int i = 0; i < DIM_X; i += DIM_Y)
+        {
+            // reconfigure the threads
+            if(UNIT_STRIDE_0)
+            {
+                Handler<T_O>::write(
+                    output, out_offset + tx1 + (i + ty1) * ld_out, shared[ty1 + i][tx1]);
+            }
+            else
+            {
+                Handler<T_O>::write(output,
+                                    out_offset + tx1 * stride_0_out + (i + ty1) * ld_out,
+                                    shared[ty1 + i][tx1]);
+            }
+        }
+    }
+    else
+    {
+        for(size_t i = 0; i < m; i += DIM_Y)
+        {
+            if(tx1 < n && (ty1 + i) < m)
+            {
+                T tmp;
+                if(UNIT_STRIDE_0)
+                {
+                    tmp = Handler<T_I>::read(input, in_offset + tx1 + (ty1 + i) * ld_in);
+                }
+                else
+                {
+                    tmp = Handler<T_I>::read(input,
+                                             in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in);
+                }
+                shared[tx1][ty1 + i] = tmp; // the transpose taking place here
+            }
+        }
+
+        __syncthreads();
+
+        for(size_t i = 0; i < n; i += DIM_Y)
+        {
+            // reconfigure the threads
+            if(tx1 < m && (ty1 + i) < n)
+            {
+                if(UNIT_STRIDE_0)
+                {
+                    Handler<T_O>::write(
+                        output, out_offset + tx1 + (i + ty1) * ld_out, shared[ty1 + i][tx1]);
+                }
+                else
+                {
+                    Handler<T_O>::write(output,
+                                        out_offset + tx1 * stride_0_out + (i + ty1) * ld_out,
+                                        shared[ty1 + i][tx1]);
+                }
+            }
+        }
+    }
+}
+
+// global function for transpose scheme
 template <typename T,
           typename T_I,
           typename T_O,
@@ -279,17 +382,17 @@ template <typename T,
           bool   ALL,
           bool   UNIT_STRIDE_0,
           bool   DIAGONAL>
-__global__ void transpose_kernel2_scheme(const T_I*   input,
-                                         T_O*         output,
-                                         T*           twiddles_large,
-                                         size_t*      lengths,
-                                         size_t*      stride_in,
-                                         size_t*      stride_out,
-                                         const size_t scheme)
+__global__ void transpose_kernel2_scheme(const T_I* input,
+                                         T_O*       output,
+                                         T*         twiddles_large,
+                                         size_t*    lengths,
+                                         size_t*    stride_in,
+                                         size_t*    stride_out,
+                                         size_t     ld_in,
+                                         size_t     ld_out,
+                                         size_t     m,
+                                         size_t     n)
 {
-    size_t ld_in  = scheme == 1 ? stride_in[2] : stride_in[1];
-    size_t ld_out = scheme == 1 ? stride_out[1] : stride_out[2];
-
     size_t iOffset = 0;
     size_t oOffset = 0;
 
@@ -317,41 +420,23 @@ __global__ void transpose_kernel2_scheme(const T_I*   input,
 
     if(ALL)
     {
-        transpose_tile_device<T, T_I, T_O, DIM_X, DIM_Y, false, 0, 0, ALL, UNIT_STRIDE_0>(
-            input,
-            output,
-            iOffset,
-            oOffset,
-            DIM_X,
-            DIM_X,
-            hipBlockIdx_x * DIM_X,
-            hipBlockIdx_y * DIM_X,
-            ld_in,
-            ld_out,
-            stride_in[0],
-            stride_out[0],
-            twiddles_large);
+        transpose_tile_device_scheme<T, T_I, T_O, DIM_X, DIM_Y, ALL, UNIT_STRIDE_0>(input,
+                                                                                    output,
+                                                                                    iOffset,
+                                                                                    oOffset,
+                                                                                    DIM_X,
+                                                                                    DIM_X,
+                                                                                    ld_in,
+                                                                                    ld_out,
+                                                                                    stride_in[0],
+                                                                                    stride_out[0]);
     }
     else
     {
-        size_t m  = scheme == 1 ? lengths[2] : lengths[1] * lengths[2];
-        size_t n  = scheme == 1 ? lengths[0] * lengths[1] : lengths[0];
-        size_t mm = min(m - tileBlockIdx_y * DIM_X, DIM_X); // the corner case along m
-        size_t nn = min(n - tileBlockIdx_x * DIM_X, DIM_X); // the corner case along n
-        transpose_tile_device<T, T_I, T_O, DIM_X, DIM_Y, false, 0, 0, ALL, UNIT_STRIDE_0>(
-            input,
-            output,
-            iOffset,
-            oOffset,
-            mm,
-            nn,
-            hipBlockIdx_x * DIM_X,
-            hipBlockIdx_y * DIM_X,
-            ld_in,
-            ld_out,
-            stride_in[0],
-            stride_out[0],
-            twiddles_large);
+        size_t mm = min(m - tileBlockIdx_y * DIM_X, DIM_X); // the partial case along m
+        size_t nn = min(n - tileBlockIdx_x * DIM_X, DIM_X); // the partial case along n
+        transpose_tile_device_scheme<T, T_I, T_O, DIM_X, DIM_Y, ALL, UNIT_STRIDE_0>(
+            input, output, iOffset, oOffset, mm, nn, ld_in, ld_out, stride_in[0], stride_out[0]);
     }
 }
 

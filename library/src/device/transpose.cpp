@@ -47,6 +47,8 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
                                                    int         scheme,
                                                    bool        unit_stride0,
                                                    bool        diagonal,
+                                                   size_t      ld_in,
+                                                   size_t      ld_out,
                                                    hipStream_t rocfft_stream)
 {
 
@@ -493,7 +495,10 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
                                lengths,
                                stride_in,
                                stride_out,
-                               scheme);
+                               ld_in,
+                               ld_out,
+                               m,
+                               n);
         }
         catch(std::exception& e)
         {
@@ -529,6 +534,9 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
         m      = data->node->length[1] * data->node->length[2];
         n      = data->node->length[0];
     }
+
+    size_t ld_in  = scheme == 1 ? data->node->inStride[2] : data->node->inStride[1];
+    size_t ld_out = scheme == 1 ? data->node->outStride[1] : data->node->outStride[2];
 
     // TODO:
     //   - might open this option to upstream
@@ -612,6 +620,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 scheme,
                 unit_stride0,
                 diagonal,
+                ld_in,
+                ld_out,
                 rocfft_stream);
 
             hipFree(d_in_planar);
@@ -645,6 +655,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 scheme,
                 unit_stride0,
                 diagonal,
+                ld_in,
+                ld_out,
                 rocfft_stream);
 
             hipFree(d_in_planar);
@@ -684,6 +696,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 scheme,
                 unit_stride0,
                 diagonal,
+                ld_in,
+                ld_out,
                 rocfft_stream);
 
             hipFree(d_out_planar);
@@ -718,6 +732,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 scheme,
                 unit_stride0,
                 diagonal,
+                ld_in,
+                ld_out,
                 rocfft_stream);
 
             hipFree(d_out_planar);
@@ -764,6 +780,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 scheme,
                 unit_stride0,
                 diagonal,
+                ld_in,
+                ld_out,
                 rocfft_stream);
 
             hipFree(d_in_planar);
@@ -806,6 +824,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 scheme,
                 unit_stride0,
                 diagonal,
+                ld_in,
+                ld_out,
                 rocfft_stream);
 
             hipFree(d_in_planar);
@@ -835,6 +855,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 scheme,
                 unit_stride0,
                 diagonal,
+                ld_in,
+                ld_out,
                 rocfft_stream);
         else
             rocfft_transpose_outofplace_template<cmplx_double, cmplx_double, cmplx_double, 32, 32>(
@@ -852,6 +874,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 scheme,
                 unit_stride0,
                 diagonal,
+                ld_in,
+                ld_out,
                 rocfft_stream);
     }
 }
