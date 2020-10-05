@@ -127,7 +127,7 @@ inline void GetBlockComputeTable(size_t N, size_t& bwd, size_t& wgs, size_t& lds
         wgs = 81;
         break;
     case 100:
-        bwd = 10;
+        bwd = 5;
         wgs = 50;
         break;
     default:
@@ -242,7 +242,13 @@ inline void DetermineSizes(const size_t& length, size_t& workGroupSize, size_t& 
         }
         else if(primeFactorsExpanded[2] * primeFactorsExpanded[5] == length)
         {
-            if(length % 20 == 0)
+            // NB:
+            //   We found the below config leastNumPerWI 10 and maxWorkGroupSize
+            //   128 works well for 1D cases 100 or 10000. But for single
+            //   precision, 20/64 config is still better(>=) for most of the
+            //   cases, especially for cases like 200, 800 with outplace large
+            //   batch run.
+            if((length % 20 == 0) && (length != 100))
             {
                 leastNumPerWI    = 20;
                 maxWorkGroupSize = 64;
