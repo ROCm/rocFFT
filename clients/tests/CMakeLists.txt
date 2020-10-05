@@ -43,7 +43,6 @@ set(rocfft_test_source
   accuracy_test_3D.cpp
   multithread_test.cpp
   unit_test.cpp
-  hipfft_test.cpp
   misc/source/test_exception.cpp
   )
 

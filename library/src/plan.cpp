@@ -241,8 +241,7 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
                                           const size_t                  dimensions,
                                           const size_t*                 lengths,
                                           const size_t                  number_of_transforms,
-                                          const rocfft_plan_description description,
-                                          const bool                    dry_run)
+                                          const rocfft_plan_description description)
 {
     // Check plan validity
     if(description != nullptr)
@@ -445,13 +444,8 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     //     return rocfft_status_invalid_dimensions;
     // }
 
-    rocfft_status ret = rocfft_status_success;
-    if(!dry_run)
-    {
-        Repo& repo = Repo::GetRepo();
-        ret = repo.CreatePlan(p); // add this plan into repo, incurs computation, see repo.cpp
-    }
-    return ret;
+    // add this plan into repo, incurs computation, see repo.cpp
+    return Repo::GetRepo().CreatePlan(p);
 }
 
 rocfft_status rocfft_plan_allocate(rocfft_plan* plan)
@@ -523,8 +517,7 @@ rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
                                        dimensions,
                                        lengths,
                                        number_of_transforms,
-                                       description,
-                                       false);
+                                       description);
 }
 
 rocfft_status rocfft_plan_destroy(rocfft_plan plan)

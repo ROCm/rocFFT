@@ -47,7 +47,6 @@ set( rocfft_source
   auxiliary.cpp
   plan.cpp
   transform.cpp
-  hipfft.cpp
   repo.cpp
   powX.cpp
   get_radix.cpp

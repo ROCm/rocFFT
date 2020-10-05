@@ -41,8 +41,7 @@ DLL_PUBLIC rocfft_status rocfft_plan_create_internal(rocfft_plan             pla
                                                      size_t                  dimensions,
                                                      const size_t*           lengths,
                                                      size_t                  number_of_transforms,
-                                                     const rocfft_plan_description description,
-                                                     bool                          dry_run);
+                                                     const rocfft_plan_description description);
 
 // plan allocation only
 DLL_PUBLIC rocfft_status rocfft_plan_allocate(rocfft_plan* plan);

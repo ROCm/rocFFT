@@ -33,7 +33,7 @@ if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
 endif( )
 # ########################################################################
 
-set( sample_list fixed-16-float fixed-16-double fixed-16-float-hipfft)
+set( sample_list fixed-16-float fixed-16-double )
 
 foreach( sample ${sample_list} )
 
