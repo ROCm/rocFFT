@@ -35,19 +35,26 @@ To use the [hip-clang compiler][3], one must specify
 One can use nvcc as a backend compiler by passing the option `-DUSE_CUDA=yes`
 and setting `HIP_PLATFORM=nvcc` in your environment.
 
+There are several clients included with rocFFT:
+1. rocfft-rider runs general transforms and is useful for performance analysis;
+2. rocfft-test runs various regression tests;
+3. rocfft-selftest runs various unit tests; and
+4. various small samples are included.
 
-rocfft-rider is a client which will run general transforms and is
-useful for performance analysis.  Compilation is enabled via the
-`-DBUILD_CLIENTS_RIDER=on` cmake option.  rocfft-rider uses boost
-program options.
+Clients are not built by default.  To build them:
 
-rocfft-test runs functionality tests and uses FFTW, Google test, and
-boost program options.  Compilation is enabled by calling cmake with the
-`-DBUILD_CLIENTS_TESTS=on` option.
+| Client          | CMake option                  | Dependencies                             |
+|-----------------|-------------------------------|------------------------------------------|
+| rocfft-rider    | `-DBUILD_CLIENTS_RIDER=on`    | Boost program options                    |
+| rocfft-test     | `-DBUILD_CLIENTS_TESTS=on`    | Boost program options, FFTW, Google Test |
+| rocfft-selftest | `-DBUILD_CLIENTS_SELFTEST=on` | Google Test                              |
+| samples         | `-DBUILD_CLIENTS_SAMPLES=on`  | Boost program options, FFTW              |
 
-To install the clients depencencies on Ubuntu, run
+To build all of the above clients, use `-DBUILD_CLIENTS_ALL=on`.
+
+To install the client depencencies on Ubuntu, run
 `sudo apt install libgtest-dev libfftw3-dev libboost-program-options-dev`.
-We use version 1.10 of gtest.
+We use version 1.10 of Google Test (gtest).
 
 `install.sh` is a bash script that will install dependencies on certain Linux
 distributions, such as Ubuntu, CentOS, RHEL, Fedora, and SLES and invoke cmake.
