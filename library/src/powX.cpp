@@ -127,10 +127,10 @@ bool PlanPowX(ExecPlan& execPlan)
             size_t workGroupSize;
             size_t numTransforms;
             GetWGSAndNT(execPlan.execSeq[i]->length[0], workGroupSize, numTransforms);
-            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                      ? function_pool::get_function_single(
+            ptr          = (execPlan.execSeq[0]->precision == rocfft_precision_single)
+                               ? function_pool::get_function_single(
                           std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM))
-                      : function_pool::get_function_double(
+                               : function_pool::get_function_double(
                           std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM));
             size_t batch = execPlan.execSeq[i]->batch;
             for(size_t j = 1; j < execPlan.execSeq[i]->length.size(); j++)
