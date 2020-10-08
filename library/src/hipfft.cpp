@@ -159,8 +159,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                                                 dim,
                                                                 lengths,
                                                                 number_of_transforms,
-                                                                desc,
-                                                                dry_run));
+                                                                desc));
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->op_forward,
                                                                 rocfft_placement_notinplace,
                                                                 rocfft_transform_type_real_forward,
@@ -168,8 +167,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                                                 dim,
                                                                 lengths,
                                                                 number_of_transforms,
-                                                                desc,
-                                                                dry_run));
+                                                                desc));
         break;
     case HIPFFT_C2R:
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->ip_inverse,
@@ -179,8 +177,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                                                 dim,
                                                                 lengths,
                                                                 number_of_transforms,
-                                                                desc,
-                                                                dry_run));
+                                                                desc));
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->op_inverse,
                                                                 rocfft_placement_notinplace,
                                                                 rocfft_transform_type_real_inverse,
@@ -188,8 +185,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                                                 dim,
                                                                 lengths,
                                                                 number_of_transforms,
-                                                                desc,
-                                                                dry_run));
+                                                                desc));
         break;
     case HIPFFT_C2C:
         ROC_FFT_CHECK_INVALID_VALUE(
@@ -200,8 +196,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                         dim,
                                         lengths,
                                         number_of_transforms,
-                                        desc,
-                                        dry_run));
+                                        desc));
         ROC_FFT_CHECK_INVALID_VALUE(
             rocfft_plan_create_internal(plan->op_forward,
                                         rocfft_placement_notinplace,
@@ -210,8 +205,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                         dim,
                                         lengths,
                                         number_of_transforms,
-                                        desc,
-                                        dry_run));
+                                        desc));
         ROC_FFT_CHECK_INVALID_VALUE(
             rocfft_plan_create_internal(plan->ip_inverse,
                                         rocfft_placement_inplace,
@@ -220,8 +214,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                         dim,
                                         lengths,
                                         number_of_transforms,
-                                        desc,
-                                        dry_run));
+                                        desc));
         ROC_FFT_CHECK_INVALID_VALUE(
             rocfft_plan_create_internal(plan->op_inverse,
                                         rocfft_placement_notinplace,
@@ -230,8 +223,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                         dim,
                                         lengths,
                                         number_of_transforms,
-                                        desc,
-                                        dry_run));
+                                        desc));
         break;
 
     case HIPFFT_D2Z:
@@ -242,8 +234,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                                                 dim,
                                                                 lengths,
                                                                 number_of_transforms,
-                                                                desc,
-                                                                dry_run));
+                                                                desc));
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->op_forward,
                                                                 rocfft_placement_notinplace,
                                                                 rocfft_transform_type_real_forward,
@@ -251,8 +242,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                                                 dim,
                                                                 lengths,
                                                                 number_of_transforms,
-                                                                desc,
-                                                                dry_run));
+                                                                desc));
         break;
     case HIPFFT_Z2D:
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->ip_inverse,
@@ -262,8 +252,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                                                 dim,
                                                                 lengths,
                                                                 number_of_transforms,
-                                                                desc,
-                                                                dry_run));
+                                                                desc));
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_create_internal(plan->op_inverse,
                                                                 rocfft_placement_notinplace,
                                                                 rocfft_transform_type_real_inverse,
@@ -271,8 +260,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                                                 dim,
                                                                 lengths,
                                                                 number_of_transforms,
-                                                                desc,
-                                                                dry_run));
+                                                                desc));
         break;
     case HIPFFT_Z2Z:
         ROC_FFT_CHECK_INVALID_VALUE(
@@ -283,8 +271,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                         dim,
                                         lengths,
                                         number_of_transforms,
-                                        desc,
-                                        dry_run));
+                                        desc));
         ROC_FFT_CHECK_INVALID_VALUE(
             rocfft_plan_create_internal(plan->op_forward,
                                         rocfft_placement_notinplace,
@@ -293,8 +280,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                         dim,
                                         lengths,
                                         number_of_transforms,
-                                        desc,
-                                        dry_run));
+                                        desc));
         ROC_FFT_CHECK_INVALID_VALUE(
             rocfft_plan_create_internal(plan->ip_inverse,
                                         rocfft_placement_inplace,
@@ -303,8 +289,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                         dim,
                                         lengths,
                                         number_of_transforms,
-                                        desc,
-                                        dry_run));
+                                        desc));
         ROC_FFT_CHECK_INVALID_VALUE(
             rocfft_plan_create_internal(plan->op_inverse,
                                         rocfft_placement_notinplace,
@@ -313,8 +298,7 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                         dim,
                                         lengths,
                                         number_of_transforms,
-                                        desc,
-                                        dry_run));
+                                        desc));
         break;
     default:
         return HIPFFT_PARSE_ERROR;
