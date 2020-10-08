@@ -954,7 +954,7 @@ void TreeNode::build_real_embed()
     copyHeadPlan->dimension = dimension;
     copyHeadPlan->length    = length;
     copyHeadPlan->scheme    = (inArrayType == rocfft_array_type_real) ? CS_KERNEL_COPY_R_TO_CMPLX
-                                                                   : CS_KERNEL_COPY_HERM_TO_CMPLX;
+                                                                      : CS_KERNEL_COPY_HERM_TO_CMPLX;
     childNodes.emplace_back(std::move(copyHeadPlan));
 
     // complex fft
@@ -972,7 +972,7 @@ void TreeNode::build_real_embed()
     copyTailPlan->dimension = dimension;
     copyTailPlan->length    = length;
     copyTailPlan->scheme    = (inArrayType == rocfft_array_type_real) ? CS_KERNEL_COPY_CMPLX_TO_HERM
-                                                                   : CS_KERNEL_COPY_CMPLX_TO_R;
+                                                                      : CS_KERNEL_COPY_CMPLX_TO_R;
     childNodes.emplace_back(std::move(copyTailPlan));
 }
 
@@ -4320,7 +4320,8 @@ static void OptimizePlan(ExecPlan& execPlan)
     if(cmplx_to_r != execSeq.rend() && cmplx_to_r != execSeq.rbegin())
     {
         auto following = cmplx_to_r - 1;
-        if((*following)->scheme == CS_KERNEL_CHIRP) following = following - 1; // skip CHIRP
+        if((*following)->scheme == CS_KERNEL_CHIRP)
+            following = following - 1; // skip CHIRP
         auto transpose = cmplx_to_r + 1;
         if(transpose != execSeq.rend()
            && ((*transpose)->scheme == CS_KERNEL_TRANSPOSE
@@ -4339,7 +4340,7 @@ static void OptimizePlan(ExecPlan& execPlan)
                    (*cmplx_to_r)->obIn, (*cmplx_to_r)->obOut, execPlan.rootPlan->placement)
                == rocfft_placement_inplace)
             {
-                (*cmplx_to_r)->obOut   = OB_TEMP;
+                (*cmplx_to_r)->obOut    = OB_TEMP;
                 (*following)->obIn      = OB_TEMP;
                 (*following)->placement = EffectivePlacement(
                     (*following)->obIn, (*following)->obOut, execPlan.rootPlan->placement);
