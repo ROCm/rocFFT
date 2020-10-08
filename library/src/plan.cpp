@@ -4315,11 +4315,12 @@ static void OptimizePlan(ExecPlan& execPlan)
     auto cmplx_to_r = std::find_if(execSeq.rbegin(), execSeq.rend(), [](TreeNode* n) {
         return n->scheme == CS_KERNEL_CMPLX_TO_R;
     });
-    // should be a stockham kernel following the CMPLX_TO_R, so
+    // should be a stockham or bluestein kernel following the CMPLX_TO_R, so
     // CMPLX_TO_R can't be the last node either
     if(cmplx_to_r != execSeq.rend() && cmplx_to_r != execSeq.rbegin())
     {
-        auto stockham  = cmplx_to_r - 1;
+        auto following = cmplx_to_r - 1;
+        if((*following)->scheme == CS_KERNEL_CHIRP) following = following - 1; // skip CHIRP
         auto transpose = cmplx_to_r + 1;
         if(transpose != execSeq.rend()
            && ((*transpose)->scheme == CS_KERNEL_TRANSPOSE
@@ -4329,7 +4330,7 @@ static void OptimizePlan(ExecPlan& execPlan)
             // connect the transpose operation to the following
             // transform by default
             (*cmplx_to_r)->obIn  = (*transpose)->obIn;
-            (*cmplx_to_r)->obOut = (*stockham)->obIn;
+            (*cmplx_to_r)->obOut = (*following)->obIn;
 
             // but transpose needs to be out-of-place, so bring the
             // temp buffer in if the operation would be effectively
@@ -4339,9 +4340,9 @@ static void OptimizePlan(ExecPlan& execPlan)
                == rocfft_placement_inplace)
             {
                 (*cmplx_to_r)->obOut   = OB_TEMP;
-                (*stockham)->obIn      = OB_TEMP;
-                (*stockham)->placement = EffectivePlacement(
-                    (*stockham)->obIn, (*stockham)->obOut, execPlan.rootPlan->placement);
+                (*following)->obIn      = OB_TEMP;
+                (*following)->placement = EffectivePlacement(
+                    (*following)->obIn, (*following)->obOut, execPlan.rootPlan->placement);
             }
             (*cmplx_to_r)->placement = rocfft_placement_notinplace;
 
