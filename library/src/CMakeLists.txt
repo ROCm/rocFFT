@@ -54,6 +54,7 @@ set( rocfft_source
   kargs.cpp
   rocfft_ostream.cpp
   tree_node.cpp
+  hipfft.cpp
   )
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
