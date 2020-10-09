@@ -677,12 +677,11 @@ void TransformPowX(const ExecPlan&       execPlan,
                     data.node->length, data.node->precision, data.node->inArrayType);
                 size_t out_size_bytes = data_size_bytes(
                     data.node->length, data.node->precision, data.node->outArrayType);
-                size_t total_size_bytes = in_size_bytes + out_size_bytes;
+                size_t total_size_bytes = (in_size_bytes + out_size_bytes) * data.node->batch;
 
                 float duration_ms = 0.0f;
                 hipEventElapsedTime(&duration_ms, start, stop);
-                auto exec_bw
-                    = execution_bandwidth_GB_per_s(in_size_bytes + out_size_bytes, duration_ms);
+                auto exec_bw        = execution_bandwidth_GB_per_s(total_size_bytes, duration_ms);
                 auto efficiency_pct = 0.0;
                 if(max_memory_bw != 0.0)
                     efficiency_pct = 100.0 * exec_bw / max_memory_bw;
