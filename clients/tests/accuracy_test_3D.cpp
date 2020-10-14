@@ -34,10 +34,11 @@ using ::testing::ValuesIn;
 
 // Set parameters
 
-// TODO: 8192+ causes failures for single precision, 4096+ for double
 // TODO: 512, 1024, 2048 make the tests take too long; re-enable when
 // test speed is improved.
 static std::vector<size_t> pow2_range = {4, 8, 16, 32, 128, 256};
+// SBCC+SBRC as a sub-node of a 3D TRTRTR
+std::vector<std::vector<size_t>> pow2_adhoc = {{4, 4, 8192}};
 
 static std::vector<size_t> pow3_range = {3, 9, 27, 81, 243};
 
@@ -51,7 +52,7 @@ static std::vector<std::vector<size_t>> vpow2_range = {pow2_range, pow2_range, p
 INSTANTIATE_TEST_SUITE_P(
     pow2_3D_complex_forward,
     accuracy_test,
-    ::testing::Combine(ValuesIn(generate_lengths(vpow2_range)),
+    ::testing::Combine(ValuesIn(generate_lengths(vpow2_range, pow2_adhoc)),
                        ::testing::Values(stride_range),
                        ::testing::Values(stride_range),
                        ::testing::Values(batch_range),

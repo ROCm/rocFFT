@@ -200,9 +200,9 @@ class RefLibOp
 
         size_t totalSize;
 
-        size_t in_typesize = (data->node->inArrayType == rocfft_array_type_real)
-                                 ? sizeof(float)
-                                 : sizeof(std::complex<float>);
+        size_t in_typesize  = (data->node->inArrayType == rocfft_array_type_real)
+                                  ? sizeof(float)
+                                  : sizeof(std::complex<float>);
         size_t out_typesize = (data->node->outArrayType == rocfft_array_type_real)
                                   ? sizeof(float)
                                   : sizeof(std::complex<float>);

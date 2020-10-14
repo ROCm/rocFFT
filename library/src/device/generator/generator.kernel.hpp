@@ -282,6 +282,8 @@ namespace StockhamGenerator
         {
             std::string str;
 
+            str += "\t// SBCC+SBRC fold higher dimensions into the batch_count, so we need\n";
+            str += "\t// extra math to work out how many 'true' batches we really have\n";
             str += "\tsize_t batch_block_size = hipGridDim_x / batch_count; //To opt: it can be "
                    "calc on host.\n";
             str += "\tsize_t counter_mod = batch % batch_block_size;\n";
@@ -318,7 +320,21 @@ namespace StockhamGenerator
             if(blockComputeType == BCT_C2C)
                 loop += "\t" + offset_name1 + " *= (" + stride_name1 + "[1]);\n";
 
-            loop += "\t" + offset_name1 + " += (batch_local_count * " + stride_name1 + "[2]);\n";
+            // Distance between 'true' batches might be in a
+            // different stride_in/out array member depending on how
+            // this kernel is called.
+            //
+            // e.g. In a standalone CS_L1D_CC plan, dim=2 for these
+            // kernels and stride_foo[2] has the 'true' batch offset,
+            // as the first two strides represent the block compute
+            // dimensions.
+            //
+            // When these kernels are child nodes of some more
+            // complicated plan, dim should be >= 3, and the last
+            // stride has the 'true' batch offset.
+            static const char* batch_dist_idx = "[dim >= 3 ? dim-1 : 2]";
+            loop += "\t" + offset_name1 + " += (batch_local_count * " + stride_name1
+                    + batch_dist_idx + ");\n";
 
             if(output == true)
             {
@@ -333,8 +349,8 @@ namespace StockhamGenerator
                 if(blockComputeType == BCT_R2C)
                     loop += "\t" + offset_name2 + " *= (" + stride_name2 + "[1]);\n";
 
-                loop
-                    += "\t" + offset_name2 + " += (batch_local_count * " + stride_name2 + "[2]);\n";
+                loop += "\t" + offset_name2 + " += (batch_local_count * " + stride_name2
+                        + batch_dist_idx + ");\n";
             }
 
             str += loop;

@@ -71,7 +71,7 @@ int main(int argc, char* argv[])
     const rocfft_transform_type direction = vm.count("inverse")
                                                 ? rocfft_transform_type_real_inverse
                                                 : rocfft_transform_type_real_forward;
-    const bool forward = direction == rocfft_transform_type_real_forward;
+    const bool                  forward   = direction == rocfft_transform_type_real_forward;
 
     // Set up the strides and buffer size for the real values:
     std::vector<size_t> rstride = {1};

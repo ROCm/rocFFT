@@ -162,10 +162,12 @@ const static std::vector<rocfft_result_placement> place_range
     = {rocfft_placement_inplace, rocfft_placement_notinplace};
 
 // Given a vector of vector of lengths, generate all unique permutations.
+// Add an optional vector of ad-hoc lengths to the result.
 inline std::vector<std::vector<size_t>>
-    generate_lengths(const std::vector<std::vector<size_t>>& inlengths)
+    generate_lengths(const std::vector<std::vector<size_t>>& inlengths,
+                     const std::vector<std::vector<size_t>>& adhocLengths = {})
 {
-    std::vector<std::vector<size_t>> output;
+    std::vector<std::vector<size_t>> output = adhocLengths;
     if(inlengths.size() == 0)
     {
         return output;

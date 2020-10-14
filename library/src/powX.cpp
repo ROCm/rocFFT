@@ -127,10 +127,10 @@ bool PlanPowX(ExecPlan& execPlan)
             size_t workGroupSize;
             size_t numTransforms;
             GetWGSAndNT(execPlan.execSeq[i]->length[0], workGroupSize, numTransforms);
-            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                      ? function_pool::get_function_single(
+            ptr          = (execPlan.execSeq[0]->precision == rocfft_precision_single)
+                               ? function_pool::get_function_single(
                           std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM))
-                      : function_pool::get_function_double(
+                               : function_pool::get_function_double(
                           std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM));
             size_t batch = execPlan.execSeq[i]->batch;
             for(size_t j = 1; j < execPlan.execSeq[i]->length.size(); j++)
@@ -147,11 +147,12 @@ bool PlanPowX(ExecPlan& execPlan)
                       : function_pool::get_function_double(std::make_pair(
                           execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC));
             GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
-            gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd * execPlan.execSeq[i]->batch;
-            if(execPlan.execSeq[i]->length.size() == 3)
-            {
-                gp.b_x *= execPlan.execSeq[i]->length[2];
-            }
+            gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd;
+            // repeat for higher dimensions + batch
+            gp.b_x *= std::accumulate(execPlan.execSeq[i]->length.begin() + 2,
+                                      execPlan.execSeq[i]->length.end(),
+                                      execPlan.execSeq[i]->batch,
+                                      std::multiplies<size_t>());
             gp.tpb_x = wgs;
             break;
         case CS_KERNEL_STOCKHAM_BLOCK_RC:
@@ -161,11 +162,12 @@ bool PlanPowX(ExecPlan& execPlan)
                       : function_pool::get_function_double(std::make_pair(
                           execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC));
             GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
-            gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd * execPlan.execSeq[i]->batch;
-            if(execPlan.execSeq[i]->length.size() == 3)
-            {
-                gp.b_x *= execPlan.execSeq[i]->length[2];
-            }
+            gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd;
+            // repeat for higher dimensions + batch
+            gp.b_x *= std::accumulate(execPlan.execSeq[i]->length.begin() + 2,
+                                      execPlan.execSeq[i]->length.end(),
+                                      execPlan.execSeq[i]->batch,
+                                      std::multiplies<size_t>());
             gp.tpb_x = wgs;
             break;
         case CS_KERNEL_TRANSPOSE:

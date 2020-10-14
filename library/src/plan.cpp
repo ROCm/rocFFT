@@ -954,7 +954,7 @@ void TreeNode::build_real_embed()
     copyHeadPlan->dimension = dimension;
     copyHeadPlan->length    = length;
     copyHeadPlan->scheme    = (inArrayType == rocfft_array_type_real) ? CS_KERNEL_COPY_R_TO_CMPLX
-                                                                   : CS_KERNEL_COPY_HERM_TO_CMPLX;
+                                                                      : CS_KERNEL_COPY_HERM_TO_CMPLX;
     childNodes.emplace_back(std::move(copyHeadPlan));
 
     // complex fft
@@ -972,7 +972,7 @@ void TreeNode::build_real_embed()
     copyTailPlan->dimension = dimension;
     copyTailPlan->length    = length;
     copyTailPlan->scheme    = (inArrayType == rocfft_array_type_real) ? CS_KERNEL_COPY_CMPLX_TO_HERM
-                                                                   : CS_KERNEL_COPY_CMPLX_TO_R;
+                                                                      : CS_KERNEL_COPY_CMPLX_TO_R;
     childNodes.emplace_back(std::move(copyTailPlan));
 }
 

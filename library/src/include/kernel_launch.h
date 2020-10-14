@@ -676,8 +676,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                                                                                 \
         /* The size of last dimension need to be counted into batch */                          \
         /* Check how to config thread block in PlanPowX() for SBCC  */                          \
-        const size_t batch = (data->node->length.size() == 3)                                   \
-                                 ? data->node->batch * data->node->length[2]                    \
+        const size_t batch = (data->node->length.size() >= 3)                                   \
+                                 ? data->node->batch * data->node->length.back()                \
                                  : data->node->batch;                                           \
                                                                                                 \
         if(data->node->placement == rocfft_placement_inplace)                                   \
@@ -1218,8 +1218,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                                                                                  \
         /* The size of last dimension need to be counted into batch */                           \
         /* Check how to config thread block in PlanPowX() for SBRC  */                           \
-        const size_t batch = (data->node->length.size() == 3)                                    \
-                                 ? data->node->batch * data->node->length[2]                     \
+        const size_t batch = (data->node->length.size() >= 3)                                    \
+                                 ? data->node->batch * data->node->length.back()                 \
                                  : data->node->batch;                                            \
                                                                                                  \
         if(data->node->direction == -1)                                                          \
