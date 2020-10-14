@@ -439,8 +439,7 @@ void rocfft_transform(const std::vector<size_t>                                 
     // Compute the Linfinity and L2 norm of the GPU output:
     VectorNorms L2LinfnormGPU;
     std::thread normthread([&]() {
-        L2LinfnormGPU
-            = LinfL2norm(gpu_output, olength, nbatch, precision, otype, gpu_ostride, gpu_odist);
+        L2LinfnormGPU = norm(gpu_output, olength, nbatch, precision, otype, gpu_ostride, gpu_odist);
     });
     if(cpu_output_thread && cpu_output_thread->joinable())
         cpu_output_thread->join();
@@ -451,7 +450,7 @@ void rocfft_transform(const std::vector<size_t>                                 
         = std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
     const double linf_cutoff
         = type_epsilon(precision) * cpu_output_L2Linfnorm.l_inf * log(total_length);
-    auto linfl2diff = LinfL2diff(cpu_output,
+    auto linfl2diff = difference(cpu_output,
                                  gpu_output,
                                  olength,
                                  nbatch,
@@ -613,7 +612,7 @@ TEST_P(accuracy_test, vs_fftw)
     VectorNorms cpu_input_L2Linfnorm;
     std::thread cpu_input_L2Linfnorm_thread([&]() {
         cpu_input_L2Linfnorm
-            = LinfL2norm(cpu_input, ilength, nbatch, precision, cpu_itype, cpu_istride, cpu_idist);
+            = norm(cpu_input, ilength, nbatch, precision, cpu_itype, cpu_istride, cpu_idist);
         if(verbose > 2)
         {
             std::cout << "CPU Input Linf norm:  " << cpu_input_L2Linfnorm.l_inf << "\n";
@@ -642,7 +641,7 @@ TEST_P(accuracy_test, vs_fftw)
                                      cpu_input);
         // Compute the Linfinity and L2 norm of the CPU output:
         cpu_output_L2Linfnorm
-            = LinfL2norm(cpu_output, olength, nbatch, precision, cpu_otype, cpu_ostride, cpu_odist);
+            = norm(cpu_output, olength, nbatch, precision, cpu_otype, cpu_ostride, cpu_odist);
         if(verbose > 2)
         {
             std::cout << "CPU Output Linf norm: " << cpu_output_L2Linfnorm.l_inf << "\n";

@@ -873,7 +873,7 @@ struct VectorNorms
 };
 
 template <typename Tcomplex, typename Tint1, typename Tint2, typename Tint3>
-inline VectorNorms LinfL2diff_1to1_complex(const Tcomplex*                         input,
+inline VectorNorms difference_1to1_complex(const Tcomplex*                         input,
                                            const Tcomplex*                         output,
                                            const Tint1&                            whole_length,
                                            const size_t                            nbatch,
@@ -941,7 +941,7 @@ inline VectorNorms LinfL2diff_1to1_complex(const Tcomplex*                      
 // length idist between batches to a buffer with strides ostride and length odist between
 // batches.  Both buffers are of real type.
 template <typename Tfloat, typename Tint1, typename Tint2, typename Tint3>
-inline VectorNorms LinfL2diff_1to1_real(const Tfloat*                           input,
+inline VectorNorms difference_1to1_real(const Tfloat*                           input,
                                         const Tfloat*                           output,
                                         const Tint1&                            whole_length,
                                         const size_t                            nbatch,
@@ -997,7 +997,7 @@ inline VectorNorms LinfL2diff_1to1_real(const Tfloat*                           
 // length idist between batches to a buffer with strides ostride and length odist between
 // batches.  input is complex-interleaved, output is complex-planar.
 template <typename Tval, typename Tint1, typename T2, typename T3>
-inline VectorNorms LinfL2diff_1to2(const std::complex<Tval>*               input,
+inline VectorNorms difference_1to2(const std::complex<Tval>*               input,
                                    const Tval*                             output0,
                                    const Tval*                             output1,
                                    const Tint1&                            whole_length,
@@ -1068,7 +1068,7 @@ template <typename Tallocator1,
           typename Tint1,
           typename Tint2,
           typename Tint3>
-inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>& input,
+inline VectorNorms difference(const std::vector<std::vector<char, Tallocator1>>& input,
                               const std::vector<std::vector<char, Tallocator2>>& output,
                               const Tint1&                                       length,
                               const size_t                                       nbatch,
@@ -1093,7 +1093,7 @@ inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>&
             switch(precision)
             {
             case rocfft_precision_single:
-                LinfL2 = LinfL2diff_1to1_complex(
+                LinfL2 = difference_1to1_complex(
                     reinterpret_cast<const std::complex<float>*>(input[0].data()),
                     reinterpret_cast<const std::complex<float>*>(output[0].data()),
                     length,
@@ -1106,7 +1106,7 @@ inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>&
                     linf_cutoff);
                 break;
             case rocfft_precision_double:
-                LinfL2 = LinfL2diff_1to1_complex(
+                LinfL2 = difference_1to1_complex(
                     reinterpret_cast<const std::complex<double>*>(input[0].data()),
                     reinterpret_cast<const std::complex<double>*>(output[0].data()),
                     length,
@@ -1129,7 +1129,7 @@ inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>&
                 switch(precision)
                 {
                 case rocfft_precision_single:
-                    pnorm = LinfL2diff_1to1_real(reinterpret_cast<const float*>(input[idx].data()),
+                    pnorm = difference_1to1_real(reinterpret_cast<const float*>(input[idx].data()),
                                                  reinterpret_cast<const float*>(output[idx].data()),
                                                  length,
                                                  nbatch,
@@ -1142,7 +1142,7 @@ inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>&
                     break;
                 case rocfft_precision_double:
                     pnorm
-                        = LinfL2diff_1to1_real(reinterpret_cast<const double*>(input[idx].data()),
+                        = difference_1to1_real(reinterpret_cast<const double*>(input[idx].data()),
                                                reinterpret_cast<const double*>(output[idx].data()),
                                                length,
                                                nbatch,
@@ -1171,7 +1171,7 @@ inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>&
         switch(precision)
         {
         case rocfft_precision_single:
-            LinfL2 = LinfL2diff_1to2(reinterpret_cast<const std::complex<float>*>(input[0].data()),
+            LinfL2 = difference_1to2(reinterpret_cast<const std::complex<float>*>(input[0].data()),
                                      reinterpret_cast<const float*>(output[0].data()),
                                      reinterpret_cast<const float*>(output[1].data()),
                                      length,
@@ -1184,7 +1184,7 @@ inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>&
                                      linf_cutoff);
             break;
         case rocfft_precision_double:
-            LinfL2 = LinfL2diff_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
+            LinfL2 = difference_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
                                      reinterpret_cast<const double*>(output[0].data()),
                                      reinterpret_cast<const double*>(output[1].data()),
                                      length,
@@ -1206,7 +1206,7 @@ inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>&
         switch(precision)
         {
         case rocfft_precision_single:
-            LinfL2 = LinfL2diff_1to2(reinterpret_cast<const std::complex<float>*>(output[0].data()),
+            LinfL2 = difference_1to2(reinterpret_cast<const std::complex<float>*>(output[0].data()),
                                      reinterpret_cast<const float*>(input[0].data()),
                                      reinterpret_cast<const float*>(input[1].data()),
                                      length,
@@ -1220,7 +1220,7 @@ inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>&
             break;
         case rocfft_precision_double:
             LinfL2
-                = LinfL2diff_1to2(reinterpret_cast<const std::complex<double>*>(output[0].data()),
+                = difference_1to2(reinterpret_cast<const std::complex<double>*>(output[0].data()),
                                   reinterpret_cast<const double*>(input[0].data()),
                                   reinterpret_cast<const double*>(input[1].data()),
                                   length,
@@ -1248,7 +1248,7 @@ template <typename Tallocator1,
           typename Tint1,
           typename Tint2,
           typename Tint3>
-inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>& input,
+inline VectorNorms difference(const std::vector<std::vector<char, Tallocator1>>& input,
                               const std::vector<std::vector<char, Tallocator2>>& output,
                               const std::vector<Tint1>&                          length,
                               const size_t                                       nbatch,
@@ -1265,7 +1265,7 @@ inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>&
     switch(length.size())
     {
     case 1:
-        return LinfL2diff(input,
+        return difference(input,
                           output,
                           length[0],
                           nbatch,
@@ -1279,7 +1279,7 @@ inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>&
                           linf_failures,
                           linf_cutoff);
     case 2:
-        return LinfL2diff(input,
+        return difference(input,
                           output,
                           std::make_tuple(length[0], length[1]),
                           nbatch,
@@ -1293,7 +1293,7 @@ inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>&
                           linf_failures,
                           linf_cutoff);
     case 3:
-        return LinfL2diff(input,
+        return difference(input,
                           output,
                           std::make_tuple(length[0], length[1], length[2]),
                           nbatch,
@@ -1314,11 +1314,11 @@ inline VectorNorms LinfL2diff(const std::vector<std::vector<char, Tallocator1>>&
 // Compute the L-infinity and L-2 norm of abuffer with strides istride and
 // length idist.  Data is std::complex.
 template <typename Tcomplex, typename T1, typename T2>
-inline VectorNorms LinfL2norm_complex(const Tcomplex* input,
-                                      const T1&       whole_length,
-                                      const size_t    nbatch,
-                                      const T2&       istride,
-                                      const size_t    idist)
+inline VectorNorms norm_complex(const Tcomplex* input,
+                                const T1&       whole_length,
+                                const size_t    nbatch,
+                                const T2&       istride,
+                                const size_t    idist)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -1357,11 +1357,11 @@ inline VectorNorms LinfL2norm_complex(const Tcomplex* input,
 // Compute the L-infinity and L-2 norm of abuffer with strides istride and
 // length idist.  Data is real-valued.
 template <typename Tfloat, typename T1, typename T2>
-inline VectorNorms LinfL2norm_real(const Tfloat* input,
-                                   const T1&     whole_length,
-                                   const size_t  nbatch,
-                                   const T2&     istride,
-                                   const size_t  idist)
+inline VectorNorms norm_real(const Tfloat* input,
+                             const T1&     whole_length,
+                             const size_t  nbatch,
+                             const T2&     istride,
+                             const size_t  idist)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -1395,13 +1395,13 @@ inline VectorNorms LinfL2norm_real(const Tfloat* input,
 // Compute the L-infinity and L-2 norm of abuffer with strides istride and
 // length idist.  Data format is given by precision and itype.
 template <typename Tallocator1, typename T1, typename T2>
-inline VectorNorms LinfL2norm(const std::vector<std::vector<char, Tallocator1>>& input,
-                              const T1&                                          length,
-                              const size_t                                       nbatch,
-                              const rocfft_precision                             precision,
-                              const rocfft_array_type                            itype,
-                              const T2&                                          istride,
-                              const size_t                                       idist)
+inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input,
+                        const T1&                                          length,
+                        const size_t                                       nbatch,
+                        const rocfft_precision                             precision,
+                        const rocfft_array_type                            itype,
+                        const T2&                                          istride,
+                        const size_t                                       idist)
 {
     VectorNorms LinfL2;
 
@@ -1412,20 +1412,18 @@ inline VectorNorms LinfL2norm(const std::vector<std::vector<char, Tallocator1>>&
         switch(precision)
         {
         case rocfft_precision_single:
-            LinfL2
-                = LinfL2norm_complex(reinterpret_cast<const std::complex<float>*>(input[0].data()),
-                                     length,
-                                     nbatch,
-                                     istride,
-                                     idist);
+            LinfL2 = norm_complex(reinterpret_cast<const std::complex<float>*>(input[0].data()),
+                                  length,
+                                  nbatch,
+                                  istride,
+                                  idist);
             break;
         case rocfft_precision_double:
-            LinfL2
-                = LinfL2norm_complex(reinterpret_cast<const std::complex<double>*>(input[0].data()),
-                                     length,
-                                     nbatch,
-                                     istride,
-                                     idist);
+            LinfL2 = norm_complex(reinterpret_cast<const std::complex<double>*>(input[0].data()),
+                                  length,
+                                  nbatch,
+                                  istride,
+                                  idist);
             break;
         }
         break;
@@ -1438,18 +1436,18 @@ inline VectorNorms LinfL2norm(const std::vector<std::vector<char, Tallocator1>>&
             switch(precision)
             {
             case rocfft_precision_single:
-                pnorm = LinfL2norm_real(reinterpret_cast<const float*>(input[idx].data()),
-                                        length,
-                                        nbatch,
-                                        istride,
-                                        idist);
+                pnorm = norm_real(reinterpret_cast<const float*>(input[idx].data()),
+                                  length,
+                                  nbatch,
+                                  istride,
+                                  idist);
                 break;
             case rocfft_precision_double:
-                pnorm = LinfL2norm_real(reinterpret_cast<const double*>(input[idx].data()),
-                                        length,
-                                        nbatch,
-                                        istride,
-                                        idist);
+                pnorm = norm_real(reinterpret_cast<const double*>(input[idx].data()),
+                                  length,
+                                  nbatch,
+                                  istride,
+                                  idist);
                 break;
             }
             LinfL2.l_inf = std::max(pnorm.l_inf, LinfL2.l_inf);
@@ -1467,34 +1465,34 @@ inline VectorNorms LinfL2norm(const std::vector<std::vector<char, Tallocator1>>&
 
 // unroll arbitrary-dimension LinfL2norm into specializations for 1-, 2-, 3-dimensions
 template <typename Tallocator1, typename T1, typename T2>
-inline VectorNorms LinfL2norm(const std::vector<std::vector<char, Tallocator1>>& input,
-                              const std::vector<T1>&                             length,
-                              const size_t                                       nbatch,
-                              const rocfft_precision                             precision,
-                              const rocfft_array_type                            itype,
-                              const std::vector<T2>&                             istride,
-                              const size_t                                       idist)
+inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input,
+                        const std::vector<T1>&                             length,
+                        const size_t                                       nbatch,
+                        const rocfft_precision                             precision,
+                        const rocfft_array_type                            itype,
+                        const std::vector<T2>&                             istride,
+                        const size_t                                       idist)
 {
     switch(length.size())
     {
     case 1:
-        return LinfL2norm(input, length[0], nbatch, precision, itype, istride[0], idist);
+        return norm(input, length[0], nbatch, precision, itype, istride[0], idist);
     case 2:
-        return LinfL2norm(input,
-                          std::make_tuple(length[0], length[1]),
-                          nbatch,
-                          precision,
-                          itype,
-                          std::make_tuple(istride[0], istride[1]),
-                          idist);
+        return norm(input,
+                    std::make_tuple(length[0], length[1]),
+                    nbatch,
+                    precision,
+                    itype,
+                    std::make_tuple(istride[0], istride[1]),
+                    idist);
     case 3:
-        return LinfL2norm(input,
-                          std::make_tuple(length[0], length[1], length[2]),
-                          nbatch,
-                          precision,
-                          itype,
-                          std::make_tuple(istride[0], istride[1], istride[2]),
-                          idist);
+        return norm(input,
+                    std::make_tuple(length[0], length[1], length[2]),
+                    nbatch,
+                    precision,
+                    itype,
+                    std::make_tuple(istride[0], istride[1], istride[2]),
+                    idist);
     default:
         abort();
     }

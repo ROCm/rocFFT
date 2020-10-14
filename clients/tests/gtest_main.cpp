@@ -228,7 +228,7 @@ TEST(manual, vs_fftw)
 
     // Compute the Linfinity and L2 norm of the CPU output:
     auto cpu_input_L2Linfnorm
-        = LinfL2norm(cpu_input, ilength, nbatch, precision, cpu_itype, cpu_istride, cpu_idist);
+        = norm(cpu_input, ilength, nbatch, precision, cpu_itype, cpu_istride, cpu_idist);
     if(verbose > 2)
     {
         std::cout << "CPU Input Linf norm:  " << cpu_input_L2Linfnorm.l_inf << "\n";
@@ -257,7 +257,7 @@ TEST(manual, vs_fftw)
 
     // Compute the Linfinity and L2 norm of the CPU output:
     auto cpu_output_L2Linfnorm
-        = LinfL2norm(cpu_output, olength, nbatch, precision, cpu_otype, cpu_ostride, cpu_odist);
+        = norm(cpu_output, olength, nbatch, precision, cpu_otype, cpu_ostride, cpu_odist);
     if(verbose > 2)
     {
         std::cout << "CPU Output Linf norm: " << cpu_output_L2Linfnorm.l_inf << "\n";

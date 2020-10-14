@@ -193,7 +193,7 @@ struct Test_Transform
             // should tolerate 2x the error of a single transform.
             std::vector<std::pair<size_t, size_t>> linf_failures;
             const double                           MAX_TRANSFORM_ERROR = 2 * type_epsilon<float>();
-            auto                                   diff                = LinfL2diff_1to1_complex(
+            auto                                   diff                = difference_1to1_complex(
                 reinterpret_cast<const std::complex<float>*>(host_mem_in.data()),
                 reinterpret_cast<const std::complex<float>*>(host_mem_out.data()),
                 // data is all contiguous, we can treat it as 1d
