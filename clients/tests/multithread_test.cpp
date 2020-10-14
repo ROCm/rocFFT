@@ -205,8 +205,8 @@ struct Test_Transform
                 host_mem_out.size(),
                 linf_failures,
                 MAX_TRANSFORM_ERROR);
-            EXPECT_LT(diff.first, MAX_TRANSFORM_ERROR);
-            EXPECT_LT(diff.second, MAX_TRANSFORM_ERROR);
+            EXPECT_LT(diff.l_2, MAX_TRANSFORM_ERROR);
+            EXPECT_LT(diff.l_inf, MAX_TRANSFORM_ERROR);
 
             // Free buffers
             host_mem_in.clear();

@@ -231,11 +231,11 @@ TEST(manual, vs_fftw)
         = LinfL2norm(cpu_input, ilength, nbatch, precision, cpu_itype, cpu_istride, cpu_idist);
     if(verbose > 2)
     {
-        std::cout << "CPU Input Linf norm:  " << cpu_input_L2Linfnorm.first << "\n";
-        std::cout << "CPU Input L2 norm:    " << cpu_input_L2Linfnorm.second << "\n";
+        std::cout << "CPU Input Linf norm:  " << cpu_input_L2Linfnorm.l_inf << "\n";
+        std::cout << "CPU Input L2 norm:    " << cpu_input_L2Linfnorm.l_2 << "\n";
     }
-    ASSERT_TRUE(std::isfinite(cpu_input_L2Linfnorm.first));
-    ASSERT_TRUE(std::isfinite(cpu_input_L2Linfnorm.second));
+    ASSERT_TRUE(std::isfinite(cpu_input_L2Linfnorm.l_inf));
+    ASSERT_TRUE(std::isfinite(cpu_input_L2Linfnorm.l_2));
 
     if(verbose > 3)
     {
@@ -260,16 +260,16 @@ TEST(manual, vs_fftw)
         = LinfL2norm(cpu_output, olength, nbatch, precision, cpu_otype, cpu_ostride, cpu_odist);
     if(verbose > 2)
     {
-        std::cout << "CPU Output Linf norm: " << cpu_output_L2Linfnorm.first << "\n";
-        std::cout << "CPU Output L2 norm:   " << cpu_output_L2Linfnorm.second << "\n";
+        std::cout << "CPU Output Linf norm: " << cpu_output_L2Linfnorm.l_inf << "\n";
+        std::cout << "CPU Output L2 norm:   " << cpu_output_L2Linfnorm.l_2 << "\n";
     }
     if(verbose > 3)
     {
         std::cout << "CPU output:\n";
         printbuffer(precision, cpu_otype, cpu_output, olength, cpu_ostride, nbatch, cpu_odist);
     }
-    ASSERT_TRUE(std::isfinite(cpu_output_L2Linfnorm.first));
-    ASSERT_TRUE(std::isfinite(cpu_output_L2Linfnorm.second));
+    ASSERT_TRUE(std::isfinite(cpu_output_L2Linfnorm.l_inf));
+    ASSERT_TRUE(std::isfinite(cpu_output_L2Linfnorm.l_2));
 
     rocfft_transform(length,
                      istride0,
