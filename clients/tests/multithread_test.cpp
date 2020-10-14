@@ -193,7 +193,14 @@ struct Test_Transform
             // should tolerate 2x the error of a single transform.
             std::vector<std::pair<size_t, size_t>> linf_failures;
             const double                           MAX_TRANSFORM_ERROR = 2 * type_epsilon<float>();
-            auto                                   diff                = difference_1to1_complex(
+
+            auto norm
+                = norm_complex(reinterpret_cast<const std::complex<float>*>(host_mem_in.data()),
+                               host_mem_in.size(),
+                               1,
+                               1,
+                               host_mem_in.size());
+            auto diff = difference_1to1_complex(
                 reinterpret_cast<const std::complex<float>*>(host_mem_in.data()),
                 reinterpret_cast<const std::complex<float>*>(host_mem_out.data()),
                 // data is all contiguous, we can treat it as 1d
@@ -205,8 +212,9 @@ struct Test_Transform
                 host_mem_out.size(),
                 linf_failures,
                 MAX_TRANSFORM_ERROR);
-            EXPECT_LT(diff.l_2, MAX_TRANSFORM_ERROR);
-            EXPECT_LT(diff.l_inf, MAX_TRANSFORM_ERROR);
+
+            EXPECT_LT(diff.l_2 / norm.l_2, sqrt(log2(host_mem_in.size())) * MAX_TRANSFORM_ERROR);
+            EXPECT_LT(diff.l_inf / norm.l_inf, log2(host_mem_in.size()) * MAX_TRANSFORM_ERROR);
 
             // Free buffers
             host_mem_in.clear();

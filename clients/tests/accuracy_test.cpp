@@ -448,7 +448,7 @@ void rocfft_transform(const std::vector<size_t>                                 
     std::vector<std::pair<size_t, size_t>> linf_failures;
     const auto                             total_length
         = std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
-    const double linf_cutoff = type_epsilon(precision) * cpu_output_norm.l_inf * log(total_length);
+    const double linf_cutoff = type_epsilon(precision) * cpu_output_norm.l_inf * log2(total_length);
     auto         diff        = difference(cpu_output,
                            gpu_output,
                            olength,
@@ -507,7 +507,7 @@ void rocfft_transform(const std::vector<size_t>                                 
     // TODO: handle case where norm is zero?
     EXPECT_TRUE(diff.l_inf < linf_cutoff)
         << "Linf test failed.  Linf:" << diff.l_inf
-        << "\tnormalized Linf: " << diff.l_inf / (cpu_output_norm.l_inf * log(total_length))
+        << "\tnormalized Linf: " << diff.l_inf / (cpu_output_norm.l_inf * log2(total_length))
         << "\tepsilon: " << type_epsilon(precision)
         << gpu_params(gpu_ilength_cm,
                       gpu_istride_cm,
@@ -520,10 +520,10 @@ void rocfft_transform(const std::vector<size_t>                                 
                       itype,
                       otype);
 
-    EXPECT_TRUE(diff.l_2 / (cpu_output_norm.l_2 * sqrt(log(total_length)))
+    EXPECT_TRUE(diff.l_2 / (cpu_output_norm.l_2 * sqrt(log2(total_length)))
                 < type_epsilon(precision))
         << "L2 test failed. L2: " << diff.l_2
-        << "\tnormalized L2: " << diff.l_2 / (cpu_output_norm.l_2 * sqrt(log(total_length)))
+        << "\tnormalized L2: " << diff.l_2 / (cpu_output_norm.l_2 * sqrt(log2(total_length)))
         << "\tepsilon: " << type_epsilon(precision)
         << gpu_params(gpu_ilength_cm,
                       gpu_istride_cm,
