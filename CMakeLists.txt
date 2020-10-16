@@ -118,7 +118,6 @@ set(CMAKE_INSTALL_LIBDIR "lib" CACHE INTERNAL
 # CMake list of machine targets
 set( AMDGPU_TARGETS gfx803;gfx900;gfx906;gfx908 CACHE STRING
   "List of specific machine types for library to target" )
-set( AMDGPU_TARGETS_SRAM_ECC gfx906;gfx908 )
 
 # Find HCC/HIP dependencies
 if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$|.*/hipcc$" )
