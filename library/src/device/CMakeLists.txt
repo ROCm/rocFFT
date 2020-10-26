@@ -117,33 +117,10 @@ else()
 
   # Set AMD GPU architecture options
 
-  # Disable xnack globally
-  set( ARCH_OPTS -mno-xnack )
-
   # Enable compilation of desired architectures
   foreach( target ${AMDGPU_TARGETS} )
-    set( ARCH_OPTS "${ARCH_OPTS} --cuda-gpu-arch=${target}" )
-    target_compile_options( rocfft-device PRIVATE "--cuda-gpu-arch=${target}" )
+    target_compile_options( rocfft-device PRIVATE --amdgpu-target=${target}:xnack- )
   endforeach( )
-
-  # Enable sram-ecc for targets that need it
-  foreach( target ${AMDGPU_TARGETS_SRAM_ECC} )
-    if( ${target} IN_LIST AMDGPU_TARGETS )
-      set( ARCH_OPTS "${ARCH_OPTS} -Xarch_${target} -msram-ecc" )
-    endif( )
-  endforeach( )
-
-  # prevent cmake from deduplicating options that really need to be
-  # given multiple times
-  if( CMAKE_VERSION VERSION_LESS 3.12 )
-    set_target_properties( rocfft-device PROPERTIES
-      COMPILE_FLAGS "${ARCH_OPTS}"
-    )
-  else( )
-    target_compile_options( rocfft-device PRIVATE
-      "SHELL:${ARCH_OPTS}"
-    )
-  endif( )
 
 endif()
 
