@@ -33,7 +33,7 @@ inline double type_epsilon();
 template <>
 inline double type_epsilon<float>()
 {
-    return 7.5e-8;
+    return 3.75e-7;
 }
 template <>
 inline double type_epsilon<double>()
