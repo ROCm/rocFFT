@@ -200,7 +200,7 @@ struct Test_Transform
                                1,
                                1,
                                host_mem_in.size());
-            auto diff = difference_1to1_complex(
+            auto diff = distance_1to1_complex(
                 reinterpret_cast<const std::complex<float>*>(host_mem_in.data()),
                 reinterpret_cast<const std::complex<float>*>(host_mem_out.data()),
                 // data is all contiguous, we can treat it as 1d

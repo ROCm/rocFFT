@@ -449,19 +449,19 @@ void rocfft_transform(const std::vector<size_t>                                 
     const auto                             total_length
         = std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
     const double linf_cutoff = type_epsilon(precision) * cpu_output_norm.l_inf * log2(total_length);
-    auto         diff        = difference(cpu_output,
-                           gpu_output,
-                           olength,
-                           nbatch,
-                           precision,
-                           cpu_otype,
-                           cpu_ostride,
-                           cpu_odist,
-                           otype,
-                           gpu_ostride,
-                           gpu_odist,
-                           linf_failures,
-                           linf_cutoff);
+    auto         diff        = distance(cpu_output,
+                         gpu_output,
+                         olength,
+                         nbatch,
+                         precision,
+                         cpu_otype,
+                         cpu_ostride,
+                         cpu_odist,
+                         otype,
+                         gpu_ostride,
+                         gpu_odist,
+                         linf_failures,
+                         linf_cutoff);
     normthread.join();
 
     if(verbose > 1)
@@ -508,7 +508,7 @@ void rocfft_transform(const std::vector<size_t>                                 
     EXPECT_TRUE(diff.l_inf < linf_cutoff)
         << "Linf test failed.  Linf:" << diff.l_inf
         << "\tnormalized Linf: " << diff.l_inf / (cpu_output_norm.l_inf * log2(total_length))
-        << "\tepsilon: " << type_epsilon(precision)
+        << "\tepsilon: " << log2(total_length) * type_epsilon(precision)
         << gpu_params(gpu_ilength_cm,
                       gpu_istride_cm,
                       gpu_idist,
@@ -524,7 +524,7 @@ void rocfft_transform(const std::vector<size_t>                                 
                 < type_epsilon(precision))
         << "L2 test failed. L2: " << diff.l_2
         << "\tnormalized L2: " << diff.l_2 / (cpu_output_norm.l_2 * sqrt(log2(total_length)))
-        << "\tepsilon: " << type_epsilon(precision)
+        << "\tepsilon: " << sqrt(log2(total_length)) * type_epsilon(precision)
         << gpu_params(gpu_ilength_cm,
                       gpu_istride_cm,
                       gpu_idist,
