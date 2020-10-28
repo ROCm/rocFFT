@@ -507,8 +507,8 @@ void rocfft_transform(const std::vector<size_t>                                 
     // TODO: handle case where norm is zero?
     EXPECT_TRUE(diff.l_inf < linf_cutoff)
         << "Linf test failed.  Linf:" << diff.l_inf
-        << "\tnormalized Linf: " << diff.l_inf / (cpu_output_norm.l_inf * log2(total_length))
-        << "\tepsilon: " << log2(total_length) * type_epsilon(precision)
+        << "\tnormalized Linf: " << diff.l_inf / cpu_output_norm.l_inf
+        << "\tcutoff: " << linf_cutoff
         << gpu_params(gpu_ilength_cm,
                       gpu_istride_cm,
                       gpu_idist,
@@ -520,10 +520,10 @@ void rocfft_transform(const std::vector<size_t>                                 
                       itype,
                       otype);
 
-    EXPECT_TRUE(diff.l_2 / (cpu_output_norm.l_2 * sqrt(log2(total_length)))
-                < type_epsilon(precision))
+    EXPECT_TRUE(diff.l_2 / cpu_output_norm.l_2
+                <  sqrt(log2(total_length)) * type_epsilon(precision))
         << "L2 test failed. L2: " << diff.l_2
-        << "\tnormalized L2: " << diff.l_2 / (cpu_output_norm.l_2 * sqrt(log2(total_length)))
+        << "\tnormalized L2: " << diff.l_2 / cpu_output_norm.l_2
         << "\tepsilon: " << sqrt(log2(total_length)) * type_epsilon(precision)
         << gpu_params(gpu_ilength_cm,
                       gpu_istride_cm,
