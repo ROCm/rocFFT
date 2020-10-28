@@ -227,15 +227,15 @@ TEST(manual, vs_fftw)
     auto cpu_input_copy = cpu_input; // copy of input (might get overwritten by FFTW).
 
     // Compute the Linfinity and L2 norm of the CPU output:
-    auto cpu_input_L2Linfnorm
+    auto cpu_input_norm
         = norm(cpu_input, ilength, nbatch, precision, cpu_itype, cpu_istride, cpu_idist);
     if(verbose > 2)
     {
-        std::cout << "CPU Input Linf norm:  " << cpu_input_L2Linfnorm.l_inf << "\n";
-        std::cout << "CPU Input L2 norm:    " << cpu_input_L2Linfnorm.l_2 << "\n";
+        std::cout << "CPU Input Linf norm:  " << cpu_input_norm.l_inf << "\n";
+        std::cout << "CPU Input L2 norm:    " << cpu_input_norm.l_2 << "\n";
     }
-    ASSERT_TRUE(std::isfinite(cpu_input_L2Linfnorm.l_inf));
-    ASSERT_TRUE(std::isfinite(cpu_input_L2Linfnorm.l_2));
+    ASSERT_TRUE(std::isfinite(cpu_input_norm.l_inf));
+    ASSERT_TRUE(std::isfinite(cpu_input_norm.l_2));
 
     if(verbose > 3)
     {
@@ -256,20 +256,20 @@ TEST(manual, vs_fftw)
                                       cpu_input);
 
     // Compute the Linfinity and L2 norm of the CPU output:
-    auto cpu_output_L2Linfnorm
+    auto cpu_output_norm
         = norm(cpu_output, olength, nbatch, precision, cpu_otype, cpu_ostride, cpu_odist);
     if(verbose > 2)
     {
-        std::cout << "CPU Output Linf norm: " << cpu_output_L2Linfnorm.l_inf << "\n";
-        std::cout << "CPU Output L2 norm:   " << cpu_output_L2Linfnorm.l_2 << "\n";
+        std::cout << "CPU Output Linf norm: " << cpu_output_norm.l_inf << "\n";
+        std::cout << "CPU Output L2 norm:   " << cpu_output_norm.l_2 << "\n";
     }
     if(verbose > 3)
     {
         std::cout << "CPU output:\n";
         printbuffer(precision, cpu_otype, cpu_output, olength, cpu_ostride, nbatch, cpu_odist);
     }
-    ASSERT_TRUE(std::isfinite(cpu_output_L2Linfnorm.l_inf));
-    ASSERT_TRUE(std::isfinite(cpu_output_L2Linfnorm.l_2));
+    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_inf));
+    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_2));
 
     rocfft_transform(length,
                      istride0,
@@ -288,5 +288,5 @@ TEST(manual, vs_fftw)
                      cpu_otype,
                      cpu_input_copy,
                      cpu_output,
-                     cpu_output_L2Linfnorm);
+                     cpu_output_norm);
 }
