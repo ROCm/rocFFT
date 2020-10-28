@@ -1119,42 +1119,43 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                     linf_cutoff);
                 break;
             }
+            dist.l_2 *= dist.l_2;
             break;
         case rocfft_array_type_real:
         case rocfft_array_type_complex_planar:
         case rocfft_array_type_hermitian_planar:
             for(int idx = 0; idx < input.size(); ++idx)
             {
-                VectorNorms pnorm;
+                VectorNorms d;
                 switch(precision)
                 {
                 case rocfft_precision_single:
-                    pnorm = distance_1to1_real(reinterpret_cast<const float*>(input[idx].data()),
-                                               reinterpret_cast<const float*>(output[idx].data()),
-                                               length,
-                                               nbatch,
-                                               istride,
-                                               idist,
-                                               ostride,
-                                               odist,
-                                               linf_failures,
-                                               linf_cutoff);
+                    d = distance_1to1_real(reinterpret_cast<const float*>(input[idx].data()),
+                                           reinterpret_cast<const float*>(output[idx].data()),
+                                           length,
+                                           nbatch,
+                                           istride,
+                                           idist,
+                                           ostride,
+                                           odist,
+                                           linf_failures,
+                                           linf_cutoff);
                     break;
                 case rocfft_precision_double:
-                    pnorm = distance_1to1_real(reinterpret_cast<const double*>(input[idx].data()),
-                                               reinterpret_cast<const double*>(output[idx].data()),
-                                               length,
-                                               nbatch,
-                                               istride,
-                                               idist,
-                                               ostride,
-                                               odist,
-                                               linf_failures,
-                                               linf_cutoff);
+                    d = distance_1to1_real(reinterpret_cast<const double*>(input[idx].data()),
+                                           reinterpret_cast<const double*>(output[idx].data()),
+                                           length,
+                                           nbatch,
+                                           istride,
+                                           idist,
+                                           ostride,
+                                           odist,
+                                           linf_failures,
+                                           linf_cutoff);
                     break;
                 }
-                dist.l_inf = std::max(pnorm.l_inf, dist.l_inf);
-                dist.l_2 += pnorm.l_2 * pnorm.l_2;
+                dist.l_inf = std::max(d.l_inf, dist.l_inf);
+                dist.l_2 += d.l_2 * d.l_2;
             }
             break;
         default:
@@ -1196,6 +1197,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  linf_cutoff);
             break;
         }
+        dist.l_2 *= dist.l_2;
     }
     else if((itype == rocfft_array_type_complex_planar
              && otype == rocfft_array_type_complex_interleaved)
@@ -1231,6 +1233,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  linf_cutoff);
             break;
         }
+        dist.l_2 *= dist.l_2;
     }
     else
     {
@@ -1424,32 +1427,33 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
                                 idist);
             break;
         }
+        norm.l_2 *= norm.l_2;
         break;
     case rocfft_array_type_real:
     case rocfft_array_type_complex_planar:
     case rocfft_array_type_hermitian_planar:
         for(int idx = 0; idx < input.size(); ++idx)
         {
-            VectorNorms pnorm;
+            VectorNorms n;
             switch(precision)
             {
             case rocfft_precision_single:
-                pnorm = norm_real(reinterpret_cast<const float*>(input[idx].data()),
-                                  length,
-                                  nbatch,
-                                  istride,
-                                  idist);
+                n = norm_real(reinterpret_cast<const float*>(input[idx].data()),
+                              length,
+                              nbatch,
+                              istride,
+                              idist);
                 break;
             case rocfft_precision_double:
-                pnorm = norm_real(reinterpret_cast<const double*>(input[idx].data()),
-                                  length,
-                                  nbatch,
-                                  istride,
-                                  idist);
+                n = norm_real(reinterpret_cast<const double*>(input[idx].data()),
+                              length,
+                              nbatch,
+                              istride,
+                              idist);
                 break;
             }
-            norm.l_inf = std::max(pnorm.l_inf, norm.l_inf);
-            norm.l_2 += pnorm.l_2 * pnorm.l_2;
+            norm.l_inf = std::max(n.l_inf, norm.l_inf);
+            norm.l_2 += n.l_2 * n.l_2;
         }
         break;
     default:
