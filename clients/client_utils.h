@@ -1243,7 +1243,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
     return dist;
 }
 
-// unroll arbitrary-dimension LinfL2diff into specializations for 1-, 2-, 3-dimensions
+// Unroll arbitrary-dimension distance into specializations for 1-, 2-, 3-dimensions
 template <typename Tallocator1,
           typename Tallocator2,
           typename Tint1,
@@ -1465,7 +1465,7 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
     return norm;
 }
 
-// unroll arbitrary-dimension LinfL2norm into specializations for 1-, 2-, 3-dimensions
+// Unroll arbitrary-dimension norm into specializations for 1-, 2-, 3-dimensions
 template <typename Tallocator1, typename T1, typename T2>
 inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input,
                         const std::vector<T1>&                             length,
