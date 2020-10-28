@@ -869,7 +869,7 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
 
 struct VectorNorms
 {
-    double l_2, l_inf;
+    double l_2 = 0.0, l_inf = 0.0;
 };
 
 template <typename Tcomplex, typename Tint1, typename Tint2, typename Tint3>
@@ -1082,7 +1082,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                             std::vector<std::pair<size_t, size_t>>&            linf_failures,
                             const double                                       linf_cutoff)
 {
-    VectorNorms LinfL2;
+    VectorNorms dist;
 
     if(itype == otype)
     {
@@ -1093,7 +1093,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
             switch(precision)
             {
             case rocfft_precision_single:
-                LinfL2 = distance_1to1_complex(
+                dist = distance_1to1_complex(
                     reinterpret_cast<const std::complex<float>*>(input[0].data()),
                     reinterpret_cast<const std::complex<float>*>(output[0].data()),
                     length,
@@ -1106,7 +1106,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                     linf_cutoff);
                 break;
             case rocfft_precision_double:
-                LinfL2 = distance_1to1_complex(
+                dist = distance_1to1_complex(
                     reinterpret_cast<const std::complex<double>*>(input[0].data()),
                     reinterpret_cast<const std::complex<double>*>(output[0].data()),
                     length,
@@ -1153,8 +1153,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                                linf_cutoff);
                     break;
                 }
-                LinfL2.l_inf = std::max(pnorm.l_inf, LinfL2.l_inf);
-                LinfL2.l_2 += pnorm.l_2;
+                dist.l_inf = std::max(pnorm.l_inf, dist.l_inf);
+                dist.l_2 += pnorm.l_2;
             }
             break;
         default:
@@ -1170,30 +1170,30 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
         switch(precision)
         {
         case rocfft_precision_single:
-            LinfL2 = distance_1to2(reinterpret_cast<const std::complex<float>*>(input[0].data()),
-                                   reinterpret_cast<const float*>(output[0].data()),
-                                   reinterpret_cast<const float*>(output[1].data()),
-                                   length,
-                                   nbatch,
-                                   istride,
-                                   idist,
-                                   ostride,
-                                   odist,
-                                   linf_failures,
-                                   linf_cutoff);
+            dist = distance_1to2(reinterpret_cast<const std::complex<float>*>(input[0].data()),
+                                 reinterpret_cast<const float*>(output[0].data()),
+                                 reinterpret_cast<const float*>(output[1].data()),
+                                 length,
+                                 nbatch,
+                                 istride,
+                                 idist,
+                                 ostride,
+                                 odist,
+                                 linf_failures,
+                                 linf_cutoff);
             break;
         case rocfft_precision_double:
-            LinfL2 = distance_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
-                                   reinterpret_cast<const double*>(output[0].data()),
-                                   reinterpret_cast<const double*>(output[1].data()),
-                                   length,
-                                   nbatch,
-                                   istride,
-                                   idist,
-                                   ostride,
-                                   odist,
-                                   linf_failures,
-                                   linf_cutoff);
+            dist = distance_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
+                                 reinterpret_cast<const double*>(output[0].data()),
+                                 reinterpret_cast<const double*>(output[1].data()),
+                                 length,
+                                 nbatch,
+                                 istride,
+                                 idist,
+                                 ostride,
+                                 odist,
+                                 linf_failures,
+                                 linf_cutoff);
             break;
         }
     }
@@ -1205,30 +1205,30 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
         switch(precision)
         {
         case rocfft_precision_single:
-            LinfL2 = distance_1to2(reinterpret_cast<const std::complex<float>*>(output[0].data()),
-                                   reinterpret_cast<const float*>(input[0].data()),
-                                   reinterpret_cast<const float*>(input[1].data()),
-                                   length,
-                                   nbatch,
-                                   ostride,
-                                   odist,
-                                   istride,
-                                   idist,
-                                   linf_failures,
-                                   linf_cutoff);
+            dist = distance_1to2(reinterpret_cast<const std::complex<float>*>(output[0].data()),
+                                 reinterpret_cast<const float*>(input[0].data()),
+                                 reinterpret_cast<const float*>(input[1].data()),
+                                 length,
+                                 nbatch,
+                                 ostride,
+                                 odist,
+                                 istride,
+                                 idist,
+                                 linf_failures,
+                                 linf_cutoff);
             break;
         case rocfft_precision_double:
-            LinfL2 = distance_1to2(reinterpret_cast<const std::complex<double>*>(output[0].data()),
-                                   reinterpret_cast<const double*>(input[0].data()),
-                                   reinterpret_cast<const double*>(input[1].data()),
-                                   length,
-                                   nbatch,
-                                   ostride,
-                                   odist,
-                                   istride,
-                                   idist,
-                                   linf_failures,
-                                   linf_cutoff);
+            dist = distance_1to2(reinterpret_cast<const std::complex<double>*>(output[0].data()),
+                                 reinterpret_cast<const double*>(input[0].data()),
+                                 reinterpret_cast<const double*>(input[1].data()),
+                                 length,
+                                 nbatch,
+                                 ostride,
+                                 odist,
+                                 istride,
+                                 idist,
+                                 linf_failures,
+                                 linf_cutoff);
             break;
         }
     }
@@ -1236,8 +1236,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
     {
         throw std::runtime_error("Invalid input and output types.");
     }
-    LinfL2.l_2 = sqrt(LinfL2.l_2);
-    return LinfL2;
+    dist.l_2 = sqrt(dist.l_2);
+    return dist;
 }
 
 // unroll arbitrary-dimension LinfL2diff into specializations for 1-, 2-, 3-dimensions
@@ -1401,7 +1401,7 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
                         const T2&                                          istride,
                         const size_t                                       idist)
 {
-    VectorNorms LinfL2;
+    VectorNorms norm;
 
     switch(itype)
     {
@@ -1410,18 +1410,18 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
         switch(precision)
         {
         case rocfft_precision_single:
-            LinfL2 = norm_complex(reinterpret_cast<const std::complex<float>*>(input[0].data()),
-                                  length,
-                                  nbatch,
-                                  istride,
-                                  idist);
+            norm = norm_complex(reinterpret_cast<const std::complex<float>*>(input[0].data()),
+                                length,
+                                nbatch,
+                                istride,
+                                idist);
             break;
         case rocfft_precision_double:
-            LinfL2 = norm_complex(reinterpret_cast<const std::complex<double>*>(input[0].data()),
-                                  length,
-                                  nbatch,
-                                  istride,
-                                  idist);
+            norm = norm_complex(reinterpret_cast<const std::complex<double>*>(input[0].data()),
+                                length,
+                                nbatch,
+                                istride,
+                                idist);
             break;
         }
         break;
@@ -1448,8 +1448,8 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
                                   idist);
                 break;
             }
-            LinfL2.l_inf = std::max(pnorm.l_inf, LinfL2.l_inf);
-            LinfL2.l_2 += pnorm.l_2;
+            norm.l_inf = std::max(pnorm.l_inf, norm.l_inf);
+            norm.l_2 += pnorm.l_2;
         }
         break;
     default:
@@ -1457,8 +1457,8 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
         break;
     }
 
-    LinfL2.l_2 = sqrt(LinfL2.l_2);
-    return LinfL2;
+    norm.l_2 = sqrt(norm.l_2);
+    return norm;
 }
 
 // unroll arbitrary-dimension LinfL2norm into specializations for 1-, 2-, 3-dimensions
