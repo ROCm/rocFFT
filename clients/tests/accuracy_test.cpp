@@ -520,8 +520,7 @@ void rocfft_transform(const std::vector<size_t>                                 
                       itype,
                       otype);
 
-    EXPECT_TRUE(diff.l_2 / cpu_output_norm.l_2
-                <  sqrt(log2(total_length)) * type_epsilon(precision))
+    EXPECT_TRUE(diff.l_2 / cpu_output_norm.l_2 < sqrt(log2(total_length)) * type_epsilon(precision))
         << "L2 test failed. L2: " << diff.l_2
         << "\tnormalized L2: " << diff.l_2 / cpu_output_norm.l_2
         << "\tepsilon: " << sqrt(log2(total_length)) * type_epsilon(precision)
