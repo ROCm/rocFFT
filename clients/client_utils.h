@@ -934,7 +934,7 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
             l2 += cur_l2;
         }
     }
-    return {.l_2 = l2, .l_inf = linf};
+    return {.l_2 = sqrt(l2), .l_inf = linf};
 }
 
 // Compute the L-infinity and L-2 distance between two buffers with strides istride and
@@ -990,7 +990,7 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
             l2 += cur_l2;
         }
     }
-    return {.l_2 = l2, .l_inf = linf};
+    return {.l_2 = sqrt(l2), .l_inf = linf};
 }
 
 // Compute the L-infinity and L-2 distance between two buffers with strides istride and
@@ -1058,7 +1058,7 @@ inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
             l2 += cur_l2;
         }
     }
-    return {.l_2 = l2, .l_inf = linf};
+    return {.l_2 = sqrt(l2), .l_inf = linf};
 }
 
 // Compute the L-inifnity and L-2 distance between two buffers of dimension length and
@@ -1154,7 +1154,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                     break;
                 }
                 dist.l_inf = std::max(pnorm.l_inf, dist.l_inf);
-                dist.l_2 += pnorm.l_2;
+                dist.l_2 += pnorm.l_2 * pnorm.l_2;
             }
             break;
         default:
@@ -1349,7 +1349,7 @@ inline VectorNorms norm_complex(const Tcomplex* input,
             l2 += cur_l2;
         }
     }
-    return {.l_2 = l2, .l_inf = linf};
+    return {.l_2 = sqrt(l2), .l_inf = linf};
 }
 
 // Compute the L-infinity and L-2 norm of abuffer with strides istride and
@@ -1387,7 +1387,7 @@ inline VectorNorms norm_real(const Tfloat* input,
             l2 += cur_l2;
         }
     }
-    return {.l_2 = l2, .l_inf = linf};
+    return {.l_2 = sqrt(l2), .l_inf = linf};
 }
 
 // Compute the L-infinity and L-2 norm of abuffer with strides istride and
@@ -1449,7 +1449,7 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
                 break;
             }
             norm.l_inf = std::max(pnorm.l_inf, norm.l_inf);
-            norm.l_2 += pnorm.l_2;
+            norm.l_2 += pnorm.l_2 * pnorm.l_2;
         }
         break;
     default:
