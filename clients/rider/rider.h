@@ -174,12 +174,12 @@ void check_set_iostride(const rocfft_result_placement place,
             if(forward)
             {
                 // real data
-                istride = compute_stride(length, inplace ? clength[0] * 2 : 0);
+                istride = compute_stride(length, istride, inplace ? clength[0] * 2 : 0);
             }
             else
             {
                 // complex data
-                istride = compute_stride(clength);
+                istride = compute_stride(clength, istride);
             }
         }
 
@@ -188,12 +188,12 @@ void check_set_iostride(const rocfft_result_placement place,
             if(forward)
             {
                 // complex data
-                ostride = compute_stride(clength);
+                ostride = compute_stride(clength, ostride);
             }
             else
             {
                 // real data
-                ostride = compute_stride(length, inplace ? clength[0] * 2 : 0);
+                ostride = compute_stride(length, ostride, inplace ? clength[0] * 2 : 0);
             }
         }
     }

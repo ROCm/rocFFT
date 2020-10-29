@@ -50,8 +50,8 @@ size_t                  nbatch = 1;
 rocfft_result_placement place;
 rocfft_precision        precision;
 std::vector<size_t>     length;
-size_t                  istride0;
-size_t                  ostride0;
+std::vector<size_t>     istride;
+std::vector<size_t>     ostride;
 
 // Control whether we use FFTW's wisdom (which we use to imply FFTW_MEASURE).
 bool use_fftw_wisdom = false;
@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
     // Declare the supported options.
     // clang-format doesn't handle boost program options very well:
     // clang-format off
-    po::options_description opdesc("rocFFT Runtime Test command line options");
+    po::options_description opdesc("rocFFT Runtime Test command line options\nNB: input parameters are row-major.");
     opdesc.add_options()
         ("help,h", "produces this help message")
         ("verbose,v",  po::value<int>()->default_value(0),
@@ -91,10 +91,8 @@ int main(int argc, char* argv[])
         ("length",  po::value<std::vector<size_t>>(&length)->multitoken(), "Lengths.")
         ( "batchSize,b", po::value<size_t>(&nbatch)->default_value(1),
           "If this value is greater than one, arrays will be used ")
-        ( "istride0", po::value<size_t>(&istride0)->default_value(1),
-          "Input stride ")
-        ( "ostride0", po::value<size_t>(&ostride0)->default_value(1),
-          "Output stride ")
+        ("istride",  po::value<std::vector<size_t>>(&istride)->multitoken(), "Input stride.")
+        ("ostride",  po::value<std::vector<size_t>>(&ostride)->multitoken(), "Output stride.")
         ("wise,w", "use FFTW wisdom")
         ("wisdomfile,W",
          po::value<std::string>(&fftw_wisdom_filename)->default_value("wisdom3.txt"),
@@ -123,6 +121,18 @@ int main(int argc, char* argv[])
     if(length.size() == 0)
     {
         length.push_back(8);
+        // TODO: add random size?
+    }
+
+    if(istride.size() == 0)
+    {
+        istride.push_back(1);
+        // TODO: add random size?
+    }
+
+    if(ostride.size() == 0)
+    {
+        ostride.push_back(1);
         // TODO: add random size?
     }
 
@@ -200,7 +210,7 @@ TEST(manual, vs_fftw)
 
     std::cout << "Manual test:" << std::endl;
     check_set_iotypes(place, transformType, itype, otype);
-    print_params(length, istride0, istride0, nbatch, place, precision, transformType, itype, otype);
+    print_params(length, istride, istride, nbatch, place, precision, transformType, itype, otype);
 
     const size_t dim = length.size();
 
@@ -208,7 +218,7 @@ TEST(manual, vs_fftw)
     auto ilength = length;
     if(transformType == rocfft_transform_type_real_inverse)
         ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
-    const auto cpu_istride = compute_stride(ilength, 1);
+    const auto cpu_istride = compute_stride(ilength);
     const auto cpu_itype   = contiguous_itype(transformType);
     const auto cpu_idist
         = set_idist(rocfft_placement_notinplace, transformType, length, cpu_istride);
@@ -217,7 +227,7 @@ TEST(manual, vs_fftw)
     auto olength = length;
     if(transformType == rocfft_transform_type_real_forward)
         olength[dim - 1] = olength[dim - 1] / 2 + 1;
-    const auto cpu_ostride = compute_stride(olength, 1);
+    const auto cpu_ostride = compute_stride(olength);
     const auto cpu_odist
         = set_odist(rocfft_placement_notinplace, transformType, length, cpu_ostride);
     auto cpu_otype = contiguous_otype(transformType);
@@ -270,10 +280,11 @@ TEST(manual, vs_fftw)
     }
     ASSERT_TRUE(std::isfinite(cpu_output_L2Linfnorm.first));
     ASSERT_TRUE(std::isfinite(cpu_output_L2Linfnorm.second));
+    std::cout << std::flush;
 
     rocfft_transform(length,
-                     istride0,
-                     ostride0,
+                     istride,
+                     ostride,
                      nbatch,
                      precision,
                      transformType,
