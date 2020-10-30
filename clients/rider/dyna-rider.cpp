@@ -357,25 +357,21 @@ int main(int argc, char* argv[])
     {
         ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
     }
-    if(istride.size() == 0)
-    {
-        istride = compute_stride(ilength,
-                                 1,
-                                 place == rocfft_placement_inplace
-                                     && transformType == rocfft_transform_type_real_forward);
-    }
+    istride = compute_stride(ilength,
+                             istride,
+                             place == rocfft_placement_inplace
+                                 && transformType == rocfft_transform_type_real_forward);
+
     auto olength = length;
     if(transformType == rocfft_transform_type_real_forward)
     {
         olength[dim - 1] = olength[dim - 1] / 2 + 1;
     }
-    if(ostride.size() == 0)
-    {
-        ostride = compute_stride(olength,
-                                 1,
-                                 place == rocfft_placement_inplace
-                                     && transformType == rocfft_transform_type_real_inverse);
-    }
+    ostride = compute_stride(olength,
+                             ostride,
+                             place == rocfft_placement_inplace
+                                 && transformType == rocfft_transform_type_real_inverse);
+
     check_set_iotypes(place, transformType, itype, otype);
     if(idist == 0)
     {

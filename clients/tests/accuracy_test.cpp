@@ -99,9 +99,9 @@ std::string gpu_params(const std::vector<size_t>&    gpu_ilength_cm,
 }
 
 // Compute a FFT using rocFFT and compare with the provided CPU reference computation.
-void rocfft_transform(const std::vector<size_t>                                  length,
-                      const size_t                                               istride0,
-                      const size_t                                               ostride0,
+void rocfft_transform(const std::vector<size_t>&                                 length,
+                      const std::vector<size_t>&                                 istride,
+                      const std::vector<size_t>&                                 ostride,
                       const size_t                                               nbatch,
                       const rocfft_precision                                     precision,
                       const rocfft_transform_type                                transformType,
@@ -123,25 +123,37 @@ void rocfft_transform(const std::vector<size_t>                                 
 
     if(place == rocfft_placement_inplace)
     {
-        if(istride0 != ostride0)
+        const auto stridesize = std::min(istride.size(), ostride.size());
+        bool       samestride = true;
+        for(int i = 0; i < stridesize; ++i)
+        {
+            if(istride[i] != ostride[i])
+                samestride = false;
+        }
+        if(!samestride)
         {
             // In-place transforms require identical input and output strides.
             if(verbose)
             {
-                std::cout << "istride0: " << istride0 << " ostride0: " << ostride0
-                          << " differ; skipped for in-place transforms: skipping test" << std::endl;
+                std::cout << "istride:";
+                for(const auto& i : istride)
+                    std::cout << " " << i;
+                std::cout << " ostride0:";
+                for(const auto& i : ostride)
+                    std::cout << " " << i;
+                std::cout << " differ; skipped for in-place transforms: skipping test" << std::endl;
             }
             // TODO: mark skipped
             return;
         }
         if((transformType == rocfft_transform_type_real_forward
             || transformType == rocfft_transform_type_real_inverse)
-           && (istride0 != 1 || ostride0 != 1))
+           && (istride[0] != 1 || ostride[0] != 1))
         {
             // In-place real/complex transforms require unit strides.
             if(verbose)
             {
-                std::cout << "istride0: " << istride0 << " ostride0: " << ostride0
+                std::cout << "istride[0]: " << istride[0] << " ostride[0]: " << ostride[0]
                           << " must be unitary for in-place real/complex transforms: skipping test"
                           << std::endl;
             }
@@ -183,12 +195,12 @@ void rocfft_transform(const std::vector<size_t>                                 
         ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
 
     auto gpu_istride = compute_stride(ilength,
-                                      istride0,
+                                      istride,
                                       place == rocfft_placement_inplace
                                           && transformType == rocfft_transform_type_real_forward);
 
     auto gpu_ostride = compute_stride(olength,
-                                      ostride0,
+                                      ostride,
                                       place == rocfft_placement_inplace
                                           && transformType == rocfft_transform_type_real_inverse);
 
@@ -223,7 +235,8 @@ void rocfft_transform(const std::vector<size_t>                                 
                                 precision,
                                 place,
                                 itype,
-                                otype);
+                                otype)
+                  << std::flush;
     }
 
     // Create FFT description
@@ -546,13 +559,13 @@ void rocfft_transform(const std::vector<size_t>                                 
 // Test for comparison between FFTW and rocFFT.
 TEST_P(accuracy_test, vs_fftw)
 {
-    const std::vector<size_t>                  length         = std::get<0>(GetParam());
-    const std::vector<size_t>                  istride0_range = std::get<1>(GetParam());
-    const std::vector<size_t>                  ostride0_range = std::get<2>(GetParam());
-    const std::vector<size_t>                  batch_range    = std::get<3>(GetParam());
-    const rocfft_precision                     precision      = std::get<4>(GetParam());
-    const rocfft_transform_type                transformType  = std::get<5>(GetParam());
-    const std::vector<rocfft_result_placement> place_range    = std::get<6>(GetParam());
+    const std::vector<size_t>                  length        = std::get<0>(GetParam());
+    const std::vector<std::vector<size_t>>     istride_range = std::get<1>(GetParam());
+    const std::vector<std::vector<size_t>>     ostride_range = std::get<2>(GetParam());
+    const std::vector<size_t>                  batch_range   = std::get<3>(GetParam());
+    const rocfft_precision                     precision     = std::get<4>(GetParam());
+    const rocfft_transform_type                transformType = std::get<5>(GetParam());
+    const std::vector<rocfft_result_placement> place_range   = std::get<6>(GetParam());
 
     // NB: Input data is row-major.
 
@@ -562,7 +575,7 @@ TEST_P(accuracy_test, vs_fftw)
     auto ilength = length;
     if(transformType == rocfft_transform_type_real_inverse)
         ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
-    const auto cpu_istride = compute_stride(ilength, 1);
+    const auto cpu_istride = compute_stride(ilength);
     const auto cpu_itype   = contiguous_itype(transformType);
     const auto cpu_idist
         = set_idist(rocfft_placement_notinplace, transformType, length, cpu_istride);
@@ -571,7 +584,7 @@ TEST_P(accuracy_test, vs_fftw)
     auto olength = length;
     if(transformType == rocfft_transform_type_real_forward)
         olength[dim - 1] = olength[dim - 1] / 2 + 1;
-    const auto cpu_ostride = compute_stride(olength, 1);
+    const auto cpu_ostride = compute_stride(olength);
     const auto cpu_odist
         = set_odist(rocfft_placement_notinplace, transformType, length, cpu_ostride);
     auto cpu_otype = contiguous_otype(transformType);
@@ -669,15 +682,15 @@ TEST_P(accuracy_test, vs_fftw)
             {
                 const rocfft_array_type itype = iotype.first;
                 const rocfft_array_type otype = iotype.second;
-                for(const auto istride0 : istride0_range)
+                for(const auto istride : istride_range)
                 {
-                    for(const auto ostride0 : ostride0_range)
+                    for(const auto ostride : ostride_range)
                     {
                         if(verbose)
                         {
                             print_params(length,
-                                         istride0,
-                                         ostride0,
+                                         istride,
+                                         ostride,
                                          nbatch,
                                          place,
                                          precision,
@@ -687,8 +700,8 @@ TEST_P(accuracy_test, vs_fftw)
                         }
 
                         rocfft_transform(length,
-                                         istride0,
-                                         ostride0,
+                                         istride,
+                                         ostride,
                                          nbatch,
                                          precision,
                                          transformType,

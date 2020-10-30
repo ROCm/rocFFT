@@ -522,23 +522,50 @@ inline void printbuffer_flat(const rocfft_precision                            p
 // The optional argument stride0 sets the stride for the contiguous dimension.
 // The optional rcpadding argument sets the stride correctly for in-place
 // multi-dimensional real/complex transforms.
+// Format is row-major.
 template <typename T1>
-inline std::vector<T1> compute_stride(const std::vector<T1>& length,
-                                      const int              stride0   = 1,
-                                      const bool             rcpadding = false)
+inline std::vector<T1> compute_stride(const std::vector<T1>&     length,
+                                      const std::vector<size_t>& stride0   = std::vector<size_t>(),
+                                      const bool                 rcpadding = false)
 {
-    const int       dim = length.size();
+    // We can't have more strides than dimensions:
+    assert(stride0.size() <= length.size());
+
+    const int dim = length.size();
+
     std::vector<T1> stride(dim);
-    stride[dim - 1] = stride0;
-    for(int i = dim - 1; i-- > 0;)
+
+    int dimoffset = 0;
+
+    if(stride0.size() == 0)
     {
-        auto lengthip1 = length[i + 1];
-        if(rcpadding && i == dim - 2)
-        {
-            lengthip1 = 2 * (lengthip1 / 2 + 1);
-        }
-        stride[i] = stride[i + 1] * lengthip1;
+        // Set the contiguous stride:
+        stride[dim - 1] = 1;
+        dimoffset       = 1;
     }
+    else
+    {
+        // Copy the input values to the end of the stride array:
+        for(int i = 0; i < stride0.size(); ++i)
+        {
+            stride[dim - stride0.size() + i] = stride0[i];
+        }
+    }
+
+    if(stride0.size() < dim)
+    {
+        // Compute any remaining values via recursion.
+        for(int i = dim - dimoffset - stride0.size(); i-- > 0;)
+        {
+            auto lengthip1 = length[i + 1];
+            if(rcpadding && i == dim - 2)
+            {
+                lengthip1 = 2 * (lengthip1 / 2 + 1);
+            }
+            stride[i] = stride[i + 1] * lengthip1;
+        }
+    }
+
     return stride;
 }
 
@@ -1863,49 +1890,58 @@ inline size_t set_idist(const rocfft_result_placement place,
                         const std::vector<Tsize>&     length,
                         const std::vector<Tsize>&     istride)
 {
-    const Tsize dim   = length.size();
-    Tsize       idist = 0;
-    if(transformType == rocfft_transform_type_real_inverse && dim == 1)
-    {
-        idist = (length[0] / 2 + 1) * istride[0];
-    }
-    else
-    {
-        idist = length[0] * istride[0];
-    }
+    const Tsize dim = length.size();
 
     // In-place 1D transforms need extra dist.
     if(transformType == rocfft_transform_type_real_forward && dim == 1
        && place == rocfft_placement_inplace)
     {
-        idist = 2 * (length[0] / 2 + 1) * istride[0];
+        return 2 * (length[0] / 2 + 1) * istride[0];
+    }
+
+    if(transformType == rocfft_transform_type_real_inverse && dim == 1)
+    {
+        return (length[0] / 2 + 1) * istride[0];
+    }
+
+    Tsize idist = (transformType == rocfft_transform_type_real_inverse)
+                      ? (length[dim - 1] / 2 + 1) * istride[dim - 1]
+                      : length[dim - 1] * istride[dim - 1];
+    for(int i = 0; i < dim - 1; ++i)
+    {
+        idist = std::max(length[i] * istride[i], idist);
     }
     return idist;
 }
 
 // Compute the odist for a given transform based on the placeness, transform type, and
-// data layout.
+// data layout.  Row-major.
 template <typename Tsize>
 inline size_t set_odist(const rocfft_result_placement place,
                         const rocfft_transform_type   transformType,
                         const std::vector<Tsize>&     length,
                         const std::vector<Tsize>&     ostride)
 {
-    const Tsize dim   = length.size();
-    Tsize       odist = 0;
-    if(transformType == rocfft_transform_type_real_forward && dim == 1)
-    {
-        odist = (length[0] / 2 + 1) * ostride[0];
-    }
-    else
-    {
-        odist = length[0] * ostride[0];
-    }
-    // in-place 1D transforms need extra dist.
+    const Tsize dim = length.size();
+
+    // In-place 1D transforms need extra dist.
     if(transformType == rocfft_transform_type_real_inverse && dim == 1
        && place == rocfft_placement_inplace)
     {
-        odist = 2 * (length[0] / 2 + 1) * ostride[0];
+        return 2 * (length[0] / 2 + 1) * ostride[0];
+    }
+
+    if(transformType == rocfft_transform_type_real_forward && dim == 1)
+    {
+        return (length[0] / 2 + 1) * ostride[0];
+    }
+
+    Tsize odist = (transformType == rocfft_transform_type_real_forward)
+                      ? (length[dim - 1] / 2 + 1) * ostride[dim - 1]
+                      : length[dim - 1] * ostride[dim - 1];
+    for(int i = 0; i < dim - 1; ++i)
+    {
+        odist = std::max(length[i] * ostride[i], odist);
     }
     return odist;
 }

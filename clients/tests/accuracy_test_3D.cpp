@@ -46,7 +46,7 @@ static std::vector<size_t> pow5_range = {5, 25, 125};
 
 static std::vector<size_t> prime_range = {7, 11, 13, 17, 19, 23, 29};
 
-static std::vector<size_t> stride_range = {1};
+static std::vector<std::vector<size_t>> stride_range = {{1}};
 
 static std::vector<std::vector<size_t>> vpow2_range = {pow2_range, pow2_range, pow2_range};
 INSTANTIATE_TEST_SUITE_P(

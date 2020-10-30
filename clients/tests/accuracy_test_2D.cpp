@@ -46,9 +46,8 @@ static std::vector<size_t> prime_range = {7, 11, 13, 17, 19, 23, 29, 263, 269, 2
 
 static std::vector<size_t> mix_range = {5000, 6000, 8000};
 
-static std::vector<std::vector<size_t>> mix_adhoc = {{1, 22}, {1, 28}};
-
-static std::vector<size_t> stride_range = {1};
+static std::vector<std::vector<size_t>> stride_range = {{1}};
+static std::vector<std::vector<size_t>> mix_adhoc    = {{1, 22}, {1, 28}};
 
 static std::vector<std::vector<size_t>> vpow2_range = {pow2_range, pow2_range};
 INSTANTIATE_TEST_SUITE_P(
