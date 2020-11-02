@@ -28,6 +28,19 @@
 #include <vector>
 
 // Function to return maximum error for float and double types.
+//
+// Following Schatzman (1996; Accuracy of the Discrete Fourier
+// Transform and the Fast Fourier Transform), the shape of relative
+// l_2 error vs length should look like
+//
+//   epsilon * sqrt(log2(length)).
+//
+// The magic epsilon constants below were chosen so that we get a
+// reasonable upper bound for (all of) our tests.
+//
+// For rocFFT, prime lengths result in the highest error.  As such,
+// the epsilons below are perhaps too loose for pow2 lengths; but they
+// are appropriate for prime lengths.
 template <typename Tfloat>
 inline double type_epsilon();
 template <>
