@@ -255,12 +255,11 @@ Result placement
 ----------------
 
 The API supports both in-place and not in-place transforms. With in-place transforms, only input buffers are provided to the
-execution API, and the resulting data is written in the same buffer, overwriting the input data. With not in-place transforms, distinct
-output buffers are provided, and the results are written into the output buffer. In this case, input buffer is only read and so data in it is
-preserved after the execution.
+execution API, and the resulting data is written to the same buffer, overwriting the input data.  With not in-place transforms, distinct
+output buffers are provided, and the results are written into the output buffer.
 
-Real FFTs
----------
+Note that rocFFT may still modify the input buffer even if a transform is requested to be not in-place.  Real-complex transforms in particular are more efficient if they can modify the original input.
+
 
 .. toctree::
    :maxdepth: 2

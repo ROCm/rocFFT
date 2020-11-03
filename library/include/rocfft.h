@@ -85,7 +85,12 @@ typedef enum rocfft_precision_e
     rocfft_precision_double,
 } rocfft_precision;
 
-/*! @brief Result placement */
+/*! @brief Result placement
+ *  @details Declares where the output of the transform should be
+ *  placed.  Note that input buffers may still be overwritten
+ *  during execution of a transform, even if the transform is not
+ *  in-place.
+*/
 typedef enum rocfft_result_placement_e
 {
     rocfft_placement_inplace,
@@ -175,6 +180,9 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_create(rocfft_plan*                  pla
  *  serves as a way for the user to control execution, as well as for the
  * library to pass any execution
  *  related information back to the user.
+ *
+ *  Note that input buffers may still be overwritten during execution
+ *  of a transform, even if the transform is not in-place.
  *
  *  @param[in] plan plan handle
  *  @param[in,out] in_buffer array (of size 1 for interleaved data, of size 2
