@@ -893,18 +893,23 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
 // Compute the L-infinity and L-2 distance between two buffers with strides istride and
 // length idist between batches to a buffer with strides ostride and length odist between
 // batches.  Both buffers are of complex type.
+
+struct VectorNorms
+{
+    double l_2 = 0.0, l_inf = 0.0;
+};
+
 template <typename Tcomplex, typename Tint1, typename Tint2, typename Tint3>
-inline std::pair<double, double>
-    LinfL2diff_1to1_complex(const Tcomplex*                         input,
-                            const Tcomplex*                         output,
-                            const Tint1&                            whole_length,
-                            const size_t                            nbatch,
-                            const Tint2&                            istride,
-                            const size_t                            idist,
-                            const Tint3&                            ostride,
-                            const size_t                            odist,
-                            std::vector<std::pair<size_t, size_t>>& linf_failures,
-                            const double                            linf_cutoff)
+inline VectorNorms distance_1to1_complex(const Tcomplex*                         input,
+                                         const Tcomplex*                         output,
+                                         const Tint1&                            whole_length,
+                                         const size_t                            nbatch,
+                                         const Tint2&                            istride,
+                                         const size_t                            idist,
+                                         const Tint3&                            ostride,
+                                         const size_t                            odist,
+                                         std::vector<std::pair<size_t, size_t>>& linf_failures,
+                                         const double                            linf_cutoff)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -956,24 +961,23 @@ inline std::pair<double, double>
             l2 += cur_l2;
         }
     }
-    return std::make_pair(linf, l2);
+    return {.l_2 = sqrt(l2), .l_inf = linf};
 }
 
 // Compute the L-infinity and L-2 distance between two buffers with strides istride and
 // length idist between batches to a buffer with strides ostride and length odist between
 // batches.  Both buffers are of real type.
 template <typename Tfloat, typename Tint1, typename Tint2, typename Tint3>
-inline std::pair<double, double>
-    LinfL2diff_1to1_real(const Tfloat*                           input,
-                         const Tfloat*                           output,
-                         const Tint1&                            whole_length,
-                         const size_t                            nbatch,
-                         const Tint2&                            istride,
-                         const size_t                            idist,
-                         const Tint3&                            ostride,
-                         const size_t                            odist,
-                         std::vector<std::pair<size_t, size_t>>& linf_failures,
-                         const double                            linf_cutoff)
+inline VectorNorms distance_1to1_real(const Tfloat*                           input,
+                                      const Tfloat*                           output,
+                                      const Tint1&                            whole_length,
+                                      const size_t                            nbatch,
+                                      const Tint2&                            istride,
+                                      const size_t                            idist,
+                                      const Tint3&                            ostride,
+                                      const size_t                            odist,
+                                      std::vector<std::pair<size_t, size_t>>& linf_failures,
+                                      const double                            linf_cutoff)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -1013,25 +1017,24 @@ inline std::pair<double, double>
             l2 += cur_l2;
         }
     }
-    return std::make_pair(linf, l2);
+    return {.l_2 = sqrt(l2), .l_inf = linf};
 }
 
 // Compute the L-infinity and L-2 distance between two buffers with strides istride and
 // length idist between batches to a buffer with strides ostride and length odist between
 // batches.  input is complex-interleaved, output is complex-planar.
 template <typename Tval, typename Tint1, typename T2, typename T3>
-inline std::pair<double, double>
-    LinfL2diff_1to2(const std::complex<Tval>*               input,
-                    const Tval*                             output0,
-                    const Tval*                             output1,
-                    const Tint1&                            whole_length,
-                    const size_t                            nbatch,
-                    const T2&                               istride,
-                    const size_t                            idist,
-                    const T3&                               ostride,
-                    const size_t                            odist,
-                    std::vector<std::pair<size_t, size_t>>& linf_failures,
-                    const double                            linf_cutoff)
+inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
+                                 const Tval*                             output0,
+                                 const Tval*                             output1,
+                                 const Tint1&                            whole_length,
+                                 const size_t                            nbatch,
+                                 const T2&                               istride,
+                                 const size_t                            idist,
+                                 const T3&                               ostride,
+                                 const size_t                            odist,
+                                 std::vector<std::pair<size_t, size_t>>& linf_failures,
+                                 const double                            linf_cutoff)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -1082,7 +1085,7 @@ inline std::pair<double, double>
             l2 += cur_l2;
         }
     }
-    return std::make_pair(linf, l2);
+    return {.l_2 = sqrt(l2), .l_inf = linf};
 }
 
 // Compute the L-inifnity and L-2 distance between two buffers of dimension length and
@@ -1092,22 +1095,21 @@ template <typename Tallocator1,
           typename Tint1,
           typename Tint2,
           typename Tint3>
-inline std::pair<double, double>
-    LinfL2diff(const std::vector<std::vector<char, Tallocator1>>& input,
-               const std::vector<std::vector<char, Tallocator2>>& output,
-               const Tint1&                                       length,
-               const size_t                                       nbatch,
-               const rocfft_precision                             precision,
-               const rocfft_array_type                            itype,
-               const Tint2&                                       istride,
-               const size_t                                       idist,
-               const rocfft_array_type                            otype,
-               const Tint3&                                       ostride,
-               const size_t                                       odist,
-               std::vector<std::pair<size_t, size_t>>&            linf_failures,
-               const double                                       linf_cutoff)
+inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& input,
+                            const std::vector<std::vector<char, Tallocator2>>& output,
+                            const Tint1&                                       length,
+                            const size_t                                       nbatch,
+                            const rocfft_precision                             precision,
+                            const rocfft_array_type                            itype,
+                            const Tint2&                                       istride,
+                            const size_t                                       idist,
+                            const rocfft_array_type                            otype,
+                            const Tint3&                                       ostride,
+                            const size_t                                       odist,
+                            std::vector<std::pair<size_t, size_t>>&            linf_failures,
+                            const double                                       linf_cutoff)
 {
-    auto LinfL2 = std::make_pair<double, double>(0.0, 0.0);
+    VectorNorms dist;
 
     if(itype == otype)
     {
@@ -1118,7 +1120,7 @@ inline std::pair<double, double>
             switch(precision)
             {
             case rocfft_precision_single:
-                LinfL2 = LinfL2diff_1to1_complex(
+                dist = distance_1to1_complex(
                     reinterpret_cast<const std::complex<float>*>(input[0].data()),
                     reinterpret_cast<const std::complex<float>*>(output[0].data()),
                     length,
@@ -1131,7 +1133,7 @@ inline std::pair<double, double>
                     linf_cutoff);
                 break;
             case rocfft_precision_double:
-                LinfL2 = LinfL2diff_1to1_complex(
+                dist = distance_1to1_complex(
                     reinterpret_cast<const std::complex<double>*>(input[0].data()),
                     reinterpret_cast<const std::complex<double>*>(output[0].data()),
                     length,
@@ -1144,42 +1146,43 @@ inline std::pair<double, double>
                     linf_cutoff);
                 break;
             }
+            dist.l_2 *= dist.l_2;
             break;
         case rocfft_array_type_real:
         case rocfft_array_type_complex_planar:
         case rocfft_array_type_hermitian_planar:
             for(int idx = 0; idx < input.size(); ++idx)
             {
-                auto val = std::make_pair<double, double>(0.0, 0.0);
+                VectorNorms d;
                 switch(precision)
                 {
                 case rocfft_precision_single:
-                    val = LinfL2diff_1to1_real(reinterpret_cast<const float*>(input[idx].data()),
-                                               reinterpret_cast<const float*>(output[idx].data()),
-                                               length,
-                                               nbatch,
-                                               istride,
-                                               idist,
-                                               ostride,
-                                               odist,
-                                               linf_failures,
-                                               linf_cutoff);
+                    d = distance_1to1_real(reinterpret_cast<const float*>(input[idx].data()),
+                                           reinterpret_cast<const float*>(output[idx].data()),
+                                           length,
+                                           nbatch,
+                                           istride,
+                                           idist,
+                                           ostride,
+                                           odist,
+                                           linf_failures,
+                                           linf_cutoff);
                     break;
                 case rocfft_precision_double:
-                    val = LinfL2diff_1to1_real(reinterpret_cast<const double*>(input[idx].data()),
-                                               reinterpret_cast<const double*>(output[idx].data()),
-                                               length,
-                                               nbatch,
-                                               istride,
-                                               idist,
-                                               ostride,
-                                               odist,
-                                               linf_failures,
-                                               linf_cutoff);
+                    d = distance_1to1_real(reinterpret_cast<const double*>(input[idx].data()),
+                                           reinterpret_cast<const double*>(output[idx].data()),
+                                           length,
+                                           nbatch,
+                                           istride,
+                                           idist,
+                                           ostride,
+                                           odist,
+                                           linf_failures,
+                                           linf_cutoff);
                     break;
                 }
-                LinfL2.first = std::max(val.first, LinfL2.first);
-                LinfL2.second += val.second;
+                dist.l_inf = std::max(d.l_inf, dist.l_inf);
+                dist.l_2 += d.l_2 * d.l_2;
             }
             break;
         default:
@@ -1195,32 +1198,33 @@ inline std::pair<double, double>
         switch(precision)
         {
         case rocfft_precision_single:
-            LinfL2 = LinfL2diff_1to2(reinterpret_cast<const std::complex<float>*>(input[0].data()),
-                                     reinterpret_cast<const float*>(output[0].data()),
-                                     reinterpret_cast<const float*>(output[1].data()),
-                                     length,
-                                     nbatch,
-                                     istride,
-                                     idist,
-                                     ostride,
-                                     odist,
-                                     linf_failures,
-                                     linf_cutoff);
+            dist = distance_1to2(reinterpret_cast<const std::complex<float>*>(input[0].data()),
+                                 reinterpret_cast<const float*>(output[0].data()),
+                                 reinterpret_cast<const float*>(output[1].data()),
+                                 length,
+                                 nbatch,
+                                 istride,
+                                 idist,
+                                 ostride,
+                                 odist,
+                                 linf_failures,
+                                 linf_cutoff);
             break;
         case rocfft_precision_double:
-            LinfL2 = LinfL2diff_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
-                                     reinterpret_cast<const double*>(output[0].data()),
-                                     reinterpret_cast<const double*>(output[1].data()),
-                                     length,
-                                     nbatch,
-                                     istride,
-                                     idist,
-                                     ostride,
-                                     odist,
-                                     linf_failures,
-                                     linf_cutoff);
+            dist = distance_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
+                                 reinterpret_cast<const double*>(output[0].data()),
+                                 reinterpret_cast<const double*>(output[1].data()),
+                                 length,
+                                 nbatch,
+                                 istride,
+                                 idist,
+                                 ostride,
+                                 odist,
+                                 linf_failures,
+                                 linf_cutoff);
             break;
         }
+        dist.l_2 *= dist.l_2;
     }
     else if((itype == rocfft_array_type_complex_planar
              && otype == rocfft_array_type_complex_interleaved)
@@ -1230,107 +1234,106 @@ inline std::pair<double, double>
         switch(precision)
         {
         case rocfft_precision_single:
-            LinfL2 = LinfL2diff_1to2(reinterpret_cast<const std::complex<float>*>(output[0].data()),
-                                     reinterpret_cast<const float*>(input[0].data()),
-                                     reinterpret_cast<const float*>(input[1].data()),
-                                     length,
-                                     nbatch,
-                                     ostride,
-                                     odist,
-                                     istride,
-                                     idist,
-                                     linf_failures,
-                                     linf_cutoff);
+            dist = distance_1to2(reinterpret_cast<const std::complex<float>*>(output[0].data()),
+                                 reinterpret_cast<const float*>(input[0].data()),
+                                 reinterpret_cast<const float*>(input[1].data()),
+                                 length,
+                                 nbatch,
+                                 ostride,
+                                 odist,
+                                 istride,
+                                 idist,
+                                 linf_failures,
+                                 linf_cutoff);
             break;
         case rocfft_precision_double:
-            LinfL2
-                = LinfL2diff_1to2(reinterpret_cast<const std::complex<double>*>(output[0].data()),
-                                  reinterpret_cast<const double*>(input[0].data()),
-                                  reinterpret_cast<const double*>(input[1].data()),
-                                  length,
-                                  nbatch,
-                                  ostride,
-                                  odist,
-                                  istride,
-                                  idist,
-                                  linf_failures,
-                                  linf_cutoff);
+            dist = distance_1to2(reinterpret_cast<const std::complex<double>*>(output[0].data()),
+                                 reinterpret_cast<const double*>(input[0].data()),
+                                 reinterpret_cast<const double*>(input[1].data()),
+                                 length,
+                                 nbatch,
+                                 ostride,
+                                 odist,
+                                 istride,
+                                 idist,
+                                 linf_failures,
+                                 linf_cutoff);
             break;
         }
+        dist.l_2 *= dist.l_2;
     }
     else
     {
         throw std::runtime_error("Invalid input and output types.");
     }
-    LinfL2.second = sqrt(LinfL2.second);
-    return LinfL2;
+    dist.l_2 = sqrt(dist.l_2);
+    return dist;
 }
 
-// unroll arbitrary-dimension LinfL2diff into specializations for 1-, 2-, 3-dimensions
+// Unroll arbitrary-dimension distance into specializations for 1-, 2-, 3-dimensions
 template <typename Tallocator1,
           typename Tallocator2,
           typename Tint1,
           typename Tint2,
           typename Tint3>
-inline std::pair<double, double>
-    LinfL2diff(const std::vector<std::vector<char, Tallocator1>>& input,
-               const std::vector<std::vector<char, Tallocator2>>& output,
-               const std::vector<Tint1>&                          length,
-               const size_t                                       nbatch,
-               const rocfft_precision                             precision,
-               const rocfft_array_type                            itype,
-               const std::vector<Tint2>&                          istride,
-               const size_t                                       idist,
-               const rocfft_array_type                            otype,
-               const std::vector<Tint3>&                          ostride,
-               const size_t                                       odist,
-               std::vector<std::pair<size_t, size_t>>&            linf_failures,
-               const double                                       linf_cutoff)
+inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& input,
+                            const std::vector<std::vector<char, Tallocator2>>& output,
+                            const std::vector<Tint1>&                          length,
+                            const size_t                                       nbatch,
+                            const rocfft_precision                             precision,
+                            const rocfft_array_type                            itype,
+                            const std::vector<Tint2>&                          istride,
+                            const size_t                                       idist,
+                            const rocfft_array_type                            otype,
+                            const std::vector<Tint3>&                          ostride,
+                            const size_t                                       odist,
+                            std::vector<std::pair<size_t, size_t>>&            linf_failures,
+                            const double                                       linf_cutoff)
 {
     switch(length.size())
     {
     case 1:
-        return LinfL2diff(input,
-                          output,
-                          length[0],
-                          nbatch,
-                          precision,
-                          itype,
-                          istride[0],
-                          idist,
-                          otype,
-                          ostride[0],
-                          odist,
-                          linf_failures,
-                          linf_cutoff);
+        return distance(input,
+                        output,
+                        length[0],
+                        nbatch,
+                        precision,
+                        itype,
+                        istride[0],
+                        idist,
+                        otype,
+                        ostride[0],
+                        odist,
+                        linf_failures,
+                        linf_cutoff);
     case 2:
-        return LinfL2diff(input,
-                          output,
-                          std::make_tuple(length[0], length[1]),
-                          nbatch,
-                          precision,
-                          itype,
-                          std::make_tuple(istride[0], istride[1]),
-                          idist,
-                          otype,
-                          std::make_tuple(ostride[0], ostride[1]),
-                          odist,
-                          linf_failures,
-                          linf_cutoff);
+        return distance(input,
+                        output,
+                        std::make_tuple(length[0], length[1]),
+                        nbatch,
+                        precision,
+                        itype,
+                        std::make_tuple(istride[0], istride[1]),
+                        idist,
+                        otype,
+                        std::make_tuple(ostride[0], ostride[1]),
+                        odist,
+                        linf_failures,
+                        linf_cutoff);
     case 3:
-        return LinfL2diff(input,
-                          output,
-                          std::make_tuple(length[0], length[1], length[2]),
-                          nbatch,
-                          precision,
-                          itype,
-                          std::make_tuple(istride[0], istride[1], istride[2]),
-                          idist,
-                          otype,
-                          std::make_tuple(ostride[0], ostride[1], ostride[2]),
-                          odist,
-                          linf_failures,
-                          linf_cutoff);
+        return distance(input,
+                        output,
+                        std::make_tuple(length[0], length[1], length[2]),
+                        nbatch,
+                        precision,
+                        itype,
+                        std::make_tuple(istride[0], istride[1], istride[2]),
+                        idist,
+                        otype,
+                        std::make_tuple(ostride[0], ostride[1], ostride[2]),
+                        odist,
+                        linf_failures,
+                        linf_cutoff);
     default:
         abort();
     }
@@ -1339,11 +1342,11 @@ inline std::pair<double, double>
 // Compute the L-infinity and L-2 norm of abuffer with strides istride and
 // length idist.  Data is std::complex.
 template <typename Tcomplex, typename T1, typename T2>
-inline std::pair<double, double> LinfL2norm_complex(const Tcomplex* input,
-                                                    const T1&       whole_length,
-                                                    const size_t    nbatch,
-                                                    const T2&       istride,
-                                                    const size_t    idist)
+inline VectorNorms norm_complex(const Tcomplex* input,
+                                const T1&       whole_length,
+                                const size_t    nbatch,
+                                const T2&       istride,
+                                const size_t    idist)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -1376,17 +1379,17 @@ inline std::pair<double, double> LinfL2norm_complex(const Tcomplex* input,
             l2 += cur_l2;
         }
     }
-    return std::make_pair(linf, l2);
+    return {.l_2 = sqrt(l2), .l_inf = linf};
 }
 
 // Compute the L-infinity and L-2 norm of abuffer with strides istride and
 // length idist.  Data is real-valued.
 template <typename Tfloat, typename T1, typename T2>
-inline std::pair<double, double> LinfL2norm_real(const Tfloat* input,
-                                                 const T1&     whole_length,
-                                                 const size_t  nbatch,
-                                                 const T2&     istride,
-                                                 const size_t  idist)
+inline VectorNorms norm_real(const Tfloat* input,
+                             const T1&     whole_length,
+                             const size_t  nbatch,
+                             const T2&     istride,
+                             const size_t  idist)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -1414,22 +1417,21 @@ inline std::pair<double, double> LinfL2norm_real(const Tfloat* input,
             l2 += cur_l2;
         }
     }
-    return std::make_pair(linf, l2);
+    return {.l_2 = sqrt(l2), .l_inf = linf};
 }
 
 // Compute the L-infinity and L-2 norm of abuffer with strides istride and
 // length idist.  Data format is given by precision and itype.
 template <typename Tallocator1, typename T1, typename T2>
-inline std::pair<double, double>
-    LinfL2norm(const std::vector<std::vector<char, Tallocator1>>& input,
-               const T1&                                          length,
-               const size_t                                       nbatch,
-               const rocfft_precision                             precision,
-               const rocfft_array_type                            itype,
-               const T2&                                          istride,
-               const size_t                                       idist)
+inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input,
+                        const T1&                                          length,
+                        const size_t                                       nbatch,
+                        const rocfft_precision                             precision,
+                        const rocfft_array_type                            itype,
+                        const T2&                                          istride,
+                        const size_t                                       idist)
 {
-    auto LinfL2 = std::make_pair<double, double>(0.0, 0.0);
+    VectorNorms norm;
 
     switch(itype)
     {
@@ -1438,48 +1440,47 @@ inline std::pair<double, double>
         switch(precision)
         {
         case rocfft_precision_single:
-            LinfL2
-                = LinfL2norm_complex(reinterpret_cast<const std::complex<float>*>(input[0].data()),
-                                     length,
-                                     nbatch,
-                                     istride,
-                                     idist);
+            norm = norm_complex(reinterpret_cast<const std::complex<float>*>(input[0].data()),
+                                length,
+                                nbatch,
+                                istride,
+                                idist);
             break;
         case rocfft_precision_double:
-            LinfL2
-                = LinfL2norm_complex(reinterpret_cast<const std::complex<double>*>(input[0].data()),
-                                     length,
-                                     nbatch,
-                                     istride,
-                                     idist);
+            norm = norm_complex(reinterpret_cast<const std::complex<double>*>(input[0].data()),
+                                length,
+                                nbatch,
+                                istride,
+                                idist);
             break;
         }
+        norm.l_2 *= norm.l_2;
         break;
     case rocfft_array_type_real:
     case rocfft_array_type_complex_planar:
     case rocfft_array_type_hermitian_planar:
         for(int idx = 0; idx < input.size(); ++idx)
         {
-            auto val = std::make_pair<double, double>(0.0, 0.0);
+            VectorNorms n;
             switch(precision)
             {
             case rocfft_precision_single:
-                val = LinfL2norm_real(reinterpret_cast<const float*>(input[idx].data()),
-                                      length,
-                                      nbatch,
-                                      istride,
-                                      idist);
+                n = norm_real(reinterpret_cast<const float*>(input[idx].data()),
+                              length,
+                              nbatch,
+                              istride,
+                              idist);
                 break;
             case rocfft_precision_double:
-                val = LinfL2norm_real(reinterpret_cast<const double*>(input[idx].data()),
-                                      length,
-                                      nbatch,
-                                      istride,
-                                      idist);
+                n = norm_real(reinterpret_cast<const double*>(input[idx].data()),
+                              length,
+                              nbatch,
+                              istride,
+                              idist);
                 break;
             }
-            LinfL2.first = std::max(val.first, LinfL2.first);
-            LinfL2.second += val.second;
+            norm.l_inf = std::max(n.l_inf, norm.l_inf);
+            norm.l_2 += n.l_2 * n.l_2;
         }
         break;
     default:
@@ -1487,41 +1488,40 @@ inline std::pair<double, double>
         break;
     }
 
-    LinfL2.second = sqrt(LinfL2.second);
-    return LinfL2;
+    norm.l_2 = sqrt(norm.l_2);
+    return norm;
 }
 
-// unroll arbitrary-dimension LinfL2norm into specializations for 1-, 2-, 3-dimensions
+// Unroll arbitrary-dimension norm into specializations for 1-, 2-, 3-dimensions
 template <typename Tallocator1, typename T1, typename T2>
-inline std::pair<double, double>
-    LinfL2norm(const std::vector<std::vector<char, Tallocator1>>& input,
-               const std::vector<T1>&                             length,
-               const size_t                                       nbatch,
-               const rocfft_precision                             precision,
-               const rocfft_array_type                            itype,
-               const std::vector<T2>&                             istride,
-               const size_t                                       idist)
+inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input,
+                        const std::vector<T1>&                             length,
+                        const size_t                                       nbatch,
+                        const rocfft_precision                             precision,
+                        const rocfft_array_type                            itype,
+                        const std::vector<T2>&                             istride,
+                        const size_t                                       idist)
 {
     switch(length.size())
     {
     case 1:
-        return LinfL2norm(input, length[0], nbatch, precision, itype, istride[0], idist);
+        return norm(input, length[0], nbatch, precision, itype, istride[0], idist);
     case 2:
-        return LinfL2norm(input,
-                          std::make_tuple(length[0], length[1]),
-                          nbatch,
-                          precision,
-                          itype,
-                          std::make_tuple(istride[0], istride[1]),
-                          idist);
+        return norm(input,
+                    std::make_tuple(length[0], length[1]),
+                    nbatch,
+                    precision,
+                    itype,
+                    std::make_tuple(istride[0], istride[1]),
+                    idist);
     case 3:
-        return LinfL2norm(input,
-                          std::make_tuple(length[0], length[1], length[2]),
-                          nbatch,
-                          precision,
-                          itype,
-                          std::make_tuple(istride[0], istride[1], istride[2]),
-                          idist);
+        return norm(input,
+                    std::make_tuple(length[0], length[1], length[2]),
+                    nbatch,
+                    precision,
+                    itype,
+                    std::make_tuple(istride[0], istride[1], istride[2]),
+                    idist);
     default:
         abort();
     }

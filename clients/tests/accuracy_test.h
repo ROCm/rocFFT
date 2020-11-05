@@ -49,8 +49,8 @@ void rocfft_transform(const std::vector<size_t>&                                
                       const rocfft_array_type                                    cpu_otype,
                       const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_input_copy,
                       const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_output,
-                      const std::pair<double, double>& cpu_output_L2Linfnorm,
-                      std::thread*                     cpu_output_thread = nullptr);
+                      const VectorNorms& cpu_output_L2Linfnorm,
+                      std::thread*       cpu_output_thread = nullptr);
 
 // Print the test parameters
 inline void print_params(const std::vector<size_t>&    length,
