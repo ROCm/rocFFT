@@ -81,14 +81,26 @@ To do a transform,
        as :cpp:func:`rocfft_plan_description_set_data_layout` are called to specify plan details. And then, :cpp:func:`rocfft_plan_create` is called
        with the description handle passed to it along with other details.
 
+   * Allocate a work buffer for the plan:
+
+     * Call :cpp:func:`rocfft_plan_get_work_buffer_size` to check the size of work buffer required by the plan.
+     * If a nonzero size is required:
+
+       * Create an execution info object with :cpp:func:`rocfft_execution_info_create`.
+       * Allocate a buffer using :cpp:func:`hipMalloc` and pass the allocated buffer to :cpp:func:`rocfft_execution_info_set_work_buffer`.
+
 #. Execute the plan
 
    * The execution api :cpp:func:`rocfft_execute` is used to do the actual computation on the data buffers specified
-   * For specifying scratch/work buffers, and other parameters or to get back information regarding execution, an execution info object needs to be created
-     using :cpp:func:`rocfft_execution_info_create` and passed to the execution api
+   * Extra execution information such as work buffers and compute streams are passed to :cpp:func:`rocfft_execute` in the :cpp:type:`rocfft_execution_info` object.
    * Execution api can be called repeatedly as needed for different data, with the same plan
 
-#. Destroy the plan
+#. If a work buffer was allocated:
+
+   * Call :cpp:func:`hipFree` to free the work buffer.
+   * Call :cpp:func:`rocfft_execution_info_destroy` to destroy the execution info object.
+
+#. Destroy the plan by calling :cpp:func:`rocfft_plan_destroy`.
 #. Terminate the library by calling :cpp:func:`rocfft_cleanup()`
 
 
@@ -129,18 +141,37 @@ Example
            hipMemcpy(x, cx.data(), Nbytes, hipMemcpyHostToDevice);
    
            // Create rocFFT plan
-           rocfft_plan plan = NULL;
+           rocfft_plan plan = nullptr;
            size_t length = N;
            rocfft_plan_create(&plan, rocfft_placement_inplace,
                 rocfft_transform_type_complex_forward, rocfft_precision_single,
-                1, &length, 1, NULL);
+                1, &length, 1, nullptr);
+
+	   // Check if the plan requires a work buffer
+	   size_t work_buf_size = 0;
+	   rocfft_plan_get_work_buffer_size(plan, &work_buf_size);
+	   void* work_buf = nullptr;
+	   rocfft_execution_info info = nullptr;
+	   if(work_buf_size)
+           {
+                   rocfft_execution_info_create(&info);
+		   hipMalloc(&work_buf, work_buf_size);
+		   rocfft_execution_info_set_work_buffer(info, work_buf, work_buf_size);
+           }
    
            // Execute plan
-           rocfft_execute(plan, (void**) &x, NULL, NULL);
+           rocfft_execute(plan, (void**) &x, nullptr, info);
    
            // Wait for execution to finish
            hipDeviceSynchronize();
-   
+
+	   // Clean up work buffer
+	   if(work_buf_size)
+	   {
+	           hipFree(work_buf);
+		   rocfft_execution_info_destroy(info);
+	   }
+
            // Destroy plan
            rocfft_plan_destroy(plan);
    
