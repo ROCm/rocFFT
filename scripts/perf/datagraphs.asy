@@ -396,7 +396,7 @@ if(speedup > 1) {
     // TODO: when there is data missing at one end, the axes might be weird
 
     picture secondary = secondaryY(new void(picture pic) {
-            scale(pic,Log,Log);
+            scale(pic,Log,Linear);
             real ymin = inf;
             real ymax = -inf;
 	    int penidx = testlist.length;

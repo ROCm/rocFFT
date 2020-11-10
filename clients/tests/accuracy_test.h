@@ -32,9 +32,9 @@
 
 // Compute the rocFFT transform and verify the accuracy against the provided CPU data.
 // If cpu_output_thread is non-null, join on that thread before looking at cpu_output.
-void rocfft_transform(const std::vector<size_t>                                  length,
-                      const size_t                                               istride0,
-                      const size_t                                               ostride0,
+void rocfft_transform(const std::vector<size_t>&                                 length,
+                      const std::vector<size_t>&                                 istride,
+                      const std::vector<size_t>&                                 ostride,
                       const size_t                                               nbatch,
                       const rocfft_precision                                     precision,
                       const rocfft_transform_type                                transformType,
@@ -49,13 +49,13 @@ void rocfft_transform(const std::vector<size_t>                                 
                       const rocfft_array_type                                    cpu_otype,
                       const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_input_copy,
                       const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_output,
-                      const std::pair<double, double>& cpu_output_L2Linfnorm,
-                      std::thread*                     cpu_output_thread = nullptr);
+                      const VectorNorms& cpu_output_L2Linfnorm,
+                      std::thread*       cpu_output_thread = nullptr);
 
 // Print the test parameters
 inline void print_params(const std::vector<size_t>&    length,
-                         const size_t                  istride0,
-                         const size_t                  ostride0,
+                         const std::vector<size_t>&    istride,
+                         const std::vector<size_t>&    ostride,
                          const size_t                  nbatch,
                          const rocfft_result_placement place,
                          const rocfft_precision        precision,
@@ -67,8 +67,14 @@ inline void print_params(const std::vector<size_t>&    length,
     for(const auto& i : length)
         std::cout << " " << i;
     std::cout << "\n";
-    std::cout << "istride0: " << istride0 << "\n";
-    std::cout << "ostride0: " << ostride0 << "\n";
+    std::cout << "istride:";
+    for(const auto& i : istride)
+        std::cout << " " << i;
+    std::cout << "\n";
+    std::cout << "ostride:";
+    for(const auto& i : ostride)
+        std::cout << " " << i;
+    std::cout << "\n";
     std::cout << "nbatch: " << nbatch << "\n";
     if(place == rocfft_placement_inplace)
         std::cout << "in-place\n";
@@ -142,8 +148,8 @@ inline void print_params(const std::vector<size_t>&    length,
 // Base gtest class for comparison with FFTW.
 class accuracy_test
     : public ::testing::TestWithParam<std::tuple<std::vector<size_t>, // length
-                                                 std::vector<size_t>, // istride
-                                                 std::vector<size_t>, // ostride
+                                                 std::vector<std::vector<size_t>>, // istrides
+                                                 std::vector<std::vector<size_t>>, // ostrides
                                                  std::vector<size_t>, // batch
                                                  rocfft_precision,
                                                  rocfft_transform_type,

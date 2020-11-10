@@ -78,8 +78,27 @@ int main()
                        1,
                        NULL);
 
+    // Check if the plan requires a work buffer
+    size_t work_buf_size = 0;
+    rocfft_plan_get_work_buffer_size(plan, &work_buf_size);
+    void*                 work_buf = nullptr;
+    rocfft_execution_info info     = nullptr;
+    if(work_buf_size)
+    {
+        rocfft_execution_info_create(&info);
+        hipMalloc(&work_buf, work_buf_size);
+        rocfft_execution_info_set_work_buffer(info, work_buf, work_buf_size);
+    }
+
     // Execute plan
-    rocfft_execute(plan, (void**)&x, NULL, NULL);
+    rocfft_execute(plan, (void**)&x, NULL, info);
+
+    // Clean up work buffer
+    if(work_buf_size)
+    {
+        hipFree(work_buf);
+        rocfft_execution_info_destroy(info);
+    }
 
     // Destroy plan
     rocfft_plan_destroy(plan);

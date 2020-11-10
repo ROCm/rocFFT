@@ -896,6 +896,17 @@ namespace StockhamGenerator
             str += "];\n";
         }
 
+        virtual std::string LaunchBounds()
+        {
+            std::string str = "__launch_bounds__(";
+            if(blockCompute)
+                str += std::to_string(blockWGS);
+            else
+                str += std::to_string(workGroupSize);
+            str += ")\n";
+            return str;
+        }
+
         virtual std::string GlobalKernelFunctionSuffix()
         {
             return "_len" + std::to_string(length) + name_suffix;
@@ -943,7 +954,9 @@ namespace StockhamGenerator
             {
                 str += "template <typename T, StrideBin sb>\n";
             }
-            str += "__global__ void \n";
+
+            str += "__global__ void\n";
+            str += LaunchBounds();
 
             // kernel name
             if(fwd)
@@ -2056,6 +2069,13 @@ namespace StockhamGenerator
         {
             return true;
         }
+
+        std::string LaunchBounds() override
+        {
+            return "__launch_bounds__(" + std::to_string(MAX_LAUNCH_BOUNDS_2D_SINGLE_KERNEL)
+                   + ")\n";
+        }
+
         std::string GlobalKernelFunctionSuffix() override
         {
             return "_2D_" + std::to_string(transform_row.length) + "_"

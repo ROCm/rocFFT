@@ -49,12 +49,12 @@ static std::vector<size_t> mix_range
 static std::vector<size_t> prime_range
     = {7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97};
 
-static std::vector<size_t> stride_range = {1};
+static std::vector<std::vector<size_t>> stride_range = {{1}};
 
 const static std::vector<size_t> batch_range_1D = {1, 2, 4};
 
-static std::vector<size_t> stride_range_for_prime
-    = {1, 2, 3, 64, 65}; //TODO: this will be merged back to stride_range
+static std::vector<std::vector<size_t>> stride_range_for_prime
+    = {{1}, {2}, {3}, {64}, {65}}; //TODO: this will be merged back to stride_range
 
 static std::vector<size_t> generate_random(size_t number_run)
 {
@@ -323,7 +323,7 @@ INSTANTIATE_TEST_SUITE_P(mix_1D_real_inverse,
 //
 // The below test covers non-unit strides, pow of 2, middle sizes, which has SBCC/SBRC kernels invloved.
 static std::vector<size_t>              pow2_range_for_stride   = {4096, 8192, 524288};
-static std::vector<size_t>              stride_range_for_pow2   = {2, 3};
+static std::vector<std::vector<size_t>> stride_range_for_pow2   = {{2}, {3}};
 static std::vector<std::vector<size_t>> v_pow2_range_for_stride = {pow2_range_for_stride};
 const static std::vector<size_t>        batch_range_for_stride  = {1, 2};
 INSTANTIATE_TEST_SUITE_P(

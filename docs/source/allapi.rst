@@ -2,9 +2,9 @@
    :maxdepth: 4 
    :caption: Contents:
 
-=======
-All API
-=======
+=============
+API Reference
+=============
 
 .. doxygenindex::
 

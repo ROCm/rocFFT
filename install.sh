@@ -447,7 +447,7 @@ if [[ "${install_package}" == true ]]; then
     fi
     case "${ID}" in
         ubuntu)
-            elevate_if_not_root dpkg -i rocfft-*.deb
+            elevate_if_not_root dpkg -i rocfft[-\_]*.deb
             ;;
         centos|rhel)
             elevate_if_not_root yum -y localinstall rocfft-*.rpm
