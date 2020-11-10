@@ -25,6 +25,7 @@
 #include <stdexcept>
 void handle_exception(const std::exception& except);
 
-extern int verbose;
+extern int    verbose;
+extern size_t ramgb;
 
 #endif

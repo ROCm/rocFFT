@@ -49,6 +49,7 @@ void rocfft_transform(const std::vector<size_t>&                                
                       const rocfft_array_type                                    cpu_otype,
                       const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_input_copy,
                       const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_output,
+                      const size_t                                               ramgb,
                       const VectorNorms& cpu_output_L2Linfnorm,
                       std::thread*       cpu_output_thread = nullptr);
 

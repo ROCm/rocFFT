@@ -53,6 +53,9 @@ std::vector<size_t>     length;
 std::vector<size_t>     istride;
 std::vector<size_t>     ostride;
 
+// Ram limitation for tests (GB).
+size_t ramgb = 0;
+
 // Control whether we use FFTW's wisdom (which we use to imply FFTW_MEASURE).
 bool use_fftw_wisdom = false;
 
@@ -93,6 +96,7 @@ int main(int argc, char* argv[])
           "If this value is greater than one, arrays will be used ")
         ("istride",  po::value<std::vector<size_t>>(&istride)->multitoken(), "Input stride.")
         ("ostride",  po::value<std::vector<size_t>>(&ostride)->multitoken(), "Output stride.")
+        ("R", po::value<size_t>(&ramgb)->default_value(0), "Ram limit in GB for tests.")
         ("wise,w", "use FFTW wisdom")
         ("wisdomfile,W",
          po::value<std::string>(&fftw_wisdom_filename)->default_value("wisdom3.txt"),
@@ -299,5 +303,6 @@ TEST(manual, vs_fftw)
                      cpu_otype,
                      cpu_input_copy,
                      cpu_output,
+                     ramgb,
                      cpu_output_norm);
 }

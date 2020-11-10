@@ -116,11 +116,57 @@ void rocfft_transform(const std::vector<size_t>&                                
                       const rocfft_array_type                                    cpu_otype,
                       const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_input_copy,
                       const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_output,
+                      const size_t                                               ramgb,
                       const VectorNorms&                                         cpu_output_norm,
                       std::thread*                                               cpu_output_thread)
 {
-    // Set up GPU computation:
+    if(ramgb > 0)
+    {
+        // Estimate the amount of memory needed, and skip if it's more than we allow.
 
+        // Host input, output, and input copy: 3 buffers, all contiguous.
+        size_t needed_ram
+            = 3 * std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
+
+        // GPU input buffer:
+        needed_ram += std::inner_product(length.begin(), length.end(), istride.begin(), 0);
+
+        // GPU output buffer:
+        needed_ram += std::inner_product(length.begin(), length.end(), ostride.begin(), 0);
+
+        // Account for precision and data type:
+        if(transformType != rocfft_transform_type_real_forward
+           || transformType != rocfft_transform_type_real_inverse)
+        {
+            needed_ram *= 2;
+        }
+        switch(precision)
+        {
+        case rocfft_precision_single:
+            needed_ram *= 4;
+            break;
+        case rocfft_precision_double:
+            needed_ram *= 8;
+            break;
+        }
+        needed_ram *= nbatch;
+
+        if(verbose > 1)
+        {
+            std::cout << "required host memory (GB): " << needed_ram * 1e-9 << std::endl;
+        }
+
+        if(needed_ram > ramgb * 1e9)
+        {
+            if(verbose > 2)
+            {
+                std::cout << "skipped!" << std::endl;
+            }
+            return;
+        }
+    }
+
+    // Set up GPU computation:
     if(place == rocfft_placement_inplace)
     {
         const auto stridesize = std::min(istride.size(), ostride.size());
@@ -614,6 +660,40 @@ TEST_P(accuracy_test, vs_fftw)
 
     const size_t nbatch = *std::max_element(batch_range.begin(), batch_range.end());
 
+    if(ramgb > 0)
+    {
+        // Estimate the amount of memory needed, and skip if it's more than we allow.
+
+        // Host input, output, and input copy, gpu input and output: 5 buffers.
+        // This test assumes that all buffers are contiguous; other cases are dealt with when they
+        // are called.
+        // FFTW may require work memory; this is not accounted for.
+        size_t needed_ram
+            = 5 * std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
+
+        // Account for precision and data type:
+        if(transformType != rocfft_transform_type_real_forward
+           || transformType != rocfft_transform_type_real_inverse)
+        {
+            needed_ram *= 2;
+        }
+        switch(precision)
+        {
+        case rocfft_precision_single:
+            needed_ram *= 4;
+            break;
+        case rocfft_precision_double:
+            needed_ram *= 8;
+            break;
+        }
+
+        if(needed_ram > ramgb * 1e9)
+        {
+            GTEST_SKIP();
+            return;
+        }
+    }
+
     // Generate the data:
     auto cpu_input = compute_input<fftwAllocator<char>>(
         precision, cpu_itype, length, cpu_istride, cpu_idist, nbatch);
@@ -716,6 +796,7 @@ TEST_P(accuracy_test, vs_fftw)
                                          cpu_otype,
                                          cpu_input_copy,
                                          cpu_output,
+                                         ramgb,
                                          cpu_output_norm,
                                          &cpu_output_thread);
                     }
