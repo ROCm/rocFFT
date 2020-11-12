@@ -27,31 +27,31 @@
 #include "fftw_transform.h"
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
-#include <thread>
+#include <future>
 #include <vector>
 
+typedef std::vector<std::vector<char, fftwAllocator<char>>> fftw_data_t;
+
 // Compute the rocFFT transform and verify the accuracy against the provided CPU data.
-// If cpu_output_thread is non-null, join on that thread before looking at cpu_output.
-void rocfft_transform(const std::vector<size_t>&                                 length,
-                      const std::vector<size_t>&                                 istride,
-                      const std::vector<size_t>&                                 ostride,
-                      const size_t                                               nbatch,
-                      const rocfft_precision                                     precision,
-                      const rocfft_transform_type                                transformType,
-                      const rocfft_array_type                                    itype,
-                      const rocfft_array_type                                    otype,
-                      const rocfft_result_placement                              place,
-                      const std::vector<size_t>&                                 cpu_istride,
-                      const std::vector<size_t>&                                 cpu_ostride,
-                      const size_t                                               cpu_idist,
-                      const size_t                                               cpu_odist,
-                      const rocfft_array_type                                    cpu_itype,
-                      const rocfft_array_type                                    cpu_otype,
-                      const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_input_copy,
-                      const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_output,
-                      const size_t                                               ramgb,
-                      const VectorNorms& cpu_output_L2Linfnorm,
-                      std::thread*       cpu_output_thread = nullptr);
+void rocfft_transform(const std::vector<size_t>&            length,
+                      const std::vector<size_t>&            istride,
+                      const std::vector<size_t>&            ostride,
+                      const size_t                          nbatch,
+                      const rocfft_precision                precision,
+                      const rocfft_transform_type           transformType,
+                      const rocfft_array_type               itype,
+                      const rocfft_array_type               otype,
+                      const rocfft_result_placement         place,
+                      const std::vector<size_t>&            cpu_istride,
+                      const std::vector<size_t>&            cpu_ostride,
+                      const size_t                          cpu_idist,
+                      const size_t                          cpu_odist,
+                      const rocfft_array_type               cpu_itype,
+                      const rocfft_array_type               cpu_otype,
+                      const std::shared_future<fftw_data_t> cpu_input,
+                      const std::shared_future<fftw_data_t> cpu_output,
+                      const size_t                          ramgb,
+                      const std::shared_future<VectorNorms> cpu_output_norm);
 
 // Print the test parameters
 inline void print_params(const std::vector<size_t>&    length,
@@ -146,22 +146,56 @@ inline void print_params(const std::vector<size_t>&    length,
     std::cout << std::endl;
 }
 
+typedef std::
+    tuple<rocfft_transform_type, rocfft_result_placement, rocfft_array_type, rocfft_array_type>
+        type_place_io_t;
+
 // Base gtest class for comparison with FFTW.
-class accuracy_test
-    : public ::testing::TestWithParam<std::tuple<std::vector<size_t>, // length
-                                                 std::vector<std::vector<size_t>>, // istrides
-                                                 std::vector<std::vector<size_t>>, // ostrides
-                                                 std::vector<size_t>, // batch
-                                                 rocfft_precision,
-                                                 rocfft_transform_type,
-                                                 std::vector<rocfft_result_placement>>>
+class accuracy_test : public ::testing::TestWithParam<std::tuple<std::vector<size_t>, // length
+                                                                 rocfft_precision,
+                                                                 size_t, // batch
+                                                                 std::vector<size_t>, // istride
+                                                                 std::vector<size_t>, // ostride
+                                                                 type_place_io_t>>
 {
 protected:
     void SetUp() override {}
     void TearDown() override {}
+
+public:
+    struct cpu_fft_data
+    {
+
+        // Input cpu parameters:
+        std::vector<size_t> ilength;
+        std::vector<size_t> istride;
+        rocfft_array_type   itype;
+        size_t              idist;
+
+        // Output cpu parameters:
+        std::vector<size_t> olength;
+        std::vector<size_t> ostride;
+        rocfft_array_type   otype;
+        size_t              odist;
+
+        std::shared_future<fftw_data_t> input;
+        std::shared_future<VectorNorms> input_norm;
+        std::shared_future<fftw_data_t> output;
+        std::shared_future<VectorNorms> output_norm;
+
+        cpu_fft_data()                    = default;
+        cpu_fft_data(cpu_fft_data&&)      = default;
+        cpu_fft_data(const cpu_fft_data&) = default;
+        cpu_fft_data& operator=(const cpu_fft_data&) = default;
+        ~cpu_fft_data()                              = default;
+    };
+    static cpu_fft_data compute_cpu_fft(const std::vector<size_t>& length,
+                                        size_t                     nbatch,
+                                        rocfft_precision           precision,
+                                        rocfft_transform_type      transformType);
 };
 
-const static std::vector<size_t> batch_range = {1, 2};
+const static std::vector<size_t> batch_range = {2, 1};
 
 const static std::vector<rocfft_precision> precision_range
     = {rocfft_precision_single, rocfft_precision_double};
@@ -247,6 +281,23 @@ inline std::vector<std::pair<rocfft_array_type, rocfft_array_type>>
         throw std::runtime_error("Invalid transform type");
     }
     return iotypes;
+}
+
+// generate all combinations of input/output types, from combinations
+// of transform and placement types
+static std::vector<type_place_io_t>
+    generate_types(rocfft_transform_type                       transformType,
+                   const std::vector<rocfft_result_placement>& place_range)
+{
+    std::vector<type_place_io_t> ret;
+    for(auto place : place_range)
+    {
+        for(auto iotype : iotypes(transformType, place))
+        {
+            ret.push_back(std::make_tuple(transformType, place, iotype.first, iotype.second));
+        }
+    }
+    return ret;
 }
 
 #endif

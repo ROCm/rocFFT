@@ -22,7 +22,6 @@
 #include <gtest/gtest.h>
 #include <math.h>
 #include <stdexcept>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -99,26 +98,25 @@ std::string gpu_params(const std::vector<size_t>&    gpu_ilength_cm,
 }
 
 // Compute a FFT using rocFFT and compare with the provided CPU reference computation.
-void rocfft_transform(const std::vector<size_t>&                                 length,
-                      const std::vector<size_t>&                                 istride,
-                      const std::vector<size_t>&                                 ostride,
-                      const size_t                                               nbatch,
-                      const rocfft_precision                                     precision,
-                      const rocfft_transform_type                                transformType,
-                      const rocfft_array_type                                    itype,
-                      const rocfft_array_type                                    otype,
-                      const rocfft_result_placement                              place,
-                      const std::vector<size_t>&                                 cpu_istride,
-                      const std::vector<size_t>&                                 cpu_ostride,
-                      const size_t                                               cpu_idist,
-                      const size_t                                               cpu_odist,
-                      const rocfft_array_type                                    cpu_itype,
-                      const rocfft_array_type                                    cpu_otype,
-                      const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_input_copy,
-                      const std::vector<std::vector<char, fftwAllocator<char>>>& cpu_output,
-                      const size_t                                               ramgb,
-                      const VectorNorms&                                         cpu_output_norm,
-                      std::thread*                                               cpu_output_thread)
+void rocfft_transform(const std::vector<size_t>&            length,
+                      const std::vector<size_t>&            istride,
+                      const std::vector<size_t>&            ostride,
+                      const size_t                          nbatch,
+                      const rocfft_precision                precision,
+                      const rocfft_transform_type           transformType,
+                      const rocfft_array_type               itype,
+                      const rocfft_array_type               otype,
+                      const rocfft_result_placement         place,
+                      const std::vector<size_t>&            cpu_istride,
+                      const std::vector<size_t>&            cpu_ostride,
+                      const size_t                          cpu_idist,
+                      const size_t                          cpu_odist,
+                      const rocfft_array_type               cpu_itype,
+                      const rocfft_array_type               cpu_otype,
+                      const std::shared_future<fftw_data_t> cpu_input,
+                      const std::shared_future<fftw_data_t> cpu_output,
+                      const size_t                          ramgb,
+                      const std::shared_future<VectorNorms> cpu_output_norm)
 {
     if(ramgb > 0)
     {
@@ -377,7 +375,7 @@ void rocfft_transform(const std::vector<size_t>&                                
         precision, itype, length, gpu_istride, gpu_idist, nbatch);
 
     // Copy from contiguous_input to input.
-    copy_buffers(cpu_input_copy,
+    copy_buffers(cpu_input.get(),
                  gpu_input,
                  ilength,
                  nbatch,
@@ -496,19 +494,17 @@ void rocfft_transform(const std::vector<size_t>&                                
     }
 
     // Compute the Linfinity and L2 norm of the GPU output:
-    VectorNorms gpu_norm;
-    std::thread normthread([&]() {
-        gpu_norm = norm(gpu_output, olength, nbatch, precision, otype, gpu_ostride, gpu_odist);
+    std::shared_future<VectorNorms> gpu_norm = std::async(std::launch::async, [&]() {
+        return norm(gpu_output, olength, nbatch, precision, otype, gpu_ostride, gpu_odist);
     });
-    if(cpu_output_thread && cpu_output_thread->joinable())
-        cpu_output_thread->join();
 
     // Compute the l-infinity and l-2 distance between the CPU and GPU output:
     std::vector<std::pair<size_t, size_t>> linf_failures;
     const auto                             total_length
         = std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
-    const double linf_cutoff = type_epsilon(precision) * cpu_output_norm.l_inf * log2(total_length);
-    auto         diff        = distance(cpu_output,
+    const double linf_cutoff
+        = type_epsilon(precision) * cpu_output_norm.get().l_inf * log(total_length);
+    auto diff = distance(cpu_output.get(),
                          gpu_output,
                          olength,
                          nbatch,
@@ -521,12 +517,11 @@ void rocfft_transform(const std::vector<size_t>&                                
                          gpu_odist,
                          linf_failures,
                          linf_cutoff);
-    normthread.join();
 
     if(verbose > 1)
     {
-        std::cout << "GPU output Linf norm: " << gpu_norm.l_inf << "\n";
-        std::cout << "GPU output L2 norm:   " << gpu_norm.l_2 << "\n";
+        std::cout << "GPU output Linf norm: " << gpu_norm.get().l_inf << "\n";
+        std::cout << "GPU output L2 norm:   " << gpu_norm.get().l_2 << "\n";
         std::cout << "GPU linf norm failures:";
         std::sort(linf_failures.begin(), linf_failures.end());
         for(const auto& i : linf_failures)
@@ -536,26 +531,26 @@ void rocfft_transform(const std::vector<size_t>&                                
         std::cout << std::endl;
     }
 
-    EXPECT_TRUE(std::isfinite(gpu_norm.l_inf)) << gpu_params(gpu_ilength_cm,
-                                                             gpu_istride_cm,
-                                                             gpu_idist,
-                                                             gpu_ostride_cm,
-                                                             gpu_odist,
-                                                             nbatch,
-                                                             precision,
-                                                             place,
-                                                             itype,
-                                                             otype);
-    EXPECT_TRUE(std::isfinite(gpu_norm.l_2)) << gpu_params(gpu_ilength_cm,
-                                                           gpu_istride_cm,
-                                                           gpu_idist,
-                                                           gpu_ostride_cm,
-                                                           gpu_odist,
-                                                           nbatch,
-                                                           precision,
-                                                           place,
-                                                           itype,
-                                                           otype);
+    EXPECT_TRUE(std::isfinite(gpu_norm.get().l_inf)) << gpu_params(gpu_ilength_cm,
+                                                                   gpu_istride_cm,
+                                                                   gpu_idist,
+                                                                   gpu_ostride_cm,
+                                                                   gpu_odist,
+                                                                   nbatch,
+                                                                   precision,
+                                                                   place,
+                                                                   itype,
+                                                                   otype);
+    EXPECT_TRUE(std::isfinite(gpu_norm.get().l_2)) << gpu_params(gpu_ilength_cm,
+                                                                 gpu_istride_cm,
+                                                                 gpu_idist,
+                                                                 gpu_ostride_cm,
+                                                                 gpu_odist,
+                                                                 nbatch,
+                                                                 precision,
+                                                                 place,
+                                                                 itype,
+                                                                 otype);
 
     if(verbose > 1)
     {
@@ -566,7 +561,7 @@ void rocfft_transform(const std::vector<size_t>&                                
     // TODO: handle case where norm is zero?
     EXPECT_TRUE(diff.l_inf < linf_cutoff)
         << "Linf test failed.  Linf:" << diff.l_inf
-        << "\tnormalized Linf: " << diff.l_inf / cpu_output_norm.l_inf
+        << "\tnormalized Linf: " << diff.l_inf / cpu_output_norm.get().l_inf
         << "\tcutoff: " << linf_cutoff
         << gpu_params(gpu_ilength_cm,
                       gpu_istride_cm,
@@ -579,9 +574,10 @@ void rocfft_transform(const std::vector<size_t>&                                
                       itype,
                       otype);
 
-    EXPECT_TRUE(diff.l_2 / cpu_output_norm.l_2 < sqrt(log2(total_length)) * type_epsilon(precision))
+    EXPECT_TRUE(diff.l_2 / cpu_output_norm.get().l_2
+                < sqrt(log2(total_length)) * type_epsilon(precision))
         << "L2 test failed. L2: " << diff.l_2
-        << "\tnormalized L2: " << diff.l_2 / cpu_output_norm.l_2
+        << "\tnormalized L2: " << diff.l_2 / cpu_output_norm.get().l_2
         << "\tepsilon: " << sqrt(log2(total_length)) * type_epsilon(precision)
         << gpu_params(gpu_ilength_cm,
                       gpu_istride_cm,
@@ -605,60 +601,18 @@ void rocfft_transform(const std::vector<size_t>&                                
 // Test for comparison between FFTW and rocFFT.
 TEST_P(accuracy_test, vs_fftw)
 {
-    const std::vector<size_t>                  length        = std::get<0>(GetParam());
-    const std::vector<std::vector<size_t>>     istride_range = std::get<1>(GetParam());
-    const std::vector<std::vector<size_t>>     ostride_range = std::get<2>(GetParam());
-    const std::vector<size_t>                  batch_range   = std::get<3>(GetParam());
-    const rocfft_precision                     precision     = std::get<4>(GetParam());
-    const rocfft_transform_type                transformType = std::get<5>(GetParam());
-    const std::vector<rocfft_result_placement> place_range   = std::get<6>(GetParam());
+    const std::vector<size_t>     length        = std::get<0>(GetParam());
+    const rocfft_precision        precision     = std::get<1>(GetParam());
+    const size_t                  nbatch        = std::get<2>(GetParam());
+    const std::vector<size_t>     istride       = std::get<3>(GetParam());
+    const std::vector<size_t>     ostride       = std::get<4>(GetParam());
+    type_place_io_t               type_place_io = std::get<5>(GetParam());
+    const rocfft_transform_type   transformType = std::get<0>(type_place_io);
+    const rocfft_result_placement place         = std::get<1>(type_place_io);
+    const rocfft_array_type       itype         = std::get<2>(type_place_io);
+    const rocfft_array_type       otype         = std::get<3>(type_place_io);
 
     // NB: Input data is row-major.
-
-    const size_t dim = length.size();
-
-    // Input cpu parameters:
-    auto ilength = length;
-    if(transformType == rocfft_transform_type_real_inverse)
-        ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
-    const auto cpu_istride = compute_stride(ilength);
-    const auto cpu_itype   = contiguous_itype(transformType);
-    const auto cpu_idist
-        = set_idist(rocfft_placement_notinplace, transformType, length, cpu_istride);
-
-    // Output cpu parameters:
-    auto olength = length;
-    if(transformType == rocfft_transform_type_real_forward)
-        olength[dim - 1] = olength[dim - 1] / 2 + 1;
-    const auto cpu_ostride = compute_stride(olength);
-    const auto cpu_odist
-        = set_odist(rocfft_placement_notinplace, transformType, length, cpu_ostride);
-    auto cpu_otype = contiguous_otype(transformType);
-    if(verbose > 3)
-    {
-        std::cout << "CPU  params:\n";
-        std::cout << "\tilength:";
-        for(auto i : ilength)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tcpu_istride:";
-        for(auto i : cpu_istride)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tcpu_idist: " << cpu_idist << std::endl;
-
-        std::cout << "\tolength:";
-        for(auto i : olength)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tcpu_ostride:";
-        for(auto i : cpu_ostride)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tcpu_odist: " << cpu_odist << std::endl;
-    }
-
-    const size_t nbatch = *std::max_element(batch_range.begin(), batch_range.end());
 
     if(ramgb > 0)
     {
@@ -693,126 +647,42 @@ TEST_P(accuracy_test, vs_fftw)
             return;
         }
     }
-
-    // Generate the data:
-    auto cpu_input = compute_input<fftwAllocator<char>>(
-        precision, cpu_itype, length, cpu_istride, cpu_idist, nbatch);
-    auto cpu_input_copy = cpu_input; // copy of input (might get overwritten by FFTW).
-
-    // Compute the Linfinity and L2 norm of the CPU output:
-    VectorNorms cpu_input_norm;
-    std::thread cpu_input_norm_thread([&]() {
-        cpu_input_norm
-            = norm(cpu_input, ilength, nbatch, precision, cpu_itype, cpu_istride, cpu_idist);
-        if(verbose > 2)
-        {
-            std::cout << "CPU Input Linf norm:  " << cpu_input_norm.l_inf << "\n";
-            std::cout << "CPU Input L2 norm:    " << cpu_input_norm.l_2 << "\n";
-        }
-    });
-    if(verbose > 3)
-    {
-        std::cout << "CPU input:\n";
-        printbuffer(precision, cpu_itype, cpu_input, ilength, cpu_istride, nbatch, cpu_idist);
-    }
-
-    // FFTW computation
-    // NB: FFTW may overwrite input, even for out-of-place transforms.
-    decltype(cpu_input) cpu_output;
-    VectorNorms         cpu_output_norm;
-    std::thread         cpu_output_thread([&]() {
-        cpu_output = fftw_via_rocfft(length,
-                                     cpu_istride,
-                                     cpu_ostride,
-                                     nbatch,
-                                     cpu_idist,
-                                     cpu_odist,
-                                     precision,
-                                     transformType,
-                                     cpu_input);
-        // Compute the Linfinity and L2 norm of the CPU output:
-        cpu_output_norm
-            = norm(cpu_output, olength, nbatch, precision, cpu_otype, cpu_ostride, cpu_odist);
-        if(verbose > 2)
-        {
-            std::cout << "CPU Output Linf norm: " << cpu_output_norm.l_inf << "\n";
-            std::cout << "CPU Output L2 norm:   " << cpu_output_norm.l_2 << "\n";
-        }
-        if(verbose > 3)
-        {
-            std::cout << "CPU output:\n";
-            printbuffer(precision, cpu_otype, cpu_output, olength, cpu_ostride, nbatch, cpu_odist);
-        }
-    });
-    // clean up threads if transform throws
-    BOOST_SCOPE_EXIT_ALL(&cpu_output_thread, &cpu_input_norm_thread)
-    {
-        if(cpu_output_thread.joinable())
-            cpu_output_thread.join();
-        if(cpu_input_norm_thread.joinable())
-            cpu_input_norm_thread.join();
-    };
+    auto cpu = accuracy_test::compute_cpu_fft(length, nbatch, precision, transformType);
 
     // Set up GPU computations:
-    for(const auto nbatch : batch_range)
+    if(verbose)
     {
-        for(const auto place : place_range)
-        {
-            for(const auto iotype : iotypes(transformType, place))
-            {
-                const rocfft_array_type itype = iotype.first;
-                const rocfft_array_type otype = iotype.second;
-                for(const auto istride : istride_range)
-                {
-                    for(const auto ostride : ostride_range)
-                    {
-                        if(verbose)
-                        {
-                            print_params(length,
-                                         istride,
-                                         ostride,
-                                         nbatch,
-                                         place,
-                                         precision,
-                                         transformType,
-                                         itype,
-                                         otype);
-                        }
-
-                        rocfft_transform(length,
-                                         istride,
-                                         ostride,
-                                         nbatch,
-                                         precision,
-                                         transformType,
-                                         itype,
-                                         otype,
-                                         place,
-                                         cpu_istride,
-                                         cpu_ostride,
-                                         cpu_idist,
-                                         cpu_odist,
-                                         cpu_itype,
-                                         cpu_otype,
-                                         cpu_input_copy,
-                                         cpu_output,
-                                         ramgb,
-                                         cpu_output_norm,
-                                         &cpu_output_thread);
-                    }
-                }
-            }
-        }
+        print_params(
+            length, istride, ostride, nbatch, place, precision, transformType, itype, otype);
     }
 
-    cpu_input_norm_thread.join();
-    ASSERT_TRUE(std::isfinite(cpu_input_norm.l_inf));
-    ASSERT_TRUE(std::isfinite(cpu_input_norm.l_2));
+    rocfft_transform(length,
+                     istride,
+                     ostride,
+                     nbatch,
+                     precision,
+                     transformType,
+                     itype,
+                     otype,
+                     place,
+                     cpu.istride,
+                     cpu.ostride,
+                     cpu.idist,
+                     cpu.odist,
+                     cpu.itype,
+                     cpu.otype,
+                     cpu.input,
+                     cpu.output,
+                     ramgb,
+                     cpu.output_norm);
 
-    if(cpu_output_thread.joinable())
-        cpu_output_thread.join();
-    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_inf));
+    auto cpu_input_norm = cpu.input_norm.get();
+    ASSERT_TRUE(std::isfinite(cpu_input_norm.l_2));
+    ASSERT_TRUE(std::isfinite(cpu_input_norm.l_inf));
+
+    auto cpu_output_norm = cpu.output_norm.get();
     ASSERT_TRUE(std::isfinite(cpu_output_norm.l_2));
+    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_inf));
 
     SUCCEED();
 }

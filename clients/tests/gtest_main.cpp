@@ -59,6 +59,147 @@ size_t ramgb = 0;
 // Control whether we use FFTW's wisdom (which we use to imply FFTW_MEASURE).
 bool use_fftw_wisdom = false;
 
+// cache the last cpu fft that was requested - the tuple members
+// correspond to the input and output of compute_cpu_fft
+std::tuple<std::vector<size_t>,
+           size_t,
+           rocfft_precision,
+           rocfft_transform_type,
+           accuracy_test::cpu_fft_data>
+    last_cpu_fft;
+
+accuracy_test::cpu_fft_data accuracy_test::compute_cpu_fft(const std::vector<size_t>& length,
+                                                           size_t                     nbatch,
+                                                           rocfft_precision           precision,
+                                                           rocfft_transform_type      transformType)
+{
+    // check cache first - nbatch is a >= comparison because we compute
+    // the largest batch size and cache it.  smaller batch runs can
+    // compare against the larger data.
+    if(std::get<0>(last_cpu_fft) == length && std::get<2>(last_cpu_fft) == precision
+       && std::get<3>(last_cpu_fft) == transformType)
+    {
+        if(std::get<1>(last_cpu_fft) >= nbatch)
+        {
+            return std::get<4>(last_cpu_fft);
+        }
+        else
+            // something's unexpected with our test order - we should have
+            // generated the bigger batch first.  batch ranges provided to
+            // the test suites need to be in descending order
+            abort();
+    }
+
+    const size_t dim = length.size();
+
+    // Input cpu parameters:
+    auto ilength = length;
+    if(transformType == rocfft_transform_type_real_inverse)
+        ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
+    auto istride = compute_stride(ilength);
+    auto itype   = contiguous_itype(transformType);
+    auto idist   = set_idist(rocfft_placement_notinplace, transformType, length, istride);
+
+    // Output cpu parameters:
+    auto olength = length;
+    if(transformType == rocfft_transform_type_real_forward)
+        olength[dim - 1] = olength[dim - 1] / 2 + 1;
+    auto ostride = compute_stride(olength);
+    auto odist   = set_odist(rocfft_placement_notinplace, transformType, length, ostride);
+    auto otype   = contiguous_otype(transformType);
+
+    if(verbose > 3)
+    {
+        std::cout << "CPU  params:\n";
+        std::cout << "\tilength:";
+        for(auto i : ilength)
+            std::cout << " " << i;
+        std::cout << "\n";
+        std::cout << "\tcpu_istride:";
+        for(auto i : istride)
+            std::cout << " " << i;
+        std::cout << "\n";
+        std::cout << "\tcpu_idist: " << idist << std::endl;
+
+        std::cout << "\tolength:";
+        for(auto i : olength)
+            std::cout << " " << i;
+        std::cout << "\n";
+        std::cout << "\tcpu_ostride:";
+        for(auto i : ostride)
+            std::cout << " " << i;
+        std::cout << "\n";
+        std::cout << "\tcpu_odist: " << odist << std::endl;
+    }
+
+    // hook up the futures
+    std::shared_future<fftw_data_t> input = std::async(std::launch::async, [=]() {
+        return compute_input<fftwAllocator<char>>(precision, itype, length, istride, idist, nbatch);
+    });
+
+    if(verbose > 3)
+    {
+        std::cout << "CPU input:\n";
+        printbuffer(precision, itype, input.get(), ilength, istride, nbatch, idist);
+    }
+
+    auto input_norm = std::async(std::launch::async, [=]() {
+        auto ret_norm = norm(input.get(), ilength, nbatch, precision, itype, istride, idist);
+        if(verbose > 2)
+        {
+            std::cout << "CPU Input Linf norm:  " << ret_norm.l_inf << "\n";
+            std::cout << "CPU Input L2 norm:    " << ret_norm.l_2 << "\n";
+        }
+        return ret_norm;
+    });
+
+    std::shared_future<fftw_data_t> output      = std::async(std::launch::async, [=]() {
+        // copy input, as FFTW may overwrite it
+        auto input_copy = input.get();
+        auto output     = fftw_via_rocfft(
+            length, istride, ostride, nbatch, idist, odist, precision, transformType, input_copy);
+        if(verbose > 3)
+        {
+            std::cout << "CPU output:\n";
+            printbuffer(precision, otype, output, olength, ostride, nbatch, odist);
+        }
+        return std::move(output);
+    });
+    std::shared_future<VectorNorms> output_norm = std::async(std::launch::async, [=]() {
+        auto ret_norm = norm(output.get(), olength, nbatch, precision, otype, ostride, odist);
+        if(verbose > 2)
+        {
+            std::cout << "CPU Output Linf norm: " << ret_norm.l_inf << "\n";
+            std::cout << "CPU Output L2 norm:   " << ret_norm.l_2 << "\n";
+        }
+        return ret_norm;
+    });
+
+    cpu_fft_data ret;
+    ret.ilength = ilength;
+    ret.istride = istride;
+    ret.itype   = itype;
+    ret.idist   = idist;
+    ret.olength = olength;
+    ret.ostride = ostride;
+    ret.otype   = otype;
+    ret.odist   = odist;
+
+    ret.input       = std::move(input);
+    ret.input_norm  = std::move(input_norm);
+    ret.output      = std::move(output);
+    ret.output_norm = std::move(output_norm);
+
+    // cache our result
+    std::get<0>(last_cpu_fft) = length;
+    std::get<1>(last_cpu_fft) = nbatch;
+    std::get<2>(last_cpu_fft) = precision;
+    std::get<3>(last_cpu_fft) = transformType;
+    std::get<4>(last_cpu_fft) = ret;
+
+    return std::move(ret);
+}
+
 int main(int argc, char* argv[])
 {
     // NB: If we initialize gtest first, then it removes all of its own command-line
@@ -216,75 +357,7 @@ TEST(manual, vs_fftw)
     check_set_iotypes(place, transformType, itype, otype);
     print_params(length, istride, istride, nbatch, place, precision, transformType, itype, otype);
 
-    const size_t dim = length.size();
-
-    // Input cpu parameters:
-    auto ilength = length;
-    if(transformType == rocfft_transform_type_real_inverse)
-        ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
-    const auto cpu_istride = compute_stride(ilength);
-    const auto cpu_itype   = contiguous_itype(transformType);
-    const auto cpu_idist
-        = set_idist(rocfft_placement_notinplace, transformType, length, cpu_istride);
-
-    // Output cpu parameters:
-    auto olength = length;
-    if(transformType == rocfft_transform_type_real_forward)
-        olength[dim - 1] = olength[dim - 1] / 2 + 1;
-    const auto cpu_ostride = compute_stride(olength);
-    const auto cpu_odist
-        = set_odist(rocfft_placement_notinplace, transformType, length, cpu_ostride);
-    auto cpu_otype = contiguous_otype(transformType);
-    // Generate the data:
-    auto cpu_input = compute_input<fftwAllocator<char>>(
-        precision, cpu_itype, length, cpu_istride, cpu_idist, nbatch);
-    auto cpu_input_copy = cpu_input; // copy of input (might get overwritten by FFTW).
-
-    // Compute the Linfinity and L2 norm of the CPU output:
-    auto cpu_input_norm
-        = norm(cpu_input, ilength, nbatch, precision, cpu_itype, cpu_istride, cpu_idist);
-    if(verbose > 2)
-    {
-        std::cout << "CPU Input Linf norm:  " << cpu_input_norm.l_inf << "\n";
-        std::cout << "CPU Input L2 norm:    " << cpu_input_norm.l_2 << "\n";
-    }
-    ASSERT_TRUE(std::isfinite(cpu_input_norm.l_inf));
-    ASSERT_TRUE(std::isfinite(cpu_input_norm.l_2));
-
-    if(verbose > 3)
-    {
-        std::cout << "CPU input:\n";
-        printbuffer(precision, cpu_itype, cpu_input, ilength, cpu_istride, nbatch, cpu_idist);
-    }
-
-    // FFTW computation
-    // NB: FFTW may overwrite input, even for out-of-place transforms.
-    auto cpu_output = fftw_via_rocfft(length,
-                                      cpu_istride,
-                                      cpu_ostride,
-                                      nbatch,
-                                      cpu_idist,
-                                      cpu_odist,
-                                      precision,
-                                      transformType,
-                                      cpu_input);
-
-    // Compute the Linfinity and L2 norm of the CPU output:
-    auto cpu_output_norm
-        = norm(cpu_output, olength, nbatch, precision, cpu_otype, cpu_ostride, cpu_odist);
-    if(verbose > 2)
-    {
-        std::cout << "CPU Output Linf norm: " << cpu_output_norm.l_inf << "\n";
-        std::cout << "CPU Output L2 norm:   " << cpu_output_norm.l_2 << "\n";
-    }
-    if(verbose > 3)
-    {
-        std::cout << "CPU output:\n";
-        printbuffer(precision, cpu_otype, cpu_output, olength, cpu_ostride, nbatch, cpu_odist);
-    }
-    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_inf));
-    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_2));
-    std::cout << std::flush;
+    auto cpu = accuracy_test::compute_cpu_fft(length, nbatch, precision, transformType);
 
     rocfft_transform(length,
                      istride,
@@ -295,14 +368,22 @@ TEST(manual, vs_fftw)
                      itype,
                      otype,
                      place,
-                     cpu_istride,
-                     cpu_ostride,
-                     cpu_idist,
-                     cpu_odist,
-                     cpu_itype,
-                     cpu_otype,
-                     cpu_input_copy,
-                     cpu_output,
+                     cpu.istride,
+                     cpu.ostride,
+                     cpu.idist,
+                     cpu.odist,
+                     cpu.itype,
+                     cpu.otype,
+                     cpu.input,
+                     cpu.output,
                      ramgb,
-                     cpu_output_norm);
+                     cpu.output_norm);
+
+    auto cpu_input_norm = cpu.input_norm.get();
+    ASSERT_TRUE(std::isfinite(cpu_input_norm.l_2));
+    ASSERT_TRUE(std::isfinite(cpu_input_norm.l_inf));
+
+    auto cpu_output_norm = cpu.output_norm.get();
+    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_2));
+    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_inf));
 }
