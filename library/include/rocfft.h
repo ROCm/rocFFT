@@ -67,6 +67,7 @@ typedef enum rocfft_status_e
     rocfft_status_invalid_strides,
     rocfft_status_invalid_distance,
     rocfft_status_invalid_offset,
+    rocfft_status_invalid_work_buffer,
 } rocfft_status;
 
 /*! @brief Type of transform */

@@ -55,6 +55,8 @@ rocfft_status rocfft_execution_info_set_work_buffer(rocfft_execution_info info,
 {
     log_trace(
         __func__, "info", info, "work_buffer", work_buffer, "work_buffer_size", work_buffer_size);
+    if(!work_buffer)
+        return rocfft_status_invalid_work_buffer;
     info->workBufferSize = work_buffer_size;
     info->workBuffer     = work_buffer;
 
@@ -86,10 +88,8 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
 
     if(execPlan.workBufSize > 0)
     {
-#ifndef __NVCC__
-        assert(info != nullptr);
-#endif
-        assert(info->workBufferSize >= (execPlan.workBufSize * 2 * plan->base_type_size));
+        if(!info || info->workBufferSize < execPlan.workBufSize * 2 * plan->base_type_size)
+            return rocfft_status_invalid_work_buffer;
     }
 
     TransformPowX(execPlan,

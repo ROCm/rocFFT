@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include "gpubuf.h"
 #include "hip/hip_runtime_api.h"
 #include "hip/hip_vector_types.h"
 #include "private.h"
@@ -263,4 +264,99 @@ TEST(rocfft_UnitTest, log_multithreading)
         bool res = std::regex_match(line, validator);
         ASSERT_TRUE(res) << "line contains invalid content: " << line;
     }
+}
+
+// a function that accepts a plan's requested size on input, and
+// returns the size to actually allocate for the test
+typedef std::function<size_t(size_t)> workmem_sizer;
+
+void workmem_test(workmem_sizer sizer,
+                  rocfft_status exec_status_expected,
+                  bool          give_null_work_buf = false)
+{
+    rocfft_setup();
+
+    // choose a length that should require a transpose (and hence
+    // work memory)
+    size_t      length = 8192;
+    rocfft_plan plan   = NULL;
+
+    ASSERT_EQ(rocfft_plan_create(&plan,
+                                 rocfft_placement_inplace,
+                                 rocfft_transform_type_complex_forward,
+                                 rocfft_precision_single,
+                                 1,
+                                 &length,
+                                 1,
+                                 nullptr),
+              rocfft_status_success);
+
+    size_t requested_work_size = 0;
+    ASSERT_EQ(rocfft_plan_get_work_buffer_size(plan, &requested_work_size), rocfft_status_success);
+    ASSERT_GT(requested_work_size, 0);
+
+    rocfft_execution_info info;
+    ASSERT_EQ(rocfft_execution_info_create(&info), rocfft_status_success);
+
+    size_t alloc_work_size = sizer(requested_work_size);
+    gpubuf work_buffer;
+    if(alloc_work_size)
+    {
+        work_buffer.alloc(alloc_work_size);
+
+        void*         work_buffer_ptr;
+        rocfft_status set_work_expected_status;
+        if(give_null_work_buf)
+        {
+            work_buffer_ptr          = nullptr;
+            set_work_expected_status = rocfft_status_invalid_work_buffer;
+        }
+        else
+        {
+            work_buffer_ptr          = work_buffer.data();
+            set_work_expected_status = rocfft_status_success;
+        }
+        ASSERT_EQ(rocfft_execution_info_set_work_buffer(info, work_buffer_ptr, alloc_work_size),
+                  set_work_expected_status);
+    }
+
+    // allocate 2x length for complex
+    std::vector<float> data_host(length * 2, 1.0f);
+    gpubuf             data_device;
+    auto               data_size_bytes = data_host.size() * sizeof(float);
+
+    data_device.alloc(data_size_bytes);
+    hipMemcpy(data_device.data(), data_host.data(), data_size_bytes, hipMemcpyHostToDevice);
+    std::vector<void*> ibuffers(1, static_cast<void*>(data_device.data()));
+
+    ASSERT_EQ(rocfft_execute(plan, ibuffers.data(), nullptr, info), exec_status_expected);
+
+    rocfft_execution_info_destroy(info);
+    rocfft_plan_destroy(plan);
+    rocfft_cleanup();
+}
+
+// check what happens if work memory is required but is not provided
+TEST(rocfft_UnitTest, workmem_missing)
+{
+    workmem_test([](size_t) { return 0; }, rocfft_status_invalid_work_buffer);
+}
+
+// check what happens if work memory is required but not enough is provided
+TEST(rocfft_UnitTest, workmem_small)
+{
+    workmem_test([](size_t requested) { return requested / 2; }, rocfft_status_invalid_work_buffer);
+}
+
+// hard to imagine this being a problem, but try giving too much as well
+TEST(rocfft_UnitTest, workmem_big)
+{
+    workmem_test([](size_t requested) { return requested * 2; }, rocfft_status_success);
+}
+
+// check if a user explicitly gives a null pointer
+TEST(rocfft_UnitTest, workmem_null)
+{
+    workmem_test(
+        [](size_t requested) { return requested; }, rocfft_status_invalid_work_buffer, true);
 }
