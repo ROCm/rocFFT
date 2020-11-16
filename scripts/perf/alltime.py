@@ -8,6 +8,7 @@ import os
 import re # regexp package
 import shutil
 import tempfile
+from html_report import graph_dirs
 
 usage = '''A timing script to generate perf data and plot for major fft 1D/2D/3D cases
 
@@ -32,6 +33,7 @@ Usage:
 \t\t-N          Number of samples (default: 10)
 \t\t-D          dims to test. default: 1,2,3
 \t\t-R          runtype: report benchmark or efficiency
+\t\t-F          filename to read problem sizes from
 '''
 
 def nextpow(val, radix):
@@ -78,7 +80,7 @@ class rundata:
         outfile = os.path.join(odir, outfile)
         return outfile
         
-    def runcmd(self, nsample, inlist, outdirlist, dloadexe):
+    def runcmd(self, nsample, inlist, outdirlist, dloadexe, problem_file):
         cmd = [os.path.join(sys.path[0],"timing.py")]
 
         if dloadexe == None:
@@ -134,15 +136,19 @@ class rundata:
         
         if self.ffttype == "r2c":
             cmd.append("-R")
-            
+
+        if problem_file:
+            cmd.append("-F")
+            cmd.append(problem_file)
+
         return cmd
 
-    def executerun(self, nsample, inlist, outdirlist, dloadexe):
+    def executerun(self, nsample, inlist, outdirlist, dloadexe, problem_file):
         fout = tempfile.TemporaryFile(mode="w+")
         ferr = tempfile.TemporaryFile(mode="w+")
 
         if dloadexe != None:
-            cmd = self.runcmd(nsample, inlist, outdirlist, dloadexe)
+            cmd = self.runcmd(nsample, inlist, outdirlist, dloadexe, problem_file)
             print(" ".join(cmd))
             proc = subprocess.Popen(cmd,
                                     stdout=fout, stderr=ferr,
@@ -158,7 +164,7 @@ class rundata:
         else:
             for idx in range(min(len(inlist), len(outdirlist))):
                 print(idx, ":", inlist[idx], "->", outdirlist[idx], flush=True)
-                cmd = self.runcmd(nsample, [inlist[idx]], [outdirlist[idx]], None)
+                cmd = self.runcmd(nsample, [inlist[idx]], [outdirlist[idx]], None, problem_file)
                 print(" ".join(cmd))
                 proc = subprocess.Popen(cmd,
                                         stdout=fout, stderr=ferr,
@@ -685,9 +691,10 @@ def main(argv):
     rundims = [1,2,3]
     runtype = "benchmark"
     secondtype = "none"
+    problem_file = None
     
     try:
-        opts, args = getopt.getopt(argv,"hb:D:f:Tt:i:o:l:S:sg:d:N:R:w:y:")
+        opts, args = getopt.getopt(argv,"hb:D:f:Tt:i:o:l:S:sg:d:N:R:w:y:F:")
     except getopt.GetoptError:
         print("error in parsing arguments.")
         print(usage)
@@ -755,6 +762,8 @@ def main(argv):
                 print(usage)
                 sys.exit(1)
             docformat = arg
+        elif opt in ("-F"):
+            problem_file = arg
 
     print("rundims:")
     print(rundims)
@@ -854,7 +863,12 @@ def main(argv):
         # Run the tests and put output in the outdirs:
         for run in fig.runs:
             if not dryrun:
-                run.executerun(nsample, inlist, outdirlist, dloadexe)
+                run.executerun(nsample, inlist, outdirlist, dloadexe, problem_file)
+            # HACK: problem file should have all the problem sizes
+            # that need running, so just one execution should produce
+            # all the data we need
+            if problem_file:
+                break
 
         # Compile the data in the outdirs into figures in docdir:
         ncompare = len(inlist) if speedup else 0
@@ -864,10 +878,17 @@ def main(argv):
         fig.executeasy(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2)
 
     # Make the document in docdir:
-    if docformat == "pdf":
-        maketex(figs, docdir, outdirlist, labellist, nsample, secondtype)
-    if docformat == "docx":
-        makedocx(figs, docdir, nsample, secondtype)
+    #
+    # HACK: problem file implies html report
+    if problem_file:
+        # FIXME: handle more than 2 outdirs?
+        graph_dirs(outdirlist[0], outdirlist[1], problem_file, docdir)
+    else:
+        # otherwise, make other doc types using asymptote figs
+        if docformat == "pdf":
+            maketex(figs, docdir, outdirlist, labellist, nsample, secondtype)
+        if docformat == "docx":
+            makedocx(figs, docdir, nsample, secondtype)
 
     print("Finished!  Output in " + docdir)
 

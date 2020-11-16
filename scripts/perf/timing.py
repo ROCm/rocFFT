@@ -32,6 +32,7 @@ Usage:
 \t\t-f <string> precision: float(default) or double
 \t\t-b <int>    batch size
 \t\t-g <int>    device number
+\t\t-F <file>   filename to read problem sizes from
 '''
 
 
@@ -141,7 +142,40 @@ def runcase(prog,
     fout.close()
     
     return vals
-    
+
+# generates a set of lengths starting from the x,y,z min, up to the
+# x,y,z max, increasing by specified radix
+def radix_size_generator(xmin, ymin, zmin,
+                         xmax, ymax, zmax,
+                         dimension, radix):
+    xval = xmin
+    yval = ymin
+    zval = zmin
+    while(xval <= xmax and yval <= ymax and zval <= zmax):
+        length = [xval]
+        if dimension > 1:
+            length.append(yval)
+        if dimension > 2:
+            length.append(zval)
+        yield length
+
+        xval *= radix
+        if dimension > 1:
+            yval *= radix
+        if dimension > 2:
+            zval *= radix
+
+# generate problem sizes from the specified file.  file should have
+# comma-separated dimensions like
+#
+# 8,16
+# 256,256,64
+def problem_file_size_generator(problem_file, dimension):
+    f = open(problem_file, 'r')
+    for line in f:
+        length = [int(x) for x in line.split(',')]
+        if len(length) == dimension:
+            yield length
 
 def main(argv):
     # Options to determine which binary is to be run:
@@ -170,9 +204,10 @@ def main(argv):
     zmax = 1024
     radix = 2
     nbatch = 1
+    problem_file = None
 
     try:
-        opts, args = getopt.getopt(argv,"hb:d:i:D:IN:o:Rw:x:X:y:Y:z:Z:f:r:g:")
+        opts, args = getopt.getopt(argv,"hb:d:i:D:IN:o:Rw:x:X:y:Y:z:Z:f:r:g:F:")
     except getopt.GetoptError:
         print("error in parsing arguments.")
         print(usage)
@@ -233,6 +268,8 @@ def main(argv):
             nbatch = int(arg)
         elif opt in ("-r"):
             radix = int(arg)
+        elif opt in ("-F"):
+            problem_file = arg
 
     dload = len(libdir) > 0
             
@@ -292,20 +329,14 @@ def main(argv):
         outfile.write(metadatastring)
         outfile.close()
 
-    maxtrial = ntrial * xmax * ymax * zmax
-            
-    xval = xmin
-    yval = ymin
-    zval = zmin
-    while(xval <= xmax and yval <= ymax and zval <= zmax):
-        print(xval)
+    if problem_file:
+        length_gen = problem_file_size_generator(problem_file, dimension)
+    else:
+        length_gen = radix_size_generator(xmin, ymin, zmin,
+                                          xmax, ymax, zmax,
+                                          dimension, radix)
 
-        length = [xval]
-        if dimension > 1:
-            length.append(yval)
-        if dimension > 2:
-            length.append(zval)
-        #N = max(ntrial, min(maxtrial // (xval * yval * zval), 20)) # FIXME: set upper bound to higher
+    for length in length_gen:
         N = ntrial
         print(N)
             
@@ -318,14 +349,8 @@ def main(argv):
             with open(outfilename[idx], 'a') as outfile:
                 outfile.write(str(dimension))
                 outfile.write("\t")
-                outfile.write(str(xval))
+                outfile.write("\t".join([str(val) for val in length]))
                 outfile.write("\t")
-                if(dimension > 1):
-                    outfile.write(str(yval))
-                    outfile.write("\t")
-                if(dimension > 2):
-                    outfile.write(str(zval))
-                    outfile.write("\t")
                 outfile.write(str(nbatch))
                 outfile.write("\t")
                 outfile.write(str(len(seconds[idx])))
@@ -333,13 +358,6 @@ def main(argv):
                     outfile.write("\t")
                     outfile.write(str(second))
                 outfile.write("\n")
-
-        xval *= radix
-        if dimension > 1:
-            yval *= radix
-        if dimension > 2:
-            zval *= radix
-        
     
     
 if __name__ == "__main__":
