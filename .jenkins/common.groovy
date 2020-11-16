@@ -7,6 +7,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
 
     String compiler = jobName.contains('hipclang') ? 'hipcc' : 'hcc'
     String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_BENCHMARKS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON'
+    String warningArgs = '-DDISABLE_WERROR=OFF'
     String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DDEBUG_PLAN_OUTPUT=OFF' : '-DCMAKE_BUILD_TYPE=Release'
     String buildTypeDir = debug ? 'debug' : 'release'
     String staticArg = buildStatic ? '-DBUILD_SHARED_LIBS=off' : ''
@@ -29,7 +30,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
 
                 cd ${project.paths.project_build_prefix}
                 mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
-                ${sudo} ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/${compiler} ${buildTypeArg} ${clientArgs} ${hipClangArgs} ${staticArg} ../..
+                ${sudo} ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/${compiler} ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ${staticArg} ../..
                 ${sudo} make -j\$(nproc)
             """
     platform.runCommand(this, command)

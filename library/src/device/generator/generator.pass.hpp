@@ -36,8 +36,8 @@ namespace StockhamGenerator
         // this number will be different from the kernel class workGroupSize if there
         // are multiple transforms per workgroup
 
-        size_t numButterfly; // Number of basic FFT butterflies = (cnPerWI / radix)
-        size_t numB1, numB2, numB4; // number of different types of butterflies
+        size_t numButterfly = 0; // Number of basic FFT butterflies = (cnPerWI / radix)
+        size_t numB1 = 0, numB2 = 0, numB4 = 0; // number of different types of butterflies
 
         bool r2c; // real to complex transform
         bool c2r; // complex to real transform
@@ -46,13 +46,13 @@ namespace StockhamGenerator
 
         bool realSpecial; // controls related to large1D real FFTs.
 
-        bool      enableGrouping;
+        bool      enableGrouping = true;
         bool      linearRegs; // scalar registers (non-vectorized registers) to be used
         bool      halfLds; // only half the LDS of a complex length need to be used
-        Pass<PR>* nextPass;
+        Pass<PR>* nextPass = nullptr;
 
-        bool fft_doPreCallback; // two call back variable
-        bool fft_doPostCallback;
+        bool fft_doPreCallback  = false; // two call back variable
+        bool fft_doPostCallback = false;
 
         inline void RegBase(size_t regC, std::string& str) const
         {
@@ -1610,26 +1610,19 @@ namespace StockhamGenerator
              bool   rcSimpleVal,
              bool   realSpecialVal)
             : position(positionVal)
-            , length(lengthVal)
-            , radix(radixVal)
-            , cnPerWI(cnPerWIVal)
             , algL(L)
             , algLS(LS)
             , algR(R)
-            , linearRegs(linearRegsVal)
-            , halfLds(halfLdsVal)
+            , length(lengthVal)
+            , radix(radixVal)
+            , cnPerWI(cnPerWIVal)
             , r2c(r2cVal)
             , c2r(c2rVal)
             , rcFull(rcFullVal)
             , rcSimple(rcSimpleVal)
             , realSpecial(realSpecialVal)
-            , enableGrouping(true)
-            , numB1(0)
-            , numB2(0)
-            , numB4(0)
-            , nextPass(NULL)
-            , fft_doPreCallback(false)
-            , fft_doPostCallback(false)
+            , linearRegs(linearRegsVal)
+            , halfLds(halfLdsVal)
         {
             assert(radix <= length);
             assert(length % radix == 0);

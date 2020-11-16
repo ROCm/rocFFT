@@ -101,63 +101,38 @@ inline size_t FindBlue(size_t len)
 
 struct rocfft_plan_description_t
 {
+    rocfft_array_type inArrayType  = rocfft_array_type_complex_interleaved;
+    rocfft_array_type outArrayType = rocfft_array_type_complex_interleaved;
 
-    rocfft_array_type inArrayType, outArrayType;
+    std::array<size_t, 3> inStrides  = {0, 0, 0};
+    std::array<size_t, 3> outStrides = {0, 0, 0};
 
-    std::array<size_t, 3> inStrides;
-    std::array<size_t, 3> outStrides;
+    size_t inDist  = 0;
+    size_t outDist = 0;
 
-    size_t inDist;
-    size_t outDist;
+    std::array<size_t, 2> inOffset  = {0, 0};
+    std::array<size_t, 2> outOffset = {0, 0};
 
-    std::array<size_t, 2> inOffset;
-    std::array<size_t, 2> outOffset;
+    double scale = 1.0;
 
-    double scale;
-
-    rocfft_plan_description_t()
-    {
-        inArrayType  = rocfft_array_type_complex_interleaved;
-        outArrayType = rocfft_array_type_complex_interleaved;
-
-        inStrides.fill(0);
-        outStrides.fill(0);
-
-        inDist  = 0;
-        outDist = 0;
-
-        inOffset.fill(0);
-        outOffset.fill(0);
-
-        scale = 1.0;
-    }
+    rocfft_plan_description_t() = default;
 };
 
 struct rocfft_plan_t
 {
-    size_t                rank;
-    std::array<size_t, 3> lengths;
-    size_t                batch;
+    size_t                rank    = 1;
+    std::array<size_t, 3> lengths = {1, 1, 1};
+    size_t                batch   = 1;
 
-    rocfft_result_placement placement;
-    rocfft_transform_type   transformType;
-    rocfft_precision        precision;
-    int                     padding; // it is only for 8 bytes alignment
-    size_t                  base_type_size;
+    rocfft_result_placement placement      = rocfft_placement_inplace;
+    rocfft_transform_type   transformType  = rocfft_transform_type_complex_forward;
+    rocfft_precision        precision      = rocfft_precision_single;
+    int                     padding        = 0; // it is only for 8 bytes alignment
+    size_t                  base_type_size = sizeof(float);
 
     rocfft_plan_description_t desc;
 
-    rocfft_plan_t()
-        : placement(rocfft_placement_inplace)
-        , rank(1)
-        , batch(1)
-        , transformType(rocfft_transform_type_complex_forward)
-        , precision(rocfft_precision_single)
-        , base_type_size(sizeof(float))
-        , padding(0)
-    {
-        lengths.fill(1);
-    }
+    rocfft_plan_t() = default;
 
     bool operator<(const rocfft_plan_t& b) const
     {

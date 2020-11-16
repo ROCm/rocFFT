@@ -106,19 +106,6 @@ private:
     // Disallow public creation
     TreeNode(TreeNode* p)
         : parent(p)
-        , scheme(CS_NONE)
-        , obIn(OB_UNINIT)
-        , obOut(OB_UNINIT)
-        , large1D(0)
-        , lengthBlue(0)
-        , iDist(0)
-        , oDist(0)
-        , iOffset(0)
-        , oOffset(0)
-        , pairdim(0)
-        , transTileDir(TTD_IP_HOR)
-        , inArrayType(rocfft_array_type_unset)
-        , outArrayType(rocfft_array_type_unset)
     {
         if(p != nullptr)
         {
@@ -140,11 +127,11 @@ private:
 
 public:
     // Batch size
-    size_t batch;
+    size_t batch = 1;
 
     // Transform dimension - note this can be different from data dimension, user
     // provided
-    size_t dimension;
+    size_t dimension = 1;
 
     // Length of the FFT in each dimension, internal value
     std::vector<size_t> length;
@@ -153,40 +140,41 @@ public:
     std::vector<size_t> inStride, outStride;
 
     // Distance between consecutive batch members:
-    size_t iDist, oDist;
+    size_t iDist = 0, oDist = 0;
 
     // Offsets to start of data in buffer:
-    size_t iOffset, oOffset;
+    size_t iOffset = 0, oOffset = 0;
 
     // The paried dimension for real/complex paired transforms.
-    size_t pairdim;
+    size_t pairdim = 0;
 
     // Direction of the transform (-1: forward, +1: inverse)
-    int direction;
+    int direction = -1;
 
     // Data format parameters:
-    rocfft_result_placement placement;
-    rocfft_precision        precision;
-    rocfft_array_type       inArrayType, outArrayType;
+    rocfft_result_placement placement    = rocfft_placement_inplace;
+    rocfft_precision        precision    = rocfft_precision_single;
+    rocfft_array_type       inArrayType  = rocfft_array_type_unset;
+    rocfft_array_type       outArrayType = rocfft_array_type_unset;
 
     // Extra twiddle multiplication for large 1D
-    size_t large1D;
+    size_t large1D = 0;
 
     // Tree structure:
     // non-owning pointer to parent node, may be null
-    TreeNode* parent;
+    TreeNode* parent = nullptr;
     // owned pointers to children
     std::vector<std::unique_ptr<TreeNode>> childNodes;
 
     // FIXME: document
-    ComputeScheme   scheme;
-    OperatingBuffer obIn, obOut;
+    ComputeScheme   scheme = CS_NONE;
+    OperatingBuffer obIn = OB_UNINIT, obOut = OB_UNINIT;
 
     // FIXME: document
-    TransTileDir transTileDir;
+    TransTileDir transTileDir = TTD_IP_HOR;
 
     // FIXME: document
-    size_t lengthBlue;
+    size_t lengthBlue = 0;
 
     // Device pointers:
     gpubuf           twiddles;

@@ -191,10 +191,10 @@ namespace StockhamGenerator
         // bool combineReadTwMul;                    // TODO: Combine reading into
         // registers and Twiddle multiply
 
-        bool r2c2r; // real to complex or complex to real transform
-        bool r2c, c2r;
-        bool rcFull;
-        bool rcSimple;
+        bool r2c2r = false; // real to complex or complex to real transform
+        bool r2c = false, c2r = false;
+        bool rcFull   = false;
+        bool rcSimple = false;
 
         bool blockCompute; // When we have to compute FFT in blocks (either read or
         // write is along columns, optimization in radix-2 FFTs)
@@ -1724,8 +1724,6 @@ namespace StockhamGenerator
 
         Kernel(const FFTKernelGenKeyParams& paramsVal)
             : params(paramsVal)
-            , r2c2r(false)
-
         {
 
             /* in principle, the fft_N should be passed as a run-time parameter to
@@ -1739,8 +1737,6 @@ namespace StockhamGenerator
             blockComputeType = params.blockComputeType;
             name_suffix      = params.name_suffix;
 
-            r2c = false;
-            c2r = false;
             // Check if it is R2C or C2R transform
             if(params.fft_inputLayout == rocfft_array_type_real)
                 r2c = true;

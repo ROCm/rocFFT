@@ -111,6 +111,14 @@ option( BUILD_CPUREF "Build CPU reference debug code" OFF )
 # such that it shows in cmake-gui
 option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" ON )
 
+option( WERROR "Treat warnings as errors" OFF )
+
+if( WERROR )
+  set( WARNING_FLAGS -Wall -Wno-unused-function -Werror )
+else( )
+  set( WARNING_FLAGS -Wall -Wno-unused-function )
+endif( )
+
 # force library install path to lib (CentOS 7 defaults to lib64)
 set(CMAKE_INSTALL_LIBDIR "lib" CACHE INTERNAL
   "Installation directory for libraries" FORCE)
