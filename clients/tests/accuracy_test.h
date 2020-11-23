@@ -23,25 +23,20 @@
 #ifndef ACCURACY_TEST
 #define ACCURACY_TEST
 
+#include <algorithm>
+#include <future>
+#include <iterator>
+#include <vector>
+
 #include "../client_utils.h"
 #include "fftw_transform.h"
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
-#include <future>
-#include <vector>
 
 typedef std::vector<std::vector<char, fftwAllocator<char>>> fftw_data_t;
 
 // Compute the rocFFT transform and verify the accuracy against the provided CPU data.
-void rocfft_transform(const std::vector<size_t>&            length,
-                      const std::vector<size_t>&            istride,
-                      const std::vector<size_t>&            ostride,
-                      const size_t                          nbatch,
-                      const rocfft_precision                precision,
-                      const rocfft_transform_type           transformType,
-                      const rocfft_array_type               itype,
-                      const rocfft_array_type               otype,
-                      const rocfft_result_placement         place,
+void rocfft_transform(const rocfft_params&                  params,
                       const std::vector<size_t>&            cpu_istride,
                       const std::vector<size_t>&            cpu_ostride,
                       const size_t                          cpu_idist,
@@ -52,99 +47,6 @@ void rocfft_transform(const std::vector<size_t>&            length,
                       const std::shared_future<fftw_data_t> cpu_output,
                       const size_t                          ramgb,
                       const std::shared_future<VectorNorms> cpu_output_norm);
-
-// Print the test parameters
-inline void print_params(const std::vector<size_t>&    length,
-                         const std::vector<size_t>&    istride,
-                         const std::vector<size_t>&    ostride,
-                         const size_t                  nbatch,
-                         const rocfft_result_placement place,
-                         const rocfft_precision        precision,
-                         const rocfft_transform_type   transformType,
-                         const rocfft_array_type       itype,
-                         const rocfft_array_type       otype)
-{
-    std::cout << "length:";
-    for(const auto& i : length)
-        std::cout << " " << i;
-    std::cout << "\n";
-    std::cout << "istride:";
-    for(const auto& i : istride)
-        std::cout << " " << i;
-    std::cout << "\n";
-    std::cout << "ostride:";
-    for(const auto& i : ostride)
-        std::cout << " " << i;
-    std::cout << "\n";
-    std::cout << "nbatch: " << nbatch << "\n";
-    if(place == rocfft_placement_inplace)
-        std::cout << "in-place\n";
-    else
-        std::cout << "out-of-place\n";
-    if(precision == rocfft_precision_single)
-        std::cout << "single-precision\n";
-    else
-        std::cout << "double-precision\n";
-    switch(transformType)
-    {
-    case rocfft_transform_type_complex_forward:
-        std::cout << "complex forward:\t";
-        break;
-    case rocfft_transform_type_complex_inverse:
-        std::cout << "complex inverse:\t";
-        break;
-    case rocfft_transform_type_real_forward:
-        std::cout << "real forward:\t";
-        break;
-    case rocfft_transform_type_real_inverse:
-        std::cout << "real inverse:\t";
-        break;
-    }
-    switch(itype)
-    {
-    case rocfft_array_type_complex_interleaved:
-        std::cout << "rocfft_array_type_complex_interleaved";
-        break;
-    case rocfft_array_type_complex_planar:
-        std::cout << "rocfft_array_type_complex_planar";
-        break;
-    case rocfft_array_type_real:
-        std::cout << "rocfft_array_type_real";
-        break;
-    case rocfft_array_type_hermitian_interleaved:
-        std::cout << "rocfft_array_type_hermitian_interleaved";
-        break;
-    case rocfft_array_type_hermitian_planar:
-        std::cout << "rocfft_array_type_hermitian_planar";
-        break;
-    case rocfft_array_type_unset:
-        std::cout << "rocfft_array_type_unset";
-        break;
-    }
-    std::cout << " -> ";
-    switch(otype)
-    {
-    case rocfft_array_type_complex_interleaved:
-        std::cout << "rocfft_array_type_complex_interleaved";
-        break;
-    case rocfft_array_type_complex_planar:
-        std::cout << "rocfft_array_type_complex_planar";
-        break;
-    case rocfft_array_type_real:
-        std::cout << "rocfft_array_type_real";
-        break;
-    case rocfft_array_type_hermitian_interleaved:
-        std::cout << "rocfft_array_type_hermitian_interleaved";
-        break;
-    case rocfft_array_type_hermitian_planar:
-        std::cout << "rocfft_array_type_hermitian_planar";
-        break;
-    case rocfft_array_type_unset:
-        std::cout << "rocfft_array_type_unset";
-        break;
-    }
-    std::cout << std::endl;
-}
 
 typedef std::
     tuple<rocfft_transform_type, rocfft_result_placement, rocfft_array_type, rocfft_array_type>
@@ -163,8 +65,12 @@ protected:
     void TearDown() override {}
 
 public:
-    struct cpu_fft_data
+    struct cpu_fft_params
     {
+        std::vector<size_t>   length;
+        size_t                nbatch;
+        rocfft_precision      precision;
+        rocfft_transform_type transform_type;
 
         // Input cpu parameters:
         std::vector<size_t> ilength;
@@ -183,17 +89,53 @@ public:
         std::shared_future<fftw_data_t> output;
         std::shared_future<VectorNorms> output_norm;
 
-        cpu_fft_data()                    = default;
-        cpu_fft_data(cpu_fft_data&&)      = default;
-        cpu_fft_data(const cpu_fft_data&) = default;
-        cpu_fft_data& operator=(const cpu_fft_data&) = default;
-        ~cpu_fft_data()                              = default;
+        cpu_fft_params()                      = default;
+        cpu_fft_params(cpu_fft_params&&)      = default;
+        cpu_fft_params(const cpu_fft_params&) = default;
+        cpu_fft_params(const rocfft_params& rocparams)
+        {
+            itype = rocparams.itype;
+            otype = rocparams.otype;
+
+            idist = rocparams.idist;
+            odist = rocparams.odist;
+
+            istride = rocparams.istride;
+            std::reverse(std::begin(istride), std::end(istride));
+            ostride = rocparams.ostride;
+            std::reverse(std::begin(ostride), std::end(ostride));
+
+            const auto dim = rocparams.length.size();
+
+            ilength = rocparams.length;
+            if(rocparams.transform_type == rocfft_transform_type_real_inverse)
+            {
+                ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
+            }
+            std::reverse(std::begin(ilength), std::end(ilength));
+
+            olength = rocparams.length;
+            if(rocparams.transform_type == rocfft_transform_type_real_forward)
+            {
+                olength[dim - 1] = olength[dim - 1] / 2 + 1;
+            }
+            std::reverse(std::begin(olength), std::end(olength));
+        }
+        cpu_fft_params& operator=(const cpu_fft_params&) = default;
+        ~cpu_fft_params()                                = default;
     };
-    static cpu_fft_data compute_cpu_fft(const std::vector<size_t>& length,
-                                        size_t                     nbatch,
-                                        rocfft_precision           precision,
-                                        rocfft_transform_type      transformType);
+    static cpu_fft_params compute_cpu_fft(const std::vector<size_t>& length,
+                                          size_t                     nbatch,
+                                          rocfft_precision           precision,
+                                          rocfft_transform_type      transformType);
 };
+
+extern std::tuple<std::vector<size_t>,
+                  size_t,
+                  rocfft_precision,
+                  rocfft_transform_type,
+                  accuracy_test::cpu_fft_params>
+    last_cpu_fft;
 
 const static std::vector<size_t> batch_range = {2, 1};
 

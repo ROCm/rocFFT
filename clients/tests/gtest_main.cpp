@@ -32,173 +32,31 @@
 #include "fftw_transform.h"
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
-#include "test_constants.h"
+#include "test_params.h"
 
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
 // Control output verbosity:
-int verbose = 0;
+int verbose;
 
-// Parameters for single manual test:
-
-// Transform type parameters:
-rocfft_transform_type   transformType;
-rocfft_array_type       itype;
-rocfft_array_type       otype;
-size_t                  nbatch = 1;
-rocfft_result_placement place;
-rocfft_precision        precision;
-std::vector<size_t>     length;
-std::vector<size_t>     istride;
-std::vector<size_t>     ostride;
+// Transform parameters for manual test:
+rocfft_params manual_params;
 
 // Ram limitation for tests (GB).
-size_t ramgb = 0;
+size_t ramgb;
 
 // Control whether we use FFTW's wisdom (which we use to imply FFTW_MEASURE).
 bool use_fftw_wisdom = false;
 
-// cache the last cpu fft that was requested - the tuple members
-// correspond to the input and output of compute_cpu_fft
+// Cache the last cpu fft that was requested - the tuple members
+// correspond to the input and output of compute_cpu_fft.
 std::tuple<std::vector<size_t>,
            size_t,
            rocfft_precision,
            rocfft_transform_type,
-           accuracy_test::cpu_fft_data>
+           accuracy_test::cpu_fft_params>
     last_cpu_fft;
-
-accuracy_test::cpu_fft_data accuracy_test::compute_cpu_fft(const std::vector<size_t>& length,
-                                                           size_t                     nbatch,
-                                                           rocfft_precision           precision,
-                                                           rocfft_transform_type      transformType)
-{
-    // check cache first - nbatch is a >= comparison because we compute
-    // the largest batch size and cache it.  smaller batch runs can
-    // compare against the larger data.
-    if(std::get<0>(last_cpu_fft) == length && std::get<2>(last_cpu_fft) == precision
-       && std::get<3>(last_cpu_fft) == transformType)
-    {
-        if(std::get<1>(last_cpu_fft) >= nbatch)
-        {
-            return std::get<4>(last_cpu_fft);
-        }
-        else
-            // something's unexpected with our test order - we should have
-            // generated the bigger batch first.  batch ranges provided to
-            // the test suites need to be in descending order
-            abort();
-    }
-
-    const size_t dim = length.size();
-
-    // Input cpu parameters:
-    auto ilength = length;
-    if(transformType == rocfft_transform_type_real_inverse)
-        ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
-    auto istride = compute_stride(ilength);
-    auto itype   = contiguous_itype(transformType);
-    auto idist   = set_idist(rocfft_placement_notinplace, transformType, length, istride);
-
-    // Output cpu parameters:
-    auto olength = length;
-    if(transformType == rocfft_transform_type_real_forward)
-        olength[dim - 1] = olength[dim - 1] / 2 + 1;
-    auto ostride = compute_stride(olength);
-    auto odist   = set_odist(rocfft_placement_notinplace, transformType, length, ostride);
-    auto otype   = contiguous_otype(transformType);
-
-    if(verbose > 3)
-    {
-        std::cout << "CPU  params:\n";
-        std::cout << "\tilength:";
-        for(auto i : ilength)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tcpu_istride:";
-        for(auto i : istride)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tcpu_idist: " << idist << std::endl;
-
-        std::cout << "\tolength:";
-        for(auto i : olength)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tcpu_ostride:";
-        for(auto i : ostride)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tcpu_odist: " << odist << std::endl;
-    }
-
-    // hook up the futures
-    std::shared_future<fftw_data_t> input = std::async(std::launch::async, [=]() {
-        return compute_input<fftwAllocator<char>>(precision, itype, length, istride, idist, nbatch);
-    });
-
-    if(verbose > 3)
-    {
-        std::cout << "CPU input:\n";
-        printbuffer(precision, itype, input.get(), ilength, istride, nbatch, idist);
-    }
-
-    auto input_norm = std::async(std::launch::async, [=]() {
-        auto ret_norm = norm(input.get(), ilength, nbatch, precision, itype, istride, idist);
-        if(verbose > 2)
-        {
-            std::cout << "CPU Input Linf norm:  " << ret_norm.l_inf << "\n";
-            std::cout << "CPU Input L2 norm:    " << ret_norm.l_2 << "\n";
-        }
-        return ret_norm;
-    });
-
-    std::shared_future<fftw_data_t> output      = std::async(std::launch::async, [=]() {
-        // copy input, as FFTW may overwrite it
-        auto input_copy = input.get();
-        auto output     = fftw_via_rocfft(
-            length, istride, ostride, nbatch, idist, odist, precision, transformType, input_copy);
-        if(verbose > 3)
-        {
-            std::cout << "CPU output:\n";
-            printbuffer(precision, otype, output, olength, ostride, nbatch, odist);
-        }
-        return std::move(output);
-    });
-    std::shared_future<VectorNorms> output_norm = std::async(std::launch::async, [=]() {
-        auto ret_norm = norm(output.get(), olength, nbatch, precision, otype, ostride, odist);
-        if(verbose > 2)
-        {
-            std::cout << "CPU Output Linf norm: " << ret_norm.l_inf << "\n";
-            std::cout << "CPU Output L2 norm:   " << ret_norm.l_2 << "\n";
-        }
-        return ret_norm;
-    });
-
-    cpu_fft_data ret;
-    ret.ilength = ilength;
-    ret.istride = istride;
-    ret.itype   = itype;
-    ret.idist   = idist;
-    ret.olength = olength;
-    ret.ostride = ostride;
-    ret.otype   = otype;
-    ret.odist   = odist;
-
-    ret.input       = std::move(input);
-    ret.input_norm  = std::move(input_norm);
-    ret.output      = std::move(output);
-    ret.output_norm = std::move(output_norm);
-
-    // cache our result
-    std::get<0>(last_cpu_fft) = length;
-    std::get<1>(last_cpu_fft) = nbatch;
-    std::get<2>(last_cpu_fft) = precision;
-    std::get<3>(last_cpu_fft) = transformType;
-    std::get<4>(last_cpu_fft) = ret;
-
-    return std::move(ret);
-}
 
 int main(int argc, char* argv[])
 {
@@ -218,25 +76,25 @@ int main(int argc, char* argv[])
         ("help,h", "produces this help message")
         ("verbose,v",  po::value<int>()->default_value(0),
         "print out detailed information for the tests.")
-        ("transformType,t", po::value<rocfft_transform_type>(&transformType)
+        ("transformType,t", po::value<rocfft_transform_type>(&manual_params.transform_type)
          ->default_value(rocfft_transform_type_complex_forward),
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
          "forward\n3) real inverse")
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
         ("double", "Double precision transform (default: single)")
-        ( "itype", po::value<rocfft_array_type>(&itype)
+        ( "itype", po::value<rocfft_array_type>(&manual_params.itype)
           ->default_value(rocfft_array_type_unset),
           "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
-        ( "otype", po::value<rocfft_array_type>(&otype)
+        ( "otype", po::value<rocfft_array_type>(&manual_params.otype)
           ->default_value(rocfft_array_type_unset),
           "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
-        ("length",  po::value<std::vector<size_t>>(&length)->multitoken(), "Lengths.")
-        ( "batchSize,b", po::value<size_t>(&nbatch)->default_value(1),
+        ("length",  po::value<std::vector<size_t>>(&manual_params.length)->multitoken(), "Lengths.")
+        ( "batchSize,b", po::value<size_t>(&manual_params.nbatch)->default_value(1),
           "If this value is greater than one, arrays will be used ")
-        ("istride",  po::value<std::vector<size_t>>(&istride)->multitoken(), "Input stride.")
-        ("ostride",  po::value<std::vector<size_t>>(&ostride)->multitoken(), "Output stride.")
+        ("istride",  po::value<std::vector<size_t>>(&manual_params.istride)->multitoken(), "Input stride.")
+        ("ostride",  po::value<std::vector<size_t>>(&manual_params.ostride)->multitoken(), "Output stride.")
         ("R", po::value<size_t>(&ramgb)->default_value(0), "Ram limit in GB for tests.")
         ("wise,w", "use FFTW wisdom")
         ("wisdomfile,W",
@@ -253,8 +111,10 @@ int main(int argc, char* argv[])
         std::cout << opdesc << std::endl;
         return 0;
     }
-    place     = vm.count("notInPlace") ? rocfft_placement_notinplace : rocfft_placement_inplace;
-    precision = vm.count("double") ? rocfft_precision_double : rocfft_precision_single;
+    manual_params.placement
+        = vm.count("notInPlace") ? rocfft_placement_notinplace : rocfft_placement_inplace;
+    manual_params.precision
+        = vm.count("double") ? rocfft_precision_double : rocfft_precision_single;
 
     verbose = vm["verbose"].as<int>();
 
@@ -263,21 +123,21 @@ int main(int argc, char* argv[])
         use_fftw_wisdom = true;
     }
 
-    if(length.size() == 0)
+    if(manual_params.length.empty())
     {
-        length.push_back(8);
+        manual_params.length.push_back(8);
         // TODO: add random size?
     }
 
-    if(istride.size() == 0)
+    if(manual_params.istride.empty())
     {
-        istride.push_back(1);
+        manual_params.istride.push_back(1);
         // TODO: add random size?
     }
 
-    if(ostride.size() == 0)
+    if(manual_params.ostride.empty())
     {
-        ostride.push_back(1);
+        manual_params.ostride.push_back(1);
         // TODO: add random size?
     }
 
@@ -354,20 +214,44 @@ TEST(manual, vs_fftw)
     // Run an individual test using the provided command-line parameters.
 
     std::cout << "Manual test:" << std::endl;
-    check_set_iotypes(place, transformType, itype, otype);
-    print_params(length, istride, istride, nbatch, place, precision, transformType, itype, otype);
 
-    auto cpu = accuracy_test::compute_cpu_fft(length, nbatch, precision, transformType);
+    manual_params.istride
+        = compute_stride(manual_params.ilength(),
+                         manual_params.istride,
+                         manual_params.placement == rocfft_placement_inplace
+                             && manual_params.transform_type == rocfft_transform_type_real_forward);
+    manual_params.ostride
+        = compute_stride(manual_params.olength(),
+                         manual_params.ostride,
+                         manual_params.placement == rocfft_placement_inplace
+                             && manual_params.transform_type == rocfft_transform_type_real_inverse);
 
-    rocfft_transform(length,
-                     istride,
-                     ostride,
-                     nbatch,
-                     precision,
-                     transformType,
-                     itype,
-                     otype,
-                     place,
+    manual_params.idist = set_idist(manual_params.placement,
+                                    manual_params.transform_type,
+                                    manual_params.length,
+                                    manual_params.istride);
+    manual_params.odist = set_odist(manual_params.placement,
+                                    manual_params.transform_type,
+                                    manual_params.length,
+                                    manual_params.ostride);
+
+    manual_params.isize = manual_params.nbatch * manual_params.idist;
+    manual_params.osize = manual_params.nbatch * manual_params.odist;
+
+    check_set_iotypes(manual_params.placement,
+                      manual_params.transform_type,
+                      manual_params.itype,
+                      manual_params.otype);
+
+    std::cout << manual_params.str() << std::endl;
+    auto cpu = accuracy_test::compute_cpu_fft(manual_params.length,
+                                              manual_params.nbatch,
+                                              manual_params.precision,
+                                              manual_params.transform_type);
+
+    accuracy_test::cpu_fft_params cpu_params(manual_params);
+
+    rocfft_transform(manual_params,
                      cpu.istride,
                      cpu.ostride,
                      cpu.idist,

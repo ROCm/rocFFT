@@ -288,6 +288,7 @@ int main(int argc, char* argv[])
                                                         ostride_cm.data(),
                                                         odist),
                 "rocfft_plan_description_data_layout failed");
+    assert(desc != NULL);
 
     // Create the plan
     rocfft_plan plan = NULL;

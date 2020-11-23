@@ -22,7 +22,7 @@
 #if !defined(FFTWTRANSFORM_H)
 #define FFTWTRANSFORM_H
 
-#include "test_constants.h"
+#include "test_params.h"
 #include <complex>
 #include <fftw3.h>
 #include <vector>
