@@ -130,6 +130,15 @@ extern int log_trace_fd;
 extern int log_bench_fd;
 extern int log_profile_fd;
 
+/*! \brief Indicates if layer is active with bitmask*/
+typedef enum rocfft_layer_mode_
+{
+    rocfft_layer_mode_none        = 0b0000000000,
+    rocfft_layer_mode_log_trace   = 0b0000000001,
+    rocfft_layer_mode_log_bench   = 0b0000000010,
+    rocfft_layer_mode_log_profile = 0b0000000100,
+} rocfft_layer_mode;
+
 class LogSingleton
 {
 public:
