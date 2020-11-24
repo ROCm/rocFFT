@@ -76,12 +76,13 @@ __device__ inline void post_process_interleaved(const size_t    idx_p,
 // Each thread handles 2 points.
 // When N is divisible by 4, one value is handled separately; this is controlled by Ndiv4.
 template <typename Tcomplex, bool Ndiv4>
-__global__ static void real_post_process_kernel_interleaved_1D(const size_t half_N,
-                                                               const void*  input0,
-                                                               const size_t idist,
-                                                               void*        output0,
-                                                               const size_t odist,
-                                                               const void*  twiddles0)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    real_post_process_kernel_interleaved_1D(const size_t half_N,
+                                            const void*  input0,
+                                            const size_t idist,
+                                            void*        output0,
+                                            const size_t odist,
+                                            const void*  twiddles0)
 {
     // blockIdx.y gives the multi-dimensional offset
     // blockIdx.z gives the batch offset
@@ -107,14 +108,15 @@ __global__ static void real_post_process_kernel_interleaved_1D(const size_t half
 
 // Interleaved version of r2c post-process kernel, 2D and 3D
 template <typename Tcomplex, bool Ndiv4>
-__global__ static void real_post_process_kernel_interleaved(const size_t half_N,
-                                                            const size_t idist1D,
-                                                            const size_t odist1D,
-                                                            const void*  input0,
-                                                            const size_t idist,
-                                                            void*        output0,
-                                                            const size_t odist,
-                                                            const void*  twiddles0)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    real_post_process_kernel_interleaved(const size_t half_N,
+                                         const size_t idist1D,
+                                         const size_t odist1D,
+                                         const void*  input0,
+                                         const size_t idist,
+                                         void*        output0,
+                                         const size_t odist,
+                                         const void*  twiddles0)
 {
     // blockIdx.y gives the multi-dimensional offset
     // blockIdx.z gives the batch offset
@@ -182,13 +184,14 @@ __device__ inline void post_process_planar(const size_t           idx_p,
 
 // Planar version of r2c post-process kernel, 1D
 template <typename Tcomplex, bool Ndiv4>
-__global__ static void real_post_process_kernel_planar_1D(const size_t half_N,
-                                                          const void*  input0,
-                                                          const size_t idist,
-                                                          void*        output0,
-                                                          void*        output1,
-                                                          const size_t odist,
-                                                          const void*  twiddles0)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    real_post_process_kernel_planar_1D(const size_t half_N,
+                                       const void*  input0,
+                                       const size_t idist,
+                                       void*        output0,
+                                       void*        output1,
+                                       const size_t odist,
+                                       const void*  twiddles0)
 {
     // blockIdx.y gives the multi-dimensional offset
     // blockIdx.z gives the batch offset
@@ -216,15 +219,16 @@ __global__ static void real_post_process_kernel_planar_1D(const size_t half_N,
 
 // Planar version of r2c post-process kernel, 2D and 3D
 template <typename Tcomplex, bool Ndiv4>
-__global__ static void real_post_process_kernel_planar(const size_t half_N,
-                                                       const size_t idist1D,
-                                                       const size_t odist1D,
-                                                       const void*  input0,
-                                                       const size_t idist,
-                                                       void*        output0,
-                                                       void*        output1,
-                                                       const size_t odist,
-                                                       const void*  twiddles0)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    real_post_process_kernel_planar(const size_t half_N,
+                                    const size_t idist1D,
+                                    const size_t odist1D,
+                                    const void*  input0,
+                                    const size_t idist,
+                                    void*        output0,
+                                    void*        output1,
+                                    const size_t odist,
+                                    const void*  twiddles0)
 {
     // blockIdx.y gives the multi-dimensional offset
     // blockIdx.z gives the batch offset
@@ -421,14 +425,15 @@ void r2c_1d_post(const void* data_p, void*)
 // Each thread handles 2 points.
 // When N is divisible by 4, one value is handled separately; this is controlled by Ndiv4.
 template <typename Tcomplex, bool Ndiv4>
-__global__ static void real_pre_process_kernel(const size_t half_N,
-                                               const size_t idist1D,
-                                               const size_t odist1D,
-                                               const void*  input0,
-                                               const size_t idist,
-                                               void*        output0,
-                                               const size_t odist,
-                                               const void*  twiddles0)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    real_pre_process_kernel(const size_t half_N,
+                            const size_t idist1D,
+                            const size_t odist1D,
+                            const void*  input0,
+                            const size_t idist,
+                            void*        output0,
+                            const size_t odist,
+                            const void*  twiddles0)
 {
     const size_t idx_p = blockIdx.x * blockDim.x + threadIdx.x;
     const size_t idx_q = half_N - idx_p;
@@ -483,15 +488,16 @@ __global__ static void real_pre_process_kernel(const size_t half_N,
 
 // Planar version of c2r pre-process kernel
 template <typename Tcomplex, bool Ndiv4>
-__global__ static void real_pre_process_kernel_planar(const size_t      half_N,
-                                                      const size_t      idist1D,
-                                                      const size_t      odist1D,
-                                                      const void*       input0,
-                                                      const void*       input1,
-                                                      const size_t      idist,
-                                                      void*             output0,
-                                                      const size_t      odist,
-                                                      const void* const twiddles0)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    real_pre_process_kernel_planar(const size_t      half_N,
+                                   const size_t      idist1D,
+                                   const size_t      odist1D,
+                                   const void*       input0,
+                                   const void*       input1,
+                                   const size_t      idist,
+                                   void*             output0,
+                                   const size_t      odist,
+                                   const void* const twiddles0)
 {
     const size_t idx_p = blockIdx.x * blockDim.x + threadIdx.x;
     const size_t idx_q = half_N - idx_p;

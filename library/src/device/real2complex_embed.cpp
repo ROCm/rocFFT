@@ -27,13 +27,14 @@
 #include <numeric>
 
 template <typename Tcomplex>
-__global__ static void real2complex_kernel(const size_t                 input_size,
-                                           const size_t                 idist1D,
-                                           const size_t                 odist1D,
-                                           const real_type_t<Tcomplex>* input0,
-                                           const size_t                 idist,
-                                           Tcomplex*                    output0,
-                                           const size_t                 odist)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    real2complex_kernel(const size_t                 input_size,
+                        const size_t                 idist1D,
+                        const size_t                 odist1D,
+                        const real_type_t<Tcomplex>* input0,
+                        const size_t                 idist,
+                        Tcomplex*                    output0,
+                        const size_t                 odist)
 {
     const size_t tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
 
@@ -143,13 +144,14 @@ void real2complex(const void* data_p, void* back_p)
 
 // The complex to hermitian simple copy kernel for interleaved format
 template <typename Tcomplex>
-__global__ static void complex2hermitian_kernel(const size_t    input_size,
-                                                const size_t    idist1D,
-                                                const size_t    odist1D,
-                                                const Tcomplex* input0,
-                                                const size_t    idist,
-                                                Tcomplex*       output0,
-                                                const size_t    odist)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    complex2hermitian_kernel(const size_t    input_size,
+                             const size_t    idist1D,
+                             const size_t    odist1D,
+                             const Tcomplex* input0,
+                             const size_t    idist,
+                             Tcomplex*       output0,
+                             const size_t    odist)
 {
     const size_t tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
 
@@ -167,14 +169,15 @@ __global__ static void complex2hermitian_kernel(const size_t    input_size,
 
 // The planar overload function of the above interleaved one
 template <typename Tcomplex>
-__global__ static void complex2hermitian_kernel(const size_t           input_size,
-                                                const size_t           idist1D,
-                                                const size_t           odist1D,
-                                                const Tcomplex*        input0,
-                                                const size_t           idist,
-                                                real_type_t<Tcomplex>* outputRe0,
-                                                real_type_t<Tcomplex>* outputIm0,
-                                                const size_t           odist)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    complex2hermitian_kernel(const size_t           input_size,
+                             const size_t           idist1D,
+                             const size_t           odist1D,
+                             const Tcomplex*        input0,
+                             const size_t           idist,
+                             real_type_t<Tcomplex>* outputRe0,
+                             real_type_t<Tcomplex>* outputIm0,
+                             const size_t           odist)
 {
     const size_t tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
 

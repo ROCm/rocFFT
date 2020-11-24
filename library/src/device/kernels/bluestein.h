@@ -26,8 +26,10 @@
 #include "common.h"
 #include "rocfft_hip.h"
 
+#define MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL 64
+
 template <typename T>
-__global__ void chirp_device(
+__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL) chirp_device(
     const size_t N, const size_t M, T* output, T* twiddles_large, const int twl, const int dir)
 {
     size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
@@ -71,18 +73,19 @@ __global__ void chirp_device(
 // planar format. There might be a better way to do it.
 
 template <typename T>
-__global__ void mul_device(const size_t  numof,
-                           const size_t  totalWI,
-                           const size_t  N,
-                           const size_t  M,
-                           const T*      input,
-                           T*            output,
-                           const size_t  dim,
-                           const size_t* lengths,
-                           const size_t* stride_in,
-                           const size_t* stride_out,
-                           const int     dir,
-                           const int     scheme)
+__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
+    mul_device(const size_t  numof,
+               const size_t  totalWI,
+               const size_t  N,
+               const size_t  M,
+               const T*      input,
+               T*            output,
+               const size_t  dim,
+               const size_t* lengths,
+               const size_t* stride_in,
+               const size_t* stride_out,
+               const int     dir,
+               const int     scheme)
 {
     size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
 
@@ -155,19 +158,20 @@ __global__ void mul_device(const size_t  numof,
 }
 
 template <typename T>
-__global__ void mul_device(const size_t          numof,
-                           const size_t          totalWI,
-                           const size_t          N,
-                           const size_t          M,
-                           const real_type_t<T>* inputRe,
-                           const real_type_t<T>* inputIm,
-                           T*                    output,
-                           const size_t          dim,
-                           const size_t*         lengths,
-                           const size_t*         stride_in,
-                           const size_t*         stride_out,
-                           const int             dir,
-                           const int             scheme)
+__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
+    mul_device(const size_t          numof,
+               const size_t          totalWI,
+               const size_t          N,
+               const size_t          M,
+               const real_type_t<T>* inputRe,
+               const real_type_t<T>* inputIm,
+               T*                    output,
+               const size_t          dim,
+               const size_t*         lengths,
+               const size_t*         stride_in,
+               const size_t*         stride_out,
+               const int             dir,
+               const int             scheme)
 {
     size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
 
@@ -246,19 +250,20 @@ __global__ void mul_device(const size_t          numof,
 }
 
 template <typename T>
-__global__ void mul_device(const size_t    numof,
-                           const size_t    totalWI,
-                           const size_t    N,
-                           const size_t    M,
-                           const T*        input,
-                           real_type_t<T>* outputRe,
-                           real_type_t<T>* outputIm,
-                           const size_t    dim,
-                           const size_t*   lengths,
-                           const size_t*   stride_in,
-                           const size_t*   stride_out,
-                           const int       dir,
-                           const int       scheme)
+__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
+    mul_device(const size_t    numof,
+               const size_t    totalWI,
+               const size_t    N,
+               const size_t    M,
+               const T*        input,
+               real_type_t<T>* outputRe,
+               real_type_t<T>* outputIm,
+               const size_t    dim,
+               const size_t*   lengths,
+               const size_t*   stride_in,
+               const size_t*   stride_out,
+               const int       dir,
+               const int       scheme)
 {
     size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
 
@@ -339,20 +344,21 @@ __global__ void mul_device(const size_t    numof,
 }
 
 template <typename T>
-__global__ void mul_device(const size_t          numof,
-                           const size_t          totalWI,
-                           const size_t          N,
-                           const size_t          M,
-                           const real_type_t<T>* inputRe,
-                           const real_type_t<T>* inputIm,
-                           real_type_t<T>*       outputRe,
-                           real_type_t<T>*       outputIm,
-                           const size_t          dim,
-                           const size_t*         lengths,
-                           const size_t*         stride_in,
-                           const size_t*         stride_out,
-                           const int             dir,
-                           const int             scheme)
+__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
+    mul_device(const size_t          numof,
+               const size_t          totalWI,
+               const size_t          N,
+               const size_t          M,
+               const real_type_t<T>* inputRe,
+               const real_type_t<T>* inputIm,
+               real_type_t<T>*       outputRe,
+               real_type_t<T>*       outputIm,
+               const size_t          dim,
+               const size_t*         lengths,
+               const size_t*         stride_in,
+               const size_t*         stride_out,
+               const int             dir,
+               const int             scheme)
 {
     size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
 

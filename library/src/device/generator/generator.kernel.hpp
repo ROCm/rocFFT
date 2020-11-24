@@ -5,7 +5,7 @@
 #pragma once
 #if !defined(_generator_kernel_H)
 #define _generator_kernel_H
-#include "../../include/radix_table.h"
+#include "../kernels/common.h"
 #include "generator.param.h"
 #include "generator.pass.hpp"
 #include "generator.stockham.h"

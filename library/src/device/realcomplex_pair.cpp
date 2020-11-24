@@ -39,13 +39,14 @@
 
 /// Interleaved data version.
 template <typename Treal>
-__global__ static void complex2pair_unpack_kernel(const size_t           N,
-                                                  const Treal*           input,
-                                                  const size_t           ioffset,
-                                                  const size_t           idist,
-                                                  complex_type_t<Treal>* output,
-                                                  const size_t           ooffset,
-                                                  const size_t           odist)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    complex2pair_unpack_kernel(const size_t           N,
+                               const Treal*           input,
+                               const size_t           ioffset,
+                               const size_t           idist,
+                               complex_type_t<Treal>* output,
+                               const size_t           ooffset,
+                               const size_t           odist)
 {
     const size_t idx_p  = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     const auto   half_N = (N + 1) / 2;
@@ -92,14 +93,15 @@ __global__ static void complex2pair_unpack_kernel(const size_t           N,
 
 /// Planar data version.
 template <typename Treal>
-__global__ static void complex2pair_unpack_kernel(const size_t N,
-                                                  const Treal* input,
-                                                  const size_t ioffset,
-                                                  const size_t idist,
-                                                  Treal*       outputRe,
-                                                  Treal*       outputIm,
-                                                  const size_t ooffset,
-                                                  const size_t odist)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    complex2pair_unpack_kernel(const size_t N,
+                               const Treal* input,
+                               const size_t ioffset,
+                               const size_t idist,
+                               Treal*       outputRe,
+                               Treal*       outputIm,
+                               const size_t ooffset,
+                               const size_t odist)
 {
     const size_t idx_p  = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     const auto   half_N = (N + 1) / 2;
@@ -272,7 +274,8 @@ void complex2pair_unpack(const void* data_p, void*)
 
 // FIXME: document
 template <typename Treal>
-__global__ static void pair2complex_pack_kernel()
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    pair2complex_pack_kernel()
 {
     // FIXME: implement
 }

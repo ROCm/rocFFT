@@ -55,14 +55,6 @@ inline size_t Large1DThreshold(rocfft_precision precision)
 #define LARGE_1D_THRESHOLD 4096
 #define MAX_WORK_GROUP_SIZE 1024
 
-// NB:
-//   All kernels were compiled based on the assumption that the default max
-//   work group size is 256. This default value in compiler might change in
-//   future. Each kernel has to explicitly set proper sizes through
-//   __launch_bounds__.
-//   Further performance tuning might be done later.
-#define MAX_LAUNCH_BOUNDS_2D_SINGLE_KERNEL 256
-
 /* radix table: tell the FFT algorithms for size <= 4096 ; required by twiddle,
  * passes, and kernel*/
 struct SpecRecord

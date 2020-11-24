@@ -4,6 +4,10 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
  
 ## [(Unreleased) rocFFT 1.0.9 for ROCm 4.0.0]
 
+### Added
+- Explicitly specify MAX_THREADS_PER_BLOCK through `__launch_bounds__` for all
+  kernels.
+
 ### Changed
 
 - rocFFT now automatically allocates a work buffer if the plan

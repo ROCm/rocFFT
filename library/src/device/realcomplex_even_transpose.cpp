@@ -40,15 +40,16 @@ __device__ size_t output_row_base(size_t        dim,
 // R2C post-process kernel, 2D and 3D, transposed output.
 // lengths counts in complex elements
 template <typename T, typename T_I, typename T_O, size_t DIM_X, size_t DIM_Y>
-__global__ static void real_post_process_kernel_transpose(size_t        dim,
-                                                          const T_I*    input0,
-                                                          size_t        idist,
-                                                          T_O*          output0,
-                                                          size_t        odist,
-                                                          const void*   twiddles0,
-                                                          const size_t* lengths,
-                                                          const size_t* inStride,
-                                                          const size_t* outStride)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    real_post_process_kernel_transpose(size_t        dim,
+                                       const T_I*    input0,
+                                       size_t        idist,
+                                       T_O*          output0,
+                                       size_t        odist,
+                                       const void*   twiddles0,
+                                       const size_t* lengths,
+                                       const size_t* inStride,
+                                       const size_t* outStride)
 {
     size_t idist1D            = inStride[1];
     size_t odist1D            = outStride[1];
@@ -327,15 +328,16 @@ void r2c_1d_post_transpose(const void* data_p, void*)
 // C2R pre-process kernel, 2D and 3D, transposed input.
 // lengths counts in complex elements
 template <typename T, typename T_I, typename T_O, size_t DIM_X, size_t DIM_Y>
-__global__ static void transpose_real_pre_process_kernel(size_t        dim,
-                                                         const T_I*    input0,
-                                                         size_t        idist,
-                                                         T_O*          output0,
-                                                         size_t        odist,
-                                                         const void*   twiddles0,
-                                                         const size_t* lengths,
-                                                         const size_t* inStride,
-                                                         const size_t* outStride)
+__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+    transpose_real_pre_process_kernel(size_t        dim,
+                                      const T_I*    input0,
+                                      size_t        idist,
+                                      T_O*          output0,
+                                      size_t        odist,
+                                      const void*   twiddles0,
+                                      const size_t* lengths,
+                                      const size_t* inStride,
+                                      const size_t* outStride)
 {
     size_t idist1D            = dim == 2 ? inStride[1] : inStride[2];
     size_t odist1D            = outStride[1];

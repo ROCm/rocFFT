@@ -25,6 +25,8 @@
 #include "common.h"
 #include "rocfft_hip.h"
 
+#define MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL 1024
+
 #define TRANSPOSE_TWIDDLE_MUL()                                                                   \
     if(WITH_TWL)                                                                                  \
     {                                                                                             \
@@ -194,12 +196,13 @@ template <typename T,
           bool   ALL,
           bool   UNIT_STRIDE_0,
           bool   DIAGONAL>
-__global__ void transpose_kernel2(const T_I* input,
-                                  T_O*       output,
-                                  T*         twiddles_large,
-                                  size_t*    lengths,
-                                  size_t*    stride_in,
-                                  size_t*    stride_out)
+__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL)
+    transpose_kernel2(const T_I* input,
+                      T_O*       output,
+                      T*         twiddles_large,
+                      size_t*    lengths,
+                      size_t*    stride_in,
+                      size_t*    stride_out)
 {
     size_t ld_in  = stride_in[1];
     size_t ld_out = stride_out[1];
@@ -382,16 +385,17 @@ template <typename T,
           bool   ALL,
           bool   UNIT_STRIDE_0,
           bool   DIAGONAL>
-__global__ void transpose_kernel2_scheme(const T_I* input,
-                                         T_O*       output,
-                                         T*         twiddles_large,
-                                         size_t*    lengths,
-                                         size_t*    stride_in,
-                                         size_t*    stride_out,
-                                         size_t     ld_in,
-                                         size_t     ld_out,
-                                         size_t     m,
-                                         size_t     n)
+__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL)
+    transpose_kernel2_scheme(const T_I* input,
+                             T_O*       output,
+                             T*         twiddles_large,
+                             size_t*    lengths,
+                             size_t*    stride_in,
+                             size_t*    stride_out,
+                             size_t     ld_in,
+                             size_t     ld_out,
+                             size_t     m,
+                             size_t     n)
 {
     size_t iOffset = 0;
     size_t oOffset = 0;
