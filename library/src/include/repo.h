@@ -52,10 +52,11 @@ public:
     }
 
     static rocfft_status CreatePlan(rocfft_plan plan);
-    static void          GetPlan(rocfft_plan plan, ExecPlan& execPlan);
-    static void          DeletePlan(rocfft_plan plan);
-    static size_t        GetUniquePlanCount();
-    static size_t        GetTotalPlanCount();
+    // may return nullptr if the plan is not known to the repo
+    static ExecPlan* GetPlan(rocfft_plan plan);
+    static void      DeletePlan(rocfft_plan plan);
+    static size_t    GetUniquePlanCount();
+    static size_t    GetTotalPlanCount();
 
     // Repo is a singleton that should only be destroyed on static
     // deinitialization.  But it's possible for other things to want to

@@ -536,10 +536,12 @@ rocfft_status rocfft_plan_destroy(rocfft_plan plan)
 
 rocfft_status rocfft_plan_get_work_buffer_size(const rocfft_plan plan, size_t* size_in_bytes)
 {
-    Repo&    repo = Repo::GetRepo();
-    ExecPlan execPlan;
-    repo.GetPlan(plan, execPlan);
-    *size_in_bytes = execPlan.workBufSize * 2 * plan->base_type_size;
+    Repo&     repo     = Repo::GetRepo();
+    ExecPlan* execPlan = repo.GetPlan(plan);
+    if(!execPlan)
+        return rocfft_status_failure;
+
+    *size_in_bytes = execPlan->WorkBufBytes(plan->base_type_size);
     log_trace(__func__, "plan", plan, "size_in_bytes ptr", size_in_bytes, "val", *size_in_bytes);
     return rocfft_status_success;
 }

@@ -99,15 +99,17 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
     return rocfft_status_success;
 }
 // According to input plan, return the corresponding execPlan
-void Repo::GetPlan(rocfft_plan plan, ExecPlan& execPlan)
+ExecPlan* Repo::GetPlan(rocfft_plan plan)
 {
     std::lock_guard<std::mutex> lck(mtx);
     if(repoDestroyed)
-        return;
+        return nullptr;
 
     Repo& repo = Repo::GetRepo();
-    if(repo.execLookup.find(plan) != repo.execLookup.end())
-        execPlan = repo.execLookup[plan];
+    auto  it   = repo.execLookup.find(plan);
+    if(it != repo.execLookup.end())
+        return &it->second;
+    return nullptr;
 }
 
 // Remove the plan from Repo and release its ExecPlan resources if it is the last reference

@@ -331,14 +331,25 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_destroy(rocfft_execution_info 
 
 /*! @brief Set work buffer in execution info
  *
- *  @details This is one of the execution info functions to specify optional
- * additional information to control execution.
- *  This API specifies work buffer needed. It has to be called before the call
- * to rocfft_execute.
- *  When a non-zero value is obtained from rocfft_plan_get_work_buffer_size,
- * that means the library needs a work buffer
- *  to compute the transform. In this case, the user has to allocate the work
- * buffer and pass it to the library via this api.
+ *  @details This is one of the execution info functions to specify
+ *  optional additional information to control execution.  This API
+ *  provides a work buffer for the transform. It must be called
+ *  before rocfft_execute.
+ *
+ *  When a non-zero value is obtained from
+ *  rocfft_plan_get_work_buffer_size, that means the library needs a
+ *  work buffer to compute the transform. In this case, the user
+ *  should allocate the work buffer and pass it to the library via
+ *  this API.
+ *
+ *  If a work buffer is required for the transform but is not
+ *  specified using this function, rocfft_execute will automatically
+ *  allocate the required buffer and free it when execution is
+ *  finished.
+ *
+ *  Users should allocate their own work buffers if they need precise
+ *  control over the lifetimes of those buffers, or if multiple plans
+ *  need to share the same buffer.
  *
  *  @param[in] info execution info handle
  *  @param[in] work_buffer work buffer

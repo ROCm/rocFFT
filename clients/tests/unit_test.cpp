@@ -337,9 +337,10 @@ void workmem_test(workmem_sizer sizer,
 }
 
 // check what happens if work memory is required but is not provided
+// - library should allocate
 TEST(rocfft_UnitTest, workmem_missing)
 {
-    workmem_test([](size_t) { return 0; }, rocfft_status_invalid_work_buffer);
+    workmem_test([](size_t) { return 0; }, rocfft_status_success);
 }
 
 // check what happens if work memory is required but not enough is provided
@@ -354,9 +355,10 @@ TEST(rocfft_UnitTest, workmem_big)
     workmem_test([](size_t requested) { return requested * 2; }, rocfft_status_success);
 }
 
-// check if a user explicitly gives a null pointer
+// check if a user explicitly gives a null pointer - set work buffer
+// should fail, but transform should succeed because library
+// allocates
 TEST(rocfft_UnitTest, workmem_null)
 {
-    workmem_test(
-        [](size_t requested) { return requested; }, rocfft_status_invalid_work_buffer, true);
+    workmem_test([](size_t requested) { return requested; }, rocfft_status_success, true);
 }

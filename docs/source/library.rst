@@ -78,7 +78,7 @@ To do a transform,
        as :cpp:func:`rocfft_plan_description_set_data_layout` are called to specify plan details. And then, :cpp:func:`rocfft_plan_create` is called
        with the description handle passed to it along with other details.
 
-   * Allocate a work buffer for the plan:
+   * Optionally, allocate a work buffer for the plan:
 
      * Call :cpp:func:`rocfft_plan_get_work_buffer_size` to check the size of work buffer required by the plan.
      * If a nonzero size is required:
@@ -91,6 +91,7 @@ To do a transform,
    * The execution API :cpp:func:`rocfft_execute` is used to do the actual computation on the data buffers specified.
    * Extra execution information such as work buffers and compute streams are passed to :cpp:func:`rocfft_execute` in the :cpp:type:`rocfft_execution_info` object.
    * :cpp:func:`rocfft_execute` can be called repeatedly as needed for different data, with the same plan.
+   * If the plan requires a work buffer but none was provided, :cpp:func:`rocfft_execute` will automatically allocate a work buffer and free it when execution is finished.
 
 #. If a work buffer was allocated:
 

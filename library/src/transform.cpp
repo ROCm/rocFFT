@@ -73,29 +73,53 @@ rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info, void*
 rocfft_status rocfft_execute(const rocfft_plan     plan,
                              void*                 in_buffer[],
                              void*                 out_buffer[],
-                             rocfft_execution_info info)
+                             rocfft_execution_info user_info)
 {
-    log_trace(
-        __func__, "plan", plan, "in_buffer", in_buffer, "out_buffer", out_buffer, "info", info);
+    log_trace(__func__,
+              "plan",
+              plan,
+              "in_buffer",
+              in_buffer,
+              "out_buffer",
+              out_buffer,
+              "info",
+              user_info);
 
-    Repo&    repo = Repo::GetRepo();
-    ExecPlan execPlan;
-    repo.GetPlan(plan, execPlan);
+    Repo&     repo     = Repo::GetRepo();
+    ExecPlan* execPlan = repo.GetPlan(plan);
+    if(!execPlan)
+        return rocfft_status_failure;
 
 #if defined(DEBUG) && defined(DEBUG_PLAN_OUTPUT)
-    PrintNode(rocfft_cout, execPlan);
+    PrintNode(rocfft_cout, *execPlan);
 #endif
 
-    if(execPlan.workBufSize > 0)
+    // tolerate user not providing an execution_info
+    rocfft_execution_info_t info;
+    if(user_info)
+        info = *user_info;
+
+    gpubuf autoAllocWorkBuf;
+
+    if(execPlan->workBufSize > 0)
     {
-        if(!info || info->workBufferSize < execPlan.workBufSize * 2 * plan->base_type_size)
+        auto requiredWorkBufBytes = execPlan->WorkBufBytes(plan->base_type_size);
+        if(!info.workBuffer)
+        {
+            // user didn't provide a buffer, alloc one now
+            autoAllocWorkBuf.alloc(requiredWorkBufBytes);
+            info.workBufferSize = requiredWorkBufBytes;
+            info.workBuffer     = autoAllocWorkBuf.data();
+        }
+        // otherwise user provided a buffer, but complain if it's too small
+        else if(info.workBufferSize < requiredWorkBufBytes)
             return rocfft_status_invalid_work_buffer;
     }
 
-    TransformPowX(execPlan,
+    TransformPowX(*execPlan,
                   in_buffer,
                   (plan->placement == rocfft_placement_inplace) ? in_buffer : out_buffer,
-                  info);
+                  &info);
 
     return rocfft_status_success;
 }

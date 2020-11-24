@@ -366,11 +366,20 @@ struct ExecPlan
 
     std::vector<DevFnCall> devFnCall;
     std::vector<GridParam> gridParam;
-    size_t                 workBufSize      = 0;
-    size_t                 tmpWorkBufSize   = 0;
-    size_t                 copyWorkBufSize  = 0;
-    size_t                 blueWorkBufSize  = 0;
-    size_t                 chirpWorkBufSize = 0;
+
+    // these sizes count in complex elements
+    size_t workBufSize      = 0;
+    size_t tmpWorkBufSize   = 0;
+    size_t copyWorkBufSize  = 0;
+    size_t blueWorkBufSize  = 0;
+    size_t chirpWorkBufSize = 0;
+
+    size_t WorkBufBytes(size_t base_type_size)
+    {
+        // base type is the size of one real, work buf counts in
+        // complex numbers
+        return workBufSize * 2 * base_type_size;
+    }
 };
 
 void ProcessNode(ExecPlan& execPlan);
