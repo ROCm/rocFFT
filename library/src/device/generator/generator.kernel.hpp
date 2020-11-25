@@ -1259,6 +1259,8 @@ namespace StockhamGenerator
                 str += "\tunsigned int b = 0;\n\n";
             }
 
+            str += "   ";
+            str += GEN_REF_LINE();
             GenerateSingleGlobalKernelIOOffsets(str, placeness);
 
             if(placeness == rocfft_placement_inplace)
@@ -1326,7 +1328,9 @@ namespace StockhamGenerator
 
                 str += "\n\tfor(unsigned int t=0; t<";
                 str += std::to_string(loopCount);
-                str += "; t++)\n\t{\n";
+                str += "; t++)";
+                str += GEN_REF_LINE();
+                str += "\t{\n";
 
                 // get offset
                 std::string bufOffset;
@@ -1479,7 +1483,9 @@ namespace StockhamGenerator
             {
                 str += "\n\tfor(unsigned int t=0; t<";
                 str += std::to_string(blockWidth / (blockWGS / workGroupSizePerTrans));
-                str += "; t++)\n\t{\n\n";
+                str += "; t++)";
+                str += GEN_REF_LINE();
+                str += "\t{\n\n";
 
                 inBuf  = "lds, ";
                 outBuf = "lds";
@@ -1578,7 +1584,9 @@ namespace StockhamGenerator
                 str += "\t__syncthreads();\n\n";
                 str += "\n\tfor(unsigned int t=0; t<";
                 str += std::to_string(loopCount);
-                str += "; t++)\n\t{\n";
+                str += "; t++)";
+                str += GEN_REF_LINE();
+                str += "\t{\n";
 
                 if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
                 {

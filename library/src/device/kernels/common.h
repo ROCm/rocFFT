@@ -7,6 +7,7 @@
 #include "rocfft.h"
 #include <hip/hip_vector_types.h>
 #include <iostream>
+#include <string>
 
 // NB:
 //   All kernels were compiled based on the assumption that the default max
@@ -16,6 +17,31 @@
 //   Further performance tuning might be done later.
 #define MAX_LAUNCH_BOUNDS_2D_SINGLE_KERNEL 256
 #define MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL 256
+
+// To extract file name out of full path
+static inline constexpr const char* KernelFileName(const char* fullname)
+{
+    const char* f = fullname;
+    while(*fullname)
+    {
+        if(*fullname++ == '/') // TODO: check it for WIN
+        {
+            f = fullname;
+        }
+    }
+    return f;
+}
+
+// To generate back reference line number in generated kernel code at the end
+// of the line.
+//     usage: str += GEN_REF_LINE()
+#define GEN_REF_LINE()               \
+    " // ";                          \
+    const char* fullname = __FILE__; \
+    str += KernelFileName(fullname); \
+    str += ":";                      \
+    str += std::to_string(__LINE__); \
+    str += "\n";
 
 #ifdef __NVCC__
 #include "vector_types.h"
