@@ -177,7 +177,7 @@ void rocfft_transform(const rocfft_params&                  params,
                       const size_t                          ramgb,
                       const std::shared_future<VectorNorms> cpu_output_norm)
 {
-    if(ramgb > 0 && params.needed_ram() > ramgb * 1e9)
+    if(ramgb > 0 && params.needed_ram(verbose) > ramgb * 1e9)
     {
         if(verbose > 2)
         {
@@ -186,7 +186,7 @@ void rocfft_transform(const rocfft_params&                  params,
         return;
     }
 
-    if(!params.valid())
+    if(!params.valid(verbose))
     {
         // Invalid parameters; skip this test.
         return;

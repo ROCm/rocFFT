@@ -188,38 +188,14 @@ int main(int argc, char* argv[])
     // hip Device number for running tests:
     int deviceId;
 
-    // Transform type parameters:
-    rocfft_transform_type transformType;
-    rocfft_array_type     itype;
-    rocfft_array_type     otype;
-
     // Number of performance trial samples
     int ntrial;
 
-    // Number of batches:
-    size_t nbatch;
-
-    // TODO: enable when enabled in rocFFT
-    // // Scale for transform
-    // double scale = 1.0;
-
-    // Transform length:
-    std::vector<size_t> length;
-
-    // Transform input and output strides:
-    std::vector<size_t> istride;
-    std::vector<size_t> ostride;
-
-    // Offset to start of buffer (or buffers, for planar format):
-    std::vector<size_t> ioffset;
-    std::vector<size_t> ooffset;
-
-    // Input and output distances:
-    size_t idist;
-    size_t odist;
-
     // Vector of test target libraries
     std::vector<std::string> libs;
+
+    // FFT parameters:
+    rocfft_params params;
 
     // Declare the supported options.
 
@@ -233,32 +209,32 @@ int main(int argc, char* argv[])
         ("ntrial,N", po::value<int>(&ntrial)->default_value(1), "Trial size for the problem")
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
         ("double", "Double precision transform (default: single)")
-        ("transformType,t", po::value<rocfft_transform_type>(&transformType)
+        ("transformType,t", po::value<rocfft_transform_type>(&params.transform_type)
          ->default_value(rocfft_transform_type_complex_forward),
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
          "forward\n3) real inverse")
-        ( "idist", po::value<size_t>(&idist)->default_value(0),
+        ( "idist", po::value<size_t>(&params.idist)->default_value(0),
           "Input distance between successive members when batch size > 1")
-        ( "odist", po::value<size_t>(&odist)->default_value(0),
+        ( "odist", po::value<size_t>(&params.odist)->default_value(0),
           "Output distance between successive members when batch size > 1")
         // ("scale", po::value<double>(&scale)->default_value(1.0), "Specify the scaling factor ")
-        ( "batchSize,b", po::value<size_t>(&nbatch)->default_value(1),
+        ( "batchSize,b", po::value<size_t>(&params.nbatch)->default_value(1),
           "If this value is greater than one, arrays will be used ")
-        ( "itype", po::value<rocfft_array_type>(&itype)
+        ( "itype", po::value<rocfft_array_type>(&params.itype)
           ->default_value(rocfft_array_type_unset),
           "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
-        ( "otype", po::value<rocfft_array_type>(&otype)
+        ( "otype", po::value<rocfft_array_type>(&params.otype)
           ->default_value(rocfft_array_type_unset),
           "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
         ("lib",  po::value<std::vector<std::string>>(&libs)->multitoken(),
          "Set test target library full path(appendable).")
-        ("length",  po::value<std::vector<size_t>>(&length)->multitoken(), "Lengths.")
-        ("istride", po::value<std::vector<size_t>>(&istride)->multitoken(), "Input strides.")
-        ("ostride", po::value<std::vector<size_t>>(&ostride)->multitoken(), "Output strides.")
-        ("ioffset", po::value<std::vector<size_t>>(&ioffset)->multitoken(), "Input offsets.")
-        ("ooffset", po::value<std::vector<size_t>>(&ooffset)->multitoken(), "Output offsets.");
+        ("length",  po::value<std::vector<size_t>>(&params.length)->multitoken(), "Lengths.")
+        ("istride", po::value<std::vector<size_t>>(&params.istride)->multitoken(), "Input strides.")
+        ("ostride", po::value<std::vector<size_t>>(&params.ostride)->multitoken(), "Output strides.")
+        ("ioffset", po::value<std::vector<size_t>>(&params.ioffset)->multitoken(), "Input offsets.")
+        ("ooffset", po::value<std::vector<size_t>>(&params.ooffset)->multitoken(), "Output offsets.");
     // clang-format on
 
     po::variables_map vm;
@@ -278,10 +254,9 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    const rocfft_result_placement place
+    params.placement
         = vm.count("notInPlace") ? rocfft_placement_notinplace : rocfft_placement_inplace;
-    const rocfft_precision precision
-        = vm.count("double") ? rocfft_precision_double : rocfft_precision_single;
+    params.precision = vm.count("double") ? rocfft_precision_double : rocfft_precision_single;
 
     if(vm.count("notInPlace"))
     {
@@ -300,7 +275,7 @@ int main(int argc, char* argv[])
     if(vm.count("length"))
     {
         std::cout << "length:";
-        for(auto& i : length)
+        for(auto& i : params.length)
             std::cout << " " << i;
         std::cout << "\n";
     }
@@ -308,38 +283,38 @@ int main(int argc, char* argv[])
     if(vm.count("istride"))
     {
         std::cout << "istride:";
-        for(auto& i : istride)
+        for(auto& i : params.istride)
             std::cout << " " << i;
         std::cout << "\n";
     }
     if(vm.count("ostride"))
     {
         std::cout << "ostride:";
-        for(auto& i : ostride)
+        for(auto& i : params.ostride)
             std::cout << " " << i;
         std::cout << "\n";
     }
 
-    if(idist > 0)
+    if(params.idist > 0)
     {
-        std::cout << "idist: " << idist << "\n";
+        std::cout << "idist: " << params.idist << "\n";
     }
-    if(odist > 0)
+    if(params.odist > 0)
     {
-        std::cout << "odist: " << odist << "\n";
+        std::cout << "odist: " << params.odist << "\n";
     }
 
     if(vm.count("ioffset"))
     {
         std::cout << "ioffset:";
-        for(auto& i : ioffset)
+        for(auto& i : params.ioffset)
             std::cout << " " << i;
         std::cout << "\n";
     }
     if(vm.count("ooffset"))
     {
         std::cout << "ooffset:";
-        for(auto& i : ooffset)
+        for(auto& i : params.ooffset)
             std::cout << " " << i;
         std::cout << "\n";
     }
@@ -350,60 +325,28 @@ int main(int argc, char* argv[])
     // bewteen hip runtime and rocm-smi.
     // HIP_V_THROW(hipSetDevice(deviceId), "set device failed!");
 
-    // Set default data formats if not yet specified:
-    const size_t dim     = length.size();
-    auto         ilength = length;
-    if(transformType == rocfft_transform_type_real_inverse)
-    {
-        ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
-    }
-    istride = compute_stride(ilength,
-                             istride,
-                             place == rocfft_placement_inplace
-                                 && transformType == rocfft_transform_type_real_forward);
+    params.istride
+        = compute_stride(params.ilength(),
+                         params.istride,
+                         params.placement == rocfft_placement_inplace
+                             && params.transform_type == rocfft_transform_type_real_forward);
+    params.ostride
+        = compute_stride(params.olength(),
+                         params.ostride,
+                         params.placement == rocfft_placement_inplace
+                             && params.transform_type == rocfft_transform_type_real_inverse);
 
-    auto olength = length;
-    if(transformType == rocfft_transform_type_real_forward)
-    {
-        olength[dim - 1] = olength[dim - 1] / 2 + 1;
-    }
-    ostride = compute_stride(olength,
-                             ostride,
-                             place == rocfft_placement_inplace
-                                 && transformType == rocfft_transform_type_real_inverse);
+    params.idist
+        = set_idist(params.placement, params.transform_type, params.length, params.istride);
+    params.odist
+        = set_odist(params.placement, params.transform_type, params.length, params.ostride);
 
-    check_set_iotypes(place, transformType, itype, otype);
-    if(idist == 0)
-    {
-        idist = set_idist(place, transformType, length, istride);
-    }
-    if(odist == 0)
-    {
-        odist = set_odist(place, transformType, length, ostride);
-    }
+    params.isize = params.nbatch * params.idist;
+    params.osize = params.nbatch * params.odist;
 
-    if(verbose > 0)
+    if(verbose)
     {
-        std::cout << "FFT  params:\n";
-        std::cout << "\tilength:";
-        for(auto i : ilength)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tistride:";
-        for(auto i : istride)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tidist: " << idist << std::endl;
-
-        std::cout << "\tolength:";
-        for(auto i : olength)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tostride:";
-        for(auto i : ostride)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\todist: " << odist << std::endl;
+        std::cout << params.str() << std::endl;
     }
 
     std::vector<rocfft_plan> plan;
@@ -437,33 +380,21 @@ int main(int argc, char* argv[])
     // Set up plans:
     for(int idx = 0; idx < libs.size(); ++idx)
     {
-        // Create column-major parameters for rocFFT:
-        auto length_cm  = length;
-        auto istride_cm = istride;
-        auto ostride_cm = ostride;
-        for(int idx = 0; idx < dim / 2; ++idx)
-        {
-            const auto toidx = dim - idx - 1;
-            std::swap(istride_cm[idx], istride_cm[toidx]);
-            std::swap(ostride_cm[idx], ostride_cm[toidx]);
-            std::swap(length_cm[idx], length_cm[toidx]);
-        }
-
         std::cout << idx << ": " << libs[idx] << std::endl;
         plan.push_back(make_plan(handles[idx],
-                                 place,
-                                 transformType,
-                                 length_cm,
-                                 istride_cm,
-                                 ostride_cm,
-                                 idist,
-                                 odist,
-                                 ioffset,
-                                 ooffset,
-                                 nbatch,
-                                 precision,
-                                 itype,
-                                 otype));
+                                 params.placement,
+                                 params.transform_type,
+                                 params.length_cm(),
+                                 params.istride_cm(),
+                                 params.ostride_cm(),
+                                 params.idist,
+                                 params.odist,
+                                 params.ioffset,
+                                 params.ooffset,
+                                 params.nbatch,
+                                 params.precision,
+                                 params.itype,
+                                 params.otype));
         show_plan(handles[idx], plan[idx]);
         wbuffer_size = std::max(wbuffer_size, get_wbuffersize(handles[idx], plan[idx]));
     }
@@ -485,16 +416,23 @@ int main(int argc, char* argv[])
     }
 
     // Input data:
-    const auto input = compute_input(precision, itype, length, istride, idist, nbatch);
+    const auto input = compute_input(
+        params.precision, params.itype, params.length, params.istride, params.idist, params.nbatch);
 
     if(verbose > 1)
     {
         std::cout << "GPU input:\n";
-        printbuffer(precision, itype, input, ilength, istride, nbatch, idist);
+        printbuffer(params.precision,
+                    params.itype,
+                    input,
+                    params.ilength(),
+                    params.istride,
+                    params.nbatch,
+                    params.idist);
     }
 
     // GPU input and output buffers:
-    auto               ibuffer_sizes = buffer_sizes(precision, itype, idist, nbatch);
+    auto ibuffer_sizes = buffer_sizes(params.precision, params.itype, params.idist, params.nbatch);
     std::vector<void*> ibuffer(ibuffer_sizes.size());
     for(unsigned int i = 0; i < ibuffer.size(); ++i)
     {
@@ -502,13 +440,14 @@ int main(int argc, char* argv[])
     }
 
     std::vector<void*> obuffer;
-    if(place == rocfft_placement_inplace)
+    if(params.placement == rocfft_placement_inplace)
     {
         obuffer = ibuffer;
     }
     else
     {
-        auto obuffer_sizes = buffer_sizes(precision, otype, odist, nbatch);
+        auto obuffer_sizes
+            = buffer_sizes(params.precision, params.otype, params.odist, params.nbatch);
         obuffer.resize(obuffer_sizes.size());
         for(unsigned int i = 0; i < obuffer.size(); ++i)
         {
@@ -566,14 +505,25 @@ int main(int argc, char* argv[])
 
         if(verbose > 2)
         {
-            auto output = allocate_host_buffer(precision, otype, olength, ostride, odist, nbatch);
+            auto output = allocate_host_buffer(params.precision,
+                                               params.otype,
+                                               params.olength(),
+                                               params.ostride,
+                                               params.odist,
+                                               params.nbatch);
             for(int idx = 0; idx < output.size(); ++idx)
             {
                 hipMemcpy(
                     output[idx].data(), obuffer[idx], output[idx].size(), hipMemcpyDeviceToHost);
             }
             std::cout << "GPU output:\n";
-            printbuffer(precision, otype, output, olength, ostride, nbatch, odist);
+            printbuffer(params.precision,
+                        params.otype,
+                        output,
+                        params.olength(),
+                        params.ostride,
+                        params.nbatch,
+                        params.odist);
         }
     }
 
