@@ -185,6 +185,12 @@ void readfiles(string[] testlist, real[][] x, real[][][] data)
         file fin = input(filename);
         while(moretoread) {
             int dim = fin; // Problem dimension
+	    if(eof(fin))
+	      {
+                moretoread = false;
+                break;
+
+	      }
             if(dim == 0) {
                 moretoread = false;
                 break;
@@ -447,7 +453,15 @@ if(speedup > 1) {
 
                     {
                         real[] fakex = {xmin, xmax};
-                        real[] fakey = {ymin, ymax};
+
+			if(ymin == inf || ymin == -inf)
+			  ymin = 1;
+			if(ymax == inf || ymax == -inf)
+			  ymax = 1;
+			real[] fakey = {ymin, ymax};
+			write(fakex);
+			write(fakey);
+			
                         // draw an invisible graph to set up the limits correctly.
                         draw(pic,graph(pic,fakex, fakey),invisible);
 
