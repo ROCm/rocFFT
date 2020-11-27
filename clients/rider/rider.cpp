@@ -240,6 +240,7 @@ int main(int argc, char* argv[])
     rocfft_execution_info info = NULL;
     LIB_V_THROW(rocfft_execution_info_create(&info), "rocfft_execution_info_create failed");
     void* wbuffer = NULL;
+    if(workBufferSize > 0)
     {
         HIP_V_THROW(hipMalloc(&wbuffer, workBufferSize), "Creating intermediate Buffer failed");
         LIB_V_THROW(rocfft_execution_info_set_work_buffer(info, wbuffer, workBufferSize),

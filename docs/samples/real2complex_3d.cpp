@@ -112,9 +112,12 @@ int main(int argc, char* argv[])
     rocfft_plan_get_work_buffer_size(forward, &fbuffersize);
     assert(status == rocfft_status_success);
     void* fbuffer = NULL;
-    hipMalloc(&fbuffer, fbuffersize);
-    status = rocfft_execution_info_set_work_buffer(forwardinfo, fbuffer, fbuffersize);
-    assert(status == rocfft_status_success);
+    if(fbuffersize > 0)
+    {
+        hipMalloc(&fbuffer, fbuffersize);
+        status = rocfft_execution_info_set_work_buffer(forwardinfo, fbuffer, fbuffersize);
+        assert(status == rocfft_status_success);
+    }
 
     // Execute the forward transform
     status = rocfft_execute(forward, // plan
@@ -160,9 +163,12 @@ int main(int argc, char* argv[])
     status             = rocfft_plan_get_work_buffer_size(backward, &bbuffersize);
     assert(status == rocfft_status_success);
     void* bbuffer = NULL;
-    hipMalloc(&bbuffer, bbuffersize);
-    status = rocfft_execution_info_set_work_buffer(backwardinfo, bbuffer, bbuffersize);
-    assert(status == rocfft_status_success);
+    if(bbuffersize > 0)
+    {
+        hipMalloc(&bbuffer, bbuffersize);
+        status = rocfft_execution_info_set_work_buffer(backwardinfo, bbuffer, bbuffersize);
+        assert(status == rocfft_status_success);
+    }
 
     // Execute the backward transform
     status = rocfft_execute(backward, // plan
