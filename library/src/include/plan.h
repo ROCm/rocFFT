@@ -64,7 +64,6 @@ inline bool SupportedLength(rocfft_precision precision, size_t len)
         p /= 3;
     while(!(p % 5))
         p /= 5;
-    // while(!(p%7)) p /= 7;
 
     if(p == 1)
         return true;

@@ -60,6 +60,22 @@ int generate_support_size_list(std::vector<size_t>& support_size_list,
     support_size_list.push_back(56);
     support_size_list.push_back(84);
     support_size_list.push_back(112);
+    support_size_list.push_back(168);
+
+    // basic support for radix-11 and 13
+    support_size_list.push_back(11);
+    support_size_list.push_back(22);
+    support_size_list.push_back(44);
+    support_size_list.push_back(88);
+    support_size_list.push_back(121);
+    support_size_list.push_back(176);
+
+    support_size_list.push_back(13);
+    support_size_list.push_back(26);
+    support_size_list.push_back(52);
+    support_size_list.push_back(104);
+    support_size_list.push_back(169);
+    support_size_list.push_back(208);
 
     // printf("Total, there are %d valid combinations\n", counter);
     return 0;

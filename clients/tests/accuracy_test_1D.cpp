@@ -41,8 +41,8 @@ static std::vector<size_t> pow3_range
     = {3, 9, 27, 81, 243, 729, 2187, 6561, 19683, 59049, 177147, 531441, 1594323};
 static std::vector<size_t> pow5_range
     = {5, 25, 125, 625, 3125, 15625, 78125, 390625, 1953125, 9765625, 48828125};
-// radix 7 sizes that are either pure pow7 or sizes people have wanted in the wild
-static std::vector<size_t> pow7_range = {7, 49, 84, 112};
+// radix 7, 11, 13 sizes that are either pure powers or sizes people have wanted in the wild
+static std::vector<size_t> radX_range = {7, 49, 84, 112, 11, 13, 52, 104, 208};
 static std::vector<size_t> mix_range
     = {6,   10,   12,   15,   20,   30,   120,  150,  225,  240,  300,   486,   600,
        900, 1250, 1500, 1875, 2160, 2187, 2250, 2500, 3000, 4000, 12000, 24000, 72000};
@@ -195,11 +195,11 @@ INSTANTIATE_TEST_SUITE_P(
                        ValuesIn(stride_range),
                        ValuesIn(generate_types(rocfft_transform_type_real_inverse, place_range))));
 
-static std::vector<std::vector<size_t>> vpow7_range = {pow7_range};
+static std::vector<std::vector<size_t>> vradX_range = {radX_range};
 INSTANTIATE_TEST_SUITE_P(
-    pow7_1D_complex_forward,
+    radX_1D_complex_forward,
     accuracy_test,
-    ::testing::Combine(ValuesIn(generate_lengths(vpow7_range)),
+    ::testing::Combine(ValuesIn(generate_lengths(vradX_range)),
                        ValuesIn(precision_range),
                        ValuesIn(batch_range),
                        ValuesIn(stride_range),
@@ -207,9 +207,9 @@ INSTANTIATE_TEST_SUITE_P(
                        ValuesIn(generate_types(rocfft_transform_type_complex_forward,
                                                place_range))));
 INSTANTIATE_TEST_SUITE_P(
-    pow7_1D_complex_inverse,
+    radX_1D_complex_inverse,
     accuracy_test,
-    ::testing::Combine(ValuesIn(generate_lengths(vpow7_range)),
+    ::testing::Combine(ValuesIn(generate_lengths(vradX_range)),
                        ValuesIn(precision_range),
                        ValuesIn(batch_range),
                        ValuesIn(stride_range),
@@ -217,18 +217,18 @@ INSTANTIATE_TEST_SUITE_P(
                        ValuesIn(generate_types(rocfft_transform_type_complex_inverse,
                                                place_range))));
 INSTANTIATE_TEST_SUITE_P(
-    pow7_1D_real_forward,
+    radX_1D_real_forward,
     accuracy_test,
-    ::testing::Combine(ValuesIn(generate_lengths(vpow7_range)),
+    ::testing::Combine(ValuesIn(generate_lengths(vradX_range)),
                        ValuesIn(precision_range),
                        ValuesIn(batch_range),
                        ValuesIn(stride_range),
                        ValuesIn(stride_range),
                        ValuesIn(generate_types(rocfft_transform_type_real_forward, place_range))));
 INSTANTIATE_TEST_SUITE_P(
-    pow7_1D_real_inverse,
+    radX_1D_real_inverse,
     accuracy_test,
-    ::testing::Combine(ValuesIn(generate_lengths(vpow7_range)),
+    ::testing::Combine(ValuesIn(generate_lengths(vradX_range)),
                        ValuesIn(precision_range),
                        ValuesIn(batch_range),
                        ValuesIn(stride_range),
