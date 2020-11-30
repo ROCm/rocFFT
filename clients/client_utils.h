@@ -34,6 +34,32 @@
 #include "rocfft.h"
 #include <hip/hip_runtime_api.h>
 
+// Determine the size of the data type given the precision and type.
+template <typename Tsize>
+inline Tsize var_size(const rocfft_precision precision, const rocfft_array_type type)
+{
+    size_t var_size = 0;
+    switch(precision)
+    {
+    case rocfft_precision_single:
+        var_size = sizeof(float);
+        break;
+    case rocfft_precision_double:
+        var_size = sizeof(double);
+        break;
+    }
+    switch(type)
+    {
+    case rocfft_array_type_complex_interleaved:
+    case rocfft_array_type_hermitian_interleaved:
+        var_size *= 2;
+        break;
+    default:
+        break;
+    }
+    return var_size;
+}
+
 // Container class for test parameters.
 class rocfft_params
 {
@@ -42,19 +68,19 @@ public:
     std::vector<size_t>     length;
     std::vector<size_t>     istride;
     std::vector<size_t>     ostride;
-    size_t                  nbatch;
-    rocfft_precision        precision;
-    rocfft_transform_type   transform_type;
-    rocfft_result_placement placement;
-    size_t                  idist;
-    size_t                  odist;
-    rocfft_array_type       itype;
-    rocfft_array_type       otype;
-    std::vector<size_t>     ioffset = {0, 0};
-    std::vector<size_t>     ooffset = {0, 0};
+    size_t                  nbatch         = 1;
+    rocfft_precision        precision      = rocfft_precision_double;
+    rocfft_transform_type   transform_type = rocfft_transform_type_complex_forward;
+    rocfft_result_placement placement      = rocfft_placement_inplace;
+    size_t                  idist          = 0;
+    size_t                  odist          = 0;
+    rocfft_array_type       itype          = rocfft_array_type_complex_interleaved;
+    rocfft_array_type       otype          = rocfft_array_type_complex_interleaved;
+    std::vector<size_t>     ioffset        = {0, 0};
+    std::vector<size_t>     ooffset        = {0, 0};
 
-    size_t isize;
-    size_t osize;
+    size_t isize = 0;
+    size_t osize = 0;
 
     // Given an array type, return the name as a string.
     std::string array_type_name(const rocfft_array_type type) const
@@ -133,6 +159,52 @@ public:
         if(transform_type == rocfft_transform_type_real_forward)
             olength[dim() - 1] = olength[dim() - 1] / 2 + 1;
         return std::move(olength);
+    }
+
+    std::vector<size_t> ibuffer_sizes() const
+    {
+        std::vector<size_t> ibuffer_sizes;
+        if(osize == 0)
+            return ibuffer_sizes;
+
+        switch(itype)
+        {
+        case rocfft_array_type_complex_planar:
+        case rocfft_array_type_hermitian_planar:
+            ibuffer_sizes.resize(2);
+            break;
+        default:
+            ibuffer_sizes.resize(1);
+        }
+        for(unsigned i = 0; i < ibuffer_sizes.size(); i++)
+        {
+            ibuffer_sizes[i] = isize * var_size<size_t>(precision, itype);
+            ;
+        }
+        return ibuffer_sizes;
+    }
+
+    std::vector<size_t> obuffer_sizes() const
+    {
+        std::vector<size_t> obuffer_sizes;
+        if(isize == 0)
+            return obuffer_sizes;
+
+        switch(otype)
+        {
+        case rocfft_array_type_complex_planar:
+        case rocfft_array_type_hermitian_planar:
+            obuffer_sizes.resize(2);
+            break;
+        default:
+            obuffer_sizes.resize(1);
+        }
+        for(unsigned i = 0; i < obuffer_sizes.size(); i++)
+        {
+            obuffer_sizes[i] = osize * var_size<size_t>(precision, otype);
+            ;
+        }
+        return obuffer_sizes;
     }
 
     // Estimate the amount of host memory needed.
@@ -2216,59 +2288,6 @@ inline size_t set_odist(const rocfft_result_placement place,
         odist = std::max(length[i] * ostride[i], odist);
     }
     return odist;
-}
-
-// Determine the size of the data type given the precision and type.
-template <typename Tsize>
-inline Tsize var_size(const rocfft_precision precision, const rocfft_array_type type)
-{
-    size_t var_size = 0;
-    switch(precision)
-    {
-    case rocfft_precision_single:
-        var_size = sizeof(float);
-        break;
-    case rocfft_precision_double:
-        var_size = sizeof(double);
-        break;
-    }
-    switch(type)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_hermitian_interleaved:
-        var_size *= 2;
-        break;
-    default:
-        break;
-    }
-    return var_size;
-}
-
-// Given a data type and precision, the distance between batches, and the batch size,
-// return the required buffer size(s).
-template <typename Tsize>
-inline std::vector<Tsize> buffer_sizes(const rocfft_precision  precision,
-                                       const rocfft_array_type type,
-                                       const Tsize             dist,
-                                       const Tsize             nbatch)
-{
-    const Tsize size              = nbatch * dist * var_size<Tsize>(precision, type);
-    unsigned    number_of_buffers = 0;
-    switch(type)
-    {
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_planar:
-        number_of_buffers = 2;
-        break;
-    default:
-        number_of_buffers = 1;
-    }
-    std::vector<Tsize> sizes(number_of_buffers);
-    for(unsigned i = 0; i < number_of_buffers; i++)
-    {
-        sizes[i] = size;
-    }
-    return sizes;
 }
 
 // Given a data type and precision, the distance between batches, and the batch size,

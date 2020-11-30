@@ -311,7 +311,7 @@ void rocfft_transform(const rocfft_params&                  params,
     }
 
     // GPU input and output buffers:
-    auto ibuffer_sizes = buffer_sizes(params.precision, params.itype, params.idist, params.nbatch);
+    auto                ibuffer_sizes = params.ibuffer_sizes();
     std::vector<gpubuf> ibuffer(ibuffer_sizes.size());
     std::vector<void*>  pibuffer(ibuffer_sizes.size());
     for(unsigned int i = 0; i < ibuffer.size(); ++i)
@@ -330,8 +330,7 @@ void rocfft_transform(const rocfft_params&                  params,
     }
     else
     {
-        auto obuffer_sizes
-            = buffer_sizes(params.precision, params.otype, params.odist, params.nbatch);
+        auto obuffer_sizes = params.obuffer_sizes();
         obuffer_data.resize(obuffer_sizes.size());
         for(unsigned int i = 0; i < obuffer_data.size(); ++i)
         {

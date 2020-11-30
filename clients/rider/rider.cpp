@@ -61,10 +61,6 @@ int main(int argc, char* argv[])
          ->default_value(rocfft_transform_type_complex_forward),
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
          "forward\n3) real inverse")
-        ( "idist", po::value<size_t>(&params.idist)->default_value(0),
-          "input distance between successive members when batch size > 1")
-        ( "odist", po::value<size_t>(&params.odist)->default_value(0),
-          "output distance between successive members when batch size > 1")
         ( "batchSize,b", po::value<size_t>(&params.nbatch)->default_value(1),
           "If this value is greater than one, arrays will be used ")
         ( "itype", po::value<rocfft_array_type>(&params.itype)
@@ -78,6 +74,14 @@ int main(int argc, char* argv[])
         ("length",  po::value<std::vector<size_t>>(&params.length)->multitoken(), "Lengths.")
         ("istride", po::value<std::vector<size_t>>(&params.istride)->multitoken(), "Input strides.")
         ("ostride", po::value<std::vector<size_t>>(&params.ostride)->multitoken(), "Output strides.")
+        ("idist", po::value<size_t>(&params.idist)->default_value(0),
+         "Logcial distance between input batches.")
+        ("odist", po::value<size_t>(&params.odist)->default_value(0),
+         "Logcial distance between output batches.")
+        ("isize", po::value<size_t>(&params.isize)->default_value(0),
+         "Logcial size of input buffer.")
+        ("osize", po::value<size_t>(&params.osize)->default_value(0),
+         "Logcial size of output buffer.")
         ("ioffset", po::value<std::vector<size_t>>(&params.ioffset)->multitoken(), "Input offsets.")
         ("ooffset", po::value<std::vector<size_t>>(&params.ooffset)->multitoken(), "Output offsets.");
     // clang-format on
@@ -181,6 +185,8 @@ int main(int argc, char* argv[])
     // bewteen hip runtime and rocm-smi.
     // HIP_V_THROW(hipSetDevice(deviceId), "set device failed!");
 
+    check_set_iotypes(params.placement, params.transform_type, params.itype, params.otype);
+
     params.istride
         = compute_stride(params.ilength(),
                          params.istride,
@@ -192,13 +198,25 @@ int main(int argc, char* argv[])
                          params.placement == rocfft_placement_inplace
                              && params.transform_type == rocfft_transform_type_real_inverse);
 
-    params.idist
-        = set_idist(params.placement, params.transform_type, params.length, params.istride);
-    params.odist
-        = set_odist(params.placement, params.transform_type, params.length, params.ostride);
+    if(params.idist == 0)
+    {
+        params.idist
+            = set_idist(params.placement, params.transform_type, params.length, params.istride);
+    }
+    if(params.odist == 0)
+    {
+        params.odist
+            = set_odist(params.placement, params.transform_type, params.length, params.ostride);
+    }
 
-    params.isize = params.nbatch * params.idist;
-    params.osize = params.nbatch * params.odist;
+    if(params.isize == 0)
+    {
+        params.isize = params.nbatch * params.idist;
+    }
+    if(params.osize == 0)
+    {
+        params.osize = params.nbatch * params.odist;
+    }
 
     if(verbose)
     {
@@ -264,7 +282,7 @@ int main(int argc, char* argv[])
     }
 
     // GPU input and output buffers:
-    auto ibuffer_sizes = buffer_sizes(params.precision, params.itype, params.idist, params.nbatch);
+    auto               ibuffer_sizes = params.ibuffer_sizes();
     std::vector<void*> ibuffer(ibuffer_sizes.size());
     for(unsigned int i = 0; i < ibuffer.size(); ++i)
     {
@@ -278,8 +296,7 @@ int main(int argc, char* argv[])
     }
     else
     {
-        auto obuffer_sizes
-            = buffer_sizes(params.precision, params.otype, params.odist, params.nbatch);
+        auto obuffer_sizes = params.obuffer_sizes();
         obuffer.resize(obuffer_sizes.size());
         for(unsigned int i = 0; i < obuffer.size(); ++i)
         {

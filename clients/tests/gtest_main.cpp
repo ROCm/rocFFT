@@ -95,6 +95,10 @@ int main(int argc, char* argv[])
           "If this value is greater than one, arrays will be used ")
         ("istride",  po::value<std::vector<size_t>>(&manual_params.istride)->multitoken(), "Input stride.")
         ("ostride",  po::value<std::vector<size_t>>(&manual_params.ostride)->multitoken(), "Output stride.")
+        ("idist", po::value<size_t>(&manual_params.idist)->default_value(0), "Lgocial distance between input batches.")
+        ("odist", po::value<size_t>(&manual_params.odist)->default_value(0), "Lgocial distance between output batches.")
+        ("isize", po::value<size_t>(&manual_params.isize)->default_value(0), "Lgocial size of input buffer.")
+        ("osize", po::value<size_t>(&manual_params.osize)->default_value(0), "Lgocial size of output.")
         ("R", po::value<size_t>(&ramgb)->default_value(0), "Ram limit in GB for tests.")
         ("wise,w", "use FFTW wisdom")
         ("wisdomfile,W",
@@ -226,17 +230,30 @@ TEST(manual, vs_fftw)
                          manual_params.placement == rocfft_placement_inplace
                              && manual_params.transform_type == rocfft_transform_type_real_inverse);
 
-    manual_params.idist = set_idist(manual_params.placement,
-                                    manual_params.transform_type,
-                                    manual_params.length,
-                                    manual_params.istride);
-    manual_params.odist = set_odist(manual_params.placement,
-                                    manual_params.transform_type,
-                                    manual_params.length,
-                                    manual_params.ostride);
+    if(manual_params.idist == 0)
+    {
+        manual_params.idist = set_idist(manual_params.placement,
+                                        manual_params.transform_type,
+                                        manual_params.length,
+                                        manual_params.istride);
+    }
+    if(manual_params.odist == 0)
+    {
+        manual_params.odist = set_odist(manual_params.placement,
+                                        manual_params.transform_type,
+                                        manual_params.length,
+                                        manual_params.ostride);
+    }
 
-    manual_params.isize = manual_params.nbatch * manual_params.idist;
-    manual_params.osize = manual_params.nbatch * manual_params.odist;
+    if(manual_params.isize == 0)
+    {
+        manual_params.isize = manual_params.nbatch * manual_params.idist;
+    }
+
+    if(manual_params.osize == 0)
+    {
+        manual_params.osize = manual_params.nbatch * manual_params.odist;
+    }
 
     check_set_iotypes(manual_params.placement,
                       manual_params.transform_type,
