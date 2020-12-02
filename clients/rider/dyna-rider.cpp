@@ -429,8 +429,7 @@ int main(int argc, char* argv[])
     }
 
     // Input data:
-    const auto input = compute_input(
-        params.precision, params.itype, params.length, params.istride, params.idist, params.nbatch);
+    const auto input = compute_input(params);
 
     if(verbose > 1)
     {
@@ -517,12 +516,7 @@ int main(int argc, char* argv[])
 
         if(verbose > 2)
         {
-            auto output = allocate_host_buffer(params.precision,
-                                               params.otype,
-                                               params.olength(),
-                                               params.ostride,
-                                               params.odist,
-                                               params.nbatch);
+            auto output = allocate_host_buffer(params.precision, params.otype, params.osize);
             for(int idx = 0; idx < output.size(); ++idx)
             {
                 hipMemcpy(

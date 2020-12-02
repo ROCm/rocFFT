@@ -124,10 +124,7 @@ public:
         cpu_fft_params& operator=(const cpu_fft_params&) = default;
         ~cpu_fft_params()                                = default;
     };
-    static cpu_fft_params compute_cpu_fft(const std::vector<size_t>& length,
-                                          size_t                     nbatch,
-                                          rocfft_precision           precision,
-                                          rocfft_transform_type      transformType);
+    static cpu_fft_params compute_cpu_fft(const rocfft_params& params);
 };
 
 extern std::tuple<std::vector<size_t>,

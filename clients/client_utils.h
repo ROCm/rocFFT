@@ -107,7 +107,7 @@ public:
     std::string str() const
     {
         std::stringstream ss;
-        ss << "\nGPU params:\n";
+        ss << "\nparams:\n";
         ss << "\tlength:";
         for(auto i : length)
             ss << " " << i;
@@ -137,6 +137,15 @@ public:
             ss << "\tsingle-precision\n";
         else
             ss << "\tdouble-precision\n";
+
+        ss << "\tilength:";
+        for(auto i : ilength())
+            ss << " " << i;
+        ss << "\n";
+        ss << "\tolength:";
+        for(auto i : olength())
+            ss << " " << i;
+        ss << "\n";
 
         return ss.str();
     }
@@ -2293,25 +2302,17 @@ inline size_t set_odist(const rocfft_result_placement place,
 // Given a data type and precision, the distance between batches, and the batch size,
 // allocate the required host buffer(s).
 template <typename Allocator = std::allocator<char>, typename Tsize>
-inline std::vector<std::vector<char, Allocator>>
-    allocate_host_buffer(const rocfft_precision    precision,
-                         const rocfft_array_type   type,
-                         const std::vector<Tsize>& length,
-                         const std::vector<Tsize>& stride,
-                         const Tsize               dist,
-                         const Tsize               nbatch)
+inline std::vector<std::vector<char, Allocator>> allocate_host_buffer(
+    const rocfft_precision precision, const rocfft_array_type type, const Tsize size)
 {
     const int nbuf
         = (type == rocfft_array_type_complex_planar || type == rocfft_array_type_hermitian_planar)
               ? 2
               : 1;
     std::vector<std::vector<char, Allocator>> buffers(nbuf);
-    const bool  iscomplex = (type == rocfft_array_type_complex_interleaved
-                            || type == rocfft_array_type_hermitian_interleaved);
-    const Tsize size      = dist * nbatch * var_size<Tsize>(precision, type);
     for(auto& i : buffers)
     {
-        i.resize(size);
+        i.resize(size * var_size<Tsize>(precision, type));
     }
     return buffers;
 }
@@ -2319,51 +2320,39 @@ inline std::vector<std::vector<char, Allocator>>
 // Given a data type and dimensions, fill the buffer, imposing Hermitian symmetry if
 // necessary.
 // NB: length is the logical size of the FFT, and not necessarily the data dimensions
-template <typename Allocator = std::allocator<char>, typename Tsize>
-inline std::vector<std::vector<char, Allocator>> compute_input(const rocfft_precision    precision,
-                                                               const rocfft_array_type   itype,
-                                                               const std::vector<Tsize>& length,
-                                                               const std::vector<Tsize>& istride,
-                                                               const Tsize               idist,
-                                                               const Tsize               nbatch,
-                                                               const bool make_contiguous = false)
+template <typename Allocator = std::allocator<char>>
+inline std::vector<std::vector<char, Allocator>> compute_input(const rocfft_params& params)
 {
-    const Tsize dim = length.size();
-
-    auto input = allocate_host_buffer<Allocator>(precision, itype, length, istride, idist, nbatch);
-
+    auto input = allocate_host_buffer<Allocator>(params.precision, params.itype, params.isize);
     for(auto& i : input)
     {
         std::fill(i.begin(), i.end(), 0.0);
     }
 
-    std::vector<Tsize> ilength = length;
-    if(itype == rocfft_array_type_hermitian_interleaved
-       || itype == rocfft_array_type_hermitian_planar)
-    {
-        ilength[dim - 1] = length[dim - 1] / 2 + 1;
-    }
-
-    switch(precision)
+    switch(params.precision)
     {
     case rocfft_precision_double:
-        set_input<double>(input, itype, ilength, istride, idist, nbatch);
+        set_input<double>(
+            input, params.itype, params.ilength(), params.istride, params.idist, params.nbatch);
         break;
     case rocfft_precision_single:
-        set_input<float>(input, itype, ilength, istride, idist, nbatch);
+        set_input<float>(
+            input, params.itype, params.ilength(), params.istride, params.idist, params.nbatch);
         break;
     }
 
-    if(itype == rocfft_array_type_hermitian_interleaved
-       || itype == rocfft_array_type_hermitian_planar)
+    if(params.itype == rocfft_array_type_hermitian_interleaved
+       || params.itype == rocfft_array_type_hermitian_planar)
     {
-        switch(precision)
+        switch(params.precision)
         {
         case rocfft_precision_double:
-            impose_hermitian_symmetry<double>(input, length, istride, idist, nbatch);
+            impose_hermitian_symmetry<double>(
+                input, params.length, params.istride, params.idist, params.nbatch);
             break;
         case rocfft_precision_single:
-            impose_hermitian_symmetry<float>(input, length, istride, idist, nbatch);
+            impose_hermitian_symmetry<float>(
+                input, params.length, params.istride, params.idist, params.nbatch);
             break;
         }
     }

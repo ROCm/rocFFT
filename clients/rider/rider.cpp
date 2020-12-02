@@ -266,15 +266,14 @@ int main(int argc, char* argv[])
     }
 
     // Input data:
-    const auto input = compute_input(
-        params.precision, params.itype, params.length, params.istride, params.idist, params.nbatch);
+    const auto gpu_input = compute_input(params);
 
     if(verbose > 1)
     {
         std::cout << "GPU input:\n";
         printbuffer(params.precision,
                     params.itype,
-                    input,
+                    gpu_input,
                     params.ilength(),
                     params.istride,
                     params.nbatch,
@@ -305,10 +304,11 @@ int main(int argc, char* argv[])
     }
 
     // Warm up once:
-    for(int idx = 0; idx < input.size(); ++idx)
+    for(int idx = 0; idx < gpu_input.size(); ++idx)
     {
         HIP_V_THROW(
-            hipMemcpy(ibuffer[idx], input[idx].data(), input[idx].size(), hipMemcpyHostToDevice),
+            hipMemcpy(
+                ibuffer[idx], gpu_input[idx].data(), gpu_input[idx].size(), hipMemcpyHostToDevice),
             "hipMemcpy failed");
     }
     rocfft_execute(plan, ibuffer.data(), obuffer.data(), info);
@@ -323,12 +323,13 @@ int main(int argc, char* argv[])
     {
 
         // Copy the input data to the GPU:
-        for(int idx = 0; idx < input.size(); ++idx)
+        for(int idx = 0; idx < gpu_input.size(); ++idx)
         {
-            HIP_V_THROW(
-                hipMemcpy(
-                    ibuffer[idx], input[idx].data(), input[idx].size(), hipMemcpyHostToDevice),
-                "hipMemcpy failed");
+            HIP_V_THROW(hipMemcpy(ibuffer[idx],
+                                  gpu_input[idx].data(),
+                                  gpu_input[idx].size(),
+                                  hipMemcpyHostToDevice),
+                        "hipMemcpy failed");
         }
 
         HIP_V_THROW(hipEventRecord(start), "hipEventRecord failed");
@@ -344,12 +345,7 @@ int main(int argc, char* argv[])
 
         if(verbose > 2)
         {
-            auto output = allocate_host_buffer(params.precision,
-                                               params.otype,
-                                               params.olength(),
-                                               params.ostride,
-                                               params.odist,
-                                               params.nbatch);
+            auto output = allocate_host_buffer(params.precision, params.otype, params.osize);
             for(int idx = 0; idx < output.size(); ++idx)
             {
                 hipMemcpy(

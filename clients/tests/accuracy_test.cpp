@@ -32,18 +32,15 @@
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
 
-accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const std::vector<size_t>& length,
-                                                             size_t                     nbatch,
-                                                             rocfft_precision           precision,
-                                                             rocfft_transform_type transform_type)
+accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params& params)
 {
     // Check cache first - nbatch is a >= comparison because we compute
     // the largest batch size and cache it.  Smaller batch runs can
     // compare against the larger data.
-    if(std::get<0>(last_cpu_fft) == length && std::get<2>(last_cpu_fft) == precision
-       && std::get<3>(last_cpu_fft) == transform_type)
+    if(std::get<0>(last_cpu_fft) == params.length && std::get<2>(last_cpu_fft) == params.precision
+       && std::get<3>(last_cpu_fft) == params.transform_type)
     {
-        if(std::get<1>(last_cpu_fft) >= nbatch)
+        if(std::get<1>(last_cpu_fft) >= params.nbatch)
         {
             return std::get<4>(last_cpu_fft);
         }
@@ -54,61 +51,62 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const std::vector<s
             abort();
     }
 
-    const size_t dim = length.size();
+    rocfft_params contiguous_params;
+    contiguous_params.length         = params.length;
+    contiguous_params.precision      = params.precision;
+    contiguous_params.placement      = rocfft_placement_notinplace;
+    contiguous_params.transform_type = params.transform_type;
+    contiguous_params.nbatch         = params.nbatch;
 
     // Input cpu parameters:
-    auto ilength = length;
-    if(transform_type == rocfft_transform_type_real_inverse)
-        ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
-    auto istride = compute_stride(ilength);
-    auto itype   = contiguous_itype(transform_type);
-    auto idist   = set_idist(rocfft_placement_notinplace, transform_type, length, istride);
+    contiguous_params.istride = compute_stride(contiguous_params.ilength());
+    contiguous_params.itype   = contiguous_itype(params.transform_type);
+    contiguous_params.idist   = set_idist(rocfft_placement_notinplace,
+                                        contiguous_params.transform_type,
+                                        contiguous_params.length,
+                                        contiguous_params.istride);
+    contiguous_params.isize   = contiguous_params.idist * contiguous_params.nbatch;
 
     // Output cpu parameters:
-    auto olength = length;
-    if(transform_type == rocfft_transform_type_real_forward)
-        olength[dim - 1] = olength[dim - 1] / 2 + 1;
-    auto ostride = compute_stride(olength);
-    auto odist   = set_odist(rocfft_placement_notinplace, transform_type, length, ostride);
-    auto otype   = contiguous_otype(transform_type);
+    contiguous_params.ostride = compute_stride(contiguous_params.olength());
+    contiguous_params.odist   = set_odist(rocfft_placement_notinplace,
+                                        contiguous_params.transform_type,
+                                        contiguous_params.length,
+                                        contiguous_params.ostride);
+    contiguous_params.otype   = contiguous_otype(contiguous_params.transform_type);
+    contiguous_params.osize   = contiguous_params.odist * contiguous_params.nbatch;
 
     if(verbose > 3)
     {
         std::cout << "CPU  params:\n";
-        std::cout << "\tilength:";
-        for(auto i : ilength)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tcpu_istride:";
-        for(auto i : istride)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tcpu_idist: " << idist << std::endl;
-
-        std::cout << "\tolength:";
-        for(auto i : olength)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tcpu_ostride:";
-        for(auto i : ostride)
-            std::cout << " " << i;
-        std::cout << "\n";
-        std::cout << "\tcpu_odist: " << odist << std::endl;
+        std::cout << contiguous_params.str() << std::endl;
     }
 
     // Hook up the futures
     std::shared_future<fftw_data_t> input = std::async(std::launch::async, [=]() {
-        return compute_input<fftwAllocator<char>>(precision, itype, length, istride, idist, nbatch);
+        return compute_input<fftwAllocator<char>>(contiguous_params);
     });
 
     if(verbose > 3)
     {
         std::cout << "CPU input:\n";
-        printbuffer(precision, itype, input.get(), ilength, istride, nbatch, idist);
+        printbuffer(params.precision,
+                    contiguous_params.itype,
+                    input.get(),
+                    params.ilength(),
+                    contiguous_params.istride,
+                    params.nbatch,
+                    contiguous_params.idist);
     }
 
     auto input_norm = std::async(std::launch::async, [=]() {
-        auto ret_norm = norm(input.get(), ilength, nbatch, precision, itype, istride, idist);
+        auto ret_norm = norm(input.get(),
+                             contiguous_params.ilength(),
+                             contiguous_params.nbatch,
+                             contiguous_params.precision,
+                             contiguous_params.itype,
+                             contiguous_params.istride,
+                             contiguous_params.idist);
         if(verbose > 2)
         {
             std::cout << "CPU Input Linf norm:  " << ret_norm.l_inf << "\n";
@@ -120,17 +118,36 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const std::vector<s
     std::shared_future<fftw_data_t> output      = std::async(std::launch::async, [=]() {
         // copy input, as FFTW may overwrite it
         auto input_copy = input.get();
-        auto output     = fftw_via_rocfft(
-            length, istride, ostride, nbatch, idist, odist, precision, transform_type, input_copy);
+        auto output     = fftw_via_rocfft(contiguous_params.length,
+                                      contiguous_params.istride,
+                                      contiguous_params.ostride,
+                                      contiguous_params.nbatch,
+                                      contiguous_params.idist,
+                                      contiguous_params.odist,
+                                      contiguous_params.precision,
+                                      contiguous_params.transform_type,
+                                      input_copy);
         if(verbose > 3)
         {
             std::cout << "CPU output:\n";
-            printbuffer(precision, otype, output, olength, ostride, nbatch, odist);
+            printbuffer(params.precision,
+                        contiguous_params.otype,
+                        output,
+                        params.olength(),
+                        contiguous_params.ostride,
+                        params.nbatch,
+                        contiguous_params.odist);
         }
         return std::move(output);
     });
     std::shared_future<VectorNorms> output_norm = std::async(std::launch::async, [=]() {
-        auto ret_norm = norm(output.get(), olength, nbatch, precision, otype, ostride, odist);
+        auto ret_norm = norm(output.get(),
+                             params.olength(),
+                             params.nbatch,
+                             params.precision,
+                             contiguous_params.otype,
+                             contiguous_params.ostride,
+                             contiguous_params.odist);
         if(verbose > 2)
         {
             std::cout << "CPU Output Linf norm: " << ret_norm.l_inf << "\n";
@@ -140,14 +157,14 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const std::vector<s
     });
 
     cpu_fft_params ret;
-    ret.ilength = ilength;
-    ret.istride = istride;
-    ret.itype   = itype;
-    ret.idist   = idist;
-    ret.olength = olength;
-    ret.ostride = ostride;
-    ret.otype   = otype;
-    ret.odist   = odist;
+    ret.ilength = params.ilength();
+    ret.istride = contiguous_params.istride;
+    ret.itype   = contiguous_params.itype;
+    ret.idist   = contiguous_params.idist;
+    ret.olength = params.olength();
+    ret.ostride = contiguous_params.ostride;
+    ret.otype   = contiguous_params.otype;
+    ret.odist   = contiguous_params.odist;
 
     ret.input       = std::move(input);
     ret.input_norm  = std::move(input_norm);
@@ -155,10 +172,10 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const std::vector<s
     ret.output_norm = std::move(output_norm);
 
     // Cache our result
-    std::get<0>(last_cpu_fft) = length;
-    std::get<1>(last_cpu_fft) = nbatch;
-    std::get<2>(last_cpu_fft) = precision;
-    std::get<3>(last_cpu_fft) = transform_type;
+    std::get<0>(last_cpu_fft) = params.length;
+    std::get<1>(last_cpu_fft) = params.nbatch;
+    std::get<2>(last_cpu_fft) = params.precision;
+    std::get<3>(last_cpu_fft) = params.transform_type;
     std::get<4>(last_cpu_fft) = ret;
 
     return std::move(ret);
@@ -277,8 +294,8 @@ void rocfft_transform(const rocfft_params&                  params,
     }
 
     // Formatted input data:
-    auto gpu_input = allocate_host_buffer<fftwAllocator<char>>(
-        params.precision, params.itype, params.length, params.istride, params.idist, params.nbatch);
+    auto gpu_input
+        = allocate_host_buffer<fftwAllocator<char>>(params.precision, params.itype, params.isize);
 
     // Copy from contiguous_input to input.
     copy_buffers(cpu_input.get(),
@@ -363,12 +380,8 @@ void rocfft_transform(const rocfft_params&                  params,
     EXPECT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
 
     // Copy the data back to the host:
-    auto gpu_output = allocate_host_buffer<fftwAllocator<char>>(params.precision,
-                                                                params.otype,
-                                                                params.olength(),
-                                                                params.ostride,
-                                                                params.odist,
-                                                                params.nbatch);
+    auto gpu_output
+        = allocate_host_buffer<fftwAllocator<char>>(params.precision, params.otype, params.osize);
     for(int idx = 0; idx < gpu_output.size(); ++idx)
     {
         hip_status = hipMemcpy(gpu_output[idx].data(),
@@ -541,8 +554,7 @@ TEST_P(accuracy_test, vs_fftw)
             return;
         }
     }
-    auto cpu = accuracy_test::compute_cpu_fft(
-        params.length, params.nbatch, params.precision, params.transform_type);
+    auto cpu = accuracy_test::compute_cpu_fft(params);
 
     // Set up GPU computations:
     if(verbose)

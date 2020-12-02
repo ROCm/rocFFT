@@ -261,10 +261,7 @@ TEST(manual, vs_fftw)
                       manual_params.otype);
 
     std::cout << manual_params.str() << std::endl;
-    auto cpu = accuracy_test::compute_cpu_fft(manual_params.length,
-                                              manual_params.nbatch,
-                                              manual_params.precision,
-                                              manual_params.transform_type);
+    auto cpu = accuracy_test::compute_cpu_fft(manual_params);
 
     accuracy_test::cpu_fft_params cpu_params(manual_params);
 
