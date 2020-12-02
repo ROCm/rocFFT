@@ -12,6 +12,10 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - New radix-11 and radix-13 kernels; used in length 11 and 13 (and
   some of their multiples) transforms.
 
+### Optimizations
+
+- Enabled radix-7 for size 336
+
 ### Changed
 
 - rocFFT now automatically allocates a work buffer if the plan
