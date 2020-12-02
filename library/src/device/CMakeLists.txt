@@ -119,7 +119,7 @@ else()
 
   # Enable compilation of desired architectures
   foreach( target ${AMDGPU_TARGETS} )
-    target_compile_options( rocfft-device PRIVATE --amdgpu-target=${target}:xnack- )
+    target_compile_options( rocfft-device PRIVATE --amdgpu-target=${target} )
   endforeach( )
 
 endif()
