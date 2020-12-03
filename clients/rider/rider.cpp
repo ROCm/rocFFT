@@ -75,13 +75,13 @@ int main(int argc, char* argv[])
         ("istride", po::value<std::vector<size_t>>(&params.istride)->multitoken(), "Input strides.")
         ("ostride", po::value<std::vector<size_t>>(&params.ostride)->multitoken(), "Output strides.")
         ("idist", po::value<size_t>(&params.idist)->default_value(0),
-         "Logcial distance between input batches.")
+         "Logical distance between input batches.")
         ("odist", po::value<size_t>(&params.odist)->default_value(0),
-         "Logcial distance between output batches.")
+         "Logical distance between output batches.")
         ("isize", po::value<size_t>(&params.isize)->default_value(0),
-         "Logcial size of input buffer.")
+         "Logical size of input buffer.")
         ("osize", po::value<size_t>(&params.osize)->default_value(0),
-         "Logcial size of output buffer.")
+         "Logical size of output buffer.")
         ("ioffset", po::value<std::vector<size_t>>(&params.ioffset)->multitoken(), "Input offsets.")
         ("ooffset", po::value<std::vector<size_t>>(&params.ooffset)->multitoken(), "Output offsets.");
     // clang-format on
@@ -111,10 +111,9 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    const rocfft_result_placement place
+    params.placement
         = vm.count("notInPlace") ? rocfft_placement_notinplace : rocfft_placement_inplace;
-    const rocfft_precision precision
-        = vm.count("double") ? rocfft_precision_double : rocfft_precision_single;
+    params.precision = vm.count("double") ? rocfft_precision_double : rocfft_precision_single;
 
     if(vm.count("notInPlace"))
     {
@@ -289,7 +288,7 @@ int main(int argc, char* argv[])
     }
 
     std::vector<void*> obuffer;
-    if(place == rocfft_placement_inplace)
+    if(params.placement == rocfft_placement_inplace)
     {
         obuffer = ibuffer;
     }
