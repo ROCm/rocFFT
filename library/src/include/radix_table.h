@@ -130,6 +130,10 @@ inline void GetBlockComputeTable(size_t N, size_t& bwd, size_t& wgs, size_t& lds
         bwd = 5;
         wgs = 50;
         break;
+    case 200:
+        bwd = 10;
+        wgs = 100;
+        break;
     default:
         assert(0); // should not happen
     }

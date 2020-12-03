@@ -23,24 +23,22 @@
 // TODO:
 //   - better data structure, and more elements for non pow of 2
 //   - validate corresponding functions existing in function pool or not
-TreeNode::Map1DLength const TreeNode::map1DLengthSingle = {
-    {8192, 64}, // pow of 2
-    {16384, 64},
-    {32768, 128},
-    {65536, 256},
-    {131072, 64},
-    {262144, 64},
-    {6561, 81}, // pow of 3
-    {10000, 100} // mixed
-};
+TreeNode::Map1DLength const TreeNode::map1DLengthSingle = {{8192, 64}, // pow of 2
+                                                           {16384, 64},
+                                                           {32768, 128},
+                                                           {65536, 256},
+                                                           {131072, 64},
+                                                           {262144, 64},
+                                                           {6561, 81}, // pow of 3
+                                                           {10000, 100}, // mixed
+                                                           {40000, 200}};
 
-TreeNode::Map1DLength const TreeNode::map1DLengthDouble = {
-    {4096, 64}, // pow of 2
-    {8192, 64},
-    {16384, 64},
-    {32768, 128},
-    {65536, 64},
-    {131072, 64},
-    {6561, 81}, // pow of 3
-    {10000, 100} // mixed
-};
+TreeNode::Map1DLength const TreeNode::map1DLengthDouble = {{4096, 64}, // pow of 2
+                                                           {8192, 64},
+                                                           {16384, 64},
+                                                           {32768, 128},
+                                                           {65536, 64},
+                                                           {131072, 64},
+                                                           {6561, 81}, // pow of 3
+                                                           {10000, 100}, // mixed
+                                                           {40000, 200}};

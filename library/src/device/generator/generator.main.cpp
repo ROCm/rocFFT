@@ -219,12 +219,14 @@ int main(int argc, char* argv[])
     large1D_list.push_back(std::make_tuple(81, CS_KERNEL_STOCKHAM_BLOCK_CC));
     large1D_list.push_back(std::make_tuple(100, CS_KERNEL_STOCKHAM_BLOCK_CC));
     large1D_list.push_back(std::make_tuple(128, CS_KERNEL_STOCKHAM_BLOCK_CC));
+    large1D_list.push_back(std::make_tuple(200, CS_KERNEL_STOCKHAM_BLOCK_CC));
     large1D_list.push_back(std::make_tuple(256, CS_KERNEL_STOCKHAM_BLOCK_CC));
 
     large1D_list.push_back(std::make_tuple(64, CS_KERNEL_STOCKHAM_BLOCK_RC));
     large1D_list.push_back(std::make_tuple(81, CS_KERNEL_STOCKHAM_BLOCK_RC));
     large1D_list.push_back(std::make_tuple(100, CS_KERNEL_STOCKHAM_BLOCK_RC));
     large1D_list.push_back(std::make_tuple(128, CS_KERNEL_STOCKHAM_BLOCK_RC));
+    large1D_list.push_back(std::make_tuple(200, CS_KERNEL_STOCKHAM_BLOCK_RC));
     large1D_list.push_back(std::make_tuple(256, CS_KERNEL_STOCKHAM_BLOCK_RC));
 
     for(int i = 0; i < large1D_list.size(); i++)

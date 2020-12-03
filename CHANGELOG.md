@@ -9,13 +9,15 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Explicitly specify MAX_THREADS_PER_BLOCK through `__launch_bounds__` for all
   kernels.
 
-- New radix-11 and radix-13 kernels; used in length 11 and 13 (and
-  some of their multiples) transforms.
-
 ### Optimizations
+
+- Optimized 1D length 40000 C2C case.
 
 - Enabled radix-7 for size 336
 
+- New radix-11 and radix-13 kernels; used in length 11 and 13 (and
+  some of their multiples) transforms.
+  
 ### Changed
 
 - rocFFT now automatically allocates a work buffer if the plan

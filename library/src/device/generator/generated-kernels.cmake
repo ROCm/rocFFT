@@ -141,6 +141,8 @@ rocfft_kernel_1944.h
 rocfft_kernel_1.h
 rocfft_kernel_2000.h
 rocfft_kernel_200.h
+rocfft_kernel_200_sbcc.h
+rocfft_kernel_200_sbrc.h
 rocfft_kernel_2025.h
 rocfft_kernel_2048.h
 rocfft_kernel_20.h
