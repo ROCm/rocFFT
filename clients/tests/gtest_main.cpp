@@ -68,10 +68,28 @@ int main(int argc, char* argv[])
     // Filename for fftw and fftwf wisdom.
     std::string fftw_wisdom_filename;
 
+    po::options_description opdesc(
+        "\n"
+        "rocFFT Runtime Test command line options\n"
+        "NB: input parameters are row-major.\n"
+        "\n"
+        "FFTW accuracy test cases are named using these identifiers:\n"
+        "\n"
+        "  len_<n>: problem dimensions, row-major\n"
+        "  single,double: precision\n"
+        "  ip,op: in-place or out-of-place\n"
+        "  batch_<n>: batch size\n"
+        "  istride_<n>_<format>: input stride (ostride for output stride), format may be:\n"
+        "      CI - complex interleaved\n"
+        "      CP - complex planar\n"
+        "      R  - real\n"
+        "      HI - hermitian interleaved\n"
+        "      HP - hermitian planar\n"
+        "\n"
+        "Usage");
     // Declare the supported options.
     // clang-format doesn't handle boost program options very well:
     // clang-format off
-    po::options_description opdesc("rocFFT Runtime Test command line options\nNB: input parameters are row-major.");
     opdesc.add_options()
         ("help,h", "produces this help message")
         ("verbose,v",  po::value<int>()->default_value(0),

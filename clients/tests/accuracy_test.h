@@ -125,6 +125,88 @@ public:
         ~cpu_fft_params()                                = default;
     };
     static cpu_fft_params compute_cpu_fft(const rocfft_params& params);
+
+    static std::string TestName(const testing::TestParamInfo<accuracy_test::ParamType>& info)
+    {
+        // dimension and transform type are expected to be in the test
+        // suite name already
+        const std::vector<size_t>     length        = std::get<0>(info.param);
+        const rocfft_precision        precision     = std::get<1>(info.param);
+        const size_t                  nbatch        = std::get<2>(info.param);
+        const std::vector<size_t>     istride       = std::get<3>(info.param);
+        const std::vector<size_t>     ostride       = std::get<4>(info.param);
+        type_place_io_t               type_place_io = std::get<5>(info.param);
+        const rocfft_result_placement place         = std::get<1>(type_place_io);
+        const rocfft_array_type       itype         = std::get<2>(type_place_io);
+        const rocfft_array_type       otype         = std::get<3>(type_place_io);
+
+        std::string ret = "len_";
+
+        for(auto n : length)
+        {
+            ret += std::to_string(n);
+            ret += "_";
+        }
+        switch(precision)
+        {
+        case rocfft_precision_single:
+            ret += "single_";
+            break;
+        case rocfft_precision_double:
+            ret += "double_";
+            break;
+        }
+
+        switch(place)
+        {
+        case rocfft_placement_inplace:
+            ret += "ip_";
+            break;
+        case rocfft_placement_notinplace:
+            ret += "op_";
+            break;
+        }
+
+        ret += "batch_";
+        ret += std::to_string(nbatch);
+
+        auto append_array_info = [&ret](const std::vector<size_t>& stride, rocfft_array_type type) {
+            for(auto s : stride)
+            {
+                ret += std::to_string(s);
+                ret += "_";
+            }
+
+            switch(type)
+            {
+            case rocfft_array_type_complex_interleaved:
+                ret += "CI";
+                break;
+            case rocfft_array_type_complex_planar:
+                ret += "CP";
+                break;
+            case rocfft_array_type_real:
+                ret += "R";
+                break;
+            case rocfft_array_type_hermitian_interleaved:
+                ret += "HI";
+                break;
+            case rocfft_array_type_hermitian_planar:
+                ret += "HP";
+                break;
+            default:
+                ret += "UN";
+                break;
+            }
+        };
+
+        ret += "_istride_";
+        append_array_info(istride, itype);
+
+        ret += "_ostride_";
+        append_array_info(ostride, otype);
+        return ret;
+    }
 };
 
 extern std::tuple<std::vector<size_t>,
