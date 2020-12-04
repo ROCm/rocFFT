@@ -78,9 +78,9 @@ int main(int argc, char* argv[])
          "Logical distance between input batches.")
         ("odist", po::value<size_t>(&params.odist)->default_value(0),
          "Logical distance between output batches.")
-        ("isize", po::value<size_t>(&params.isize)->default_value(0),
+        ("isize", po::value<std::vector<size_t>>(&params.isize)->multitoken(),
          "Logical size of input buffer.")
-        ("osize", po::value<size_t>(&params.osize)->default_value(0),
+        ("osize", po::value<std::vector<size_t>>(&params.osize)->multitoken(),
          "Logical size of output buffer.")
         ("ioffset", po::value<std::vector<size_t>>(&params.ioffset)->multitoken(), "Input offsets.")
         ("ooffset", po::value<std::vector<size_t>>(&params.ooffset)->multitoken(), "Output offsets.");
@@ -208,13 +208,19 @@ int main(int argc, char* argv[])
             = set_odist(params.placement, params.transform_type, params.length, params.ostride);
     }
 
-    if(params.isize == 0)
+    if(params.isize.empty())
     {
-        params.isize = params.nbatch * params.idist;
+        for(int i = 0; i < params.nibuffer(); ++i)
+        {
+            params.isize.push_back(params.nbatch * params.idist);
+        }
     }
-    if(params.osize == 0)
+    if(params.osize.empty())
     {
-        params.osize = params.nbatch * params.odist;
+        for(int i = 0; i < params.nobuffer(); ++i)
+        {
+            params.osize.push_back(params.nbatch * params.odist);
+        }
     }
 
     if(verbose)

@@ -113,10 +113,14 @@ int main(int argc, char* argv[])
           "If this value is greater than one, arrays will be used ")
         ("istride",  po::value<std::vector<size_t>>(&manual_params.istride)->multitoken(), "Input stride.")
         ("ostride",  po::value<std::vector<size_t>>(&manual_params.ostride)->multitoken(), "Output stride.")
-        ("idist", po::value<size_t>(&manual_params.idist)->default_value(0), "Logical distance between input batches.")
-        ("odist", po::value<size_t>(&manual_params.odist)->default_value(0), "Logical distance between output batches.")
-        ("isize", po::value<size_t>(&manual_params.isize)->default_value(0), "Logical size of input buffer.")
-        ("osize", po::value<size_t>(&manual_params.osize)->default_value(0), "Logical size of output.")
+        ("idist", po::value<size_t>(&manual_params.idist)->default_value(0),
+         "Logical distance between input batches.")
+        ("odist", po::value<size_t>(&manual_params.odist)->default_value(0),
+         "Logical distance between output batches.")
+        ("isize", po::value<std::vector<size_t>>(&manual_params.isize)->multitoken(),
+         "Logical size of input buffer.")
+        ("osize", po::value<std::vector<size_t>>(&manual_params.osize)->multitoken(),
+         "Logical size of output.")
         ("R", po::value<size_t>(&ramgb)->default_value(0), "Ram limit in GB for tests.")
         ("wise,w", "use FFTW wisdom")
         ("wisdomfile,W",
@@ -263,20 +267,26 @@ TEST(manual, vs_fftw)
                                         manual_params.ostride);
     }
 
-    if(manual_params.isize == 0)
-    {
-        manual_params.isize = manual_params.nbatch * manual_params.idist;
-    }
-
-    if(manual_params.osize == 0)
-    {
-        manual_params.osize = manual_params.nbatch * manual_params.odist;
-    }
-
     check_set_iotypes(manual_params.placement,
                       manual_params.transform_type,
                       manual_params.itype,
                       manual_params.otype);
+
+    if(manual_params.isize.empty())
+    {
+        for(int i = 0; i < manual_params.nibuffer(); ++i)
+        {
+            manual_params.isize.push_back(manual_params.nbatch * manual_params.idist);
+        }
+    }
+
+    if(manual_params.osize.empty())
+    {
+        for(int i = 0; i < manual_params.nobuffer(); ++i)
+        {
+            manual_params.osize.push_back(manual_params.nbatch * manual_params.odist);
+        }
+    }
 
     std::cout << manual_params.str() << std::endl;
     auto cpu = accuracy_test::compute_cpu_fft(manual_params);

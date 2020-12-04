@@ -79,8 +79,8 @@ public:
     std::vector<size_t>     ioffset        = {0, 0};
     std::vector<size_t>     ooffset        = {0, 0};
 
-    size_t isize = 0;
-    size_t osize = 0;
+    std::vector<size_t> isize;
+    std::vector<size_t> osize;
 
     // Given an array type, return the name as a string.
     std::string array_type_name(const rocfft_array_type type) const
@@ -125,8 +125,14 @@ public:
         ss << "\todist: " << odist << "\n";
 
         ss << "\tbatch: " << nbatch << "\n";
-        ss << "\tisize: " << isize << "\n";
-        ss << "\tosize: " << osize << "\n";
+        ss << "\tisize:";
+        for(auto i : isize)
+            ss << " " << i;
+        ss << "\n";
+        ss << "\tosize:";
+        for(auto i : osize)
+            ss << " " << i;
+        ss << "\n";
 
         if(placement == rocfft_placement_inplace)
             ss << "\tin-place\n";
@@ -155,14 +161,14 @@ public:
     {
         return length.size();
     }
-    std::vector<size_t> ilength()
+    std::vector<size_t> ilength() const
     {
         auto ilength = length;
         if(transform_type == rocfft_transform_type_real_inverse)
             ilength[dim() - 1] = ilength[dim() - 1] / 2 + 1;
         return std::move(ilength);
     }
-    std::vector<size_t> olength()
+    std::vector<size_t> olength() const
     {
         auto olength = length;
         if(transform_type == rocfft_transform_type_real_forward)
@@ -170,10 +176,39 @@ public:
         return std::move(olength);
     }
 
+    size_t nbuffer(const rocfft_array_type type) const
+    {
+        switch(type)
+        {
+        case rocfft_array_type_real:
+        case rocfft_array_type_complex_interleaved:
+        case rocfft_array_type_hermitian_interleaved:
+            return 1;
+        case rocfft_array_type_complex_planar:
+        case rocfft_array_type_hermitian_planar:
+            return 2;
+        case rocfft_array_type_unset:
+            return 0;
+        }
+    }
+
+    // Number of input buffers
+    size_t nibuffer() const
+    {
+        return nbuffer(itype);
+    }
+
+    // Number of output buffers
+    size_t nobuffer() const
+    {
+        return nbuffer(otype);
+    }
+
     std::vector<size_t> ibuffer_sizes() const
     {
         std::vector<size_t> ibuffer_sizes;
-        if(osize == 0)
+
+        if(isize.empty())
             return ibuffer_sizes;
 
         switch(itype)
@@ -187,8 +222,7 @@ public:
         }
         for(unsigned i = 0; i < ibuffer_sizes.size(); i++)
         {
-            ibuffer_sizes[i] = isize * var_size<size_t>(precision, itype);
-            ;
+            ibuffer_sizes[i] = isize[i] * var_size<size_t>(precision, itype);
         }
         return ibuffer_sizes;
     }
@@ -196,7 +230,8 @@ public:
     std::vector<size_t> obuffer_sizes() const
     {
         std::vector<size_t> obuffer_sizes;
-        if(isize == 0)
+
+        if(osize.empty())
             return obuffer_sizes;
 
         switch(otype)
@@ -210,8 +245,7 @@ public:
         }
         for(unsigned i = 0; i < obuffer_sizes.size(); i++)
         {
-            obuffer_sizes[i] = osize * var_size<size_t>(precision, otype);
-            ;
+            obuffer_sizes[i] = osize[i] * var_size<size_t>(precision, otype);
         }
         return obuffer_sizes;
     }
@@ -255,23 +289,6 @@ public:
         return needed_ram;
     }
 
-    // For real/complex transofrms, we need to account for differences in intput and output
-    // dimensions.
-    std::vector<size_t> ilength() const
-    {
-        auto ilength = length;
-        if(transform_type == rocfft_transform_type_real_inverse)
-            ilength[dim() - 1] = ilength[dim() - 1] / 2 + 1;
-        return ilength;
-    }
-    std::vector<size_t> olength() const
-    {
-        auto olength = length;
-        if(transform_type == rocfft_transform_type_real_forward)
-            olength[dim() - 1] = olength[dim() - 1] / 2 + 1;
-        return std::move(olength);
-    }
-
     // Column-major getters:
     std::vector<size_t> ilength_cm() const
     {
@@ -303,24 +320,6 @@ public:
         auto ostride_cm = ostride;
         std::reverse(std::begin(ostride_cm), std::end(ostride_cm));
         return std::move(ostride_cm);
-    }
-
-    // Number of input buffers
-    int nibuffer() const
-    {
-        return (itype == rocfft_array_type_complex_planar
-                || itype == rocfft_array_type_hermitian_planar)
-                   ? 2
-                   : 1;
-    }
-
-    // Number of output buffers
-    int nobuffer() const
-    {
-        return (otype == rocfft_array_type_complex_planar
-                || otype == rocfft_array_type_hermitian_planar)
-                   ? 2
-                   : 1;
     }
 
     // Return true if the given GPU parameters would produce a valid transform.
@@ -2301,18 +2300,14 @@ inline size_t set_odist(const rocfft_result_placement place,
 
 // Given a data type and precision, the distance between batches, and the batch size,
 // allocate the required host buffer(s).
-template <typename Allocator = std::allocator<char>, typename Tsize>
+template <typename Allocator = std::allocator<char>>
 inline std::vector<std::vector<char, Allocator>> allocate_host_buffer(
-    const rocfft_precision precision, const rocfft_array_type type, const Tsize size)
+    const rocfft_precision precision, const rocfft_array_type type, const std::vector<size_t>& size)
 {
-    const int nbuf
-        = (type == rocfft_array_type_complex_planar || type == rocfft_array_type_hermitian_planar)
-              ? 2
-              : 1;
-    std::vector<std::vector<char, Allocator>> buffers(nbuf);
-    for(auto& i : buffers)
+    std::vector<std::vector<char, Allocator>> buffers(size.size());
+    for(int i = 0; i < size.size(); ++i)
     {
-        i.resize(size * var_size<Tsize>(precision, type));
+        buffers[i].resize(size[i] * var_size<size_t>(precision, type));
     }
     return buffers;
 }

@@ -65,7 +65,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
                                         contiguous_params.transform_type,
                                         contiguous_params.length,
                                         contiguous_params.istride);
-    contiguous_params.isize   = contiguous_params.idist * contiguous_params.nbatch;
+    contiguous_params.isize.push_back(contiguous_params.idist * contiguous_params.nbatch);
 
     // Output cpu parameters:
     contiguous_params.ostride = compute_stride(contiguous_params.olength());
@@ -74,7 +74,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
                                         contiguous_params.length,
                                         contiguous_params.ostride);
     contiguous_params.otype   = contiguous_otype(contiguous_params.transform_type);
-    contiguous_params.osize   = contiguous_params.odist * contiguous_params.nbatch;
+    contiguous_params.osize.push_back(contiguous_params.odist * contiguous_params.nbatch);
 
     if(verbose > 3)
     {
@@ -265,10 +265,12 @@ void rocfft_transform(const rocfft_params&                  params,
     const int nobuffer = params.nobuffer();
 
     // Check if the problem fits on the device; if it doesn't skip it.
-    if(!vram_fits_problem(
-           nibuffer * params.isize * isize_t,
-           (params.placement == rocfft_placement_inplace) ? 0 : nobuffer * params.osize * osize_t,
-           workbuffersize))
+    if(!vram_fits_problem(std::accumulate(params.isize.begin(), params.isize.end(), 0) * isize_t,
+                          (params.placement == rocfft_placement_inplace)
+                              ? 0
+                              : std::accumulate(params.osize.begin(), params.osize.end(), 0)
+                                    * osize_t,
+                          workbuffersize))
     {
         rocfft_plan_destroy(gpu_plan);
         rocfft_plan_description_destroy(desc);
@@ -516,8 +518,14 @@ TEST_P(accuracy_test, vs_fftw)
     params.odist
         = set_odist(params.placement, params.transform_type, params.length, params.ostride);
 
-    params.isize = params.nbatch * params.idist;
-    params.osize = params.nbatch * params.odist;
+    for(int i = 0; i < params.nibuffer(); ++i)
+    {
+        params.isize.push_back(params.nbatch * params.idist);
+    }
+    for(int i = 0; i < params.nobuffer(); ++i)
+    {
+        params.osize.push_back(params.nbatch * params.odist);
+    }
 
     if(ramgb > 0)
     {
@@ -541,10 +549,10 @@ TEST_P(accuracy_test, vs_fftw)
         switch(params.precision)
         {
         case rocfft_precision_single:
-            needed_ram *= 4;
+            needed_ram *= sizeof(float);
             break;
         case rocfft_precision_double:
-            needed_ram *= 8;
+            needed_ram *= sizeof(double);
             break;
         }
 
