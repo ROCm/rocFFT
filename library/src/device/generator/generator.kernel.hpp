@@ -309,12 +309,21 @@ namespace StockhamGenerator
             std::string sub_string = "(lengths[1]/" + std::to_string(blockWidth)
                                      + ")"; // in FFT it is how many unrolls
 
-            loop += "\t" + offset_name1 + " += (counter_mod/" + sub_string + ")*";
-            loop += stride_name1 + "[2] + (counter_mod % " + sub_string + ")*"
-                    + std::to_string(blockWidth);
+            loop += "\n\t// We handle a 2D tile block with one work-group threads.\n";
+            loop += "\t// In the below, '_x' moves along the fast dimension of the tile.\n";
+            loop += "\tunsigned int tileIdx_x, tileIdx_y, tileOffset_x, tileOffset_y;\n";
+            loop += "\n\t// Calc input tile start offset\n";
+            loop += "\ttileIdx_y\t\t= (counter_mod / " + sub_string + ");\n";
+            loop += "\ttileOffset_y\t= " + stride_name1 + "[2];\n";
+            loop += "\ttileIdx_x\t\t= (counter_mod % " + sub_string + ");\n";
+
             if(blockComputeType == BCT_R2C) // only for input
-                loop += "*lengths[0]";
-            loop += ";\n";
+                loop += "\ttileOffset_x\t= " + std::to_string(blockWidth) + "*lengths[0];\n";
+            else
+                loop += "\ttileOffset_x\t= " + std::to_string(blockWidth) + ";\n\n";
+
+            loop += "\t" + offset_name1
+                    + " += tileIdx_y * tileOffset_y + tileIdx_x * tileOffset_x;\n";
 
             // the most inner part of offset calc needs to count stride[1] for SBCC
             if(blockComputeType == BCT_C2C)
@@ -334,23 +343,27 @@ namespace StockhamGenerator
             // stride has the 'true' batch offset.
             static const char* batch_dist_idx = "[dim >= 3 ? dim-1 : 2]";
             loop += "\t" + offset_name1 + " += (batch_local_count * " + stride_name1
-                    + batch_dist_idx + ");\n";
+                    + batch_dist_idx + ");\n\n";
 
             if(output == true)
             {
-                loop += "\t" + offset_name2 + " += (counter_mod/" + sub_string + ")*";
-                loop += stride_name2 + "[2] + (counter_mod % " + sub_string + ")*"
-                        + std::to_string(blockWidth);
+                loop += "\t// Calc output tile start offset\n";
+                loop += "\ttileOffset_y\t= " + stride_name2 + "[2];\n";
+
                 if(blockComputeType == BCT_C2R) // only for output
-                    loop += "*lengths[0]";
-                loop += ";\n";
+                    loop += "\ttileOffset_x\t= " + std::to_string(blockWidth) + "*lengths[0];\n";
+                else
+                    loop += "\ttileOffset_x\t= " + std::to_string(blockWidth) + ";\n\n";
+
+                loop += "\t" + offset_name2
+                        + " += tileIdx_y * tileOffset_y + tileIdx_x * tileOffset_x;\n";
 
                 // the most inner part of offset calc needs to count stride[1] for SBRC
                 if(blockComputeType == BCT_R2C)
                     loop += "\t" + offset_name2 + " *= (" + stride_name2 + "[1]);\n";
 
                 loop += "\t" + offset_name2 + " += (batch_local_count * " + stride_name2
-                        + batch_dist_idx + ");\n";
+                        + batch_dist_idx + ");\n\n";
             }
 
             str += loop;
@@ -1366,6 +1379,7 @@ namespace StockhamGenerator
                         bufOffset += ")*stride_in[0] + t*stride_in[0]*";
                         bufOffset += std::to_string(blockWGS / blockWidth);
 
+                        str += "\t\t// Calc global offset within a tile and read\n";
                         str += "\t\tR0";
                         str += comp;
                         str += " = ";
@@ -1376,6 +1390,7 @@ namespace StockhamGenerator
                     }
                     else
                     {
+                        str += "\t\t// Calc global offset within a tile and read\n";
                         str += "\t\tR0";
                         str += comp;
                         str += " = ";
@@ -1391,6 +1406,11 @@ namespace StockhamGenerator
 
                 if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_C2R))
                 {
+                    str += "\t\t// Write into lds in column-major\n";
+                    str += "\t\t// In lds, the offset = blockIdx * blockOffset + threadIdx_x * "
+                           "threadOffset_x + threadIdx_y * 1\n";
+                    str += "\t\t// which is    R0 = lds[   t     *  (wgs/bwd)  +  (me%bwd)   *  "
+                           "length[0]     + (me/bwd)    * 1]\n";
                     str += "\t\tlds[t*";
                     str += std::to_string(blockWGS / blockWidth);
                     str += " + ";
@@ -1406,6 +1426,7 @@ namespace StockhamGenerator
                 }
                 else
                 {
+                    str += "\t\t// Write into lds in row-major: lds[t*wgs + me]\n";
                     str += "\t\tlds[t*";
                     str += std::to_string(blockWGS);
                     str += " + me] = R0;";
@@ -1590,6 +1611,11 @@ namespace StockhamGenerator
 
                 if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
                 {
+                    str += "\t\t// Read from lds and write to global mem in column-major\n";
+                    str += "\t\t// In lds, the offset = blockIdx * blockOffset + threadIdx_x * "
+                           "threadOffset_x + threadIdx_y * 1\n";
+                    str += "\t\t// which is    R0 = lds[   t     *  (wgs/bwd)  +  (me%bwd)   *  "
+                           "length[0]     + (me/bwd)    * 1]\n";
                     str += "\t\tT R0 = lds[t*";
                     str += std::to_string(blockWGS / blockWidth);
                     str += " + ";
@@ -1605,12 +1631,15 @@ namespace StockhamGenerator
                 }
                 else
                 {
+                    str += "\t\t// Read from lds and write to global mem in row-major\n";
+                    str += "\t\t// Mapping threads to lds: R0 = lds[t*wgs + me]\n";
                     str += "\t\tT R0 = lds[t*";
                     str += std::to_string(blockWGS);
                     str += " + me];";
                     str += "\n";
                 }
 
+                str += "\t\t// Calc global offset within a tile and write\n";
                 for(size_t c = 0; c < 2; c++)
                 {
                     std::string comp = "";
@@ -1687,8 +1716,7 @@ namespace StockhamGenerator
 
             for(size_t d = 0; d < 2; d++)
             {
-                bool fwd;
-                fwd = d ? false : true;
+                bool fwd = d ? false : true;
 
                 GenerateSingleGlobalKernelPrototype(str,
                                                     fwd,
@@ -1720,8 +1748,11 @@ namespace StockhamGenerator
             str += "\n////////////////////////////////////////Global kernels\n";
 
             // inplace, support only: interleaved to interleaved, planar to planar
-            GenerateSingleGlobalKernel(str, rocfft_placement_inplace, true, true);
-            GenerateSingleGlobalKernel(str, rocfft_placement_inplace, false, false);
+            if((!blockCompute) || (blockCompute && (blockComputeType == BCT_C2C)))
+            {
+                GenerateSingleGlobalKernel(str, rocfft_placement_inplace, true, true);
+                GenerateSingleGlobalKernel(str, rocfft_placement_inplace, false, false);
+            }
 
             // out of place, support all 4 combinations
             GenerateSingleGlobalKernel(str, rocfft_placement_notinplace, true, true);
