@@ -124,7 +124,7 @@ set(CMAKE_INSTALL_LIBDIR "lib" CACHE INTERNAL
   "Installation directory for libraries" FORCE)
 
 # CMake list of machine targets
-set( AMDGPU_TARGETS gfx803;gfx900:xnack-;gfx906:xnack-;gfx908:xnack- CACHE STRING
+set( AMDGPU_TARGETS gfx803;gfx900:xnack-;gfx906:xnack-;gfx908:xnack-;gfx908:xnack+ CACHE STRING
   "List of specific machine types for library to target" )
 
 # Find HCC/HIP dependencies
