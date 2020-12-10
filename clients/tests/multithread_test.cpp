@@ -199,7 +199,8 @@ struct Test_Transform
                                host_mem_in.size(),
                                1,
                                1,
-                               host_mem_in.size());
+                               host_mem_in.size(),
+                               {0});
             auto diff = distance_1to1_complex(
                 reinterpret_cast<const std::complex<float>*>(host_mem_in.data()),
                 reinterpret_cast<const std::complex<float>*>(host_mem_out.data()),
@@ -211,7 +212,9 @@ struct Test_Transform
                 1,
                 host_mem_out.size(),
                 linf_failures,
-                MAX_TRANSFORM_ERROR);
+                MAX_TRANSFORM_ERROR,
+                {0},
+                {0});
 
             EXPECT_LT(diff.l_2 / norm.l_2, sqrt(log2(host_mem_in.size())) * MAX_TRANSFORM_ERROR);
             EXPECT_LT(diff.l_inf / norm.l_inf, log2(host_mem_in.size()) * MAX_TRANSFORM_ERROR);

@@ -96,7 +96,8 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
                     params.ilength(),
                     contiguous_params.istride,
                     params.nbatch,
-                    contiguous_params.idist);
+                    contiguous_params.idist,
+                    contiguous_params.ioffset);
     }
 
     auto input_norm = std::async(std::launch::async, [=]() {
@@ -106,7 +107,8 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
                              contiguous_params.precision,
                              contiguous_params.itype,
                              contiguous_params.istride,
-                             contiguous_params.idist);
+                             contiguous_params.idist,
+                             contiguous_params.ioffset);
         if(verbose > 2)
         {
             std::cout << "CPU Input Linf norm:  " << ret_norm.l_inf << "\n";
@@ -136,7 +138,8 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
                         params.olength(),
                         contiguous_params.ostride,
                         params.nbatch,
-                        contiguous_params.odist);
+                        contiguous_params.odist,
+                        contiguous_params.ooffset);
         }
         return std::move(output);
     });
@@ -147,7 +150,8 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
                              params.precision,
                              contiguous_params.otype,
                              contiguous_params.ostride,
-                             contiguous_params.odist);
+                             contiguous_params.odist,
+                             contiguous_params.ooffset);
         if(verbose > 2)
         {
             std::cout << "CPU Output Linf norm: " << ret_norm.l_inf << "\n";
@@ -310,7 +314,9 @@ void rocfft_transform(const rocfft_params&                  params,
                  cpu_idist,
                  params.itype,
                  params.istride,
-                 params.idist);
+                 params.idist,
+                 {0},
+                 params.ioffset);
 
     if(verbose > 4)
     {
@@ -321,12 +327,13 @@ void rocfft_transform(const rocfft_params&                  params,
                     params.ilength(),
                     params.istride,
                     params.nbatch,
-                    params.idist);
+                    params.idist,
+                    params.ioffset);
     }
     if(verbose > 5)
     {
         std::cout << "flat GPU input:\n";
-        printbuffer_flat(params.precision, params.itype, gpu_input, params.idist);
+        printbuffer_flat(params.precision, params.itype, gpu_input, params.isize);
     }
 
     // GPU input and output buffers:
@@ -402,12 +409,13 @@ void rocfft_transform(const rocfft_params&                  params,
                     params.olength(),
                     params.ostride,
                     params.nbatch,
-                    params.odist);
+                    params.odist,
+                    params.ooffset);
     }
     if(verbose > 5)
     {
         std::cout << "flat GPU output:\n";
-        printbuffer_flat(params.precision, params.otype, gpu_output, params.odist);
+        printbuffer_flat(params.precision, params.otype, gpu_output, params.osize);
     }
 
     // Compute the Linfinity and L2 norm of the GPU output:
@@ -418,7 +426,8 @@ void rocfft_transform(const rocfft_params&                  params,
                     params.precision,
                     params.otype,
                     params.ostride,
-                    params.odist);
+                    params.odist,
+                    params.ooffset);
     });
 
     // Compute the l-infinity and l-2 distance between the CPU and GPU output:
@@ -439,7 +448,9 @@ void rocfft_transform(const rocfft_params&                  params,
                          params.ostride,
                          params.odist,
                          linf_failures,
-                         linf_cutoff);
+                         linf_cutoff,
+                         {0},
+                         params.ooffset);
 
     if(verbose > 1)
     {
@@ -493,7 +504,9 @@ TEST_P(accuracy_test, vs_fftw)
     params.nbatch                 = std::get<2>(GetParam());
     params.istride                = std::get<3>(GetParam());
     params.ostride                = std::get<4>(GetParam());
-    type_place_io_t type_place_io = std::get<5>(GetParam());
+    params.ioffset                = std::get<5>(GetParam());
+    params.ooffset                = std::get<6>(GetParam());
+    type_place_io_t type_place_io = std::get<7>(GetParam());
     params.transform_type         = std::get<0>(type_place_io);
     params.placement              = std::get<1>(type_place_io);
     params.itype                  = std::get<2>(type_place_io);

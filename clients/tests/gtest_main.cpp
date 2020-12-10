@@ -111,12 +111,18 @@ int main(int argc, char* argv[])
         ("length",  po::value<std::vector<size_t>>(&manual_params.length)->multitoken(), "Lengths.")
         ( "batchSize,b", po::value<size_t>(&manual_params.nbatch)->default_value(1),
           "If this value is greater than one, arrays will be used ")
-        ("istride",  po::value<std::vector<size_t>>(&manual_params.istride)->multitoken(), "Input stride.")
-        ("ostride",  po::value<std::vector<size_t>>(&manual_params.ostride)->multitoken(), "Output stride.")
+        ("istride",  po::value<std::vector<size_t>>(&manual_params.istride)->multitoken(),
+         "Input stride.")
+        ("ostride",  po::value<std::vector<size_t>>(&manual_params.ostride)->multitoken(),
+         "Output stride.")
         ("idist", po::value<size_t>(&manual_params.idist)->default_value(0),
          "Logical distance between input batches.")
         ("odist", po::value<size_t>(&manual_params.odist)->default_value(0),
          "Logical distance between output batches.")
+        ("ioffset", po::value<std::vector<size_t>>(&manual_params.ioffset)->multitoken(),
+         "Input offset.")
+        ("ooffset", po::value<std::vector<size_t>>(&manual_params.ooffset)->multitoken(),
+         "Output offset.")
         ("isize", po::value<std::vector<size_t>>(&manual_params.isize)->multitoken(),
          "Logical size of input buffer.")
         ("osize", po::value<std::vector<size_t>>(&manual_params.osize)->multitoken(),
@@ -276,7 +282,8 @@ TEST(manual, vs_fftw)
     {
         for(int i = 0; i < manual_params.nibuffer(); ++i)
         {
-            manual_params.isize.push_back(manual_params.nbatch * manual_params.idist);
+            manual_params.isize.push_back(manual_params.ioffset[i]
+                                          + manual_params.nbatch * manual_params.idist);
         }
     }
 
@@ -284,7 +291,8 @@ TEST(manual, vs_fftw)
     {
         for(int i = 0; i < manual_params.nobuffer(); ++i)
         {
-            manual_params.osize.push_back(manual_params.nbatch * manual_params.odist);
+            manual_params.osize.push_back(manual_params.ooffset[i]
+                                          + manual_params.nbatch * manual_params.odist);
         }
     }
 

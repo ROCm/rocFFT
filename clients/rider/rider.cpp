@@ -282,7 +282,8 @@ int main(int argc, char* argv[])
                     params.ilength(),
                     params.istride,
                     params.nbatch,
-                    params.idist);
+                    params.idist,
+                    params.ioffset);
     }
 
     // GPU input and output buffers:
@@ -363,7 +364,8 @@ int main(int argc, char* argv[])
                         params.olength(),
                         params.ostride,
                         params.nbatch,
-                        params.odist);
+                        params.odist,
+                        params.ooffset);
         }
     }
 

@@ -134,6 +134,15 @@ public:
             ss << " " << i;
         ss << "\n";
 
+        ss << "\tioffset:";
+        for(auto i : ioffset)
+            ss << " " << i;
+        ss << "\n";
+        ss << "\tooffset:";
+        for(auto i : ooffset)
+            ss << " " << i;
+        ss << "\n";
+
         if(placement == rocfft_placement_inplace)
             ss << "\tin-place\n";
         else
@@ -325,6 +334,9 @@ public:
     // Return true if the given GPU parameters would produce a valid transform.
     bool valid(const int verbose) const
     {
+        if(ioffset.size() < nibuffer() || ooffset.size() < nobuffer())
+            return false;
+
         // Check that in-place transforms have the same input and output stride:
         if(placement == rocfft_placement_inplace)
         {
@@ -378,6 +390,27 @@ public:
                     std::cout << "In-place c2c transforms require identical io types; skipped.\n";
                 }
                 return false;
+            }
+
+            // Check offsets
+            switch(transform_type)
+            {
+            case rocfft_transform_type_complex_forward:
+            case rocfft_transform_type_complex_inverse:
+                for(int i = 0; i < nibuffer(); ++i)
+                {
+                    if(ioffset[i] != ooffset[i])
+                        return false;
+                }
+                break;
+            case rocfft_transform_type_real_forward:
+                if(ioffset[0] != 2 * ooffset[0])
+                    return false;
+                break;
+            case rocfft_transform_type_real_inverse:
+                if(2 * ioffset[0] != ooffset[0])
+                    return false;
+                break;
             }
         }
 
@@ -548,7 +581,7 @@ size_t count_iters(const std::tuple<T1, T1, T1>& i)
     return std::get<0>(i) * std::get<1>(i) * std::get<2>(i);
 }
 
-// work out how many partitions to break our iteration problem into
+// Work out how many partitions to break our iteration problem into
 template <typename T1>
 static size_t compute_partition_count(T1 length)
 {
@@ -573,7 +606,7 @@ static size_t compute_partition_count(T1 length)
 #endif
 }
 
-// break a scalar length into some number of pieces, returning
+// Break a scalar length into some number of pieces, returning
 // [(start0, end0), (start1, end1), ...]
 template <typename T1>
 std::vector<std::pair<T1, T1>> partition_base(const T1& length, size_t num_parts)
@@ -596,14 +629,14 @@ std::vector<std::pair<T1, T1>> partition_base(const T1& length, size_t num_parts
     return ret;
 }
 
-// returns pairs of startindex, endindex, for 1D, 2D, 3D lengths
+// Returns pairs of startindex, endindex, for 1D, 2D, 3D lengths
 template <typename T1>
 std::vector<std::pair<T1, T1>> partition_rowmajor(const T1& length)
 {
     return partition_base(length, compute_partition_count(length));
 }
 
-// partition on the leftmost part of the tuple, for row-major indexing
+// Partition on the leftmost part of the tuple, for row-major indexing
 template <typename T1>
 std::vector<std::pair<std::tuple<T1, T1>, std::tuple<T1, T1>>>
     partition_rowmajor(const std::tuple<T1, T1>& length)
@@ -637,14 +670,14 @@ std::vector<std::pair<std::tuple<T1, T1, T1>, std::tuple<T1, T1, T1>>>
     return ret;
 }
 
-// returns pairs of startindex, endindex, for 1D, 2D, 3D lengths
+// Returns pairs of startindex, endindex, for 1D, 2D, 3D lengths
 template <typename T1>
 std::vector<std::pair<T1, T1>> partition_colmajor(const T1& length)
 {
     return partition_base(length, compute_partition_count(length));
 }
 
-// partition on the rightmost part of the tuple, for col-major indexing
+// Partition on the rightmost part of the tuple, for col-major indexing
 template <typename T1>
 std::vector<std::pair<std::tuple<T1, T1>, std::tuple<T1, T1>>>
     partition_colmajor(const std::tuple<T1, T1>& length)
@@ -678,7 +711,7 @@ std::vector<std::pair<std::tuple<T1, T1, T1>, std::tuple<T1, T1, T1>>>
     return ret;
 }
 
-// specialized computation of index given 1-, 2-, 3- dimension length + stride
+// Specialized computation of index given 1-, 2-, 3- dimension length + stride
 template <typename T1, typename T2>
 int compute_index(T1 length, T2 stride, size_t base)
 {
@@ -714,7 +747,8 @@ inline void printbuffer(const Toutput*         output,
                         const std::vector<T1>& length,
                         const std::vector<T2>& stride,
                         const Tsize            nbatch,
-                        const Tsize            dist)
+                        const Tsize            dist,
+                        const size_t           offset)
 {
     auto i_base = 0;
     for(auto b = 0; b < nbatch; b++, i_base += dist)
@@ -723,7 +757,8 @@ inline void printbuffer(const Toutput*         output,
         std::fill(index.begin(), index.end(), 0);
         do
         {
-            const int i = std::inner_product(index.begin(), index.end(), stride.begin(), i_base);
+            const int i
+                = std::inner_product(index.begin(), index.end(), stride.begin(), i_base + offset);
             std::cout << output[i] << " ";
             for(int i = index.size(); i-- > 0;)
             {
@@ -750,7 +785,8 @@ inline void printbuffer(const rocfft_precision                            precis
                         const std::vector<Tint1>&                         length,
                         const std::vector<Tint2>&                         stride,
                         const size_t                                      nbatch,
-                        const size_t                                      dist)
+                        const size_t                                      dist,
+                        const std::vector<size_t>                         offset)
 {
     switch(itype)
     {
@@ -758,34 +794,36 @@ inline void printbuffer(const rocfft_precision                            precis
     case rocfft_array_type_hermitian_interleaved:
         if(precision == rocfft_precision_double)
         {
-            printbuffer((std::complex<double>*)buf[0].data(), length, stride, nbatch, dist);
+            printbuffer(
+                (std::complex<double>*)buf[0].data(), length, stride, nbatch, dist, offset[0]);
         }
         else
         {
-            printbuffer((std::complex<float>*)buf[0].data(), length, stride, nbatch, dist);
+            printbuffer(
+                (std::complex<float>*)buf[0].data(), length, stride, nbatch, dist, offset[0]);
         }
         break;
     case rocfft_array_type_complex_planar:
     case rocfft_array_type_hermitian_planar:
         if(precision == rocfft_precision_double)
         {
-            printbuffer((double*)buf[0].data(), length, stride, nbatch, dist);
-            printbuffer((double*)buf[1].data(), length, stride, nbatch, dist);
+            printbuffer((double*)buf[0].data(), length, stride, nbatch, dist, offset[0]);
+            printbuffer((double*)buf[1].data(), length, stride, nbatch, dist, offset[1]);
         }
         else
         {
-            printbuffer((float*)buf[0].data(), length, stride, nbatch, dist);
-            printbuffer((float*)buf[1].data(), length, stride, nbatch, dist);
+            printbuffer((float*)buf[0].data(), length, stride, nbatch, dist, offset[0]);
+            printbuffer((float*)buf[1].data(), length, stride, nbatch, dist, offset[1]);
         }
         break;
     case rocfft_array_type_real:
         if(precision == rocfft_precision_double)
         {
-            printbuffer((double*)buf[0].data(), length, stride, nbatch, dist);
+            printbuffer((double*)buf[0].data(), length, stride, nbatch, dist, offset[0]);
         }
         else
         {
-            printbuffer((float*)buf[0].data(), length, stride, nbatch, dist);
+            printbuffer((float*)buf[0].data(), length, stride, nbatch, dist, offset[0]);
         }
         break;
     default:
@@ -799,7 +837,7 @@ template <typename Tallocator>
 inline void printbuffer_flat(const rocfft_precision                            precision,
                              const rocfft_array_type                           itype,
                              const std::vector<std::vector<char, Tallocator>>& buf,
-                             const size_t                                      dist)
+                             const std::vector<size_t>&                        size)
 {
     switch(itype)
     {
@@ -809,7 +847,7 @@ inline void printbuffer_flat(const rocfft_precision                            p
         {
             auto data = reinterpret_cast<const std::complex<double>*>(buf[0].data());
             std::cout << "idx " << 0;
-            for(size_t i = 0; i < dist; ++i)
+            for(size_t i = 0; i < size[0]; ++i)
                 std::cout << " " << data[i];
             std::cout << std::endl;
         }
@@ -817,7 +855,7 @@ inline void printbuffer_flat(const rocfft_precision                            p
         {
             auto data = reinterpret_cast<const std::complex<float>*>(buf[0].data());
             std::cout << "idx " << 0;
-            for(size_t i = 0; i < dist; ++i)
+            for(size_t i = 0; i < size[0]; ++i)
                 std::cout << " " << data[i];
             std::cout << std::endl;
         }
@@ -830,7 +868,7 @@ inline void printbuffer_flat(const rocfft_precision                            p
             {
                 auto data = reinterpret_cast<const double*>(buf[idx].data());
                 std::cout << "idx " << idx;
-                for(size_t i = 0; i < dist; ++i)
+                for(size_t i = 0; i < size[idx]; ++i)
                     std::cout << " " << data[i];
                 std::cout << std::endl;
             }
@@ -841,7 +879,7 @@ inline void printbuffer_flat(const rocfft_precision                            p
             {
                 auto data = reinterpret_cast<const float*>(buf[idx].data());
                 std::cout << "idx " << idx;
-                for(size_t i = 0; i < dist; ++i)
+                for(size_t i = 0; i < size[idx]; ++i)
                     std::cout << " " << data[i];
                 std::cout << std::endl;
             }
@@ -852,7 +890,7 @@ inline void printbuffer_flat(const rocfft_precision                            p
         {
             auto data = reinterpret_cast<const double*>(buf[0].data());
             std::cout << "idx " << 0;
-            for(size_t i = 0; i < dist; ++i)
+            for(size_t i = 0; i < size[0]; ++i)
                 std::cout << " " << data[i];
             std::cout << std::endl;
         }
@@ -860,7 +898,7 @@ inline void printbuffer_flat(const rocfft_precision                            p
         {
             auto data = reinterpret_cast<const float*>(buf[0].data());
             std::cout << "idx " << 0;
-            for(size_t i = 0; i < dist; ++i)
+            for(size_t i = 0; i < size[0]; ++i)
                 std::cout << " " << data[i];
             std::cout << std::endl;
         }
@@ -925,19 +963,21 @@ inline std::vector<T1> compute_stride(const std::vector<T1>&     length,
 // a buffer with strides ostride and length odist between batches.  The input and output
 // types are identical.
 template <typename Tval, typename Tint1, typename Tint2, typename Tint3>
-inline void copy_buffers_1to1(const Tval*  input,
-                              Tval*        output,
-                              const Tint1& whole_length,
-                              const size_t nbatch,
-                              const Tint2& istride,
-                              const size_t idist,
-                              const Tint3& ostride,
-                              const size_t odist)
+inline void copy_buffers_1to1(const Tval*                input,
+                              Tval*                      output,
+                              const Tint1&               whole_length,
+                              const size_t               nbatch,
+                              const Tint2&               istride,
+                              const size_t               idist,
+                              const Tint3&               ostride,
+                              const size_t               odist,
+                              const std::vector<size_t>& ioffset,
+                              const std::vector<size_t>& ooffset)
 {
-    bool   idx_equals_odx = istride == ostride && idist == odist;
-    size_t idx_base       = 0;
-    size_t odx_base       = 0;
-    auto   partitions     = partition_rowmajor(whole_length);
+    const bool idx_equals_odx = istride == ostride && idist == odist && ioffset == ooffset;
+    size_t     idx_base       = 0;
+    size_t     odx_base       = 0;
+    auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
 #pragma omp parallel for num_threads(partitions.size())
@@ -959,20 +999,22 @@ inline void copy_buffers_1to1(const Tval*  input,
 // a buffer with strides ostride and length odist between batches.  The input type is
 // planar and the output type is complex interleaved.
 template <typename Tval, typename Tint1, typename Tint2, typename Tint3>
-inline void copy_buffers_2to1(const Tval*         input0,
-                              const Tval*         input1,
-                              std::complex<Tval>* output,
-                              const Tint1&        whole_length,
-                              const size_t        nbatch,
-                              const Tint2&        istride,
-                              const size_t        idist,
-                              const Tint3&        ostride,
-                              const size_t        odist)
+inline void copy_buffers_2to1(const Tval*                input0,
+                              const Tval*                input1,
+                              std::complex<Tval>*        output,
+                              const Tint1&               whole_length,
+                              const size_t               nbatch,
+                              const Tint2&               istride,
+                              const size_t               idist,
+                              const Tint3&               ostride,
+                              const size_t               odist,
+                              const std::vector<size_t>& ioffset,
+                              const std::vector<size_t>& ooffset)
 {
-    bool   idx_equals_odx = istride == ostride && idist == odist;
-    size_t idx_base       = 0;
-    size_t odx_base       = 0;
-    auto   partitions     = partition_rowmajor(whole_length);
+    const bool idx_equals_odx = istride == ostride && idist == odist && ioffset == ooffset;
+    size_t     idx_base       = 0;
+    size_t     odx_base       = 0;
+    auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
 #pragma omp parallel for num_threads(partitions.size())
@@ -994,20 +1036,22 @@ inline void copy_buffers_2to1(const Tval*         input0,
 // a buffer with strides ostride and length odist between batches.  The input type is
 // complex interleaved and the output type is planar.
 template <typename Tval, typename Tint1, typename Tint2, typename Tint3>
-inline void copy_buffers_1to2(const std::complex<Tval>* input,
-                              Tval*                     output0,
-                              Tval*                     output1,
-                              const Tint1&              whole_length,
-                              const size_t              nbatch,
-                              const Tint2&              istride,
-                              const size_t              idist,
-                              const Tint3&              ostride,
-                              const size_t              odist)
+inline void copy_buffers_1to2(const std::complex<Tval>*  input,
+                              Tval*                      output0,
+                              Tval*                      output1,
+                              const Tint1&               whole_length,
+                              const size_t               nbatch,
+                              const Tint2&               istride,
+                              const size_t               idist,
+                              const Tint3&               ostride,
+                              const size_t               odist,
+                              const std::vector<size_t>& ioffset,
+                              const std::vector<size_t>& ooffset)
 {
-    bool   idx_equals_odx = istride == ostride && idist == odist;
-    size_t idx_base       = 0;
-    size_t odx_base       = 0;
-    auto   partitions     = partition_rowmajor(whole_length);
+    const bool idx_equals_odx = istride == ostride && idist == odist && ioffset == ooffset;
+    size_t     idx_base       = 0;
+    size_t     odx_base       = 0;
+    auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
 #pragma omp parallel for num_threads(partitions.size())
@@ -1044,7 +1088,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                          const size_t                                       idist,
                          const rocfft_array_type                            otype,
                          const Tint3&                                       ostride,
-                         const size_t                                       odist)
+                         const size_t                                       odist,
+                         const std::vector<size_t>&                         ioffset,
+                         const std::vector<size_t>&                         ooffset)
 {
     if(itype == otype)
     {
@@ -1062,7 +1108,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                                   istride,
                                   idist,
                                   ostride,
-                                  odist);
+                                  odist,
+                                  ioffset,
+                                  ooffset);
                 break;
             case rocfft_precision_double:
                 copy_buffers_1to1(reinterpret_cast<const std::complex<double>*>(input[0].data()),
@@ -1072,7 +1120,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                                   istride,
                                   idist,
                                   ostride,
-                                  odist);
+                                  odist,
+                                  ioffset,
+                                  ooffset);
                 break;
             }
             break;
@@ -1091,7 +1141,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                                       istride,
                                       idist,
                                       ostride,
-                                      odist);
+                                      odist,
+                                      ioffset,
+                                      ooffset);
                     break;
                 case rocfft_precision_double:
                     copy_buffers_1to1(reinterpret_cast<const double*>(input[idx].data()),
@@ -1101,7 +1153,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                                       istride,
                                       idist,
                                       ostride,
-                                      odist);
+                                      odist,
+                                      ioffset,
+                                      ooffset);
                     break;
                 }
             }
@@ -1128,7 +1182,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                               istride,
                               idist,
                               ostride,
-                              odist);
+                              odist,
+                              ioffset,
+                              ooffset);
             break;
         case rocfft_precision_double:
             copy_buffers_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
@@ -1139,7 +1195,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                               istride,
                               idist,
                               ostride,
-                              odist);
+                              odist,
+                              ioffset,
+                              ooffset);
             break;
         }
     }
@@ -1160,7 +1218,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                               istride,
                               idist,
                               ostride,
-                              odist);
+                              odist,
+                              ioffset,
+                              ooffset);
             break;
         case rocfft_precision_double:
             copy_buffers_2to1(reinterpret_cast<const double*>(input[0].data()),
@@ -1171,7 +1231,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                               istride,
                               idist,
                               ostride,
-                              odist);
+                              odist,
+                              ioffset,
+                              ooffset);
             break;
         }
     }
@@ -1197,7 +1259,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                          const size_t                                       idist,
                          const rocfft_array_type                            otype,
                          const std::vector<Tint3>&                          ostride,
-                         const size_t                                       odist)
+                         const size_t                                       odist,
+                         const std::vector<size_t>&                         ioffset,
+                         const std::vector<size_t>&                         ooffset)
 {
     switch(length.size())
     {
@@ -1212,7 +1276,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                             idist,
                             otype,
                             ostride[0],
-                            odist);
+                            odist,
+                            ioffset,
+                            ooffset);
     case 2:
         return copy_buffers(input,
                             output,
@@ -1224,7 +1290,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                             idist,
                             otype,
                             std::make_tuple(ostride[0], ostride[1]),
-                            odist);
+                            odist,
+                            ioffset,
+                            ooffset);
     case 3:
         return copy_buffers(input,
                             output,
@@ -1236,7 +1304,9 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                             idist,
                             otype,
                             std::make_tuple(ostride[0], ostride[1], ostride[2]),
-                            odist);
+                            odist,
+                            ioffset,
+                            ooffset);
     default:
         abort();
     }
@@ -1261,17 +1331,19 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
                                          const Tint3&                            ostride,
                                          const size_t                            odist,
                                          std::vector<std::pair<size_t, size_t>>& linf_failures,
-                                         const double                            linf_cutoff)
+                                         const double                            linf_cutoff,
+                                         const std::vector<size_t>&              ioffset,
+                                         const std::vector<size_t>&              ooffset)
 {
     double linf = 0.0;
     double l2   = 0.0;
 
     std::mutex linf_failure_lock;
 
-    bool   idx_equals_odx = istride == ostride && idist == odist;
-    size_t idx_base       = 0;
-    size_t odx_base       = 0;
-    auto   partitions     = partition_colmajor(whole_length);
+    const bool idx_equals_odx = istride == ostride && idist == odist && ioffset == ooffset;
+    size_t     idx_base       = 0;
+    size_t     odx_base       = 0;
+    auto       partitions     = partition_colmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
@@ -1284,8 +1356,9 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
 
             do
             {
-                const int    idx   = compute_index(index, istride, idx_base);
-                const int    odx   = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const int idx = compute_index(index, istride, idx_base) + ioffset[0];
+                const int odx
+                    = idx_equals_odx ? idx : compute_index(index, ostride, odx_base) + ooffset[0];
                 const double rdiff = std::abs(output[odx].real() - input[idx].real());
                 cur_linf           = std::max(rdiff, cur_linf);
                 if(cur_linf > linf_cutoff)
@@ -1329,17 +1402,19 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
                                       const Tint3&                            ostride,
                                       const size_t                            odist,
                                       std::vector<std::pair<size_t, size_t>>& linf_failures,
-                                      const double                            linf_cutoff)
+                                      const double                            linf_cutoff,
+                                      const std::vector<size_t>&              ioffset,
+                                      const std::vector<size_t>&              ooffset)
 {
     double linf = 0.0;
     double l2   = 0.0;
 
     std::mutex linf_failure_lock;
 
-    bool   idx_equals_odx = istride == ostride && idist == odist;
-    size_t idx_base       = 0;
-    size_t odx_base       = 0;
-    auto   partitions     = partition_rowmajor(whole_length);
+    const bool idx_equals_odx = istride == ostride && idist == odist && ioffset == ooffset;
+    size_t     idx_base       = 0;
+    size_t     odx_base       = 0;
+    auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
@@ -1351,8 +1426,9 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
             const auto length   = partitions[part].second;
             do
             {
-                const int    idx  = compute_index(index, istride, idx_base);
-                const int    odx  = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const int idx = compute_index(index, istride, idx_base) + ioffset[0];
+                const int odx
+                    = idx_equals_odx ? idx : compute_index(index, ostride, odx_base) + ooffset[0];
                 const double diff = std::abs(output[odx] - input[idx]);
                 cur_linf          = std::max(diff, cur_linf);
                 if(cur_linf > linf_cutoff)
@@ -1386,17 +1462,19 @@ inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
                                  const T3&                               ostride,
                                  const size_t                            odist,
                                  std::vector<std::pair<size_t, size_t>>& linf_failures,
-                                 const double                            linf_cutoff)
+                                 const double                            linf_cutoff,
+                                 const std::vector<size_t>&              ioffset,
+                                 const std::vector<size_t>&              ooffset)
 {
     double linf = 0.0;
     double l2   = 0.0;
 
     std::mutex linf_failure_lock;
 
-    bool   idx_equals_odx = istride == ostride && idist == odist;
-    size_t idx_base       = 0;
-    size_t odx_base       = 0;
-    auto   partitions     = partition_rowmajor(whole_length);
+    const bool idx_equals_odx = istride == ostride && idist == odist && ioffset == ooffset;
+    size_t     idx_base       = 0;
+    size_t     odx_base       = 0;
+    auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
@@ -1408,9 +1486,9 @@ inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
             const auto length   = partitions[part].second;
             do
             {
-                const int    idx   = compute_index(index, istride, idx_base);
+                const int    idx   = compute_index(index, istride, idx_base) + ioffset[0];
                 const int    odx   = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
-                const double rdiff = std::abs(output0[odx] - input[idx].real());
+                const double rdiff = std::abs(output0[odx + ooffset[0]] - input[idx].real());
                 cur_linf           = std::max(rdiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
@@ -1421,7 +1499,7 @@ inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
                 }
                 cur_l2 += rdiff * rdiff;
 
-                const double idiff = std::abs(output1[odx] - input[idx].imag());
+                const double idiff = std::abs(output1[odx + ooffset[1]] - input[idx].imag());
                 cur_linf           = std::max(idiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
@@ -1459,7 +1537,9 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                             const Tint3&                                       ostride,
                             const size_t                                       odist,
                             std::vector<std::pair<size_t, size_t>>&            linf_failures,
-                            const double                                       linf_cutoff)
+                            const double                                       linf_cutoff,
+                            const std::vector<size_t>&                         ioffset,
+                            const std::vector<size_t>&                         ooffset)
 {
     VectorNorms dist;
 
@@ -1482,7 +1562,9 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                     ostride,
                     odist,
                     linf_failures,
-                    linf_cutoff);
+                    linf_cutoff,
+                    ioffset,
+                    ooffset);
                 break;
             case rocfft_precision_double:
                 dist = distance_1to1_complex(
@@ -1495,7 +1577,9 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                     ostride,
                     odist,
                     linf_failures,
-                    linf_cutoff);
+                    linf_cutoff,
+                    ioffset,
+                    ooffset);
                 break;
             }
             dist.l_2 *= dist.l_2;
@@ -1518,7 +1602,9 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                            ostride,
                                            odist,
                                            linf_failures,
-                                           linf_cutoff);
+                                           linf_cutoff,
+                                           ioffset,
+                                           ooffset);
                     break;
                 case rocfft_precision_double:
                     d = distance_1to1_real(reinterpret_cast<const double*>(input[idx].data()),
@@ -1530,7 +1616,9 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                            ostride,
                                            odist,
                                            linf_failures,
-                                           linf_cutoff);
+                                           linf_cutoff,
+                                           ioffset,
+                                           ooffset);
                     break;
                 }
                 dist.l_inf = std::max(d.l_inf, dist.l_inf);
@@ -1560,7 +1648,9 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  ostride,
                                  odist,
                                  linf_failures,
-                                 linf_cutoff);
+                                 linf_cutoff,
+                                 ioffset,
+                                 ooffset);
             break;
         case rocfft_precision_double:
             dist = distance_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
@@ -1573,7 +1663,9 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  ostride,
                                  odist,
                                  linf_failures,
-                                 linf_cutoff);
+                                 linf_cutoff,
+                                 ioffset,
+                                 ooffset);
             break;
         }
         dist.l_2 *= dist.l_2;
@@ -1596,7 +1688,9 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  istride,
                                  idist,
                                  linf_failures,
-                                 linf_cutoff);
+                                 linf_cutoff,
+                                 ioffset,
+                                 ooffset);
             break;
         case rocfft_precision_double:
             dist = distance_1to2(reinterpret_cast<const std::complex<double>*>(output[0].data()),
@@ -1609,7 +1703,9 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  istride,
                                  idist,
                                  linf_failures,
-                                 linf_cutoff);
+                                 linf_cutoff,
+                                 ioffset,
+                                 ooffset);
             break;
         }
         dist.l_2 *= dist.l_2;
@@ -1640,7 +1736,9 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                             const std::vector<Tint3>&                          ostride,
                             const size_t                                       odist,
                             std::vector<std::pair<size_t, size_t>>&            linf_failures,
-                            const double                                       linf_cutoff)
+                            const double                                       linf_cutoff,
+                            const std::vector<size_t>&                         ioffset,
+                            const std::vector<size_t>&                         ooffset)
 {
     switch(length.size())
     {
@@ -1657,7 +1755,9 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                         ostride[0],
                         odist,
                         linf_failures,
-                        linf_cutoff);
+                        linf_cutoff,
+                        ioffset,
+                        ooffset);
     case 2:
         return distance(input,
                         output,
@@ -1671,7 +1771,9 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                         std::make_tuple(ostride[0], ostride[1]),
                         odist,
                         linf_failures,
-                        linf_cutoff);
+                        linf_cutoff,
+                        ioffset,
+                        ooffset);
     case 3:
         return distance(input,
                         output,
@@ -1685,20 +1787,23 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                         std::make_tuple(ostride[0], ostride[1], ostride[2]),
                         odist,
                         linf_failures,
-                        linf_cutoff);
+                        linf_cutoff,
+                        ioffset,
+                        ooffset);
     default:
         abort();
     }
 }
 
-// Compute the L-infinity and L-2 norm of abuffer with strides istride and
+// Compute the L-infinity and L-2 norm of a buffer with strides istride and
 // length idist.  Data is std::complex.
 template <typename Tcomplex, typename T1, typename T2>
-inline VectorNorms norm_complex(const Tcomplex* input,
-                                const T1&       whole_length,
-                                const size_t    nbatch,
-                                const T2&       istride,
-                                const size_t    idist)
+inline VectorNorms norm_complex(const Tcomplex*            input,
+                                const T1&                  whole_length,
+                                const size_t               nbatch,
+                                const T2&                  istride,
+                                const size_t               idist,
+                                const std::vector<size_t>& offset)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -1737,11 +1842,12 @@ inline VectorNorms norm_complex(const Tcomplex* input,
 // Compute the L-infinity and L-2 norm of abuffer with strides istride and
 // length idist.  Data is real-valued.
 template <typename Tfloat, typename T1, typename T2>
-inline VectorNorms norm_real(const Tfloat* input,
-                             const T1&     whole_length,
-                             const size_t  nbatch,
-                             const T2&     istride,
-                             const size_t  idist)
+inline VectorNorms norm_real(const Tfloat*              input,
+                             const T1&                  whole_length,
+                             const size_t               nbatch,
+                             const T2&                  istride,
+                             const size_t               idist,
+                             const std::vector<size_t>& offset)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -1781,7 +1887,8 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
                         const rocfft_precision                             precision,
                         const rocfft_array_type                            itype,
                         const T2&                                          istride,
-                        const size_t                                       idist)
+                        const size_t                                       idist,
+                        const std::vector<size_t>&                         offset)
 {
     VectorNorms norm;
 
@@ -1796,14 +1903,16 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
                                 length,
                                 nbatch,
                                 istride,
-                                idist);
+                                idist,
+                                offset);
             break;
         case rocfft_precision_double:
             norm = norm_complex(reinterpret_cast<const std::complex<double>*>(input[0].data()),
                                 length,
                                 nbatch,
                                 istride,
-                                idist);
+                                idist,
+                                offset);
             break;
         }
         norm.l_2 *= norm.l_2;
@@ -1821,14 +1930,16 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
                               length,
                               nbatch,
                               istride,
-                              idist);
+                              idist,
+                              offset);
                 break;
             case rocfft_precision_double:
                 n = norm_real(reinterpret_cast<const double*>(input[idx].data()),
                               length,
                               nbatch,
                               istride,
-                              idist);
+                              idist,
+                              offset);
                 break;
             }
             norm.l_inf = std::max(n.l_inf, norm.l_inf);
@@ -1850,30 +1961,33 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
                         const std::vector<T1>&                             length,
                         const size_t                                       nbatch,
                         const rocfft_precision                             precision,
-                        const rocfft_array_type                            itype,
-                        const std::vector<T2>&                             istride,
-                        const size_t                                       idist)
+                        const rocfft_array_type                            type,
+                        const std::vector<T2>&                             stride,
+                        const size_t                                       dist,
+                        const std::vector<size_t>&                         offset)
 {
     switch(length.size())
     {
     case 1:
-        return norm(input, length[0], nbatch, precision, itype, istride[0], idist);
+        return norm(input, length[0], nbatch, precision, type, stride[0], dist, offset);
     case 2:
         return norm(input,
                     std::make_tuple(length[0], length[1]),
                     nbatch,
                     precision,
-                    itype,
-                    std::make_tuple(istride[0], istride[1]),
-                    idist);
+                    type,
+                    std::make_tuple(stride[0], stride[1]),
+                    dist,
+                    offset);
     case 3:
         return norm(input,
                     std::make_tuple(length[0], length[1], length[2]),
                     nbatch,
                     precision,
-                    itype,
-                    std::make_tuple(istride[0], istride[1], istride[2]),
-                    idist);
+                    type,
+                    std::make_tuple(stride[0], stride[1], stride[2]),
+                    dist,
+                    offset);
     default:
         abort();
     }

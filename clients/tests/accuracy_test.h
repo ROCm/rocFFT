@@ -58,6 +58,8 @@ class accuracy_test : public ::testing::TestWithParam<std::tuple<std::vector<siz
                                                                  size_t, // batch
                                                                  std::vector<size_t>, // istride
                                                                  std::vector<size_t>, // ostride
+                                                                 std::vector<size_t>, // ioffset
+                                                                 std::vector<size_t>, // ooffset
                                                                  type_place_io_t>>
 {
 protected:
@@ -128,14 +130,16 @@ public:
 
     static std::string TestName(const testing::TestParamInfo<accuracy_test::ParamType>& info)
     {
-        // dimension and transform type are expected to be in the test
-        // suite name already
+        // Dimension and transform type are expected to be in the test
+        // suite name already.
         const std::vector<size_t>     length        = std::get<0>(info.param);
         const rocfft_precision        precision     = std::get<1>(info.param);
         const size_t                  nbatch        = std::get<2>(info.param);
         const std::vector<size_t>     istride       = std::get<3>(info.param);
         const std::vector<size_t>     ostride       = std::get<4>(info.param);
-        type_place_io_t               type_place_io = std::get<5>(info.param);
+        const std::vector<size_t>     ioffset       = std::get<5>(info.param);
+        const std::vector<size_t>     ooffset       = std::get<6>(info.param);
+        type_place_io_t               type_place_io = std::get<7>(info.param);
         const rocfft_result_placement place         = std::get<1>(type_place_io);
         const rocfft_array_type       itype         = std::get<2>(type_place_io);
         const rocfft_array_type       otype         = std::get<3>(type_place_io);
