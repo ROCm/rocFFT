@@ -213,6 +213,28 @@ public:
         return nbuffer(otype);
     }
 
+    size_t compute_isize() const
+    {
+        auto   il  = ilength();
+        size_t val = nbatch * idist;
+        for(int i = 0; i < il.size(); ++i)
+        {
+            val = std::max(val, il[i] * istride[i]);
+        }
+        return val;
+    }
+
+    size_t compute_osize() const
+    {
+        auto   ol  = olength();
+        size_t val = nbatch * odist;
+        for(int i = 0; i < ol.size(); ++i)
+        {
+            val = std::max(val, ol[i] * ostride[i]);
+        }
+        return val;
+    }
+
     std::vector<size_t> ibuffer_sizes() const
     {
         std::vector<size_t> ibuffer_sizes;

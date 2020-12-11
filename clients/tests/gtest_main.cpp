@@ -282,8 +282,7 @@ TEST(manual, vs_fftw)
     {
         for(int i = 0; i < manual_params.nibuffer(); ++i)
         {
-            manual_params.isize.push_back(manual_params.ioffset[i]
-                                          + manual_params.nbatch * manual_params.idist);
+            manual_params.isize.push_back(manual_params.compute_isize());
         }
     }
 
@@ -291,8 +290,7 @@ TEST(manual, vs_fftw)
     {
         for(int i = 0; i < manual_params.nobuffer(); ++i)
         {
-            manual_params.osize.push_back(manual_params.ooffset[i]
-                                          + manual_params.nbatch * manual_params.odist);
+            manual_params.osize.push_back(manual_params.compute_osize());
         }
     }
 

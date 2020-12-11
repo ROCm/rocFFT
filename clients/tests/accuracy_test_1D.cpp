@@ -65,7 +65,7 @@ static std::vector<size_t> generate_random(size_t number_run)
     const size_t        RAND_MAX_NUMBER = 6;
     for(size_t r = 0; r < number_run; r++)
     {
-        // generate a integer number between [0, RAND_MAX - 1]
+        // Generate a integer number between [0, RAND_MAX - 1]
         size_t i, j, k;
         do
         {

@@ -533,11 +533,11 @@ TEST_P(accuracy_test, vs_fftw)
 
     for(int i = 0; i < params.nibuffer(); ++i)
     {
-        params.isize.push_back(params.nbatch * params.idist);
+        params.isize.push_back(params.compute_isize());
     }
     for(int i = 0; i < params.nobuffer(); ++i)
     {
-        params.osize.push_back(params.nbatch * params.odist);
+        params.osize.push_back(params.compute_osize());
     }
 
     if(ramgb > 0)
