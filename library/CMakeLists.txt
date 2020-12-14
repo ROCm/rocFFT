@@ -149,7 +149,7 @@ set( package_name rocfft )
 
 rocm_create_package(
     NAME ${package_name}
-    DESCRIPTION "Radeon Open Compute FFT library"
+    DESCRIPTION "ROCm FFT library"
     MAINTAINER "rocfft-maintainer@amd.com"
     LDCONFIG
     LDCONFIG_DIR ${ROCFFT_CONFIG_DIR}

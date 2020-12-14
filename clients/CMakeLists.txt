@@ -138,7 +138,7 @@ if (BUILD_CLIENTS_SAMPLES OR
     BUILD_CLIENTS_SELFTEST OR
     BUILD_CLIENTS_RIDER)
   rocm_create_package_clients(LIB_NAME rocfft
-    DESCRIPTION "Radeon Open Compute FFT library"
+    DESCRIPTION "ROCm FFT library client programs"
     MAINTAINER "rocfft-maintainer@amd.com"
     SECTION "dev"
     VERSION ${rocfft_VERSION})
