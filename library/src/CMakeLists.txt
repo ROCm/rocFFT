@@ -61,6 +61,19 @@ prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 
 add_library( rocfft ${rocfft_source} ${relative_rocfft_headers_public} )
 add_library( roc::rocfft ALIAS rocfft )
+
+# add warning flags on everything but hipfft.cpp, which has a known
+# deprecation warning in it
+set( rocfft_warn_source ${rocfft_source})
+list( REMOVE_ITEM rocfft_warn_source hipfft.cpp )
+set_property(
+  SOURCE ${rocfft_warn_source}
+  PROPERTY COMPILE_OPTIONS ${WARNING_FLAGS}
+  )
+# when hipfft.cpp is removed, flip the whole target to use the same
+# flags
+#target_compile_options( rocfft PRIVATE ${WARNING_FLAGS} )
+
 target_compile_features( rocfft PRIVATE cxx_static_assert cxx_nullptr
   cxx_auto_type )
 

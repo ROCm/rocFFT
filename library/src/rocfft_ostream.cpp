@@ -67,6 +67,8 @@ extern "C" void rocfft_abort()
 {
     // If multiple threads call rocfft_abort(), the first one wins
     static int once = (rocfft_abort_once(), 0);
+    // suppress unused variable warning
+    (void)once;
 }
 
 // Get worker for writing to a file descriptor
@@ -218,7 +220,7 @@ ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, const char* s)
 
 ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, const std::string& s)
 {
-    os << s;
+    os.os << s;
     return os;
 }
 

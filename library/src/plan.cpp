@@ -1192,7 +1192,6 @@ void TreeNode::build_real_even_3D()
     // Fastest moving dimension must be even:
     assert(length[0] % 2 == 0);
     assert(inArrayType == rocfft_array_type_real || outArrayType == rocfft_array_type_real);
-    const auto complex_type = (inArrayType == rocfft_array_type_real) ? outArrayType : inArrayType;
 
     scheme = CS_REAL_3D_EVEN;
 
@@ -1326,10 +1325,10 @@ void TreeNode::build_real_pair()
     const size_t otherdims
         = std::accumulate(length.begin() + 1, length.end(), 1, std::multiplies<size_t>());
 
-    const bool evendims  = otherdims % 2 == 0;
-    const bool evenbatch = batch % 2 == 0;
-
-    assert(evenbatch || evendims);
+    const bool evendims = otherdims % 2 == 0;
+    // paired transform requires either an even number of batches or
+    // an even number of "other dims"
+    assert(batch % 2 == 0 || evendims);
 
     // We prefer to pair over dimensions instead of by batches, but we're open to the idea that
     // pairing over batches might be better.
