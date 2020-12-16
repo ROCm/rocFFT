@@ -40,23 +40,23 @@ extern "C" {
 
 /*! @brief Pointer type to plan structure
  *  @details This type is used to declare a plan handle that can be initialized
- * with rocfft_plan_create
+ * with ::rocfft_plan_create.
  *  */
 typedef struct rocfft_plan_t* rocfft_plan;
 
 /*! @brief Pointer type to plan description structure
  *  @details This type is used to declare a plan description handle that can be
- * initialized with rocfft_plan_description_create
+ * initialized with ::rocfft_plan_description_create.
  *  */
 typedef struct rocfft_plan_description_t* rocfft_plan_description;
 
 /*! @brief Pointer type to execution info structure
  *  @details This type is used to declare an execution info handle that can be
- * initialized with rocfft_execution_info_create
+ * initialized with ::rocfft_execution_info_create.
  *  */
 typedef struct rocfft_execution_info_t* rocfft_execution_info;
 
-/*! @brief rocfft status/error codes */
+/*! @brief rocFFT status/error codes */
 typedef enum rocfft_status_e
 {
     rocfft_status_success,
@@ -129,33 +129,36 @@ ROCFFT_EXPORT rocfft_status rocfft_cleanup();
 
 /*! @brief Create an FFT plan
  *
- *  @details This API creates a plan, which the user can execute subsequently.
- * This function
- *  takes many of the fundamental parameters needed to specify a transform. The
- * parameters are
- *  self explanatory. The dimensions parameter can take a value of 1,2 or 3. The
- * 'lengths' array specifies
- *  size of data in each dimension. Note that lengths[0] is the size of the
- * innermost dimension, lengths[1]
- *  is the next higher dimension and so on. The 'number_of_transforms' parameter
- * specifies how many transforms
- *  (of the same kind) needs to be computed. By specifying a value greater than
- * 1, a batch of transforms can
- *  be computed with a single api call. Additionally, a handle to a plan
- * description can be passed for more
- *  detailed transforms. For simple transforms, this parameter can be set to
- * null ptr.
+ *  @details This API creates a plan, which the user can execute
+ *  subsequently.  This function takes many of the fundamental
+ *  parameters needed to specify a transform.
+ *
+ *  The dimensions parameter can take a value of 1, 2, or 3. The
+ *  'lengths' array specifies the size of data in each dimension. Note
+ *  that lengths[0] is the size of the innermost dimension, lengths[1]
+ *  is the next higher dimension and so on (column-major ordering).
+ *
+ *  The 'number_of_transforms' parameter specifies how many
+ *  transforms (of the same kind) needs to be computed. By specifying
+ *  a value greater than 1, a batch of transforms can be computed
+ *  with a single API call.
+ *
+ *  Additionally, a handle to a plan description can be passed for
+ *  more detailed transforms. For simple transforms, this parameter
+ *  can be set to NULL.
+ *
+ *  The plan must be destroyed with a call to ::rocfft_plan_destroy.
  *
  *  @param[out] plan plan handle
  *  @param[in] placement placement of result
  *  @param[in] transform_type type of transform
  *  @param[in] precision precision
  *  @param[in] dimensions dimensions
- *  @param[in] lengths dimensions sized array of transform lengths
+ *  @param[in] lengths dimensions-sized array of transform lengths
  *  @param[in] number_of_transforms number of transforms
  *  @param[in] description description handle created by
  * rocfft_plan_description_create; can be
- *  null ptr for simple transforms
+ *  NULL for simple transforms
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
                                                rocfft_result_placement       placement,
@@ -168,31 +171,30 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_create(rocfft_plan*                  pla
 
 /*! @brief Execute an FFT plan
  *
- *  @details This API executes an FFT plan on buffers given by the user. If the
- * transform is in-place,
- *  only the input buffer is needed and the output buffer parameter can be set
- * to NULL. For not in-place
- *  transforms, output buffers have to be specified. Note that both input and
- * output buffer are arrays of
- *  pointers, this is to facilitate passing planar buffers where real and
- * imaginary parts are in 2 separate
- *  buffers. For the default interleaved format, just a unit sized array holding
- * the pointer to input/output
- *  buffer need to be passed. The final parameter in this function is an
- * execution_info handle. This parameter
- *  serves as a way for the user to control execution, as well as for the
- * library to pass any execution
- *  related information back to the user.
+ *  @details This API executes an FFT plan on buffers given by the user.
+ *
+ *  If the transform is in-place, only the input buffer is needed and
+ *  the output buffer parameter can be set to NULL. For not in-place
+ *  transforms, output buffers have to be specified.
+ *
+ *  Input and output buffer are arrays of pointers.  Interleaved
+ *  array formats are the default, and require just one pointer per
+ *  input or output buffer.  Planar array formats require two
+ *  pointers per input or output buffer - real and imaginary
+ *  pointers, in that order.
  *
  *  Note that input buffers may still be overwritten during execution
  *  of a transform, even if the transform is not in-place.
+ *
+ *  The final parameter in this function is a rocfft_execution_info
+ *  handle. This optional parameter serves as a way for the user to control
+ *  execution streams and work buffers.
  *
  *  @param[in] plan plan handle
  *  @param[in,out] in_buffer array (of size 1 for interleaved data, of size 2
  * for planar data) of input buffers
  *  @param[in,out] out_buffer array (of size 1 for interleaved data, of size 2
- * for planar data) of output buffers, can be nullptr for inplace result
- * placement
+ * for planar data) of output buffers, ignored for in-place transforms
  *  @param[in] info execution info handle created by
  * rocfft_execution_info_create
  *  */
@@ -202,8 +204,7 @@ ROCFFT_EXPORT rocfft_status rocfft_execute(const rocfft_plan     plan,
                                            rocfft_execution_info info);
 
 /*! @brief Destroy an FFT plan
- *  @details This API frees the plan. This function destructs a plan after it is
- * no longer needed.
+ *  @details This API frees the plan after it is no longer needed.
  *  @param[in] plan plan handle
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_plan_destroy(rocfft_plan plan);
@@ -225,22 +226,29 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_double( rocfft_pla
 #endif
 
 /*!
- *  @brief Set data layout
+ *  @brief Set advanced data layout parameters on a plan description
  * 
- *  @details This is one of plan description functions to specify
- *   optional additional plan properties using the description
- *   handle. This API specifies the layout of buffers.
+ *  @details This API specifies advanced layout of input/output
+ *  buffers for a plan description.
  * 
- *  This function can be used to specify input and output array
- *  types. Not all combinations of array types are supported and error
- *  code will be returned for unsupported cases.  Additionally, input
- *  and output buffer offsets can be specified. The function can be
- *  used to specify custom layout of data, with the ability to specify
- *  stride between consecutive elements in all dimensions. Also,
- *  distance between transform data members can be specified. The
- *  library will choose appropriate defaults if offsets/strides are
- *  set to null ptr and/or distances set to 0.
- * 
+ *  The following parameters are supported for inputs and outputs:
+ *
+ *  * Array type (real, hermitian, or complex data, in either
+ *    interleaved or planar format).
+ *      * Real forward transforms require real input and hermitian output.
+ *      * Real inverse transforms require hermitian input and real output.
+ *      * Complex transforms require complex input and output.
+ *      * Hermitian and complex data defaults to interleaved if a specific
+          format is not specified.
+ *  * Offset of first data element in the data buffer.  Defaults to 0 if unspecified.
+ *  * Stride between consecutive elements in each dimension.  Defaults
+      to contiguous data in all dimensions if unspecified.
+ *  * Distance between consecutive batches.  Defaults to contiguous
+      batches if unspecified.
+ *
+ *  Not all combinations of array types are supported and error codes
+ *  will be returned for unsupported cases.
+ *
  *  @param[in, out] description description handle
  *  @param[in] in_array_type array type of input buffer
  *  @param[in] out_array_type array type of output buffer
@@ -271,8 +279,8 @@ ROCFFT_EXPORT rocfft_status
 
 /*! @brief Get library version string
  *
- * @param[in, out] buf buffer of version string
- * @param[in] len the length of input string buffer, expecting minimum 30
+ * @param[in, out] buf buffer that receives the version string
+ * @param[in] len length of buf, minimum 30 characters
  */
 ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, size_t len);
 
@@ -287,8 +295,7 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_devices( rocfft_plan_des
 #endif
 
 /*! @brief Get work buffer size
- *  @details This is one of plan query functions to obtain information regarding
- * a plan. This API gets the work buffer size.
+ *  @details Get the work buffer size required for a plan.
  *  @param[in] plan plan handle
  *  @param[out] size_in_bytes size of needed work buffer in bytes
  *  */
@@ -296,35 +303,37 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_get_work_buffer_size(const rocfft_plan p
                                                              size_t*           size_in_bytes);
 
 /*! @brief Print all plan information
- *  @details This is one of plan query functions to obtain information regarding
- * a plan. This API prints all plan info to stdout to help user verify plan
- * specification.
+ *  @details Prints plan details to stdout, to aid debugging
  *  @param[in] plan plan handle
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_plan_get_print(const rocfft_plan plan);
 
 /*! @brief Create plan description
- *  @details This API creates a plan description with which the user can set
- * more plan properties
- *  @param[out] description plan description handle
- *  */
+ *  @details This API creates a plan description with which the user
+ * can set extra plan properties.  The plan description must be freed
+ * with a call to ::rocfft_plan_description_destroy.
+ *  @param[out] description plan description handle */
 ROCFFT_EXPORT rocfft_status rocfft_plan_description_create(rocfft_plan_description* description);
 
 /*! @brief Destroy a plan description
- *  @details This API frees the plan description
+ *  @details This API frees the plan description.  A plan description
+ *  can be freed any time after it is passed to ::rocfft_plan_create.
  *  @param[in] description plan description handle
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_plan_description_destroy(rocfft_plan_description description);
 
 /*! @brief Create execution info
- *  @details This API creates an execution info with which the user can control
- * plan execution & retrieve execution information
+ *  @details This API creates an execution info with which the user
+ * can control plan execution and work buffers.  The execution info must be freed
+ * with a call to ::rocfft_execution_info_destroy.
  *  @param[out] info execution info handle
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_create(rocfft_execution_info* info);
 
 /*! @brief Destroy an execution info
- *  @details This API frees the execution info
+ *  @details This API frees the execution info.  An execution info
+ *  object can be freed any time after it is passed to
+ *  ::rocfft_execute.
  *  @param[in] info execution info handle
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_destroy(rocfft_execution_info info);
@@ -334,16 +343,16 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_destroy(rocfft_execution_info 
  *  @details This is one of the execution info functions to specify
  *  optional additional information to control execution.  This API
  *  provides a work buffer for the transform. It must be called
- *  before rocfft_execute.
+ *  before ::rocfft_execute.
  *
  *  When a non-zero value is obtained from
- *  rocfft_plan_get_work_buffer_size, that means the library needs a
+ *  ::rocfft_plan_get_work_buffer_size, that means the library needs a
  *  work buffer to compute the transform. In this case, the user
  *  should allocate the work buffer and pass it to the library via
  *  this API.
  *
  *  If a work buffer is required for the transform but is not
- *  specified using this function, rocfft_execute will automatically
+ *  specified using this function, ::rocfft_execute will automatically
  *  allocate the required buffer and free it when execution is
  *  finished.
  *
@@ -372,15 +381,15 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_mode( rocfft_execution_inf
 #endif
 
 /*! @brief Set stream in execution info
- *  @details This is one of the execution info functions to specify optional
- * additional information to control execution.
- *  This API specifies compute stream. It has to be called before the call to
- * rocfft_execute.
- *  It is the underlying device queue/stream where the library computations
- * would be inserted. The library assumes user
- *  has created such a stream in the program and merely assigns work to the
- * stream. The stream must be of type hipStream_t. It is an error to pass the
- * address of a hipStream_t object.
+ *  @details Associates an existing compute stream to a plan.  This
+ * must be called before the call to ::rocfft_execute.
+ *
+ *  Once the association is made, execution of the FFT will run the
+ *  computation through the specified stream.
+ *
+ *  The stream must be of type hipStream_t. It is an error to pass
+ *  the address of a hipStream_t object.
+ *
  *  @param[in] info execution info handle
  *  @param[in] stream underlying compute stream
  *  */
