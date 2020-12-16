@@ -193,6 +193,8 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
         {
             str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc_";
             str += str_len + "(const void *data_p, void *back_p);\n";
+            str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_";
+            str += str_len + "(const void *data_p, void *back_p);\n";
         }
 
         if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
@@ -203,6 +205,8 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
         {
             str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc_";
+            str += str_len + "(const void *data_p, void *back_p);\n";
+            str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_";
             str += str_len + "(const void *data_p, void *back_p);\n";
         }
     }
@@ -383,7 +387,11 @@ void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> lar
             str += "POWX_LARGE_SBRC_GENERATOR( rocfft_internal_dfn_" + short_name_precision
                    + "_op_ci_ci_sbrc_" + str_len + ", fft_fwd_op_len" + str_len + name_suffix
                    + ", fft_back_op_len" + str_len + name_suffix + ", " + complex_case_precision
-                   + ")\n";
+                   + ", SBRC_DIM2)\n";
+            str += "POWX_LARGE_SBRC_GENERATOR( rocfft_internal_dfn_" + short_name_precision
+                   + "_op_ci_ci_sbrc3d_" + str_len + ", fft_fwd_op_len" + str_len + name_suffix
+                   + ", fft_back_op_len" + str_len + name_suffix + ", " + complex_case_precision
+                   + ", SBRC_DIM3)\n";
         }
     }
 
@@ -605,7 +613,12 @@ void AddCPUFunctionToPool(
                    + ", CS_KERNEL_STOCKHAM_BLOCK_RC)] = "
                      "&rocfft_internal_dfn_sp_op_ci_ci_sbrc_"
                    + str_len + ";\n";
-            ;
+            // For every SBRC kernel, also generate one that fuses
+            // transpose for 3D transforms
+            str += "\tfunction_map_single[std::make_pair(" + str_len
+                   + ", CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)] = "
+                     "&rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_"
+                   + str_len + ";\n";
         }
     }
 
@@ -631,7 +644,12 @@ void AddCPUFunctionToPool(
                    + ", CS_KERNEL_STOCKHAM_BLOCK_RC)] = "
                      "&rocfft_internal_dfn_dp_op_ci_ci_sbrc_"
                    + str_len + ";\n";
-            ;
+            // For every SBRC kernel, also generate one that fuses
+            // transpose for 3D transforms
+            str += "\tfunction_map_double[std::make_pair(" + str_len
+                   + ", CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)] = "
+                     "&rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_"
+                   + str_len + ";\n";
         }
     }
 

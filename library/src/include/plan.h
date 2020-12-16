@@ -69,25 +69,7 @@ inline bool SupportedLength(rocfft_precision precision, size_t len)
         return true;
 
     // otherwise, see if there's a kernel for this specific length
-
-    // function pool throws if the size was not found, so if no
-    // exception was observed, the size is supported
-    try
-    {
-        switch(precision)
-        {
-        case rocfft_precision_single:
-            function_pool::get_function_single({len, CS_KERNEL_STOCKHAM});
-            return true;
-        case rocfft_precision_double:
-            function_pool::get_function_double({len, CS_KERNEL_STOCKHAM});
-            return true;
-        }
-    }
-    catch(std::exception&)
-    {
-        return false;
-    }
+    return function_pool::has_function(precision, {len, CS_KERNEL_STOCKHAM});
 }
 
 inline size_t FindBlue(size_t len)

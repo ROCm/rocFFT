@@ -80,6 +80,13 @@ enum StrideBin
     SB_NONUNIT,
 };
 
+// dimension to read column data from for SBRC kernels
+enum SBRCDim
+{
+    SBRC_DIM2 = 2,
+    SBRC_DIM3 = 3,
+};
+
 template <class T>
 struct real_type;
 

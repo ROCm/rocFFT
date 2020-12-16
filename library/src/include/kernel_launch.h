@@ -1210,7 +1210,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
         }                                                                                       \
     }
 
-#define POWX_LARGE_SBRC_GENERATOR(FUNCTION_NAME, FWD_KERN_NAME, BACK_KERN_NAME, PRECISION)       \
+#define POWX_LARGE_SBRC_GENERATOR(                                                               \
+    FUNCTION_NAME, FWD_KERN_NAME, BACK_KERN_NAME, PRECISION, COL_DIM)                            \
     void FUNCTION_NAME(const void* data_p, void* back_p)                                         \
     {                                                                                            \
         DeviceCallIn* data          = (DeviceCallIn*)data_p;                                     \
@@ -1229,7 +1230,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                && (data->node->outArrayType == rocfft_array_type_complex_interleaved             \
                    || data->node->outArrayType == rocfft_array_type_hermitian_interleaved))      \
             {                                                                                    \
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(FWD_KERN_NAME<PRECISION, SB_UNIT>),           \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME(FWD_KERN_NAME<PRECISION, SB_UNIT, COL_DIM>),  \
                                    dim3(data->gridParam.b_x),                                    \
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
@@ -1248,7 +1249,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                     && (data->node->outArrayType == rocfft_array_type_complex_planar             \
                         || data->node->outArrayType == rocfft_array_type_hermitian_planar))      \
             {                                                                                    \
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(FWD_KERN_NAME<PRECISION, SB_UNIT>),           \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME(FWD_KERN_NAME<PRECISION, SB_UNIT, COL_DIM>),  \
                                    dim3(data->gridParam.b_x),                                    \
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
@@ -1268,7 +1269,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                     && (data->node->outArrayType == rocfft_array_type_complex_interleaved        \
                         || data->node->outArrayType == rocfft_array_type_hermitian_interleaved)) \
             {                                                                                    \
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(FWD_KERN_NAME<PRECISION, SB_UNIT>),           \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME(FWD_KERN_NAME<PRECISION, SB_UNIT, COL_DIM>),  \
                                    dim3(data->gridParam.b_x),                                    \
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
@@ -1288,7 +1289,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                     && (data->node->outArrayType == rocfft_array_type_complex_planar             \
                         || data->node->outArrayType == rocfft_array_type_hermitian_planar))      \
             {                                                                                    \
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(FWD_KERN_NAME<PRECISION, SB_UNIT>),           \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME(FWD_KERN_NAME<PRECISION, SB_UNIT, COL_DIM>),  \
                                    dim3(data->gridParam.b_x),                                    \
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
@@ -1312,7 +1313,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                && (data->node->outArrayType == rocfft_array_type_complex_interleaved             \
                    || data->node->outArrayType == rocfft_array_type_hermitian_interleaved))      \
             {                                                                                    \
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(BACK_KERN_NAME<PRECISION, SB_UNIT>),          \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME(BACK_KERN_NAME<PRECISION, SB_UNIT, COL_DIM>), \
                                    dim3(data->gridParam.b_x),                                    \
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
@@ -1331,7 +1332,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                     && (data->node->outArrayType == rocfft_array_type_complex_planar             \
                         || data->node->outArrayType == rocfft_array_type_hermitian_planar))      \
             {                                                                                    \
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(BACK_KERN_NAME<PRECISION, SB_UNIT>),          \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME(BACK_KERN_NAME<PRECISION, SB_UNIT, COL_DIM>), \
                                    dim3(data->gridParam.b_x),                                    \
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
@@ -1351,7 +1352,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                     && (data->node->outArrayType == rocfft_array_type_complex_interleaved        \
                         || data->node->outArrayType == rocfft_array_type_hermitian_interleaved)) \
             {                                                                                    \
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(BACK_KERN_NAME<PRECISION, SB_UNIT>),          \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME(BACK_KERN_NAME<PRECISION, SB_UNIT, COL_DIM>), \
                                    dim3(data->gridParam.b_x),                                    \
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \
@@ -1371,7 +1372,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                     && (data->node->outArrayType == rocfft_array_type_complex_planar             \
                         || data->node->outArrayType == rocfft_array_type_hermitian_planar))      \
             {                                                                                    \
-                hipLaunchKernelGGL(HIP_KERNEL_NAME(BACK_KERN_NAME<PRECISION, SB_UNIT>),          \
+                hipLaunchKernelGGL(HIP_KERNEL_NAME(BACK_KERN_NAME<PRECISION, SB_UNIT, COL_DIM>), \
                                    dim3(data->gridParam.b_x),                                    \
                                    dim3(data->gridParam.tpb_x),                                  \
                                    0,                                                            \

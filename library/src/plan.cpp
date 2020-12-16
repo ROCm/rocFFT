@@ -63,6 +63,8 @@ std::string PrintScheme(ComputeScheme cs)
            {ENUMSTR(CS_KERNEL_COPY_HERM_TO_CMPLX)},
            {ENUMSTR(CS_KERNEL_COPY_CMPLX_TO_R)},
 
+           {ENUMSTR(CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)},
+
            {ENUMSTR(CS_REAL_TRANSFORM_EVEN)},
            {ENUMSTR(CS_KERNEL_R_TO_CMPLX)},
            {ENUMSTR(CS_KERNEL_R_TO_CMPLX_TRANSPOSE)},
@@ -94,6 +96,7 @@ std::string PrintScheme(ComputeScheme cs)
            {ENUMSTR(CS_3D_STRAIGHT)},
            {ENUMSTR(CS_3D_TRTRTR)},
            {ENUMSTR(CS_3D_RTRT)},
+           {ENUMSTR(CS_3D_BLOCK_RC)},
            {ENUMSTR(CS_3D_RC)},
            {ENUMSTR(CS_KERNEL_3D_STOCKHAM_BLOCK_CC)},
            {ENUMSTR(CS_KERNEL_3D_SINGLE)}};
@@ -757,7 +760,12 @@ void TreeNode::RecursiveBuildTree()
 
     case 3:
     {
-        if(MultiDimFuseKernelsAvailable)
+        // if we can get down to 3 or 4 kernels via SBRC, prefer that
+        if(use_CS_3D_BLOCK_RC())
+        {
+            scheme = CS_3D_BLOCK_RC;
+        }
+        else if(MultiDimFuseKernelsAvailable)
         {
             // conditions to choose which scheme
             if((length[0] * length[1] * length[2]) <= 2048)
@@ -794,6 +802,11 @@ void TreeNode::RecursiveBuildTree()
         case CS_3D_TRTRTR:
         {
             build_CS_3D_TRTRTR();
+        }
+        break;
+        case CS_3D_BLOCK_RC:
+        {
+            build_CS_3D_BLOCK_RC();
         }
         break;
         case CS_3D_RC:
@@ -901,6 +914,13 @@ bool TreeNode::use_CS_2D_RC()
     }
 
     return false;
+}
+
+bool TreeNode::use_CS_3D_BLOCK_RC()
+{
+    // currently, we support cube sizes with SBRC kernels
+    return function_pool::has_function(precision, {length[0], CS_KERNEL_STOCKHAM_BLOCK_RC})
+           && length[0] == length[1] && length[1] == length[2];
 }
 
 void TreeNode::build_real()
@@ -1972,6 +1992,62 @@ void TreeNode::build_CS_3D_TRTRTR()
     }
 }
 
+void TreeNode::build_CS_3D_BLOCK_RC()
+{
+    scheme                         = CS_3D_BLOCK_RC;
+    std::vector<size_t> cur_length = length;
+
+    size_t total_sbrc = 0;
+    for(int i = 0; i < 3; ++i)
+    {
+        // if we have an sbrc kernel for this length, use it,
+        // otherwise, fall back to transpose+row FFT
+        bool have_sbrc = function_pool::has_function(
+            precision, {cur_length.front(), CS_KERNEL_STOCKHAM_BLOCK_RC});
+        if(have_sbrc)
+            ++total_sbrc;
+
+        // if we're doing in-place, we are unable to do more than 2
+        // sbrc kernels.  we'd ideally want 3 sbrc, but each needs to
+        // be out-of-place:
+        // - kernel 1: IN -> TEMP
+        // - kernel 2: TEMP -> IN
+        // - kernel 3: IN -> ???
+        //
+        // So we have no way to put the results back into IN.  So
+        // limit ourselves to 2 sbrc kernels in that case.
+        if(total_sbrc >= 3 && placement == rocfft_placement_inplace)
+            have_sbrc = false;
+
+        if(have_sbrc)
+        {
+            auto sbrc_node    = TreeNode::CreateNode(this);
+            sbrc_node->length = cur_length;
+            sbrc_node->scheme = CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z;
+            childNodes.emplace_back(std::move(sbrc_node));
+        }
+        else
+        {
+            // row ffts
+            auto row_plan       = TreeNode::CreateNode(this);
+            row_plan->length    = cur_length;
+            row_plan->dimension = 1;
+            row_plan->RecursiveBuildTree();
+            childNodes.emplace_back(std::move(row_plan));
+
+            // transpose XY_Z
+            auto trans_plan       = TreeNode::CreateNode(this);
+            trans_plan->length    = cur_length;
+            trans_plan->scheme    = CS_KERNEL_TRANSPOSE_XY_Z;
+            trans_plan->dimension = 2;
+            childNodes.emplace_back(std::move(trans_plan));
+        }
+
+        std::swap(cur_length[2], cur_length[1]);
+        std::swap(cur_length[1], cur_length[0]);
+    }
+}
+
 struct TreeNode::TraverseState
 {
     TraverseState(const ExecPlan& execPlan)
@@ -2133,6 +2209,9 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(TraverseState&   state,
         break;
     case CS_3D_TRTRTR:
         assign_buffers_CS_3D_TRTRTR(state, flipIn, flipOut, obOutBuf);
+        break;
+    case CS_3D_BLOCK_RC:
+        assign_buffers_CS_3D_BLOCK_RC(state, flipIn, flipOut, obOutBuf);
         break;
     default:
         if(parent == nullptr)
@@ -2825,6 +2904,43 @@ void TreeNode::assign_buffers_CS_3D_TRTRTR(TraverseState&   state,
     obOut = childNodes[childNodes.size() - 1]->obOut;
 }
 
+void TreeNode::assign_buffers_CS_3D_BLOCK_RC(TraverseState&   state,
+                                             OperatingBuffer& flipIn,
+                                             OperatingBuffer& flipOut,
+                                             OperatingBuffer& obOutBuf)
+{
+    assert(scheme == CS_3D_BLOCK_RC);
+
+    for(size_t i = 0; i < childNodes.size(); ++i)
+    {
+        auto& node = childNodes[i];
+        node->SetInputBuffer(state);
+        node->inArrayType = (i == 0) ? inArrayType : childNodes[i - 1]->outArrayType;
+        node->obOut       = flipOut == OB_USER_OUT && placement == rocfft_placement_notinplace
+                                ? OB_USER_IN
+                                : flipOut;
+
+        // temp is interleaved, in/out might not be
+        switch(node->obOut)
+        {
+        case OB_USER_IN:
+            node->outArrayType = inArrayType;
+            break;
+        case OB_USER_OUT:
+            node->outArrayType = outArrayType;
+            break;
+        default:
+            node->outArrayType = rocfft_array_type_complex_interleaved;
+        }
+
+        node->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
+    }
+
+    obOut                           = obOutBuf;
+    childNodes.back()->obOut        = obOut;
+    childNodes.back()->outArrayType = outArrayType;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Set placement variable and in/out array types, if not already set.
 void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn,
@@ -2993,6 +3109,9 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         break;
     case CS_3D_TRTRTR:
         assign_params_CS_3D_TRTRTR();
+        break;
+    case CS_3D_BLOCK_RC:
+        assign_params_CS_3D_BLOCK_RC();
         break;
     case CS_3D_RC:
     case CS_3D_STRAIGHT:
@@ -4063,6 +4182,62 @@ void TreeNode::assign_params_CS_3D_TRTRTR()
         }
         row_plan->TraverseTreeAssignParamsLogicA();
     }
+}
+
+void TreeNode::assign_params_CS_3D_BLOCK_RC()
+{
+    assert(scheme == CS_3D_BLOCK_RC);
+    // could go as low as 3 kernels if all dimensions are SBRC-able,
+    // but less than 6.  If we ended up with 6 we should have just
+    // done 3D_TRTRTR instead.
+    assert(childNodes.size() >= 3 && childNodes.size() < 6);
+
+    childNodes.front()->inStride = inStride;
+    childNodes.front()->iDist    = iDist;
+
+    std::vector<size_t> prev_outStride;
+    size_t              prev_oDist = 0;
+    for(auto& node : childNodes)
+    {
+        // set initial inStride + iDist, or connect it to previous node
+        if(prev_outStride.empty())
+        {
+            node->inStride = inStride;
+            node->iDist    = iDist;
+        }
+        else
+        {
+            node->inStride = prev_outStride;
+            node->iDist    = prev_oDist;
+        }
+
+        // each node is either:
+        // - a fused sbrc+transpose node (for dimensions we have SBRC kernels for)
+        // - a transpose node or a row FFT node (otherwise)
+        switch(node->scheme)
+        {
+        case CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z:
+        {
+            node->outStride.push_back(1);
+            node->outStride.push_back(node->outStride[0] * node->length[0]);
+            node->outStride.push_back(node->outStride[1] * node->length[1]);
+            node->oDist = node->outStride[2] * node->length[2];
+            break;
+        }
+        default:
+        {
+            node->outStride.push_back(1);
+            node->outStride.push_back(node->outStride[0] * node->length[0]);
+            node->outStride.push_back(node->outStride[1] * node->length[1]);
+            node->oDist = node->outStride[2] * node->length[2];
+            node->TraverseTreeAssignParamsLogicA();
+        }
+        }
+        prev_outStride = node->outStride;
+        prev_oDist     = node->oDist;
+    }
+    childNodes.back()->outStride = outStride;
+    childNodes.back()->oDist     = oDist;
 }
 
 void TreeNode::assign_params_CS_3D_RC_STRAIGHT()

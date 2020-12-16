@@ -74,6 +74,26 @@ public:
 
     ~function_pool() {}
 
+    static bool has_function(rocfft_precision precision, Key k)
+    {
+        try
+        {
+            switch(precision)
+            {
+            case rocfft_precision_single:
+                function_pool::get_function_single(k);
+                return true;
+            case rocfft_precision_double:
+                function_pool::get_function_double(k);
+                return true;
+            }
+        }
+        catch(std::exception&)
+        {
+            return false;
+        }
+    }
+
     static DevFnCall get_function_single(Key mykey)
     {
         function_pool& func_pool = get_function_pool();

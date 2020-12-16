@@ -59,7 +59,8 @@ bool PlanPowX(ExecPlan& execPlan)
     for(const auto& node : execPlan.execSeq)
     {
         if((node->scheme == CS_KERNEL_STOCKHAM) || (node->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-           || (node->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC))
+           || (node->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
+           || node->scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
         {
             node->twiddles = twiddles_create(node->length[0], node->precision, false, false);
             if(node->twiddles == nullptr)
@@ -168,6 +169,22 @@ bool PlanPowX(ExecPlan& execPlan)
                                       execPlan.execSeq[i]->length.end(),
                                       execPlan.execSeq[i]->batch,
                                       std::multiplies<size_t>());
+            gp.tpb_x = wgs;
+            break;
+        case CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z:
+            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
+                      ? function_pool::get_function_single(std::make_pair(
+                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z))
+                      : function_pool::get_function_double(std::make_pair(
+                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z));
+            GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
+            // repeat for higher dimensions + batch
+            gp.b_x = std::accumulate(execPlan.execSeq[i]->length.begin() + 1,
+                                     execPlan.execSeq[i]->length.end(),
+                                     execPlan.execSeq[i]->batch,
+                                     std::multiplies<size_t>());
+            // do 'bwd' rows per block
+            gp.b_x /= bwd;
             gp.tpb_x = wgs;
             break;
         case CS_KERNEL_TRANSPOSE:

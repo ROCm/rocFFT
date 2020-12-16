@@ -5,6 +5,7 @@
 #pragma once
 #if !defined(_generator_kernel_H)
 #define _generator_kernel_H
+#include "../../include/plan.h"
 #include "../kernels/common.h"
 #include "generator.param.h"
 #include "generator.pass.hpp"
@@ -306,6 +307,9 @@ namespace StockhamGenerator
             loop += "\t\tcounter_mod = (counter_mod % currentLength); \n";
             loop += "\t}\n";
 
+            if(blockComputeType == BCT_R2C)
+                loop += "\n\tif(sbrcdim == SBRC_DIM2)\n";
+            loop += "\t{\n";
             std::string sub_string = "(lengths[1]/" + std::to_string(blockWidth)
                                      + ")"; // in FFT it is how many unrolls
 
@@ -327,7 +331,7 @@ namespace StockhamGenerator
 
             // the most inner part of offset calc needs to count stride[1] for SBCC
             if(blockComputeType == BCT_C2C)
-                loop += "\t" + offset_name1 + " *= (" + stride_name1 + "[1]);\n";
+                loop += "\t\t" + offset_name1 + " *= (" + stride_name1 + "[1]);\n";
 
             // Distance between 'true' batches might be in a
             // different stride_in/out array member depending on how
@@ -360,10 +364,69 @@ namespace StockhamGenerator
 
                 // the most inner part of offset calc needs to count stride[1] for SBRC
                 if(blockComputeType == BCT_R2C)
-                    loop += "\t" + offset_name2 + " *= (" + stride_name2 + "[1]);\n";
+                    loop += "\t\t" + offset_name2 + " *= (" + stride_name2 + "[1]);\n";
 
                 loop += "\t" + offset_name2 + " += (batch_local_count * " + stride_name2
                         + batch_dist_idx + ");\n\n";
+            }
+            loop += "\t}\n";
+            if(blockComputeType == BCT_R2C)
+            {
+                loop += "\telse if(sbrcdim == SBRC_DIM3)\n";
+                loop += "\t{\n";
+                loop += "\t\tunsigned int blocks_per_batch = lengths[1] * lengths[2] / "
+                        + std::to_string(blockWidth) + ";\n";
+                loop += "\t\tunsigned int readTileIdx_x = batch % lengths[1];\n";
+                loop += "\t\tunsigned int readTileIdx_y = batch % blocks_per_batch / lengths[1];\n";
+
+                // FIXME: figure out why diagonal breaks on length 64
+                if(IsPo2(length) && length != 64)
+                {
+                    loop += "\t\t// diagonal transpose for power of 2 length\n";
+
+                    loop += "\t\tunsigned int bid = readTileIdx_x + " + std::to_string(length)
+                            + " * readTileIdx_y;\n";
+                    loop += "\t\tunsigned int tileBlockIdx_y = bid % "
+                            + std::to_string(blockWGS / blockWidth) + ";\n";
+                    loop += "\t\tunsigned int tileBlockIdx_x = ((bid / "
+                            + std::to_string(blockWGS / blockWidth) + ") + tileBlockIdx_y) % "
+                            + std::to_string(length) + ";\n";
+
+                    loop += "\t\t" + offset_name1 + " += tileBlockIdx_y * ("
+                            + std::to_string(blockWidth) + " * " + stride_name1
+                            + "[2]) + tileBlockIdx_x  "
+                              "* "
+                            + stride_name1 + "[1] + batch / blocks_per_batch * " + stride_name1
+                            + "[3];\n";
+                    if(output)
+                    {
+                        loop += "\t\tunsigned int writeTileIdx_x = tileBlockIdx_y;\n";
+                        loop += "\t\tunsigned int writeTileIdx_y = tileBlockIdx_x;\n";
+                        loop += "\t\t" + offset_name2 + " += writeTileIdx_y * " + stride_name2
+                                + "[2] + writeTileIdx_x * " + std::to_string(blockWidth) + " * "
+                                + stride_name2 + "[0] + batch / blocks_per_batch * " + stride_name2
+                                + "[3];\n";
+                    }
+                }
+                else
+                {
+                    loop += "\t\t" + offset_name1 + " += readTileIdx_y * ("
+                            + std::to_string(blockWidth) + " * " + stride_name1
+                            + "[2]) + readTileIdx_x  * " + stride_name1
+                            + "[1] + batch / blocks_per_batch * " + stride_name1 + "[3];\n";
+                    loop += "\n";
+                    if(output)
+                    {
+                        loop += "\t\tunsigned int writeTileIdx_x = readTileIdx_y;\n";
+                        loop += "\t\tunsigned int writeTileIdx_y = readTileIdx_x;\n";
+                        loop += "\n";
+                        loop += "\t\t" + offset_name2 + " += writeTileIdx_y * " + stride_name2
+                                + "[2] + writeTileIdx_x * " + std::to_string(blockWidth) + " * "
+                                + stride_name2 + "[0] + batch / blocks_per_batch * " + stride_name2
+                                + "[3];\n";
+                    }
+                }
+                loop += "\t}\n";
             }
 
             str += loop;
@@ -963,6 +1026,11 @@ namespace StockhamGenerator
             {
                 str += "template <typename T, StrideBin sb, bool TwdLarge>\n";
             }
+            // SBRC also needs a parameter for which dimension to read columns from
+            else if(blockComputeType == BCT_R2C)
+            {
+                str += "template <typename T, StrideBin sb, SBRCDim sbrcdim>\n";
+            }
             else
             {
                 str += "template <typename T, StrideBin sb>\n";
@@ -1390,6 +1458,9 @@ namespace StockhamGenerator
                     }
                     else
                     {
+                        if(blockComputeType == BCT_R2C)
+                            str += "\t\tif(sbrcdim == SBRC_DIM2)\n";
+                        str += "\t\t{\n";
                         str += "\t\t// Calc global offset within a tile and read\n";
                         str += "\t\tR0";
                         str += comp;
@@ -1398,6 +1469,23 @@ namespace StockhamGenerator
                         str += "[me + t*";
                         str += std::to_string(blockWGS);
                         str += "];\n";
+                        str += "\t\t}\n";
+                        if(blockComputeType == BCT_R2C)
+                        {
+                            str += "\t\telse\n";
+                            str += "\t\t{\n";
+                            str += "\t\tR0";
+                            str += comp;
+                            str += " = ";
+                            str += readBuf;
+                            str += "[me % " + std::to_string(length) + " * stride_in[0] + ((me /"
+                                   + std::to_string(length) + " * "
+                                   + std::to_string(blockWGS / blockWidth) + ") + t % "
+                                   + std::to_string(blockWidth) + ")*stride_in[2] + t / "
+                                   + std::to_string(blockWidth) + " * " + std::to_string(blockWGS)
+                                   + " * stride_in[0]];\n";
+                            str += "\t\t}\n";
+                        }
                     }
 
                     if(inInterleaved)
@@ -1426,11 +1514,21 @@ namespace StockhamGenerator
                 }
                 else
                 {
+                    if(blockComputeType == BCT_R2C)
+                        str += "\t\tif(sbrcdim == SBRC_DIM2)\n";
                     str += "\t\t// Write into lds in row-major: lds[t*wgs + me]\n";
                     str += "\t\tlds[t*";
                     str += std::to_string(blockWGS);
-                    str += " + me] = R0;";
-                    str += "\n";
+                    str += " + me] = R0;\n";
+                    if(blockComputeType == BCT_R2C)
+                    {
+                        str += "\t\telse\n";
+                        str += "\t\tlds[t % " + std::to_string(blockWidth) + " *"
+                               + std::to_string(length) + " + t / " + std::to_string(blockWidth)
+                               + " * " + std::to_string(blockWGS) + " + me % "
+                               + std::to_string(length) + " + me / " + std::to_string(length)
+                               + " * " + std::to_string(loopCount * length) + "] = R0;\n";
+                    }
                 }
 
                 str += "\t}\n\n";
@@ -1654,6 +1752,11 @@ namespace StockhamGenerator
 
                     if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
                     {
+                        if(blockComputeType == BCT_R2C)
+                        {
+                            str += "\t\tif(sbrcdim == SBRC_DIM2)\n";
+                            str += "\t\t{\n";
+                        }
                         {
                             // start to calc the global write offset
                             str += "\t\t";
@@ -1678,6 +1781,24 @@ namespace StockhamGenerator
                             str += "] = R0";
                             str += comp;
                             str += ";\n";
+                        }
+                        if(blockComputeType == BCT_R2C)
+                        {
+                            str += "\t\t}\n";
+                            str += "\t\telse\n";
+                            str += "\t\t{\n";
+                            str += "\t\t";
+                            str += writeBuf;
+                            str += "[(me%";
+                            str += std::to_string(blockWidth);
+                            str += ") * stride_";
+                            str += placeness == rocfft_placement_inplace ? "in" : "out";
+                            str += "[0] + (me/" + std::to_string(blockWidth);
+                            str += (placeness == rocfft_placement_inplace)
+                                       ? ")*stride_in[1] + t*stride_in[1]*"
+                                       : ")*stride_out[1] + t*stride_out[1]*";
+                            str += std::to_string(blockWGS / blockWidth) + "] = R0" + comp + ";\n";
+                            str += "\t\t}\n";
                         }
                     }
                     else
