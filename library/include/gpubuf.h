@@ -1,6 +1,7 @@
 #ifndef ROCFFT_GPUBUF_H
 #define ROCFFT_GPUBUF_H
 
+#include <cstdlib>
 #include <hip/hip_runtime_api.h>
 
 // Simple RAII class for GPU buffers.  T is the type of pointer that
@@ -31,10 +32,16 @@ public:
         free();
     }
 
+    static bool use_alloc_managed()
+    {
+        return std::getenv("ROCFFT_MALLOC_MANAGED");
+    }
+
     hipError_t alloc(const size_t size)
     {
+        static bool alloc_managed = use_alloc_managed();
         free();
-        auto ret = hipMalloc(&buf, size);
+        auto ret = alloc_managed ? hipMallocManaged(&buf, size) : hipMalloc(&buf, size);
         if(ret != hipSuccess)
             buf = nullptr;
         return ret;

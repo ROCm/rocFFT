@@ -23,6 +23,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "gpubuf.h"
 #include "rider.h"
 #include "rocfft.h"
 #include <boost/program_options.hpp>
@@ -262,11 +263,11 @@ int main(int argc, char* argv[])
                 "rocfft_plan_get_work_buffer_size failed");
     rocfft_execution_info info = NULL;
     LIB_V_THROW(rocfft_execution_info_create(&info), "rocfft_execution_info_create failed");
-    void* wbuffer = NULL;
+    gpubuf wbuffer;
     if(workBufferSize > 0)
     {
-        HIP_V_THROW(hipMalloc(&wbuffer, workBufferSize), "Creating intermediate Buffer failed");
-        LIB_V_THROW(rocfft_execution_info_set_work_buffer(info, wbuffer, workBufferSize),
+        HIP_V_THROW(wbuffer.alloc(workBufferSize), "Creating intermediate Buffer failed");
+        LIB_V_THROW(rocfft_execution_info_set_work_buffer(info, wbuffer.data(), workBufferSize),
                     "rocfft_execution_info_set_work_buffer failed");
     }
 
@@ -287,26 +288,34 @@ int main(int argc, char* argv[])
     }
 
     // GPU input and output buffers:
-    auto               ibuffer_sizes = params.ibuffer_sizes();
-    std::vector<void*> ibuffer(ibuffer_sizes.size());
+    auto                ibuffer_sizes = params.ibuffer_sizes();
+    std::vector<gpubuf> ibuffer(ibuffer_sizes.size());
+    std::vector<void*>  pibuffer(ibuffer_sizes.size());
     for(unsigned int i = 0; i < ibuffer.size(); ++i)
     {
-        HIP_V_THROW(hipMalloc(&ibuffer[i], ibuffer_sizes[i]), "Creating input Buffer failed");
+        HIP_V_THROW(ibuffer[i].alloc(ibuffer_sizes[i]), "Creating input Buffer failed");
+        pibuffer[i] = ibuffer[i].data();
     }
 
-    std::vector<void*> obuffer;
+    std::vector<gpubuf>  obuffer_data;
+    std::vector<gpubuf>* obuffer = &obuffer_data;
     if(params.placement == rocfft_placement_inplace)
     {
-        obuffer = ibuffer;
+        obuffer = &ibuffer;
     }
     else
     {
         auto obuffer_sizes = params.obuffer_sizes();
-        obuffer.resize(obuffer_sizes.size());
-        for(unsigned int i = 0; i < obuffer.size(); ++i)
+        obuffer_data.resize(obuffer_sizes.size());
+        for(unsigned int i = 0; i < obuffer_data.size(); ++i)
         {
-            HIP_V_THROW(hipMalloc(&obuffer[i], obuffer_sizes[i]), "Creating output Buffer failed");
+            HIP_V_THROW(obuffer_data[i].alloc(obuffer_sizes[i]), "Creating output Buffer failed");
         }
+    }
+    std::vector<void*> pobuffer(obuffer->size());
+    for(unsigned int i = 0; i < obuffer->size(); ++i)
+    {
+        pobuffer[i] = obuffer->at(i).data();
     }
 
     // Warm up once:
@@ -314,10 +323,10 @@ int main(int argc, char* argv[])
     {
         HIP_V_THROW(
             hipMemcpy(
-                ibuffer[idx], gpu_input[idx].data(), gpu_input[idx].size(), hipMemcpyHostToDevice),
+                pibuffer[idx], gpu_input[idx].data(), gpu_input[idx].size(), hipMemcpyHostToDevice),
             "hipMemcpy failed");
     }
-    rocfft_execute(plan, ibuffer.data(), obuffer.data(), info);
+    rocfft_execute(plan, pibuffer.data(), pobuffer.data(), info);
 
     // Run the transform several times and record the execution time:
     std::vector<double> gpu_time(ntrial);
@@ -331,7 +340,7 @@ int main(int argc, char* argv[])
         // Copy the input data to the GPU:
         for(int idx = 0; idx < gpu_input.size(); ++idx)
         {
-            HIP_V_THROW(hipMemcpy(ibuffer[idx],
+            HIP_V_THROW(hipMemcpy(pibuffer[idx],
                                   gpu_input[idx].data(),
                                   gpu_input[idx].size(),
                                   hipMemcpyHostToDevice),
@@ -340,7 +349,7 @@ int main(int argc, char* argv[])
 
         HIP_V_THROW(hipEventRecord(start), "hipEventRecord failed");
 
-        rocfft_execute(plan, ibuffer.data(), obuffer.data(), info);
+        rocfft_execute(plan, pibuffer.data(), pobuffer.data(), info);
 
         HIP_V_THROW(hipEventRecord(stop), "hipEventRecord failed");
         HIP_V_THROW(hipEventSynchronize(stop), "hipEventSynchronize failed");
@@ -355,7 +364,7 @@ int main(int argc, char* argv[])
             for(int idx = 0; idx < output.size(); ++idx)
             {
                 hipMemcpy(
-                    output[idx].data(), obuffer[idx], output[idx].size(), hipMemcpyDeviceToHost);
+                    output[idx].data(), pobuffer[idx], output[idx].size(), hipMemcpyDeviceToHost);
             }
             std::cout << "GPU output:\n";
             printbuffer(params.precision,
@@ -394,11 +403,6 @@ int main(int argc, char* argv[])
     rocfft_plan_description_destroy(desc);
     rocfft_execution_info_destroy(info);
     rocfft_plan_destroy(plan);
-    hipFree(wbuffer);
-    for(auto& buf : ibuffer)
-        hipFree(buf);
-    for(auto& buf : obuffer)
-        hipFree(buf);
 
     rocfft_cleanup();
 }

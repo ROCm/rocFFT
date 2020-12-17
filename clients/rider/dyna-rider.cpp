@@ -31,6 +31,7 @@
 #include <dlfcn.h>
 #include <link.h>
 
+#include "gpubuf.h"
 #include "rider.h"
 #include "rocfft.h"
 
@@ -425,17 +426,17 @@ int main(int argc, char* argv[])
     std::cout << "Work buffer size: " << wbuffer_size << std::endl;
 
     // Allocate the work buffer: just one, big enough for any dloaded library.
-    void* wbuffer = NULL;
+    gpubuf wbuffer;
     if(wbuffer_size)
     {
-        HIP_V_THROW(hipMalloc(&wbuffer, wbuffer_size), "Creating intermediate Buffer failed");
+        HIP_V_THROW(wbuffer.alloc(wbuffer_size), "Creating intermediate Buffer failed");
     }
 
     // Associate the work buffer to the invidual libraries:
     std::vector<rocfft_execution_info> info;
     for(int idx = 0; idx < libs.size(); ++idx)
     {
-        info.push_back(make_execinfo(handles[idx], wbuffer_size, wbuffer));
+        info.push_back(make_execinfo(handles[idx], wbuffer_size, wbuffer.data()));
     }
 
     // Input data:
@@ -455,26 +456,34 @@ int main(int argc, char* argv[])
     }
 
     // GPU input and output buffers:
-    auto               ibuffer_sizes = params.ibuffer_sizes();
-    std::vector<void*> ibuffer(ibuffer_sizes.size());
+    auto                ibuffer_sizes = params.ibuffer_sizes();
+    std::vector<gpubuf> ibuffer(ibuffer_sizes.size());
+    std::vector<void*>  pibuffer(ibuffer_sizes.size());
     for(unsigned int i = 0; i < ibuffer.size(); ++i)
     {
-        HIP_V_THROW(hipMalloc(&ibuffer[i], ibuffer_sizes[i]), "Creating input Buffer failed");
+        HIP_V_THROW(ibuffer[i].alloc(ibuffer_sizes[i]), "Creating input Buffer failed");
+        pibuffer[i] = ibuffer[i].data();
     }
 
-    std::vector<void*> obuffer;
+    std::vector<gpubuf>  obuffer_data;
+    std::vector<gpubuf>* obuffer = &obuffer_data;
     if(params.placement == rocfft_placement_inplace)
     {
-        obuffer = ibuffer;
+        obuffer = &ibuffer;
     }
     else
     {
         auto obuffer_sizes = params.obuffer_sizes();
-        obuffer.resize(obuffer_sizes.size());
-        for(unsigned int i = 0; i < obuffer.size(); ++i)
+        obuffer_data.resize(obuffer_sizes.size());
+        for(unsigned int i = 0; i < obuffer_data.size(); ++i)
         {
-            HIP_V_THROW(hipMalloc(&obuffer[i], obuffer_sizes[i]), "Creating output Buffer failed");
+            HIP_V_THROW(obuffer_data[i].alloc(obuffer_sizes[i]), "Creating output Buffer failed");
         }
+    }
+    std::vector<void*> pobuffer(obuffer->size());
+    for(unsigned int i = 0; i < obuffer->size(); ++i)
+    {
+        pobuffer[i] = obuffer->at(i).data();
     }
 
     if(handles.size())
@@ -485,13 +494,14 @@ int main(int argc, char* argv[])
         for(int idx = 0; idx < input.size(); ++idx)
         {
             HIP_V_THROW(
-                hipMemcpy(ibuffer[0], input[0].data(), input[0].size(), hipMemcpyHostToDevice),
+                hipMemcpy(
+                    pibuffer[idx], input[idx].data(), input[idx].size(), hipMemcpyHostToDevice),
                 "hipMemcpy failed");
         }
         // Run the plan using its associated rocFFT library:
         for(int idx = 0; idx < handles.size(); ++idx)
         {
-            run_plan(handles[idx], plan[idx], info[idx], ibuffer.data(), obuffer.data());
+            run_plan(handles[idx], plan[idx], info[idx], pibuffer.data(), pobuffer.data());
         }
     }
 
@@ -517,13 +527,13 @@ int main(int argc, char* argv[])
         {
             HIP_V_THROW(
                 hipMemcpy(
-                    ibuffer[idx], input[idx].data(), input[idx].size(), hipMemcpyHostToDevice),
+                    pibuffer[idx], input[idx].data(), input[idx].size(), hipMemcpyHostToDevice),
                 "hipMemcpy failed");
         }
 
         // Run the plan using its associated rocFFT library:
         time[idx].push_back(
-            run_plan(handles[idx], plan[idx], info[idx], ibuffer.data(), obuffer.data()));
+            run_plan(handles[idx], plan[idx], info[idx], pibuffer.data(), pobuffer.data()));
 
         if(verbose > 2)
         {
@@ -531,7 +541,7 @@ int main(int argc, char* argv[])
             for(int idx = 0; idx < output.size(); ++idx)
             {
                 hipMemcpy(
-                    output[idx].data(), obuffer[idx], output[idx].size(), hipMemcpyDeviceToHost);
+                    output[idx].data(), pobuffer[idx], output[idx].size(), hipMemcpyDeviceToHost);
             }
             std::cout << "GPU output:\n";
             printbuffer(params.precision,
@@ -563,11 +573,6 @@ int main(int argc, char* argv[])
         destroy_plan(handles[idx], plan[idx]);
         dlclose(handles[idx]);
     }
-    hipFree(wbuffer);
-    for(auto& buf : ibuffer)
-        hipFree(buf);
-    for(auto& buf : obuffer)
-        hipFree(buf);
 
     return 0;
 }
