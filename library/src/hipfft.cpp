@@ -144,11 +144,8 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                                      hipfftType              type,
                                      size_t                  number_of_transforms,
                                      rocfft_plan_description desc,
-                                     size_t*                 workSize,
-                                     bool                    dry_run)
+                                     size_t*                 workSize)
 {
-    size_t workBufferSize = 0;
-
     switch(type)
     {
     case HIPFFT_R2C:
@@ -304,27 +301,26 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
         return HIPFFT_PARSE_ERROR;
     }
 
-    size_t tmpBufferSize = 0;
-    if(plan->ip_forward)
+    size_t workBufferSize = 0;
+    size_t tmpBufferSize  = 0;
+
+    bool const has_forward = type != HIPFFT_C2R && type != HIPFFT_Z2D;
+    if(has_forward)
     {
         ROC_FFT_CHECK_INVALID_VALUE(
             rocfft_plan_get_work_buffer_size(plan->ip_forward, &tmpBufferSize));
         workBufferSize = std::max(workBufferSize, tmpBufferSize);
-    }
-    if(plan->op_forward)
-    {
         ROC_FFT_CHECK_INVALID_VALUE(
             rocfft_plan_get_work_buffer_size(plan->op_forward, &tmpBufferSize));
         workBufferSize = std::max(workBufferSize, tmpBufferSize);
     }
-    if(plan->ip_inverse)
+
+    bool const has_inverse = type != HIPFFT_R2C && type != HIPFFT_D2Z;
+    if(has_inverse)
     {
         ROC_FFT_CHECK_INVALID_VALUE(
             rocfft_plan_get_work_buffer_size(plan->ip_inverse, &tmpBufferSize));
         workBufferSize = std::max(workBufferSize, tmpBufferSize);
-    }
-    if(plan->op_inverse)
-    {
         ROC_FFT_CHECK_INVALID_VALUE(
             rocfft_plan_get_work_buffer_size(plan->op_inverse, &tmpBufferSize));
         workBufferSize = std::max(workBufferSize, tmpBufferSize);
@@ -339,9 +335,9 @@ hipfftResult hipfftMakePlan_internal(hipfftHandle            plan,
                     return HIPFFT_ALLOC_FAILED;
             if(hipMalloc(&plan->workBuffer, workBufferSize) != hipSuccess)
                 return HIPFFT_ALLOC_FAILED;
+            ROC_FFT_CHECK_INVALID_VALUE(rocfft_execution_info_set_work_buffer(
+                plan->info, plan->workBuffer, workBufferSize));
         }
-        ROC_FFT_CHECK_INVALID_VALUE(
-            rocfft_execution_info_set_work_buffer(plan->info, plan->workBuffer, workBufferSize));
     }
 
     if(workSize != nullptr)
@@ -370,8 +366,7 @@ hipfftResult
     size_t                  number_of_transforms = batch;
     rocfft_plan_description desc                 = nullptr;
 
-    return hipfftMakePlan_internal(
-        plan, 1, lengths, type, number_of_transforms, desc, workSize, false);
+    return hipfftMakePlan_internal(plan, 1, lengths, type, number_of_transforms, desc, workSize);
 }
 
 /*! \brief Assume hipfftCreate has been called. Creates a 2D FFT plan
@@ -391,8 +386,7 @@ hipfftResult hipfftMakePlan2d(hipfftHandle plan, int nx, int ny, hipfftType type
     size_t                  number_of_transforms = 1;
     rocfft_plan_description desc                 = nullptr;
 
-    return hipfftMakePlan_internal(
-        plan, 2, lengths, type, number_of_transforms, desc, workSize, false);
+    return hipfftMakePlan_internal(plan, 2, lengths, type, number_of_transforms, desc, workSize);
 }
 
 /*! \brief Assume hipfftCreate has been called. Creates a 3D FFT plan
@@ -414,8 +408,7 @@ hipfftResult
     size_t                  number_of_transforms = 1;
     rocfft_plan_description desc                 = nullptr;
 
-    return hipfftMakePlan_internal(
-        plan, 3, lengths, type, number_of_transforms, desc, workSize, false);
+    return hipfftMakePlan_internal(plan, 3, lengths, type, number_of_transforms, desc, workSize);
 }
 
 /*! \brief
@@ -490,8 +483,7 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
 
         // pre-fetch the default params in case one of inembed and onembed
         // is NULL
-        hipfftMakePlan_internal(
-            plan, rank, lengths, type, number_of_transforms, nullptr, workSize, true);
+        hipfftMakePlan_internal(plan, rank, lengths, type, number_of_transforms, nullptr, workSize);
 
         if(inembed == nullptr) // restore the default strides
         {
@@ -561,8 +553,8 @@ hipfftResult hipfftMakePlanMany(hipfftHandle plan,
                                                                             odist));
     }
 
-    hipfftResult ret = hipfftMakePlan_internal(
-        plan, rank, lengths, type, number_of_transforms, desc, workSize, false);
+    hipfftResult ret
+        = hipfftMakePlan_internal(plan, rank, lengths, type, number_of_transforms, desc, workSize);
 
     ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_description_destroy(desc));
 
