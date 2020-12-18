@@ -27,7 +27,7 @@
 
 #define MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL 1024
 
-#define TRANSPOSE_TWIDDLE_MUL()                                                                   \
+#define TRANSPOSE_TWIDDLE_MUL(tmp)                                                                \
     if(WITH_TWL)                                                                                  \
     {                                                                                             \
         if(TWL == 2)                                                                              \
@@ -63,9 +63,7 @@
                 TWIDDLE_STEP_MUL_INV(TWLstep4, twiddles_large, (gx + tx1) * (gy + ty1 + i), tmp); \
             }                                                                                     \
         }                                                                                         \
-    }                                                                                             \
-                                                                                                  \
-    shared[tx1][ty1 + i] = tmp; // the transpose taking place here
+    }
 
 // - transpose input of size m * n (up to DIM_X * DIM_X) to output of size n * m
 //   input, output are in device memory
@@ -116,65 +114,92 @@ __device__ void transpose_tile_device(const T_I*   input,
             {
                 tmp = Handler<T_I>::read(input, in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in);
             }
-            TRANSPOSE_TWIDDLE_MUL();
+            TRANSPOSE_TWIDDLE_MUL(tmp);
+            shared[tx1][ty1 + i] = tmp; // the transpose taking place here
         }
 
         __syncthreads();
 
+        // From generated assembly it looks like the compiler has difficulty interleaving
+        // long latency instructions in the store loop. The workaround is to load LDS
+        // data to a register array *and* separate LDS read and VMEM write into two loops,
+        // so that compiler easily sees the oppportunity for latency hiding
+        //
+        // Similar workaround is also applied to transpose_tile_device_scheme
+        T val[DIM_X / DIM_Y];
 #pragma unroll
-        for(int i = 0; i < DIM_X; i += DIM_Y)
+        for(int i = 0, j = 0; i < DIM_X; i += DIM_Y, j++)
+        {
+            val[j] = shared[ty1 + i][tx1];
+        }
+#pragma unroll
+        for(int i = 0, j = 0; i < DIM_X; i += DIM_Y, j++)
         {
             // reconfigure the threads
             if(UNIT_STRIDE_0)
             {
-                Handler<T_O>::write(
-                    output, out_offset + tx1 + (i + ty1) * ld_out, shared[ty1 + i][tx1]);
+                Handler<T_O>::write(output, out_offset + tx1 + (i + ty1) * ld_out, val[j]);
             }
             else
             {
-                Handler<T_O>::write(output,
-                                    out_offset + tx1 * stride_0_out + (i + ty1) * ld_out,
-                                    shared[ty1 + i][tx1]);
+                Handler<T_O>::write(
+                    output, out_offset + tx1 * stride_0_out + (i + ty1) * ld_out, val[j]);
             }
         }
     }
     else
     {
-        for(size_t i = 0; i < m; i += DIM_Y)
+        // For edge tiles, fully unroll the loop nevertheless and use predicates
+        // to control whether memory instructions should be issued
+        T val[DIM_X / DIM_Y];
+#pragma unroll
+        for(size_t i = 0, j = 0; i < DIM_X; i += DIM_Y, j++)
         {
-            if(tx1 < n && (ty1 + i) < m)
+            if(tx1 < n && (ty1 + i) < m && i < m)
             {
-                T tmp;
                 if(UNIT_STRIDE_0)
                 {
-                    tmp = Handler<T_I>::read(input, in_offset + tx1 + (ty1 + i) * ld_in);
+                    val[j] = Handler<T_I>::read(input, in_offset + tx1 + (ty1 + i) * ld_in);
                 }
                 else
                 {
-                    tmp = Handler<T_I>::read(input,
-                                             in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in);
+                    val[j] = Handler<T_I>::read(input,
+                                                in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in);
                 }
-                TRANSPOSE_TWIDDLE_MUL();
+                TRANSPOSE_TWIDDLE_MUL(val[j]);
             }
         }
-
+#pragma unroll
+        for(size_t i = 0, j = 0; i < DIM_X; i += DIM_Y, j++)
+        {
+            if(tx1 < n && (ty1 + i) < m && i < m)
+            {
+                shared[tx1][ty1 + i] = val[j]; // the transpose taking place here
+            }
+        }
         __syncthreads();
-
-        for(size_t i = 0; i < n; i += DIM_Y)
+#pragma unroll
+        for(size_t i = 0, j = 0; i < DIM_X; i += DIM_Y, j++)
+        {
+            if(tx1 < m && (ty1 + i) < n && i < n)
+            {
+                val[j] = shared[ty1 + i][tx1]; // the transpose taking place here
+            }
+        }
+#pragma unroll
+        for(size_t i = 0, j = 0; i < DIM_X; i += DIM_Y, j++)
         {
             // reconfigure the threads
-            if(tx1 < m && (ty1 + i) < n)
+            if(tx1 < m && (ty1 + i) < n && i < n)
             {
                 if(UNIT_STRIDE_0)
                 {
-                    Handler<T_O>::write(
-                        output, out_offset + tx1 + (i + ty1) * ld_out, shared[ty1 + i][tx1]);
+                    Handler<T_O>::write(output, out_offset + tx1 + (i + ty1) * ld_out, val[j]);
                 }
                 else
                 {
-                    Handler<T_O>::write(output,
-                                        out_offset + tx1 * stride_0_out + (i + ty1) * ld_out,
-                                        shared[ty1 + i][tx1]);
+                    Handler<T_O>::write(
+                        output, out_offset + tx1 * stride_0_out + (i + ty1) * ld_out, val[j]);
                 }
             }
         }
@@ -315,61 +340,77 @@ __device__ void transpose_tile_device_scheme(const T_I*   input,
         }
 
         __syncthreads();
-
+        T val[DIM_X / DIM_Y];
 #pragma unroll
-        for(int i = 0; i < DIM_X; i += DIM_Y)
+        for(int i = 0, j = 0; i < DIM_X; i += DIM_Y, j++)
+        {
+            val[j] = shared[ty1 + i][tx1];
+        }
+#pragma unroll
+        for(int i = 0, j = 0; i < DIM_X; i += DIM_Y, j++)
         {
             // reconfigure the threads
             if(UNIT_STRIDE_0)
             {
-                Handler<T_O>::write(
-                    output, out_offset + tx1 + (i + ty1) * ld_out, shared[ty1 + i][tx1]);
+                Handler<T_O>::write(output, out_offset + tx1 + (i + ty1) * ld_out, val[j]);
             }
             else
             {
-                Handler<T_O>::write(output,
-                                    out_offset + tx1 * stride_0_out + (i + ty1) * ld_out,
-                                    shared[ty1 + i][tx1]);
+                Handler<T_O>::write(
+                    output, out_offset + tx1 * stride_0_out + (i + ty1) * ld_out, val[j]);
             }
         }
     }
     else
     {
-        for(size_t i = 0; i < m; i += DIM_Y)
+        T val[DIM_X / DIM_Y];
+#pragma unroll
+        for(int i = 0, j = 0; i < DIM_X; i += DIM_Y, j++)
         {
-            if(tx1 < n && (ty1 + i) < m)
+            if(tx1 < n && (ty1 + i) < m && i < m)
             {
-                T tmp;
                 if(UNIT_STRIDE_0)
                 {
-                    tmp = Handler<T_I>::read(input, in_offset + tx1 + (ty1 + i) * ld_in);
+                    val[j] = Handler<T_I>::read(input, in_offset + tx1 + (ty1 + i) * ld_in);
                 }
                 else
                 {
-                    tmp = Handler<T_I>::read(input,
-                                             in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in);
+                    val[j] = Handler<T_I>::read(input,
+                                                in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in);
                 }
-                shared[tx1][ty1 + i] = tmp; // the transpose taking place here
             }
         }
-
+#pragma unroll
+        for(int i = 0, j = 0; i < DIM_X; i += DIM_Y, j++)
+        {
+            if(tx1 < n && (ty1 + i) < m && i < m)
+            {
+                shared[tx1][ty1 + i] = val[j]; // the transpose taking place here
+            }
+        }
         __syncthreads();
-
-        for(size_t i = 0; i < n; i += DIM_Y)
+#pragma unroll
+        for(int i = 0, j = 0; i < DIM_X; i += DIM_Y, j++)
+        {
+            if(tx1 < m && (ty1 + i) < n && i < n)
+            {
+                val[j] = shared[ty1 + i][tx1];
+            }
+        }
+#pragma unroll
+        for(int i = 0, j = 0; i < DIM_X; i += DIM_Y, j++)
         {
             // reconfigure the threads
-            if(tx1 < m && (ty1 + i) < n)
+            if(tx1 < m && (ty1 + i) < n && i < n)
             {
                 if(UNIT_STRIDE_0)
                 {
-                    Handler<T_O>::write(
-                        output, out_offset + tx1 + (i + ty1) * ld_out, shared[ty1 + i][tx1]);
+                    Handler<T_O>::write(output, out_offset + tx1 + (i + ty1) * ld_out, val[j]);
                 }
                 else
                 {
-                    Handler<T_O>::write(output,
-                                        out_offset + tx1 * stride_0_out + (i + ty1) * ld_out,
-                                        shared[ty1 + i][tx1]);
+                    Handler<T_O>::write(
+                        output, out_offset + tx1 * stride_0_out + (i + ty1) * ld_out, val[j]);
                 }
             }
         }
