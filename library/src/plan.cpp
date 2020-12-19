@@ -64,6 +64,7 @@ std::string PrintScheme(ComputeScheme cs)
            {ENUMSTR(CS_KERNEL_COPY_CMPLX_TO_R)},
 
            {ENUMSTR(CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)},
+           {ENUMSTR(CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)},
 
            {ENUMSTR(CS_REAL_TRANSFORM_EVEN)},
            {ENUMSTR(CS_KERNEL_R_TO_CMPLX)},
@@ -921,6 +922,22 @@ bool TreeNode::use_CS_3D_BLOCK_RC()
     // currently, we support cube sizes with SBRC kernels
     return function_pool::has_function(precision, {length[0], CS_KERNEL_STOCKHAM_BLOCK_RC})
            && length[0] == length[1] && length[1] == length[2];
+}
+
+bool TreeNode::use_CS_KERNEL_TRANSPOSE_Z_XY()
+{
+    if(function_pool::has_function(precision, {length[0], CS_KERNEL_STOCKHAM_BLOCK_RC}))
+    {
+        size_t bwd, wgs, lds;
+        GetBlockComputeTable(length[0], bwd, wgs, lds);
+
+        if((length[1] >= bwd) && (length[2] >= bwd) && (length[1] * length[2] % bwd == 0))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void TreeNode::build_real()
@@ -4465,6 +4482,7 @@ static rocfft_result_placement EffectivePlacement(OperatingBuffer         obIn,
 static void OptimizePlan(ExecPlan& execPlan)
 {
     auto& execSeq = execPlan.execSeq;
+
     // combine R_TO_CMPLX and following transpose
     auto r_to_cmplx = std::find_if(execSeq.begin(), execSeq.end(), [](TreeNode* n) {
         return n->scheme == CS_KERNEL_R_TO_CMPLX;
@@ -4488,6 +4506,7 @@ static void OptimizePlan(ExecPlan& execPlan)
             RemoveNode(execPlan, *transpose);
         }
     }
+
     // combine CMPLX_TO_R with preceding transpose
     auto cmplx_to_r = std::find_if(execSeq.rbegin(), execSeq.rend(), [](TreeNode* n) {
         return n->scheme == CS_KERNEL_CMPLX_TO_R;
@@ -4529,6 +4548,36 @@ static void OptimizePlan(ExecPlan& execPlan)
             (*cmplx_to_r)->inStride    = (*transpose)->inStride;
             (*cmplx_to_r)->length      = (*transpose)->length;
             (*cmplx_to_r)->iDist       = (*transpose)->iDist;
+            RemoveNode(execPlan, *transpose);
+        }
+    }
+
+    // combine CS_KERNEL_STOCKHAM and following CS_KERNEL_TRANSPOSE_Z_XY if possible
+    for(auto it = execSeq.rbegin() + 1; it != execSeq.rend(); ++it)
+    {
+
+        if((it != execSeq.rend()) && ((*it)->scheme == CS_KERNEL_STOCKHAM)
+           && ((*(it - 1))->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
+           && ((*(it - 1))->use_CS_KERNEL_TRANSPOSE_Z_XY()) // kernel available
+           && ((*it)->obIn
+               != ((*(it - 1))->obOut)) // "in-place" doesn't work without manipulating buffers
+           && (!(((it + 1) != execSeq.rend())
+                 && (*(it + 1))->scheme
+                        == CS_KERNEL_TRANSPOSE_XY_Z)) // don't touch case XY_Z -> FFT -> Z_XY
+        )
+        {
+            auto stockham  = it;
+            auto transpose = it - 1;
+
+            (*stockham)->obOut        = (*transpose)->obOut;
+            (*stockham)->scheme       = CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY;
+            (*stockham)->outArrayType = (*transpose)->outArrayType;
+            (*stockham)->placement    = EffectivePlacement(
+                (*stockham)->obIn, (*stockham)->obOut, execPlan.rootPlan->placement);
+            // transpose must be out-of-place
+            assert((*stockham)->placement == rocfft_placement_notinplace);
+            (*stockham)->outStride = (*transpose)->outStride;
+            (*stockham)->oDist     = (*transpose)->oDist;
             RemoveNode(execPlan, *transpose);
         }
     }

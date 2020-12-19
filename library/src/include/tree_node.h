@@ -53,6 +53,7 @@ enum ComputeScheme
     CS_KERNEL_TRANSPOSE_Z_XY,
 
     CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z,
+    CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY,
 
     CS_REAL_TRANSFORM_USING_CMPLX,
     CS_KERNEL_COPY_R_TO_CMPLX,
@@ -205,6 +206,9 @@ public:
     bool use_CS_2D_SINGLE(); // To determine using scheme CS_KERNEL_2D_SINGLE or not
     bool use_CS_2D_RC(); // To determine using scheme CS_2D_RC or not
     bool use_CS_3D_BLOCK_RC();
+
+    //To determine fusing CS_KERNEL_STOCKHAM and following CS_KERNEL_TRANSPOSE_Z_XY
+    bool use_CS_KERNEL_TRANSPOSE_Z_XY();
 
     // Real-complex and complex-real node builders:
     void build_real();

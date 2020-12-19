@@ -193,7 +193,9 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
         {
             str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc_";
             str += str_len + "(const void *data_p, void *back_p);\n";
-            str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_";
+            str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_trans_xy_z_";
+            str += str_len + "(const void *data_p, void *back_p);\n";
+            str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_trans_z_xy_";
             str += str_len + "(const void *data_p, void *back_p);\n";
         }
 
@@ -206,7 +208,9 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
         {
             str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc_";
             str += str_len + "(const void *data_p, void *back_p);\n";
-            str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_";
+            str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_trans_xy_z_";
+            str += str_len + "(const void *data_p, void *back_p);\n";
+            str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_trans_z_xy_";
             str += str_len + "(const void *data_p, void *back_p);\n";
         }
     }
@@ -387,11 +391,15 @@ void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> lar
             str += "POWX_LARGE_SBRC_GENERATOR( rocfft_internal_dfn_" + short_name_precision
                    + "_op_ci_ci_sbrc_" + str_len + ", fft_fwd_op_len" + str_len + name_suffix
                    + ", fft_back_op_len" + str_len + name_suffix + ", " + complex_case_precision
-                   + ", SBRC_DIM2)\n";
+                   + ", SBRC_2D)\n";
             str += "POWX_LARGE_SBRC_GENERATOR( rocfft_internal_dfn_" + short_name_precision
-                   + "_op_ci_ci_sbrc3d_" + str_len + ", fft_fwd_op_len" + str_len + name_suffix
-                   + ", fft_back_op_len" + str_len + name_suffix + ", " + complex_case_precision
-                   + ", SBRC_DIM3)\n";
+                   + "_op_ci_ci_sbrc3d_fft_trans_xy_z_" + str_len + ", fft_fwd_op_len" + str_len
+                   + name_suffix + ", fft_back_op_len" + str_len + name_suffix + ", "
+                   + complex_case_precision + ", SBRC_3D_FFT_TRANS_XY_Z)\n";
+            str += "POWX_LARGE_SBRC_GENERATOR( rocfft_internal_dfn_" + short_name_precision
+                   + "_op_ci_ci_sbrc3d_fft_trans_z_xy_" + str_len + ", fft_fwd_op_len" + str_len
+                   + name_suffix + ", fft_back_op_len" + str_len + name_suffix + ", "
+                   + complex_case_precision + ", SBRC_3D_FFT_TRANS_Z_XY)\n";
         }
     }
 
@@ -617,7 +625,11 @@ void AddCPUFunctionToPool(
             // transpose for 3D transforms
             str += "\tfunction_map_single[std::make_pair(" + str_len
                    + ", CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)] = "
-                     "&rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_"
+                     "&rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_trans_xy_z_"
+                   + str_len + ";\n";
+            str += "\tfunction_map_single[std::make_pair(" + str_len
+                   + ", CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)] = "
+                     "&rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_trans_z_xy_"
                    + str_len + ";\n";
         }
     }
@@ -648,7 +660,11 @@ void AddCPUFunctionToPool(
             // transpose for 3D transforms
             str += "\tfunction_map_double[std::make_pair(" + str_len
                    + ", CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)] = "
-                     "&rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_"
+                     "&rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_trans_xy_z_"
+                   + str_len + ";\n";
+            str += "\tfunction_map_double[std::make_pair(" + str_len
+                   + ", CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)] = "
+                     "&rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_trans_z_xy_"
                    + str_len + ";\n";
         }
     }

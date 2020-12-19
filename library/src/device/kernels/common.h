@@ -80,11 +80,24 @@ enum StrideBin
     SB_NONUNIT,
 };
 
-// dimension to read column data from for SBRC kernels
-enum SBRCDim
+// NB:
+// SBRC kernels can be used in various scenarios. Instead of tmeplate all
+// combinations, we define/enable the cases in using only. In this way,
+// the logic in POWX_LARGE_SBRC_GENERATOR() would be simple. People could
+// add more later or find a way to simply POWX_LARGE_SBRC_GENERATOR().
+enum SBRC_TYPE
 {
-    SBRC_DIM2 = 2,
-    SBRC_DIM3 = 3,
+    SBRC_2D = 2, // for one step in 1D middle size decomposition
+
+    SBRC_3D_FFT_TRANS_XY_Z = 3, // for 3D C2C middle size fused kernel
+    SBRC_3D_FFT_TRANS_Z_XY = 4, // for 3D R2C middle size fused kernel
+    SBRC_3D_TRANS_XY_Z_FFT = 5, // for 3D C2R middle size fused kernel
+
+    // for 3D R2C middle size, to fuse FFT, Even-length real2complex, and Transpose_Z_XY
+    SBRC_3D_FFT_ERC_TRANS_Z_XY = 6,
+
+    // for 3D C2R middle size, to fuse Transpose_XY_Z, Even-length complex2real, and FFT
+    SBRC_3D_TRANS_XY_Z_ECR_FFT = 7,
 };
 
 template <class T>
