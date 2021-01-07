@@ -74,9 +74,8 @@ def data_dict_to_frame(data_dict):
     return data
 
 # decode the filename into a nicer human-readable string
-def filename_to_title(filename):
+def basename_to_title(basename):
     title = ''
-    basename = os.path.basename(filename)
     # dimension
     if 'dim1' in basename:
         title += '1D '
@@ -139,56 +138,65 @@ def make_hovertext(lengths, batches):
     return ["{} batch {}".format(length,batch) for length, batch in zip(lengths,batches)]
 
 # returns the plotly figure object
-def graph_file(filename, dir1, logscale, docdir):
-    dir0 = os.path.dirname(filename)
-    dir0_base = os.path.basename(dir0)
-    dir1_base = os.path.basename(dir1)
-
-    dir0_data_dict = file_to_data_dict(filename)
-    dir1_data_dict = file_to_data_dict(os.path.join(dir1, os.path.basename(filename)))
-    dir0_data = data_dict_to_frame(dir0_data_dict)
-    dir1_data = data_dict_to_frame(dir1_data_dict)
-
-    graph_data = dir0_data
-    graph_data.insert(5, 'median_sample_1', dir1_data['median_sample'])
-    graph_data.insert(6, 'max_sample_1', dir1_data['max_sample'])
-    graph_data.insert(7, 'min_sample_1', dir1_data['min_sample'])
-
-    graph_data = graph_data.assign(
-        # speedup and speedup confidence interval
-        speedup=lambda x: x.median_sample / x.median_sample_1,
-        # FIXME: we're doing speedup_confidence twice, which is
-        # unnecessary
-        speedup_errlow=lambda x: [x[0] for x in speedup_confidence(x.lengths, dir0_data_dict, dir1_data_dict)],
-        speedup_errhigh=lambda x: [x[1] for x in speedup_confidence(x.lengths, dir0_data_dict, dir1_data_dict)],
-    )
+def graph_file(basename, dirs, logscale, docdir):
+    dir_basenames = []
+    dir_dirnames = []
+    data_dicts = []
+    data_frames = []
+    traces = []
+    for dir in dirs:
+        dir = os.path.normpath(dir)
+        dir_basenames.append(os.path.basename(dir))
+        dir_dirnames.append(os.path.dirname(dir))
+        data_dicts.append(file_to_data_dict(os.path.join(dir,basename)))
+        data_frames.append(data_dict_to_frame(data_dicts[-1]))
+        
+    graph_data = data_frames[0]
     graph_data.sort_values('num_elems',inplace=True)
 
-    # lines for dir0, dir1, speedup
-    dir0_trace = go.Scatter(
+    # "initial" line
+    traces.append(go.Scatter(
         x=graph_data['num_elems'],
         y=graph_data['median_sample'],
         hovertext=make_hovertext(graph_data['lengths'],graph_data['batches']),
-        name=dir0_base
-    )
-    dir1_trace = go.Scatter(
-        x=graph_data['num_elems'],
-        y=graph_data['median_sample_1'],
-        hovertext=make_hovertext(graph_data['lengths'],graph_data['batches']),
-        name=dir1_base
-    )
-    speedup_trace = go.Scatter(
-        x=graph_data['num_elems'],
-        y=graph_data['speedup'],
-        name='Speedup',
-        yaxis='y2',
-        error_y = dict(
-            type='data',
-            symmetric=False,
-            array=graph_data['speedup_errhigh'],
-            arrayminus=graph_data['speedup_errlow'],
+        name=dir_basenames[0]
+    ))
+
+    for i in range(1,len(data_frames)):
+        i_str = str(i)
+        cur_graph_data = graph_data.copy()
+        cur_graph_data.insert(5, 'median_sample_' + i_str, data_frames[i]['median_sample'])
+        cur_graph_data.insert(6, 'max_sample_' + i_str, data_frames[i]['max_sample'])
+        cur_graph_data.insert(7, 'min_sample_' + i_str, data_frames[i]['min_sample'])
+
+        cur_graph_data = cur_graph_data.assign(
+            # speedup and speedup confidence interval
+            speedup=lambda x: x.median_sample / getattr(x,'median_sample_' + i_str),
+            # FIXME: we're doing speedup_confidence twice, which is
+            # unnecessary
+            speedup_errlow=lambda x: [x[0] for x in speedup_confidence(x.lengths, data_dicts[0], data_dicts[i])],
+            speedup_errhigh=lambda x: [x[1] for x in speedup_confidence(x.lengths, data_dicts[0], data_dicts[i])],
         )
-    )
+
+        traces.append(go.Scatter(
+            x=cur_graph_data['num_elems'],
+            y=cur_graph_data['median_sample_' + i_str],
+            hovertext=make_hovertext(cur_graph_data['lengths'],cur_graph_data['batches']),
+            name=dir_basenames[i]
+        ))
+        traces.append(go.Scatter(
+            x=cur_graph_data['num_elems'],
+            y=cur_graph_data['speedup'],
+            name='Speedup {} over {}'.format(dir_basenames[i], dir_basenames[0]),
+            yaxis='y2',
+            error_y = dict(
+                type='data',
+                symmetric=False,
+                array=cur_graph_data['speedup_errhigh'],
+                arrayminus=cur_graph_data['speedup_errlow'],
+            )
+        ))
+        
     if logscale:
         x_title = 'Problem size (elements, logarithmic)'
         axis_type = 'log'
@@ -198,7 +206,7 @@ def graph_file(filename, dir1, logscale, docdir):
         axis_type = 'linear'
         y_title = 'Time (ms)'
     layout = go.Layout(
-        title=filename_to_title(filename),
+        title=basename_to_title(basename),
         xaxis=dict(
             title=x_title,
             type=axis_type,
@@ -225,7 +233,7 @@ def graph_file(filename, dir1, logscale, docdir):
         )
     )
 
-    fig = go.Figure(data=[dir0_trace, dir1_trace, speedup_trace], layout=layout)
+    fig = go.Figure(data=traces, layout=layout)
     # add speedup=1 reference line
     fig.add_shape(
         type='line',
@@ -239,10 +247,10 @@ def graph_file(filename, dir1, logscale, docdir):
 
     return fig
 
-def graph_dirs(dir0, dir1, title, docdir):
-    # use dir0's dat files as a basis for what to graph.
-    # assumption is that dir1 has the same-named files.
-    dat_files = glob.glob(os.path.join(dir0, '*.dat'))
+def graph_dirs(dirs, title, docdir):
+    # use first dir's dat files as a basis for what to graph.
+    # assumption is that other dirs have the same-named files.
+    dat_files = glob.glob(os.path.join(dirs[0], '*.dat'))
     # sort files so diagrams show up in consistent order for each run
     dat_files.sort()
 
@@ -259,7 +267,7 @@ def graph_dirs(dir0, dir1, title, docdir):
     # only the first figure needs js included
     include_js = True
     for filename in dat_files:
-        fig = graph_file(filename, dir1, True, docdir)
+        fig = graph_file(os.path.basename(filename), dirs, True, docdir)
         outfile.write(fig.to_html(full_html=False, include_plotlyjs=include_js))
         include_js = False
 
@@ -269,4 +277,4 @@ def graph_dirs(dir0, dir1, title, docdir):
     ''')
 
 if __name__ == '__main__':
-    graph_dirs(sys.argv[1], sys.argv[2], 'Performance report', sys.argv[3])
+    graph_dirs(sys.argv[1:-1], 'Performance report', sys.argv[-1])

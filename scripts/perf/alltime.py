@@ -881,8 +881,7 @@ def main(argv):
     #
     # HACK: problem file implies html report
     if problem_file:
-        # FIXME: handle more than 2 outdirs?
-        graph_dirs(outdirlist[0], outdirlist[1], problem_file, docdir)
+        graph_dirs(outdirlist, problem_file, docdir)
     else:
         # otherwise, make other doc types using asymptote figs
         if docformat == "pdf":

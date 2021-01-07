@@ -173,6 +173,8 @@ def radix_size_generator(xmin, ymin, zmin,
 def problem_file_size_generator(problem_file, dimension):
     f = open(problem_file, 'r')
     for line in f:
+        if line.startswith('#'):
+            continue
         length = [int(x) for x in line.split(',')]
         if len(length) == dimension:
             yield length
