@@ -2484,34 +2484,41 @@ void TreeNode::assign_buffers_CS_REAL_3D_EVEN(TraverseState&   state,
 
         // T
         childNodes[1]->SetInputBuffer(state);
-        childNodes[1]->obOut        = OB_TEMP;
+        childNodes[1]->obOut        = (placement == rocfft_placement_notinplace) ? obOut : OB_TEMP;
         childNodes[1]->inArrayType  = childNodes[0]->outArrayType;
-        childNodes[1]->outArrayType = rocfft_array_type_complex_interleaved;
+        childNodes[1]->outArrayType = (placement == rocfft_placement_notinplace)
+                                          ? outArrayType
+                                          : rocfft_array_type_complex_interleaved;
 
         // R: c2c
-        childNodes[2]->inArrayType  = rocfft_array_type_complex_interleaved;
-        childNodes[2]->outArrayType = rocfft_array_type_complex_interleaved;
+        childNodes[2]->inArrayType  = childNodes[1]->outArrayType;
+        childNodes[2]->outArrayType = childNodes[2]->inArrayType;
         childNodes[2]->SetInputBuffer(state);
-        childNodes[2]->obOut = OB_TEMP;
-        flipIn               = OB_TEMP;
+        childNodes[2]->obOut = childNodes[2]->obIn;
+        flipIn               = childNodes[2]->obIn;
         flipOut              = obOutBuf;
         childNodes[2]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
 
         // T
         childNodes[3]->SetInputBuffer(state);
-        childNodes[3]->obOut        = obOutBuf;
-        childNodes[3]->inArrayType  = rocfft_array_type_complex_interleaved;
-        childNodes[3]->outArrayType = outArrayType;
+        childNodes[3]->obOut = (placement == rocfft_placement_notinplace) ? OB_TEMP : obOutBuf;
+        childNodes[3]->inArrayType  = childNodes[2]->outArrayType;
+        childNodes[3]->outArrayType = (childNodes[3]->obOut == OB_TEMP)
+                                          ? rocfft_array_type_complex_interleaved
+                                          : outArrayType;
 
         // R: c2c
         childNodes[4]->SetInputBuffer(state);
-        childNodes[4]->obOut = flipIn;
+        childNodes[4]->obOut
+            = (placement == rocfft_placement_notinplace) ? childNodes[4]->obIn : flipIn;
         childNodes[4]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
         childNodes[4]->inArrayType  = childNodes[3]->outArrayType;
-        childNodes[4]->outArrayType = rocfft_array_type_complex_interleaved;
+        childNodes[4]->outArrayType = (childNodes[4]->obOut == OB_TEMP)
+                                          ? rocfft_array_type_complex_interleaved
+                                          : outArrayType;
 
         // T
-        childNodes[5]->inArrayType  = rocfft_array_type_complex_interleaved;
+        childNodes[5]->inArrayType  = childNodes[4]->outArrayType;
         childNodes[5]->outArrayType = outArrayType;
         childNodes[5]->SetInputBuffer(state);
         childNodes[5]->obOut = obOutBuf;
