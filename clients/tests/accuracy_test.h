@@ -255,7 +255,7 @@ inline std::vector<std::vector<size_t>>
                 length[i] = inlengths[i][index[i]];
             }
             output.push_back(length);
-        } while(increment_colmajor(index, looplength));
+        } while(increment_rowmajor(index, looplength));
     }
     // uniquify the result
     std::sort(output.begin(), output.end());

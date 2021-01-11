@@ -154,11 +154,11 @@ public:
             ss << "\tdouble-precision\n";
 
         ss << "\tilength:";
-        for(auto i : ilength())
+        for(const auto i : ilength())
             ss << " " << i;
         ss << "\n";
         ss << "\tolength:";
-        for(auto i : olength())
+        for(const auto i : olength())
             ss << " " << i;
         ss << "\n";
 
@@ -478,59 +478,6 @@ static bool increment_base(T1& index, const T2& length)
     return false;
 }
 
-// Increment the index (column-major) for looping over 1, 2, and 3 dimensions length.
-template <typename T1, typename T2>
-static bool increment_colmajor(T1& index, const T2& length)
-{
-    static_assert(std::is_integral<T1>::value, "Integral required.");
-    static_assert(std::is_integral<T2>::value, "Integral required.");
-    return increment_base(index, length);
-}
-
-template <typename T1, typename T2>
-static bool increment_colmajor(std::tuple<T1, T1>& index, const std::tuple<T2, T2>& length)
-{
-    if(increment_base(std::get<0>(index), std::get<0>(length)))
-        // we incremented ok, nothing further to do
-        return true;
-    // otherwise, we rolled over
-    return increment_base(std::get<1>(index), std::get<1>(length));
-}
-
-template <typename T1, typename T2>
-static bool increment_colmajor(std::tuple<T1, T1, T1>& index, const std::tuple<T2, T2, T2>& length)
-{
-    if(increment_base(std::get<0>(index), std::get<0>(length)))
-        // we incremented ok, nothing further to do
-        return true;
-    if(increment_base(std::get<1>(index), std::get<1>(length)))
-        // we incremented ok, nothing further to do
-        return true;
-    // otherwise, we rolled over
-    return increment_base(std::get<2>(index), std::get<2>(length));
-}
-
-// Increment column-major index over arbitrary dimension length
-template <typename T1, typename T2>
-inline bool increment_colmajor(std::vector<T1>& index, const std::vector<T2>& length)
-{
-    for(int idim = 0; idim < length.size(); ++idim)
-    {
-        if(index[idim] < length[idim])
-        {
-            if(++index[idim] == length[idim])
-            {
-                index[idim] = 0;
-                continue;
-            }
-            // we know we were able to increment something and didn't hit the end
-            return true;
-        }
-    }
-    // End the loop when we get back to the start:
-    return !std::all_of(index.begin(), index.end(), [](int i) { return i == 0; });
-}
-
 // Increment the index (row-major) for looping over 1, 2, and 3 dimensions length.
 template <typename T1, typename T2>
 static bool increment_rowmajor(T1& index, const T2& length)
@@ -808,7 +755,7 @@ inline void printbuffer(const rocfft_precision                            precis
                         const std::vector<Tint2>&                         stride,
                         const size_t                                      nbatch,
                         const size_t                                      dist,
-                        const std::vector<size_t>                         offset)
+                        const std::vector<size_t>&                        offset)
 {
     switch(itype)
     {
@@ -1403,7 +1350,7 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
                 }
                 cur_l2 += idiff * idiff;
 
-            } while(increment_colmajor(index, length));
+            } while(increment_rowmajor(index, length));
             linf = std::max(linf, cur_linf);
             l2 += cur_l2;
         }
