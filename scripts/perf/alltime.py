@@ -8,7 +8,11 @@ import os
 import re # regexp package
 import shutil
 import tempfile
+
 from html_report import graph_dirs
+
+import perflib
+import timing
 
 usage = '''A timing script to generate perf data and plot for major fft 1D/2D/3D cases
 
@@ -81,100 +85,44 @@ class rundata:
         return outfile
         
     def runcmd(self, nsample, inlist, outdirlist, dloadexe, problem_file):
-        cmd = [os.path.join(sys.path[0],"timing.py")]
+        timer = timing.Timer()
 
         if dloadexe == None:
             # When not using dload, we just have one input and output dir.
-            cmd.append("-w")
-            cmd.append(os.path.abspath(inlist[0]))
-            cmd.append("-o")
-            cmd.append(self.outfilename(outdirlist[0]))
+            timer.prog = os.path.abspath(inlist[0])
+            timer.out = [ self.outfilename(outdirlist[0]) ]
         else:
-            cmd.append("-w")
-            cmd.append(dloadexe)
-            for indir in inlist:
-                cmd.append("-i")
-                cmd.append(indir)
-            for outdir in outdirlist:
-                cmd.append("-o")
-                cmd.append(self.outfilename(outdir))
-        
-        cmd.append("-N")
-        cmd.append(str(nsample))
-        
-        cmd.append("-b")
-        cmd.append(str(self.nbatch))
-        
-        cmd.append("-x")
-        cmd.append(str(self.minsize))
-        cmd.append("-X")
-        cmd.append(str(self.maxsize))
+            timer.prog = dloadexe
+            timer.lib = inlist
+            timer.out = [ self.outfilename(x) for x in outdirlist ]
 
+        timer.ntrial = nsample
+        timer.nbatch = self.nbatch
+        timer.xmin = self.minsize
+        timer.xmax = self.maxsize
         if self.dimension > 1:
-            cmd.append("-y")
-            cmd.append(str(self.minsize * self.ratio[0]))
-            cmd.append("-Y")
-            cmd.append(str(self.maxsize * self.ratio[0]))
-
+            timer.ymin = self.minsize * self.ratio[0]
+            timer.ymax = self.maxsize * self.ratio[0]
         if self.dimension > 2:
-            cmd.append("-z")
-            cmd.append(str(self.minsize * self.ratio[1]))
-            cmd.append("-Z")
-            cmd.append(str(self.maxsize * self.ratio[1]))
+            timer.zmin = self.minsize * self.ratio[1]
+            timer.zmax = self.maxsize * self.ratio[1]
 
-        cmd.append("-r")
-        cmd.append(str(self.radix))
+        timer.radix = self.radix
+        timer.direction = self.direction
+        timer.dimension = self.dimension
+        timer.precision = self.precision
+        timer.real = self.ffttype == "r2c"
+        timer.problem_file = problem_file
 
-        cmd.append("-D")
-        cmd.append(str(self.direction))
-        
-        cmd.append("-d")
-        cmd.append(str(self.dimension))
-
-        cmd.append("-f")
-        cmd.append(self.precision)
-        
-        if self.ffttype == "r2c":
-            cmd.append("-R")
-
-        if problem_file:
-            cmd.append("-F")
-            cmd.append(problem_file)
-
-        return cmd
+        return timer
 
     def executerun(self, nsample, inlist, outdirlist, dloadexe, problem_file):
-        fout = tempfile.TemporaryFile(mode="w+")
-        ferr = tempfile.TemporaryFile(mode="w+")
-
         if dloadexe != None:
-            cmd = self.runcmd(nsample, inlist, outdirlist, dloadexe, problem_file)
-            print(" ".join(cmd))
-            proc = subprocess.Popen(cmd,
-                                    stdout=fout, stderr=ferr,
-                                    env=os.environ.copy())
-            
-            # FIXME: copy log to multiple outputs?
-            
-            proc.wait()
-            rc = proc.returncode
-            if rc != 0:
-                print("****fail****")
-            
+            self.runcmd(nsample, inlist, outdirlist, dloadexe, problem_file).run_cases()
         else:
             for idx in range(min(len(inlist), len(outdirlist))):
-                print(idx, ":", inlist[idx], "->", outdirlist[idx], flush=True)
-                cmd = self.runcmd(nsample, [inlist[idx]], [outdirlist[idx]], None, problem_file)
-                print(" ".join(cmd))
-                proc = subprocess.Popen(cmd,
-                                        stdout=fout, stderr=ferr,
-                                        env=os.environ.copy())
-                proc.wait()
-                rc = proc.returncode
-                if rc != 0:
-                    print("****fail****")
-
-        return 0
+                print(idx, ":", inlist[idx], "->", outdirlist[idx])
+                self.runcmd(nsample, [inlist[idx]], [outdirlist[idx]], None, problem_file).run_cases()
 
 
 # Figure class, which contains runs and provides commands to generate figures.
@@ -816,29 +764,14 @@ def main(argv):
 
             
     if not dryrun:
-        import getspecs
-        specs = "Host info:\n"
-        specs += "\thostname: " + getspecs.gethostname() + "\n"
-        specs += "\tcpu info: " + getspecs.getcpu() + "\n"
-        specs += "\tram: " + getspecs.getram() + "\n"
-        specs += "\tdistro: " + getspecs.getdistro() + "\n"
-        specs += "\tkernel version: " + getspecs.getkernel() + "\n"
-        specs += "\trocm version: " + getspecs.getrocmversion() + "\n"
-        specs += "Device info:\n"
-        specs += "\tdevice: " + getspecs.getdeviceinfo(devicenum) + "\n"
-        specs += "\tvbios version: " + getspecs.getvbios(devicenum) + "\n"
-        specs += "\tvram: " + getspecs.getvram(devicenum) + "\n"
-        specs += "\tperformance level: " + getspecs.getperflevel(devicenum) + "\n"
-        specs += "\tsystem clock: " + getspecs.getsclk(devicenum) + "\n"
-        specs += "\tmemory clock: " + getspecs.getmclk(devicenum) + "\n"
+        machine_specs = perflib.get_machine_specs(devicenum)
 
-        
         for outdir in outdirlist:
             with open(os.path.join(outdir, "specs.txt"), "w+") as f:
-                f.write(specs)
+                f.write(str(machine_specs))
 
             with open(os.path.join(outdir, "gpuid.txt"), "w") as f:
-                f.write(getspecs.getgpuid(devicenum))
+                f.write(machine_specs.gpuid)
 
     figs = []
 
@@ -904,10 +837,11 @@ this value: GFLOP/s is provided for the sake of comparison only.'''
 # Function for generating a tex document in PDF format.
 def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype):
     
-    header = '''\documentclass[12pt]{article}
+    header = '''\
+\\documentclass[12pt]{article}
+\\usepackage[margin=1in]{geometry}
 \\usepackage{graphicx}
 \\usepackage{url}
-\\author{Malcolm Roberts}
 \\begin{document}
 '''
     texstring = header

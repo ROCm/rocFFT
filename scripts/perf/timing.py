@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 
-# a timing script for FFTs and convolutions using OpenMP
-
-import sys, getopt
-import numpy as np
-from math import *
+import getopt
 import subprocess
-import os
-import re # regexp package
-import shutil
+import sys
 import tempfile
+
+from dataclasses import dataclass, field
+from pathlib import Path as path
+from typing import List
 
 usage = '''A timing script for rocfft
 
@@ -35,40 +33,27 @@ Usage:
 \t\t-F <file>   filename to read problem sizes from
 '''
 
+def resolve(x):
+    return path(x).resolve()
 
-def runcase(prog,
+def run_rider(prog,
             dload, libdir,
             length, direction, rcfft, inplace, ntrial,
             precision, nbatch, devicenum, logfilename):
-    
-    cmd = []
-    cmd.append(os.path.abspath((prog)))
 
-    cmd.append("--verbose")
-    cmd.append("0")
+    prog = path(prog)
+
+    cmd = [ resolve(prog), "--verbose", 0 ]
 
     if dload:
-        cmd.append("--lib")
-        for val in libdir:
-            cmd.append(os.path.abspath(val))
+        cmd.extend([ "--lib" ] + [ resolve(x) for x in libdir ])
 
-    cmd.append("-N")
-    cmd.append(str(ntrial))
-    
-    cmd.append("--length")
-    for val in length:
-        cmd.append(str(val))
-    
-    print(precision)
+    cmd.extend([ "--device", devicenum ])
+    cmd.extend([ "--ntrial", ntrial, "--batchSize", nbatch, "--length" ] + length)
+
     if precision == "double":
         cmd.append("--double")
         
-    cmd.append("-b")
-    cmd.append(str(nbatch))
-
-    cmd.append("--device")
-    cmd.append(str(devicenum))
-    
     ttype = -1
     itype = ""
     otype = ""
@@ -88,23 +73,16 @@ def runcase(prog,
             ttype = 0
         if (direction == 1):
             ttype = 1
-    cmd.append("-t")
-    cmd.append(str(ttype))
 
-    cmd.append("--itype")
-    cmd.append(str(itype))
+    cmd.extend([ "--transformType", ttype, "--itype", itype, "--otype", otype ])
 
-    cmd.append("--otype")
-    cmd.append(str(otype))
-    
-    
-    print(cmd)
-    print(" ".join(cmd))
+    cmd = [ str(x) for x in cmd ]
+    print("Running rider: " + " ".join(cmd))
 
     fout = tempfile.TemporaryFile(mode="w+")
-    proc = subprocess.Popen(cmd, cwd=os.path.join(os.path.dirname(prog),"..",".."),
-                            stdout=fout, stderr=fout,
-                            env=os.environ.copy())
+    proc = subprocess.Popen(cmd, cwd=prog.parent.parent,
+                            stdout=fout, stderr=fout)
+
     proc.wait()
     rc = proc.returncode
     vals = []
@@ -122,14 +100,11 @@ def runcase(prog,
         # cerr = ferr.read()
         searchstr = "Execution gpu time: "
         for line in cout.split("\n"):
-            #print(line)
             if line.startswith(searchstr):
                 vals.append([])
                 # Line ends with "ms", so remove that.
                 ms_string = line[len(searchstr): -2]
-                #print(ms_string)
                 for val in ms_string.split():
-                    #print(val)
                     vals[len(vals) - 1].append(1e-3 * float(val))
         print("seconds: ", vals)
                         
@@ -179,34 +154,94 @@ def problem_file_size_generator(problem_file, dimension):
         if len(length) == dimension:
             yield length
 
+@dataclass
+class Timer:
+    prog: str         = ""
+    lib: List[str]    = field(default_factory=list)
+    out: List[str]    = field(default_factory=list)
+    log: str          = "timing.log"
+    device: int       = 0
+    ntrial: int       = 10
+    direction: int    = -1
+    inplace: bool     = False
+    real: bool        = False
+    precision: str    = "float"
+    dimension: int    = 1
+    xmin: int         = 2
+    xmax: int         = 1024
+    ymin: int         = 2
+    ymax: int         = 1024
+    zmin: int         = 2
+    zmax: int         = 1024
+    radix: int        = 2
+    nbatch: int       = 1
+    problem_file: str = None
+
+    def run_cases(self):
+
+        dload = len(self.lib) > 0
+
+        prog = path(self.prog)
+        if not prog.is_file():
+            print("**** Error: unable to find " + self.prog)
+            sys.exit(1)
+
+        metadatastring = "# " + str(self) + "\n"
+        metadatastring += "# "
+        metadatastring += "dimension"
+        metadatastring += "\txlength"
+        if(self.dimension > 1):
+            metadatastring += "\tylength"
+        if(self.dimension > 2):
+            metadatastring += "\tzlength"
+        metadatastring += "\tnbatch"
+        metadatastring += "\tnsample"
+        metadatastring += "\tsamples ..."
+        metadatastring += "\n"
+
+        # The log file is stored alongside each data output file.
+        for out in self.out:
+            out = path(out)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(metadatastring)
+
+            log = out.with_suffix('.log')
+            log.write_text(metadatastring)
+
+
+        if self.problem_file:
+            length_gen = problem_file_size_generator(self.problem_file, self.dimension)
+        else:
+            length_gen = radix_size_generator(self.xmin, self.ymin, self.zmin,
+                                              self.xmax, self.ymax, self.zmax,
+                                              self.dimension, self.radix)
+
+        for length in length_gen:
+            N = self.ntrial
+            seconds = run_rider(self.prog,
+                              dload, self.lib,
+                              length, self.direction, self.real, self.inplace, N,
+                              self.precision, self.nbatch, self.device, self.log)
+            #print(seconds)
+            for idx, vals in enumerate(seconds):
+                with open(self.out[idx], 'a') as outfile:
+                    outfile.write(str(self.dimension))
+                    outfile.write("\t")
+                    outfile.write("\t".join([str(val) for val in length]))
+                    outfile.write("\t")
+                    outfile.write(str(self.nbatch))
+                    outfile.write("\t")
+                    outfile.write(str(len(seconds[idx])))
+                    for second in seconds[idx]:
+                        outfile.write("\t")
+                        outfile.write(str(second))
+                    outfile.write("\n")
+
+
+
 def main(argv):
-    # Options to determine which binary is to be run:
-    prog = ""
-    libdir = []
-    outfilename = []
-    logfilename = "timing.log"
 
-    # GPU device number:
-    devicenum = 0
-
-    # Experiment parameters:
-    ntrial = 10
-        
-    # Problem size parameters:
-    direction = -1
-    inplace = False
-    rcfft = False
-    precision = "float"
-    dimension = 1
-    xmin = 2
-    xmax = 1024
-    ymin = 2
-    ymax = 1024
-    zmin = 2
-    zmax = 1024
-    radix = 2
-    nbatch = 1
-    problem_file = None
+    timer = Timer()
 
     try:
         opts, args = getopt.getopt(argv,"hb:d:i:D:IN:o:Rw:x:X:y:Y:z:Z:f:r:g:F:")
@@ -219,149 +254,59 @@ def main(argv):
             print(usage)
             exit(0)
         elif opt in ("-w"):
-            prog = arg
+            timer.prog = arg
         elif opt in ("-o"):
-            outfilename.append(arg)
+            timer.out.append(arg)
         elif opt in ("-i"):
-            libdir.append(arg)
-            
+            timer.lib.append(arg)
         elif opt in ("-g"):
-            devicenum = int(arg)
-            
+            timer.device = int(arg)
         elif opt in ("-N"):
-            ntrial = int(arg)
-            
+            timer.ntrial = int(arg)
         elif opt in ("-D"):
             if(int(arg) in [-1,1]):
-                direction = int(arg)
+                timer.direction = int(arg)
             else:
                 print("invalid direction: " + arg)
                 print(usage)
                 sys.exit(1)
         elif opt in ("-I"):
-            inplace = True
+            timer.inplace = True
         elif opt in ("-R"):
-            rcfft = True
+            timer.real = True
         elif opt in ("-f"):
             if arg not in ["float", "double"]:
                 print("precision must be float or double")
                 print(usage)
                 sys.exit(1)
-            precision = arg
+            timer.precision = arg
         elif opt in ("-d"):
-            dimension = int(arg)
-            if not dimension in {1,2,3}:
+            timer.dimension = int(arg)
+            if not timer.dimension in {1,2,3}:
                 print("invalid dimension")
                 print(usage)
                 sys.exit(1)
         elif opt in ("-x"):
-            xmin = int(arg)
+            timer.xmin = int(arg)
         elif opt in ("-X"):
-            xmax = int(arg)
+            timer.xmax = int(arg)
         elif opt in ("-y"):
-            ymin = int(arg)
+            timer.ymin = int(arg)
         elif opt in ("-Y"):
-            ymax = int(arg)
+            timer.ymax = int(arg)
         elif opt in ("-z"):
-            zmin = int(arg)
+            timer.zmin = int(arg)
         elif opt in ("-Z"):
-            zmax = int(arg)
+            timer.zmax = int(arg)
         elif opt in ("-b"):
-            nbatch = int(arg)
+            timer.nbatch = int(arg)
         elif opt in ("-r"):
-            radix = int(arg)
+            timer.radix = int(arg)
         elif opt in ("-F"):
-            problem_file = arg
+            timer.problem_file = arg
 
-    dload = len(libdir) > 0
-            
-    if dload:
-        print("Using dyna-rider")
-    else:
-        print("Using normal rider")
-        
-    print("executable: "+ prog)
-    print("outfilename: "+ ",".join(outfilename))
-    print("libdir: "+ ",".join(libdir))
+    timer.run_cases()
 
-    print("device number: " + str(devicenum))
-    
-    print("ntrial: " + str(ntrial))
-    
-    print("dimension: " + str(dimension))
-    print("xmin: "+ str(xmin) + " xmax: " + str(xmax))
-    if dimension > 1:
-        print("ymin: "+ str(ymin) + " ymax: " + str(ymax))
-    if dimension > 2:
-        print("zmin: "+ str(zmin) + " zmax: " + str(zmax))
-    print("direction: " + str(direction))
-    print("real/complex FFT? " + str(rcfft))
-    print("in-place? " + str(inplace))
-    print("batch-size: " + str(nbatch))
-    print("radix: " + str(radix))
-
-    if not os.path.isfile(prog):
-        print("**** Error: unable to find " + prog)
-        sys.exit(1)
-
-    metadatastring = "# " + " ".join(sys.argv)  + "\n"
-    metadatastring += "# "
-    metadatastring += "dimension"
-    metadatastring += "\txlength"
-    if(dimension > 1):
-        metadatastring += "\tylength"
-    if(dimension > 2):
-        metadatastring += "\tzlength"
-    metadatastring += "\tnbatch"
-    metadatastring += "\tnsample"
-    metadatastring += "\tsamples ..."
-    metadatastring += "\n"
-        
-    # The log file is stored alongside each data output file.
-    for idx in range(len(outfilename)):
-        logfilename = outfilename[idx] + ".log"
-        if not os.path.exists(os.path.dirname(logfilename)):
-            os.makedirs(os.path.dirname(logfilename))
-        print("log filename: "  + logfilename)
-        logfile = open(logfilename, "w+")
-        logfile.write(metadatastring)
-        logfile.close()
-
-        outfile = open(outfilename[idx], "w+")
-        outfile.write(metadatastring)
-        outfile.close()
-
-    if problem_file:
-        length_gen = problem_file_size_generator(problem_file, dimension)
-    else:
-        length_gen = radix_size_generator(xmin, ymin, zmin,
-                                          xmax, ymax, zmax,
-                                          dimension, radix)
-
-    for length in length_gen:
-        N = ntrial
-        print(N)
-            
-        seconds = runcase(prog,
-                          dload, libdir,
-                          length, direction, rcfft, inplace, N,
-                          precision, nbatch, devicenum, logfilename)
-        #print(seconds)
-        for idx, vals in enumerate(seconds):
-            with open(outfilename[idx], 'a') as outfile:
-                outfile.write(str(dimension))
-                outfile.write("\t")
-                outfile.write("\t".join([str(val) for val in length]))
-                outfile.write("\t")
-                outfile.write(str(nbatch))
-                outfile.write("\t")
-                outfile.write(str(len(seconds[idx])))
-                for second in seconds[idx]:
-                    outfile.write("\t")
-                    outfile.write(str(second))
-                outfile.write("\n")
-    
     
 if __name__ == "__main__":
     main(sys.argv[1:])
-                        
