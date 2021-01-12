@@ -35,19 +35,6 @@
 
 typedef std::vector<std::vector<char, fftwAllocator<char>>> fftw_data_t;
 
-// Compute the rocFFT transform and verify the accuracy against the provided CPU data.
-void rocfft_transform(const rocfft_params&                  params,
-                      const std::vector<size_t>&            cpu_istride,
-                      const std::vector<size_t>&            cpu_ostride,
-                      const size_t                          cpu_idist,
-                      const size_t                          cpu_odist,
-                      const rocfft_array_type               cpu_itype,
-                      const rocfft_array_type               cpu_otype,
-                      const std::shared_future<fftw_data_t> cpu_input,
-                      const std::shared_future<fftw_data_t> cpu_output,
-                      const size_t                          ramgb,
-                      const std::shared_future<VectorNorms> cpu_output_norm);
-
 typedef std::
     tuple<rocfft_transform_type, rocfft_result_placement, rocfft_array_type, rocfft_array_type>
         type_place_io_t;
@@ -213,17 +200,18 @@ public:
     }
 };
 
-extern std::tuple<std::vector<size_t>,
-                  size_t,
-                  rocfft_precision,
-                  rocfft_transform_type,
-                  accuracy_test::cpu_fft_params>
+// Compute the rocFFT transform and verify the accuracy against the provided CPU data.
+void rocfft_transform(const rocfft_params&                 params,
+                      const accuracy_test::cpu_fft_params& cpu,
+                      const size_t                         ramgb);
+
+extern std::tuple<std::vector<size_t>, size_t, rocfft_transform_type, accuracy_test::cpu_fft_params>
     last_cpu_fft;
 
 const static std::vector<size_t> batch_range = {2, 1};
 
 const static std::vector<rocfft_precision> precision_range
-    = {rocfft_precision_single, rocfft_precision_double};
+    = {rocfft_precision_double, rocfft_precision_single};
 const static std::vector<rocfft_result_placement> place_range
     = {rocfft_placement_inplace, rocfft_placement_notinplace};
 

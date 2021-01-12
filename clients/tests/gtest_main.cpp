@@ -51,11 +51,7 @@ bool use_fftw_wisdom = false;
 
 // Cache the last cpu fft that was requested - the tuple members
 // correspond to the input and output of compute_cpu_fft.
-std::tuple<std::vector<size_t>,
-           size_t,
-           rocfft_precision,
-           rocfft_transform_type,
-           accuracy_test::cpu_fft_params>
+std::tuple<std::vector<size_t>, size_t, rocfft_transform_type, accuracy_test::cpu_fft_params>
     last_cpu_fft;
 
 int main(int argc, char* argv[])
@@ -299,17 +295,7 @@ TEST(manual, vs_fftw)
 
     accuracy_test::cpu_fft_params cpu_params(manual_params);
 
-    rocfft_transform(manual_params,
-                     cpu.istride,
-                     cpu.ostride,
-                     cpu.idist,
-                     cpu.odist,
-                     cpu.itype,
-                     cpu.otype,
-                     cpu.input,
-                     cpu.output,
-                     ramgb,
-                     cpu.output_norm);
+    rocfft_transform(manual_params, cpu, ramgb);
 
     auto cpu_input_norm = cpu.input_norm.get();
     ASSERT_TRUE(std::isfinite(cpu_input_norm.l_2));

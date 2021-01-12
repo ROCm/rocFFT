@@ -37,12 +37,63 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
     // Check cache first - nbatch is a >= comparison because we compute
     // the largest batch size and cache it.  Smaller batch runs can
     // compare against the larger data.
-    if(std::get<0>(last_cpu_fft) == params.length && std::get<2>(last_cpu_fft) == params.precision
-       && std::get<3>(last_cpu_fft) == params.transform_type)
+    if(std::get<0>(last_cpu_fft) == params.length
+       && std::get<2>(last_cpu_fft) == params.transform_type)
     {
         if(std::get<1>(last_cpu_fft) >= params.nbatch)
         {
-            return std::get<4>(last_cpu_fft);
+            auto& ret = std::get<3>(last_cpu_fft);
+            if(params.precision != ret.precision)
+            {
+                // Tests should be ordered so we do double first, then float.
+                if(ret.precision == rocfft_precision_double)
+                {
+                    // convert double input/output to float in-place so
+                    // we don't need extra memory
+                    auto convert_to_single = [](fftw_data_t& data) {
+                        for(auto& arr : data)
+                        {
+                            const double* readPtr  = reinterpret_cast<const double*>(arr.data());
+                            const double* readEnd  = readPtr + (arr.size() / sizeof(double));
+                            float*        writePtr = reinterpret_cast<float*>(arr.data());
+                            std::copy(readPtr, readEnd, writePtr);
+                            arr.resize(arr.size() / 2);
+                        }
+                        return data;
+                    };
+                    // HACK: the future only gives us const
+                    // fftw_data.  But at this point we're in between
+                    // test cases and can safely mutate the data to
+                    // convert it.
+                    //
+                    // Steal the data from the future
+                    fftw_data_t input;
+                    fftw_data_t output;
+                    input.swap(const_cast<fftw_data_t&>(ret.input.get()));
+                    output.swap(const_cast<fftw_data_t&>(ret.output.get()));
+                    // async convert the input/output to single-precision
+                    std::shared_future<fftw_data_t> input_future = std::async(
+                        std::launch::async, [=, &ret, input{std::move(input)}]() mutable {
+                            return convert_to_single(input);
+                        });
+                    std::shared_future<fftw_data_t> output_future = std::async(
+                        std::launch::async, [=, &ret, output{std::move(output)}]() mutable {
+                            return convert_to_single(output);
+                        });
+                    // replace the cached futures with these conversions
+                    ret.input     = std::move(input_future);
+                    ret.output    = std::move(output_future);
+                    ret.precision = rocfft_precision_single;
+                }
+                else
+                {
+                    // Somehow we've done float first, then double?
+                    // Tests are ordered wrong, and we don't want to
+                    // lose precision
+                    abort();
+                }
+            }
+            return ret;
         }
         else
             // Something's unexpected with our test order - we should have
@@ -161,14 +212,15 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
     });
 
     cpu_fft_params ret;
-    ret.ilength = params.ilength();
-    ret.istride = contiguous_params.istride;
-    ret.itype   = contiguous_params.itype;
-    ret.idist   = contiguous_params.idist;
-    ret.olength = params.olength();
-    ret.ostride = contiguous_params.ostride;
-    ret.otype   = contiguous_params.otype;
-    ret.odist   = contiguous_params.odist;
+    ret.ilength   = params.ilength();
+    ret.istride   = contiguous_params.istride;
+    ret.itype     = contiguous_params.itype;
+    ret.idist     = contiguous_params.idist;
+    ret.precision = params.precision;
+    ret.olength   = params.olength();
+    ret.ostride   = contiguous_params.ostride;
+    ret.otype     = contiguous_params.otype;
+    ret.odist     = contiguous_params.odist;
 
     ret.input       = std::move(input);
     ret.input_norm  = std::move(input_norm);
@@ -178,25 +230,16 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
     // Cache our result
     std::get<0>(last_cpu_fft) = params.length;
     std::get<1>(last_cpu_fft) = params.nbatch;
-    std::get<2>(last_cpu_fft) = params.precision;
-    std::get<3>(last_cpu_fft) = params.transform_type;
-    std::get<4>(last_cpu_fft) = ret;
+    std::get<2>(last_cpu_fft) = params.transform_type;
+    std::get<3>(last_cpu_fft) = ret;
 
     return std::move(ret);
 }
 
 // Compute a FFT using rocFFT and compare with the provided CPU reference computation.
-void rocfft_transform(const rocfft_params&                  params,
-                      const std::vector<size_t>&            cpu_istride,
-                      const std::vector<size_t>&            cpu_ostride,
-                      const size_t                          cpu_idist,
-                      const size_t                          cpu_odist,
-                      const rocfft_array_type               cpu_itype,
-                      const rocfft_array_type               cpu_otype,
-                      const std::shared_future<fftw_data_t> cpu_input,
-                      const std::shared_future<fftw_data_t> cpu_output,
-                      const size_t                          ramgb,
-                      const std::shared_future<VectorNorms> cpu_output_norm)
+void rocfft_transform(const rocfft_params&                 params,
+                      const accuracy_test::cpu_fft_params& cpu,
+                      const size_t                         ramgb)
 {
     if(ramgb > 0 && params.needed_ram(verbose) > ramgb * 1e9)
     {
@@ -304,14 +347,14 @@ void rocfft_transform(const rocfft_params&                  params,
         = allocate_host_buffer<fftwAllocator<char>>(params.precision, params.itype, params.isize);
 
     // Copy from contiguous_input to input.
-    copy_buffers(cpu_input.get(),
+    copy_buffers(cpu.input.get(),
                  gpu_input,
                  params.ilength(),
                  params.nbatch,
                  params.precision,
-                 cpu_itype,
-                 cpu_istride,
-                 cpu_idist,
+                 cpu.itype,
+                 cpu.istride,
+                 cpu.idist,
                  params.itype,
                  params.istride,
                  params.idist,
@@ -435,15 +478,15 @@ void rocfft_transform(const rocfft_params&                  params,
     const auto                             total_length
         = std::accumulate(params.length.begin(), params.length.end(), 1, std::multiplies<size_t>());
     const double linf_cutoff
-        = type_epsilon(params.precision) * cpu_output_norm.get().l_inf * log(total_length);
-    auto diff = distance(cpu_output.get(),
+        = type_epsilon(params.precision) * cpu.output_norm.get().l_inf * log(total_length);
+    auto diff = distance(cpu.output.get(),
                          gpu_output,
                          params.olength(),
                          params.nbatch,
                          params.precision,
-                         cpu_otype,
-                         cpu_ostride,
-                         cpu_odist,
+                         cpu.otype,
+                         cpu.ostride,
+                         cpu.odist,
                          params.otype,
                          params.ostride,
                          params.odist,
@@ -477,13 +520,13 @@ void rocfft_transform(const rocfft_params&                  params,
     // TODO: handle case where norm is zero?
     EXPECT_TRUE(diff.l_inf < linf_cutoff)
         << "Linf test failed.  Linf:" << diff.l_inf
-        << "\tnormalized Linf: " << diff.l_inf / cpu_output_norm.get().l_inf
+        << "\tnormalized Linf: " << diff.l_inf / cpu.output_norm.get().l_inf
         << "\tcutoff: " << linf_cutoff << params.str();
 
-    EXPECT_TRUE(diff.l_2 / cpu_output_norm.get().l_2
+    EXPECT_TRUE(diff.l_2 / cpu.output_norm.get().l_2
                 < sqrt(log2(total_length)) * type_epsilon(params.precision))
         << "L2 test failed. L2: " << diff.l_2
-        << "\tnormalized L2: " << diff.l_2 / cpu_output_norm.get().l_2
+        << "\tnormalized L2: " << diff.l_2 / cpu.output_norm.get().l_2
         << "\tepsilon: " << sqrt(log2(total_length)) * type_epsilon(params.precision)
         << params.str();
 
@@ -583,17 +626,7 @@ TEST_P(accuracy_test, vs_fftw)
         std::cout << params.str() << std::endl;
     }
 
-    rocfft_transform(params,
-                     cpu.istride,
-                     cpu.ostride,
-                     cpu.idist,
-                     cpu.odist,
-                     cpu.itype,
-                     cpu.otype,
-                     cpu.input,
-                     cpu.output,
-                     ramgb,
-                     cpu.output_norm);
+    rocfft_transform(params, cpu, ramgb);
 
     auto cpu_input_norm = cpu.input_norm.get();
     ASSERT_TRUE(std::isfinite(cpu_input_norm.l_2));
