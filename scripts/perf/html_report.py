@@ -137,7 +137,27 @@ def speedup_confidence(length_series, dir0_data_dict, dir1_data_dict):
 def make_hovertext(lengths, batches):
     return ["{} batch {}".format(length,batch) for length, batch in zip(lengths,batches)]
 
-# returns the plotly figure object
+def speedup_saturation(speedup):
+    diff = abs(1.0 - speedup)
+    # scale up a 20% difference into maximum 50% saturation - lower
+    # difference should be closer to 255 (white)
+    saturation_ratio = min(0.5,diff / 0.2 * 0.5)
+    return 255 - int(saturation_ratio * 255.0)
+
+def speedup_colors(speedup):
+    ret = []
+    for s in speedup:
+        saturation = speedup_saturation(s)
+        if s < 1.0:
+            # slowdown is red
+            ret.append('rgb(255,{0},{0})'.format(saturation))
+        else:
+            # speedup is green
+            ret.append('rgb({0},255,{0})'.format(saturation))
+    return ret
+
+# returns a tuple of the plotly graph object and the table object with
+# the same data
 def graph_file(basename, dirs, logscale, docdir):
     dir_basenames = []
     dir_dirnames = []
@@ -245,7 +265,37 @@ def graph_file(basename, dirs, logscale, docdir):
         yref='y2'
     )
 
-    return fig
+    headers = ['Problem size', 'Elements']
+    values = [
+        # shorten 'batch' in table so the column isn't so wide
+        [t.replace(' batch ', ' b') for t in traces[0].hovertext],
+        traces[0].x,
+    ]
+    fill_colors = [
+        ['white'] * len(traces[0].hovertext),
+        ['white'] * len(traces[0].x),
+    ]
+    for t in traces:
+        if t.name.startswith('Speedup'):
+            headers.append(t.name)
+            values.append(["{:.4f}".format(x) for x in t.y])
+            fill_colors.append(speedup_colors(t.y))
+        else:
+            headers.append(t.name + ' (median)')
+            # use exponent notation for data since numbers could be
+            # tiny or huge
+            values.append(["{:.4e}".format(x) for x in t.y])
+            fill_colors.append(['white'] * len(t.y))
+    table = go.Figure(
+        data = [
+            go.Table(header=dict(values=headers),
+                     cells=dict(values=values, fill_color=fill_colors),
+                     ),
+        ]
+    )
+    table.update_layout(width=900, height=600)
+
+    return (fig,table)
 
 def graph_dirs(dirs, title, docdir):
     # use first dir's dat files as a basis for what to graph.
@@ -262,16 +312,22 @@ def graph_dirs(dirs, title, docdir):
     <title>{}</title>
   </head>
   <body>
+  <table>
 '''.format(title))
 
     # only the first figure needs js included
     include_js = True
     for filename in dat_files:
-        fig = graph_file(os.path.basename(filename), dirs, True, docdir)
-        outfile.write(fig.to_html(full_html=False, include_plotlyjs=include_js))
+        outfile.write('''<tr><td>''')
+        figs = graph_file(os.path.basename(filename), dirs, True, docdir)
+        outfile.write(figs[0].to_html(full_html=False, include_plotlyjs=include_js))
         include_js = False
+        outfile.write('''</td><td>''')
+        outfile.write(figs[1].to_html(full_html=False, include_plotlyjs=False))
+        outfile.write('''</td></tr>''')
 
     outfile.write('''
+    </table>
     </body>
     </html>
     ''')
