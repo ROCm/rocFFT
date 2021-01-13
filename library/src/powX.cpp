@@ -21,6 +21,7 @@
 #include <atomic>
 #include <cassert>
 #include <cstddef>
+#include <fstream>
 #include <iostream>
 #include <numeric>
 #include <unordered_map>
@@ -44,9 +45,8 @@
 
 //#define TMP_DEBUG
 #ifdef TMP_DEBUG
+#include "../../shared/printbuffer.h"
 #include "rocfft_hip.h"
-#include <fstream>
-#include <sstream>
 #endif
 
 std::atomic<bool> fn_checked(false);
@@ -368,6 +368,54 @@ static float max_memory_bandwidth_GB_per_s()
     return result;
 }
 
+#ifdef TMP_DEBUG
+// Print either an input or output buffer, given column-major dimensions
+void DebugPrintBuffer(rocfft_ostream&            stream,
+                      rocfft_array_type          type,
+                      rocfft_precision           precision,
+                      void*                      buffer[],
+                      const std::vector<size_t>& length_cm,
+                      const std::vector<size_t>& stride_cm,
+                      size_t                     dist,
+                      size_t                     offset,
+                      size_t                     batch)
+{
+    const size_t size_elems = dist * batch;
+    size_t base_type_size = (precision == rocfft_precision_double) ? sizeof(double) : sizeof(float);
+    // assume complex elements for now
+    base_type_size *= 2;
+
+    size_t size_bytes = size_elems * base_type_size;
+    // convert length, stride to row-major for use with printbuffer
+    auto length_rm = length_cm;
+    auto stride_rm = stride_cm;
+    std::reverse(length_rm.begin(), length_rm.end());
+    std::reverse(stride_rm.begin(), stride_rm.end());
+    std::vector<std::vector<char>> bufvec;
+    std::vector<size_t>            print_offset(2, offset);
+    if(type == rocfft_array_type_complex_planar || type == rocfft_array_type_hermitian_planar)
+    {
+        // separate the real/imag data, so printbuffer will print them separately
+        bufvec.resize(2);
+        bufvec.front().resize(size_bytes / 2);
+        bufvec.back().resize(size_bytes / 2);
+        hipMemcpy(bufvec.front().data(), buffer[0], size_bytes / 2, hipMemcpyDeviceToHost);
+        hipMemcpy(bufvec.back().data(), buffer[1], size_bytes / 2, hipMemcpyDeviceToHost);
+
+        printbuffer(
+            precision, type, bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+    }
+    else
+    {
+        bufvec.resize(1);
+        bufvec.front().resize(size_bytes);
+        hipMemcpy(bufvec.front().data(), buffer[0], size_bytes, hipMemcpyDeviceToHost);
+        printbuffer(
+            precision, type, bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+    }
+}
+#endif
+
 // Internal plan executor.
 // For in-place transforms, in_buffer == out_buffer.
 void TransformPowX(const ExecPlan&       execPlan,
@@ -389,6 +437,17 @@ void TransformPowX(const ExecPlan&       execPlan,
         hipEventCreate(&stop);
         max_memory_bw = max_memory_bandwidth_GB_per_s();
     }
+#ifdef TMP_DEBUG
+    // default TMP_DEBUG output to cout, but check env var for a file to write to instead
+    rocfft_ostream*                 debug_stream = &rocfft_cout;
+    std::unique_ptr<rocfft_ostream> debug_stream_file;
+    auto                            debug_file_name = getenv("TMP_DEBUG_FILE");
+    if(debug_file_name)
+    {
+        debug_stream_file = std::make_unique<rocfft_ostream>(debug_file_name);
+        debug_stream      = debug_stream_file.get();
+    }
+#endif
     for(size_t i = 0; i < execPlan.execSeq.size(); i++)
     {
         DeviceCallIn data;
@@ -594,69 +653,19 @@ void TransformPowX(const ExecPlan&       execPlan,
         data.gridParam = execPlan.gridParam[i];
 
 #ifdef TMP_DEBUG
-        //TODO:
-        // - move the below into DeviceCallIn
-        // - fix it for real data
+        *debug_stream << "--- --- scheme " << PrintScheme(data.node->scheme)
+                      << " input:" << std::endl;
 
-        rocfft_cout << "--- --- scheme " << PrintScheme(data.node->scheme) << std::endl;
-
-        const size_t in_size = data.node->iDist * data.node->batch;
-        size_t       base_type_size
-            = (data.node->precision == rocfft_precision_double) ? sizeof(double) : sizeof(float);
-        base_type_size *= 2;
-
-        size_t in_size_bytes = in_size * base_type_size;
-        void*  dbg_in        = malloc(in_size_bytes);
         hipDeviceSynchronize();
-        std::stringstream ss;
-        std::ofstream     realPart, imagPart;
-
-        ss.str("");
-        ss << "kernel_" << i << "_input_real.bin";
-        realPart.open(ss.str().c_str(), std::ios::out | std::ios::binary);
-        ss.str("");
-        ss << "kernel_" << i << "_input_imag.bin";
-        imagPart.open(ss.str().c_str(), std::ios::out | std::ios::binary);
-
-        if(data.node->inArrayType == rocfft_array_type_complex_planar
-           || data.node->inArrayType == rocfft_array_type_hermitian_planar)
-        {
-            hipMemcpy(dbg_in, data.bufIn[0], in_size_bytes / 2, hipMemcpyDeviceToHost);
-            hipMemcpy((void*)((char*)dbg_in + in_size_bytes / 2),
-                      data.bufIn[1],
-                      in_size_bytes / 2,
-                      hipMemcpyDeviceToHost);
-
-            realPart.write((char*)dbg_in, in_size_bytes / 2);
-            imagPart.write((char*)dbg_in + in_size_bytes / 2, in_size_bytes / 2);
-        }
-        else
-        {
-            hipMemcpy(dbg_in, data.bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
-
-            for(size_t ii = 0; ii < in_size_bytes; ii += base_type_size)
-            {
-                realPart.write((char*)dbg_in + ii, base_type_size / 2);
-                imagPart.write((char*)dbg_in + ii + base_type_size / 2, base_type_size / 2);
-            }
-        }
-        realPart.close();
-        imagPart.close();
-
-        const size_t out_size       = data.node->oDist * data.node->batch;
-        const size_t out_size_bytes = out_size * base_type_size;
-        void*        dbg_out        = malloc(out_size_bytes);
-
-        //rocfft_cout << "data.node->iDist " << data.node->iDist << ", data.node->batch " << data.node->batch << std::endl;
-        //rocfft_cout << "in_size " << in_size << ", out_size " << out_size << std::endl;
-        //rocfft_cout << "in_size_bytes " << in_size_bytes << ", out_size_bytes " << out_size_bytes << std::endl;
-        // memset(dbg_out, 0x40, out_size_bytes);
-        // if(data.node->placement != rocfft_placement_inplace)
-        // {
-        //     hipDeviceSynchronize();
-        //     hipMemcpy(data.bufOut[0], dbg_out, out_size_bytes, hipMemcpyHostToDevice);
-        // }
-        rocfft_cout << "attempting kernel: " << i << std::endl;
+        DebugPrintBuffer(*debug_stream,
+                         data.node->inArrayType,
+                         data.node->precision,
+                         data.bufIn,
+                         data.node->length,
+                         data.node->inStride,
+                         data.node->iDist,
+                         data.node->iOffset,
+                         data.node->batch);
 #endif
 
         DevFnCall fn = execPlan.devFnCall[i];
@@ -751,64 +760,29 @@ void TransformPowX(const ExecPlan&       execPlan,
         hipError_t err = hipPeekAtLastError();
         if(err != hipSuccess)
         {
-            rocfft_cout << "Error: " << hipGetErrorName(err) << ", " << hipGetErrorString(err)
-                        << std::endl;
+            *debug_stream << "Error: " << hipGetErrorName(err) << ", " << hipGetErrorString(err)
+                          << std::endl;
             exit(-1);
         }
         hipDeviceSynchronize();
-        rocfft_cout << "executed kernel: " << i << std::endl;
+        *debug_stream << "executed kernel: " << i << std::endl;
 
-        ss.str("");
-        ss << "kernel_" << i << "_output_real.bin";
-        realPart.open(ss.str().c_str(), std::ios::out | std::ios::binary);
-        ss.str("");
-        ss << "kernel_" << i << "_output_imag.bin";
-        imagPart.open(ss.str().c_str(), std::ios::out | std::ios::binary);
-
-        if(data.node->outArrayType == rocfft_array_type_complex_planar
-           || data.node->outArrayType == rocfft_array_type_hermitian_planar)
-        {
-            hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes / 2, hipMemcpyDeviceToHost);
-            hipMemcpy((void*)((char*)dbg_out + out_size_bytes / 2),
-                      data.bufOut[1],
-                      out_size_bytes / 2,
-                      hipMemcpyDeviceToHost);
-
-            realPart.write((char*)dbg_out, out_size_bytes / 2);
-            imagPart.write((char*)dbg_out + out_size_bytes / 2, out_size_bytes / 2);
-        }
-        else
-        {
-            hipMemcpy(dbg_out, data.bufOut[0], out_size_bytes, hipMemcpyDeviceToHost);
-
-            for(size_t ii = 0; ii < out_size_bytes; ii += base_type_size)
-            {
-                realPart.write((char*)dbg_out + ii, base_type_size / 2);
-                imagPart.write((char*)dbg_out + ii + base_type_size / 2, base_type_size / 2);
-            }
-        }
-
-        realPart.close();
-        imagPart.close();
-
-        rocfft_cout << "copied from device\n";
-
-        // temporary print out the kernel output
-        // rocfft_cout << "input:" << std::endl;
-        // for(size_t i = 0; i < data.node->iDist * data.node->batch; i++)
-        // {
-        //     rocfft_cout << f_in[i].x << " " << f_in[i].y << "\n";
-        // }
-        // rocfft_cout << "output:" << std::endl;
-        // for(size_t i = 0; i < data.node->oDist * data.node->batch; i++)
-        // {
-        //     rocfft_cout << f_out[i].x << " " << f_out[i].y << "\n";
-        // }
-        // rocfft_cout << "\n---------------------------------------------\n";
-        free(dbg_out);
-        free(dbg_in);
 #endif
     }
+
+#ifdef TMP_DEBUG
+    *debug_stream << "final output:\n";
+    DebugPrintBuffer(*debug_stream,
+                     execPlan.rootPlan->outArrayType,
+                     execPlan.rootPlan->precision,
+                     out_buffer,
+                     execPlan.rootPlan->length,
+                     execPlan.rootPlan->outStride,
+                     execPlan.rootPlan->oDist,
+                     execPlan.rootPlan->oOffset,
+                     execPlan.rootPlan->batch);
+    *debug_stream << std::endl;
+#endif
     if(emit_profile_log)
     {
         hipEventDestroy(start);

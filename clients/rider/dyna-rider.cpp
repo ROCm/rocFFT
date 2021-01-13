@@ -31,7 +31,7 @@
 #include <dlfcn.h>
 #include <link.h>
 
-#include "gpubuf.h"
+#include "../../shared/gpubuf.h"
 #include "rider.h"
 #include "rocfft.h"
 

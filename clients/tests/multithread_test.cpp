@@ -17,9 +17,9 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+#include "../../shared/gpubuf.h"
 #include "../client_utils.h"
 #include "accuracy_test.h"
-#include "gpubuf.h"
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
 #include <gtest/gtest.h>

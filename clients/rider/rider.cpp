@@ -23,7 +23,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "gpubuf.h"
+#include "../../shared/gpubuf.h"
 #include "rider.h"
 #include "rocfft.h"
 #include <boost/program_options.hpp>

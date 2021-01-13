@@ -24,7 +24,7 @@
 #if !defined(KARGS_H)
 #define KARGS_H
 
-#include "gpubuf.h"
+#include "../../../shared/gpubuf.h"
 #include <cstddef>
 #include <vector>
 

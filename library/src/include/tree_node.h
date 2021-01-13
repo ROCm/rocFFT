@@ -27,7 +27,7 @@
 #include <memory>
 #include <vector>
 
-#include "gpubuf.h"
+#include "../../../shared/gpubuf.h"
 #include "kargs.h"
 #include "rocfft_ostream.hpp"
 #include "twiddles.h"

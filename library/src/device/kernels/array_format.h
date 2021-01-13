@@ -21,8 +21,8 @@
 #ifndef ARRAY_FORMAT_H
 #define ARRAY_FORMAT_H
 
+#include "../../../../shared/gpubuf.h"
 #include "common.h"
-#include "gpubuf.h"
 
 //-----------------------------------------------------------------------------
 // To support planar format with template, we have the below simple conventions.

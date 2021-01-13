@@ -25,10 +25,10 @@
 #include <utility>
 #include <vector>
 
+#include "../../shared/gpubuf.h"
 #include "../client_utils.h"
 #include "accuracy_test.h"
 #include "fftw_transform.h"
-#include "gpubuf.h"
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
 

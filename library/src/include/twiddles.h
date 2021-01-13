@@ -6,7 +6,7 @@
 #if !defined(TWIDDLES_H)
 #define TWIDDLES_H
 
-#include "gpubuf.h"
+#include "../../../shared/gpubuf.h"
 #include "rocfft.h"
 #include <cassert>
 #include <math.h>

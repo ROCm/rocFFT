@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "gpubuf.h"
+#include "../../shared/gpubuf.h"
 #include "hip/hip_runtime_api.h"
 #include "hip/hip_vector_types.h"
 #include "private.h"
