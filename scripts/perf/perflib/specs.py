@@ -46,8 +46,7 @@ class MachineSpecs:
 
 def run(cmd):
     p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if p.returncode == 0:
-        return p.stdout.decode('ascii')
+    return p.stdout.decode('ascii')
 
 
 def search(pattern, string):
