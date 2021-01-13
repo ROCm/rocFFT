@@ -313,7 +313,19 @@ def graph_dirs(dirs, title, docdir):
   </head>
   <body>
   <table>
+    <tr>
 '''.format(title))
+
+    # include specs in the report
+    for d in dirs:
+        outfile.write('''<td><b>{} specs:</b><br/><pre>'''.format(
+            os.path.basename(os.path.normpath(d)))
+        )
+        specs = open(os.path.join(d, 'specs.txt'))
+        for line in specs:
+            outfile.write(line)
+        outfile.write('''</pre></td>''')
+    outfile.write('''</tr></table><br/><table>''')
 
     # only the first figure needs js included
     include_js = True
