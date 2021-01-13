@@ -53,6 +53,9 @@ def run_rider(prog,
 
     if precision == "double":
         cmd.append("--double")
+
+    if not inplace:
+        cmd.append("-o")
         
     ttype = -1
     itype = ""

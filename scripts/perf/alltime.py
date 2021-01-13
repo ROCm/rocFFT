@@ -108,6 +108,7 @@ class rundata:
             timer.zmax = self.maxsize * self.ratio[1]
 
         timer.radix = self.radix
+        timer.inplace = self.inplace
         timer.direction = self.direction
         timer.dimension = self.dimension
         timer.precision = self.precision
