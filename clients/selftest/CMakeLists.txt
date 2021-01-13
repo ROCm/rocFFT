@@ -20,39 +20,6 @@
 # THE SOFTWARE.
 # #############################################################################
 
-# set( Boost_DEBUG ON )
-set( Boost_USE_MULTITHREADED ON )
-set( Boost_DETAILED_FAILURE_MSG ON )
-set( Boost_ADDITIONAL_VERSIONS 1.65.1 1.65 )
-set( Boost_USE_STATIC_LIBS OFF )
-
-# ########################################################################
-# The following check are hacks to get compiles working for CUDA backend
-# when using hipcc as comiler.  These should be removed in the future.
-
-# If hipcc is set as compiler, we are compiling for CUDA backend and
-# nvcc complains of illegal -dumpversion flag because cmake thinks nvcc is a GNU compiler
-# A workaround is setting boost compiler explicitely
-
-if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-  set( Boost_COMPILER "" )
-  set( BOOST_LIBRARYDIR "/usr/lib/x86_64-linux-gnu/" )  # Don't know why we need to specify this
-endif( )
-# ########################################################################
-
-find_package( Boost COMPONENTS program_options )
-
-if( NOT Boost_FOUND )
-  message( STATUS "Dynamic boost libraries not found. Attempting to find static libraries " )
-  set( Boost_USE_STATIC_LIBS ON )
-  find_package( Boost COMPONENTS program_options )
-
-  if( NOT Boost_FOUND )
-    message( FATAL_ERROR "boost is a required dependency and is not found;  try adding boost path to CMAKE_PREFIX_PATH" )
-  endif( )
-endif( )
-
-find_package( GTest REQUIRED )
 
 set( rocfft_selftest_source test_complex.cpp )
 
@@ -60,37 +27,68 @@ set( rocfft_selftest_includes basis_vector.h )
 
 add_executable( rocfft-selftest ${rocfft_selftest_source} ${rocfft_selftest_includes} )
 
-target_compile_features( rocfft-selftest PRIVATE cxx_static_assert cxx_nullptr cxx_lambdas cxx_auto_type )
+find_package( Boost COMPONENTS program_options REQUIRED)
+set( Boost_DEBUG ON )
+set( Boost_USE_MULTITHREADED ON )
+set( Boost_DETAILED_FAILURE_MSG ON )
+set( Boost_ADDITIONAL_VERSIONS 1.65.1 1.65 )
+set( Boost_USE_STATIC_LIBS OFF )
+
+if( NOT Boost_LIBRARIES )
+  # Fixes a bug in Boost's CMAKE where Boost_LIBRARIES is not set.
+  set( Boost_LIBRARIES Boost::program_options )
+endif()
+
+set( rocfft-selftest_include_dirs
+  $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../library/src/include>
+  )
+
+set( rocfft-selftest_link_libs 
+  ${Boost_LIBRARIES}
+  )
+
+if( GTEST_FOUND)
+  list( APPEND rocfft-selftest_include_dirs $<BUILD_INTERFACE:${GTEST_INCLUDE_DIRS}> )
+  list( APPEND rocfft-selftest_link_libs ${GTEST_LIBRARIES} )
+else()
+  add_dependencies( rocfft-selftest gtest )
+  list( APPEND rocfft-selftest_include_dirs ${GTEST_INCLUDE_DIRS} )
+  list( APPEND rocfft-selftest_link_libs ${GTEST_LIBRARIES} )
+endif()
+
+target_compile_features( rocfft-selftest
+  PRIVATE
+  cxx_static_assert
+  cxx_nullptr cxx_lambdas
+  cxx_auto_type
+  )
 
 target_include_directories( rocfft-selftest
   PRIVATE
-    $<BUILD_INTERFACE:${GTEST_INCLUDE_DIRS}>
-    $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
-)
+  ${rocfft-selftest_include_dirs}
+  )
 
-target_link_libraries( rocfft-selftest PRIVATE roc::rocfft ${GTEST_LIBRARIES} ${Boost_LIBRARIES} )
+target_link_libraries( rocfft-selftest
+  PRIVATE
+  roc::rocfft 
+  ${rocfft-selftest_link_libs}
+  )
 
-if( CUDA_FOUND )
+if( USE_CUDA )
   target_include_directories( rocfft-selftest
     PRIVATE
-      $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
-      $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
     )
   target_compile_definitions( rocfft-selftest PRIVATE __HIP_PLATFORM_NVCC__ )
   target_link_libraries( rocfft-selftest PRIVATE ${CUDA_LIBRARIES} )
-else( )
-  if( NOT BUILD_SHARED_LIBS )
-    target_link_libraries( rocfft-selftest PRIVATE hip::device )
-  endif( )
-endif( )
-
-if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$")
-  target_compile_options( rocfft-selftest PRIVATE -Wno-unused-command-line-argument -hc )
-endif( )
-
-if(HIP_PLATFORM STREQUAL "hip-clang")
+else()
   target_compile_options( rocfft-selftest PRIVATE -Wno-unused-command-line-argument )
 endif( )
 
+
 set_target_properties( rocfft-selftest PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
-set_target_properties( rocfft-selftest PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+set_target_properties( rocfft-selftest PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+  "${PROJECT_BINARY_DIR}/staging"
+  )

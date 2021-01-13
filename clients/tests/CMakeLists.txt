@@ -20,22 +20,8 @@
 # THE SOFTWARE.
 # #############################################################################
 
-find_package( Boost COMPONENTS program_options REQUIRED)
-set( Boost_DEBUG ON )
-set( Boost_USE_MULTITHREADED ON )
-set( Boost_DETAILED_FAILURE_MSG ON )
-set( Boost_ADDITIONAL_VERSIONS 1.65.1 1.65 )
-set( Boost_USE_STATIC_LIBS OFF )
 
-if(NOT Boost_LIBRARIES)
-  # Fixes a bug in Boost's CMAKE where Boost_LIBRARIES is not set.
-  set(Boost_LIBRARIES Boost::program_options)
-endif()
-
-find_package( GTest REQUIRED )
-find_package( FFTW 3.0 REQUIRED MODULE COMPONENTS FLOAT DOUBLE )
-
-set(rocfft_test_source
+set( rocfft-test_source
   gtest_main.cpp
   accuracy_test.cpp
   accuracy_test_1D.cpp
@@ -46,45 +32,78 @@ set(rocfft_test_source
   misc/source/test_exception.cpp
   )
 
-set(rocfft_test_includes
+set( rocfft-test_includes
   fftw_transform.h
   rocfft_against_fftw.h
   misc/include/test_exception.h
   )
 
-add_executable( rocfft-test ${rocfft_test_source} ${rocfft_test_includes} )
+add_executable( rocfft-test ${rocfft-test_source} ${rocfft-test_includes} )
+
+find_package( Boost COMPONENTS program_options REQUIRED)
+set( Boost_DEBUG ON )
+set( Boost_USE_MULTITHREADED ON )
+set( Boost_DETAILED_FAILURE_MSG ON )
+set( Boost_ADDITIONAL_VERSIONS 1.65.1 1.65 )
+set( Boost_USE_STATIC_LIBS OFF )
+
+if( NOT Boost_LIBRARIES )
+  # Fixes a bug in Boost's CMAKE where Boost_LIBRARIES is not set.
+  set( Boost_LIBRARIES Boost::program_options )
+endif()
+
+find_package( FFTW 3.0 REQUIRED MODULE COMPONENTS FLOAT DOUBLE )
+
+set( rocfft-test_include_dirs
+  $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
+  $<BUILD_INTERFACE:${FFTW_INCLUDES}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/misc/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../library/src/include>
+  )
+
+set( rocfft-test_link_libs 
+  ${FFTW_LIBRARIES}
+  ${Boost_LIBRARIES}
+  )
+
+if( GTEST_FOUND)
+  list( APPEND rocfft-test_include_dirs $<BUILD_INTERFACE:${GTEST_INCLUDE_DIRS}> )
+  list( APPEND rocfft-test_link_libs ${GTEST_LIBRARIES} )
+else()
+  add_dependencies( rocfft-test gtest )
+  list( APPEND rocfft-test_include_dirs ${GTEST_INCLUDE_DIRS} )
+  list( APPEND rocfft-test_link_libs ${GTEST_LIBRARIES} )
+endif()
 
 target_compile_features( rocfft-test
   PRIVATE
   cxx_static_assert
   cxx_nullptr
-  cxx_auto_type )
+  cxx_auto_type
+  )
 
 target_include_directories( rocfft-test
   PRIVATE
-    $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
-    $<BUILD_INTERFACE:${GTEST_INCLUDE_DIRS}>
-    $<BUILD_INTERFACE:${FFTW_INCLUDES}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/misc/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../library/src/include>
-)
+  ${rocfft-test_include_dirs}
+  )
+
+
+if( NOT BUILD_SHARED_LIBS )
+  #target_link_libraries(rocfft-test INTERFACE hip::host)
+  list(APPEND rocfft-test_link_libs hip::host)
+endif()
 
 target_link_libraries( rocfft-test
   PRIVATE
   roc::rocfft
-  ${GTEST_LIBRARIES}
-  ${FFTW_LIBRARIES}
-  ${Boost_LIBRARIES} )
-
-if( NOT BUILD_SHARED_LIBS )
-  target_link_libraries(rocfft-test INTERFACE hip::host)
-endif()
+  ${rocfft-test_link_libs}
+  )
 
 if( USE_CUDA )
   target_include_directories( rocfft-test
     PRIVATE
-      $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
-      $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
     )
   target_compile_definitions( rocfft-test PRIVATE __HIP_PLATFORM_NVCC__ )
   target_link_libraries( rocfft-test PRIVATE ${CUDA_LIBRARIES} )
@@ -95,14 +114,17 @@ endif( )
 option( BUILD_CLIENTS_TESTS_OPENMP "Build tests with OpenMP" ON )
 
 if( BUILD_CLIENTS_TESTS_OPENMP )
-  target_compile_options(rocfft-test PRIVATE -fopenmp -DBUILD_CLIENTS_TESTS_OPENMP)
-  target_link_libraries(rocfft-test PRIVATE -fopenmp -L${HIP_CLANG_ROOT}/lib -Wl,-rpath=${HIP_CLANG_ROOT}/lib)
+  target_compile_options( rocfft-test PRIVATE -fopenmp -DBUILD_CLIENTS_TESTS_OPENMP )
+  target_link_libraries( rocfft-test PRIVATE -fopenmp -L${HIP_CLANG_ROOT}/lib -Wl,-rpath=${HIP_CLANG_ROOT}/lib )
   target_include_directories( rocfft-test PRIVATE ${HIP_CLANG_ROOT}/include )
 endif()
 
 set_target_properties( rocfft-test
   PROPERTIES DEBUG_POSTFIX "-d"
   CXX_EXTENSIONS NO
-  CXX_STANDARD 14 )
+  CXX_STANDARD 14
+  )
+
 set_target_properties( rocfft-test
-  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging"
+  )
