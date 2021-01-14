@@ -133,7 +133,7 @@ function(rocm_create_package_clients)
     "\nArchitecture: amd64"
     "\nMaintainer: " ${PARSE_MAINTAINER}
     "\nDescription: " ${PARSE_DESCRIPTION}
-    "\nDepends: " ${PARSE_LIB_NAME} "(=" ${PARSE_VERSION} ")\n\n")
+    "\nDepends: " ${PARSE_LIB_NAME} "(>=" ${PARSE_VERSION} ")\n\n")
 
   if(EXISTS "${PROJECT_BINARY_DIR}/package")
     file(REMOVE_RECURSE "${PROJECT_BINARY_DIR}/package")
