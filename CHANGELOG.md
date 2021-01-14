@@ -9,6 +9,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
   manual kernels.
 
 ### Optimizations
+- Minor optimization for C2R 3D 100, 200 cube sizes.
 - Optimized C2C/R2C 3D 64, 81, 100, 128, 200, 256 cube sizes.
 - Improved performance of the standalone out-of-place transpose kernel.
 - Optimized 1D length 40000 C2C case.

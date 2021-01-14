@@ -4588,6 +4588,42 @@ static void OptimizePlan(ExecPlan& execPlan)
             RemoveNode(execPlan, *transpose);
         }
     }
+
+    // combine one CS_KERNEL_STOCKHAM and following CS_KERNEL_TRANSPOSE_XY_Z in 3D complex to real
+    // NB: this should be replaced by combining CS_KERNEL_TRANSPOSE_XY_Z and the following
+    //     CS_KERNEL_STOCKHAM eventually, in which we might fuse 2 pairs of TR.
+    auto trans_cmplx_to_r = std::find_if(execSeq.rbegin(), execSeq.rend(), [](TreeNode* n) {
+        return n->scheme == CS_KERNEL_TRANSPOSE_CMPLX_TO_R;
+    });
+    if(trans_cmplx_to_r != execSeq.rend() && trans_cmplx_to_r != execSeq.rbegin())
+    {
+        auto stockham2  = trans_cmplx_to_r + 1;
+        auto transpose2 = trans_cmplx_to_r + 2;
+        auto stockham1  = trans_cmplx_to_r + 3;
+        if(stockham1 != execSeq.rend() && (*stockham2)->scheme == CS_KERNEL_STOCKHAM
+           && (*transpose2)->scheme == CS_KERNEL_TRANSPOSE_XY_Z
+           && (*stockham1)->scheme == CS_KERNEL_STOCKHAM
+           && (function_pool::has_function(
+               (*transpose2)->precision,
+               {(*transpose2)->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC})) // kernel available
+           && ((*transpose2)->length[0]
+               == (*transpose2)->length[2]) // limit to original "cubic" case
+           && ((*transpose2)->length[0] / 2 + 1 == (*transpose2)->length[1])
+           && (!IsPo2((*transpose2)->length[0]))) // Need more investigation for diagonal transpose
+        {
+            (*transpose2)->scheme       = CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z;
+            (*transpose2)->obIn         = (*stockham1)->obIn;
+            (*transpose2)->obOut        = (*stockham2)->obOut;
+            (*transpose2)->inArrayType  = (*stockham1)->inArrayType;
+            (*transpose2)->outArrayType = (*stockham2)->outArrayType;
+
+            (*stockham2)->obIn        = (*stockham2)->obOut;
+            (*stockham2)->inArrayType = (*stockham2)->outArrayType;
+            (*stockham2)->placement   = rocfft_placement_inplace;
+
+            RemoveNode(execPlan, *stockham1);
+        }
+    }
 }
 
 void ProcessNode(ExecPlan& execPlan)
