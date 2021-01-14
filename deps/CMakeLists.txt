@@ -25,7 +25,6 @@ endif()
 project( rocfft-dependencies NONE )
 
 option( BUILD_BOOST "Download and build boost library" ON )
-option( BUILD_GTEST "Download and build googletest library" ON )
 # option( BUILD_VERBOSE "Print helpful build debug information" OFF )
 
 # if( BUILD_VERBOSE )
@@ -42,12 +41,6 @@ option( BUILD_GTEST "Download and build googletest library" ON )
 include( get-cli-arguments )
 
 # The following is a series of super-build projects; this cmake project will download and build
-if( BUILD_GTEST )
-  include( external-gtest )
-
-  list( APPEND rocfft_dependencies googletest )
-  set( gtest_custom_target COMMAND cd ${GTEST_BINARY_ROOT}$<SEMICOLON> ${CMAKE_COMMAND} --build . --target install )
-endif( )
 
 if( BUILD_BOOST )
   include( external-boost )
