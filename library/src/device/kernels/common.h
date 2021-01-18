@@ -100,6 +100,15 @@ enum SBRC_TYPE
     SBRC_3D_TRANS_XY_Z_ECR_FFT = 7,
 };
 
+enum SBRC_TRANSPOSE_TYPE
+{
+    // best, but requires cube sizes
+    DIAGONAL,
+    // OK, doesn't require handling unaligned corner case
+    TILE_ALIGNED,
+    TILE_UNALIGNED,
+};
+
 template <class T>
 struct real_type;
 

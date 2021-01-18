@@ -311,3 +311,59 @@ INSTANTIATE_TEST_SUITE_P(
                        ValuesIn(ooffset_range),
                        ValuesIn(generate_types(rocfft_transform_type_real_inverse, place_range))),
     accuracy_test::TestName);
+
+// test combinations of SBRC sizes, plus a non-SBRC size (10) to
+// exercise fused SBRC+transpose kernels
+static std::vector<size_t> sbrc_range       = {64, 81, 100, 200, 10, 128, 256};
+auto                       vsbrc_range      = {sbrc_range, sbrc_range, sbrc_range};
+static std::vector<size_t> sbrc_batch_range = {2, 1};
+INSTANTIATE_TEST_SUITE_P(
+    sbrc_3D_complex_forward,
+    accuracy_test,
+    ::testing::Combine(ValuesIn(generate_lengths(vsbrc_range)),
+                       ValuesIn(precision_range),
+                       ValuesIn(sbrc_batch_range),
+                       ValuesIn(stride_range),
+                       ValuesIn(stride_range),
+                       ValuesIn(ioffset_range),
+                       ValuesIn(ooffset_range),
+                       ValuesIn(generate_types(rocfft_transform_type_complex_forward,
+                                               place_range))),
+    accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(
+    sbrc_3D_complex_inverse,
+    accuracy_test,
+    ::testing::Combine(ValuesIn(generate_lengths(vsbrc_range)),
+                       ValuesIn(precision_range),
+                       ValuesIn(sbrc_batch_range),
+                       ValuesIn(stride_range),
+                       ValuesIn(stride_range),
+                       ValuesIn(ioffset_range),
+                       ValuesIn(ooffset_range),
+                       ValuesIn(generate_types(rocfft_transform_type_complex_inverse,
+                                               place_range))),
+    accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(
+    sbrc_3D_real_forward,
+    accuracy_test,
+    ::testing::Combine(ValuesIn(generate_lengths(vsbrc_range)),
+                       ValuesIn(precision_range),
+                       ValuesIn(sbrc_batch_range),
+                       ValuesIn(stride_range),
+                       ValuesIn(stride_range),
+                       ValuesIn(ioffset_range),
+                       ValuesIn(ooffset_range),
+                       ValuesIn(generate_types(rocfft_transform_type_real_forward, place_range))),
+    accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(
+    sbrc_3D_real_inverse,
+    accuracy_test,
+    ::testing::Combine(ValuesIn(generate_lengths(vsbrc_range)),
+                       ValuesIn(precision_range),
+                       ValuesIn(sbrc_batch_range),
+                       ValuesIn(stride_range),
+                       ValuesIn(stride_range),
+                       ValuesIn(ioffset_range),
+                       ValuesIn(ooffset_range),
+                       ValuesIn(generate_types(rocfft_transform_type_real_inverse, place_range))),
+    accuracy_test::TestName);

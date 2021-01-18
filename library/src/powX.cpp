@@ -51,6 +51,17 @@
 
 std::atomic<bool> fn_checked(false);
 
+SBRC_TRANSPOSE_TYPE sbrc_3D_transpose_type(unsigned int               blockWidth,
+                                           size_t                     alignment_dimension,
+                                           const std::vector<size_t>& length)
+{
+    if(is_diagonal_sbrc_3D_length(length.front()) && is_cube_size(length))
+        return DIAGONAL;
+    if(alignment_dimension % blockWidth == 0)
+        return TILE_ALIGNED;
+    return TILE_UNALIGNED;
+}
+
 // This function is called during creation of plan: enqueue the HIP kernels by function
 // pointers. Return true if everything goes well. Any internal device memory allocation
 // failure returns false right away.
@@ -173,27 +184,44 @@ bool PlanPowX(ExecPlan& execPlan)
             gp.tpb_x = wgs;
             break;
         case CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z:
-            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                      ? function_pool::get_function_single(std::make_pair(
-                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z))
-                      : function_pool::get_function_double(std::make_pair(
-                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z));
+        {
             GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
-            // repeat for higher dimensions + batch
-            gp.b_x = std::accumulate(execPlan.execSeq[i]->length.begin() + 1,
-                                     execPlan.execSeq[i]->length.end(),
-                                     execPlan.execSeq[i]->batch,
-                                     std::multiplies<size_t>());
-            // do 'bwd' rows per block
-            gp.b_x /= bwd;
+            // each block handles 'bwd' rows
+            gp.b_x = DivRoundingUp(execPlan.execSeq[i]->length[2], bwd)
+                     * execPlan.execSeq[i]->length[1] * execPlan.execSeq[i]->batch;
             gp.tpb_x = wgs;
+
+            auto transposeType = sbrc_3D_transpose_type(
+                bwd, execPlan.execSeq[i]->length[2], execPlan.execSeq[i]->length);
+
+            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
+                      ? function_pool::get_function_single_transpose(
+                          std::make_pair(execPlan.execSeq[i]->length[0],
+                                         CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z),
+                          transposeType)
+                      : function_pool::get_function_double_transpose(
+                          std::make_pair(execPlan.execSeq[i]->length[0],
+                                         CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z),
+                          transposeType);
             break;
+        }
         case CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY:
+        {
+            GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
+            auto transposeType = sbrc_3D_transpose_type(bwd,
+                                                        execPlan.execSeq[i]->length[1]
+                                                            * execPlan.execSeq[i]->length[2],
+                                                        execPlan.execSeq[i]->length);
+
             ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                      ? function_pool::get_function_single(std::make_pair(
-                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY))
-                      : function_pool::get_function_double(std::make_pair(
-                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY));
+                      ? function_pool::get_function_single_transpose(
+                          std::make_pair(execPlan.execSeq[i]->length[0],
+                                         CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY),
+                          transposeType)
+                      : function_pool::get_function_double_transpose(
+                          std::make_pair(execPlan.execSeq[i]->length[0],
+                                         CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY),
+                          transposeType);
             GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
             gp.b_x = std::accumulate(execPlan.execSeq[i]->length.begin() + 1,
                                      execPlan.execSeq[i]->length.end(),
@@ -203,6 +231,7 @@ bool PlanPowX(ExecPlan& execPlan)
             gp.b_x /= bwd;
             gp.tpb_x = wgs;
             break;
+        }
         case CS_KERNEL_TRANSPOSE:
         case CS_KERNEL_TRANSPOSE_XY_Z:
         case CS_KERNEL_TRANSPOSE_Z_XY:

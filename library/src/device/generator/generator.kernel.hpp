@@ -299,12 +299,34 @@ namespace StockhamGenerator
         {
             std::string str;
 
+            if(blockComputeType == BCT_R2C)
+            {
+                str += "\t// for SBRC 3D kernels: number of blocks needed to deal with one 3D "
+                       "batch\n";
+                str += "\tunsigned int blocks_per_batch;\n";
+                str += "\tif(Tsbrc == SBRC_3D_FFT_TRANS_XY_Z)\n";
+                str += "\t\tblocks_per_batch = lengths[1] * ((lengths[2] + "
+                       + std::to_string(blockWidth) + " - 1) / " + std::to_string(blockWidth)
+                       + ");\n";
+                str += "\telse if(Tsbrc == SBRC_3D_FFT_TRANS_Z_XY)\n";
+                str += "\t\tblocks_per_batch = lengths[2] * ((lengths[1] + "
+                       + std::to_string(blockWidth) + " - 1) / " + std::to_string(blockWidth)
+                       + ");\n";
+
+                str += "\t// index of this block in the current 3D batch\n";
+                str += "\tunsigned int block_in_batch = batch % blocks_per_batch;\n";
+                str += "\n\tif(Tsbrc == SBRC_2D)\n";
+            }
+            str += "\t{\n";
+
             str += "\t// SBCC+SBRC fold higher dimensions into the batch_count, so we need\n";
             str += "\t// extra math to work out how many 'true' batches we really have\n";
-            str += "\tsize_t batch_block_size = hipGridDim_x / batch_count; //To opt: it can be "
+            str += "\tunsigned int batch_block_size = hipGridDim_x / batch_count; //To opt: it can "
+                   "be "
                    "calc on host.\n";
-            str += "\tsize_t counter_mod = batch % batch_block_size;\n";
-            str += "\tsize_t batch_local_count = batch / batch_block_size; //To check: technically "
+            str += "\tunsigned int counter_mod = batch % batch_block_size;\n";
+            str += "\tunsigned int batch_local_count = batch / batch_block_size; //To check: "
+                   "technically "
                    "it should be done in one instruction.\n";
 
             std::string loop;
@@ -326,9 +348,6 @@ namespace StockhamGenerator
             loop += "\n\t// We handle a 2D tile block with one work-group threads.\n";
             loop += "\t// In the below, '_x' moves along the fast dimension of the tile.\n";
 
-            if(blockComputeType == BCT_R2C)
-                loop += "\n\tif(Tsbrc == SBRC_2D)\n";
-            loop += "\t{\n";
             std::string sub_string = "(lengths[1]/" + std::to_string(blockWidth)
                                      + ")"; // in FFT it is how many unrolls
             loop += "\t\tunsigned int tileIdx_x, tileIdx_y, tileOffset_x, tileOffset_y;\n";
@@ -390,58 +409,54 @@ namespace StockhamGenerator
             {
                 loop += "\telse if(Tsbrc == SBRC_3D_FFT_TRANS_XY_Z)\n";
                 loop += "\t{\n";
-                loop += "\t\tunsigned int blocks_per_batch = lengths[1] * (lengths[2] / "
-                        + std::to_string(blockWidth) + ");\n";
                 loop += "\t\tunsigned int readTileIdx_x = batch % lengths[1];\n";
                 loop += "\t\tunsigned int readTileIdx_y = batch % blocks_per_batch / lengths[1];\n";
 
-                // FIXME: figure out why diagonal breaks on length 64
-                if(IsPo2(length) && length != 64)
+                loop += "\t\tif(Ttranspose == DIAGONAL)\n";
+                loop += "\t\t{\n";
+                loop += "\t\t// diagonal transpose for power of 2 length\n";
+
+                loop += "\t\tunsigned int bid = readTileIdx_x + " + std::to_string(length)
+                        + " * readTileIdx_y;\n";
+                loop += "\t\tunsigned int tileBlockIdx_y = bid % "
+                        + std::to_string(blockWGS / blockWidth) + ";\n";
+                loop += "\t\tunsigned int tileBlockIdx_x = ((bid / "
+                        + std::to_string(blockWGS / blockWidth) + ") + tileBlockIdx_y) % "
+                        + std::to_string(length) + ";\n";
+
+                loop += "\t\t" + offset_name1 + " += tileBlockIdx_y * ("
+                        + std::to_string(blockWidth) + " * " + stride_name1
+                        + "[2]) + tileBlockIdx_x  "
+                          "* "
+                        + stride_name1 + "[1] + batch / blocks_per_batch * " + stride_name1
+                        + "[3];\n";
+                if(output)
                 {
-                    loop += "\t\t// diagonal transpose for power of 2 length\n";
-
-                    loop += "\t\tunsigned int bid = readTileIdx_x + " + std::to_string(length)
-                            + " * readTileIdx_y;\n";
-                    loop += "\t\tunsigned int tileBlockIdx_y = bid % "
-                            + std::to_string(blockWGS / blockWidth) + ";\n";
-                    loop += "\t\tunsigned int tileBlockIdx_x = ((bid / "
-                            + std::to_string(blockWGS / blockWidth) + ") + tileBlockIdx_y) % "
-                            + std::to_string(length) + ";\n";
-
-                    loop += "\t\t" + offset_name1 + " += tileBlockIdx_y * ("
-                            + std::to_string(blockWidth) + " * " + stride_name1
-                            + "[2]) + tileBlockIdx_x  "
-                              "* "
-                            + stride_name1 + "[1] + batch / blocks_per_batch * " + stride_name1
+                    loop += "\t\tunsigned int writeTileIdx_x = tileBlockIdx_y;\n";
+                    loop += "\t\tunsigned int writeTileIdx_y = tileBlockIdx_x;\n";
+                    loop += "\t\t" + offset_name2 + " += writeTileIdx_y * " + stride_name2
+                            + "[2] + writeTileIdx_x * " + std::to_string(blockWidth) + " * "
+                            + stride_name2 + "[0] + batch / blocks_per_batch * " + stride_name2
                             + "[3];\n";
-                    if(output)
-                    {
-                        loop += "\t\tunsigned int writeTileIdx_x = tileBlockIdx_y;\n";
-                        loop += "\t\tunsigned int writeTileIdx_y = tileBlockIdx_x;\n";
-                        loop += "\t\t" + offset_name2 + " += writeTileIdx_y * " + stride_name2
-                                + "[2] + writeTileIdx_x * " + std::to_string(blockWidth) + " * "
-                                + stride_name2 + "[0] + batch / blocks_per_batch * " + stride_name2
-                                + "[3];\n";
-                    }
                 }
-                else
+                loop += "\t\t}\n";
+                loop += "\t\telse\n";
+                loop += "\t\t{\n";
+                loop += "\t\t" + offset_name1 + " += readTileIdx_y * (" + std::to_string(blockWidth)
+                        + " * " + stride_name1 + "[2]) + readTileIdx_x  * " + stride_name1
+                        + "[1] + batch / blocks_per_batch * " + stride_name1 + "[3];\n";
+                loop += "\n";
+                if(output)
                 {
-                    loop += "\t\t" + offset_name1 + " += readTileIdx_y * ("
-                            + std::to_string(blockWidth) + " * " + stride_name1
-                            + "[2]) + readTileIdx_x  * " + stride_name1
-                            + "[1] + batch / blocks_per_batch * " + stride_name1 + "[3];\n";
+                    loop += "\t\tunsigned int writeTileIdx_x = readTileIdx_y;\n";
+                    loop += "\t\tunsigned int writeTileIdx_y = readTileIdx_x;\n";
                     loop += "\n";
-                    if(output)
-                    {
-                        loop += "\t\tunsigned int writeTileIdx_x = readTileIdx_y;\n";
-                        loop += "\t\tunsigned int writeTileIdx_y = readTileIdx_x;\n";
-                        loop += "\n";
-                        loop += "\t\t" + offset_name2 + " += writeTileIdx_y * " + stride_name2
-                                + "[2] + writeTileIdx_x * " + std::to_string(blockWidth) + " * "
-                                + stride_name2 + "[0] + batch / blocks_per_batch * " + stride_name2
-                                + "[3];\n";
-                    }
+                    loop += "\t\t" + offset_name2 + " += writeTileIdx_y * " + stride_name2
+                            + "[2] + writeTileIdx_x * " + std::to_string(blockWidth) + " * "
+                            + stride_name2 + "[0] + batch / blocks_per_batch * " + stride_name2
+                            + "[3];\n";
                 }
+                loop += "\t\t}\n";
                 loop += "\t}\n";
 
                 loop += "\telse if(Tsbrc == SBRC_3D_FFT_TRANS_Z_XY)\n";
@@ -1068,10 +1083,11 @@ namespace StockhamGenerator
             {
                 str += "template <typename T, StrideBin sb, bool TwdLarge>\n";
             }
-            // SBRC also needs a parameter for which dimension to read columns from
+            // SBRC has additional parameters for fused transpose varieties
             else if(blockComputeType == BCT_R2C)
             {
-                str += "template <typename T, StrideBin sb, SBRC_TYPE Tsbrc>\n";
+                str += "template <typename T, StrideBin sb, SBRC_TYPE Tsbrc, SBRC_TRANSPOSE_TYPE "
+                       "Ttranspose>\n";
             }
             else
             {
@@ -1458,6 +1474,22 @@ namespace StockhamGenerator
                 // get offset
                 std::string bufOffset;
 
+                if(blockComputeType == BCT_R2C)
+                {
+                    str += "\t\tif(Ttranspose == TILE_UNALIGNED && Tsbrc == "
+                           "SBRC_3D_FFT_TRANS_XY_Z)\n";
+                    str += "\t\t{\n";
+                    str += "\t\t\t// for rectangular cases, make sure we don't read more "
+                           "rows than are there\n";
+                    str += "\t\t\tif(block_in_batch / lengths[1] * " + std::to_string(blockWidth)
+                           + " + t % " + std::to_string(blockWidth) + " + me / "
+                           + std::to_string(length) + " * " + std::to_string(blockWidth) + " * "
+                           + std::to_string(length) + " / " + std::to_string(blockWGS)
+                           + " >= lengths[2])\n";
+                    str += "\t\t\t\tcontinue;\n";
+                    str += "\t\t}\n";
+                }
+
                 str += "\t\tT R0;\n";
 
                 for(size_t c = 0; c < 2; c++)
@@ -1749,6 +1781,18 @@ namespace StockhamGenerator
                 str += GEN_REF_LINE();
                 str += "\t{\n";
 
+                if(blockComputeType == BCT_R2C)
+                {
+                    str += "\t\tif(Ttranspose == TILE_UNALIGNED && Tsbrc == "
+                           "SBRC_3D_FFT_TRANS_XY_Z)\n";
+                    str += "\t\t{\n";
+                    str += "\t\t\t// for rectangular cases, make sure we don't write more "
+                           "rows than are there\n";
+                    str += "\t\t\tif(block_in_batch / lengths[1] * " + std::to_string(blockWidth)
+                           + " + me % " + std::to_string(blockWidth) + " >= lengths[2])\n";
+                    str += "\t\t\t\tcontinue;\n";
+                    str += "\t\t}\n";
+                }
                 if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
                 {
                     str += "\t\t// Read from lds and write to global mem in column-major\n";

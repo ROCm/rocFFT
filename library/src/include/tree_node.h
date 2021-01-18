@@ -206,6 +206,8 @@ public:
     bool use_CS_2D_SINGLE(); // To determine using scheme CS_KERNEL_2D_SINGLE or not
     bool use_CS_2D_RC(); // To determine using scheme CS_2D_RC or not
     bool use_CS_3D_BLOCK_RC();
+    // how many SBRC kernels can we put into a 3D transform?
+    size_t count_3D_SBRC_nodes();
 
     //To determine fusing CS_KERNEL_STOCKHAM and following CS_KERNEL_TRANSPOSE_Z_XY
     bool use_CS_KERNEL_TRANSPOSE_Z_XY();

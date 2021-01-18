@@ -88,8 +88,6 @@ void complex2real(const void* data_p, void* back_p)
 
     size_t blocks = (input_size - 1) / 512 + 1;
 
-    if(high_dimension > 65535 || batch > 65535)
-        printf("2D and 3D or batch is too big; not implemented\n");
     // the z dimension is used for batching,
     // if 2D or 3D, the number of blocks along y will multiple high dimensions
     // notice the maximum # of thread blocks in y & z is 65535 according to HIP &&
@@ -306,8 +304,6 @@ void hermitian2complex(const void* data_p, void* back_p)
     if(data->node->length.size() == 3)
         dim_2 = data->node->length[2];
 
-    if(high_dimension > 65535 || batch > 65535)
-        printf("2D and 3D or batch is too big; not implemented\n");
     // the z dimension is used for batching,
     // if 2D or 3D, the number of blocks along y will multiple high dimensions
     // notice the maximum # of thread blocks in y & z is 65535 according to HIP &&

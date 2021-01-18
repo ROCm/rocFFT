@@ -23,6 +23,7 @@
 #ifndef FUNCTION_POOL_H
 #define FUNCTION_POOL_H
 
+#include "../device/kernels/common.h"
 #include "tree_node.h"
 #include <unordered_map>
 
@@ -54,8 +55,20 @@ class function_pool
     using Key   = std::pair<size_t, ComputeScheme>;
     using Key2D = std::tuple<size_t, size_t, ComputeScheme>;
 
-    std::unordered_map<Key, DevFnCall, SimpleHash>   function_map_single;
-    std::unordered_map<Key, DevFnCall, SimpleHash>   function_map_double;
+    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_single;
+    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_double;
+
+    // fused transpose kernels can transpose an even multiple of the
+    // tiled rows (faster), or the number of required rows is not an
+    // even multiple (slower).  diagonal transpose is even better,
+    // but requires pow2 cube sizes.
+    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_single_transpose_diagonal;
+    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_single_transpose_tile_aligned;
+    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_single_transpose_tile_unaligned;
+    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_double_transpose_diagonal;
+    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_double_transpose_tile_aligned;
+    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_double_transpose_tile_unaligned;
+
     std::unordered_map<Key2D, DevFnCall, SimpleHash> function_map_single_2D;
     std::unordered_map<Key2D, DevFnCall, SimpleHash> function_map_double_2D;
 
@@ -74,7 +87,7 @@ public:
 
     ~function_pool() {}
 
-    static bool has_function(rocfft_precision precision, Key k)
+    static bool has_function(rocfft_precision precision, const Key k)
     {
         try
         {
@@ -94,7 +107,7 @@ public:
         }
     }
 
-    static DevFnCall get_function_single(Key mykey)
+    static DevFnCall get_function_single(const Key mykey)
     {
         function_pool& func_pool = get_function_pool();
         return func_pool.function_map_single.at(mykey); // return an reference to
@@ -103,47 +116,84 @@ public:
         // exception
     }
 
-    static DevFnCall get_function_double(Key mykey)
+    static DevFnCall get_function_double(const Key mykey)
     {
         function_pool& func_pool = get_function_pool();
         return func_pool.function_map_double.at(mykey);
     }
 
-    static DevFnCall get_function_single_2D(Key2D mykey)
+    static DevFnCall get_function_single_transpose(const Key mykey, SBRC_TRANSPOSE_TYPE type)
+    {
+        function_pool& func_pool = get_function_pool();
+        switch(type)
+        {
+        case DIAGONAL:
+            return func_pool.function_map_single_transpose_diagonal.at(mykey);
+        case TILE_ALIGNED:
+            return func_pool.function_map_single_transpose_tile_aligned.at(mykey);
+        case TILE_UNALIGNED:
+            return func_pool.function_map_single_transpose_tile_unaligned.at(mykey);
+        }
+    }
+
+    static DevFnCall get_function_double_transpose(const Key mykey, SBRC_TRANSPOSE_TYPE type)
+    {
+        function_pool& func_pool = get_function_pool();
+        switch(type)
+        {
+        case DIAGONAL:
+            return func_pool.function_map_double_transpose_diagonal.at(mykey);
+        case TILE_ALIGNED:
+            return func_pool.function_map_double_transpose_tile_aligned.at(mykey);
+        case TILE_UNALIGNED:
+            return func_pool.function_map_double_transpose_tile_unaligned.at(mykey);
+        }
+    }
+
+    static DevFnCall get_function_single_2D(const Key2D mykey)
     {
         function_pool& func_pool = get_function_pool();
         return func_pool.function_map_single_2D.at(mykey);
     }
 
-    static DevFnCall get_function_double_2D(Key2D mykey)
+    static DevFnCall get_function_double_2D(const Key2D mykey)
     {
         function_pool& func_pool = get_function_pool();
         return func_pool.function_map_double_2D.at(mykey);
     }
 
+    template <class funcmap>
+    static void verify_map(const funcmap& fm, const char* description)
+    {
+        for(auto& f : fm)
+        {
+            if(!f.second)
+            {
+                rocfft_cerr << "null ptr registered in " << description << std::endl;
+                abort();
+            }
+        }
+    }
     static void verify_no_null_functions()
     {
         function_pool& func_pool = get_function_pool();
 
-        for(auto it = func_pool.function_map_single.begin();
-            it != func_pool.function_map_single.end();
-            ++it)
-        {
-            if(it->second == nullptr)
-            {
-                rocfft_cout << "null ptr registered in function_map_single" << std::endl;
-            }
-        }
-
-        for(auto it = func_pool.function_map_double.begin();
-            it != func_pool.function_map_double.end();
-            ++it)
-        {
-            if(it->second == nullptr)
-            {
-                rocfft_cout << "null ptr registered in function_map_double" << std::endl;
-            }
-        }
+        verify_map(func_pool.function_map_single, "function_map_single");
+        verify_map(func_pool.function_map_double, "function_map_double");
+        verify_map(func_pool.function_map_single_transpose_tile_aligned,
+                   "function_map_single_transpose_tile_aligned");
+        verify_map(func_pool.function_map_double_transpose_tile_aligned,
+                   "function_map_double_transpose_tile_aligned");
+        verify_map(func_pool.function_map_single_transpose_tile_unaligned,
+                   "function_map_single_transpose_tile_unaligned");
+        verify_map(func_pool.function_map_double_transpose_tile_unaligned,
+                   "function_map_double_transpose_tile_unaligned");
+        verify_map(func_pool.function_map_single_transpose_diagonal,
+                   "function_map_single_transpose_diagonal");
+        verify_map(func_pool.function_map_double_transpose_diagonal,
+                   "function_map_double_transpose_diagonal");
+        verify_map(func_pool.function_map_single_2D, "function_map_single_2D");
+        verify_map(func_pool.function_map_double_2D, "function_map_double_2D");
     }
 };
 

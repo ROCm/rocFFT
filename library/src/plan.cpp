@@ -761,9 +761,9 @@ void TreeNode::RecursiveBuildTree()
 
     case 3:
     {
-        // if we can get down to 3 or 4 kernels via SBRC, prefer that
-        if(use_CS_3D_BLOCK_RC())
+        if(count_3D_SBRC_nodes() == 3 && is_cube_size(length))
         {
+            // Optimal case for SBRC 3D
             scheme = CS_3D_BLOCK_RC;
         }
         else if(MultiDimFuseKernelsAvailable)
@@ -789,7 +789,11 @@ void TreeNode::RecursiveBuildTree()
             child0->RecursiveBuildTree();
             if(child0->scheme == CS_2D_RTRT)
             {
-                scheme = CS_3D_TRTRTR;
+                // if we can get down to 3 or 4 kernels via SBRC, prefer that
+                if(use_CS_3D_BLOCK_RC())
+                    scheme = CS_3D_BLOCK_RC;
+                else
+                    scheme = CS_3D_TRTRTR;
             }
         }
 
@@ -917,11 +921,29 @@ bool TreeNode::use_CS_2D_RC()
     return false;
 }
 
+size_t TreeNode::count_3D_SBRC_nodes()
+{
+    size_t sbrc_dimensions = 0;
+    for(unsigned int i = 0; i < length.size(); ++i)
+    {
+        if(function_pool::has_function(precision, {length[i], CS_KERNEL_STOCKHAM_BLOCK_RC}))
+        {
+            if(is_diagonal_sbrc_3D_length(length[i]) && !is_cube_size(length))
+                continue;
+
+            // make sure the SBRC kernel on that dimension would be tile-aligned
+            size_t bwd, wgs, lds;
+            GetBlockComputeTable(length[i], bwd, wgs, lds);
+            if(length[(i + 2) % length.size()] % bwd == 0)
+                ++sbrc_dimensions;
+        }
+    }
+    return sbrc_dimensions;
+}
+
 bool TreeNode::use_CS_3D_BLOCK_RC()
 {
-    // currently, we support cube sizes with SBRC kernels
-    return function_pool::has_function(precision, {length[0], CS_KERNEL_STOCKHAM_BLOCK_RC})
-           && length[0] == length[1] && length[1] == length[2];
+    return count_3D_SBRC_nodes() >= 2;
 }
 
 bool TreeNode::use_CS_KERNEL_TRANSPOSE_Z_XY()
@@ -2017,9 +2039,21 @@ void TreeNode::build_CS_3D_BLOCK_RC()
     for(int i = 0; i < 3; ++i)
     {
         // if we have an sbrc kernel for this length, use it,
-        // otherwise, fall back to transpose+row FFT
+        // otherwise, fall back to row FFT+transpose
         bool have_sbrc = function_pool::has_function(
             precision, {cur_length.front(), CS_KERNEL_STOCKHAM_BLOCK_RC});
+        // ensure the kernel would be tile-aligned
+        if(have_sbrc)
+        {
+            size_t bwd, wgs, lds;
+            GetBlockComputeTable(cur_length[0], bwd, wgs, lds);
+            if(cur_length[1] * cur_length[2] % bwd != 0)
+                have_sbrc = false;
+
+            // require cube size for diagonal transpose
+            if(is_diagonal_sbrc_3D_length(cur_length.front()) && !is_cube_size(cur_length))
+                have_sbrc = false;
+        }
         if(have_sbrc)
             ++total_sbrc;
 
@@ -2939,9 +2973,45 @@ void TreeNode::assign_buffers_CS_3D_BLOCK_RC(TraverseState&   state,
         auto& node = childNodes[i];
         node->SetInputBuffer(state);
         node->inArrayType = (i == 0) ? inArrayType : childNodes[i - 1]->outArrayType;
-        node->obOut       = flipOut == OB_USER_OUT && placement == rocfft_placement_notinplace
-                                ? OB_USER_IN
-                                : flipOut;
+        // HACK: for 5 kernels, modify the last row fft node to be
+        // in-place.  This works around a potential crash in
+        // double-precision planar->planar transpose by making the
+        // last transpose T -> OUT
+        //
+        // We're trying to avoid this example scenario:
+        //   5 kernel out-of-place:
+        //   - sbrc3D    A->T
+        //   - row FFT   T->A
+        //   - transpose A->T
+        //   - row FFT   T->A
+        //   - transpose A->B  <-- if A and B are both planar and double-precision, we can get a crash
+        //
+        // TODO: investigate the crash.
+        TreeNode* last_row_fft = nullptr;
+        if(childNodes.size() == 5)
+        {
+            for(auto it = childNodes.rbegin(); it != childNodes.rend(); ++it)
+            {
+                if((*it)->scheme != CS_KERNEL_TRANSPOSE_XY_Z
+                   && (*it)->scheme != CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
+                {
+                    // must be a row fft since it's neither sbrc3d nor a transpose
+                    last_row_fft = (*it).get();
+                    break;
+                }
+            }
+        }
+        if(node.get() == last_row_fft)
+        {
+            // make it in-place
+            node->obOut = node->obIn;
+        }
+        else
+        {
+            node->obOut = flipOut == OB_USER_OUT && placement == rocfft_placement_notinplace
+                              ? OB_USER_IN
+                              : flipOut;
+        }
 
         // temp is interleaved, in/out might not be
         switch(node->obOut)
@@ -4242,19 +4312,29 @@ void TreeNode::assign_params_CS_3D_BLOCK_RC()
         case CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z:
         {
             node->outStride.push_back(1);
-            node->outStride.push_back(node->outStride[0] * node->length[0]);
-            node->outStride.push_back(node->outStride[1] * node->length[1]);
-            node->oDist = node->outStride[2] * node->length[2];
+            node->outStride.push_back(node->length[2]);
+            node->outStride.push_back(node->outStride[1] * node->length[0]);
+            node->oDist = node->outStride[2] * node->length[1];
+            break;
+        }
+        case CS_KERNEL_STOCKHAM:
+        {
+            node->outStride = node->inStride;
+            node->oDist     = node->iDist;
+            node->TraverseTreeAssignParamsLogicA();
+            break;
+        }
+        case CS_KERNEL_TRANSPOSE_XY_Z:
+        {
+            node->outStride.push_back(1);
+            node->outStride.push_back(node->outStride[0] * node->length[2]);
+            node->outStride.push_back(node->outStride[1] * node->length[0]);
+            node->oDist = node->iDist;
             break;
         }
         default:
-        {
-            node->outStride.push_back(1);
-            node->outStride.push_back(node->outStride[0] * node->length[0]);
-            node->outStride.push_back(node->outStride[1] * node->length[1]);
-            node->oDist = node->outStride[2] * node->length[2];
-            node->TraverseTreeAssignParamsLogicA();
-        }
+            // build_CS_3D_BLOCK_RC should not have created any other node types
+            assert(false);
         }
         prev_outStride = node->outStride;
         prev_oDist     = node->oDist;

@@ -33,6 +33,17 @@ static inline bool IsPo2(size_t u)
     return (u != 0) && (0 == (u & (u - 1)));
 }
 
+static bool is_diagonal_sbrc_3D_length(size_t len)
+{
+    // SBRC diagonal-transpose dimensions are currently 128, 256
+    return len == 128 || len == 256;
+}
+
+static bool is_cube_size(const std::vector<size_t>& length)
+{
+    return length.size() == 3 && length[0] == length[1] && length[1] == length[2];
+}
+
 // Calculate the maximum pow number with the given base number
 template <int base>
 constexpr size_t PowMax()
