@@ -47,6 +47,8 @@ foreach( rider ${rider_list})
     cxx_nullptr
     cxx_auto_type )
 
+  target_compile_options( ${rider} PRIVATE ${WARNING_FLAGS} )
+
   target_include_directories( ${rider}
     PRIVATE
     $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>

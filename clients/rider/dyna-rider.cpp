@@ -66,7 +66,6 @@ rocfft_plan make_plan(void*                         libhandle,
             libhandle, "rocfft_plan_description_set_data_layout");
     auto procfft_plan_create
         = (decltype(&rocfft_plan_create))dlsym(libhandle, "rocfft_plan_create");
-    auto procfft_execute = (decltype(&rocfft_execute))dlsym(libhandle, "rocfft_execute");
 
     procfft_setup();
 

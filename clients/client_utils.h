@@ -176,14 +176,14 @@ public:
         auto ilength = length;
         if(transform_type == rocfft_transform_type_real_inverse)
             ilength[dim() - 1] = ilength[dim() - 1] / 2 + 1;
-        return std::move(ilength);
+        return ilength;
     }
     std::vector<size_t> olength() const
     {
         auto olength = length;
         if(transform_type == rocfft_transform_type_real_forward)
             olength[dim() - 1] = olength[dim() - 1] / 2 + 1;
-        return std::move(olength);
+        return olength;
     }
 
     size_t nbuffer(const rocfft_array_type type) const
@@ -297,7 +297,7 @@ public:
 
         // Account for precision and data type:
         if(transform_type != rocfft_transform_type_real_forward
-           || transform_type != rocfft_transform_type_real_inverse)
+           && transform_type != rocfft_transform_type_real_inverse)
         {
             needed_ram *= 2;
         }
@@ -326,32 +326,32 @@ public:
     {
         auto ilength_cm = ilength();
         std::reverse(std::begin(ilength_cm), std::end(ilength_cm));
-        return std::move(ilength_cm);
+        return ilength_cm;
     }
     std::vector<size_t> olength_cm() const
     {
         auto olength_cm = olength();
         std::reverse(std::begin(olength_cm), std::end(olength_cm));
-        return std::move(olength_cm);
+        return olength_cm;
     }
     std::vector<size_t> length_cm() const
     {
         auto length_cm = length;
         std::reverse(std::begin(length_cm), std::end(length_cm));
-        return std::move(length_cm);
+        return length_cm;
     }
 
     std::vector<size_t> istride_cm() const
     {
         auto istride_cm = istride;
         std::reverse(std::begin(istride_cm), std::end(istride_cm));
-        return std::move(istride_cm);
+        return istride_cm;
     }
     std::vector<size_t> ostride_cm() const
     {
         auto ostride_cm = ostride;
         std::reverse(std::begin(ostride_cm), std::end(ostride_cm));
-        return std::move(ostride_cm);
+        return ostride_cm;
     }
 
     // Return true if the given GPU parameters would produce a valid transform.
@@ -1923,7 +1923,6 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
         // Complex planar data
         for(auto ibatch = 0; ibatch < nbatch; ++ibatch)
         {
-            auto rdata = ((Tfloat*)vals[0].data()) + ibatch * idist;
             auto idata = ((Tfloat*)vals[1].data()) + ibatch * idist;
             switch(length.size())
             {
