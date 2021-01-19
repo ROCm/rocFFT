@@ -90,6 +90,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
                     // Somehow we've done float first, then double?
                     // Tests are ordered wrong, and we don't want to
                     // lose precision
+                    std::cerr << "Can't do float first then double: aborting." << std::endl;
                     abort();
                 }
             }

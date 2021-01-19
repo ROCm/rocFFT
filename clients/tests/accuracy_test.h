@@ -127,11 +127,30 @@ public:
         const std::vector<size_t>     ioffset       = std::get<5>(info.param);
         const std::vector<size_t>     ooffset       = std::get<6>(info.param);
         type_place_io_t               type_place_io = std::get<7>(info.param);
+        const rocfft_transform_type   type          = std::get<0>(type_place_io);
         const rocfft_result_placement place         = std::get<1>(type_place_io);
         const rocfft_array_type       itype         = std::get<2>(type_place_io);
         const rocfft_array_type       otype         = std::get<3>(type_place_io);
 
-        std::string ret = "len_";
+        std::string ret;
+
+        switch(type)
+        {
+        case rocfft_transform_type_complex_forward:
+            ret += "complex_forward_";
+            break;
+        case rocfft_transform_type_complex_inverse:
+            ret += "complex_inverse_";
+            break;
+        case rocfft_transform_type_real_forward:
+            ret += "real_forward_";
+            break;
+        case rocfft_transform_type_real_inverse:
+            ret += "real_inverse_";
+            break;
+        }
+
+        ret += "len_";
 
         for(auto n : length)
         {
@@ -296,8 +315,8 @@ inline std::vector<std::pair<rocfft_array_type, rocfft_array_type>>
     return iotypes;
 }
 
-// generate all combinations of input/output types, from combinations
-// of transform and placement types
+// Generate all combinations of input/output types, from combinations of transform and placement
+// types.
 static std::vector<type_place_io_t>
     generate_types(rocfft_transform_type                       transformType,
                    const std::vector<rocfft_result_placement>& place_range)
@@ -310,7 +329,205 @@ static std::vector<type_place_io_t>
             ret.push_back(std::make_tuple(transformType, place, iotype.first, iotype.second));
         }
     }
-    return ret;
+    return std::move(ret);
+}
+
+// Create an array of parameters to pass to gtest.
+inline auto param_generator(const std::vector<std::vector<size_t>>&     v_lengths,
+                            const std::vector<rocfft_precision>&        precision_range,
+                            const std::vector<size_t>&                  batch_range,
+                            const std::vector<std::vector<size_t>>&     istride_range,
+                            const std::vector<std::vector<size_t>>&     ostride_range,
+                            const std::vector<std::vector<size_t>>&     ioffset_range,
+                            const std::vector<std::vector<size_t>>&     ooffset_range,
+                            const std::vector<rocfft_result_placement>& place_range)
+{
+
+    std::vector<std::tuple<std::vector<size_t>,
+                           rocfft_precision,
+                           size_t,
+                           std::vector<size_t>,
+                           std::vector<size_t>,
+                           std::vector<size_t>,
+                           std::vector<size_t>,
+                           type_place_io_t>>
+        params;
+
+    for(auto& transform_type :
+        std::vector<rocfft_transform_type>{rocfft_transform_type_complex_forward,
+                                           rocfft_transform_type_complex_inverse,
+                                           rocfft_transform_type_real_forward,
+                                           rocfft_transform_type_real_inverse})
+    {
+        // Batch and precision must be in outer loop in order to ensure the correct CPU reference is
+        // available.
+
+        for(const auto precision : precision_range)
+        {
+            for(const auto batch : batch_range)
+            {
+                for(const auto& lengths : generate_lengths(v_lengths))
+                {
+                    for(const auto& types : generate_types(transform_type, place_range))
+                    {
+                        for(const auto& istride : istride_range)
+                        {
+                            for(const auto& ostride : ostride_range)
+                            {
+                                for(const auto& ioffset : ioffset_range)
+                                {
+                                    for(const auto& ooffset : ooffset_range)
+                                    {
+                                        decltype(params)::value_type param(lengths,
+                                                                           precision,
+                                                                           batch,
+                                                                           istride,
+                                                                           ostride,
+                                                                           ioffset,
+                                                                           ooffset,
+                                                                           types);
+                                        params.push_back(param);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return params;
+}
+
+// Create an array of parameters to pass to gtest.
+inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     v_lengths,
+                                    const std::vector<rocfft_precision>&        precision_range,
+                                    const std::vector<size_t>&                  batch_range,
+                                    const std::vector<std::vector<size_t>>&     istride_range,
+                                    const std::vector<std::vector<size_t>>&     ostride_range,
+                                    const std::vector<std::vector<size_t>>&     ioffset_range,
+                                    const std::vector<std::vector<size_t>>&     ooffset_range,
+                                    const std::vector<rocfft_result_placement>& place_range)
+{
+
+    std::vector<std::tuple<std::vector<size_t>,
+                           rocfft_precision,
+                           size_t,
+                           std::vector<size_t>,
+                           std::vector<size_t>,
+                           std::vector<size_t>,
+                           std::vector<size_t>,
+                           type_place_io_t>>
+        params;
+
+    for(auto& transform_type : std::vector<rocfft_transform_type>{
+            rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse})
+    {
+        // Batch and precision must be in outer loop in order to ensure the correct CPU reference is
+        // available.
+
+        for(const auto precision : precision_range)
+        {
+            for(const auto batch : batch_range)
+            {
+                for(const auto& lengths : generate_lengths(v_lengths))
+                {
+                    for(const auto& types : generate_types(transform_type, place_range))
+                    {
+                        for(const auto& istride : istride_range)
+                        {
+                            for(const auto& ostride : ostride_range)
+                            {
+                                for(const auto& ioffset : ioffset_range)
+                                {
+                                    for(const auto& ooffset : ooffset_range)
+                                    {
+                                        decltype(params)::value_type param(lengths,
+                                                                           precision,
+                                                                           batch,
+                                                                           istride,
+                                                                           ostride,
+                                                                           ioffset,
+                                                                           ooffset,
+                                                                           types);
+                                        params.push_back(param);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return params;
+}
+
+// Create an array of parameters to pass to gtest.
+inline auto param_generator_real(const std::vector<std::vector<size_t>>&     v_lengths,
+                                 const std::vector<rocfft_precision>&        precision_range,
+                                 const std::vector<size_t>&                  batch_range,
+                                 const std::vector<std::vector<size_t>>&     istride_range,
+                                 const std::vector<std::vector<size_t>>&     ostride_range,
+                                 const std::vector<std::vector<size_t>>&     ioffset_range,
+                                 const std::vector<std::vector<size_t>>&     ooffset_range,
+                                 const std::vector<rocfft_result_placement>& place_range)
+{
+
+    std::vector<std::tuple<std::vector<size_t>,
+                           rocfft_precision,
+                           size_t,
+                           std::vector<size_t>,
+                           std::vector<size_t>,
+                           std::vector<size_t>,
+                           std::vector<size_t>,
+                           type_place_io_t>>
+        params;
+
+    for(auto& transform_type : std::vector<rocfft_transform_type>{
+            rocfft_transform_type_real_forward, rocfft_transform_type_real_inverse})
+    {
+        // Batch and precision must be in outer loop in order to ensure the correct CPU reference is
+        // available.
+
+        for(const auto precision : precision_range)
+        {
+            for(const auto batch : batch_range)
+            {
+                for(const auto& lengths : generate_lengths(v_lengths))
+                {
+                    for(const auto& types : generate_types(transform_type, place_range))
+                    {
+                        for(const auto& istride : istride_range)
+                        {
+                            for(const auto& ostride : ostride_range)
+                            {
+                                for(const auto& ioffset : ioffset_range)
+                                {
+                                    for(const auto& ooffset : ooffset_range)
+                                    {
+                                        decltype(params)::value_type param(lengths,
+                                                                           precision,
+                                                                           batch,
+                                                                           istride,
+                                                                           ostride,
+                                                                           ioffset,
+                                                                           ooffset,
+                                                                           types);
+                                        params.push_back(param);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return params;
 }
 
 #endif
