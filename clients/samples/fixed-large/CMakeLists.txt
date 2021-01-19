@@ -24,15 +24,6 @@
 # The following check are hacks to get compiles working for CUDA backend
 # These should be removed in the future.
 
-# NVCC can not compile fftw.3 header file appropriately before v3.3.5
-# https://github.com/FFTW/fftw3/issues/18
-# v3.3.5 is installed by default on Ubuntu 16, workaround is to trick fftw3
-# into thinking nvcc is an Intel compiler as desribed in above issue
-if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-  add_definitions( -D__INTEL_COMPILER )
-endif( )
-# ########################################################################
-
 set( sample_list fixed-large-float fixed-large-double )
 
 foreach( sample ${sample_list} )
@@ -40,11 +31,10 @@ foreach( sample ${sample_list} )
   add_executable( ${sample} ${sample}.cpp )
 
   target_include_directories( ${sample}
-    PRIVATE $<BUILD_INTERFACE:${FFTW_INCLUDE_DIRS}>
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+    PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
   )
 
-  target_link_libraries( ${sample} PRIVATE roc::rocfft ${FFTW_LIBRARIES} )
+  target_link_libraries( ${sample} PRIVATE roc::rocfft )
 
   target_compile_features( ${sample} PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
 

@@ -20,7 +20,6 @@
 * THE SOFTWARE.
 *******************************************************************************/
 
-#include <fftw3.h>
 #include <iostream>
 #include <math.h>
 #include <vector>
@@ -34,26 +33,13 @@ int main()
     // For size N >= 8192, temporary buffer is required to allocated
     const size_t N = 64 * 2048;
 
-    // FFTW reference compute
-    // ==========================================
-
     std::vector<double2> cx(N);
-    fftw_complex *       in, *out;
-    fftw_plan            p;
-
-    in  = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * N);
-    out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * N);
-    p   = fftw_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
 
     for(size_t i = 0; i < N; i++)
     {
-        cx[i].x = in[i][0] = i + (i % 3) - (i % 7);
-        cx[i].y = in[i][1] = 0;
+        cx[i].x = i + (i % 3) - (i % 7);
+        cx[i].y = 0;
     }
-
-    fftw_execute(p);
-
-    fftw_destroy_plan(p);
 
     // rocfft gpu compute
     // ========================================
@@ -113,36 +99,11 @@ int main()
     std::vector<double2> y(N);
     hipMemcpy(&y[0], x, Nbytes, hipMemcpyDeviceToHost);
 
-    // Compute normalized root mean square error
-    double maxv  = 0;
-    double nrmse = 0;
     for(size_t i = 0; i < N; i++)
     {
-        double dr = out[i][0] - y[i].x;
-        double di = out[i][1] - y[i].y;
-
-        printf("element %d: input %f, %f; FFTW result %f, %f; rocFFT result %f, %f \n",
-               (int)i,
-               (float)cx[i].x,
-               (float)x[i].y,
-               (float)out[i][0],
-               (float)out[i][1],
-               (float)y[i].x,
-               (float)y[i].y);
-        maxv = fabs(out[i][0]) > maxv ? fabs(out[i][0]) : maxv;
-        maxv = fabs(out[i][1]) > maxv ? fabs(out[i][1]) : maxv;
-
-        nrmse += ((dr * dr) + (di * di));
+        std::cout << "element " << i << " input:  (" << cx[i].x << "," << cx[i].y << ")"
+                  << " output: (" << y[i].x << "," << y[i].y << ")" << std::endl;
     }
-    nrmse /= (double)N;
-    nrmse = sqrt(nrmse);
-    nrmse /= maxv;
-
-    std::cout << "normalized root mean square error (nrmse): " << nrmse << std::endl;
-
-    // Deallocate buffers
-    fftw_free(in);
-    fftw_free(out);
 
     rocfft_cleanup();
 
