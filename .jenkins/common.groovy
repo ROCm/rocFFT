@@ -8,7 +8,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
     String compiler = jobName.contains('hipclang') ? 'hipcc' : 'hcc'
     String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON'
     String warningArgs = '-DWERROR=ON'
-    String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DDEBUG_PLAN_OUTPUT=OFF' : '-DCMAKE_BUILD_TYPE=Release'
+    String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug' : '-DCMAKE_BUILD_TYPE=Release'
     String buildTypeDir = debug ? 'debug' : 'release'
     String staticArg = buildStatic ? '-DBUILD_SHARED_LIBS=off' : ''
     String hipClangArgs = jobName.contains('hipclang') ? '-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang' : ''

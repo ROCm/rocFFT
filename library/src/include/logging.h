@@ -129,14 +129,18 @@ public:
 extern int log_trace_fd;
 extern int log_bench_fd;
 extern int log_profile_fd;
+extern int log_plan_fd;
+extern int log_kernelio_fd;
 
 /*! \brief Indicates if layer is active with bitmask*/
 typedef enum rocfft_layer_mode_
 {
-    rocfft_layer_mode_none        = 0b0000000000,
-    rocfft_layer_mode_log_trace   = 0b0000000001,
-    rocfft_layer_mode_log_bench   = 0b0000000010,
-    rocfft_layer_mode_log_profile = 0b0000000100,
+    rocfft_layer_mode_none         = 0b0000000000,
+    rocfft_layer_mode_log_trace    = 0b0000000001,
+    rocfft_layer_mode_log_bench    = 0b0000000010,
+    rocfft_layer_mode_log_profile  = 0b0000000100,
+    rocfft_layer_mode_log_plan     = 0b0000001000,
+    rocfft_layer_mode_log_kernelio = 0b0000010000,
 } rocfft_layer_mode;
 
 class LogSingleton
@@ -186,6 +190,20 @@ public:
         static thread_local rocfft_ostream log_profile_os(log_profile_fd);
         return &log_profile_os;
     }
+    rocfft_ostream* GetPlanOS()
+    {
+        if(log_plan_fd == -1)
+            return &rocfft_cerr;
+        static thread_local rocfft_ostream log_plan_os(log_plan_fd);
+        return &log_plan_os;
+    }
+    rocfft_ostream* GetKernelIOOS()
+    {
+        if(log_kernelio_fd == -1)
+            return &rocfft_cerr;
+        static thread_local rocfft_ostream log_kernelio_os(log_kernelio_fd);
+        return &log_kernelio_os;
+    }
 };
 
 #define LOG_TRACE_ENABLED() \
@@ -194,6 +212,9 @@ public:
     (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_bench)
 #define LOG_PROFILE_ENABLED() \
     (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_profile)
+#define LOG_PLAN_ENABLED() (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_plan)
+#define LOG_KERNELIO_ENABLED() \
+    (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_kernelio)
 
 // if profile logging is turned on with
 // (layer_mode & rocfft_layer_mode_log_profile) != 0

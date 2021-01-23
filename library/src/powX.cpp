@@ -43,11 +43,8 @@
 
 #include "real2complex.h"
 
-//#define TMP_DEBUG
-#ifdef TMP_DEBUG
 #include "../../shared/printbuffer.h"
 #include "rocfft_hip.h"
-#endif
 
 std::atomic<bool> fn_checked(false);
 
@@ -397,7 +394,6 @@ static float max_memory_bandwidth_GB_per_s()
     return result;
 }
 
-#ifdef TMP_DEBUG
 // Print either an input or output buffer, given column-major dimensions
 void DebugPrintBuffer(rocfft_ostream&            stream,
                       rocfft_array_type          type,
@@ -443,7 +439,6 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
             precision, type, bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
     }
 }
-#endif
 
 // Internal plan executor.
 // For in-place transforms, in_buffer == out_buffer.
@@ -457,26 +452,18 @@ void TransformPowX(const ExecPlan&       execPlan,
 
     // we can log profile information if we're on the null stream,
     // since we will be able to wait for the transform to finish
-    bool       emit_profile_log = LOG_PROFILE_ENABLED() && !info->rocfft_stream;
-    float      max_memory_bw    = 0.0;
-    hipEvent_t start, stop;
+    bool            emit_profile_log  = LOG_PROFILE_ENABLED() && !info->rocfft_stream;
+    bool            emit_kernelio_log = LOG_KERNELIO_ENABLED();
+    rocfft_ostream* kernelio_stream   = LogSingleton::GetInstance().GetKernelIOOS();
+    float           max_memory_bw     = 0.0;
+    hipEvent_t      start, stop;
     if(emit_profile_log)
     {
         hipEventCreate(&start);
         hipEventCreate(&stop);
         max_memory_bw = max_memory_bandwidth_GB_per_s();
     }
-#ifdef TMP_DEBUG
-    // default TMP_DEBUG output to cout, but check env var for a file to write to instead
-    rocfft_ostream*                 debug_stream = &rocfft_cout;
-    std::unique_ptr<rocfft_ostream> debug_stream_file;
-    auto                            debug_file_name = getenv("TMP_DEBUG_FILE");
-    if(debug_file_name)
-    {
-        debug_stream_file = std::make_unique<rocfft_ostream>(debug_file_name);
-        debug_stream      = debug_stream_file.get();
-    }
-#endif
+
     for(size_t i = 0; i < execPlan.execSeq.size(); i++)
     {
         DeviceCallIn data;
@@ -681,21 +668,22 @@ void TransformPowX(const ExecPlan&       execPlan,
 
         data.gridParam = execPlan.gridParam[i];
 
-#ifdef TMP_DEBUG
-        *debug_stream << "--- --- scheme " << PrintScheme(data.node->scheme)
-                      << " input:" << std::endl;
+        if(emit_kernelio_log)
+        {
+            *kernelio_stream << "--- --- kernel " << i << " (" << PrintScheme(data.node->scheme)
+                             << ") input:" << std::endl;
 
-        hipDeviceSynchronize();
-        DebugPrintBuffer(*debug_stream,
-                         data.node->inArrayType,
-                         data.node->precision,
-                         data.bufIn,
-                         data.node->length,
-                         data.node->inStride,
-                         data.node->iDist,
-                         data.node->iOffset,
-                         data.node->batch);
-#endif
+            hipDeviceSynchronize();
+            DebugPrintBuffer(*kernelio_stream,
+                             data.node->inArrayType,
+                             data.node->precision,
+                             data.bufIn,
+                             data.node->length,
+                             data.node->inStride,
+                             data.node->iDist,
+                             data.node->iOffset,
+                             data.node->batch);
+        }
 
         DevFnCall fn = execPlan.devFnCall[i];
         if(fn)
@@ -785,33 +773,35 @@ void TransformPowX(const ExecPlan&       execPlan,
             rocfft_cout << "null ptr function call error\n";
         }
 
-#ifdef TMP_DEBUG
-        hipError_t err = hipPeekAtLastError();
-        if(err != hipSuccess)
+        if(emit_kernelio_log)
         {
-            *debug_stream << "Error: " << hipGetErrorName(err) << ", " << hipGetErrorString(err)
-                          << std::endl;
-            exit(-1);
+            hipError_t err = hipPeekAtLastError();
+            if(err != hipSuccess)
+            {
+                *kernelio_stream << "Error: " << hipGetErrorName(err) << ", "
+                                 << hipGetErrorString(err) << std::endl;
+                exit(-1);
+            }
+            hipDeviceSynchronize();
+            *kernelio_stream << "executed kernel " << i << " (" << PrintScheme(data.node->scheme)
+                             << ")" << std::endl;
         }
-        hipDeviceSynchronize();
-        *debug_stream << "executed kernel: " << i << std::endl;
-
-#endif
     }
 
-#ifdef TMP_DEBUG
-    *debug_stream << "final output:\n";
-    DebugPrintBuffer(*debug_stream,
-                     execPlan.rootPlan->outArrayType,
-                     execPlan.rootPlan->precision,
-                     out_buffer,
-                     execPlan.rootPlan->length,
-                     execPlan.rootPlan->outStride,
-                     execPlan.rootPlan->oDist,
-                     execPlan.rootPlan->oOffset,
-                     execPlan.rootPlan->batch);
-    *debug_stream << std::endl;
-#endif
+    if(emit_kernelio_log)
+    {
+        *kernelio_stream << "final output:\n";
+        DebugPrintBuffer(*kernelio_stream,
+                         execPlan.rootPlan->outArrayType,
+                         execPlan.rootPlan->precision,
+                         out_buffer,
+                         execPlan.rootPlan->length,
+                         execPlan.rootPlan->outStride,
+                         execPlan.rootPlan->oDist,
+                         execPlan.rootPlan->oOffset,
+                         execPlan.rootPlan->batch);
+        *kernelio_stream << std::endl;
+    }
     if(emit_profile_log)
     {
         hipEventDestroy(start);

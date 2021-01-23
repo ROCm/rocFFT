@@ -30,9 +30,11 @@
 /*******************************************************************************
  * Static handle data
  ******************************************************************************/
-int log_trace_fd   = -1;
-int log_bench_fd   = -1;
-int log_profile_fd = -1;
+int log_trace_fd    = -1;
+int log_bench_fd    = -1;
+int log_profile_fd  = -1;
+int log_plan_fd     = -1;
+int log_kernelio_fd = -1;
 
 /**
  *  @brief Logging function
@@ -90,6 +92,14 @@ rocfft_status rocfft_setup()
         // open log_profile file
         if(layer_mode & rocfft_layer_mode_log_profile)
             open_log_stream("ROCFFT_LOG_PROFILE_PATH", log_profile_fd);
+
+        // open log_plan file
+        if(layer_mode & rocfft_layer_mode_log_plan)
+            open_log_stream("ROCFFT_LOG_PLAN_PATH", log_plan_fd);
+
+        // open log_kernelio file
+        if(layer_mode & rocfft_layer_mode_log_kernelio)
+            open_log_stream("ROCFFT_LOG_KERNELIO_PATH", log_kernelio_fd);
     }
 
     log_trace(__func__);
@@ -117,6 +127,16 @@ rocfft_status rocfft_cleanup()
     {
         close(log_profile_fd);
         log_profile_fd = -1;
+    }
+    if(log_plan_fd != -1)
+    {
+        close(log_plan_fd);
+        log_plan_fd = -1;
+    }
+    if(log_kernelio_fd != -1)
+    {
+        close(log_kernelio_fd);
+        log_kernelio_fd = -1;
     }
 
     return rocfft_status_success;

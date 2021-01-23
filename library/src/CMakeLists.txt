@@ -118,11 +118,6 @@ if( NOT BUILD_SHARED_LIBS )
   set_target_properties( rocfft PROPERTIES PREFIX "lib" )
 endif( )
 
-option( DEBUG_PLAN_OUTPUT "Enable output of plan details in debug builds" ON )
-if( DEBUG_PLAN_OUTPUT )
-  target_compile_options(rocfft PRIVATE -DDEBUG_PLAN_OUTPUT)
-endif( )
-
 ############################################################
 # Installation
 

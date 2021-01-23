@@ -90,9 +90,8 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
     if(!execPlan)
         return rocfft_status_failure;
 
-#if defined(DEBUG) && defined(DEBUG_PLAN_OUTPUT)
-    PrintNode(rocfft_cout, *execPlan);
-#endif
+    if(LOG_PLAN_ENABLED())
+        PrintNode(*LogSingleton::GetInstance().GetPlanOS(), *execPlan);
 
     // tolerate user not providing an execution_info
     rocfft_execution_info_t info;
