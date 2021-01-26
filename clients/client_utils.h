@@ -105,65 +105,72 @@ public:
     }
 
     // Convert to string for output.
-    std::string str() const
+    std::string str(const std::string& separator = ", ") const
     {
         std::stringstream ss;
-        ss << "\nparams:\n";
-        ss << "\tlength:";
+        ss << "length:";
         for(auto i : length)
             ss << " " << i;
-        ss << "\n";
-        ss << "\tistride:";
+        ss << separator;
+        ss << "istride:";
         for(auto i : istride)
             ss << " " << i;
-        ss << "\n";
-        ss << "\tidist: " << idist << "\n";
+        ss << separator;
+        ss << "idist: " << idist << separator;
 
-        ss << "\tostride:";
+        ss << "ostride:";
         for(auto i : ostride)
             ss << " " << i;
-        ss << "\n";
-        ss << "\todist: " << odist << "\n";
+        ss << separator;
+        ss << "odist: " << odist << separator;
 
-        ss << "\tbatch: " << nbatch << "\n";
-        ss << "\tisize:";
+        ss << "batch: " << nbatch << separator;
+        ss << "isize:";
         for(auto i : isize)
             ss << " " << i;
-        ss << "\n";
-        ss << "\tosize:";
+        ss << separator;
+        ss << "osize:";
         for(auto i : osize)
             ss << " " << i;
-        ss << "\n";
+        ss << separator;
 
-        ss << "\tioffset:";
+        ss << "ioffset:";
         for(auto i : ioffset)
             ss << " " << i;
-        ss << "\n";
-        ss << "\tooffset:";
+        ss << separator;
+        ss << "ooffset:";
         for(auto i : ooffset)
             ss << " " << i;
-        ss << "\n";
+        ss << separator;
 
         if(placement == rocfft_placement_inplace)
-            ss << "\tin-place\n";
+            ss << "in-place";
         else
-            ss << "\tout-of-place\n";
-        ss << "\t" << array_type_name(itype) << " -> " << array_type_name(otype) << "\n";
+            ss << "out-of-place";
+        ss << separator;
+        ss << array_type_name(itype) << " -> " << array_type_name(otype) << separator;
         if(precision == rocfft_precision_single)
-            ss << "\tsingle-precision\n";
+            ss << "single-precision";
         else
-            ss << "\tdouble-precision\n";
+            ss << "double-precision";
+        ss << separator;
 
-        ss << "\tilength:";
+        ss << "ilength:";
         for(const auto i : ilength())
             ss << " " << i;
-        ss << "\n";
-        ss << "\tolength:";
+        ss << separator;
+        ss << "olength:";
         for(const auto i : olength())
             ss << " " << i;
-        ss << "\n";
 
         return ss.str();
+    }
+
+    // Stream output operator (for gtest, etc).
+    friend std::ostream& operator<<(std::ostream& stream, const rocfft_params& params)
+    {
+        stream << params.str();
+        return stream;
     }
 
     // Dimension of the transform.
@@ -171,6 +178,7 @@ public:
     {
         return length.size();
     }
+
     std::vector<size_t> ilength() const
     {
         auto ilength = length;
@@ -178,6 +186,7 @@ public:
             ilength[dim() - 1] = ilength[dim() - 1] / 2 + 1;
         return ilength;
     }
+
     std::vector<size_t> olength() const
     {
         auto olength = length;

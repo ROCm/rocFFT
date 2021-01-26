@@ -248,6 +248,7 @@ TEST(manual, vs_fftw)
                          manual_params.istride,
                          manual_params.placement == rocfft_placement_inplace
                              && manual_params.transform_type == rocfft_transform_type_real_forward);
+
     manual_params.ostride
         = compute_stride(manual_params.olength(),
                          manual_params.ostride,
@@ -290,7 +291,7 @@ TEST(manual, vs_fftw)
         }
     }
 
-    std::cout << manual_params.str() << std::endl;
+    std::cout << "\t" << manual_params.str("\n\t") << std::endl;
     auto cpu = accuracy_test::compute_cpu_fft(manual_params);
 
     accuracy_test::cpu_fft_params cpu_params(manual_params);

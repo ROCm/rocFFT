@@ -40,14 +40,7 @@ typedef std::
         type_place_io_t;
 
 // Base gtest class for comparison with FFTW.
-class accuracy_test : public ::testing::TestWithParam<std::tuple<std::vector<size_t>, // length
-                                                                 rocfft_precision,
-                                                                 size_t, // batch
-                                                                 std::vector<size_t>, // istride
-                                                                 std::vector<size_t>, // ostride
-                                                                 std::vector<size_t>, // ioffset
-                                                                 std::vector<size_t>, // ooffset
-                                                                 type_place_io_t>>
+class accuracy_test : public ::testing::TestWithParam<rocfft_params>
 {
 protected:
     void SetUp() override {}
@@ -119,22 +112,10 @@ public:
     {
         // Dimension and transform type are expected to be in the test
         // suite name already.
-        const std::vector<size_t>     length        = std::get<0>(info.param);
-        const rocfft_precision        precision     = std::get<1>(info.param);
-        const size_t                  nbatch        = std::get<2>(info.param);
-        const std::vector<size_t>     istride       = std::get<3>(info.param);
-        const std::vector<size_t>     ostride       = std::get<4>(info.param);
-        const std::vector<size_t>     ioffset       = std::get<5>(info.param);
-        const std::vector<size_t>     ooffset       = std::get<6>(info.param);
-        type_place_io_t               type_place_io = std::get<7>(info.param);
-        const rocfft_transform_type   type          = std::get<0>(type_place_io);
-        const rocfft_result_placement place         = std::get<1>(type_place_io);
-        const rocfft_array_type       itype         = std::get<2>(type_place_io);
-        const rocfft_array_type       otype         = std::get<3>(type_place_io);
 
         std::string ret;
 
-        switch(type)
+        switch(info.param.transform_type)
         {
         case rocfft_transform_type_complex_forward:
             ret += "complex_forward_";
@@ -152,12 +133,12 @@ public:
 
         ret += "len_";
 
-        for(auto n : length)
+        for(auto n : info.param.length)
         {
             ret += std::to_string(n);
             ret += "_";
         }
-        switch(precision)
+        switch(info.param.precision)
         {
         case rocfft_precision_single:
             ret += "single_";
@@ -167,7 +148,7 @@ public:
             break;
         }
 
-        switch(place)
+        switch(info.param.placement)
         {
         case rocfft_placement_inplace:
             ret += "ip_";
@@ -178,7 +159,7 @@ public:
         }
 
         ret += "batch_";
-        ret += std::to_string(nbatch);
+        ret += std::to_string(info.param.nbatch);
 
         auto append_array_info = [&ret](const std::vector<size_t>& stride, rocfft_array_type type) {
             for(auto s : stride)
@@ -211,10 +192,10 @@ public:
         };
 
         ret += "_istride_";
-        append_array_info(istride, itype);
+        append_array_info(info.param.istride, info.param.itype);
 
         ret += "_ostride_";
-        append_array_info(ostride, otype);
+        append_array_info(info.param.ostride, info.param.otype);
         return ret;
     }
 };
@@ -343,15 +324,7 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&     v_length
                             const std::vector<rocfft_result_placement>& place_range)
 {
 
-    std::vector<std::tuple<std::vector<size_t>,
-                           rocfft_precision,
-                           size_t,
-                           std::vector<size_t>,
-                           std::vector<size_t>,
-                           std::vector<size_t>,
-                           std::vector<size_t>,
-                           type_place_io_t>>
-        params;
+    std::vector<rocfft_params> params;
 
     for(auto& transform_type :
         std::vector<rocfft_transform_type>{rocfft_transform_type_complex_forward,
@@ -378,14 +351,25 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&     v_length
                                 {
                                     for(const auto& ooffset : ooffset_range)
                                     {
-                                        decltype(params)::value_type param(lengths,
-                                                                           precision,
-                                                                           batch,
-                                                                           istride,
-                                                                           ostride,
-                                                                           ioffset,
-                                                                           ooffset,
-                                                                           types);
+                                        const size_t idist = 0;
+                                        const size_t odist = 0;
+
+                                        rocfft_params param;
+
+                                        param.length         = lengths;
+                                        param.istride        = istride;
+                                        param.ostride        = ostride;
+                                        param.nbatch         = batch;
+                                        param.precision      = precision;
+                                        param.transform_type = std::get<0>(types);
+                                        param.placement      = std::get<1>(types);
+                                        param.idist          = idist;
+                                        param.odist          = odist;
+                                        param.itype          = std::get<2>(types);
+                                        param.otype          = std::get<3>(types);
+                                        param.ioffset        = ioffset;
+                                        param.ooffset        = ooffset;
+
                                         params.push_back(param);
                                     }
                                 }
@@ -411,15 +395,7 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     
                                     const std::vector<rocfft_result_placement>& place_range)
 {
 
-    std::vector<std::tuple<std::vector<size_t>,
-                           rocfft_precision,
-                           size_t,
-                           std::vector<size_t>,
-                           std::vector<size_t>,
-                           std::vector<size_t>,
-                           std::vector<size_t>,
-                           type_place_io_t>>
-        params;
+    std::vector<rocfft_params> params;
 
     for(auto& transform_type : std::vector<rocfft_transform_type>{
             rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse})
@@ -443,14 +419,25 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     
                                 {
                                     for(const auto& ooffset : ooffset_range)
                                     {
-                                        decltype(params)::value_type param(lengths,
-                                                                           precision,
-                                                                           batch,
-                                                                           istride,
-                                                                           ostride,
-                                                                           ioffset,
-                                                                           ooffset,
-                                                                           types);
+                                        const size_t idist = 0;
+                                        const size_t odist = 0;
+
+                                        rocfft_params param;
+
+                                        param.length         = lengths;
+                                        param.istride        = istride;
+                                        param.ostride        = ostride;
+                                        param.nbatch         = batch;
+                                        param.precision      = precision;
+                                        param.transform_type = std::get<0>(types);
+                                        param.placement      = std::get<1>(types);
+                                        param.idist          = idist;
+                                        param.odist          = odist;
+                                        param.itype          = std::get<2>(types);
+                                        param.otype          = std::get<3>(types);
+                                        param.ioffset        = ioffset;
+                                        param.ooffset        = ooffset;
+
                                         params.push_back(param);
                                     }
                                 }
@@ -476,15 +463,7 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&     v_l
                                  const std::vector<rocfft_result_placement>& place_range)
 {
 
-    std::vector<std::tuple<std::vector<size_t>,
-                           rocfft_precision,
-                           size_t,
-                           std::vector<size_t>,
-                           std::vector<size_t>,
-                           std::vector<size_t>,
-                           std::vector<size_t>,
-                           type_place_io_t>>
-        params;
+    std::vector<rocfft_params> params;
 
     for(auto& transform_type : std::vector<rocfft_transform_type>{
             rocfft_transform_type_real_forward, rocfft_transform_type_real_inverse})
@@ -508,14 +487,24 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&     v_l
                                 {
                                     for(const auto& ooffset : ooffset_range)
                                     {
-                                        decltype(params)::value_type param(lengths,
-                                                                           precision,
-                                                                           batch,
-                                                                           istride,
-                                                                           ostride,
-                                                                           ioffset,
-                                                                           ooffset,
-                                                                           types);
+                                        const size_t idist = 0;
+                                        const size_t odist = 0;
+
+                                        rocfft_params param;
+                                        param.length         = lengths;
+                                        param.istride        = istride;
+                                        param.ostride        = ostride;
+                                        param.nbatch         = batch;
+                                        param.precision      = precision;
+                                        param.transform_type = std::get<0>(types);
+                                        param.placement      = std::get<1>(types);
+                                        param.idist          = idist;
+                                        param.odist          = odist;
+                                        param.itype          = std::get<2>(types);
+                                        param.otype          = std::get<3>(types);
+                                        param.ioffset        = ioffset;
+                                        param.ooffset        = ooffset;
+
                                         params.push_back(param);
                                     }
                                 }

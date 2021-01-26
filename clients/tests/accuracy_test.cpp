@@ -131,7 +131,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
     if(verbose > 3)
     {
         std::cout << "CPU  params:\n";
-        std::cout << contiguous_params.str() << std::endl;
+        std::cout << contiguous_params.str("\n\t") << std::endl;
     }
 
     // Hook up the futures
@@ -258,11 +258,6 @@ void rocfft_transform(const rocfft_params&                 params,
     }
 
     const size_t dim = params.length.size();
-
-    if(verbose > 1)
-    {
-        std::cout << params.str() << std::flush;
-    }
 
     rocfft_status fft_status = rocfft_status_success;
 
@@ -433,10 +428,14 @@ void rocfft_transform(const rocfft_params&                 params,
     EXPECT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
 
     // Copy the data back to the host:
+    ASSERT_TRUE(!params.osize.empty()) << "Error: params osize is empty";
     auto gpu_output
         = allocate_host_buffer<fftwAllocator<char>>(params.precision, params.otype, params.osize);
+    ASSERT_TRUE(gpu_output.size() > 0) << "Error: no output buffers.";
     for(int idx = 0; idx < gpu_output.size(); ++idx)
     {
+        ASSERT_TRUE(gpu_output[idx].size() > 0)
+            << "Error: output buffer index " << idx << " size is 0.";
         hip_status = hipMemcpy(gpu_output[idx].data(),
                                obuffer->at(idx).data(),
                                gpu_output[idx].size(),
@@ -542,46 +541,43 @@ void rocfft_transform(const rocfft_params&                 params,
 // Test for comparison between FFTW and rocFFT.
 TEST_P(accuracy_test, vs_fftw)
 {
-    rocfft_params params;
-    params.length                 = std::get<0>(GetParam());
-    params.precision              = std::get<1>(GetParam());
-    params.nbatch                 = std::get<2>(GetParam());
-    params.istride                = std::get<3>(GetParam());
-    params.ostride                = std::get<4>(GetParam());
-    params.ioffset                = std::get<5>(GetParam());
-    params.ooffset                = std::get<6>(GetParam());
-    type_place_io_t type_place_io = std::get<7>(GetParam());
-    params.transform_type         = std::get<0>(type_place_io);
-    params.placement              = std::get<1>(type_place_io);
-    params.itype                  = std::get<2>(type_place_io);
-    params.otype                  = std::get<3>(type_place_io);
-
-    // NB: Input data is row-major.
+    rocfft_params params = GetParam();
 
     params.istride
         = compute_stride(params.ilength(),
                          params.istride,
                          params.placement == rocfft_placement_inplace
                              && params.transform_type == rocfft_transform_type_real_forward);
-
     params.ostride
         = compute_stride(params.olength(),
                          params.ostride,
                          params.placement == rocfft_placement_inplace
                              && params.transform_type == rocfft_transform_type_real_inverse);
 
-    params.idist
-        = set_idist(params.placement, params.transform_type, params.length, params.istride);
-    params.odist
-        = set_odist(params.placement, params.transform_type, params.length, params.ostride);
-
-    for(int i = 0; i < params.nibuffer(); ++i)
+    if(params.idist == 0)
     {
-        params.isize.push_back(params.compute_isize());
+        params.idist
+            = set_idist(params.placement, params.transform_type, params.length, params.istride);
     }
-    for(int i = 0; i < params.nobuffer(); ++i)
+    if(params.odist == 0)
     {
-        params.osize.push_back(params.compute_osize());
+        params.odist
+            = set_odist(params.placement, params.transform_type, params.length, params.ostride);
+    }
+
+    if(params.isize.empty())
+    {
+        for(int i = 0; i < params.nibuffer(); ++i)
+        {
+            params.isize.push_back(params.compute_isize());
+        }
+    }
+    if(params.osize.empty())
+    {
+        for(int i = 0; i < params.nobuffer(); ++i)
+        {
+            params.osize.push_back(params.compute_osize());
+        }
     }
 
     if(ramgb > 0)
@@ -624,7 +620,7 @@ TEST_P(accuracy_test, vs_fftw)
     // Set up GPU computations:
     if(verbose)
     {
-        std::cout << params.str() << std::endl;
+        std::cout << "\t" << params.str("\n\t") << std::endl;
     }
 
     rocfft_transform(params, cpu, ramgb);
