@@ -27,8 +27,11 @@
 #ifndef __ROCFFT_H__
 #define __ROCFFT_H__
 
+#ifdef rocfft_EXPORTS
 #include "rocfft-export.h"
-#include "rocfft-version.h"
+#else
+#define ROCFFT_EXPORT
+#endif
 
 #ifdef __cplusplus
 extern "C" {
