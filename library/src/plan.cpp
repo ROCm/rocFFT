@@ -4567,34 +4567,39 @@ static rocfft_result_placement EffectivePlacement(OperatingBuffer         obIn,
     return obIn == obOut ? rocfft_placement_inplace : rocfft_placement_notinplace;
 }
 
-static void OptimizePlan(ExecPlan& execPlan)
+void Optimize_R_TO_CMPLX_TRANSPOSE(ExecPlan& execPlan, std::vector<TreeNode*>& execSeq)
 {
-    auto& execSeq = execPlan.execSeq;
-
     // combine R_TO_CMPLX and following transpose
-    auto r_to_cmplx = std::find_if(execSeq.begin(), execSeq.end(), [](TreeNode* n) {
+    auto it = std::find_if(execSeq.begin(), execSeq.end(), [](TreeNode* n) {
         return n->scheme == CS_KERNEL_R_TO_CMPLX;
     });
-    if(r_to_cmplx != execSeq.end())
+    if(it != execSeq.end())
     {
-        auto transpose = r_to_cmplx + 1;
-        if(transpose != execSeq.end()
-           && ((*transpose)->scheme == CS_KERNEL_TRANSPOSE
-               || (*transpose)->scheme == CS_KERNEL_TRANSPOSE_Z_XY))
+        auto r_to_cmplx = *it;
+        // check that next node is transpose
+        ++it;
+        if(it == execSeq.end())
+            return;
+        auto transpose = *it;
+        if(transpose->scheme == CS_KERNEL_TRANSPOSE
+           || transpose->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
         {
-            (*r_to_cmplx)->obOut        = (*transpose)->obOut;
-            (*r_to_cmplx)->scheme       = CS_KERNEL_R_TO_CMPLX_TRANSPOSE;
-            (*r_to_cmplx)->outArrayType = (*transpose)->outArrayType;
-            (*r_to_cmplx)->placement    = EffectivePlacement(
-                (*r_to_cmplx)->obIn, (*r_to_cmplx)->obOut, execPlan.rootPlan->placement);
+            r_to_cmplx->obOut        = transpose->obOut;
+            r_to_cmplx->scheme       = CS_KERNEL_R_TO_CMPLX_TRANSPOSE;
+            r_to_cmplx->outArrayType = transpose->outArrayType;
+            r_to_cmplx->placement    = EffectivePlacement(
+                r_to_cmplx->obIn, r_to_cmplx->obOut, execPlan.rootPlan->placement);
             // transpose must be out-of-place
-            assert((*r_to_cmplx)->placement == rocfft_placement_notinplace);
-            (*r_to_cmplx)->outStride = (*transpose)->outStride;
-            (*r_to_cmplx)->oDist     = (*transpose)->oDist;
-            RemoveNode(execPlan, *transpose);
+            assert(r_to_cmplx->placement == rocfft_placement_notinplace);
+            r_to_cmplx->outStride = transpose->outStride;
+            r_to_cmplx->oDist     = transpose->oDist;
+            RemoveNode(execPlan, transpose);
         }
     }
+}
 
+void Optimize_TRANSPOSE_CMPLX_TO_R(ExecPlan& execPlan, std::vector<TreeNode*>& execSeq)
+{
     // combine CMPLX_TO_R with preceding transpose
     auto cmplx_to_r = std::find_if(execSeq.rbegin(), execSeq.rend(), [](TreeNode* n) {
         return n->scheme == CS_KERNEL_CMPLX_TO_R;
@@ -4639,8 +4644,11 @@ static void OptimizePlan(ExecPlan& execPlan)
             RemoveNode(execPlan, *transpose);
         }
     }
+}
 
-    // combine CS_KERNEL_STOCKHAM and following CS_KERNEL_TRANSPOSE_Z_XY if possible
+// combine CS_KERNEL_STOCKHAM and following CS_KERNEL_TRANSPOSE_Z_XY if possible
+void Optimize_STOCKHAM_TRANSPOSE_Z_XY(ExecPlan& execPlan, std::vector<TreeNode*>& execSeq)
+{
     for(auto it = execSeq.rbegin() + 1; it != execSeq.rend(); ++it)
     {
 
@@ -4669,10 +4677,13 @@ static void OptimizePlan(ExecPlan& execPlan)
             RemoveNode(execPlan, *transpose);
         }
     }
+}
 
-    // combine one CS_KERNEL_STOCKHAM and following CS_KERNEL_TRANSPOSE_XY_Z in 3D complex to real
-    // NB: this should be replaced by combining CS_KERNEL_TRANSPOSE_XY_Z and the following
-    //     CS_KERNEL_STOCKHAM eventually, in which we might fuse 2 pairs of TR.
+// combine one CS_KERNEL_STOCKHAM and following CS_KERNEL_TRANSPOSE_XY_Z in 3D complex to real
+// NB: this should be replaced by combining CS_KERNEL_TRANSPOSE_XY_Z and the following
+//     CS_KERNEL_STOCKHAM eventually, in which we might fuse 2 pairs of TR.
+void Optimize_STOCKHAM_TRANSPOSE_XY_Z(ExecPlan& execPlan, std::vector<TreeNode*>& execSeq)
+{
     auto trans_cmplx_to_r = std::find_if(execSeq.rbegin(), execSeq.rend(), [](TreeNode* n) {
         return n->scheme == CS_KERNEL_TRANSPOSE_CMPLX_TO_R;
     });
@@ -4704,6 +4715,25 @@ static void OptimizePlan(ExecPlan& execPlan)
 
             RemoveNode(execPlan, *stockham1);
         }
+    }
+}
+
+static void OptimizePlan(ExecPlan& execPlan)
+{
+    auto passes = {
+        Optimize_R_TO_CMPLX_TRANSPOSE,
+        Optimize_TRANSPOSE_CMPLX_TO_R,
+        Optimize_STOCKHAM_TRANSPOSE_Z_XY,
+        Optimize_STOCKHAM_TRANSPOSE_XY_Z,
+    };
+    for(auto pass : passes)
+    {
+        // Give each optimization pass its own copy of execSeq, so
+        // that it can call RemoveNode without worrying about
+        // invalidating iterators it might be using.  But it can also
+        // modify nodes willy-nilly via the TreeNode*'s in the vector.
+        auto localExecSeq = execPlan.execSeq;
+        pass(execPlan, localExecSeq);
     }
 }
 
