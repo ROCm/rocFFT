@@ -5,6 +5,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ## [(Unreleased) rocFFT 1.0.11 for ROCm 4.2.0]
 
 ### Optimizations
+- Reduced the number of syncs in encapsulated passes kernels, opportunistically improving 1D/2D/3D sizes.
 - Minor optimization for C2R 3D 100, 200 cube sizes.
 - Optimized some C2C/R2C 3D 64, 81, 100, 128, 200, 256 rectangular sizes.
 

@@ -650,6 +650,12 @@ namespace StockhamGenerator
             return str;
         }
 
+        bool NeedsSync()
+        {
+            size_t wgs = blockCompute ? blockWGS : workGroupSize;
+            return wgs > warpSize && warpSize % workGroupSizePerTrans != 0;
+        }
+
         // A wraper function to parse config parameters before to generate
         // kernel for a single pass in Stockham.
         void GenerateSinglePassKernel(std::string& str,
@@ -813,11 +819,12 @@ namespace StockhamGenerator
 
                         if(NeedsLargeTwiddles())
                         {
-                            str += "template <typename T, StrideBin sb, bool TwdLarge>\n";
+                            str += "template <typename T, StrideBin sb, bool sync, bool "
+                                   "TwdLarge>\n";
                         }
                         else
                         {
-                            str += "template <typename T, StrideBin sb>\n";
+                            str += "template <typename T, StrideBin sb, bool sync>\n";
                         }
 
                         str += "__device__ void \n";
@@ -876,11 +883,11 @@ namespace StockhamGenerator
                             str += PassName(0, fwd, length, name_suffix);
                             if(NeedsLargeTwiddles())
                             {
-                                str += "<T, sb, TwdLarge>(twiddles, twiddles_large, "; // the blockCompute BCT_C2C algorithm use
+                                str += "<T, sb, sync, TwdLarge>(twiddles, twiddles_large, "; // the blockCompute BCT_C2C algorithm use
                             }
                             else
                             {
-                                str += "<T, sb>(twiddles, ";
+                                str += "<T, sb, sync>(twiddles, ";
                             }
 
                             // one more twiddle parameter
@@ -911,11 +918,11 @@ namespace StockhamGenerator
                                 // the blockCompute BCT_C2C algorithm use one more twiddle parameter
                                 if(NeedsLargeTwiddles())
                                 {
-                                    str += "<T, sb, TwdLarge>(twiddles, twiddles_large, ";
+                                    str += "<T, sb, sync, TwdLarge>(twiddles, twiddles_large, ";
                                 }
                                 else
                                 {
-                                    str += "<T, sb>(twiddles, ";
+                                    str += "<T, sb, sync>(twiddles, ";
                                 }
 
                                 str += "stride_in, stride_out, rw, b, me, ";
@@ -988,7 +995,7 @@ namespace StockhamGenerator
 
                                 str += IterRegs("&");
                                 str += ");\n";
-                                if(!halfLds)
+                                if(!halfLds && NeedsSync())
                                 {
                                     str += exTab;
                                     str += "\t__syncthreads();\n";
@@ -1739,13 +1746,18 @@ namespace StockhamGenerator
                 str += "back_len";
             str += std::to_string(length) + name_suffix;
             std::string sb = params.forceNonUnitStride ? "SB_NONUNIT" : "sb";
+            // Perform wavefront barrier if:
+            //  - Kernel workgroup size larger than wavefront size. And
+            //  - Per-transform workgroup size not a integer factor of wavefront size, as implementation
+            //    does not yet guarantee that every per-transform workgroup is within a single wavefront
+            std::string sync = NeedsSync() ? "true" : "false";
             if(NeedsLargeTwiddles())
             {
-                str += "_device<T, " + sb + ", TwdLarge>(twiddles, twiddles_large, ";
+                str += "_device<T, " + sb + ", " + sync + ", TwdLarge>(twiddles, twiddles_large, ";
             }
             else
             {
-                str += "_device<T, " + sb + ">(twiddles, ";
+                str += "_device<T, " + sb + ", " + sync + ">(twiddles, ";
             }
 
             str += "stride_in[0], ";

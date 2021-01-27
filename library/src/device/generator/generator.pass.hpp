@@ -10,6 +10,7 @@
 #include <iostream>
 #include <vector>
 
+#include "../kernels/common.h"
 #include "generator.stockham.h"
 
 namespace StockhamGenerator
@@ -160,6 +161,27 @@ namespace StockhamGenerator
                 }
             }
 
+            return str;
+        }
+
+        // Perform wavefront barrier during LDS shuffle
+        // Insert __syncthreads() if waves in a workgroup require communication. For example len1024 kernel where 2 waves
+        // cooperatively calculate 4-pass radix-8-8-4-4 FFT. Then we need the sync to guarantee when 1 wave reads data for
+        // the next stage from LDS, the other wave should've finished writing the data from the last stage to LDS.
+        inline std::string Sync() const
+        {
+            std::string str("");
+            if(warpSize < workGroupSize)
+            {
+                str += "\n\n\t__syncthreads();\n";
+            }
+            else if(warpSize % workGroupSize != 0)
+            {
+                // Even if encapsulated passes kernel itself requires sync, there is a corner case where
+                // the outermost kernel is launched with workgroup size fewer than wavefront size.
+                // In that case though, no communication between waves is required.
+                str += "\n\n\tif(sync) { __syncthreads(); }\n";
+            }
             return str;
         }
 
@@ -1748,11 +1770,11 @@ namespace StockhamGenerator
             // Function attribute
             if(name_suffix == "_sbcc") // // the blockCompute BCT_C2C algorithm use only
             {
-                passStr += "template <typename T, StrideBin sb, bool TwdLarge>\n";
+                passStr += "template <typename T, StrideBin sb, bool sync, bool TwdLarge>\n";
             }
             else
             {
-                passStr += "template <typename T, StrideBin sb>\n";
+                passStr += "template <typename T, StrideBin sb, bool sync>\n";
             }
 
             passStr += "__device__ void\n";
@@ -2309,8 +2331,7 @@ namespace StockhamGenerator
                             passStr += "\n\t}\n";
                         }
                     }
-
-                    passStr += "\n\n\t__syncthreads();\n";
+                    passStr += Sync();
                     SweepRegs(SR_READ,
                               fwd,
                               outInterleaved,
@@ -2327,7 +2348,7 @@ namespace StockhamGenerator
                               passStr,
                               false,
                               oddp);
-                    passStr += "\n\n\t__syncthreads();\n";
+                    passStr += Sync();
 
                     passStr += "\n\tif((rw > 1) && !me)\n\t{\n\t";
                     passStr += processBufIm;
@@ -2497,8 +2518,7 @@ namespace StockhamGenerator
                             passStr += "\n\t}\n";
                         }
                     }
-
-                    passStr += "\n\n\t__syncthreads();\n";
+                    passStr += Sync();
                     SweepRegs(SR_READ,
                               fwd,
                               outInterleaved,
@@ -2513,7 +2533,7 @@ namespace StockhamGenerator
                               numB1,
                               0,
                               passStr);
-                    passStr += "\n\n\t__syncthreads();\n";
+                    passStr += Sync();
                 }
             }
             else
@@ -2704,7 +2724,7 @@ namespace StockhamGenerator
             }
 
             if(!halfLds)
-                passStr += "\n\n\t__syncthreads();\n";
+                passStr += Sync();
             passStr += "\n\n";
 
             // 3-step twiddle multiplies
@@ -2803,7 +2823,7 @@ namespace StockhamGenerator
                                       numB1,
                                       0,
                                       passStr);
-                            passStr += "\n\n\t__syncthreads();\n";
+                            passStr += Sync();
                             SweepRegsRC(SR_READ,
                                         fwd,
                                         inInterleaved,
@@ -2873,7 +2893,7 @@ namespace StockhamGenerator
                                 passStr += "[outOffset] = ";
                                 passStr += "0;\n\t}";
                             }
-                            passStr += "\n\n\t__syncthreads();\n";
+                            passStr += Sync();
 
                             SweepRegs(SR_WRITE,
                                       fwd,
@@ -2889,7 +2909,7 @@ namespace StockhamGenerator
                                       numB1,
                                       0,
                                       passStr);
-                            passStr += "\n\n\t__syncthreads();\n";
+                            passStr += Sync();
                             SweepRegsRC(SR_READ,
                                         fwd,
                                         inInterleaved,
@@ -2959,7 +2979,7 @@ namespace StockhamGenerator
                                 passStr += "[outOffset] = ";
                                 passStr += "0;\n\t}";
                             }
-                            passStr += "\n\n\t__syncthreads();\n";
+                            passStr += Sync();
                         }
 
                         passStr += "\n\n\tif(rw)\n\t{";
@@ -3116,7 +3136,7 @@ namespace StockhamGenerator
                               0,
                               passStr);
                     passStr += "\n\t}\n";
-                    passStr += "\n\n\t__syncthreads();\n";
+                    passStr += Sync();
                     passStr += "\n\tif(rw)\n\t{";
                     nextPass->SweepRegs(SR_READ,
                                         fwd,
@@ -3133,7 +3153,7 @@ namespace StockhamGenerator
                                         0,
                                         passStr);
                     passStr += "\n\t}\n";
-                    passStr += "\n\n\t__syncthreads();\n";
+                    passStr += Sync();
                     passStr += "\n\tif(rw)\n\t{";
                     SweepRegs(SR_WRITE,
                               fwd,
@@ -3150,7 +3170,7 @@ namespace StockhamGenerator
                               0,
                               passStr);
                     passStr += "\n\t}\n";
-                    passStr += "\n\n\t__syncthreads();\n";
+                    passStr += Sync();
                     passStr += "\n\tif(rw)\n\t{";
                     nextPass->SweepRegs(SR_READ,
                                         fwd,
@@ -3167,7 +3187,7 @@ namespace StockhamGenerator
                                         0,
                                         passStr);
                     passStr += "\n\t}\n";
-                    passStr += "\n\n\t__syncthreads();\n";
+                    passStr += Sync();
                 }
             }
             else
