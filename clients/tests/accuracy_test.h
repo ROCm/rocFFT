@@ -332,14 +332,15 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&     v_length
                                            rocfft_transform_type_real_forward,
                                            rocfft_transform_type_real_inverse})
     {
-        // Batch and precision must be in outer loop in order to ensure the correct CPU reference is
-        // available.
+        // For any length, we compute double-precision CPU reference
+        // for largest batch size first and reuse for smaller batch
+        // sizes, then convert to single-precision.
 
-        for(const auto precision : precision_range)
+        for(const auto& lengths : generate_lengths(v_lengths))
         {
-            for(const auto batch : batch_range)
+            for(const auto precision : precision_range)
             {
-                for(const auto& lengths : generate_lengths(v_lengths))
+                for(const auto batch : batch_range)
                 {
                     for(const auto& types : generate_types(transform_type, place_range))
                     {
@@ -400,14 +401,15 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     
     for(auto& transform_type : std::vector<rocfft_transform_type>{
             rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse})
     {
-        // Batch and precision must be in outer loop in order to ensure the correct CPU reference is
-        // available.
+        // For any length, we compute double-precision CPU reference
+        // for largest batch size first and reuse for smaller batch
+        // sizes, then convert to single-precision.
 
-        for(const auto precision : precision_range)
+        for(const auto& lengths : generate_lengths(v_lengths))
         {
-            for(const auto batch : batch_range)
+            for(const auto precision : precision_range)
             {
-                for(const auto& lengths : generate_lengths(v_lengths))
+                for(const auto batch : batch_range)
                 {
                     for(const auto& types : generate_types(transform_type, place_range))
                     {
@@ -468,14 +470,15 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&     v_l
     for(auto& transform_type : std::vector<rocfft_transform_type>{
             rocfft_transform_type_real_forward, rocfft_transform_type_real_inverse})
     {
-        // Batch and precision must be in outer loop in order to ensure the correct CPU reference is
-        // available.
+        // For any length, we compute double-precision CPU reference
+        // for largest batch size first and reuse for smaller batch
+        // sizes, then convert to single-precision.
 
-        for(const auto precision : precision_range)
+        for(const auto& lengths : generate_lengths(v_lengths))
         {
-            for(const auto batch : batch_range)
+            for(const auto precision : precision_range)
             {
-                for(const auto& lengths : generate_lengths(v_lengths))
+                for(const auto batch : batch_range)
                 {
                     for(const auto& types : generate_types(transform_type, place_range))
                     {
