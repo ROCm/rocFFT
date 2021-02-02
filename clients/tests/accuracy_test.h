@@ -110,9 +110,6 @@ public:
 
     static std::string TestName(const testing::TestParamInfo<accuracy_test::ParamType>& info)
     {
-        // Dimension and transform type are expected to be in the test
-        // suite name already.
-
         std::string ret;
 
         switch(info.param.transform_type)
@@ -196,6 +193,12 @@ public:
 
         ret += "_ostride_";
         append_array_info(info.param.ostride, info.param.otype);
+
+        ret += "_idist_";
+        ret += std::to_string(info.param.idist);
+        ret += "_odist_";
+        ret += std::to_string(info.param.odist);
+
         return ret;
     }
 };
@@ -326,11 +329,10 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&     v_length
 
     std::vector<rocfft_params> params;
 
-    for(auto& transform_type :
-        std::vector<rocfft_transform_type>{rocfft_transform_type_complex_forward,
-                                           rocfft_transform_type_complex_inverse,
-                                           rocfft_transform_type_real_forward,
-                                           rocfft_transform_type_real_inverse})
+    for(auto& transform_type : {rocfft_transform_type_complex_forward,
+                                rocfft_transform_type_complex_inverse,
+                                rocfft_transform_type_real_forward,
+                                rocfft_transform_type_real_inverse})
     {
         // For any length, we compute double-precision CPU reference
         // for largest batch size first and reuse for smaller batch
@@ -398,8 +400,8 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     
 
     std::vector<rocfft_params> params;
 
-    for(auto& transform_type : std::vector<rocfft_transform_type>{
-            rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse})
+    for(auto& transform_type :
+        {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse})
     {
         // For any length, we compute double-precision CPU reference
         // for largest batch size first and reuse for smaller batch
@@ -467,8 +469,8 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&     v_l
 
     std::vector<rocfft_params> params;
 
-    for(auto& transform_type : std::vector<rocfft_transform_type>{
-            rocfft_transform_type_real_forward, rocfft_transform_type_real_inverse})
+    for(auto& transform_type :
+        {rocfft_transform_type_real_forward, rocfft_transform_type_real_inverse})
     {
         // For any length, we compute double-precision CPU reference
         // for largest batch size first and reuse for smaller batch

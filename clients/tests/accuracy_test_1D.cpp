@@ -34,9 +34,9 @@ using ::testing::ValuesIn;
 
 // TODO: handle special case where length=2 for real/complex transforms.
 const static std::vector<size_t> pow2_range
-    = {4,      8,       16,      32,      128,     256,      512,     1024,
-       2048,   4096,    8192,    16384,   32768,   65536,    131072,  262144,
-       524288, 1048576, 2097152, 4194304, 8388608, 16777216, 33554432};
+    = {2,      4,      8,       16,      32,      128,     256,      512,
+       1024,   2048,   4096,    8192,    16384,   32768,   65536,    131072,
+       262144, 524288, 1048576, 2097152, 4194304, 8388608, 16777216, 33554432};
 
 const static std::vector<size_t> pow3_range
     = {3, 9, 27, 81, 243, 729, 2187, 6561, 19683, 59049, 177147, 531441, 1594323};
@@ -83,10 +83,9 @@ static std::vector<size_t> generate_random(size_t number_run)
     return output;
 }
 
-const static std::vector<std::vector<size_t>> vpow2_range = {pow2_range};
 INSTANTIATE_TEST_SUITE_P(pow2_1D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(vpow2_range,
+                         ::testing::ValuesIn(param_generator({pow2_range},
                                                              precision_range,
                                                              batch_range_1D,
                                                              stride_range,
@@ -96,10 +95,9 @@ INSTANTIATE_TEST_SUITE_P(pow2_1D,
                                                              place_range)),
                          accuracy_test::TestName);
 
-static std::vector<std::vector<size_t>> vpow3_range = {pow3_range};
 INSTANTIATE_TEST_SUITE_P(pow3_1D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(vpow3_range,
+                         ::testing::ValuesIn(param_generator({pow3_range},
                                                              precision_range,
                                                              batch_range_1D,
                                                              stride_range,
@@ -109,10 +107,9 @@ INSTANTIATE_TEST_SUITE_P(pow3_1D,
                                                              place_range)),
                          accuracy_test::TestName);
 
-static std::vector<std::vector<size_t>> vpow5_range = {pow5_range};
 INSTANTIATE_TEST_SUITE_P(pow5_1D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(vpow5_range,
+                         ::testing::ValuesIn(param_generator({pow5_range},
                                                              precision_range,
                                                              batch_range_1D,
                                                              stride_range,
@@ -122,10 +119,9 @@ INSTANTIATE_TEST_SUITE_P(pow5_1D,
                                                              place_range)),
                          accuracy_test::TestName);
 
-static std::vector<std::vector<size_t>> vradX_range = {radX_range};
 INSTANTIATE_TEST_SUITE_P(radX_1D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(vradX_range,
+                         ::testing::ValuesIn(param_generator({radX_range},
                                                              precision_range,
                                                              batch_range_1D,
                                                              stride_range,
@@ -135,10 +131,9 @@ INSTANTIATE_TEST_SUITE_P(radX_1D,
                                                              place_range)),
                          accuracy_test::TestName);
 
-static std::vector<std::vector<size_t>> vprime_range = {prime_range};
 INSTANTIATE_TEST_SUITE_P(prime_1D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(vprime_range,
+                         ::testing::ValuesIn(param_generator({prime_range},
                                                              precision_range,
                                                              batch_range_1D,
                                                              stride_range,
@@ -148,10 +143,9 @@ INSTANTIATE_TEST_SUITE_P(prime_1D,
                                                              place_range)),
                          accuracy_test::TestName);
 
-static std::vector<std::vector<size_t>> vmix_range = {mix_range};
 INSTANTIATE_TEST_SUITE_P(mix_1D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(vmix_range,
+                         ::testing::ValuesIn(param_generator({mix_range},
                                                              precision_range,
                                                              batch_range_1D,
                                                              stride_range,
@@ -171,13 +165,12 @@ INSTANTIATE_TEST_SUITE_P(mix_1D,
 //
 // The below test covers non-unit strides, pow of 2, middle sizes, which has SBCC/SBRC kernels
 // invloved.
-const static std::vector<size_t>              pow2_range_for_stride   = {4096, 8192, 524288};
-const static std::vector<std::vector<size_t>> v_pow2_range_for_stride = {pow2_range_for_stride};
-const static std::vector<std::vector<size_t>> stride_range_for_pow2   = {{2}, {3}};
-const static std::vector<size_t>              batch_range_for_stride  = {2, 1};
+const static std::vector<size_t>              pow2_range_for_stride  = {4096, 8192, 524288};
+const static std::vector<std::vector<size_t>> stride_range_for_pow2  = {{2}, {3}};
+const static std::vector<size_t>              batch_range_for_stride = {2, 1};
 INSTANTIATE_TEST_SUITE_P(pow2_1D_stride_complex,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator_complex(v_pow2_range_for_stride,
+                         ::testing::ValuesIn(param_generator_complex({pow2_range_for_stride},
                                                                      precision_range,
                                                                      batch_range_1D,
                                                                      stride_range_for_pow2,
@@ -189,7 +182,7 @@ INSTANTIATE_TEST_SUITE_P(pow2_1D_stride_complex,
 
 INSTANTIATE_TEST_SUITE_P(DISABLED_pow2_1D_stride_real,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator_real(v_pow2_range_for_stride,
+                         ::testing::ValuesIn(param_generator_real({pow2_range_for_stride},
                                                                   precision_range,
                                                                   batch_range_1D,
                                                                   stride_range_for_pow2,
@@ -197,4 +190,97 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_pow2_1D_stride_real,
                                                                   ioffset_range,
                                                                   ooffset_range,
                                                                   place_range)),
+                         accuracy_test::TestName);
+
+// Create an array parameters for strided 2D batched transforms.
+inline auto
+    param_generator_complex_1d_batched_2d(const std::vector<std::vector<size_t>>& v_lengths,
+                                          const std::vector<rocfft_precision>&    precision_range,
+                                          const std::vector<std::vector<size_t>>& ioffset_range,
+                                          const std::vector<std::vector<size_t>>& ooffset_range,
+                                          const std::vector<rocfft_result_placement>& place_range)
+{
+
+    std::vector<rocfft_params> params;
+
+    for(auto& transform_type :
+        {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse})
+    {
+        for(const auto& lengths : generate_lengths(v_lengths))
+        {
+            for(const auto precision : precision_range)
+            {
+                for(const auto& types : generate_types(transform_type, place_range))
+                {
+                    for(const auto& ioffset : ioffset_range)
+                    {
+                        for(const auto& ooffset : ooffset_range)
+                        {
+                            rocfft_params param;
+
+                            param.length         = lengths;
+                            param.istride        = lengths;
+                            param.ostride        = lengths;
+                            param.nbatch         = lengths[0];
+                            param.precision      = precision;
+                            param.transform_type = std::get<0>(types);
+                            param.placement      = std::get<1>(types);
+                            param.idist          = 1;
+                            param.odist          = 1;
+                            param.itype          = std::get<2>(types);
+                            param.otype          = std::get<3>(types);
+                            param.ioffset        = ioffset;
+                            param.ooffset        = ooffset;
+
+                            params.push_back(param);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return params;
+}
+
+const static std::vector<size_t> pow2_range_2D
+    = {2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192};
+INSTANTIATE_TEST_SUITE_P(pow2_1D_complex_batched_2D_strided,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator_complex_1d_batched_2d({pow2_range_2D},
+                                                                                   precision_range,
+                                                                                   ioffset_range,
+                                                                                   ooffset_range,
+                                                                                   place_range)),
+                         accuracy_test::TestName);
+
+const static std::vector<size_t> pow3_range_2D = {3, 27, 81, 243, 729, 2187, 6561};
+INSTANTIATE_TEST_SUITE_P(pow3_1D_complex_batched_2D_strided,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator_complex_1d_batched_2d({pow3_range_2D},
+                                                                                   precision_range,
+                                                                                   ioffset_range,
+                                                                                   ooffset_range,
+                                                                                   place_range)),
+                         accuracy_test::TestName);
+
+const static std::vector<size_t> pow5_range_2D = {5, 25, 125, 625, 3125, 15625};
+INSTANTIATE_TEST_SUITE_P(pow5_1D_complex_batched_2D_strided,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator_complex_1d_batched_2d({pow5_range_2D},
+                                                                                   precision_range,
+                                                                                   ioffset_range,
+                                                                                   ooffset_range,
+                                                                                   place_range)),
+                         accuracy_test::TestName);
+
+const static std::vector<size_t> prime_range_2D = {7, 11, 13, 17, 19, 23, 29, 263, 269, 271, 277};
+
+INSTANTIATE_TEST_SUITE_P(prime_1D_complex_batched_2D_strided,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator_complex_1d_batched_2d({prime_range_2D},
+                                                                                   precision_range,
+                                                                                   ioffset_range,
+                                                                                   ooffset_range,
+                                                                                   place_range)),
                          accuracy_test::TestName);

@@ -51,10 +51,9 @@ static std::vector<std::vector<size_t>> stride_range = {{1}};
 static std::vector<std::vector<size_t>> ioffset_range = {{0, 0}};
 static std::vector<std::vector<size_t>> ooffset_range = {{0, 0}};
 
-static std::vector<std::vector<size_t>> vpow2_range = {pow2_range, pow2_range, pow2_range};
 INSTANTIATE_TEST_SUITE_P(pow2_3D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(vpow2_range,
+                         ::testing::ValuesIn(param_generator({pow2_range, pow2_range, pow2_range},
                                                              precision_range,
                                                              batch_range,
                                                              stride_range,
@@ -64,10 +63,9 @@ INSTANTIATE_TEST_SUITE_P(pow2_3D,
                                                              place_range)),
                          accuracy_test::TestName);
 
-static std::vector<std::vector<size_t>> vpow3_range = {pow3_range, pow3_range, pow3_range};
 INSTANTIATE_TEST_SUITE_P(pow3_3D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(vpow3_range,
+                         ::testing::ValuesIn(param_generator({pow3_range, pow3_range, pow3_range},
                                                              precision_range,
                                                              batch_range,
                                                              stride_range,
@@ -77,10 +75,9 @@ INSTANTIATE_TEST_SUITE_P(pow3_3D,
                                                              place_range)),
                          accuracy_test::TestName);
 
-static std::vector<std::vector<size_t>> vpow5_range = {pow5_range, pow5_range, pow5_range};
 INSTANTIATE_TEST_SUITE_P(pow5_3D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(vpow5_range,
+                         ::testing::ValuesIn(param_generator({pow5_range, pow5_range, pow5_range},
                                                              precision_range,
                                                              batch_range,
                                                              stride_range,
@@ -90,24 +87,22 @@ INSTANTIATE_TEST_SUITE_P(pow5_3D,
                                                              place_range)),
                          accuracy_test::TestName);
 
-static std::vector<std::vector<size_t>> vprime_range = {prime_range, prime_range, prime_range};
-INSTANTIATE_TEST_SUITE_P(prime_3D,
-                         accuracy_test,
-                         ::testing::ValuesIn(param_generator(vprime_range,
-                                                             precision_range,
-                                                             batch_range,
-                                                             stride_range,
-                                                             stride_range,
-                                                             ioffset_range,
-                                                             ooffset_range,
-                                                             place_range)),
-                         accuracy_test::TestName);
-
-static std::vector<std::vector<size_t>> vmix_range = {pow2_range, pow3_range, prime_range};
+INSTANTIATE_TEST_SUITE_P(
+    prime_3D,
+    accuracy_test,
+    ::testing::ValuesIn(param_generator({prime_range, prime_range, prime_range},
+                                        precision_range,
+                                        batch_range,
+                                        stride_range,
+                                        stride_range,
+                                        ioffset_range,
+                                        ooffset_range,
+                                        place_range)),
+    accuracy_test::TestName);
 
 INSTANTIATE_TEST_SUITE_P(mix_3D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(vmix_range,
+                         ::testing::ValuesIn(param_generator({pow2_range, pow3_range, prime_range},
                                                              precision_range,
                                                              batch_range,
                                                              stride_range,
@@ -120,11 +115,10 @@ INSTANTIATE_TEST_SUITE_P(mix_3D,
 // Test combinations of SBRC sizes, plus a non-SBRC size (10) to
 // exercise fused SBRC+transpose kernels.
 static std::vector<size_t> sbrc_range       = {64, 81, 100, 200, 10, 128, 256};
-auto                       vsbrc_range      = {sbrc_range, sbrc_range, sbrc_range};
 static std::vector<size_t> sbrc_batch_range = {2, 1};
 INSTANTIATE_TEST_SUITE_P(sbrc_3D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(vsbrc_range,
+                         ::testing::ValuesIn(param_generator({sbrc_range, sbrc_range, sbrc_range},
                                                              precision_range,
                                                              sbrc_batch_range,
                                                              stride_range,
