@@ -68,6 +68,9 @@ std::string PrintScheme(ComputeScheme cs);
 
 inline bool SupportedLength(rocfft_precision precision, size_t len)
 {
+    if(function_pool::has_function(precision, {len, CS_KERNEL_STOCKHAM}))
+        return true;
+
     size_t p = len;
     while(!(p % 2))
         p /= 2;
@@ -79,8 +82,7 @@ inline bool SupportedLength(rocfft_precision precision, size_t len)
     if(p == 1)
         return true;
 
-    // otherwise, see if there's a kernel for this specific length
-    return function_pool::has_function(precision, {len, CS_KERNEL_STOCKHAM});
+    return function_pool::has_function(precision, {p, CS_KERNEL_STOCKHAM});
 }
 
 inline size_t FindBlue(size_t len)

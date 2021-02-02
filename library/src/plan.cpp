@@ -1439,48 +1439,46 @@ void TreeNode::build_real_pair()
 
 size_t TreeNode::div1DNoPo2(const size_t length0)
 {
-    const size_t supported[]
-        = {4096, 4050, 4000, 3888, 3840, 3750, 3645, 3600, 3456, 3375, 3240, 3200, 3125, 3072, 3000,
-           2916, 2880, 2700, 2592, 2560, 2500, 2430, 2400, 2304, 2250, 2187, 2160, 2048, 2025, 2000,
-           1944, 1920, 1875, 1800, 1728, 1620, 1600, 1536, 1500, 1458, 1440, 1350, 1296, 1280, 1250,
-           1215, 1200, 1152, 1125, 1080, 1024, 1000, 972,  960,  900,  864,  810,  800,  768,  750,
-           729,  720,  675,  648,  640,  625,  600,  576,  540,  512,  500,  486,  480,  450,  432,
-           405,  400,  384,  375,  360,  324,  320,  300,  288,  270,  256,  250,  243,  240,  225,
-           216,  208,  200,  192,  180,  176,  169,  168,  162,  160,  150,  144,  135,  128,  125,
-           121,  120,  112,  108,  104,  100,  96,   90,   88,   84,   81,   80,   75,   72,   64,
-           60,   56,   54,   52,   50,   49,   48,   45,   44,   42,   40,   36,   32,   30,   28,
-           27,   26,   25,   24,   22,   20,   18,   16,   15,   13,   12,   11,   10,   9,    8,
-           7,    6,    5,    4,    3,    2,    1};
+    auto supported  = function_pool::get_lengths(precision, CS_KERNEL_STOCKHAM);
+    auto comparison = std::greater<size_t>();
+    std::sort(supported.begin(), supported.end(), comparison);
 
-    size_t idx;
+    size_t factor = 0;
+
     if(length0 > (Large1DThreshold(precision) * Large1DThreshold(precision)))
     {
-        idx = 0;
-        while(supported[idx] != Large1DThreshold(precision))
-        {
-            idx++;
-        }
-        while(length0 % supported[idx] != 0)
-        {
-            idx++;
-        }
+        auto supported_factor = [length0](size_t factor) -> bool {
+            bool is_factor = length0 % factor == 0;
+            return is_factor;
+        };
+
+        auto v     = Large1DThreshold(precision);
+        auto lower = std::lower_bound(supported.cbegin(), supported.cend(), v, comparison);
+        auto itr   = std::find_if(lower, supported.cend(), supported_factor);
+        if(itr != supported.cend())
+            factor = *itr;
     }
     else
     {
-        // logic tries to break into as squarish matrix as possible
-        size_t sqr = (size_t)sqrt(length0);
-        idx        = sizeof(supported) / sizeof(supported[0]) - 1;
-        while(supported[idx] < sqr)
-        {
-            idx--;
-        }
-        while(length0 % supported[idx] != 0)
-        {
-            idx++;
-        }
+        // break into as squarish matrix as possible
+        // XXX this factorizatoin isn't always the fastest (try 18816)
+        auto supported_factor = [length0, precision = precision](size_t factor) -> bool {
+            bool is_factor = length0 % factor == 0;
+            bool have_kernels
+                = function_pool::has_function(precision, {length0 / factor, CS_KERNEL_STOCKHAM});
+            return is_factor && have_kernels;
+        };
+
+        auto v     = (size_t)sqrt(length0);
+        auto lower = std::lower_bound(supported.cbegin(), supported.cend(), v, comparison);
+        if(*lower < sqrt(length0))
+            lower--;
+        auto itr = std::find_if(lower, supported.cend(), supported_factor);
+        if(itr != supported.cend())
+            factor = *itr;
     }
-    assert(idx < sizeof(supported) / sizeof(supported[0]));
-    return length0 / supported[idx];
+    assert(factor != 0);
+    return length0 / factor;
 }
 
 void TreeNode::build_1D()

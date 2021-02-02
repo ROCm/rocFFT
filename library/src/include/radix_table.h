@@ -52,7 +52,6 @@ inline size_t Large1DThreshold(rocfft_precision precision)
     return 4096 / PrecisionWidth(precision);
 }
 
-#define LARGE_1D_THRESHOLD 4096
 #define MAX_WORK_GROUP_SIZE 1024
 
 /* radix table: tell the FFT algorithms for size <= 4096 ; required by twiddle,

@@ -107,6 +107,26 @@ public:
         }
     }
 
+    static std::vector<size_t> get_lengths(rocfft_precision precision, ComputeScheme scheme)
+    {
+        function_pool&      func_pool = get_function_pool();
+        std::vector<size_t> lengths;
+        switch(precision)
+        {
+        case rocfft_precision_single:
+            for(auto const& kv : func_pool.function_map_single)
+                if(kv.first.second == scheme)
+                    lengths.push_back(kv.first.first);
+            break;
+        case rocfft_precision_double:
+            for(auto const& kv : func_pool.function_map_double)
+                if(kv.first.second == scheme)
+                    lengths.push_back(kv.first.first);
+            break;
+        }
+        return lengths;
+    }
+
     static DevFnCall get_function_single(const Key mykey)
     {
         function_pool& func_pool = get_function_pool();

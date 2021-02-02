@@ -54,6 +54,8 @@ int generate_support_size_list(std::vector<size_t>& support_size_list,
     // pick relatively common radix-7 sizes - radix-7 in general is
     // not common enough to justify generating every combination
     support_size_list.push_back(7);
+    support_size_list.push_back(14);
+    support_size_list.push_back(21);
     support_size_list.push_back(28);
     support_size_list.push_back(49);
     support_size_list.push_back(42);
@@ -61,6 +63,7 @@ int generate_support_size_list(std::vector<size_t>& support_size_list,
     support_size_list.push_back(84);
     support_size_list.push_back(112);
     support_size_list.push_back(168);
+    support_size_list.push_back(224);
     support_size_list.push_back(336);
 
     // basic support for radix-11 and 13
