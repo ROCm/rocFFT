@@ -291,11 +291,22 @@ def graph_file(basename, dirs, logscale, docdir):
             go.Table(header=dict(values=headers),
                      cells=dict(values=values, fill_color=fill_colors),
                      ),
-        ]
+        ],
+        layout = go.Layout(
+            title=basename_to_title(basename)
+            )
     )
-    table.update_layout(width=900, height=600)
+    # 900 seems to be enough for 2 dirs
+    # widen table by 200px per extra dir
+    table_width = 900
+    if len(dirs) > 2:
+        table_width += (len(dirs) - 2) * 200
+    table.update_layout(width=table_width, height=600)
 
     return (fig,table)
+
+def title_to_html_anchor(title):
+    return title.replace(' ', '_')
 
 def graph_dirs(dirs, title, docdir):
     # use first dir's dat files as a basis for what to graph.
@@ -312,11 +323,22 @@ def graph_dirs(dirs, title, docdir):
     <title>{}</title>
   </head>
   <body>
-  <table>
-    <tr>
 '''.format(title))
 
+    # collect a list of figure+table pairs
+    figs_list = []
+    for filename in dat_files:
+        figs_list.append(graph_file(os.path.basename(filename), dirs, True, docdir))
+
+    # make links to each figure at the top of the report
+    outfile.write('''<b>Quick links:</b><br/>''')
+    for figs in figs_list:
+        fig_title = figs[0].layout.title.text
+        anchor = title_to_html_anchor(fig_title)
+        outfile.write('''<a href="#{}">{}</a><br/>'''.format(anchor, fig_title))
+
     # include specs in the report
+    outfile.write('''<table><tr>''')
     for d in dirs:
         outfile.write('''<td><b>{} specs:</b><br/><pre>'''.format(
             os.path.basename(os.path.normpath(d)))
@@ -329,9 +351,11 @@ def graph_dirs(dirs, title, docdir):
 
     # only the first figure needs js included
     include_js = True
-    for filename in dat_files:
-        outfile.write('''<tr><td>''')
-        figs = graph_file(os.path.basename(filename), dirs, True, docdir)
+    for figs in figs_list:
+        fig_title = figs[0].layout.title.text
+        anchor = title_to_html_anchor(fig_title)
+        outfile.write('''<tr><td id="{}">'''.format(anchor))
+
         outfile.write(figs[0].to_html(full_html=False, include_plotlyjs=include_js))
         include_js = False
         outfile.write('''</td><td>''')
