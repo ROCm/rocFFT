@@ -33,9 +33,7 @@ set (samples complex_1d complex_2d complex_3d real2complex_1d real2complex_2d re
 foreach( exe ${samples} )
   add_executable(${exe} "${exe}.cpp")
 
-  if( NOT BUILD_SHARED_LIBS )
-    target_link_libraries( ${exe} PRIVATE hip::device )
-  endif( )
+  target_link_libraries( ${exe} PRIVATE hip::device )
   target_link_libraries( ${exe} PRIVATE roc::rocfft )
   target_include_directories( ${exe} PRIVATE ${rocfft_INCLUDE_DIR} )
   set_target_properties( ${exe} PROPERTIES CXX_STANDARD_REQUIRED ON)

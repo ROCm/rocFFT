@@ -109,6 +109,7 @@ if( USE_CUDA )
   target_link_libraries( rocfft-test PRIVATE ${CUDA_LIBRARIES} )
 else()
   target_compile_options( rocfft-test PRIVATE -Wno-unused-command-line-argument )
+  target_link_libraries( rocfft-test PRIVATE hip::device )
 endif( )
 
 option( BUILD_CLIENTS_TESTS_OPENMP "Build tests with OpenMP" ON )

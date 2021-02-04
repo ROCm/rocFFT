@@ -85,6 +85,7 @@ if( USE_CUDA )
   target_link_libraries( rocfft-selftest PRIVATE ${CUDA_LIBRARIES} )
 else()
   target_compile_options( rocfft-selftest PRIVATE -Wno-unused-command-line-argument )
+  target_link_libraries( rocfft-selftest PRIVATE hip::device )
 endif( )
 
 

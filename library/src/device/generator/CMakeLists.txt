@@ -7,6 +7,10 @@ target_compile_features( rocfft-kernel-generator PRIVATE cxx_static_assert cxx_n
 
 target_compile_options( rocfft-kernel-generator PRIVATE ${WARNING_FLAGS} )
 
+if( NOT USE_CUDA )
+  target_link_libraries( rocfft-kernel-generator PRIVATE hip::device )
+endif( )
+
 set_target_properties( rocfft-kernel-generator PROPERTIES CXX_EXTENSIONS NO )
 set_target_properties( rocfft-kernel-generator PROPERTIES DEBUG_POSTFIX "-d" )
 set_target_properties( rocfft-kernel-generator PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON )
