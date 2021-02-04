@@ -223,7 +223,7 @@ public:
         return nbuffer(otype);
     }
 
-    size_t compute_isize() const
+    auto compute_isize() const
     {
         auto   il  = ilength();
         size_t val = nbatch * idist;
@@ -231,10 +231,15 @@ public:
         {
             val = std::max(val, il[i] * istride[i]);
         }
-        return val;
+        std::vector<size_t> isize(nibuffer());
+        for(int i = 0; i < isize.size(); ++i)
+        {
+            isize[i] = val + ioffset[i];
+        }
+        return isize;
     }
 
-    size_t compute_osize() const
+    auto compute_osize() const
     {
         auto   ol  = olength();
         size_t val = nbatch * odist;
@@ -242,7 +247,12 @@ public:
         {
             val = std::max(val, ol[i] * ostride[i]);
         }
-        return val;
+        std::vector<size_t> osize(nobuffer());
+        for(int i = 0; i < osize.size(); ++i)
+        {
+            osize[i] = val + ooffset[i];
+        }
+        return osize;
     }
 
     std::vector<size_t> ibuffer_sizes() const
@@ -718,7 +728,7 @@ inline void copy_buffers_1to1(const Tval*                input,
                               const std::vector<size_t>& ioffset,
                               const std::vector<size_t>& ooffset)
 {
-    const bool idx_equals_odx = istride == ostride && idist == odist && ioffset == ooffset;
+    const bool idx_equals_odx = istride == ostride && idist == odist;
     size_t     idx_base       = 0;
     size_t     odx_base       = 0;
     auto       partitions     = partition_rowmajor(whole_length);
@@ -733,7 +743,7 @@ inline void copy_buffers_1to1(const Tval*                input,
             {
                 const int idx = compute_index(index, istride, idx_base);
                 const int odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
-                output[odx]   = input[idx];
+                output[odx + ooffset[0]] = input[idx + ioffset[0]];
             } while(increment_rowmajor(index, length));
         }
     }
@@ -755,7 +765,7 @@ inline void copy_buffers_2to1(const Tval*                input0,
                               const std::vector<size_t>& ioffset,
                               const std::vector<size_t>& ooffset)
 {
-    const bool idx_equals_odx = istride == ostride && idist == odist && ioffset == ooffset;
+    const bool idx_equals_odx = istride == ostride && idist == odist;
     size_t     idx_base       = 0;
     size_t     odx_base       = 0;
     auto       partitions     = partition_rowmajor(whole_length);
@@ -770,7 +780,8 @@ inline void copy_buffers_2to1(const Tval*                input0,
             {
                 const int idx = compute_index(index, istride, idx_base);
                 const int odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
-                output[odx]   = std::complex<Tval>(input0[idx], input1[idx]);
+                output[odx + ooffset[0]]
+                    = std::complex<Tval>(input0[idx + ioffset[0]], input1[idx + ioffset[1]]);
             } while(increment_rowmajor(index, length));
         }
     }
@@ -792,7 +803,7 @@ inline void copy_buffers_1to2(const std::complex<Tval>*  input,
                               const std::vector<size_t>& ioffset,
                               const std::vector<size_t>& ooffset)
 {
-    const bool idx_equals_odx = istride == ostride && idist == odist && ioffset == ooffset;
+    const bool idx_equals_odx = istride == ostride && idist == odist;
     size_t     idx_base       = 0;
     size_t     odx_base       = 0;
     auto       partitions     = partition_rowmajor(whole_length);
@@ -807,8 +818,8 @@ inline void copy_buffers_1to2(const std::complex<Tval>*  input,
             {
                 const int idx = compute_index(index, istride, idx_base);
                 const int odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
-                output0[odx]  = input[idx].real();
-                output1[odx]  = input[idx].imag();
+                output0[odx + ooffset[0]] = input[idx + ioffset[0]].real();
+                output1[odx + ooffset[1]] = input[idx + ioffset[0]].imag();
             } while(increment_rowmajor(index, length));
         }
     }
@@ -1084,7 +1095,7 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
 
     std::mutex linf_failure_lock;
 
-    const bool idx_equals_odx = istride == ostride && idist == odist && ioffset == ooffset;
+    const bool idx_equals_odx = istride == ostride && idist == odist;
     size_t     idx_base       = 0;
     size_t     odx_base       = 0;
     auto       partitions     = partition_colmajor(whole_length);
@@ -1100,11 +1111,11 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
 
             do
             {
-                const int idx = compute_index(index, istride, idx_base) + ioffset[0];
-                const int odx
-                    = idx_equals_odx ? idx : compute_index(index, ostride, odx_base) + ooffset[0];
-                const double rdiff = std::abs(output[odx].real() - input[idx].real());
-                cur_linf           = std::max(rdiff, cur_linf);
+                const int    idx = compute_index(index, istride, idx_base);
+                const int    odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const double rdiff
+                    = std::abs(output[odx + ooffset[0]].real() - input[idx + ioffset[0]].real());
+                cur_linf = std::max(rdiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
@@ -1114,8 +1125,9 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
                 }
                 cur_l2 += rdiff * rdiff;
 
-                const double idiff = std::abs(output[odx].imag() - input[idx].imag());
-                cur_linf           = std::max(idiff, cur_linf);
+                const double idiff
+                    = std::abs(output[odx + ooffset[0]].imag() - input[idx + ioffset[0]].imag());
+                cur_linf = std::max(idiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
@@ -1155,7 +1167,7 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
 
     std::mutex linf_failure_lock;
 
-    const bool idx_equals_odx = istride == ostride && idist == odist && ioffset == ooffset;
+    const bool idx_equals_odx = istride == ostride && idist == odist;
     size_t     idx_base       = 0;
     size_t     odx_base       = 0;
     auto       partitions     = partition_rowmajor(whole_length);
@@ -1170,10 +1182,9 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
             const auto length   = partitions[part].second;
             do
             {
-                const int idx = compute_index(index, istride, idx_base) + ioffset[0];
-                const int odx
-                    = idx_equals_odx ? idx : compute_index(index, ostride, odx_base) + ooffset[0];
-                const double diff = std::abs(output[odx] - input[idx]);
+                const int    idx  = compute_index(index, istride, idx_base);
+                const int    odx  = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const double diff = std::abs(output[odx + ooffset[0]] - input[idx + ioffset[0]]);
                 cur_linf          = std::max(diff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
@@ -1215,7 +1226,7 @@ inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
 
     std::mutex linf_failure_lock;
 
-    const bool idx_equals_odx = istride == ostride && idist == odist && ioffset == ooffset;
+    const bool idx_equals_odx = istride == ostride && idist == odist;
     size_t     idx_base       = 0;
     size_t     odx_base       = 0;
     auto       partitions     = partition_rowmajor(whole_length);
@@ -1230,10 +1241,11 @@ inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
             const auto length   = partitions[part].second;
             do
             {
-                const int    idx   = compute_index(index, istride, idx_base) + ioffset[0];
-                const int    odx   = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
-                const double rdiff = std::abs(output0[odx + ooffset[0]] - input[idx].real());
-                cur_linf           = std::max(rdiff, cur_linf);
+                const int    idx = compute_index(index, istride, idx_base);
+                const int    odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const double rdiff
+                    = std::abs(output0[odx + ooffset[0]] - input[idx + ioffset[0]].real());
+                cur_linf = std::max(rdiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
@@ -1243,8 +1255,9 @@ inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
                 }
                 cur_l2 += rdiff * rdiff;
 
-                const double idiff = std::abs(output1[odx + ooffset[1]] - input[idx].imag());
-                cur_linf           = std::max(idiff, cur_linf);
+                const double idiff
+                    = std::abs(output1[odx + ooffset[1]] - input[idx + ioffset[0]].imag());
+                cur_linf = std::max(idiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
@@ -1567,11 +1580,11 @@ inline VectorNorms norm_complex(const Tcomplex*            input,
             {
                 const int idx = compute_index(index, istride, idx_base);
 
-                const double rval = std::abs(input[idx].real());
+                const double rval = std::abs(input[idx + offset[0]].real());
                 cur_linf          = std::max(rval, cur_linf);
                 cur_l2 += rval * rval;
 
-                const double ival = std::abs(input[idx].imag());
+                const double ival = std::abs(input[idx + offset[0]].imag());
                 cur_linf          = std::max(ival, cur_linf);
                 cur_l2 += ival * ival;
 
@@ -1610,7 +1623,7 @@ inline VectorNorms norm_real(const Tfloat*              input,
             do
             {
                 const int    idx = compute_index(index, istride, idx_base);
-                const double val = std::abs(input[idx]);
+                const double val = std::abs(input[idx + offset[0]]);
                 cur_linf         = std::max(val, cur_linf);
                 cur_l2 += val * val;
 

@@ -372,7 +372,7 @@ void rocfft_transform(const rocfft_params&                 params,
     if(verbose > 5)
     {
         std::cout << "flat GPU input:\n";
-        printbuffer_flat(params.precision, params.itype, gpu_input, params.isize);
+        printbuffer_flat(params.precision, params.itype, gpu_input, params.isize, params.ioffset);
     }
 
     // GPU input and output buffers:
@@ -458,7 +458,7 @@ void rocfft_transform(const rocfft_params&                 params,
     if(verbose > 5)
     {
         std::cout << "flat GPU output:\n";
-        printbuffer_flat(params.precision, params.otype, gpu_output, params.osize);
+        printbuffer_flat(params.precision, params.otype, gpu_output, params.osize, params.ooffset);
     }
 
     // Compute the Linfinity and L2 norm of the GPU output:
@@ -567,17 +567,11 @@ TEST_P(accuracy_test, vs_fftw)
 
     if(params.isize.empty())
     {
-        for(int i = 0; i < params.nibuffer(); ++i)
-        {
-            params.isize.push_back(params.compute_isize());
-        }
+        params.isize = params.compute_isize();
     }
     if(params.osize.empty())
     {
-        for(int i = 0; i < params.nobuffer(); ++i)
-        {
-            params.osize.push_back(params.compute_osize());
-        }
+        params.osize = params.compute_osize();
     }
 
     if(ramgb > 0)

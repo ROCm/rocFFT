@@ -67,7 +67,7 @@ inline void printbuffer(const Toutput*         output,
 // Template types Tint1 and Tint2 are integer types
 template <typename Tint1, typename Tint2, typename Tallocator, typename Tstream = std::ostream>
 inline void printbuffer(const rocfft_precision                            precision,
-                        const rocfft_array_type                           itype,
+                        const rocfft_array_type                           type,
                         const std::vector<std::vector<char, Tallocator>>& buf,
                         const std::vector<Tint1>&                         length,
                         const std::vector<Tint2>&                         stride,
@@ -76,7 +76,7 @@ inline void printbuffer(const rocfft_precision                            precis
                         const std::vector<size_t>&                        offset,
                         Tstream&                                          stream = std::cout)
 {
-    switch(itype)
+    switch(type)
     {
     case rocfft_array_type_complex_interleaved:
     case rocfft_array_type_hermitian_interleaved:
@@ -133,11 +133,12 @@ inline void printbuffer(const rocfft_precision                            precis
 // ie the entire memory range is printed as though it were a contiguous 1D array.
 template <typename Tallocator>
 inline void printbuffer_flat(const rocfft_precision                            precision,
-                             const rocfft_array_type                           itype,
+                             const rocfft_array_type                           type,
                              const std::vector<std::vector<char, Tallocator>>& buf,
-                             const std::vector<size_t>&                        size)
+                             const std::vector<size_t>&                        size,
+                             const std::vector<size_t>&                        offset)
 {
-    switch(itype)
+    switch(type)
     {
     case rocfft_array_type_complex_interleaved:
     case rocfft_array_type_hermitian_interleaved:

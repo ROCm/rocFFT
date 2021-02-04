@@ -61,8 +61,11 @@ const static std::vector<size_t> batch_range_1D = {4, 2, 1};
 const static std::vector<std::vector<size_t>> stride_range_for_prime
     = {{1}, {2}, {3}, {64}, {65}}; //TODO: this will be merged back to stride_range
 
-const static std::vector<std::vector<size_t>> ioffset_range = {{0, 0}};
-const static std::vector<std::vector<size_t>> ooffset_range = {{0, 0}};
+const static std::vector<std::vector<size_t>> ioffset_range_zero = {{0, 0}};
+const static std::vector<std::vector<size_t>> ooffset_range_zero = {{0, 0}};
+
+const static std::vector<std::vector<size_t>> ioffset_range = {{0, 0}, {1, 1}};
+const static std::vector<std::vector<size_t>> ooffset_range = {{0, 0}, {1, 1}};
 
 static std::vector<size_t> generate_random(size_t number_run)
 {
@@ -90,12 +93,34 @@ INSTANTIATE_TEST_SUITE_P(pow2_1D,
                                                              batch_range_1D,
                                                              stride_range,
                                                              stride_range,
+                                                             ioffset_range_zero,
+                                                             ooffset_range_zero,
+                                                             place_range)),
+                         accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow2_1D,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator({pow2_range},
+                                                             precision_range,
+                                                             batch_range_1D,
+                                                             stride_range,
+                                                             stride_range,
                                                              ioffset_range,
                                                              ooffset_range,
                                                              place_range)),
                          accuracy_test::TestName);
 
 INSTANTIATE_TEST_SUITE_P(pow3_1D,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator({pow3_range},
+                                                             precision_range,
+                                                             batch_range_1D,
+                                                             stride_range,
+                                                             stride_range,
+                                                             ioffset_range_zero,
+                                                             ooffset_range_zero,
+                                                             place_range)),
+                         accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow3_1D,
                          accuracy_test,
                          ::testing::ValuesIn(param_generator({pow3_range},
                                                              precision_range,
@@ -114,12 +139,34 @@ INSTANTIATE_TEST_SUITE_P(pow5_1D,
                                                              batch_range_1D,
                                                              stride_range,
                                                              stride_range,
+                                                             ioffset_range_zero,
+                                                             ooffset_range_zero,
+                                                             place_range)),
+                         accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow5_1D,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator({pow5_range},
+                                                             precision_range,
+                                                             batch_range_1D,
+                                                             stride_range,
+                                                             stride_range,
                                                              ioffset_range,
                                                              ooffset_range,
                                                              place_range)),
                          accuracy_test::TestName);
 
 INSTANTIATE_TEST_SUITE_P(radX_1D,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator({radX_range},
+                                                             precision_range,
+                                                             batch_range_1D,
+                                                             stride_range,
+                                                             stride_range,
+                                                             ioffset_range_zero,
+                                                             ooffset_range_zero,
+                                                             place_range)),
+                         accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(DISABLED_offset_radX_1D,
                          accuracy_test,
                          ::testing::ValuesIn(param_generator({radX_range},
                                                              precision_range,
@@ -138,12 +185,34 @@ INSTANTIATE_TEST_SUITE_P(prime_1D,
                                                              batch_range_1D,
                                                              stride_range,
                                                              stride_range,
+                                                             ioffset_range_zero,
+                                                             ooffset_range_zero,
+                                                             place_range)),
+                         accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(DISABLED_offset_prime_1D,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator({prime_range},
+                                                             precision_range,
+                                                             batch_range_1D,
+                                                             stride_range,
+                                                             stride_range,
                                                              ioffset_range,
                                                              ooffset_range,
                                                              place_range)),
                          accuracy_test::TestName);
 
 INSTANTIATE_TEST_SUITE_P(mix_1D,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator({mix_range},
+                                                             precision_range,
+                                                             batch_range_1D,
+                                                             stride_range,
+                                                             stride_range,
+                                                             ioffset_range_zero,
+                                                             ooffset_range_zero,
+                                                             place_range)),
+                         accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(DISABLED_offset_mix_1D,
                          accuracy_test,
                          ::testing::ValuesIn(param_generator({mix_range},
                                                              precision_range,
@@ -175,8 +244,8 @@ INSTANTIATE_TEST_SUITE_P(pow2_1D_stride_complex,
                                                                      batch_range_1D,
                                                                      stride_range_for_pow2,
                                                                      stride_range_for_pow2,
-                                                                     ioffset_range,
-                                                                     ooffset_range,
+                                                                     ioffset_range_zero,
+                                                                     ooffset_range_zero,
                                                                      place_range)),
                          accuracy_test::TestName);
 
@@ -187,8 +256,8 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_pow2_1D_stride_real,
                                                                   batch_range_1D,
                                                                   stride_range_for_pow2,
                                                                   stride_range_for_pow2,
-                                                                  ioffset_range,
-                                                                  ooffset_range,
+                                                                  ioffset_range_zero,
+                                                                  ooffset_range_zero,
                                                                   place_range)),
                          accuracy_test::TestName);
 
@@ -245,42 +314,34 @@ inline auto
 
 const static std::vector<size_t> pow2_range_2D
     = {2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192};
-INSTANTIATE_TEST_SUITE_P(pow2_1D_complex_batched_2D_strided,
-                         accuracy_test,
-                         ::testing::ValuesIn(param_generator_complex_1d_batched_2d({pow2_range_2D},
-                                                                                   precision_range,
-                                                                                   ioffset_range,
-                                                                                   ooffset_range,
-                                                                                   place_range)),
-                         accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(
+    pow2_1D_complex_batched_2D_strided,
+    accuracy_test,
+    ::testing::ValuesIn(param_generator_complex_1d_batched_2d(
+        {pow2_range_2D}, precision_range, ioffset_range_zero, ooffset_range_zero, place_range)),
+    accuracy_test::TestName);
 
 const static std::vector<size_t> pow3_range_2D = {3, 27, 81, 243, 729, 2187, 6561};
-INSTANTIATE_TEST_SUITE_P(pow3_1D_complex_batched_2D_strided,
-                         accuracy_test,
-                         ::testing::ValuesIn(param_generator_complex_1d_batched_2d({pow3_range_2D},
-                                                                                   precision_range,
-                                                                                   ioffset_range,
-                                                                                   ooffset_range,
-                                                                                   place_range)),
-                         accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(
+    pow3_1D_complex_batched_2D_strided,
+    accuracy_test,
+    ::testing::ValuesIn(param_generator_complex_1d_batched_2d(
+        {pow3_range_2D}, precision_range, ioffset_range_zero, ooffset_range_zero, place_range)),
+    accuracy_test::TestName);
 
 const static std::vector<size_t> pow5_range_2D = {5, 25, 125, 625, 3125, 15625};
-INSTANTIATE_TEST_SUITE_P(pow5_1D_complex_batched_2D_strided,
-                         accuracy_test,
-                         ::testing::ValuesIn(param_generator_complex_1d_batched_2d({pow5_range_2D},
-                                                                                   precision_range,
-                                                                                   ioffset_range,
-                                                                                   ooffset_range,
-                                                                                   place_range)),
-                         accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(
+    pow5_1D_complex_batched_2D_strided,
+    accuracy_test,
+    ::testing::ValuesIn(param_generator_complex_1d_batched_2d(
+        {pow5_range_2D}, precision_range, ioffset_range_zero, ooffset_range_zero, place_range)),
+    accuracy_test::TestName);
 
 const static std::vector<size_t> prime_range_2D = {7, 11, 13, 17, 19, 23, 29, 263, 269, 271, 277};
 
-INSTANTIATE_TEST_SUITE_P(prime_1D_complex_batched_2D_strided,
-                         accuracy_test,
-                         ::testing::ValuesIn(param_generator_complex_1d_batched_2d({prime_range_2D},
-                                                                                   precision_range,
-                                                                                   ioffset_range,
-                                                                                   ooffset_range,
-                                                                                   place_range)),
-                         accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(
+    prime_1D_complex_batched_2D_strided,
+    accuracy_test,
+    ::testing::ValuesIn(param_generator_complex_1d_batched_2d(
+        {prime_range_2D}, precision_range, ioffset_range_zero, ooffset_range_zero, place_range)),
+    accuracy_test::TestName);

@@ -199,6 +199,20 @@ public:
         ret += "_odist_";
         ret += std::to_string(info.param.odist);
 
+        ret += "_ioffset_";
+        for(auto n : info.param.ioffset)
+        {
+            ret += "_";
+            ret += std::to_string(n);
+        }
+
+        ret += "_ooffset_";
+        for(auto n : info.param.ooffset)
+        {
+            ret += "_";
+            ret += std::to_string(n);
+        }
+
         return ret;
     }
 };
@@ -373,7 +387,10 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&     v_length
                                         param.ioffset        = ioffset;
                                         param.ooffset        = ooffset;
 
-                                        params.push_back(param);
+                                        if(param.valid(0))
+                                        {
+                                            params.push_back(param);
+                                        }
                                     }
                                 }
                             }
@@ -442,7 +459,10 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     
                                         param.ioffset        = ioffset;
                                         param.ooffset        = ooffset;
 
-                                        params.push_back(param);
+                                        if(param.valid(0))
+                                        {
+                                            params.push_back(param);
+                                        }
                                     }
                                 }
                             }
@@ -510,7 +530,10 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&     v_l
                                         param.ioffset        = ioffset;
                                         param.ooffset        = ooffset;
 
-                                        params.push_back(param);
+                                        if(param.valid(0))
+                                        {
+                                            params.push_back(param);
+                                        }
                                     }
                                 }
                             }

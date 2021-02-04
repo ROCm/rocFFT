@@ -277,18 +277,12 @@ TEST(manual, vs_fftw)
 
     if(manual_params.isize.empty())
     {
-        for(int i = 0; i < manual_params.nibuffer(); ++i)
-        {
-            manual_params.isize.push_back(manual_params.compute_isize());
-        }
+        manual_params.isize = manual_params.compute_isize();
     }
 
     if(manual_params.osize.empty())
     {
-        for(int i = 0; i < manual_params.nobuffer(); ++i)
-        {
-            manual_params.osize.push_back(manual_params.compute_osize());
-        }
+        manual_params.osize = manual_params.compute_osize();
     }
 
     std::cout << "\t" << manual_params.str("\n\t") << std::endl;
