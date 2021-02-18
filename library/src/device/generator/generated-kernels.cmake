@@ -387,7 +387,7 @@ kernel_launch_single_2D_mix_pow5_2.cpp
 kernel_launch_double_2D_mix_pow5_2.cpp
 )
 
-set( small_kernels_group_num 8 )
+set( small_kernels_group_num 150 )
 MATH(EXPR max_group_num "${small_kernels_group_num}-1")
 foreach(small_kernel_group_id RANGE 0 ${max_group_num} )
     string(CONCAT small_kernel_single_file "kernel_launch_single_" ${small_kernel_group_id} ".cpp")

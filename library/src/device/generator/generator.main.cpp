@@ -175,7 +175,7 @@ int main(int argc, char* argv[])
     if(argc > 2)
     {
         small_kernels_group_num = std::stoi(argv[2]);
-        if(small_kernels_group_num <= 0 || small_kernels_group_num > 128)
+        if(small_kernels_group_num <= 0)
         {
             std::cerr << "Invalid small kernels group number!" << std::endl;
             return 0;

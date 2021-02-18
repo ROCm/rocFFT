@@ -297,8 +297,17 @@ void write_cpu_function_small(std::vector<size_t> support_list,
     size_t group_size = (support_list.size() + group_num - 1) / group_num;
     for(size_t j = 0; j < group_num; j++)
     {
-        size_t i_start = j * group_size;
-        size_t i_end   = std::min((j + 1) * group_size, support_list.size());
+        size_t remaining_groups = group_num - j - 1;
+        // if we're out of sizes, write an empty file to keep cmake happy
+        if(support_list.empty())
+            group_size = 0;
+        // Just put one size in each group if there are enough groups
+        // left
+        else if(support_list.size() <= remaining_groups)
+            group_size = 1;
+
+        size_t i_start = 0;
+        size_t i_end   = group_size;
 
         std::string str;
 
@@ -350,6 +359,9 @@ void write_cpu_function_small(std::vector<size_t> support_list,
         }
         file << "#include \"" << headerFileName << "\"";
         file.close();
+
+        // remove the sizes that we wrote
+        support_list.erase(support_list.begin(), support_list.begin() + group_size);
     }
 }
 
