@@ -2768,11 +2768,15 @@ void TreeNode::assign_buffers_CS_L1D_TRTRT(TraverseState&   state,
         {
             if(childNodes[1]->obOut == OB_TEMP)
             {
+                bool obOutBufIsReal = false;
+                if(parent != nullptr && parent->outArrayType == rocfft_array_type_real)
+                    obOutBufIsReal = true;
+
                 childNodes[2]->SetInputBuffer(state);
-                childNodes[2]->obOut = obOutBuf;
+                childNodes[2]->obOut = obOutBufIsReal ? OB_USER_IN : obOutBuf;
 
                 childNodes[3]->SetInputBuffer(state);
-                childNodes[3]->obOut = obOutBuf;
+                childNodes[3]->obOut = obOutBufIsReal ? OB_USER_IN : obOutBuf;
 
                 childNodes[4]->SetInputBuffer(state);
                 childNodes[4]->obOut = OB_TEMP;
