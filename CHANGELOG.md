@@ -6,7 +6,6 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Optimizations
 - Improved performance for single precision kernels exercising all except radix-2/7 butterfly ops.
-- Reduced the number of syncs in encapsulated passes kernels, opportunistically improving 1D/2D/3D sizes.
 - Minor optimization for C2R 3D 100, 200 cube sizes.
 - Optimized some C2C/R2C 3D 64, 81, 100, 128, 200, 256 rectangular sizes.
 - When factoring, test to see if remaining length is explicitly

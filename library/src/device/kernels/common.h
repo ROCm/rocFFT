@@ -5,7 +5,6 @@
 #ifndef COMMON_H
 #define COMMON_H
 #include "rocfft.h"
-#include <hip/hip_runtime.h>
 #include <hip/hip_vector_types.h>
 #include <iostream>
 #include <string>
