@@ -34,6 +34,10 @@ function( prepend_path prefix source_list_of_files return_list_of_files )
   set( ${return_list_of_files} ${new_list} PARENT_SCOPE )
 endfunction( )
 
+option(ROCFFT_DEVICE_FORCE_RELEASE "Force the rocfft-device library to Release build type" OFF)
+if(ROCFFT_DEVICE_FORCE_RELEASE)
+  set (CMAKE_BUILD_TYPE Release)
+endif()
 
 # This builds the generator executable
 add_subdirectory( generator )
@@ -138,7 +142,6 @@ rocm_set_soversion( rocfft-device ${rocfft_SOVERSION} )
 set_target_properties( rocfft-device PROPERTIES CXX_EXTENSIONS NO )
 set_target_properties( rocfft-device PROPERTIES RUNTIME_OUTPUT_DIRECTORY
   "${PROJECT_BINARY_DIR}/staging" )
-set_target_properties( rocfft-device PROPERTIES DEBUG_POSTFIX "-d" )
 set_target_properties( rocfft-device PROPERTIES CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON )
 
