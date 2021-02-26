@@ -1,3 +1,4 @@
+
 /******************************************************************************
 * Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
 *
@@ -31,10 +32,15 @@ class Repo
 {
     Repo() {}
 
+    // keys to the maps are plan, deviceId.  plans must be per-device
+    // since we allocate twiddles in the plan's TreeNode
+    typedef std::pair<rocfft_plan_t, int> plan_unique_key_t;
+    typedef std::pair<rocfft_plan, int>   exec_lookup_key_t;
+
     // planUnique has unique rocfft_plan_t and ExecPlan, and a reference counter
-    std::map<rocfft_plan_t, std::pair<ExecPlan, int>> planUnique;
-    std::map<rocfft_plan, ExecPlan>                   execLookup;
-    static std::mutex                                 mtx;
+    std::map<plan_unique_key_t, std::pair<ExecPlan, int>> planUnique;
+    std::map<exec_lookup_key_t, ExecPlan>                 execLookup;
+    static std::mutex                                     mtx;
 
 public:
     Repo(const Repo&) = delete; // delete is a c++11 feature, prohibit copy constructor

@@ -36,6 +36,9 @@ std::atomic<bool> Repo::repoDestroyed(false);
 
 rocfft_status Repo::CreatePlan(rocfft_plan plan)
 {
+    if(plan == nullptr)
+        return rocfft_status_failure;
+
     std::lock_guard<std::mutex> lck(mtx);
     if(repoDestroyed)
         return rocfft_status_failure;
@@ -43,7 +46,13 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
     Repo& repo = Repo::GetRepo();
 
     // see if the repo has already stored the plan or not
-    auto it = repo.planUnique.find(*plan);
+    int deviceId = 0;
+    if(hipGetDevice(&deviceId) != hipSuccess)
+        return rocfft_status_failure;
+    plan_unique_key_t uniqueKey{*plan, deviceId};
+    exec_lookup_key_t lookupKey{plan, deviceId};
+
+    auto it = repo.planUnique.find(uniqueKey);
     if(it == repo.planUnique.end()) // if not found
     {
         auto rootPlan = TreeNode::CreateNode();
@@ -85,13 +94,13 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
         // pointers but does not execute kernels
 
         // add this plan into member planUnique (type of map)
-        repo.planUnique[*plan] = std::make_pair(execPlan, 1);
+        repo.planUnique[{*plan, deviceId}] = std::make_pair(execPlan, 1);
         // add this plan into member execLookup (type of map)
-        repo.execLookup[plan] = execPlan;
+        repo.execLookup[lookupKey] = execPlan;
     }
     else // find the stored plan
     {
-        repo.execLookup[plan]
+        repo.execLookup[lookupKey]
             = it->second.first; // retrieve this plan and put it into member execLookup
         it->second.second++;
     }
@@ -102,11 +111,16 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
 ExecPlan* Repo::GetPlan(rocfft_plan plan)
 {
     std::lock_guard<std::mutex> lck(mtx);
-    if(repoDestroyed)
+    if(repoDestroyed || plan == nullptr)
         return nullptr;
 
-    Repo& repo = Repo::GetRepo();
-    auto  it   = repo.execLookup.find(plan);
+    Repo& repo     = Repo::GetRepo();
+    int   deviceId = 0;
+    if(hipGetDevice(&deviceId) != hipSuccess)
+        return nullptr;
+    exec_lookup_key_t lookupKey{plan, deviceId};
+
+    auto it = repo.execLookup.find(lookupKey);
     if(it != repo.execLookup.end())
         return &it->second;
     return nullptr;
@@ -116,17 +130,23 @@ ExecPlan* Repo::GetPlan(rocfft_plan plan)
 void Repo::DeletePlan(rocfft_plan plan)
 {
     std::lock_guard<std::mutex> lck(mtx);
-    if(repoDestroyed)
+    if(repoDestroyed || plan == nullptr)
         return;
 
-    Repo& repo = Repo::GetRepo();
-    auto  it   = repo.execLookup.find(plan);
+    Repo& repo     = Repo::GetRepo();
+    int   deviceId = 0;
+    if(hipGetDevice(&deviceId) != hipSuccess)
+        return;
+    exec_lookup_key_t lookupKey{plan, deviceId};
+    plan_unique_key_t uniqueKey{*plan, deviceId};
+
+    auto it = repo.execLookup.find(lookupKey);
     if(it != repo.execLookup.end())
     {
         repo.execLookup.erase(it);
     }
 
-    auto it_u = repo.planUnique.find(*plan);
+    auto it_u = repo.planUnique.find(uniqueKey);
     if(it_u != repo.planUnique.end())
     {
         it_u->second.second--;

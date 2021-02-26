@@ -13,6 +13,10 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Explicitly add radix-7 lengths 14, 21, and 224 to list of supported
   lengths.
 
+### Fixed
+- Fixed potential crashes when executing transforms on multiple devices.
+  (https://github.com/ROCmSoftwarePlatform/rocFFT/issues/310)
+
 ## [rocFFT 1.0.10 for ROCm 4.1.0]
 
 ### Added
