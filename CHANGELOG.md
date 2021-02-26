@@ -14,6 +14,8 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
   lengths.
 
 ### Fixed
+- Fixed potential crashes in small 3D transforms with unusual strides.
+  (https://github.com/ROCmSoftwarePlatform/rocFFT/issues/311)
 - Fixed potential crashes when executing transforms on multiple devices.
   (https://github.com/ROCmSoftwarePlatform/rocFFT/issues/310)
 

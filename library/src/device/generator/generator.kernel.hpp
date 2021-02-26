@@ -2272,14 +2272,22 @@ namespace StockhamGenerator
             {
                 str += "\t// row transform writes to LDS, so respect non-unit strides for input\n";
                 str += "\t// and assume unit stride for output\n";
-                str += "\tiOffset = batch * _stride_in[2];\n";
+                str += "\tiOffset = dim == 2 ?\n";
+                str += "\t\tbatch * _stride_in[2] :\n";
+                str += "\t\tbatch / lengths[2] * _stride_in[3] + batch % lengths[2] * "
+                       "_stride_in[2];\n";
             }
             else
             {
                 str += "\t// col transform reads from LDS, so respect non-unit strides for "
                        "output\n";
                 str += "\t// and assume unit stride for input\n";
-                str += "\toOffset = batch * _stride_in[2];\n";
+                std::string outstride
+                    = placeness == rocfft_placement_inplace ? "_stride_in" : "stride_out";
+                str += "\toOffset = dim == 2 ?\n";
+                str += "\t\tbatch * " + outstride + "[2] :\n";
+                str += "\t\tbatch / lengths[2] * " + outstride + "[3] + batch % lengths[2] * "
+                       + outstride + "[2];\n";
             }
             // HACK: we're doing a single 2D transform per
             // threadblock to/from LDS.  Convince the IO offset

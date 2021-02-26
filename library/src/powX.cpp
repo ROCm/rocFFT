@@ -394,6 +394,23 @@ static float max_memory_bandwidth_GB_per_s()
     return result;
 }
 
+// work out the buffer size, based on the largest size implied by
+// dist or strides
+//
+// FIXME: share this with client_utils somehow
+size_t compute_size(const std::vector<size_t>& length,
+                    const std::vector<size_t>& stride,
+                    size_t                     nbatch,
+                    size_t                     dist)
+{
+    size_t val = nbatch * dist;
+    for(int i = 0; i < length.size(); ++i)
+    {
+        val = std::max(val, length[i] * stride[i]);
+    }
+    return val;
+}
+
 // Print either an input or output buffer, given column-major dimensions
 void DebugPrintBuffer(rocfft_ostream&            stream,
                       rocfft_array_type          type,
@@ -405,7 +422,8 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
                       size_t                     offset,
                       size_t                     batch)
 {
-    const size_t size_elems = dist * batch;
+    const size_t size_elems = compute_size(length_cm, stride_cm, batch, dist);
+
     size_t base_type_size = (precision == rocfft_precision_double) ? sizeof(double) : sizeof(float);
     // assume complex elements for now
     base_type_size *= 2;

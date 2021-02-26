@@ -330,12 +330,79 @@ static std::vector<type_place_io_t>
     return std::move(ret);
 }
 
+struct stride_generator
+{
+    struct stride_dist
+    {
+        stride_dist(const std::vector<size_t>& s, size_t d)
+            : stride(s)
+            , dist(d)
+        {
+        }
+        std::vector<size_t> stride;
+        size_t              dist;
+    };
+
+    stride_generator(const std::vector<std::vector<size_t>>& stride_list_in)
+        : stride_list(stride_list_in)
+    {
+    }
+    virtual std::vector<stride_dist> generate(const std::vector<size_t>& lengths,
+                                              size_t                     batch) const
+    {
+        std::vector<stride_dist> ret;
+        for(const auto& s : stride_list)
+            ret.emplace_back(s, 0);
+        return ret;
+    }
+    std::vector<std::vector<size_t>> stride_list;
+};
+
+// Generate strides such that batch is essentially the innermost dimension
+// e.g. given a batch-2 4x3x2 transform which logically looks like:
+//
+// batch0:
+// A B A B
+// A B A B
+// A B A B
+//
+// A B A B
+// A B A B
+// A B A B
+//
+// batch1:
+// A B A B
+// A B A B
+// A B A B
+//
+// A B A B
+// A B A B
+// A B A B
+//
+// we instead do stride-2 4x3x2 transform where first batch is the
+// A's and second batch is the B's.
+struct stride_generator_3D_inner_batch : public stride_generator
+{
+    stride_generator_3D_inner_batch(const std::vector<std::vector<size_t>>& stride_list_in)
+        : stride_generator(stride_list_in)
+    {
+    }
+    std::vector<stride_dist> generate(const std::vector<size_t>& lengths,
+                                      size_t                     batch) const override
+    {
+        std::vector<stride_dist> ret = stride_generator::generate(lengths, batch);
+        std::vector<size_t> strides{lengths[1] * lengths[2] * batch, lengths[2] * batch, batch};
+        ret.emplace_back(strides, 1);
+        return ret;
+    }
+};
+
 // Create an array of parameters to pass to gtest.
 inline auto param_generator(const std::vector<std::vector<size_t>>&     v_lengths,
                             const std::vector<rocfft_precision>&        precision_range,
                             const std::vector<size_t>&                  batch_range,
-                            const std::vector<std::vector<size_t>>&     istride_range,
-                            const std::vector<std::vector<size_t>>&     ostride_range,
+                            const stride_generator&                     istride,
+                            const stride_generator&                     ostride,
                             const std::vector<std::vector<size_t>>&     ioffset_range,
                             const std::vector<std::vector<size_t>>&     ooffset_range,
                             const std::vector<rocfft_result_placement>& place_range)
@@ -360,9 +427,9 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&     v_length
                 {
                     for(const auto& types : generate_types(transform_type, place_range))
                     {
-                        for(const auto& istride : istride_range)
+                        for(const auto& istride_dist : istride.generate(lengths, batch))
                         {
-                            for(const auto& ostride : ostride_range)
+                            for(const auto& ostride_dist : ostride.generate(lengths, batch))
                             {
                                 for(const auto& ioffset : ioffset_range)
                                 {
@@ -374,14 +441,14 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&     v_length
                                         rocfft_params param;
 
                                         param.length         = lengths;
-                                        param.istride        = istride;
-                                        param.ostride        = ostride;
+                                        param.istride        = istride_dist.stride;
+                                        param.ostride        = ostride_dist.stride;
                                         param.nbatch         = batch;
                                         param.precision      = precision;
                                         param.transform_type = std::get<0>(types);
                                         param.placement      = std::get<1>(types);
-                                        param.idist          = idist;
-                                        param.odist          = odist;
+                                        param.idist          = istride_dist.dist;
+                                        param.odist          = ostride_dist.dist;
                                         param.itype          = std::get<2>(types);
                                         param.otype          = std::get<3>(types);
                                         param.ioffset        = ioffset;
@@ -408,8 +475,8 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&     v_length
 inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     v_lengths,
                                     const std::vector<rocfft_precision>&        precision_range,
                                     const std::vector<size_t>&                  batch_range,
-                                    const std::vector<std::vector<size_t>>&     istride_range,
-                                    const std::vector<std::vector<size_t>>&     ostride_range,
+                                    const stride_generator&                     istride,
+                                    const stride_generator&                     ostride,
                                     const std::vector<std::vector<size_t>>&     ioffset_range,
                                     const std::vector<std::vector<size_t>>&     ooffset_range,
                                     const std::vector<rocfft_result_placement>& place_range)
@@ -432,9 +499,9 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     
                 {
                     for(const auto& types : generate_types(transform_type, place_range))
                     {
-                        for(const auto& istride : istride_range)
+                        for(const auto& istride_dist : istride.generate(lengths, batch))
                         {
-                            for(const auto& ostride : ostride_range)
+                            for(const auto& ostride_dist : ostride.generate(lengths, batch))
                             {
                                 for(const auto& ioffset : ioffset_range)
                                 {
@@ -446,14 +513,14 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     
                                         rocfft_params param;
 
                                         param.length         = lengths;
-                                        param.istride        = istride;
-                                        param.ostride        = ostride;
+                                        param.istride        = istride_dist.stride;
+                                        param.ostride        = ostride_dist.stride;
                                         param.nbatch         = batch;
                                         param.precision      = precision;
                                         param.transform_type = std::get<0>(types);
                                         param.placement      = std::get<1>(types);
-                                        param.idist          = idist;
-                                        param.odist          = odist;
+                                        param.idist          = istride_dist.dist;
+                                        param.odist          = ostride_dist.dist;
                                         param.itype          = std::get<2>(types);
                                         param.otype          = std::get<3>(types);
                                         param.ioffset        = ioffset;
@@ -480,8 +547,8 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     
 inline auto param_generator_real(const std::vector<std::vector<size_t>>&     v_lengths,
                                  const std::vector<rocfft_precision>&        precision_range,
                                  const std::vector<size_t>&                  batch_range,
-                                 const std::vector<std::vector<size_t>>&     istride_range,
-                                 const std::vector<std::vector<size_t>>&     ostride_range,
+                                 const stride_generator&                     istride,
+                                 const stride_generator&                     ostride,
                                  const std::vector<std::vector<size_t>>&     ioffset_range,
                                  const std::vector<std::vector<size_t>>&     ooffset_range,
                                  const std::vector<rocfft_result_placement>& place_range)
@@ -504,27 +571,24 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&     v_l
                 {
                     for(const auto& types : generate_types(transform_type, place_range))
                     {
-                        for(const auto& istride : istride_range)
+                        for(const auto& istride_dist : istride.generate(lengths, batch))
                         {
-                            for(const auto& ostride : ostride_range)
+                            for(const auto& ostride_dist : ostride.generate(lengths, batch))
                             {
                                 for(const auto& ioffset : ioffset_range)
                                 {
                                     for(const auto& ooffset : ooffset_range)
                                     {
-                                        const size_t idist = 0;
-                                        const size_t odist = 0;
-
                                         rocfft_params param;
                                         param.length         = lengths;
-                                        param.istride        = istride;
-                                        param.ostride        = ostride;
+                                        param.istride        = istride_dist.stride;
+                                        param.ostride        = ostride_dist.stride;
                                         param.nbatch         = batch;
                                         param.precision      = precision;
                                         param.transform_type = std::get<0>(types);
                                         param.placement      = std::get<1>(types);
-                                        param.idist          = idist;
-                                        param.odist          = odist;
+                                        param.idist          = istride_dist.dist;
+                                        param.odist          = ostride_dist.dist;
                                         param.itype          = std::get<2>(types);
                                         param.otype          = std::get<3>(types);
                                         param.ioffset        = ioffset;
