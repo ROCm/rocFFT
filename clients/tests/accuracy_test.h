@@ -199,14 +199,14 @@ public:
         ret += "_odist_";
         ret += std::to_string(info.param.odist);
 
-        ret += "_ioffset_";
+        ret += "_ioffset";
         for(auto n : info.param.ioffset)
         {
             ret += "_";
             ret += std::to_string(n);
         }
 
-        ret += "_ooffset_";
+        ret += "_ooffset";
         for(auto n : info.param.ooffset)
         {
             ret += "_";
