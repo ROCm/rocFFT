@@ -215,7 +215,7 @@ namespace StockhamGenerator
 
         bool blockCompute; // When we have to compute FFT in blocks (either read or
         // write is along columns, optimization in radix-2 FFTs)
-        size_t           blockWidth, blockWGS, blockLDS;
+        size_t           blockWidth, blockWGS, blockLDS, blockLdsRowPadding;
         BlockComputeType blockComputeType;
 
         bool realSpecial; // controls related to large1D real FFTs.
@@ -308,7 +308,8 @@ namespace StockhamGenerator
                 str += "\t\tblocks_per_batch = lengths[1] * ((lengths[2] + "
                        + std::to_string(blockWidth) + " - 1) / " + std::to_string(blockWidth)
                        + ");\n";
-                str += "\telse if(Tsbrc == SBRC_3D_FFT_TRANS_Z_XY)\n";
+                str += "\telse if(Tsbrc == SBRC_3D_FFT_TRANS_Z_XY || Tsbrc == "
+                       "SBRC_3D_FFT_ERC_TRANS_Z_XY)\n";
                 str += "\t\tblocks_per_batch = lengths[2] * ((lengths[1] + "
                        + std::to_string(blockWidth) + " - 1) / " + std::to_string(blockWidth)
                        + ");\n";
@@ -319,34 +320,35 @@ namespace StockhamGenerator
             }
             str += "\t{\n";
 
-            str += "\t// SBCC+SBRC fold higher dimensions into the batch_count, so we need\n";
-            str += "\t// extra math to work out how many 'true' batches we really have\n";
-            str += "\tunsigned int batch_block_size = hipGridDim_x / batch_count; //To opt: it can "
+            str += "\t\t// SBCC+SBRC fold higher dimensions into the batch_count, so we need\n";
+            str += "\t\t// extra math to work out how many 'true' batches we really have\n";
+            str += "\t\tunsigned int batch_block_size = hipGridDim_x / batch_count; //To opt: it "
+                   "can "
                    "be "
                    "calc on host.\n";
-            str += "\tunsigned int counter_mod = batch % batch_block_size;\n";
-            str += "\tunsigned int batch_local_count = batch / batch_block_size; //To check: "
+            str += "\t\tunsigned int counter_mod = batch % batch_block_size;\n";
+            str += "\t\tunsigned int batch_local_count = batch / batch_block_size; //To check: "
                    "technically "
                    "it should be done in one instruction.\n";
 
             std::string loop;
-            loop += "\tfor(int i = dim; i>2; i--){\n"; // dim is a runtime variable
-            loop += "\t\tint currentLength = 1;\n";
-            loop += "\t\tfor(int j=2; j<i; j++){\n";
-            loop += "\t\t\tcurrentLength *= lengths[j];\n";
-            loop += "\t\t}\n";
-            loop += "\t\tcurrentLength *= (lengths[1]/" + std::to_string(blockWidth) + ");\n";
+            loop += "\t\tfor(int i = dim; i>2; i--){\n"; // dim is a runtime variable
+            loop += "\t\t\tint currentLength = 1;\n";
+            loop += "\t\t\tfor(int j=2; j<i; j++){\n";
+            loop += "\t\t\t\tcurrentLength *= lengths[j];\n";
+            loop += "\t\t\t}\n";
+            loop += "\t\t\tcurrentLength *= (lengths[1]/" + std::to_string(blockWidth) + ");\n";
             loop += "\n";
-            loop += "\t\t" + offset_name1 + " += (counter_mod/currentLength)*" + stride_name1
+            loop += "\t\t\t" + offset_name1 + " += (counter_mod/currentLength)*" + stride_name1
                     + "[i];\n";
             if(output == true)
-                loop += "\t\t" + offset_name2 + " += (counter_mod/currentLength)*" + stride_name2
+                loop += "\t\t\t" + offset_name2 + " += (counter_mod/currentLength)*" + stride_name2
                         + "[i];\n";
-            loop += "\t\tcounter_mod = (counter_mod % currentLength); \n";
-            loop += "\t}\n";
+            loop += "\t\t\tcounter_mod = (counter_mod % currentLength); \n";
+            loop += "\t\t}\n";
 
-            loop += "\n\t// We handle a 2D tile block with one work-group threads.\n";
-            loop += "\t// In the below, '_x' moves along the fast dimension of the tile.\n";
+            loop += "\n\t\t// We handle a 2D tile block with one work-group threads.\n";
+            loop += "\t\t// In the below, '_x' moves along the fast dimension of the tile.\n";
 
             std::string sub_string = "(lengths[1]/" + std::to_string(blockWidth)
                                      + ")"; // in FFT it is how many unrolls
@@ -459,7 +461,8 @@ namespace StockhamGenerator
                 loop += "\t\t}\n";
                 loop += "\t}\n";
 
-                loop += "\telse if(Tsbrc == SBRC_3D_FFT_TRANS_Z_XY)\n";
+                loop += "\telse if(Tsbrc == SBRC_3D_FFT_TRANS_Z_XY || Tsbrc == "
+                        "SBRC_3D_FFT_ERC_TRANS_Z_XY)\n";
                 loop += "\t{\n";
                 loop += "\t\tdim3 tgs; // tile grid size\n";
                 loop += "\t\ttgs.x = 1;\n";
@@ -1462,6 +1465,13 @@ namespace StockhamGenerator
 
             if(blockCompute)
             {
+                str += "\n\tunsigned int lds_row_padding = 0;";
+
+                if(blockComputeType == BCT_R2C)
+                {
+                    str += "\n\tif(Tsbrc == SBRC_3D_FFT_ERC_TRANS_Z_XY)";
+                    str += "\n\t\tlds_row_padding = " + std::to_string(blockLdsRowPadding) + ";";
+                }
 
                 size_t loopCount = (length * blockWidth) / blockWGS;
 
@@ -1534,7 +1544,8 @@ namespace StockhamGenerator
                     {
                         str += "\t\t// Calc global offset within a tile and read\n";
                         if(blockComputeType == BCT_R2C)
-                            str += "\t\tif(Tsbrc == SBRC_2D || Tsbrc == SBRC_3D_FFT_TRANS_Z_XY)\n";
+                            str += "\t\tif(Tsbrc == SBRC_2D || Tsbrc == SBRC_3D_FFT_TRANS_Z_XY || "
+                                   "Tsbrc == SBRC_3D_FFT_ERC_TRANS_Z_XY)\n";
                         str += "\t\t{\n";
                         str += "\t\t\tR0";
                         str += comp;
@@ -1589,20 +1600,29 @@ namespace StockhamGenerator
                 else
                 {
                     str += "\n\t\t// Write into lds in row-major\n";
-                    if(blockComputeType == BCT_R2C)
-                        str += "\t\tif(Tsbrc == SBRC_2D || Tsbrc == SBRC_3D_FFT_TRANS_Z_XY)\n";
-                    str += "\t\t\tlds[t*";
-                    str += std::to_string(blockWGS);
-                    str += " + me] = R0;\n";
-                    if(blockComputeType == BCT_R2C)
+                    str += "\t\tif(Tsbrc == SBRC_2D || Tsbrc == SBRC_3D_FFT_TRANS_Z_XY || "
+                           "Tsbrc == SBRC_3D_FFT_ERC_TRANS_Z_XY)\n";
+                    str += "\t\t\tlds[t * ";
+
+                    if(length / blockWGS)
                     {
-                        str += "\t\telse\n";
-                        str += "\t\t\tlds[t % " + std::to_string(blockWidth) + " *"
-                               + std::to_string(length) + " + t / " + std::to_string(blockWidth)
-                               + " * " + std::to_string(blockWGS) + " + me % "
-                               + std::to_string(length) + " + me / " + std::to_string(length)
-                               + " * " + std::to_string(loopCount * length) + "] = R0;\n";
+                        str += std::to_string(blockWGS);
+                        str += " + t / " + std::to_string(length / blockWGS) + " * lds_row_padding";
                     }
+                    else
+                    {
+                        str += "( " + std::to_string(blockWGS) + " + "
+                               + std::to_string(blockWGS / length) + " * lds_row_padding)";
+                        str += " + (me / " + std::to_string(length) + " ) * lds_row_padding";
+                    }
+
+                    str += " + me] = R0;\n";
+                    str += "\t\telse\n";
+                    str += "\t\t\tlds[t % " + std::to_string(blockWidth) + " *"
+                           + std::to_string(length) + " + t / " + std::to_string(blockWidth) + " * "
+                           + std::to_string(blockWGS) + " + me % " + std::to_string(length)
+                           + " + me / " + std::to_string(length) + " * "
+                           + std::to_string(loopCount * length) + "] = R0;\n";
                 }
 
                 str += "\t}\n\n";
@@ -1710,12 +1730,14 @@ namespace StockhamGenerator
 
             if(blockCompute) // blockCompute changes the ldsOff
             {
-                ldsOff += "t*";
-                ldsOff += std::to_string(length * (blockWGS / workGroupSizePerTrans));
+                ldsOff += "t * (";
+                ldsOff += std::to_string(length) + " + lds_row_padding) * "
+                          + std::to_string(blockWGS / workGroupSizePerTrans);
                 ldsOff += " + (me/";
                 ldsOff += std::to_string(workGroupSizePerTrans);
-                ldsOff += ")*";
+                ldsOff += ")*(";
                 ldsOff += std::to_string(length);
+                ldsOff += "+ lds_row_padding)";
                 str += "\t";
             }
             else
@@ -1771,10 +1793,30 @@ namespace StockhamGenerator
             // Write data from shared memory (LDS) for blocked access
             if(blockCompute)
             {
+                std::string strLdsRead;
+                std::string strGlobalWrite;
 
                 size_t loopCount = (length * blockWidth) / blockWGS;
 
                 str += "\t__syncthreads();\n\n";
+
+                // The code block for even-length real2complex post processing
+                if(blockComputeType == BCT_R2C)
+                {
+                    str += "\tif (Tsbrc == SBRC_3D_FFT_ERC_TRANS_Z_XY)\n\t{";
+                    str += "\n\t\tfor(unsigned int r = 0; r < " + std::to_string(blockWidth)
+                           + "; r++)\n\t\t{";
+                    str += "\n\t\t\tpost_process_interleaved_inplace<T, ";
+                    str += (length % 2) ? "false" : "true";
+                    str += ">(me, " + std::to_string(length) + " - me, " + std::to_string(length)
+                           + ", " + std::to_string(length / 2);
+                    str += ", &lds[r * (" + std::to_string(length) + " + lds_row_padding)]";
+                    str += ", &twiddles[" + std::to_string(length) + "]);";
+                    str += "\n\t\t}";
+
+                    str += "\n\t\t__syncthreads();\n\t}\n";
+                }
+
                 str += "\n\tfor(unsigned int t=0; t<";
                 str += std::to_string(loopCount);
                 str += "; t++)";
@@ -1800,18 +1842,22 @@ namespace StockhamGenerator
                            "threadOffset_x + threadIdx_y * 1\n";
                     str += "\t\t// which is    R0 = lds[   t     *  (wgs/bwd)  +  (me%bwd)   *  "
                            "length[0]     + (me/bwd)    * 1]\n";
-                    str += "\t\tT R0 = lds[t*";
-                    str += std::to_string(blockWGS / blockWidth);
-                    str += " + ";
-                    str += "(me%";
-                    str += std::to_string(blockWidth);
-                    str += ")*";
-                    str += std::to_string(length);
-                    str += " + ";
-                    str += "(me/";
-                    str += std::to_string(blockWidth);
-                    str += ")];";
-                    str += "\n";
+
+                    strLdsRead += "\t\tT R0 = lds[t*";
+                    strLdsRead += std::to_string(blockWGS / blockWidth);
+                    strLdsRead += " + ";
+                    strLdsRead += "(me%";
+                    strLdsRead += std::to_string(blockWidth);
+                    strLdsRead += ")*(";
+                    strLdsRead += std::to_string(length);
+                    strLdsRead += " + lds_row_padding)";
+                    strLdsRead += " + ";
+                    strLdsRead += "(me/";
+                    strLdsRead += std::to_string(blockWidth);
+                    strLdsRead += ")];";
+                    strLdsRead += "\n";
+
+                    str += strLdsRead;
                 }
                 else
                 {
@@ -1886,19 +1932,27 @@ namespace StockhamGenerator
                             str += std::to_string(blockWGS / blockWidth) + "] = R0" + comp + ";\n";
                             str += "\t\t}\n";
 
-                            str += "\t\telse if(Tsbrc == SBRC_3D_FFT_TRANS_Z_XY)\n";
+                            str += "\t\telse if(Tsbrc == SBRC_3D_FFT_TRANS_Z_XY || Tsbrc == "
+                                   "SBRC_3D_FFT_ERC_TRANS_Z_XY)\n";
                             str += "\t\t{\n";
-                            str += "\t\t\t";
-                            str += writeBuf;
-                            str += "[(me%";
-                            str += std::to_string(blockWidth);
-                            str += ") * stride_";
-                            str += placeness == rocfft_placement_inplace ? "in" : "out";
-                            str += "[0] + (me/" + std::to_string(blockWidth);
-                            str += (placeness == rocfft_placement_inplace)
-                                       ? ")*stride_in[2] + t*stride_in[2]*"
-                                       : ")*stride_out[2] + t*stride_out[2]*";
-                            str += std::to_string(blockWGS / blockWidth) + "] = R0" + comp + ";\n";
+
+                            std::string strGlobalWriteComp = "";
+                            strGlobalWriteComp += "\t\t\t";
+                            strGlobalWriteComp += writeBuf;
+                            strGlobalWriteComp += "[(me%";
+                            strGlobalWriteComp += std::to_string(blockWidth);
+                            strGlobalWriteComp += ") * stride_";
+                            strGlobalWriteComp
+                                += placeness == rocfft_placement_inplace ? "in" : "out";
+                            strGlobalWriteComp += "[0] + (me/" + std::to_string(blockWidth);
+                            strGlobalWriteComp += (placeness == rocfft_placement_inplace)
+                                                      ? ")*stride_in[2] + t*stride_in[2]*"
+                                                      : ")*stride_out[2] + t*stride_out[2]*";
+                            strGlobalWriteComp
+                                += std::to_string(blockWGS / blockWidth) + "] = R0" + comp + ";\n";
+
+                            str += strGlobalWriteComp;
+                            strGlobalWrite += strGlobalWriteComp;
                             str += "\t\t}\n";
                         }
                     }
@@ -1918,6 +1972,17 @@ namespace StockhamGenerator
                 }
 
                 str += "\t}\n\n"; // "}" enclose the loop intrduced
+
+                if(blockComputeType == BCT_R2C)
+                {
+                    str += "\tif (Tsbrc == SBRC_3D_FFT_ERC_TRANS_Z_XY)\n\t{";
+                    str += "\n\t\tif(me < " + std::to_string(blockWidth) + ")\n\t\t{";
+                    str += "\n\t\t\tunsigned int t = " + std::to_string(loopCount) + ";";
+                    str += "\n\t" + strLdsRead;
+                    str += "\n" + strGlobalWrite;
+                    str += "\t\t}\n\t}\n";
+                }
+
             } // end if blockCompute
         }
 
@@ -2192,11 +2257,13 @@ namespace StockhamGenerator
 
             if(blockCompute)
             {
+                blockLdsRowPadding = 1; //TODO: move it some where else?
                 BlockSizes::GetValue(length, blockWidth, blockWGS, blockLDS);
+                blockLDS += blockLdsRowPadding * blockWidth;
             }
             else
             {
-                blockWidth = blockWGS = blockLDS = 0;
+                blockWidth = blockWGS = blockLDS = blockLdsRowPadding = 0;
             }
         } // end of if ((params.fft_MaxWorkGroupSize >= 256) && (nPasses != 0))
 
@@ -2236,7 +2303,11 @@ namespace StockhamGenerator
         void GenerateKernel(std::string& str)
         {
             // str += "#include \"common.h\"\n";
-            str += "#include \"rocfft_butterfly_template.h\"\n\n";
+            str += "#include \"rocfft_butterfly_template.h\"\n";
+            if(blockCompute && blockComputeType == BCT_R2C)
+            {
+                str += "#include \"real2complex.h\"\n\n";
+            }
 
             GeneratePassesKernel(str);
 

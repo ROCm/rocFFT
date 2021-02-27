@@ -71,7 +71,7 @@ bool PlanPowX(ExecPlan& execPlan)
            || (node->scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
            || (node->scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY))
         {
-            node->twiddles = twiddles_create(node->length[0], node->precision, false, false);
+            node->twiddles = twiddles_create(node->length[0], node->precision, false, false, false);
             if(node->twiddles == nullptr)
                 return false;
         }
@@ -79,7 +79,8 @@ bool PlanPowX(ExecPlan& execPlan)
                 || (node->scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE)
                 || (node->scheme == CS_KERNEL_CMPLX_TO_R))
         {
-            node->twiddles = twiddles_create(2 * node->length[0], node->precision, false, true);
+            node->twiddles
+                = twiddles_create(2 * node->length[0], node->precision, false, true, false);
             if(node->twiddles == nullptr)
                 return false;
         }
@@ -87,8 +88,8 @@ bool PlanPowX(ExecPlan& execPlan)
         else if(node->scheme == CS_KERNEL_TRANSPOSE_CMPLX_TO_R)
         {
             // C2R transform ends up getting shorter by 1 along that dimension also
-            node->twiddles
-                = twiddles_create(2 * (node->length.back() - 1), node->precision, false, true);
+            node->twiddles = twiddles_create(
+                2 * (node->length.back() - 1), node->precision, false, true, false);
             if(node->twiddles == nullptr)
                 return false;
         }
@@ -97,10 +98,17 @@ bool PlanPowX(ExecPlan& execPlan)
             // create one set of twiddles for each dimension
             node->twiddles = twiddles_create_2D(node->length[0], node->length[1], node->precision);
         }
+        else if(node->scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
+        {
+            node->twiddles = twiddles_create(node->length[0], node->precision, false, false, true);
+            if(node->twiddles == nullptr)
+                return false;
+        }
 
         if(node->large1D != 0)
         {
-            node->twiddles_large = twiddles_create(node->large1D, node->precision, true, false);
+            node->twiddles_large
+                = twiddles_create(node->large1D, node->precision, true, false, false);
             if(node->twiddles_large == nullptr)
                 return false;
         }
@@ -203,6 +211,7 @@ bool PlanPowX(ExecPlan& execPlan)
             break;
         }
         case CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY:
+        case CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY:
         {
             GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
             auto transposeType = sbrc_3D_transpose_type(bwd,
@@ -213,11 +222,11 @@ bool PlanPowX(ExecPlan& execPlan)
             ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
                       ? function_pool::get_function_single_transpose(
                           std::make_pair(execPlan.execSeq[i]->length[0],
-                                         CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY),
+                                         execPlan.execSeq[i]->scheme),
                           transposeType)
                       : function_pool::get_function_double_transpose(
                           std::make_pair(execPlan.execSeq[i]->length[0],
-                                         CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY),
+                                         execPlan.execSeq[i]->scheme),
                           transposeType);
             GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
             gp.b_x = std::accumulate(execPlan.execSeq[i]->length.begin() + 1,

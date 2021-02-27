@@ -23,6 +23,7 @@
 #include "rocfft.h"
 #include "rocfft_hip.h"
 
+#include "real2complex.h"
 #include <iostream>
 #include <numeric>
 
@@ -30,46 +31,6 @@
 // real type) in order to maintain the signature so that we can add the pointer to a std::map.  If
 // we find another solution for organizing the calling structure, we should be explicit with the
 // type.
-
-template <typename Tcomplex, bool Ndiv4>
-__device__ inline void post_process_interleaved(const size_t    idx_p,
-                                                const size_t    idx_q,
-                                                const size_t    half_N,
-                                                const size_t    quarter_N,
-                                                const Tcomplex* input,
-                                                Tcomplex*       output,
-                                                const Tcomplex* twiddles)
-{
-    if(idx_p == 0)
-    {
-        output[half_N].x = input[0].x - input[0].y;
-        output[half_N].y = 0;
-        output[0].x      = input[0].x + input[0].y;
-        output[0].y      = 0;
-
-        if(Ndiv4)
-        {
-            output[quarter_N].x = input[quarter_N].x;
-            output[quarter_N].y = -input[quarter_N].y;
-        }
-    }
-    else
-    {
-        const Tcomplex p = input[idx_p];
-        const Tcomplex q = input[idx_q];
-        const Tcomplex u = 0.5 * (p + q);
-        const Tcomplex v = 0.5 * (p - q);
-
-        const Tcomplex twd_p = twiddles[idx_p];
-        // NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y);
-
-        output[idx_p].x = u.x + v.x * twd_p.y + u.y * twd_p.x;
-        output[idx_p].y = v.y + u.y * twd_p.y - v.x * twd_p.x;
-
-        output[idx_q].x = u.x - v.x * twd_p.y - u.y * twd_p.x;
-        output[idx_q].y = -v.y + u.y * twd_p.y - v.x * twd_p.x;
-    }
-}
 
 // Interleaved version of r2c post-process kernel, 1D
 // Tcomplex is memory allocation type, could be float2 or double2.

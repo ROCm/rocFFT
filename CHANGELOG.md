@@ -12,6 +12,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
   supported.
 - Explicitly add radix-7 lengths 14, 21, and 224 to list of supported
   lengths.
+- Optimized R2C 2D/3D 128, 200, 256 cube sizes.
 
 ### Fixed
 - Fixed potential crashes in small 3D transforms with unusual strides.

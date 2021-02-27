@@ -146,6 +146,7 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
                      const std::vector<std::tuple<size_t, ComputeScheme>>&         large1D_list,
                      const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D)
 {
+    const std::string str_interface = "(const void *data_p, void *back_p);\n";
 
     std::string str;
 
@@ -164,7 +165,7 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
     {
         std::string str_len = std::to_string(support_list[i]);
         str += "void rocfft_internal_dfn_sp_ci_ci_stoc_";
-        str += str_len + "(const void *data_p, void *back_p);\n";
+        str += str_len + str_interface;
     }
 
     str += "\n";
@@ -173,7 +174,7 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
 
         std::string str_len = std::to_string(support_list[i]);
         str += "void rocfft_internal_dfn_dp_ci_ci_stoc_";
-        str += str_len + "(const void *data_p, void *back_p);\n";
+        str += str_len + str_interface;
     }
 
     str += "\n";
@@ -188,44 +189,52 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
         if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
         {
             str += "void rocfft_internal_dfn_sp_ci_ci_sbcc_";
-            str += str_len + "(const void *data_p, void *back_p);\n";
+            str += str_len + str_interface;
         }
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
         {
             str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc_";
-            str += str_len + "(const void *data_p, void *back_p);\n";
+            str += str_len + str_interface;
             str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_trans_xy_z_tile_aligned_";
-            str += str_len + "(const void *data_p, void *back_p);\n";
+            str += str_len + str_interface;
             str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_trans_z_xy_tile_aligned_";
-            str += str_len + "(const void *data_p, void *back_p);\n";
+            str += str_len + str_interface;
+            str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_tile_aligned_";
+            str += str_len + str_interface;
             if(is_diagonal_sbrc_3D_length(len))
             {
                 str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_trans_xy_z_diagonal_";
-                str += str_len + "(const void *data_p, void *back_p);\n";
+                str += str_len + str_interface;
                 str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_trans_z_xy_diagonal_";
-                str += str_len + "(const void *data_p, void *back_p);\n";
+                str += str_len + str_interface;
+                str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_diagonal_";
+                str += str_len + str_interface;
             }
         }
 
         if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
         {
             str += "void rocfft_internal_dfn_dp_ci_ci_sbcc_";
-            str += str_len + "(const void *data_p, void *back_p);\n";
+            str += str_len + str_interface;
         }
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
         {
             str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc_";
-            str += str_len + "(const void *data_p, void *back_p);\n";
+            str += str_len + str_interface;
             str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_trans_xy_z_tile_aligned_";
-            str += str_len + "(const void *data_p, void *back_p);\n";
+            str += str_len + str_interface;
             str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_trans_z_xy_tile_aligned_";
-            str += str_len + "(const void *data_p, void *back_p);\n";
+            str += str_len + str_interface;
+            str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_tile_aligned_";
+            str += str_len + str_interface;
             if(is_diagonal_sbrc_3D_length(len))
             {
                 str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_trans_xy_z_diagonal_";
-                str += str_len + "(const void *data_p, void *back_p);\n";
+                str += str_len + str_interface;
                 str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_trans_z_xy_diagonal_";
-                str += str_len + "(const void *data_p, void *back_p);\n";
+                str += str_len + str_interface;
+                str += "void rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_diagonal_";
+                str += str_len + str_interface;
             }
         }
     }
@@ -428,6 +437,11 @@ void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> lar
                    + "_op_ci_ci_sbrc3d_fft_trans_z_xy_tile_aligned_" + str_len + ", fft_fwd_op_len"
                    + str_len + name_suffix + ", fft_back_op_len" + str_len + name_suffix + ", "
                    + complex_case_precision + ", SBRC_3D_FFT_TRANS_Z_XY, TILE_ALIGNED)\n";
+            str += "POWX_LARGE_SBRC_GENERATOR( rocfft_internal_dfn_" + short_name_precision
+                   + "_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_tile_aligned_" + str_len
+                   + ", fft_fwd_op_len" + str_len + name_suffix + ", fft_back_op_len" + str_len
+                   + name_suffix + ", " + complex_case_precision
+                   + ", SBRC_3D_FFT_ERC_TRANS_Z_XY, TILE_ALIGNED)\n";
             // add diagonal transpose if possible
             if(is_diagonal_sbrc_3D_length(len))
             {
@@ -439,6 +453,11 @@ void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> lar
                        + "_op_ci_ci_sbrc3d_fft_trans_z_xy_diagonal_" + str_len + ", fft_fwd_op_len"
                        + str_len + name_suffix + ", fft_back_op_len" + str_len + name_suffix + ", "
                        + complex_case_precision + ", SBRC_3D_FFT_TRANS_Z_XY, DIAGONAL)\n";
+                str += "POWX_LARGE_SBRC_GENERATOR( rocfft_internal_dfn_" + short_name_precision
+                       + "_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_diagonal_" + str_len
+                       + ", fft_fwd_op_len" + str_len + name_suffix + ", fft_back_op_len" + str_len
+                       + name_suffix + ", " + complex_case_precision
+                       + ", SBRC_3D_FFT_ERC_TRANS_Z_XY, DIAGONAL)\n";
             }
         }
     }
@@ -672,6 +691,10 @@ void AddCPUFunctionToPool(
                    + ", CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)] = "
                      "&rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_trans_z_xy_tile_aligned_"
                    + str_len + ";\n";
+            str += "\tfunction_map_single_transpose_tile_aligned[std::make_pair(" + str_len
+                   + ", CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)] = "
+                     "&rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_tile_aligned_"
+                   + str_len + ";\n";
             // add diagonal transpose if possible
             if(is_diagonal_sbrc_3D_length(len))
             {
@@ -682,6 +705,10 @@ void AddCPUFunctionToPool(
                 str += "\tfunction_map_single_transpose_diagonal[std::make_pair(" + str_len
                        + ", CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)] = "
                          "&rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_trans_z_xy_diagonal_"
+                       + str_len + ";\n";
+                str += "\tfunction_map_single_transpose_diagonal[std::make_pair(" + str_len
+                       + ", CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)] = "
+                         "&rocfft_internal_dfn_sp_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_diagonal_"
                        + str_len + ";\n";
             }
         }
@@ -720,6 +747,10 @@ void AddCPUFunctionToPool(
                    + ", CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)] = "
                      "&rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_trans_z_xy_tile_aligned_"
                    + str_len + ";\n";
+            str += "\tfunction_map_double_transpose_tile_aligned[std::make_pair(" + str_len
+                   + ", CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)] = "
+                     "&rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_tile_aligned_"
+                   + str_len + ";\n";
             // add diagonal transpose if possible
             if(is_diagonal_sbrc_3D_length(len))
             {
@@ -730,6 +761,10 @@ void AddCPUFunctionToPool(
                 str += "\tfunction_map_double_transpose_diagonal[std::make_pair(" + str_len
                        + ", CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)] = "
                          "&rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_trans_z_xy_diagonal_"
+                       + str_len + ";\n";
+                str += "\tfunction_map_double_transpose_diagonal[std::make_pair(" + str_len
+                       + ", CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)] = "
+                         "&rocfft_internal_dfn_dp_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_diagonal_"
                        + str_len + ";\n";
             }
         }

@@ -25,7 +25,7 @@
 #include "rocfft_hip.h"
 
 template <typename T>
-gpubuf twiddles_create_pr(size_t N, size_t threshold, bool large, bool no_radices)
+gpubuf twiddles_create_pr(size_t N, size_t threshold, bool large, bool no_radices, bool attach_2N)
 {
     gpubuf twts; // device side
     void*  twtc; // host side
@@ -45,12 +45,21 @@ gpubuf twiddles_create_pr(size_t N, size_t threshold, bool large, bool no_radice
             twtc    = twTable.GenerateTwiddleTable(radices); // calculate twiddles on host side
         }
 
-        if(twts.alloc(N * sizeof(T)) != hipSuccess
-           || hipMemcpy(twts.data(), twtc, N * sizeof(T), hipMemcpyHostToDevice) != hipSuccess)
-            twts.free();
+        if(attach_2N)
+        {
+            twTable.Attach2NTable((T*)twtc, twts);
+        }
+        else
+        {
+            if(twts.alloc(N * sizeof(T)) != hipSuccess
+               || hipMemcpy(twts.data(), twtc, N * sizeof(T), hipMemcpyHostToDevice) != hipSuccess)
+                twts.free();
+        }
     }
     else
     {
+        assert(!attach_2N);
+
         if(no_radices)
         {
             TwiddleTable<T> twTable(N);
@@ -73,12 +82,15 @@ gpubuf twiddles_create_pr(size_t N, size_t threshold, bool large, bool no_radice
     return twts;
 }
 
-gpubuf twiddles_create(size_t N, rocfft_precision precision, bool large, bool no_radices)
+gpubuf twiddles_create(
+    size_t N, rocfft_precision precision, bool large, bool no_radices, bool attach_2N)
 {
     if(precision == rocfft_precision_single)
-        return twiddles_create_pr<float2>(N, Large1DThreshold(precision), large, no_radices);
+        return twiddles_create_pr<float2>(
+            N, Large1DThreshold(precision), large, no_radices, attach_2N);
     else if(precision == rocfft_precision_double)
-        return twiddles_create_pr<double2>(N, Large1DThreshold(precision), large, no_radices);
+        return twiddles_create_pr<double2>(
+            N, Large1DThreshold(precision), large, no_radices, attach_2N);
     else
     {
         assert(false);

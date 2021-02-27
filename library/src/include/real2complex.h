@@ -21,6 +21,91 @@
 #ifndef REAL_TO_COMPLEX_H
 #define REAL_TO_COMPLEX_H
 
+// The even-length real to complex post process device kernel
+template <typename Tcomplex, bool Ndiv4>
+__device__ inline void post_process_interleaved(const size_t    idx_p,
+                                                const size_t    idx_q,
+                                                const size_t    half_N,
+                                                const size_t    quarter_N,
+                                                const Tcomplex* input,
+                                                Tcomplex*       output,
+                                                const Tcomplex* twiddles)
+{
+    if(idx_p == 0)
+    {
+        output[half_N].x = input[0].x - input[0].y;
+        output[half_N].y = 0;
+        output[0].x      = input[0].x + input[0].y;
+        output[0].y      = 0;
+
+        if(Ndiv4)
+        {
+            output[quarter_N].x = input[quarter_N].x;
+            output[quarter_N].y = -input[quarter_N].y;
+        }
+    }
+    else
+    {
+        const Tcomplex p = input[idx_p];
+        const Tcomplex q = input[idx_q];
+        const Tcomplex u = 0.5 * (p + q);
+        const Tcomplex v = 0.5 * (p - q);
+
+        const Tcomplex twd_p = twiddles[idx_p];
+        // NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y);
+
+        output[idx_p].x = u.x + v.x * twd_p.y + u.y * twd_p.x;
+        output[idx_p].y = v.y + u.y * twd_p.y - v.x * twd_p.x;
+
+        output[idx_q].x = u.x - v.x * twd_p.y - u.y * twd_p.x;
+        output[idx_q].y = -v.y + u.y * twd_p.y - v.x * twd_p.x;
+    }
+}
+
+// TODO: merge back to post_process_interleaved()
+template <typename T, bool Ndiv4>
+__device__ inline void post_process_interleaved_inplace(const size_t idx_p,
+                                                        const size_t idx_q,
+                                                        const size_t half_N,
+                                                        const size_t quarter_N,
+                                                        T*           inout,
+                                                        const T*     twiddles)
+{
+    T p, q;
+    if(idx_p < quarter_N)
+    {
+        p = inout[idx_p];
+        q = inout[idx_q];
+    }
+
+    __syncthreads();
+
+    if(idx_p == 0)
+    {
+        inout[idx_p].x = p.x + p.y;
+        inout[idx_p].y = 0;
+        inout[idx_q].x = p.x - p.y;
+        inout[idx_q].y = 0;
+
+        if(Ndiv4)
+            inout[quarter_N].y = -inout[quarter_N].y;
+    }
+    else if(idx_p < quarter_N)
+    {
+        const T u = 0.5 * (p + q);
+        const T v = 0.5 * (p - q);
+
+        const T twd_p = twiddles[idx_p];
+        // NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y);
+
+        inout[idx_p].x = u.x + v.x * twd_p.y + u.y * twd_p.x;
+        inout[idx_p].y = v.y + u.y * twd_p.y - v.x * twd_p.x;
+
+        inout[idx_q].x = u.x - v.x * twd_p.y - u.y * twd_p.x;
+        inout[idx_q].y = -v.y + u.y * twd_p.y - v.x * twd_p.x;
+    }
+}
+
 void real2complex(const void* data, void* back);
 void complex2hermitian(const void* data, void* back);
 

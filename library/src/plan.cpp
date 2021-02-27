@@ -66,6 +66,7 @@ std::string PrintScheme(ComputeScheme cs)
 
            {ENUMSTR(CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)},
            {ENUMSTR(CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)},
+           {ENUMSTR(CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)},
 
            {ENUMSTR(CS_REAL_TRANSFORM_EVEN)},
            {ENUMSTR(CS_KERNEL_R_TO_CMPLX)},
@@ -4720,6 +4721,50 @@ void Optimize_STOCKHAM_TRANSPOSE_XY_Z(ExecPlan& execPlan, std::vector<TreeNode*>
     }
 }
 
+// combine CS_KERNEL_R_TO_CMPLX_TRANSPOSE with preceding CS_KERNEL_STOCKHAM
+void Optimize_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY(ExecPlan&               execPlan,
+                                                 std::vector<TreeNode*>& execSeq)
+{
+    auto r_to_cmplx_transpose = std::find_if(execSeq.rbegin(), execSeq.rend(), [](TreeNode* n) {
+        return n->scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE;
+    });
+    if(r_to_cmplx_transpose != execSeq.rend() && r_to_cmplx_transpose != execSeq.rbegin())
+    {
+        auto stockham = r_to_cmplx_transpose + 1;
+        if((*stockham)->scheme == CS_KERNEL_STOCKHAM
+           && (function_pool::has_function(
+               (*stockham)->precision,
+               {(*stockham)->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC})) // kernel available
+           && ((*stockham)->length[0] * 2
+               == (*stockham)->length[1]) // limit to original "cubic" case
+           && (((*stockham)->length.size() == 2)
+               || ((*stockham)->length[1] == (*stockham)->length[2])))
+        {
+            (*stockham)->scheme       = CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY;
+            (*stockham)->obOut        = (*r_to_cmplx_transpose)->obOut;
+            (*stockham)->outArrayType = (*r_to_cmplx_transpose)->outArrayType;
+            (*stockham)->placement    = rocfft_placement_notinplace;
+            (*stockham)->outStride    = (*r_to_cmplx_transpose)->outStride;
+            (*stockham)->oDist        = (*r_to_cmplx_transpose)->oDist;
+
+            // NB:
+            //    The generated CS_KERNEL_R_TO_CMPLX_TRANSPOSE kernel is in 3D fashion.
+            //    We just need extend length and strides to make it work for 2D case.
+            if((*stockham)->length.size() == 2)
+            {
+                (*stockham)->length.push_back(1);
+                (*stockham)->inStride.push_back((*stockham)->inStride[1]);
+                (*stockham)->outStride.push_back((*stockham)->outStride[1]);
+            }
+
+            // NB:
+            //   Don't remove "*stockham" kernel beacause the combined 2 twiddle tables
+            //   are stored there.
+            RemoveNode(execPlan, *r_to_cmplx_transpose);
+        }
+    }
+}
+
 static void OptimizePlan(ExecPlan& execPlan)
 {
     auto passes = {
@@ -4727,6 +4772,7 @@ static void OptimizePlan(ExecPlan& execPlan)
         Optimize_TRANSPOSE_CMPLX_TO_R,
         Optimize_STOCKHAM_TRANSPOSE_Z_XY,
         Optimize_STOCKHAM_TRANSPOSE_XY_Z,
+        Optimize_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY,
     };
     for(auto pass : passes)
     {

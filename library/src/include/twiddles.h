@@ -120,6 +120,35 @@ public:
 
         return wc;
     }
+
+    // Attach 2N table for potential fused even-length real2complex post-processing
+    // or complex2real pre-processing.
+    void Attach2NTable(T* twtc, gpubuf& twts)
+    {
+        T* twc_all = new T[3 * N];
+        memcpy(twc_all, twtc, sizeof(T) * N);
+
+        const double TWO_PI = -6.283185307179586476925286766559;
+
+        // Generate the table
+        size_t nt = N;
+        for(size_t i = 0; i < 2 * N; i++)
+        {
+            double c = cos(TWO_PI * i / (2 * N));
+            double s = sin(TWO_PI * i / (2 * N));
+
+            twc_all[nt].x = c;
+            twc_all[nt].y = s;
+            nt++;
+        }
+
+        if(twts.alloc(3 * N * sizeof(T)) != hipSuccess
+           || hipMemcpy(twts.data(), twc_all, 3 * N * sizeof(T), hipMemcpyHostToDevice)
+                  != hipSuccess)
+            twts.free();
+
+        delete[] twc_all;
+    }
 };
 
 // Twiddle factors table for large N > 4096
@@ -180,7 +209,8 @@ public:
     }
 };
 
-gpubuf twiddles_create(size_t N, rocfft_precision precision, bool large, bool no_radices);
+gpubuf twiddles_create(
+    size_t N, rocfft_precision precision, bool large, bool no_radices, bool attach_2N);
 gpubuf twiddles_create_2D(size_t N1, size_t N2, rocfft_precision precision);
 
 #endif // defined( TWIDDLES_H )
