@@ -72,14 +72,14 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
                     input.swap(const_cast<fftw_data_t&>(ret.input.get()));
                     output.swap(const_cast<fftw_data_t&>(ret.output.get()));
                     // async convert the input/output to single-precision
-                    std::shared_future<fftw_data_t> input_future = std::async(
-                        std::launch::async, [=, &ret, input{std::move(input)}]() mutable {
-                            return convert_to_single(input);
-                        });
-                    std::shared_future<fftw_data_t> output_future = std::async(
-                        std::launch::async, [=, &ret, output{std::move(output)}]() mutable {
-                            return convert_to_single(output);
-                        });
+                    std::shared_future<fftw_data_t> input_future
+                        = std::async(std::launch::async, [=, input{std::move(input)}]() mutable {
+                              return convert_to_single(input);
+                          });
+                    std::shared_future<fftw_data_t> output_future
+                        = std::async(std::launch::async, [=, output{std::move(output)}]() mutable {
+                              return convert_to_single(output);
+                          });
                     // replace the cached futures with these conversions
                     ret.input     = std::move(input_future);
                     ret.output    = std::move(output_future);
@@ -193,7 +193,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
                         contiguous_params.odist,
                         contiguous_params.ooffset);
         }
-        return std::move(output);
+        return output;
     });
     std::shared_future<VectorNorms> output_norm = std::async(std::launch::async, [=]() {
         auto ret_norm = norm(output.get(),
@@ -234,7 +234,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
     std::get<2>(last_cpu_fft) = params.transform_type;
     std::get<3>(last_cpu_fft) = ret;
 
-    return std::move(ret);
+    return ret;
 }
 
 // Compute a FFT using rocFFT and compare with the provided CPU reference computation.
@@ -256,8 +256,6 @@ void rocfft_transform(const rocfft_params&                 params,
         // Invalid parameters; skip this test.
         return;
     }
-
-    const size_t dim = params.length.size();
 
     rocfft_status fft_status = rocfft_status_success;
 
@@ -302,10 +300,6 @@ void rocfft_transform(const rocfft_params&                 params,
     // Sizes of individual input and output variables
     const size_t isize_t = var_size<size_t>(params.precision, params.itype);
     const size_t osize_t = var_size<size_t>(params.precision, params.otype);
-
-    // Numbers of input and output buffers:
-    const int nibuffer = params.nibuffer();
-    const int nobuffer = params.nobuffer();
 
     // Check if the problem fits on the device; if it doesn't skip it.
     if(!vram_fits_problem(std::accumulate(params.isize.begin(), params.isize.end(), 0) * isize_t,
@@ -589,7 +583,7 @@ TEST_P(accuracy_test, vs_fftw)
 
         // Account for precision and data type:
         if(params.transform_type != rocfft_transform_type_real_forward
-           || params.transform_type != rocfft_transform_type_real_inverse)
+           && params.transform_type != rocfft_transform_type_real_inverse)
         {
             needed_ram *= 2;
         }

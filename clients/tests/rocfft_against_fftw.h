@@ -194,8 +194,6 @@ inline std::vector<std::vector<char, Tallocator>>
                     const rocfft_transform_type                 transformType,
                     std::vector<std::vector<char, Tallocator>>& input)
 {
-    const size_t dim = length.size();
-
     // Dimension configuration:
     std::vector<fftw_iodim64> dims(length.size());
     for(int idx = 0; idx < length.size(); ++idx)

@@ -20,10 +20,6 @@
 # THE SOFTWARE.
 # #############################################################################
 
-# ########################################################################
-# The following check are hacks to get compiles working for CUDA backend
-# These should be removed in the future.
-
 set( sample_list fixed-large-float fixed-large-double )
 
 foreach( sample ${sample_list} )
@@ -37,6 +33,7 @@ foreach( sample ${sample_list} )
   target_link_libraries( ${sample} PRIVATE roc::rocfft )
 
   target_compile_features( ${sample} PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
+  target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} )
 
   set_target_properties( ${sample} PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
   set_target_properties( ${sample} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
@@ -52,14 +49,5 @@ foreach( sample ${sample_list} )
   else( )
     target_link_libraries( ${sample} PRIVATE hip::device )
   endif( )
-
-
-if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$")
-  target_compile_options( ${sample} PRIVATE -Wno-unused-command-line-argument -hc )
-endif( )
-
-if(HIP_PLATFORM STREQUAL "hip-clang")
-  target_compile_options( ${sample} PRIVATE -Wno-unused-command-line-argument )
-endif( )
 
 endforeach( )

@@ -57,11 +57,11 @@ class FftBasisVectorMixComplex
 
 public:
     FftBasisVectorMixComplex(size_t dim, size_t* length, size_t batch, FftBasisChoice fbc)
-        : mfbc(fbc)
-        , mix(NULL)
+        : mix(NULL)
         , ref(NULL)
         , otp(NULL)
         , dev(NULL)
+        , mfbc(fbc)
     {
         B = batch;
 

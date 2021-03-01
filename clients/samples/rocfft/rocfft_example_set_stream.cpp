@@ -49,8 +49,6 @@ int main(int argc, char* argv[])
 {
     std::cout << "rocfft example of 2 inplace transforms with 2 streams.\n" << std::endl;
 
-    rocfft_status rc = rocfft_status_success;
-
     size_t length      = 8;
     size_t total_bytes = length * sizeof(double2);
 

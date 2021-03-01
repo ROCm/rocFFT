@@ -352,7 +352,6 @@ Tint1 ceildiv(const Tint1 nominator, const Tint2 denominator)
 
 void initcomplex(const std::vector<size_t> length, const std::vector<size_t> stride, void* gpu_in)
 {
-    hipError_t hip_status = hipSuccess;
     switch(length.size())
     {
     case 1:
@@ -409,7 +408,6 @@ void initcomplex(const std::vector<size_t> length, const std::vector<size_t> str
 // stride.  The device buffer is assumed to have been allocated.
 void initreal(const std::vector<size_t> length, const std::vector<size_t> stride, void* gpu_in)
 {
-    hipError_t hip_status = hipSuccess;
     switch(length.size())
     {
     case 1:
@@ -470,7 +468,6 @@ void inithermitiancomplex(const std::vector<size_t> length,
                           const std::vector<size_t> stride,
                           void*                     gpu_in)
 {
-    hipError_t hip_status = hipSuccess;
     switch(length.size())
     {
     case 1:

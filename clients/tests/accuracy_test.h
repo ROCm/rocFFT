@@ -327,7 +327,7 @@ static std::vector<type_place_io_t>
             ret.push_back(std::make_tuple(transformType, place, iotype.first, iotype.second));
         }
     }
-    return std::move(ret);
+    return ret;
 }
 
 struct stride_generator
@@ -435,9 +435,6 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&     v_length
                                 {
                                     for(const auto& ooffset : ooffset_range)
                                     {
-                                        const size_t idist = 0;
-                                        const size_t odist = 0;
-
                                         rocfft_params param;
 
                                         param.length         = lengths;
@@ -507,9 +504,6 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     
                                 {
                                     for(const auto& ooffset : ooffset_range)
                                     {
-                                        const size_t idist = 0;
-                                        const size_t odist = 0;
-
                                         rocfft_params param;
 
                                         param.length         = lengths;

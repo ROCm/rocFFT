@@ -20,19 +20,6 @@
 # THE SOFTWARE.
 # #############################################################################
 
-# ########################################################################
-# The following check are hacks to get compiles working for CUDA backend
-# These should be removed in the future.
-
-# NVCC can not compile fftw.3 header file appropriately before v3.3.5
-# https://github.com/FFTW/fftw3/issues/18
-# v3.3.5 is installed by default on Ubuntu 16, workaround is to trick fftw3
-# into thinking nvcc is an Intel compiler as desribed in above issue
-if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-  add_definitions( -D__INTEL_COMPILER )
-endif( )
-# ########################################################################
-
 set( sample_list fixed-16-float fixed-16-double )
 
 foreach( sample ${sample_list} )
@@ -47,6 +34,7 @@ foreach( sample ${sample_list} )
   target_link_libraries( ${sample} PRIVATE roc::rocfft ${FFTW_LIBRARIES} )
 
   target_compile_features( ${sample} PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
+  target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} )
 
   set_target_properties( ${sample} PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
   set_target_properties( ${sample} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
@@ -62,13 +50,5 @@ foreach( sample ${sample_list} )
   else( )
     target_link_libraries( ${sample} PRIVATE hip::device )
   endif( )
-
-if(CMAKE_CXX_COMPILER MATCHES ".*/hcc$")
-  target_compile_options( ${sample} PRIVATE -Wno-unused-command-line-argument -hc )
-endif( )
-
-if(HIP_PLATFORM STREQUAL "hip-clang")
-  target_compile_options( ${sample} PRIVATE -Wno-unused-command-line-argument )
-endif( )
 
 endforeach( )

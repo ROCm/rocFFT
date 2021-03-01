@@ -63,6 +63,7 @@ target_compile_features( rocfft-selftest
   cxx_nullptr cxx_lambdas
   cxx_auto_type
   )
+target_compile_options( rocfft-selftest PRIVATE ${WARNING_FLAGS} )
 
 target_include_directories( rocfft-selftest
   PRIVATE
@@ -83,11 +84,7 @@ if( USE_CUDA )
     )
   target_compile_definitions( rocfft-selftest PRIVATE __HIP_PLATFORM_NVCC__ )
   target_link_libraries( rocfft-selftest PRIVATE ${CUDA_LIBRARIES} )
-else()
-  target_compile_options( rocfft-selftest PRIVATE -Wno-unused-command-line-argument )
-  target_link_libraries( rocfft-selftest PRIVATE hip::device )
 endif( )
-
 
 set_target_properties( rocfft-selftest PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
 set_target_properties( rocfft-selftest PROPERTIES RUNTIME_OUTPUT_DIRECTORY

@@ -81,6 +81,7 @@ target_compile_features( rocfft-test
   cxx_nullptr
   cxx_auto_type
   )
+target_compile_options( rocfft-test PRIVATE ${WARNING_FLAGS} )
 
 target_include_directories( rocfft-test
   PRIVATE
@@ -107,9 +108,6 @@ if( USE_CUDA )
     )
   target_compile_definitions( rocfft-test PRIVATE __HIP_PLATFORM_NVCC__ )
   target_link_libraries( rocfft-test PRIVATE ${CUDA_LIBRARIES} )
-else()
-  target_compile_options( rocfft-test PRIVATE -Wno-unused-command-line-argument )
-  target_link_libraries( rocfft-test PRIVATE hip::device )
 endif( )
 
 option( BUILD_CLIENTS_TESTS_OPENMP "Build tests with OpenMP" ON )
