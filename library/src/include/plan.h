@@ -66,33 +66,6 @@ static inline bool IsPow(size_t u)
 
 std::string PrintScheme(ComputeScheme cs);
 
-inline bool SupportedLength(rocfft_precision precision, size_t len)
-{
-    if(function_pool::has_function(precision, {len, CS_KERNEL_STOCKHAM}))
-        return true;
-
-    size_t p = len;
-    while(!(p % 2))
-        p /= 2;
-    while(!(p % 3))
-        p /= 3;
-    while(!(p % 5))
-        p /= 5;
-
-    if(p == 1)
-        return true;
-
-    return function_pool::has_function(precision, {p, CS_KERNEL_STOCKHAM});
-}
-
-inline size_t FindBlue(size_t len)
-{
-    size_t p = 1;
-    while(p < len)
-        p <<= 1;
-    return 2 * p;
-}
-
 struct rocfft_plan_description_t
 {
     rocfft_array_type inArrayType  = rocfft_array_type_complex_interleaved;

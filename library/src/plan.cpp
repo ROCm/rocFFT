@@ -708,6 +708,94 @@ ROCFFT_EXPORT rocfft_status rocfft_repo_get_total_plan_count(size_t* count)
     return rocfft_status_success;
 }
 
+//
+// Factorisation helpers
+//
+
+inline size_t get_explicity_supported_factor(rocfft_precision precision, size_t length0)
+{
+    auto supported  = function_pool::get_lengths(precision, CS_KERNEL_STOCKHAM);
+    auto comparison = std::greater<size_t>();
+    std::sort(supported.begin(), supported.end(), comparison);
+
+    size_t factor = 0;
+
+    if(length0 > (Large1DThreshold(precision) * Large1DThreshold(precision)))
+    {
+        auto supported_factor = [length0](size_t factor) -> bool {
+            bool is_factor = length0 % factor == 0;
+            return is_factor;
+        };
+
+        auto v     = Large1DThreshold(precision);
+        auto lower = std::lower_bound(supported.cbegin(), supported.cend(), v, comparison);
+        auto itr   = std::find_if(lower, supported.cend(), supported_factor);
+        if(itr != supported.cend())
+            factor = *itr;
+    }
+    else
+    {
+        // break into as squarish matrix as possible
+        auto supported_factor = [length0, precision = precision](size_t factor) -> bool {
+            bool is_factor = length0 % factor == 0;
+            bool have_kernels
+                = function_pool::has_function(precision, {length0 / factor, CS_KERNEL_STOCKHAM});
+            return is_factor && have_kernels;
+        };
+
+        auto v     = (size_t)sqrt(length0);
+        auto lower = std::lower_bound(supported.cbegin(), supported.cend(), v, comparison);
+        if(*lower < sqrt(length0))
+            lower--;
+
+        // note: this squarish factorization isn't always the fastest.
+        // for length 18816: if you start at supported.cbegin() the resulting plan is faster
+        auto itr = std::find_if(lower, supported.cend(), supported_factor);
+        if(itr != supported.cend())
+            factor = *itr;
+    }
+
+    return factor;
+}
+
+inline bool SupportedLength(rocfft_precision precision, size_t len)
+{
+    // do we have an explicit kernel?
+    if(function_pool::has_function(precision, {len, CS_KERNEL_STOCKHAM}))
+        return true;
+
+    // can we factor with 2, 3, or 5?  note: all combinations of these
+    // are explicitly generated at build time
+    size_t p = len;
+    while(!(p % 2))
+        p /= 2;
+    while(!(p % 3))
+        p /= 3;
+    while(!(p % 5))
+        p /= 5;
+
+    if(p == 1)
+        return true;
+
+    // do we have an explicit kernel for the remainder?
+    if(function_pool::has_function(precision, {p, CS_KERNEL_STOCKHAM}))
+        return true;
+
+    // finally, can we factor this length with combinations of existing kernels?
+    if(get_explicity_supported_factor(precision, len) > 0)
+        return true;
+
+    return false;
+}
+
+inline size_t FindBlue(size_t len)
+{
+    size_t p = 1;
+    while(p < len)
+        p <<= 1;
+    return 2 * p;
+}
+
 // Tree node builders
 
 // NB:
@@ -992,7 +1080,8 @@ void TreeNode::build_real()
 
     // NB: currently only works with single-kernel c2c sub-transform
     // TODO: enable for 2D/3D transforms.
-    if(dimension == 1 && direction == -1 && SupportedLength(precision, length[0])
+    if(dimension == 1 && direction == -1
+       && function_pool::has_function(precision, {length[0], CS_KERNEL_STOCKHAM})
        && length[0] < Large1DThreshold(precision) && (batch % 2 == 0)) // || (otherdims % 2 == 0))
     {
         // Paired algorithm
@@ -1440,44 +1529,7 @@ void TreeNode::build_real_pair()
 
 size_t TreeNode::div1DNoPo2(const size_t length0)
 {
-    auto supported  = function_pool::get_lengths(precision, CS_KERNEL_STOCKHAM);
-    auto comparison = std::greater<size_t>();
-    std::sort(supported.begin(), supported.end(), comparison);
-
-    size_t factor = 0;
-
-    if(length0 > (Large1DThreshold(precision) * Large1DThreshold(precision)))
-    {
-        auto supported_factor = [length0](size_t factor) -> bool {
-            bool is_factor = length0 % factor == 0;
-            return is_factor;
-        };
-
-        auto v     = Large1DThreshold(precision);
-        auto lower = std::lower_bound(supported.cbegin(), supported.cend(), v, comparison);
-        auto itr   = std::find_if(lower, supported.cend(), supported_factor);
-        if(itr != supported.cend())
-            factor = *itr;
-    }
-    else
-    {
-        // break into as squarish matrix as possible
-        // XXX this factorizatoin isn't always the fastest (try 18816)
-        auto supported_factor = [length0, precision = precision](size_t factor) -> bool {
-            bool is_factor = length0 % factor == 0;
-            bool have_kernels
-                = function_pool::has_function(precision, {length0 / factor, CS_KERNEL_STOCKHAM});
-            return is_factor && have_kernels;
-        };
-
-        auto v     = (size_t)sqrt(length0);
-        auto lower = std::lower_bound(supported.cbegin(), supported.cend(), v, comparison);
-        if(*lower < sqrt(length0))
-            lower--;
-        auto itr = std::find_if(lower, supported.cend(), supported_factor);
-        if(itr != supported.cend())
-            factor = *itr;
-    }
+    auto factor = get_explicity_supported_factor(precision, length0);
     assert(factor != 0);
     return length0 / factor;
 }
@@ -1492,7 +1544,8 @@ void TreeNode::build_1D()
         return;
     }
 
-    if(length[0] <= Large1DThreshold(precision)) // single kernel algorithm
+    if(length[0] <= Large1DThreshold(precision)
+       && function_pool::has_function(precision, {length[0], CS_KERNEL_STOCKHAM}))
     {
         scheme = CS_KERNEL_STOCKHAM;
         return;

@@ -65,6 +65,7 @@ int generate_support_size_list(std::vector<size_t>& support_size_list,
     support_size_list.push_back(168);
     support_size_list.push_back(224);
     support_size_list.push_back(336);
+    support_size_list.push_back(343);
 
     // basic support for radix-11 and 13
     support_size_list.push_back(11);

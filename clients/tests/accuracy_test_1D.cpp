@@ -45,7 +45,8 @@ const static std::vector<size_t> pow5_range
     = {5, 25, 125, 625, 3125, 15625, 78125, 390625, 1953125, 9765625, 48828125};
 
 // radix 7, 11, 13 sizes that are either pure powers or sizes people have wanted in the wild
-const static std::vector<size_t> radX_range = {7, 49, 84, 112, 11, 13, 52, 104, 208};
+const static std::vector<size_t> radX_range
+    = {7, 49, 84, 112, 11, 13, 52, 104, 208, 343, 2401, 16807};
 
 const static std::vector<size_t> mix_range
     = {6,   10,   12,   15,   20,   30,   120,  150,  225,  240,  300,   486,   600,
