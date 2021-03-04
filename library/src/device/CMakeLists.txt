@@ -46,17 +46,108 @@ add_subdirectory( generator )
 # currently outputs
 include( generator/generated-kernels.cmake )
 
-set( generator_pattern all CACHE STRING "FFT kernels to generate" )
-set_property( CACHE generator_pattern PROPERTY STRINGS pow2 pow3 pow5
-  "pow2,3" "pow2,5" "pow3,5" all )
 
-set( gen_headers ${kernels_launch} ${kernels_all} )
-if( generator_pattern STREQUAL "pow2" )
-    set( gen_headers ${kernels_launch} ${kernels_pow2} )
-elseif( generator_pattern STREQUAL "pow3" )
-    set( gen_headers ${kernels_launch} ${kernels_pow3} )
-elseif( generator_pattern STREQUAL "pow5" )
-    set( gen_headers ${kernels_launch} ${kernels_pow5} )
+# list of {"pow2" "pow3" "pow5" "pow7" "small" "large" "2D" "all"}, set to "none" if build only manual size
+# ex: "pow2" "pow5" "pow7" "2D" will generate pow2,5 + radix7,11,13 + 2D
+if( NOT GENERATOR_PATTERN )
+  set( GENERATOR_PATTERN "all" )
+endif()
+
+# list of {"single" "double" "all"}
+if( NOT GENERATOR_PRECISION )
+  set( GENERATOR_PRECISION "all" )
+endif()
+
+# list of any supported small size, "" means empty
+# ex: 1024 4096 336 56 will generat 4 kernels only
+if( NOT GENERATOR_MANUAL_SMALL_SIZE )
+  set( GENERATOR_MANUAL_SMALL_SIZE "" )
+endif()
+
+# list of any supported large size, "" means empty
+# supported 64, 81, 100, 128, 200, 256
+if( NOT GENERATOR_MANUAL_LARGE_SIZE )
+  set( GENERATOR_MANUAL_LARGE_SIZE "" )
+endif()
+
+# default:
+# not specifying any properties generate all size, with all precision with 150 small kernel groups (cpp)
+
+# example 1:
+# Adding the following cmd lines to generate only [small-4096], [large-100-sbcc/sbrc] with single precision
+# And GENERATOR_GROUP_NUM=8 generates 8 small kernel groups (cpp)
+# "-DGENERATOR_PATTERN=none"
+# "-DGENERATOR_PRECISION=single"
+# "-DGENERATOR_MANUAL_SMALL_SIZE=4096"
+# "-DGENERATOR_MANUAL_LARGE_SIZE=100"
+# "-DGENERATOR_GROUP_NUM=8"
+
+# example 2:
+# Adding the following cmd lines to generate all [2D], [pow2], and [small-336, 56] with double precision
+# And GENERATOR_GROUP_NUM=3 generates 3 small kernel groups (cpp)
+# "-DGENERATOR_PATTERN=2D;pow2"
+# "-DGENERATOR_PRECISION=double"
+# "-DGENERATOR_MANUAL_SMALL_SIZE=56;336"
+# "-DGENERATOR_GROUP_NUM=3"
+
+
+list( LENGTH GENERATOR_MANUAL_SMALL_SIZE num_manual_small )
+list( LENGTH GENERATOR_MANUAL_LARGE_SIZE num_manual_large )
+
+set( gen_headers ${kernels_launch_basic} )
+if( "all" IN_LIST GENERATOR_PATTERN )
+    if( "all" IN_LIST GENERATOR_PRECISION )
+        list(APPEND gen_headers ${kernels_launch_all} )
+    else()
+        if( "single" IN_LIST GENERATOR_PRECISION )
+            list(APPEND gen_headers ${kernels_launch_single} )
+        endif()
+        if( "double" IN_LIST GENERATOR_PRECISION )
+            list(APPEND gen_headers ${kernels_launch_double} )
+        endif()
+    endif()
+else()
+    if( "large" IN_LIST GENERATOR_PATTERN OR num_manual_large GREATER 0)
+        if( "all" IN_LIST GENERATOR_PRECISION )
+            list(APPEND gen_headers ${kernels_launch_large_all} )
+        else()
+            if( "single" IN_LIST GENERATOR_PRECISION )
+                list(APPEND gen_headers ${kernels_launch_large_single} )
+            endif()
+            if( "double" IN_LIST GENERATOR_PRECISION )
+                list(APPEND gen_headers ${kernels_launch_large_double} )
+            endif()
+        endif()
+    endif()
+
+    if( "2D" IN_LIST GENERATOR_PATTERN )
+        if( "all" IN_LIST GENERATOR_PRECISION )
+            list(APPEND gen_headers ${kernels_launch_2D_all} )
+        else()
+            if( "single" IN_LIST GENERATOR_PRECISION )
+                list(APPEND gen_headers ${kernels_launch_2D_single} )
+            endif()
+            if( "double" IN_LIST GENERATOR_PRECISION )
+                list(APPEND gen_headers ${kernels_launch_2D_double} )
+            endif()
+        endif()
+    endif()
+
+    if( "small" IN_LIST GENERATOR_PATTERN OR "pow2" IN_LIST GENERATOR_PATTERN OR
+        "pow3" IN_LIST GENERATOR_PATTERN OR "pow5" IN_LIST GENERATOR_PATTERN OR
+        "pow7" IN_LIST GENERATOR_PATTERN OR num_manual_small GREATER 0)
+        if( "all" IN_LIST GENERATOR_PRECISION )
+            list(APPEND gen_headers ${kernels_launch_small_all} )
+        else()
+            if( "single" IN_LIST GENERATOR_PRECISION )
+                list(APPEND gen_headers ${kernels_launch_small_single} )
+            endif()
+            if( "double" IN_LIST GENERATOR_PRECISION )
+                list(APPEND gen_headers ${kernels_launch_small_double} )
+            endif()
+        endif()
+    endif()
+
 endif()
 
 # add_custom_command will create source output files, that are used in
@@ -64,10 +155,30 @@ endif()
 # In order for the dependencies to work in cmake, add_custom_command
 # must be in the same CMakeLists.txt file as the target
 # [rocfft-device]
+
+string(REPLACE ";" "," PATTERN_ARG "${GENERATOR_PATTERN}")
+string(REPLACE ";" "," PRECISION_ARG "${GENERATOR_PRECISION}")
+string(REPLACE ";" "," MANUAL_SMALL_ARG "${GENERATOR_MANUAL_SMALL_SIZE}")
+string(REPLACE ";" "," MANUAL_LARGE_ARG "${GENERATOR_MANUAL_LARGE_SIZE}")
+
+set( manual_size_small_arg "" )
+if( num_manual_small GREATER 0 )
+  set( manual_size_small_arg "--manual-small" "${MANUAL_SMALL_ARG}" )
+endif()
+
+set( manual_size_large_arg "" )
+if( num_manual_large GREATER 0 )
+  set( manual_size_large_arg "--manual-large" "${MANUAL_LARGE_ARG}" )
+endif()
+
 add_custom_command(
   OUTPUT ${gen_headers}
-  COMMAND rocfft-kernel-generator ${generator_pattern}
-  ${small_kernels_group_num}
+  COMMAND rocfft-kernel-generator
+  ${manual_size_small_arg}
+  ${manual_size_large_arg}
+  "-t" "${PATTERN_ARG}"
+  "-p" "${PRECISION_ARG}"
+  "-g" ${GENERATOR_GROUP_NUM}
   DEPENDS rocfft-kernel-generator
   COMMENT "Generator producing device kernels for rocfft-device"
 )

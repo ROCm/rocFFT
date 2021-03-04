@@ -144,7 +144,10 @@ void WriteButterflyToFile(std::string& str, int LEN)
 =================================================================== */
 void WriteCPUHeaders(const std::vector<size_t>&                                    support_list,
                      const std::vector<std::tuple<size_t, ComputeScheme>>&         large1D_list,
-                     const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D)
+                     const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& list_2D_single,
+                     const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& list_2D_double,
+                     bool                                                          buildSingle,
+                     bool                                                          buildDouble)
 {
     const std::string str_interface = "(const void *data_p, void *back_p);\n";
 
@@ -160,26 +163,27 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
     str += "extern \"C\"\n";
     str += "{\n";
 
-    str += "\n";
-    for(size_t i = 0; i < support_list.size(); i++)
+    // write small 1D kernels, single precision
+    str += "\n // 1D small size, single precision\n";
+    for(size_t i = 0; i < support_list.size() && buildSingle; i++)
     {
         std::string str_len = std::to_string(support_list[i]);
         str += "void rocfft_internal_dfn_sp_ci_ci_stoc_";
         str += str_len + str_interface;
     }
 
-    str += "\n";
-    for(size_t i = 0; i < support_list.size(); i++)
+    // write small 1D kernels, double precision
+    str += "\n // 1D small size, double precision\n";
+    for(size_t i = 0; i < support_list.size() && buildDouble; i++)
     {
-
         std::string str_len = std::to_string(support_list[i]);
         str += "void rocfft_internal_dfn_dp_ci_ci_stoc_";
         str += str_len + str_interface;
     }
 
-    str += "\n";
-    // write large 1D kernels single
-    for(size_t i = 0; i < large1D_list.size(); i++)
+    // write large 1D kernels, single precision
+    str += "\n // 1D large size, single precision\n";
+    for(size_t i = 0; i < large1D_list.size() && buildSingle; i++)
     {
         auto          my_tuple = large1D_list[i];
         auto          len      = std::get<0>(my_tuple);
@@ -211,6 +215,16 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
                 str += str_len + str_interface;
             }
         }
+    }
+
+    // write large 1D kernels, double precision
+    str += "\n // 1D large size, double precision\n";
+    for(size_t i = 0; i < large1D_list.size() && buildDouble; i++)
+    {
+        auto          my_tuple = large1D_list[i];
+        auto          len      = std::get<0>(my_tuple);
+        std::string   str_len  = std::to_string(len);
+        ComputeScheme scheme   = std::get<1>(my_tuple);
 
         if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
         {
@@ -240,8 +254,9 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
     }
 
     str += "\n";
-    // write 2d fused
-    for(const auto& kernel : support_list_2D)
+    // write 2d fused single, empty if not buildSingle
+    str += "\n // 2D size, single precision\n";
+    for(const auto& kernel : list_2D_single)
     {
         std::string str_len_1 = std::to_string(std::get<0>(kernel));
         std::string str_len_2 = std::to_string(std::get<1>(kernel));
@@ -255,6 +270,24 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
         if(scheme == CS_KERNEL_2D_SINGLE)
         {
             str += "void rocfft_internal_dfn_sp_ci_ci_2D_" + suffix;
+        }
+    }
+
+    // write 2d fused double, empty if not buildDouble
+    str += "\n // 2D size, double precision\n";
+    for(const auto& kernel : list_2D_double)
+    {
+        std::string str_len_1 = std::to_string(std::get<0>(kernel));
+        std::string str_len_2 = std::to_string(std::get<1>(kernel));
+
+        std::string suffix = str_len_1;
+        suffix += "_";
+        suffix += str_len_2;
+        suffix += "(const void *data_p, void *back_p);\n";
+
+        ComputeScheme scheme = std::get<2>(kernel);
+        if(scheme == CS_KERNEL_2D_SINGLE)
+        {
             str += "void rocfft_internal_dfn_dp_ci_ci_2D_" + suffix;
         }
     }
@@ -287,8 +320,8 @@ void write_cpu_function_small(std::vector<size_t> support_list,
 {
     if(support_list.size() < group_num)
     {
-        std::cout << "Not enough kernels to generate with " << group_num << " groups." << std::endl;
-        return;
+        std::cout << "Not enough kernels to generate with " << group_num
+                  << " groups. Some group headers might be empty" << std::endl;
     }
 
     std::string large_case_precision = "SINGLE";
@@ -382,6 +415,12 @@ void write_cpu_function_small(std::vector<size_t> support_list,
 void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> large1D_list,
                               std::string                                    precision)
 {
+    if(large1D_list.size() == 0)
+    {
+        std::cout << "No large 1D kernels to generate." << std::endl;
+        return;
+    }
+
     std::string str;
 
     std::string complex_case_precision = "float2";
@@ -623,7 +662,9 @@ void AddCPUFunctionToPool(
     const std::vector<size_t>&                                    support_list,
     const std::vector<std::tuple<size_t, ComputeScheme>>&         large1D_list,
     const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D_single,
-    const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D_double)
+    const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D_double,
+    bool                                                          buildSingle,
+    bool                                                          buildDouble)
 {
     std::string str;
 
@@ -634,11 +675,11 @@ void AddCPUFunctionToPool(
     str += "\n";
     str += "//build hash map to store the function pointers\n";
     str += "function_pool::function_pool()\n";
-    str += "{\n";
-    str += "\t//single precision \n";
 
-    // write small 1D kernels
-    for(size_t i = 0; i < support_list.size(); i++)
+    // write small 1D kernels single
+    str += "{\n";
+    str += "\t//small 1D, single precision \n";
+    for(size_t i = 0; i < support_list.size() && buildSingle; i++)
     {
         std::string str_len = std::to_string(support_list[i]);
         str += "\tfunction_map_single[std::make_pair(" + str_len
@@ -646,9 +687,10 @@ void AddCPUFunctionToPool(
         str += str_len + ";\n";
     }
 
+    // write small 1D kernels double
     str += "\n";
-    str += "\t//double precision \n";
-    for(size_t i = 0; i < support_list.size(); i++)
+    str += "\t//small 1D, double precision \n";
+    for(size_t i = 0; i < support_list.size() && buildDouble; i++)
     {
         std::string str_len = std::to_string(support_list[i]);
         str += "\tfunction_map_double[std::make_pair(" + str_len
@@ -658,10 +700,11 @@ void AddCPUFunctionToPool(
 
     str += "\n";
 
-    // write large 1D kernels single
-    for(size_t i = 0; i < large1D_list.size(); i++)
+    // write larege 1D kernels single
+    str += "\n";
+    str += "\t//large 1D, single precision \n";
+    for(size_t i = 0; i < large1D_list.size() && buildSingle; i++)
     {
-
         auto          my_tuple = large1D_list[i];
         auto          len      = std::get<0>(my_tuple);
         std::string   str_len  = std::to_string(len);
@@ -715,9 +758,10 @@ void AddCPUFunctionToPool(
     }
 
     // write large 1D kernels double
-    for(size_t i = 0; i < large1D_list.size(); i++)
+    str += "\n";
+    str += "\t//large 1D, double precision \n";
+    for(size_t i = 0; i < large1D_list.size() && buildDouble; i++)
     {
-
         auto          my_tuple = large1D_list[i];
         auto          len      = std::get<0>(my_tuple);
         std::string   str_len  = std::to_string(len);
@@ -770,6 +814,9 @@ void AddCPUFunctionToPool(
         }
     }
 
+    // write 2D kernels single
+    str += "\n";
+    str += "\t//2D, single precision \n";
     for(const auto& kernel : support_list_2D_single)
     {
         std::string   str_len_1 = std::to_string(std::get<0>(kernel));
@@ -788,6 +835,10 @@ void AddCPUFunctionToPool(
             abort();
         }
     }
+
+    // write 2D kernels double
+    str += "\n";
+    str += "\t//2D, double precision \n";
     for(const auto& kernel : support_list_2D_double)
     {
         std::string   str_len_1 = std::to_string(std::get<0>(kernel));

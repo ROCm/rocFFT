@@ -39,6 +39,11 @@ function display_help()
     echo "    [-r]--relocatable] create a package to support relocatable ROCm"
     #echo "    [--cuda] build library for cuda backend"
     echo "    [--hip-clang] build library for amdgpu backend using hip-clang"
+    echo "    [--gen-pattern] Specify the FFT patterns to generate (none, pow2, pow3, pow5, pow7, 2D, large, small, all)"
+    echo "                    can be a combination such as ='pow2;pow5;2D', default is all"
+    echo "    [--gen-precision] Specify the precision type to generate (single, double, all), default is all"
+    echo "    [--manual-small] Additional small sizes list to generate, ='A[;B;C;..]', default is empty "
+    echo "    [--manual-large] Additional large sizes list to generate, ='A[;B;C;..]', default is empty "
 }
 
 # This function is helpful for dockerfiles that do not have sudo installed, but the
@@ -211,7 +216,7 @@ install_packages( )
                 install_dnf_packages "${client_dependencies_fedora[@]}"
             fi
             ;;
-        
+
         sles)
             # elevate_if_not_root zypper -n update
             install_zypper_packages "${library_dependencies_sles[@]}"
@@ -262,6 +267,10 @@ build_clients=false
 build_release=true
 build_relocatable=false
 build_hip_clang=true
+pattern_arg=false
+precision_arg=false
+manual_small_arg=false
+manual_large_arg=false
 
 # #################################################
 # Parameter parsing
@@ -270,7 +279,7 @@ build_hip_clang=true
 # check if we have a modern version of getopt that can handle whitespace and long parameters
 getopt -T
 if [[ $? -eq 4 ]]; then
-    GETOPT_PARSE=$(getopt --name "${0}" -o 'hidcgr' --long 'help,install,clients,dependencies,debug,hip-clang,prefix:,relocatable' --options hicgdr -- "$@")
+    GETOPT_PARSE=$(getopt --name "${0}" -o 'hidcgr' --long 'help,install,clients,dependencies,debug,hip-clang,prefix:,relocatable,gen-pattern:,gen-precision:,manual-small:,manual-large:' --options hicgdr -- "$@")
 else
     echo "Need a new version of getopt"
     exit 1
@@ -310,6 +319,22 @@ while true; do
         --prefix)
             echo $2
             install_prefix=${2}
+            shift 2 ;;
+        --gen-pattern)
+            # echo $2
+            pattern_arg=${2}
+            shift 2 ;;
+        --gen-precision)
+            # echo $2
+            precision_arg=${2}
+            shift 2 ;;
+        --manual-small)
+            # echo $2
+            manual_small_arg=${2}
+            shift 2 ;;
+        --manual-large)
+            # echo $2
+            manual_large_arg=${2}
             shift 2 ;;
         --) shift ; break ;;
         *)  echo "Unexpected command line parameter received; aborting";
@@ -353,7 +378,7 @@ case "${ID}" in
 esac
 
 # #################################################
-# dependencies 
+# dependencies
 # #################################################
 if [[ "${install_dependencies}" == true ]]; then
 
@@ -385,6 +410,24 @@ pushd .
 # #################################################
 cmake_common_options=""
 cmake_client_options=""
+
+# generator
+if [[ "${pattern_arg}" != false ]]; then
+    cmake_common_options="${cmake_common_options} -DGENERATOR_PATTERN=${pattern_arg}"
+fi
+
+if [[ "${precision_arg}" != false ]]; then
+    cmake_common_options="${cmake_common_options} -DGENERATOR_PRECISION=${precision_arg}"
+fi
+
+if [[ "${manual_small_arg}" != false ]]; then
+    cmake_common_options="${cmake_common_options} -DGENERATOR_MANUAL_SMALL_SIZE=${manual_small_arg}"
+fi
+
+if [[ "${manual_large_arg}" != false ]]; then
+    cmake_common_options="${cmake_common_options} -DGENERATOR_MANUAL_LARGE_SIZE=${manual_large_arg}"
+fi
+
 
 # build type
 if [[ "${build_release}" == true ]]; then

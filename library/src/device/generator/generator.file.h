@@ -17,7 +17,10 @@ void WriteButterflyToFile(std::string& str, int LEN);
 
 void WriteCPUHeaders(const std::vector<size_t>&                                    support_list,
                      const std::vector<std::tuple<size_t, ComputeScheme>>&         large1D_list,
-                     const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D);
+                     const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& list_2D_single,
+                     const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& list_2D_double,
+                     bool                                                          buildSingle,
+                     bool                                                          buildDouble);
 
 void write_cpu_function_small(std::vector<size_t> support_list,
                               std::string         precision,
@@ -33,7 +36,9 @@ void AddCPUFunctionToPool(
     const std::vector<size_t>&                                    support_list,
     const std::vector<std::tuple<size_t, ComputeScheme>>&         large1D_list,
     const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D_single,
-    const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D_double);
+    const std::vector<std::tuple<size_t, size_t, ComputeScheme>>& support_list_2D_double,
+    bool                                                          buildSingle,
+    bool                                                          buildDouble);
 
 void generate_kernel(size_t len, ComputeScheme scheme);
 
