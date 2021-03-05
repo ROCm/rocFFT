@@ -82,6 +82,9 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
 
         ExecPlan execPlan;
         execPlan.rootPlan = std::move(rootPlan);
+        if(hipGetDeviceProperties(&(execPlan.deviceProp), deviceId) != hipSuccess)
+            return rocfft_status_failure;
+
         ProcessNode(execPlan); // TODO: more descriptions are needed
         if(LOG_TRACE_ENABLED())
             PrintNode(*LogSingleton::GetInstance().GetTraceOS(), execPlan);

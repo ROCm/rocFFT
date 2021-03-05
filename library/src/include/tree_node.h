@@ -31,6 +31,7 @@
 #include "kargs.h"
 #include "rocfft_ostream.hpp"
 #include "twiddles.h"
+#include <hip/hip_runtime_api.h>
 
 enum OperatingBuffer
 {
@@ -387,6 +388,8 @@ struct ExecPlan
 
     std::vector<DevFnCall> devFnCall;
     std::vector<GridParam> gridParam;
+
+    hipDeviceProp_t deviceProp;
 
     // these sizes count in complex elements
     size_t workBufSize      = 0;

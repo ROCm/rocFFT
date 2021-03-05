@@ -41,8 +41,9 @@ struct DeviceCallIn
     void*     bufIn[2];
     void*     bufOut[2];
 
-    hipStream_t rocfft_stream;
-    GridParam   gridParam;
+    hipStream_t     rocfft_stream;
+    GridParam       gridParam;
+    hipDeviceProp_t deviceProp;
 };
 
 // FIXME: documentation

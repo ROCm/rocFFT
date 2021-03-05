@@ -496,6 +496,7 @@ void TransformPowX(const ExecPlan&       execPlan,
         DeviceCallIn data;
         data.node          = execPlan.execSeq[i];
         data.rocfft_stream = (info == nullptr) ? 0 : info->rocfft_stream;
+        data.deviceProp    = execPlan.deviceProp;
 
         // Size of complex type
         const size_t complexTSize = (data.node->precision == rocfft_precision_single)
