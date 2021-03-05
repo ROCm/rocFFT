@@ -10,6 +10,7 @@
 #include "rocfft.h"
 #include <cassert>
 #include <math.h>
+#include <numeric>
 #include <tuple>
 #include <vector>
 
@@ -40,22 +41,15 @@ static inline T DivRoundingUp(T a, T b)
 template <typename T>
 class TwiddleTable
 {
-    size_t N; // length
-    T*     wc; // cosine, sine arrays. T is float2 or double2, wc.x stores cosine,
+    size_t         N; // length
+    std::vector<T> wc; // cosine, sine arrays. T is float2 or double2, wc.x stores cosine,
     // wc.y stores sine
 
 public:
     TwiddleTable(size_t length)
         : N(length)
+        , wc(N)
     {
-        // Allocate memory for the tables
-        wc = new T[N];
-    }
-
-    ~TwiddleTable()
-    {
-        // Free
-        delete[] wc;
     }
 
     T* GenerateTwiddleTable(const std::vector<size_t>& radices)
@@ -63,20 +57,14 @@ public:
         const double TWO_PI = -6.283185307179586476925286766559;
 
         // Make sure the radices vector multiplication product up to N
-        size_t sz = 1;
-        for(std::vector<size_t>::const_iterator i = radices.begin(); i != radices.end(); i++)
-        {
-            sz *= (*i);
-        }
-        assert(sz == N);
+        assert(N
+               == std::accumulate(std::begin(radices), std::end(radices), 1, std::multiplies<>()));
 
         // Generate the table
         size_t L  = 1;
         size_t nt = 0;
-        for(std::vector<size_t>::const_iterator i = radices.begin(); i != radices.end(); i++)
+        for(auto radix : radices)
         {
-            size_t radix = *i;
-
             L *= radix;
 
             // Twiddle factors
@@ -99,7 +87,7 @@ public:
             }
         } // end of for radices
 
-        return wc;
+        return wc.data();
     }
 
     T* GenerateTwiddleTable()
@@ -118,15 +106,15 @@ public:
             nt++;
         }
 
-        return wc;
+        return wc.data();
     }
 
     // Attach 2N table for potential fused even-length real2complex post-processing
     // or complex2real pre-processing.
-    void Attach2NTable(T* twtc, gpubuf& twts)
+    void Attach2NTable(const T* twtc, gpubuf& twts)
     {
-        T* twc_all = new T[3 * N];
-        memcpy(twc_all, twtc, sizeof(T) * N);
+        std::vector<T> twc_all(3 * N);
+        std::copy(twtc, twtc + N, twc_all.begin());
 
         const double TWO_PI = -6.283185307179586476925286766559;
 
@@ -143,11 +131,9 @@ public:
         }
 
         if(twts.alloc(3 * N * sizeof(T)) != hipSuccess
-           || hipMemcpy(twts.data(), twc_all, 3 * N * sizeof(T), hipMemcpyHostToDevice)
+           || hipMemcpy(twts.data(), twc_all.data(), 3 * N * sizeof(T), hipMemcpyHostToDevice)
                   != hipSuccess)
             twts.free();
-
-        delete[] twc_all;
     }
 };
 
@@ -156,10 +142,10 @@ public:
 template <typename T>
 class TwiddleTableLarge
 {
-    size_t N; // length
-    size_t X, Y;
-    size_t tableSize;
-    T*     wc; // cosine, sine arrays
+    size_t         N; // length
+    size_t         X, Y;
+    size_t         tableSize;
+    std::vector<T> wc; // cosine, sine arrays
 
 public:
     TwiddleTableLarge(size_t length)
@@ -169,14 +155,7 @@ public:
         Y         = DivRoundingUp<size_t>(CeilPo2(N), TWIDDLE_DEE);
         tableSize = X * Y;
 
-        // Allocate memory for the tables
-        wc = new T[tableSize];
-    }
-
-    ~TwiddleTableLarge()
-    {
-        // Free
-        delete[] wc;
+        wc = std::vector<T>(tableSize);
     }
 
     std::tuple<size_t, T*> GenerateTwiddleTable()
@@ -205,7 +184,7 @@ public:
             }
         } // end of for
 
-        return std::make_tuple(tableSize, wc);
+        return std::make_tuple(tableSize, wc.data());
     }
 };
 
