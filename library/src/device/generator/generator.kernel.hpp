@@ -290,12 +290,12 @@ namespace StockhamGenerator
 
         // since it is batching process mutiple matrices by default, calculate the
         // offset block
-        inline std::string OffsetCalcBlockCompute(const std::string offset_name1,
-                                                  const std::string stride_name1,
-                                                  const std::string offset_name2,
-                                                  const std::string stride_name2,
-                                                  bool              input,
-                                                  bool              output)
+        inline std::string OffsetCalcBlockCompute(const std::string& offset_name1,
+                                                  const std::string& stride_name1,
+                                                  const std::string& offset_name2,
+                                                  const std::string& stride_name2,
+                                                  bool               input,
+                                                  bool               output)
         {
             std::string str;
 
@@ -493,6 +493,64 @@ namespace StockhamGenerator
             return str;
         }
 
+        // Contcatenate global read string for block computing
+        inline std::string GlobalReadStrCat(const std::string&      global_offset,
+                                            rocfft_result_placement placeness,
+                                            bool                    inInterleaved)
+        {
+            std::string ret = "\t\t";
+            if(blockComputeType == BCT_R2C)
+                ret += "\t";
+
+            if(inInterleaved)
+            {
+                ret += "R0 = ";
+                ret += (placeness == rocfft_placement_inplace) ? "lwb" : "lwbIn";
+                ret += "[" + global_offset + "];\n";
+            }
+            else
+            {
+                ret += "R0.x = ";
+                ret += (placeness == rocfft_placement_inplace) ? "lwbRe" : "lwbInRe";
+                ret += "[" + global_offset + "];\n";
+                if(blockComputeType == BCT_R2C)
+                    ret += "\t";
+                ret += "\t\tR0.y = ";
+                ret += (placeness == rocfft_placement_inplace) ? "lwbIm" : "lwbInIm";
+                ret += "[" + global_offset + "];\n";
+            }
+            return ret;
+        }
+
+        // Contcatenate global write string for block computing
+        inline std::string GlobalWriteStrCat(const std::string&      global_offset,
+                                             rocfft_result_placement placeness,
+                                             bool                    inInterleaved)
+        {
+            std::string ret = "\t\t";
+            if(blockComputeType == BCT_R2C)
+                ret += "\t";
+
+            if(inInterleaved)
+            {
+                ret += (placeness == rocfft_placement_inplace) ? "lwb" : "lwbOut";
+                ret += "[" + global_offset + "] = ";
+                ret += "R0;\n";
+            }
+            else
+            {
+                ret += (placeness == rocfft_placement_inplace) ? "lwbRe" : "lwbOutRe";
+                ret += "[" + global_offset + "] = ";
+                ret += "R0.x;\n\t\t";
+                if(blockComputeType == BCT_R2C)
+                    ret += "\t";
+                ret += (placeness == rocfft_placement_inplace) ? "lwbIm" : "lwbOutIm";
+                ret += "[" + global_offset + "] = ";
+                ret += "R0.y;\n";
+            }
+            return ret;
+        }
+
         /*
         OffsetCalc calculates the offset to the memory
 
@@ -505,12 +563,12 @@ namespace StockhamGenerator
             else not enabled
         */
 
-        inline std::string OffsetCalc(const std::string offset_name1,
-                                      const std::string stride_name1,
-                                      const std::string offset_name2,
-                                      const std::string stride_name2,
-                                      bool              output,
-                                      bool              rc_second_index = false)
+        inline std::string OffsetCalc(const std::string& offset_name1,
+                                      const std::string& stride_name1,
+                                      const std::string& offset_name2,
+                                      const std::string& stride_name2,
+                                      bool               output,
+                                      bool               rc_second_index = false)
         {
             std::string str;
 
@@ -1481,9 +1539,6 @@ namespace StockhamGenerator
                 str += GEN_REF_LINE();
                 str += "\t{\n";
 
-                // get offset
-                std::string bufOffset;
-
                 if(blockComputeType == BCT_R2C)
                 {
                     str += "\t\tif(Ttranspose == TILE_UNALIGNED && Tsbrc == "
@@ -1501,80 +1556,54 @@ namespace StockhamGenerator
                 }
 
                 str += "\t\tT R0;\n";
+                str += "\t\t// Calc global offset within a tile and read\n";
 
-                for(size_t c = 0; c < 2; c++)
+                if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_C2R))
                 {
-                    std::string comp    = "";
-                    std::string readBuf = (placeness == rocfft_placement_inplace) ? "lwb" : "lwbIn";
-                    if(!inInterleaved)
-                        comp = c ? ".y" : ".x";
-                    if(!inInterleaved)
-                        readBuf = (placeness == rocfft_placement_inplace)
-                                      ? (c ? "lwbIm" : "lwbRe")
-                                      : (c ? "lwbInIm" : "lwbInRe");
+                    std::string global_offset;
+                    global_offset = "(me%";
+                    global_offset += std::to_string(blockWidth);
 
-                    if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_C2R))
-                    {
-                        // start to calc the global read offset
-                        bufOffset.clear();
-                        bufOffset += "(me%";
-                        bufOffset += std::to_string(blockWidth);
-
-                        if(blockComputeType
-                           == BCT_C2C) // the most inner part of offset calc needs to count stride[1] for SBCC
-                            bufOffset += ") * stride_in[1] + ";
-                        else
-                            bufOffset += ") + ";
-
-                        bufOffset += "(me/";
-                        bufOffset += std::to_string(blockWidth);
-                        bufOffset += ")*stride_in[0] + t*stride_in[0]*";
-                        bufOffset += std::to_string(blockWGS / blockWidth);
-
-                        str += "\t\t// Calc global offset within a tile and read\n";
-                        str += "\t\tR0";
-                        str += comp;
-                        str += " = ";
-                        str += readBuf;
-                        str += "[";
-                        str += bufOffset;
-                        str += "];\n";
-                    }
+                    if(blockComputeType
+                       == BCT_C2C) // the most inner part of offset calc needs to count stride[1] for SBCC
+                        global_offset += ") * stride_in[1] + ";
                     else
-                    {
-                        str += "\t\t// Calc global offset within a tile and read\n";
-                        if(blockComputeType == BCT_R2C)
-                            str += "\t\tif(Tsbrc == SBRC_2D || Tsbrc == SBRC_3D_FFT_TRANS_Z_XY || "
-                                   "Tsbrc == SBRC_3D_FFT_ERC_TRANS_Z_XY)\n";
-                        str += "\t\t{\n";
-                        str += "\t\t\tR0";
-                        str += comp;
-                        str += " = ";
-                        str += readBuf;
-                        str += "[me + t*";
-                        str += std::to_string(blockWGS);
-                        str += "];\n";
-                        str += "\t\t}\n";
-                        if(blockComputeType == BCT_R2C)
-                        {
-                            str += "\t\telse if(Tsbrc == SBRC_3D_FFT_TRANS_XY_Z)\n";
-                            str += "\t\t{\n";
-                            str += "\t\t\tR0";
-                            str += comp;
-                            str += " = ";
-                            str += readBuf;
-                            str += "[me % " + std::to_string(length) + " * stride_in[0] + ((me /"
-                                   + std::to_string(length) + " * "
-                                   + std::to_string(blockWGS / blockWidth) + ") + t % "
-                                   + std::to_string(blockWidth) + ")*stride_in[2] + t / "
-                                   + std::to_string(blockWidth) + " * " + std::to_string(blockWGS)
-                                   + " * stride_in[0]];\n";
-                            str += "\t\t}\n";
-                        }
-                    }
+                        global_offset += ") + ";
 
-                    if(inInterleaved)
-                        break;
+                    global_offset += "(me/";
+                    global_offset += std::to_string(blockWidth);
+                    global_offset += ")*stride_in[0] + t*stride_in[0]*";
+                    global_offset += std::to_string(blockWGS / blockWidth);
+
+                    str += GlobalReadStrCat(global_offset, placeness, inInterleaved);
+                }
+                else // SBRC
+                {
+                    str += "\t\tif(Tsbrc == SBRC_2D || Tsbrc == SBRC_3D_FFT_TRANS_Z_XY || "
+                           "Tsbrc == SBRC_3D_FFT_ERC_TRANS_Z_XY)\n";
+                    str += "\t\t{\n";
+
+                    std::string global_offset;
+                    global_offset = "me + t*";
+                    global_offset += std::to_string(blockWGS);
+
+                    str += GlobalReadStrCat(global_offset, placeness, inInterleaved);
+
+                    str += "\t\t}\n";
+                    str += "\t\telse if(Tsbrc == SBRC_3D_FFT_TRANS_XY_Z)\n";
+                    str += "\t\t{\n";
+
+                    // recalculate offset for case SBRC_3D_FFT_TRANS_XY_Z
+                    global_offset = "me % " + std::to_string(length) + " * stride_in[0] + ((me /"
+                                    + std::to_string(length) + " * "
+                                    + std::to_string(blockWGS / blockWidth) + ") + t % "
+                                    + std::to_string(blockWidth) + ")*stride_in[2] + t / "
+                                    + std::to_string(blockWidth) + " * " + std::to_string(blockWGS)
+                                    + " * stride_in[0]";
+
+                    str += GlobalReadStrCat(global_offset, placeness, inInterleaved);
+
+                    str += "\t\t}\n";
                 }
 
                 if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_C2R))
@@ -1870,105 +1899,80 @@ namespace StockhamGenerator
                 }
 
                 str += "\n\t\t// Calc global offset within a tile and write\n";
-                for(size_t c = 0; c < 2; c++)
+                if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
                 {
-                    std::string comp = "";
-                    std::string writeBuf
-                        = (placeness == rocfft_placement_inplace) ? "lwb" : "lwbOut";
-                    if(!outInterleaved)
-                        comp = c ? ".y" : ".x";
-                    if(!outInterleaved)
-                        writeBuf = (placeness == rocfft_placement_inplace)
-                                       ? (c ? "lwbIm" : "lwbRe")
-                                       : (c ? "lwbOutIm" : "lwbOutRe");
+                    // start to calc the global write offset
 
-                    if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
+                    if(blockComputeType == BCT_R2C)
                     {
-                        if(blockComputeType == BCT_R2C)
-                        {
-                            str += "\t\tif(Tsbrc == SBRC_2D)\n";
-                            str += "\t\t{\n\t";
-                        }
-                        {
-                            // start to calc the global write offset
-                            str += "\t\t";
-                            str += writeBuf;
-                            str += "[(me%";
-                            str += std::to_string(blockWidth);
-
-                            if(blockComputeType
-                               == BCT_R2C) // the most inner part of offset calc needs to count stride[1] for SBRC
-                                str += ((placeness == rocfft_placement_inplace)
-                                            ? ") * stride_in[1] + "
-                                            : ") * stride_out[1] + ");
-                            else
-                                str += ") + ";
-
-                            str += "(me/";
-                            str += std::to_string(blockWidth);
-                            str += ((placeness == rocfft_placement_inplace)
-                                        ? ")*stride_in[0] + t*stride_in[0]*"
-                                        : ")*stride_out[0] + t*stride_out[0]*");
-                            str += std::to_string(blockWGS / blockWidth);
-                            str += "] = R0";
-                            str += comp;
-                            str += ";\n";
-                        }
-                        if(blockComputeType == BCT_R2C)
-                        {
-                            str += "\t\t}\n";
-                            str += "\t\telse if(Tsbrc == SBRC_3D_FFT_TRANS_XY_Z)\n";
-                            str += "\t\t{\n";
-                            str += "\t\t\t";
-                            str += writeBuf;
-                            str += "[(me%";
-                            str += std::to_string(blockWidth);
-                            str += ") * stride_";
-                            str += placeness == rocfft_placement_inplace ? "in" : "out";
-                            str += "[0] + (me/" + std::to_string(blockWidth);
-                            str += (placeness == rocfft_placement_inplace)
-                                       ? ")*stride_in[1] + t*stride_in[1]*"
-                                       : ")*stride_out[1] + t*stride_out[1]*";
-                            str += std::to_string(blockWGS / blockWidth) + "] = R0" + comp + ";\n";
-                            str += "\t\t}\n";
-
-                            str += "\t\telse if(Tsbrc == SBRC_3D_FFT_TRANS_Z_XY || Tsbrc == "
-                                   "SBRC_3D_FFT_ERC_TRANS_Z_XY)\n";
-                            str += "\t\t{\n";
-
-                            std::string strGlobalWriteComp = "";
-                            strGlobalWriteComp += "\t\t\t";
-                            strGlobalWriteComp += writeBuf;
-                            strGlobalWriteComp += "[(me%";
-                            strGlobalWriteComp += std::to_string(blockWidth);
-                            strGlobalWriteComp += ") * stride_";
-                            strGlobalWriteComp
-                                += placeness == rocfft_placement_inplace ? "in" : "out";
-                            strGlobalWriteComp += "[0] + (me/" + std::to_string(blockWidth);
-                            strGlobalWriteComp += (placeness == rocfft_placement_inplace)
-                                                      ? ")*stride_in[2] + t*stride_in[2]*"
-                                                      : ")*stride_out[2] + t*stride_out[2]*";
-                            strGlobalWriteComp
-                                += std::to_string(blockWGS / blockWidth) + "] = R0" + comp + ";\n";
-
-                            str += strGlobalWriteComp;
-                            strGlobalWrite += strGlobalWriteComp;
-                            str += "\t\t}\n";
-                        }
-                    }
-                    else
-                    {
-                        str += "\t\t";
-                        str += writeBuf;
-                        str += "[me + t*";
-                        str += std::to_string(blockWGS);
-                        str += "] = R0";
-                        str += comp;
-                        str += ";\n";
+                        str += "\t\tif(Tsbrc == SBRC_2D)\n";
+                        str += "\t\t{\n";
                     }
 
-                    if(outInterleaved)
-                        break;
+                    {
+                        std::string global_offset;
+                        global_offset = "(me%" + std::to_string(blockWidth);
+
+                        if(blockComputeType
+                           == BCT_R2C) // the most inner part of offset calc needs to count stride[1] for SBRC
+                            global_offset += ((placeness == rocfft_placement_inplace)
+                                                  ? ") * stride_in[1] + "
+                                                  : ") * stride_out[1] + ");
+                        else
+                            global_offset += ") + ";
+
+                        global_offset += "(me/";
+                        global_offset += std::to_string(blockWidth);
+                        global_offset += ((placeness == rocfft_placement_inplace)
+                                              ? ")*stride_in[0] + t*stride_in[0]*"
+                                              : ")*stride_out[0] + t*stride_out[0]*");
+                        global_offset += std::to_string(blockWGS / blockWidth);
+                        str += GlobalWriteStrCat(global_offset, placeness, outInterleaved);
+                    }
+
+                    if(blockComputeType == BCT_R2C)
+                    {
+                        str += "\t\t}\n";
+                        str += "\t\telse if(Tsbrc == SBRC_3D_FFT_TRANS_XY_Z)\n";
+                        str += "\t\t{\n";
+
+                        std::string global_offset;
+
+                        global_offset = "(me%";
+                        global_offset += std::to_string(blockWidth);
+                        global_offset += ") * stride_";
+                        global_offset += placeness == rocfft_placement_inplace ? "in" : "out";
+                        global_offset += "[0] + (me/" + std::to_string(blockWidth);
+                        global_offset += (placeness == rocfft_placement_inplace)
+                                             ? ")*stride_in[1] + t*stride_in[1]*"
+                                             : ")*stride_out[1] + t*stride_out[1]*";
+                        global_offset += std::to_string(blockWGS / blockWidth);
+                        str += GlobalWriteStrCat(global_offset, placeness, outInterleaved);
+
+                        str += "\t\t}\n";
+                        str += "\t\telse if(Tsbrc == SBRC_3D_FFT_TRANS_Z_XY || Tsbrc == "
+                               "SBRC_3D_FFT_ERC_TRANS_Z_XY)\n";
+                        str += "\t\t{\n";
+
+                        global_offset = "(me%";
+                        global_offset += std::to_string(blockWidth);
+                        global_offset += ") * stride_";
+                        global_offset += placeness == rocfft_placement_inplace ? "in" : "out";
+                        global_offset += "[0] + (me/" + std::to_string(blockWidth);
+                        global_offset += (placeness == rocfft_placement_inplace)
+                                             ? ")*stride_in[2] + t*stride_in[2]*"
+                                             : ")*stride_out[2] + t*stride_out[2]*";
+                        global_offset += std::to_string(blockWGS / blockWidth);
+
+                        str += GlobalWriteStrCat(global_offset, placeness, outInterleaved);
+                        strGlobalWrite = global_offset;
+                        str += "\t\t}\n";
+                    }
+                }
+                else // SBCR
+                {
+                    std::string global_offset = "me + t*" + std::to_string(blockWGS);
+                    str += GlobalWriteStrCat(global_offset, placeness, outInterleaved);
                 }
 
                 str += "\t}\n\n"; // "}" enclose the loop intrduced
@@ -1978,8 +1982,8 @@ namespace StockhamGenerator
                     str += "\tif (Tsbrc == SBRC_3D_FFT_ERC_TRANS_Z_XY)\n\t{";
                     str += "\n\t\tif(me < " + std::to_string(blockWidth) + ")\n\t\t{";
                     str += "\n\t\t\tunsigned int t = " + std::to_string(loopCount) + ";";
-                    str += "\n\t" + strLdsRead;
-                    str += "\n" + strGlobalWrite;
+                    str += "\n\t" + strLdsRead + "\n";
+                    str += GlobalWriteStrCat(strGlobalWrite, placeness, outInterleaved);
                     str += "\t\t}\n\t}\n";
                 }
 
