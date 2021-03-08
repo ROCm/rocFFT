@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import plotly.graph_objects as go
+from plotly import graph_objs as go
 import pandas as pd
 import numpy as np
 import math
