@@ -397,23 +397,22 @@ struct stride_generator_3D_inner_batch : public stride_generator
     }
 };
 
-// Create an array of parameters to pass to gtest.
-inline auto param_generator(const std::vector<std::vector<size_t>>&     v_lengths,
-                            const std::vector<rocfft_precision>&        precision_range,
-                            const std::vector<size_t>&                  batch_range,
-                            const stride_generator&                     istride,
-                            const stride_generator&                     ostride,
-                            const std::vector<std::vector<size_t>>&     ioffset_range,
-                            const std::vector<std::vector<size_t>>&     ooffset_range,
-                            const std::vector<rocfft_result_placement>& place_range)
+// Create an array of parameters to pass to gtest.  Base generator
+// that allows choosing transform type.
+inline auto param_generator_base(const std::vector<rocfft_transform_type>&   type_range,
+                                 const std::vector<std::vector<size_t>>&     v_lengths,
+                                 const std::vector<rocfft_precision>&        precision_range,
+                                 const std::vector<size_t>&                  batch_range,
+                                 const stride_generator&                     istride,
+                                 const stride_generator&                     ostride,
+                                 const std::vector<std::vector<size_t>>&     ioffset_range,
+                                 const std::vector<std::vector<size_t>>&     ooffset_range,
+                                 const std::vector<rocfft_result_placement>& place_range)
 {
 
     std::vector<rocfft_params> params;
 
-    for(auto& transform_type : {rocfft_transform_type_complex_forward,
-                                rocfft_transform_type_complex_inverse,
-                                rocfft_transform_type_real_forward,
-                                rocfft_transform_type_real_inverse})
+    for(auto& transform_type : type_range)
     {
         // For any length, we compute double-precision CPU reference
         // for largest batch size first and reuse for smaller batch
@@ -468,7 +467,32 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&     v_length
     return params;
 }
 
-// Create an array of parameters to pass to gtest.
+// Create an array of parameters to pass to gtest.  Default generator
+// that picks all transform types.
+inline auto param_generator(const std::vector<std::vector<size_t>>&     v_lengths,
+                            const std::vector<rocfft_precision>&        precision_range,
+                            const std::vector<size_t>&                  batch_range,
+                            const stride_generator&                     istride,
+                            const stride_generator&                     ostride,
+                            const std::vector<std::vector<size_t>>&     ioffset_range,
+                            const std::vector<std::vector<size_t>>&     ooffset_range,
+                            const std::vector<rocfft_result_placement>& place_range)
+{
+    return param_generator_base({rocfft_transform_type_complex_forward,
+                                 rocfft_transform_type_complex_inverse,
+                                 rocfft_transform_type_real_forward,
+                                 rocfft_transform_type_real_inverse},
+                                v_lengths,
+                                precision_range,
+                                batch_range,
+                                istride,
+                                ostride,
+                                ioffset_range,
+                                ooffset_range,
+                                place_range);
+}
+
+// Create an array of parameters to pass to gtest.  Only tests complex-type transforms
 inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     v_lengths,
                                     const std::vector<rocfft_precision>&        precision_range,
                                     const std::vector<size_t>&                  batch_range,
@@ -478,63 +502,16 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     
                                     const std::vector<std::vector<size_t>>&     ooffset_range,
                                     const std::vector<rocfft_result_placement>& place_range)
 {
-
-    std::vector<rocfft_params> params;
-
-    for(auto& transform_type :
-        {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse})
-    {
-        // For any length, we compute double-precision CPU reference
-        // for largest batch size first and reuse for smaller batch
-        // sizes, then convert to single-precision.
-
-        for(const auto& lengths : generate_lengths(v_lengths))
-        {
-            for(const auto precision : precision_range)
-            {
-                for(const auto batch : batch_range)
-                {
-                    for(const auto& types : generate_types(transform_type, place_range))
-                    {
-                        for(const auto& istride_dist : istride.generate(lengths, batch))
-                        {
-                            for(const auto& ostride_dist : ostride.generate(lengths, batch))
-                            {
-                                for(const auto& ioffset : ioffset_range)
-                                {
-                                    for(const auto& ooffset : ooffset_range)
-                                    {
-                                        rocfft_params param;
-
-                                        param.length         = lengths;
-                                        param.istride        = istride_dist.stride;
-                                        param.ostride        = ostride_dist.stride;
-                                        param.nbatch         = batch;
-                                        param.precision      = precision;
-                                        param.transform_type = std::get<0>(types);
-                                        param.placement      = std::get<1>(types);
-                                        param.idist          = istride_dist.dist;
-                                        param.odist          = ostride_dist.dist;
-                                        param.itype          = std::get<2>(types);
-                                        param.otype          = std::get<3>(types);
-                                        param.ioffset        = ioffset;
-                                        param.ooffset        = ooffset;
-
-                                        if(param.valid(0))
-                                        {
-                                            params.push_back(param);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return params;
+    return param_generator_base(
+        {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse},
+        v_lengths,
+        precision_range,
+        batch_range,
+        istride,
+        ostride,
+        ioffset_range,
+        ooffset_range,
+        place_range);
 }
 
 // Create an array of parameters to pass to gtest.
@@ -547,62 +524,16 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&     v_l
                                  const std::vector<std::vector<size_t>>&     ooffset_range,
                                  const std::vector<rocfft_result_placement>& place_range)
 {
-
-    std::vector<rocfft_params> params;
-
-    for(auto& transform_type :
-        {rocfft_transform_type_real_forward, rocfft_transform_type_real_inverse})
-    {
-        // For any length, we compute double-precision CPU reference
-        // for largest batch size first and reuse for smaller batch
-        // sizes, then convert to single-precision.
-
-        for(const auto& lengths : generate_lengths(v_lengths))
-        {
-            for(const auto precision : precision_range)
-            {
-                for(const auto batch : batch_range)
-                {
-                    for(const auto& types : generate_types(transform_type, place_range))
-                    {
-                        for(const auto& istride_dist : istride.generate(lengths, batch))
-                        {
-                            for(const auto& ostride_dist : ostride.generate(lengths, batch))
-                            {
-                                for(const auto& ioffset : ioffset_range)
-                                {
-                                    for(const auto& ooffset : ooffset_range)
-                                    {
-                                        rocfft_params param;
-                                        param.length         = lengths;
-                                        param.istride        = istride_dist.stride;
-                                        param.ostride        = ostride_dist.stride;
-                                        param.nbatch         = batch;
-                                        param.precision      = precision;
-                                        param.transform_type = std::get<0>(types);
-                                        param.placement      = std::get<1>(types);
-                                        param.idist          = istride_dist.dist;
-                                        param.odist          = ostride_dist.dist;
-                                        param.itype          = std::get<2>(types);
-                                        param.otype          = std::get<3>(types);
-                                        param.ioffset        = ioffset;
-                                        param.ooffset        = ooffset;
-
-                                        if(param.valid(0))
-                                        {
-                                            params.push_back(param);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return params;
+    return param_generator_base(
+        {rocfft_transform_type_real_forward, rocfft_transform_type_real_inverse},
+        v_lengths,
+        precision_range,
+        batch_range,
+        istride,
+        ostride,
+        ioffset_range,
+        ooffset_range,
+        place_range);
 }
 
 #endif
