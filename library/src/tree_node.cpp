@@ -40,5 +40,6 @@ TreeNode::Map1DLength const TreeNode::map1DLengthDouble = {{4096, 64}, // pow of
                                                            {65536, 64},
                                                            {131072, 64},
                                                            {6561, 81}, // pow of 3
-                                                           {10000, 100}, // mixed
+                                                           {2500, 50}, // mixed
+                                                           {10000, 100},
                                                            {40000, 200}};

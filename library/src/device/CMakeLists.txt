@@ -65,7 +65,7 @@ if( NOT GENERATOR_MANUAL_SMALL_SIZE )
 endif()
 
 # list of any supported large size, "" means empty
-# supported 64, 81, 100, 128, 200, 256
+# ex: 50, 64, 81, 100, 128, 200, 256
 if( NOT GENERATOR_MANUAL_LARGE_SIZE )
   set( GENERATOR_MANUAL_LARGE_SIZE "" )
 endif()

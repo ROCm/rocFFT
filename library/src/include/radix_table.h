@@ -125,6 +125,10 @@ inline void GetBlockComputeTable(size_t N, size_t& bwd, size_t& wgs, size_t& lds
         bwd = 9;
         wgs = 81;
         break;
+    case 50:
+        bwd = 10;
+        wgs = 50;
+        break;
     case 100:
         bwd = 5;
         wgs = 50;
