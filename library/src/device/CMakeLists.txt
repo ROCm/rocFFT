@@ -42,10 +42,7 @@ endif()
 # This builds the generator executable
 add_subdirectory( generator )
 
-# This includes an explicit list (all possible) of files the generator
-# currently outputs
-include( generator/generated-kernels.cmake )
-
+# Generated kernels
 
 # list of {"pow2" "pow3" "pow5" "pow7" "small" "large" "2D" "all"}, set to "none" if build only manual size
 # ex: "pow2" "pow5" "pow7" "2D" will generate pow2,5 + radix7,11,13 + 2D
@@ -90,71 +87,20 @@ endif()
 # "-DGENERATOR_MANUAL_SMALL_SIZE=56;336"
 # "-DGENERATOR_GROUP_NUM=3"
 
-
 list( LENGTH GENERATOR_MANUAL_SMALL_SIZE num_manual_small )
 list( LENGTH GENERATOR_MANUAL_LARGE_SIZE num_manual_large )
 
-set( gen_headers ${kernels_launch_basic} )
-if( "all" IN_LIST GENERATOR_PATTERN )
-    if( "all" IN_LIST GENERATOR_PRECISION )
-        list(APPEND gen_headers ${kernels_launch_all} )
-    else()
-        if( "single" IN_LIST GENERATOR_PRECISION )
-            list(APPEND gen_headers ${kernels_launch_single} )
-        endif()
-        if( "double" IN_LIST GENERATOR_PRECISION )
-            list(APPEND gen_headers ${kernels_launch_double} )
-        endif()
-    endif()
-else()
-    if( "large" IN_LIST GENERATOR_PATTERN OR num_manual_large GREATER 0)
-        if( "all" IN_LIST GENERATOR_PRECISION )
-            list(APPEND gen_headers ${kernels_launch_large_all} )
-        else()
-            if( "single" IN_LIST GENERATOR_PRECISION )
-                list(APPEND gen_headers ${kernels_launch_large_single} )
-            endif()
-            if( "double" IN_LIST GENERATOR_PRECISION )
-                list(APPEND gen_headers ${kernels_launch_large_double} )
-            endif()
-        endif()
-    endif()
-
-    if( "2D" IN_LIST GENERATOR_PATTERN )
-        if( "all" IN_LIST GENERATOR_PRECISION )
-            list(APPEND gen_headers ${kernels_launch_2D_all} )
-        else()
-            if( "single" IN_LIST GENERATOR_PRECISION )
-                list(APPEND gen_headers ${kernels_launch_2D_single} )
-            endif()
-            if( "double" IN_LIST GENERATOR_PRECISION )
-                list(APPEND gen_headers ${kernels_launch_2D_double} )
-            endif()
-        endif()
-    endif()
-
-    if( "small" IN_LIST GENERATOR_PATTERN OR "pow2" IN_LIST GENERATOR_PATTERN OR
-        "pow3" IN_LIST GENERATOR_PATTERN OR "pow5" IN_LIST GENERATOR_PATTERN OR
-        "pow7" IN_LIST GENERATOR_PATTERN OR num_manual_small GREATER 0)
-        if( "all" IN_LIST GENERATOR_PRECISION )
-            list(APPEND gen_headers ${kernels_launch_small_all} )
-        else()
-            if( "single" IN_LIST GENERATOR_PRECISION )
-                list(APPEND gen_headers ${kernels_launch_small_single} )
-            endif()
-            if( "double" IN_LIST GENERATOR_PRECISION )
-                list(APPEND gen_headers ${kernels_launch_small_double} )
-            endif()
-        endif()
-    endif()
-
+set( GENERATOR_GROUP_NUM 150 )
+set( kgen ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py )
+execute_process(COMMAND python3 ${kgen} list
+  --pattern=${GENERATOR_PATTERN}
+  --precision=${GENERATOR_PRECISION}
+  --groups=${GENERATOR_GROUP_NUM}
+  OUTPUT_VARIABLE gen_headers
+  RESULT_VARIABLE STATUS)
+if( STATUS AND NOT STATUS EQUAL 0 )
+  message( FATAL_ERROR "Kernel generator failed (list): ${STATUS}")
 endif()
-
-# add_custom_command will create source output files, that are used in
-# a target below
-# In order for the dependencies to work in cmake, add_custom_command
-# must be in the same CMakeLists.txt file as the target
-# [rocfft-device]
 
 string(REPLACE ";" "," PATTERN_ARG "${GENERATOR_PATTERN}")
 string(REPLACE ";" "," PRECISION_ARG "${GENERATOR_PRECISION}")
@@ -173,7 +119,8 @@ endif()
 
 add_custom_command(
   OUTPUT ${gen_headers}
-  COMMAND rocfft-kernel-generator
+  COMMAND python3 ${kgen} generate $<TARGET_FILE:rocfft-kernel-generator>
+  --
   ${manual_size_small_arg}
   ${manual_size_large_arg}
   "-t" "${PATTERN_ARG}"
