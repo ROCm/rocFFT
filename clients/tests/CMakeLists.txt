@@ -108,6 +108,8 @@ if( USE_CUDA )
     )
   target_compile_definitions( rocfft-test PRIVATE __HIP_PLATFORM_NVCC__ )
   target_link_libraries( rocfft-test PRIVATE ${CUDA_LIBRARIES} )
+else()
+  target_link_libraries( rocfft-test PRIVATE hip::device )
 endif( )
 
 option( BUILD_CLIENTS_TESTS_OPENMP "Build tests with OpenMP" ON )
