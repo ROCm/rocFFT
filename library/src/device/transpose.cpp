@@ -539,10 +539,24 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
     size_t ld_out = scheme == 1 ? data->node->outStride[1] : data->node->outStride[2];
 
     // TODO:
-    //   - might open this option to upstream
-    //   - enable this to regular transpose when need it
-    //   - check it for non-unit stride and other cases
-    bool diagonal = m % 256 == 0 && data->node->outStride[1] % 256 == 0;
+    //   - Might open this option to upstream
+    //   - Check it for non-unit stride and other cases
+    //   - It seems diagonal transpose is not friendly to XY_Z pow-of-2 cases. Need more investigation.
+    bool diagonal = false;
+
+    // NB:
+    //    Need better arch comparison other than strings.
+    //    Need to check it for Navi and other oncoming new Archs.
+    std::string arch(data->deviceProp.gcnArchName);
+    if(arch.compare(0, 6, "gfx908") == 0 || arch.compare(0, 6, "gfx90a") == 0)
+    {
+        diagonal = (m % 256) == 0 && (data->node->outStride[1] % 256 == 0)
+                   && (data->node->scheme != CS_KERNEL_TRANSPOSE_XY_Z);
+    }
+    else
+    {
+        diagonal = (m % 256) == 0 && (data->node->outStride[1] % 256 == 0);
+    }
 
     // size_t ld_in = data->node->inStride[1];
     // size_t ld_out = data->node->outStride[1];
