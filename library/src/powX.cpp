@@ -395,7 +395,7 @@ static float max_memory_bandwidth_GB_per_s()
     int memory_bus_width     = 0;
     hipDeviceGetAttribute(&max_memory_clock_kHz, hipDeviceAttributeMemoryClockRate, deviceid);
     hipDeviceGetAttribute(&memory_bus_width, hipDeviceAttributeMemoryBusWidth, deviceid);
-    auto max_memory_clock_MHz = static_cast<float>(max_memory_clock_kHz) / 1024.0;
+    auto max_memory_clock_MHz = static_cast<float>(max_memory_clock_kHz) / 1000.0;
     // multiply by 2.0 because transfer is bidirectional
     // divide by 8.0 because bus width is in bits and we want bytes
     // divide by 1000 to convert MB to GB
