@@ -403,7 +403,8 @@ void write_cpu_function_small(std::vector<size_t> support_list,
         file.close();
 
         // remove the sizes that we wrote
-        support_list.erase(support_list.begin(), support_list.begin() + group_size);
+        support_list.erase(support_list.begin(),
+                           support_list.begin() + std::min(group_size, support_list.size()));
     }
 }
 
