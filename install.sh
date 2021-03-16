@@ -40,10 +40,10 @@ function display_help()
     #echo "    [--cuda] build library for cuda backend"
     echo "    [--hip-clang] build library for amdgpu backend using hip-clang"
     echo "    [--gen-pattern] Specify the FFT patterns to generate (none, pow2, pow3, pow5, pow7, 2D, large, small, all)"
-    echo "                    can be a combination such as ='pow2;pow5;2D', default is all"
+    echo "                    can be a combination such as ='pow2,pow5,2D', default is all"
     echo "    [--gen-precision] Specify the precision type to generate (single, double, all), default is all"
-    echo "    [--manual-small] Additional small sizes list to generate, ='A[;B;C;..]', default is empty "
-    echo "    [--manual-large] Additional large sizes list to generate, ='A[;B;C;..]', default is empty "
+    echo "    [--manual-small] Additional small sizes list to generate, ='A[,B,C,..]', default is empty "
+    echo "    [--manual-large] Additional large sizes list to generate, ='A[,B,C,..]', default is empty "
 }
 
 # This function is helpful for dockerfiles that do not have sudo installed, but the

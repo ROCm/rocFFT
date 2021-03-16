@@ -82,50 +82,35 @@ endif()
 # example 2:
 # Adding the following cmd lines to generate all [2D], [pow2], and [small-336, 56] with double precision
 # And GENERATOR_GROUP_NUM=3 generates 3 small kernel groups (cpp)
-# "-DGENERATOR_PATTERN=2D;pow2"
+# "-DGENERATOR_PATTERN=2D,pow2"
 # "-DGENERATOR_PRECISION=double"
-# "-DGENERATOR_MANUAL_SMALL_SIZE=56;336"
+# "-DGENERATOR_MANUAL_SMALL_SIZE=56,336"
 # "-DGENERATOR_GROUP_NUM=3"
-
-list( LENGTH GENERATOR_MANUAL_SMALL_SIZE num_manual_small )
-list( LENGTH GENERATOR_MANUAL_LARGE_SIZE num_manual_large )
 
 set( GENERATOR_GROUP_NUM 150 )
 set( kgen ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py )
-execute_process(COMMAND python3 ${kgen} list
+execute_process(COMMAND python3 ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
   --groups=${GENERATOR_GROUP_NUM}
+  --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
+  --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
+  list
   OUTPUT_VARIABLE gen_headers
   RESULT_VARIABLE STATUS)
 if( STATUS AND NOT STATUS EQUAL 0 )
   message( FATAL_ERROR "Kernel generator failed (list): ${STATUS}")
 endif()
 
-string(REPLACE ";" "," PATTERN_ARG "${GENERATOR_PATTERN}")
-string(REPLACE ";" "," PRECISION_ARG "${GENERATOR_PRECISION}")
-string(REPLACE ";" "," MANUAL_SMALL_ARG "${GENERATOR_MANUAL_SMALL_SIZE}")
-string(REPLACE ";" "," MANUAL_LARGE_ARG "${GENERATOR_MANUAL_LARGE_SIZE}")
-
-set( manual_size_small_arg "" )
-if( num_manual_small GREATER 0 )
-  set( manual_size_small_arg "--manual-small" "${MANUAL_SMALL_ARG}" )
-endif()
-
-set( manual_size_large_arg "" )
-if( num_manual_large GREATER 0 )
-  set( manual_size_large_arg "--manual-large" "${MANUAL_LARGE_ARG}" )
-endif()
-
 add_custom_command(
   OUTPUT ${gen_headers}
-  COMMAND python3 ${kgen} generate $<TARGET_FILE:rocfft-kernel-generator>
-  --
-  ${manual_size_small_arg}
-  ${manual_size_large_arg}
-  "-t" "${PATTERN_ARG}"
-  "-p" "${PRECISION_ARG}"
-  "-g" ${GENERATOR_GROUP_NUM}
+  COMMAND python3 ${kgen}
+  --pattern=${GENERATOR_PATTERN}
+  --precision=${GENERATOR_PRECISION}
+  --groups=${GENERATOR_GROUP_NUM}
+  --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
+  --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
+  generate $<TARGET_FILE:rocfft-kernel-generator>
   DEPENDS rocfft-kernel-generator
   COMMENT "Generator producing device kernels for rocfft-device"
 )

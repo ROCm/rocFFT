@@ -376,23 +376,23 @@ int main(int argc, char* argv[])
       write to kernel_launch_generator.h
     =================================================================== */
 
-    // printf("Write CPU functions declaration to *.h file \n");
-    WriteCPUHeaders(support_size_list,
-                    large1D_list,
-                    support_size_list_2D_single,
-                    support_size_list_2D_double,
-                    argument.has_precision(EPrecision::SINGLE),
-                    argument.has_precision(EPrecision::DOUBLE));
+    // // printf("Write CPU functions declaration to *.h file \n");
+    // WriteCPUHeaders(support_size_list,
+    //                 large1D_list,
+    //                 support_size_list_2D_single,
+    //                 support_size_list_2D_double,
+    //                 argument.has_precision(EPrecision::SINGLE),
+    //                 argument.has_precision(EPrecision::DOUBLE));
 
-    /* =====================================================================
-      write to function_pool.cpp.h
-    =================================================================== */
+    // /* =====================================================================
+    //   write to function_pool.cpp.h
+    // =================================================================== */
 
-    // printf("Add CPU function into hash map \n");
-    AddCPUFunctionToPool(support_size_list,
-                         large1D_list,
-                         support_size_list_2D_single,
-                         support_size_list_2D_double,
-                         argument.has_precision(EPrecision::SINGLE),
-                         argument.has_precision(EPrecision::DOUBLE));
+    // // printf("Add CPU function into hash map \n");
+    // AddCPUFunctionToPool(support_size_list,
+    //                      large1D_list,
+    //                      support_size_list_2D_single,
+    //                      support_size_list_2D_double,
+    //                      argument.has_precision(EPrecision::SINGLE),
+    //                      argument.has_precision(EPrecision::DOUBLE));
 }
