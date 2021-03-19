@@ -53,7 +53,32 @@ const static std::vector<size_t> mix_range
        900, 1250, 1500, 1875, 2160, 2187, 2250, 2500, 3000, 4000, 12000, 24000, 72000};
 
 const static std::vector<size_t> prime_range
-    = {7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97};
+    = {17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97};
+
+static std::vector<size_t> small_1D_sizes()
+{
+    static const size_t SMALL_1D_MAX = 8192;
+
+    // generate a list of sizes from 2 and up, skipping any sizes that are already covered
+    std::vector<size_t> covered_sizes;
+    std::copy(pow2_range.begin(), pow2_range.end(), std::back_inserter(covered_sizes));
+    std::copy(pow3_range.begin(), pow3_range.end(), std::back_inserter(covered_sizes));
+    std::copy(pow5_range.begin(), pow5_range.end(), std::back_inserter(covered_sizes));
+    std::copy(radX_range.begin(), radX_range.end(), std::back_inserter(covered_sizes));
+    std::copy(mix_range.begin(), mix_range.end(), std::back_inserter(covered_sizes));
+    std::copy(prime_range.begin(), prime_range.end(), std::back_inserter(covered_sizes));
+    std::sort(covered_sizes.begin(), covered_sizes.end());
+
+    std::vector<size_t> output;
+    for(size_t i = 2; i < SMALL_1D_MAX; ++i)
+    {
+        if(!std::binary_search(covered_sizes.begin(), covered_sizes.end(), i))
+        {
+            output.push_back(i);
+        }
+    }
+    return output;
+}
 
 const static std::vector<std::vector<size_t>> stride_range = {{1}};
 
@@ -223,6 +248,30 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_mix_1D,
                                                              ioffset_range,
                                                              ooffset_range,
                                                              place_range)),
+                         accuracy_test::TestName);
+
+// small 1D sizes just need to make sure our factorization isn't
+// completely broken, so we just check simple C2C outplace interleaved
+INSTANTIATE_TEST_SUITE_P(small_1D,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator_base(
+                             {rocfft_transform_type_complex_forward},
+                             {small_1D_sizes()},
+                             {rocfft_precision_single},
+                             {1},
+                             [](rocfft_transform_type                       t,
+                                const std::vector<rocfft_result_placement>& place_range) {
+                                 return std::vector<type_place_io_t>{
+                                     std::make_tuple(t,
+                                                     place_range[0],
+                                                     rocfft_array_type_complex_interleaved,
+                                                     rocfft_array_type_complex_interleaved)};
+                             },
+                             stride_range,
+                             stride_range,
+                             ioffset_range_zero,
+                             ooffset_range_zero,
+                             {rocfft_placement_notinplace})),
                          accuracy_test::TestName);
 
 // NB:

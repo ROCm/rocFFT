@@ -148,6 +148,77 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
             &HIP_KERNEL_NAME(
                 transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 0, 1, false, false, false>));
 
+        // twl=1:
+        tmap.emplace(
+            std::make_tuple(1, -1, true, true, true),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, -1, true, true, true>));
+        tmap.emplace(
+            std::make_tuple(1, -1, false, true, true),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, -1, false, true, true>));
+        tmap.emplace(
+            std::make_tuple(1, -1, true, false, true),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, -1, true, false, true>));
+        tmap.emplace(
+            std::make_tuple(1, -1, false, false, true),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, -1, false, false, true>));
+
+        tmap.emplace(
+            std::make_tuple(1, 1, true, true, true),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, 1, true, true, true>));
+        tmap.emplace(
+            std::make_tuple(1, 1, false, true, true),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, 1, false, true, true>));
+
+        tmap.emplace(
+            std::make_tuple(1, 1, true, false, true),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, 1, true, false, true>));
+        tmap.emplace(
+            std::make_tuple(1, 1, false, false, true),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, 1, false, false, true>));
+
+        tmap.emplace(
+            std::make_tuple(1, -1, true, true, false),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, -1, true, true, false>));
+        tmap.emplace(
+            std::make_tuple(1, -1, false, true, false),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, -1, false, true, false>));
+        tmap.emplace(
+            std::make_tuple(1, -1, true, false, false),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, -1, true, false, false>));
+        tmap.emplace(
+            std::make_tuple(1, -1, false, false, false),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, -1, false, false, false>));
+
+        tmap.emplace(
+            std::make_tuple(1, 1, true, true, false),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, 1, true, true, false>));
+        tmap.emplace(
+            std::make_tuple(1, 1, false, true, false),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, 1, false, true, false>));
+
+        tmap.emplace(
+            std::make_tuple(1, 1, true, false, false),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, 1, true, false, false>));
+        tmap.emplace(
+            std::make_tuple(1, 1, false, false, false),
+            &HIP_KERNEL_NAME(
+                transpose_kernel2<T, TA, TB, TRANSPOSE_DIM_X, TRANSPOSE_DIM_Y, true, 1, 1, false, false, false>));
+
         // twl=2:
         tmap.emplace(
             std::make_tuple(2, -1, true, true, true),
@@ -578,6 +649,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
         twl = 3;
     else if(data->node->large1D > (size_t)256)
         twl = 2;
+    else if(data->node->large1D > 0)
+        twl = 1;
     else
         twl = 0;
 

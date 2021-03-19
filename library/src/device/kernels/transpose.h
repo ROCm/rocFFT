@@ -30,7 +30,18 @@
 #define TRANSPOSE_TWIDDLE_MUL(tmp)                                                                \
     if(WITH_TWL)                                                                                  \
     {                                                                                             \
-        if(TWL == 2)                                                                              \
+        if(TWL == 1)                                                                              \
+        {                                                                                         \
+            if(DIR == -1)                                                                         \
+            {                                                                                     \
+                TWIDDLE_STEP_MUL_FWD(TWLstep1, twiddles_large, (gx + tx1) * (gy + ty1 + i), tmp); \
+            }                                                                                     \
+            else                                                                                  \
+            {                                                                                     \
+                TWIDDLE_STEP_MUL_INV(TWLstep1, twiddles_large, (gx + tx1) * (gy + ty1 + i), tmp); \
+            }                                                                                     \
+        }                                                                                         \
+        else if(TWL == 2)                                                                         \
         {                                                                                         \
             if(DIR == -1)                                                                         \
             {                                                                                     \

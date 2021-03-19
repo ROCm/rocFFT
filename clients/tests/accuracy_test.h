@@ -403,6 +403,7 @@ inline auto param_generator_base(const std::vector<rocfft_transform_type>&   typ
                                  const std::vector<std::vector<size_t>>&     v_lengths,
                                  const std::vector<rocfft_precision>&        precision_range,
                                  const std::vector<size_t>&                  batch_range,
+                                 decltype(generate_types)                    types_generator,
                                  const stride_generator&                     istride,
                                  const stride_generator&                     ostride,
                                  const std::vector<std::vector<size_t>>&     ioffset_range,
@@ -424,7 +425,7 @@ inline auto param_generator_base(const std::vector<rocfft_transform_type>&   typ
             {
                 for(const auto batch : batch_range)
                 {
-                    for(const auto& types : generate_types(transform_type, place_range))
+                    for(const auto& types : types_generator(transform_type, place_range))
                     {
                         for(const auto& istride_dist : istride.generate(lengths, batch))
                         {
@@ -485,6 +486,7 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&     v_length
                                 v_lengths,
                                 precision_range,
                                 batch_range,
+                                generate_types,
                                 istride,
                                 ostride,
                                 ioffset_range,
@@ -507,6 +509,7 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     
         v_lengths,
         precision_range,
         batch_range,
+        generate_types,
         istride,
         ostride,
         ioffset_range,
@@ -529,6 +532,7 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&     v_l
         v_lengths,
         precision_range,
         batch_range,
+        generate_types,
         istride,
         ostride,
         ioffset_range,
