@@ -416,7 +416,7 @@ def reportfigs(rundims, shortrun):
 
         for min1d, max1d, nbatch in [[1024,536870912,1], [8,32768,100000]]:
 
-            for radix in [2, 3, 5, 7, 11, 13]:
+            for radix in [2, 3, 5, 7]:
                 fig = figure("1d_c2c" \
                              + "_radix" + str(radix) \
                              + "_batch" + str(nbatch),
@@ -430,7 +430,7 @@ def reportfigs(rundims, shortrun):
                                          inplace) )
                 figs.append(fig)
 
-            for radix in [2, 3, 5, 7, 11, 13]:
+            for radix in [2, 3, 5, 7]:
                 fig = figure("1d_r2c"\
                              + "_radix" + str(radix) \
                              + "_batch" + str(nbatch),
@@ -444,7 +444,7 @@ def reportfigs(rundims, shortrun):
                                          inplace) )
                 figs.append(fig)
 
-            for radix in [2, 3, 5, 7, 11, 13]:
+            for radix in [2, 3, 5, 7]:
                 fig = figure("1d_c2r" \
                              + "_radix" + str(radix) \
                              + "_batch" + str(nbatch),
