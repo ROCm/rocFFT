@@ -9,8 +9,6 @@ import re # regexp package
 import shutil
 import tempfile
 
-from html_report import graph_dirs
-
 import perflib
 import timing
 
@@ -815,6 +813,7 @@ def main(argv):
     #
     # HACK: problem file implies html report
     if problem_file:
+        from html_report import graph_dirs
         graph_dirs(outdirlist, problem_file, docdir)
     else:
         # otherwise, make other doc types using asymptote figs
