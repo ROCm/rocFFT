@@ -347,6 +347,10 @@ void write_cpu_function_small(std::vector<size_t> support_list,
         // left
         else if(support_list.size() <= remaining_groups)
             group_size = 1;
+        // if the remaining sizes is less than the group_size (last non-empty group)
+        // be sure to fit the size...or the loop would access the unwanted entries.
+        else if(support_list.size() < group_size)
+            group_size = support_list.size();
 
         size_t i_start = 0;
         size_t i_end   = group_size;
@@ -403,6 +407,7 @@ void write_cpu_function_small(std::vector<size_t> support_list,
         file.close();
 
         // remove the sizes that we wrote
+        // the min() should be un-neccessary after we checked "if (support_list.size() < group_size)
         support_list.erase(support_list.begin(),
                            support_list.begin() + std::min(group_size, support_list.size()));
     }

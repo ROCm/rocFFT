@@ -48,12 +48,8 @@ public:
 
     void init_precision(const std::vector<std::string>& argString)
     {
+        // we're here only when -p is in the args, starting from none and do bit-OR
         precision = EPrecision::NONE;
-        if(std::find(argString.begin(), argString.end(), "none") != argString.end())
-        {
-            return;
-        }
-
         if(std::find(argString.begin(), argString.end(), "single") != argString.end())
         {
             precision |= EPrecision::SINGLE;
@@ -70,12 +66,8 @@ public:
 
     void init_type(const std::vector<std::string>& argString)
     {
+        // we're here only when -t is in the args, starting from none and do bit-OR
         predefineType = EPredefineType::NONE;
-        if(std::find(argString.begin(), argString.end(), "none") != argString.end())
-        {
-            return;
-        }
-
         if(std::find(argString.begin(), argString.end(), "pow2") != argString.end())
         {
             predefineType |= EPredefineType::POW2;

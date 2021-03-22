@@ -37,7 +37,7 @@ def scprint(xs):
 # Supported kernel sizes
 #
 
-def supported_small_sizes(precision):
+def supported_small_sizes(precision, pow2=True, pow3=True, pow5=True, commonRadix=True):
     """Return list of 1D small kernels."""
 
     upper_bound = {
@@ -46,17 +46,18 @@ def supported_small_sizes(precision):
     }
 
     powers = {
-        5: [5**k for k in range(6)],
-        3: [3**k for k in range(8)],
-        2: [2**k for k in range(13)],
+        5: [5**k for k in range(6 if pow5 else 1)],
+        3: [3**k for k in range(8 if pow3 else 1)],
+        2: [2**k for k in range(13 if pow2 else 1)],
     }
 
     lengths = [p2 * p3 * p5 for p2, p3, p5 in product(powers[2], powers[3], powers[5])]
 
     # common radix 7, 11, and 13
-    lengths += [7, 14, 21, 28, 42, 49, 56, 84, 112, 168, 224, 336, 343]
-    lengths += [11, 22, 44, 88, 121, 176]
-    lengths += [13, 26, 52, 104, 169, 208]
+    if commonRadix:
+        lengths += [7, 14, 21, 28, 42, 49, 56, 84, 112, 168, 224, 336, 343]
+        lengths += [11, 22, 44, 88, 121, 176]
+        lengths += [13, 26, 52, 104, 169, 208]
 
     def filter_bound(length):
         return length <= upper_bound[precision]
@@ -342,60 +343,97 @@ if __name__ == '__main__':
     if args.manual_large:
         patterns += ['large']
 
-    manual_small = None
-    if args.manual_small:
-        manual_small = product(args.manual_small.split(','), ['CS_KERNEL_STOCKHAM'])
+    replacements = {
+        'pow2' : 'small',
+        'pow3' : 'small',
+        'pow5' : 'small',
+        'pow7' : 'small',
+    }
+    # 1. reflect sub-patterns (pow2,3,5,7) to the parent pattern, remove 'none' entries to ignore ones in 'small,none,2D'
+    # 2. once there is an 'all' in the list, keep the only 'all' is enough
+    # 3. make unique to avoid 'pow2,pow3' -> 'small,small'
+    patterns = [ replacements.get(key) if key in replacements else key for key in patterns if key != 'none' ]
+    if 'all' in patterns: patterns = ['all']
+    patterns = list(set(patterns))
 
-    manual_large = None
-    if args.manual_large:
-        manual_large = product(args.manual_large.split(','),
-                               ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC'])
-
-    single = 'all' in precisions or 'single' in precisions
-    double = 'all' in precisions or 'double' in precisions
-
-    large = 'all' in patterns or 'large' in patterns
-    small = 'all' in patterns or 'small' in patterns
+    # 1. remove 'none' entries
+    # 2. once there is an 'all' in the list, keep the only 'all' is enough
+    # 3. make unique to avoid something like 'single,double,all;
+    precisions = [ key for key in precisions if key != 'none' ]
+    if 'all' in precisions: precisions = ['all']
+    precisions = list(set(precisions))
 
     if args.command == 'list':
         scprint(list_generated_kernels(patterns=patterns,
                                        precisions=precisions,
                                        num_small_kernel_groups=args.groups))
 
+    manual_small = None
+    if args.manual_small:
+        # 1. use map to cast to int, otherwise it will fail the later isinstance(length, int)
+        # 2. convert to list() or the iterator is not reset after writing to single...
+        manual_small = list(product(map(int, args.manual_small.split(',')), ['CS_KERNEL_STOCKHAM']))
+
+    manual_large = None
+    if args.manual_large:
+        manual_large = list(product(map(int, args.manual_large.split(',')),
+                               ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC']))
+
+    single = 'all' in precisions or 'single' in precisions
+    double = 'all' in precisions or 'double' in precisions
+
+    # test against original args.pattern instead of patterns, to distinguish between small and manual-small
+    args_patt_list = args.pattern.split(',')
+    large = 'all' in args_patt_list or 'large' in args_patt_list
+    small = 'all' in args_patt_list or 'small' in args_patt_list
+    dim2  = 'all' in args_patt_list or '2D' in args_patt_list
+    pow2  = small or 'pow2' in args_patt_list
+    pow3  = small or 'pow3' in args_patt_list
+    pow5  = small or 'pow5' in args_patt_list
+    pow7  = small or 'pow7' in args_patt_list
+
     if args.command == 'generate':
 
         cpu_functions = []
+        non_manual_small_sizes = []
+        non_manual_large_sizes = []
 
         old_args = ['-t', args.pattern, '-p', args.precision, '-g', str(args.groups)]
 
+        if small or pow2 or pow3 or pow5 or pow7:
+            if single:
+                non_manual_small_sizes = list(supported_small_sizes('single', pow2, pow3, pow5, pow7))
+                cpu_functions += old_generate_small_1d_prototypes('sp', non_manual_small_sizes)
+            if double:
+                non_manual_large_sizes = list(supported_small_sizes('double', pow2, pow3, pow5, pow7))
+                cpu_functions += old_generate_small_1d_prototypes('dp', non_manual_large_sizes)
+        # additional small size
         if manual_small:
             old_args += ['--manual-small', args.manual_small]
             if single:
-                cpu_functions += old_generate_small_1d_prototypes('sp', manual_small)
+                # remove duplicated manual-small if it is already included in small-pattern, avoid replication in function_poll
+                cpu_functions += old_generate_small_1d_prototypes('sp', [item for item in manual_small if item not in non_manual_small_sizes])
             if double:
-                cpu_functions += old_generate_small_1d_prototypes('dp', manual_small)
-        elif small:
-            if single:
-                cpu_functions += old_generate_small_1d_prototypes('sp', supported_small_sizes('single'))
-            if double:
-                cpu_functions += old_generate_small_1d_prototypes('dp', supported_small_sizes('double'))
+                cpu_functions += old_generate_small_1d_prototypes('dp', [item for item in manual_small if item not in non_manual_large_sizes])
 
-        if manual_large:
+        if large:
+            if single:
+                cpu_functions += old_generate_large_1d_prototypes('sp', supported_large_sizes('single'))
+            if double:
+                cpu_functions += old_generate_large_1d_prototypes('dp', supported_large_sizes('double'))
+        # if manual_large:
+        elif manual_large:
             old_args += ['--manual-large', args.manual_large]
             if single:
                 cpu_functions += old_generate_large_1d_prototypes('sp', manual_large)
             if double:
                 cpu_functions += old_generate_large_1d_prototypes('dp', manual_large)
-        elif large:
-            if single:
-                cpu_functions += old_generate_large_1d_prototypes('sp', supported_large_sizes('single'))
-            if double:
-                cpu_functions += old_generate_large_1d_prototypes('dp', supported_large_sizes('double'))
 
-        if single:
-            cpu_functions += old_generate_2d_prototypes('sp', supported_2d_sizes('single'))
-        if double:
-            cpu_functions += old_generate_2d_prototypes('dp', supported_2d_sizes('double'))
+        if dim2:
+            if single:
+                cpu_functions += old_generate_2d_prototypes('sp', supported_2d_sizes('single'))
+            if double:
+                cpu_functions += old_generate_2d_prototypes('dp', supported_2d_sizes('double'))
 
         # XXX: 2d depends on 1d...
 

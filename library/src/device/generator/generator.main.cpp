@@ -198,7 +198,7 @@ int main(int argc, char* argv[])
             std::cerr << "No valid manual large sizes!" << std::endl;
         }
     }
-    // if not manual, default type is ALL if not specified, else init_type from arg
+    // default type is ALL if not specified, else init_type from arg
     if(vm.count("type"))
     {
         parse_arg_strings(typeArgStr, typeList);

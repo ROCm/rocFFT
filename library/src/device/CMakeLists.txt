@@ -87,7 +87,10 @@ endif()
 # "-DGENERATOR_MANUAL_SMALL_SIZE=56,336"
 # "-DGENERATOR_GROUP_NUM=3"
 
-set( GENERATOR_GROUP_NUM 150 )
+# Make it possible to let install.sh control this ?
+if( NOT GENERATOR_GROUP_NUM )
+  set( GENERATOR_GROUP_NUM 150 )
+endif()
 set( kgen ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py )
 execute_process(COMMAND python3 ${kgen}
   --pattern=${GENERATOR_PATTERN}
