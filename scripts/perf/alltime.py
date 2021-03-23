@@ -805,24 +805,26 @@ def main(argv):
         # Compile the data in the outdirs into figures in docdir:
         ncompare = len(inlist) if speedup else 0
         print(fig.labels(labellist))
-        #plotgflops = runtype == "submission" and not datatype == "gflops"
-        print(fig.asycmd(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2))
-        fig.executeasy(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2)
+        if doAsy:
+            #plotgflops = runtype == "submission" and not datatype == "gflops"
+            print(fig.asycmd(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2))
+            fig.executeasy(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2)
 
-    # Make the document in docdir:
-    #
-    # HACK: problem file implies html report
-    if problem_file:
-        from html_report import graph_dirs
-        graph_dirs(outdirlist, problem_file, docdir)
-    else:
-        # otherwise, make other doc types using asymptote figs
-        if docformat == "pdf":
-            maketex(figs, docdir, outdirlist, labellist, nsample, secondtype)
-        if docformat == "docx":
-            makedocx(figs, docdir, nsample, secondtype)
+    if doAsy:
+        # Make the document in docdir:
+        #
+        # HACK: problem file implies html report
+        if problem_file:
+            from html_report import graph_dirs
+            graph_dirs(outdirlist, problem_file, docdir)
+        else:
+            # otherwise, make other doc types using asymptote figs
+            if docformat == "pdf":
+                maketex(figs, docdir, outdirlist, labellist, nsample, secondtype)
+            if docformat == "docx":
+                makedocx(figs, docdir, nsample, secondtype)
 
-    print("Finished!  Output in " + docdir)
+        print("Finished!  Output in " + docdir)
 
 def binaryisok(dirname, progname):
     prog = os.path.join(dirname, progname)
