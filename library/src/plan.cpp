@@ -718,6 +718,9 @@ inline size_t get_explicity_supported_factor(rocfft_precision precision, size_t 
     auto comparison = std::greater<size_t>();
     std::sort(supported.begin(), supported.end(), comparison);
 
+    if(supported.empty())
+        return 0;
+
     size_t factor = 0;
 
     if(length0 > (Large1DThreshold(precision) * Large1DThreshold(precision)))
@@ -794,6 +797,17 @@ inline size_t FindBlue(size_t len)
     while(p < len)
         p <<= 1;
     return 2 * p;
+}
+
+inline void PrintFailInfo(rocfft_precision precision,
+                          size_t           length,
+                          ComputeScheme    scheme,
+                          size_t           missingL = 0)
+{
+    rocfft_cerr << "Failed on 1D length " << length << " (" << precision << "): "
+                << "when attempting Scheme: " << PrintScheme(scheme) << std::endl;
+    if(missingL > 0)
+        rocfft_cerr << "\tCouldn't find the kernel for length " << missingL << std::endl;
 }
 
 // Tree node builders
@@ -1530,8 +1544,10 @@ void TreeNode::build_real_pair()
 size_t TreeNode::div1DNoPo2(const size_t length0)
 {
     auto factor = get_explicity_supported_factor(precision, length0);
-    assert(factor != 0);
-    return length0 / factor;
+    // return 0 means we can't find any supported kernels,
+    // happens when debugging, we don't want this assert crash the program
+    //assert(factor != 0);
+    return (factor > 0) ? length0 / factor : 0;
 }
 
 void TreeNode::build_1D()
@@ -1552,6 +1568,7 @@ void TreeNode::build_1D()
     }
 
     size_t divLength1 = 1;
+    bool   failed     = false;
 
     if(IsPo2(length[0])) // multiple kernels involving transpose
     {
@@ -1567,7 +1584,7 @@ void TreeNode::build_1D()
                 }
                 else
                 {
-                    assert(0); // should not happen
+                    failed = true;
                 }
             }
             else
@@ -1578,7 +1595,7 @@ void TreeNode::build_1D()
                 }
                 else
                 {
-                    assert(0); // should not happen
+                    failed = true;
                 }
             }
             scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CS_L1D_CC : CS_L1D_CRT;
@@ -1606,15 +1623,16 @@ void TreeNode::build_1D()
     }
     else // if not Pow2
     {
-        divLength1 = div1DNoPo2(length[0]);
-        scheme     = CS_L1D_TRTRT;
-
         if(precision == rocfft_precision_single)
         {
             if(map1DLengthSingle.find(length[0]) != map1DLengthSingle.end())
             {
                 divLength1 = map1DLengthSingle.at(length[0]);
                 scheme     = CS_L1D_CC;
+            }
+            else
+            {
+                failed = true;
             }
         }
         else if(precision == rocfft_precision_double)
@@ -1624,7 +1642,24 @@ void TreeNode::build_1D()
                 divLength1 = map1DLengthDouble.at(length[0]);
                 scheme     = CS_L1D_CC;
             }
+            else
+            {
+                failed = true;
+            }
         }
+
+        if(failed)
+        {
+            divLength1 = div1DNoPo2(length[0]);
+            scheme     = CS_L1D_TRTRT;
+            failed     = (divLength1 == 0);
+        }
+    }
+
+    if(failed)
+    {
+        PrintFailInfo(precision, length[0], scheme);
+        assert(0); // can't find the length in map1DLengthSingle/Double.
     }
 
     size_t divLength0 = length[0] / divLength1;
@@ -1738,6 +1773,12 @@ void TreeNode::build_1DBluestein()
 
 void TreeNode::build_1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLength1)
 {
+    if(!function_pool::has_function(precision, {divLength0, CS_KERNEL_STOCKHAM}))
+    {
+        PrintFailInfo(precision, length[0], scheme, divLength0);
+        assert(false);
+    }
+
     // first transpose
     auto trans1Plan = TreeNode::CreateNode(this);
 
@@ -1834,6 +1875,16 @@ void TreeNode::build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength
     //  The kernel CS_KERNEL_STOCKHAM_BLOCK_CC and CS_KERNEL_STOCKHAM_BLOCK_RC
     //  are only enabled for outplace for now. Check more details in generator.file.cpp,
     //  and in generated kernel_lunch_single_large.cpp.h
+    if(!function_pool::has_function(precision, {divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC}))
+    {
+        PrintFailInfo(precision, length[0], scheme, divLength1);
+        assert(false);
+    }
+    if(!function_pool::has_function(precision, {divLength0, CS_KERNEL_STOCKHAM_BLOCK_RC}))
+    {
+        PrintFailInfo(precision, length[0], scheme, divLength0);
+        assert(false);
+    }
 
     // first plan, column-to-column
     auto col2colPlan = TreeNode::CreateNode(this);
@@ -1873,6 +1924,17 @@ void TreeNode::build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength
 
 void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLength1)
 {
+    if(!function_pool::has_function(precision, {divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC}))
+    {
+        PrintFailInfo(precision, length[0], scheme, divLength1);
+        assert(false);
+    }
+    if(!function_pool::has_function(precision, {divLength0, CS_KERNEL_STOCKHAM}))
+    {
+        PrintFailInfo(precision, length[0], scheme, divLength0);
+        assert(false);
+    }
+
     // first plan, column-to-column
     auto col2colPlan = TreeNode::CreateNode(this);
 
