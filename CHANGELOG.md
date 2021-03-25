@@ -9,6 +9,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## [(Unreleased) rocFFT 1.0.11 for ROCm 4.2.0]
 
+### Changed
+  Move device code into main library.
+
 ### Optimizations
 - Improved performance for single precision kernels exercising all except radix-2/7 butterfly ops.
 - Minor optimization for C2R 3D 100, 200 cube sizes.

@@ -20,7 +20,6 @@
 # THE SOFTWARE.
 # #############################################################################
 
-
 # target_compile_features() override
 function( target_compile_features target_name )
   # With Cmake v3.5, hipcc (with nvcc backend) does not work with target_compile_features

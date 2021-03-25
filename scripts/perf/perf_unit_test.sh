@@ -13,12 +13,12 @@ fi
 
 mkdir build
 pushd build
-cmake -DCMAKE_CXX_COMPILER=hipcc  -DBUILD_CLIENTS_ALL=on -DSINGLELIB=on -DAMDGPU_TARGETS= ../../.. && make -j$(nproc)
+cmake -DCMAKE_CXX_COMPILER=hipcc  -DBUILD_CLIENTS_ALL=on -DAMDGPU_TARGETS= ../../.. && make -j$(nproc)
 popd
 
 mkdir build1
 pushd build1
-cmake -DCMAKE_CXX_COMPILER=hipcc  -DBUILD_CLIENTS_ALL=on -DSINGLELIB=on -DAMDGPU_TARGETS= ../../.. && make -j$(nproc)
+cmake -DCMAKE_CXX_COMPILER=hipcc  -DBUILD_CLIENTS_ALL=on -DAMDGPU_TARGETS= ../../.. && make -j$(nproc)
 popd
 
 
