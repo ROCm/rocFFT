@@ -129,6 +129,11 @@ set( rocfft_device_source
   realcomplex_even_transpose.cpp
 )
 
+set_property(
+  SOURCE ${rocfft_device_source}
+  PROPERTY COMPILE_OPTIONS ${WARNING_FLAGS}
+  )
+
 prepend_path( "../.."
   rocfft_headers_public relative_rocfft_device_headers_public )
 

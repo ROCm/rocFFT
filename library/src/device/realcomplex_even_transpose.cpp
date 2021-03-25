@@ -52,7 +52,6 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
                                        const size_t* outStride)
 {
     size_t idist1D            = inStride[1];
-    size_t odist1D            = outStride[1];
     size_t input_batch_start  = idist * blockIdx.z;
     size_t output_batch_start = odist * blockIdx.z;
     auto   twiddles           = static_cast<const T*>(twiddles0);
@@ -194,8 +193,6 @@ void r2c_1d_post_transpose(const void* data_p, void*)
     const void* bufIn0  = data->bufIn[0];
     void*       bufOut0 = data->bufOut[0];
     void*       bufOut1 = data->bufOut[1];
-
-    const size_t batch = data->node->batch;
 
     size_t count = data->node->batch;
     size_t m     = data->node->length[1];
@@ -442,8 +439,6 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     // because first element is special)
     if(col_start + lds_col < col_end && lds_row < rows_to_read)
     {
-        size_t col = col_start + lds_col;
-
         const T p = topTile[lds_col][lds_row];
         const T q = bottomTile[lds_col][lds_row];
         const T u = p + q;
@@ -482,8 +477,6 @@ void transpose_c2r_1d_pre(const void* data_p, void*)
     const void* bufIn0  = data->bufIn[0];
     const void* bufIn1  = data->bufIn[1];
     void*       bufOut0 = data->bufOut[0];
-
-    const size_t batch = data->node->batch;
 
     size_t count = data->node->batch;
     size_t m     = data->node->length[1];

@@ -285,6 +285,5 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 void pair2complex_pack(const void* data_p, void*)
 {
     // FIXME: implement
-    const DeviceCallIn* data = (DeviceCallIn*)data_p;
     assert(false);
 }
