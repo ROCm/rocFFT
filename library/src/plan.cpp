@@ -2646,7 +2646,7 @@ void TreeNode::assign_buffers_CS_REAL_3D_EVEN(TraverseState&   state,
         childNodes[2]->obOut = childNodes[2]->obIn;
         flipIn               = childNodes[2]->obIn;
         flipOut              = obOutBuf;
-        childNodes[2]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
+        childNodes[2]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obIn);
 
         // T
         childNodes[3]->SetInputBuffer(state);
@@ -2700,7 +2700,7 @@ void TreeNode::assign_buffers_CS_REAL_3D_EVEN(TraverseState&   state,
         childNodes[3]->obOut        = OB_USER_IN;
         childNodes[3]->inArrayType  = rocfft_array_type_complex_interleaved;
         childNodes[3]->outArrayType = inArrayType;
-        childNodes[3]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
+        childNodes[3]->TraverseTreeAssignBuffersLogicA(state, flipOut, flipIn, obOutBuf);
 
         // Transpose
         childNodes[4]->SetInputBuffer(state);
