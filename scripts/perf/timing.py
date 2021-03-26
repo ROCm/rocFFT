@@ -56,7 +56,7 @@ def run_rider(prog,
 
     if not inplace:
         cmd.append("-o")
-        
+
     ttype = -1
     itype = ""
     otype = ""
@@ -97,7 +97,7 @@ def run_rider(prog,
     logfile.write(" ".join(cmd))
     logfile.write(cout)
     logfile.close()
-    
+
     if rc == 0:
         # ferr.seek(0)
         # cerr = ferr.read()
@@ -110,15 +110,15 @@ def run_rider(prog,
                 for val in ms_string.split():
                     vals[len(vals) - 1].append(1e-3 * float(val))
         print("seconds: ", vals)
-                        
+
     else:
         print("\twell, that didn't work")
         print(rc)
         print(" ".join(cmd))
         return []
-                
+
     fout.close()
-    
+
     return vals
 
 # generates a set of lengths starting from the x,y,z min, up to the
@@ -129,13 +129,14 @@ def radix_size_generator(xmin, ymin, zmin,
     xval = xmin
     yval = ymin
     zval = zmin
+    nbatch = None
     while(xval <= xmax and yval <= ymax and zval <= zmax):
         length = [xval]
         if dimension > 1:
             length.append(yval)
         if dimension > 2:
             length.append(zval)
-        yield length
+        yield length, nbatch
 
         xval *= radix
         if dimension > 1:
@@ -146,16 +147,23 @@ def radix_size_generator(xmin, ymin, zmin,
 # generate problem sizes from the specified file.  file should have
 # comma-separated dimensions like
 #
-# 8,16
-# 256,256,64
+# 8,16,nbatch=100
+# 256,256,64,nbatch=10000
+#
+# nbatch can be set independently, if not set, use the value in alltime.py
 def problem_file_size_generator(problem_file, dimension):
     f = open(problem_file, 'r')
     for line in f:
         if line.startswith('#'):
             continue
+        nbatch = None
+        lengthBatch = line.replace(' ','').split(',nbatch=')
+        if len(lengthBatch) > 1:
+            nbatch = int(lengthBatch[1])
+        line = lengthBatch[0]
         length = [int(x) for x in line.split(',')]
         if len(length) == dimension:
-            yield length
+            yield length, nbatch
 
 @dataclass
 class Timer:
@@ -213,18 +221,21 @@ class Timer:
 
 
         if self.problem_file:
-            length_gen = problem_file_size_generator(self.problem_file, self.dimension)
+            problem_gen = problem_file_size_generator(self.problem_file, self.dimension)
         else:
-            length_gen = radix_size_generator(self.xmin, self.ymin, self.zmin,
+            problem_gen = radix_size_generator(self.xmin, self.ymin, self.zmin,
                                               self.xmax, self.ymax, self.zmax,
                                               self.dimension, self.radix)
 
-        for length in length_gen:
+        for length, nbatch in problem_gen:
             N = self.ntrial
+            if nbatch is None:
+                nbatch = self.nbatch
+            # A possible to-do is to set a fixed data-size and get the adapted nbatch.
             seconds = run_rider(self.prog,
                               dload, self.lib,
                               length, self.direction, self.real, self.inplace, N,
-                              self.precision, self.nbatch, self.device, self.log)
+                              self.precision, nbatch, self.device, self.log)
             #print(seconds)
             for idx, vals in enumerate(seconds):
                 with open(self.out[idx], 'a') as outfile:
@@ -310,6 +321,6 @@ def main(argv):
 
     timer.run_cases()
 
-    
+
 if __name__ == "__main__":
     main(sys.argv[1:])

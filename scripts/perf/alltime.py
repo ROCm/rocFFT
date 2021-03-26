@@ -36,6 +36,7 @@ Usage:
 \t\t-D          dims to test. default: 1,2,3
 \t\t-R          runtype: report benchmark or efficiency
 \t\t-F          filename to read problem sizes from
+\t\t-p          precision: single or double(default)
 '''
 
 def nextpow(val, radix):
@@ -48,7 +49,7 @@ def nextpow(val, radix):
 class rundata:
     def __init__(self, label,
                  dimension, minsize, maxsize, nbatch, radix, ratio, ffttype,
-                 direction, inplace):
+                 direction, inplace, precision):
         self.dimension = dimension
         self.minsize = minsize
         self.maxsize = maxsize
@@ -56,7 +57,7 @@ class rundata:
         self.radix = radix
         self.ratio = ratio
         self.ffttype = ffttype
-        self.precision = "double"
+        self.precision = precision
         self.inplace = inplace
         self.direction = direction
         self.label = label
@@ -81,7 +82,7 @@ class rundata:
         outfile += ".dat"
         outfile = os.path.join(odir, outfile)
         return outfile
-        
+
     def runcmd(self, nsample, inlist, outdirlist, dloadexe, problem_file):
         timer = timing.Timer()
 
@@ -130,7 +131,7 @@ class figure:
         self.name = name
         self.runs = []
         self.caption = caption
-    
+
     def inputfiles(self, outdirlist):
         import os
         files = []
@@ -146,7 +147,7 @@ class figure:
             for label in labellist:
                 labels.append(label + run.label)
         return labels
-    
+
     def filename(self, outdir, docformat):
         outfigure = self.name
         outfigure += ".pdf"
@@ -155,10 +156,10 @@ class figure:
         # if docformat == "docx":
         #     outfigure += ".png"
         return os.path.join(outdir, outfigure)
-        
+
     def asycmd(self, docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2):
         asycmd = ["asy"]
-        
+
         asycmd.append("-f")
         asycmd.append("pdf")
         # if docformat == "pdf":
@@ -171,7 +172,7 @@ class figure:
         #     asycmd.append("8")
         asycmd.append(os.path.join(sys.path[0],"datagraphs.asy"))
 
-               
+
         asycmd.append("-u")
         inputfiles = self.inputfiles(outdirlist)
         asycmd.append('filenames="' + ",".join(inputfiles) + '"')
@@ -186,7 +187,7 @@ class figure:
         if just1dc2crad2 :
             asycmd.append("-u")
             asycmd.append('just1dc2crad2=true')
-            
+
         if secondtype == "gflops":
             asycmd.append("-u")
             asycmd.append('secondarygflops=true')
@@ -203,7 +204,7 @@ class figure:
                 gpuid = f.read()
                 asycmd.append("-u")
                 asycmd.append('gpuid="' + gpuid.strip() + '"')
-                        
+
         if len(self.runs) > 0:
             asycmd.append("-u")
             asycmd.append('batchsize=' + str(self.runs[0].nbatch))
@@ -219,18 +220,18 @@ class figure:
                 asycmd.append("realcomplex=true")
             else:
                 asycmd.append("realcomplex=false")
-            
-            
+
+
         asycmd.append("-o")
         asycmd.append(self.filename(docdir, docformat) )
-                    
+
         return asycmd
 
     def executeasy(self, docdir, outdirs, labellist, docformat, datatype, ncompare, secondtype,
                    just1dc2crad2):
         fout = tempfile.TemporaryFile(mode="w+")
         ferr = tempfile.TemporaryFile(mode="w+")
-        asyproc = subprocess.Popen(self.asycmd(docdir, outdirs, labellist, 
+        asyproc = subprocess.Popen(self.asycmd(docdir, outdirs, labellist,
                                                docformat, datatype, ncompare, secondtype,
                                                just1dc2crad2),
                                    stdout=fout, stderr=ferr, env=os.environ.copy(),
@@ -247,13 +248,13 @@ class figure:
             print(cerr)
         return asyrc
 
-# Function for generating figures for benchmark output    
-def benchfigs(rundims, shortrun):
+# Function for generating figures for benchmark output
+def benchfigs(rundims, shortrun, precision):
     figs = []
     # FFT directions
     forwards = -1
     backwards = 1
-    
+
     if 1 in rundims:
         dimension = 1
 
@@ -263,33 +264,33 @@ def benchfigs(rundims, shortrun):
         max1d = 4000 if shortrun else 536870912
 
         for inplace in [True, False]:
-            fig = figure("1d_c2c" + ("inplace" if inplace else "outofplace"),
+            fig = figure("1d_c2c" + ("inplace" if inplace else "outofplace") + "_" + precision,
                          "1D complex transforms " + ("in-place" if inplace else "out-of-place"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix),
                                          dimension, nextpow(min1d, radix), max1d, nbatch,
-                                         radix, [], "c2c", forwards, inplace) )
+                                         radix, [], "c2c", forwards, inplace, precision) )
             figs.append(fig)
 
         for inplace in [True, False]:
-            fig = figure("1d_r2c" + ("inplace" if inplace else "outofplace")
-                         , "1D real-to-complex transforms " \
+            fig = figure("1d_r2c" + ("inplace" if inplace else "outofplace") + "_" + precision,
+                         "1D real-to-complex transforms " \
                          + ("in-place" if inplace else "out-of-place"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix),
                                          dimension, nextpow(min1d, radix), max1d, nbatch,
-                                         radix, [], "r2c", forwards, inplace) )
+                                         radix, [], "r2c", forwards, inplace, precision) )
             figs.append(fig)
 
-            
+
         for inplace in [True, False]:
-            fig = figure("1d_c2r" + ("inplace" if inplace else "outofplace"),
+            fig = figure("1d_c2r" + ("inplace" if inplace else "outofplace") + "_" + precision,
                          "1D complex-to-real transforms " \
                          + ("in-place" if inplace else "out-of-place"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix) ,
                                          dimension, nextpow(min1d, radix), max1d, nbatch,
-                                         radix, [], "r2c", backwards, inplace) )
+                                         radix, [], "r2c", backwards, inplace, precision) )
             figs.append(fig)
 
 
@@ -301,35 +302,35 @@ def benchfigs(rundims, shortrun):
         max2d = 8192 if shortrun else 32768
 
         for inplace in [True, False]:
-            fig = figure("2d_c2c" + ("inplace" if inplace else "outofplace"),
+            fig = figure("2d_c2c" + ("inplace" if inplace else "outofplace") + "_" + precision,
                          "2D complex transforms " + ("in-place" if inplace else "out-of-place"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix), dimension,
                                          nextpow(min2d, radix), max2d, nbatch, radix, [1],
                                          "c2c",
-                                         forwards, inplace) )
+                                         forwards, inplace, precision) )
             figs.append(fig)
 
         for inplace in [True, False]:
-            fig = figure("2d_r2c" + ("inplace" if inplace else "outofplace"),
+            fig = figure("2d_r2c" + ("inplace" if inplace else "outofplace") + "_" + precision,
                          "2D real-to-complex transforms " \
                          + ("in-place" if inplace else "out-of-place"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix), dimension,
                                          nextpow(min2d, radix), max2d, nbatch, radix, [1],
                                          "r2c",
-                                         forwards, inplace) )
+                                         forwards, inplace, precision) )
             figs.append(fig)
 
         for inplace in [True, False]:
-            fig = figure("2d_c2r" + ("inplace" if inplace else "outofplace"),
+            fig = figure("2d_c2r" + ("inplace" if inplace else "outofplace") + "_" + precision,
                          "2D complex-to-real transforms " \
                          + ("in-place" if inplace else "out-of-place"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix), dimension,
                                          nextpow(min2d, radix), max2d, nbatch, radix, [1],
                                          "r2c",
-                                         backwards, inplace) )
+                                         backwards, inplace, precision) )
             figs.append(fig)
 
     if 3 in rundims:
@@ -337,44 +338,44 @@ def benchfigs(rundims, shortrun):
         min3d = 16
         max3d = 128 if shortrun else 1024
         nbatch = 1
-        
+
         for inplace in [True, False]:
-            fig = figure("3d_c2c" + ("inplace" if inplace else "outofplace"),
+            fig = figure("3d_c2c" + ("inplace" if inplace else "outofplace") + "_" + precision,
                          "3D complex transforms " + ("in-place" if inplace else "out-of-place"))
             for radix in [2, 3, 5]:
                 fig.runs.append( rundata("radix " + str(radix), dimension,
                                          nextpow(min3d, radix), max3d, nbatch, radix, [1,1],
                                          "c2c",
-                                         forwards, inplace) )
+                                         forwards, inplace, precision) )
             figs.append(fig)
 
         for inplace in [True, False]:
-            fig = figure("3d_r2c" + ("inplace" if inplace else "outofplace")
-                         , "3D real-to-complex transforms " \
+            fig = figure("3d_r2c" + ("inplace" if inplace else "outofplace") + "_" + precision,
+                         "3D real-to-complex transforms " \
                          + ("in-place" if inplace else "out-of-place"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix), dimension,
                                          nextpow(min3d, radix), max3d, nbatch, radix, [1,1],
                                          "r2c",
-                                         forwards, inplace) )
+                                         forwards, inplace, precision) )
             figs.append(fig)
 
         for inplace in [True, False]:
-            fig = figure("3d_c2r" + ("inplace" if inplace else "outofplace"),
+            fig = figure("3d_c2r" + ("inplace" if inplace else "outofplace") + "_" + precision,
                          "3D complex-to-real transforms " \
                          + ("in-place" if inplace else "out-of-place"))
             for radix in [2, 3]:
                 fig.runs.append( rundata("radix " + str(radix), dimension,
                                          nextpow(min3d, radix), max3d, nbatch, radix, [1,1],
                                          "r2c",
-                                         backwards, inplace) )
+                                         backwards, inplace, precision) )
             figs.append(fig)
 
     return figs
 
-def efficiencyfigs(rundims, shortrun):
+def efficiencyfigs(rundims, shortrun, precision):
     figs = []
-    
+
     # FFT directions
     forwards = -1
     backwards = 1
@@ -388,12 +389,12 @@ def efficiencyfigs(rundims, shortrun):
     max1d = 1048576 if shortrun else 268435456 #pow(2,28) gives a floating type :(
     nbatch = 1
     while max1d > min1d:
-        fig = figure("1d_c2c_batch" + str(nbatch) + "_radix" + str(radix),
+        fig = figure("1d_c2c_batch" + str(nbatch) + "_radix" + str(radix) + "_" + precision,
                      "1D complex transforms " + ("in-place" if inplace else "out-of-place") + " radix " + str(radix) + " batch " + str(nbatch) )
 
         fig.runs.append( rundata("radix " + str(radix),
                                  dimension, nextpow(min1d, radix), max1d, nbatch,
-                                 radix, [], "c2c", forwards, inplace) )
+                                 radix, [], "c2c", forwards, inplace, precision) )
         figs.append(fig)
         nbatch *= 2
         max1d //= 2
@@ -402,15 +403,15 @@ def efficiencyfigs(rundims, shortrun):
     return figs
 
 # Function for generating figures for a performance report
-def reportfigs(rundims, shortrun):
+def reportfigs(rundims, shortrun, precision):
     figs = []
-    
+
     # FFT directions
     forwards = -1
     backwards = 1
 
     inplace = True
-    
+
     if 1 in rundims:
         dimension = 1
 
@@ -419,7 +420,7 @@ def reportfigs(rundims, shortrun):
             for radix in [2, 3, 5, 7]:
                 fig = figure("1d_c2c" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
+                             + "_batch" + str(nbatch) + "_" + precision,
                              "1D complex transforms with radix " + str(radix)\
                              + " and batch size " + str(nbatch) + "." )
 
@@ -427,13 +428,13 @@ def reportfigs(rundims, shortrun):
                                          dimension, nextpow(min1d, radix),
                                          max1d, nbatch,
                                          radix, [], "c2c", forwards,
-                                         inplace) )
+                                         inplace, precision) )
                 figs.append(fig)
 
             for radix in [2, 3, 5, 7]:
                 fig = figure("1d_r2c"\
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
+                             + "_batch" + str(nbatch) + "_" + precision,
                              "1D real-to-complex transforms with radix "\
                              + str(radix) \
                              + " and batch size " + str(nbatch) + ".")
@@ -441,13 +442,13 @@ def reportfigs(rundims, shortrun):
                                          dimension, nextpow(min1d, radix),
                                          max1d, nbatch,
                                          radix, [], "r2c", forwards,
-                                         inplace) )
+                                         inplace, precision) )
                 figs.append(fig)
 
             for radix in [2, 3, 5, 7]:
                 fig = figure("1d_c2r" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
+                             + "_batch" + str(nbatch) + "_" + precision,
                              "1D complex-to-real transforms with radix " \
                              + str(radix) \
                              + " and batch size " + str(nbatch) + "." )
@@ -455,7 +456,7 @@ def reportfigs(rundims, shortrun):
                                          dimension, nextpow(min1d, radix),
                                          max1d, nbatch,
                                          radix, [], "r2c", backwards,
-                                         inplace) )
+                                         inplace, precision) )
                 figs.append(fig)
 
     if 2 in rundims:
@@ -466,7 +467,7 @@ def reportfigs(rundims, shortrun):
             for radix in [2, 3, 5]:
                 fig = figure("2d_c2c" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch) ,
+                             + "_batch" + str(nbatch) + "_" + precision,
                              "2D complex transforms with radix " + str(radix)\
                              + " and batch size " + str(nbatch) + ".")
                 fig.runs.append( rundata( "radix "+ str(radix),
@@ -474,13 +475,13 @@ def reportfigs(rundims, shortrun):
                                          nextpow(min2d, radix), max2d,
                                          nbatch,
                                          radix, [1], "c2c",
-                                         forwards, inplace) )
+                                         forwards, inplace, precision) )
                 figs.append(fig)
 
             for radix in [2, 3, 5]:
                 fig = figure("2d_r2c" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
+                             + "_batch" + str(nbatch) + "_" + precision,
                              "2D real-to-complex transforms with radix "\
                              + str(radix) \
                              + " and batch size " + str(nbatch) + ".")
@@ -490,13 +491,13 @@ def reportfigs(rundims, shortrun):
                                          nextpow(min2d, radix), max2d,
                                          nbatch,
                                          radix, [1], "r2c",
-                                         forwards, inplace) )
+                                         forwards, inplace, precision) )
                 figs.append(fig)
 
             for radix in [2, 3, 5]:
                 fig = figure("2d_c2r" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
+                             + "_batch" + str(nbatch) + "_" + precision,
                              "2D complex-to-real transforms with radix "\
                              + str(radix) +\
                              " and batch size " + str(nbatch) + ".")
@@ -505,14 +506,14 @@ def reportfigs(rundims, shortrun):
                                          nextpow(min2d, radix), max2d,
                                          nbatch,
                                          radix, [1], "r2c",
-                                         backwards, inplace) )
+                                         backwards, inplace, precision) )
                 figs.append(fig)
 
 
             for radix in [2]:
                 fig = figure("2d_c2c_r2" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
+                             + "_batch" + str(nbatch) + "_" + precision,
                              "2D complex transforms "\
                              + "with aspect ratio N:2N with radix "\
                              + str(radix) + " and batch size " + str(nbatch) \
@@ -520,31 +521,31 @@ def reportfigs(rundims, shortrun):
                 fig.runs.append( rundata( "radix 2",
                                          dimension, min2d, max2d, nbatch, 2,
                                          [2], "c2c",
-                                         forwards, inplace) )
+                                         forwards, inplace, precision) )
                 figs.append(fig)
 
             for radix in [2]:
                 fig = figure("2d_r2c_r2" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
+                             + "_batch" + str(nbatch) + "_" + precision,
                              "2D real-to-complex transforms with radix "\
                              + str(radix) \
                              + " and batch size " + str(nbatch) + ".")
                 fig.runs.append( rundata("radix 2",
                                          dimension, min2d, max2d, nbatch, 2,
                                          [2], "r2c",
-                                         forwards, inplace) )
+                                         forwards, inplace, precision) )
                 figs.append(fig)
 
     if 3 in rundims:
         dimension = 3
 
         for min3d, max3d, nbatch in [[16,128,1],[4,64,100]]:
-                
+
             for radix in [2, 3, 5]:
                 fig = figure("3d_c2c" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
+                             + "_batch" + str(nbatch) + "_" + precision,
                              "3D complex transforms with radix "\
                              + str(radix) \
                              + " and batch size " + str(nbatch) + ".")
@@ -553,13 +554,13 @@ def reportfigs(rundims, shortrun):
                                          nextpow(min3d, radix), max3d,
                                          nbatch,
                                          radix, [1,1], "c2c",
-                                         forwards, inplace) )
+                                         forwards, inplace, precision) )
                 figs.append(fig)
 
             for radix in [2, 3]:
                 fig = figure("3d_r2c" \
                              + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
+                             + "_batch" + str(nbatch) + "_" + precision,
                              "3D real-to-complex transforms with radix "\
                              + str(radix)\
                              + " and batch size " + str(nbatch) + ".")
@@ -569,13 +570,13 @@ def reportfigs(rundims, shortrun):
                                          nextpow(min3d, radix), max3d,
                                          nbatch,
                                          radix, [1,1], "r2c",
-                                         forwards, inplace) )
+                                         forwards, inplace, precision) )
                 figs.append(fig)
 
 
             fig = figure("3d_c2r" \
                          + "_radix" + str(radix) \
-                         + "_batch" + str(nbatch),
+                         + "_batch" + str(nbatch) + "_" + precision,
                          "3D complex-to-real transforms with radix "\
                          + str(radix)
                          + " and batch size " + str(nbatch) + ".")
@@ -585,12 +586,12 @@ def reportfigs(rundims, shortrun):
                                          nextpow(min3d, radix), max3d,
                                          nbatch,
                                          radix, [1,1], "r2c",
-                                         backwards, inplace) )
+                                         backwards, inplace, precision) )
             figs.append(fig)
 
             fig = figure("3d_c2c_aspect" \
                          + "_radix" + str(radix) \
-                         + "_batch" + str(nbatch),
+                         + "_batch" + str(nbatch) + "_" + precision,
                          "3D complex transforms "\
                          + "with aspect ratio N:N:16N with radix "\
                          + str(radix)\
@@ -598,12 +599,12 @@ def reportfigs(rundims, shortrun):
             fig.runs.append( rundata("radix 2",
                                      dimension, min3d, max3d, nbatch, 2,
                                      [1,16], "c2c",
-                                     forwards, inplace) )
+                                     forwards, inplace, precision) )
             figs.append(fig)
 
             fig = figure("3d_r2c_aspect" \
                          + "_radix" + str(radix) \
-                             + "_batch" + str(nbatch),
+                             + "_batch" + str(nbatch) + "_" + precision,
                          "3D real-to-complex transforms " \
                          + "with aspect ratio N:N:16N with radix " \
                          + str(radix)\
@@ -611,21 +612,21 @@ def reportfigs(rundims, shortrun):
             fig.runs.append( rundata("radix 2",
                                      dimension, min3d, max3d, nbatch, 2,
                                      [1,16], "r2c",
-                                     forwards, inplace) )
+                                     forwards, inplace, precision) )
             figs.append(fig)
-        
+
     return figs
 
 
 def main(argv):
     dloadexe = None
-    
+
     inlist = []
     outdirlist = []
     labellist = []
 
     docdir = "doc"
-    
+
     dryrun = False
     nbatch = 1
     speedup = True
@@ -638,10 +639,11 @@ def main(argv):
     rundims = [1,2,3]
     runtype = "benchmark"
     secondtype = "none"
+    precision = "double"
     problem_file = None
-    
+
     try:
-        opts, args = getopt.getopt(argv,"hb:D:f:Tt:i:o:l:S:sg:d:N:R:w:y:F:")
+        opts, args = getopt.getopt(argv,"hb:D:f:Tt:i:o:l:S:sg:d:N:R:w:y:F:p:")
     except getopt.GetoptError:
         print("error in parsing arguments.")
         print(usage)
@@ -709,12 +711,18 @@ def main(argv):
                 print(usage)
                 sys.exit(1)
             docformat = arg
+        elif opt in ("-p"):
+            if arg not in ["single", "double"]:
+                print("precision type must be single or double")
+                print(usage)
+                sys.exit(1)
+            precision = arg
         elif opt in ("-F"):
             problem_file = arg
 
     print("rundims:")
     print(rundims)
-    
+
     if not dryrun:
         if dloadexe != None:
             if not os.path.isfile(dloadexe):
@@ -728,12 +736,12 @@ def main(argv):
                 sys.exit(1)
 
     print("inputs:", inlist)
-                
+
     if len(inlist) > len(labellist):
         for i in range(len(labellist), len(inlist)):
             labellist.append("dir" + str(i))
     print("run labels:", labellist)
-    
+
     for idx in range(len(inlist)):
         inlist[idx] = os.path.abspath(inlist[idx])
 
@@ -745,23 +753,24 @@ def main(argv):
         outdirlist[idx] = os.path.abspath(outdirlist[idx])
     print("data output directories:", outdirlist)
 
-            
+
     if shortrun:
         print("short run")
     print("output format: " + docformat)
     print("device number: " + str(devicenum))
+    print("precision: " + precision)
 
     docdir = os.path.abspath(docdir)
-    
+
     print("document output in", docdir)
     if not os.path.exists(docdir):
         os.makedirs(docdir)
-    
+
     for outdir in outdirlist:
         if not os.path.exists(outdir):
             os.makedirs(outdir)
 
-            
+
     if not dryrun:
         machine_specs = perflib.get_machine_specs(devicenum)
 
@@ -775,11 +784,11 @@ def main(argv):
     figs = []
 
     if runtype == "benchmark":
-        figs = benchfigs(rundims, shortrun)
+        figs = benchfigs(rundims, shortrun, precision)
     if runtype == "report":
-        figs = reportfigs(rundims, shortrun)
+        figs = reportfigs(rundims, shortrun, precision)
     if runtype == "efficiency":
-        figs = efficiencyfigs(rundims, shortrun)
+        figs = efficiencyfigs(rundims, shortrun, precision)
     just1dc2crad2 = runtype == "efficiency"
 
     for idx, fig in enumerate(figs):
@@ -789,7 +798,7 @@ def main(argv):
                 print(fig.name)
                 print(fig2.name)
                 sys.exit(1)
-    
+
     for fig in figs:
         print(fig.name)
         # Run the tests and put output in the outdirs:
@@ -820,9 +829,9 @@ def main(argv):
         else:
             # otherwise, make other doc types using asymptote figs
             if docformat == "pdf":
-                maketex(figs, docdir, outdirlist, labellist, nsample, secondtype)
+                maketex(figs, docdir, outdirlist, labellist, nsample, secondtype, precision)
             if docformat == "docx":
-                makedocx(figs, docdir, nsample, secondtype)
+                makedocx(figs, docdir, nsample, secondtype, precision)
 
         print("Finished!  Output in " + docdir)
 
@@ -837,8 +846,8 @@ real-complex transforms.  The rocFFT operation count may differ from \
 this value: GFLOP/s is provided for the sake of comparison only.'''
 
 # Function for generating a tex document in PDF format.
-def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype):
-    
+def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype, precision):
+
     header = '''\
 \\documentclass[12pt]{article}
 \\usepackage[margin=1in]{geometry}
@@ -849,15 +858,15 @@ def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype):
     texstring = header
 
     texstring += "\n\\section{Introduction}\n"
-    
-    texstring += "Each data point represents the median of " + str(nsample) + " values, with error bars showing the 95\\% confidence interval for the median.  All transforms are double-precision.\n\n"
+
+    texstring += "Each data point represents the median of " + str(nsample) + " values, with error bars showing the 95\\% confidence interval for the median.  All transforms are " + precision + "-precision.\n\n"
 
     if secondtype == "gflops":
         texstring += gflopstext + "\n\n"
 
-    
+
     texstring += "\\vspace{1cm}\n"
-    
+
     # texstring += "\\begin{tabular}{ll}"
     # texstring += labelA +" &\\url{"+ dirA+"} \\\\\n"
     # if not dirB == None:
@@ -865,7 +874,7 @@ def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype):
     # texstring += "\\end{tabular}\n\n"
 
     # texstring += "\\vspace{1cm}\n"
-    
+
     texstring += "\n\\section{Device Specification}\n"
     for idx in range(len(outdirlist)):
         texstring += "\n\\subsection{" + labellist[idx]  + "}\n"
@@ -881,18 +890,18 @@ def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype):
                     texstring += "\\begin{itemize}\n"
                 elif line.startswith("Device info"):
                     texstring += "\\end{itemize}\n"
-                    texstring += line 
+                    texstring += line
                     texstring += "\\begin{itemize}\n"
                 else:
                     if line.strip() != "":
                         texstring += "\\item " + line + "\n"
             texstring += "\\end{itemize}\n"
             texstring += "\n"
-        
+
     texstring += "\\clearpage\n"
 
     texstring += "\n\\section{Figures}\n"
-    
+
     for idx, fig in enumerate(figs):
         print(fig.filename(docdir, "pdf"))
         print(fig.caption)
@@ -907,9 +916,9 @@ def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype):
 '''
         if (idx % 2) == 0:
             texstring += "\\clearpage\n"
-            
+
     texstring += "\n\\end{document}\n"
-   
+
     fname = os.path.join(docdir, 'figs.tex')
 
     with open(fname, 'w') as outfile:
@@ -917,7 +926,7 @@ def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype):
 
     fout = open(os.path.join(docdir, "texcmd.log"), 'w+')
     ferr = open(os.path.join(docdir, "texcmd.err"), 'w+')
-                    
+
     latexcmd = ["latexmk", "-pdf", 'figs.tex']
     print(" ".join(latexcmd))
     texproc =  subprocess.Popen(latexcmd, cwd=docdir, stdout=fout, stderr=ferr,
@@ -929,7 +938,7 @@ def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype):
     if texrc != 0:
         print("****tex fail****")
 
-# Confert a PDF to an EMF using pdf2svg and inkscape.        
+# Confert a PDF to an EMF using pdf2svg and inkscape.
 def pdf2emf(pdfname):
     svgname = pdfname.replace(".pdf",".svg")
     cmd_pdf2svg = ["pdf2svg", pdfname, svgname]
@@ -946,22 +955,22 @@ def pdf2emf(pdfname):
     if proc.returncode != 0:
         print("svg2emf failed!")
         sys.exit(1)
-    
+
     return emfname
 
 # Function for generating a docx using emf files and the docx package.
-def makedocx(figs, outdir, nsample, secondtype):
+def makedocx(figs, outdir, nsample, secondtype, precision):
     import docx
 
     document = docx.Document()
 
     document.add_heading('rocFFT benchmarks', 0)
 
-    document.add_paragraph("Each data point represents the median of " + str(nsample) + " values, with error bars showing the 95% confidence interval for the median.  Transforms are double-precision, forward, and in-place.")
+    document.add_paragraph("Each data point represents the median of " + str(nsample) + " values, with error bars showing the 95% confidence interval for the median.  Transforms are " + precision + "-precision, forward, and in-place.")
 
     if secondtype == "gflops":
         document.add_paragraph(gflopstext)
-                               
+
     specfilename = os.path.join(outdir, "specs.txt")
     if os.path.isfile(specfilename):
         with open(specfilename, "r") as f:
@@ -975,9 +984,9 @@ def makedocx(figs, outdir, nsample, secondtype):
         emfname = pdf2emf(fig.filename(outdir, "docx"))
         document.add_picture(emfname, width=docx.shared.Inches(6))
         document.add_paragraph(fig.caption)
-                         
+
     document.save(os.path.join(outdir,'figs.docx'))
-    
+
 if __name__ == "__main__":
     main(sys.argv[1:])
-                        
+
