@@ -117,7 +117,4 @@ void r2c_1d_post_transpose(const void* data, void* back);
 void c2r_1d_pre(const void* data, void* back);
 void transpose_c2r_1d_pre(const void* data, void* back);
 
-void complex2pair_unpack(const void* data, void* back);
-void pair2complex_pack(const void* data, void* back);
-
 #endif // REAL_TO_COMPLEX_H

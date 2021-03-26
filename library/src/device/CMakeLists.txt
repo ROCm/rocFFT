@@ -125,7 +125,6 @@ set( rocfft_device_source
   real2complex_embed.cpp
   complex2real_embed.cpp
   realcomplex_even.cpp
-  realcomplex_pair.cpp
   realcomplex_even_transpose.cpp
 )
 

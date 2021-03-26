@@ -76,10 +76,6 @@ std::string PrintScheme(ComputeScheme cs)
            {ENUMSTR(CS_REAL_2D_EVEN)},
            {ENUMSTR(CS_REAL_3D_EVEN)},
 
-           {ENUMSTR(CS_REAL_TRANSFORM_PAIR)},
-           {ENUMSTR(CS_KERNEL_PAIR_PACK)},
-           {ENUMSTR(CS_KERNEL_PAIR_UNPACK)},
-
            {ENUMSTR(CS_BLUESTEIN)},
            {ENUMSTR(CS_KERNEL_CHIRP)},
            {ENUMSTR(CS_KERNEL_PAD_MUL)},
@@ -1087,22 +1083,6 @@ void TreeNode::build_real()
         }
     }
 
-    // TODO: use otherdims for non-batched paired transform.
-    // Recall that the lengths are column-major.
-    // const size_t otherdims
-    //     = std::accumulate(length.begin() + 1, length.end(), 1, std::multiplies<size_t>());
-
-    // NB: currently only works with single-kernel c2c sub-transform
-    // TODO: enable for 2D/3D transforms.
-    if(dimension == 1 && direction == -1
-       && function_pool::has_function(precision, {length[0], CS_KERNEL_STOCKHAM})
-       && length[0] < Large1DThreshold(precision) && (batch % 2 == 0)) // || (otherdims % 2 == 0))
-    {
-        // Paired algorithm
-        build_real_pair();
-        return;
-    }
-
     // Fallback method
     build_real_embed();
 }
@@ -1458,86 +1438,6 @@ void TreeNode::build_real_even_3D()
             crplan->build_real_even_1D();
             childNodes.emplace_back(std::move(crplan));
         }
-    }
-}
-
-void TreeNode::build_real_pair()
-{
-    scheme = CS_REAL_TRANSFORM_PAIR;
-
-    // Recall that the lengths are column-major.
-    const size_t otherdims
-        = std::accumulate(length.begin() + 1, length.end(), 1, std::multiplies<size_t>());
-
-    const bool evendims = otherdims % 2 == 0;
-    // paired transform requires either an even number of batches or
-    // an even number of "other dims"
-    assert(batch % 2 == 0 || evendims);
-
-    // We prefer to pair over dimensions instead of by batches, but we're open to the idea that
-    // pairing over batches might be better.
-
-    const size_t dim = length.size();
-
-    // Lengths and batch size for the paired c2c in-place transform
-    auto   pairlength  = length;
-    size_t c2c_pairdim = 0;
-    if(evendims)
-    {
-        // We are pairing over higher dimensions, so we need to figure out the new lengths.
-        // This implies that we are guaranteed that the transform is mult-dimensional.
-        assert(dim > 1);
-        for(int idx = 1; idx < dim; ++idx)
-        {
-            if(pairlength[idx] % 2 == 0)
-            {
-                pairlength[idx] /= 2;
-                c2c_pairdim = idx;
-                break;
-            }
-        }
-    }
-
-    const size_t pairbatch = evendims ? batch : batch / 2;
-
-    if(direction == -1)
-    {
-        // Direct
-
-        // First stage: perform a c2c FFT on two real input arrays using planar format
-        {
-            auto cplan          = TreeNode::CreateNode(this);
-            cplan->length       = pairlength;
-            cplan->batch        = pairbatch;
-            cplan->pairdim      = c2c_pairdim;
-            cplan->dimension    = 1;
-            cplan->inArrayType  = rocfft_array_type_complex_planar;
-            cplan->outArrayType = rocfft_array_type_complex_planar;
-            cplan->RecursiveBuildTree();
-            childNodes.emplace_back(std::move(cplan));
-        }
-
-        // Unpack the results into two Hermitian-symmetric arrays
-        {
-            auto unpack          = TreeNode::CreateNode(this);
-            unpack->scheme       = CS_KERNEL_PAIR_UNPACK;
-            unpack->dimension    = 1;
-            unpack->length       = pairlength;
-            unpack->batch        = pairbatch;
-            unpack->pairdim      = c2c_pairdim;
-            unpack->inArrayType  = rocfft_array_type_complex_planar;
-            unpack->outArrayType = outArrayType;
-            childNodes.emplace_back(std::move(unpack));
-        }
-
-        // TODO: if dimension > 1, then we need to launch a sub-dimensional c2c transform
-    }
-    else
-    {
-        // Inverse
-
-        // TODO: implement
-        assert(false);
     }
 }
 
@@ -2299,11 +2199,6 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(TraverseState&   state,
             flipOut  = OB_TEMP;
             obOutBuf = OB_TEMP_CMPLX_FOR_REAL;
             break;
-        case CS_REAL_TRANSFORM_PAIR:
-            flipIn   = OB_USER_IN;
-            flipOut  = OB_TEMP;
-            obOutBuf = placement == rocfft_placement_inplace ? OB_USER_IN : OB_USER_OUT;
-            break;
         case CS_BLUESTEIN:
             flipIn   = OB_TEMP_BLUESTEIN;
             flipOut  = OB_TEMP;
@@ -2348,9 +2243,6 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(TraverseState&   state,
         break;
     case CS_REAL_3D_EVEN:
         assign_buffers_CS_REAL_3D_EVEN(state, flipIn, flipOut, obOutBuf);
-        break;
-    case CS_REAL_TRANSFORM_PAIR:
-        assign_buffers_CS_REAL_TRANSFORM_PAIR(state, flipIn, flipOut, obOutBuf);
         break;
     case CS_BLUESTEIN:
         assign_buffers_CS_BLUESTEIN(state, flipIn, flipOut, obOutBuf);
@@ -2727,37 +2619,6 @@ void TreeNode::assign_buffers_CS_REAL_3D_EVEN(TraverseState&   state,
                   << PrintOperatingBuffer(childNodes[i]->obOut) << std::endl;
     }
 #endif
-}
-
-void TreeNode::assign_buffers_CS_REAL_TRANSFORM_PAIR(TraverseState&   state,
-                                                     OperatingBuffer& flipIn,
-                                                     OperatingBuffer& flipOut,
-                                                     OperatingBuffer& obOutBuf)
-{
-    if(direction == -1)
-    {
-        auto& cplan = childNodes[0];
-        cplan->SetInputBuffer(state);
-        if(parent == nullptr)
-        {
-            cplan->obOut = (placement == rocfft_placement_inplace) ? OB_TEMP : obIn;
-        }
-        cplan->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obIn);
-
-        auto& unpack = childNodes[1];
-        assert(unpack->scheme == CS_KERNEL_PAIR_UNPACK);
-        // The unpack plan cannot be in-place due to a race condition
-        unpack->SetInputBuffer(state);
-        unpack->obOut = obOut;
-
-        assert(dimension == 1);
-        // TODO: implment multi-dimensional transforms
-    }
-    else
-    {
-        assert(false);
-        // TODO: implement
-    }
 }
 
 void TreeNode::assign_buffers_CS_BLUESTEIN(TraverseState&   state,
@@ -3293,9 +3154,6 @@ void TreeNode::TraverseTreeAssignParamsLogicA()
         break;
     case CS_REAL_3D_EVEN:
         assign_params_CS_REAL_3D_EVEN();
-        break;
-    case CS_REAL_TRANSFORM_PAIR:
-        assign_params_CS_REAL_TRANSFORM_PAIR();
         break;
     case CS_BLUESTEIN:
         assign_params_CS_BLUESTEIN();
@@ -4229,36 +4087,6 @@ void TreeNode::assign_params_CS_REAL_3D_EVEN()
             crplan->dimension = 1;
             crplan->TraverseTreeAssignParamsLogicA();
         }
-    }
-}
-
-void TreeNode::assign_params_CS_REAL_TRANSFORM_PAIR()
-{
-    if(direction == -1)
-    {
-        // TODO: deal with non-batch and 2D/3D cases.
-
-        // A planar-to-planar c2c node, where we use the next batch (or dimension) as the imaginary
-        // part.  Thus, strides and distances are real-value sized.
-        auto& cplan      = childNodes[0];
-        cplan->inStride  = inStride;
-        cplan->iDist     = 2 * iDist;
-        cplan->outStride = inStride;
-        cplan->oDist     = 2 * iDist;
-        cplan->TraverseTreeAssignParamsLogicA();
-
-        // The unpack plan is real-to-complex.
-        auto& unpack = childNodes[1];
-        assert(unpack->scheme == CS_KERNEL_PAIR_UNPACK);
-        unpack->inStride  = inStride;
-        unpack->iDist     = 2 * iDist;
-        unpack->outStride = outStride;
-        unpack->oDist     = 2 * oDist;
-    }
-    else
-    {
-        // TODO: implement
-        assert(false);
     }
 }
 

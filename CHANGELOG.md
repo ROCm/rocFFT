@@ -4,6 +4,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## [(Unreleased) rocFFT 1.0.12 for ROCm 4.3.0]
 
+### Removed
+- Removed R2C pair schemes and kernels.
+
 ### Optimizations
 - Optimized 2D/3D R2C 100 and 1D Z2Z 2500.
 

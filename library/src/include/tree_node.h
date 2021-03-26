@@ -71,10 +71,6 @@ enum ComputeScheme
     CS_REAL_2D_EVEN,
     CS_REAL_3D_EVEN,
 
-    CS_REAL_TRANSFORM_PAIR,
-    CS_KERNEL_PAIR_PACK,
-    CS_KERNEL_PAIR_UNPACK,
-
     CS_BLUESTEIN,
     CS_KERNEL_CHIRP,
     CS_KERNEL_PAD_MUL,
@@ -194,7 +190,7 @@ public:
     // Disallow assignment operator:
     TreeNode& operator=(const TreeNode&) = delete;
 
-    // create node (user level) using this function
+    // Create node (user level) using this function
     static std::unique_ptr<TreeNode> CreateNode(TreeNode* parentNode = nullptr)
     {
         // must use 'new' here instead of std::make_unique because
@@ -220,7 +216,6 @@ public:
     void build_real_even_1D();
     void build_real_even_2D();
     void build_real_even_3D();
-    void build_real_pair();
 
     // 1D node builders:
     void build_1D();
@@ -284,10 +279,6 @@ public:
                                         OperatingBuffer& flipIn,
                                         OperatingBuffer& flipOut,
                                         OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_REAL_TRANSFORM_PAIR(TraverseState&   state,
-                                               OperatingBuffer& flipIn,
-                                               OperatingBuffer& flipOut,
-                                               OperatingBuffer& obOutBuf);
     void assign_buffers_CS_BLUESTEIN(TraverseState&   state,
                                      OperatingBuffer& flipIn,
                                      OperatingBuffer& flipOut,
@@ -330,7 +321,6 @@ public:
     void assign_params_CS_REAL_TRANSFORM_EVEN();
     void assign_params_CS_REAL_2D_EVEN();
     void assign_params_CS_REAL_3D_EVEN();
-    void assign_params_CS_REAL_TRANSFORM_PAIR();
     void assign_params_CS_L1D_CC();
     void assign_params_CS_L1D_CRT();
     void assign_params_CS_BLUESTEIN();
