@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+
+from pathlib import Path as path
+top = path(__file__).resolve()
+
+import sys
+sys.path.append(str(top.parent.parent.parent / 'library' / 'src' / 'device'))
+
+import click
+import subprocess
+import stockham
+
+from generator import njoin, format_and_write
+from functools import reduce
+
+@click.command()
+@click.argument('factors', nargs=-1, type=int)
+@click.option('--nbatch', type=int, default=1, help='Number of batches')
+@click.option('--tpb', type=int, default=-1, help='Maximum number of threads per block.')
+@click.option('--flavour', type=str, default='wide', help='Flavour of kernel.')
+@click.option('--manual', type=bool, default=False, is_flag=True, help='I manually modified the thing...')
+@click.option('--single', type=bool, default=False, is_flag=True, help='Single complex data type')
+def generate_and_run(factors, nbatch, manual, tpb, single, flavour):
+
+    length = reduce(lambda x, y: x*y, factors)
+
+    # run the generator
+    if not manual:
+        # run the generator
+        kwargs = { 'flavour': flavour }
+        if single:
+            kwargs['bytes_per_element'] = 8
+        if tpb > 0:
+            kwargs['threads_per_block'] = tpb
+        kdevice, kglobal = stockham.stockham(factors, **kwargs)
+        klaunch = stockham.stockham_launch(factors, **kwargs)
+        kernels = [kdevice, kglobal, klaunch]
+        format_and_write("stockham_generated_kernel.h", njoin([ str(x) for x in kernels ]))
+
+    # build the runner
+    cmd = [ 'hipcc',
+            '-std=c++17',
+            '-Wno-unused-result',
+            '-DGENERATED_FACTORS={' + ','.join([str(x) for x in factors]) + '}',
+            '-DGENERATED_KERNEL_LAUNCH=forward_length' + str(length) + "_launch",
+            '-o', 'stockham',
+            'stockham.cpp',
+            '-lfftw3',
+            '-lfftw3f',
+            '-L/opt/rocm/lib',
+            '-lrocrand'
+           ]
+    print('COMPILING:', ' '.join(cmd))
+    subprocess.run(cmd)
+
+    # run!
+    cmd = [ './stockham', str(length), str(nbatch), str(1 if single else 0) ]
+    print('RUNNING:  ', ' '.join(cmd))
+    subprocess.run(cmd)
+
+if __name__ == '__main__':
+    generate_and_run()

@@ -45,7 +45,7 @@ const static std::vector<size_t> pow5_range = {5, 25, 125, 625, 3125, 15625};
 
 const static std::vector<size_t> prime_range = {7, 11, 13, 17, 19, 23, 29, 263, 269, 271, 277};
 
-const static std::vector<size_t> mix_range = {120, 2160, 5000, 6000, 8000};
+const static std::vector<size_t> mix_range = {56, 120, 336, 2160, 5000, 6000, 8000};
 
 const static std::vector<std::vector<size_t>> stride_range = {{1}};
 

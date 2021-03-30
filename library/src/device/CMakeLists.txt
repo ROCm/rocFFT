@@ -92,6 +92,9 @@ if( NOT GENERATOR_GROUP_NUM )
   set( GENERATOR_GROUP_NUM 150 )
 endif()
 set( kgen ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py )
+set( kgendeps ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py
+              ${CMAKE_SOURCE_DIR}/library/src/device/generator.py
+              ${CMAKE_SOURCE_DIR}/library/src/device/stockham.py )
 execute_process(COMMAND python3 ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
@@ -105,6 +108,7 @@ if( STATUS AND NOT STATUS EQUAL 0 )
   message( FATAL_ERROR "Kernel generator failed (list): ${STATUS}")
 endif()
 
+# XXX eventually add dependency to kgen here...
 add_custom_command(
   OUTPUT ${gen_headers}
   COMMAND python3 ${kgen}
@@ -114,7 +118,7 @@ add_custom_command(
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
   generate $<TARGET_FILE:rocfft-kernel-generator>
-  DEPENDS rocfft-kernel-generator
+  DEPENDS rocfft-kernel-generator ${kgendeps}
   COMMENT "Generator producing device kernels for rocfft-device"
 )
 

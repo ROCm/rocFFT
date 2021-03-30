@@ -12,26 +12,62 @@ Note that 'small' kernels don't decompose their lengths.
 """
 
 import argparse
+import collections
+import itertools
 import subprocess
+import sys
 
+from pathlib import Path
 from types import SimpleNamespace as NS
-from itertools import product
 
-from generator import *
+from generator import (ArgumentList, Assign, BaseNode, Call, CommentBlock, ExternC, Function, Include,
+                       LineBreak, Map, Pragma, StatementList, Variable, name_args, format_and_write)
 
+
+import stockham
 
 #
 # CMake helpers
 #
 
-
 def scjoin(xs):
+    """Join 'xs' with semi-colons."""
     return ';'.join(str(x) for x in xs)
 
 
 def scprint(xs):
+    """Print 'xs', joined by semi-colons, on a single line.  CMake friendly."""
     print(scjoin(xs), end='', flush=True)
 
+def cjoin(xs):
+    """Join 'xs' with commas."""
+    return ','.join(str(x) for x in xs)
+
+
+#
+# Helpers
+#
+
+def product(*args):
+    """Cartesian product of input iteratables, as a list."""
+    return list(itertools.product(*args))
+
+
+def merge(*ds):
+    """Merge dictionaries; last one wins."""
+    r = collections.OrderedDict()
+    for d in ds:
+        r.update(d)
+    return r
+
+
+def pmerge(d, fs):
+    """Merge d with dicts of {(length, precision, scheme, pool): f}."""
+    r  = collections.OrderedDict()
+    r.update(d)
+    for f in fs:
+        r[f.meta.length, f.meta.precision, f.meta.scheme, f.meta.pool] = f
+    return r
 
 #
 # Supported kernel sizes
@@ -41,8 +77,8 @@ def supported_small_sizes(precision, pow2=True, pow3=True, pow5=True, commonRadi
     """Return list of 1D small kernels."""
 
     upper_bound = {
-        'single': 4096,
-        'double': 4096,         # of course this isn't 2048... not sure why (double len 1594323 will fail)
+        'sp': 4096,
+        'dp': 4096,         # of course this isn't 2048... not sure why (double len 1594323 will fail)
     }
 
     powers = {
@@ -90,7 +126,7 @@ def supported_2d_sizes(precision):
         lengths.extend(product(powers[b1], powers[b2]))
 
     max_lds_size_bytes = 64 * 1024
-    bytes_per_element = {'single': 8, 'double': 16}[precision]
+    bytes_per_element = {'sp': 8, 'dp': 16}[precision]
 
     def filter_lds(length):
         return length[0] * length[1] * bytes_per_element * 1.5 <= max_lds_size_bytes
@@ -109,32 +145,41 @@ def supported_2d_sizes(precision):
 # Prototype generators
 #
 
+@name_args(['function'])
+class FFTKernel(BaseNode):
+    def __str__(self):
+        f = 'FFTKernel('
+        f += str(self.function.address())
+        factors = getattr(self.function.meta, 'factors', None)
+        if factors is not None:
+            f += ', {' + cjoin(factors) + '}'
+        transforms_per_block = getattr(self.function.meta, 'transforms_per_block', None)
+        if transforms_per_block is not None:
+            f += ', ' + str(transforms_per_block)
+        threads_per_block = getattr(self.function.meta, 'threads_per_block', None)
+        if threads_per_block is not None:
+            f += ', ' + str(threads_per_block)
+        f += ')'
+        return f
+
 
 def generate_cpu_header(functions):
     """Generate C prototypes of 'functions'."""
-
-    prototypes = StatementList()
-    for f in functions:
-        prototypes += f.prototype()
-
-    hdr = StatementList()
-    hdr += Pragma('once')
-    hdr += ExternC(prototypes)
-
-    return hdr
+    return StatementList(Pragma('once'),
+                         ExternC(*[f.prototype() for f in functions]))
 
 
 def generate_cpu_function_pool(functions):
     """Generate function to populate the kernel function pool."""
 
-    function_map_single = Variable('function_map_single', array=True)
-    function_map_double = Variable('function_map_double', array=True)
-    function_map_single_2d = Variable('function_map_single_2D', array=True)
-    function_map_double_2d = Variable('function_map_double_2D', array=True)
-    function_map_single_transpose_tile_aligned = Variable('function_map_single_transpose_tile_aligned', array=True)
-    function_map_double_transpose_tile_aligned = Variable('function_map_double_transpose_tile_aligned', array=True)
-    function_map_single_transpose_diagonal = Variable('function_map_single_transpose_diagonal', array=True)
-    function_map_double_transpose_diagonal = Variable('function_map_double_transpose_diagonal', array=True)
+    function_map_single = Map('function_map_single')
+    function_map_double = Map('function_map_double')
+    function_map_single_2d = Map('function_map_single_2D')
+    function_map_double_2d = Map('function_map_double_2D')
+    function_map_single_transpose_tile_aligned = Map('function_map_single_transpose_tile_aligned')
+    function_map_double_transpose_tile_aligned = Map('function_map_double_transpose_tile_aligned')
+    function_map_single_transpose_diagonal = Map('function_map_single_transpose_diagonal')
+    function_map_double_transpose_diagonal = Map('function_map_double_transpose_diagonal')
 
     pool_map = {
         ('sp', None): function_map_single,
@@ -147,28 +192,26 @@ def generate_cpu_function_pool(functions):
         ('dp', 'transpose_diagonal'): function_map_double_transpose_diagonal,
     }
 
-    addpool = StatementList()
+    populate = StatementList()
     for f in functions:
         length, precision, scheme, pool = f.meta.length, f.meta.precision, f.meta.scheme, f.meta.pool
-        if isinstance(length, int):
+        if isinstance(length, (int, str)):
             key = Call(name='std::make_pair', arguments=ArgumentList(length, scheme)).inline()
         else:
             key = Call(name='std::make_tuple', arguments=ArgumentList(length[0], length[1], scheme)).inline()
-        addpool += Assign(pool_map[precision, pool][key], f.address())
+        populate += pool_map[precision, pool].emplace(key, FFTKernel(f))
 
-    hdr = StatementList()
-    hdr += Include('<iostream>')
-    hdr += Include('"../include/function_pool.h"')
-    hdr += Include('"kernel_launch_generator.h"')
-    hdr += Function(name='function_pool::function_pool',
-                    value=False,
-                    arguments=ArgumentList(),
-                    body=addpool)
-
-    return hdr
+    return StatementList(
+        Include('<iostream>'),
+        Include('"../include/function_pool.h"'),
+        Include('"kernel_launch_generator.h"'),
+        Function(name='function_pool::function_pool',
+                 value=False,
+                 arguments=ArgumentList(),
+                 body=populate))
 
 
-def old_generate_small_1d_prototypes(precision, transforms):
+def generate_small_1d_prototypes(precision, transforms):
     """Generate prototypes for 1D small kernels that will be generated by the old generator."""
 
     data = Variable('data_p', 'const void *')
@@ -190,7 +233,7 @@ def old_generate_small_1d_prototypes(precision, transforms):
     return functions
 
 
-def old_generate_large_1d_prototypes(precision, transforms):
+def generate_large_1d_prototypes(precision, transforms):
     """Generate prototypes for 1D large block kernels that will be generated from the old generator."""
 
     data = Variable('data_p', 'const void *')
@@ -222,7 +265,7 @@ def old_generate_large_1d_prototypes(precision, transforms):
     return functions
 
 
-def old_generate_2d_prototypes(precision, transforms):
+def generate_2d_prototypes(precision, transforms):
     """Generate prototypes for 2D kernels that will be generated by the old generator."""
 
     data = Variable('data_p', 'const void *')
@@ -263,20 +306,21 @@ def list_generated_kernels(patterns=None,
             'kernel_launch_generator.h',
             'function_pool.cpp.h',
             'function_pool.cpp',
+            'new_kernels.cpp',
         ],
-        'kernels_launch_small_single':
+        'kernels_launch_small_sp':
           [f'kernel_launch_single_{i}.cpp' for i in range(num_small_kernel_groups)]
           + [f'kernel_launch_single_{i}.cpp.h' for i in range(num_small_kernel_groups)],
-        'kernels_launch_small_double':
+        'kernels_launch_small_dp':
           [f'kernel_launch_double_{i}.cpp' for i in range(num_small_kernel_groups)]
           + [f'kernel_launch_double_{i}.cpp.h' for i in range(num_small_kernel_groups)],
-        'kernels_launch_large_single': [
+        'kernels_launch_large_sp': [
             'kernel_launch_single_large.cpp',
         ],
-        'kernels_launch_large_double': [
+        'kernels_launch_large_dp': [
             'kernel_launch_double_large.cpp',
         ],
-        'kernels_launch_2D_single': [
+        'kernels_launch_2D_sp': [
             'kernel_launch_single_2D_pow2.cpp',
             'kernel_launch_single_2D_pow3.cpp',
             'kernel_launch_single_2D_pow5.cpp',
@@ -287,7 +331,7 @@ def list_generated_kernels(patterns=None,
             'kernel_launch_single_2D_mix_pow2_5.cpp',
             'kernel_launch_single_2D_mix_pow5_2.cpp',
         ],
-        'kernels_launch_2D_double': [
+        'kernels_launch_2D_dp': [
             'kernel_launch_double_2D_pow2.cpp',
             'kernel_launch_double_2D_pow3.cpp',
             'kernel_launch_double_2D_pow5.cpp',
@@ -299,12 +343,12 @@ def list_generated_kernels(patterns=None,
             'kernel_launch_double_2D_mix_pow5_2.cpp',
         ],
     }
-    generated_kernels['kernels_launch_small_all'] = generated_kernels['kernels_launch_small_single'] + generated_kernels['kernels_launch_small_double']
-    generated_kernels['kernels_launch_large_all'] = generated_kernels['kernels_launch_large_single'] + generated_kernels['kernels_launch_large_double']
-    generated_kernels['kernels_launch_2D_all'] = generated_kernels['kernels_launch_2D_single'] + generated_kernels['kernels_launch_2D_double']
-    generated_kernels['kernels_launch_all_single'] = generated_kernels['kernels_launch_small_single'] + generated_kernels['kernels_launch_large_single'] + generated_kernels['kernels_launch_2D_single']
-    generated_kernels['kernels_launch_all_double'] = generated_kernels['kernels_launch_small_double'] + generated_kernels['kernels_launch_large_double'] + generated_kernels['kernels_launch_2D_double']
-    generated_kernels['kernels_launch_all_all'] = generated_kernels['kernels_launch_all_single'] + generated_kernels['kernels_launch_all_double']
+    generated_kernels['kernels_launch_small_all'] = generated_kernels['kernels_launch_small_sp'] + generated_kernels['kernels_launch_small_dp']
+    generated_kernels['kernels_launch_large_all'] = generated_kernels['kernels_launch_large_sp'] + generated_kernels['kernels_launch_large_dp']
+    generated_kernels['kernels_launch_2D_all']    = generated_kernels['kernels_launch_2D_sp']    + generated_kernels['kernels_launch_2D_dp']
+    generated_kernels['kernels_launch_all_sp']    = generated_kernels['kernels_launch_small_sp'] + generated_kernels['kernels_launch_large_sp'] + generated_kernels['kernels_launch_2D_sp']
+    generated_kernels['kernels_launch_all_dp']    = generated_kernels['kernels_launch_small_dp'] + generated_kernels['kernels_launch_large_dp'] + generated_kernels['kernels_launch_2D_dp']
+    generated_kernels['kernels_launch_all_all']   = generated_kernels['kernels_launch_all_sp']   + generated_kernels['kernels_launch_all_dp']
 
     gen = generated_kernels['kernels_launch_basic']
     for patt in patterns:
@@ -317,7 +361,69 @@ def list_generated_kernels(patterns=None,
 # Main!
 #
 
-if __name__ == '__main__':
+@name_args(['name', 'ip_fwd', 'ip_inv', 'op_fwd', 'op_inv', 'precision'])
+class POWX_SMALL_GENERATOR(BaseNode):
+    def __str__(self):
+        return f'POWX_SMALL_GENERATOR({cjoin(self.args)});'
+    def function(self, meta, precision):
+        data = Variable('data_p', 'const void *')
+        back = Variable('back_p', 'void *')
+        meta = NS(precision=precision, **meta.__dict__)
+        return Function(name=self.name,
+                        arguments=ArgumentList(data, back),
+                                  meta=meta)
+
+
+def hijack():
+    kernels = [
+        NS(factors=[7, 8],
+           threads_per_block=64),
+        NS(factors=[6, 7, 8])
+    ]
+
+    return [stockham.stockham(**x.__dict__) for x in kernels]
+
+
+def generate_new_kernels(functions):
+
+    fname = Path(__file__).resolve()
+    kernels = StatementList(
+        CommentBlock(
+            'Stockham kernels generated by:',
+            '',
+            '    ' + ' '.join(sys.argv),
+            '',
+            'Generator is: ' + str(fname)),
+        LineBreak(),
+        Include('<hip/hip_runtime.h>'),
+        Include('"kernel_launch.h"'),
+        Include('"rocfft_butterfly_template.h"'),
+        LineBreak())
+
+    cpu_functions = []
+
+    for kdevice, kglobal in functions:
+        length = kglobal.meta.length
+        forward, inverse = kglobal.name, kglobal.name.replace('forward', 'inverse')
+        kernels += stockham.make_variants(kdevice, kglobal)
+        sp = POWX_SMALL_GENERATOR(f'rocfft_internal_dfn_sp_ci_ci_stoc_{length}',
+                                  'ip_' + forward, 'ip_' + inverse,
+                                  'op_' + forward, 'op_' + inverse, 'float2')
+        dp = POWX_SMALL_GENERATOR(f'rocfft_internal_dfn_dp_ci_ci_stoc_{length}',
+                                  'ip_' + forward, 'ip_' + inverse,
+                                  'op_' + forward, 'op_' + inverse, 'double2')
+        kernels += sp
+        kernels += dp
+
+        cpu_functions += [sp.function(kglobal.meta, 'sp'), dp.function(kglobal.meta, 'dp')]
+
+    format_and_write("new_kernels.cpp", kernels)
+
+    return cpu_functions
+
+
+def cli():
+    """Command line interface..."""
 
     parser = argparse.ArgumentParser(prog='kernel-generator')
     subparsers = parser.add_subparsers(dest='command')
@@ -334,8 +440,18 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    #
+    # which kernels to build?
+    #
     patterns = args.pattern.split(',')
-    precisions = args.precision.split(',')
+    large = 'all' in patterns or 'large' in patterns
+    small = 'all' in patterns or 'small' in patterns
+    dim2  = 'all' in patterns or '2D' in patterns
+    pow2  = small or 'pow2' in patterns
+    pow3  = small or 'pow3' in patterns
+    pow5  = small or 'pow5' in patterns
+    pow7  = small or 'pow7' in patterns
+
     if patterns == ['none']:
         patterns = []
     if args.manual_small:
@@ -349,96 +465,85 @@ if __name__ == '__main__':
         'pow5' : 'small',
         'pow7' : 'small',
     }
-    # 1. reflect sub-patterns (pow2,3,5,7) to the parent pattern, remove 'none' entries to ignore ones in 'small,none,2D'
-    # 2. once there is an 'all' in the list, keep the only 'all' is enough
-    # 3. make unique to avoid 'pow2,pow3' -> 'small,small'
-    patterns = [ replacements.get(key) if key in replacements else key for key in patterns if key != 'none' ]
-    if 'all' in patterns: patterns = ['all']
-    patterns = list(set(patterns))
 
-    # 1. remove 'none' entries
-    # 2. once there is an 'all' in the list, keep the only 'all' is enough
-    # 3. make unique to avoid something like 'single,double,all;
-    precisions = [ key for key in precisions if key != 'none' ]
-    if 'all' in precisions: precisions = ['all']
-    precisions = list(set(precisions))
+    patterns = [ replacements.get(key, key) for key in patterns if key != 'none' ]
+    if 'all' in patterns: patterns = ['all']
+    patterns = set(patterns)
+
+    #
+    # which precicions to build?
+    #
+    precisions = args.precision.split(',')
+
+    replacements = {
+        'single' : 'sp',
+        'double' : 'dp',
+    }
+
+    precisions = [ replacements.get(key, key) for key in precisions if key != 'none' ]
+    if 'all' in precisions: precisions = ['sp', 'dp']
+    precisions = set(precisions)
 
     if args.command == 'list':
         scprint(list_generated_kernels(patterns=patterns,
                                        precisions=precisions,
                                        num_small_kernel_groups=args.groups))
+        return
 
     manual_small = None
     if args.manual_small:
-        # 1. use map to cast to int, otherwise it will fail the later isinstance(length, int)
-        # 2. convert to list() or the iterator is not reset after writing to single...
-        manual_small = list(product(map(int, args.manual_small.split(',')), ['CS_KERNEL_STOCKHAM']))
+        manual_small = product(map(int, args.manual_small.split(',')),
+                               ['CS_KERNEL_STOCKHAM'])
 
     manual_large = None
     if args.manual_large:
-        manual_large = list(product(map(int, args.manual_large.split(',')),
-                               ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC']))
-
-    single = 'all' in precisions or 'single' in precisions
-    double = 'all' in precisions or 'double' in precisions
-
-    # test against original args.pattern instead of patterns, to distinguish between small and manual-small
-    args_patt_list = args.pattern.split(',')
-    large = 'all' in args_patt_list or 'large' in args_patt_list
-    small = 'all' in args_patt_list or 'small' in args_patt_list
-    dim2  = 'all' in args_patt_list or '2D' in args_patt_list
-    pow2  = small or 'pow2' in args_patt_list
-    pow3  = small or 'pow3' in args_patt_list
-    pow5  = small or 'pow5' in args_patt_list
-    pow7  = small or 'pow7' in args_patt_list
+        manual_large = product(map(int, args.manual_large.split(',')),
+                               ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC'])
 
     if args.command == 'generate':
 
-        cpu_functions = []
-        non_manual_small_sizes = []
-        non_manual_large_sizes = []
-
-        old_args = ['-t', args.pattern, '-p', args.precision, '-g', str(args.groups)]
+        # collection of Functions to generate prototypes for
+        psmall, plarge, p2d = {}, {}, {}
 
         if small or pow2 or pow3 or pow5 or pow7:
-            if single:
-                non_manual_small_sizes = list(supported_small_sizes('single', pow2, pow3, pow5, pow7))
-                cpu_functions += old_generate_small_1d_prototypes('sp', non_manual_small_sizes)
-            if double:
-                non_manual_large_sizes = list(supported_small_sizes('double', pow2, pow3, pow5, pow7))
-                cpu_functions += old_generate_small_1d_prototypes('dp', non_manual_large_sizes)
-        # additional small size
+            for p in precisions:
+                transforms = supported_small_sizes(p, pow2, pow3, pow5, pow7)
+                psmall = pmerge(psmall, generate_small_1d_prototypes(p, transforms))
+
         if manual_small:
-            old_args += ['--manual-small', args.manual_small]
-            if single:
-                # remove duplicated manual-small if it is already included in small-pattern, avoid replication in function_poll
-                cpu_functions += old_generate_small_1d_prototypes('sp', [item for item in manual_small if item not in non_manual_small_sizes])
-            if double:
-                cpu_functions += old_generate_small_1d_prototypes('dp', [item for item in manual_small if item not in non_manual_large_sizes])
+            for p in precisions:
+                psmall = pmerge(psmall, generate_small_1d_prototypes(p, manual_small))
 
         if large:
-            if single:
-                cpu_functions += old_generate_large_1d_prototypes('sp', supported_large_sizes('single'))
-            if double:
-                cpu_functions += old_generate_large_1d_prototypes('dp', supported_large_sizes('double'))
-        # if manual_large:
-        elif manual_large:
-            old_args += ['--manual-large', args.manual_large]
-            if single:
-                cpu_functions += old_generate_large_1d_prototypes('sp', manual_large)
-            if double:
-                cpu_functions += old_generate_large_1d_prototypes('dp', manual_large)
+            for p in precisions:
+                plarge = pmerge(plarge, generate_large_1d_prototypes(p, supported_large_sizes(p)))
+
+        if manual_large:
+            for p in precisions:
+                plarge = pmerge(plarge, generate_large_1d_prototypes(p, manual_large))
 
         if dim2:
-            if single:
-                cpu_functions += old_generate_2d_prototypes('sp', supported_2d_sizes('single'))
-            if double:
-                cpu_functions += old_generate_2d_prototypes('dp', supported_2d_sizes('double'))
+            for p in precisions:
+                p2d = pmerge(p2d, generate_2d_prototypes(p, supported_2d_sizes(p)))
 
         # XXX: 2d depends on 1d...
 
+        # hijack a few small kernels...
+        pnew = pmerge({}, generate_new_kernels(hijack()))
+
+        cpu_functions = list(merge(psmall, plarge, p2d, pnew).values())
         format_and_write('kernel_launch_generator.h', generate_cpu_header(cpu_functions))
         format_and_write('function_pool.cpp.h', generate_cpu_function_pool(cpu_functions))
         format_and_write('function_pool.cpp', Include('"function_pool.cpp.h"'))
 
-        subprocess.run([args.generator] + old_args)
+        old_small_lengths = set([f.meta.length for f in psmall.values()])
+        new_small_lengths = set([f.meta.length for f in pnew.values()])
+        gen_small_lengths = old_small_lengths - new_small_lengths
+        gen_large_lengths = set([f.meta.length for f in plarge.values()])
+        subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-small', cjoin(sorted(gen_small_lengths))], check=True)
+        subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-large', cjoin(sorted(gen_large_lengths))], check=True)
+        subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', '2D',], check=True)
+
+
+if __name__ == '__main__':
+    cli()

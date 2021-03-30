@@ -29,25 +29,46 @@
 
 struct SimpleHash
 {
-    size_t operator()(const std::pair<size_t, ComputeScheme>& p) const
+    using Key   = std::pair<size_t, ComputeScheme>;
+    using Key2D = std::tuple<size_t, size_t, ComputeScheme>;
+
+    size_t operator()(const Key& p) const noexcept
     {
-        using std::hash;
-        size_t hash_in = 0;
-        hash_in |= ((size_t)(p.first));
-        hash_in |= ((size_t)(p.second) << 32);
-        return hash<size_t>()(hash_in);
+        size_t h1 = std::hash<size_t>{}(std::get<0>(p));
+        size_t h2 = std::hash<ComputeScheme>{}(std::get<1>(p));
+        return h1 ^ h2;
     }
 
-    std::size_t operator()(const std::tuple<size_t, size_t, ComputeScheme>& p) const noexcept
+    size_t operator()(const Key2D& p) const noexcept
     {
-        std::size_t h1 = std::hash<size_t>{}(std::get<0>(p));
-        std::size_t h2 = std::hash<size_t>{}(std::get<1>(p));
-        std::size_t h3 = std::hash<ComputeScheme>{}(std::get<2>(p));
+        size_t h1 = std::hash<size_t>{}(std::get<0>(p));
+        size_t h2 = std::hash<size_t>{}(std::get<1>(p));
+        size_t h3 = std::hash<ComputeScheme>{}(std::get<2>(p));
         return h1 ^ h2 ^ h3;
     }
+};
 
-    // example usage:  function_map_single[std::make_pair(64,CS_KERNEL_STOCKHAM)]
-    // = &rocfft_internal_dfn_sp_ci_ci_stoc_1_64;
+struct FFTKernel
+{
+    DevFnCall        device_function = nullptr;
+    std::vector<int> factors;
+    int              batches_per_block = 0;
+    int              threads_per_block = 0;
+
+    FFTKernel() = delete;
+
+    FFTKernel(DevFnCall fn)
+        : device_function(fn)
+    {
+    }
+
+    FFTKernel(DevFnCall fn, std::vector<int> factors, int bpb, int tpb)
+        : device_function(fn)
+        , factors(factors)
+        , batches_per_block(bpb)
+        , threads_per_block(tpb)
+    {
+    }
 };
 
 class function_pool
@@ -55,22 +76,22 @@ class function_pool
     using Key   = std::pair<size_t, ComputeScheme>;
     using Key2D = std::tuple<size_t, size_t, ComputeScheme>;
 
-    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_single;
-    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_double;
+    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_single;
+    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_double;
 
     // fused transpose kernels can transpose an even multiple of the
     // tiled rows (faster), or the number of required rows is not an
     // even multiple (slower).  diagonal transpose is even better,
     // but requires pow2 cube sizes.
-    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_single_transpose_diagonal;
-    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_single_transpose_tile_aligned;
-    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_single_transpose_tile_unaligned;
-    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_double_transpose_diagonal;
-    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_double_transpose_tile_aligned;
-    std::unordered_map<Key, DevFnCall, SimpleHash> function_map_double_transpose_tile_unaligned;
+    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_single_transpose_diagonal;
+    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_single_transpose_tile_aligned;
+    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_single_transpose_tile_unaligned;
+    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_double_transpose_diagonal;
+    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_double_transpose_tile_aligned;
+    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_double_transpose_tile_unaligned;
 
-    std::unordered_map<Key2D, DevFnCall, SimpleHash> function_map_single_2D;
-    std::unordered_map<Key2D, DevFnCall, SimpleHash> function_map_double_2D;
+    std::unordered_map<Key2D, FFTKernel, SimpleHash> function_map_single_2D;
+    std::unordered_map<Key2D, FFTKernel, SimpleHash> function_map_double_2D;
 
     function_pool();
 
@@ -130,16 +151,22 @@ public:
     static DevFnCall get_function_single(const Key mykey)
     {
         function_pool& func_pool = get_function_pool();
-        return func_pool.function_map_single.at(mykey); // return an reference to
+        return func_pool.function_map_single.at(mykey).device_function; // return an reference to
         // the value of the key, if
         // not found throw an
         // exception
     }
 
+    static FFTKernel get_kernel_single(const Key mykey)
+    {
+        function_pool& func_pool = get_function_pool();
+        return func_pool.function_map_single.at(mykey);
+    }
+
     static DevFnCall get_function_double(const Key mykey)
     {
         function_pool& func_pool = get_function_pool();
-        return func_pool.function_map_double.at(mykey);
+        return func_pool.function_map_double.at(mykey).device_function;
     }
 
     static DevFnCall get_function_single_transpose(const Key mykey, SBRC_TRANSPOSE_TYPE type)
@@ -148,11 +175,11 @@ public:
         switch(type)
         {
         case DIAGONAL:
-            return func_pool.function_map_single_transpose_diagonal.at(mykey);
+            return func_pool.function_map_single_transpose_diagonal.at(mykey).device_function;
         case TILE_ALIGNED:
-            return func_pool.function_map_single_transpose_tile_aligned.at(mykey);
+            return func_pool.function_map_single_transpose_tile_aligned.at(mykey).device_function;
         case TILE_UNALIGNED:
-            return func_pool.function_map_single_transpose_tile_unaligned.at(mykey);
+            return func_pool.function_map_single_transpose_tile_unaligned.at(mykey).device_function;
         }
     }
 
@@ -162,24 +189,24 @@ public:
         switch(type)
         {
         case DIAGONAL:
-            return func_pool.function_map_double_transpose_diagonal.at(mykey);
+            return func_pool.function_map_double_transpose_diagonal.at(mykey).device_function;
         case TILE_ALIGNED:
-            return func_pool.function_map_double_transpose_tile_aligned.at(mykey);
+            return func_pool.function_map_double_transpose_tile_aligned.at(mykey).device_function;
         case TILE_UNALIGNED:
-            return func_pool.function_map_double_transpose_tile_unaligned.at(mykey);
+            return func_pool.function_map_double_transpose_tile_unaligned.at(mykey).device_function;
         }
     }
 
     static DevFnCall get_function_single_2D(const Key2D mykey)
     {
         function_pool& func_pool = get_function_pool();
-        return func_pool.function_map_single_2D.at(mykey);
+        return func_pool.function_map_single_2D.at(mykey).device_function;
     }
 
     static DevFnCall get_function_double_2D(const Key2D mykey)
     {
         function_pool& func_pool = get_function_pool();
-        return func_pool.function_map_double_2D.at(mykey);
+        return func_pool.function_map_double_2D.at(mykey).device_function;
     }
 
     template <class funcmap>
@@ -187,7 +214,7 @@ public:
     {
         for(auto& f : fm)
         {
-            if(!f.second)
+            if(!f.second.device_function)
             {
                 rocfft_cerr << "null ptr registered in " << description << std::endl;
                 abort();

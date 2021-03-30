@@ -142,9 +142,6 @@ bool PlanPowX(ExecPlan& execPlan)
         case CS_KERNEL_STOCKHAM:
         {
             // get working group size and number of transforms
-            size_t workGroupSize;
-            size_t numTransforms;
-            GetWGSAndNT(execPlan.execSeq[i]->length[0], workGroupSize, numTransforms);
             ptr          = (execPlan.execSeq[0]->precision == rocfft_precision_single)
                                ? function_pool::get_function_single(
                           std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM))
@@ -153,9 +150,23 @@ bool PlanPowX(ExecPlan& execPlan)
             size_t batch = execPlan.execSeq[i]->batch;
             for(size_t j = 1; j < execPlan.execSeq[i]->length.size(); j++)
                 batch *= execPlan.execSeq[i]->length[j];
-            gp.b_x
-                = (batch % numTransforms) ? 1 + (batch / numTransforms) : (batch / numTransforms);
-            gp.tpb_x = workGroupSize;
+
+            auto krn = function_pool::get_kernel_single(
+                {execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM});
+            if(krn.threads_per_block > 0)
+            {
+                gp.b_x   = (batch + krn.batches_per_block - 1) / krn.batches_per_block;
+                gp.tpb_x = krn.threads_per_block;
+            }
+            else
+            {
+                size_t workGroupSize;
+                size_t numTransforms;
+                GetWGSAndNT(execPlan.execSeq[i]->length[0], workGroupSize, numTransforms);
+                gp.b_x   = (batch % numTransforms) ? 1 + (batch / numTransforms)
+                                                   : (batch / numTransforms);
+                gp.tpb_x = workGroupSize;
+            }
         }
         break;
         case CS_KERNEL_STOCKHAM_BLOCK_CC:

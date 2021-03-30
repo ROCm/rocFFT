@@ -12,6 +12,17 @@ from typing import List, Any
 # Helpers
 #
 
+def get_file_and_line(up=2):
+    """Get file and file number of frame 'up'-steps up in the stack."""
+    frame = inspect.currentframe()
+    for _ in range(up):
+        frame = frame.f_back
+        if frame is None:
+            return None, None
+    file_name, line_number, *_ = inspect.getframeinfo(frame)
+    return path(file_name).name, line_number
+
+
 def join(sep, n):
     """Coerce elements in `n` to strings and join them seperator `sep`."""
     if isinstance(n, BaseNode):
@@ -32,11 +43,6 @@ def njoin(n):
 def cjoin(n):
     """Join with commas."""
     return join(', ', n)
-
-
-# XXX get rid of this
-def declarations(xs):
-    return [x.declaration() for x in xs]
 
 
 def format(code):
@@ -86,8 +92,14 @@ def depth_first(x, f):
     if isinstance(x, BaseNode):
         y = type(x)()
         y.args = [depth_first(a, f) for a in x.args]
+        y.file_name, y.line_number = x.file_name, x.line_number
         return f(y)
     return f(x)
+
+
+def copy(x):
+    """Return a deep copy of the AST node `x`."""
+    return depth_first(x, lambda y: y)
 
 
 #
@@ -103,7 +115,6 @@ def make_raw(s):
 
 # XXX there is some redundancy between name_args and the constructor
 #     for BaseNode
-# XXX tighten up provenance
 
 
 def name_args(names):
@@ -124,9 +135,8 @@ def name_args(names):
                 if name in kwargs:
                     self.args[i] = kwargs[name]
 
-            # provenance
-            self.file_name, self.line_number, *_ = inspect.getframeinfo(
-                inspect.currentframe().f_back)
+            # self
+            self.file_name, self.line_number = get_file_and_line()
 
         target.__init__ = new_init
         return target
@@ -141,8 +151,7 @@ class BaseNode:
     sep: str = None
 
     def __init__(self, *args, **kwargs):
-        self.file_name, self.line_number, *_ = inspect.getframeinfo(
-            inspect.currentframe().f_back)
+        self.file_name, self.line_number = get_file_and_line()
         self.args = list(args)
         if hasattr(self, '__post_init__'):
             getattr(self, '__post_init__')(self)
@@ -192,6 +201,9 @@ class BaseNodeOps(BaseNode):
     def __rtruediv__(self, a):
         return Divide(a, self)
 
+    def __eq__(self, a):
+        return Equal(self, a)
+
     def __ge__(self, a):
         return GreaterEqual(self, a)
 
@@ -232,8 +244,16 @@ class StatementList(BaseNode):
         return njoin(self.args)
 
 
+@name_args(['name', 'type', 'size'])
 class Declaration(BaseNode):
-    pass
+    def __str__(self):
+        if self.size is not None:
+            return f'{self.type} {self.name}[{self.size}];'
+        return f'{self.type} {self.name};'
+
+
+def Declarations(*args):
+    return [ x.declaration() for x in args ]
 
 
 class TemplateList(ArgumentList):
@@ -245,7 +265,7 @@ class CommentBlock(BaseNode):
         return njoin(['/*'] + [' * ' + str(a) for a in self.args] + [' */'])
 
 
-class Comments(BaseNode):
+class CommentLines(BaseNode):
     def __str__(self):
         return njoin(' // ' + str(a) for a in self.args)
 
@@ -286,7 +306,7 @@ class SyncThreads(BaseNode):
 
 def make_unary(prefix):
     def decorator(target):
-        target.__str__ = lambda self: prefix + self.args[0]
+        target.__str__ = lambda self: prefix + str(self.args[0])
         return target
     return decorator
 
@@ -303,11 +323,32 @@ class Address(BaseNode):
     pass
 
 
+@make_unary('-')
+class Negate(BaseNode):
+    pass
+
+
+@make_unary('++')
+class Increment(BaseNode):
+    pass
+
+
+@make_unary('--')
+class Decrement(BaseNode):
+    pass
+
+
 @name_args(['lhs', 'rhs'])
 class Assign(BaseNode):
     def __str__(self):
         return str(self.args[0]) + ' = ' + str(self.args[1]) + ';' \
             + self.provenance()
+
+
+@name_args(['lhs', 'rhs'])
+class InlineAssign(BaseNode):
+    def __str__(self):
+        return str(self.args[0]) + ' = ' + str(self.args[1])
 
 
 @make_binary('.')
@@ -337,6 +378,11 @@ class Multiply(BaseNodeOps):
 
 @make_binary(' % ')
 class Mod(BaseNodeOps):
+    pass
+
+
+@make_binary(' == ')
+class Equal(BaseNodeOps):
     pass
 
 
@@ -398,8 +444,8 @@ class Variable(BaseNodeOps):
 
     def declaration(self):
         if self.size is not None:
-            return Declaration(f'{self.type} {self.name}[{self.size}];')
-        return Declaration(f'{self.type} {self.name};')
+            return Declaration(self.name, self.type, self.size)
+        return Declaration(self.name, self.type)
 
     def argument(self):
         if self.array:
@@ -411,6 +457,24 @@ class Variable(BaseNodeOps):
 
     def __getitem__(self, idx):
         return ArrayElement(self.name, idx)
+
+
+@name_args(['name', 'type'])
+class Map(BaseNodeOps):
+
+    def address(self):
+        return Address(self.name)
+
+    def __str__(self):
+        return str(self.name)
+
+    def emplace(self, key, value):
+        return Call(self.name + '.emplace',
+                    arguments=ArgumentList(key, value))
+
+    # def __getitem__(self, idx):
+    #     return ArrayElement(self.name, idx)
+
 
 
 class ComplexLiteral(BaseNodeOps):
@@ -447,9 +511,20 @@ class While(BaseNode):
         return 'while(' + str(self.condition) + ') {' + njoin(self.body) + '}'
 
 
+@name_args(['initial', 'condition', 'iteration', 'body'])
+class For(BaseNode):
+    def __str__(self):
+        return 'for(' + join('; ', [self.initial, self.condition, self.iteration]) + ') {' + njoin(self.body) + '}'
+
+
 #
 # Functions
 #
+
+@name_args(['name', 'spec'])
+class Using(BaseNode):
+    def __str__(self):
+        return f'using {self.name} = {self.spec};'
 
 
 @name_args(['name', 'arguments', 'templates', 'qualifier'])
@@ -493,6 +568,9 @@ class Function(BaseNode):
     def address(self):
         return Address(self.name)
 
+    def instantiate(self, name, *targs):
+        return Using(name, self.name + '<' + cjoin(*targs) + '>')
+
 
 @name_args(['name', 'arguments', 'templates', 'launch_params'])
 class Call(BaseNode):
@@ -510,11 +588,241 @@ class Call(BaseNode):
     def inline(self):
         return InlineCall(*self.args)
 
-
-class InlineCall(Call):
+@name_args(['name', 'arguments', 'templates', 'launch_params'])
+class InlineCall(BaseNodeOps):
     def __str__(self) -> str:
         f = self.name
         if self.templates:
             f += '<' + cjoin(self.templates) + '>'
         f += '(' + cjoin(self.arguments) + ')'
         return f
+
+
+#
+# Re-writing helpers
+#
+
+def make_planar(kernel, varname):
+    """Rewrite 'kernel' to use planar i/o instead of interleaved i/o.
+
+    The interleaved array 'varname' is replaced with planar arrays.
+    We assume that, in the body of the kernel, the i/o array is only
+    used in assignments (that is, typically loaded to and from LDS).
+
+    For example, suppose we want to make the 'inout' array planar.
+    Assignments like
+
+       lds[idx] = inout[idx];
+
+    become
+
+       lds[idx] = { inoutre[idx], inoutim[idx] };
+
+    Assignments like
+
+       inout[idx] = lds[idx];
+
+    become
+
+       inoutre[idx] = lds[idx].x;
+       inoutim[idx] = lds[idx].y;
+
+    Finally, argument lists like:
+
+       devive_kernel(scalar_type *inout);
+
+    become
+
+       devive_kernel(real_type_t<scalar_type> *inoutre, real_type_t<scalar_type> *inoutim);
+
+    """
+
+    rname = varname + 're'
+    iname = varname + 'im'
+
+    def visitor(x):
+        if isinstance(x, Assign):
+            lhs, rhs = x.args
+
+            # on rhs
+            if isinstance(rhs, ArrayElement):
+                name, index = rhs.args
+                if name == varname:
+                    return Assign(lhs,
+                                  ComplexLiteral(ArrayElement(rname, index),
+                                                 ArrayElement(iname, index)))
+
+            # on lhs
+            if isinstance(lhs, ArrayElement):
+                name, index = lhs.args
+                if name == varname:
+                    return StatementList(Assign(ArrayElement(rname, index),
+                                                Component(rhs, 'x')),
+                                         Assign(ArrayElement(iname, index),
+                                                Component(rhs, 'y')))
+
+        if isinstance(x, ArgumentList):
+            args = []
+            for arg in x.args:
+                if isinstance(arg, Variable):
+                    if arg.name == varname:
+                        real_type = f'real_type_t<{arg.type}>'
+                        args.append(Variable(rname, type=real_type, array=True))
+                        args.append(Variable(iname, type=real_type, array=True))
+                    else:
+                        args.append(arg)
+                else:
+                    args.append(arg)
+            return ArgumentList(*args)
+
+        return x
+
+    return depth_first(kernel, visitor)
+
+
+def make_out_of_place(kernel, names):
+    """Rewrite 'kernel' to use seperate input and output buffers.
+
+    The input/output array 'varname' is replaced with seperate input
+    and output arrays 'inname' and 'outname'.  We assume that, in the
+    body of the kernel, the i/o array is only used in assignments
+    (that is, typically loaded to and from LDS).
+
+    For example, suppose we want to make the 'inout' array planar.
+    Assignments like
+
+       lds[idx] = inout[idx];
+
+    become
+
+       lds[idx] = in[idx];
+
+    Assignments like
+
+       inout[idx] = lds[idx];
+
+    become
+
+       out[idx] = lds[idx];
+
+    Finally, argument lists like:
+
+       devive_kernel(scalar_type *inout);
+
+    become
+
+       devive_kernel(scalar_type *in, scalar_type *out);
+
+    """
+
+    def input_visitor(x):
+        if isinstance(x, (Variable, ArrayElement)):
+            name = x.args[0]
+            if name in names:
+                y = copy(x)
+                y.args[0] = name + '_in'
+                return y
+        return x
+
+    def output_visitor(x):
+        if isinstance(x, (Variable, ArrayElement)):
+            name = x.args[0]
+            if name in names:
+                y = copy(x)
+                y.args[0] = name + '_out'
+                return y
+        return x
+
+    def duplicate_visitor(x):
+        if getattr(x, 'name', None) in names:
+            xi, xo = copy(x), copy(x)
+            xi.args[0] = x.name + '_in'
+            xo.args[0] = x.name + '_out'
+            return StatementList(xi, xo)
+        return x
+
+    def visitor(x):
+        if isinstance(x, Declaration):
+            return duplicate_visitor(x)
+
+        if isinstance(x, Assign):
+            lhs, rhs = x.args
+
+            # traverse rhs
+            if isinstance(rhs, ArrayElement):
+                if rhs.variable in names:
+                    nrhs = depth_first(rhs, input_visitor)
+                    nrhs.args[0] = rhs.variable + '_in'
+                    return Assign(lhs, nrhs)
+
+            # on lhs, plain variable
+            if isinstance(lhs, Variable):
+                if lhs.name in names:
+                    return StatementList(
+                        Assign(input_visitor(lhs), depth_first(rhs, input_visitor)),
+                        Assign(output_visitor(lhs), depth_first(rhs, output_visitor)))
+
+            # traverse lhs
+            if isinstance(lhs, ArrayElement):
+                if lhs.variable in names:
+                    nlhs = depth_first(lhs, output_visitor)
+                    nlhs.args[0] = lhs.variable + '_out'
+                    return Assign(nlhs, rhs)
+
+        if isinstance(x, ArgumentList):
+            args = []
+            for arg in x.args:
+                if isinstance(arg, (Variable, ArrayElement)):
+                    name = arg.args[0]
+                    if name in names:
+                        ai, ao = copy(arg), copy(arg)
+                        ai.args[0] = name + '_in'
+                        ao.args[0] = name + '_out'
+                        args.extend([ai, ao])
+                    else:
+                        args.append(arg)
+                else:
+                    args.append(arg)
+            return ArgumentList(*args)
+
+        return x
+
+    return depth_first(kernel, visitor)
+
+
+def make_inverse(kernel, twiddles):
+    """Rewrite forward 'kernel' to be an inverse kernel.
+
+
+    """
+
+    kernel = rename_functions(kernel, lambda x: x.replace('forward', 'inverse'))
+    kernel = rename_functions(kernel, lambda x: x.replace('FwdRad', 'InvRad'))
+
+    def visitor(x):
+        if isinstance(x, Assign):
+            lhs, rhs = x.args
+            # on rhs
+            if isinstance(rhs, ArrayElement):
+                name, index = rhs.args
+                if name in twiddles:
+                    return Assign(lhs,
+                                  ComplexLiteral(Component(rhs, 'x'),
+                                                 Negate(Component(rhs, 'y'))))
+        return x
+
+    return depth_first(kernel, visitor)
+
+
+
+def rename_functions(kernel, sub):
+    """Rename..."""
+
+    def visitor(x):
+        if isinstance(x, (Function, Call)):
+            y = copy(x)
+            y.args[0] = sub(x.args[0])
+            return y
+        return x
+
+    return depth_first(kernel, visitor)
