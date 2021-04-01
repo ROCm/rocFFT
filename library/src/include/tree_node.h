@@ -147,9 +147,6 @@ public:
     // Offsets to start of data in buffer:
     size_t iOffset = 0, oOffset = 0;
 
-    // The paried dimension for real/complex paired transforms.
-    size_t pairdim = 0;
-
     // Direction of the transform (-1: forward, +1: inverse)
     int direction = -1;
 

@@ -4399,9 +4399,6 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     os << "oDist: " << oDist;
 
     os << "\n" << indentStr.c_str();
-    os << "pairdim: " << pairdim;
-
-    os << "\n" << indentStr.c_str();
     os << "direction: " << direction;
 
     os << "\n" << indentStr.c_str();

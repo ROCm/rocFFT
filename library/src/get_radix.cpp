@@ -67,7 +67,7 @@ std::vector<size_t> GetRadices(size_t length)
     }
 
     // if not in the table, then generate the radice order with the algorithm.
-    if(radices.size() == 0)
+    if(radices.empty())
     {
         size_t R = length;
 
