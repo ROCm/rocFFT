@@ -1761,7 +1761,7 @@ namespace StockhamGenerator
             passStr += PassName(position, fwd, length, name_suffix);
 
             // Function arguments
-            passStr += "(const " + regB2Type + " *twiddles, ";
+            passStr += "(const " + regB2Type + " * const twiddles, ";
             if(name_suffix == "_sbcc")
                 passStr += "const " + regB2Type
                            + " *twiddles_large, "; // the blockCompute BCT_C2C algorithm use only

@@ -890,9 +890,9 @@ namespace StockhamGenerator
                         str += std::to_string(length) + name_suffix;
                         str += "_device";
 
-                        str += "(const T *twiddles, ";
+                        str += "(const T * const twiddles, ";
                         if(NeedsLargeTwiddles())
-                            str += "const T *twiddles_large, "; // the blockCompute BCT_C2C
+                            str += "const T * const twiddles_large, "; // the blockCompute BCT_C2C
                         // algorithm use one more twiddle parameter
                         str += "const size_t stride_in, const size_t stride_out, unsigned int "
                                "rw, unsigned int b, ";

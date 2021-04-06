@@ -11,7 +11,7 @@
 #include "../kernels/common.h"
 
 template <typename T>
-__device__ T TW2step(const T* twiddles, size_t u)
+__device__ T TW2step(const T* const twiddles, size_t u)
 {
     size_t j      = u & 255; // get the lowest 8 bits
     T      result = twiddles[j];
@@ -31,7 +31,7 @@ __device__ T TW2step(const T* twiddles, size_t u)
 }
 
 template <typename T>
-__device__ T TW3step(const T* twiddles, size_t u)
+__device__ T TW3step(const T* const twiddles, size_t u)
 {
     size_t j      = u & 255;
     T      result = twiddles[j];
