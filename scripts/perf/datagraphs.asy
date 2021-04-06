@@ -79,7 +79,7 @@ bool plotxval(real x) {
 
 real nkernels(real N)
 {
-    // rocfft-rider-d  --length $(asy -c "2^27") | grep KERNEL | wc -l
+    // ROCFFT_LAYER=1 ./clients/staging/rocfft-rider --length $(asy -c "2^22") 2>&1| grep KERNEL |wc -l
     // Number of kernels for double-precision c2c 1D transforms.
     if (N <= 2^12)
         return 1.0;
