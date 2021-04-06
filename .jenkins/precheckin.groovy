@@ -15,6 +15,9 @@ def runCI =
 
     def prj  = new rocProject('rocFFT-internal', 'PreCheckin')
 
+    prj.timeout.compile = 600
+    prj.timeout.test = 600
+
     // Define test architectures, optional rocm version argument is available
     def nodes = new dockerNodes(nodeDetails, jobName, prj)
 
@@ -34,7 +37,6 @@ def runCI =
     {
         platform, project->
 
-        project.timeout.test = 600
         commonGroovy.runTestCommand(platform, project)
     }
 
