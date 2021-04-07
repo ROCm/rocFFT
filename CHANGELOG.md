@@ -4,6 +4,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## [(Unreleased) rocFFT 1.0.12 for ROCm 4.3.0]
 
+### Fixed
+- Fixed potential crashes in double-precision planar->planar transpose.
+
 ### Removed
 - Removed R2C pair schemes and kernels.
 

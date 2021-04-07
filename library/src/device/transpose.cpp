@@ -899,8 +899,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                                                  32>(
                 m,
                 n,
-                (const cmplx_double_planar*)(&in_planar),
-                (cmplx_double_planar*)(&out_planar),
+                (const cmplx_double_planar*)d_in_planar,
+                (cmplx_double_planar*)d_out_planar,
                 data->node->twiddles_large.data(),
                 count,
                 data->node->devKernArg.data(),

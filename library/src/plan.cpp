@@ -2953,45 +2953,9 @@ void TreeNode::assign_buffers_CS_3D_BLOCK_RC(TraverseState&   state,
         auto& node = childNodes[i];
         node->SetInputBuffer(state);
         node->inArrayType = (i == 0) ? inArrayType : childNodes[i - 1]->outArrayType;
-        // HACK: for 5 kernels, modify the last row fft node to be
-        // in-place.  This works around a potential crash in
-        // double-precision planar->planar transpose by making the
-        // last transpose T -> OUT
-        //
-        // We're trying to avoid this example scenario:
-        //   5 kernel out-of-place:
-        //   - sbrc3D    A->T
-        //   - row FFT   T->A
-        //   - transpose A->T
-        //   - row FFT   T->A
-        //   - transpose A->B  <-- if A and B are both planar and double-precision, we can get a crash
-        //
-        // TODO: investigate the crash.
-        TreeNode* last_row_fft = nullptr;
-        if(childNodes.size() == 5)
-        {
-            for(auto it = childNodes.rbegin(); it != childNodes.rend(); ++it)
-            {
-                if((*it)->scheme != CS_KERNEL_TRANSPOSE_XY_Z
-                   && (*it)->scheme != CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
-                {
-                    // must be a row fft since it's neither sbrc3d nor a transpose
-                    last_row_fft = (*it).get();
-                    break;
-                }
-            }
-        }
-        if(node.get() == last_row_fft)
-        {
-            // make it in-place
-            node->obOut = node->obIn;
-        }
-        else
-        {
-            node->obOut = flipOut == OB_USER_OUT && placement == rocfft_placement_notinplace
-                              ? OB_USER_IN
-                              : flipOut;
-        }
+        node->obOut       = flipOut == OB_USER_OUT && placement == rocfft_placement_notinplace
+                                ? OB_USER_IN
+                                : flipOut;
 
         // temp is interleaved, in/out might not be
         switch(node->obOut)
