@@ -300,12 +300,12 @@ def stockham_global(factors, **kwargs):
     # arguments
     scalar_type = Variable('scalar_type', 'typename')
     sb          = Variable('sb', 'StrideBin')
-    buf         = Variable('buf', 'scalar_type', array=True)
-    twiddles    = Variable('twiddles', 'const scalar_type', array=True)
-    dim         = Variable('dim', 'size_t')
-    lengths     = Variable('lengths', 'size_t', array=True)
-    stride      = Variable('stride', 'size_t', array=True)
-    nbatch      = Variable('nbatch', 'size_t')
+    buf         = Variable('buf', 'scalar_type', array=True, restrict=True)
+    twiddles    = Variable('twiddles', 'const scalar_type', array=True, restrict=True)
+    dim         = Variable('dim', 'const size_t')
+    lengths     = Variable('lengths', 'const size_t', array=True)
+    stride      = Variable('stride', 'const size_t', array=True)
+    nbatch      = Variable('nbatch', 'const size_t')
 
     # locals
     lds        = Variable('lds', '__shared__ scalar_type', size=length * params.transforms_per_block)

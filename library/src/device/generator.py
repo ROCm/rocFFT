@@ -428,7 +428,7 @@ class ArrayElement(BaseNodeOps):
         return str(self.variable) + '[' + str(self.index) + ']'
 
 
-@name_args(['name', 'type', 'size', 'array'])
+@name_args(['name', 'type', 'size', 'array', 'restrict'])
 class Variable(BaseNodeOps):
 
     @property
@@ -449,7 +449,10 @@ class Variable(BaseNodeOps):
 
     def argument(self):
         if self.array:
-            return f'{self.type} *{self.name}'
+            if self.restrict:
+                return f'{self.type} * __restrict__ {self.name}'
+            else:
+                return f'{self.type} *{self.name}'
         return f'{self.type} {self.name}'
 
     def __str__(self):
@@ -667,8 +670,8 @@ def make_planar(kernel, varname):
                 if isinstance(arg, Variable):
                     if arg.name == varname:
                         real_type = f'real_type_t<{arg.type}>'
-                        args.append(Variable(rname, type=real_type, array=True))
-                        args.append(Variable(iname, type=real_type, array=True))
+                        args.append(Variable(rname, type=real_type, array=True, restrict=True))
+                        args.append(Variable(iname, type=real_type, array=True, restrict=True))
                     else:
                         args.append(arg)
                 else:

@@ -27,6 +27,7 @@
 #ifndef __clang__
 #include "error.h"
 #endif
+#include "../../../shared/array_predicate.h"
 #include "kargs.h"
 #include "kernel_launch_generator.h"
 #include "rocfft.h"
@@ -98,1306 +99,547 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
         - refactor the code to support batched r2c/c2r
  */
 
-#define POWX_SMALL_GENERATOR(FUNCTION_NAME,                                                        \
-                             IP_FWD_KERN_NAME,                                                     \
-                             IP_BACK_KERN_NAME,                                                    \
-                             OP_FWD_KERN_NAME,                                                     \
-                             OP_BACK_KERN_NAME,                                                    \
-                             PRECISION)                                                            \
-    void FUNCTION_NAME(const void* data_p, void* back_p)                                           \
-    {                                                                                              \
-        DeviceCallIn* data          = (DeviceCallIn*)data_p;                                       \
-        hipStream_t   rocfft_stream = data->rocfft_stream;                                         \
-        if(data->node->placement == rocfft_placement_inplace)                                      \
-        {                                                                                          \
-            if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1)                      \
-            {                                                                                      \
-                if(data->node->direction == -1)                                                    \
-                {                                                                                  \
-                    if((data->node->inArrayType == rocfft_array_type_complex_interleaved           \
-                        || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)     \
-                       && (data->node->outArrayType == rocfft_array_type_complex_interleaved       \
-                           || data->node->outArrayType                                             \
-                                  == rocfft_array_type_hermitian_interleaved))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(HIP_KERNEL_NAME(IP_FWD_KERN_NAME<PRECISION, SB_UNIT>),  \
-                                           dim3(data->gridParam.b_x),                              \
-                                           dim3(data->gridParam.tpb_x),                            \
-                                           0,                                                      \
-                                           rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles.data(),                \
-                                           data->node->length.size(),                              \
-                                           data->node->devKernArg.data(),                          \
-                                           data->node->devKernArg.data()                           \
-                                               + 1 * KERN_ARGS_ARRAY_WIDTH,                        \
-                                           data->node->batch,                                      \
-                                           (PRECISION*)data->bufIn[0]);                            \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
-                             || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
-                            && (data->node->outArrayType == rocfft_array_type_complex_planar       \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_planar))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(HIP_KERNEL_NAME(IP_FWD_KERN_NAME<PRECISION, SB_UNIT>),  \
-                                           dim3(data->gridParam.b_x),                              \
-                                           dim3(data->gridParam.tpb_x),                            \
-                                           0,                                                      \
-                                           rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles.data(),                \
-                                           data->node->length.size(),                              \
-                                           data->node->devKernArg.data(),                          \
-                                           data->node->devKernArg.data()                           \
-                                               + 1 * KERN_ARGS_ARRAY_WIDTH,                        \
-                                           data->node->batch,                                      \
-                                           (real_type_t<PRECISION>*)data->bufIn[0],                \
-                                           (real_type_t<PRECISION>*)data->bufIn[1]);               \
-                    }                                                                              \
-                }                                                                                  \
-                else                                                                               \
-                {                                                                                  \
-                    if((data->node->inArrayType == rocfft_array_type_complex_interleaved           \
-                        || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)     \
-                       && (data->node->outArrayType == rocfft_array_type_complex_interleaved       \
-                           || data->node->outArrayType                                             \
-                                  == rocfft_array_type_hermitian_interleaved))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(HIP_KERNEL_NAME(IP_BACK_KERN_NAME<PRECISION, SB_UNIT>), \
-                                           dim3(data->gridParam.b_x),                              \
-                                           dim3(data->gridParam.tpb_x),                            \
-                                           0,                                                      \
-                                           rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles.data(),                \
-                                           data->node->length.size(),                              \
-                                           data->node->devKernArg.data(),                          \
-                                           data->node->devKernArg.data()                           \
-                                               + 1 * KERN_ARGS_ARRAY_WIDTH,                        \
-                                           data->node->batch,                                      \
-                                           (PRECISION*)data->bufIn[0]);                            \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
-                             || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
-                            && (data->node->outArrayType == rocfft_array_type_complex_planar       \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_planar))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(HIP_KERNEL_NAME(IP_BACK_KERN_NAME<PRECISION, SB_UNIT>), \
-                                           dim3(data->gridParam.b_x),                              \
-                                           dim3(data->gridParam.tpb_x),                            \
-                                           0,                                                      \
-                                           rocfft_stream,                                          \
-                                           (PRECISION*)data->node->twiddles.data(),                \
-                                           data->node->length.size(),                              \
-                                           data->node->devKernArg.data(),                          \
-                                           data->node->devKernArg.data()                           \
-                                               + 1 * KERN_ARGS_ARRAY_WIDTH,                        \
-                                           data->node->batch,                                      \
-                                           (real_type_t<PRECISION>*)data->bufIn[0],                \
-                                           (real_type_t<PRECISION>*)data->bufIn[1]);               \
-                    }                                                                              \
-                }                                                                                  \
-            }                                                                                      \
-            else /*nonunit stride*/                                                                \
-            {                                                                                      \
-                if(data->node->direction == -1)                                                    \
-                {                                                                                  \
-                    if((data->node->inArrayType == rocfft_array_type_complex_interleaved           \
-                        || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)     \
-                       && (data->node->outArrayType == rocfft_array_type_complex_interleaved       \
-                           || data->node->outArrayType                                             \
-                                  == rocfft_array_type_hermitian_interleaved))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(IP_FWD_KERN_NAME<PRECISION, SB_NONUNIT>),              \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (PRECISION*)data->bufIn[0]);                                           \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
-                             || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
-                            && (data->node->outArrayType == rocfft_array_type_complex_planar       \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_planar))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(IP_FWD_KERN_NAME<PRECISION, SB_NONUNIT>),              \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
-                            (real_type_t<PRECISION>*)data->bufIn[1]);                              \
-                    }                                                                              \
-                }                                                                                  \
-                else                                                                               \
-                {                                                                                  \
-                    if((data->node->inArrayType == rocfft_array_type_complex_interleaved           \
-                        || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)     \
-                       && (data->node->outArrayType == rocfft_array_type_complex_interleaved       \
-                           || data->node->outArrayType                                             \
-                                  == rocfft_array_type_hermitian_interleaved))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(IP_BACK_KERN_NAME<PRECISION, SB_NONUNIT>),             \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (PRECISION*)data->bufIn[0]);                                           \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
-                             || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
-                            && (data->node->outArrayType == rocfft_array_type_complex_planar       \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_planar))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(IP_BACK_KERN_NAME<PRECISION, SB_NONUNIT>),             \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
-                            (real_type_t<PRECISION>*)data->bufIn[1]);                              \
-                    }                                                                              \
-                }                                                                                  \
-            }                                                                                      \
-        }                                                                                          \
-        else /* out of place */                                                                    \
-        {                                                                                          \
-            if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1)                      \
-            {                                                                                      \
-                if(data->node->direction == -1)                                                    \
-                {                                                                                  \
-                    if((data->node->inArrayType == rocfft_array_type_complex_interleaved           \
-                        || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)     \
-                       && (data->node->outArrayType == rocfft_array_type_complex_interleaved       \
-                           || data->node->outArrayType                                             \
-                                  == rocfft_array_type_hermitian_interleaved))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT>),                 \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (PRECISION*)data->bufIn[0],                                            \
-                            (PRECISION*)data->bufOut[0]);                                          \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_interleaved      \
-                             || data->node->inArrayType                                            \
-                                    == rocfft_array_type_hermitian_interleaved)                    \
-                            && (data->node->outArrayType == rocfft_array_type_complex_planar       \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_planar))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT>),                 \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (PRECISION*)data->bufIn[0],                                            \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                              \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                             \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
-                             || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
-                            && (data->node->outArrayType == rocfft_array_type_complex_interleaved  \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_interleaved))                \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT>),                 \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                               \
-                            (PRECISION*)data->bufOut[0]);                                          \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
-                             || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
-                            && (data->node->outArrayType == rocfft_array_type_complex_planar       \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_planar))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT>),                 \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                               \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                              \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                             \
-                    }                                                                              \
-                }                                                                                  \
-                else                                                                               \
-                {                                                                                  \
-                    if((data->node->inArrayType == rocfft_array_type_complex_interleaved           \
-                        || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)     \
-                       && (data->node->outArrayType == rocfft_array_type_complex_interleaved       \
-                           || data->node->outArrayType                                             \
-                                  == rocfft_array_type_hermitian_interleaved))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT>),                \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (PRECISION*)data->bufIn[0],                                            \
-                            (PRECISION*)data->bufOut[0]);                                          \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_interleaved      \
-                             || data->node->inArrayType                                            \
-                                    == rocfft_array_type_hermitian_interleaved)                    \
-                            && (data->node->outArrayType == rocfft_array_type_complex_planar       \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_planar))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT>),                \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (PRECISION*)data->bufIn[0],                                            \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                              \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                             \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
-                             || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
-                            && (data->node->outArrayType == rocfft_array_type_complex_interleaved  \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_interleaved))                \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT>),                \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                               \
-                            (PRECISION*)data->bufOut[0]);                                          \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
-                             || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
-                            && (data->node->outArrayType == rocfft_array_type_complex_planar       \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_planar))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT>),                \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                               \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                              \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                             \
-                    }                                                                              \
-                }                                                                                  \
-            }                                                                                      \
-            else /*nonunit stride*/                                                                \
-            {                                                                                      \
-                if(data->node->direction == -1)                                                    \
-                {                                                                                  \
-                    if((data->node->inArrayType == rocfft_array_type_complex_interleaved           \
-                        || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)     \
-                       && (data->node->outArrayType == rocfft_array_type_complex_interleaved       \
-                           || data->node->outArrayType                                             \
-                                  == rocfft_array_type_hermitian_interleaved))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_NONUNIT>),              \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (PRECISION*)data->bufIn[0],                                            \
-                            (PRECISION*)data->bufOut[0]);                                          \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_interleaved      \
-                             || data->node->inArrayType                                            \
-                                    == rocfft_array_type_hermitian_interleaved)                    \
-                            && (data->node->outArrayType == rocfft_array_type_complex_planar       \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_planar))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_NONUNIT>),              \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (PRECISION*)data->bufIn[0],                                            \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                              \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                             \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
-                             || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
-                            && (data->node->outArrayType == rocfft_array_type_complex_interleaved  \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_interleaved))                \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_NONUNIT>),              \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                               \
-                            (PRECISION*)data->bufOut[0]);                                          \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
-                             || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
-                            && (data->node->outArrayType == rocfft_array_type_complex_planar       \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_planar))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_NONUNIT>),              \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                               \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                              \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                             \
-                    }                                                                              \
-                }                                                                                  \
-                else                                                                               \
-                {                                                                                  \
-                    if((data->node->inArrayType == rocfft_array_type_complex_interleaved           \
-                        || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)     \
-                       && (data->node->outArrayType == rocfft_array_type_complex_interleaved       \
-                           || data->node->outArrayType                                             \
-                                  == rocfft_array_type_hermitian_interleaved))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_NONUNIT>),             \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (PRECISION*)data->bufIn[0],                                            \
-                            (PRECISION*)data->bufOut[0]);                                          \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_interleaved      \
-                             || data->node->inArrayType                                            \
-                                    == rocfft_array_type_hermitian_interleaved)                    \
-                            && (data->node->outArrayType == rocfft_array_type_complex_planar       \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_planar))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_NONUNIT>),             \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (PRECISION*)data->bufIn[0],                                            \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                              \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                             \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
-                             || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
-                            && (data->node->outArrayType == rocfft_array_type_complex_interleaved  \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_interleaved))                \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_NONUNIT>),             \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                               \
-                            (PRECISION*)data->bufOut[0]);                                          \
-                    }                                                                              \
-                    else if((data->node->inArrayType == rocfft_array_type_complex_planar           \
-                             || data->node->inArrayType == rocfft_array_type_hermitian_planar)     \
-                            && (data->node->outArrayType == rocfft_array_type_complex_planar       \
-                                || data->node->outArrayType                                        \
-                                       == rocfft_array_type_hermitian_planar))                     \
-                    {                                                                              \
-                        hipLaunchKernelGGL(                                                        \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_NONUNIT>),             \
-                            dim3(data->gridParam.b_x),                                             \
-                            dim3(data->gridParam.tpb_x),                                           \
-                            0,                                                                     \
-                            rocfft_stream,                                                         \
-                            (PRECISION*)data->node->twiddles.data(),                               \
-                            data->node->length.size(),                                             \
-                            data->node->devKernArg.data(),                                         \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,             \
-                            data->node->batch,                                                     \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                               \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                               \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                              \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                             \
-                    }                                                                              \
-                }                                                                                  \
-            }                                                                                      \
-        }                                                                                          \
+// base args for out-of-place includes extra strides for output
+#define KERNEL_BASE_ARGS_IP(PRECISION) \
+    const PRECISION* __restrict__, const size_t, const size_t*, const size_t*, const size_t
+#define KERNEL_BASE_ARGS_OP(PRECISION)                                                        \
+    const PRECISION* __restrict__, const size_t, const size_t*, const size_t*, const size_t*, \
+        const size_t
+#define GET_KERNEL_FUNC(FWD, BACK, PRECISION, BASE_ARGS, ...)         \
+    void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr; \
+    if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1) \
+    {                                                                 \
+        if(data->node->direction == -1)                               \
+        {                                                             \
+            kernel_func = FWD<PRECISION, SB_UNIT>;                    \
+        }                                                             \
+        else                                                          \
+        {                                                             \
+            kernel_func = BACK<PRECISION, SB_UNIT>;                   \
+        }                                                             \
+    }                                                                 \
+    else                                                              \
+    {                                                                 \
+        if(data->node->direction == -1)                               \
+        {                                                             \
+            kernel_func = FWD<PRECISION, SB_NONUNIT>;                 \
+        }                                                             \
+        else                                                          \
+        {                                                             \
+            kernel_func = BACK<PRECISION, SB_NONUNIT>;                \
+        }                                                             \
     }
 
-#define POWX_LARGE_SBCC_GENERATOR(FUNCTION_NAME,                                                \
-                                  IP_FWD_KERN_NAME,                                             \
-                                  IP_BACK_KERN_NAME,                                            \
-                                  OP_FWD_KERN_NAME,                                             \
-                                  OP_BACK_KERN_NAME,                                            \
-                                  PRECISION)                                                    \
-    void FUNCTION_NAME(const void* data_p, void* back_p)                                        \
-    {                                                                                           \
-        DeviceCallIn* data          = (DeviceCallIn*)data_p;                                    \
-        hipStream_t   rocfft_stream = data->rocfft_stream;                                      \
-                                                                                                \
-        /* The size of last dimension need to be counted into batch */                          \
-        /* Check how to config thread block in PlanPowX() for SBCC  */                          \
-        const size_t batch = (data->node->length.size() >= 3)                                   \
-                                 ? data->node->batch * data->node->length.back()                \
-                                 : data->node->batch;                                           \
-                                                                                                \
-        if(data->node->placement == rocfft_placement_inplace)                                   \
-        {                                                                                       \
-            if(data->node->direction == -1)                                                     \
-            {                                                                                   \
-                if((data->node->inArrayType == rocfft_array_type_complex_interleaved            \
-                    || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)      \
-                   && (data->node->outArrayType == rocfft_array_type_complex_interleaved        \
-                       || data->node->outArrayType == rocfft_array_type_hermitian_interleaved)) \
-                {                                                                               \
-                    if(data->node->large1D)                                                     \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(IP_FWD_KERN_NAME<PRECISION, SB_UNIT, true>),        \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (PRECISION*)data->bufIn[0]);                                        \
-                    }                                                                           \
-                    else                                                                        \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(IP_FWD_KERN_NAME<PRECISION, SB_UNIT, false>),       \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (PRECISION*)data->bufIn[0]);                                        \
-                    }                                                                           \
-                }                                                                               \
-                else if((data->node->inArrayType == rocfft_array_type_complex_planar            \
-                         || data->node->inArrayType == rocfft_array_type_hermitian_planar)      \
-                        && (data->node->outArrayType == rocfft_array_type_complex_planar        \
-                            || data->node->outArrayType == rocfft_array_type_hermitian_planar)) \
-                {                                                                               \
-                    if(data->node->large1D)                                                     \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(IP_FWD_KERN_NAME<PRECISION, SB_UNIT, true>),        \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                            \
-                            (real_type_t<PRECISION>*)data->bufIn[1]);                           \
-                    }                                                                           \
-                    else                                                                        \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(IP_FWD_KERN_NAME<PRECISION, SB_UNIT, false>),       \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                            \
-                            (real_type_t<PRECISION>*)data->bufIn[1]);                           \
-                    }                                                                           \
-                }                                                                               \
-            }                                                                                   \
-            else                                                                                \
-            {                                                                                   \
-                if((data->node->inArrayType == rocfft_array_type_complex_interleaved            \
-                    || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)      \
-                   && (data->node->outArrayType == rocfft_array_type_complex_interleaved        \
-                       || data->node->outArrayType == rocfft_array_type_hermitian_interleaved)) \
-                {                                                                               \
-                    if(data->node->large1D)                                                     \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(IP_BACK_KERN_NAME<PRECISION, SB_UNIT, true>),       \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (PRECISION*)data->bufIn[0]);                                        \
-                    }                                                                           \
-                    else                                                                        \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(IP_BACK_KERN_NAME<PRECISION, SB_UNIT, false>),      \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (PRECISION*)data->bufIn[0]);                                        \
-                    }                                                                           \
-                }                                                                               \
-                else if((data->node->inArrayType == rocfft_array_type_complex_planar            \
-                         || data->node->inArrayType == rocfft_array_type_hermitian_planar)      \
-                        && (data->node->outArrayType == rocfft_array_type_complex_planar        \
-                            || data->node->outArrayType == rocfft_array_type_hermitian_planar)) \
-                {                                                                               \
-                    if(data->node->large1D)                                                     \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(IP_BACK_KERN_NAME<PRECISION, SB_UNIT, true>),       \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                            \
-                            (real_type_t<PRECISION>*)data->bufIn[1]);                           \
-                    }                                                                           \
-                    else                                                                        \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(IP_BACK_KERN_NAME<PRECISION, SB_UNIT, false>),      \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                            \
-                            (real_type_t<PRECISION>*)data->bufIn[1]);                           \
-                    }                                                                           \
-                }                                                                               \
-            }                                                                                   \
-        }                                                                                       \
-        else                                                                                    \
-        {                                                                                       \
-            if(data->node->direction == -1)                                                     \
-            {                                                                                   \
-                if((data->node->inArrayType == rocfft_array_type_complex_interleaved            \
-                    || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)      \
-                   && (data->node->outArrayType == rocfft_array_type_complex_interleaved        \
-                       || data->node->outArrayType == rocfft_array_type_hermitian_interleaved)) \
-                {                                                                               \
-                    if(data->node->large1D)                                                     \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT, true>),        \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (PRECISION*)data->bufIn[0],                                         \
-                            (PRECISION*)data->bufOut[0]);                                       \
-                    }                                                                           \
-                    else                                                                        \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT, false>),       \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (PRECISION*)data->bufIn[0],                                         \
-                            (PRECISION*)data->bufOut[0]);                                       \
-                    }                                                                           \
-                }                                                                               \
-                else if((data->node->inArrayType == rocfft_array_type_complex_interleaved       \
-                         || data->node->inArrayType == rocfft_array_type_hermitian_interleaved) \
-                        && (data->node->outArrayType == rocfft_array_type_complex_planar        \
-                            || data->node->outArrayType == rocfft_array_type_hermitian_planar)) \
-                {                                                                               \
-                    if(data->node->large1D)                                                     \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT, true>),        \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (PRECISION*)data->bufIn[0],                                         \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                           \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                          \
-                    }                                                                           \
-                    else                                                                        \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT, false>),       \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (PRECISION*)data->bufIn[0],                                         \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                           \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                          \
-                    }                                                                           \
-                }                                                                               \
-                else if((data->node->inArrayType == rocfft_array_type_complex_planar            \
-                         || data->node->inArrayType == rocfft_array_type_hermitian_planar)      \
-                        && (data->node->outArrayType == rocfft_array_type_complex_interleaved   \
-                            || data->node->outArrayType                                         \
-                                   == rocfft_array_type_hermitian_interleaved))                 \
-                {                                                                               \
-                    if(data->node->large1D)                                                     \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT, true>),        \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                            \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                            \
-                            (PRECISION*)data->bufOut[0]);                                       \
-                    }                                                                           \
-                    else                                                                        \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT, false>),       \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                            \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                            \
-                            (PRECISION*)data->bufOut[0]);                                       \
-                    }                                                                           \
-                }                                                                               \
-                else if((data->node->inArrayType == rocfft_array_type_complex_planar            \
-                         || data->node->inArrayType == rocfft_array_type_hermitian_planar)      \
-                        && (data->node->outArrayType == rocfft_array_type_complex_planar        \
-                            || data->node->outArrayType == rocfft_array_type_hermitian_planar)) \
-                {                                                                               \
-                    if(data->node->large1D)                                                     \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT, true>),        \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                            \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                            \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                           \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                          \
-                    }                                                                           \
-                    else                                                                        \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_FWD_KERN_NAME<PRECISION, SB_UNIT, false>),       \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                            \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                            \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                           \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                          \
-                    }                                                                           \
-                }                                                                               \
-            }                                                                                   \
-            else                                                                                \
-            {                                                                                   \
-                if((data->node->inArrayType == rocfft_array_type_complex_interleaved            \
-                    || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)      \
-                   && (data->node->outArrayType == rocfft_array_type_complex_interleaved        \
-                       || data->node->outArrayType == rocfft_array_type_hermitian_interleaved)) \
-                {                                                                               \
-                    if(data->node->large1D)                                                     \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT, true>),       \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (PRECISION*)data->bufIn[0],                                         \
-                            (PRECISION*)data->bufOut[0]);                                       \
-                    }                                                                           \
-                    else                                                                        \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT, false>),      \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (PRECISION*)data->bufIn[0],                                         \
-                            (PRECISION*)data->bufOut[0]);                                       \
-                    }                                                                           \
-                }                                                                               \
-                else if((data->node->inArrayType == rocfft_array_type_complex_interleaved       \
-                         || data->node->inArrayType == rocfft_array_type_hermitian_interleaved) \
-                        && (data->node->outArrayType == rocfft_array_type_complex_planar        \
-                            || data->node->outArrayType == rocfft_array_type_hermitian_planar)) \
-                {                                                                               \
-                    if(data->node->large1D)                                                     \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT, true>),       \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (PRECISION*)data->bufIn[0],                                         \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                           \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                          \
-                    }                                                                           \
-                    else                                                                        \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT, false>),      \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (PRECISION*)data->bufIn[0],                                         \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                           \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                          \
-                    }                                                                           \
-                }                                                                               \
-                else if((data->node->inArrayType == rocfft_array_type_complex_planar            \
-                         || data->node->inArrayType == rocfft_array_type_hermitian_planar)      \
-                        && (data->node->outArrayType == rocfft_array_type_complex_interleaved   \
-                            || data->node->outArrayType                                         \
-                                   == rocfft_array_type_hermitian_interleaved))                 \
-                {                                                                               \
-                    if(data->node->large1D)                                                     \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT, true>),       \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                            \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                            \
-                            (PRECISION*)data->bufOut[0]);                                       \
-                    }                                                                           \
-                    else                                                                        \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT, false>),      \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                            \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                            \
-                            (PRECISION*)data->bufOut[0]);                                       \
-                    }                                                                           \
-                }                                                                               \
-                else if((data->node->inArrayType == rocfft_array_type_complex_planar            \
-                         || data->node->inArrayType == rocfft_array_type_hermitian_planar)      \
-                        && (data->node->outArrayType == rocfft_array_type_complex_planar        \
-                            || data->node->outArrayType == rocfft_array_type_hermitian_planar)) \
-                {                                                                               \
-                    if(data->node->large1D)                                                     \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT, true>),       \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                            \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                            \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                           \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                          \
-                    }                                                                           \
-                    else                                                                        \
-                    {                                                                           \
-                        hipLaunchKernelGGL(                                                     \
-                            HIP_KERNEL_NAME(OP_BACK_KERN_NAME<PRECISION, SB_UNIT, false>),      \
-                            dim3(data->gridParam.b_x),                                          \
-                            dim3(data->gridParam.tpb_x),                                        \
-                            0,                                                                  \
-                            rocfft_stream,                                                      \
-                            (PRECISION*)data->node->twiddles.data(),                            \
-                            (PRECISION*)data->node->twiddles_large.data(),                      \
-                            data->node->length.size(),                                          \
-                            data->node->devKernArg.data(),                                      \
-                            data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,          \
-                            data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,          \
-                            batch,                                                              \
-                            (real_type_t<PRECISION>*)data->bufIn[0],                            \
-                            (real_type_t<PRECISION>*)data->bufIn[1],                            \
-                            (real_type_t<PRECISION>*)data->bufOut[0],                           \
-                            (real_type_t<PRECISION>*)data->bufOut[1]);                          \
-                    }                                                                           \
-                }                                                                               \
-            }                                                                                   \
-        }                                                                                       \
+// SBCC adds large twiddles
+#define KERNEL_BASE_ARGS_IP_SBCC(PRECISION)                                                    \
+    const PRECISION* __restrict__, const PRECISION* __restrict__, const size_t, const size_t*, \
+        const size_t*, const size_t
+#define KERNEL_BASE_ARGS_OP_SBCC(PRECISION)                                                    \
+    const PRECISION* __restrict__, const PRECISION* __restrict__, const size_t, const size_t*, \
+        const size_t*, const size_t*, const size_t
+#define GET_KERNEL_FUNC_SBCC(FWD, BACK, PRECISION, BASE_ARGS, ...)    \
+    void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr; \
+    if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1) \
+    {                                                                 \
+        if(data->node->direction == -1)                               \
+        {                                                             \
+            if(data->node->large1D)                                   \
+                kernel_func = FWD<PRECISION, SB_UNIT, true>;          \
+            else                                                      \
+                kernel_func = FWD<PRECISION, SB_UNIT, false>;         \
+        }                                                             \
+        else                                                          \
+        {                                                             \
+            if(data->node->large1D)                                   \
+                kernel_func = BACK<PRECISION, SB_UNIT, true>;         \
+            else                                                      \
+                kernel_func = BACK<PRECISION, SB_UNIT, false>;        \
+        }                                                             \
+    }                                                                 \
+    else                                                              \
+    {                                                                 \
+        if(data->node->direction == -1)                               \
+        {                                                             \
+            if(data->node->large1D)                                   \
+                kernel_func = FWD<PRECISION, SB_NONUNIT, true>;       \
+            else                                                      \
+                kernel_func = FWD<PRECISION, SB_NONUNIT, false>;      \
+        }                                                             \
+        else                                                          \
+        {                                                             \
+            if(data->node->large1D)                                   \
+                kernel_func = BACK<PRECISION, SB_NONUNIT, true>;      \
+            else                                                      \
+                kernel_func = BACK<PRECISION, SB_NONUNIT, false>;     \
+        }                                                             \
     }
 
-#define POWX_LARGE_SBRC_GENERATOR(                                                                \
-    FUNCTION_NAME, FWD_KERN_NAME, BACK_KERN_NAME, PRECISION, COL_DIM, TRANSPOSE_TYPE)             \
-    void FUNCTION_NAME(const void* data_p, void* back_p)                                          \
-    {                                                                                             \
-        DeviceCallIn* data          = (DeviceCallIn*)data_p;                                      \
-        hipStream_t   rocfft_stream = data->rocfft_stream;                                        \
-                                                                                                  \
-        /* The size of last dimension need to be counted into batch */                            \
-        /* Check how to config thread block in PlanPowX() for SBRC  */                            \
-        const size_t batch = (data->node->length.size() >= 3)                                     \
-                                 ? data->node->batch * data->node->length.back()                  \
-                                 : data->node->batch;                                             \
-                                                                                                  \
-        if(data->node->direction == -1)                                                           \
-        {                                                                                         \
-            if((data->node->inArrayType == rocfft_array_type_complex_interleaved                  \
-                || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)            \
-               && (data->node->outArrayType == rocfft_array_type_complex_interleaved              \
-                   || data->node->outArrayType == rocfft_array_type_hermitian_interleaved))       \
-            {                                                                                     \
-                hipLaunchKernelGGL(                                                               \
-                    HIP_KERNEL_NAME(FWD_KERN_NAME<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE>),  \
-                    dim3(data->gridParam.b_x),                                                    \
-                    dim3(data->gridParam.tpb_x),                                                  \
-                    0,                                                                            \
-                    rocfft_stream,                                                                \
-                    (PRECISION*)data->node->twiddles.data(),                                      \
-                    data->node->length.size(),                                                    \
-                    data->node->devKernArg.data(),                                                \
-                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    batch,                                                                        \
-                    (PRECISION*)data->bufIn[0],                                                   \
-                    (PRECISION*)data->bufOut[0]);                                                 \
-            }                                                                                     \
-            else if((data->node->inArrayType == rocfft_array_type_complex_interleaved             \
-                     || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)       \
-                    && (data->node->outArrayType == rocfft_array_type_complex_planar              \
-                        || data->node->outArrayType == rocfft_array_type_hermitian_planar))       \
-            {                                                                                     \
-                hipLaunchKernelGGL(                                                               \
-                    HIP_KERNEL_NAME(FWD_KERN_NAME<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE>),  \
-                    dim3(data->gridParam.b_x),                                                    \
-                    dim3(data->gridParam.tpb_x),                                                  \
-                    0,                                                                            \
-                    rocfft_stream,                                                                \
-                    (PRECISION*)data->node->twiddles.data(),                                      \
-                    data->node->length.size(),                                                    \
-                    data->node->devKernArg.data(),                                                \
-                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    batch,                                                                        \
-                    (PRECISION*)data->bufIn[0],                                                   \
-                    (real_type_t<PRECISION>*)data->bufOut[0],                                     \
-                    (real_type_t<PRECISION>*)data->bufOut[1]);                                    \
-            }                                                                                     \
-            else if((data->node->inArrayType == rocfft_array_type_complex_planar                  \
-                     || data->node->inArrayType == rocfft_array_type_hermitian_planar)            \
-                    && (data->node->outArrayType == rocfft_array_type_complex_interleaved         \
-                        || data->node->outArrayType == rocfft_array_type_hermitian_interleaved))  \
-            {                                                                                     \
-                hipLaunchKernelGGL(                                                               \
-                    HIP_KERNEL_NAME(FWD_KERN_NAME<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE>),  \
-                    dim3(data->gridParam.b_x),                                                    \
-                    dim3(data->gridParam.tpb_x),                                                  \
-                    0,                                                                            \
-                    rocfft_stream,                                                                \
-                    (PRECISION*)data->node->twiddles.data(),                                      \
-                    data->node->length.size(),                                                    \
-                    data->node->devKernArg.data(),                                                \
-                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    batch,                                                                        \
-                    (real_type_t<PRECISION>*)data->bufIn[0],                                      \
-                    (real_type_t<PRECISION>*)data->bufIn[1],                                      \
-                    (PRECISION*)data->bufOut[0]);                                                 \
-            }                                                                                     \
-            else if((data->node->inArrayType == rocfft_array_type_complex_planar                  \
-                     || data->node->inArrayType == rocfft_array_type_hermitian_planar)            \
-                    && (data->node->outArrayType == rocfft_array_type_complex_planar              \
-                        || data->node->outArrayType == rocfft_array_type_hermitian_planar))       \
-            {                                                                                     \
-                hipLaunchKernelGGL(                                                               \
-                    HIP_KERNEL_NAME(FWD_KERN_NAME<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE>),  \
-                    dim3(data->gridParam.b_x),                                                    \
-                    dim3(data->gridParam.tpb_x),                                                  \
-                    0,                                                                            \
-                    rocfft_stream,                                                                \
-                    (PRECISION*)data->node->twiddles.data(),                                      \
-                    data->node->length.size(),                                                    \
-                    data->node->devKernArg.data(),                                                \
-                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    batch,                                                                        \
-                    (real_type_t<PRECISION>*)data->bufIn[0],                                      \
-                    (real_type_t<PRECISION>*)data->bufIn[1],                                      \
-                    (real_type_t<PRECISION>*)data->bufOut[0],                                     \
-                    (real_type_t<PRECISION>*)data->bufOut[1]);                                    \
-            }                                                                                     \
-        }                                                                                         \
-        else                                                                                      \
-        {                                                                                         \
-            if((data->node->inArrayType == rocfft_array_type_complex_interleaved                  \
-                || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)            \
-               && (data->node->outArrayType == rocfft_array_type_complex_interleaved              \
-                   || data->node->outArrayType == rocfft_array_type_hermitian_interleaved))       \
-            {                                                                                     \
-                hipLaunchKernelGGL(                                                               \
-                    HIP_KERNEL_NAME(BACK_KERN_NAME<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE>), \
-                    dim3(data->gridParam.b_x),                                                    \
-                    dim3(data->gridParam.tpb_x),                                                  \
-                    0,                                                                            \
-                    rocfft_stream,                                                                \
-                    (PRECISION*)data->node->twiddles.data(),                                      \
-                    data->node->length.size(),                                                    \
-                    data->node->devKernArg.data(),                                                \
-                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    batch,                                                                        \
-                    (PRECISION*)data->bufIn[0],                                                   \
-                    (PRECISION*)data->bufOut[0]);                                                 \
-            }                                                                                     \
-            else if((data->node->inArrayType == rocfft_array_type_complex_interleaved             \
-                     || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)       \
-                    && (data->node->outArrayType == rocfft_array_type_complex_planar              \
-                        || data->node->outArrayType == rocfft_array_type_hermitian_planar))       \
-            {                                                                                     \
-                hipLaunchKernelGGL(                                                               \
-                    HIP_KERNEL_NAME(BACK_KERN_NAME<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE>), \
-                    dim3(data->gridParam.b_x),                                                    \
-                    dim3(data->gridParam.tpb_x),                                                  \
-                    0,                                                                            \
-                    rocfft_stream,                                                                \
-                    (PRECISION*)data->node->twiddles.data(),                                      \
-                    data->node->length.size(),                                                    \
-                    data->node->devKernArg.data(),                                                \
-                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    batch,                                                                        \
-                    (PRECISION*)data->bufIn[0],                                                   \
-                    (real_type_t<PRECISION>*)data->bufOut[0],                                     \
-                    (real_type_t<PRECISION>*)data->bufOut[1]);                                    \
-            }                                                                                     \
-            else if((data->node->inArrayType == rocfft_array_type_complex_planar                  \
-                     || data->node->inArrayType == rocfft_array_type_hermitian_planar)            \
-                    && (data->node->outArrayType == rocfft_array_type_complex_interleaved         \
-                        || data->node->outArrayType == rocfft_array_type_hermitian_interleaved))  \
-            {                                                                                     \
-                hipLaunchKernelGGL(                                                               \
-                    HIP_KERNEL_NAME(BACK_KERN_NAME<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE>), \
-                    dim3(data->gridParam.b_x),                                                    \
-                    dim3(data->gridParam.tpb_x),                                                  \
-                    0,                                                                            \
-                    rocfft_stream,                                                                \
-                    (PRECISION*)data->node->twiddles.data(),                                      \
-                    data->node->length.size(),                                                    \
-                    data->node->devKernArg.data(),                                                \
-                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    batch,                                                                        \
-                    (real_type_t<PRECISION>*)data->bufIn[0],                                      \
-                    (real_type_t<PRECISION>*)data->bufIn[1],                                      \
-                    (PRECISION*)data->bufOut[0]);                                                 \
-            }                                                                                     \
-            else if((data->node->inArrayType == rocfft_array_type_complex_planar                  \
-                     || data->node->inArrayType == rocfft_array_type_hermitian_planar)            \
-                    && (data->node->outArrayType == rocfft_array_type_complex_planar              \
-                        || data->node->outArrayType == rocfft_array_type_hermitian_planar))       \
-            {                                                                                     \
-                hipLaunchKernelGGL(                                                               \
-                    HIP_KERNEL_NAME(BACK_KERN_NAME<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE>), \
-                    dim3(data->gridParam.b_x),                                                    \
-                    dim3(data->gridParam.tpb_x),                                                  \
-                    0,                                                                            \
-                    rocfft_stream,                                                                \
-                    (PRECISION*)data->node->twiddles.data(),                                      \
-                    data->node->length.size(),                                                    \
-                    data->node->devKernArg.data(),                                                \
-                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,                    \
-                    batch,                                                                        \
-                    (real_type_t<PRECISION>*)data->bufIn[0],                                      \
-                    (real_type_t<PRECISION>*)data->bufIn[1],                                      \
-                    (real_type_t<PRECISION>*)data->bufOut[0],                                     \
-                    (real_type_t<PRECISION>*)data->bufOut[1]);                                    \
-            }                                                                                     \
-        }                                                                                         \
+// SBRC has COL_DIM, TRANSPOSE_TYPE template args and is always out-of-place
+#define GET_KERNEL_FUNC_SBRC(FWD, BACK, PRECISION, COL_DIM, TRANSPOSE_TYPE, BASE_ARGS, ...) \
+    void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr;                       \
+    if(data->node->direction == -1)                                                         \
+    {                                                                                       \
+        kernel_func = FWD<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE>;                     \
+    }                                                                                       \
+    else                                                                                    \
+    {                                                                                       \
+        kernel_func = BACK<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE>;                    \
+    }
+
+#define POWX_SMALL_GENERATOR(FUNCTION_NAME,                                                   \
+                             IP_FWD_KERN_NAME,                                                \
+                             IP_BACK_KERN_NAME,                                               \
+                             OP_FWD_KERN_NAME,                                                \
+                             OP_BACK_KERN_NAME,                                               \
+                             PRECISION)                                                       \
+    void FUNCTION_NAME(const void* data_p, void* back_p)                                      \
+    {                                                                                         \
+        DeviceCallIn* data          = (DeviceCallIn*)data_p;                                  \
+        hipStream_t   rocfft_stream = data->rocfft_stream;                                    \
+        if(data->node->placement == rocfft_placement_inplace)                                 \
+        {                                                                                     \
+            if(array_type_is_interleaved(data->node->inArrayType)                             \
+               && array_type_is_interleaved(data->node->outArrayType))                        \
+            {                                                                                 \
+                GET_KERNEL_FUNC(IP_FWD_KERN_NAME,                                             \
+                                IP_BACK_KERN_NAME,                                            \
+                                PRECISION,                                                    \
+                                KERNEL_BASE_ARGS_IP,                                          \
+                                PRECISION* __restrict__);                                     \
+                hipLaunchKernelGGL(kernel_func,                                               \
+                                   dim3(data->gridParam.b_x),                                 \
+                                   dim3(data->gridParam.tpb_x),                               \
+                                   0,                                                         \
+                                   rocfft_stream,                                             \
+                                   (PRECISION*)data->node->twiddles.data(),                   \
+                                   data->node->length.size(),                                 \
+                                   data->node->devKernArg.data(),                             \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->batch,                                         \
+                                   (PRECISION*)data->bufIn[0]);                               \
+            }                                                                                 \
+            else if(array_type_is_planar(data->node->inArrayType)                             \
+                    && array_type_is_planar(data->node->outArrayType))                        \
+            {                                                                                 \
+                GET_KERNEL_FUNC(IP_FWD_KERN_NAME,                                             \
+                                IP_BACK_KERN_NAME,                                            \
+                                PRECISION,                                                    \
+                                KERNEL_BASE_ARGS_IP,                                          \
+                                real_type_t<PRECISION>* __restrict__,                         \
+                                real_type_t<PRECISION>* __restrict__);                        \
+                hipLaunchKernelGGL(kernel_func,                                               \
+                                   dim3(data->gridParam.b_x),                                 \
+                                   dim3(data->gridParam.tpb_x),                               \
+                                   0,                                                         \
+                                   rocfft_stream,                                             \
+                                   (PRECISION*)data->node->twiddles.data(),                   \
+                                   data->node->length.size(),                                 \
+                                   data->node->devKernArg.data(),                             \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->batch,                                         \
+                                   (real_type_t<PRECISION>*)data->bufIn[0],                   \
+                                   (real_type_t<PRECISION>*)data->bufIn[1]);                  \
+            }                                                                                 \
+        }                                                                                     \
+        else /* out of place */                                                               \
+        {                                                                                     \
+            if(array_type_is_interleaved(data->node->inArrayType)                             \
+               && array_type_is_interleaved(data->node->outArrayType))                        \
+            {                                                                                 \
+                GET_KERNEL_FUNC(OP_FWD_KERN_NAME,                                             \
+                                OP_BACK_KERN_NAME,                                            \
+                                PRECISION,                                                    \
+                                KERNEL_BASE_ARGS_OP,                                          \
+                                PRECISION* __restrict__,                                      \
+                                PRECISION* __restrict__);                                     \
+                hipLaunchKernelGGL(kernel_func,                                               \
+                                   dim3(data->gridParam.b_x),                                 \
+                                   dim3(data->gridParam.tpb_x),                               \
+                                   0,                                                         \
+                                   rocfft_stream,                                             \
+                                   (PRECISION*)data->node->twiddles.data(),                   \
+                                   data->node->length.size(),                                 \
+                                   data->node->devKernArg.data(),                             \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->batch,                                         \
+                                   (PRECISION*)data->bufIn[0],                                \
+                                   (PRECISION*)data->bufOut[0]);                              \
+            }                                                                                 \
+            else if(array_type_is_interleaved(data->node->inArrayType)                        \
+                    && array_type_is_planar(data->node->outArrayType))                        \
+            {                                                                                 \
+                GET_KERNEL_FUNC(OP_FWD_KERN_NAME,                                             \
+                                OP_BACK_KERN_NAME,                                            \
+                                PRECISION,                                                    \
+                                KERNEL_BASE_ARGS_OP,                                          \
+                                PRECISION* __restrict__,                                      \
+                                real_type_t<PRECISION>* __restrict__,                         \
+                                real_type_t<PRECISION>* __restrict__);                        \
+                hipLaunchKernelGGL(kernel_func,                                               \
+                                   dim3(data->gridParam.b_x),                                 \
+                                   dim3(data->gridParam.tpb_x),                               \
+                                   0,                                                         \
+                                   rocfft_stream,                                             \
+                                   (PRECISION*)data->node->twiddles.data(),                   \
+                                   data->node->length.size(),                                 \
+                                   data->node->devKernArg.data(),                             \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->batch,                                         \
+                                   (PRECISION*)data->bufIn[0],                                \
+                                   (real_type_t<PRECISION>*)data->bufOut[0],                  \
+                                   (real_type_t<PRECISION>*)data->bufOut[1]);                 \
+            }                                                                                 \
+            else if(array_type_is_planar(data->node->inArrayType)                             \
+                    && array_type_is_interleaved(data->node->outArrayType))                   \
+            {                                                                                 \
+                GET_KERNEL_FUNC(OP_FWD_KERN_NAME,                                             \
+                                OP_BACK_KERN_NAME,                                            \
+                                PRECISION,                                                    \
+                                KERNEL_BASE_ARGS_OP,                                          \
+                                real_type_t<PRECISION>* __restrict__,                         \
+                                real_type_t<PRECISION>* __restrict__,                         \
+                                PRECISION* __restrict__);                                     \
+                hipLaunchKernelGGL(kernel_func,                                               \
+                                   dim3(data->gridParam.b_x),                                 \
+                                   dim3(data->gridParam.tpb_x),                               \
+                                   0,                                                         \
+                                   rocfft_stream,                                             \
+                                   (PRECISION*)data->node->twiddles.data(),                   \
+                                   data->node->length.size(),                                 \
+                                   data->node->devKernArg.data(),                             \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->batch,                                         \
+                                   (real_type_t<PRECISION>*)data->bufIn[0],                   \
+                                   (real_type_t<PRECISION>*)data->bufIn[1],                   \
+                                   (PRECISION*)data->bufOut[0]);                              \
+            }                                                                                 \
+            else if(array_type_is_planar(data->node->inArrayType)                             \
+                    && array_type_is_planar(data->node->outArrayType))                        \
+            {                                                                                 \
+                GET_KERNEL_FUNC(OP_FWD_KERN_NAME,                                             \
+                                OP_BACK_KERN_NAME,                                            \
+                                PRECISION,                                                    \
+                                KERNEL_BASE_ARGS_OP,                                          \
+                                real_type_t<PRECISION>* __restrict__,                         \
+                                real_type_t<PRECISION>* __restrict__,                         \
+                                real_type_t<PRECISION>* __restrict__,                         \
+                                real_type_t<PRECISION>* __restrict__);                        \
+                hipLaunchKernelGGL(kernel_func,                                               \
+                                   dim3(data->gridParam.b_x),                                 \
+                                   dim3(data->gridParam.tpb_x),                               \
+                                   0,                                                         \
+                                   rocfft_stream,                                             \
+                                   (PRECISION*)data->node->twiddles.data(),                   \
+                                   data->node->length.size(),                                 \
+                                   data->node->devKernArg.data(),                             \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->batch,                                         \
+                                   (real_type_t<PRECISION>*)data->bufIn[0],                   \
+                                   (real_type_t<PRECISION>*)data->bufIn[1],                   \
+                                   (real_type_t<PRECISION>*)data->bufOut[0],                  \
+                                   (real_type_t<PRECISION>*)data->bufOut[1]);                 \
+            }                                                                                 \
+        }                                                                                     \
+    }
+
+#define POWX_LARGE_SBCC_GENERATOR(FUNCTION_NAME,                                              \
+                                  IP_FWD_KERN_NAME,                                           \
+                                  IP_BACK_KERN_NAME,                                          \
+                                  OP_FWD_KERN_NAME,                                           \
+                                  OP_BACK_KERN_NAME,                                          \
+                                  PRECISION)                                                  \
+    void FUNCTION_NAME(const void* data_p, void* back_p)                                      \
+    {                                                                                         \
+        DeviceCallIn* data          = (DeviceCallIn*)data_p;                                  \
+        hipStream_t   rocfft_stream = data->rocfft_stream;                                    \
+                                                                                              \
+        /* The size of last dimension need to be counted into batch */                        \
+        /* Check how to config thread block in PlanPowX() for SBCC  */                        \
+        const size_t batch = (data->node->length.size() >= 3)                                 \
+                                 ? data->node->batch * data->node->length.back()              \
+                                 : data->node->batch;                                         \
+                                                                                              \
+        if(data->node->placement == rocfft_placement_inplace)                                 \
+        {                                                                                     \
+            if(array_type_is_interleaved(data->node->inArrayType)                             \
+               && array_type_is_interleaved(data->node->outArrayType))                        \
+            {                                                                                 \
+                GET_KERNEL_FUNC_SBCC(IP_FWD_KERN_NAME,                                        \
+                                     IP_BACK_KERN_NAME,                                       \
+                                     PRECISION,                                               \
+                                     KERNEL_BASE_ARGS_IP_SBCC,                                \
+                                     PRECISION* __restrict__);                                \
+                hipLaunchKernelGGL(kernel_func,                                               \
+                                   dim3(data->gridParam.b_x),                                 \
+                                   dim3(data->gridParam.tpb_x),                               \
+                                   0,                                                         \
+                                   rocfft_stream,                                             \
+                                   (PRECISION*)data->node->twiddles.data(),                   \
+                                   (PRECISION*)data->node->twiddles_large.data(),             \
+                                   data->node->length.size(),                                 \
+                                   data->node->devKernArg.data(),                             \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                                   batch,                                                     \
+                                   (PRECISION*)data->bufIn[0]);                               \
+            }                                                                                 \
+            else if(array_type_is_planar(data->node->inArrayType)                             \
+                    && array_type_is_planar(data->node->outArrayType))                        \
+            {                                                                                 \
+                GET_KERNEL_FUNC_SBCC(IP_FWD_KERN_NAME,                                        \
+                                     IP_BACK_KERN_NAME,                                       \
+                                     PRECISION,                                               \
+                                     KERNEL_BASE_ARGS_IP_SBCC,                                \
+                                     real_type_t<PRECISION>* __restrict__,                    \
+                                     real_type_t<PRECISION>* __restrict__);                   \
+                hipLaunchKernelGGL(kernel_func,                                               \
+                                   dim3(data->gridParam.b_x),                                 \
+                                   dim3(data->gridParam.tpb_x),                               \
+                                   0,                                                         \
+                                   rocfft_stream,                                             \
+                                   (PRECISION*)data->node->twiddles.data(),                   \
+                                   (PRECISION*)data->node->twiddles_large.data(),             \
+                                   data->node->length.size(),                                 \
+                                   data->node->devKernArg.data(),                             \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                                   batch,                                                     \
+                                   (real_type_t<PRECISION>*)data->bufIn[0],                   \
+                                   (real_type_t<PRECISION>*)data->bufIn[1]);                  \
+            }                                                                                 \
+        }                                                                                     \
+        else                                                                                  \
+        {                                                                                     \
+            if(array_type_is_interleaved(data->node->inArrayType)                             \
+               && array_type_is_interleaved(data->node->outArrayType))                        \
+            {                                                                                 \
+                GET_KERNEL_FUNC_SBCC(OP_FWD_KERN_NAME,                                        \
+                                     OP_BACK_KERN_NAME,                                       \
+                                     PRECISION,                                               \
+                                     KERNEL_BASE_ARGS_OP_SBCC,                                \
+                                     PRECISION* __restrict__,                                 \
+                                     PRECISION* __restrict__);                                \
+                hipLaunchKernelGGL(kernel_func,                                               \
+                                   dim3(data->gridParam.b_x),                                 \
+                                   dim3(data->gridParam.tpb_x),                               \
+                                   0,                                                         \
+                                   rocfft_stream,                                             \
+                                   (PRECISION*)data->node->twiddles.data(),                   \
+                                   (PRECISION*)data->node->twiddles_large.data(),             \
+                                   data->node->length.size(),                                 \
+                                   data->node->devKernArg.data(),                             \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
+                                   batch,                                                     \
+                                   (PRECISION*)data->bufIn[0],                                \
+                                   (PRECISION*)data->bufOut[0]);                              \
+            }                                                                                 \
+            else if(array_type_is_interleaved(data->node->inArrayType)                        \
+                    && array_type_is_planar(data->node->outArrayType))                        \
+            {                                                                                 \
+                GET_KERNEL_FUNC_SBCC(OP_FWD_KERN_NAME,                                        \
+                                     OP_BACK_KERN_NAME,                                       \
+                                     PRECISION,                                               \
+                                     KERNEL_BASE_ARGS_OP_SBCC,                                \
+                                     PRECISION* __restrict__,                                 \
+                                     real_type_t<PRECISION>* __restrict__,                    \
+                                     real_type_t<PRECISION>* __restrict__);                   \
+                hipLaunchKernelGGL(kernel_func,                                               \
+                                   dim3(data->gridParam.b_x),                                 \
+                                   dim3(data->gridParam.tpb_x),                               \
+                                   0,                                                         \
+                                   rocfft_stream,                                             \
+                                   (PRECISION*)data->node->twiddles.data(),                   \
+                                   (PRECISION*)data->node->twiddles_large.data(),             \
+                                   data->node->length.size(),                                 \
+                                   data->node->devKernArg.data(),                             \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
+                                   batch,                                                     \
+                                   (PRECISION*)data->bufIn[0],                                \
+                                   (real_type_t<PRECISION>*)data->bufOut[0],                  \
+                                   (real_type_t<PRECISION>*)data->bufOut[1]);                 \
+            }                                                                                 \
+            else if(array_type_is_planar(data->node->inArrayType)                             \
+                    && array_type_is_interleaved(data->node->outArrayType))                   \
+            {                                                                                 \
+                GET_KERNEL_FUNC_SBCC(OP_FWD_KERN_NAME,                                        \
+                                     OP_BACK_KERN_NAME,                                       \
+                                     PRECISION,                                               \
+                                     KERNEL_BASE_ARGS_OP_SBCC,                                \
+                                     real_type_t<PRECISION>* __restrict__,                    \
+                                     real_type_t<PRECISION>* __restrict__,                    \
+                                     PRECISION* __restrict__);                                \
+                hipLaunchKernelGGL(kernel_func,                                               \
+                                   dim3(data->gridParam.b_x),                                 \
+                                   dim3(data->gridParam.tpb_x),                               \
+                                   0,                                                         \
+                                   rocfft_stream,                                             \
+                                   (PRECISION*)data->node->twiddles.data(),                   \
+                                   (PRECISION*)data->node->twiddles_large.data(),             \
+                                   data->node->length.size(),                                 \
+                                   data->node->devKernArg.data(),                             \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
+                                   batch,                                                     \
+                                   (real_type_t<PRECISION>*)data->bufIn[0],                   \
+                                   (real_type_t<PRECISION>*)data->bufIn[1],                   \
+                                   (PRECISION*)data->bufOut[0]);                              \
+            }                                                                                 \
+            else if(array_type_is_planar(data->node->inArrayType)                             \
+                    && array_type_is_planar(data->node->outArrayType))                        \
+            {                                                                                 \
+                GET_KERNEL_FUNC_SBCC(OP_FWD_KERN_NAME,                                        \
+                                     OP_BACK_KERN_NAME,                                       \
+                                     PRECISION,                                               \
+                                     KERNEL_BASE_ARGS_OP_SBCC,                                \
+                                     real_type_t<PRECISION>* __restrict__,                    \
+                                     real_type_t<PRECISION>* __restrict__,                    \
+                                     real_type_t<PRECISION>* __restrict__,                    \
+                                     real_type_t<PRECISION>* __restrict__);                   \
+                hipLaunchKernelGGL(kernel_func,                                               \
+                                   dim3(data->gridParam.b_x),                                 \
+                                   dim3(data->gridParam.tpb_x),                               \
+                                   0,                                                         \
+                                   rocfft_stream,                                             \
+                                   (PRECISION*)data->node->twiddles.data(),                   \
+                                   (PRECISION*)data->node->twiddles_large.data(),             \
+                                   data->node->length.size(),                                 \
+                                   data->node->devKernArg.data(),                             \
+                                   data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                                   data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
+                                   batch,                                                     \
+                                   (real_type_t<PRECISION>*)data->bufIn[0],                   \
+                                   (real_type_t<PRECISION>*)data->bufIn[1],                   \
+                                   (real_type_t<PRECISION>*)data->bufOut[0],                  \
+                                   (real_type_t<PRECISION>*)data->bufOut[1]);                 \
+            }                                                                                 \
+        }                                                                                     \
+    }
+
+#define POWX_LARGE_SBRC_GENERATOR(                                                        \
+    FUNCTION_NAME, FWD_KERN_NAME, BACK_KERN_NAME, PRECISION, COL_DIM, TRANSPOSE_TYPE)     \
+    void FUNCTION_NAME(const void* data_p, void* back_p)                                  \
+    {                                                                                     \
+        DeviceCallIn* data          = (DeviceCallIn*)data_p;                              \
+        hipStream_t   rocfft_stream = data->rocfft_stream;                                \
+                                                                                          \
+        /* The size of last dimension need to be counted into batch */                    \
+        /* Check how to config thread block in PlanPowX() for SBRC  */                    \
+        const size_t batch = (data->node->length.size() >= 3)                             \
+                                 ? data->node->batch * data->node->length.back()          \
+                                 : data->node->batch;                                     \
+                                                                                          \
+        if(array_type_is_interleaved(data->node->inArrayType)                             \
+           && array_type_is_interleaved(data->node->outArrayType))                        \
+        {                                                                                 \
+            GET_KERNEL_FUNC_SBRC(FWD_KERN_NAME,                                           \
+                                 BACK_KERN_NAME,                                          \
+                                 PRECISION,                                               \
+                                 COL_DIM,                                                 \
+                                 TRANSPOSE_TYPE,                                          \
+                                 KERNEL_BASE_ARGS_OP,                                     \
+                                 PRECISION* __restrict__,                                 \
+                                 PRECISION* __restrict__);                                \
+            hipLaunchKernelGGL(kernel_func,                                               \
+                               dim3(data->gridParam.b_x),                                 \
+                               dim3(data->gridParam.tpb_x),                               \
+                               0,                                                         \
+                               rocfft_stream,                                             \
+                               (PRECISION*)data->node->twiddles.data(),                   \
+                               data->node->length.size(),                                 \
+                               data->node->devKernArg.data(),                             \
+                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
+                               batch,                                                     \
+                               (PRECISION*)data->bufIn[0],                                \
+                               (PRECISION*)data->bufOut[0]);                              \
+        }                                                                                 \
+        else if(array_type_is_interleaved(data->node->inArrayType)                        \
+                && array_type_is_planar(data->node->outArrayType))                        \
+        {                                                                                 \
+            GET_KERNEL_FUNC_SBRC(FWD_KERN_NAME,                                           \
+                                 BACK_KERN_NAME,                                          \
+                                 PRECISION,                                               \
+                                 COL_DIM,                                                 \
+                                 TRANSPOSE_TYPE,                                          \
+                                 KERNEL_BASE_ARGS_OP,                                     \
+                                 PRECISION* __restrict__,                                 \
+                                 real_type_t<PRECISION>* __restrict__,                    \
+                                 real_type_t<PRECISION>* __restrict__);                   \
+            hipLaunchKernelGGL(kernel_func,                                               \
+                               dim3(data->gridParam.b_x),                                 \
+                               dim3(data->gridParam.tpb_x),                               \
+                               0,                                                         \
+                               rocfft_stream,                                             \
+                               (PRECISION*)data->node->twiddles.data(),                   \
+                               data->node->length.size(),                                 \
+                               data->node->devKernArg.data(),                             \
+                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
+                               batch,                                                     \
+                               (PRECISION*)data->bufIn[0],                                \
+                               (real_type_t<PRECISION>*)data->bufOut[0],                  \
+                               (real_type_t<PRECISION>*)data->bufOut[1]);                 \
+        }                                                                                 \
+        else if(array_type_is_planar(data->node->inArrayType)                             \
+                && array_type_is_interleaved(data->node->outArrayType))                   \
+        {                                                                                 \
+            GET_KERNEL_FUNC_SBRC(FWD_KERN_NAME,                                           \
+                                 BACK_KERN_NAME,                                          \
+                                 PRECISION,                                               \
+                                 COL_DIM,                                                 \
+                                 TRANSPOSE_TYPE,                                          \
+                                 KERNEL_BASE_ARGS_OP,                                     \
+                                 real_type_t<PRECISION>* __restrict__,                    \
+                                 real_type_t<PRECISION>* __restrict__,                    \
+                                 PRECISION* __restrict__);                                \
+            hipLaunchKernelGGL(kernel_func,                                               \
+                               dim3(data->gridParam.b_x),                                 \
+                               dim3(data->gridParam.tpb_x),                               \
+                               0,                                                         \
+                               rocfft_stream,                                             \
+                               (PRECISION*)data->node->twiddles.data(),                   \
+                               data->node->length.size(),                                 \
+                               data->node->devKernArg.data(),                             \
+                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
+                               batch,                                                     \
+                               (real_type_t<PRECISION>*)data->bufIn[0],                   \
+                               (real_type_t<PRECISION>*)data->bufIn[1],                   \
+                               (PRECISION*)data->bufOut[0]);                              \
+        }                                                                                 \
+        else if(array_type_is_planar(data->node->inArrayType)                             \
+                && array_type_is_planar(data->node->outArrayType))                        \
+        {                                                                                 \
+            GET_KERNEL_FUNC_SBRC(FWD_KERN_NAME,                                           \
+                                 BACK_KERN_NAME,                                          \
+                                 PRECISION,                                               \
+                                 COL_DIM,                                                 \
+                                 TRANSPOSE_TYPE,                                          \
+                                 KERNEL_BASE_ARGS_OP,                                     \
+                                 real_type_t<PRECISION>* __restrict__,                    \
+                                 real_type_t<PRECISION>* __restrict__,                    \
+                                 real_type_t<PRECISION>* __restrict__,                    \
+                                 real_type_t<PRECISION>* __restrict__);                   \
+            hipLaunchKernelGGL(kernel_func,                                               \
+                               dim3(data->gridParam.b_x),                                 \
+                               dim3(data->gridParam.tpb_x),                               \
+                               0,                                                         \
+                               rocfft_stream,                                             \
+                               (PRECISION*)data->node->twiddles.data(),                   \
+                               data->node->length.size(),                                 \
+                               data->node->devKernArg.data(),                             \
+                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
+                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
+                               batch,                                                     \
+                               (real_type_t<PRECISION>*)data->bufIn[0],                   \
+                               (real_type_t<PRECISION>*)data->bufIn[1],                   \
+                               (real_type_t<PRECISION>*)data->bufOut[0],                  \
+                               (real_type_t<PRECISION>*)data->bufOut[1]);                 \
+        }                                                                                 \
     }
 
 #endif // KERNEL_LAUNCH_SINGLE
