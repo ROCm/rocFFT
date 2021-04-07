@@ -189,8 +189,7 @@ INSTANTIATE_TEST_SUITE_P(sbrc_3D,
                          accuracy_test::TestName);
 
 // pick small sizes that will exercise 2D_SINGLE and a couple of sizes that won't
-// TODO: add 64, but that will hit BLOCK_CC which fails on weird strides
-static std::vector<size_t> inner_batch_3D_range       = {4, 8, 16, 32, 20, 24};
+static std::vector<size_t> inner_batch_3D_range       = {4, 8, 16, 32, 20, 24, 64};
 static std::vector<size_t> inner_batch_3D_batch_range = {3, 2, 1};
 INSTANTIATE_TEST_SUITE_P(inner_batch_3D,
                          accuracy_test,

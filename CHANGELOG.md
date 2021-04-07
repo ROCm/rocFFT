@@ -10,6 +10,10 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Optimizations
 - Optimized 2D/3D R2C 100 and 1D Z2Z 2500.
 
+### Fixed
+- Fixed potential crashes in 3D transforms with unusual strides, for
+  SBCC-optimized sizes.
+
 ## [(Unreleased) rocFFT 1.0.11 for ROCm 4.2.0]
 
 ### Changed

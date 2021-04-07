@@ -4101,23 +4101,24 @@ void TreeNode::assign_params_CS_2D_RC_STRAIGHT()
     rowPlan->inStride = inStride;
     rowPlan->iDist    = iDist;
 
-    rowPlan->outStride = outStride;
-    rowPlan->oDist     = oDist;
+    // row plan is in-place, so keep same strides in case parent's
+    // in/out strides are incompatible for the same buffer
+    rowPlan->outStride = inStride;
+    rowPlan->oDist     = iDist;
 
     rowPlan->TraverseTreeAssignParamsLogicA();
 
     // B -> B
     assert((colPlan->obOut == OB_USER_OUT) || (colPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
            || (colPlan->obOut == OB_TEMP_BLUESTEIN));
-    colPlan->inStride.push_back(inStride[1]);
-    colPlan->inStride.push_back(inStride[0]);
-    for(size_t index = 2; index < length.size(); index++)
-        colPlan->inStride.push_back(inStride[index]);
+    colPlan->inStride = rowPlan->outStride;
+    std::swap(colPlan->inStride[0], colPlan->inStride[1]);
 
     colPlan->iDist = rowPlan->oDist;
 
-    colPlan->outStride = colPlan->inStride;
-    colPlan->oDist     = colPlan->iDist;
+    colPlan->outStride = outStride;
+    std::swap(colPlan->outStride[0], colPlan->outStride[1]);
+    colPlan->oDist = oDist;
 }
 
 void TreeNode::assign_params_CS_3D_RTRT()

@@ -320,16 +320,7 @@ namespace StockhamGenerator
             }
             str += "\t{\n";
 
-            str += "\t\t// SBCC+SBRC fold higher dimensions into the batch_count, so we need\n";
-            str += "\t\t// extra math to work out how many 'true' batches we really have\n";
-            str += "\t\tunsigned int batch_block_size = hipGridDim_x / batch_count; //To opt: it "
-                   "can "
-                   "be "
-                   "calc on host.\n";
-            str += "\t\tunsigned int counter_mod = batch % batch_block_size;\n";
-            str += "\t\tunsigned int batch_local_count = batch / batch_block_size; //To check: "
-                   "technically "
-                   "it should be done in one instruction.\n";
+            str += "\t\tunsigned int counter_mod = batch;\n";
 
             std::string loop;
             loop += "\t\tfor(int i = dim; i>2; i--){\n"; // dim is a runtime variable
@@ -361,50 +352,27 @@ namespace StockhamGenerator
             if(blockComputeType == BCT_R2C) // only for input
                 loop += "\t\ttileOffset_x\t= " + std::to_string(blockWidth) + "*lengths[0];\n";
             else
-                loop += "\t\ttileOffset_x\t= " + std::to_string(blockWidth) + ";\n\n";
+                // the most inner part of offset calc needs to count stride[1] for SBCC
+                loop += "\t\ttileOffset_x\t= " + std::to_string(blockWidth) + " * " + stride_name1
+                        + "[1];\n\n";
 
             loop += "\t\t" + offset_name1
                     + " += tileIdx_y * tileOffset_y + tileIdx_x * tileOffset_x;\n";
-
-            // the most inner part of offset calc needs to count stride[1] for SBCC
-            if(blockComputeType == BCT_C2C)
-                loop += "\t\t\t" + offset_name1 + " *= (" + stride_name1 + "[1]);\n";
-
-            // Distance between 'true' batches might be in a
-            // different stride_in/out array member depending on how
-            // this kernel is called.
-            //
-            // e.g. In a standalone CS_L1D_CC plan, dim=2 for these
-            // kernels and stride_foo[2] has the 'true' batch offset,
-            // as the first two strides represent the block compute
-            // dimensions.
-            //
-            // When these kernels are child nodes of some more
-            // complicated plan, dim should be >= 3, and the last
-            // stride has the 'true' batch offset.
-            static const char* batch_dist_idx = "[dim >= 3 ? dim-1 : 2]";
-            loop += "\t\t" + offset_name1 + " += (batch_local_count * " + stride_name1
-                    + batch_dist_idx + ");\n\n";
 
             if(output == true)
             {
                 loop += "\t\t// Calc output tile start offset\n";
                 loop += "\t\ttileOffset_y\t= " + stride_name2 + "[2];\n";
 
+                // the most inner part of offset calc needs to count stride[1] for block compute
                 if(blockComputeType == BCT_C2R) // only for output
                     loop += "\t\ttileOffset_x\t= " + std::to_string(blockWidth) + "*lengths[0];\n";
                 else
-                    loop += "\t\ttileOffset_x\t= " + std::to_string(blockWidth) + ";\n\n";
+                    loop += "\t\ttileOffset_x\t= " + std::to_string(blockWidth) + " * "
+                            + stride_name2 + "[1];\n\n";
 
                 loop += "\t\t" + offset_name2
                         + " += tileIdx_y * tileOffset_y + tileIdx_x * tileOffset_x;\n";
-
-                // the most inner part of offset calc needs to count stride[1] for SBRC
-                if(blockComputeType == BCT_R2C)
-                    loop += "\t\t" + offset_name2 + " *= (" + stride_name2 + "[1]);\n";
-
-                loop += "\t\t" + offset_name2 + " += (batch_local_count * " + stride_name2
-                        + batch_dist_idx + ");\n\n";
             }
             loop += "\t}\n";
             if(blockComputeType == BCT_R2C)
@@ -1913,13 +1881,10 @@ namespace StockhamGenerator
                         std::string global_offset;
                         global_offset = "(me%" + std::to_string(blockWidth);
 
-                        if(blockComputeType
-                           == BCT_R2C) // the most inner part of offset calc needs to count stride[1] for SBRC
-                            global_offset += ((placeness == rocfft_placement_inplace)
-                                                  ? ") * stride_in[1] + "
-                                                  : ") * stride_out[1] + ");
-                        else
-                            global_offset += ") + ";
+                        // the most inner part of offset calc needs to count stride[1] for block compute
+                        global_offset
+                            += ((placeness == rocfft_placement_inplace) ? ") * stride_in[1] + "
+                                                                        : ") * stride_out[1] + ");
 
                         global_offset += "(me/";
                         global_offset += std::to_string(blockWidth);
