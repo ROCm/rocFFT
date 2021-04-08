@@ -894,7 +894,7 @@ def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype, precision)
                     texstring += "\\begin{itemize}\n"
                 else:
                     if line.strip() != "":
-                        texstring += "\\item " + line + "\n"
+                        texstring += "\\item \\verb|" + line + "|\n"
             texstring += "\\end{itemize}\n"
             texstring += "\n"
 
