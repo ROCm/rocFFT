@@ -67,41 +67,6 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     }
 }
 
-// Interleaved version of r2c post-process kernel, 2D and 3D
-template <typename Tcomplex, bool Ndiv4>
-__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
-    real_post_process_kernel_interleaved(const size_t half_N,
-                                         const size_t idist1D,
-                                         const size_t odist1D,
-                                         const void*  input0,
-                                         const size_t idist,
-                                         void*        output0,
-                                         const size_t odist,
-                                         const void*  twiddles0)
-{
-    // blockIdx.y gives the multi-dimensional offset
-    // blockIdx.z gives the batch offset
-
-    const size_t idx_p = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
-    const size_t idx_q = half_N - idx_p;
-
-    const auto quarter_N = (half_N + 1) / 2;
-    const auto twiddles  = (Tcomplex*)twiddles0;
-
-    if(idx_p < quarter_N)
-    {
-        // blockIdx.y gives the multi-dimensional offset
-        // blockIdx.z gives the batch offset
-        // clang format off
-        const auto input  = (Tcomplex*)(input0) + blockIdx.y * idist1D + blockIdx.z * idist;
-        auto       output = (Tcomplex*)(output0) + blockIdx.y * odist1D + blockIdx.z * odist;
-        // clang format on
-
-        post_process_interleaved<Tcomplex, Ndiv4>(
-            idx_p, idx_q, half_N, quarter_N, input, output, twiddles);
-    }
-}
-
 template <typename Tcomplex, bool Ndiv4>
 __device__ inline void post_process_planar(const size_t           idx_p,
                                            const size_t           idx_q,
@@ -178,45 +143,6 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     }
 }
 
-// Planar version of r2c post-process kernel, 2D and 3D
-template <typename Tcomplex, bool Ndiv4>
-__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
-    real_post_process_kernel_planar(const size_t half_N,
-                                    const size_t idist1D,
-                                    const size_t odist1D,
-                                    const void*  input0,
-                                    const size_t idist,
-                                    void*        output0,
-                                    void*        output1,
-                                    const size_t odist,
-                                    const void*  twiddles0)
-{
-    // blockIdx.y gives the multi-dimensional offset
-    // blockIdx.z gives the batch offset
-
-    const size_t idx_p = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
-    const size_t idx_q = half_N - idx_p;
-
-    const auto quarter_N = (half_N + 1) / 2;
-    const auto twiddles  = (Tcomplex*)twiddles0;
-
-    if(idx_p < quarter_N)
-    {
-        // blockIdx.y gives the multi-dimensional offset
-        // blockIdx.z gives the batch offset
-        // clang format off
-        const auto input = (Tcomplex*)(input0) + blockIdx.y * idist1D + blockIdx.z * idist;
-        auto       outputRe
-            = (real_type_t<Tcomplex>*)(output0) + blockIdx.y * odist1D + blockIdx.z * odist;
-        auto outputIm
-            = (real_type_t<Tcomplex>*)(output1) + blockIdx.y * odist1D + blockIdx.z * odist;
-        // clang format on
-
-        post_process_planar<Tcomplex, Ndiv4>(
-            idx_p, idx_q, half_N, quarter_N, input, outputRe, outputIm, twiddles);
-    }
-}
-
 // Entrance function for r2c post-processing kernel
 void r2c_1d_post(const void* data_p, void*)
 {
@@ -233,19 +159,6 @@ void r2c_1d_post(const void* data_p, void*)
     kernelmap_interleaved_1D.emplace(std::make_tuple(rocfft_precision_double, false),
                                      &(real_post_process_kernel_interleaved_1D<double2, false>));
 
-    // Map to interleaved kernels:
-    std::map<std::tuple<rocfft_precision, bool>,
-             decltype(&real_post_process_kernel_interleaved<float2, true>)>
-        kernelmap_interleaved;
-    kernelmap_interleaved.emplace(std::make_tuple(rocfft_precision_single, true),
-                                  &(real_post_process_kernel_interleaved<float2, true>));
-    kernelmap_interleaved.emplace(std::make_tuple(rocfft_precision_single, false),
-                                  &(real_post_process_kernel_interleaved<float2, false>));
-    kernelmap_interleaved.emplace(std::make_tuple(rocfft_precision_double, true),
-                                  &(real_post_process_kernel_interleaved<double2, true>));
-    kernelmap_interleaved.emplace(std::make_tuple(rocfft_precision_double, false),
-                                  &(real_post_process_kernel_interleaved<double2, false>));
-
     // Map to planar 1D kernels:
     std::map<std::tuple<rocfft_precision, bool>,
              decltype(&real_post_process_kernel_planar_1D<float2, true>)>
@@ -258,19 +171,6 @@ void r2c_1d_post(const void* data_p, void*)
                                 &(real_post_process_kernel_planar_1D<double2, true>));
     kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_double, false),
                                 &(real_post_process_kernel_planar_1D<double2, false>));
-
-    // Map to planar kernels:
-    std::map<std::tuple<rocfft_precision, bool>,
-             decltype(&real_post_process_kernel_planar<float2, true>)>
-        kernelmap_planar;
-    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_single, true),
-                             &(real_post_process_kernel_planar<float2, true>));
-    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_single, false),
-                             &(real_post_process_kernel_planar<float2, false>));
-    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_double, true),
-                             &(real_post_process_kernel_planar<double2, true>));
-    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_double, false),
-                             &(real_post_process_kernel_planar<double2, false>));
 
     const DeviceCallIn* data = (DeviceCallIn*)data_p;
 
@@ -290,7 +190,10 @@ void r2c_1d_post(const void* data_p, void*)
     const size_t high_dimension = std::accumulate(
         data->node->length.begin() + 1, data->node->length.end(), 1, std::multiplies<size_t>());
     // Strides are actually distances between contiguous data vectors.
-    const bool onedim = high_dimension == 1;
+
+    // 2D and 3D post-processing should be fused with following
+    // transpose, so this function should only be for 1D
+    assert(high_dimension == 1);
 
     const bool                               Ndiv4  = half_N % 2 == 0;
     const std::tuple<rocfft_precision, bool> params = std::make_tuple(data->node->precision, Ndiv4);
@@ -304,75 +207,34 @@ void r2c_1d_post(const void* data_p, void*)
 
     try
     {
-        if(onedim)
+        if(data->node->outArrayType == rocfft_array_type_hermitian_interleaved)
         {
-            if(data->node->outArrayType == rocfft_array_type_hermitian_interleaved)
-            {
-                hipLaunchKernelGGL(kernelmap_interleaved_1D.at(params),
-                                   grid,
-                                   threads,
-                                   0,
-                                   data->rocfft_stream,
-                                   half_N,
-                                   bufIn0,
-                                   idist,
-                                   bufOut0,
-                                   odist,
-                                   data->node->twiddles.data());
-            }
-            else
-            {
-                hipLaunchKernelGGL(kernelmap_planar_1D.at(params),
-                                   grid,
-                                   threads,
-                                   0,
-                                   data->rocfft_stream,
-                                   half_N,
-                                   bufIn0,
-                                   idist,
-                                   bufOut0,
-                                   bufOut1,
-                                   odist,
-                                   data->node->twiddles.data());
-            }
+            hipLaunchKernelGGL(kernelmap_interleaved_1D.at(params),
+                               grid,
+                               threads,
+                               0,
+                               data->rocfft_stream,
+                               half_N,
+                               bufIn0,
+                               idist,
+                               bufOut0,
+                               odist,
+                               data->node->twiddles.data());
         }
         else
         {
-            const size_t idist1D = data->node->inStride[1];
-            const size_t odist1D = data->node->outStride[1];
-            if(data->node->outArrayType == rocfft_array_type_hermitian_interleaved)
-            {
-                hipLaunchKernelGGL(kernelmap_interleaved.at(params),
-                                   grid,
-                                   threads,
-                                   0,
-                                   data->rocfft_stream,
-                                   half_N,
-                                   idist1D,
-                                   odist1D,
-                                   bufIn0,
-                                   idist,
-                                   bufOut0,
-                                   odist,
-                                   data->node->twiddles.data());
-            }
-            else
-            {
-                hipLaunchKernelGGL(kernelmap_planar.at(params),
-                                   grid,
-                                   threads,
-                                   0,
-                                   data->rocfft_stream,
-                                   half_N,
-                                   idist1D,
-                                   odist1D,
-                                   bufIn0,
-                                   idist,
-                                   bufOut0,
-                                   bufOut1,
-                                   odist,
-                                   data->node->twiddles.data());
-            }
+            hipLaunchKernelGGL(kernelmap_planar_1D.at(params),
+                               grid,
+                               threads,
+                               0,
+                               data->rocfft_stream,
+                               half_N,
+                               bufIn0,
+                               idist,
+                               bufOut0,
+                               bufOut1,
+                               odist,
+                               data->node->twiddles.data());
         }
     }
     catch(std::exception& e)
@@ -565,9 +427,14 @@ void c2r_1d_pre(const void* data_p, void*)
 
     const size_t high_dimension = std::accumulate(
         data->node->length.begin() + 1, data->node->length.end(), 1, std::multiplies<size_t>());
+
+    // 2D and 3D pre-processing should be fused with preceding
+    // transpose, so this function should only be for 1D
+    assert(high_dimension == 1);
+
     // Strides are actually distances between contiguous data vectors.
-    const size_t istride = high_dimension > 1 ? data->node->inStride[1] : 0;
-    const size_t ostride = high_dimension > 1 ? data->node->outStride[1] : 0;
+    const size_t istride = 0;
+    const size_t ostride = 0;
 
     const bool                               Ndiv4  = half_N % 2 == 0;
     const std::tuple<rocfft_precision, bool> params = std::make_tuple(data->node->precision, Ndiv4);
