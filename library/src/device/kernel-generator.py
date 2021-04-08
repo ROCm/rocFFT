@@ -376,9 +376,9 @@ class POWX_SMALL_GENERATOR(BaseNode):
 
 def hijack():
     kernels = [
-        NS(factors=[7, 8],
+        NS(length=56,
            threads_per_block=64),
-        NS(factors=[6, 7, 8])
+        NS(length=336)
     ]
 
     return [stockham.stockham(**x.__dict__) for x in kernels]
