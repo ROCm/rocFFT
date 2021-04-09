@@ -7,6 +7,10 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Fixed
 - Fixed potential crashes in double-precision planar->planar transpose.
 
+### Added
+- Added new kernel generator for select lengths.  New kernels have
+  improved performance.
+
 ### Removed
 - Removed R2C pair schemes and kernels.
 

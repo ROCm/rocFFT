@@ -60,6 +60,7 @@ def stockham_uwide_device(factors, **kwargs):
 
     # arguments
     scalar_type = Variable('scalar_type', 'typename')
+    sb          = Variable('sb', 'StrideBin')
     Z           = Variable('buf', 'scalar_type', array=True)
     X           = Variable('lds', 'scalar_type', array=True)
     T           = Variable('twiddles', 'const scalar_type', array=True)
@@ -73,9 +74,13 @@ def stockham_uwide_device(factors, **kwargs):
     W         = Variable('W', 'scalar_type')
     t         = Variable('t', 'scalar_type')
     R         = Variable('R', 'scalar_type', max(factors))
+    lstride   = Variable('lstride', 'size_t const')
+
+    unit_stride = sb == 'SB_UNIT'
 
     body = StatementList()
     body += Declarations(thread, R, W, t)
+    body += Declaration(lstride.name, lstride.type, None, Ternary(unit_stride, 1, stride))
 
     body += LineBreak()
     body += Assign(thread, thread_id % (length // min(factors)))
@@ -85,8 +90,7 @@ def stockham_uwide_device(factors, **kwargs):
     width = min(factors)
     for b in range(width):
         idx = thread + b * (length // width)
-        body += Assign(X[offset_lds + idx], Z[offset + B(idx) * stride])
-#        body += Assign(X[offset_lds + idx], Z[offset + idx])
+        body += Assign(X[offset_lds + idx], Z[offset + B(idx) * lstride])
 
     #
     # transform
@@ -125,13 +129,12 @@ def stockham_uwide_device(factors, **kwargs):
         if npass == len(factors) - 1:
 
             body += CommentLines('store global')
-            stmts = StatementList()
+            store = StatementList()
             width = factors[-1]
             for w in range(width):
                 idx = thread + w * (length // width)
-#                stmts += Assign(Z[offset + idx], R[w])
-                stmts += Assign(Z[offset + B(idx) * stride], R[w])
-            body += If(thread < length // width, stmts)
+                store += Assign(Z[offset + B(idx) * lstride], R[w])
+            body += If(thread < length // width, store)
 
         else:
 
@@ -148,9 +151,10 @@ def stockham_uwide_device(factors, **kwargs):
 
     return Function(f'forward_length{length}_device',
                     arguments=ArgumentList(Z, X, T, stride, offset, offset_lds),
-                    templates=TemplateList(scalar_type),
+                    templates=TemplateList(scalar_type, sb),
                     body=body,
                     qualifier='__device__')
+
 
 def stockham_wide_device(factors, **kwargs):
     """Stockham kernel.
@@ -161,6 +165,7 @@ def stockham_wide_device(factors, **kwargs):
 
     # arguments
     scalar_type = Variable('scalar_type', 'typename')
+    sb          = Variable('sb', 'StrideBin')
     Z           = Variable('buf', 'scalar_type', array=True)
     X           = Variable('lds', 'scalar_type', array=True)
     T           = Variable('twiddles', 'const scalar_type', array=True)
@@ -174,6 +179,7 @@ def stockham_wide_device(factors, **kwargs):
     W         = Variable('W', 'scalar_type')
     t         = Variable('t', 'scalar_type')
     R         = Variable('R', 'scalar_type', 2*max(factors))
+    lstride   = Variable('lstride', 'size_t const')
 
     height0 = length // max(factors)
 
@@ -242,6 +248,7 @@ def stockham_wide_device(factors, **kwargs):
 
     body = StatementList()
     body += Declarations(thread, R, W, t)
+    #body += Declaration(lstride, Ternary(unit_stride, 1, stride))
     body += LineBreak()
     body += CommentLines('load global')
     body += load_global()
@@ -287,7 +294,7 @@ def stockham_wide_device(factors, **kwargs):
 
     return Function(f'forward_length{length}_device',
                     arguments=ArgumentList(Z, X, T, stride, offset, offset_lds),
-                    templates=TemplateList(scalar_type),
+                    templates=TemplateList(scalar_type, sb),
                     body=body,
                     qualifier='__device__')
 
@@ -349,7 +356,7 @@ def stockham_global(factors, **kwargs):
     body += Assign(offset_lds, length * B(transform % params.transforms_per_block))
     body += Call(f'forward_length{length}_device',
                  arguments=ArgumentList(buf, lds, twiddles, stride[0], offset, offset_lds),
-                 templates=TemplateList(scalar_type))
+                 templates=TemplateList(scalar_type, sb))
 
     return Function(name=f'forward_length{length}',
                     qualifier='__global__',
@@ -372,7 +379,7 @@ def make_variants(kdevice, kglobal):
 
     Return out-of-place and planar variations.
     """
-    op_names = ['buf', 'stride', 'offset']
+    op_names = ['buf', 'stride', 'lstride', 'offset']
 
     def rename(x, pre):
         if 'forward' in x or 'inverse' in x:
@@ -502,4 +509,3 @@ def stockham(length, **kwargs):
         kdevice = stockham_wide_device(factors, **kwargs)
     kglobal = stockham_global(factors, **kwargs)
     return (kdevice, kglobal)
-

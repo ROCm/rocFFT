@@ -3,6 +3,7 @@
 import inspect
 import os
 import subprocess
+import types
 
 from pathlib import Path as path
 from typing import List, Any
@@ -244,12 +245,16 @@ class StatementList(BaseNode):
         return njoin(self.args)
 
 
-@name_args(['name', 'type', 'size'])
+@name_args(['name', 'type', 'size', 'value'])
 class Declaration(BaseNode):
     def __str__(self):
+        s = f'{self.type} {self.name}'
         if self.size is not None:
-            return f'{self.type} {self.name}[{self.size}];'
-        return f'{self.type} {self.name};'
+            s += f'[{self.size}]'
+        if self.value is not None:
+            s += f' = {self.value}'
+        s += ';'
+        return s
 
 
 def Declarations(*args):
@@ -343,6 +348,12 @@ class Assign(BaseNode):
     def __str__(self):
         return str(self.args[0]) + ' = ' + str(self.args[1]) + ';' \
             + self.provenance()
+
+
+@name_args(['cond', 'true_rhs', 'false_rhs'])
+class Ternary(BaseNode):
+    def __str__(self):
+        return f'({str(self.cond)}) ? ({str(self.true_rhs)}) : ({str(self.false_rhs)})'
 
 
 @name_args(['lhs', 'rhs'])
@@ -502,10 +513,21 @@ class Block(BaseNode):
         return '{' + njoin(self.args) + '}'
 
 
-@name_args(['condition', 'body'])
+@name_args(['condition', 'body', 'const'])
 class If(BaseNode):
     def __str__(self):
+        # constexpr is c++17, skip for now
+        # if self.const:
+        #     return 'if constexpr (' + str(self.condition) + ') {' + njoin(self.body) + '}'
         return 'if(' + str(self.condition) + ') {' + njoin(self.body) + '}'
+
+@name_args(['condition', 'bodyif', 'bodyelse', 'const'])
+class IfElse(BaseNode):
+    def __str__(self):
+        # constexpr is c++17, skip for now
+        # if self.const:
+        #     return 'if constexpr (' + str(self.condition) + ') {' + njoin(self.bodyif) + '} else {' + njoin(self.bodyelse) + '}'
+        return 'if(' + str(self.condition) + ') {' + njoin(self.bodyif) + '} else {' + njoin(self.bodyelse) + '}'
 
 
 @name_args(['condition', 'body'])
@@ -632,11 +654,11 @@ def make_planar(kernel, varname):
 
     Finally, argument lists like:
 
-       devive_kernel(scalar_type *inout);
+       device_kernel(scalar_type *inout);
 
     become
 
-       devive_kernel(real_type_t<scalar_type> *inoutre, real_type_t<scalar_type> *inoutim);
+       device_kernel(real_type_t<scalar_type> *inoutre, real_type_t<scalar_type> *inoutim);
 
     """
 
@@ -691,8 +713,8 @@ def make_out_of_place(kernel, names):
     body of the kernel, the i/o array is only used in assignments
     (that is, typically loaded to and from LDS).
 
-    For example, suppose we want to make the 'inout' array planar.
-    Assignments like
+    For example, suppose we want to make the in-place 'inout' array
+    into out-of-place arrays.  Assignments like
 
        lds[idx] = inout[idx];
 
@@ -710,11 +732,11 @@ def make_out_of_place(kernel, names):
 
     Finally, argument lists like:
 
-       devive_kernel(scalar_type *inout);
+       device_kernel(scalar_type *inout);
 
     become
 
-       devive_kernel(scalar_type *in, scalar_type *out);
+       device_kernel(scalar_type *in, scalar_type *out);
 
     """
 
@@ -741,6 +763,10 @@ def make_out_of_place(kernel, names):
             xi, xo = copy(x), copy(x)
             xi.args[0] = x.name + '_in'
             xo.args[0] = x.name + '_out'
+            if xi.value is not None:
+                xi.args[3] = depth_first(xi.args[3], input_visitor)
+            if xo.value is not None:
+                xo.args[3] = depth_first(xo.args[3], output_visitor)
             return StatementList(xi, xo)
         return x
 
@@ -796,7 +822,16 @@ def make_out_of_place(kernel, names):
 def make_inverse(kernel, twiddles):
     """Rewrite forward 'kernel' to be an inverse kernel.
 
+    Forward butterfly calls like this
 
+       FwdRadX(...)
+
+    are re-written to backward butterfly calls like this
+
+       InvRadX(...)
+
+    and entries from the twiddle table in 'twiddles' are changed to
+    their complex conjugate.
     """
 
     kernel = rename_functions(kernel, lambda x: x.replace('forward', 'inverse'))

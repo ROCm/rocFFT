@@ -29,7 +29,6 @@
 #endif
 #include "../../../shared/array_predicate.h"
 #include "kargs.h"
-#include "kernel_launch_generator.h"
 #include "rocfft.h"
 #include "rocfft_hip.h"
 #include "tree_node.h"
@@ -52,8 +51,6 @@ struct DeviceCallOut
 {
     int err;
 };
-
-extern "C" {
 
 /* Naming convention
 
@@ -83,7 +80,6 @@ bcc - block column column
 void rocfft_internal_mul(const void* data_p, void* back_p);
 void rocfft_internal_chirp(const void* data_p, void* back_p);
 void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
-}
 
 /*
    data->node->devKernArg : points to the internal length device pointer
