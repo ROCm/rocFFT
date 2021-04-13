@@ -747,7 +747,7 @@ namespace StockhamGenerator
                                 passStr += twType;
                                 passStr += " W = ";
                                 passStr += tw3StepFunc;
-                                passStr += "<T>(twiddles_large, ";
+                                passStr += "<T, LTBase>(twiddles_large, ";
 
                                 if(frontTwiddle)
                                 {
@@ -1748,7 +1748,7 @@ namespace StockhamGenerator
             // Function attribute
             if(name_suffix == "_sbcc") // // the blockCompute BCT_C2C algorithm use only
             {
-                passStr += "template <typename T, StrideBin sb, bool TwdLarge>\n";
+                passStr += "template <typename T, StrideBin sb, bool TwdLarge, size_t LTBase>\n";
             }
             else
             {

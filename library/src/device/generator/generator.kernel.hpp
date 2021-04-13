@@ -230,6 +230,14 @@ namespace StockhamGenerator
             return (blockCompute && blockComputeType == BCT_C2C) ? true : false;
         }
 
+        // // FIXME: after we have tuning framework, we don't have to block 81 and 200
+        // bool MoveLTWDtoLDS()
+        // {
+        //     // NOTE: need to be consistent with kernel_generator.py:
+        //     // function.meta.use_3steps_large_twd -> large 1D -> FFTKernel
+        //     return (length != 81) && (length != 200);
+        // }
+
     private:
         inline std::string IterRegs(const std::string& pfx, bool initComma = true)
         {
@@ -842,7 +850,8 @@ namespace StockhamGenerator
 
                         if(NeedsLargeTwiddles())
                         {
-                            str += "template <typename T, StrideBin sb, bool TwdLarge>\n";
+                            str += "template <typename T, StrideBin sb, bool TwdLarge, size_t "
+                                   "LTBase>\n";
                         }
                         else
                         {
@@ -905,7 +914,7 @@ namespace StockhamGenerator
                             str += PassName(0, fwd, length, name_suffix);
                             if(NeedsLargeTwiddles())
                             {
-                                str += "<T, sb, TwdLarge>(twiddles, twiddles_large, "; // the blockCompute BCT_C2C algorithm use
+                                str += "<T, sb, TwdLarge, LTBase>(twiddles, twiddles_large, "; // the blockCompute BCT_C2C algorithm use
                             }
                             else
                             {
@@ -940,7 +949,7 @@ namespace StockhamGenerator
                                 // the blockCompute BCT_C2C algorithm use one more twiddle parameter
                                 if(NeedsLargeTwiddles())
                                 {
-                                    str += "<T, sb, TwdLarge>(twiddles, twiddles_large, ";
+                                    str += "<T, sb, TwdLarge, LTBase>(twiddles, twiddles_large, ";
                                 }
                                 else
                                 {
@@ -1056,6 +1065,18 @@ namespace StockhamGenerator
             str += " lds[";
             str += std::to_string(ldsSize);
             str += "];\n";
+
+            if(NeedsLargeTwiddles())
+            {
+                str += "\t// when TwdLarge=false, host even doesn't allocate large twd memory. "
+                       "Declare a 0-size array to pass compiler";
+                str += "\n\t__shared__ ";
+                str += r2Type;
+                str += " large_twd_lds[";
+                str += "(TwdLarge && LTBase < " + std::to_string(LTWD_BASE_DEFAULT)
+                       + ")? (1 << LTBase) * 3 : 0"; // for 3-steps ltwd
+                str += "];\n";
+            }
         }
 
         virtual std::string LaunchBounds()
@@ -1110,7 +1131,8 @@ namespace StockhamGenerator
             // Function signature
             if(NeedsLargeTwiddles())
             {
-                str += "template <typename T, StrideBin sb, bool TwdLarge>\n";
+                str += "template <typename T, StrideBin sb, bool TwdLarge, size_t LTBase="
+                       + std::to_string(LTWD_BASE_DEFAULT) + ">\n";
             }
             // SBRC has additional parameters for fused transpose varieties
             else if(blockComputeType == BCT_R2C)
@@ -1330,6 +1352,24 @@ namespace StockhamGenerator
             str += "unsigned int me = (unsigned int)hipThreadIdx_x;\n\t";
             str += "unsigned int batch = (unsigned int)hipBlockIdx_x;";
             str += "\n";
+
+            std::string ltwdLDS_cond = "TwdLarge && LTBase < " + std::to_string(LTWD_BASE_DEFAULT);
+
+            if(NeedsLargeTwiddles())
+            {
+                str += "\n\t// when TwdLarge=false, host even doesn't allocate large twd memory";
+                str += "\n\tif(" + ltwdLDS_cond + ")";
+                str += "\n\t{";
+                str += "\n\t\tsize_t ltwd_id = me;";
+                str += "\n\t\twhile(ltwd_id < (1 << LTBase) * 3 )";
+                str += "\n\t\t{";
+                str += "\n\t\t\tlarge_twd_lds[ltwd_id] = twiddles_large[ltwd_id];";
+                str += "\n\t\t\tltwd_id += " + std::to_string(blockWGS) + ";";
+                str += "\n\t\t}";
+                str += "\n\t\t//__syncthreads(); don't have to sync because pass0 will sync "
+                       "anyway\n";
+                str += "\n\t}";
+            }
 
             // Declare memory pointers
             str += "\n\t";
@@ -1760,7 +1800,8 @@ namespace StockhamGenerator
             std::string sb = params.forceNonUnitStride ? "SB_NONUNIT" : "sb";
             if(NeedsLargeTwiddles())
             {
-                str += "_device<T, " + sb + ", TwdLarge>(twiddles, twiddles_large, ";
+                str += "_device<T, " + sb + ", TwdLarge, LTBase>(twiddles, (" + ltwdLDS_cond
+                       + ")? large_twd_lds : twiddles_large, ";
             }
             else
             {

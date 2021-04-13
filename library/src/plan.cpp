@@ -1450,6 +1450,21 @@ size_t TreeNode::div1DNoPo2(const size_t length0)
     return (factor > 0) ? length0 / factor : 0;
 }
 
+// Compute the large twd decomposition base
+// 2-Steps:
+//  e.g., ( CeilPo2(10000)+ 1 ) / 2 , returns 7 : (2^7)*(2^7) = 16384 >= 10000
+// 3-Steps:
+//  e.g., ( CeilPo2(10000)+ 2 ) / 3 , returns 5 : (2^5)*(2^5)*(2^5) = 32768 >= 10000
+size_t TreeNode::large_twiddle_base(size_t length, bool use3Steps)
+{
+    if(use3Steps)
+        // 16^3 ~ 64^3, basically enough for 262144
+        return std::min((size_t)6, std::max((size_t)4, (CeilPo2(length) + 2) / 3));
+    else
+        // always return 8, 256^2, if exceed 65536, it becomes 256^3...
+        return 8;
+}
+
 void TreeNode::build_1D()
 {
     // Build a node for a 1D FFT
@@ -1559,7 +1574,7 @@ void TreeNode::build_1D()
     if(failed)
     {
         PrintFailInfo(precision, length[0], scheme);
-        assert(0); // can't find the length in map1DLengthSingle/Double.
+        assert(false); // can't find the length in map1DLengthSingle/Double.
     }
 
     size_t divLength0 = length[0] / divLength1;
@@ -1792,6 +1807,12 @@ void TreeNode::build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength
     // large1D flag to confirm we need multiply twiddle factor
     col2colPlan->large1D = length[0];
 
+    // decompose the large twd table for L1D_CC
+    // exclude some exceptions that don't get benefit from 3-step LargeTwd (set in FFTKernel)
+    auto krn = function_pool::get_kernel_single({divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC});
+    col2colPlan->largeTwd3Steps = krn.use_3steps_large_twd;
+    col2colPlan->largeTwdBase   = large_twiddle_base(length[0], col2colPlan->largeTwd3Steps);
+
     col2colPlan->length.push_back(divLength1);
     col2colPlan->length.push_back(divLength0);
 
@@ -1840,6 +1861,12 @@ void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLengt
 
     // large1D flag to confirm we need multiply twiddle factor
     col2colPlan->large1D = length[0];
+
+    // decompose the large twd table for L1D_CRT
+    // exclude some exceptions that don't get benefit from 3-step LargeTwd (set in FFTKernel)
+    auto krn = function_pool::get_kernel_single({divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC});
+    col2colPlan->largeTwd3Steps = krn.use_3steps_large_twd;
+    col2colPlan->largeTwdBase   = large_twiddle_base(length[0], col2colPlan->largeTwd3Steps);
 
     col2colPlan->length.push_back(divLength1);
     col2colPlan->length.push_back(divLength0);
@@ -4420,6 +4447,7 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     }
     os << "\n" << indentStr.c_str() << "TTD: " << transTileDir;
     os << "\n" << indentStr.c_str() << "large1D: " << large1D;
+    os << "\n" << indentStr.c_str() << "largeTwdBase: " << largeTwdBase;
     os << "\n" << indentStr.c_str() << "lengthBlue: " << lengthBlue << "\n";
 
     os << indentStr << PrintOperatingBuffer(obIn) << " -> " << PrintOperatingBuffer(obOut) << "\n";

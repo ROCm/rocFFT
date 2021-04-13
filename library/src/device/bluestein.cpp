@@ -62,6 +62,7 @@ void rocfft_internal_chirp(const void* data_p, void* back_p)
         twl = 4;
     else if(data->node->large1D > (size_t)256 * 256)
         twl = 3;
+    // TODO- possibly using a smaller LargeTwdBase for chirp by large_twiddle_base
     else if(data->node->large1D > (size_t)256)
         twl = 2;
     else

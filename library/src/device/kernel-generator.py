@@ -154,6 +154,9 @@ class FFTKernel(BaseNode):
     def __str__(self):
         f = 'FFTKernel('
         f += str(self.function.address())
+        use_3steps_large_twd = getattr(self.function.meta, 'use_3steps_large_twd', None)
+        if use_3steps_large_twd is not None:
+            f += ', ' + str(use_3steps_large_twd)
         factors = getattr(self.function.meta, 'factors', None)
         if factors is not None:
             f += ', {' + cjoin(factors) + '}'
@@ -245,6 +248,7 @@ def generate_large_1d_prototypes(precision, transforms):
                                       length=length,
                                       precision=precision,
                                       scheme=scheme,
+                                      use_3steps_large_twd='false' if (length == 81 or length == 200) else 'true',
                                       pool=pool)))
 
     for length, scheme in transforms:

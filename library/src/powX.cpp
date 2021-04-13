@@ -71,7 +71,8 @@ bool PlanPowX(ExecPlan& execPlan)
            || (node->scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
            || (node->scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY))
         {
-            node->twiddles = twiddles_create(node->length[0], node->precision, false, false, false);
+            node->twiddles = twiddles_create(
+                node->length[0], node->precision, false, LTWD_BASE_DEFAULT, false, false);
             if(node->twiddles == nullptr)
                 return false;
         }
@@ -79,8 +80,8 @@ bool PlanPowX(ExecPlan& execPlan)
                 || (node->scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE)
                 || (node->scheme == CS_KERNEL_CMPLX_TO_R))
         {
-            node->twiddles
-                = twiddles_create(2 * node->length[0], node->precision, false, true, false);
+            node->twiddles = twiddles_create(
+                2 * node->length[0], node->precision, false, LTWD_BASE_DEFAULT, true, false);
             if(node->twiddles == nullptr)
                 return false;
         }
@@ -88,8 +89,12 @@ bool PlanPowX(ExecPlan& execPlan)
         else if(node->scheme == CS_KERNEL_TRANSPOSE_CMPLX_TO_R)
         {
             // C2R transform ends up getting shorter by 1 along that dimension also
-            node->twiddles = twiddles_create(
-                2 * (node->length.back() - 1), node->precision, false, true, false);
+            node->twiddles = twiddles_create(2 * (node->length.back() - 1),
+                                             node->precision,
+                                             false,
+                                             LTWD_BASE_DEFAULT,
+                                             true,
+                                             false);
             if(node->twiddles == nullptr)
                 return false;
         }
@@ -100,15 +105,16 @@ bool PlanPowX(ExecPlan& execPlan)
         }
         else if(node->scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
         {
-            node->twiddles = twiddles_create(node->length[0], node->precision, false, false, true);
+            node->twiddles = twiddles_create(
+                node->length[0], node->precision, false, LTWD_BASE_DEFAULT, false, true);
             if(node->twiddles == nullptr)
                 return false;
         }
 
         if(node->large1D != 0)
         {
-            node->twiddles_large
-                = twiddles_create(node->large1D, node->precision, true, false, false);
+            node->twiddles_large = twiddles_create(
+                node->large1D, node->precision, true, node->largeTwdBase, false, false);
             if(node->twiddles_large == nullptr)
                 return false;
         }

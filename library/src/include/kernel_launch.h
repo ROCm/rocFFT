@@ -133,41 +133,77 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
 #define KERNEL_BASE_ARGS_OP_SBCC(PRECISION)                                                    \
     const PRECISION* __restrict__, const PRECISION* __restrict__, const size_t, const size_t*, \
         const size_t*, const size_t*, const size_t
-#define GET_KERNEL_FUNC_SBCC(FWD, BACK, PRECISION, BASE_ARGS, ...)    \
-    void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr; \
-    if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1) \
-    {                                                                 \
-        if(data->node->direction == -1)                               \
-        {                                                             \
-            if(data->node->large1D)                                   \
-                kernel_func = FWD<PRECISION, SB_UNIT, true>;          \
-            else                                                      \
-                kernel_func = FWD<PRECISION, SB_UNIT, false>;         \
-        }                                                             \
-        else                                                          \
-        {                                                             \
-            if(data->node->large1D)                                   \
-                kernel_func = BACK<PRECISION, SB_UNIT, true>;         \
-            else                                                      \
-                kernel_func = BACK<PRECISION, SB_UNIT, false>;        \
-        }                                                             \
-    }                                                                 \
-    else                                                              \
-    {                                                                 \
-        if(data->node->direction == -1)                               \
-        {                                                             \
-            if(data->node->large1D)                                   \
-                kernel_func = FWD<PRECISION, SB_NONUNIT, true>;       \
-            else                                                      \
-                kernel_func = FWD<PRECISION, SB_NONUNIT, false>;      \
-        }                                                             \
-        else                                                          \
-        {                                                             \
-            if(data->node->large1D)                                   \
-                kernel_func = BACK<PRECISION, SB_NONUNIT, true>;      \
-            else                                                      \
-                kernel_func = BACK<PRECISION, SB_NONUNIT, false>;     \
-        }                                                             \
+#define GET_KERNEL_FUNC_SBCC(FWD, BACK, PRECISION, BASE_ARGS, ...)      \
+    void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr;   \
+    if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1)   \
+    {                                                                   \
+        if(data->node->direction == -1)                                 \
+        {                                                               \
+            if(data->node->large1D)                                     \
+            {                                                           \
+                if(data->node->largeTwdBase == 4)                       \
+                    kernel_func = FWD<PRECISION, SB_UNIT, true, 4>;     \
+                else if(data->node->largeTwdBase == 5)                  \
+                    kernel_func = FWD<PRECISION, SB_UNIT, true, 5>;     \
+                else if(data->node->largeTwdBase == 6)                  \
+                    kernel_func = FWD<PRECISION, SB_UNIT, true, 6>;     \
+                else                                                    \
+                    kernel_func = FWD<PRECISION, SB_UNIT, true>;        \
+            }                                                           \
+            else                                                        \
+                kernel_func = FWD<PRECISION, SB_UNIT, false>;           \
+        }                                                               \
+        else                                                            \
+        {                                                               \
+            if(data->node->large1D)                                     \
+            {                                                           \
+                if(data->node->largeTwdBase == 4)                       \
+                    kernel_func = BACK<PRECISION, SB_UNIT, true, 4>;    \
+                else if(data->node->largeTwdBase == 5)                  \
+                    kernel_func = BACK<PRECISION, SB_UNIT, true, 5>;    \
+                else if(data->node->largeTwdBase == 6)                  \
+                    kernel_func = BACK<PRECISION, SB_UNIT, true, 6>;    \
+                else                                                    \
+                    kernel_func = BACK<PRECISION, SB_UNIT, true>;       \
+            }                                                           \
+            else                                                        \
+                kernel_func = BACK<PRECISION, SB_UNIT, false>;          \
+        }                                                               \
+    }                                                                   \
+    else                                                                \
+    {                                                                   \
+        if(data->node->direction == -1)                                 \
+        {                                                               \
+            if(data->node->large1D)                                     \
+            {                                                           \
+                if(data->node->largeTwdBase == 4)                       \
+                    kernel_func = FWD<PRECISION, SB_NONUNIT, true, 4>;  \
+                else if(data->node->largeTwdBase == 5)                  \
+                    kernel_func = FWD<PRECISION, SB_NONUNIT, true, 5>;  \
+                else if(data->node->largeTwdBase == 6)                  \
+                    kernel_func = FWD<PRECISION, SB_NONUNIT, true, 6>;  \
+                else                                                    \
+                    kernel_func = FWD<PRECISION, SB_NONUNIT, true>;     \
+            }                                                           \
+            else                                                        \
+                kernel_func = FWD<PRECISION, SB_NONUNIT, false>;        \
+        }                                                               \
+        else                                                            \
+        {                                                               \
+            if(data->node->large1D)                                     \
+            {                                                           \
+                if(data->node->largeTwdBase == 4)                       \
+                    kernel_func = BACK<PRECISION, SB_NONUNIT, true, 4>; \
+                else if(data->node->largeTwdBase == 5)                  \
+                    kernel_func = BACK<PRECISION, SB_NONUNIT, true, 5>; \
+                else if(data->node->largeTwdBase == 6)                  \
+                    kernel_func = BACK<PRECISION, SB_NONUNIT, true, 6>; \
+                else                                                    \
+                    kernel_func = BACK<PRECISION, SB_NONUNIT, true>;    \
+            }                                                           \
+            else                                                        \
+                kernel_func = BACK<PRECISION, SB_NONUNIT, false>;       \
+        }                                                               \
     }
 
 // SBRC has COL_DIM, TRANSPOSE_TYPE template args and is always out-of-place

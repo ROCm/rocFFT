@@ -127,6 +127,9 @@ private:
     // transform sizes
     size_t div1DNoPo2(const size_t length0);
 
+    // Compute the large twd decomposition base
+    size_t large_twiddle_base(size_t length, bool use3Steps);
+
 public:
     // Batch size
     size_t batch = 1;
@@ -158,6 +161,12 @@ public:
 
     // Extra twiddle multiplication for large 1D
     size_t large1D = 0;
+    // decompose large twiddle to product of 256(8) or 128(7) or 64(6)...or 16(4)
+    // default is 8, and sbcc could be dynamically decomposed
+    size_t largeTwdBase = 8;
+    // flag indicating if using the 3-step decomp. for large twiddle? (16^3, 32^3, 64^3)
+    // if false, always use 8 as the base (256*256*256....)
+    bool largeTwd3Steps = false;
 
     // Tree structure:
     // non-owning pointer to parent node, may be null

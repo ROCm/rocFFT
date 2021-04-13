@@ -14,7 +14,7 @@
 #include <tuple>
 #include <vector>
 
-#define TWIDDLE_DEE 8
+static const size_t LTWD_BASE_DEFAULT = 8;
 
 //	help function: Find the smallest power of 2 that is >= n; return its
 //  power of 2 factor
@@ -143,16 +143,18 @@ template <typename T>
 class TwiddleTableLarge
 {
     size_t         N; // length
+    size_t         largeTwdBase;
     size_t         X, Y;
     size_t         tableSize;
     std::vector<T> wc; // cosine, sine arrays
 
 public:
-    TwiddleTableLarge(size_t length)
+    TwiddleTableLarge(size_t length, size_t base = LTWD_BASE_DEFAULT)
         : N(length)
+        , largeTwdBase(base)
     {
-        X         = size_t(1) << TWIDDLE_DEE; // 2*8 = 256
-        Y         = DivRoundingUp<size_t>(CeilPo2(N), TWIDDLE_DEE);
+        X         = size_t(1) << largeTwdBase; // ex: 2^8 = 256
+        Y         = DivRoundingUp<size_t>(CeilPo2(N), largeTwdBase);
         tableSize = X * Y;
 
         wc = std::vector<T>(tableSize);
@@ -167,7 +169,7 @@ public:
         double phi = TWO_PI / double(N);
         for(size_t iY = 0; iY < Y; ++iY)
         {
-            size_t i = size_t(1) << (iY * TWIDDLE_DEE);
+            size_t i = size_t(1) << (iY * largeTwdBase);
             for(size_t iX = 0; iX < X; ++iX)
             {
                 size_t j = i * iX;
@@ -188,8 +190,12 @@ public:
     }
 };
 
-gpubuf twiddles_create(
-    size_t N, rocfft_precision precision, bool large, bool no_radices, bool attach_2N);
+gpubuf twiddles_create(size_t           N,
+                       rocfft_precision precision,
+                       bool             large,
+                       size_t           largeTwdBase,
+                       bool             no_radices,
+                       bool             attach_2N);
 gpubuf twiddles_create_2D(size_t N1, size_t N2, rocfft_precision precision);
 
 #endif // defined( TWIDDLES_H )

@@ -52,8 +52,9 @@ struct FFTKernel
 {
     DevFnCall        device_function = nullptr;
     std::vector<int> factors;
-    int              batches_per_block = 0;
-    int              threads_per_block = 0;
+    int              batches_per_block    = 0;
+    int              threads_per_block    = 0;
+    bool             use_3steps_large_twd = false;
 
     FFTKernel() = delete;
 
@@ -62,6 +63,13 @@ struct FFTKernel
     {
     }
 
+    FFTKernel(DevFnCall fn, bool use_3steps)
+        : device_function(fn)
+        , use_3steps_large_twd(use_3steps)
+    {
+    }
+
+    // used by new generator
     FFTKernel(DevFnCall fn, std::vector<int> factors, int bpb, int tpb)
         : device_function(fn)
         , factors(factors)

@@ -10,21 +10,22 @@
 #include "../kernels/butterfly_constant.h"
 #include "../kernels/common.h"
 
-template <typename T>
+template <typename T, size_t Base>
 __device__ T TW2step(const T* const twiddles, size_t u)
 {
-    size_t j      = u & 255; // get the lowest 8 bits
+    size_t j      = u & ((1 << Base) - 1); // get the lowest Base bits
     T      result = twiddles[j];
-    u >>= 8; // discard the lowest 8 bits
+    u >>= Base; // discard the lowest Base bits
     int i = 0;
     while(u > 0)
     {
         i += 1;
-        j      = u & 255;
-        result = lib_make_vector2<T>(
-            (result.x * twiddles[256 * i + j].x - result.y * twiddles[256 * i + j].y),
-            (result.y * twiddles[256 * i + j].x + result.x * twiddles[256 * i + j].y));
-        u >>= 8; // discard the lowest 8 bits
+        j      = u & ((1 << Base) - 1);
+        result = lib_make_vector2<T>((result.x * twiddles[(1 << Base) * i + j].x
+                                      - result.y * twiddles[(1 << Base) * i + j].y),
+                                     (result.y * twiddles[(1 << Base) * i + j].x
+                                      + result.x * twiddles[(1 << Base) * i + j].y));
+        u >>= Base; // discard the lowest Base bits
     }
 
     return result;
