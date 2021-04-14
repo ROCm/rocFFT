@@ -235,10 +235,9 @@ const static std::vector<rocfft_result_placement> place_range
 // Given a vector of vector of lengths, generate all unique permutations.
 // Add an optional vector of ad-hoc lengths to the result.
 inline std::vector<std::vector<size_t>>
-    generate_lengths(const std::vector<std::vector<size_t>>& inlengths,
-                     const std::vector<std::vector<size_t>>& adhocLengths = {})
+    generate_lengths(const std::vector<std::vector<size_t>>& inlengths)
 {
-    std::vector<std::vector<size_t>> output = adhocLengths;
+    std::vector<std::vector<size_t>> output;
     if(inlengths.size() == 0)
     {
         return output;
@@ -419,8 +418,15 @@ inline auto param_generator_base(const std::vector<rocfft_transform_type>&   typ
         // for largest batch size first and reuse for smaller batch
         // sizes, then convert to single-precision.
 
-        for(const auto& lengths : generate_lengths(v_lengths))
+        for(const auto& lengths : v_lengths)
         {
+            // try to ensure that we are given literal lengths, not
+            // something to be passed to generate_lengths
+            if(lengths.empty() || lengths.size() > 3)
+            {
+                assert(false);
+                continue;
+            }
             for(const auto precision : precision_range)
             {
                 for(const auto batch : batch_range)
