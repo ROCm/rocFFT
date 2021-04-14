@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "../../../shared/gpubuf.h"
+#include "../device/kernels/callback.h"
 #include "kargs.h"
 #include "rocfft_ostream.hpp"
 #include "twiddles.h"
@@ -188,6 +189,9 @@ public:
     gpubuf           twiddles;
     gpubuf           twiddles_large;
     gpubuf_t<size_t> devKernArg;
+
+    // callback parameters
+    UserCallbacks callbacks;
 
 public:
     // Disallow copy constructor:

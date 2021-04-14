@@ -661,6 +661,10 @@ void TransformPowX(const ExecPlan&       execPlan,
             if(emit_profile_log)
                 hipEventRecord(start);
             DeviceCallOut back;
+
+            // give callback parameters to kernel launcher
+            data.callbacks = execPlan.execSeq[i]->callbacks;
+
             fn(&data, &back);
             if(emit_profile_log)
                 hipEventRecord(stop);

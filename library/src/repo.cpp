@@ -34,6 +34,28 @@
 std::mutex        Repo::mtx;
 std::atomic<bool> Repo::repoDestroyed(false);
 
+// for callbacks, work out which nodes of the plan are loading data
+// from global memory, and storing data to global memory
+static std::pair<TreeNode*, TreeNode*> get_load_store_nodes(const ExecPlan& execPlan)
+{
+    const auto& seq = execPlan.execSeq;
+
+    // look forward for the first node that reads from input
+    auto      load_it = std::find_if(seq.begin(), seq.end(), [&](const TreeNode* n) {
+        return n->obIn == execPlan.rootPlan->obIn;
+    });
+    TreeNode* load    = load_it == seq.end() ? nullptr : *load_it;
+
+    // look backward for the last node that writes to output
+    auto      store_it = std::find_if(seq.rbegin(), seq.rend(), [&](const TreeNode* n) {
+        return n->obOut == execPlan.rootPlan->obOut;
+    });
+    TreeNode* store    = store_it == seq.rend() ? nullptr : *store_it;
+
+    assert(load && store);
+    return std::make_pair(load, store);
+}
+
 rocfft_status Repo::CreatePlan(rocfft_plan plan)
 {
     if(plan == nullptr)
@@ -80,6 +102,9 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
         rootPlan->inArrayType  = plan->desc.inArrayType;
         rootPlan->outArrayType = plan->desc.outArrayType;
 
+        // assign callbacks to root plan, so plan building can know about them
+        rootPlan->callbacks = plan->desc.callbacks;
+
         ExecPlan execPlan;
         execPlan.rootPlan = std::move(rootPlan);
         if(hipGetDeviceProperties(&(execPlan.deviceProp), deviceId) != hipSuccess)
@@ -93,6 +118,20 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
         {
             return rocfft_status_failure;
         }
+
+        TreeNode* load_node             = nullptr;
+        TreeNode* store_node            = nullptr;
+        std::tie(load_node, store_node) = get_load_store_nodes(execPlan);
+
+        // now that plan building is finished, assign callbacks to
+        // the leaf nodes that are actually doing the work
+        load_node->callbacks.load_cb_fn        = plan->desc.callbacks.load_cb_fn;
+        load_node->callbacks.load_cb_data      = plan->desc.callbacks.load_cb_data;
+        load_node->callbacks.load_cb_lds_bytes = plan->desc.callbacks.load_cb_lds_bytes;
+
+        store_node->callbacks.store_cb_fn        = plan->desc.callbacks.store_cb_fn;
+        store_node->callbacks.store_cb_data      = plan->desc.callbacks.store_cb_data;
+        store_node->callbacks.store_cb_lds_bytes = plan->desc.callbacks.store_cb_lds_bytes;
 
         // pointers but does not execute kernels
 

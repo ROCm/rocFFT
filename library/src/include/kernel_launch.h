@@ -28,6 +28,7 @@
 #include "error.h"
 #endif
 #include "../../../shared/array_predicate.h"
+#include "../device/kernels/callback.h"
 #include "kargs.h"
 #include "rocfft.h"
 #include "rocfft_hip.h"
@@ -44,6 +45,16 @@ struct DeviceCallIn
     hipStream_t     rocfft_stream;
     GridParam       gridParam;
     hipDeviceProp_t deviceProp;
+
+    UserCallbacks callbacks;
+
+    CallbackType get_callback_type() const
+    {
+        if(callbacks.load_cb_fn || callbacks.store_cb_fn)
+            return CallbackType::USER_LOAD_STORE;
+        else
+            return CallbackType::NONE;
+    }
 };
 
 // FIXME: documentation
