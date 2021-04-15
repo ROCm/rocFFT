@@ -14,6 +14,8 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
     String hipClangArgs = jobName.contains('hipclang') ? '-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang' : ''
     String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
     String sudo = platform.jenkinsLabel.contains('sles') ? 'sudo -E' : ''
+    //Set CI node's gfx arch as target if PR, otherwise use default targets of the library
+    String amdgpuTargets = env.BRANCH_NAME.startsWith('PR-') ? '-DAMDGPU_TARGETS=\$gfx_arch' : ''
 
     def command = """#!/usr/bin/env bash
                 set -x
@@ -30,7 +32,8 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
 
                 cd ${project.paths.project_build_prefix}
                 mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
-                ${sudo} ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/${compiler} ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ${staticArg} ../..
+                ${auxiliary.gfxTargetParser()}
+                ${sudo} ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/${compiler} ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ${staticArg} ${amdgpuTargets} ../..
                 ${sudo} make -j\$(nproc)
             """
     platform.runCommand(this, command)
