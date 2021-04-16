@@ -1057,13 +1057,17 @@ namespace StockhamGenerator
         {
             size_t ldsSize = SharedMemSize(ldsInterleaved);
             str += "\n\t";
+            if(blockCompute && blockComputeType == BCT_R2C)
+                str += "extern ";
+
             str += "__shared__ ";
             if(blockCompute)
                 str += r2Type;
             else
                 str += ldsInterleaved ? r2Type : rType;
             str += " lds[";
-            str += std::to_string(ldsSize);
+            if(!(blockCompute && blockComputeType == BCT_R2C))
+                str += std::to_string(ldsSize);
             str += "];\n";
 
             if(NeedsLargeTwiddles())
@@ -2267,7 +2271,8 @@ namespace StockhamGenerator
 
             if(blockCompute)
             {
-                blockLdsRowPadding = 1; //TODO: move it some where else?
+                blockLdsRowPadding
+                    = (blockComputeType == BCT_R2C) ? 1 : 0; //TODO: move it some where else?
                 BlockSizes::GetValue(length, blockWidth, blockWGS, blockLDS);
                 blockLDS += blockLdsRowPadding * blockWidth;
             }

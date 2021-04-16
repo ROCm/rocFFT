@@ -141,7 +141,9 @@ bool PlanPowX(ExecPlan& execPlan)
     {
         DevFnCall ptr = nullptr;
         GridParam gp;
-        size_t    bwd, wgs, lds;
+        size_t    bwd = 1;
+        size_t    wgs, lds, lds_padding;
+        wgs = lds = lds_padding = 0;
 
         switch(execPlan.execSeq[i]->scheme)
         {
@@ -228,7 +230,6 @@ bool PlanPowX(ExecPlan& execPlan)
             break;
         }
         case CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY:
-        case CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY:
         {
             GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
             auto transposeType = sbrc_3D_transpose_type(bwd,
@@ -253,6 +254,34 @@ bool PlanPowX(ExecPlan& execPlan)
             // do 'bwd' rows per block
             gp.b_x /= bwd;
             gp.tpb_x = wgs;
+            break;
+        }
+        case CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY:
+        {
+            GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
+            auto transposeType = sbrc_3D_transpose_type(bwd,
+                                                        execPlan.execSeq[i]->length[1]
+                                                            * execPlan.execSeq[i]->length[2],
+                                                        execPlan.execSeq[i]->length);
+
+            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
+                      ? function_pool::get_function_single_transpose(
+                          std::make_pair(execPlan.execSeq[i]->length[0],
+                                         execPlan.execSeq[i]->scheme),
+                          transposeType)
+                      : function_pool::get_function_double_transpose(
+                          std::make_pair(execPlan.execSeq[i]->length[0],
+                                         execPlan.execSeq[i]->scheme),
+                          transposeType);
+            GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
+            gp.b_x = std::accumulate(execPlan.execSeq[i]->length.begin() + 1,
+                                     execPlan.execSeq[i]->length.end(),
+                                     execPlan.execSeq[i]->batch,
+                                     std::multiplies<size_t>());
+            // do 'bwd' rows per block
+            gp.b_x /= bwd;
+            gp.tpb_x    = wgs;
+            lds_padding = 1; // 1 element padding per row for even-length real2complx usage
             break;
         }
         case CS_KERNEL_TRANSPOSE:
@@ -348,6 +377,8 @@ bool PlanPowX(ExecPlan& execPlan)
             assert(false);
         }
 
+        gp.lds_bytes = (lds + lds_padding * bwd) * PrecisionWidth(execPlan.execSeq[0]->precision)
+                       * sizeof(float2);
         execPlan.devFnCall.push_back(ptr);
         execPlan.gridParam.push_back(gp);
     }
