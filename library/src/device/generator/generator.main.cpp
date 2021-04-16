@@ -293,7 +293,7 @@ int main(int argc, char* argv[])
         {
             for(auto i : supported_large_set)
             {
-                large1D_list.push_back(std::make_tuple(i, CS_KERNEL_STOCKHAM_BLOCK_CC));
+                // large1D_list.push_back(std::make_tuple(i, CS_KERNEL_STOCKHAM_BLOCK_CC));
                 large1D_list.push_back(std::make_tuple(i, CS_KERNEL_STOCKHAM_BLOCK_RC));
             }
         }
@@ -304,7 +304,7 @@ int main(int argc, char* argv[])
         {
             for(auto i : argument.validManualSizeLarge)
             {
-                large1D_list.push_back(std::make_tuple(i, CS_KERNEL_STOCKHAM_BLOCK_CC));
+                // large1D_list.push_back(std::make_tuple(i, CS_KERNEL_STOCKHAM_BLOCK_CC));
                 large1D_list.push_back(std::make_tuple(i, CS_KERNEL_STOCKHAM_BLOCK_RC));
             }
         }

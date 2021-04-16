@@ -190,12 +190,13 @@ public:
     }
 };
 
-gpubuf twiddles_create(size_t           N,
-                       rocfft_precision precision,
-                       bool             large,
-                       size_t           largeTwdBase,
-                       bool             no_radices,
-                       bool             attach_2N);
+gpubuf twiddles_create(size_t              N,
+                       rocfft_precision    precision,
+                       bool                large,
+                       size_t              largeTwdBase,
+                       bool                no_radices,
+                       bool                attach_2N,
+                       std::vector<size_t> radices = {});
 gpubuf twiddles_create_2D(size_t N1, size_t N2, rocfft_precision precision);
 
 #endif // defined( TWIDDLES_H )

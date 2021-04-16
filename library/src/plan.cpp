@@ -33,6 +33,7 @@
 #include <assert.h>
 #include <map>
 #include <numeric>
+#include <set>
 #include <sstream>
 #include <vector>
 
@@ -1008,14 +1009,13 @@ bool TreeNode::use_CS_2D_RC()
     //   However, technically no LDS limitation along the fast dimension
     //   on upper bound for 2D SBCC cases, and even should not limit to pow
     //   of 2.
-    if((length[1] == 256 || length[1] == 128 || length[1] == 64) && (length[0] >= 64))
+
+    // FIXME: use all SBCC kernels instead after we fix the bugs in buffer assignment
+    // std::set<int> sbcc_support = {50, 64, 81, 100, 128, 200, 256};
+    std::set<int> sbcc_support = {64, 128, 256};
+    if((sbcc_support.find(length[1]) != sbcc_support.end()) && (length[0] >= 64))
     {
-        size_t bwd, wgs, lds;
-        GetBlockComputeTable(length[1], bwd, wgs, lds);
-        if(length[0] % bwd == 0)
-        {
-            return true;
-        }
+        return true;
     }
 
     return false;
@@ -1809,7 +1809,7 @@ void TreeNode::build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength
 
     // decompose the large twd table for L1D_CC
     // exclude some exceptions that don't get benefit from 3-step LargeTwd (set in FFTKernel)
-    auto krn = function_pool::get_kernel_single({divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC});
+    auto krn = function_pool::get_kernel(precision, {divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC});
     col2colPlan->largeTwd3Steps = krn.use_3steps_large_twd;
     col2colPlan->largeTwdBase   = large_twiddle_base(length[0], col2colPlan->largeTwd3Steps);
 
@@ -1864,7 +1864,7 @@ void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLengt
 
     // decompose the large twd table for L1D_CRT
     // exclude some exceptions that don't get benefit from 3-step LargeTwd (set in FFTKernel)
-    auto krn = function_pool::get_kernel_single({divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC});
+    auto krn = function_pool::get_kernel(precision, {divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC});
     col2colPlan->largeTwd3Steps = krn.use_3steps_large_twd;
     col2colPlan->largeTwdBase   = large_twiddle_base(length[0], col2colPlan->largeTwd3Steps);
 

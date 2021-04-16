@@ -32,19 +32,6 @@ std::vector<size_t> GetRadices(size_t length)
 
     std::vector<size_t> radices;
 
-    try
-    {
-        auto krn = function_pool::get_kernel_single({length, CS_KERNEL_STOCKHAM});
-        if(krn.factors.size() > 0)
-        {
-            radices.assign(krn.factors.cbegin(), krn.factors.cend());
-            return radices;
-        }
-    }
-    catch(...)
-    {
-    }
-
     // get number of items in this table
     std::vector<SpecRecord> specRecord  = GetRecord();
     size_t                  tableLength = specRecord.size();

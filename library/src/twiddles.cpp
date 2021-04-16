@@ -25,8 +25,14 @@
 #include "rocfft_hip.h"
 
 template <typename T>
-gpubuf twiddles_create_pr(
-    size_t N, size_t threshold, bool large, size_t largeTwdBase, bool no_radices, bool attach_2N)
+
+gpubuf twiddles_create_pr(size_t              N,
+                          size_t              threshold,
+                          bool                large,
+                          size_t              largeTwdBase,
+                          bool                no_radices,
+                          bool                attach_2N,
+                          std::vector<size_t> radices)
 {
     gpubuf twts; // device side
     void*  twtc; // host side
@@ -41,9 +47,11 @@ gpubuf twiddles_create_pr(
         }
         else
         {
-            std::vector<size_t> radices;
-            radices = GetRadices(N);
-            twtc    = twTable.GenerateTwiddleTable(radices); // calculate twiddles on host side
+            if(radices.size() == 0)
+            {
+                radices = GetRadices(N);
+            }
+            twtc = twTable.GenerateTwiddleTable(radices); // calculate twiddles on host side
         }
 
         if(attach_2N)
@@ -83,22 +91,23 @@ gpubuf twiddles_create_pr(
     return twts;
 }
 
-gpubuf twiddles_create(size_t           N,
-                       rocfft_precision precision,
-                       bool             large,
-                       size_t           largeTwdBase,
-                       bool             no_radices,
-                       bool             attach_2N)
+gpubuf twiddles_create(size_t              N,
+                       rocfft_precision    precision,
+                       bool                large,
+                       size_t              largeTwdBase,
+                       bool                no_radices,
+                       bool                attach_2N,
+                       std::vector<size_t> radices)
 {
     if(large)
         assert(largeTwdBase > 0);
 
     if(precision == rocfft_precision_single)
         return twiddles_create_pr<float2>(
-            N, Large1DThreshold(precision), large, largeTwdBase, no_radices, attach_2N);
+            N, Large1DThreshold(precision), large, largeTwdBase, no_radices, attach_2N, radices);
     else if(precision == rocfft_precision_double)
         return twiddles_create_pr<double2>(
-            N, Large1DThreshold(precision), large, largeTwdBase, no_radices, attach_2N);
+            N, Large1DThreshold(precision), large, largeTwdBase, no_radices, attach_2N, radices);
     else
     {
         assert(false);

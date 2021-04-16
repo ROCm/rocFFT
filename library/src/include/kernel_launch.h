@@ -400,11 +400,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
         DeviceCallIn* data          = (DeviceCallIn*)data_p;                                  \
         hipStream_t   rocfft_stream = data->rocfft_stream;                                    \
                                                                                               \
-        /* The size of last dimension need to be counted into batch */                        \
-        /* Check how to config thread block in PlanPowX() for SBCC  */                        \
-        const size_t batch = (data->node->length.size() >= 3)                                 \
-                                 ? data->node->batch * data->node->length.back()              \
-                                 : data->node->batch;                                         \
+        const size_t batch = data->node->batch;                                               \
                                                                                               \
         if(data->node->placement == rocfft_placement_inplace)                                 \
         {                                                                                     \
@@ -569,11 +565,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
         DeviceCallIn* data          = (DeviceCallIn*)data_p;                              \
         hipStream_t   rocfft_stream = data->rocfft_stream;                                \
                                                                                           \
-        /* The size of last dimension need to be counted into batch */                    \
-        /* Check how to config thread block in PlanPowX() for SBRC  */                    \
-        const size_t batch = (data->node->length.size() >= 3)                             \
-                                 ? data->node->batch * data->node->length.back()          \
-                                 : data->node->batch;                                     \
+        const size_t batch = data->node->batch;                                           \
                                                                                           \
         if(array_type_is_interleaved(data->node->inArrayType)                             \
            && array_type_is_interleaved(data->node->outArrayType))                        \

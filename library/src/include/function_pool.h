@@ -50,14 +50,14 @@ struct SimpleHash
 
 struct FFTKernel
 {
-    DevFnCall        device_function = nullptr;
-    std::vector<int> factors;
-    int              batches_per_block    = 0;
-    int              threads_per_block    = 0;
-    bool             use_3steps_large_twd = false;
+
+    DevFnCall           device_function = nullptr;
+    std::vector<size_t> factors;
+    int                 batches_per_block    = 0;
+    int                 threads_per_block    = 0;
+    bool                use_3steps_large_twd = false;
 
     FFTKernel() = delete;
-
     FFTKernel(DevFnCall fn)
         : device_function(fn)
     {
@@ -70,11 +70,12 @@ struct FFTKernel
     }
 
     // used by new generator
-    FFTKernel(DevFnCall fn, std::vector<int> factors, int bpb, int tpb)
+    FFTKernel(DevFnCall fn, bool use_3steps, std::vector<size_t> factors, int bpb, int tpb)
         : device_function(fn)
         , factors(factors)
         , batches_per_block(bpb)
         , threads_per_block(tpb)
+        , use_3steps_large_twd(use_3steps)
     {
     }
 };
@@ -165,10 +166,27 @@ public:
         // exception
     }
 
+    static FFTKernel get_kernel(rocfft_precision precision, const Key k)
+    {
+        switch(precision)
+        {
+        case rocfft_precision_single:
+            return function_pool::get_kernel_single(k);
+        case rocfft_precision_double:
+            return function_pool::get_kernel_double(k);
+        }
+    }
+
     static FFTKernel get_kernel_single(const Key mykey)
     {
         function_pool& func_pool = get_function_pool();
         return func_pool.function_map_single.at(mykey);
+    }
+
+    static FFTKernel get_kernel_double(const Key mykey)
+    {
+        function_pool& func_pool = get_function_pool();
+        return func_pool.function_map_double.at(mykey);
     }
 
     static DevFnCall get_function_double(const Key mykey)

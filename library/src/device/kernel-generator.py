@@ -20,6 +20,8 @@ import sys
 
 from pathlib import Path
 from types import SimpleNamespace as NS
+from functools import reduce
+from operator import mul
 
 from generator import (ArgumentList, BaseNode, Call, CommentBlock, ExternC, Function, Include,
                        LineBreak, Map, Pragma, StatementList, Variable, name_args, format_and_write)
@@ -156,7 +158,7 @@ class FFTKernel(BaseNode):
         f += str(self.function.address())
         use_3steps_large_twd = getattr(self.function.meta, 'use_3steps_large_twd', None)
         if use_3steps_large_twd is not None:
-            f += ', ' + str(use_3steps_large_twd)
+            f += ', ' + str(use_3steps_large_twd[self.function.meta.precision])
         factors = getattr(self.function.meta, 'factors', None)
         if factors is not None:
             f += ', {' + cjoin(factors) + '}'
@@ -242,13 +244,18 @@ def generate_large_1d_prototypes(precision, transforms):
     functions = []
 
     def add(name, scheme, pool=None):
+        use3Steps = {'sp': 'true', 'dp': 'true'}
+        if length == 81:
+            use3Steps['dp'] = 'false'
+        elif length == 200:
+            use3Steps['sp'] = use3Steps['dp'] = 'false'
         functions.append(Function(name=name,
                                   arguments=ArgumentList(data, back),
                                   meta=NS(
                                       length=length,
                                       precision=precision,
                                       scheme=scheme,
-                                      use_3steps_large_twd='false' if (length == 81 or length == 200) else 'true',
+                                      use_3steps_large_twd=use3Steps,
                                       pool=pool)))
 
     for length, scheme in transforms:
@@ -377,13 +384,26 @@ class POWX_SMALL_GENERATOR(BaseNode):
                         meta=meta)
 
 
+@name_args(['name', 'ip_fwd', 'ip_inv', 'op_fwd', 'op_inv', 'precision'])
+class POWX_LARGE_SBCC_GENERATOR(POWX_SMALL_GENERATOR):
+    def __str__(self):
+        return f'POWX_LARGE_SBCC_GENERATOR({cjoin(self.args)});'
+
+
 def kernel_file_name(ns):
     """Given kernel info namespace, return reasonable file name."""
     if hasattr(ns, 'length'):
         length = ns.length
     else:
         length = functools.reduce(lambda a, b: a * b, ns.factors)
-    return f'rocfft_len{length}.cpp'
+
+    postfix = ''
+    if ns.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC':
+        postfix = '_sbcc'
+    elif ns.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_RC':
+        postfix = '_sbrc'
+
+    return f'rocfft_len{length}{postfix}.cpp'
 
 
 def list_new_kernels():
@@ -394,7 +414,29 @@ def list_new_kernels():
            threads_per_block=64),
         NS(length=336)
     ]
+    for k in kernels:
+        k.scheme = 'CS_KERNEL_STOCKHAM'
+    return kernels
 
+
+def list_new_large_kernels():
+    kernels = [
+        NS(length=50,  factors=[10, 5],      use_3steps_large_twd={'sp': 'true',  'dp': 'true'}, threads_per_block=256),
+        NS(length=64,  factors=[8, 8],       use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
+        NS(length=81,  factors=[3, 3, 3, 3], use_3steps_large_twd={'sp': 'true',  'dp': 'true'}),
+        NS(length=100, factors=[5, 5, 4],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
+        NS(length=128, factors=[8, 4, 4],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
+        NS(length=200, factors=[8, 5, 5],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
+        NS(length=256, factors=[4, 4, 4, 4], use_3steps_large_twd={'sp': 'true',  'dp': 'true'})
+    ]
+
+    # for SBCC kernel, increase desired threads_per_block so that columns per
+    # thread block is also increased. currently targeting for 16 columns
+    block_width = 16
+    for k in kernels:
+        k.scheme = 'CS_KERNEL_STOCKHAM_BLOCK_CC'
+        if not hasattr(k, 'threads_per_block'):
+             k.threads_per_block = block_width * reduce(mul, k.factors, 1) // min(k.factors)
     return kernels
 
 
@@ -430,16 +472,21 @@ def generate_new_kernels(kernels):
         length = kglobal.meta.length
         forward, inverse = kglobal.name, kglobal.name.replace('forward', 'inverse')
         src += stockham.make_variants(kdevice, kglobal)
-        sp = POWX_SMALL_GENERATOR(f'rocfft_internal_dfn_sp_ci_ci_stoc_{length}',
-                                  'ip_' + forward, 'ip_' + inverse,
-                                  'op_' + forward, 'op_' + inverse, 'float2')
-        dp = POWX_SMALL_GENERATOR(f'rocfft_internal_dfn_dp_ci_ci_stoc_{length}',
-                                  'ip_' + forward, 'ip_' + inverse,
-                                  'op_' + forward, 'op_' + inverse, 'double2')
-        src += sp
-        src += dp
 
-        cpu_functions += [sp.function(kglobal.meta, 'sp'), dp.function(kglobal.meta, 'dp')]
+        for precision, typename in [('sp', 'float2'), ('dp', 'double2')]:
+            if kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM':
+                prototype = POWX_SMALL_GENERATOR(f'rocfft_internal_dfn_{precision}_ci_ci_stoc_{length}',
+                                        'ip_' + forward, 'ip_' + inverse,
+                                        'op_' + forward, 'op_' + inverse, typename)
+            elif kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC':
+                prototype = POWX_LARGE_SBCC_GENERATOR(f'rocfft_internal_dfn_{precision}_ci_ci_sbcc_{length}',
+                                        'ip_' + forward, 'ip_' + inverse,
+                                        'op_' + forward, 'op_' + inverse, typename)
+            else:
+                assert 1 # other schemes work-in-progress
+
+            src += prototype
+            cpu_functions += [prototype.function(kglobal.meta, precision)]
 
         format_and_write(kernel_file_name(kernel), src)
 
@@ -509,7 +556,7 @@ def cli():
         precisions = ['sp', 'dp']
     precisions = set(precisions)
 
-    new_kernels = list_new_kernels()
+    new_kernels = list_new_kernels() + list_new_large_kernels() # currently 'large' really is sbcc kernels only
 
     if args.command == 'list':
         scprint(list_old_generated_kernels(patterns=patterns,
@@ -563,7 +610,7 @@ def cli():
         format_and_write('function_pool.cpp', generate_cpu_function_pool(cpu_functions))
 
         old_small_lengths = {f.meta.length for f in psmall.values()}
-        new_small_lengths = {f.meta.length for f in pnew.values()}
+        new_small_lengths = {f.meta.length for f in pnew.values() if f.meta.scheme == 'CS_KERNEL_STOCKHAM'}
         gen_small_lengths = old_small_lengths - new_small_lengths
         gen_large_lengths = {f.meta.length for f in plarge.values()}
         if gen_small_lengths:

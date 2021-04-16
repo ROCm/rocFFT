@@ -16,6 +16,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Optimizations
 - Optimized 2D/3D R2C 100 and 1D Z2Z 2500.
+- Reduced number of kernels for 2D/3D sizes where higher dimension is 64, 128, 256.
 
 ### Fixed
 - Fixed potential crashes in 3D transforms with unusual strides, for

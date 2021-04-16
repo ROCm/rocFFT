@@ -27,7 +27,7 @@ def get_file_and_line(up=2):
 def join(sep, n):
     """Coerce elements in `n` to strings and join them seperator `sep`."""
     if isinstance(n, BaseNode):
-        return sep.join(str(x) for x in n.args)
+        return sep + str(n)
     return sep.join(str(x) for x in n)
 
 
@@ -85,6 +85,23 @@ def walk(x):
                 yield a
 
 
+def sanity_check(y):
+    """Optional sanity check to avoid common pitfalls."""
+    failed = False
+    for x in y:
+        if isinstance(x, list) and len(x) > 1:
+            failed = True
+            print(f'Sanity check: '
+                    f'list object found in nodes won\'t be traversed and can lead to undesirable effects.\n'
+                    f'Node type = {type(x)}' + '\n' +
+                    f'Node contents:\n' +
+                    f'{njoin(x)}')
+        # elif:
+        #     add some other checks
+    if failed:
+        raise RuntimeError
+
+
 def depth_first(x, f):
     """Apply `f` to each node of the AST `x`.
 
@@ -123,9 +140,11 @@ def name_args(names):
 
     def name_args_decorator(target):
 
-        # attach getters for each name
+        # attach setters & getters for each name
         for i, name in enumerate(names):
-            setattr(target, name, property(lambda self, idx=i: self.args[idx]))
+            def fset(self, val, idx=i):
+                self.args[idx] = val
+            setattr(target, name, property(lambda self, idx=i: self.args[idx], fset))
 
         # define a new init that takes args and kwargs using names
         def new_init(self, *args, **kwargs):
@@ -138,6 +157,9 @@ def name_args(names):
 
             # self
             self.file_name, self.line_number = get_file_and_line()
+
+            if hasattr(self, '__post_init__'):
+                getattr(self, '__post_init__')()
 
         target.__init__ = new_init
         return target
@@ -217,14 +239,38 @@ class BaseNodeOps(BaseNode):
     def __lt__(self, a):
         return Less(self, a)
 
+    def __shl__(self, a):
+        return ShiftLeft(self, a)
+
+    def __shr__(self, a):
+        return ShiftRight(self, a)
+
 
 class ArgumentList(BaseNode):
+
+    def __add__(self, lst):
+        if isinstance(lst, list):
+            self.args.extend(lst)
+        elif isinstance(lst, ArgumentList):
+            self.args.extend(lst.args)
+        else:
+            self.args.append(lst)
+        return self
 
     def __str__(self):
         args = []
         for x in self.args:
             if isinstance(x, Variable):
                 args.append(x.argument())
+            else:
+                args.append(str(x))
+        return cjoin(args)
+
+    def callexpr(self):
+        args = []
+        for x in self.args:
+            if isinstance(x, Variable):
+                args.append(x.name)
             else:
                 args.append(str(x))
         return cjoin(args)
@@ -244,17 +290,33 @@ class StatementList(BaseNode):
     def __str__(self):
         return njoin(self.args)
 
+    def __getitem__(self, idx):
+        return StatementList() + self.args[idx]
 
-@name_args(['name', 'type', 'size', 'value'])
+    def __iter__(self):
+        idx = 0
+        while idx < len(self.args):
+            yield self.args[idx]
+            idx += 1
+
+    def __len__(self):
+        return len(self.args)
+
+
+@name_args(['name', 'type', 'size', 'value', 'post_qualifier'])
 class Declaration(BaseNode):
     def __str__(self):
-        s = f'{self.type} {self.name}'
+        s = f'{self.type} {self.post_qualifier} {self.name}'
         if self.size is not None:
             s += f'[{self.size}]'
         if self.value is not None:
             s += f' = {self.value}'
         s += ';'
         return s
+
+    def __post_init__(self):
+        if self.post_qualifier is None:
+            self.post_qualifier = ''
 
 
 def Declarations(*args):
@@ -333,6 +395,11 @@ class Negate(BaseNode):
     pass
 
 
+@make_unary('!')
+class Not(BaseNode):
+    pass
+
+
 @make_unary('++')
 class Increment(BaseNode):
     pass
@@ -343,11 +410,24 @@ class Decrement(BaseNode):
     pass
 
 
-@name_args(['lhs', 'rhs'])
-class Assign(BaseNode):
+@name_args(['lhs', 'rhs', 'sep'])
+class BaseAssign(BaseNode):
     def __str__(self):
-        return str(self.args[0]) + ' = ' + str(self.args[1]) + ';' \
+        return str(self.args[0]) + str(self.sep) + str(self.args[1]) + ';' \
             + self.provenance()
+
+
+@name_args(['lhs', 'rhs'])
+@make_binary(' = ')
+class Assign(BaseAssign):
+    pass
+
+
+@name_args(['lhs', 'cond', 'true_rhs', 'false_rhs'])
+class ConditionalAssign(BaseNode):
+    def __str__(self):
+        return (str(self.lhs) + ' = (' + str(self.cond) + ') ? ' +
+                str(self.true_rhs) + ' : ' + str(self.false_rhs) + ';' + self.provenance())
 
 
 @name_args(['cond', 'true_rhs', 'false_rhs'])
@@ -360,6 +440,11 @@ class Ternary(BaseNode):
 class InlineAssign(BaseNode):
     def __str__(self):
         return str(self.args[0]) + ' = ' + str(self.args[1])
+
+
+@make_binary('&&')
+class And(BaseNodeOps):
+    pass
 
 
 @make_binary('.')
@@ -392,6 +477,36 @@ class Mod(BaseNodeOps):
     pass
 
 
+@name_args(['lhs', 'rhs'])
+@make_binary(' += ')
+class AddAssign(BaseAssign):
+    pass
+
+
+@name_args(['lhs', 'rhs'])
+@make_binary(' -= ')
+class SubAssign(BaseAssign):
+    pass
+
+
+@name_args(['lhs', 'rhs'])
+@make_binary(' /= ')
+class DivideAssign(BaseAssign):
+    pass
+
+
+@name_args(['lhs', 'rhs'])
+@make_binary(' *= ')
+class MultiplyAssign(BaseAssign):
+    pass
+
+
+@name_args(['lhs', 'rhs'])
+@make_binary(' %= ')
+class ModAssign(BaseAssign):
+    pass
+
+
 @make_binary(' == ')
 class Equal(BaseNodeOps):
     pass
@@ -417,6 +532,15 @@ class LessEqual(BaseNodeOps):
     pass
 
 
+@make_binary(' << ')
+class ShiftLeft(BaseNodeOps):
+    pass
+
+
+@make_binary(' >> ')
+class ShiftRight(BaseNodeOps):
+    pass
+
 #
 # Variables
 #
@@ -439,7 +563,7 @@ class ArrayElement(BaseNodeOps):
         return str(self.variable) + '[' + str(self.index) + ']'
 
 
-@name_args(['name', 'type', 'size', 'array', 'restrict'])
+@name_args(['name', 'type', 'size', 'array', 'restrict', 'value', 'post_qualifier'])
 class Variable(BaseNodeOps):
 
     @property
@@ -455,22 +579,27 @@ class Variable(BaseNodeOps):
 
     def declaration(self):
         if self.size is not None:
-            return Declaration(self.name, self.type, self.size)
-        return Declaration(self.name, self.type)
+            return Declaration(self.name, self.type, size=self.size, value=self.value, post_qualifier=self.post_qualifier)
+        return Declaration(self.name, self.type, value=self.value, post_qualifier=self.post_qualifier)
 
     def argument(self):
         if self.array:
-            if self.restrict:
-                return f'{self.type} * __restrict__ {self.name}'
-            else:
-                return f'{self.type} *{self.name}'
-        return f'{self.type} {self.name}'
+            return f'{self.type} * {self.post_qualifier} {self.name}'
+        if self.value is not None:
+            return f'{self.type} {self.post_qualifier} {self.name} = {self.value}'
+        return f'{self.type} {self.post_qualifier} {self.name}'
 
     def __str__(self):
         return str(self.name)
 
     def __getitem__(self, idx):
         return ArrayElement(self.name, idx)
+
+    def __post_init__(self):
+        if self.post_qualifier is None:
+            self.post_qualifier = ''
+        if self.restrict:
+            self.post_qualifier += ' __restrict__'
 
 
 @name_args(['name', 'type'])
@@ -603,10 +732,10 @@ class Call(BaseNode):
     def __str__(self) -> str:
         f = self.name
         if self.templates:
-            f += '<' + cjoin(self.templates) + '>'
+            f += '<' + self.templates.callexpr() + '>'
         if self.launch_params:
-            f += '<<<' + cjoin(self.launch_params) + '>>>'
-        f += '(' + cjoin(self.arguments) + ');'
+            f += '<<<' + self.launch_params.callexpr() + '>>>'
+        f += '(' + self.arguments.callexpr() + ');'
         f += self.provenance() + os.linesep
         return f
 
@@ -618,8 +747,8 @@ class InlineCall(BaseNodeOps):
     def __str__(self) -> str:
         f = self.name
         if self.templates:
-            f += '<' + cjoin(self.templates) + '>'
-        f += '(' + cjoin(self.arguments) + ')'
+            f += '<' + self.templates.callexpr() + '>'
+        f += '(' + self.arguments.callexpr() + ')'
         return f
 
 
@@ -666,8 +795,8 @@ def make_planar(kernel, varname):
     iname = varname + 'im'
 
     def visitor(x):
-        if isinstance(x, Assign):
-            lhs, rhs = x.args
+        if isinstance(x, BaseAssign):
+            lhs, rhs = x.lhs, x.rhs
 
             # on rhs
             if isinstance(rhs, ArrayElement):
@@ -774,8 +903,8 @@ def make_out_of_place(kernel, names):
         if isinstance(x, Declaration):
             return duplicate_visitor(x)
 
-        if isinstance(x, Assign):
-            lhs, rhs = x.args
+        if isinstance(x, BaseAssign):
+            lhs, rhs = x.lhs, x.rhs
 
             # traverse rhs
             if isinstance(rhs, ArrayElement):
@@ -838,11 +967,11 @@ def make_inverse(kernel, twiddles):
     kernel = rename_functions(kernel, lambda x: x.replace('FwdRad', 'InvRad'))
 
     def visitor(x):
-        if isinstance(x, Assign):
-            lhs, rhs = x.args
+        if isinstance(x, BaseAssign):
+            lhs, rhs = x.lhs, x.rhs
             # on rhs
-            if isinstance(rhs, ArrayElement):
-                name, index = rhs.args
+            if isinstance(rhs, ArrayElement) or isinstance(rhs, InlineCall):
+                name, *_ = rhs.args
                 if name in twiddles:
                     return Assign(lhs,
                                   ComplexLiteral(Component(rhs, 'x'),

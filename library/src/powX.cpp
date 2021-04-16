@@ -66,10 +66,37 @@ bool PlanPowX(ExecPlan& execPlan)
 {
     for(const auto& node : execPlan.execSeq)
     {
-        if((node->scheme == CS_KERNEL_STOCKHAM) || (node->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-           || (node->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
-           || (node->scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
-           || (node->scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY))
+        if(node->scheme == CS_KERNEL_STOCKHAM)
+        {
+            auto krn
+                = function_pool::get_kernel(node->precision, {node->length[0], CS_KERNEL_STOCKHAM});
+            node->twiddles = twiddles_create(node->length[0],
+                                             node->precision,
+                                             false,
+                                             LTWD_BASE_DEFAULT,
+                                             false,
+                                             false,
+                                             krn.factors);
+            if(node->twiddles == nullptr)
+                return false;
+        }
+        else if(node->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
+        {
+            auto krn       = function_pool::get_kernel(node->precision,
+                                                 {node->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC});
+            node->twiddles = twiddles_create(node->length[0],
+                                             node->precision,
+                                             false,
+                                             LTWD_BASE_DEFAULT,
+                                             false,
+                                             false,
+                                             krn.factors);
+            if(node->twiddles == nullptr)
+                return false;
+        }
+        else if((node->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
+                || (node->scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
+                || (node->scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY))
         {
             node->twiddles = twiddles_create(
                 node->length[0], node->precision, false, LTWD_BASE_DEFAULT, false, false);
@@ -150,21 +177,18 @@ bool PlanPowX(ExecPlan& execPlan)
         case CS_KERNEL_STOCKHAM:
         {
             // get working group size and number of transforms
-            ptr          = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                               ? function_pool::get_function_single(
-                          std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM))
-                               : function_pool::get_function_double(
-                          std::make_pair(execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM));
             size_t batch = execPlan.execSeq[i]->batch;
             for(size_t j = 1; j < execPlan.execSeq[i]->length.size(); j++)
                 batch *= execPlan.execSeq[i]->length[j];
 
-            auto krn = function_pool::get_kernel_single(
-                {execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM});
-            if(krn.threads_per_block > 0)
+            FFTKernel kernel
+                = function_pool::get_kernel(execPlan.execSeq[0]->precision,
+                                            {execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM});
+            ptr = kernel.device_function;
+            if(kernel.threads_per_block > 0)
             {
-                gp.b_x   = (batch + krn.batches_per_block - 1) / krn.batches_per_block;
-                gp.tpb_x = krn.threads_per_block;
+                gp.b_x   = (batch + kernel.batches_per_block - 1) / kernel.batches_per_block;
+                gp.tpb_x = kernel.threads_per_block;
             }
             else
             {
@@ -178,20 +202,20 @@ bool PlanPowX(ExecPlan& execPlan)
         }
         break;
         case CS_KERNEL_STOCKHAM_BLOCK_CC:
-            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                      ? function_pool::get_function_single(std::make_pair(
-                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC))
-                      : function_pool::get_function_double(std::make_pair(
-                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC));
-            GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
-            gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd;
+        {
+            FFTKernel kernel = function_pool::get_kernel(
+                execPlan.execSeq[0]->precision,
+                {execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC});
+            ptr    = kernel.device_function;
+            gp.b_x = ((execPlan.execSeq[i]->length[1]) - 1) / kernel.batches_per_block + 1;
             // repeat for higher dimensions + batch
             gp.b_x *= std::accumulate(execPlan.execSeq[i]->length.begin() + 2,
                                       execPlan.execSeq[i]->length.end(),
                                       execPlan.execSeq[i]->batch,
                                       std::multiplies<size_t>());
-            gp.tpb_x = wgs;
-            break;
+            gp.tpb_x = kernel.threads_per_block;
+        }
+        break;
         case CS_KERNEL_STOCKHAM_BLOCK_RC:
             ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
                       ? function_pool::get_function_single(std::make_pair(
