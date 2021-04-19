@@ -2403,6 +2403,17 @@ namespace StockhamGenerator
             // column, and vice-versa
             transform_row.numTrans = transform_col.length;
             transform_col.numTrans = transform_row.length;
+
+            // rewrite the correct work group size for parent and child kernels
+            size_t wgs = Get2DSingleThreadCount(
+                paramsVal1.fft_N[0],
+                paramsVal2.fft_N[0],
+                [](size_t length, size_t& workGroupSize, size_t& numTransforms) {
+                    return KernelCoreSpecs().GetWGSAndNT(length, workGroupSize, numTransforms);
+                });
+            this->workGroupSize         = wgs;
+            transform_row.workGroupSize = wgs;
+            transform_col.workGroupSize = wgs;
         }
 
     private:
@@ -2423,8 +2434,7 @@ namespace StockhamGenerator
 
         std::string LaunchBounds() override
         {
-            return "__launch_bounds__(" + std::to_string(MAX_LAUNCH_BOUNDS_2D_SINGLE_KERNEL)
-                   + ")\n";
+            return "__launch_bounds__(" + std::to_string(this->workGroupSize) + ")\n";
         }
 
         std::string GlobalKernelFunctionSuffix() override
