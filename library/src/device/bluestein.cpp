@@ -108,6 +108,7 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
     {
         scheme = 2; // res mul
     }
+    CallbackType cbtype = data->get_callback_type();
 
     size_t cBytes;
     if(data->node->precision == rocfft_precision_single)
@@ -168,43 +169,59 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
     {
         if(data->node->precision == rocfft_precision_single)
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<float2>),
-                               dim3(grid),
-                               dim3(threads),
-                               0,
-                               rocfft_stream,
-                               numof,
-                               count,
-                               N,
-                               M,
-                               (const float2*)bufIn0,
-                               (float2*)bufOut0,
-                               data->node->length.size(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
-                               dir,
-                               scheme);
+            hipLaunchKernelGGL(
+                cbtype == CallbackType::USER_LOAD_STORE
+                    ? HIP_KERNEL_NAME(mul_device_I_I<float2, CallbackType::USER_LOAD_STORE>)
+                    : HIP_KERNEL_NAME(mul_device_I_I<float2, CallbackType::NONE>),
+                dim3(grid),
+                dim3(threads),
+                0,
+                rocfft_stream,
+                numof,
+                count,
+                N,
+                M,
+                (const float2*)bufIn0,
+                (float2*)bufOut0,
+                data->node->length.size(),
+                data->node->devKernArg.data(),
+                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                dir,
+                scheme,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
         }
         else
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<double2>),
-                               dim3(grid),
-                               dim3(threads),
-                               0,
-                               rocfft_stream,
-                               numof,
-                               count,
-                               N,
-                               M,
-                               (const double2*)bufIn0,
-                               (double2*)bufOut0,
-                               data->node->length.size(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
-                               dir,
-                               scheme);
+            hipLaunchKernelGGL(
+                cbtype == CallbackType::USER_LOAD_STORE
+                    ? HIP_KERNEL_NAME(mul_device_I_I<double2, CallbackType::USER_LOAD_STORE>)
+                    : HIP_KERNEL_NAME(mul_device_I_I<double2, CallbackType::NONE>),
+                dim3(grid),
+                dim3(threads),
+                0,
+                rocfft_stream,
+                numof,
+                count,
+                N,
+                M,
+                (const double2*)bufIn0,
+                (double2*)bufOut0,
+                data->node->length.size(),
+                data->node->devKernArg.data(),
+                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                dir,
+                scheme,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
         }
     }
     else if((data->node->inArrayType == rocfft_array_type_complex_planar
@@ -217,7 +234,7 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
 
         if(data->node->precision == rocfft_precision_single)
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<float2>),
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device_P_I<float2>),
                                dim3(grid),
                                dim3(threads),
                                0,
@@ -238,7 +255,7 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
         }
         else
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<double2>),
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device_P_I<double2>),
                                dim3(grid),
                                dim3(threads),
                                0,
@@ -268,7 +285,7 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
 
         if(data->node->precision == rocfft_precision_single)
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<float2>),
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device_I_P<float2>),
                                dim3(grid),
                                dim3(threads),
                                0,
@@ -289,7 +306,7 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
         }
         else
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<double2>),
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device_I_P<double2>),
                                dim3(grid),
                                dim3(threads),
                                0,
@@ -320,7 +337,7 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
 
         if(data->node->precision == rocfft_precision_single)
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<float2>),
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device_P_P<float2>),
                                dim3(grid),
                                dim3(threads),
                                0,
@@ -342,7 +359,7 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
         }
         else
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device<double2>),
+            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device_P_P<double2>),
                                dim3(grid),
                                dim3(threads),
                                0,

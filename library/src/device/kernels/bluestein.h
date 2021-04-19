@@ -23,6 +23,7 @@
 #ifndef BLUESTEIN_H
 #define BLUESTEIN_H
 
+#include "callback.h"
 #include "common.h"
 #include "rocfft_hip.h"
 
@@ -69,23 +70,27 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL) chirp_devi
 
 // mul_device takes care of fft_mul, pad_mul, and res_mul, which
 // are 3 steps in Bluestein algorithm. And In the below, we have
-// 4 similar overloaded functions to support interleaved and
-// planar format. There might be a better way to do it.
+// 4 similar functions to support interleaved and planar format.
 
-template <typename T>
+template <typename T, CallbackType cbtype>
 __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
-    mul_device(const size_t  numof,
-               const size_t  totalWI,
-               const size_t  N,
-               const size_t  M,
-               const T*      input,
-               T*            output,
-               const size_t  dim,
-               const size_t* lengths,
-               const size_t* stride_in,
-               const size_t* stride_out,
-               const int     dir,
-               const int     scheme)
+    mul_device_I_I(const size_t  numof,
+                   const size_t  totalWI,
+                   const size_t  N,
+                   const size_t  M,
+                   const T*      input,
+                   T*            output,
+                   const size_t  dim,
+                   const size_t* lengths,
+                   const size_t* stride_in,
+                   const size_t* stride_out,
+                   const int     dir,
+                   const int     scheme,
+                   void* __restrict__ load_cb_fn,
+                   void* __restrict__ load_cb_data,
+                   uint32_t load_cb_lds_bytes,
+                   void* __restrict__ store_cb_fn,
+                   void* __restrict__ store_cb_data)
 {
     size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
 
@@ -115,8 +120,14 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
     tx          = tx % numof;
     size_t iIdx = tx * stride_in[0];
     size_t oIdx = tx * stride_out[0];
+
+    auto load_cb  = get_load_cb<T, cbtype>(load_cb_fn);
+    auto store_cb = get_store_cb<T, cbtype>(store_cb_fn);
     if(scheme == 0)
     {
+        // FFT_MUL is in the middle of bluestein and should never be
+        // the first/last kernel to read/write global memory.  So we
+        // don't need to run callbacks.
         output += oOffset;
 
         T out          = output[oIdx];
@@ -125,17 +136,23 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
     }
     else if(scheme == 1)
     {
+        // PAD_MUL is the first non-chirp step of bluestein and
+        // should never be the last kernel to write global memory.
+        // So we should never need to run a "store" callback.
+
         T* chirp = output;
 
-        input += iOffset;
+        iIdx += iOffset;
 
-        output += M;
-        output += oOffset;
+        oIdx += M;
+        oIdx += oOffset;
 
         if(tx < N)
         {
-            output[oIdx].x = input[iIdx].x * chirp[tx].x + input[iIdx].y * chirp[tx].y;
-            output[oIdx].y = -input[iIdx].x * chirp[tx].y + input[iIdx].y * chirp[tx].x;
+            // callback might modify input, but otherwise it's const
+            T in_elem      = load_cb(const_cast<T*>(input), iIdx, load_cb_data, nullptr);
+            output[oIdx].x = in_elem.x * chirp[tx].x + in_elem.y * chirp[tx].y;
+            output[oIdx].y = -in_elem.x * chirp[tx].y + in_elem.y * chirp[tx].x;
         }
         else
         {
@@ -144,34 +161,41 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
     }
     else if(scheme == 2)
     {
+        // RES_MUL is the last step of bluestein and
+        // should never be the first kernel to read global memory.
+        // So we should never need to run a "load" callback.
+
         const T* chirp = input;
 
-        input += 2 * M;
-        input += iOffset;
+        iIdx += 2 * M;
+        iIdx += iOffset;
 
-        output += oOffset;
+        oIdx += oOffset;
 
         real_type_t<T> MI = 1.0 / (real_type_t<T>)M;
-        output[oIdx].x    = MI * (input[iIdx].x * chirp[tx].x + input[iIdx].y * chirp[tx].y);
-        output[oIdx].y    = MI * (-input[iIdx].x * chirp[tx].y + input[iIdx].y * chirp[tx].x);
+        T              out_elem;
+
+        out_elem.x = MI * (input[iIdx].x * chirp[tx].x + input[iIdx].y * chirp[tx].y);
+        out_elem.y = MI * (-input[iIdx].x * chirp[tx].y + input[iIdx].y * chirp[tx].x);
+        store_cb(output, oIdx, out_elem, store_cb_data, nullptr);
     }
 }
 
 template <typename T>
 __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
-    mul_device(const size_t          numof,
-               const size_t          totalWI,
-               const size_t          N,
-               const size_t          M,
-               const real_type_t<T>* inputRe,
-               const real_type_t<T>* inputIm,
-               T*                    output,
-               const size_t          dim,
-               const size_t*         lengths,
-               const size_t*         stride_in,
-               const size_t*         stride_out,
-               const int             dir,
-               const int             scheme)
+    mul_device_P_I(const size_t          numof,
+                   const size_t          totalWI,
+                   const size_t          N,
+                   const size_t          M,
+                   const real_type_t<T>* inputRe,
+                   const real_type_t<T>* inputIm,
+                   T*                    output,
+                   const size_t          dim,
+                   const size_t*         lengths,
+                   const size_t*         stride_in,
+                   const size_t*         stride_out,
+                   const int             dir,
+                   const int             scheme)
 {
     size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
 
@@ -251,19 +275,19 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
 
 template <typename T>
 __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
-    mul_device(const size_t    numof,
-               const size_t    totalWI,
-               const size_t    N,
-               const size_t    M,
-               const T*        input,
-               real_type_t<T>* outputRe,
-               real_type_t<T>* outputIm,
-               const size_t    dim,
-               const size_t*   lengths,
-               const size_t*   stride_in,
-               const size_t*   stride_out,
-               const int       dir,
-               const int       scheme)
+    mul_device_I_P(const size_t    numof,
+                   const size_t    totalWI,
+                   const size_t    N,
+                   const size_t    M,
+                   const T*        input,
+                   real_type_t<T>* outputRe,
+                   real_type_t<T>* outputIm,
+                   const size_t    dim,
+                   const size_t*   lengths,
+                   const size_t*   stride_in,
+                   const size_t*   stride_out,
+                   const int       dir,
+                   const int       scheme)
 {
     size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
 
@@ -345,20 +369,20 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
 
 template <typename T>
 __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
-    mul_device(const size_t          numof,
-               const size_t          totalWI,
-               const size_t          N,
-               const size_t          M,
-               const real_type_t<T>* inputRe,
-               const real_type_t<T>* inputIm,
-               real_type_t<T>*       outputRe,
-               real_type_t<T>*       outputIm,
-               const size_t          dim,
-               const size_t*         lengths,
-               const size_t*         stride_in,
-               const size_t*         stride_out,
-               const int             dir,
-               const int             scheme)
+    mul_device_P_P(const size_t          numof,
+                   const size_t          totalWI,
+                   const size_t          N,
+                   const size_t          M,
+                   const real_type_t<T>* inputRe,
+                   const real_type_t<T>* inputIm,
+                   real_type_t<T>*       outputRe,
+                   real_type_t<T>*       outputIm,
+                   const size_t          dim,
+                   const size_t*         lengths,
+                   const size_t*         stride_in,
+                   const size_t*         stride_out,
+                   const int             dir,
+                   const int             scheme)
 {
     size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
 

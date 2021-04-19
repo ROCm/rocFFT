@@ -97,17 +97,21 @@ enum struct CallbackType
 template <typename T, CallbackType cbtype>
 static __device__ typename callback_type<T>::load get_load_cb(void* ptr)
 {
-    return cbtype == CallbackType::NONE || ptr == nullptr
-               ? load_cb_default<T>
-               : reinterpret_cast<typename callback_type<T>::load>(ptr);
+#ifdef ROCFFT_CALLBACKS_ENABLED
+    if(cbtype == CallbackType::USER_LOAD_STORE && ptr != nullptr)
+        return reinterpret_cast<typename callback_type<T>::load>(ptr);
+#endif
+    return load_cb_default<T>;
 }
 
 template <typename T, CallbackType cbtype>
 static __device__ typename callback_type<T>::store get_store_cb(void* ptr)
 {
-    return cbtype == CallbackType::NONE || ptr == nullptr
-               ? store_cb_default<T>
-               : reinterpret_cast<typename callback_type<T>::store>(ptr);
+#ifdef ROCFFT_CALLBACKS_ENABLED
+    if(cbtype == CallbackType::USER_LOAD_STORE && ptr != nullptr)
+        return reinterpret_cast<typename callback_type<T>::store>(ptr);
+#endif
+    return store_cb_default<T>;
 }
 
 #endif
