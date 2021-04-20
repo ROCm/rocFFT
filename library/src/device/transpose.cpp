@@ -25,20 +25,25 @@
 
 // chain of macros to iterate over transpose kernel template parameters, to
 // set a function pointer 'kernel_func'
-#define TRANSPOSE_KERNEL2_DIAG(TWL, DIR, ALL, STRIDE, DIAG)                                       \
-    else if(twl == TWL && dir == DIR && all == ALL && unit_stride0 == STRIDE && diagonal == DIAG) \
-        kernel_func                                                                               \
-        = transpose_kernel2<T,                                                                    \
-                            TA,                                                                   \
-                            TB,                                                                   \
-                            TRANSPOSE_DIM_X,                                                      \
-                            TRANSPOSE_DIM_Y,                                                      \
-                            true,                                                                 \
-                            TWL,                                                                  \
-                            DIR,                                                                  \
-                            ALL,                                                                  \
-                            STRIDE,                                                               \
-                            DIAG>;
+#define TRANSPOSE_KERNEL2_CALLBACK(TWL, DIR, ALL, STRIDE, DIAG, CALLBACK)                        \
+    else if(twl == TWL && dir == DIR && all == ALL && unit_stride0 == STRIDE && diagonal == DIAG \
+            && cbtype == CALLBACK) kernel_func                                                   \
+        = transpose_kernel2<T,                                                                   \
+                            TA,                                                                  \
+                            TB,                                                                  \
+                            TRANSPOSE_DIM_X,                                                     \
+                            TRANSPOSE_DIM_Y,                                                     \
+                            true,                                                                \
+                            TWL,                                                                 \
+                            DIR,                                                                 \
+                            ALL,                                                                 \
+                            STRIDE,                                                              \
+                            DIAG,                                                                \
+                            CALLBACK>;
+
+#define TRANSPOSE_KERNEL2_DIAG(TWL, DIR, ALL, STRIDE, DIAG)                                \
+    TRANSPOSE_KERNEL2_CALLBACK(TWL, DIR, ALL, STRIDE, DIAG, CallbackType::USER_LOAD_STORE) \
+    TRANSPOSE_KERNEL2_CALLBACK(TWL, DIR, ALL, STRIDE, DIAG, CallbackType::NONE)
 
 #define TRANSPOSE_KERNEL2_STRIDE(TWL, DIR, ALL, STRIDE)  \
     TRANSPOSE_KERNEL2_DIAG(TWL, DIR, ALL, STRIDE, false) \
@@ -67,17 +72,22 @@
     TRANSPOSE_KERNEL2_TWL(3)         \
     TRANSPOSE_KERNEL2_TWL(4)
 
-#define TRANSPOSE_KERNEL2_SCHEME_DIAG(ALL, STRIDE, DIAG)                          \
-    else if(all == ALL && unit_stride0 == STRIDE && diagonal == DIAG) kernel_func \
-        = transpose_kernel2_scheme<T,                                             \
-                                   TA,                                            \
-                                   TB,                                            \
-                                   TRANSPOSE_DIM_X,                               \
-                                   TRANSPOSE_DIM_Y,                               \
-                                   ALL,                                           \
-                                   STRIDE,                                        \
-                                   DIAG>;
+#define TRANSPOSE_KERNEL2_SCHEME_CALLBACK(ALL, STRIDE, DIAG, CALLBACK)                      \
+    else if(all == ALL && unit_stride0 == STRIDE && diagonal == DIAG && cbtype == CALLBACK) \
+        kernel_func                                                                         \
+        = transpose_kernel2_scheme<T,                                                       \
+                                   TA,                                                      \
+                                   TB,                                                      \
+                                   TRANSPOSE_DIM_X,                                         \
+                                   TRANSPOSE_DIM_Y,                                         \
+                                   ALL,                                                     \
+                                   STRIDE,                                                  \
+                                   DIAG,                                                    \
+                                   CALLBACK>;
 
+#define TRANSPOSE_KERNEL2_SCHEME_DIAG(ALL, STRIDE, DIAG)                                \
+    TRANSPOSE_KERNEL2_SCHEME_CALLBACK(ALL, STRIDE, DIAG, CallbackType::USER_LOAD_STORE) \
+    TRANSPOSE_KERNEL2_SCHEME_CALLBACK(ALL, STRIDE, DIAG, CallbackType::NONE)
 #define TRANSPOSE_KERNEL2_SCHEME_STRIDE(ALL, STRIDE)  \
     TRANSPOSE_KERNEL2_SCHEME_DIAG(ALL, STRIDE, false) \
     TRANSPOSE_KERNEL2_SCHEME_DIAG(ALL, STRIDE, true)
@@ -104,23 +114,29 @@
 /// @param[inout] B pointer storing batch_count of B matrix on the GPU.
 /// @param[in]    count size_t number of matrices processed
 template <typename T, typename TA, typename TB, int TRANSPOSE_DIM_X, int TRANSPOSE_DIM_Y>
-rocfft_status rocfft_transpose_outofplace_template(size_t      m,
-                                                   size_t      n,
-                                                   const TA*   A,
-                                                   TB*         B,
-                                                   void*       twiddles_large,
-                                                   size_t      count,
-                                                   size_t*     lengths,
-                                                   size_t*     stride_in,
-                                                   size_t*     stride_out,
-                                                   int         twl,
-                                                   int         dir,
-                                                   int         scheme,
-                                                   bool        unit_stride0,
-                                                   bool        diagonal,
-                                                   size_t      ld_in,
-                                                   size_t      ld_out,
-                                                   hipStream_t rocfft_stream)
+rocfft_status rocfft_transpose_outofplace_template(size_t       m,
+                                                   size_t       n,
+                                                   const TA*    A,
+                                                   TB*          B,
+                                                   void*        twiddles_large,
+                                                   size_t       count,
+                                                   size_t*      lengths,
+                                                   size_t*      stride_in,
+                                                   size_t*      stride_out,
+                                                   int          twl,
+                                                   int          dir,
+                                                   int          scheme,
+                                                   bool         unit_stride0,
+                                                   bool         diagonal,
+                                                   size_t       ld_in,
+                                                   size_t       ld_out,
+                                                   hipStream_t  rocfft_stream,
+                                                   CallbackType cbtype,
+                                                   void* __restrict__ load_cb_fn,
+                                                   void* __restrict__ load_cb_data,
+                                                   uint32_t load_cb_lds_bytes,
+                                                   void* __restrict__ store_cb_fn,
+                                                   void* __restrict__ store_cb_data)
 {
 
     dim3 grid((n - 1) / TRANSPOSE_DIM_X + 1, ((m - 1) / TRANSPOSE_DIM_X + 1), count);
@@ -131,7 +147,18 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
 
     if(scheme == 0)
     {
-        void (*kernel_func)(const TA*, TB*, T*, size_t*, size_t*, size_t*) = nullptr;
+        void (*kernel_func)(const TA*,
+                            TB*,
+                            T*,
+                            size_t*,
+                            size_t*,
+                            size_t*,
+                            void* __restrict__,
+                            void* __restrict__,
+                            uint32_t,
+                            void* __restrict__,
+                            void* __restrict__)
+            = nullptr;
         GET_TRANSPOSE_KERNEL2_FUNC();
 
         if(kernel_func)
@@ -145,7 +172,12 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
                                (T*)twiddles_large,
                                lengths,
                                stride_in,
-                               stride_out);
+                               stride_out,
+                               load_cb_fn,
+                               load_cb_data,
+                               load_cb_lds_bytes,
+                               store_cb_fn,
+                               store_cb_data);
         else
         {
             rocfft_cout << "scheme: " << scheme << std::endl;
@@ -157,8 +189,21 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
     }
     else
     {
-        void (*kernel_func)(
-            const TA*, TB*, T*, size_t*, size_t*, size_t*, size_t, size_t, size_t, size_t)
+        void (*kernel_func)(const TA*,
+                            TB*,
+                            T*,
+                            size_t*,
+                            size_t*,
+                            size_t*,
+                            size_t,
+                            size_t,
+                            size_t,
+                            size_t,
+                            void* __restrict__,
+                            void* __restrict__,
+                            uint32_t,
+                            void* __restrict__,
+                            void* __restrict__)
             = nullptr;
         GET_TRANSPOSE_KERNEL2_SCHEME_FUNC();
 
@@ -178,7 +223,12 @@ rocfft_status rocfft_transpose_outofplace_template(size_t      m,
                                ld_in,
                                ld_out,
                                m,
-                               n);
+                               n,
+                               load_cb_fn,
+                               load_cb_data,
+                               load_cb_lds_bytes,
+                               store_cb_fn,
+                               store_cb_data);
         }
         else
         {
@@ -279,6 +329,8 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
     for(size_t i = extraDimStart; i < data->node->length.size(); i++)
         count *= data->node->length[i];
 
+    CallbackType cbtype = data->get_callback_type();
+
     // double2 must use 32 otherwise exceed the shared memory (LDS) size
 
     // FIXME: push planar ptr on device in better way!!!
@@ -318,7 +370,13 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 diagonal,
                 ld_in,
                 ld_out,
-                rocfft_stream);
+                rocfft_stream,
+                cbtype,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
 
             hipFree(d_in_planar);
         }
@@ -353,7 +411,13 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 diagonal,
                 ld_in,
                 ld_out,
-                rocfft_stream);
+                rocfft_stream,
+                cbtype,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
 
             hipFree(d_in_planar);
         }
@@ -394,7 +458,13 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 diagonal,
                 ld_in,
                 ld_out,
-                rocfft_stream);
+                rocfft_stream,
+                cbtype,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
 
             hipFree(d_out_planar);
         }
@@ -430,7 +500,13 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 diagonal,
                 ld_in,
                 ld_out,
-                rocfft_stream);
+                rocfft_stream,
+                cbtype,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
 
             hipFree(d_out_planar);
         }
@@ -478,7 +554,13 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 diagonal,
                 ld_in,
                 ld_out,
-                rocfft_stream);
+                rocfft_stream,
+                cbtype,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
 
             hipFree(d_in_planar);
             hipFree(d_out_planar);
@@ -522,7 +604,13 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 diagonal,
                 ld_in,
                 ld_out,
-                rocfft_stream);
+                rocfft_stream,
+                cbtype,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
 
             hipFree(d_in_planar);
             hipFree(d_out_planar);
@@ -553,7 +641,13 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 diagonal,
                 ld_in,
                 ld_out,
-                rocfft_stream);
+                rocfft_stream,
+                cbtype,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
         else
             rocfft_transpose_outofplace_template<cmplx_double, cmplx_double, cmplx_double, 32, 32>(
                 m,
@@ -572,6 +666,12 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
                 diagonal,
                 ld_in,
                 ld_out,
-                rocfft_stream);
+                rocfft_stream,
+                cbtype,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
     }
 }

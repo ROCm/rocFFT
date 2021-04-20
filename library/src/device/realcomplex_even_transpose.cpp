@@ -39,7 +39,7 @@ __device__ size_t output_row_base(size_t        dim,
 
 // R2C post-process kernel, 2D and 3D, transposed output.
 // lengths counts in complex elements
-template <typename T, typename T_I, typename T_O, size_t DIM_X, size_t DIM_Y>
+template <typename T, typename T_I, typename T_O, size_t DIM_X, size_t DIM_Y, CallbackType cbtype>
 __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     real_post_process_kernel_transpose(size_t        dim,
                                        const T_I*    input0,
@@ -49,7 +49,12 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
                                        const void*   twiddles0,
                                        const size_t* lengths,
                                        const size_t* inStride,
-                                       const size_t* outStride)
+                                       const size_t* outStride,
+                                       void* __restrict__ load_cb_fn,
+                                       void* __restrict__ load_cb_data,
+                                       uint32_t load_cb_lds_bytes,
+                                       void* __restrict__ store_cb_fn,
+                                       void* __restrict__ store_cb_data)
 {
     size_t idist1D            = inStride[1];
     size_t input_batch_start  = idist * blockIdx.z;
@@ -96,13 +101,19 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 
     if(row_start + lds_row < row_end && lds_col < cols_to_read)
     {
-        auto v                     = Handler<T_I>::read(input0,
-                                    input_batch_start + input_row_base + left_col_start + lds_col);
+        auto v                     = Handler<T_I, cbtype>::read(input0,
+                                            input_batch_start + input_row_base + left_col_start
+                                                + lds_col,
+                                            load_cb_fn,
+                                            load_cb_data);
         leftTile[lds_col][lds_row] = v;
 
-        auto v2                     = Handler<T_I>::read(input0,
-                                     input_batch_start + input_row_base
-                                         + (len0 - (left_col_start + cols_to_read - 1)) + lds_col);
+        auto v2                     = Handler<T_I, cbtype>::read(input0,
+                                             input_batch_start + input_row_base
+                                                 + (len0 - (left_col_start + cols_to_read - 1))
+                                                 + lds_col,
+                                             load_cb_fn,
+                                             load_cb_data);
         rightTile[lds_col][lds_row] = v2;
     }
 
@@ -111,11 +122,13 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     T middle_elem;
     if(blockIdx.x == 0 && threadIdx.x == 0 && row_start + lds_row < row_end)
     {
-        first_elem = Handler<T_I>::read(input0, input_batch_start + input_row_base);
+        first_elem = Handler<T_I, cbtype>::read(
+            input0, input_batch_start + input_row_base, load_cb_fn, load_cb_data);
 
         if(len0 % 2 == 0)
         {
-            middle_elem = Handler<T_I>::read(input0, input_batch_start + input_row_base + len0 / 2);
+            middle_elem = Handler<T_I, cbtype>::read(
+                input0, input_batch_start + input_row_base + len0 / 2, load_cb_fn, load_cb_data);
         }
     }
 
@@ -127,17 +140,21 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
         T tmp;
         tmp.x = first_elem.x - first_elem.y;
         tmp.y = 0.0;
-        Handler<T_O>::write(output0,
-                            output_row_base(dim, output_batch_start, outStride, len0) + row_start
-                                + lds_row,
-                            tmp);
+        Handler<T_O, cbtype>::write(output0,
+                                    output_row_base(dim, output_batch_start, outStride, len0)
+                                        + row_start + lds_row,
+                                    tmp,
+                                    store_cb_fn,
+                                    store_cb_data);
         T tmp2;
         tmp2.x = first_elem.x + first_elem.y;
         tmp2.y = 0.0;
-        Handler<T_O>::write(output0,
-                            output_row_base(dim, output_batch_start, outStride, 0) + row_start
-                                + lds_row,
-                            tmp2);
+        Handler<T_O, cbtype>::write(output0,
+                                    output_row_base(dim, output_batch_start, outStride, 0)
+                                        + row_start + lds_row,
+                                    tmp2,
+                                    store_cb_fn,
+                                    store_cb_data);
 
         if(len0 % 2 == 0)
         {
@@ -145,10 +162,12 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
             tmp.x = middle_elem.x;
             tmp.y = -middle_elem.y;
 
-            Handler<T_O>::write(output0,
-                                output_row_base(dim, output_batch_start, outStride, middle)
-                                    + row_start + lds_row,
-                                tmp);
+            Handler<T_O, cbtype>::write(output0,
+                                        output_row_base(dim, output_batch_start, outStride, middle)
+                                            + row_start + lds_row,
+                                        tmp,
+                                        store_cb_fn,
+                                        store_cb_data);
         }
     }
 
@@ -171,14 +190,16 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
         tmp.x                 = u.x + v.x * twd_p.y + u.y * twd_p.x;
         tmp.y                 = v.y + u.y * twd_p.y - v.x * twd_p.x;
         auto output_left_base = output_row_base(dim, output_batch_start, outStride, col);
-        Handler<T_O>::write(output0, output_left_base + row_start + lds_row, tmp);
+        Handler<T_O, cbtype>::write(
+            output0, output_left_base + row_start + lds_row, tmp, store_cb_fn, store_cb_data);
 
         // write right side
         T tmp2;
         tmp2.x                 = u.x - v.x * twd_p.y - u.y * twd_p.x;
         tmp2.y                 = -v.y + u.y * twd_p.y - v.x * twd_p.x;
         auto output_right_base = output_row_base(dim, output_batch_start, outStride, len0 - col);
-        Handler<T_O>::write(output0, output_right_base + row_start + lds_row, tmp2);
+        Handler<T_O, cbtype>::write(
+            output0, output_right_base + row_start + lds_row, tmp2, store_cb_fn, store_cb_data);
     }
 }
 
@@ -198,6 +219,8 @@ void r2c_1d_post_transpose(const void* data_p, void*)
     size_t m     = data->node->length[1];
     size_t n     = data->node->length[0];
     size_t dim   = data->node->length.size();
+
+    auto cbtype = data->get_callback_type();
 
     // we're allocating one thread per tile element.  16x16 seems to
     // hit a sweet spot for performance, where it's enough threads to
@@ -236,7 +259,8 @@ void r2c_1d_post_transpose(const void* data_p, void*)
                                                                    cmplx_float,
                                                                    cmplx_float_planar,
                                                                    16,
-                                                                   16>),
+                                                                   16,
+                                                                   CallbackType::NONE>),
                 grid,
                 threads,
                 0,
@@ -249,28 +273,48 @@ void r2c_1d_post_transpose(const void* data_p, void*)
                 data->node->twiddles.data(),
                 data->node->devKernArg.data(),
                 data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH);
+                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
         }
         else
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(real_post_process_kernel_transpose<cmplx_float,
-                                                                                  cmplx_float,
-                                                                                  cmplx_float,
-                                                                                  16,
-                                                                                  16>),
-                               grid,
-                               threads,
-                               0,
-                               data->rocfft_stream,
-                               dim,
-                               static_cast<const cmplx_float*>(bufIn0),
-                               idist,
-                               static_cast<cmplx_float*>(bufOut0),
-                               odist,
-                               data->node->twiddles.data(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH);
+            hipLaunchKernelGGL(
+                cbtype == CallbackType::USER_LOAD_STORE
+                    ? HIP_KERNEL_NAME(
+                        real_post_process_kernel_transpose<cmplx_float,
+                                                           cmplx_float,
+                                                           cmplx_float,
+                                                           16,
+                                                           16,
+                                                           CallbackType::USER_LOAD_STORE>)
+                    : HIP_KERNEL_NAME(real_post_process_kernel_transpose<cmplx_float,
+                                                                         cmplx_float,
+                                                                         cmplx_float,
+                                                                         16,
+                                                                         16,
+                                                                         CallbackType::NONE>),
+                grid,
+                threads,
+                0,
+                data->rocfft_stream,
+                dim,
+                static_cast<const cmplx_float*>(bufIn0),
+                idist,
+                static_cast<cmplx_float*>(bufOut0),
+                odist,
+                data->node->twiddles.data(),
+                data->node->devKernArg.data(),
+                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
         }
     }
     else
@@ -283,7 +327,8 @@ void r2c_1d_post_transpose(const void* data_p, void*)
                                                                    cmplx_double,
                                                                    cmplx_double_planar,
                                                                    16,
-                                                                   16>),
+                                                                   16,
+                                                                   CallbackType::NONE>),
                 grid,
                 threads,
                 0,
@@ -296,35 +341,55 @@ void r2c_1d_post_transpose(const void* data_p, void*)
                 data->node->twiddles.data(),
                 data->node->devKernArg.data(),
                 data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH);
+                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
         }
         else
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(real_post_process_kernel_transpose<cmplx_double,
-                                                                                  cmplx_double,
-                                                                                  cmplx_double,
-                                                                                  16,
-                                                                                  16>),
-                               grid,
-                               threads,
-                               0,
-                               data->rocfft_stream,
-                               dim,
-                               static_cast<const cmplx_double*>(bufIn0),
-                               idist,
-                               static_cast<cmplx_double*>(bufOut0),
-                               odist,
-                               data->node->twiddles.data(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH);
+            hipLaunchKernelGGL(
+                cbtype == CallbackType::USER_LOAD_STORE
+                    ? HIP_KERNEL_NAME(
+                        real_post_process_kernel_transpose<cmplx_double,
+                                                           cmplx_double,
+                                                           cmplx_double,
+                                                           16,
+                                                           16,
+                                                           CallbackType::USER_LOAD_STORE>)
+                    : HIP_KERNEL_NAME(real_post_process_kernel_transpose<cmplx_double,
+                                                                         cmplx_double,
+                                                                         cmplx_double,
+                                                                         16,
+                                                                         16,
+                                                                         CallbackType::NONE>),
+                grid,
+                threads,
+                0,
+                data->rocfft_stream,
+                dim,
+                static_cast<const cmplx_double*>(bufIn0),
+                idist,
+                static_cast<cmplx_double*>(bufOut0),
+                odist,
+                data->node->twiddles.data(),
+                data->node->devKernArg.data(),
+                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
         }
     }
 }
 
 // C2R pre-process kernel, 2D and 3D, transposed input.
 // lengths counts in complex elements
-template <typename T, typename T_I, typename T_O, size_t DIM_X, size_t DIM_Y>
+template <typename T, typename T_I, typename T_O, size_t DIM_X, size_t DIM_Y, CallbackType cbtype>
 __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     transpose_real_pre_process_kernel(size_t        dim,
                                       const T_I*    input0,
@@ -334,7 +399,12 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
                                       const void*   twiddles0,
                                       const size_t* lengths,
                                       const size_t* inStride,
-                                      const size_t* outStride)
+                                      const size_t* outStride,
+                                      void* __restrict__ load_cb_fn,
+                                      void* __restrict__ load_cb_data,
+                                      uint32_t load_cb_lds_bytes,
+                                      void* __restrict__ store_cb_fn,
+                                      void* __restrict__ store_cb_data)
 {
     size_t idist1D            = dim == 2 ? inStride[1] : inStride[2];
     size_t odist1D            = outStride[1];
@@ -383,14 +453,18 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 
     if(col_start + lds_col < col_end && lds_row < rows_to_read)
     {
-        auto v                    = Handler<T_I>::read(input0,
-                                    input_batch_start + input_col_base + lds_col
-                                        + (top_row_start + lds_row) * idist1D);
+        auto v                    = Handler<T_I, cbtype>::read(input0,
+                                            input_batch_start + input_col_base + lds_col
+                                                + (top_row_start + lds_row) * idist1D,
+                                            load_cb_fn,
+                                            load_cb_data);
         topTile[lds_col][lds_row] = v;
 
-        auto v2 = Handler<T_I>::read(input0,
-                                     input_batch_start + input_col_base + lds_col
-                                         + (len1 - (top_row_start + lds_row)) * idist1D);
+        auto v2 = Handler<T_I, cbtype>::read(input0,
+                                             input_batch_start + input_col_base + lds_col
+                                                 + (len1 - (top_row_start + lds_row)) * idist1D,
+                                             load_cb_fn,
+                                             load_cb_data);
         // TODO: reads values-to-butterfly into same col/row in LDS.
         // r2c kernel writes LDS in same order as input.  these
         // probably should be made consistent
@@ -403,14 +477,21 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     T last_elem;
     if(blockIdx.y == 0 && threadIdx.y == 0 && col_start + lds_col < col_end)
     {
-        first_elem = Handler<T_I>::read(input0, input_batch_start + col_start + lds_col);
+        first_elem = Handler<T_I, cbtype>::read(
+            input0, input_batch_start + col_start + lds_col, load_cb_fn, load_cb_data);
         if(len1 % 2 == 0)
         {
-            middle_elem = Handler<T_I>::read(
-                input0, input_batch_start + col_start + lds_col + middle * idist1D);
+            middle_elem = Handler<T_I, cbtype>::read(input0,
+                                                     input_batch_start + col_start + lds_col
+                                                         + middle * idist1D,
+                                                     load_cb_fn,
+                                                     load_cb_data);
         }
         last_elem
-            = Handler<T_I>::read(input0, input_batch_start + col_start + lds_col + len1 * idist1D);
+            = Handler<T_I, cbtype>::read(input0,
+                                         input_batch_start + col_start + lds_col + len1 * idist1D,
+                                         load_cb_fn,
+                                         load_cb_data);
     }
 
     __syncthreads();
@@ -421,8 +502,11 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
         T tmp;
         tmp.x = first_elem.x - first_elem.y + last_elem.x + last_elem.y;
         tmp.y = first_elem.x + first_elem.y - last_elem.x + last_elem.y;
-        Handler<T_O>::write(
-            output0, output_batch_start + outStride[1] * (col_start + lds_col), tmp);
+        Handler<T_O, cbtype>::write(output0,
+                                    output_batch_start + outStride[1] * (col_start + lds_col),
+                                    tmp,
+                                    store_cb_fn,
+                                    store_cb_data);
 
         if(len1 % 2 == 0)
         {
@@ -430,8 +514,12 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
             tmp.x = 2.0 * middle_elem.x;
             tmp.y = -2.0 * middle_elem.y;
 
-            Handler<T_O>::write(
-                output0, output_batch_start + outStride[1] * (col_start + lds_col) + middle, tmp);
+            Handler<T_O, cbtype>::write(output0,
+                                        output_batch_start + outStride[1] * (col_start + lds_col)
+                                            + middle,
+                                        tmp,
+                                        store_cb_fn,
+                                        store_cb_data);
         }
     }
 
@@ -450,19 +538,23 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
         T tmp;
         tmp.x = u.x + v.x * twd_p.y - u.y * twd_p.x;
         tmp.y = v.y + u.y * twd_p.y + v.x * twd_p.x;
-        Handler<T_O>::write(output0,
-                            output_batch_start + top_row_start + lds_row
-                                + (col_start + lds_col) * odist1D,
-                            tmp);
+        Handler<T_O, cbtype>::write(output0,
+                                    output_batch_start + top_row_start + lds_row
+                                        + (col_start + lds_col) * odist1D,
+                                    tmp,
+                                    store_cb_fn,
+                                    store_cb_data);
 
         // write bottom side
         T tmp2;
         tmp2.x = u.x - v.x * twd_p.y + u.y * twd_p.x;
         tmp2.y = -v.y + u.y * twd_p.y + v.x * twd_p.x;
-        Handler<T_O>::write(output0,
-                            output_batch_start + (len1 - (top_row_start + lds_row))
-                                + (col_start + lds_col) * odist1D,
-                            tmp2);
+        Handler<T_O, cbtype>::write(output0,
+                                    output_batch_start + (len1 - (top_row_start + lds_row))
+                                        + (col_start + lds_col) * odist1D,
+                                    tmp2,
+                                    store_cb_fn,
+                                    store_cb_data);
     }
 }
 
@@ -482,6 +574,8 @@ void transpose_c2r_1d_pre(const void* data_p, void*)
     size_t m     = data->node->length[1];
     size_t n     = data->node->length[0];
     size_t dim   = data->node->length.size();
+
+    auto cbtype = data->get_callback_type();
 
     // we're allocating one thread per tile element.  32x16 seems to
     // hit a sweet spot for performance, where it's enough threads to
@@ -526,45 +620,67 @@ void transpose_c2r_1d_pre(const void* data_p, void*)
         if(is_complex_planar(data->node->inArrayType))
         {
             cmplx_planar_device_buffer<float2> in_planar(bufIn0, bufIn1);
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_float,
-                                                                                 cmplx_float_planar,
-                                                                                 cmplx_float,
-                                                                                 32,
-                                                                                 16>),
-                               grid,
-                               threads,
-                               0,
-                               data->rocfft_stream,
-                               dim,
-                               in_planar.devicePtr(),
-                               idist,
-                               static_cast<cmplx_float*>(bufOut0),
-                               odist,
-                               data->node->twiddles.data(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH);
+            hipLaunchKernelGGL(
+                HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_float,
+                                                                  cmplx_float_planar,
+                                                                  cmplx_float,
+                                                                  32,
+                                                                  16,
+                                                                  CallbackType::NONE>),
+                grid,
+                threads,
+                0,
+                data->rocfft_stream,
+                dim,
+                in_planar.devicePtr(),
+                idist,
+                static_cast<cmplx_float*>(bufOut0),
+                odist,
+                data->node->twiddles.data(),
+                data->node->devKernArg.data(),
+                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
         }
         else
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_float,
-                                                                                 cmplx_float,
-                                                                                 cmplx_float,
-                                                                                 32,
-                                                                                 16>),
-                               grid,
-                               threads,
-                               0,
-                               data->rocfft_stream,
-                               dim,
-                               static_cast<const cmplx_float*>(bufIn0),
-                               idist,
-                               static_cast<cmplx_float*>(bufOut0),
-                               odist,
-                               data->node->twiddles.data(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH);
+            hipLaunchKernelGGL(
+                cbtype == CallbackType::USER_LOAD_STORE
+                    ? HIP_KERNEL_NAME(
+                        transpose_real_pre_process_kernel<cmplx_float,
+                                                          cmplx_float,
+                                                          cmplx_float,
+                                                          32,
+                                                          16,
+                                                          CallbackType::USER_LOAD_STORE>)
+                    : HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_float,
+                                                                        cmplx_float,
+                                                                        cmplx_float,
+                                                                        32,
+                                                                        16,
+                                                                        CallbackType::NONE>),
+                grid,
+                threads,
+                0,
+                data->rocfft_stream,
+                dim,
+                static_cast<const cmplx_float*>(bufIn0),
+                idist,
+                static_cast<cmplx_float*>(bufOut0),
+                odist,
+                data->node->twiddles.data(),
+                data->node->devKernArg.data(),
+                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
         }
     }
     else
@@ -577,7 +693,8 @@ void transpose_c2r_1d_pre(const void* data_p, void*)
                                                                   cmplx_double_planar,
                                                                   cmplx_double,
                                                                   32,
-                                                                  16>),
+                                                                  16,
+                                                                  CallbackType::NONE>),
                 grid,
                 threads,
                 0,
@@ -590,29 +707,49 @@ void transpose_c2r_1d_pre(const void* data_p, void*)
                 data->node->twiddles.data(),
                 data->node->devKernArg.data(),
                 data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH);
+                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
         }
         else
 
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_double,
-                                                                                 cmplx_double,
-                                                                                 cmplx_double,
-                                                                                 32,
-                                                                                 16>),
-                               grid,
-                               threads,
-                               0,
-                               data->rocfft_stream,
-                               dim,
-                               static_cast<const cmplx_double*>(bufIn0),
-                               idist,
-                               static_cast<cmplx_double*>(bufOut0),
-                               odist,
-                               data->node->twiddles.data(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH);
+            hipLaunchKernelGGL(
+                cbtype == CallbackType::USER_LOAD_STORE
+                    ? HIP_KERNEL_NAME(
+                        transpose_real_pre_process_kernel<cmplx_double,
+                                                          cmplx_double,
+                                                          cmplx_double,
+                                                          32,
+                                                          16,
+                                                          CallbackType::USER_LOAD_STORE>)
+                    : HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_double,
+                                                                        cmplx_double,
+                                                                        cmplx_double,
+                                                                        32,
+                                                                        16,
+                                                                        CallbackType::NONE>),
+                grid,
+                threads,
+                0,
+                data->rocfft_stream,
+                dim,
+                static_cast<const cmplx_double*>(bufIn0),
+                idist,
+                static_cast<cmplx_double*>(bufOut0),
+                odist,
+                data->node->twiddles.data(),
+                data->node->devKernArg.data(),
+                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
+                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                data->callbacks.load_cb_fn,
+                data->callbacks.load_cb_data,
+                data->callbacks.load_cb_lds_bytes,
+                data->callbacks.store_cb_fn,
+                data->callbacks.store_cb_data);
         }
     }
 }

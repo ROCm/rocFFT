@@ -22,6 +22,7 @@
 #define ARRAY_FORMAT_H
 
 #include "../../../../shared/gpubuf.h"
+#include "callback.h"
 #include "common.h"
 
 //-----------------------------------------------------------------------------
@@ -72,43 +73,54 @@ struct cmplx_type<cmplx_double_planar>
 template <class T>
 using cmplx_type_t = typename cmplx_type<T>::type;
 
-template <typename T>
+template <typename T, CallbackType cbtype>
 struct Handler
 {
 };
 
-template <>
-struct Handler<cmplx_float>
+template <CallbackType cbtype>
+struct Handler<cmplx_float, cbtype>
 {
-    static __host__ __device__ inline float2 read(cmplx_float const* in, size_t idx)
+    static __host__ __device__ inline float2
+        read(cmplx_float const* in, size_t idx, void* load_cb_fn, void* load_cb_data)
     {
-        return in[idx];
+        auto load_cb = get_load_cb<float2, cbtype>(load_cb_fn);
+        // callback might modify input, but it's otherwise const
+        return load_cb(const_cast<cmplx_float*>(in), idx, load_cb_data, nullptr);
     }
 
-    static __host__ __device__ inline void write(cmplx_float* out, size_t idx, float2 v)
+    static __host__ __device__ inline void
+        write(cmplx_float* out, size_t idx, float2 v, void* store_cb_fn, void* store_cb_data)
     {
-        out[idx] = v;
+        auto store_cb = get_store_cb<float2, cbtype>(store_cb_fn);
+        store_cb(out, idx, v, store_cb_data, nullptr);
     }
 };
 
-template <>
-struct Handler<cmplx_double>
+template <CallbackType cbtype>
+struct Handler<cmplx_double, cbtype>
 {
-    static __host__ __device__ inline double2 read(cmplx_double const* in, size_t idx)
+    static __host__ __device__ inline double2
+        read(cmplx_double const* in, size_t idx, void* load_cb_fn, void* load_cb_data)
     {
-        return in[idx];
+        auto load_cb = get_load_cb<double2, cbtype>(load_cb_fn);
+        // callback might modify input, but it's otherwise const
+        return load_cb(const_cast<cmplx_double*>(in), idx, load_cb_data, nullptr);
     }
 
-    static __host__ __device__ inline void write(cmplx_double* out, size_t idx, double2 v)
+    static __host__ __device__ inline void
+        write(cmplx_double* out, size_t idx, double2 v, void* store_cb_fn, void* store_cb_data)
     {
-        out[idx] = v;
+        auto store_cb = get_store_cb<double2, cbtype>(store_cb_fn);
+        store_cb(out, idx, v, store_cb_data, nullptr);
     }
 };
 
-template <>
-struct Handler<cmplx_float_planar>
+template <CallbackType cbtype>
+struct Handler<cmplx_float_planar, cbtype>
 {
-    static __host__ __device__ inline float2 read(cmplx_float_planar const* in, size_t idx)
+    static __host__ __device__ inline float2
+        read(cmplx_float_planar const* in, size_t idx, void* load_cb_fn, void* load_cb_data)
     {
         float2 t;
         t.x = in->R[idx];
@@ -116,17 +128,19 @@ struct Handler<cmplx_float_planar>
         return t;
     }
 
-    static __host__ __device__ inline void write(cmplx_float_planar* out, size_t idx, float2 v)
+    static __host__ __device__ inline void
+        write(cmplx_float_planar* out, size_t idx, float2 v, void* store_cb_fn, void* store_cb_data)
     {
         out->R[idx] = v.x;
         out->I[idx] = v.y;
     }
 };
 
-template <>
-struct Handler<cmplx_double_planar>
+template <CallbackType cbtype>
+struct Handler<cmplx_double_planar, cbtype>
 {
-    static __host__ __device__ inline double2 read(cmplx_double_planar const* in, size_t idx)
+    static __host__ __device__ inline double2
+        read(cmplx_double_planar const* in, size_t idx, void* load_cb_fn, void* load_cb_data)
     {
         double2 t;
         t.x = in->R[idx];
@@ -134,7 +148,8 @@ struct Handler<cmplx_double_planar>
         return t;
     }
 
-    static __host__ __device__ inline void write(cmplx_double_planar* out, size_t idx, double2 v)
+    static __host__ __device__ inline void write(
+        cmplx_double_planar* out, size_t idx, double2 v, void* store_cb_fn, void* store_cb_data)
     {
         out->R[idx] = v.x;
         out->I[idx] = v.y;

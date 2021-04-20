@@ -84,13 +84,14 @@
 template <typename T,
           typename T_I,
           typename T_O,
-          size_t DIM_X,
-          size_t DIM_Y,
-          bool   WITH_TWL,
-          int    TWL,
-          int    DIR,
-          bool   ALL,
-          bool   UNIT_STRIDE_0>
+          size_t       DIM_X,
+          size_t       DIM_Y,
+          bool         WITH_TWL,
+          int          TWL,
+          int          DIR,
+          bool         ALL,
+          bool         UNIT_STRIDE_0,
+          CallbackType cbtype>
 __device__ void transpose_tile_device(const T_I*   input,
                                       T_O*         output,
                                       size_t       in_offset,
@@ -103,7 +104,12 @@ __device__ void transpose_tile_device(const T_I*   input,
                                       size_t       ld_out,
                                       size_t       stride_0_in,
                                       size_t       stride_0_out,
-                                      T*           twiddles_large)
+                                      T*           twiddles_large,
+                                      void* __restrict__ load_cb_fn,
+                                      void* __restrict__ load_cb_data,
+                                      uint32_t load_cb_lds_bytes,
+                                      void* __restrict__ store_cb_fn,
+                                      void* __restrict__ store_cb_data)
 {
     __shared__ T shared[DIM_X][DIM_X];
 
@@ -119,11 +125,15 @@ __device__ void transpose_tile_device(const T_I*   input,
             T tmp;
             if(UNIT_STRIDE_0)
             {
-                tmp = Handler<T_I>::read(input, in_offset + tx1 + (ty1 + i) * ld_in);
+                tmp = Handler<T_I, cbtype>::read(
+                    input, in_offset + tx1 + (ty1 + i) * ld_in, load_cb_fn, load_cb_data);
             }
             else
             {
-                tmp = Handler<T_I>::read(input, in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in);
+                tmp = Handler<T_I, cbtype>::read(input,
+                                                 in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in,
+                                                 load_cb_fn,
+                                                 load_cb_data);
             }
             TRANSPOSE_TWIDDLE_MUL(tmp);
             shared[tx1][ty1 + i] = tmp; // the transpose taking place here
@@ -149,12 +159,19 @@ __device__ void transpose_tile_device(const T_I*   input,
             // reconfigure the threads
             if(UNIT_STRIDE_0)
             {
-                Handler<T_O>::write(output, out_offset + tx1 + (i + ty1) * ld_out, val[j]);
+                Handler<T_O, cbtype>::write(output,
+                                            out_offset + tx1 + (i + ty1) * ld_out,
+                                            val[j],
+                                            store_cb_fn,
+                                            store_cb_data);
             }
             else
             {
-                Handler<T_O>::write(
-                    output, out_offset + tx1 * stride_0_out + (i + ty1) * ld_out, val[j]);
+                Handler<T_O, cbtype>::write(output,
+                                            out_offset + tx1 * stride_0_out + (i + ty1) * ld_out,
+                                            val[j],
+                                            store_cb_fn,
+                                            store_cb_data);
             }
         }
     }
@@ -170,12 +187,16 @@ __device__ void transpose_tile_device(const T_I*   input,
             {
                 if(UNIT_STRIDE_0)
                 {
-                    val[j] = Handler<T_I>::read(input, in_offset + tx1 + (ty1 + i) * ld_in);
+                    val[j] = Handler<T_I, cbtype>::read(
+                        input, in_offset + tx1 + (ty1 + i) * ld_in, load_cb_fn, load_cb_data);
                 }
                 else
                 {
-                    val[j] = Handler<T_I>::read(input,
-                                                in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in);
+                    val[j] = Handler<T_I, cbtype>::read(input,
+                                                        in_offset + tx1 * stride_0_in
+                                                            + (ty1 + i) * ld_in,
+                                                        load_cb_fn,
+                                                        load_cb_data);
                 }
                 TRANSPOSE_TWIDDLE_MUL(val[j]);
             }
@@ -205,12 +226,20 @@ __device__ void transpose_tile_device(const T_I*   input,
             {
                 if(UNIT_STRIDE_0)
                 {
-                    Handler<T_O>::write(output, out_offset + tx1 + (i + ty1) * ld_out, val[j]);
+                    Handler<T_O, cbtype>::write(output,
+                                                out_offset + tx1 + (i + ty1) * ld_out,
+                                                val[j],
+                                                store_cb_fn,
+                                                store_cb_data);
                 }
                 else
                 {
-                    Handler<T_O>::write(
-                        output, out_offset + tx1 * stride_0_out + (i + ty1) * ld_out, val[j]);
+                    Handler<T_O, cbtype>::write(output,
+                                                out_offset + tx1 * stride_0_out
+                                                    + (i + ty1) * ld_out,
+                                                val[j],
+                                                store_cb_fn,
+                                                store_cb_data);
                 }
             }
         }
@@ -224,21 +253,27 @@ __device__ void transpose_tile_device(const T_I*   input,
 template <typename T,
           typename T_I,
           typename T_O,
-          size_t DIM_X,
-          size_t DIM_Y,
-          bool   WITH_TWL,
-          int    TWL,
-          int    DIR,
-          bool   ALL,
-          bool   UNIT_STRIDE_0,
-          bool   DIAGONAL>
+          size_t       DIM_X,
+          size_t       DIM_Y,
+          bool         WITH_TWL,
+          int          TWL,
+          int          DIR,
+          bool         ALL,
+          bool         UNIT_STRIDE_0,
+          bool         DIAGONAL,
+          CallbackType cbtype>
 __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL)
     transpose_kernel2(const T_I* input,
                       T_O*       output,
                       T*         twiddles_large,
                       size_t*    lengths,
                       size_t*    stride_in,
-                      size_t*    stride_out)
+                      size_t*    stride_out,
+                      void* __restrict__ load_cb_fn,
+                      void* __restrict__ load_cb_data,
+                      uint32_t load_cb_lds_bytes,
+                      void* __restrict__ store_cb_fn,
+                      void* __restrict__ store_cb_data)
 {
     size_t ld_in  = stride_in[1];
     size_t ld_out = stride_out[1];
@@ -270,20 +305,34 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL)
 
     if(ALL)
     {
-        transpose_tile_device<T, T_I, T_O, DIM_X, DIM_Y, WITH_TWL, TWL, DIR, ALL, UNIT_STRIDE_0>(
-            input,
-            output,
-            iOffset,
-            oOffset,
-            DIM_X,
-            DIM_X,
-            tileBlockIdx_x * DIM_X,
-            tileBlockIdx_y * DIM_X,
-            ld_in,
-            ld_out,
-            stride_in[0],
-            stride_out[0],
-            twiddles_large);
+        transpose_tile_device<T,
+                              T_I,
+                              T_O,
+                              DIM_X,
+                              DIM_Y,
+                              WITH_TWL,
+                              TWL,
+                              DIR,
+                              ALL,
+                              UNIT_STRIDE_0,
+                              cbtype>(input,
+                                      output,
+                                      iOffset,
+                                      oOffset,
+                                      DIM_X,
+                                      DIM_X,
+                                      tileBlockIdx_x * DIM_X,
+                                      tileBlockIdx_y * DIM_X,
+                                      ld_in,
+                                      ld_out,
+                                      stride_in[0],
+                                      stride_out[0],
+                                      twiddles_large,
+                                      load_cb_fn,
+                                      load_cb_data,
+                                      load_cb_lds_bytes,
+                                      store_cb_fn,
+                                      store_cb_data);
     }
     else
     {
@@ -291,20 +340,34 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL)
         size_t n  = lengths[0];
         size_t mm = min(m - tileBlockIdx_y * DIM_X, DIM_X); // the corner case along m
         size_t nn = min(n - tileBlockIdx_x * DIM_X, DIM_X); // the corner case along n
-        transpose_tile_device<T, T_I, T_O, DIM_X, DIM_Y, WITH_TWL, TWL, DIR, ALL, UNIT_STRIDE_0>(
-            input,
-            output,
-            iOffset,
-            oOffset,
-            mm,
-            nn,
-            tileBlockIdx_x * DIM_X,
-            tileBlockIdx_y * DIM_X,
-            ld_in,
-            ld_out,
-            stride_in[0],
-            stride_out[0],
-            twiddles_large);
+        transpose_tile_device<T,
+                              T_I,
+                              T_O,
+                              DIM_X,
+                              DIM_Y,
+                              WITH_TWL,
+                              TWL,
+                              DIR,
+                              ALL,
+                              UNIT_STRIDE_0,
+                              cbtype>(input,
+                                      output,
+                                      iOffset,
+                                      oOffset,
+                                      mm,
+                                      nn,
+                                      tileBlockIdx_x * DIM_X,
+                                      tileBlockIdx_y * DIM_X,
+                                      ld_in,
+                                      ld_out,
+                                      stride_in[0],
+                                      stride_out[0],
+                                      twiddles_large,
+                                      load_cb_fn,
+                                      load_cb_data,
+                                      load_cb_lds_bytes,
+                                      store_cb_fn,
+                                      store_cb_data);
     }
 }
 
@@ -312,10 +375,11 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL)
 template <typename T,
           typename T_I,
           typename T_O,
-          size_t DIM_X,
-          size_t DIM_Y,
-          bool   ALL,
-          bool   UNIT_STRIDE_0>
+          size_t       DIM_X,
+          size_t       DIM_Y,
+          bool         ALL,
+          bool         UNIT_STRIDE_0,
+          CallbackType cbtype>
 __device__ void transpose_tile_device_scheme(const T_I*   input,
                                              T_O*         output,
                                              size_t       in_offset,
@@ -325,7 +389,12 @@ __device__ void transpose_tile_device_scheme(const T_I*   input,
                                              size_t       ld_in,
                                              size_t       ld_out,
                                              size_t       stride_0_in,
-                                             size_t       stride_0_out)
+                                             size_t       stride_0_out,
+                                             void* __restrict__ load_cb_fn,
+                                             void* __restrict__ load_cb_data,
+                                             uint32_t load_cb_lds_bytes,
+                                             void* __restrict__ store_cb_fn,
+                                             void* __restrict__ store_cb_data)
 {
     __shared__ T shared[DIM_X][DIM_X];
 
@@ -341,11 +410,15 @@ __device__ void transpose_tile_device_scheme(const T_I*   input,
             T tmp;
             if(UNIT_STRIDE_0)
             {
-                tmp = Handler<T_I>::read(input, in_offset + tx1 + (ty1 + i) * ld_in);
+                tmp = Handler<T_I, cbtype>::read(
+                    input, in_offset + tx1 + (ty1 + i) * ld_in, load_cb_fn, load_cb_data);
             }
             else
             {
-                tmp = Handler<T_I>::read(input, in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in);
+                tmp = Handler<T_I, cbtype>::read(input,
+                                                 in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in,
+                                                 load_cb_fn,
+                                                 load_cb_data);
             }
             shared[tx1][ty1 + i] = tmp; // the transpose taking place here
         }
@@ -363,12 +436,19 @@ __device__ void transpose_tile_device_scheme(const T_I*   input,
             // reconfigure the threads
             if(UNIT_STRIDE_0)
             {
-                Handler<T_O>::write(output, out_offset + tx1 + (i + ty1) * ld_out, val[j]);
+                Handler<T_O, cbtype>::write(output,
+                                            out_offset + tx1 + (i + ty1) * ld_out,
+                                            val[j],
+                                            store_cb_fn,
+                                            store_cb_data);
             }
             else
             {
-                Handler<T_O>::write(
-                    output, out_offset + tx1 * stride_0_out + (i + ty1) * ld_out, val[j]);
+                Handler<T_O, cbtype>::write(output,
+                                            out_offset + tx1 * stride_0_out + (i + ty1) * ld_out,
+                                            val[j],
+                                            store_cb_fn,
+                                            store_cb_data);
             }
         }
     }
@@ -382,12 +462,16 @@ __device__ void transpose_tile_device_scheme(const T_I*   input,
             {
                 if(UNIT_STRIDE_0)
                 {
-                    val[j] = Handler<T_I>::read(input, in_offset + tx1 + (ty1 + i) * ld_in);
+                    val[j] = Handler<T_I, cbtype>::read(
+                        input, in_offset + tx1 + (ty1 + i) * ld_in, load_cb_fn, load_cb_data);
                 }
                 else
                 {
-                    val[j] = Handler<T_I>::read(input,
-                                                in_offset + tx1 * stride_0_in + (ty1 + i) * ld_in);
+                    val[j] = Handler<T_I, cbtype>::read(input,
+                                                        in_offset + tx1 * stride_0_in
+                                                            + (ty1 + i) * ld_in,
+                                                        load_cb_fn,
+                                                        load_cb_data);
                 }
             }
         }
@@ -416,12 +500,20 @@ __device__ void transpose_tile_device_scheme(const T_I*   input,
             {
                 if(UNIT_STRIDE_0)
                 {
-                    Handler<T_O>::write(output, out_offset + tx1 + (i + ty1) * ld_out, val[j]);
+                    Handler<T_O, cbtype>::write(output,
+                                                out_offset + tx1 + (i + ty1) * ld_out,
+                                                val[j],
+                                                store_cb_fn,
+                                                store_cb_data);
                 }
                 else
                 {
-                    Handler<T_O>::write(
-                        output, out_offset + tx1 * stride_0_out + (i + ty1) * ld_out, val[j]);
+                    Handler<T_O, cbtype>::write(output,
+                                                out_offset + tx1 * stride_0_out
+                                                    + (i + ty1) * ld_out,
+                                                val[j],
+                                                store_cb_fn,
+                                                store_cb_data);
                 }
             }
         }
@@ -432,11 +524,12 @@ __device__ void transpose_tile_device_scheme(const T_I*   input,
 template <typename T,
           typename T_I,
           typename T_O,
-          size_t DIM_X,
-          size_t DIM_Y,
-          bool   ALL,
-          bool   UNIT_STRIDE_0,
-          bool   DIAGONAL>
+          size_t       DIM_X,
+          size_t       DIM_Y,
+          bool         ALL,
+          bool         UNIT_STRIDE_0,
+          bool         DIAGONAL,
+          CallbackType cbtype>
 __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL)
     transpose_kernel2_scheme(const T_I* input,
                              T_O*       output,
@@ -447,7 +540,12 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL)
                              size_t     ld_in,
                              size_t     ld_out,
                              size_t     m,
-                             size_t     n)
+                             size_t     n,
+                             void* __restrict__ load_cb_fn,
+                             void* __restrict__ load_cb_data,
+                             uint32_t load_cb_lds_bytes,
+                             void* __restrict__ store_cb_fn,
+                             void* __restrict__ store_cb_data)
 {
     size_t iOffset = 0;
     size_t oOffset = 0;
@@ -476,23 +574,43 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL)
 
     if(ALL)
     {
-        transpose_tile_device_scheme<T, T_I, T_O, DIM_X, DIM_Y, ALL, UNIT_STRIDE_0>(input,
-                                                                                    output,
-                                                                                    iOffset,
-                                                                                    oOffset,
-                                                                                    DIM_X,
-                                                                                    DIM_X,
-                                                                                    ld_in,
-                                                                                    ld_out,
-                                                                                    stride_in[0],
-                                                                                    stride_out[0]);
+        transpose_tile_device_scheme<T, T_I, T_O, DIM_X, DIM_Y, ALL, UNIT_STRIDE_0, cbtype>(
+            input,
+            output,
+            iOffset,
+            oOffset,
+            DIM_X,
+            DIM_X,
+            ld_in,
+            ld_out,
+            stride_in[0],
+            stride_out[0],
+            load_cb_fn,
+            load_cb_data,
+            load_cb_lds_bytes,
+            store_cb_fn,
+            store_cb_data);
     }
     else
     {
         size_t mm = min(m - tileBlockIdx_y * DIM_X, DIM_X); // the partial case along m
         size_t nn = min(n - tileBlockIdx_x * DIM_X, DIM_X); // the partial case along n
-        transpose_tile_device_scheme<T, T_I, T_O, DIM_X, DIM_Y, ALL, UNIT_STRIDE_0>(
-            input, output, iOffset, oOffset, mm, nn, ld_in, ld_out, stride_in[0], stride_out[0]);
+        transpose_tile_device_scheme<T, T_I, T_O, DIM_X, DIM_Y, ALL, UNIT_STRIDE_0, cbtype>(
+            input,
+            output,
+            iOffset,
+            oOffset,
+            mm,
+            nn,
+            ld_in,
+            ld_out,
+            stride_in[0],
+            stride_out[0],
+            load_cb_fn,
+            load_cb_data,
+            load_cb_lds_bytes,
+            store_cb_fn,
+            store_cb_data);
     }
 }
 
