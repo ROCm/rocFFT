@@ -187,6 +187,77 @@ namespace StockhamGenerator
     {
         return "TW2step"; // TODO: switch according to the problem size
     }
+
+    // declare callback params (on a global/device function)
+    static std::string DeclareCallbackParams(bool load = true, bool store = true)
+    {
+        std::string str;
+        if(load)
+        {
+            str += ", void* __restrict__ load_cb_fn";
+            str += ", void* __restrict__ load_cb_data";
+        }
+        if(store)
+        {
+            str += ", uint32_t load_cb_lds_bytes";
+            str += ", void* __restrict__ store_cb_fn";
+            str += ", void* __restrict__ store_cb_data";
+        }
+        return str;
+    }
+
+    // pass callback params (to a device function)
+    enum CBPassType
+    {
+        PassNormal,
+        PassNull,
+        PassNothing,
+    };
+    static std::string PassCallbackParams(CBPassType load  = PassNormal,
+                                          CBPassType store = PassNormal)
+    {
+        std::string str;
+        switch(load)
+        {
+        case PassNormal:
+            str += ", load_cb_fn";
+            str += ", load_cb_data";
+            break;
+        case PassNull:
+            str += ", nullptr";
+            str += ", nullptr";
+            break;
+        case PassNothing:
+            break;
+        }
+
+        switch(store)
+        {
+        case PassNormal:
+            str += ", load_cb_lds_bytes";
+            str += ", store_cb_fn";
+            str += ", store_cb_data";
+            break;
+        case PassNull:
+            str += ", 0";
+            str += ", nullptr";
+            str += ", nullptr";
+            break;
+        case PassNothing:
+            break;
+        }
+        return str;
+    }
+
+    // get properly-typed function pointers for callbacks (from void*)
+    static std::string DeclareLoadCBPointer()
+    {
+        return "\n\tauto load_cb = get_load_cb<T,cbtype>(load_cb_fn);\n";
+    }
+    static std::string DeclareStoreCBPointer()
+    {
+        return "\n\tauto store_cb = get_store_cb<T,cbtype>(store_cb_fn);\n";
+    }
 };
 
 #endif

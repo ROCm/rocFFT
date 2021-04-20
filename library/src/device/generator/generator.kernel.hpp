@@ -1850,10 +1850,12 @@ namespace StockhamGenerator
                            + "; r++)\n\t\t{";
                     str += "\n\t\t\tpost_process_interleaved_inplace<T, ";
                     str += (length % 2) ? "false" : "true";
-                    str += ">(me, " + std::to_string(length) + " - me, " + std::to_string(length)
-                           + ", " + std::to_string(length / 2);
-                    str += ", &lds[r * (" + std::to_string(length) + " + lds_row_padding)]";
-                    str += ", &twiddles[" + std::to_string(length) + "]);";
+                    str += ",CallbackType::NONE>(me, " + std::to_string(length) + " - me, "
+                           + std::to_string(length) + ", " + std::to_string(length / 2);
+                    str += ", &lds[r * (" + std::to_string(length) + " + lds_row_padding)], 0";
+                    str += ", &twiddles[" + std::to_string(length) + "]";
+                    str += PassCallbackParams(PassNull, PassNull);
+                    str += ");";
                     str += "\n\t\t}";
 
                     str += "\n\t\t__syncthreads();\n\t}\n";

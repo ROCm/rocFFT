@@ -22,26 +22,43 @@
 #define REAL_TO_COMPLEX_H
 
 // The even-length real to complex post process device kernel
-template <typename Tcomplex, bool Ndiv4>
+template <typename Tcomplex, bool Ndiv4, CallbackType cbtype>
 __device__ inline void post_process_interleaved(const size_t    idx_p,
                                                 const size_t    idx_q,
                                                 const size_t    half_N,
                                                 const size_t    quarter_N,
                                                 const Tcomplex* input,
                                                 Tcomplex*       output,
-                                                const Tcomplex* twiddles)
+                                                size_t          output_base,
+                                                const Tcomplex* twiddles,
+                                                void* __restrict__ load_cb_fn,
+                                                void* __restrict__ load_cb_data,
+                                                uint32_t load_cb_lds_bytes,
+                                                void* __restrict__ store_cb_fn,
+                                                void* __restrict__ store_cb_data)
 {
+    // post process can't be the first kernel, so don't bother
+    // going through the load cb to read global memory
+    auto store_cb = get_store_cb<Tcomplex, cbtype>(store_cb_fn);
+
+    Tcomplex outval;
+
     if(idx_p == 0)
     {
-        output[half_N].x = input[0].x - input[0].y;
-        output[half_N].y = 0;
-        output[0].x      = input[0].x + input[0].y;
-        output[0].y      = 0;
+        outval.x = input[0].x - input[0].y;
+        outval.y = 0;
+        store_cb(output, output_base + half_N, outval, store_cb_data, nullptr);
+
+        outval.x = input[0].x + input[0].y;
+        outval.y = 0;
+        store_cb(output, output_base + 0, outval, store_cb_data, nullptr);
 
         if(Ndiv4)
         {
-            output[quarter_N].x = input[quarter_N].x;
-            output[quarter_N].y = -input[quarter_N].y;
+            outval.x = input[quarter_N].x;
+            outval.y = -input[quarter_N].y;
+
+            store_cb(output, output_base + quarter_N, outval, store_cb_data, nullptr);
         }
     }
     else
@@ -54,41 +71,60 @@ __device__ inline void post_process_interleaved(const size_t    idx_p,
         const Tcomplex twd_p = twiddles[idx_p];
         // NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y);
 
-        output[idx_p].x = u.x + v.x * twd_p.y + u.y * twd_p.x;
-        output[idx_p].y = v.y + u.y * twd_p.y - v.x * twd_p.x;
+        outval.x = u.x + v.x * twd_p.y + u.y * twd_p.x;
+        outval.y = v.y + u.y * twd_p.y - v.x * twd_p.x;
+        store_cb(output, output_base + idx_p, outval, store_cb_data, nullptr);
 
-        output[idx_q].x = u.x - v.x * twd_p.y - u.y * twd_p.x;
-        output[idx_q].y = -v.y + u.y * twd_p.y - v.x * twd_p.x;
+        outval.x = u.x - v.x * twd_p.y - u.y * twd_p.x;
+        outval.y = -v.y + u.y * twd_p.y - v.x * twd_p.x;
+        store_cb(output, output_base + idx_q, outval, store_cb_data, nullptr);
     }
 }
 
 // TODO: merge back to post_process_interleaved()
-template <typename T, bool Ndiv4>
+template <typename T, bool Ndiv4, CallbackType cbtype>
 __device__ inline void post_process_interleaved_inplace(const size_t idx_p,
                                                         const size_t idx_q,
                                                         const size_t half_N,
                                                         const size_t quarter_N,
                                                         T*           inout,
-                                                        const T*     twiddles)
+                                                        size_t       offset_base,
+                                                        const T*     twiddles,
+                                                        void* __restrict__ load_cb_fn,
+                                                        void* __restrict__ load_cb_data,
+                                                        uint32_t load_cb_lds_bytes,
+                                                        void* __restrict__ store_cb_fn,
+                                                        void* __restrict__ store_cb_data)
 {
-    T p, q;
+    // post process can't be the first kernel, so don't bother
+    // going through the load cb to read global memory
+    auto store_cb = get_store_cb<T, cbtype>(store_cb_fn);
+
+    T p, q, outval;
     if(idx_p < quarter_N)
     {
-        p = inout[idx_p];
-        q = inout[idx_q];
+        p = inout[offset_base + idx_p];
+        q = inout[offset_base + idx_q];
     }
 
     __syncthreads();
 
     if(idx_p == 0)
     {
-        inout[idx_p].x = p.x + p.y;
-        inout[idx_p].y = 0;
-        inout[idx_q].x = p.x - p.y;
-        inout[idx_q].y = 0;
+        outval.x = p.x + p.y;
+        outval.y = 0;
+        store_cb(inout, offset_base + idx_p, outval, store_cb_data, nullptr);
+
+        outval.x = p.x - p.y;
+        outval.y = 0;
+        store_cb(inout, offset_base + idx_q, outval, store_cb_data, nullptr);
 
         if(Ndiv4)
-            inout[quarter_N].y = -inout[quarter_N].y;
+        {
+            outval   = inout[offset_base + quarter_N];
+            outval.y = -outval.y;
+            store_cb(inout, offset_base + quarter_N, outval, store_cb_data, nullptr);
+        }
     }
     else if(idx_p < quarter_N)
     {
@@ -98,11 +134,13 @@ __device__ inline void post_process_interleaved_inplace(const size_t idx_p,
         const T twd_p = twiddles[idx_p];
         // NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y);
 
-        inout[idx_p].x = u.x + v.x * twd_p.y + u.y * twd_p.x;
-        inout[idx_p].y = v.y + u.y * twd_p.y - v.x * twd_p.x;
+        outval.x = u.x + v.x * twd_p.y + u.y * twd_p.x;
+        outval.y = v.y + u.y * twd_p.y - v.x * twd_p.x;
+        store_cb(inout, offset_base + idx_p, outval, store_cb_data, nullptr);
 
-        inout[idx_q].x = u.x - v.x * twd_p.y - u.y * twd_p.x;
-        inout[idx_q].y = -v.y + u.y * twd_p.y - v.x * twd_p.x;
+        outval.x = u.x - v.x * twd_p.y - u.y * twd_p.x;
+        outval.y = -v.y + u.y * twd_p.y - v.x * twd_p.x;
+        store_cb(inout, offset_base + idx_q, outval, store_cb_data, nullptr);
     }
 }
 
