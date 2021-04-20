@@ -82,8 +82,6 @@ struct rocfft_plan_description_t
 
     double scale = 1.0;
 
-    UserCallbacks callbacks;
-
     rocfft_plan_description_t() = default;
 };
 

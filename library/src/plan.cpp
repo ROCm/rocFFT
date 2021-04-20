@@ -76,6 +76,7 @@ std::string PrintScheme(ComputeScheme cs)
            {ENUMSTR(CS_KERNEL_TRANSPOSE_CMPLX_TO_R)},
            {ENUMSTR(CS_REAL_2D_EVEN)},
            {ENUMSTR(CS_REAL_3D_EVEN)},
+           {ENUMSTR(CS_KERNEL_APPLY_CALLBACK)},
 
            {ENUMSTR(CS_BLUESTEIN)},
            {ENUMSTR(CS_KERNEL_CHIRP)},
@@ -1142,6 +1143,16 @@ void TreeNode::build_real_even_1D()
     {
         // real-to-complex transform: in-place complex transform then post-process
 
+        // insert a node that's prepared to apply the user's
+        // callback, since the callback would expect reals and this
+        // plan would otherwise pretend it's complex
+        auto applyCallback       = TreeNode::CreateNode(this);
+        applyCallback->scheme    = CS_KERNEL_APPLY_CALLBACK;
+        applyCallback->dimension = dimension;
+        applyCallback->length    = length;
+        applyCallback->placement = rocfft_placement_inplace;
+        childNodes.emplace_back(std::move(applyCallback));
+
         // cfftPlan works in-place on the input buffer.
         // NB: the input buffer is real, but we treat it as complex
         cfftPlan->RecursiveBuildTree();
@@ -1172,6 +1183,16 @@ void TreeNode::build_real_even_1D()
         // NB: the output buffer is real, but we treat it as complex
         cfftPlan->RecursiveBuildTree();
         childNodes.emplace_back(std::move(cfftPlan));
+
+        // insert a node that's prepared to apply the user's
+        // callback, since the callback would expect reals and this
+        // plan would otherwise pretend it's complex
+        auto applyCallback       = TreeNode::CreateNode(this);
+        applyCallback->scheme    = CS_KERNEL_APPLY_CALLBACK;
+        applyCallback->dimension = dimension;
+        applyCallback->length    = length;
+        applyCallback->placement = rocfft_placement_inplace;
+        childNodes.emplace_back(std::move(applyCallback));
         break;
     }
     default:
@@ -2394,20 +2415,26 @@ void TreeNode::assign_buffers_CS_REAL_TRANSFORM_EVEN(TraverseState&   state,
     {
         // real-to-complex
 
-        // complex FFT kernel
+        // apply callback
         childNodes[0]->SetInputBuffer(state);
         childNodes[0]->obOut        = obIn;
-        childNodes[0]->inArrayType  = rocfft_array_type_complex_interleaved;
-        childNodes[0]->outArrayType = rocfft_array_type_complex_interleaved;
+        childNodes[0]->inArrayType  = rocfft_array_type_real;
+        childNodes[0]->outArrayType = rocfft_array_type_real;
+
+        // complex FFT kernel
+        childNodes[1]->SetInputBuffer(state);
+        childNodes[1]->obOut        = obIn;
+        childNodes[1]->inArrayType  = rocfft_array_type_complex_interleaved;
+        childNodes[1]->outArrayType = rocfft_array_type_complex_interleaved;
         flipIn                      = obIn;
         obOutBuf                    = obIn;
-        childNodes[0]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
+        childNodes[1]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
 
         // real-to-complex post kernel
-        childNodes[1]->SetInputBuffer(state);
-        childNodes[1]->obOut        = obOut;
-        childNodes[1]->inArrayType  = rocfft_array_type_complex_interleaved;
-        childNodes[1]->outArrayType = outArrayType;
+        childNodes[2]->SetInputBuffer(state);
+        childNodes[2]->obOut        = obOut;
+        childNodes[2]->inArrayType  = rocfft_array_type_complex_interleaved;
+        childNodes[2]->outArrayType = outArrayType;
     }
     else
     {
@@ -2436,6 +2463,12 @@ void TreeNode::assign_buffers_CS_REAL_TRANSFORM_EVEN(TraverseState&   state,
         childNodes[1]->inArrayType  = rocfft_array_type_complex_interleaved;
         childNodes[1]->outArrayType = rocfft_array_type_complex_interleaved;
         childNodes[1]->TraverseTreeAssignBuffersLogicA(state, flipIn, flipOut, obOutBuf);
+
+        // apply callback
+        childNodes[2]->obIn         = obOut;
+        childNodes[2]->obOut        = obOut;
+        childNodes[2]->inArrayType  = rocfft_array_type_real;
+        childNodes[2]->outArrayType = rocfft_array_type_real;
     }
 }
 
@@ -3217,15 +3250,20 @@ void TreeNode::assign_params_CS_REAL_TRANSFORM_USING_CMPLX()
 
 void TreeNode::assign_params_CS_REAL_TRANSFORM_EVEN()
 {
-    assert(childNodes.size() == 2);
+    assert(childNodes.size() == 3);
 
     if(direction == -1)
     {
         // forward transform, r2c
 
         // iDist is in reals, subplan->iDist is in complexes
+        auto& applyCallback      = childNodes[0];
+        applyCallback->inStride  = inStride;
+        applyCallback->iDist     = iDist;
+        applyCallback->outStride = inStride;
+        applyCallback->oDist     = iDist;
 
-        auto& fftPlan     = childNodes[0];
+        auto& fftPlan     = childNodes[1];
         fftPlan->inStride = inStride;
         for(int i = 1; i < fftPlan->inStride.size(); ++i)
         {
@@ -3242,7 +3280,7 @@ void TreeNode::assign_params_CS_REAL_TRANSFORM_EVEN()
         assert(fftPlan->length.size() == fftPlan->inStride.size());
         assert(fftPlan->length.size() == fftPlan->outStride.size());
 
-        auto& postPlan = childNodes[1];
+        auto& postPlan = childNodes[2];
         assert(postPlan->scheme == CS_KERNEL_R_TO_CMPLX
                || postPlan->scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE);
         postPlan->inStride = inStride;
@@ -3299,6 +3337,17 @@ void TreeNode::assign_params_CS_REAL_TRANSFORM_EVEN()
 
         assert(prePlan->length.size() == prePlan->inStride.size());
         assert(prePlan->length.size() == prePlan->outStride.size());
+
+        // we apply callbacks on the root plan's output
+        TreeNode* rootPlan = this;
+        while(rootPlan->parent != nullptr)
+            rootPlan = rootPlan->parent;
+
+        auto& applyCallback      = childNodes[2];
+        applyCallback->inStride  = rootPlan->outStride;
+        applyCallback->iDist     = rootPlan->oDist;
+        applyCallback->outStride = rootPlan->outStride;
+        applyCallback->oDist     = rootPlan->oDist;
     }
 }
 

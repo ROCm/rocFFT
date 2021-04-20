@@ -35,6 +35,7 @@ struct rocfft_execution_info_t
         , workBufferSize(0)
     {
     }
+    UserCallbacks callbacks;
 };
 
 void TransformPowX(const ExecPlan&       execPlan,

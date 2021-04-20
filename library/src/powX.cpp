@@ -395,6 +395,10 @@ bool PlanPowX(ExecPlan& execPlan)
                 execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->length[1], GetWGSAndNT);
             break;
         }
+        case CS_KERNEL_APPLY_CALLBACK:
+            ptr      = apply_real_callback;
+            gp.tpb_x = 64;
+            break;
         default:
             rocfft_cout << "should not be in this case" << std::endl;
             rocfft_cout << "scheme: " << PrintScheme(execPlan.execSeq[i]->scheme) << std::endl;
@@ -531,6 +535,28 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
     }
 }
 
+// for callbacks, work out which nodes of the plan are loading data
+// from global memory, and storing data to global memory
+static std::pair<TreeNode*, TreeNode*> get_load_store_nodes(const ExecPlan& execPlan)
+{
+    const auto& seq = execPlan.execSeq;
+
+    // look forward for the first node that reads from input
+    auto      load_it = std::find_if(seq.begin(), seq.end(), [&](const TreeNode* n) {
+        return n->obIn == execPlan.rootPlan->obIn;
+    });
+    TreeNode* load    = load_it == seq.end() ? nullptr : *load_it;
+
+    // look backward for the last node that writes to output
+    auto      store_it = std::find_if(seq.rbegin(), seq.rend(), [&](const TreeNode* n) {
+        return n->obOut == execPlan.rootPlan->obOut;
+    });
+    TreeNode* store    = store_it == seq.rend() ? nullptr : *store_it;
+
+    assert(load && store);
+    return std::make_pair(load, store);
+}
+
 // Internal plan executor.
 // For in-place transforms, in_buffer == out_buffer.
 void TransformPowX(const ExecPlan&       execPlan,
@@ -554,6 +580,20 @@ void TransformPowX(const ExecPlan&       execPlan,
         hipEventCreate(&stop);
         max_memory_bw = max_memory_bandwidth_GB_per_s();
     }
+
+    // assign callbacks to the node that are actually doing the
+    // loading and storing to/from global memory
+    TreeNode* load_node             = nullptr;
+    TreeNode* store_node            = nullptr;
+    std::tie(load_node, store_node) = get_load_store_nodes(execPlan);
+
+    load_node->callbacks.load_cb_fn        = info->callbacks.load_cb_fn;
+    load_node->callbacks.load_cb_data      = info->callbacks.load_cb_data;
+    load_node->callbacks.load_cb_lds_bytes = info->callbacks.load_cb_lds_bytes;
+
+    store_node->callbacks.store_cb_fn        = info->callbacks.store_cb_fn;
+    store_node->callbacks.store_cb_data      = info->callbacks.store_cb_data;
+    store_node->callbacks.store_cb_lds_bytes = info->callbacks.store_cb_lds_bytes;
 
     for(size_t i = 0; i < execPlan.execSeq.size(); i++)
     {
@@ -720,7 +760,12 @@ void TransformPowX(const ExecPlan&       execPlan,
             // give callback parameters to kernel launcher
             data.callbacks = execPlan.execSeq[i]->callbacks;
 
-            fn(&data, &back);
+            // skip apply callback kernel if there's no callback
+            if(data.node->scheme != CS_KERNEL_APPLY_CALLBACK
+               || data.get_callback_type() != CallbackType::NONE)
+            {
+                fn(&data, &back);
+            }
             if(emit_profile_log)
                 hipEventRecord(stop);
 
