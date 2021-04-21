@@ -79,9 +79,6 @@ struct FFTKernelGenKeyParams
     // no user of the library should set its value
     size_t transposeBatchSize;
 
-    bool fft_hasPreCallback; // two call back variable
-    bool fft_hasPostCallback;
-
     long limit_LocalMemSize;
 
     bool forceNonUnitStride = false;
@@ -121,8 +118,6 @@ struct FFTKernelGenKeyParams
 
         transposeMiniBatchSize = 1;
         transposeBatchSize     = 1;
-        fft_hasPreCallback     = false;
-        fft_hasPostCallback    = false;
         limit_LocalMemSize     = 0;
     }
 };

@@ -273,12 +273,12 @@ namespace StockhamGenerator
                 // interleaved data
 
                 passStr += "\n\t //Optimization: coalescing into float4/double4 write";
-                passStr += "\n\tif(sb == SB_UNIT) {";
+                passStr += "\n\tif(sb == SB_UNIT && !store_cb_fn) {";
                 passStr += "\n\t";
                 passStr += RegBaseType<PR>(4);
                 passStr += " *buff4g = ";
-                passStr += "(" + RegBaseType<PR>(4) + "*)" + bufferRe;
-                passStr += ";\n\t"; // Assuming 'outOffset' is 0, so not adding it here
+                passStr += "(" + RegBaseType<PR>(4) + "*)(" + bufferRe;
+                passStr += "+outOffset);\n\t";
 
                 for(size_t r = 0; r < radix;
                     r++) // setting the radix loop outside to facilitate grouped writing
@@ -426,11 +426,24 @@ namespace StockhamGenerator
                             passStr += regIndex;
                             passStr += " = ";
 
-                            passStr += buffer;
-                            passStr += "[";
-                            passStr += bufOffset;
-                            passStr += "]";
-                            passStr += tail;
+                            // call load cb inside the pass only for
+                            // "small" kernels (which use halfLds at
+                            // the moment) - "large" kernels (which
+                            // do not use halfLds) read outside of
+                            // the passes.
+                            if(halfLds && interleaved)
+                            {
+                                passStr += "load_cb(" + buffer + ", " + bufOffset
+                                           + ", load_cb_data, nullptr);\n";
+                            }
+                            else
+                            {
+                                passStr += buffer;
+                                passStr += "[";
+                                passStr += bufOffset;
+                                passStr += "]";
+                                passStr += tail;
+                            }
 
                             // Since we read real & imag at once, we break the loop
                             if(interleaved && (component == SR_COMP_BOTH))
@@ -540,14 +553,28 @@ namespace StockhamGenerator
                                 regIndexC0 = regIndex;
 
                             passStr += "\n\t";
-                            passStr += buffer;
-                            passStr += "[";
-                            passStr += bufOffset;
-                            passStr += "]";
-                            passStr += tail;
-                            passStr += " = ";
-                            passStr += regIndex;
-                            passStr += ";";
+
+                            // call store cb inside the pass only for
+                            // "small" kernels (which use halfLds at
+                            // the moment) - "large" kernels (which
+                            // do not use halfLds) write outside of
+                            // the passes.
+                            if(halfLds && interleaved)
+                            {
+                                passStr += "store_cb(" + buffer + ", " + bufOffset + ", " + regIndex
+                                           + ", store_cb_data, nullptr);\n";
+                            }
+                            else
+                            {
+                                passStr += buffer;
+                                passStr += "[";
+                                passStr += bufOffset;
+                                passStr += "]";
+                                passStr += tail;
+                                passStr += " = ";
+                                passStr += regIndex;
+                                passStr += ";";
+                            }
 
                             // Since we write real & imag at once, we break the loop
                             if(interleaved && (component == SR_COMP_BOTH))
@@ -1748,11 +1775,12 @@ namespace StockhamGenerator
             // Function attribute
             if(name_suffix == "_sbcc") // // the blockCompute BCT_C2C algorithm use only
             {
-                passStr += "template <typename T, StrideBin sb, bool TwdLarge, size_t LTBase>\n";
+                passStr += "template <typename T, StrideBin sb, bool TwdLarge, CallbackType "
+                           "cbtype, size_t LTBase>\n";
             }
             else
             {
-                passStr += "template <typename T, StrideBin sb>\n";
+                passStr += "template <typename T, StrideBin sb, CallbackType cbtype>\n";
             }
 
             passStr += "__device__ void\n";
@@ -2000,6 +2028,7 @@ namespace StockhamGenerator
                 passStr += IterRegArgs();
             }
 
+            passStr += DeclareCallbackParams(gIn, gOut);
             passStr += ")\n{\n";
 
             // Register Declarations
@@ -2523,6 +2552,8 @@ namespace StockhamGenerator
                     bool isPrecallVector = false;
 
                     passStr += "\n\tif(rw)\n\t{";
+                    if(gIn && inInterleaved)
+                        passStr += DeclareLoadCBPointer();
                     SweepRegs(SR_READ,
                               fwd,
                               inInterleaved,
@@ -3081,6 +3112,8 @@ namespace StockhamGenerator
                     else
                     {
                         passStr += "\n\tif(rw)\n\t{";
+                        if(gOut && outInterleaved)
+                            passStr += DeclareStoreCBPointer();
                         SweepRegs(SR_WRITE,
                                   fwd,
                                   outInterleaved,

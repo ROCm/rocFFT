@@ -480,19 +480,19 @@ namespace StockhamGenerator
 
             if(inInterleaved)
             {
-                ret += "R0 = ";
-                ret += (placeness == rocfft_placement_inplace) ? "lwb" : "lwbIn";
-                ret += "[" + global_offset + "];\n";
+                std::string buffer = (placeness == rocfft_placement_inplace) ? "gb" : "gbIn";
+                ret += "R0 = load_cb(" + buffer + ", " + global_offset
+                       + ", load_cb_data, nullptr);\n";
             }
             else
             {
                 ret += "R0.x = ";
-                ret += (placeness == rocfft_placement_inplace) ? "lwbRe" : "lwbInRe";
+                ret += (placeness == rocfft_placement_inplace) ? "gbRe" : "gbInRe";
                 ret += "[" + global_offset + "];\n";
                 if(blockComputeType == BCT_R2C)
                     ret += "\t";
                 ret += "\t\tR0.y = ";
-                ret += (placeness == rocfft_placement_inplace) ? "lwbIm" : "lwbInIm";
+                ret += (placeness == rocfft_placement_inplace) ? "gbIm" : "gbInIm";
                 ret += "[" + global_offset + "];\n";
             }
             return ret;
@@ -509,18 +509,18 @@ namespace StockhamGenerator
 
             if(inInterleaved)
             {
-                ret += (placeness == rocfft_placement_inplace) ? "lwb" : "lwbOut";
-                ret += "[" + global_offset + "] = ";
-                ret += "R0;\n";
+                std::string buffer = (placeness == rocfft_placement_inplace) ? "gb" : "gbOut";
+                ret += "store_cb(" + buffer + ", " + global_offset
+                       + ", R0, store_cb_data, nullptr );\n";
             }
             else
             {
-                ret += (placeness == rocfft_placement_inplace) ? "lwbRe" : "lwbOutRe";
+                ret += (placeness == rocfft_placement_inplace) ? "gbRe" : "gbOutRe";
                 ret += "[" + global_offset + "] = ";
                 ret += "R0.x;\n\t\t";
                 if(blockComputeType == BCT_R2C)
                     ret += "\t";
-                ret += (placeness == rocfft_placement_inplace) ? "lwbIm" : "lwbOutIm";
+                ret += (placeness == rocfft_placement_inplace) ? "gbIm" : "gbOutIm";
                 ret += "[" + global_offset + "] = ";
                 ret += "R0.y;\n";
             }
@@ -850,12 +850,13 @@ namespace StockhamGenerator
 
                         if(NeedsLargeTwiddles())
                         {
-                            str += "template <typename T, StrideBin sb, bool TwdLarge, size_t "
+                            str += "template <typename T, StrideBin sb, bool TwdLarge, "
+                                   "CallbackType cbtype, size_t "
                                    "LTBase>\n";
                         }
                         else
                         {
-                            str += "template <typename T, StrideBin sb>\n";
+                            str += "template <typename T, StrideBin sb, CallbackType cbtype>\n";
                         }
 
                         str += "__device__ void \n";
@@ -876,14 +877,18 @@ namespace StockhamGenerator
                         str += "unsigned int me, unsigned int ldsOffset, ";
 
                         if(inInterleaved)
-                            str += r2Type + " *lwbIn, ";
+                            str += r2Type + " *gbIn, ";
                         else
                             str += rType + " *bufInRe, " + rType + " *bufInIm, ";
+                        if(!blockCompute)
+                            str += "unsigned int iOffset, ";
 
                         if(outInterleaved)
-                            str += r2Type + " *lwbOut";
+                            str += r2Type + " *gbOut";
                         else
                             str += rType + " *bufOutRe, " + rType + " *bufOutIm";
+                        if(!blockCompute)
+                            str += ", unsigned int oOffset";
 
                         if(blockCompute) // blockCompute' lds type is T
                         {
@@ -894,6 +899,13 @@ namespace StockhamGenerator
                             if(numPasses > 1)
                                 str += ", " + rType + " *lds"; // only multiple pass use lds
                         }
+
+                        // declare callback params for "small"
+                        // kernels ("large" kernels read/write to
+                        // global mem outside of the passes and would
+                        // run callbacks there)
+                        if(!blockCompute)
+                            str += DeclareCallbackParams();
 
                         str += ")\n";
                         str += "{\n";
@@ -914,34 +926,40 @@ namespace StockhamGenerator
                             str += PassName(0, fwd, length, name_suffix);
                             if(NeedsLargeTwiddles())
                             {
-                                str += "<T, sb, TwdLarge, LTBase>(twiddles, twiddles_large, "; // the blockCompute BCT_C2C algorithm use
+                                str += "<T, sb, TwdLarge, cbtype, LTBase>(twiddles, "
+                                       "twiddles_large, "; // the blockCompute BCT_C2C algorithm use
                             }
                             else
                             {
-                                str += "<T, sb>(twiddles, ";
+                                str += "<T, sb, cbtype>(twiddles, ";
                             }
 
                             // one more twiddle parameter
-                            str += "stride_in, stride_out, rw, b, me, 0, 0,";
+                            str += "stride_in, stride_out, rw, b, me, iOffset, oOffset,";
 
                             if(inInterleaved)
-                                str += " lwbIn,";
+                                str += " gbIn,";
                             else
                                 str += " bufInRe, bufInIm,";
 
                             if(outInterleaved)
-                                str += " lwbOut";
+                                str += " gbOut";
                             else
                                 str += " bufOutRe, bufOutIm";
 
                             str += IterRegs("&");
+                            // blockCompute reads/writes to global outside of the FFT passes
+                            if(!blockCompute)
+                                str += PassCallbackParams();
                             str += ");\n";
                         }
                         else
                         {
                             for(auto p = passes.begin(); p != passes.end(); ++p)
                             {
-                                std::string exTab = "";
+                                bool        firstPass = p == passes.begin();
+                                bool        lastPass  = (p + 1) == passes.end();
+                                std::string exTab     = "";
 
                                 str += exTab;
                                 str += "\t";
@@ -949,11 +967,12 @@ namespace StockhamGenerator
                                 // the blockCompute BCT_C2C algorithm use one more twiddle parameter
                                 if(NeedsLargeTwiddles())
                                 {
-                                    str += "<T, sb, TwdLarge, LTBase>(twiddles, twiddles_large, ";
+                                    str += "<T, sb, TwdLarge, cbtype, LTBase>(twiddles, "
+                                           "twiddles_large, ";
                                 }
                                 else
                                 {
-                                    str += "<T, sb>(twiddles, ";
+                                    str += "<T, sb, cbtype>(twiddles, ";
                                 }
 
                                 str += "stride_in, stride_out, rw, b, me, ";
@@ -977,7 +996,7 @@ namespace StockhamGenerator
                                 }
 
                                 // about offset
-                                if(p == passes.begin()) // beginning pass
+                                if(firstPass) // beginning pass
                                 {
                                     if(blockCompute) // blockCompute use shared memory (lds), so if
                                     // true, use ldsOffset
@@ -986,18 +1005,18 @@ namespace StockhamGenerator
                                     }
                                     else
                                     {
-                                        str += "0, ";
+                                        str += "iOffset, ";
                                     }
 
                                     str += "ldsOffset, ";
                                     if(inInterleaved)
-                                        str += " lwbIn, ";
+                                        str += " gbIn, ";
                                     else
                                         str += " bufInRe, bufInIm, ";
 
                                     str += ldsArgs;
                                 }
-                                else if((p + 1) == passes.end()) // ending pass
+                                else if(lastPass) // ending pass
                                 {
                                     str += "ldsOffset, ";
                                     if(blockCompute) // blockCompute use shared memory (lds), so if
@@ -1007,12 +1026,12 @@ namespace StockhamGenerator
                                     }
                                     else
                                     {
-                                        str += "0, ";
+                                        str += "oOffset, ";
                                     }
                                     str += ldsArgs;
 
                                     if(outInterleaved)
-                                        str += ",  lwbOut";
+                                        str += ",  gbOut";
                                     else
                                         str += ", bufOutRe, bufOutIm";
                                 }
@@ -1025,6 +1044,10 @@ namespace StockhamGenerator
                                 }
 
                                 str += IterRegs("&");
+                                // blockCompute reads/writes to global outside of the FFT passes
+                                if(!blockCompute)
+                                    str += PassCallbackParams(firstPass ? PassNormal : PassNothing,
+                                                              lastPass ? PassNormal : PassNothing);
                                 str += ");\n";
                                 if(!halfLds)
                                 {
@@ -1135,18 +1158,19 @@ namespace StockhamGenerator
             // Function signature
             if(NeedsLargeTwiddles())
             {
-                str += "template <typename T, StrideBin sb, bool TwdLarge, size_t LTBase="
+                str += "template <typename T, StrideBin sb, bool TwdLarge, CallbackType cbtype, "
+                       "size_t LTBase="
                        + std::to_string(LTWD_BASE_DEFAULT) + ">\n";
             }
             // SBRC has additional parameters for fused transpose varieties
             else if(blockComputeType == BCT_R2C)
             {
                 str += "template <typename T, StrideBin sb, SBRC_TYPE Tsbrc, SBRC_TRANSPOSE_TYPE "
-                       "Ttranspose>\n";
+                       "Ttranspose, CallbackType cbtype>\n";
             }
             else
             {
-                str += "template <typename T, StrideBin sb>\n";
+                str += "template <typename T, StrideBin sb, CallbackType cbtype>\n";
             }
 
             str += "__global__ void\n";
@@ -1189,7 +1213,9 @@ namespace StockhamGenerator
                     str += "_";
                 str += "stride_out, ";
             }
-            str += "const size_t batch_count, ";
+            str += "const size_t batch_count";
+            str += DeclareCallbackParams();
+            str += ", ";
 
             // Function attributes
             if(placeness == rocfft_placement_inplace)
@@ -1381,63 +1407,12 @@ namespace StockhamGenerator
             if(placeness == rocfft_placement_inplace)
             {
                 str += "unsigned int ioOffset = 0;\n\t";
-
-                // Skip if callback is set
-                if(!params.fft_hasPreCallback || !params.fft_hasPostCallback)
-                {
-                    if(inInterleaved)
-                    {
-                        str += r2Type;
-                        str += " *lwb;\n";
-                    }
-                    else
-                    {
-                        str += rType;
-                        str += " *lwbRe;\n\t";
-                        str += rType;
-                        str += " *lwbIm;\n";
-                    }
-                }
                 str += "\n";
             }
             else
             {
                 str += "unsigned int iOffset = 0;\n\t";
                 str += "unsigned int oOffset = 0;\n\t";
-
-                // Skip if precallback is set
-                if(!(params.fft_hasPreCallback))
-                {
-                    if(inInterleaved)
-                    {
-                        str += r2Type;
-                        str += " *lwbIn;\n\t";
-                    }
-                    else
-                    {
-                        str += rType;
-                        str += " *lwbInRe;\n\t";
-                        str += rType;
-                        str += " *lwbInIm;\n\t";
-                    }
-                }
-
-                // Skip if postcallback is set
-                if(!params.fft_hasPostCallback)
-                {
-                    if(outInterleaved)
-                    {
-                        str += r2Type;
-                        str += " *lwbOut;\n";
-                    }
-                    else
-                    {
-                        str += rType;
-                        str += " *lwbOutRe;\n\t";
-                        str += rType;
-                        str += " *lwbOutIm;\n";
-                    }
-                }
                 str += "\n";
             }
 
@@ -1475,59 +1450,6 @@ namespace StockhamGenerator
             str += GEN_REF_LINE();
             GenerateSingleGlobalKernelIOOffsets(str, placeness);
 
-            if(placeness == rocfft_placement_inplace)
-            {
-                str += "\t";
-
-                // Skip if callback is set
-                if(!params.fft_hasPreCallback || !params.fft_hasPostCallback)
-                {
-                    if(inInterleaved)
-                    {
-                        str += "lwb = gb + ioOffset;\n";
-                    }
-                    else
-                    {
-                        str += "lwbRe = gbRe + ioOffset;\n\t";
-                        str += "lwbIm = gbIm + ioOffset;\n";
-                    }
-                }
-                str += "\n";
-            }
-            else
-            {
-                str += "\t";
-
-                // Skip if precallback is set
-                if(!(params.fft_hasPreCallback))
-                {
-                    if(inInterleaved)
-                    {
-                        str += "lwbIn = gbIn + iOffset;\n\t";
-                    }
-                    else
-                    {
-                        str += "lwbInRe = gbInRe + iOffset;\n\t";
-                        str += "lwbInIm = gbInIm + iOffset;\n\t";
-                    }
-                }
-
-                // Skip if postcallback is set
-                if(!params.fft_hasPostCallback)
-                {
-                    if(outInterleaved)
-                    {
-                        str += "lwbOut = gbOut + oOffset;\n";
-                    }
-                    else
-                    {
-                        str += "lwbOutRe = gbOutRe + oOffset;\n\t";
-                        str += "lwbOutIm = gbOutIm + oOffset;\n";
-                    }
-                }
-                str += "\n";
-            }
-
             /* =====================================================================
                     blockCompute only: Read data into shared memory (LDS) for blocked
                     access
@@ -1536,6 +1458,7 @@ namespace StockhamGenerator
             if(blockCompute)
             {
                 str += "\n\tunsigned int lds_row_padding = 0;";
+                str += DeclareLoadCBPointer();
 
                 if(blockComputeType == BCT_R2C)
                 {
@@ -1570,10 +1493,12 @@ namespace StockhamGenerator
                 str += "\t\tT R0;\n";
                 str += "\t\t// Calc global offset within a tile and read\n";
 
+                std::string input_offset
+                    = placeness == rocfft_placement_inplace ? "ioOffset" : "iOffset";
+
                 if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_C2R))
                 {
-                    std::string global_offset;
-                    global_offset = "(me%";
+                    std::string global_offset = input_offset + " + (me%";
                     global_offset += std::to_string(blockWidth);
 
                     if(blockComputeType
@@ -1596,7 +1521,7 @@ namespace StockhamGenerator
                     str += "\t\t{\n";
 
                     std::string global_offset;
-                    global_offset = "me + t*";
+                    global_offset = input_offset + " + me + t*";
                     global_offset += std::to_string(blockWGS);
 
                     str += GlobalReadStrCat(global_offset, placeness, inInterleaved);
@@ -1606,8 +1531,8 @@ namespace StockhamGenerator
                     str += "\t\t{\n";
 
                     // recalculate offset for case SBRC_3D_FFT_TRANS_XY_Z
-                    global_offset = "me % " + std::to_string(length) + " * stride_in[0] + ((me /"
-                                    + std::to_string(length) + " * "
+                    global_offset = input_offset + " + me % " + std::to_string(length)
+                                    + " * stride_in[0] + ((me /" + std::to_string(length) + " * "
                                     + std::to_string(blockWGS / blockWidth) + ") + t % "
                                     + std::to_string(blockWidth) + ")*stride_in[2] + t / "
                                     + std::to_string(blockWidth) + " * " + std::to_string(blockWGS)
@@ -1707,25 +1632,25 @@ namespace StockhamGenerator
             {
                 if(inInterleaved)
                 {
-                    inBuf  = params.fft_hasPreCallback ? "gb, " : "lwb, ";
-                    outBuf = params.fft_hasPostCallback ? "gb" : "lwb";
+                    inBuf  = "gb, ioOffset, ";
+                    outBuf = "gb, ioOffset";
                 }
                 else
                 {
-                    inBuf  = params.fft_hasPreCallback ? "gbRe, gbIm, " : "lwbRe, lwbIm, ";
-                    outBuf = params.fft_hasPostCallback ? "gbRe, gbIm" : "lwbRe, lwbIm";
+                    inBuf  = "gbRe, gbIm, ioOffset, ";
+                    outBuf = "gbRe, gbIm, ioOffset";
                 }
             }
             else
             {
                 if(inInterleaved)
-                    inBuf = params.fft_hasPreCallback ? "gbIn, " : "lwbIn, ";
+                    inBuf = "gbIn, iOffset, ";
                 else
-                    inBuf = params.fft_hasPreCallback ? "gbInRe, gbInIm, " : "lwbInRe, lwbInIm, ";
+                    inBuf = "gbInRe, gbInIm, iOffset, ";
                 if(outInterleaved)
-                    outBuf = params.fft_hasPostCallback ? "gbOut" : "lwbOut";
+                    outBuf = "gbOut, oOffset";
                 else
-                    outBuf = params.fft_hasPostCallback ? "gbOutRe, gbOutIm" : "lwbOutRe, lwbOutIm";
+                    outBuf = "gbOutRe, gbOutIm, oOffset";
             }
 
             /* =====================================================================
@@ -1760,12 +1685,12 @@ namespace StockhamGenerator
                 str += "\t";
             }
 
-            str += "\t// Perform FFT input: lwb(In) ; output: lwb(Out); working "
+            str += "\t// Perform FFT input: gb(In) ; output: gb(Out); working "
                    "space: lds \n";
 
             if(blockCompute)
                 str += "\t";
-            str += "\t// rw, b, me% control read/write; then ldsOffset, lwb, lds\n";
+            str += "\t// rw, b, me% control read/write; then ldsOffset, gb, lds\n";
 
             std::string ldsOff;
 
@@ -1804,12 +1729,12 @@ namespace StockhamGenerator
             std::string sb = params.forceNonUnitStride ? "SB_NONUNIT" : "sb";
             if(NeedsLargeTwiddles())
             {
-                str += "_device<T, " + sb + ", TwdLarge, LTBase>(twiddles, (" + ltwdLDS_cond
+                str += "_device<T, " + sb + ", TwdLarge, cbtype, LTBase>(twiddles, (" + ltwdLDS_cond
                        + ")? large_twd_lds : twiddles_large, ";
             }
             else
             {
-                str += "_device<T, " + sb + ">(twiddles, ";
+                str += "_device<T, " + sb + ", cbtype>(twiddles, ";
             }
 
             str += "stride_in[0], ";
@@ -1825,6 +1750,9 @@ namespace StockhamGenerator
             {
                 str += ", lds"; // only multiple pass use lds
             }
+            // blockCompute reads/writes to global outside of the FFT passes
+            if(!blockCompute)
+                str += PassCallbackParams(DeviceFuncLoadCBPassType(), DeviceFuncStoreCBPassType());
             str += ");\n";
 
             if(blockCompute || realSpecial) // the "}" enclose the loop introduced by blockCompute
@@ -1841,6 +1769,8 @@ namespace StockhamGenerator
                 size_t loopCount = (length * blockWidth) / blockWGS;
 
                 str += "\t__syncthreads();\n\n";
+
+                str += DeclareStoreCBPointer();
 
                 // The code block for even-length real2complex post processing
                 if(blockComputeType == BCT_R2C)
@@ -1914,6 +1844,8 @@ namespace StockhamGenerator
                 }
 
                 str += "\n\t\t// Calc global offset within a tile and write\n";
+                std::string output_offset
+                    = placeness == rocfft_placement_inplace ? "ioOffset" : "oOffset";
                 if((blockComputeType == BCT_C2C) || (blockComputeType == BCT_R2C))
                 {
                     // start to calc the global write offset
@@ -1926,7 +1858,7 @@ namespace StockhamGenerator
 
                     {
                         std::string global_offset;
-                        global_offset = "(me%" + std::to_string(blockWidth);
+                        global_offset = output_offset + " + (me%" + std::to_string(blockWidth);
 
                         // the most inner part of offset calc needs to count stride[1] for block compute
                         global_offset
@@ -1950,7 +1882,7 @@ namespace StockhamGenerator
 
                         std::string global_offset;
 
-                        global_offset = "(me%";
+                        global_offset = output_offset + " + (me%";
                         global_offset += std::to_string(blockWidth);
                         global_offset += ") * stride_";
                         global_offset += placeness == rocfft_placement_inplace ? "in" : "out";
@@ -1966,7 +1898,7 @@ namespace StockhamGenerator
                                "SBRC_3D_FFT_ERC_TRANS_Z_XY)\n";
                         str += "\t\t{\n";
 
-                        global_offset = "(me%";
+                        global_offset = output_offset + " + (me%";
                         global_offset += std::to_string(blockWidth);
                         global_offset += ") * stride_";
                         global_offset += placeness == rocfft_placement_inplace ? "in" : "out";
@@ -1983,7 +1915,8 @@ namespace StockhamGenerator
                 }
                 else // SBCR
                 {
-                    std::string global_offset = "me + t*" + std::to_string(blockWGS);
+                    std::string global_offset
+                        = output_offset + " + me + t*" + std::to_string(blockWGS);
                     str += GlobalWriteStrCat(global_offset, placeness, outInterleaved);
                 }
 
@@ -2332,6 +2265,15 @@ namespace StockhamGenerator
 
             GenerateGlobalKernel(str);
         }
+
+        virtual CBPassType DeviceFuncLoadCBPassType()
+        {
+            return PassNormal;
+        }
+        virtual CBPassType DeviceFuncStoreCBPassType()
+        {
+            return PassNormal;
+        }
     };
 
     // Single pass of a 2D_SINGLE kernel, either to do row transform or
@@ -2388,6 +2330,15 @@ namespace StockhamGenerator
             std::swap(temp, numTrans);
         }
         bool isRowTransform;
+
+        CBPassType DeviceFuncLoadCBPassType() override
+        {
+            return isRowTransform ? PassNormal : PassNull;
+        }
+        CBPassType DeviceFuncStoreCBPassType() override
+        {
+            return isRowTransform ? PassNull : PassNormal;
+        }
     };
     // Generate 2D kernels.  Thus far, we're only generating templated
     // kernels that don't need to care about precision

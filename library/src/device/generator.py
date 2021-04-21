@@ -319,6 +319,13 @@ class Declaration(BaseNode):
             self.post_qualifier = ''
 
 
+class CallbackDeclaration(BaseNode):
+    def __str__(self):
+        ret = 'auto load_cb = get_load_cb<scalar_type,cbtype>(load_cb_fn);'
+        ret += 'auto store_cb = get_store_cb<scalar_type,cbtype>(store_cb_fn);'
+        return ret
+
+
 def Declarations(*args):
     return [ x.declaration() for x in args ]
 
@@ -442,6 +449,17 @@ class InlineAssign(BaseNode):
         return str(self.args[0]) + ' = ' + str(self.args[1])
 
 
+@name_args(['buf', 'offset'])
+class LoadGlobal(BaseNode):
+    def __str__(self):
+        return f'load_cb({self.args[0]}, {self.args[1]}, load_cb_data, nullptr);'
+
+@name_args(['buf', 'offset', 'element'])
+class StoreGlobal(BaseNode):
+    def __str__(self):
+        return f'store_cb({self.args[0]}, {self.args[1]}, {self.args[2]}, store_cb_data, nullptr);'
+
+    
 @make_binary('&&')
 class And(BaseNodeOps):
     pass
@@ -829,15 +847,28 @@ def make_planar(kernel, varname):
                     args.append(arg)
             return ArgumentList(*args)
 
+        # callbacks don't support planar, so loads and stores are
+        # instead just direct memory accesses
+        if isinstance(x, LoadGlobal):
+            if x.args[0].name == varname:
+                return ArrayElement(x.args[0],x.args[1])
+
+        if isinstance(x, StoreGlobal):
+            if x.args[0].name == varname:
+                return StatementList(Assign(ArrayElement(rname, x.args[1]),
+                                            Component(x.args[2], 'x')),
+                                     Assign(ArrayElement(iname, x.args[1]),
+                                            Component(x.args[2], 'y')))
+
         return x
 
     return depth_first(kernel, visitor)
 
 
 def make_out_of_place(kernel, names):
-    """Rewrite 'kernel' to use seperate input and output buffers.
+    """Rewrite 'kernel' to use separate input and output buffers.
 
-    The input/output array 'varname' is replaced with seperate input
+    The input/output array 'varname' is replaced with separate input
     and output arrays 'inname' and 'outname'.  We assume that, in the
     body of the kernel, the i/o array is only used in assignments
     (that is, typically loaded to and from LDS).
@@ -876,10 +907,11 @@ def make_out_of_place(kernel, names):
                 y = copy(x)
                 y.args[0] = name + '_in'
                 return y
+
         return x
 
     def output_visitor(x):
-        if isinstance(x, (Variable, ArrayElement)):
+        if isinstance(x, (Variable, ArrayElement, StoreGlobal)):
             name = x.args[0]
             if name in names:
                 y = copy(x)
@@ -942,6 +974,14 @@ def make_out_of_place(kernel, names):
                 else:
                     args.append(arg)
             return ArgumentList(*args)
+
+        if isinstance(x, LoadGlobal):
+            x.args[0] = depth_first(x.args[0], input_visitor)
+            x.args[1] = depth_first(x.args[1], input_visitor)
+
+        if isinstance(x, StoreGlobal):
+            x.args[0] = depth_first(x.args[0], output_visitor)
+            x.args[1] = depth_first(x.args[1], output_visitor)
 
         return x
 
