@@ -51,7 +51,7 @@ bool use_fftw_wisdom = false;
 
 // Cache the last cpu fft that was requested - the tuple members
 // correspond to the input and output of compute_cpu_fft.
-std::tuple<std::vector<size_t>, size_t, rocfft_transform_type, accuracy_test::cpu_fft_params>
+std::tuple<std::vector<size_t>, size_t, rocfft_transform_type, bool, accuracy_test::cpu_fft_params>
     last_cpu_fft;
 
 int main(int argc, char* argv[])
@@ -95,6 +95,7 @@ int main(int argc, char* argv[])
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
          "forward\n3) real inverse")
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
+        ("callback", "Inject load/store callbacks")
         ("double", "Double precision transform (default: single)")
         ( "itype", po::value<rocfft_array_type>(&manual_params.itype)
           ->default_value(rocfft_array_type_unset),
@@ -149,6 +150,11 @@ int main(int argc, char* argv[])
     if(vm.count("wise"))
     {
         use_fftw_wisdom = true;
+    }
+
+    if(vm.count("callback"))
+    {
+        manual_params.run_callbacks = true;
     }
 
     if(manual_params.length.empty())

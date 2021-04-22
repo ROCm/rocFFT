@@ -30,7 +30,11 @@ make -j
 A static library can be compiled by using the option `-DBUILD_SHARED_LIBS=off`
 
 To use the [hip-clang compiler][3], one must specify
-`-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang` to cmake.
+`-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang` to cmake.  rocFFT enables
+use of indirect function calls by default and requires ROCm 4.3 or
+higher to build successfully.  `-DROCFFT_CALLBACKS_ENABLED=off`
+may be specified to cmake to disable those calls on older ROCm
+compilers, though callbacks will not work correctly in this configuration.
 
 One can use nvcc as a backend compiler by passing the option `-DUSE_CUDA=yes`
 and setting `HIP_PLATFORM=nvcc` in your environment.

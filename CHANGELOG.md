@@ -10,6 +10,10 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Added
 - Added new kernel generator for select lengths.  New kernels have
   improved performance.
+- Added public `rocfft_execution_info_set_load_callback` and
+  `rocfft_execution_info_set_store_callback` API functions to allow
+  executing extra logic when loading/storing data from/to global
+  memory during a transform.
 
 ### Removed
 - Removed R2C pair schemes and kernels.

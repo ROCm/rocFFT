@@ -83,6 +83,11 @@ public:
     std::vector<size_t> isize;
     std::vector<size_t> osize;
 
+    // run testing load/store callbacks
+    bool                    run_callbacks   = false;
+    static constexpr double load_cb_scalar  = 0.457813941;
+    static constexpr double store_cb_scalar = 0.391504938;
+
     // Given an array type, return the name as a string.
     std::string array_type_name(const rocfft_array_type type) const
     {

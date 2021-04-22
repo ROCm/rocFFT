@@ -32,17 +32,298 @@
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
 
+struct callback_test_data
+{
+    // scalar to modify the input/output with
+    double scalar;
+    // base address of input, to ensure that each callback gets an offset from that base
+    void* base;
+};
+
+// load/store callbacks - cbdata in each is actually a scalar double
+// with a number to apply to each element
+template <typename Tdata>
+__host__ __device__ Tdata load_callback(Tdata* input, size_t offset, void* cbdata, void* sharedMem)
+{
+    auto testdata = static_cast<const callback_test_data*>(cbdata);
+    // multiply each element by scalar
+    if(input == testdata->base)
+        return input[offset] * testdata->scalar;
+    // wrong base address passed, return something obviously wrong
+    else
+        return input[0];
+}
+__device__ auto load_callback_dev_float   = load_callback<float>;
+__device__ auto load_callback_dev_float2  = load_callback<float2>;
+__device__ auto load_callback_dev_double  = load_callback<double>;
+__device__ auto load_callback_dev_double2 = load_callback<double2>;
+
+void* get_load_callback_host(rocfft_array_type itype, rocfft_precision precision)
+{
+    void* load_callback_host = nullptr;
+    switch(itype)
+    {
+    case rocfft_array_type_complex_interleaved:
+    case rocfft_array_type_hermitian_interleaved:
+    {
+        switch(precision)
+        {
+        case rocfft_precision_single:
+            EXPECT_EQ(
+                hipMemcpyFromSymbol(&load_callback_host, load_callback_dev_float2, sizeof(void*)),
+                hipSuccess);
+            return load_callback_host;
+        case rocfft_precision_double:
+            EXPECT_EQ(
+                hipMemcpyFromSymbol(&load_callback_host, load_callback_dev_double2, sizeof(void*)),
+                hipSuccess);
+            return load_callback_host;
+        }
+    }
+    case rocfft_array_type_real:
+    {
+        switch(precision)
+        {
+        case rocfft_precision_single:
+            EXPECT_EQ(
+                hipMemcpyFromSymbol(&load_callback_host, load_callback_dev_float, sizeof(void*)),
+                hipSuccess);
+            return load_callback_host;
+        case rocfft_precision_double:
+            EXPECT_EQ(
+                hipMemcpyFromSymbol(&load_callback_host, load_callback_dev_double, sizeof(void*)),
+                hipSuccess);
+            return load_callback_host;
+        }
+    }
+    default:
+        // planar is unsupported for now
+        return load_callback_host;
+    }
+}
+
+template <typename Tdata>
+__host__ __device__ void
+    store_callback(Tdata* output, size_t offset, Tdata element, void* cbdata, void* sharedMem)
+{
+    auto testdata = static_cast<callback_test_data*>(cbdata);
+    // add scalar to each element
+    if(output == testdata->base)
+        output[offset] = element + testdata->scalar;
+    // otherwise, wrong base address passed, just don't write
+}
+__device__ auto store_callback_dev_float   = store_callback<float>;
+__device__ auto store_callback_dev_float2  = store_callback<float2>;
+__device__ auto store_callback_dev_double  = store_callback<double>;
+__device__ auto store_callback_dev_double2 = store_callback<double2>;
+
+void* get_store_callback_host(rocfft_array_type otype, rocfft_precision precision)
+{
+    void* store_callback_host = nullptr;
+    switch(otype)
+    {
+    case rocfft_array_type_complex_interleaved:
+    case rocfft_array_type_hermitian_interleaved:
+    {
+        switch(precision)
+        {
+        case rocfft_precision_single:
+            EXPECT_EQ(
+                hipMemcpyFromSymbol(&store_callback_host, store_callback_dev_float2, sizeof(void*)),
+                hipSuccess);
+            return store_callback_host;
+        case rocfft_precision_double:
+            EXPECT_EQ(hipMemcpyFromSymbol(
+                          &store_callback_host, store_callback_dev_double2, sizeof(void*)),
+                      hipSuccess);
+            return store_callback_host;
+        }
+    }
+    case rocfft_array_type_real:
+    {
+        switch(precision)
+        {
+        case rocfft_precision_single:
+            EXPECT_EQ(
+                hipMemcpyFromSymbol(&store_callback_host, store_callback_dev_float, sizeof(void*)),
+                hipSuccess);
+            return store_callback_host;
+        case rocfft_precision_double:
+            EXPECT_EQ(
+                hipMemcpyFromSymbol(&store_callback_host, store_callback_dev_double, sizeof(void*)),
+                hipSuccess);
+            return store_callback_host;
+        }
+    }
+    default:
+        // planar is unsupported for now
+        return store_callback_host;
+    }
+}
+
+// apply load callback if necessary
+void apply_load_callback(const rocfft_params& params, fftw_data_t& input)
+{
+    if(!params.run_callbacks)
+        return;
+    // we're applying callbacks to FFTW input/output which we can
+    // assume is contiguous and non-planar
+
+    callback_test_data cbdata;
+    cbdata.scalar = params.load_cb_scalar;
+    cbdata.base   = input.front().data();
+
+    switch(params.itype)
+    {
+    case rocfft_array_type_complex_interleaved:
+    case rocfft_array_type_hermitian_interleaved:
+    {
+        switch(params.precision)
+        {
+        case rocfft_precision_single:
+        {
+            const size_t elem_size = 2 * sizeof(float);
+            const size_t num_elems = input.front().size() / elem_size;
+
+            auto input_begin = reinterpret_cast<float2*>(input.front().data());
+            for(size_t i = 0; i < num_elems; ++i)
+                input_begin[i] = load_callback(input_begin, i, &cbdata, nullptr);
+            break;
+        }
+        case rocfft_precision_double:
+        {
+            const size_t elem_size = 2 * sizeof(double);
+            const size_t num_elems = input.front().size() / elem_size;
+
+            auto input_begin = reinterpret_cast<double2*>(input.front().data());
+            for(size_t i = 0; i < num_elems; ++i)
+                input_begin[i] = load_callback(input_begin, i, &cbdata, nullptr);
+            break;
+        }
+        }
+    }
+    break;
+    case rocfft_array_type_real:
+    {
+        switch(params.precision)
+        {
+        case rocfft_precision_single:
+        {
+            const size_t elem_size = sizeof(float);
+            const size_t num_elems = input.front().size() / elem_size;
+
+            auto input_begin = reinterpret_cast<float*>(input.front().data());
+            for(size_t i = 0; i < num_elems; ++i)
+                input_begin[i] = load_callback(input_begin, i, &cbdata, nullptr);
+            break;
+        }
+        case rocfft_precision_double:
+        {
+            const size_t elem_size = sizeof(double);
+            const size_t num_elems = input.front().size() / elem_size;
+
+            auto input_begin = reinterpret_cast<double*>(input.front().data());
+            for(size_t i = 0; i < num_elems; ++i)
+                input_begin[i] = load_callback(input_begin, i, &cbdata, nullptr);
+            break;
+        }
+        }
+    }
+    break;
+    default:
+        // this is FFTW data which should always be interleaved (if complex)
+        abort();
+    }
+}
+
+// apply store callback if necessary
+void apply_store_callback(const rocfft_params& params, fftw_data_t& output)
+{
+    if(!params.run_callbacks)
+        return;
+
+    // we're applying callbacks to FFTW input/output which we can
+    // assume is contiguous and non-planar
+
+    callback_test_data cbdata;
+    cbdata.scalar = params.store_cb_scalar;
+    cbdata.base   = output.front().data();
+
+    switch(params.otype)
+    {
+    case rocfft_array_type_complex_interleaved:
+    case rocfft_array_type_hermitian_interleaved:
+    {
+        switch(params.precision)
+        {
+        case rocfft_precision_single:
+        {
+            const size_t elem_size = 2 * sizeof(float);
+            const size_t num_elems = output.front().size() / elem_size;
+
+            auto output_begin = reinterpret_cast<float2*>(output.front().data());
+            for(size_t i = 0; i < num_elems; ++i)
+                store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
+            break;
+        }
+        case rocfft_precision_double:
+        {
+            const size_t elem_size = 2 * sizeof(double);
+            const size_t num_elems = output.front().size() / elem_size;
+
+            auto output_begin = reinterpret_cast<double2*>(output.front().data());
+            for(size_t i = 0; i < num_elems; ++i)
+                store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
+            break;
+        }
+        }
+    }
+    break;
+    case rocfft_array_type_real:
+    {
+        switch(params.precision)
+        {
+        case rocfft_precision_single:
+        {
+            const size_t elem_size = sizeof(float);
+            const size_t num_elems = output.front().size() / elem_size;
+
+            auto output_begin = reinterpret_cast<float*>(output.front().data());
+            for(size_t i = 0; i < num_elems; ++i)
+                store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
+            break;
+        }
+        case rocfft_precision_double:
+        {
+            const size_t elem_size = sizeof(double);
+            const size_t num_elems = output.front().size() / elem_size;
+
+            auto output_begin = reinterpret_cast<double*>(output.front().data());
+            for(size_t i = 0; i < num_elems; ++i)
+                store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
+            break;
+        }
+        }
+    }
+    break;
+    default:
+        // this is FFTW data which should always be interleaved (if complex)
+        abort();
+    }
+}
+
 accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params& params)
 {
     // Check cache first - nbatch is a >= comparison because we compute
     // the largest batch size and cache it.  Smaller batch runs can
     // compare against the larger data.
     if(std::get<0>(last_cpu_fft) == params.length
-       && std::get<2>(last_cpu_fft) == params.transform_type)
+       && std::get<2>(last_cpu_fft) == params.transform_type
+       && std::get<3>(last_cpu_fft) == params.run_callbacks)
     {
         if(std::get<1>(last_cpu_fft) >= params.nbatch)
         {
-            auto& ret = std::get<3>(last_cpu_fft);
+            auto& ret = std::get<4>(last_cpu_fft);
             if(params.precision != ret.precision)
             {
                 // Tests should be ordered so we do double first, then float.
@@ -172,7 +453,9 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
     std::shared_future<fftw_data_t> output      = std::async(std::launch::async, [=]() {
         // copy input, as FFTW may overwrite it
         auto input_copy = input.get();
-        auto output     = fftw_via_rocfft(contiguous_params.length,
+
+        apply_load_callback(params, input_copy);
+        auto output = fftw_via_rocfft(contiguous_params.length,
                                       contiguous_params.istride,
                                       contiguous_params.ostride,
                                       contiguous_params.nbatch,
@@ -181,6 +464,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
                                       contiguous_params.precision,
                                       contiguous_params.transform_type,
                                       input_copy);
+        apply_store_callback(params, output);
         if(verbose > 3)
         {
             std::cout << "CPU output:\n";
@@ -232,7 +516,8 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
     std::get<0>(last_cpu_fft) = params.length;
     std::get<1>(last_cpu_fft) = params.nbatch;
     std::get<2>(last_cpu_fft) = params.transform_type;
-    std::get<3>(last_cpu_fft) = ret;
+    std::get<3>(last_cpu_fft) = params.run_callbacks;
+    std::get<4>(last_cpu_fft) = ret;
 
     return ret;
 }
@@ -402,6 +687,44 @@ void rocfft_transform(const rocfft_params&                 params,
     for(unsigned int i = 0; i < obuffer->size(); ++i)
     {
         pobuffer[i] = obuffer->at(i).data();
+    }
+
+    gpubuf_t<callback_test_data> load_cb_data_dev;
+    gpubuf_t<callback_test_data> store_cb_data_dev;
+    if(params.run_callbacks)
+    {
+        void* load_cb_host = get_load_callback_host(params.itype, params.precision);
+
+        callback_test_data load_cb_data_host;
+        load_cb_data_host.scalar = params.load_cb_scalar;
+        load_cb_data_host.base   = ibuffer.front().data();
+
+        load_cb_data_dev.alloc(sizeof(callback_test_data));
+        hipMemcpy(load_cb_data_dev.data(),
+                  &load_cb_data_host,
+                  sizeof(callback_test_data),
+                  hipMemcpyHostToDevice);
+
+        void* load_cb_data = load_cb_data_dev.data();
+        fft_status = rocfft_execution_info_set_load_callback(info, &load_cb_host, &load_cb_data, 0);
+        ASSERT_TRUE(fft_status == rocfft_status_success);
+
+        void* store_cb_host = get_store_callback_host(params.otype, params.precision);
+
+        callback_test_data store_cb_data_host;
+        store_cb_data_host.scalar = params.store_cb_scalar;
+        store_cb_data_host.base   = obuffer->front().data();
+
+        store_cb_data_dev.alloc(sizeof(callback_test_data));
+        hipMemcpy(store_cb_data_dev.data(),
+                  &store_cb_data_host,
+                  sizeof(callback_test_data),
+                  hipMemcpyHostToDevice);
+
+        void* store_cb_data = store_cb_data_dev.data();
+        fft_status
+            = rocfft_execution_info_set_store_callback(info, &store_cb_host, &store_cb_data, 0);
+        ASSERT_TRUE(fft_status == rocfft_status_success);
     }
 
     // Copy the input data to the GPU:

@@ -399,6 +399,87 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_mode( rocfft_execution_inf
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info,
                                                              void*                 stream);
 
+/*! @brief Set a load callback for a plan execution
+ *  @details This function specifies a user-defined callback function
+ *  that is run to load input from global memory at the start of the
+ *  transform.
+ *
+ *  Callback function pointers/data are given as arrays, with one
+ *  function/data pointer per device executing this plan.  Currently,
+ *  plans can only use one device.
+ *
+ *  The provided function pointers replace any previously-specified
+ *  load callback for this execution info handle.
+ *
+ *  Load callbacks have the following signature:
+ *
+ *  @code
+ *  T load_cb(T* data, size_t offset, void* cbdata, void* sharedMem);
+ *  @endcode
+ *
+ *  'T' is the type of a single element of the input buffer.  It is
+ *  the caller's responsibility to ensure that the function type is
+ *  appropriate for the plan (for example, a single-precision
+ *  real-to-complex transform would load single-precision real
+ *  elements).
+ *
+ *  A null value for 'cb' may be specified to clear any previously
+ *  registered load callback.
+ *
+ *  Currently, 'shared_mem_bytes' must be 0.  Callbacks are not
+ *  supported on transforms that use planar formats for either input
+ *  or output.
+ *
+ *  @param[in] info execution info handle
+ *  @param[in] cb callback function pointers
+ *  @param[in] cbdata callback function data, passed to the function pointer when it is called
+ *  @param[in] shared_mem_size amount of shared memory to allocate for the callback function to use */
+ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_load_callback(rocfft_execution_info info,
+                                                                    void** cb_functions,
+                                                                    void** cb_data,
+                                                                    size_t shared_mem_bytes);
+
+/*! @brief Set a store callback for a plan execution
+ *  @details This function specifies a user-defined callback function
+ *  that is run to store output to global memory at the end of the
+ *  transform.
+ *
+ *  Callback function pointers/data are given as arrays, with one
+ *  function/data pointer per device executing this plan.  Currently,
+ *  plans can only use one device.
+ *
+ *  The provided function pointers replace any previously-specified
+ *  store callback for this execution info handle.
+ *
+ *  Store callbacks have the following signature:
+ *
+ *  @code
+ *  void store_cb(T* data, size_t offset, T element, void* cbdata, void* sharedMem);
+ *  @endcode
+ *
+ *  'T' is the type of a single element of the output buffer.  It is
+ *  the caller's responsibility to ensure that the function type is
+ *  appropriate for the plan (for example, a single-precision
+ *  real-to-complex transform would store single-precision complex
+ *  elements).
+ *
+ *  A null value for 'cb' may be specified to clear any previously
+ *  registered store callback.
+ *
+ *  Currently, 'shared_mem_bytes' must be 0.  Callbacks are not
+ *  supported on transforms that use planar formats for either input
+ *  or output.
+ *
+ *  @param[in] info execution info handle
+ *  @param[in] cb callbacks function pointers
+ *  @param[in] cbdata callback function data, passed to the function pointer when it is called
+ *  @param[in] shared_mem_size amount of shared memory to allocate for the callback function to use
+ *  */
+ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_store_callback(rocfft_execution_info desc,
+                                                                     void** cb_functions,
+                                                                     void** cb_data,
+                                                                     size_t shared_mem_size);
+
 #if 0
 /*! @brief Get events from execution info
  *  @details This is one of the execution info functions to retrieve information from execution.

@@ -213,6 +213,9 @@ public:
             ret += std::to_string(n);
         }
 
+        if(info.param.run_callbacks)
+            ret += "_CB";
+
         return ret;
     }
 };
@@ -222,8 +225,9 @@ void rocfft_transform(const rocfft_params&                 params,
                       const accuracy_test::cpu_fft_params& cpu,
                       const size_t                         ramgb);
 
-extern std::tuple<std::vector<size_t>, size_t, rocfft_transform_type, accuracy_test::cpu_fft_params>
-    last_cpu_fft;
+extern std::
+    tuple<std::vector<size_t>, size_t, rocfft_transform_type, bool, accuracy_test::cpu_fft_params>
+        last_cpu_fft;
 
 const static std::vector<size_t> batch_range = {2, 1};
 
@@ -407,17 +411,18 @@ inline auto param_generator_base(const std::vector<rocfft_transform_type>&   typ
                                  const stride_generator&                     ostride,
                                  const std::vector<std::vector<size_t>>&     ioffset_range,
                                  const std::vector<std::vector<size_t>>&     ooffset_range,
-                                 const std::vector<rocfft_result_placement>& place_range)
+                                 const std::vector<rocfft_result_placement>& place_range,
+                                 bool                                        run_callbacks = false)
 {
 
     std::vector<rocfft_params> params;
 
+    // For any length, we compute double-precision CPU reference
+    // for largest batch size first and reuse for smaller batch
+    // sizes, then convert to single-precision.
+
     for(auto& transform_type : type_range)
     {
-        // For any length, we compute double-precision CPU reference
-        // for largest batch size first and reuse for smaller batch
-        // sizes, then convert to single-precision.
-
         for(const auto& lengths : v_lengths)
         {
             // try to ensure that we are given literal lengths, not
@@ -427,39 +432,56 @@ inline auto param_generator_base(const std::vector<rocfft_transform_type>&   typ
                 assert(false);
                 continue;
             }
-            for(const auto precision : precision_range)
             {
-                for(const auto batch : batch_range)
+                for(const auto precision : precision_range)
                 {
-                    for(const auto& types : types_generator(transform_type, place_range))
+                    for(const auto batch : batch_range)
                     {
-                        for(const auto& istride_dist : istride.generate(lengths, batch))
+                        for(const auto& types : types_generator(transform_type, place_range))
                         {
-                            for(const auto& ostride_dist : ostride.generate(lengths, batch))
+                            for(const auto& istride_dist : istride.generate(lengths, batch))
                             {
-                                for(const auto& ioffset : ioffset_range)
+                                for(const auto& ostride_dist : ostride.generate(lengths, batch))
                                 {
-                                    for(const auto& ooffset : ooffset_range)
+                                    for(const auto& ioffset : ioffset_range)
                                     {
-                                        rocfft_params param;
-
-                                        param.length         = lengths;
-                                        param.istride        = istride_dist.stride;
-                                        param.ostride        = ostride_dist.stride;
-                                        param.nbatch         = batch;
-                                        param.precision      = precision;
-                                        param.transform_type = std::get<0>(types);
-                                        param.placement      = std::get<1>(types);
-                                        param.idist          = istride_dist.dist;
-                                        param.odist          = ostride_dist.dist;
-                                        param.itype          = std::get<2>(types);
-                                        param.otype          = std::get<3>(types);
-                                        param.ioffset        = ioffset;
-                                        param.ooffset        = ooffset;
-
-                                        if(param.valid(0))
+                                        for(const auto& ooffset : ooffset_range)
                                         {
-                                            params.push_back(param);
+                                            rocfft_params param;
+
+                                            param.length         = lengths;
+                                            param.istride        = istride_dist.stride;
+                                            param.ostride        = ostride_dist.stride;
+                                            param.nbatch         = batch;
+                                            param.precision      = precision;
+                                            param.transform_type = std::get<0>(types);
+                                            param.placement      = std::get<1>(types);
+                                            param.idist          = istride_dist.dist;
+                                            param.odist          = ostride_dist.dist;
+                                            param.itype          = std::get<2>(types);
+                                            param.otype          = std::get<3>(types);
+                                            param.ioffset        = ioffset;
+                                            param.ooffset        = ooffset;
+
+                                            if(run_callbacks)
+                                            {
+                                                // add a test if both input and output support callbacks
+                                                if(param.itype != rocfft_array_type_complex_planar
+                                                   && param.itype
+                                                          != rocfft_array_type_hermitian_planar
+                                                   && param.otype
+                                                          != rocfft_array_type_complex_planar
+                                                   && param.otype
+                                                          != rocfft_array_type_hermitian_planar)
+                                                    param.run_callbacks = true;
+                                                else
+                                                    continue;
+                                            }
+
+                                            if(param.valid(0))
+                                            {
+                                                params.push_back(param);
+                                            }
                                         }
                                     }
                                 }
@@ -470,7 +492,6 @@ inline auto param_generator_base(const std::vector<rocfft_transform_type>&   typ
             }
         }
     }
-
     return params;
 }
 

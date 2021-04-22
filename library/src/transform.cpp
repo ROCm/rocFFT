@@ -25,6 +25,7 @@
 #include <iostream>
 #include <vector>
 
+#include "../../shared/array_predicate.h"
 #include "logging.h"
 #include "plan.h"
 #include "repo.h"
@@ -67,6 +68,38 @@ rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info, void*
 {
     log_trace(__func__, "info", info, "stream", stream);
     info->rocfft_stream = (hipStream_t)stream;
+    return rocfft_status_success;
+}
+
+rocfft_status rocfft_execution_info_set_load_callback(rocfft_execution_info info,
+                                                      void**                cb_functions,
+                                                      void**                cb_data,
+                                                      size_t                shared_mem_size)
+{
+    // currently, we're not allocating LDS for callbacks, so fail
+    // if any was requested
+    if(shared_mem_size)
+        return rocfft_status_invalid_arg_value;
+
+    info->callbacks.load_cb_fn        = cb_functions ? cb_functions[0] : nullptr;
+    info->callbacks.load_cb_data      = cb_data ? cb_data[0] : nullptr;
+    info->callbacks.load_cb_lds_bytes = shared_mem_size;
+    return rocfft_status_success;
+}
+
+rocfft_status rocfft_execution_info_set_store_callback(rocfft_execution_info info,
+                                                       void**                cb_functions,
+                                                       void**                cb_data,
+                                                       size_t                shared_mem_size)
+{
+    // currently, we're not allocating LDS for callbacks, so fail
+    // if any was requested
+    if(shared_mem_size)
+        return rocfft_status_invalid_arg_value;
+
+    info->callbacks.store_cb_fn        = cb_functions ? cb_functions[0] : nullptr;
+    info->callbacks.store_cb_data      = cb_data ? cb_data[0] : nullptr;
+    info->callbacks.store_cb_lds_bytes = shared_mem_size;
     return rocfft_status_success;
 }
 
@@ -114,6 +147,12 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
         else if(info.workBufferSize < requiredWorkBufBytes)
             return rocfft_status_invalid_work_buffer;
     }
+
+    // Callbacks do not currently support planar format
+    if((array_type_is_planar(execPlan->rootPlan->inArrayType)
+        || array_type_is_planar(execPlan->rootPlan->outArrayType))
+       && (info.callbacks.load_cb_fn || info.callbacks.store_cb_fn))
+        return rocfft_status_failure;
 
     TransformPowX(*execPlan,
                   in_buffer,

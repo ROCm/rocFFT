@@ -37,7 +37,8 @@ if(NOT Boost_LIBRARIES)
   set(Boost_LIBRARIES Boost::program_options)
 endif()
 
-set( sample_list rocfft_example_complexcomplex rocfft_example_realcomplex rocfft_example_set_stream)
+set( sample_list rocfft_example_complexcomplex rocfft_example_realcomplex rocfft_example_set_stream
+     rocfft_example_callback )
 
 foreach( sample ${sample_list} )
 

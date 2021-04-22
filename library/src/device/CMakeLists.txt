@@ -150,7 +150,7 @@ add_library( rocfft-device STATIC
   )
 set_property(TARGET rocfft-device PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-option(ROCFFT_CALLBACKS_ENABLED "Enable user-defined callbacks for load/stores from global memory" OFF)
+option(ROCFFT_CALLBACKS_ENABLED "Enable user-defined callbacks for load/stores from global memory" ON)
 if(ROCFFT_CALLBACKS_ENABLED)
   target_compile_definitions( rocfft-device PRIVATE ROCFFT_CALLBACKS_ENABLED )
 endif()
