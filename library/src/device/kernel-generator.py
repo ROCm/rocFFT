@@ -15,6 +15,7 @@ import argparse
 import collections
 import functools
 import itertools
+import os
 import subprocess
 import sys
 
@@ -74,6 +75,10 @@ def pmerge(d, fs):
         r[f.meta.length, f.meta.precision, f.meta.scheme, f.meta.pool] = f
     return r
 
+
+def flatten(lst):
+    """Flatten a list of lists to a list."""
+    return sum(lst, [])
 
 #
 # Supported kernel sizes
@@ -409,17 +414,126 @@ def kernel_file_name(ns):
 def list_new_kernels():
     """Return list of kernels to generate with the new generator."""
 
-    kernels = [
-        NS(length=56,
-           threads_per_block=64),
-        NS(length=336)
-    ]
-    for k in kernels:
-        k.scheme = 'CS_KERNEL_STOCKHAM'
-    return kernels
+    # remaining lenghts less than 1024: 121 192 224 250 320 336 375
+    # 384 405 432 450 480 500 512 576 600 625 640 675 750 768 800 810
+    # 864 900 972 1000
+
+
+    # dictionary of (flavour, threads_per_block) -> list of kernels to generate
+    all_kernels = {
+        ('uwide', 256): [
+#            NS(length=2, factors=[2]),
+#            NS(length=3, factors=[3]),
+#            NS(length=5, factors=[5]),
+#            NS(length=6, factors=[6]),
+#            NS(length=7, factors=[7]),
+#            NS(length=8, factors=[8]),
+            NS(length=9, factors=[3,3]),
+#            NS(length=10, factors=[10]),
+            NS(length=12, factors=[6,2]),
+            NS(length=14, factors=[7,2]),
+            NS(length=15, factors=[5,3]),
+#            NS(length=18, factors=[6,3]),
+            NS(length=20, factors=[10,2]),
+            NS(length=21, factors=[7,3]),
+            NS(length=24, factors=[8,3]),
+            NS(length=25, factors=[5,5]),
+#            NS(length=27, factors=[3,3,3]),
+            NS(length=28, factors=[7,4]),
+            NS(length=30, factors=[10,3]),
+            NS(length=36, factors=[6,6]),
+            NS(length=42, factors=[7,6]),
+            NS(length=45, factors=[5,3,3]),
+#            NS(length=49, factors=[7,7]),
+            NS(length=50, factors=[10,5]),
+            NS(length=54, factors=[6,3,3]),
+            NS(length=56, factors=[8,7]),
+#            NS(length=64, factors=[16,4]),
+#            NS(length=72, factors=[8,3,3]),
+            NS(length=75, factors=[5,5,3]),
+            NS(length=80, factors=[16,5]),
+#            NS(length=81, factors=[3,3,3,3]),
+#            NS(length=96, factors=[16,6]),
+#            NS(length=100, factors=[10,10]),
+            NS(length=108, factors=[6,6,3]),
+            NS(length=112, factors=[16,7]),
+            NS(length=125, factors=[5,5,5]),
+#            NS(length=128, factors=[16,8]),
+#            NS(length=135, factors=[5,3,3,3]),
+#            NS(length=150, factors=[10,5,3]),
+            NS(length=160, factors=[16,10]),
+#            NS(length=162, factors=[6,3,3,3]),
+            NS(length=168, factors=[8,7,3]),
+            NS(length=180, factors=[10,6,3]),
+#            NS(length=216, factors=[8,3,3,3]),
+            NS(length=225, factors=[5,5,3,3]),
+            NS(length=240, factors=[16,5,3]),
+#            NS(length=243, factors=[3,3,3,3,3]),
+#            NS(length=256, factors=[16,16]),
+#            NS(length=270, factors=[10,3,3,3]),
+#            NS(length=288, factors=[16,6,3]),
+            NS(length=324, factors=[6,6,3,3]),
+            NS(length=343, factors=[7,7,7]),
+            NS(length=360, factors=[10,6,6]),
+            NS(length=400, factors=[16,5,5]),
+#            NS(length=486, factors=[6,3,3,3,3]),
+#            NS(length=540, factors=[10,6,3,3]),
+            NS(length=648, factors=[8,3,3,3,3]),
+            NS(length=720, factors=[16,5,3,3]),
+#            NS(length=729, factors=[3,3,3,3,3,3]),
+            NS(length=960, factors=[16,10,6]),
+        ],
+        ('wide', 64): [
+#            NS(length=11, factors=[11]),
+            NS(length=22, factors=[2,11]),
+            NS(length=44, factors=[4,11]),
+            NS(length=60, factors=[6,10]),
+            NS(length=84, factors=[2,6,7]),
+            NS(length=90, factors=[3,3,10]),
+            NS(length=120, factors=[2,6,10]),
+#            NS(length=200, factors=[2,10,10]),
+            NS(length=300, factors=[3,10,10]),
+        ],
+        ('uwide', 64): [
+            NS(length=32, factors=[16,2]),
+            NS(length=40, factors=[10,4]),
+            NS(length=48, factors=[3,4,4]),
+            NS(length=88, factors=[11,8]),
+            NS(length=176, factors=[16,11]),
+            NS(length=336, factors=[7,8,6]),
+        ],
+        # ('tall', X): [
+        #     NS(length=4),
+        #     NS(length=13),
+        #     NS(length=16),
+        #     NS(length=26),
+        #     NS(length=52),
+        #     NS(length=104),
+        #     NS(length=169),
+        #     NS(length=192),
+        #     NS(length=208),
+        #     NS(length=320),
+        #     NS(length=512),
+        #     NS(length=625),
+        #     NS(length=864),
+        #     NS(length=1000),
+        # ]
+    }
+
+    expanded = []
+    for params, kernels in all_kernels.items():
+        flavour, threads_per_block = params
+        expanded.extend(NS(**kernel.__dict__,
+                           flavour=flavour,
+                           threads_per_block=threads_per_block,
+                           scheme='CS_KERNEL_STOCKHAM') for kernel in kernels)
+
+    return expanded
 
 
 def list_new_large_kernels():
+    """Return list of large kernels to generate with the new generator."""
+
     kernels = [
         NS(length=50,  factors=[10, 5],      use_3steps_large_twd={'sp': 'true',  'dp': 'true'}, threads_per_block=256),
         NS(length=64,  factors=[8, 8],       use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
@@ -440,57 +554,66 @@ def list_new_large_kernels():
     return kernels
 
 
-def generate_new_kernels(kernels):
-    """Generate and write kernels from the kernel list.
+def generate_kernel(kernel):
+    """Generate a single kernel file for 'kernel'.
 
-    Entries in the kernel list are simple namespaces used.  These are
-    passed as keyword arguments to the Stockham generator.
+    The kernel file contains all kernel variations corresponding to
+    the kernel meta data in 'kernel'.
 
     A list of CPU functions is returned.
     """
 
     fname = Path(__file__).resolve()
 
+    src = StatementList(
+        CommentBlock(
+            'Stockham kernels generated by:',
+            '',
+            '    ' + ' '.join(sys.argv),
+            '',
+            'Generator is: ' + str(fname),
+            ''
+            'Kernel is: ' + str(kernel)),
+        LineBreak(),
+        Include('<hip/hip_runtime.h>'),
+        Include('"kernel_launch.h"'),
+        Include('"rocfft_butterfly_template.h"'),
+        LineBreak())
+
+    kdevice, kglobal = stockham.stockham(**kernel.__dict__)
+    length = kglobal.meta.length
+    forward, inverse = kglobal.name, kglobal.name.replace('forward', 'inverse')
+    src += stockham.make_variants(kdevice, kglobal)
+
     cpu_functions = []
-    for kernel in kernels:
-        src = StatementList(
-            CommentBlock(
-                'Stockham kernels generated by:',
-                '',
-                '    ' + ' '.join(sys.argv),
-                '',
-                'Generator is: ' + str(fname),
-                ''
-                'Kernel is: ' + str(kernel)),
-            LineBreak(),
-            Include('<hip/hip_runtime.h>'),
-            Include('"kernel_launch.h"'),
-            Include('"rocfft_butterfly_template.h"'),
-            LineBreak())
+    for precision, typename in [('sp', 'float2'), ('dp', 'double2')]:
+        if kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM':
+            prototype = POWX_SMALL_GENERATOR(f'rocfft_internal_dfn_{precision}_ci_ci_stoc_{length}',
+                                    'ip_' + forward, 'ip_' + inverse,
+                                    'op_' + forward, 'op_' + inverse, typename)
+        elif kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC':
+            prototype = POWX_LARGE_SBCC_GENERATOR(f'rocfft_internal_dfn_{precision}_ci_ci_sbcc_{length}',
+                                    'ip_' + forward, 'ip_' + inverse,
+                                    'op_' + forward, 'op_' + inverse, typename)
+        else:
+            raise NotImplementedError(f'Unable to generate host functions for scheme {kglobal.meta.scheme}.')
 
-        kdevice, kglobal = stockham.stockham(**kernel.__dict__)
-        length = kglobal.meta.length
-        forward, inverse = kglobal.name, kglobal.name.replace('forward', 'inverse')
-        src += stockham.make_variants(kdevice, kglobal)
+        src += prototype
+        cpu_functions += [prototype.function(kglobal.meta, precision)]
 
-        for precision, typename in [('sp', 'float2'), ('dp', 'double2')]:
-            if kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM':
-                prototype = POWX_SMALL_GENERATOR(f'rocfft_internal_dfn_{precision}_ci_ci_stoc_{length}',
-                                        'ip_' + forward, 'ip_' + inverse,
-                                        'op_' + forward, 'op_' + inverse, typename)
-            elif kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC':
-                prototype = POWX_LARGE_SBCC_GENERATOR(f'rocfft_internal_dfn_{precision}_ci_ci_sbcc_{length}',
-                                        'ip_' + forward, 'ip_' + inverse,
-                                        'op_' + forward, 'op_' + inverse, typename)
-            else:
-                assert 1 # other schemes work-in-progress
-
-            src += prototype
-            cpu_functions += [prototype.function(kglobal.meta, precision)]
-
-        format_and_write(kernel_file_name(kernel), src)
-
+    format_and_write(kernel_file_name(kernel), src)
     return cpu_functions
+
+
+def generate_new_kernels(kernels):
+    """Generate and write kernels from the kernel list.
+
+    Entries in the kernel list are simple namespaces.  These are
+    passed as keyword arguments to the Stockham generator.
+
+    A list of CPU functions is returned.
+    """
+    return flatten(map(generate_kernel, kernels))
 
 
 def cli():

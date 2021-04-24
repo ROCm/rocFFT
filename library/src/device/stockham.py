@@ -103,8 +103,8 @@ def stockham_uwide_device(factors, **kwargs):
     X           = Variable('lds', 'scalar_type', array=True)
     T           = Variable('twiddles', 'const scalar_type', array=True)
     twd_large   = Variable('twd_large', 'const scalar_type', array=True)
-    stride      = Variable('stride', 'size_t')
     offset      = Variable('offset', 'size_t')
+    stride      = Variable('stride', 'size_t')
     cb_args     = get_callback_args()
     offset_lds  = Variable('offset_lds', 'unsigned int') # lds address space is limited to 64K
     trans_local = Variable('trans_local', 'size_t')
@@ -201,17 +201,22 @@ def stockham_wide_device(factors, **kwargs):
     Each thread does at-least one butterfly.
     """
     length = product(factors)
+    tiling = kwargs.get('tiling')
 
-    # arguments
+    # template params
+    Ttwd_large  = Variable('Ttwd_large', 'bool')
     scalar_type = Variable('scalar_type', 'typename')
+    ltwd_base   = Variable('LTBase', 'size_t')
     sb          = Variable('sb', 'StrideBin')
     cbtype      = Variable('cbtype', 'CallbackType')
+
+    # arguments
     Z           = Variable('buf', 'scalar_type', array=True)
     X           = Variable('lds', 'scalar_type', array=True)
     T           = Variable('twiddles', 'const scalar_type', array=True)
     stride      = Variable('stride', 'size_t')
     offset      = Variable('offset', 'size_t')
-    offset_lds  = Variable('offset_lds', 'size_t')
+    offset_lds  = Variable('offset_lds', 'unsigned int')
     cb_args     = get_callback_args()
 
     # locals
@@ -220,7 +225,6 @@ def stockham_wide_device(factors, **kwargs):
     W         = Variable('W', 'scalar_type')
     t         = Variable('t', 'scalar_type')
     R         = Variable('R', 'scalar_type', 2*max(factors))
-    stride_0  = Variable('stride_0', 'const size_t')
 
     height0 = length // max(factors)
 
@@ -325,18 +329,21 @@ def stockham_wide_device(factors, **kwargs):
         for nsubpass in range(nsubpasses):
             body += add_work(butterfly)
         body += LineBreak()
+        body += SyncThreads()
         body += CommentLines('store lds')
         for nsubpass in range(nsubpasses):
             body += add_work(store_lds)
 
         body += LineBreak()
 
-    body += CommentLines('store global')
-    body += store_global()
-
-    return Function(f'forward_length{length}_device',
-                    arguments=ArgumentList(Z, X, T, stride, offset, offset_lds) + cb_args,
-                    templates=TemplateList(scalar_type, sb, cbtype),
+    template_list=TemplateList(scalar_type, sb, cbtype)
+    argument_list=ArgumentList(Z, X, T, stride, offset, offset_lds) + cb_args
+    if tiling == Tiling.cc:
+        template_list += TemplateList(Ttwd_large, ltwd_base)
+        argument_list += ArgumentList(twd_large, trans_local)
+    return Function(f'forward_length{length}_{tiling.name}_device',
+                    arguments=argument_list,
+                    templates=template_list,
                     body=body,
                     qualifier='__device__')
 
@@ -345,6 +352,7 @@ def stockham_global(factors, **kwargs):
     """Global Stockham function."""
     length     = product(factors)
     tiling     = kwargs.get('tiling')
+    flavour    = kwargs.get('flavour')
     use_3steps = kwargs.get('3steps')
     params     = get_launch_params(factors, **kwargs)
 
@@ -377,7 +385,7 @@ def stockham_global(factors, **kwargs):
     plength    = Variable('plength', 'size_t', value=1)
     d          = Variable('d', 'size_t')
     i_d        = Variable('i_d', 'size_t')
-    stride_0   = Variable('stride_0', 'const size_t')
+    stride0    = Variable('stride0', 'const size_t')
 
     unit_stride = sb == 'SB_UNIT'
 
@@ -390,10 +398,14 @@ def stockham_global(factors, **kwargs):
     body += Declarations(lds, offset, offset_lds, batch, transform, remaining, plength, d, i_d)
     body += CallbackDeclaration()
 
+    height = length // min(factors)
+    if flavour == 'wide':
+        height = length // max(factors)
+
     body += LineBreak()
-    body += Declaration(stride_0.name, stride_0.type, value=Ternary(unit_stride, 1, stride[0]))
+    body += Declaration(stride0.name, stride0.type, value=Ternary(unit_stride, 1, stride[0]))
     if tiling == Tiling.linear:
-        body += Assign(transform, block_id * params.transforms_per_block + thread_id / (length // min(factors)))
+        body += Assign(transform, block_id * params.transforms_per_block + thread_id / height)
         body += Assign(remaining, transform)
         body += For(InlineAssign(d, 1), d < dim, Increment(d),
                     StatementList(
@@ -455,12 +467,14 @@ def stockham_global(factors, **kwargs):
     body += CommentLines('load global')
     if tiling == Tiling.linear:
         width = min(factors)
+        if flavour == 'wide':
+            width = max(factors)
         thread = Variable('thread', 'int')
         body += Declarations(thread)
-        body += Assign(thread, thread_id % (length // min(factors)))
+        body += Assign(thread, thread_id % (length // width))
         for w in range(width):
             idx = thread + w * (length // width)
-            body += Assign(lds[offset_lds + idx], LoadGlobal(buf, offset + B(idx) * stride_0))
+            body += Assign(lds[offset_lds + idx], LoadGlobal(buf, offset + B(idx) * stride0))
     elif tiling == Tiling.cc:
         edge = Variable('edge', 'bool')
         tid1 = Variable('tid1', 'size_t')
@@ -474,7 +488,7 @@ def stockham_global(factors, **kwargs):
         body += Assign(tid1, thread_id % stripmine_w) # tid0 walks the columns; tid1 walks the rows
         body += Assign(tid0, thread_id / stripmine_w)
         stride_lds = length + kwargs.get('lds_padding', 0)
-        offset_tile_rbuf = lambda i : tid1 * stride[1]  + B(tid0 + i * stripmine_h) * stride_0
+        offset_tile_rbuf = lambda i : tid1 * stride[1]  + B(tid0 + i * stripmine_h) * stride0
         offset_tile_wlds = lambda i : tid1 * stride_lds + B(tid0 + i * stripmine_h) * 1
         pred, stmts = StatementList(), StatementList()
         pred = i_1 * params.transforms_per_block + tid1 < lengths[1]
@@ -489,18 +503,20 @@ def stockham_global(factors, **kwargs):
         twd_large_arguments = Ternary(ltwdLDS_cond, large_twd_lds, twd_large)
 
     body += Call(f'forward_length{length}_{tiling.name}_device',
-                 arguments=ArgumentList(buf, lds, twiddles, stride_0, offset, offset_lds) + cb_args + ([twd_large_arguments, transform] if tiling==Tiling.cc else []),
+                 arguments=ArgumentList(buf, lds, twiddles, stride0, offset, offset_lds) + cb_args + ([twd_large_arguments, transform] if tiling==Tiling.cc else []),
                  templates=TemplateList(scalar_type, sb, cbtype) + ([Ttwd_large, ltwd_base] if tiling==Tiling.cc else []))
     body += LineBreak()
 
     body += CommentLines('store global')
     body += SyncThreads()
     if tiling == Tiling.linear:
-        width = min(factors)
         stmts = StatementList()
+        width = min(factors)
+        if flavour == 'wide':
+            width = max(factors)
         for w in range(width):
             idx = thread + w * (length // width)
-            stmts += StoreGlobal(buf, offset + B(idx) * stride_0, lds[offset_lds + idx])
+            stmts += StoreGlobal(buf, offset + B(idx) * stride0, lds[offset_lds + idx])
         body += If(thread < length // width, stmts)
     elif tiling == Tiling.cc:
         offset_tile_wbuf = offset_tile_rbuf
@@ -530,7 +546,7 @@ def stockham_global(factors, **kwargs):
                             pool=None),
                     body=body)
 
-# XXX: move this to generator
+
 def make_variants(kdevice, kglobal):
     """Given in-place complex-interleaved kernels, create all other variations.
 
@@ -539,7 +555,7 @@ def make_variants(kdevice, kglobal):
 
     Return out-of-place and planar variations.
     """
-    op_names = ['buf', 'stride', 'stride_0', 'offset']
+    op_names = ['buf', 'stride', 'stride0', 'offset']
 
     def rename(x, pre):
         if 'forward' in x or 'inverse' in x:
@@ -623,7 +639,7 @@ def stockham_launch(factors, **kwargs):
     body = StatementList()
     body += Declarations(nblocks)
     body += Assign(nblocks, B(nbatch + (params.transforms_per_block - 1)) / params.transforms_per_block)
-    body += Call(f'forward_length{length}',
+    body += Call(f'forward_length{length}_linear',
                  arguments = ArgumentList(twiddles, 1, kargs, kargs+1, nbatch, inout),
                  templates = TemplateList(scalar_type, sb, cbtype),
                  launch_params = ArgumentList(nblocks, params.threads_per_block))
@@ -632,6 +648,7 @@ def stockham_launch(factors, **kwargs):
                     templates = TemplateList(scalar_type, cbtype),
                     arguments = ArgumentList(inout, nbatch, twiddles, kargs, stride_in, stride_out),
                     body = body)
+
 
 def stockham_default_factors(length):
     supported_radixes = [2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 16]
@@ -650,6 +667,7 @@ def stockham_default_factors(length):
     # default order of factors is ascending
     factors.sort()
     return factors
+
 
 def stockham(length, **kwargs):
     """Generate Stockham kernels!

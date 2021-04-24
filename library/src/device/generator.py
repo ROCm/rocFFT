@@ -108,9 +108,8 @@ def depth_first(x, f):
     Nodes are traversed in depth-first order.
     """
     if isinstance(x, BaseNode):
-        y = type(x)()
+        y = type(x)(file_name=x.file_name, line_number=x.line_number)
         y.args = [depth_first(a, f) for a in x.args]
-        y.file_name, y.line_number = x.file_name, x.line_number
         return f(y)
     return f(x)
 
@@ -156,7 +155,11 @@ def name_args(names):
                     self.args[i] = kwargs[name]
 
             # self
-            self.file_name, self.line_number = get_file_and_line()
+            try:
+                self.file_name = kwargs['file_name']
+                self.line_number = kwargs['line_number']
+            except KeyError:
+                self.file_name, self.line_number = get_file_and_line()
 
             if hasattr(self, '__post_init__'):
                 getattr(self, '__post_init__')()
@@ -174,7 +177,11 @@ class BaseNode:
     sep: str = None
 
     def __init__(self, *args, **kwargs):
-        self.file_name, self.line_number = get_file_and_line()
+        try:
+            self.file_name = kwargs['file_name']
+            self.line_number = kwargs['line_number']
+        except KeyError:
+            self.file_name, self.line_number = get_file_and_line()
         self.args = list(args)
         if hasattr(self, '__post_init__'):
             getattr(self, '__post_init__')(self)
