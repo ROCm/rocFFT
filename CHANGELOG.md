@@ -4,6 +4,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## [(Unreleased) rocFFT 1.0.12 for ROCm 4.3.0]
 
+### Changed
+  Re-split device code into single-precision, double-precision, and miscellaneous kernels.
+
 ### Fixed
 - Fixed potential crashes in double-precision planar->planar transpose.
 

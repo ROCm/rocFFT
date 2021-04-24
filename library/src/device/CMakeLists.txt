@@ -141,73 +141,92 @@ set_property(
 prepend_path( "../.."
   rocfft_headers_public relative_rocfft_device_headers_public )
 
-# Compile the device lib as a static library, which is then linked
-# into librocfft.so
-add_library( rocfft-device STATIC
-  ${rocfft_device_source}
-  ${relative_rocfft_device_headers_public}
-  ${gen_headers}
-  )
-set_property(TARGET rocfft-device PROPERTY POSITION_INDEPENDENT_CODE ON)
-
 option(ROCFFT_CALLBACKS_ENABLED "Enable user-defined callbacks for load/stores from global memory" ON)
-if(ROCFFT_CALLBACKS_ENABLED)
-  target_compile_definitions( rocfft-device PRIVATE ROCFFT_CALLBACKS_ENABLED )
-endif()
+# break down generated headers into "single", "double", and "misc",
+# to build 3 libraries
+set( gen_headers_single ${gen_headers} )
+list( FILTER gen_headers_single INCLUDE REGEX single )
+set( gen_headers_double ${gen_headers} )
+list( FILTER gen_headers_double INCLUDE REGEX double )
+set( gen_headers_misc ${gen_headers} )
+list( FILTER gen_headers_misc EXCLUDE REGEX single|double )
+# add non-generated stuff to misc
+list( APPEND gen_headers_misc ${rocfft_device_source} ${relative_rocfft_device_headers_public} )
 
-add_library( roc::rocfft-device ALIAS rocfft-device )
-target_compile_features( rocfft-device PRIVATE
-  cxx_static_assert cxx_nullptr cxx_auto_type )
+set( sub_libraries single;double;misc )
 
-if( NOT BUILD_SHARED_LIBS )
-  target_link_libraries( rocfft-device INTERFACE hip::host )
-endif()
+foreach( sub ${sub_libraries} )
+  set( gen_headers_var gen_headers_${sub} )
+  if(NOT SINGLELIB)
+    add_library( rocfft-device-${sub}
+      ${${gen_headers_var}} )
+  else()
+    # Compile the device lib as a static library, which is then linked
+    # into librocfft.so Useful for testing purposes.
+    add_library( rocfft-device-${sub} STATIC
+      ${${gen_headers_var}} )
+  endif()
 
-if(HIP_PLATFORM STREQUAL "nvcc")
-  target_compile_options( rocfft-device PRIVATE
-    "-gencode arch=compute_75,code=sm_75"
-    "-gencode arch=compute_70,code=sm_70"
-    "-gencode arch=compute_60,code=sm_60" )
-    target_compile_options( rocfft-device PRIVATE -Xcompiler -fPIC)
-else()
-  target_compile_options( rocfft-device PRIVATE -fno-gpu-rdc )
+  set_property(TARGET rocfft-device-${sub} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-  # Set AMD GPU architecture options
+  if(ROCFFT_CALLBACKS_ENABLED)
+    target_compile_definitions( rocfft-device-${sub} PRIVATE ROCFFT_CALLBACKS_ENABLED )
+  endif()
 
-  # Enable compilation of desired architectures
-  foreach( target ${AMDGPU_TARGETS} )
-    target_compile_options( rocfft-device PRIVATE --amdgpu-target=${target} )
-  endforeach( )
+  add_library( roc::rocfft-device-${sub} ALIAS rocfft-device-${sub} )
+  target_compile_features( rocfft-device-${sub} PRIVATE
+    cxx_static_assert cxx_nullptr cxx_auto_type )
 
-endif()
+  if( NOT BUILD_SHARED_LIBS )
+    target_link_libraries( rocfft-device-${sub} INTERFACE hip::host )
+  endif()
 
-target_include_directories( rocfft-device
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/generator>
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-          $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
-          $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
-)
+  if(HIP_PLATFORM STREQUAL "nvcc")
+    target_compile_options( rocfft-device-${sub} PRIVATE
+      "-gencode arch=compute_75,code=sm_75"
+      "-gencode arch=compute_70,code=sm_70"
+      "-gencode arch=compute_60,code=sm_60" )
+      target_compile_options( rocfft-device-${sub} PRIVATE -Xcompiler -fPIC)
+  else()
+    target_compile_options( rocfft-device-${sub} PRIVATE -fno-gpu-rdc )
 
-rocm_set_soversion( rocfft-device ${rocfft_SOVERSION} )
-set_target_properties( rocfft-device PROPERTIES CXX_EXTENSIONS NO )
-set_target_properties( rocfft-device PROPERTIES RUNTIME_OUTPUT_DIRECTORY
-  "${PROJECT_BINARY_DIR}/staging" )
-set_target_properties( rocfft-device PROPERTIES CXX_STANDARD 14
-  CXX_STANDARD_REQUIRED ON )
+    # Set AMD GPU architecture options
 
-# Following Boost conventions of prefixing 'lib' on static built
-# libraries, across all platforms
-if( NOT BUILD_SHARED_LIBS )
-  set_target_properties( rocfft-device PROPERTIES PREFIX "lib" )
-endif( )
+    # Enable compilation of desired architectures
+    foreach( target ${AMDGPU_TARGETS} )
+      target_compile_options( rocfft-device-${sub} PRIVATE --amdgpu-target=${target} )
+    endforeach( )
 
-rocm_install_targets(
-  TARGETS
-  rocfft-device
-  PREFIX
-  rocfft )
+  endif()
+
+  target_include_directories( rocfft-device-${sub}
+    PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/generator>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+            $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+            $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+  )
+
+  rocm_set_soversion( rocfft-device-${sub} ${rocfft_SOVERSION} )
+  set_target_properties( rocfft-device-${sub} PROPERTIES CXX_EXTENSIONS NO )
+  set_target_properties( rocfft-device-${sub} PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+    "${PROJECT_BINARY_DIR}/staging" )
+  set_target_properties( rocfft-device-${sub} PROPERTIES CXX_STANDARD 14
+    CXX_STANDARD_REQUIRED ON )
+
+  # Following Boost conventions of prefixing 'lib' on static built
+  # libraries, across all platforms
+  if( NOT BUILD_SHARED_LIBS )
+    set_target_properties( rocfft-device-${sub} PROPERTIES PREFIX "lib" )
+  endif( )
+
+  rocm_install_targets(
+    TARGETS
+    rocfft-device-${sub}
+    PREFIX
+    rocfft )
+endforeach()
 
 rocm_install_symlink_subdir( rocfft )

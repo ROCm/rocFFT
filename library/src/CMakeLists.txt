@@ -85,7 +85,9 @@ if( NOT USE_CUDA )
   target_link_libraries( rocfft PRIVATE hip::device )
 endif()
 
-target_link_libraries( rocfft PRIVATE rocfft-device )
+target_link_libraries( rocfft PRIVATE rocfft-device-single )
+target_link_libraries( rocfft PRIVATE rocfft-device-double )
+target_link_libraries( rocfft PRIVATE rocfft-device-misc )
 
 target_include_directories( rocfft
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
