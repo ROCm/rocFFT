@@ -547,7 +547,7 @@ void rocfft_transform(const rocfft_params&                 params,
     // Create FFT description
     rocfft_plan_description desc = NULL;
     fft_status                   = rocfft_plan_description_create(&desc);
-    EXPECT_TRUE(fft_status == rocfft_status_success) << "rocFFT description creation failure";
+    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT description creation failure";
     fft_status = rocfft_plan_description_set_data_layout(desc,
                                                          params.itype,
                                                          params.otype,
@@ -559,7 +559,7 @@ void rocfft_transform(const rocfft_params&                 params,
                                                          params.ostride_cm().size(),
                                                          params.ostride_cm().data(),
                                                          params.odist);
-    EXPECT_TRUE(fft_status == rocfft_status_success)
+    ASSERT_TRUE(fft_status == rocfft_status_success)
         << "rocFFT data layout failure: " << fft_status;
 
     // Create the plan
@@ -572,15 +572,15 @@ void rocfft_transform(const rocfft_params&                 params,
                                     params.length_cm().data(),
                                     params.nbatch,
                                     desc);
-    EXPECT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
+    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
 
     // Create execution info
     rocfft_execution_info info = NULL;
     fft_status                 = rocfft_execution_info_create(&info);
-    EXPECT_TRUE(fft_status == rocfft_status_success) << "rocFFT execution info creation failure";
+    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT execution info creation failure";
     size_t workbuffersize = 0;
     fft_status            = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
-    EXPECT_TRUE(fft_status == rocfft_status_success) << "rocFFT get buffer size get failure";
+    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT get buffer size get failure";
 
     // Sizes of individual input and output variables
     const size_t isize_t = var_size<size_t>(params.precision, params.itype);
@@ -612,9 +612,9 @@ void rocfft_transform(const rocfft_params&                 params,
     if(workbuffersize > 0)
     {
         hip_status = wbuffer.alloc(workbuffersize);
-        EXPECT_TRUE(hip_status == hipSuccess) << "hipMalloc failure for work buffer";
+        ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure for work buffer";
         fft_status = rocfft_execution_info_set_work_buffer(info, wbuffer.data(), workbuffersize);
-        EXPECT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
+        ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
 
     // Formatted input data:
@@ -734,7 +734,7 @@ void rocfft_transform(const rocfft_params&                 params,
                                gpu_input[idx].data(),
                                gpu_input[idx].size(),
                                hipMemcpyHostToDevice);
-        EXPECT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
+        ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
     }
 
     // Execute the transform:
@@ -742,7 +742,7 @@ void rocfft_transform(const rocfft_params&                 params,
                                 (void**)pibuffer.data(), // in buffers
                                 (void**)pobuffer.data(), // out buffers
                                 info); // execution info
-    EXPECT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
+    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
 
     // Copy the data back to the host:
     ASSERT_TRUE(!params.osize.empty()) << "Error: params osize is empty";
@@ -757,7 +757,7 @@ void rocfft_transform(const rocfft_params&                 params,
                                obuffer->at(idx).data(),
                                gpu_output[idx].size(),
                                hipMemcpyDeviceToHost);
-        EXPECT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
+        ASSERT_TRUE(hip_status == hipSuccess) << "hipMemcpy failure";
     }
 
     if(verbose > 2)

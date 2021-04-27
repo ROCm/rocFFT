@@ -35,7 +35,7 @@
 TEST(rocfft_UnitTest, plan_description)
 {
     rocfft_plan_description desc = nullptr;
-    EXPECT_TRUE(rocfft_status_success == rocfft_plan_description_create(&desc));
+    ASSERT_TRUE(rocfft_status_success == rocfft_plan_description_create(&desc));
 
     rocfft_array_type in_array_type  = rocfft_array_type_complex_interleaved;
     rocfft_array_type out_array_type = rocfft_array_type_complex_interleaved;
@@ -51,7 +51,7 @@ TEST(rocfft_UnitTest, plan_description)
     rocfft_plan plan   = NULL;
     size_t      length = 8;
 
-    EXPECT_TRUE(rocfft_status_success
+    ASSERT_TRUE(rocfft_status_success
                 == rocfft_plan_description_set_data_layout(desc,
                                                            in_array_type,
                                                            out_array_type,
@@ -63,7 +63,7 @@ TEST(rocfft_UnitTest, plan_description)
                                                            rank,
                                                            o_strides,
                                                            odist));
-    EXPECT_TRUE(rocfft_status_success
+    ASSERT_TRUE(rocfft_status_success
                 == rocfft_plan_create(&plan,
                                       rocfft_placement_inplace,
                                       rocfft_transform_type_complex_forward,
@@ -73,8 +73,8 @@ TEST(rocfft_UnitTest, plan_description)
                                       1,
                                       desc));
 
-    EXPECT_TRUE(rocfft_status_success == rocfft_plan_description_destroy(desc));
-    EXPECT_TRUE(rocfft_status_success == rocfft_plan_destroy(plan));
+    ASSERT_TRUE(rocfft_status_success == rocfft_plan_description_destroy(desc));
+    ASSERT_TRUE(rocfft_status_success == rocfft_plan_destroy(plan));
 }
 
 // This test check duplicated plan creations will cache unique one only in repo.

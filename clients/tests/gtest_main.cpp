@@ -299,10 +299,10 @@ TEST(manual, vs_fftw)
     rocfft_transform(manual_params, cpu, ramgb);
 
     auto cpu_input_norm = cpu.input_norm.get();
-    ASSERT_TRUE(std::isfinite(cpu_input_norm.l_2));
-    ASSERT_TRUE(std::isfinite(cpu_input_norm.l_inf));
+    EXPECT_TRUE(std::isfinite(cpu_input_norm.l_2));
+    EXPECT_TRUE(std::isfinite(cpu_input_norm.l_inf));
 
     auto cpu_output_norm = cpu.output_norm.get();
-    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_2));
-    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_inf));
+    EXPECT_TRUE(std::isfinite(cpu_output_norm.l_2));
+    EXPECT_TRUE(std::isfinite(cpu_output_norm.l_inf));
 }

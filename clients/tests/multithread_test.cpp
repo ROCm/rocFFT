@@ -76,7 +76,8 @@ struct Test_Transform
             host_mem_in[i].y = dist(gen);
         }
 
-        //  Copy data to device
+        // Copy data to device
+        // NB: Cannot use ASSERT_EQ because constructor does not return void.
         EXPECT_EQ(
             hipMemcpy(device_mem_in.data(), host_mem_in.data(), Nbytes, hipMemcpyHostToDevice),
             hipSuccess);
@@ -99,7 +100,7 @@ struct Test_Transform
     {
         // Create rocFFT plans (forward + inverse)
         std::vector<size_t> lengths(dim, N);
-        EXPECT_EQ(rocfft_plan_create(&plan,
+        ASSERT_EQ(rocfft_plan_create(&plan,
                                      rocfft_placement_notinplace,
                                      rocfft_transform_type_complex_forward,
                                      rocfft_precision_single,
@@ -109,7 +110,7 @@ struct Test_Transform
                                      nullptr),
                   rocfft_status_success);
 
-        EXPECT_EQ(rocfft_plan_create(&plan_inv,
+        ASSERT_EQ(rocfft_plan_create(&plan_inv,
                                      rocfft_placement_inplace,
                                      rocfft_transform_type_complex_inverse,
                                      rocfft_precision_single,
@@ -120,29 +121,29 @@ struct Test_Transform
                   rocfft_status_success);
 
         // allocate work buffer if necessary
-        EXPECT_EQ(rocfft_plan_get_work_buffer_size(plan, &work_buffer_size), rocfft_status_success);
+        ASSERT_EQ(rocfft_plan_get_work_buffer_size(plan, &work_buffer_size), rocfft_status_success);
         // NOTE: assuming that same-sized work buffer is ok for both
         // forward and inverse transforms
         if(work_buffer_size)
         {
-            EXPECT_EQ(hipMalloc(&work_buffer, work_buffer_size), hipSuccess);
+            ASSERT_EQ(hipMalloc(&work_buffer, work_buffer_size), hipSuccess);
         }
 
-        EXPECT_EQ(hipStreamCreate(&stream), hipSuccess);
+        ASSERT_EQ(hipStreamCreate(&stream), hipSuccess);
         rocfft_execution_info info;
-        EXPECT_EQ(rocfft_execution_info_create(&info), rocfft_status_success);
-        EXPECT_EQ(rocfft_execution_info_set_stream(info, stream), rocfft_status_success);
-        EXPECT_EQ(rocfft_execution_info_set_work_buffer(info, work_buffer, work_buffer_size),
+        ASSERT_EQ(rocfft_execution_info_create(&info), rocfft_status_success);
+        ASSERT_EQ(rocfft_execution_info_set_stream(info, stream), rocfft_status_success);
+        ASSERT_EQ(rocfft_execution_info_set_work_buffer(info, work_buffer, work_buffer_size),
                   rocfft_status_success);
 
         // Execute forward plan out-of-place
         void* in_ptr  = device_mem_in.data();
         void* out_ptr = device_mem_out.data();
-        EXPECT_EQ(rocfft_execute(plan, &in_ptr, &out_ptr, info), rocfft_status_success);
+        ASSERT_EQ(rocfft_execute(plan, &in_ptr, &out_ptr, info), rocfft_status_success);
         // Execute inverse plan in-place
-        EXPECT_EQ(rocfft_execute(plan_inv, &out_ptr, nullptr, info), rocfft_status_success);
+        ASSERT_EQ(rocfft_execute(plan_inv, &out_ptr, nullptr, info), rocfft_status_success);
 
-        EXPECT_EQ(rocfft_execution_info_destroy(info), rocfft_status_success);
+        ASSERT_EQ(rocfft_execution_info_destroy(info), rocfft_status_success);
 
         // Apply normalization so the values really are comparable
         hipLaunchKernelGGL(normalize_inverse_results,
@@ -165,24 +166,24 @@ struct Test_Transform
         // wait for execution to finish
         if(stream)
         {
-            EXPECT_EQ(hipStreamSynchronize(stream), hipSuccess);
-            EXPECT_EQ(hipStreamDestroy(stream), hipSuccess);
+            ASSERT_EQ(hipStreamSynchronize(stream), hipSuccess);
+            ASSERT_EQ(hipStreamDestroy(stream), hipSuccess);
             stream = nullptr;
         }
 
-        EXPECT_EQ(hipFree(work_buffer), hipSuccess);
+        ASSERT_EQ(hipFree(work_buffer), hipSuccess);
         work_buffer = nullptr;
 
-        EXPECT_EQ(rocfft_plan_destroy(plan), rocfft_status_success);
+        ASSERT_EQ(rocfft_plan_destroy(plan), rocfft_status_success);
         plan = nullptr;
-        EXPECT_EQ(rocfft_plan_destroy(plan_inv), rocfft_status_success);
+        ASSERT_EQ(rocfft_plan_destroy(plan_inv), rocfft_status_success);
         plan_inv = nullptr;
 
         // Copy result back to host
         if(device_mem_out.data() && !host_mem_out.empty())
         {
 
-            EXPECT_EQ(hipMemcpy(host_mem_out.data(),
+            ASSERT_EQ(hipMemcpy(host_mem_out.data(),
                                 device_mem_out.data(),
                                 host_mem_out.size() * sizeof(float2),
                                 hipMemcpyDeviceToHost),
