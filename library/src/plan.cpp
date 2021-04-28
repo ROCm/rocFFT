@@ -800,12 +800,14 @@ inline size_t FindBlue(size_t len)
 inline void PrintFailInfo(rocfft_precision precision,
                           size_t           length,
                           ComputeScheme    scheme,
-                          size_t           missingL = 0)
+                          size_t           kernelLength = 0,
+                          ComputeScheme    kernelScheme = CS_NONE)
 {
-    rocfft_cerr << "Failed on 1D length " << length << " (" << precision << "): "
+    rocfft_cerr << "Failed on Node: length " << length << " (" << precision << "): "
                 << "when attempting Scheme: " << PrintScheme(scheme) << std::endl;
-    if(missingL > 0)
-        rocfft_cerr << "\tCouldn't find the kernel for length " << missingL << std::endl;
+    if(kernelScheme != CS_NONE)
+        rocfft_cerr << "\tCouldn't find the kernel of length " << kernelLength << ", with type "
+                    << PrintScheme(kernelScheme) << std::endl;
 }
 
 // Tree node builders
@@ -1711,7 +1713,7 @@ void TreeNode::build_1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLen
 {
     if(!function_pool::has_function(precision, {divLength0, CS_KERNEL_STOCKHAM}))
     {
-        PrintFailInfo(precision, length[0], scheme, divLength0);
+        PrintFailInfo(precision, length[0], scheme, divLength0, CS_KERNEL_STOCKHAM);
         assert(false);
     }
 
@@ -1813,12 +1815,12 @@ void TreeNode::build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength
     //  and in generated kernel_lunch_single_large.cpp.h
     if(!function_pool::has_function(precision, {divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC}))
     {
-        PrintFailInfo(precision, length[0], scheme, divLength1);
+        PrintFailInfo(precision, length[0], scheme, divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC);
         assert(false);
     }
     if(!function_pool::has_function(precision, {divLength0, CS_KERNEL_STOCKHAM_BLOCK_RC}))
     {
-        PrintFailInfo(precision, length[0], scheme, divLength0);
+        PrintFailInfo(precision, length[0], scheme, divLength0, CS_KERNEL_STOCKHAM_BLOCK_RC);
         assert(false);
     }
 
@@ -1868,12 +1870,12 @@ void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLengt
 {
     if(!function_pool::has_function(precision, {divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC}))
     {
-        PrintFailInfo(precision, length[0], scheme, divLength1);
+        PrintFailInfo(precision, length[0], scheme, divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC);
         assert(false);
     }
     if(!function_pool::has_function(precision, {divLength0, CS_KERNEL_STOCKHAM}))
     {
-        PrintFailInfo(precision, length[0], scheme, divLength0);
+        PrintFailInfo(precision, length[0], scheme, divLength0, CS_KERNEL_STOCKHAM);
         assert(false);
     }
 
@@ -1937,6 +1939,12 @@ void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLengt
 
 void TreeNode::build_CS_2D_RC()
 {
+    if(!function_pool::has_function(precision, {length[1], CS_KERNEL_STOCKHAM_BLOCK_CC}))
+    {
+        PrintFailInfo(precision, length[1], scheme, length[1], CS_KERNEL_STOCKHAM_BLOCK_CC);
+        assert(false);
+    }
+
     // row fft
     auto rowPlan = TreeNode::CreateNode(this);
 

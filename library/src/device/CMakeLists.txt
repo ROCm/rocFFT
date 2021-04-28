@@ -153,7 +153,20 @@ list( FILTER gen_headers_misc EXCLUDE REGEX single|double )
 # add non-generated stuff to misc
 list( APPEND gen_headers_misc ${rocfft_device_source} ${relative_rocfft_device_headers_public} )
 
-set( sub_libraries single;double;misc )
+# we haven't known if there are any old-kernels generated. It could be empty if all are new-kernels
+set( BUILD_SINGLE_PRECISION OFF PARENT_SCOPE )
+set( BUILD_DOUBLE_PRECISION OFF PARENT_SCOPE )
+
+set( sub_libraries misc )
+if(gen_headers_single)
+  list( APPEND sub_libraries single )
+  set( BUILD_SINGLE_PRECISION ON PARENT_SCOPE )
+endif()
+
+if(gen_headers_double)
+  list( APPEND sub_libraries double )
+  set( BUILD_DOUBLE_PRECISION ON PARENT_SCOPE )
+endif()
 
 foreach( sub ${sub_libraries} )
   set( gen_headers_var gen_headers_${sub} )

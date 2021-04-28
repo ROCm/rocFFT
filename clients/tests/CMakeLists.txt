@@ -63,7 +63,7 @@ set( rocfft-test_include_dirs
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../library/src/include>
   )
 
-set( rocfft-test_link_libs 
+set( rocfft-test_link_libs
   ${FFTW_LIBRARIES}
   ${Boost_LIBRARIES}
   )

@@ -80,6 +80,33 @@ def flatten(lst):
     """Flatten a list of lists to a list."""
     return sum(lst, [])
 
+
+def pick(all, new_kernels, subtract_from_all=True):
+    """From all old kernels, pick out those supported by new kernel, and remove from old list."""
+    old = collections.OrderedDict(all)
+    new = []
+
+    for nk in new_kernels:
+        assert hasattr(nk, 'length')
+        for target_length in all:
+            if nk.length == target_length:
+                new.append(nk) # pick out, put to new
+                if subtract_from_all:
+                    del old[target_length] # remove from old
+                break
+    # old-list to old-gen, new-list to new-gen
+    return old, new
+
+
+def merge_length(kernel_list, ks):
+    """Merge kernel lists without duplicated meta.length; ignore later ones."""
+    merged_list = list(kernel_list)
+    lengths = [ item.length for item in kernel_list ]
+    for k in ks:
+        if k.length not in lengths:
+            merged_list.append(k)
+    return merged_list
+
 #
 # Supported kernel sizes
 #
@@ -151,6 +178,13 @@ def supported_2d_sizes(precision):
     filtered = [x for x in lengths if filter_lds(x) and filter_threads(x)]
 
     return product(filtered, ['CS_KERNEL_2D_SINGLE'])
+
+def get_dependent_1D_sizes(list_2D):
+    dep_1D = set()
+    for problem in list_2D:
+        dep_1D.update( [problem[0][0], problem[0][1]] )
+
+    return product(dep_1D, ['CS_KERNEL_STOCKHAM'])
 
 #
 # Prototype generators
@@ -235,7 +269,7 @@ def generate_small_1d_prototypes(precision, transforms):
                                       scheme=scheme,
                                       pool=pool)))
 
-    for length, scheme in transforms:
+    for length, scheme in transforms.items():
         add(f'rocfft_internal_dfn_{precision}_ci_ci_stoc_{length}', scheme)
 
     return functions
@@ -263,7 +297,7 @@ def generate_large_1d_prototypes(precision, transforms):
                                       use_3steps_large_twd=use3Steps,
                                       pool=pool)))
 
-    for length, scheme in transforms:
+    for length, scheme in transforms.items():
         if scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC':
             add(f'rocfft_internal_dfn_{precision}_ci_ci_sbcc_{length}', 'CS_KERNEL_STOCKHAM_BLOCK_CC')
         elif scheme == 'CS_KERNEL_STOCKHAM_BLOCK_RC':
@@ -295,7 +329,7 @@ def generate_2d_prototypes(precision, transforms):
                                       scheme=scheme,
                                       pool=pool)))
 
-    for length, scheme in transforms:
+    for length, scheme in transforms.items():
         add(f'rocfft_internal_dfn_{precision}_ci_ci_2D_{length[0]}_{length[1]}', 'CS_KERNEL_2D_SINGLE', '2D')
 
     return functions
@@ -397,10 +431,9 @@ class POWX_LARGE_SBCC_GENERATOR(POWX_SMALL_GENERATOR):
 
 def kernel_file_name(ns):
     """Given kernel info namespace, return reasonable file name."""
-    if hasattr(ns, 'length'):
-        length = ns.length
-    else:
-        length = functools.reduce(lambda a, b: a * b, ns.factors)
+
+    assert hasattr(ns, 'length')
+    length = ns.length
 
     postfix = ''
     if ns.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC':
@@ -420,6 +453,7 @@ def list_new_kernels():
 
 
     # dictionary of (flavour, threads_per_block) -> list of kernels to generate
+    # note the length property is necessary for the latter pick and merge_length
     all_kernels = {
         ('uwide', 256): [
 #            NS(length=2, factors=[2]),
@@ -550,11 +584,13 @@ def list_new_large_kernels():
     for k in kernels:
         k.scheme = 'CS_KERNEL_STOCKHAM_BLOCK_CC'
         if not hasattr(k, 'threads_per_block'):
-             k.threads_per_block = block_width * reduce(mul, k.factors, 1) // min(k.factors)
+            k.threads_per_block = block_width * reduce(mul, k.factors, 1) // min(k.factors)
+        if not hasattr(k, 'length'):
+            k.length = functools.reduce(lambda a, b: a * b, k.factors)
     return kernels
 
 
-def generate_kernel(kernel):
+def generate_kernel(kernel, precisions):
     """Generate a single kernel file for 'kernel'.
 
     The kernel file contains all kernel variations corresponding to
@@ -564,6 +600,11 @@ def generate_kernel(kernel):
     """
 
     fname = Path(__file__).resolve()
+
+    typename_dict = {
+        'sp': 'float2',
+        'dp': 'double2',
+    }
 
     src = StatementList(
         CommentBlock(
@@ -586,26 +627,26 @@ def generate_kernel(kernel):
     src += stockham.make_variants(kdevice, kglobal)
 
     cpu_functions = []
-    for precision, typename in [('sp', 'float2'), ('dp', 'double2')]:
+    for p in precisions:
         if kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM':
-            prototype = POWX_SMALL_GENERATOR(f'rocfft_internal_dfn_{precision}_ci_ci_stoc_{length}',
+            prototype = POWX_SMALL_GENERATOR(f'rocfft_internal_dfn_{p}_ci_ci_stoc_{length}',
                                     'ip_' + forward, 'ip_' + inverse,
-                                    'op_' + forward, 'op_' + inverse, typename)
+                                    'op_' + forward, 'op_' + inverse, typename_dict[p])
         elif kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC':
-            prototype = POWX_LARGE_SBCC_GENERATOR(f'rocfft_internal_dfn_{precision}_ci_ci_sbcc_{length}',
+            prototype = POWX_LARGE_SBCC_GENERATOR(f'rocfft_internal_dfn_{p}_ci_ci_sbcc_{length}',
                                     'ip_' + forward, 'ip_' + inverse,
-                                    'op_' + forward, 'op_' + inverse, typename)
+                                    'op_' + forward, 'op_' + inverse, typename_dict[p])
         else:
             raise NotImplementedError(f'Unable to generate host functions for scheme {kglobal.meta.scheme}.')
 
         src += prototype
-        cpu_functions += [prototype.function(kglobal.meta, precision)]
+        cpu_functions += [prototype.function(kglobal.meta, p)]
 
     format_and_write(kernel_file_name(kernel), src)
     return cpu_functions
 
 
-def generate_new_kernels(kernels):
+def generate_new_kernels(kernels, precisions):
     """Generate and write kernels from the kernel list.
 
     Entries in the kernel list are simple namespaces.  These are
@@ -613,7 +654,7 @@ def generate_new_kernels(kernels):
 
     A list of CPU functions is returned.
     """
-    return flatten(map(generate_kernel, kernels))
+    return flatten( [generate_kernel(k, precisions) for k in kernels] )
 
 
 def cli():
@@ -634,7 +675,7 @@ def cli():
     args = parser.parse_args()
 
     #
-    # which kernels to build?
+    # which kernels to build? set the flags for generate before modifying patterns
     #
     patterns = args.pattern.split(',')
     large = 'all' in patterns or 'large' in patterns
@@ -651,6 +692,7 @@ def cli():
         patterns += ['small']
     if args.manual_large:
         patterns += ['large']
+    # TODO- if dim2, pattern += small as well
 
     replacements = {
         'pow2': 'small',
@@ -661,7 +703,9 @@ def cli():
 
     patterns = [replacements.get(key, key) for key in patterns if key != 'none']
     if 'all' in patterns:
-        patterns = ['all']
+        patterns += ['small']
+        patterns += ['large']
+        patterns += ['2D']
     patterns = set(patterns)
 
     #
@@ -679,15 +723,10 @@ def cli():
         precisions = ['sp', 'dp']
     precisions = set(precisions)
 
-    new_kernels = list_new_kernels() + list_new_large_kernels() # currently 'large' really is sbcc kernels only
 
-    if args.command == 'list':
-        scprint(list_old_generated_kernels(patterns=patterns,
-                                           precisions=precisions,
-                                           num_small_kernel_groups=args.groups)
-                + list_generated_kernels(new_kernels))
-        return
-
+    #
+    # list all the exact sizes of kernels to build
+    #
     manual_small = None
     if args.manual_small:
         manual_small = product(map(int, args.manual_small.split(',')),
@@ -698,48 +737,88 @@ def cli():
         manual_large = product(map(int, args.manual_large.split(',')),
                                ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC'])
 
+    # all kernels to be generated from arguments
+    expand_sizes = {
+        'small': { 'sp': [], 'dp': [] },
+        'large': { 'sp': [], 'dp': [] },
+    }
+
+    if small or pow2 or pow3 or pow5 or pow7:
+        for p in precisions:
+            expand_sizes['small'][p] = merge(expand_sizes['small'][p], supported_small_sizes(p, pow2, pow3, pow5, pow7))
+    if manual_small:
+        for p in precisions:
+            expand_sizes['small'][p] = merge(expand_sizes['small'][p], manual_small)
+    if large:
+        for p in precisions:
+            expand_sizes['large'][p] = merge(expand_sizes['large'][p], supported_large_sizes(p))
+    if manual_large:
+        for p in precisions:
+            expand_sizes['large'][p] = merge(expand_sizes['large'][p], manual_large)
+
+    # TODO- let dim2 ("CS_KERNEL_2D_SINGLE"-typed) use new-gen 1D kernels, and get the dependent kernels.
+    # For now, 2D_SINGLE kernels still use old-gen small kernels
+
+
+    #
+    # which kernels by new-gen and which by old-gen? categorize input kernels
+    #
+    supported_new_small_kernels = list_new_kernels()
+    supported_new_large_kernels = list_new_large_kernels() # currently 'large' really is sbcc kernels only
+    new_small_kernels = new_large_kernels = []
+
+    # Don't subtract_from_all for large, since so far sbrc and transpose still rely on old-gen.
+    for p in precisions:
+        expand_sizes['small'][p], new_smalls = pick(expand_sizes['small'][p], supported_new_small_kernels)
+        expand_sizes['large'][p], new_larges = pick(expand_sizes['large'][p], supported_new_large_kernels, subtract_from_all=False)
+        new_small_kernels = merge_length(new_small_kernels, new_smalls)
+        new_large_kernels = merge_length(new_large_kernels, new_larges)
+
+    new_kernels = new_small_kernels + new_large_kernels
+
+    # update the patterns after removing new kernels from old generator to avoid including some missing cpp
+    if 'small' in patterns and len(expand_sizes['small']['sp']) == 0 and len(expand_sizes['small']['dp']) == 0:
+        patterns.remove('small')
+    if 'large' in patterns and len(expand_sizes['large']['sp']) == 0 and len(expand_sizes['large']['dp']) == 0:
+        patterns.remove('large')
+
+    #
+    # return the necessary include files to cmake
+    #
+    if args.command == 'list':
+        scprint(list_old_generated_kernels(patterns=patterns,
+                                           precisions=precisions,
+                                           num_small_kernel_groups=args.groups)
+                + list_generated_kernels(new_kernels))
+        return
+
     if args.command == 'generate':
 
         # collection of Functions to generate prototypes for
         psmall, plarge, p2d = {}, {}, {}
 
-        if small or pow2 or pow3 or pow5 or pow7:
-            for p in precisions:
-                transforms = supported_small_sizes(p, pow2, pow3, pow5, pow7)
-                psmall = pmerge(psmall, generate_small_1d_prototypes(p, transforms))
-
-        if manual_small:
-            for p in precisions:
-                psmall = pmerge(psmall, generate_small_1d_prototypes(p, manual_small))
-
-        if large:
-            for p in precisions:
-                plarge = pmerge(plarge, generate_large_1d_prototypes(p, supported_large_sizes(p)))
-
-        if manual_large:
-            for p in precisions:
-                plarge = pmerge(plarge, generate_large_1d_prototypes(p, manual_large))
+        # already excludes small and large-1D from new-generators
+        for p in precisions:
+            psmall = pmerge(psmall, generate_small_1d_prototypes(p, expand_sizes['small'][p]))
+            plarge = pmerge(plarge, generate_large_1d_prototypes(p, expand_sizes['large'][p]))
 
         if dim2:
             for p in precisions:
-                p2d = pmerge(p2d, generate_2d_prototypes(p, supported_2d_sizes(p)))
+                transform_2D = merge([], supported_2d_sizes(p))
+                p2d = pmerge(p2d, generate_2d_prototypes(p, transform_2D))
 
-        # XXX: 2d depends on 1d...
-
-        # hijack a few small kernels...
-        pnew = pmerge({}, generate_new_kernels(new_kernels))
+        # hijack a few new kernels...
+        pnew = pmerge({}, generate_new_kernels(new_kernels, precisions))
 
         cpu_functions = list(merge(psmall, plarge, p2d, pnew).values())
         format_and_write('function_pool.cpp', generate_cpu_function_pool(cpu_functions))
 
         old_small_lengths = {f.meta.length for f in psmall.values()}
-        new_small_lengths = {f.meta.length for f in pnew.values() if f.meta.scheme == 'CS_KERNEL_STOCKHAM'}
-        gen_small_lengths = old_small_lengths - new_small_lengths
-        gen_large_lengths = {f.meta.length for f in plarge.values()}
-        if gen_small_lengths:
-            subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-small', cjoin(sorted(gen_small_lengths))], check=True)
-        if gen_large_lengths:
-            subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-large', cjoin(sorted(gen_large_lengths))], check=True)
+        old_large_lengths = {f.meta.length for f in plarge.values()} # sbcc=new-gen, sbrc/transpose=old-gen
+        if old_small_lengths:
+            subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-small', cjoin(sorted(old_small_lengths))], check=True)
+        if old_large_lengths:
+            subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-large', cjoin(sorted(old_large_lengths))], check=True)
         if dim2:
             subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', '2D'], check=True)
 

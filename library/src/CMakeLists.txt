@@ -85,8 +85,12 @@ if( NOT USE_CUDA )
   target_link_libraries( rocfft PRIVATE hip::device )
 endif()
 
-target_link_libraries( rocfft PRIVATE rocfft-device-single )
-target_link_libraries( rocfft PRIVATE rocfft-device-double )
+if( BUILD_SINGLE_PRECISION )
+  target_link_libraries( rocfft PRIVATE rocfft-device-single )
+endif()
+if( BUILD_DOUBLE_PRECISION )
+  target_link_libraries( rocfft PRIVATE rocfft-device-double )
+endif()
 target_link_libraries( rocfft PRIVATE rocfft-device-misc )
 
 target_include_directories( rocfft
@@ -121,7 +125,7 @@ endif( )
 # Installation
 
 rocm_install_targets(
-  TARGETS ${package_targets} 
+  TARGETS ${package_targets}
   INCLUDE
   ${CMAKE_SOURCE_DIR}/library/include
   ${CMAKE_BINARY_DIR}/include
