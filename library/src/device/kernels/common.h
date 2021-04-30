@@ -15,8 +15,7 @@
 //   future. Each kernel has to explicitly set proper sizes through
 //   __launch_bounds__ or __attribute__.
 //   Further performance tuning might be done later.
-#define MAX_LAUNCH_BOUNDS_2D_SINGLE_KERNEL 256
-#define MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL 256
+static const unsigned int LAUNCH_BOUNDS_R2C_C2R_KERNEL = 256;
 
 // To extract file name out of full path
 static inline constexpr const char* KernelFileName(const char* fullname)

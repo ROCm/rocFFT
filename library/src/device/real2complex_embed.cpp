@@ -27,7 +27,7 @@
 #include <numeric>
 
 template <typename Tcomplex, CallbackType cbtype>
-__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+__global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     real2complex_kernel(const size_t                 input_size,
                         const size_t                 idist1D,
                         const size_t                 odist1D,
@@ -101,7 +101,7 @@ void real2complex(const void* data_p, void* back_p)
     }
     rocfft_precision precision = data->node->precision;
 
-    size_t blocks = (input_size - 1) / 512 + 1;
+    size_t blocks = (input_size - 1) / LAUNCH_BOUNDS_R2C_C2R_KERNEL + 1;
 
     // TODO: verify with API that high_dimension and batch aren't too big.
 
@@ -110,7 +110,7 @@ void real2complex(const void* data_p, void* back_p)
     // notice the maximum # of thread blocks in y & z is 65535 according to HIP &&
     // CUDA
     dim3 grid(blocks, high_dimension, batch);
-    dim3 threads(512, 1, 1); // use 512 threads (work items)
+    dim3 threads(LAUNCH_BOUNDS_R2C_C2R_KERNEL, 1, 1);
 
     hipStream_t rocfft_stream = data->rocfft_stream;
 
@@ -173,7 +173,7 @@ void real2complex(const void* data_p, void* back_p)
 
 // The complex to hermitian simple copy kernel for interleaved format
 template <typename Tcomplex, CallbackType cbtype>
-__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+__global__ void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     complex2hermitian_kernel(const size_t    input_size,
                              const size_t    idist1D,
                              const size_t    odist1D,
@@ -209,7 +209,7 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 
 // The planar overload function of the above interleaved one
 template <typename Tcomplex>
-__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+__global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     complex2hermitian_kernel(const size_t           input_size,
                              const size_t           idist1D,
                              const size_t           odist1D,
@@ -277,7 +277,7 @@ void complex2hermitian(const void* data_p, void* back_p)
     }
     rocfft_precision precision = data->node->precision;
 
-    size_t blocks = (input_size - 1) / 512 + 1;
+    size_t blocks = (input_size - 1) / LAUNCH_BOUNDS_R2C_C2R_KERNEL + 1;
 
     // TODO: verify with API that high_dimension and batch aren't too big.
 
@@ -286,7 +286,7 @@ void complex2hermitian(const void* data_p, void* back_p)
     // notice the maximum # of thread blocks in y & z is 65535 according to HIP &&
     // CUDA
     dim3 grid(blocks, high_dimension, batch);
-    dim3 threads(512, 1, 1); // use 512 threads (work items)
+    dim3 threads(LAUNCH_BOUNDS_R2C_C2R_KERNEL, 1, 1);
 
     hipStream_t rocfft_stream = data->rocfft_stream;
 

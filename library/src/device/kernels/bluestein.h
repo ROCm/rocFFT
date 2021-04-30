@@ -27,10 +27,10 @@
 #include "common.h"
 #include "rocfft_hip.h"
 
-#define MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL 64
+static const unsigned int LAUNCH_BOUNDS_BLUESTEIN_KERNEL = 64;
 
 template <typename T>
-__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL) chirp_device(
+__global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL) chirp_device(
     const size_t N, const size_t M, T* output, T* twiddles_large, const int twl, const int dir)
 {
     size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
@@ -73,7 +73,7 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL) chirp_devi
 // 4 similar functions to support interleaved and planar format.
 
 template <typename T, CallbackType cbtype>
-__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
+__global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
     mul_device_I_I(const size_t  numof,
                    const size_t  totalWI,
                    const size_t  N,
@@ -182,7 +182,7 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
 }
 
 template <typename T>
-__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
+__global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
     mul_device_P_I(const size_t          numof,
                    const size_t          totalWI,
                    const size_t          N,
@@ -274,7 +274,7 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
 }
 
 template <typename T>
-__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
+__global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
     mul_device_I_P(const size_t    numof,
                    const size_t    totalWI,
                    const size_t    N,
@@ -368,7 +368,7 @@ __global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
 }
 
 template <typename T>
-__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
+__global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
     mul_device_P_P(const size_t          numof,
                    const size_t          totalWI,
                    const size_t          N,

@@ -97,14 +97,14 @@ void complex2real(const void* data_p, void* back_p)
     }
     rocfft_precision precision = data->node->precision;
 
-    size_t blocks = (input_size - 1) / 512 + 1;
+    size_t blocks = (input_size - 1) / LAUNCH_BOUNDS_R2C_C2R_KERNEL + 1;
 
     // the z dimension is used for batching,
     // if 2D or 3D, the number of blocks along y will multiple high dimensions
     // notice the maximum # of thread blocks in y & z is 65535 according to HIP &&
     // CUDA
     dim3 grid(blocks, high_dimension, batch);
-    dim3 threads(512, 1, 1); // use 512 threads (work items)
+    dim3 threads(LAUNCH_BOUNDS_R2C_C2R_KERNEL, 1, 1);
 
     hipStream_t rocfft_stream = data->rocfft_stream;
 
@@ -331,7 +331,7 @@ void hermitian2complex(const void* data_p, void* back_p)
     }
     rocfft_precision precision = data->node->precision;
 
-    size_t blocks = (hermitian_size - 1) / 512 + 1;
+    size_t blocks = (hermitian_size - 1) / LAUNCH_BOUNDS_R2C_C2R_KERNEL + 1;
 
     if(data->node->length.size() > 3)
         rocfft_cout << "Error: dimension larger than 3, which is not handled" << std::endl;
@@ -347,7 +347,7 @@ void hermitian2complex(const void* data_p, void* back_p)
     // notice the maximum # of thread blocks in y & z is 65535 according to HIP &&
     // CUDA
     dim3 grid(blocks, high_dimension, batch);
-    dim3 threads(512, 1, 1); // use 512 threads (work items)
+    dim3 threads(LAUNCH_BOUNDS_R2C_C2R_KERNEL, 1, 1);
 
     hipStream_t rocfft_stream = data->rocfft_stream;
 

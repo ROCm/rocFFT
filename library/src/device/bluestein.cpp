@@ -29,8 +29,8 @@ template <typename T>
 rocfft_status chirp_launch(
     size_t N, size_t M, T* B, void* twiddles_large, int twl, int dir, hipStream_t rocfft_stream)
 {
-    dim3 grid((M - N) / 64 + 1);
-    dim3 threads(64);
+    dim3 grid((M - N) / LAUNCH_BOUNDS_BLUESTEIN_KERNEL + 1);
+    dim3 threads(LAUNCH_BOUNDS_BLUESTEIN_KERNEL);
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(chirp_device<T>),
                        dim3(grid),
@@ -159,8 +159,8 @@ void rocfft_internal_mul(const void* data_p, void* back_p)
 
     hipStream_t rocfft_stream = data->rocfft_stream;
 
-    dim3 grid((count - 1) / 64 + 1);
-    dim3 threads(64);
+    dim3 grid((count - 1) / LAUNCH_BOUNDS_BLUESTEIN_KERNEL + 1);
+    dim3 threads(LAUNCH_BOUNDS_BLUESTEIN_KERNEL);
 
     if((data->node->inArrayType == rocfft_array_type_complex_interleaved
         || data->node->inArrayType == rocfft_array_type_hermitian_interleaved)

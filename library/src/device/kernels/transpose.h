@@ -25,8 +25,6 @@
 #include "common.h"
 #include "rocfft_hip.h"
 
-#define MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL 1024
-
 #define TRANSPOSE_TWIDDLE_MUL(tmp)                                                                \
     if(WITH_TWL)                                                                                  \
     {                                                                                             \
@@ -262,18 +260,17 @@ template <typename T,
           bool         UNIT_STRIDE_0,
           bool         DIAGONAL,
           CallbackType cbtype>
-__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL)
-    transpose_kernel2(const T_I* input,
-                      T_O*       output,
-                      T*         twiddles_large,
-                      size_t*    lengths,
-                      size_t*    stride_in,
-                      size_t*    stride_out,
-                      void* __restrict__ load_cb_fn,
-                      void* __restrict__ load_cb_data,
-                      uint32_t load_cb_lds_bytes,
-                      void* __restrict__ store_cb_fn,
-                      void* __restrict__ store_cb_data)
+__global__ void __launch_bounds__(DIM_X* DIM_Y) transpose_kernel2(const T_I* input,
+                                                                  T_O*       output,
+                                                                  T*         twiddles_large,
+                                                                  size_t*    lengths,
+                                                                  size_t*    stride_in,
+                                                                  size_t*    stride_out,
+                                                                  void* __restrict__ load_cb_fn,
+                                                                  void* __restrict__ load_cb_data,
+                                                                  uint32_t load_cb_lds_bytes,
+                                                                  void* __restrict__ store_cb_fn,
+                                                                  void* __restrict__ store_cb_data)
 {
     size_t ld_in  = stride_in[1];
     size_t ld_out = stride_out[1];
@@ -530,7 +527,7 @@ template <typename T,
           bool         UNIT_STRIDE_0,
           bool         DIAGONAL,
           CallbackType cbtype>
-__global__ void __launch_bounds__(MAX_LAUNCH_BOUNDS_TRANSPOSE_KERNEL)
+__global__ void __launch_bounds__(DIM_X* DIM_Y)
     transpose_kernel2_scheme(const T_I* input,
                              T_O*       output,
                              T*         twiddles_large,

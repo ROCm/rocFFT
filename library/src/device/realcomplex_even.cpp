@@ -37,7 +37,7 @@
 // Each thread handles 2 points.
 // When N is divisible by 4, one value is handled separately; this is controlled by Ndiv4.
 template <typename Tcomplex, bool Ndiv4, CallbackType cbtype>
-__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+__global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     real_post_process_kernel_interleaved_1D(const size_t half_N,
                                             const void*  input0,
                                             const size_t idist,
@@ -124,7 +124,7 @@ __device__ inline void post_process_planar(const size_t           idx_p,
 
 // Planar version of r2c post-process kernel, 1D
 template <typename Tcomplex, bool Ndiv4>
-__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+__global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     real_post_process_kernel_planar_1D(const size_t half_N,
                                        const void*  input0,
                                        const size_t idist,
@@ -233,7 +233,7 @@ void r2c_1d_post(const void* data_p, void*)
     const std::tuple<rocfft_precision, bool> planar_params
         = std::make_tuple(data->node->precision, Ndiv4);
 
-    const size_t block_size = 64;
+    const size_t block_size = LAUNCH_BOUNDS_R2C_C2R_KERNEL;
     const size_t blocks     = ((half_N + 1) / 2 + block_size - 1) / block_size;
     // The total number of 1D threads is N / 4, rounded up.
 
@@ -288,7 +288,7 @@ void r2c_1d_post(const void* data_p, void*)
 // Each thread handles 2 points.
 // When N is divisible by 4, one value is handled separately; this is controlled by Ndiv4.
 template <typename Tcomplex, bool Ndiv4, CallbackType cbtype>
-__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+__global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     real_pre_process_kernel(const size_t half_N,
                             const size_t idist1D,
                             const size_t odist1D,
@@ -364,7 +364,7 @@ __global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 
 // Planar version of c2r pre-process kernel
 template <typename Tcomplex, bool Ndiv4>
-__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+__global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     real_pre_process_kernel_planar(const size_t      half_N,
                                    const size_t      idist1D,
                                    const size_t      odist1D,
@@ -512,7 +512,7 @@ void c2r_1d_pre(const void* data_p, void*)
     const std::tuple<rocfft_precision, bool> params_planar
         = std::make_tuple(data->node->precision, Ndiv4);
 
-    const size_t block_size = 64;
+    const size_t block_size = LAUNCH_BOUNDS_R2C_C2R_KERNEL;
     const size_t blocks     = ((half_N + 1) / 2 + block_size - 1) / block_size;
     // The total number of 1D threads is N / 4, rounded up.
 

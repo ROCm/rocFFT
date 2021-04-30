@@ -40,7 +40,7 @@ __device__ size_t output_row_base(size_t        dim,
 // R2C post-process kernel, 2D and 3D, transposed output.
 // lengths counts in complex elements
 template <typename T, typename T_I, typename T_O, size_t DIM_X, size_t DIM_Y, CallbackType cbtype>
-__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+__global__ static void __launch_bounds__(DIM_X* DIM_Y)
     real_post_process_kernel_transpose(size_t        dim,
                                        const T_I*    input0,
                                        size_t        idist,
@@ -226,8 +226,6 @@ void r2c_1d_post_transpose(const void* data_p, void*)
     // hit a sweet spot for performance, where it's enough threads to
     // be useful, but not too many.
     //
-    // NOTE: template params to real_post_process_kernel_transpose
-    // need to agree with these numbers
     static const size_t DIM_X = 16;
     static const size_t DIM_Y = 16;
 
@@ -258,8 +256,8 @@ void r2c_1d_post_transpose(const void* data_p, void*)
                 HIP_KERNEL_NAME(real_post_process_kernel_transpose<cmplx_float,
                                                                    cmplx_float,
                                                                    cmplx_float_planar,
-                                                                   16,
-                                                                   16,
+                                                                   DIM_X,
+                                                                   DIM_Y,
                                                                    CallbackType::NONE>),
                 grid,
                 threads,
@@ -288,14 +286,14 @@ void r2c_1d_post_transpose(const void* data_p, void*)
                         real_post_process_kernel_transpose<cmplx_float,
                                                            cmplx_float,
                                                            cmplx_float,
-                                                           16,
-                                                           16,
+                                                           DIM_X,
+                                                           DIM_Y,
                                                            CallbackType::USER_LOAD_STORE>)
                     : HIP_KERNEL_NAME(real_post_process_kernel_transpose<cmplx_float,
                                                                          cmplx_float,
                                                                          cmplx_float,
-                                                                         16,
-                                                                         16,
+                                                                         DIM_X,
+                                                                         DIM_Y,
                                                                          CallbackType::NONE>),
                 grid,
                 threads,
@@ -326,8 +324,8 @@ void r2c_1d_post_transpose(const void* data_p, void*)
                 HIP_KERNEL_NAME(real_post_process_kernel_transpose<cmplx_double,
                                                                    cmplx_double,
                                                                    cmplx_double_planar,
-                                                                   16,
-                                                                   16,
+                                                                   DIM_X,
+                                                                   DIM_Y,
                                                                    CallbackType::NONE>),
                 grid,
                 threads,
@@ -356,14 +354,14 @@ void r2c_1d_post_transpose(const void* data_p, void*)
                         real_post_process_kernel_transpose<cmplx_double,
                                                            cmplx_double,
                                                            cmplx_double,
-                                                           16,
-                                                           16,
+                                                           DIM_X,
+                                                           DIM_Y,
                                                            CallbackType::USER_LOAD_STORE>)
                     : HIP_KERNEL_NAME(real_post_process_kernel_transpose<cmplx_double,
                                                                          cmplx_double,
                                                                          cmplx_double,
-                                                                         16,
-                                                                         16,
+                                                                         DIM_X,
+                                                                         DIM_Y,
                                                                          CallbackType::NONE>),
                 grid,
                 threads,
@@ -390,7 +388,7 @@ void r2c_1d_post_transpose(const void* data_p, void*)
 // C2R pre-process kernel, 2D and 3D, transposed input.
 // lengths counts in complex elements
 template <typename T, typename T_I, typename T_O, size_t DIM_X, size_t DIM_Y, CallbackType cbtype>
-__global__ static void __launch_bounds__(MAX_LAUNCH_BOUNDS_R2C_C2R_KERNEL)
+__global__ static void __launch_bounds__(DIM_X* DIM_Y)
     transpose_real_pre_process_kernel(size_t        dim,
                                       const T_I*    input0,
                                       size_t        idist,
@@ -580,9 +578,6 @@ void transpose_c2r_1d_pre(const void* data_p, void*)
     // we're allocating one thread per tile element.  32x16 seems to
     // hit a sweet spot for performance, where it's enough threads to
     // be useful, but not too many.
-    //
-    // NOTE: template params to transpose_real_pre_process_kernel
-    // need to agree with these numbers
     static const size_t DIM_X = 32;
     static const size_t DIM_Y = 16;
 
@@ -624,8 +619,8 @@ void transpose_c2r_1d_pre(const void* data_p, void*)
                 HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_float,
                                                                   cmplx_float_planar,
                                                                   cmplx_float,
-                                                                  32,
-                                                                  16,
+                                                                  DIM_X,
+                                                                  DIM_Y,
                                                                   CallbackType::NONE>),
                 grid,
                 threads,
@@ -654,14 +649,14 @@ void transpose_c2r_1d_pre(const void* data_p, void*)
                         transpose_real_pre_process_kernel<cmplx_float,
                                                           cmplx_float,
                                                           cmplx_float,
-                                                          32,
-                                                          16,
+                                                          DIM_X,
+                                                          DIM_Y,
                                                           CallbackType::USER_LOAD_STORE>)
                     : HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_float,
                                                                         cmplx_float,
                                                                         cmplx_float,
-                                                                        32,
-                                                                        16,
+                                                                        DIM_X,
+                                                                        DIM_Y,
                                                                         CallbackType::NONE>),
                 grid,
                 threads,
@@ -692,8 +687,8 @@ void transpose_c2r_1d_pre(const void* data_p, void*)
                 HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_double,
                                                                   cmplx_double_planar,
                                                                   cmplx_double,
-                                                                  32,
-                                                                  16,
+                                                                  DIM_X,
+                                                                  DIM_Y,
                                                                   CallbackType::NONE>),
                 grid,
                 threads,
@@ -723,14 +718,14 @@ void transpose_c2r_1d_pre(const void* data_p, void*)
                         transpose_real_pre_process_kernel<cmplx_double,
                                                           cmplx_double,
                                                           cmplx_double,
-                                                          32,
-                                                          16,
+                                                          DIM_X,
+                                                          DIM_Y,
                                                           CallbackType::USER_LOAD_STORE>)
                     : HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_double,
                                                                         cmplx_double,
                                                                         cmplx_double,
-                                                                        32,
-                                                                        16,
+                                                                        DIM_X,
+                                                                        DIM_Y,
                                                                         CallbackType::NONE>),
                 grid,
                 threads,
