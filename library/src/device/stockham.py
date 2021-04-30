@@ -13,11 +13,16 @@ from generator import *
 
 
 class Tiling(Enum):
-    linear = 0
-    cc = 1
+    rr = 0
+    rc = 1
+    cr = 2
+    cc = 3
 
-str2enum = {'CS_KERNEL_STOCKHAM':           Tiling.linear,
-            'CS_KERNEL_STOCKHAM_BLOCK_CC':  Tiling.cc
+
+str2enum = {'CS_KERNEL_STOCKHAM':           Tiling.rr,
+            'CS_KERNEL_STOCKHAM_BLOCK_CC':  Tiling.cc,
+            'CS_KERNEL_STOCKHAM_BLOCK_RC':  Tiling.rc,
+            'CS_KERNEL_STOCKHAM_BLOCK_CR':  Tiling.cr
            }
 
 def tiling_str_to_enum(scheme):
@@ -294,7 +299,7 @@ def stockham_wide_device(factors, **kwargs):
     body = StatementList()
     body += Declarations(thread, R, W, t)
     body += CallbackDeclaration()
-    #body += Declaration(stride_0, Ternary(unit_stride, 1, stride))
+    #body += Declaration(stride0, Ternary(unit_stride, 1, stride))
     body += LineBreak()
     body += CommentLines('load global')
     body += load_global()
@@ -387,8 +392,165 @@ def stockham_global(factors, **kwargs):
     i_d        = Variable('i_d', 'size_t')
     stride0    = Variable('stride0', 'const size_t')
 
+    # Todo: some tiling type specific locals might to go its own subclass, or pass with **vars.
+
+    # locals for Tiling.rr
+    thread = Variable('thread', 'int')
+
+    # locals for Tiling.cc
+    i_1      = Variable('i_1', 'size_t')
+    length_1 = Variable('length_1', 'size_t')
+
+    edge = Variable('edge', 'bool')
+    tid1 = Variable('tid1', 'size_t')
+    tid0 = Variable('tid0', 'size_t')
+
     unit_stride = sb == 'SB_UNIT'
 
+    ltwd_entries  = Multiply(B(ShiftLeft(1, ltwd_base)), 3) # (1 << LTBase) * 3
+    ltwdLDS_cond  = And(Ttwd_large, Less(ltwd_base, 8)) # Ttwd_large && LTBase < 8
+    large_twd_lds = Variable('large_twd_lds', '__shared__ scalar_type', size=Ternary(ltwdLDS_cond, ltwd_entries, 0))
+    stripmine_w   = params.transforms_per_block
+    stripmine_h   = params.threads_per_block // stripmine_w
+    stride_lds    = length + kwargs.get('lds_padding', 0)
+
+    height = length // min(factors)
+    if flavour == 'wide':
+        height = length // max(factors)
+
+    def cal_offsets():
+        stmts = StatementList()
+        stmts += LineBreak()
+
+        stmts += Declaration(stride0.name, stride0.type, value=Ternary(unit_stride, 1, stride[0]))
+        if tiling == Tiling.rr:
+            stmts += Assign(transform, block_id * params.transforms_per_block + thread_id / height)
+            stmts += Assign(remaining, transform)
+            stmts += For(InlineAssign(d, 1), d < dim, Increment(d),
+                        StatementList(
+                            Assign(plength, plength * lengths[d]),
+                            Assign(i_d, remaining % lengths[d]),
+                            Assign(remaining, remaining / lengths[d]),
+                            Assign(offset, offset + i_d * stride[d])))
+            stmts += LineBreak()
+            stmts += Assign(batch, transform / plength)
+        elif tiling == Tiling.cc:
+            ltwd_id       = Variable('ltwd_id', 'size_t', value=thread_id)
+            stmts += LineBreak()
+            stmts += Declarations(large_twd_lds)
+            stmts += If(ltwdLDS_cond,
+                        StatementList(
+                            Declaration(ltwd_id.name, ltwd_id.type, value=ltwd_id.value),
+                            While(Less(ltwd_id, ltwd_entries),
+                                StatementList(
+                                    Assign(large_twd_lds[ltwd_id], twd_large[ltwd_id]),
+                                    AddAssign(ltwd_id, params.threads_per_block)
+                                )
+                            )
+                        )
+                    )
+
+            stmts += LineBreak()
+            stmts += CommentLines('calculate offset for each tile:',
+                                '  i_1      now means index of the tile along dim1',
+                                '  length_1 now means number of tiles along dim1')
+            stmts += Declarations(i_1, length_1)
+            stmts += Assign(length_1, B(lengths[1] - 1) / params.transforms_per_block + 1)
+            stmts += Assign(plength, length_1)
+            stmts += Assign(i_1, block_id % length_1)
+            stmts += Assign(remaining, block_id / length_1)
+            stmts += Assign(offset, i_1 * params.transforms_per_block * stride[1])
+            stmts += For(InlineAssign(d, 2), d < dim, Increment(d),
+                        StatementList(
+                            Assign(plength, plength * lengths[d]),
+                            Assign(i_d, remaining % lengths[d]),
+                            Assign(remaining, remaining / lengths[d]),
+                            Assign(offset, offset + i_d * stride[d])))
+            stmts += LineBreak()
+            stmts += Assign(transform, i_1 * params.transforms_per_block + thread_id / (length // min(factors)))
+            stmts += Assign(batch, block_id / plength)
+
+        stmts += If(GreaterEqual(batch, nbatch), [ReturnStatement()])
+        stmts += LineBreak()
+        stmts += Assign(offset, offset + batch * stride[dim])
+        stmts += Assign(offset_lds, length * B(transform % params.transforms_per_block))
+        stmts += LineBreak()
+
+        return stmts
+
+    def load_global():
+        stmts = StatementList()
+        stmts += CommentLines('load global')
+
+        if tiling == Tiling.rr:
+            width = min(factors)
+            if flavour == 'wide':
+                width = max(factors)
+            
+            stmts += Declarations(thread)
+            stmts += Assign(thread, thread_id % (length // width))
+            for w in range(width):
+                idx = thread + w * (length // width)
+                stmts += Assign(lds[offset_lds + idx], LoadGlobal(buf, offset + B(idx) * stride0))
+
+        elif tiling == Tiling.cc:
+            stmts += Declarations(edge, tid0, tid1)
+            stmts += ConditionalAssign(edge,
+                                    Greater(B(i_1+1)*params.transforms_per_block, lengths[1]),
+                                    'true', 'false')
+            stmts += Assign(tid1, thread_id % stripmine_w) # tid0 walks the columns; tid1 walks the rows
+            stmts += Assign(tid0, thread_id / stripmine_w)
+            offset_tile_rbuf = lambda i : tid1 * stride[1]  + B(tid0 + i * stripmine_h) * stride0
+            offset_tile_wlds = lambda i : tid1 * stride_lds + B(tid0 + i * stripmine_h) * 1
+            pred, tmp_stmts = StatementList(), StatementList()
+            pred = i_1 * params.transforms_per_block + tid1 < lengths[1]
+            for i in range(length//stripmine_h):
+                tmp_stmts += Assign(lds[offset_tile_wlds(i)], LoadGlobal(buf, offset + offset_tile_rbuf(i)))
+
+            stmts += If(Not(edge), tmp_stmts)
+            stmts += If(edge, If(pred, tmp_stmts))
+        stmts += LineBreak()
+        return stmts
+
+    def do_work_lds():
+        stmts = StatementList()
+        if tiling == Tiling.cc:
+            twd_large_arguments = Ternary(ltwdLDS_cond, large_twd_lds, twd_large)
+
+        stmts += Call(f'forward_length{length}_{tiling.name}_device',
+                    arguments=ArgumentList(buf, lds, twiddles, stride0, offset, offset_lds) + cb_args + ([twd_large_arguments, transform] if tiling==Tiling.cc else []),
+                    templates=TemplateList(scalar_type, sb, cbtype) + ([Ttwd_large, ltwd_base] if tiling==Tiling.cc else []))
+        stmts += LineBreak()
+        return stmts
+
+    def store_global():
+        stmts = StatementList()
+        stmts += CommentLines('store global')
+        stmts += SyncThreads()
+        if tiling == Tiling.rr:
+            width = min(factors)
+            if flavour == 'wide':
+                width = max(factors)
+            tmp_stmts = StatementList()
+            for w in range(width):
+                idx = thread + w * (length // width)
+                tmp_stmts += StoreGlobal(buf, offset + B(idx) * stride0, lds[offset_lds + idx])
+            stmts += If(thread < length // width, tmp_stmts)
+        elif tiling == Tiling.cc:
+            offset_tile_rbuf = lambda i : tid1 * stride[1]  + B(tid0 + i * stripmine_h) * stride0
+            offset_tile_wlds = lambda i : tid1 * stride_lds + B(tid0 + i * stripmine_h) * 1
+            offset_tile_wbuf = offset_tile_rbuf
+            offset_tile_rlds = offset_tile_wlds
+            pred, tmp_stmts = StatementList(), StatementList()
+            pred = i_1 * params.transforms_per_block + tid1 < lengths[1]
+            for i in range(length//stripmine_h):
+                tmp_stmts += StoreGlobal(buf, offset + offset_tile_wbuf(i), lds[offset_tile_rlds(i)])
+            stmts += If(Not(edge), tmp_stmts)
+            stmts += If(edge, If(pred, tmp_stmts))
+
+        return stmts
+
+    # build function body first
     body = StatementList()
     body += CommentLines(
         f'this kernel:',
@@ -398,136 +560,12 @@ def stockham_global(factors, **kwargs):
     body += Declarations(lds, offset, offset_lds, batch, transform, remaining, plength, d, i_d)
     body += CallbackDeclaration()
 
-    height = length // min(factors)
-    if flavour == 'wide':
-        height = length // max(factors)
+    body += cal_offsets()
+    body += load_global()
+    body += do_work_lds()
+    body += store_global()
 
-    body += LineBreak()
-    body += Declaration(stride0.name, stride0.type, value=Ternary(unit_stride, 1, stride[0]))
-    if tiling == Tiling.linear:
-        body += Assign(transform, block_id * params.transforms_per_block + thread_id / height)
-        body += Assign(remaining, transform)
-        body += For(InlineAssign(d, 1), d < dim, Increment(d),
-                    StatementList(
-                        Assign(plength, plength * lengths[d]),
-                        Assign(i_d, remaining % lengths[d]),
-                        Assign(remaining, remaining / lengths[d]),
-                        Assign(offset, offset + i_d * stride[d])))
-        body += LineBreak()
-        body += Assign(batch, transform / plength)
-    elif tiling == Tiling.cc:
-
-        ltwd_entries  = Multiply(B(ShiftLeft(1, ltwd_base)), 3) # (1 << LTBase) * 3
-        ltwdLDS_cond  = And(Ttwd_large, Less(ltwd_base, 8)) # Ttwd_large && LTBase < 8
-        large_twd_lds = Variable('large_twd_lds', '__shared__ scalar_type', size=Ternary(ltwdLDS_cond, ltwd_entries, 0))
-        ltwd_id       = Variable('ltwd_id', 'size_t', value=thread_id)
-
-        body += LineBreak()
-        body += Declarations(large_twd_lds)
-        body += If(ltwdLDS_cond,
-                    StatementList(
-                        Declaration(ltwd_id.name, ltwd_id.type, value=ltwd_id.value),
-                        While(Less(ltwd_id, ltwd_entries),
-                            StatementList(
-                                Assign(large_twd_lds[ltwd_id], twd_large[ltwd_id]),
-                                AddAssign(ltwd_id, params.threads_per_block)
-                            )
-                        )
-                    )
-                )
-
-        i_1      = Variable('i_1', 'size_t')
-        length_1 = Variable('length_1', 'size_t')
-        body += LineBreak()
-        body += CommentLines('calculate offset for each tile:',
-                             '  i_1      now means index of the tile along dim1',
-                             '  length_1 now means number of tiles along dim1')
-        body += Declarations(i_1, length_1)
-        body += Assign(length_1, B(lengths[1] - 1) / params.transforms_per_block + 1)
-        body += Assign(plength, length_1)
-        body += Assign(i_1, block_id % length_1)
-        body += Assign(remaining, block_id / length_1)
-        body += Assign(offset, i_1 * params.transforms_per_block * stride[1])
-        body += For(InlineAssign(d, 2), d < dim, Increment(d),
-                    StatementList(
-                        Assign(plength, plength * lengths[d]),
-                        Assign(i_d, remaining % lengths[d]),
-                        Assign(remaining, remaining / lengths[d]),
-                        Assign(offset, offset + i_d * stride[d])))
-        body += LineBreak()
-        body += Assign(transform, i_1 * params.transforms_per_block + thread_id / (length // min(factors)))
-        body += Assign(batch, block_id / plength)
-
-    body += If(GreaterEqual(batch, nbatch), [ReturnStatement()])
-    body += LineBreak()
-    body += Assign(offset, offset + batch * stride[dim])
-    body += Assign(offset_lds, length * B(transform % params.transforms_per_block))
-    body += LineBreak()
-
-    body += CommentLines('load global')
-    if tiling == Tiling.linear:
-        width = min(factors)
-        if flavour == 'wide':
-            width = max(factors)
-        thread = Variable('thread', 'int')
-        body += Declarations(thread)
-        body += Assign(thread, thread_id % (length // width))
-        for w in range(width):
-            idx = thread + w * (length // width)
-            body += Assign(lds[offset_lds + idx], LoadGlobal(buf, offset + B(idx) * stride0))
-    elif tiling == Tiling.cc:
-        edge = Variable('edge', 'bool')
-        tid1 = Variable('tid1', 'size_t')
-        tid0 = Variable('tid0', 'size_t')
-        body += Declarations(edge, tid0, tid1)
-        stripmine_w = params.transforms_per_block
-        stripmine_h = params.threads_per_block // stripmine_w
-        body += ConditionalAssign(edge,
-                                  Greater(B(i_1+1)*params.transforms_per_block, lengths[1]),
-                                  'true', 'false')
-        body += Assign(tid1, thread_id % stripmine_w) # tid0 walks the columns; tid1 walks the rows
-        body += Assign(tid0, thread_id / stripmine_w)
-        stride_lds = length + kwargs.get('lds_padding', 0)
-        offset_tile_rbuf = lambda i : tid1 * stride[1]  + B(tid0 + i * stripmine_h) * stride0
-        offset_tile_wlds = lambda i : tid1 * stride_lds + B(tid0 + i * stripmine_h) * 1
-        pred, stmts = StatementList(), StatementList()
-        pred = i_1 * params.transforms_per_block + tid1 < lengths[1]
-        for i in range(length//stripmine_h):
-            stmts += Assign(lds[offset_tile_wlds(i)], LoadGlobal(buf, offset + offset_tile_rbuf(i)))
-        body += If(Not(edge), stmts)
-        body += If(edge, If(pred, stmts))
-
-    body += LineBreak()
-
-    if tiling == Tiling.cc:
-        twd_large_arguments = Ternary(ltwdLDS_cond, large_twd_lds, twd_large)
-
-    body += Call(f'forward_length{length}_{tiling.name}_device',
-                 arguments=ArgumentList(buf, lds, twiddles, stride0, offset, offset_lds) + cb_args + ([twd_large_arguments, transform] if tiling==Tiling.cc else []),
-                 templates=TemplateList(scalar_type, sb, cbtype) + ([Ttwd_large, ltwd_base] if tiling==Tiling.cc else []))
-    body += LineBreak()
-
-    body += CommentLines('store global')
-    body += SyncThreads()
-    if tiling == Tiling.linear:
-        stmts = StatementList()
-        width = min(factors)
-        if flavour == 'wide':
-            width = max(factors)
-        for w in range(width):
-            idx = thread + w * (length // width)
-            stmts += StoreGlobal(buf, offset + B(idx) * stride0, lds[offset_lds + idx])
-        body += If(thread < length // width, stmts)
-    elif tiling == Tiling.cc:
-        offset_tile_wbuf = offset_tile_rbuf
-        offset_tile_rlds = offset_tile_wlds
-        pred, stmts = StatementList(), StatementList()
-        pred = i_1 * params.transforms_per_block + tid1 < lengths[1]
-        for i in range(length//stripmine_h):
-            stmts += StoreGlobal(buf, offset + offset_tile_wbuf(i), lds[offset_tile_rlds(i)])
-        body += If(Not(edge), stmts)
-        body += If(edge, If(pred, stmts))
-
+    # build function name and params
     template_list = TemplateList(scalar_type, sb, cbtype)
     argument_list = ArgumentList(twiddles, dim, lengths, stride, nbatch) + cb_args + ArgumentList(buf)
     if tiling == Tiling.cc:
@@ -639,7 +677,7 @@ def stockham_launch(factors, **kwargs):
     body = StatementList()
     body += Declarations(nblocks)
     body += Assign(nblocks, B(nbatch + (params.transforms_per_block - 1)) / params.transforms_per_block)
-    body += Call(f'forward_length{length}_linear',
+    body += Call(f'forward_length{length}_rr',
                  arguments = ArgumentList(twiddles, 1, kargs, kargs+1, nbatch, inout),
                  templates = TemplateList(scalar_type, sb, cbtype),
                  launch_params = ArgumentList(nblocks, params.threads_per_block))
