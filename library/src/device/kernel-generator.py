@@ -68,11 +68,11 @@ def merge(*ds):
 
 
 def pmerge(d, fs):
-    """Merge d with dicts of {(length, precision, scheme, pool): f}."""
+    """Merge d with dicts of {(length, precision, scheme, transpose): f}."""
     r = collections.OrderedDict()
     r.update(d)
     for f in fs:
-        r[f.meta.length, f.meta.precision, f.meta.scheme, f.meta.pool] = f
+        r[f.meta.length, f.meta.precision, f.meta.scheme, f.meta.transpose] = f
     return r
 
 
@@ -214,34 +214,21 @@ class FFTKernel(BaseNode):
 def generate_cpu_function_pool(functions):
     """Generate function to populate the kernel function pool."""
 
-    function_map_single = Map('function_map_single')
-    function_map_double = Map('function_map_double')
-    function_map_single_2d = Map('function_map_single_2D')
-    function_map_double_2d = Map('function_map_double_2D')
-    function_map_single_transpose_tile_aligned = Map('function_map_single_transpose_tile_aligned')
-    function_map_double_transpose_tile_aligned = Map('function_map_double_transpose_tile_aligned')
-    function_map_single_transpose_diagonal = Map('function_map_single_transpose_diagonal')
-    function_map_double_transpose_diagonal = Map('function_map_double_transpose_diagonal')
-
-    pool_map = {
-        ('sp', None): function_map_single,
-        ('dp', None): function_map_double,
-        ('sp', '2D'): function_map_single_2d,
-        ('dp', '2D'): function_map_double_2d,
-        ('sp', 'tile_aligned'): function_map_single_transpose_tile_aligned,
-        ('dp', 'tile_aligned'): function_map_double_transpose_tile_aligned,
-        ('sp', 'transpose_diagonal'): function_map_single_transpose_diagonal,
-        ('dp', 'transpose_diagonal'): function_map_double_transpose_diagonal,
-    }
+    function_map = Map('function_map')
+    precisions = { 'sp': 'rocfft_precision_single',
+                   'dp': 'rocfft_precision_double' }
 
     populate = StatementList()
     for f in functions:
-        length, precision, scheme, pool = f.meta.length, f.meta.precision, f.meta.scheme, f.meta.pool
+        length, precision, scheme, transpose = f.meta.length, f.meta.precision, f.meta.scheme, f.meta.transpose
         if isinstance(length, (int, str)):
-            key = Call(name='std::make_pair', arguments=ArgumentList(length, scheme)).inline()
-        else:
-            key = Call(name='std::make_tuple', arguments=ArgumentList(length[0], length[1], scheme)).inline()
-        populate += pool_map[precision, pool].emplace(key, FFTKernel(f))
+            length = [length, 0]
+        key = Call(name='std::make_tuple',
+                   arguments=ArgumentList('std::array<size_t, 2>({' + cjoin(length) + '})',
+                                          precisions[precision],
+                                          scheme,
+                                          transpose or 'NONE')).inline()
+        populate += function_map.assert_emplace(key, FFTKernel(f))
 
     return StatementList(
         Include('<iostream>'),
@@ -260,14 +247,14 @@ def generate_small_1d_prototypes(precision, transforms):
     back = Variable('back_p', 'void *')
     functions = []
 
-    def add(name, scheme, pool=None):
+    def add(name, scheme, transpose=None):
         functions.append(Function(name=name,
                                   arguments=ArgumentList(data, back),
                                   meta=NS(
                                       length=length,
                                       precision=precision,
                                       scheme=scheme,
-                                      pool=pool)))
+                                      transpose=transpose)))
 
     for length, scheme in transforms.items():
         add(f'rocfft_internal_dfn_{precision}_ci_ci_stoc_{length}', scheme)
@@ -282,7 +269,7 @@ def generate_large_1d_prototypes(precision, transforms):
     back = Variable('back_p', 'void *')
     functions = []
 
-    def add(name, scheme, pool=None):
+    def add(name, scheme, transpose=None):
         use3Steps = {'sp': 'true', 'dp': 'true'}
         if length == 81:
             use3Steps['dp'] = 'false'
@@ -295,20 +282,20 @@ def generate_large_1d_prototypes(precision, transforms):
                                       precision=precision,
                                       scheme=scheme,
                                       use_3steps_large_twd=use3Steps,
-                                      pool=pool)))
+                                      transpose=transpose)))
 
     for length, scheme in transforms.items():
         if scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC':
             add(f'rocfft_internal_dfn_{precision}_ci_ci_sbcc_{length}', 'CS_KERNEL_STOCKHAM_BLOCK_CC')
         elif scheme == 'CS_KERNEL_STOCKHAM_BLOCK_RC':
             add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc_{length}', 'CS_KERNEL_STOCKHAM_BLOCK_RC')
-            add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_trans_xy_z_tile_aligned_{length}', 'CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z', 'tile_aligned')
-            add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_trans_z_xy_tile_aligned_{length}', 'CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY', 'tile_aligned')
-            add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_tile_aligned_{length}', 'CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY', 'tile_aligned')
+            add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_trans_xy_z_tile_aligned_{length}', 'CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z', 'TILE_ALIGNED')
+            add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_trans_z_xy_tile_aligned_{length}', 'CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY', 'TILE_ALIGNED')
+            add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_tile_aligned_{length}', 'CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY', 'TILE_ALIGNED')
             if length in [128, 256]:
-                add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_trans_xy_z_diagonal_{length}', 'CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z', 'transpose_diagonal')
-                add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_trans_z_xy_diagonal_{length}', 'CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY', 'transpose_diagonal')
-                add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_diagonal_{length}', 'CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY', 'transpose_diagonal')
+                add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_trans_xy_z_diagonal_{length}', 'CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z', 'DIAGONAL')
+                add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_trans_z_xy_diagonal_{length}', 'CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY', 'DIAGONAL')
+                add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_diagonal_{length}', 'CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY', 'DIAGONAL')
 
     return functions
 
@@ -320,17 +307,17 @@ def generate_2d_prototypes(precision, transforms):
     back = Variable('back_p', 'void *')
     functions = []
 
-    def add(name, scheme, pool=None):
+    def add(name, scheme, transpose=None):
         functions.append(Function(name=name,
                                   arguments=ArgumentList(data, back),
                                   meta=NS(
                                       length=length,
                                       precision=precision,
                                       scheme=scheme,
-                                      pool=pool)))
+                                      transpose=transpose)))
 
     for length, scheme in transforms.items():
-        add(f'rocfft_internal_dfn_{precision}_ci_ci_2D_{length[0]}_{length[1]}', 'CS_KERNEL_2D_SINGLE', '2D')
+        add(f'rocfft_internal_dfn_{precision}_ci_ci_2D_{length[0]}_{length[1]}', 'CS_KERNEL_2D_SINGLE', 'NONE')
 
     return functions
 

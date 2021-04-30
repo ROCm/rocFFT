@@ -640,6 +640,12 @@ class Map(BaseNodeOps):
         return Call(self.name + '.emplace',
                     arguments=ArgumentList(key, value))
 
+    def assert_emplace(self, key, value):
+        emplace = Call(self.name + '.emplace', arguments=ArgumentList(key, value)).inline()
+        status = Call(name='std::get<1>', arguments=ArgumentList(emplace)).inline()
+        throw = StatementList(Throw('std::runtime_error("' + str(key) + '")'))
+        return If(Equal(status, "false"), throw)
+
     # def __getitem__(self, idx):
     #     return ArrayElement(self.name, idx)
 
@@ -660,6 +666,11 @@ B = Group
 #
 # Control flow
 #
+
+@name_args(['value'])
+class Throw(BaseNode):
+    def __str__(self):
+        return 'throw ' + str(self.value) + ';'
 
 
 class Block(BaseNode):

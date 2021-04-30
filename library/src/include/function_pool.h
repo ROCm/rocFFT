@@ -27,24 +27,37 @@
 #include "tree_node.h"
 #include <unordered_map>
 
+using FMKey
+    = std::tuple<std::array<size_t, 2>, rocfft_precision, ComputeScheme, SBRC_TRANSPOSE_TYPE>;
+
+static inline FMKey fpkey(size_t              length,
+                          rocfft_precision    precision,
+                          ComputeScheme       scheme    = CS_KERNEL_STOCKHAM,
+                          SBRC_TRANSPOSE_TYPE transpose = NONE)
+{
+    return {{length, 0}, precision, scheme, transpose};
+}
+
+static inline FMKey fpkey(size_t              length1,
+                          size_t              length2,
+                          rocfft_precision    precision,
+                          ComputeScheme       scheme    = CS_KERNEL_2D_SINGLE,
+                          SBRC_TRANSPOSE_TYPE transpose = NONE)
+{
+    return {{length1, length2}, precision, scheme, transpose};
+}
+
 struct SimpleHash
 {
-    using Key   = std::pair<size_t, ComputeScheme>;
-    using Key2D = std::tuple<size_t, size_t, ComputeScheme>;
-
-    size_t operator()(const Key& p) const noexcept
+    size_t operator()(const FMKey& p) const noexcept
     {
-        size_t h1 = std::hash<size_t>{}(std::get<0>(p));
-        size_t h2 = std::hash<ComputeScheme>{}(std::get<1>(p));
-        return h1 ^ h2;
-    }
-
-    size_t operator()(const Key2D& p) const noexcept
-    {
-        size_t h1 = std::hash<size_t>{}(std::get<0>(p));
-        size_t h2 = std::hash<size_t>{}(std::get<1>(p));
-        size_t h3 = std::hash<ComputeScheme>{}(std::get<2>(p));
-        return h1 ^ h2 ^ h3;
+        size_t h = 0;
+        for(auto& v : std::get<0>(p))
+            h ^= std::hash<int>{}(v);
+        h ^= std::hash<rocfft_precision>{}(std::get<1>(p));
+        h ^= std::hash<ComputeScheme>{}(std::get<2>(p));
+        h ^= std::hash<SBRC_TRANSPOSE_TYPE>{}(std::get<3>(p));
+        return h;
     }
 };
 
@@ -82,32 +95,13 @@ struct FFTKernel
 
 class function_pool
 {
-    using Key   = std::pair<size_t, ComputeScheme>;
-    using Key2D = std::tuple<size_t, size_t, ComputeScheme>;
-
-    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_single;
-    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_double;
-
-    // fused transpose kernels can transpose an even multiple of the
-    // tiled rows (faster), or the number of required rows is not an
-    // even multiple (slower).  diagonal transpose is even better,
-    // but requires pow2 cube sizes.
-    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_single_transpose_diagonal;
-    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_single_transpose_tile_aligned;
-    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_single_transpose_tile_unaligned;
-    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_double_transpose_diagonal;
-    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_double_transpose_tile_aligned;
-    std::unordered_map<Key, FFTKernel, SimpleHash> function_map_double_transpose_tile_unaligned;
-
-    std::unordered_map<Key2D, FFTKernel, SimpleHash> function_map_single_2D;
-    std::unordered_map<Key2D, FFTKernel, SimpleHash> function_map_double_2D;
+    std::unordered_map<FMKey, FFTKernel, SimpleHash> function_map;
 
     function_pool();
 
 public:
-    function_pool(const function_pool&)
-        = delete; // delete is a c++11 feature, prohibit copy constructor
-    function_pool& operator=(const function_pool&) = delete; // prohibit assignment operator
+    function_pool(const function_pool&) = delete;
+    function_pool& operator=(const function_pool&) = delete;
 
     static function_pool& get_function_pool()
     {
@@ -117,19 +111,12 @@ public:
 
     ~function_pool() {}
 
-    static bool has_function(rocfft_precision precision, const Key k)
+    static bool has_function(const FMKey key)
     {
         try
         {
-            switch(precision)
-            {
-            case rocfft_precision_single:
-                function_pool::get_function_single(k);
-                return true;
-            case rocfft_precision_double:
-                function_pool::get_function_double(k);
-                return true;
-            }
+            function_pool::get_function(key);
+            return true;
         }
         catch(std::exception&)
         {
@@ -141,132 +128,41 @@ public:
     {
         function_pool&      func_pool = get_function_pool();
         std::vector<size_t> lengths;
-        switch(precision)
+        for(auto const& kv : func_pool.function_map)
         {
-        case rocfft_precision_single:
-            for(auto const& kv : func_pool.function_map_single)
-                if(kv.first.second == scheme)
-                    lengths.push_back(kv.first.first);
-            break;
-        case rocfft_precision_double:
-            for(auto const& kv : func_pool.function_map_double)
-                if(kv.first.second == scheme)
-                    lengths.push_back(kv.first.first);
-            break;
+            if(std::get<0>(kv.first)[1] == 0 && std::get<1>(kv.first) == precision
+               && std::get<2>(kv.first) == scheme && std::get<3>(kv.first) == NONE)
+            {
+                lengths.push_back(std::get<0>(kv.first)[0]);
+            }
         }
+
         return lengths;
     }
 
-    static DevFnCall get_function_single(const Key mykey)
+    static DevFnCall get_function(const FMKey key)
     {
         function_pool& func_pool = get_function_pool();
-        return func_pool.function_map_single.at(mykey).device_function; // return an reference to
-        // the value of the key, if
-        // not found throw an
-        // exception
+        return func_pool.function_map.at(key).device_function;
     }
 
-    static FFTKernel get_kernel(rocfft_precision precision, const Key k)
-    {
-        switch(precision)
-        {
-        case rocfft_precision_single:
-            return function_pool::get_kernel_single(k);
-        case rocfft_precision_double:
-            return function_pool::get_kernel_double(k);
-        }
-    }
-
-    static FFTKernel get_kernel_single(const Key mykey)
+    static FFTKernel get_kernel(const FMKey key)
     {
         function_pool& func_pool = get_function_pool();
-        return func_pool.function_map_single.at(mykey);
+        return func_pool.function_map.at(key);
     }
 
-    static FFTKernel get_kernel_double(const Key mykey)
-    {
-        function_pool& func_pool = get_function_pool();
-        return func_pool.function_map_double.at(mykey);
-    }
-
-    static DevFnCall get_function_double(const Key mykey)
-    {
-        function_pool& func_pool = get_function_pool();
-        return func_pool.function_map_double.at(mykey).device_function;
-    }
-
-    static DevFnCall get_function_single_transpose(const Key mykey, SBRC_TRANSPOSE_TYPE type)
-    {
-        function_pool& func_pool = get_function_pool();
-        switch(type)
-        {
-        case DIAGONAL:
-            return func_pool.function_map_single_transpose_diagonal.at(mykey).device_function;
-        case TILE_ALIGNED:
-            return func_pool.function_map_single_transpose_tile_aligned.at(mykey).device_function;
-        case TILE_UNALIGNED:
-            return func_pool.function_map_single_transpose_tile_unaligned.at(mykey).device_function;
-        }
-    }
-
-    static DevFnCall get_function_double_transpose(const Key mykey, SBRC_TRANSPOSE_TYPE type)
-    {
-        function_pool& func_pool = get_function_pool();
-        switch(type)
-        {
-        case DIAGONAL:
-            return func_pool.function_map_double_transpose_diagonal.at(mykey).device_function;
-        case TILE_ALIGNED:
-            return func_pool.function_map_double_transpose_tile_aligned.at(mykey).device_function;
-        case TILE_UNALIGNED:
-            return func_pool.function_map_double_transpose_tile_unaligned.at(mykey).device_function;
-        }
-    }
-
-    static DevFnCall get_function_single_2D(const Key2D mykey)
-    {
-        function_pool& func_pool = get_function_pool();
-        return func_pool.function_map_single_2D.at(mykey).device_function;
-    }
-
-    static DevFnCall get_function_double_2D(const Key2D mykey)
-    {
-        function_pool& func_pool = get_function_pool();
-        return func_pool.function_map_double_2D.at(mykey).device_function;
-    }
-
-    template <class funcmap>
-    static void verify_map(const funcmap& fm, const char* description)
-    {
-        for(auto& f : fm)
-        {
-            if(!f.second.device_function)
-            {
-                rocfft_cerr << "null ptr registered in " << description << std::endl;
-                abort();
-            }
-        }
-    }
     static void verify_no_null_functions()
     {
         function_pool& func_pool = get_function_pool();
-
-        verify_map(func_pool.function_map_single, "function_map_single");
-        verify_map(func_pool.function_map_double, "function_map_double");
-        verify_map(func_pool.function_map_single_transpose_tile_aligned,
-                   "function_map_single_transpose_tile_aligned");
-        verify_map(func_pool.function_map_double_transpose_tile_aligned,
-                   "function_map_double_transpose_tile_aligned");
-        verify_map(func_pool.function_map_single_transpose_tile_unaligned,
-                   "function_map_single_transpose_tile_unaligned");
-        verify_map(func_pool.function_map_double_transpose_tile_unaligned,
-                   "function_map_double_transpose_tile_unaligned");
-        verify_map(func_pool.function_map_single_transpose_diagonal,
-                   "function_map_single_transpose_diagonal");
-        verify_map(func_pool.function_map_double_transpose_diagonal,
-                   "function_map_double_transpose_diagonal");
-        verify_map(func_pool.function_map_single_2D, "function_map_single_2D");
-        verify_map(func_pool.function_map_double_2D, "function_map_double_2D");
+        for(auto& f : func_pool.function_map)
+        {
+            if(!f.second.device_function)
+            {
+                rocfft_cerr << "null ptr registered in function pool" << std::endl;
+                abort();
+            }
+        }
     }
 };
 

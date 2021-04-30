@@ -102,6 +102,7 @@ enum SBRC_TYPE
 
 enum SBRC_TRANSPOSE_TYPE
 {
+    NONE,
     // best, but requires cube sizes
     DIAGONAL,
     // OK, doesn't require handling unaligned corner case

@@ -581,7 +581,7 @@ def stockham_global(factors, **kwargs):
                             threads_per_block=params.threads_per_block,
                             scheme=tiling_enum_to_str(tiling),
                             use_3steps_large_twd=use_3steps,
-                            pool=None),
+                            transpose=None),
                     body=body)
 
 

@@ -68,29 +68,28 @@ bool PlanPowX(ExecPlan& execPlan)
     {
         if(node->scheme == CS_KERNEL_STOCKHAM)
         {
-            auto krn
-                = function_pool::get_kernel(node->precision, {node->length[0], CS_KERNEL_STOCKHAM});
+            auto kernel    = function_pool::get_kernel(fpkey(node->length[0], node->precision));
             node->twiddles = twiddles_create(node->length[0],
                                              node->precision,
                                              false,
                                              LTWD_BASE_DEFAULT,
                                              false,
                                              false,
-                                             krn.factors);
+                                             kernel.factors);
             if(node->twiddles == nullptr)
                 return false;
         }
         else if(node->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
         {
-            auto krn       = function_pool::get_kernel(node->precision,
-                                                 {node->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC});
+            auto kernel = function_pool::get_kernel(
+                fpkey(node->length[0], node->precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
             node->twiddles = twiddles_create(node->length[0],
                                              node->precision,
                                              false,
                                              LTWD_BASE_DEFAULT,
                                              false,
                                              false,
-                                             krn.factors);
+                                             kernel.factors);
             if(node->twiddles == nullptr)
                 return false;
         }
@@ -181,9 +180,9 @@ bool PlanPowX(ExecPlan& execPlan)
             for(size_t j = 1; j < execPlan.execSeq[i]->length.size(); j++)
                 batch *= execPlan.execSeq[i]->length[j];
 
-            FFTKernel kernel
-                = function_pool::get_kernel(execPlan.execSeq[0]->precision,
-                                            {execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM});
+            auto kernel = function_pool::get_kernel(
+                fpkey(execPlan.execSeq[i]->length[0], execPlan.execSeq[0]->precision));
+
             ptr = kernel.device_function;
             if(kernel.threads_per_block > 0)
             {
@@ -203,11 +202,11 @@ bool PlanPowX(ExecPlan& execPlan)
         break;
         case CS_KERNEL_STOCKHAM_BLOCK_CC:
         {
-            FFTKernel kernel = function_pool::get_kernel(
-                execPlan.execSeq[0]->precision,
-                {execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_CC});
-            ptr    = kernel.device_function;
-            gp.b_x = ((execPlan.execSeq[i]->length[1]) - 1) / kernel.batches_per_block + 1;
+            auto kernel = function_pool::get_kernel(fpkey(execPlan.execSeq[i]->length[0],
+                                                          execPlan.execSeq[0]->precision,
+                                                          CS_KERNEL_STOCKHAM_BLOCK_CC));
+            ptr         = kernel.device_function;
+            gp.b_x      = ((execPlan.execSeq[i]->length[1]) - 1) / kernel.batches_per_block + 1;
             // repeat for higher dimensions + batch
             gp.b_x *= std::accumulate(execPlan.execSeq[i]->length.begin() + 2,
                                       execPlan.execSeq[i]->length.end(),
@@ -217,11 +216,9 @@ bool PlanPowX(ExecPlan& execPlan)
         }
         break;
         case CS_KERNEL_STOCKHAM_BLOCK_RC:
-            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                      ? function_pool::get_function_single(std::make_pair(
-                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC))
-                      : function_pool::get_function_double(std::make_pair(
-                          execPlan.execSeq[i]->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC));
+            ptr = function_pool::get_function(fpkey(execPlan.execSeq[i]->length[0],
+                                                    execPlan.execSeq[0]->precision,
+                                                    CS_KERNEL_STOCKHAM_BLOCK_RC));
             GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
             gp.b_x = (execPlan.execSeq[i]->length[1]) / bwd;
             // repeat for higher dimensions + batch
@@ -242,15 +239,10 @@ bool PlanPowX(ExecPlan& execPlan)
             auto transposeType = sbrc_3D_transpose_type(
                 bwd, execPlan.execSeq[i]->length[2], execPlan.execSeq[i]->length);
 
-            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                      ? function_pool::get_function_single_transpose(
-                          std::make_pair(execPlan.execSeq[i]->length[0],
-                                         CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z),
-                          transposeType)
-                      : function_pool::get_function_double_transpose(
-                          std::make_pair(execPlan.execSeq[i]->length[0],
-                                         CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z),
-                          transposeType);
+            ptr = function_pool::get_function(fpkey(execPlan.execSeq[i]->length[0],
+                                                    execPlan.execSeq[0]->precision,
+                                                    CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z,
+                                                    transposeType));
             break;
         }
         case CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY:
@@ -261,15 +253,11 @@ bool PlanPowX(ExecPlan& execPlan)
                                                             * execPlan.execSeq[i]->length[2],
                                                         execPlan.execSeq[i]->length);
 
-            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                      ? function_pool::get_function_single_transpose(
-                          std::make_pair(execPlan.execSeq[i]->length[0],
-                                         execPlan.execSeq[i]->scheme),
-                          transposeType)
-                      : function_pool::get_function_double_transpose(
-                          std::make_pair(execPlan.execSeq[i]->length[0],
-                                         execPlan.execSeq[i]->scheme),
-                          transposeType);
+            ptr = function_pool::get_function(fpkey(execPlan.execSeq[i]->length[0],
+                                                    execPlan.execSeq[0]->precision,
+                                                    execPlan.execSeq[i]->scheme,
+                                                    transposeType));
+
             GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
             gp.b_x = std::accumulate(execPlan.execSeq[i]->length.begin() + 1,
                                      execPlan.execSeq[i]->length.end(),
@@ -288,15 +276,11 @@ bool PlanPowX(ExecPlan& execPlan)
                                                             * execPlan.execSeq[i]->length[2],
                                                         execPlan.execSeq[i]->length);
 
-            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                      ? function_pool::get_function_single_transpose(
-                          std::make_pair(execPlan.execSeq[i]->length[0],
-                                         execPlan.execSeq[i]->scheme),
-                          transposeType)
-                      : function_pool::get_function_double_transpose(
-                          std::make_pair(execPlan.execSeq[i]->length[0],
-                                         execPlan.execSeq[i]->scheme),
-                          transposeType);
+            ptr = function_pool::get_function(fpkey(execPlan.execSeq[i]->length[0],
+                                                    execPlan.execSeq[0]->precision,
+                                                    execPlan.execSeq[i]->scheme,
+                                                    transposeType));
+
             GetBlockComputeTable(execPlan.execSeq[i]->length[0], bwd, wgs, lds);
             gp.b_x = std::accumulate(execPlan.execSeq[i]->length.begin() + 1,
                                      execPlan.execSeq[i]->length.end(),
@@ -371,15 +355,11 @@ bool PlanPowX(ExecPlan& execPlan)
             break;
         case CS_KERNEL_2D_SINGLE:
         {
-            ptr = (execPlan.execSeq[0]->precision == rocfft_precision_single)
-                      ? function_pool::get_function_single_2D(
-                          std::make_tuple(execPlan.execSeq[i]->length[0],
-                                          execPlan.execSeq[i]->length[1],
-                                          CS_KERNEL_2D_SINGLE))
-                      : function_pool::get_function_double_2D(
-                          std::make_tuple(execPlan.execSeq[i]->length[0],
-                                          execPlan.execSeq[i]->length[1],
-                                          CS_KERNEL_2D_SINGLE));
+
+            ptr = function_pool::get_function(fpkey(execPlan.execSeq[i]->length[0],
+                                                    execPlan.execSeq[i]->length[1],
+                                                    execPlan.execSeq[0]->precision));
+
             // Run one threadblock per transform, since we're
             // combining a row transform and a column transform in
             // one kernel.  The transform must not cross threadblock

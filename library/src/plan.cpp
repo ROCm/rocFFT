@@ -739,9 +739,8 @@ inline size_t get_explicity_supported_factor(rocfft_precision precision, size_t 
     {
         // break into as squarish matrix as possible
         auto supported_factor = [length0, precision = precision](size_t factor) -> bool {
-            bool is_factor = length0 % factor == 0;
-            bool have_kernels
-                = function_pool::has_function(precision, {length0 / factor, CS_KERNEL_STOCKHAM});
+            bool is_factor    = length0 % factor == 0;
+            bool have_kernels = function_pool::has_function(fpkey(length0 / factor, precision));
             return is_factor && have_kernels;
         };
 
@@ -763,7 +762,7 @@ inline size_t get_explicity_supported_factor(rocfft_precision precision, size_t 
 inline bool SupportedLength(rocfft_precision precision, size_t len)
 {
     // do we have an explicit kernel?
-    if(function_pool::has_function(precision, {len, CS_KERNEL_STOCKHAM}))
+    if(function_pool::has_function(fpkey(len, precision)))
         return true;
 
     // can we factor with 2, 3, or 5?  note: all combinations of these
@@ -780,7 +779,7 @@ inline bool SupportedLength(rocfft_precision precision, size_t len)
         return true;
 
     // do we have an explicit kernel for the remainder?
-    if(function_pool::has_function(precision, {p, CS_KERNEL_STOCKHAM}))
+    if(function_pool::has_function(fpkey(p, precision)))
         return true;
 
     // finally, can we factor this length with combinations of existing kernels?
@@ -1030,7 +1029,7 @@ size_t TreeNode::count_3D_SBRC_nodes()
     size_t sbrc_dimensions = 0;
     for(unsigned int i = 0; i < length.size(); ++i)
     {
-        if(function_pool::has_function(precision, {length[i], CS_KERNEL_STOCKHAM_BLOCK_RC}))
+        if(function_pool::has_function(fpkey(length[i], precision, CS_KERNEL_STOCKHAM_BLOCK_RC)))
         {
             if(is_diagonal_sbrc_3D_length(length[i]) && !is_cube_size(length))
                 continue;
@@ -1052,7 +1051,7 @@ bool TreeNode::use_CS_3D_BLOCK_RC()
 
 bool TreeNode::use_CS_KERNEL_TRANSPOSE_Z_XY()
 {
-    if(function_pool::has_function(precision, {length[0], CS_KERNEL_STOCKHAM_BLOCK_RC}))
+    if(function_pool::has_function(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC)))
     {
         size_t bwd, wgs, lds;
         GetBlockComputeTable(length[0], bwd, wgs, lds);
@@ -1500,7 +1499,7 @@ void TreeNode::build_1D()
     }
 
     if(length[0] <= Large1DThreshold(precision)
-       && function_pool::has_function(precision, {length[0], CS_KERNEL_STOCKHAM}))
+       && function_pool::has_function(fpkey(length[0], precision)))
     {
         scheme = CS_KERNEL_STOCKHAM;
         return;
@@ -1712,7 +1711,7 @@ void TreeNode::build_1DBluestein()
 
 void TreeNode::build_1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLength1)
 {
-    if(!function_pool::has_function(precision, {divLength0, CS_KERNEL_STOCKHAM}))
+    if(!function_pool::has_function(fpkey(divLength0, precision)))
     {
         PrintFailInfo(precision, length[0], scheme, divLength0, CS_KERNEL_STOCKHAM);
         assert(false);
@@ -1814,12 +1813,12 @@ void TreeNode::build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength
     //  The kernel CS_KERNEL_STOCKHAM_BLOCK_CC and CS_KERNEL_STOCKHAM_BLOCK_RC
     //  are only enabled for outplace for now. Check more details in generator.file.cpp,
     //  and in generated kernel_lunch_single_large.cpp.h
-    if(!function_pool::has_function(precision, {divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC}))
+    if(!function_pool::has_function(fpkey(divLength1, precision, CS_KERNEL_STOCKHAM_BLOCK_CC)))
     {
         PrintFailInfo(precision, length[0], scheme, divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC);
         assert(false);
     }
-    if(!function_pool::has_function(precision, {divLength0, CS_KERNEL_STOCKHAM_BLOCK_RC}))
+    if(!function_pool::has_function(fpkey(divLength0, precision, CS_KERNEL_STOCKHAM_BLOCK_RC)))
     {
         PrintFailInfo(precision, length[0], scheme, divLength0, CS_KERNEL_STOCKHAM_BLOCK_RC);
         assert(false);
@@ -1833,7 +1832,7 @@ void TreeNode::build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength
 
     // decompose the large twd table for L1D_CC
     // exclude some exceptions that don't get benefit from 3-step LargeTwd (set in FFTKernel)
-    auto krn = function_pool::get_kernel(precision, {divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC});
+    auto krn = function_pool::get_kernel(fpkey(divLength1, precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
     col2colPlan->largeTwd3Steps = krn.use_3steps_large_twd;
     col2colPlan->largeTwdBase   = large_twiddle_base(length[0], col2colPlan->largeTwd3Steps);
 
@@ -1869,12 +1868,12 @@ void TreeNode::build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength
 
 void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLength1)
 {
-    if(!function_pool::has_function(precision, {divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC}))
+    if(!function_pool::has_function(fpkey(divLength1, precision, CS_KERNEL_STOCKHAM_BLOCK_CC)))
     {
         PrintFailInfo(precision, length[0], scheme, divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC);
         assert(false);
     }
-    if(!function_pool::has_function(precision, {divLength0, CS_KERNEL_STOCKHAM}))
+    if(!function_pool::has_function(fpkey(divLength0, precision, CS_KERNEL_STOCKHAM)))
     {
         PrintFailInfo(precision, length[0], scheme, divLength0, CS_KERNEL_STOCKHAM);
         assert(false);
@@ -1888,8 +1887,9 @@ void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLengt
 
     // decompose the large twd table for L1D_CRT
     // exclude some exceptions that don't get benefit from 3-step LargeTwd (set in FFTKernel)
-    auto krn = function_pool::get_kernel(precision, {divLength1, CS_KERNEL_STOCKHAM_BLOCK_CC});
-    col2colPlan->largeTwd3Steps = krn.use_3steps_large_twd;
+    auto kernel
+        = function_pool::get_kernel(fpkey(divLength1, precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
+    col2colPlan->largeTwd3Steps = kernel.use_3steps_large_twd;
     col2colPlan->largeTwdBase   = large_twiddle_base(length[0], col2colPlan->largeTwd3Steps);
 
     col2colPlan->length.push_back(divLength1);
@@ -1940,7 +1940,7 @@ void TreeNode::build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLengt
 
 void TreeNode::build_CS_2D_RC()
 {
-    if(!function_pool::has_function(precision, {length[1], CS_KERNEL_STOCKHAM_BLOCK_CC}))
+    if(!function_pool::has_function(fpkey(length[1], precision, CS_KERNEL_STOCKHAM_BLOCK_CC)))
     {
         PrintFailInfo(precision, length[1], scheme, length[1], CS_KERNEL_STOCKHAM_BLOCK_CC);
         assert(false);
@@ -2113,7 +2113,7 @@ void TreeNode::build_CS_3D_BLOCK_RC()
         // if we have an sbrc kernel for this length, use it,
         // otherwise, fall back to row FFT+transpose
         bool have_sbrc = function_pool::has_function(
-            precision, {cur_length.front(), CS_KERNEL_STOCKHAM_BLOCK_RC});
+            fpkey(cur_length.front(), precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
         // ensure the kernel would be tile-aligned
         if(have_sbrc)
         {
@@ -4689,9 +4689,9 @@ void Optimize_STOCKHAM_TRANSPOSE_XY_Z(ExecPlan& execPlan, std::vector<TreeNode*>
         if(stockham1 != execSeq.rend() && (*stockham2)->scheme == CS_KERNEL_STOCKHAM
            && (*transpose2)->scheme == CS_KERNEL_TRANSPOSE_XY_Z
            && (*stockham1)->scheme == CS_KERNEL_STOCKHAM
-           && (function_pool::has_function(
-               (*transpose2)->precision,
-               {(*transpose2)->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC})) // kernel available
+           && (function_pool::has_function(fpkey((*transpose2)->length[0],
+                                                 (*transpose2)->precision,
+                                                 CS_KERNEL_STOCKHAM_BLOCK_RC))) // kernel available
            && ((*transpose2)->length[0]
                == (*transpose2)->length[2]) // limit to original "cubic" case
            && ((*transpose2)->length[0] / 2 + 1 == (*transpose2)->length[1])
@@ -4723,9 +4723,9 @@ void Optimize_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY(ExecPlan&               execPla
     {
         auto stockham = r_to_cmplx_transpose + 1;
         if((*stockham)->scheme == CS_KERNEL_STOCKHAM
-           && (function_pool::has_function(
-               (*stockham)->precision,
-               {(*stockham)->length[0], CS_KERNEL_STOCKHAM_BLOCK_RC})) // kernel available
+           && (function_pool::has_function(fpkey((*stockham)->length[0],
+                                                 (*stockham)->precision,
+                                                 CS_KERNEL_STOCKHAM_BLOCK_RC))) // kernel available
            && ((*stockham)->length[0] * 2
                == (*stockham)->length[1]) // limit to original "cubic" case
            && (((*stockham)->length.size() == 2)
