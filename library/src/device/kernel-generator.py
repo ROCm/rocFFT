@@ -773,10 +773,11 @@ def cli():
     # return the necessary include files to cmake
     #
     if args.command == 'list':
-        scprint(list_old_generated_kernels(patterns=patterns,
+        
+        scprint(set(list_old_generated_kernels(patterns=patterns,
                                            precisions=precisions,
                                            num_small_kernel_groups=args.groups)
-                + list_generated_kernels(new_kernels))
+                    + list_generated_kernels(new_kernels)))
         return
 
     if args.command == 'generate':
