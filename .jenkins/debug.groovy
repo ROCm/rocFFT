@@ -15,6 +15,7 @@ def runCI =
 
     def prj  = new rocProject('rocFFT-internal', 'Debug')
 
+    prj.defaults.ccache = true
     prj.timeout.compile = 600
     prj.timeout.test = 600
 
