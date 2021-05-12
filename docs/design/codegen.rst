@@ -281,3 +281,55 @@ To emit code, each node must implement ``__str__``.  For example:
     class Add(BaseNode):
         def __str__(self):
             return ' + '.join([ str(x) for x in self.args ])
+
+
+Stockham tiling implementation
+------------------------------
+
+To support tiling, the *global* function is responsible for loading
+data from global memory into LDS memory in a tiled manner.  Once in
+LDS memory, a singly strided *device* function performs an
+interleaved, in-place FFT entirely within LDS.
+
+Polymorphism will be used to abstract tiling strategies.  Different
+tiling strategies should extend the ``StockhamTiling`` object and
+overload the ``load_from_global`` and ``store_to_global`` methods.
+
+For example:
+
+.. code-block:: python
+
+    tiling = StockhamTilingRR()
+    scheme = StockhamDeviceKernelUWide()
+
+    body = StatementList()
+    body += tiling.compute_offsets(...)
+    body += tiling.load_from_global(out=lds, in=global_buffer)
+    body += scheme.fft(lds)
+    body += tiling.store_to_global(out=global_buffer, in=lds)
+
+Different tiling strategies may require new template parameters and/or
+function arguments.  Tiling strategies can manipulate these through
+the
+
+* ``add_templates``,
+* ``add_global_arguments``,
+* ``add_device_arguments``, and
+* ``add_device_call_arguments``
+
+methods.  Each of these methods is passed a ``TemplateList`` or
+``ArgumentList`` argument, and should return a new template/argument
+list with any extra parameters added.
+
+
+Large twiddle tables
+--------------------
+
+Device kernels may need to apply additional twiddles during their
+execution.  These extra twiddle tables are implemented similarly to
+tiling.  Different twiddle table strategies should extend the
+``StockhamLargeTwiddles`` object and overload the ``load`` and
+``multiply`` methods.
+
+Twiddle tables may also require additional templates and arguments.
+See :ref:`Stockham tiling implementation`.
