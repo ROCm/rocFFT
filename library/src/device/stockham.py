@@ -233,15 +233,6 @@ def stockham_wide_device(factors, **kwargs):
 
     height0 = length // max(factors)
 
-    def load_global():
-        stmts = StatementList()
-        stmts += Assign(thread, thread_id % height0)
-        stmts += LineBreak()
-        for b in range(max(factors)):
-            idx = thread + b * height0
-            stmts += Assign(X[offset_lds + idx], LoadGlobal(Z, offset + idx))
-        return stmts
-
     def load_lds():
         stmts = StatementList()
         stmts += Assign(thread, thread_id % height0 + nsubpass * height0)
@@ -278,17 +269,6 @@ def stockham_wide_device(factors, **kwargs):
         stmts += LineBreak()
         return stmts
 
-
-    def store_global():
-        stmts = StatementList()
-        stmts += SyncThreads()
-        stmts += Assign(thread, thread_id % height0)
-        for b in range(max(factors)):
-            idx = thread + b * height0
-            stmts += StoreGlobal(Z, offset + idx, X[offset_lds + idx])
-        return stmts
-
-
     def add_work(codelet):
         if nsubpasses == 1 or nsubpass < nsubpasses - 1:
             return codelet()
@@ -300,9 +280,6 @@ def stockham_wide_device(factors, **kwargs):
     body += Declarations(thread, R, W, t)
     body += CallbackDeclaration()
     #body += Declaration(stride0, Ternary(unit_stride, 1, stride))
-    body += LineBreak()
-    body += CommentLines('load global')
-    body += load_global()
     body += LineBreak()
     body += SyncThreads()
     body += LineBreak()
