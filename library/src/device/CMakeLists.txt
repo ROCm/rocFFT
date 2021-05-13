@@ -148,8 +148,19 @@ set( gen_headers_single ${gen_headers} )
 list( FILTER gen_headers_single INCLUDE REGEX single )
 set( gen_headers_double ${gen_headers} )
 list( FILTER gen_headers_double INCLUDE REGEX double )
+set( gen_function_pool ${gen_headers} )
+list( FILTER gen_function_pool INCLUDE REGEX function_pool )
+
+if( GENERATOR_PRECISION STREQUAL "single" )
+  list( APPEND gen_headers_single ${gen_function_pool} )
+elseif( GENERATOR_PRECISION STREQUAL "double" )
+  list( APPEND gen_headers_double ${gen_function_pool} )
+else()
+  list( APPEND gen_headers_single ${gen_function_pool} )
+endif()
+
 set( gen_headers_misc ${gen_headers} )
-list( FILTER gen_headers_misc EXCLUDE REGEX single|double )
+list( FILTER gen_headers_misc EXCLUDE REGEX single|double|function_pool )
 # add non-generated stuff to misc
 list( APPEND gen_headers_misc ${rocfft_device_source} ${relative_rocfft_device_headers_public} )
 
