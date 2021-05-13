@@ -482,8 +482,11 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
     const size_t size_elems = compute_size(length_cm, stride_cm, batch, dist);
 
     size_t base_type_size = (precision == rocfft_precision_double) ? sizeof(double) : sizeof(float);
-    // assume complex elements for now
-    base_type_size *= 2;
+    if(type != rocfft_array_type_real)
+    {
+        // complex elements
+        base_type_size *= 2;
+    }
 
     size_t size_bytes = size_elems * base_type_size;
     // convert length, stride to row-major for use with printbuffer
@@ -493,7 +496,7 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
     std::reverse(stride_rm.begin(), stride_rm.end());
     std::vector<std::vector<char>> bufvec;
     std::vector<size_t>            print_offset(2, offset);
-    if(type == rocfft_array_type_complex_planar || type == rocfft_array_type_hermitian_planar)
+    if(array_type_is_planar(type))
     {
         // separate the real/imag data, so printbuffer will print them separately
         bufvec.resize(2);
