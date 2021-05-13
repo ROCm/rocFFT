@@ -78,7 +78,7 @@ if( BUILD_CLIENTS_SAMPLES )
 endif( )
 
 if( BUILD_CLIENTS_TESTS  OR BUILD_CLIENTS_SELFTEST )
-  find_package( GTest )
+  find_package( GTest 1.10.0 )
   if( NOT GTEST_FOUND)
     include( ExternalProject )
     ExternalProject_Add( gtest
