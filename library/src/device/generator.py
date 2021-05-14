@@ -310,27 +310,33 @@ class StatementList(BaseNode):
         return len(self.args)
 
 
-@name_args(['name', 'type', 'size', 'value', 'post_qualifier'])
+@name_args(['name', 'type', 'value'])
+class InlineDeclaration(BaseNode):
+    def __str__(self):
+        s = f'{self.type} {self.name}'
+        if self.value is not None:
+            s += f' = {self.value}'
+        return s
+
+
+@name_args(['name', 'type', 'size', 'value', 'shared'])
 class Declaration(BaseNode):
     def __str__(self):
-        s = f'{self.type} {self.post_qualifier} {self.name}'
+        s = ''
+        if self.size == 'dynamic':
+            s += 'extern '
+        if self.shared:
+            s += '__shared__ '
+        s += f'{self.type} {self.name}'
         if self.size is not None:
-            s += f'[{self.size}]'
+            if self.size == 'dynamic':
+                s += f'[]'
+            else:
+                s += f'[{self.size}]'
         if self.value is not None:
             s += f' = {self.value}'
         s += ';'
         return s
-
-    def __post_init__(self):
-        if self.post_qualifier is None:
-            self.post_qualifier = ''
-
-
-class CallbackDeclaration(BaseNode):
-    def __str__(self):
-        ret = 'auto load_cb = get_load_cb<scalar_type,cbtype>(load_cb_fn);'
-        ret += 'auto store_cb = get_store_cb<scalar_type,cbtype>(store_cb_fn);'
-        return ret
 
 
 def Declarations(*args):
@@ -588,7 +594,7 @@ class ArrayElement(BaseNodeOps):
         return str(self.variable) + '[' + str(self.index) + ']'
 
 
-@name_args(['name', 'type', 'size', 'array', 'restrict', 'value', 'post_qualifier'])
+@name_args(['name', 'type', 'size', 'array', 'restrict', 'value', 'post_qualifier', 'shared'])
 class Variable(BaseNodeOps):
 
     @property
@@ -604,8 +610,11 @@ class Variable(BaseNodeOps):
 
     def declaration(self):
         if self.size is not None:
-            return Declaration(self.name, self.type, size=self.size, value=self.value, post_qualifier=self.post_qualifier)
-        return Declaration(self.name, self.type, value=self.value, post_qualifier=self.post_qualifier)
+            return Declaration(self.name, self.type, size=self.size, value=self.value, shared=self.shared)
+        return Declaration(self.name, self.type, value=self.value, shared=self.shared)
+
+    def inline(self, value):
+        return InlineDeclaration(self.name, self.type, value)
 
     def argument(self):
         if self.array:
@@ -613,6 +622,9 @@ class Variable(BaseNodeOps):
         if self.value is not None:
             return f'{self.type} {self.post_qualifier} {self.name} = {self.value}'
         return f'{self.type} {self.post_qualifier} {self.name}'
+
+    def inline(self, value):
+        return InlineDeclaration(self.name, self.type, value)
 
     def __str__(self):
         return str(self.name)
