@@ -114,6 +114,15 @@ option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" ON )
 
 option( WERROR "Treat warnings as errors" OFF )
 
+option(BUILD_ADDRESS_SANITIZER "Build with address sanitizer enabled" OFF)
+
+if(BUILD_ADDRESS_SANITIZER)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -shared-libasan")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -shared-libasan")
+  add_link_options(-fuse-ld=lld)
+endif()
+
+
 if( WERROR )
   set( WARNING_FLAGS -Wall -Wno-unused-function -Werror )
 else( )
