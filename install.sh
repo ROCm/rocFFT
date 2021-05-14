@@ -272,6 +272,7 @@ pattern_arg=false
 precision_arg=false
 manual_small_arg=false
 manual_large_arg=false
+build_sanitizer=false
 
 # #################################################
 # Parameter parsing
@@ -415,7 +416,7 @@ pushd .
 cmake_common_options=""
 cmake_client_options=""
 
-if ($build_sanitizer); then
+if [[ "${build_sanitizer}" == true ]]; then
     cmake_common_options="$cmake_common_options -DBUILD_ADDRESS_SANITIZER=ON"
 fi
 
