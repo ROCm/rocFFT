@@ -276,9 +276,8 @@ void workmem_test(workmem_sizer sizer,
 {
     rocfft_setup();
 
-    // choose a length that should require a transpose (and hence
-    // work memory)
-    size_t      length = 8192;
+    // Prime size requires Bluestein, which guarantees work memory.
+    size_t      length = 8191;
     rocfft_plan plan   = NULL;
 
     ASSERT_EQ(rocfft_plan_create(&plan,

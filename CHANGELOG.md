@@ -9,6 +9,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Fixed
 - Fixed potential crashes in double-precision planar->planar transpose.
+- Fixed potential crashes in 3D transforms with unusual strides, for
+  SBCC-optimized sizes.
+- Improved buffer placement logic.
 
 ### Added
 - Added new kernel generator for select lengths.  New kernels have
@@ -24,10 +27,6 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Optimizations
 - Optimized 2D/3D R2C 100 and 1D Z2Z 2500.
 - Reduced number of kernels for 2D/3D sizes where higher dimension is 64, 128, 256.
-
-### Fixed
-- Fixed potential crashes in 3D transforms with unusual strides, for
-  SBCC-optimized sizes.
 
 ## [(Unreleased) rocFFT 1.0.11 for ROCm 4.2.0]
 
