@@ -865,10 +865,9 @@ void TreeNode::RecursiveBuildTree()
 
     case 3:
     {
-        if(count_3D_SBRC_nodes() == 3 && is_cube_size(length))
+        if(use_CS_3D_RC())
         {
-            // Optimal case for SBRC 3D
-            scheme = CS_3D_BLOCK_RC;
+            scheme = CS_3D_RC;
         }
         else if(MultiDimFuseKernelsAvailable)
         {
@@ -882,22 +881,28 @@ void TreeNode::RecursiveBuildTree()
         }
         else
         {
-            scheme = CS_3D_RTRT;
+            // if we can get down to 3 or 4 kernels via SBRC, prefer that
+            if(use_CS_3D_BLOCK_RC())
+                scheme = CS_3D_BLOCK_RC;
+            else
+                scheme = CS_3D_RTRT;
 
-            // NB:
-            // Try to build the 1st child but not really add it in. Switch to
-            // CS_3D_TRTRTR if the 1st child is CS_2D_RTRT.(Any better idea?)
-            auto child0       = TreeNode::CreateNode(this);
-            child0->length    = length;
-            child0->dimension = 2;
-            child0->RecursiveBuildTree();
-            if(child0->scheme == CS_2D_RTRT)
+            if(scheme == CS_3D_RTRT)
             {
-                // if we can get down to 3 or 4 kernels via SBRC, prefer that
-                if(use_CS_3D_BLOCK_RC())
-                    scheme = CS_3D_BLOCK_RC;
-                else
+                // NB:
+                // Peek the 1st child but not really add it in.
+                // Give up if 1st child is 2D_RTRT (means the poor RTRT_TRT)
+                // Switch to TRTRTR as the last resort.
+                auto child0       = TreeNode::CreateNode(this);
+                child0->length    = length;
+                child0->dimension = 2;
+                child0->RecursiveBuildTree();
+                if(child0->scheme == CS_2D_RTRT)
+                {
                     scheme = CS_3D_TRTRTR;
+                }
+                // if we are here, the 2D sheme is either
+                // 2D_SINGLE+TRT or 2D_RC+TRT
             }
         }
 
@@ -920,37 +925,7 @@ void TreeNode::RecursiveBuildTree()
         break;
         case CS_3D_RC:
         {
-            // 2d fft
-            auto xyPlan = TreeNode::CreateNode(this);
-
-            xyPlan->length.push_back(length[0]);
-            xyPlan->length.push_back(length[1]);
-            xyPlan->dimension = 2;
-            xyPlan->length.push_back(length[2]);
-
-            for(size_t index = 3; index < length.size(); index++)
-            {
-                xyPlan->length.push_back(length[index]);
-            }
-
-            xyPlan->RecursiveBuildTree();
-            childNodes.emplace_back(std::move(xyPlan));
-
-            // z col fft
-            auto zPlan = TreeNode::CreateNode(this);
-
-            zPlan->length.push_back(length[2]);
-            zPlan->dimension = 1;
-            zPlan->length.push_back(length[0]);
-            zPlan->length.push_back(length[1]);
-
-            for(size_t index = 3; index < length.size(); index++)
-            {
-                zPlan->length.push_back(length[index]);
-            }
-
-            zPlan->scheme = CS_KERNEL_3D_STOCKHAM_BLOCK_CC;
-            childNodes.emplace_back(std::move(zPlan));
+            build_CS_3D_RC();
         }
         break;
         case CS_KERNEL_3D_SINGLE:
@@ -1013,8 +988,8 @@ bool TreeNode::use_CS_2D_RC()
     //   on upper bound for 2D SBCC cases, and even should not limit to pow
     //   of 2.
 
-    std::set<int> sbcc_support = {50, 64, 81, 100, 128, 200, 256};
-    if((sbcc_support.find(length[1]) != sbcc_support.end()) && (length[0] >= 64))
+    std::set<int> sbcc_support = {50, 64, 81, 100, 128, 200, 256, 336};
+    if((sbcc_support.find(length[1]) != sbcc_support.end()) && (length[0] >= 56))
     {
         return true;
     }
@@ -1029,9 +1004,6 @@ size_t TreeNode::count_3D_SBRC_nodes()
     {
         if(function_pool::has_function(fpkey(length[i], precision, CS_KERNEL_STOCKHAM_BLOCK_RC)))
         {
-            if(is_diagonal_sbrc_3D_length(length[i]) && !is_cube_size(length))
-                continue;
-
             // make sure the SBRC kernel on that dimension would be tile-aligned
             size_t bwd, wgs, lds;
             GetBlockComputeTable(length[i], bwd, wgs, lds);
@@ -1044,7 +1016,60 @@ size_t TreeNode::count_3D_SBRC_nodes()
 
 bool TreeNode::use_CS_3D_BLOCK_RC()
 {
+    // TODO: SBRC hasn't worked for inner batch (i/oDist == 1)
+    if(iDist == 1 || oDist == 1)
+        return false;
+
     return count_3D_SBRC_nodes() >= 2;
+}
+
+bool TreeNode::use_CS_3D_RC()
+{
+    // TODO: SBCC hasn't worked for inner batch (i/oDist == 1)
+    if(iDist == 1 || oDist == 1)
+        return false;
+
+    try
+    {
+        // Check the C part.
+        // The first R is built recursively with 2D_FFT, leave the check part to themselves
+        auto krn
+            = function_pool::get_kernel(fpkey(length[2], precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
+
+        // hack for this special case
+        // this size is rejected by the following conservative threshold (#-elems)
+        // however it can use 3D_RC and get much better performance
+        std::vector<size_t> special_case{56, 336, 336};
+        if(length == special_case && precision == rocfft_precision_double)
+            return true;
+
+        // x-dim should be >= the blockwidth, or it might perform worse..
+        if(length[0] < krn.batches_per_block)
+            return false;
+        // we don't want a too-large 3D block, sbcc along z-dim might be bad
+        if((length[0] * length[1] * length[2]) >= (128 * 128 * 128))
+            return false;
+
+        // Peek the first child
+        // Give up if 1st child is 2D_RTRT (means the poor RTRT_C),
+        auto child0       = TreeNode::CreateNode(this);
+        child0->length    = length;
+        child0->dimension = 2;
+        child0->RecursiveBuildTree();
+        if(child0->scheme == CS_2D_RTRT)
+            return false;
+
+        // if we are here, the 2D sheme is either
+        // 2D_SINGLE+CC (2 kernels) or 2D_RC+CC (3 kernels),
+        assert(child0->scheme == CS_KERNEL_2D_SINGLE || child0->scheme == CS_2D_RC);
+        return true;
+    }
+    catch(...)
+    {
+        return false;
+    }
+
+    return false;
 }
 
 bool TreeNode::use_CS_KERNEL_TRANSPOSE_Z_XY()
@@ -1496,6 +1521,7 @@ void TreeNode::build_1D()
         return;
     }
 
+    // single: limit up to 4096, double: up to 2048
     if(length[0] <= Large1DThreshold(precision)
        && function_pool::has_function(fpkey(length[0], precision)))
     {
@@ -1534,7 +1560,9 @@ void TreeNode::build_1D()
                     failed = true;
                 }
             }
-            scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CS_L1D_CC : CS_L1D_CRT;
+            // up to 256cc + 256rc for the 1arge-1D, use CRT for even larger
+            scheme = (length[0] <= 65536) ? CS_L1D_CC : CS_L1D_CRT;
+            // scheme = (length[0] <= 65536 / PrecisionWidth(precision)) ? CS_L1D_CC : CS_L1D_CRT;
         }
         else
         {
@@ -2117,11 +2145,7 @@ void TreeNode::build_CS_3D_BLOCK_RC()
         {
             size_t bwd, wgs, lds;
             GetBlockComputeTable(cur_length[0], bwd, wgs, lds);
-            if(cur_length[1] * cur_length[2] % bwd != 0)
-                have_sbrc = false;
-
-            // require cube size for diagonal transpose
-            if(is_diagonal_sbrc_3D_length(cur_length.front()) && !is_cube_size(cur_length))
+            if(cur_length[2] % bwd != 0)
                 have_sbrc = false;
         }
         if(have_sbrc)
@@ -2166,6 +2190,44 @@ void TreeNode::build_CS_3D_BLOCK_RC()
         std::swap(cur_length[2], cur_length[1]);
         std::swap(cur_length[1], cur_length[0]);
     }
+}
+
+void TreeNode::build_CS_3D_RC()
+{
+    // 2d fft
+    auto xyPlan = TreeNode::CreateNode(this);
+
+    xyPlan->length.push_back(length[0]);
+    xyPlan->length.push_back(length[1]);
+    xyPlan->dimension = 2;
+    xyPlan->length.push_back(length[2]);
+
+    for(size_t index = 3; index < length.size(); index++)
+    {
+        xyPlan->length.push_back(length[index]);
+    }
+
+    xyPlan->RecursiveBuildTree();
+    childNodes.emplace_back(std::move(xyPlan));
+
+    // z col fft
+    auto zPlan = TreeNode::CreateNode(this);
+
+    // make this always inplace, and let the previous one follow the root's placement
+    zPlan->placement = rocfft_placement_inplace;
+    zPlan->length.push_back(length[2]);
+    zPlan->dimension = 1;
+    zPlan->length.push_back(length[0]);
+    zPlan->length.push_back(length[1]);
+
+    for(size_t index = 3; index < length.size(); index++)
+    {
+        zPlan->length.push_back(length[index]);
+    }
+
+    // zPlan->scheme = CS_KERNEL_3D_STOCKHAM_BLOCK_CC;
+    zPlan->scheme = CS_KERNEL_STOCKHAM_BLOCK_CC;
+    childNodes.emplace_back(std::move(zPlan));
 }
 
 struct TreeNode::TraverseState

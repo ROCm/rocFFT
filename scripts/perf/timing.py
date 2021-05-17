@@ -154,7 +154,7 @@ def radix_size_generator(xmin, ymin, zmin,
 def problem_file_size_generator(problem_file, dimension):
     f = open(problem_file, 'r')
     for line in f:
-        if line.startswith('#'):
+        if line.startswith('#') or line.isspace():
             continue
         nbatch = None
         lengthBatch = line.replace(' ','').split(',nbatch=')

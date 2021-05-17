@@ -30,6 +30,8 @@ from generator import (ArgumentList, BaseNode, Call, CommentBlock, ExternC, Func
 
 import stockham
 
+supported_large = [50, 64, 81, 100, 128, 200, 256, 336]
+old_gen_supported_large = [50, 64, 81, 100, 128, 200, 256]
 
 #
 # CMake helpers
@@ -144,9 +146,8 @@ def supported_small_sizes(precision, pow2=True, pow3=True, pow5=True, commonRadi
 def supported_large_sizes(precision):
     """Return list of 1D large block kernels."""
 
-    lengths = [50, 64, 81, 100, 128, 200, 256]
-    return product(lengths, ['CS_KERNEL_STOCKHAM_BLOCK_CC',
-                             'CS_KERNEL_STOCKHAM_BLOCK_RC'])
+    return product(supported_large, ['CS_KERNEL_STOCKHAM_BLOCK_CC',
+                                     'CS_KERNEL_STOCKHAM_BLOCK_RC'])
 
 
 def supported_2d_sizes(precision):
@@ -562,7 +563,8 @@ def list_new_large_kernels():
         NS(length=100, factors=[5, 5, 4],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
         NS(length=128, factors=[8, 4, 4],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
         NS(length=200, factors=[8, 5, 5],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
-        NS(length=256, factors=[4, 4, 4, 4], use_3steps_large_twd={'sp': 'true',  'dp': 'true'})
+        NS(length=256, factors=[4, 4, 4, 4], use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
+        NS(length=336, factors=[6, 7, 8],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'})
     ]
 
     # for SBCC kernel, increase desired threads_per_block so that columns per
@@ -758,6 +760,10 @@ def cli():
     for p in precisions:
         expand_sizes['small'][p], new_smalls = pick(expand_sizes['small'][p], supported_new_small_kernels)
         expand_sizes['large'][p], new_larges = pick(expand_sizes['large'][p], supported_new_large_kernels, subtract_from_all=False)
+        # remove unsupported length in old_gen
+        for length, __ in expand_sizes['large'][p].items():
+            if length not in old_gen_supported_large:
+                del expand_sizes['large'][p][length]
         new_small_kernels = merge_length(new_small_kernels, new_smalls)
         new_large_kernels = merge_length(new_large_kernels, new_larges)
 

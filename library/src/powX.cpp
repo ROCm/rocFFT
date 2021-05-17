@@ -439,8 +439,8 @@ static float max_memory_bandwidth_GB_per_s()
 {
     // Try to get the device bandwidth from an environment variable:
     char* pdevbw = NULL;
-    pdevbw = getenv ("ROCFFT_DEVICE_BW");
-    if (pdevbw != NULL)
+    pdevbw       = getenv("ROCFFT_DEVICE_BW");
+    if(pdevbw != NULL)
     {
         return atof(pdevbw);
     }

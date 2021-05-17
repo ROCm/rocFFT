@@ -2,6 +2,17 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
+## [(Unreleased) rocFFT 1.0.13 for ROCm 4.4.0]
+
+### Optimizations
+- Optimized scheme selection for 3D problems.
+  - Imposed less restrictions on 3D_BLOCK_RC selection. More problems can use 3D_BLOCK_RC and
+    have some performance gain.
+  - Enabled 3D_RC. Some 3D problems with SBCC-supported z-dim can use less kernels and get benefit.
+  - Force --length 336 336 56 (dp) use faster 3D_RC to avoid it from being skipped by conservative
+    threshold test.
+
+
 ## [(Unreleased) rocFFT 1.0.12 for ROCm 4.3.0]
 
 ### Changed
