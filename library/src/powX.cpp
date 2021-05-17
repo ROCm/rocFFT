@@ -437,6 +437,15 @@ static float execution_bandwidth_GB_per_s(size_t data_size_bytes, float duration
 // might also return 0.0 if the bandwidth can't be queried.
 static float max_memory_bandwidth_GB_per_s()
 {
+    // Try to get the device bandwidth from an environment variable:
+    char* pdevbw = NULL;
+    pdevbw = getenv ("ROCFFT_DEVICE_BW");
+    if (pdevbw != NULL)
+    {
+        return atof(pdevbw);
+    }
+
+    // Try to get the device bandwidth from hip calls:
     int deviceid = 0;
     hipGetDevice(&deviceid);
     int max_memory_clock_kHz = 0;
