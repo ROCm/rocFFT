@@ -343,9 +343,14 @@ def graph_dirs(dirs, title, docdir):
         outfile.write('''<td><b>{} specs:</b><br/><pre>'''.format(
             os.path.basename(os.path.normpath(d)))
         )
-        specs = open(os.path.join(d, 'specs.txt'))
-        for line in specs:
-            outfile.write(line)
+        specs_path = os.path.join(d, 'specs.txt')
+        try:
+            with open(specs_path) as specs:
+              for line in specs:
+                  outfile.write(line)
+        except FileNotFoundError:
+            outfile.write("N/A")
+
         outfile.write('''</pre></td>''')
     outfile.write('''</tr></table><br/><table>''')
 
