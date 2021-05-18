@@ -4580,6 +4580,84 @@ static rocfft_result_placement EffectivePlacement(OperatingBuffer         obIn,
     return obIn == obOut ? rocfft_placement_inplace : rocfft_placement_notinplace;
 }
 
+void Optimize_Transpose_With_Strides(ExecPlan& execPlan, std::vector<TreeNode*>& execSeq)
+{
+    // If this is a stockham fft that does multiple rows in one
+    // kernel, followed by a 2d transpose, adjust output strides to
+    // replace the transpose.  Multiple rows will ensure that the
+    // transposed column writes are coalesced.
+    for(auto it = execSeq.begin(); it != execSeq.end(); ++it)
+    {
+        auto stockham = *it;
+        if(stockham->scheme != CS_KERNEL_STOCKHAM)
+            continue;
+
+        size_t wgs, numTrans;
+        DetermineSizes(stockham->length[0], wgs, numTrans);
+        if(numTrans < 2)
+            continue;
+
+        auto next = it + 1;
+        if(next == execSeq.end())
+            break;
+        auto transpose = *next;
+        if(transpose->scheme == CS_KERNEL_TRANSPOSE
+           && stockham->length == transpose->length
+           // can't get rid of a transpose that also does twiddle multiplication
+           && transpose->large1D == 0
+           // This is a transpose, which must be out-of-place
+           && EffectivePlacement(stockham->obIn, transpose->obOut, execPlan.rootPlan->placement)
+                  == rocfft_placement_notinplace)
+        {
+            stockham->outStride = transpose->outStride;
+            std::swap(stockham->outStride[0], stockham->outStride[1]);
+            stockham->obOut        = transpose->obOut;
+            stockham->outArrayType = transpose->outArrayType;
+            stockham->placement    = rocfft_placement_notinplace;
+            stockham->oDist        = transpose->oDist;
+            RemoveNode(execPlan, transpose);
+        }
+    }
+
+    // Similarly, if we have a 2D transpose followed by a stockham
+    // fft that does multiple rows in one kernel, adjust input
+    // strides to replace the transpose.  Multiple rows will ensure
+    // that the transposed column reads are coalesced.
+    for(auto it = execSeq.begin(); it != execSeq.end(); ++it)
+    {
+        auto transpose = *it;
+        // can't get rid of a transpose that also does twiddle multiplication
+        if(transpose->scheme != CS_KERNEL_TRANSPOSE || transpose->large1D != 0)
+            continue;
+
+        auto next = it + 1;
+        if(next == execSeq.end())
+            break;
+        auto stockham = *next;
+
+        if(stockham->scheme != CS_KERNEL_STOCKHAM)
+            continue;
+
+        size_t wgs, numTrans;
+        DetermineSizes(stockham->length[0], wgs, numTrans);
+        if(numTrans < 2)
+            continue;
+
+        // This is a transpose, which must be out-of-place
+        if(EffectivePlacement(transpose->obIn, stockham->obOut, execPlan.rootPlan->placement)
+           == rocfft_placement_notinplace)
+        {
+            stockham->inStride = transpose->inStride;
+            std::swap(stockham->inStride[0], stockham->inStride[1]);
+            stockham->obIn        = transpose->obIn;
+            stockham->inArrayType = transpose->inArrayType;
+            stockham->placement   = rocfft_placement_notinplace;
+            stockham->iDist       = transpose->iDist;
+            RemoveNode(execPlan, transpose);
+        }
+    }
+}
+
 void Optimize_R_TO_CMPLX_TRANSPOSE(ExecPlan& execPlan, std::vector<TreeNode*>& execSeq)
 {
     // combine R_TO_CMPLX and following transpose
@@ -4783,6 +4861,7 @@ static void OptimizePlan(ExecPlan& execPlan)
         Optimize_STOCKHAM_TRANSPOSE_Z_XY,
         Optimize_STOCKHAM_TRANSPOSE_XY_Z,
         Optimize_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY,
+        Optimize_Transpose_With_Strides,
     };
     for(auto pass : passes)
     {
