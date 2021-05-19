@@ -3726,8 +3726,6 @@ void TreeNode::assign_params_CS_L1D_TRTRT()
     }
     else
     {
-        trans1Plan->transTileDir = TTD_IP_VER;
-
         if(parent->scheme == CS_L1D_TRTRT)
         {
             trans1Plan->outStride.push_back(outStride[0]);
@@ -3803,8 +3801,6 @@ void TreeNode::assign_params_CS_L1D_TRTRT()
     }
     else
     {
-        trans2Plan->transTileDir = TTD_IP_VER;
-
         if((parent == NULL) || (parent && (parent->scheme == CS_L1D_TRTRT)))
         {
             trans2Plan->outStride.push_back(outStride[0]);
@@ -3876,9 +3872,6 @@ void TreeNode::assign_params_CS_L1D_TRTRT()
             }
         }
     }
-
-    if(trans3Plan->obOut != OB_TEMP)
-        trans3Plan->transTileDir = TTD_IP_VER;
 
     trans3Plan->inStride = row2Plan->outStride;
     trans3Plan->iDist    = row2Plan->oDist;
@@ -4522,7 +4515,6 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
         os << "unset";
         break;
     }
-    os << "\n" << indentStr.c_str() << "TTD: " << transTileDir;
     os << "\n" << indentStr.c_str() << "large1D: " << large1D;
     os << "\n" << indentStr.c_str() << "largeTwdBase: " << largeTwdBase;
     os << "\n" << indentStr.c_str() << "lengthBlue: " << lengthBlue << "\n";

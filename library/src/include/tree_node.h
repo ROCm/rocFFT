@@ -99,12 +99,6 @@ enum ComputeScheme
     CS_KERNEL_3D_SINGLE
 };
 
-enum TransTileDir
-{
-    TTD_IP_HOR,
-    TTD_IP_VER,
-};
-
 class TreeNode
 {
 private:
@@ -180,9 +174,6 @@ public:
     // FIXME: document
     ComputeScheme   scheme = CS_NONE;
     OperatingBuffer obIn = OB_UNINIT, obOut = OB_UNINIT;
-
-    // FIXME: document
-    TransTileDir transTileDir = TTD_IP_HOR;
 
     // FIXME: document
     size_t lengthBlue = 0;
