@@ -4522,6 +4522,10 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     os << indentStr << PrintOperatingBuffer(obIn) << " -> " << PrintOperatingBuffer(obOut) << "\n";
     os << indentStr << PrintOperatingBufferCode(obIn) << " -> " << PrintOperatingBufferCode(obOut)
        << "\n";
+    for(const auto& c : comments)
+    {
+        os << indentStr << "comment: " << c << "\n";
+    }
 
     if(childNodes.size())
     {
@@ -4676,6 +4680,8 @@ void Optimize_R_TO_CMPLX_TRANSPOSE(ExecPlan& execPlan, std::vector<TreeNode*>& e
             assert(r_to_cmplx->placement == rocfft_placement_notinplace);
             r_to_cmplx->outStride = transpose->outStride;
             r_to_cmplx->oDist     = transpose->oDist;
+            r_to_cmplx->comments.push_back("fused " + PrintScheme(CS_KERNEL_R_TO_CMPLX)
+                                           + " and following " + PrintScheme(transpose->scheme));
             RemoveNode(execPlan, transpose);
         }
     }
@@ -4724,6 +4730,9 @@ void Optimize_TRANSPOSE_CMPLX_TO_R(ExecPlan& execPlan, std::vector<TreeNode*>& e
             (*cmplx_to_r)->inStride    = (*transpose)->inStride;
             (*cmplx_to_r)->length      = (*transpose)->length;
             (*cmplx_to_r)->iDist       = (*transpose)->iDist;
+            (*cmplx_to_r)
+                ->comments.push_back("fused " + PrintScheme(CS_KERNEL_CMPLX_TO_R)
+                                     + " and preceding " + PrintScheme((*transpose)->scheme));
             RemoveNode(execPlan, *transpose);
         }
     }
@@ -4757,6 +4766,10 @@ void Optimize_STOCKHAM_TRANSPOSE_Z_XY(ExecPlan& execPlan, std::vector<TreeNode*>
             assert((*stockham)->placement == rocfft_placement_notinplace);
             (*stockham)->outStride = (*transpose)->outStride;
             (*stockham)->oDist     = (*transpose)->oDist;
+
+            (*stockham)->comments.push_back("fused " + PrintScheme(CS_KERNEL_STOCKHAM)
+                                            + " and following "
+                                            + PrintScheme((*transpose)->scheme));
             RemoveNode(execPlan, *transpose);
         }
     }
@@ -4796,6 +4809,9 @@ void Optimize_STOCKHAM_TRANSPOSE_XY_Z(ExecPlan& execPlan, std::vector<TreeNode*>
             (*stockham2)->inArrayType = (*stockham2)->outArrayType;
             (*stockham2)->placement   = rocfft_placement_inplace;
 
+            (*transpose2)
+                ->comments.push_back("fused " + PrintScheme(CS_KERNEL_TRANSPOSE_XY_Z)
+                                     + " and preceding " + PrintScheme((*stockham1)->scheme));
             RemoveNode(execPlan, *stockham1);
         }
     }
@@ -4836,6 +4852,10 @@ void Optimize_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY(ExecPlan&               execPla
                 (*stockham)->inStride.push_back((*stockham)->inStride[1]);
                 (*stockham)->outStride.push_back((*stockham)->outStride[1]);
             }
+
+            (*stockham)->comments.push_back("fused " + PrintScheme(CS_KERNEL_STOCKHAM)
+                                            + " and following "
+                                            + PrintScheme((*r_to_cmplx_transpose)->scheme));
 
             // NB:
             //   Don't remove "*stockham" kernel beacause the combined 2 twiddle tables

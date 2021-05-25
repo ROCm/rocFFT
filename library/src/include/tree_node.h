@@ -186,6 +186,10 @@ public:
     // callback parameters
     UserCallbacks callbacks;
 
+    // comments inserted by optimization passes to explain changes done
+    // to the node
+    std::vector<std::string> comments;
+
 public:
     // Disallow copy constructor:
     TreeNode(const TreeNode&) = delete;
