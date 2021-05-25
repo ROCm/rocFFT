@@ -27,6 +27,13 @@ This is illustrated in the following figure.
 
    **Forward and Backward Real FFTs**
 
+.. note::
+
+   Real backward FFTs require that the input data be
+   Hermitian-symmetric, as would naturally happen in the output of a
+   real forward FFT.  rocFFT will produce undefined results if
+   this requirement is not met.
+
 Let us consider a 1D real FFT of length :math:`N`. The full output looks as shown in following figure.
 
 .. figure:: ./images/realfft_1dlen.jpg

@@ -244,6 +244,13 @@ There are two main types of FFTs in the library:
   * Real data being subject to forward FFT that results in complex data (Hermitian).
   * Complex data (Hermitian) being subject to backward FFT that results in real data.
 
+.. note::
+
+   Real backward FFTs require that the input data be
+   Hermitian-symmetric, as would naturally happen in the output of a
+   real forward FFT.  rocFFT will produce undefined results if
+   this requirement is not met.
+
 The library provides the :cpp:enum:`rocfft_transform_type` and
 :cpp:enum:`rocfft_array_type` enums to specify transform and array
 types, respectively.
