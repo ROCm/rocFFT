@@ -37,6 +37,7 @@ struct real_type<hipDoubleComplex>
 template <class T>
 using real_type_t = typename real_type<T>::type;
 
+#include "../../library/src/device/kernels/callback.h"
 #include "butterfly_template.h"
 
 //
@@ -120,6 +121,45 @@ pair<float, vector<hipComplex>> fft_fftw(vector<hipComplex> const& x, int nx, in
     return {timer.elapsed(), move(z)};
 }
 
+pair<float, vector<hipDoubleComplex>>
+    fft_fftw(vector<hipDoubleComplex> const& x, int nx, int ny, int nbatch)
+{
+    // std::cout << "Complex Double" << std::endl;
+    auto z = copy(x);
+    // clang-format off
+    int n[2] = { ny, nx };
+    auto p = fftw_plan_many_dft(2, n, nbatch,
+                                (fftw_complex*) z.data(), nullptr, 1, nx*ny,
+                                (fftw_complex*) z.data(), nullptr, 1, nx*ny,
+                                FFTW_FORWARD, FFTW_ESTIMATE);
+    // clang-format on
+    CPUTimer timer;
+    timer.tic();
+    fftw_execute(p);
+    timer.toc();
+    fftw_destroy_plan(p);
+    return {timer.elapsed(), move(z)};
+}
+
+pair<float, vector<hipComplex>> fft_fftw(vector<hipComplex> const& x, int nx, int ny, int nbatch)
+{
+    // std::cout << "Complex Single" << std::endl;
+    auto z = copy(x);
+    // clang-format off
+    int n[2] = { ny, nx };
+    auto p = fftwf_plan_many_dft(2, n, nbatch,
+                                (fftwf_complex*) z.data(), nullptr, 1, nx*ny,
+                                (fftwf_complex*) z.data(), nullptr, 1, nx*ny,
+                                FFTW_FORWARD, FFTW_ESTIMATE);
+    // clang-format on
+    CPUTimer timer;
+    timer.tic();
+    fftwf_execute(p);
+    timer.toc();
+    fftwf_destroy_plan(p);
+    return {timer.elapsed(), move(z)};
+}
+
 //
 // Stockham
 //
@@ -188,15 +228,13 @@ tuple<float, float, vector<T>> fft_stockham_gpu(vector<T> const& x, int nx, int 
 
     GPUTimer total;
     total.tic();
-    vector<int> factors;
-
-    factors = GENERATED_FACTORS;
+    vector<vector<int>> factors = GENERATED_FACTORS;
 
     int* d_factors;
-    HIP_CHECK(hipMalloc(&d_factors, factors.size() * sizeof(int)));
-    HIP_CHECK(
-        hipMemcpy(d_factors, factors.data(), factors.size() * sizeof(int), hipMemcpyHostToDevice));
-    stockham_twiddles<<<1, nx - 1>>>(nx - 1, twiddles, factors.size(), d_factors);
+    HIP_CHECK(hipMalloc(&d_factors, factors[0].size() * sizeof(int)));
+    HIP_CHECK(hipMemcpy(
+        d_factors, factors[0].data(), factors[0].size() * sizeof(int), hipMemcpyHostToDevice));
+    stockham_twiddles<<<1, nx - 1>>>(nx - 1, twiddles, factors[0].size(), d_factors);
     HIP_CHECK(hipFree(d_factors));
 
     if(false)
@@ -228,6 +266,78 @@ tuple<float, float, vector<T>> fft_stockham_gpu(vector<T> const& x, int nx, int 
             times.push_back(timer.elapsed());
         if(n == 0)
             HIP_CHECK(hipMemcpy(z.data(), X, nx * nbatch * sizeof(T), hipMemcpyDeviceToHost));
+    }
+    total.toc();
+
+    HIP_CHECK(hipFree(d_kargs));
+    HIP_CHECK(hipFree(twiddles));
+    HIP_CHECK(hipFree(X));
+
+    return {average(times), total.elapsed(), move(z)};
+}
+
+template <typename T>
+tuple<float, float, vector<T>> fft_stockham_gpu(vector<T> const& x, int nx, int ny, int nbatch)
+{
+    vector<float> times;
+    int           ntrials = 1;
+
+    auto z = copy(x);
+
+    T* X;
+    HIP_CHECK(hipMalloc(&X, nx * ny * nbatch * sizeof(T)));
+    HIP_CHECK(hipMemcpy(X, z.data(), nx * ny * nbatch * sizeof(T), hipMemcpyHostToDevice));
+
+    // to be consistent with rocFFT; use nx and ny instead of nx-1 and ny-1 for twiddle tables
+    T* twiddles;
+    HIP_CHECK(hipMalloc(&twiddles, (nx + ny) * sizeof(T)));
+
+    GPUTimer total;
+    total.tic();
+    vector<vector<int>> factors = GENERATED_FACTORS;
+
+    int* d_factors;
+    HIP_CHECK(hipMalloc(&d_factors, max(factors[0].size(), factors[1].size()) * sizeof(int)));
+    HIP_CHECK(hipMemcpy(
+        d_factors, factors[0].data(), factors[0].size() * sizeof(int), hipMemcpyHostToDevice));
+    stockham_twiddles<<<1, nx - 1>>>(nx - 1, twiddles, factors[0].size(), d_factors);
+    HIP_CHECK(hipMemcpy(
+        d_factors, factors[1].data(), factors[1].size() * sizeof(int), hipMemcpyHostToDevice));
+    stockham_twiddles<<<1, ny - 1>>>(ny - 1, twiddles + nx, factors[1].size(), d_factors);
+    HIP_CHECK(hipFree(d_factors));
+
+    if(false)
+    {
+        vector<T> t(nx - 1);
+        HIP_CHECK(hipMemcpy(t.data(), twiddles, t.size() * sizeof(T), hipMemcpyDeviceToHost));
+        for(int i = 0; i < nx - 1; ++i)
+            cout << i << " " << t[i].x << " " << t[i].y << endl;
+    }
+
+    size_t* d_kargs;
+    size_t  kargs[5];
+    HIP_CHECK(hipMalloc(&d_kargs, 3 * sizeof(size_t)));
+
+    kargs[0] = nx; // passed to global function as "lengths[0]"
+    kargs[1] = ny; // passed to global function as "lengths[1]"
+    kargs[2] = 1; // passed to global function as "stride[0]"
+    kargs[3] = nx; // passed to global function as "stride[1]"
+    kargs[4] = nx * ny; // passed to global function as "stride[2]"
+
+    HIP_CHECK(hipMemcpy(d_kargs, kargs, 5 * sizeof(size_t), hipMemcpyHostToDevice));
+
+    GPUTimer timer;
+    for(int n = 0; n <= ntrials; ++n)
+    {
+        timer.tic();
+        // 1,1 means unit-stride (TODO: arbitrary stride)
+        GENERATED_KERNEL_LAUNCH(X, nbatch, twiddles, d_kargs, 1, 1);
+
+        timer.toc();
+        if(n > 0)
+            times.push_back(timer.elapsed());
+        if(n == 0)
+            HIP_CHECK(hipMemcpy(z.data(), X, nx * ny * nbatch * sizeof(T), hipMemcpyDeviceToHost));
     }
     total.toc();
 
@@ -291,20 +401,47 @@ void test1d(size_t n, size_t nbatch)
     cout << "TFLOPS:          " << nbatch * 5 * n * log(n) / log(2.0) / (1e9 * t2) << endl;
 }
 
+template <typename T>
+void test2d(size_t nx, size_t ny, size_t nbatch)
+{
+    double GiB = double(nx * ny * nbatch * sizeof(T)) / 1024 / 1024 / 1024;
+    double GB  = double(nx * ny * nbatch * sizeof(T)) / 1000 / 1000 / 1000;
+
+    cout << "# 2d test" << endl;
+    cout << "2d input length: " << nx << "x" << ny << " (" << nbatch << ")" << endl;
+    cout << "2d input size:   " << GiB << " GiB" << endl;
+    cout << "2d input size:   " << GB << " GB" << endl;
+
+    auto x = random_vector<T>(nx * ny * nbatch);
+
+    auto [t1, z1] = fft_fftw(x, nx, ny, nbatch);
+    cout << "FFTW time:       " << t1 << " ms" << endl;
+
+    auto [t2, t2t, z2] = fft_stockham_gpu(x, nx, ny, nbatch);
+
+    cout << "GPU rel diff:    " << compare(z1, z2) << endl;
+    cout << "GPU kernel time: " << t2 << " ms (average)" << endl;
+    cout << "GPU throughput:  " << GiB * 1000 / t2 << " GiB/s one-way" << endl;
+    cout << "GPU throughput:  " << GB * 1000 / t2 << " GB/s one-way" << endl;
+    cout << "GPU throughput:  " << 2 * GiB * 1000 / t2 << " GiB/s two-way" << endl;
+    cout << "GPU throughput:  " << 2 * GB * 1000 / t2 << " GB/s two-way" << endl;
+}
+
 int main(int argc, char* argv[])
 {
-    size_t length = 256;
-    size_t nbatch = 1;
-    size_t single = 1;
-    if(argc > 1)
-        length = stoi(argv[1]);
-    if(argc > 2)
-        nbatch = stoi(argv[2]);
-    if(argc > 3)
-        single = stoi(argv[3]);
+    size_t              length  = 256;
+    size_t              nbatch  = 1;
+    vector<vector<int>> factors = GENERATED_FACTORS;
 
-    if(single)
-        test1d<hipComplex>(length, nbatch);
+    if(argc > 1)
+        nbatch = stoi(argv[1]);
+
+    if(factors.size() == 2)
+    {
+        test2d<GENERATED_PRECISION>(GENERATED_NX, GENERATED_NY, nbatch);
+    }
     else
-        test1d<hipDoubleComplex>(length, nbatch);
+    {
+        test1d<GENERATED_PRECISION>(GENERATED_NX, nbatch);
+    }
 }

@@ -13,16 +13,31 @@ import stockham
 from generator import njoin, format_and_write
 from functools import reduce
 
+
+def product(factors):
+    return reduce(lambda x, y: x * y, factors)
+
+
 @click.command()
-@click.argument('factors', nargs=-1, type=int)
+@click.option('--one', type=str, help='First dimension comma-separated factors.')
+@click.option('--two', type=str, help='Second dimension comma-separated factors.')
 @click.option('--nbatch', type=int, default=1, help='Number of batches')
 @click.option('--tpb', type=int, default=-1, help='Maximum number of threads per block.')
-@click.option('--flavour', type=str, default='wide', help='Flavour of kernel.')
+@click.option('--tpt', type=int, default=-1, help='Maximum number of threads per transform.')
+@click.option('--flavour', type=str, default='uwide', help='Flavour of kernel(s).')
 @click.option('--manual', type=bool, default=False, is_flag=True, help='I manually modified the thing...')
-@click.option('--single', type=bool, default=False, is_flag=True, help='Single complex data type')
-def generate_and_run(factors, nbatch, manual, tpb, single, flavour):
+@click.option('--single', type=bool, default=False, is_flag=True, help='Single-precision complex data type')
+def generate_and_run(one, two, nbatch, manual, tpb, tpt, single, flavour):
 
-    length = reduce(lambda x, y: x*y, factors)
+    one = [ int(x) for x in one.split(',') ]
+    if two:
+        two = [ int(x) for x in two.split(',') ]
+
+    nx = product(one)
+    if two:
+        ny = product(two)
+    else:
+        ny = 1
 
     # run the generator
     if not manual:
@@ -32,17 +47,40 @@ def generate_and_run(factors, nbatch, manual, tpb, single, flavour):
             kwargs['bytes_per_element'] = 8
         if tpb > 0:
             kwargs['threads_per_block'] = tpb
-        kdevice, kglobal = stockham.stockham(length, factors=factors, scheme='CS_KERNEL_STOCKHAM', **kwargs)
-        klaunch = stockham.stockham_launch(factors, **kwargs)
+        if tpt > 0:
+            kwargs['threads_per_transform'] = tpt
+        if two:
+            kwargs['flavour'] = [flavour, flavour]
+            kdevice, kglobal = stockham.stockham([nx, ny], factors=[one, two], **kwargs)
+            klaunch = stockham.stockham_launch2d([nx, ny], kglobal.meta.params, **kwargs)
+            kernels = [kdevice, kglobal, klaunch]
+        else:
+            kdevice, kglobal = stockham.stockham(nx, factors=one, **kwargs)
+            klaunch = stockham.stockham_launch(one, **kwargs)
         kernels = [kdevice, kglobal, klaunch]
         format_and_write("stockham_generated_kernel.h", njoin([ str(x) for x in kernels ]))
+
+    kname = str(nx)
+    if two:
+        kname = f'{nx}x{ny}'
+
+    dtype = 'hipDoubleComplex'
+    if single:
+        dtype = 'hipComplex'
+
+    factors = '{{' + ','.join([str(x) for x in one]) + '}}'
+    if two:
+        factors = '{{' + ','.join([str(x) for x in one]) + '},{' + ','.join([str(x) for x in two]) + '}}'
 
     # build the runner
     cmd = [ 'hipcc',
             '-std=c++17',
             '-Wno-unused-result',
-            '-DGENERATED_FACTORS={' + ','.join([str(x) for x in factors]) + '}',
-            '-DGENERATED_KERNEL_LAUNCH=forward_length' + str(length) + "_launch",
+            f'-DGENERATED_FACTORS={factors}',
+            f'-DGENERATED_PRECISION={dtype}',
+            f'-DGENERATED_NX={nx}',
+            f'-DGENERATED_NY={ny}',
+            f'-DGENERATED_KERNEL_LAUNCH=forward_length{kname}_launch',
             '-o', 'stockham',
             'stockham.cpp',
             '-lfftw3',
@@ -54,7 +92,7 @@ def generate_and_run(factors, nbatch, manual, tpb, single, flavour):
     subprocess.run(cmd)
 
     # run!
-    cmd = [ './stockham', str(length), str(nbatch), str(1 if single else 0) ]
+    cmd = [ './stockham', str(nbatch) ]
     print('RUNNING:  ', ' '.join(cmd))
     subprocess.run(cmd)
 

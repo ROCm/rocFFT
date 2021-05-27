@@ -355,24 +355,33 @@ bool PlanPowX(ExecPlan& execPlan)
             break;
         case CS_KERNEL_2D_SINGLE:
         {
-
-            ptr = function_pool::get_function(fpkey(execPlan.execSeq[i]->length[0],
-                                                    execPlan.execSeq[i]->length[1],
-                                                    execPlan.execSeq[0]->precision));
-
-            // Run one threadblock per transform, since we're
-            // combining a row transform and a column transform in
-            // one kernel.  The transform must not cross threadblock
-            // boundaries, or else we are unable to make the row
-            // transform finish completely before starting the column
-            // transform.
-            gp.b_x = execPlan.execSeq[i]->batch;
+            auto kernel = function_pool::get_kernel(fpkey(execPlan.execSeq[i]->length[0],
+                                                          execPlan.execSeq[i]->length[1],
+                                                          execPlan.execSeq[0]->precision));
+            ptr         = kernel.device_function;
+            if(!kernel.factors.empty())
+            {
+                // when old generator goes away, we will always have factors
+                gp.b_x = (execPlan.execSeq[i]->batch + kernel.batches_per_block - 1)
+                         / kernel.batches_per_block;
+                gp.tpb_x = kernel.threads_per_block;
+            }
+            else
+            {
+                // Run one threadblock per transform, since we're
+                // combining a row transform and a column transform in
+                // one kernel.  The transform must not cross threadblock
+                // boundaries, or else we are unable to make the row
+                // transform finish completely before starting the column
+                // transform.
+                gp.b_x   = execPlan.execSeq[i]->batch;
+                gp.tpb_x = Get2DSingleThreadCount(
+                    execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->length[1], GetWGSAndNT);
+            }
             // if we're doing 3D transform, we need to repeat the 2D
             // transform in the 3rd dimension
             if(execPlan.execSeq[i]->length.size() > 2)
                 gp.b_x *= execPlan.execSeq[i]->length[2];
-            gp.tpb_x = Get2DSingleThreadCount(
-                execPlan.execSeq[i]->length[0], execPlan.execSeq[i]->length[1], GetWGSAndNT);
             break;
         }
         case CS_KERNEL_APPLY_CALLBACK:

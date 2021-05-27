@@ -21,6 +21,7 @@
 *******************************************************************************/
 
 #include "twiddles.h"
+#include "function_pool.h"
 #include "radix_table.h"
 #include "rocfft_hip.h"
 
@@ -118,21 +119,53 @@ gpubuf twiddles_create(size_t              N,
 template <typename T>
 gpubuf twiddles_create_2D_pr(size_t N1, size_t N2)
 {
-    // create just one twiddle table if we can get away with it
-    if(N1 == N2)
+    auto kernel = function_pool::get_kernel(fpkey(N1, N2, rocfft_precision_single));
+    // when old generator goes away, have_factors will always be true
+    bool have_factors = !kernel.factors.empty();
+
+    std::vector<size_t> radices1, radices2;
+
+    // old: create just one twiddle table if we can get away with it
+    if(!have_factors && N1 == N2)
+    {
         N2 = 0;
-    std::vector<size_t> radices;
+    }
+
+    if(have_factors)
+    {
+        int    count               = 0;
+        size_t cummulative_product = 1;
+        while(cummulative_product != N1)
+        {
+            cummulative_product *= kernel.factors[count++];
+        }
+        radices1.insert(
+            radices1.cbegin(), kernel.factors.cbegin(), kernel.factors.cbegin() + count);
+        radices2.insert(radices2.cbegin(), kernel.factors.cbegin() + count, kernel.factors.cend());
+        if(radices1 == radices2)
+        {
+            N2 = 0;
+        }
+    }
 
     TwiddleTable<T> twTable1(N1);
     TwiddleTable<T> twTable2(N2);
-    // generate twiddles for each dimension separately
-    radices    = GetRadices(N1);
-    auto twtc1 = twTable1.GenerateTwiddleTable(radices);
+
+    if(!have_factors)
+    {
+        // generate twiddles for each dimension separately
+        radices1 = GetRadices(N1);
+        if(N2)
+        {
+            radices2 = GetRadices(N2);
+        }
+    }
+
+    auto twtc1 = twTable1.GenerateTwiddleTable(radices1);
     T*   twtc2 = nullptr;
     if(N2)
     {
-        radices = GetRadices(N2);
-        twtc2   = twTable2.GenerateTwiddleTable(radices);
+        twtc2 = twTable2.GenerateTwiddleTable(radices2);
     }
 
     // glue those two twiddle tables together in one malloc that we

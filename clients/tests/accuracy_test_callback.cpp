@@ -44,6 +44,7 @@ std::vector<std::vector<size_t>> callback_sizes = {
 
     // 2D_SINGLE sizes, small and big
     {16, 8},
+    {32, 32},
     {9, 81},
     {27, 81},
     {81, 27},

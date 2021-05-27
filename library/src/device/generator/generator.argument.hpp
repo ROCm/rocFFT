@@ -38,13 +38,14 @@ struct support_bitwise_enum<EPredefineType> : std::true_type
 class generator_argument
 {
 public:
-    size_t              group_num     = 8;
-    EPrecision          precision     = EPrecision::ALL;
-    EPredefineType      predefineType = EPredefineType::ALL;
-    std::vector<size_t> manualSize;
-    std::vector<size_t> manualSizeLarge;
-    std::set<size_t>    validManualSize;
-    std::set<size_t>    validManualSizeLarge;
+    size_t                              group_num     = 8;
+    EPrecision                          precision     = EPrecision::ALL;
+    EPredefineType                      predefineType = EPredefineType::ALL;
+    std::vector<size_t>                 manualSize;
+    std::vector<size_t>                 manualSizeLarge;
+    std::set<size_t>                    validManualSize;
+    std::set<size_t>                    validManualSizeLarge;
+    std::set<std::pair<size_t, size_t>> validManual2D;
 
     void init_precision(const std::vector<std::string>& argString)
     {
@@ -146,6 +147,11 @@ public:
         return validManualSizeLarge.size() > 0;
     }
 
+    bool has_manual_2D_size() const
+    {
+        return validManual2D.size() > 0;
+    }
+
     bool check_valid() const
     {
         // no valid precision
@@ -157,7 +163,7 @@ public:
 
         // no any size to gen
         if(predefineType == EPredefineType::NONE && !has_manual_small_size()
-           && !has_manual_large_size())
+           && !has_manual_large_size() && !has_manual_2D_size())
         {
             std::cerr << "No valid sizes to generate!" << std::endl;
             return false;
@@ -196,6 +202,11 @@ public:
         ss << "valid manual large size:";
         for(auto i : validManualSizeLarge)
             ss << " " << i;
+        ss << separator;
+
+        ss << "valid manual 2d size:";
+        for(auto i : validManual2D)
+            ss << " " << i.first << "x" << i.second;
         ss << separator;
 
         ss << "precision:";

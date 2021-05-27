@@ -384,6 +384,9 @@ public:
 // We can define the notify() function as a no-op for our purposes
 inline void notify(const variables_map&) {}
 
+//
+// Parse comma separated list of integers and append to `outVector`.
+//
 void parse_arg_ints(std::string const& inStr, std::vector<size_t>& outVector)
 {
     // std::cout << inStr << std::endl;
@@ -392,6 +395,28 @@ void parse_arg_ints(std::string const& inStr, std::vector<size_t>& outVector)
         ++tok)
     {
         outVector.push_back(std::stoi(tok->str()));
+    }
+}
+
+//
+// Parse comma separated list of integer pairs, separated by 'x', and append to `out`.
+//
+// For example: "32x32,32x64" becomes {{32,32}, {32,64}}.
+//
+void parse_arg_pairs(std::string const& inStr, std::set<std::pair<size_t, size_t>>& out)
+{
+    for(std::sregex_token_iterator tok{inStr.begin(), inStr.end(), vector_delim, -1};
+        tok != std::sregex_token_iterator();
+        ++tok)
+    {
+        auto str = tok->str();
+        auto idx = str.find("x");
+        if(idx != std::string::npos)
+        {
+            size_t nx = std::stoi(str.substr(0, idx));
+            size_t ny = std::stoi(str.substr(idx + 1));
+            out.insert({nx, ny});
+        }
     }
 }
 

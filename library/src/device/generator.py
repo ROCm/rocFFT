@@ -273,6 +273,12 @@ class ArgumentList(BaseNode):
                 args.append(str(x))
         return cjoin(args)
 
+    def set_value(self, name, value):
+        for i, arg in enumerate(self.args):
+            if hasattr(arg, 'name'):
+                if arg.name == name:
+                    self.args[i] = value
+
     def callexpr(self):
         args = []
         for x in self.args:
@@ -472,7 +478,7 @@ class StoreGlobal(BaseNode):
     def __str__(self):
         return f'store_cb({self.args[0]}, {self.args[1]}, {self.args[2]}, store_cb_data, nullptr);'
 
-    
+
 @make_binary('&&')
 class And(BaseNodeOps):
     pass
@@ -773,6 +779,9 @@ class Function(BaseNode):
     def instantiate(self, name, *targs):
         return Using(name, self.name + '<' + cjoin(*targs) + '>')
 
+    def call(self, arguments, templates=None):
+        return Call(name=self.name, arguments=arguments, templates=templates)
+
 
 @name_args(['name', 'arguments', 'templates', 'launch_params'])
 class Call(BaseNode):
@@ -968,19 +977,19 @@ def make_out_of_place(kernel, names):
         if isinstance(x, BaseAssign):
             lhs, rhs = x.lhs, x.rhs
 
-            # traverse rhs
-            if isinstance(rhs, ArrayElement):
-                if rhs.variable in names:
-                    nrhs = depth_first(rhs, input_visitor)
-                    nrhs.args[0] = rhs.variable + '_in'
-                    return Assign(lhs, nrhs)
-
             # on lhs, plain variable
             if isinstance(lhs, Variable):
                 if lhs.name in names:
                     return StatementList(
                         Assign(input_visitor(lhs), depth_first(rhs, input_visitor)),
                         Assign(output_visitor(lhs), depth_first(rhs, output_visitor)))
+
+            # traverse rhs
+            if isinstance(rhs, ArrayElement):
+                if rhs.variable in names:
+                    nrhs = depth_first(rhs, input_visitor)
+                    nrhs.args[0] = rhs.variable + '_in'
+                    return Assign(lhs, nrhs)
 
             # traverse lhs
             if isinstance(lhs, ArrayElement):

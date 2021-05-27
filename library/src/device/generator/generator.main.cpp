@@ -152,6 +152,7 @@ int main(int argc, char* argv[])
     std::string precisionArgStr;
     std::string manualSmallArgStr;
     std::string manualLargeArgStr;
+    std::string manual2DArgStr;
 
     std::vector<std::string> precisionList;
     std::vector<std::string> typeList;
@@ -168,6 +169,8 @@ int main(int argc, char* argv[])
          "Manual 1D small sizes(Separate by comma)")
         ("manual-large", value<std::string>(&manualLargeArgStr),
          "Manual 1D large sizes(Separate by comma)")
+        ("manual-2d", value<std::string>(&manual2DArgStr),
+         "Manual 2D large sizes(Separate by comma and x)")
         ("group,g", value<size_t>(&argument.group_num)->default_value(8),
          "Numbers of kernel launch cpp files for 1D small size");
     // clang-format on
@@ -197,6 +200,11 @@ int main(int argc, char* argv[])
         {
             std::cerr << "No valid manual large sizes!" << std::endl;
         }
+    }
+    if(vm.count("manual-2d"))
+    {
+        // XXX just stick straight into valid...
+        parse_arg_pairs(manual2DArgStr, argument.validManual2D);
     }
     // default type is ALL if not specified, else init_type from arg
     if(vm.count("type"))
@@ -325,44 +333,48 @@ int main(int argc, char* argv[])
     /* =====================================================================
       generate 2D fused kernels
     =================================================================== */
-    // FIXME: make this controllable via cmdline?
-    std::vector<std::tuple<size_t, size_t, ComputeScheme>> support_size_list_2D_single;
-    std::vector<std::tuple<size_t, size_t, ComputeScheme>> support_size_list_2D_double;
+    std::vector<std::tuple<size_t, size_t, ComputeScheme>> support_size_list_2D;
     if(argument.has_predefine_type(EPredefineType::DIM2))
     {
-        // NOTICE: not all sizes in single_2D are supported in double_2D,
-        // for example, single 2D supports 125x25, 25x125, while double doesn't
-        // see kernel_launch_single_2D_pow5.cpp.h and kernel_launch_double_2D_pow5.cpp.h
-        if(argument.has_precision(EPrecision::SINGLE))
-            support_size_list_2D_single = generate_support_size_list_2D(rocfft_precision_single);
-        if(argument.has_precision(EPrecision::DOUBLE))
-            support_size_list_2D_double = generate_support_size_list_2D(rocfft_precision_double);
+        // // NOTICE: not all sizes in single_2D are supported in double_2D,
+        // // for example, single 2D supports 125x25, 25x125, while double doesn't
+        // // see kernel_launch_single_2D_pow5.cpp.h and kernel_launch_double_2D_pow5.cpp.h
+        // if(argument.has_precision(EPrecision::SINGLE))
+        //     support_size_list_2D_single = generate_support_size_list_2D(rocfft_precision_single);
+        // if(argument.has_precision(EPrecision::DOUBLE))
+        //     support_size_list_2D_double = generate_support_size_list_2D(rocfft_precision_double);
 
-        // generated code is all templated so we can generate the largest
-        // number of sizes and decide at runtime whether the
-        // double-precision variants can be used based on available LDS
-        if(argument.has_precision(EPrecision::SINGLE))
+        // // generated code is all templated so we can generate the largest
+        // // number of sizes and decide at runtime whether the
+        // // double-precision variants can be used based on available LDS
+        // if(argument.has_precision(EPrecision::SINGLE))
+        // {
+        //     generate_2D_kernels(support_size_list_2D_single);
+        // }
+        // // but if we want to build double "only", then single list is empty,
+        // // so we build from double list
+        // else
+        // {
+        //     generate_2D_kernels(support_size_list_2D_double);
+        // }
+
+        for(auto i : argument.validManual2D)
         {
-            generate_2D_kernels(support_size_list_2D_single);
+            support_size_list_2D.push_back(std::make_tuple(i.first, i.second, CS_KERNEL_2D_SINGLE));
         }
-        // but if we want to build double "only", then single list is empty,
-        // so we build from double list
-        else
-        {
-            generate_2D_kernels(support_size_list_2D_double);
-        }
+        generate_2D_kernels(support_size_list_2D);
 
         // write 2D fused kernels, list could be empty if the precision is not built
-        write_cpu_function_2D(support_size_list_2D_single, "single");
-        write_cpu_function_2D(support_size_list_2D_double, "double");
+        if(argument.has_precision(EPrecision::SINGLE))
+            write_cpu_function_2D(support_size_list_2D, "single");
+        if(argument.has_precision(EPrecision::DOUBLE))
+            write_cpu_function_2D(support_size_list_2D, "double");
 
         // if build 2D, we need to build the dependent 1D small kernels as well
         // this is essential if not all small sizes are specified in argument
         //
         // double is the subset of single, so we only get from one of them
-        auto dep_1D_sizes = get_dependent_1D_sizes(argument.has_precision(EPrecision::SINGLE)
-                                                       ? support_size_list_2D_single
-                                                       : support_size_list_2D_double);
+        auto dep_1D_sizes = get_dependent_1D_sizes(support_size_list_2D);
 
         for(size_t len_1D : dep_1D_sizes)
         {

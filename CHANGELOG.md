@@ -13,6 +13,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
   - Force --length 336 336 56 (dp) use faster 3D_RC to avoid it from being skipped by conservative
     threshold test.
 
+### Added
+- Added new kernel generator for select fused-2D transforms.
+
 ## [(Unreleased) rocFFT 1.0.12 for ROCm 4.3.0]
 
 ### Changed
