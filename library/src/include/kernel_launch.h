@@ -228,10 +228,20 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
 
 // SBRC has COL_DIM, TRANSPOSE_TYPE template args and is always out-of-place
 #define GET_KERNEL_FUNC_CBTYPE_SBRC(FWD, BACK, PRECISION, COL_DIM, TRANSPOSE_TYPE, CBTYPE) \
-    if(data->node->direction == -1)                                                        \
-        kernel_func = FWD<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE, CBTYPE>;            \
+    if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1)                      \
+    {                                                                                      \
+        if(data->node->direction == -1)                                                    \
+            kernel_func = FWD<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE, CBTYPE>;        \
+        else                                                                               \
+            kernel_func = BACK<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE, CBTYPE>;       \
+    }                                                                                      \
     else                                                                                   \
-        kernel_func = BACK<PRECISION, SB_UNIT, COL_DIM, TRANSPOSE_TYPE, CBTYPE>;
+    {                                                                                      \
+        if(data->node->direction == -1)                                                    \
+            kernel_func = FWD<PRECISION, SB_NONUNIT, COL_DIM, TRANSPOSE_TYPE, CBTYPE>;     \
+        else                                                                               \
+            kernel_func = BACK<PRECISION, SB_NONUNIT, COL_DIM, TRANSPOSE_TYPE, CBTYPE>;    \
+    }
 #define GET_KERNEL_FUNC_SBRC_CB(FWD, BACK, PRECISION, COL_DIM, TRANSPOSE_TYPE, BASE_ARGS, ...) \
     void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr;                          \
     if(data->get_callback_type() == CallbackType::NONE)                                        \
