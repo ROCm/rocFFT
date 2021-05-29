@@ -856,7 +856,8 @@ namespace StockhamGenerator
                         }
                         else
                         {
-                            str += "template <typename T, StrideBin sb, CallbackType cbtype>\n";
+                            str += "template <typename T, StrideBin sb,"
+                                   "CallbackType cbtype>\n";
                         }
 
                         str += "__device__ void \n";
@@ -1166,11 +1167,12 @@ namespace StockhamGenerator
             else if(blockComputeType == BCT_R2C)
             {
                 str += "template <typename T, StrideBin sb, SBRC_TYPE Tsbrc, SBRC_TRANSPOSE_TYPE "
-                       "Ttranspose, CallbackType cbtype>\n";
+                       "Ttranspose, EmbeddedType ebtype, CallbackType cbtype>\n";
             }
             else
             {
-                str += "template <typename T, StrideBin sb, CallbackType cbtype>\n";
+                str += "template <typename T, StrideBin sb, EmbeddedType ebtype, CallbackType "
+                       "cbtype>\n";
             }
 
             str += "__global__ void\n";

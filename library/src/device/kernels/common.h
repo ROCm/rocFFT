@@ -79,6 +79,16 @@ enum StrideBin
     SB_NONUNIT,
 };
 
+enum class EmbeddedType
+{
+    NONE, // Works as the regular complex to complex FFT kernel
+    Real2C_POST, // Works with even-length real2complex post-processing
+    C2Real_PRE, // Works with even-length complex2real pre-processing
+};
+
+// TODO: remove it when deprecate old code-gen
+//
+//
 // NB:
 // SBRC kernels can be used in various scenarios. Instead of tmeplate all
 // combinations, we define/enable the cases in using only. In this way,
