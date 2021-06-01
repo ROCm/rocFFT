@@ -243,7 +243,7 @@ class Timer:
                     outfile.write("\t")
                     outfile.write("\t".join([str(val) for val in length]))
                     outfile.write("\t")
-                    outfile.write(str(self.nbatch))
+                    outfile.write(str(nbatch))
                     outfile.write("\t")
                     outfile.write(str(len(seconds[idx])))
                     for second in seconds[idx]:
