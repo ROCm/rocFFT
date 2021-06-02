@@ -123,9 +123,11 @@ def common_variables(length, params, nregisters):
         #
 
         # lds storage buffer
-        lds = Variable('lds', 'scalar_type',
-                       size=length * params.transforms_per_block,
-                       array=True, restrict=True, shared=True),
+        lds_uchar     = Variable('lds_uchar', 'unsigned char',
+                            size='dynamic',  post_qualifier='__align__(sizeof(scalar_type))',
+                            array=True, shared=True),
+        lds = Variable('lds', 'scalar_type', array=True, restrict=True, pointer=True,
+                       value = 'reinterpret_cast<scalar_type *>(lds_uchar)'), # FIXME: do it in AST properly),
 
         # hip thread block id
         block_id = Variable('blockIdx.x'),
@@ -588,7 +590,7 @@ class StockhamKernel:
             f'  uses {params.threads_per_transform} threads per transform',
             f'  does {params.transforms_per_block} transforms per thread block',
             f'therefore it should be called with {params.threads_per_block} threads per thread block')
-        body += Declarations(kvars.lds,
+        body += Declarations(kvars.lds_uchar, kvars.lds,
                              kvars.offset, kvars.offset_lds, kvars.stride_lds,
                              kvars.batch, kvars.transform, kvars.thread, kvars.write)
         body += Declaration(kvars.stride0.name, kvars.stride0.type,
@@ -897,7 +899,7 @@ class StockhamKernelFused2D(StockhamKernel):
         batch1  = Variable('batch1', 'size_t')
         write   = Variable('write', 'bool')
 
-        body += Declarations(kvars.lds,
+        body += Declarations(kvars.lds_uchar, kvars.lds,
                              kvars.thread, kvars.transform,
                              kvars.offset, kvars.offset_lds, kvars.stride_lds, kvars.write,
                              stride0, batch0, batch1, remaining, plength, d, index_along_d)
