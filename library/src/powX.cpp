@@ -165,11 +165,12 @@ bool PlanPowX(ExecPlan& execPlan)
 
     for(size_t i = 0; i < execPlan.execSeq.size(); i++)
     {
-        DevFnCall ptr = nullptr;
-        GridParam gp;
-        size_t    bwd = 1;
-        size_t    wgs, lds, lds_padding;
-        wgs = lds = lds_padding = 0;
+        DevFnCall    ptr = nullptr;
+        GridParam    gp;
+        size_t       bwd         = 1;
+        size_t       wgs         = 0;
+        size_t       lds         = 0;
+        unsigned int lds_padding = 0;
 
         switch(execPlan.execSeq[i]->scheme)
         {
@@ -402,6 +403,7 @@ bool PlanPowX(ExecPlan& execPlan)
 
         gp.lds_bytes = (lds + lds_padding * bwd) * PrecisionWidth(execPlan.execSeq[0]->precision)
                        * sizeof(float2);
+        execPlan.execSeq[i]->lds_padding = lds_padding;
         execPlan.devFnCall.push_back(ptr);
         execPlan.gridParam.push_back(gp);
     }

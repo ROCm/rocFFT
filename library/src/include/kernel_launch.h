@@ -109,13 +109,13 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
 // base args for out-of-place includes extra strides for output
 #define KERNEL_BASE_ARGS_IP(PRECISION)                                                    \
     const PRECISION* __restrict__, const size_t, const size_t* __restrict__,              \
-        const size_t* __restrict__, const size_t, void* __restrict__, void* __restrict__, \
-        uint32_t, void* __restrict__, void* __restrict__
+        const size_t* __restrict__, const size_t, const unsigned int, void* __restrict__, \
+        void* __restrict__, uint32_t, void* __restrict__, void* __restrict__
 
 #define KERNEL_BASE_ARGS_OP(PRECISION)                                                            \
     const PRECISION* __restrict__, const size_t, const size_t* __restrict__,                      \
-        const size_t* __restrict__, const size_t* __restrict__, const size_t, void* __restrict__, \
-        void* __restrict__, uint32_t, void* __restrict__, void* __restrict__
+        const size_t* __restrict__, const size_t* __restrict__, const size_t, const unsigned int, \
+        void* __restrict__, void* __restrict__, uint32_t, void* __restrict__, void* __restrict__
 
 #define GET_KERNEL_FUNC_CBTYPE(FWD, BACK, PRECISION, EBTYPE, CBTYPE)   \
     if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1)  \
@@ -294,6 +294,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data(),                             \
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->batch,                                         \
+                                   data->node->lds_padding,                                   \
                                    data->callbacks.load_cb_fn,                                \
                                    data->callbacks.load_cb_data,                              \
                                    data->callbacks.load_cb_lds_bytes,                         \
@@ -321,6 +322,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data(),                             \
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->batch,                                         \
+                                   data->node->lds_padding,                                   \
                                    data->callbacks.load_cb_fn,                                \
                                    data->callbacks.load_cb_data,                              \
                                    data->callbacks.load_cb_lds_bytes,                         \
@@ -353,6 +355,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->batch,                                         \
+                                   data->node->lds_padding,                                   \
                                    data->callbacks.load_cb_fn,                                \
                                    data->callbacks.load_cb_data,                              \
                                    data->callbacks.load_cb_lds_bytes,                         \
@@ -383,6 +386,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->batch,                                         \
+                                   data->node->lds_padding,                                   \
                                    data->callbacks.load_cb_fn,                                \
                                    data->callbacks.load_cb_data,                              \
                                    data->callbacks.load_cb_lds_bytes,                         \
@@ -414,6 +418,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->batch,                                         \
+                                   data->node->lds_padding,                                   \
                                    data->callbacks.load_cb_fn,                                \
                                    data->callbacks.load_cb_data,                              \
                                    data->callbacks.load_cb_lds_bytes,                         \
@@ -446,6 +451,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->batch,                                         \
+                                   data->node->lds_padding,                                   \
                                    data->callbacks.load_cb_fn,                                \
                                    data->callbacks.load_cb_data,                              \
                                    data->callbacks.load_cb_lds_bytes,                         \
@@ -494,6 +500,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data(),                             \
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                    batch,                                                     \
+                                   data->node->lds_padding,                                   \
                                    data->callbacks.load_cb_fn,                                \
                                    data->callbacks.load_cb_data,                              \
                                    data->callbacks.load_cb_lds_bytes,                         \
@@ -522,6 +529,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data(),                             \
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                    batch,                                                     \
+                                   data->node->lds_padding,                                   \
                                    data->callbacks.load_cb_fn,                                \
                                    data->callbacks.load_cb_data,                              \
                                    data->callbacks.load_cb_lds_bytes,                         \
@@ -555,6 +563,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
                                    batch,                                                     \
+                                   data->node->lds_padding,                                   \
                                    data->callbacks.load_cb_fn,                                \
                                    data->callbacks.load_cb_data,                              \
                                    data->callbacks.load_cb_lds_bytes,                         \
@@ -586,6 +595,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
                                    batch,                                                     \
+                                   data->node->lds_padding,                                   \
                                    data->callbacks.load_cb_fn,                                \
                                    data->callbacks.load_cb_data,                              \
                                    data->callbacks.load_cb_lds_bytes,                         \
@@ -618,6 +628,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
                                    batch,                                                     \
+                                   data->node->lds_padding,                                   \
                                    data->callbacks.load_cb_fn,                                \
                                    data->callbacks.load_cb_data,                              \
                                    data->callbacks.load_cb_lds_bytes,                         \
@@ -651,6 +662,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                    data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                    data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
                                    batch,                                                     \
+                                   data->node->lds_padding,                                   \
                                    data->callbacks.load_cb_fn,                                \
                                    data->callbacks.load_cb_data,                              \
                                    data->callbacks.load_cb_lds_bytes,                         \
@@ -696,6 +708,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
                                batch,                                                     \
+                               data->node->lds_padding,                                   \
                                data->callbacks.load_cb_fn,                                \
                                data->callbacks.load_cb_data,                              \
                                data->callbacks.load_cb_lds_bytes,                         \
@@ -728,6 +741,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
                                batch,                                                     \
+                               data->node->lds_padding,                                   \
                                data->callbacks.load_cb_fn,                                \
                                data->callbacks.load_cb_data,                              \
                                data->callbacks.load_cb_lds_bytes,                         \
@@ -761,6 +775,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
                                batch,                                                     \
+                               data->node->lds_padding,                                   \
                                data->callbacks.load_cb_fn,                                \
                                data->callbacks.load_cb_data,                              \
                                data->callbacks.load_cb_lds_bytes,                         \
@@ -795,6 +810,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH, \
                                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH, \
                                batch,                                                     \
+                               data->node->lds_padding,                                   \
                                data->callbacks.load_cb_fn,                                \
                                data->callbacks.load_cb_data,                              \
                                data->callbacks.load_cb_lds_bytes,                         \

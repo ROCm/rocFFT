@@ -1215,7 +1215,8 @@ namespace StockhamGenerator
                     str += "_";
                 str += "stride_out, ";
             }
-            str += "const size_t batch_count";
+            str += "const size_t batch_count, ";
+            str += "const unsigned int lds_padding";
             str += DeclareCallbackParams();
             str += ", ";
 
