@@ -44,7 +44,7 @@ function display_help()
     echo "    [--gen-precision] Specify the precision type to generate (single, double, all), default is all"
     echo "    [--manual-small] Additional small sizes list to generate, ='A[,B,C,..]', default is empty "
     echo "    [--manual-large] Additional large sizes list to generate, ='A[,B,C,..]', default is empty "
-    echo "    [--sanitizer] build with address sanitizer enabled"
+    echo "    [--address-sanitizer] build with address sanitizer enabled"
 }
 
 # This function is helpful for dockerfiles that do not have sudo installed, but the
@@ -272,7 +272,7 @@ pattern_arg=false
 precision_arg=false
 manual_small_arg=false
 manual_large_arg=false
-build_sanitizer=false
+build_address_sanitizer=false
 
 # #################################################
 # Parameter parsing
@@ -281,7 +281,7 @@ build_sanitizer=false
 # check if we have a modern version of getopt that can handle whitespace and long parameters
 getopt -T
 if [[ $? -eq 4 ]]; then
-    GETOPT_PARSE=$(getopt --name "${0}" -o 'hidcgr' --long 'help,install,clients,dependencies,debug,hip-clang,prefix:,relocatable,gen-pattern:,gen-precision:,manual-small:,manual-large:,sanitizer' --options hicgdr -- "$@")
+    GETOPT_PARSE=$(getopt --name "${0}" -o 'hidcgr' --long 'help,install,clients,dependencies,debug,hip-clang,prefix:,relocatable,gen-pattern:,gen-precision:,manual-small:,manual-large:,address-sanitizer' --options hicgdr -- "$@")
 else
     echo "Need a new version of getopt"
     exit 1
@@ -318,8 +318,8 @@ while true; do
         --hip-clang)
             build_hip_clang=true
             shift ;;
-        --sanitizer)
-            build_sanitizer=true
+        --address-sanitizer)
+            build_address_sanitizer=true
             shift ;;
         --prefix)
             echo $2
@@ -416,7 +416,7 @@ pushd .
 cmake_common_options=""
 cmake_client_options=""
 
-if [[ "${build_sanitizer}" == true ]]; then
+if [[ "${build_address_sanitizer}" == true ]]; then
     cmake_common_options="$cmake_common_options -DBUILD_ADDRESS_SANITIZER=ON"
 fi
 
