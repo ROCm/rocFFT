@@ -81,7 +81,7 @@ __device__ inline void post_process_interleaved(const size_t    idx_p,
     }
 }
 
-// TODO: merge back to post_process_interleaved()
+// TODO: remove it when deprecate old code-gen
 template <typename T, bool Ndiv4, CallbackType cbtype>
 __device__ inline void post_process_interleaved_inplace(const size_t idx_p,
                                                         const size_t idx_q,
@@ -141,6 +141,94 @@ __device__ inline void post_process_interleaved_inplace(const size_t idx_p,
         outval.x = u.x - v.x * twd_p.y - u.y * twd_p.x;
         outval.y = -v.y + u.y * twd_p.y - v.x * twd_p.x;
         store_cb(inout, offset_base + idx_q, outval, store_cb_data, nullptr);
+    }
+}
+
+// The below 2 functions are only for inplace in lds. So no callback.
+template <typename Tcomplex, bool Ndiv4>
+__device__ inline void real_post_process_kernel_inplace(const size_t    idx_p,
+                                                        const size_t    idx_q,
+                                                        const size_t    quarter_N,
+                                                        Tcomplex*       inout,
+                                                        size_t          offset_base,
+                                                        const Tcomplex* twiddles)
+{
+    if(idx_p < quarter_N)
+    {
+        Tcomplex p = inout[offset_base + idx_p];
+        Tcomplex q = inout[offset_base + idx_q];
+
+        if(idx_p == 0)
+        {
+            inout[offset_base + idx_p].x = p.x + p.y;
+            inout[offset_base + idx_p].y = 0;
+
+            inout[offset_base + idx_q].x = p.x - p.y;
+            inout[offset_base + idx_q].y = 0;
+
+            if(Ndiv4)
+            {
+                inout[offset_base + quarter_N].y = -inout[offset_base + quarter_N].y;
+            }
+        }
+        else
+        {
+            const Tcomplex u = 0.5 * (p + q);
+            const Tcomplex v = 0.5 * (p - q);
+
+            const Tcomplex twd_p = twiddles[idx_p];
+            // NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y);
+
+            inout[offset_base + idx_p].x = u.x + v.x * twd_p.y + u.y * twd_p.x;
+            inout[offset_base + idx_p].y = v.y + u.y * twd_p.y - v.x * twd_p.x;
+
+            inout[offset_base + idx_q].x = u.x - v.x * twd_p.y - u.y * twd_p.x;
+            inout[offset_base + idx_q].y = -v.y + u.y * twd_p.y - v.x * twd_p.x;
+        }
+    }
+}
+
+template <typename Tcomplex, bool Ndiv4>
+__device__ inline void real_pre_process_kernel_inplace(const size_t    idx_p,
+                                                       const size_t    idx_q,
+                                                       const size_t    quarter_N,
+                                                       Tcomplex*       inout,
+                                                       size_t          offset_base,
+                                                       const Tcomplex* twiddles)
+{
+    if(idx_p < quarter_N)
+    {
+        Tcomplex p = inout[offset_base + idx_p];
+        Tcomplex q = inout[offset_base + idx_q];
+
+        if(idx_p == 0)
+        {
+            // NB: multi-dimensional transforms may have non-zero
+            // imaginary part at index 0 or at the Nyquist frequency.
+            inout[offset_base + idx_p].x = p.x - p.y + q.x + q.y;
+            inout[offset_base + idx_p].y = p.x + p.y - q.x + q.y;
+
+            if(Ndiv4)
+            {
+                auto quarter_elem                = inout[offset_base + quarter_N];
+                inout[offset_base + quarter_N].x = 2.0 * quarter_elem.x;
+                inout[offset_base + quarter_N].y = -2.0 * quarter_elem.y;
+            }
+        }
+        else
+        {
+            const Tcomplex u = p + q;
+            const Tcomplex v = p - q;
+
+            const Tcomplex twd_p = twiddles[idx_p];
+            // NB: twd_q = -conj(twd_p);
+
+            inout[offset_base + idx_p].x = u.x + v.x * twd_p.y - u.y * twd_p.x;
+            inout[offset_base + idx_p].y = v.y + u.y * twd_p.y + v.x * twd_p.x;
+
+            inout[offset_base + idx_q].x = u.x - v.x * twd_p.y + u.y * twd_p.x;
+            inout[offset_base + idx_q].y = -v.y + u.y * twd_p.y + v.x * twd_p.x;
+        }
     }
 }
 

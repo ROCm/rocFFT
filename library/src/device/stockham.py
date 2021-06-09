@@ -305,6 +305,43 @@ class StockhamTiling(AdditionalArgumentMixin):
         """Return code to store LDS to global buffer."""
         return StatementList()
 
+    def real2cmplx_pre_post(self, half_N, isPre, param, thread=None, thread_id=None, lds=None,
+            offset_lds=None, twiddles=None, lds_padding=None, embedded_type=None, scalar_type=None,
+            buf=None, offset=None, stride=None, **kwargs):
+        """Return code to handle even-length real to complex pre/post-process in lds."""
+
+        function_name = f'real_pre_process_kernel_inplace' if isPre else f'real_post_process_kernel_inplace'
+        template_type = 'EmbeddedType::C2Real_PRE' if isPre else 'EmbeddedType::Real2C_POST'
+        Ndiv4  = 'true' if half_N % 2 == 0 else 'false'
+        quarter_N = half_N // 2
+        if half_N % 2 == 1:
+            quarter_N += 1
+
+        stmts = StatementList()
+
+        stmts += SyncThreads() # Todo: We might not have to sync here which depends on the access pattern
+        stmts += LineBreak()
+
+        # Todo: For case threads_per_transform == quarter_N, we could save one more "if" in the c2r/r2r kernels
+
+        # if we have fewer threads per transform than quarter_N,
+        # we need to call the pre/post function multiple times
+        r2c_calls_per_transform = quarter_N // param.threads_per_transform
+        if quarter_N % param.threads_per_transform > 0:
+            r2c_calls_per_transform += 1
+        for i in range(r2c_calls_per_transform):
+             stmts += Call(function_name,
+                    templates = TemplateList(scalar_type, Ndiv4),
+                    arguments = ArgumentList(thread % quarter_N + i * param.threads_per_transform,
+                        half_N - thread % quarter_N - i * param.threads_per_transform, quarter_N,
+                        lds[offset_lds].address(),
+                        0, twiddles[half_N].address()),)
+        if (isPre):
+            stmts += SyncThreads()
+            stmts += LineBreak()
+
+        return If(Equal(embedded_type, template_type), stmts)
+
 
 class StockhamTilingRR(StockhamTiling):
     """Row/row tiling."""
@@ -314,7 +351,7 @@ class StockhamTilingRR(StockhamTiling):
     def calculate_offsets(self, length, params,
                           lengths=None, stride=None,
                           dim=None, transform=None, block_id=None, thread_id=None,
-                          batch=None, offset=None, offset_lds=None, **kwargs):
+                          batch=None, offset=None, offset_lds=None, lds_padding=None, **kwargs):
 
         d             = Variable('d', 'int')
         index_along_d = Variable('index_along_d', 'size_t')
@@ -333,14 +370,14 @@ class StockhamTilingRR(StockhamTiling):
                          Assign(offset, offset + index_along_d * stride[d])))
         stmts += Assign(batch, transform / plength)
         stmts += Assign(offset, offset + batch * stride[dim])
-        stmts += Assign(offset_lds, length * B(transform % params.transforms_per_block))
+        stmts += Assign(offset_lds, B(length + lds_padding) * B(transform % params.transforms_per_block))
 
         return stmts
 
     def load_from_global(self, length, params,
                          thread=None, thread_id=None, stride0=None,
                          buf=None, offset=None, lds=None, offset_lds=None,
-                         **kwargs):
+                         embedded_type=None, **kwargs):
         width  = params.threads_per_transform
         height = length // width
         stmts = StatementList()
@@ -348,20 +385,39 @@ class StockhamTilingRR(StockhamTiling):
         for w in range(height):
             idx = thread + w * width
             stmts += Assign(lds[offset_lds + idx], LoadGlobal(buf, offset + B(idx) * stride0))
+
+        stmts += LineBreak()
+        stmts += CommentLines('append extra global loading for C2Real pre-process only')
+        stmts_c2real_pre = StatementList()
+        stmts_c2real_pre += CommentLines('use the last thread of each transform to load one more element per row')
+        stmts_c2real_pre += If(Equal(thread, params.threads_per_transform - 1),
+            Assign(lds[offset_lds + thread + (height - 1) * width + 1],
+            LoadGlobal(buf, offset + B(thread + (height - 1) * width + 1) * stride0)))
+        stmts += If(Equal(embedded_type, 'EmbeddedType::C2Real_PRE'), stmts_c2real_pre)
+
         return stmts
 
     def store_to_global(self, length, params,
                         thread=None, thread_id=None, stride0=None,
                         buf=None, offset=None, lds=None, offset_lds=None,
-                        **kwargs):
+                        embedded_type=None, **kwargs):
         width  = params.threads_per_transform
         height = length // width
         stmts = StatementList()
-        stmts += Assign(thread, thread_id % width)
         for w in range(height):
             idx = thread + w * width
             stmts += StoreGlobal(buf, offset + B(idx) * stride0, lds[offset_lds + idx])
-        return If(thread < width, stmts)
+
+        stmts += LineBreak()
+        stmts += CommentLines('append extra global write for Real2C post-process only')
+        stmts_real2c_post = StatementList()
+        stmts_real2c_post += CommentLines('use the last thread of each transform to write one more element per row')
+        stmts_real2c_post += If(Equal(thread, params.threads_per_transform - 1),
+            StoreGlobal(buf, offset + B(thread + (height - 1) * width + 1) * stride0,
+            lds[offset_lds + thread + (height - 1) * width + 1]))
+        stmts += If(Equal(embedded_type, 'EmbeddedType::Real2C_POST'), stmts_real2c_post)
+
+        return stmts
 
 
 class StockhamTilingCC(StockhamTiling):
@@ -617,6 +673,10 @@ class StockhamKernel:
         body += self.tiling.load_from_global(self.length, params, **kwvars)
 
         body += LineBreak()
+        body += CommentLines('handle even-length real to complex pre-process in lds before transform')
+        body += self.tiling.real2cmplx_pre_post(self.length, True, params, **kwvars)
+
+        body += LineBreak()
         body += CommentLines('transform')
         body += Assign(kvars.write, 'true')
         templates = self.device_call_templates(kvars, **kwvars)
@@ -624,6 +684,10 @@ class StockhamKernel:
         body += Call(f'forward_length{self.length}_{self.tiling.name}_device',
                      arguments=self.device_call_arguments(kvars, **kwvars),
                      templates=templates)
+
+        body += LineBreak()
+        body += CommentLines('handle even-length complex to real post-process in lds after transform')
+        body += self.tiling.real2cmplx_pre_post(self.length, False, params, **kwvars)
 
         body += LineBreak()
         body += CommentLines('store global')
@@ -1118,7 +1182,7 @@ def stockham_launch(factors, **kwargs):
     stride_in     = Variable('stride_in', 'size_t')
     stride_out    = Variable('stride_out', 'size_t')
     nbatch        = Variable('nbatch', 'size_t')
-    lds_padding = Variable('lds_padding', 'unsigned int')
+    lds_padding   = Variable('lds_padding', 'unsigned int')
     kargs         = Variable('kargs', 'size_t*')
 
     # locals
@@ -1151,6 +1215,7 @@ def stockham_launch2d(length, params, **kwargs):
     stride_in   = Variable('stride_in', 'size_t')
     stride_out  = Variable('stride_out', 'size_t')
     nbatch      = Variable('nbatch', 'size_t')
+    lds_padding = Variable('lds_padding', 'unsigned int')
     kargs       = Variable('kargs', 'size_t*')
 
     # locals
@@ -1168,7 +1233,7 @@ def stockham_launch2d(length, params, **kwargs):
 
     return Function(name = f'forward_length{length}_launch',
                     templates = TemplateList(scalar_type),
-                    arguments = ArgumentList(inout, nbatch, twiddles, kargs, stride_in, stride_out),
+                    arguments = ArgumentList(inout, nbatch, lds_padding, twiddles, kargs, stride_in, stride_out),
                     body = body)
 
 

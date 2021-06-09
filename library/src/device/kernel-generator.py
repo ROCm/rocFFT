@@ -648,6 +648,7 @@ def generate_kernel(kernel, precisions):
         Include('<hip/hip_runtime.h>'),
         Include('"kernel_launch.h"'),
         Include('"rocfft_butterfly_template.h"'),
+        Include('"real2complex.h"'),
         LineBreak())
 
     kdevice, kglobal = stockham.stockham(**kernel.__dict__)
