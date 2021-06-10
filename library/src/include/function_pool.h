@@ -124,6 +124,15 @@ public:
         }
     }
 
+    static size_t get_largest_length(rocfft_precision precision)
+    {
+        auto supported = function_pool::get_lengths(precision, CS_KERNEL_STOCKHAM);
+        auto itr       = std::max_element(supported.cbegin(), supported.cend());
+        if(itr != supported.cend())
+            return *itr;
+        return 0;
+    }
+
     static std::vector<size_t> get_lengths(rocfft_precision precision, ComputeScheme scheme)
     {
         function_pool&      func_pool = get_function_pool();

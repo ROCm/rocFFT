@@ -24,6 +24,26 @@
 
 using namespace StockhamGenerator;
 
+// Returns 1 for single-precision, 2 for double precision
+inline size_t PrecisionWidth(rocfft_precision precision)
+{
+    switch(precision)
+    {
+    case rocfft_precision_single:
+        return 1;
+    case rocfft_precision_double:
+        return 2;
+    default:
+        assert(false);
+        return 1;
+    }
+}
+
+inline size_t Large1DThreshold(rocfft_precision precision)
+{
+    return 4096 / PrecisionWidth(precision);
+}
+
 generator_argument argument;
 
 /* =====================================================================

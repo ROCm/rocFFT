@@ -121,10 +121,6 @@ private:
     static const Map1DLength         map1DLengthSingle;
     static const Map1DLength         map1DLengthDouble;
 
-    // Compute divLength1 from Length[0] for non-power-of-two 1D
-    // transform sizes
-    size_t div1DNoPo2(const size_t length0);
-
     // Compute the large twd decomposition base
     size_t large_twiddle_base(size_t length, bool use3Steps);
 

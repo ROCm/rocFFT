@@ -32,24 +32,17 @@
 
 #include "rocfft.h"
 
-// Returns 1 for single-precision, 2 for double precision
-inline size_t PrecisionWidth(rocfft_precision precision)
+inline size_t sizeof_precision(rocfft_precision precision)
 {
     switch(precision)
     {
     case rocfft_precision_single:
-        return 1;
+        return 2 * sizeof(float);
     case rocfft_precision_double:
-        return 2;
-    default:
-        assert(false);
-        return 1;
+        return 2 * sizeof(double);
     }
-}
-
-inline size_t Large1DThreshold(rocfft_precision precision)
-{
-    return 4096 / PrecisionWidth(precision);
+    assert(false);
+    return 0;
 }
 
 #define MAX_WORK_GROUP_SIZE 1024

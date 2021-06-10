@@ -104,11 +104,21 @@ gpubuf twiddles_create(size_t              N,
         assert(largeTwdBase > 0);
 
     if(precision == rocfft_precision_single)
-        return twiddles_create_pr<float2>(
-            N, Large1DThreshold(precision), large, largeTwdBase, no_radices, attach_2N, radices);
+        return twiddles_create_pr<float2>(N,
+                                          function_pool::get_largest_length(precision),
+                                          large,
+                                          largeTwdBase,
+                                          no_radices,
+                                          attach_2N,
+                                          radices);
     else if(precision == rocfft_precision_double)
-        return twiddles_create_pr<double2>(
-            N, Large1DThreshold(precision), large, largeTwdBase, no_radices, attach_2N, radices);
+        return twiddles_create_pr<double2>(N,
+                                           function_pool::get_largest_length(precision),
+                                           large,
+                                           largeTwdBase,
+                                           no_radices,
+                                           attach_2N,
+                                           radices);
     else
     {
         assert(false);

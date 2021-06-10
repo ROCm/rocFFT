@@ -18,6 +18,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Added
 - Added new kernel generator for select fused-2D transforms.
 
+### Fixed
+- Improved large 1D transform decompositions.
+
 ## [rocFFT 1.0.12 for ROCm 4.3.0]
 
 ### Changed
