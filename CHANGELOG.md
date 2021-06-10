@@ -16,7 +16,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Added
 - Added new kernel generator for select fused-2D transforms.
 
-## [(Unreleased) rocFFT 1.0.12 for ROCm 4.3.0]
+## [rocFFT 1.0.12 for ROCm 4.3.0]
 
 ### Changed
   Re-split device code into single-precision, double-precision, and miscellaneous kernels.
@@ -42,7 +42,11 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Optimized 2D/3D R2C 100 and 1D Z2Z 2500.
 - Reduced number of kernels for 2D/3D sizes where higher dimension is 64, 128, 256.
 
-## [(Unreleased) rocFFT 1.0.11 for ROCm 4.2.0]
+### Fixed
+- Fixed potential crashes in 3D transforms with unusual strides, for
+  SBCC-optimized sizes.
+
+## [rocFFT 1.0.11 for ROCm 4.2.0]
 
 ### Changed
   Move device code into main library.
