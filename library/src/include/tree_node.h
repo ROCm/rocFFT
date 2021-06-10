@@ -29,6 +29,7 @@
 
 #include "../../../shared/gpubuf.h"
 #include "../device/kernels/callback.h"
+#include "../device/kernels/common.h"
 #include "kargs.h"
 #include "rocfft_ostream.hpp"
 #include "twiddles.h"
@@ -168,6 +169,9 @@ public:
     // if false, always use 8 as the base (256*256*256....)
     bool largeTwd3Steps = false;
 
+    // embedded C2R/R2C pre/post processing
+    EmbeddedType ebtype = EmbeddedType::NONE;
+
     // Tree structure:
     // non-owning pointer to parent node, may be null
     TreeNode* parent = nullptr;
@@ -225,7 +229,7 @@ public:
     // Real-complex and complex-real node builders:
     void build_real();
     void build_real_embed();
-    void build_real_even_1D();
+    void build_real_even_1D(bool fuse_pre_post_processing = false);
     void build_real_even_2D();
     void build_real_even_3D();
 

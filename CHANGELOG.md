@@ -12,6 +12,8 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
   - Enabled 3D_RC. Some 3D problems with SBCC-supported z-dim can use less kernels and get benefit.
   - Force --length 336 336 56 (dp) use faster 3D_RC to avoid it from being skipped by conservative
     threshold test.
+- Optimized some even-length R2C/C2R cases by doing more operations
+  in-place and combining pre/post processing into Stockham kernels.
 
 ### Added
 - Added new kernel generator for select fused-2D transforms.

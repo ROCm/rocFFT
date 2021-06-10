@@ -117,20 +117,40 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
         const size_t* __restrict__, const size_t* __restrict__, const size_t, const unsigned int, \
         void* __restrict__, void* __restrict__, uint32_t, void* __restrict__, void* __restrict__
 
-#define GET_KERNEL_FUNC_CBTYPE(FWD, BACK, PRECISION, CBTYPE)                       \
-    if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1)              \
-    {                                                                              \
-        if(data->node->direction == -1)                                            \
-            kernel_func = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE>;     \
-        else                                                                       \
-            kernel_func = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE>;    \
-    }                                                                              \
-    else                                                                           \
-    {                                                                              \
-        if(data->node->direction == -1)                                            \
-            kernel_func = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE>;  \
-        else                                                                       \
-            kernel_func = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE>; \
+#define GET_KERNEL_FUNC_CBTYPE(FWD, BACK, PRECISION, CBTYPE)                                 \
+    if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1)                        \
+    {                                                                                        \
+        if(data->node->direction == -1)                                                      \
+        {                                                                                    \
+            if(data->node->ebtype == EmbeddedType::Real2C_POST)                              \
+                kernel_func = FWD<PRECISION, SB_UNIT, EmbeddedType::Real2C_POST, CBTYPE>;    \
+            else                                                                             \
+                kernel_func = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE>;           \
+        }                                                                                    \
+        else                                                                                 \
+        {                                                                                    \
+            if(data->node->ebtype == EmbeddedType::C2Real_PRE)                               \
+                kernel_func = BACK<PRECISION, SB_UNIT, EmbeddedType::C2Real_PRE, CBTYPE>;    \
+            else                                                                             \
+                kernel_func = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE>;          \
+        }                                                                                    \
+    }                                                                                        \
+    else                                                                                     \
+    {                                                                                        \
+        if(data->node->direction == -1)                                                      \
+        {                                                                                    \
+            if(data->node->ebtype == EmbeddedType::Real2C_POST)                              \
+                kernel_func = FWD<PRECISION, SB_NONUNIT, EmbeddedType::Real2C_POST, CBTYPE>; \
+            else                                                                             \
+                kernel_func = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE>;        \
+        }                                                                                    \
+        else                                                                                 \
+        {                                                                                    \
+            if(data->node->ebtype == EmbeddedType::C2Real_PRE)                               \
+                kernel_func = BACK<PRECISION, SB_NONUNIT, EmbeddedType::C2Real_PRE, CBTYPE>; \
+            else                                                                             \
+                kernel_func = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE>;       \
+        }                                                                                    \
     }
 #define GET_KERNEL_FUNC(FWD, BACK, PRECISION, BASE_ARGS, ...)         \
     void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr; \

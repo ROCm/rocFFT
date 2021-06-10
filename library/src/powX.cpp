@@ -74,7 +74,7 @@ bool PlanPowX(ExecPlan& execPlan)
                                              false,
                                              LTWD_BASE_DEFAULT,
                                              false,
-                                             false,
+                                             node->ebtype != EmbeddedType::NONE,
                                              kernel.factors);
             if(node->twiddles == nullptr)
                 return false;
@@ -185,12 +185,14 @@ bool PlanPowX(ExecPlan& execPlan)
                 fpkey(execPlan.execSeq[i]->length[0], execPlan.execSeq[0]->precision));
 
             ptr = kernel.device_function;
+            if(execPlan.execSeq[i]->ebtype != EmbeddedType::NONE)
+                lds_padding = 1;
             if(kernel.threads_per_block > 0)
             {
                 gp.b_x   = (batch + kernel.batches_per_block - 1) / kernel.batches_per_block;
                 gp.tpb_x = kernel.threads_per_block;
 
-                lds = execPlan.execSeq[i]->length[0] * kernel.batches_per_block;
+                lds = (execPlan.execSeq[i]->length[0] + lds_padding) * kernel.batches_per_block;
             }
             else
             {
