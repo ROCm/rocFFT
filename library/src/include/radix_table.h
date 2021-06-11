@@ -154,7 +154,7 @@ inline void DetermineSizes(const size_t& length, size_t& workGroupSize, size_t& 
         return;
     }
 
-    size_t baseRadix[]   = {13, 11, 7, 5, 3, 2}; // list only supported primes
+    size_t baseRadix[]   = {17, 13, 11, 7, 5, 3, 2}; // list only supported primes
     size_t baseRadixSize = sizeof(baseRadix) / sizeof(baseRadix[0]);
 
     size_t                   l = length;
@@ -221,6 +221,11 @@ inline void DetermineSizes(const size_t& length, size_t& workGroupSize, size_t& 
     {
         workGroupSize = 169;
         numTrans      = length >= 13 * workGroupSize ? 1 : (13 * workGroupSize) / length;
+    }
+    else if(primeFactorsExpanded[17] == length) // Length is pure power of 17
+    {
+        workGroupSize = 256;
+        numTrans      = 1;
     }
     else
     {

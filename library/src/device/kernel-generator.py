@@ -135,7 +135,7 @@ def supported_small_sizes(precision, pow2=True, pow3=True, pow5=True, commonRadi
     if commonRadix:
         lengths += [7, 14, 21, 28, 42, 49, 56, 84, 112, 168, 224, 336, 343]
         lengths += [11, 22, 44, 88, 121, 176]
-        lengths += [13, 26, 52, 104, 169, 208]
+        lengths += [13, 17, 26, 52, 104, 169, 208, 272, 528, 1040]
 
     def filter_bound(length):
         return length <= upper_bound[precision]
@@ -474,6 +474,7 @@ def list_new_kernels():
             NS(length=12, factors=[6,2]),
             NS(length=14, factors=[7,2]),
             NS(length=15, factors=[5,3]),
+            NS(length=17, factors=[17]),
 #            NS(length=18, factors=[6,3]),
             NS(length=20, factors=[10,2]),
             NS(length=21, factors=[7,3]),
@@ -523,6 +524,10 @@ def list_new_kernels():
             NS(length=720, factors=[16,5,3,3]),
 #            NS(length=729, factors=[3,3,3,3,3,3]),
             NS(length=960, factors=[16,10,6]),
+            NS(length=1040, factors=[13,16,5]),
+        ],
+        ('uwide', 128): [
+            NS(length=272, factors=[16,17]),
         ],
         ('wide', 64): [
 #            NS(length=11, factors=[11]),
@@ -534,6 +539,7 @@ def list_new_kernels():
             NS(length=120, factors=[2,6,10]),
 #            NS(length=200, factors=[2,10,10]),
             NS(length=300, factors=[3,10,10]),
+            NS(length=528, factors=[4,4,3,11]),
         ],
         ('uwide', 64): [
             NS(length=32, factors=[16,2]),

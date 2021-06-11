@@ -1238,7 +1238,7 @@ def stockham_launch2d(length, params, **kwargs):
 
 
 def stockham_default_factors(length):
-    supported_radixes = [2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 16]
+    supported_radixes = [2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 16, 17]
     supported_radixes.sort(reverse=True)
 
     remaining_length = length

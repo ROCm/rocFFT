@@ -14,6 +14,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
     threshold test.
 - Optimized some even-length R2C/C2R cases by doing more operations
   in-place and combining pre/post processing into Stockham kernels.
+- Added radix-17.
 
 ### Added
 - Added new kernel generator for select fused-2D transforms.
