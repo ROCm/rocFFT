@@ -5,7 +5,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ## [(Unreleased) rocFFT 1.0.13 for ROCm 4.4.0]
 
 ### Optimizations
-- Improved many 1D and 2D plans by removing unnecessary transpose steps.
+- Improved many plans by removing unnecessary transpose steps.
 - Optimized scheme selection for 3D problems.
   - Imposed less restrictions on 3D_BLOCK_RC selection. More problems can use 3D_BLOCK_RC and
     have some performance gain.

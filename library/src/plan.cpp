@@ -2482,6 +2482,26 @@ void TreeNode::TraverseTreeAssignBuffersLogicA(TraverseState&   state,
             flipOut  = OB_TEMP;
             obOutBuf = OB_TEMP_BLUESTEIN;
             break;
+        case CS_REAL_TRANSFORM_EVEN:
+        case CS_REAL_2D_EVEN:
+        case CS_REAL_3D_EVEN:
+            // for R2C transform, output side is complex so we can
+            // flip into the output buffer
+            if(direction == -1)
+            {
+                flipIn   = OB_USER_OUT;
+                flipOut  = OB_TEMP;
+                obOutBuf = OB_USER_OUT;
+            }
+            // for C2R transform, input side is complex so we can
+            // flip into the input buffer
+            else
+            {
+                flipIn   = placement == rocfft_placement_inplace ? OB_USER_OUT : OB_USER_IN;
+                flipOut  = OB_TEMP;
+                obOutBuf = OB_USER_OUT;
+            }
+            break;
         default:
             flipIn   = OB_USER_OUT;
             flipOut  = OB_TEMP;
@@ -4637,8 +4657,6 @@ void TreeNode::assign_params_CS_3D_RC_STRAIGHT()
     auto& zPlan  = childNodes[1];
 
     // B -> B
-    assert((xyPlan->obOut == OB_USER_OUT) || (xyPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
-           || (xyPlan->obOut == OB_TEMP_BLUESTEIN));
     xyPlan->inStride = inStride;
     xyPlan->iDist    = iDist;
 
@@ -4648,8 +4666,6 @@ void TreeNode::assign_params_CS_3D_RC_STRAIGHT()
     xyPlan->TraverseTreeAssignParamsLogicA();
 
     // B -> B
-    assert((zPlan->obOut == OB_USER_OUT) || (zPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
-           || (zPlan->obOut == OB_TEMP_BLUESTEIN));
     zPlan->inStride.push_back(inStride[2]);
     zPlan->inStride.push_back(inStride[0]);
     zPlan->inStride.push_back(inStride[1]);
@@ -4877,16 +4893,42 @@ static rocfft_result_placement EffectivePlacement(OperatingBuffer         obIn,
     return obIn == obOut ? rocfft_placement_inplace : rocfft_placement_notinplace;
 }
 
+static size_t TransformsPerThreadblock(const size_t len, rocfft_precision precision)
+{
+    // look in function pool first to see if it knows
+    auto k = function_pool::get_kernel(fpkey(len, precision));
+    if(k.batches_per_block)
+        return k.batches_per_block;
+    // otherwise fall back to old generator
+    size_t wgs = 0, numTrans = 0;
+    DetermineSizes(len, wgs, numTrans);
+    return numTrans;
+}
+
 void Optimize_Transpose_With_Strides(ExecPlan& execPlan, std::vector<TreeNode*>& execSeq)
 {
+    auto canOptimizeWithStrides = [](TreeNode* stockham) {
+        // for 3D pow2 sizes, manipulating strides looks like it loses to
+        // diagonal transpose
+        if(IsPo2(stockham->length[0]) && stockham->length.size() >= 3)
+            return false;
+        size_t numTrans = TransformsPerThreadblock(stockham->length[0], stockham->precision);
+
+        // ensure we are doing enough rows to coalesce properly. 4
+        // seems to be enough for double-precision, whereas some
+        // sizes that do 7 rows seem to be slower for single.
+        size_t minRows = stockham->precision == rocfft_precision_single ? 8 : 4;
+        return numTrans >= minRows;
+    };
+
     // If this is a stockham fft that does multiple rows in one
-    // kernel, followed by a 2d transpose, adjust output strides to
+    // kernel, followed by a transpose, adjust output strides to
     // replace the transpose.  Multiple rows will ensure that the
     // transposed column writes are coalesced.
     for(auto it = execSeq.begin(); it != execSeq.end(); ++it)
     {
         auto stockham = *it;
-        if(stockham->scheme != CS_KERNEL_STOCKHAM)
+        if(stockham->scheme != CS_KERNEL_STOCKHAM && stockham->scheme != CS_KERNEL_2D_SINGLE)
             continue;
 
         // if we're a child of a plan that we know is doing TR
@@ -4899,17 +4941,19 @@ void Optimize_Transpose_With_Strides(ExecPlan& execPlan, std::vector<TreeNode*>&
                || (parent->scheme == CS_REAL_2D_EVEN && parent->direction == 1))
                 continue;
         }
-        size_t wgs, numTrans;
-        DetermineSizes(stockham->length[0], wgs, numTrans);
-        if(numTrans < 2)
+
+        if(!canOptimizeWithStrides(stockham))
             continue;
 
         auto next = it + 1;
         if(next == execSeq.end())
             break;
         auto transpose = *next;
-        if(transpose->scheme == CS_KERNEL_TRANSPOSE
-           && stockham->length == transpose->length
+        if(transpose->scheme != CS_KERNEL_TRANSPOSE && transpose->scheme != CS_KERNEL_TRANSPOSE_Z_XY
+           && transpose->scheme != CS_KERNEL_TRANSPOSE_XY_Z)
+            continue;
+        if(stockham->length == transpose->length
+           && stockham->outStride == transpose->inStride
            // can't get rid of a transpose that also does twiddle multiplication
            && transpose->large1D == 0
            // This is a transpose, which must be out-of-place
@@ -4917,16 +4961,40 @@ void Optimize_Transpose_With_Strides(ExecPlan& execPlan, std::vector<TreeNode*>&
                   == rocfft_placement_notinplace)
         {
             stockham->outStride = transpose->outStride;
-            std::swap(stockham->outStride[0], stockham->outStride[1]);
+            if(transpose->scheme == CS_KERNEL_TRANSPOSE)
+            {
+                std::swap(stockham->outStride[0], stockham->outStride[1]);
+            }
+            else if(transpose->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
+            {
+                // make stockham write Z_XY-transposed outputs
+                stockham->outStride[0] = transpose->outStride[2];
+                stockham->outStride[1] = transpose->outStride[0];
+                stockham->outStride[2] = transpose->outStride[1];
+            }
+            else
+            {
+                // make stockham write XY_Z-transposed outputs
+                stockham->outStride[0] = transpose->outStride[1];
+                stockham->outStride[1] = transpose->outStride[2];
+                stockham->outStride[2] = transpose->outStride[0];
+            }
             stockham->obOut        = transpose->obOut;
             stockham->outArrayType = transpose->outArrayType;
             stockham->placement    = rocfft_placement_notinplace;
             stockham->oDist        = transpose->oDist;
+
+            stockham->comments.push_back("removed following " + PrintScheme(transpose->scheme)
+                                         + " using strides");
             RemoveNode(execPlan, transpose);
         }
     }
 
-    // Similarly, if we have a 2D transpose followed by a stockham
+    // In case something was removed, reset our local execSeq so we
+    // don't try to combine an already-removed node with anything
+    execSeq = execPlan.execSeq;
+
+    // Similarly, if we have a transpose followed by a stockham
     // fft that does multiple rows in one kernel, adjust input
     // strides to replace the transpose.  Multiple rows will ensure
     // that the transposed column reads are coalesced.
@@ -4934,7 +5002,10 @@ void Optimize_Transpose_With_Strides(ExecPlan& execPlan, std::vector<TreeNode*>&
     {
         auto transpose = *it;
         // can't get rid of a transpose that also does twiddle multiplication
-        if(transpose->scheme != CS_KERNEL_TRANSPOSE || transpose->large1D != 0)
+        if((transpose->scheme != CS_KERNEL_TRANSPOSE
+            && transpose->scheme != CS_KERNEL_TRANSPOSE_Z_XY
+            && transpose->scheme != CS_KERNEL_TRANSPOSE_XY_Z)
+           || transpose->large1D != 0)
             continue;
 
         auto next = it + 1;
@@ -4945,9 +5016,25 @@ void Optimize_Transpose_With_Strides(ExecPlan& execPlan, std::vector<TreeNode*>&
         if(stockham->scheme != CS_KERNEL_STOCKHAM)
             continue;
 
-        size_t wgs, numTrans;
-        DetermineSizes(stockham->length[0], wgs, numTrans);
-        if(numTrans < 2)
+        if(!canOptimizeWithStrides(stockham))
+            continue;
+
+        // verify that the transpose output lengths match the FFT input lengths
+        auto transposeOutputLengths = transpose->length;
+        if(transpose->scheme == CS_KERNEL_TRANSPOSE)
+            std::swap(transposeOutputLengths[0], transposeOutputLengths[1]);
+        else if(transpose->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
+        {
+            std::swap(transposeOutputLengths[0], transposeOutputLengths[1]);
+            std::swap(transposeOutputLengths[1], transposeOutputLengths[2]);
+        }
+        else
+        {
+            // must be XY_Z
+            std::swap(transposeOutputLengths[1], transposeOutputLengths[2]);
+            std::swap(transposeOutputLengths[0], transposeOutputLengths[1]);
+        }
+        if(transposeOutputLengths != stockham->length)
             continue;
 
         // This is a transpose, which must be out-of-place
@@ -4955,11 +5042,33 @@ void Optimize_Transpose_With_Strides(ExecPlan& execPlan, std::vector<TreeNode*>&
            == rocfft_placement_notinplace)
         {
             stockham->inStride = transpose->inStride;
-            std::swap(stockham->inStride[0], stockham->inStride[1]);
+            if(transpose->scheme == CS_KERNEL_TRANSPOSE)
+                std::swap(stockham->inStride[0], stockham->inStride[1]);
+            else if(transpose->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
+            {
+                // give stockham kernel Z_XY-transposed inputs and outputs
+                stockham->inStride[0] = transpose->inStride[1];
+                stockham->inStride[1] = transpose->inStride[0];
+                stockham->inStride[2] = transpose->inStride[2];
+
+                std::swap(stockham->outStride[1], stockham->outStride[2]);
+                std::swap(stockham->length[1], stockham->length[2]);
+            }
+            else
+            {
+                // give stockham kernel XY_Z-transposed inputs
+                stockham->inStride[0] = transpose->inStride[2];
+                stockham->inStride[1] = transpose->inStride[0];
+                stockham->inStride[2] = transpose->inStride[1];
+            }
+
             stockham->obIn        = transpose->obIn;
             stockham->inArrayType = transpose->inArrayType;
             stockham->placement   = rocfft_placement_notinplace;
             stockham->iDist       = transpose->iDist;
+
+            stockham->comments.push_back("removed preceding " + PrintScheme(transpose->scheme)
+                                         + " using strides");
             RemoveNode(execPlan, transpose);
         }
     }
