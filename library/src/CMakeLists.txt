@@ -54,6 +54,12 @@ set( rocfft_source
   kargs.cpp
   rocfft_ostream.cpp
   tree_node.cpp
+  tree_node_1D.cpp
+  tree_node_2D.cpp
+  tree_node_3D.cpp
+  tree_node_bluestein.cpp
+  tree_node_real.cpp
+  node_factory.cpp
   hipfft.cpp
   )
 

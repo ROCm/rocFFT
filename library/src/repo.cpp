@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "logging.h"
+#include "node_factory.h"
 #include "plan.h"
 #include "repo.h"
 #include "rocfft.h"
@@ -55,39 +56,49 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
     auto it = repo.planUnique.find(uniqueKey);
     if(it == repo.planUnique.end()) // if not found
     {
-        auto rootPlan = TreeNode::CreateNode();
+        NodeMetaData rootPlanData(nullptr);
 
-        rootPlan->dimension = plan->rank;
-        rootPlan->batch     = plan->batch;
+        rootPlanData.dimension = plan->rank;
+        rootPlanData.batch     = plan->batch;
         for(size_t i = 0; i < plan->rank; i++)
         {
-            rootPlan->length.push_back(plan->lengths[i]);
+            rootPlanData.length.push_back(plan->lengths[i]);
 
-            rootPlan->inStride.push_back(plan->desc.inStrides[i]);
-            rootPlan->outStride.push_back(plan->desc.outStrides[i]);
+            rootPlanData.inStride.push_back(plan->desc.inStrides[i]);
+            rootPlanData.outStride.push_back(plan->desc.outStrides[i]);
         }
-        rootPlan->iDist = plan->desc.inDist;
-        rootPlan->oDist = plan->desc.outDist;
+        rootPlanData.iDist = plan->desc.inDist;
+        rootPlanData.oDist = plan->desc.outDist;
 
-        rootPlan->placement = plan->placement;
-        rootPlan->precision = plan->precision;
+        rootPlanData.placement = plan->placement;
+        rootPlanData.precision = plan->precision;
         if((plan->transformType == rocfft_transform_type_complex_forward)
            || (plan->transformType == rocfft_transform_type_real_forward))
-            rootPlan->direction = -1;
+            rootPlanData.direction = -1;
         else
-            rootPlan->direction = 1;
+            rootPlanData.direction = 1;
 
-        rootPlan->inArrayType  = plan->desc.inArrayType;
-        rootPlan->outArrayType = plan->desc.outArrayType;
+        rootPlanData.inArrayType  = plan->desc.inArrayType;
+        rootPlanData.outArrayType = plan->desc.outArrayType;
 
         ExecPlan execPlan;
-        execPlan.rootPlan = std::move(rootPlan);
+        execPlan.rootPlan = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
         if(hipGetDeviceProperties(&(execPlan.deviceProp), deviceId) != hipSuccess)
             return rocfft_status_failure;
 
-        ProcessNode(execPlan); // TODO: more descriptions are needed
-        if(LOG_TRACE_ENABLED())
-            PrintNode(*LogSingleton::GetInstance().GetTraceOS(), execPlan);
+        try
+        {
+            ProcessNode(execPlan); // TODO: more descriptions are needed
+            if(LOG_TRACE_ENABLED())
+                PrintNode(*LogSingleton::GetInstance().GetTraceOS(), execPlan);
+        }
+        catch(std::exception& e)
+        {
+            rocfft_cout << e.what() << std::endl;
+            if(LOG_TRACE_ENABLED())
+                PrintNode(*LogSingleton::GetInstance().GetTraceOS(), execPlan);
+            return rocfft_status_failure;
+        }
 
         if(!PlanPowX(execPlan)) // PlanPowX enqueues the GPU kernels by function
         {

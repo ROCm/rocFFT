@@ -51,7 +51,7 @@ enum ComputeScheme
     CS_KERNEL_STOCKHAM,
     CS_KERNEL_STOCKHAM_BLOCK_CC,
     CS_KERNEL_STOCKHAM_BLOCK_RC,
-    CS_KERNEL_STOCKHAM_BLOCK_CR,
+    CS_KERNEL_STOCKHAM_BLOCK_CR, // not implemented yet
     CS_KERNEL_TRANSPOSE,
     CS_KERNEL_TRANSPOSE_XY_Z,
     CS_KERNEL_TRANSPOSE_Z_XY,
@@ -85,25 +85,90 @@ enum ComputeScheme
     CS_L1D_CC,
     CS_L1D_CRT,
 
-    CS_2D_STRAIGHT,
+    CS_2D_STRAIGHT, // not implemented yet
     CS_2D_RTRT,
     CS_2D_RC,
-    CS_KERNEL_2D_STOCKHAM_BLOCK_CC,
+    CS_KERNEL_2D_STOCKHAM_BLOCK_CC, // not implemented yet
     CS_KERNEL_2D_SINGLE,
 
-    CS_3D_STRAIGHT,
+    CS_3D_STRAIGHT, // not implemented yet
     CS_3D_TRTRTR,
     CS_3D_RTRT,
     CS_3D_BLOCK_RC,
     CS_3D_RC,
-    CS_KERNEL_3D_STOCKHAM_BLOCK_CC,
-    CS_KERNEL_3D_SINGLE
+    CS_KERNEL_3D_STOCKHAM_BLOCK_CC, // not implemented yet
+    CS_KERNEL_3D_SINGLE // not implemented yet
+};
+
+enum NodeType
+{
+    NT_UNDEFINED, // un init
+    NT_INTERNAL, // an internal node contains childrens
+    NT_LEAF, // a leaf node represents a kernel and has no childrens
+};
+
+std::string PrintScheme(ComputeScheme cs);
+std::string PrintOperatingBuffer(const OperatingBuffer ob);
+std::string PrintOperatingBufferCode(const OperatingBuffer ob);
+std::string PrintSBRCTransposeType(const SBRC_TRANSPOSE_TYPE ty);
+
+typedef void (*DevFnCall)(const void*, void*);
+
+struct GridParam
+{
+    unsigned int b_x, b_y, b_z; // in HIP, the data type of dimensions of work
+    // items, work groups is unsigned int
+    unsigned int tpb_x, tpb_y, tpb_z;
+    unsigned int lds_bytes; // dynamic LDS allocation size
+
+    GridParam()
+        : b_x(1)
+        , b_y(1)
+        , b_z(1)
+        , tpb_x(1)
+        , tpb_y(1)
+        , tpb_z(1)
+        , lds_bytes(0)
+    {
+    }
+};
+
+static bool is_diagonal_sbrc_3D_length(size_t len)
+{
+    // SBRC diagonal-transpose dimensions are currently 128, 256
+    return len == 128 || len == 256;
+}
+
+static bool is_cube_size(const std::vector<size_t>& length)
+{
+    return length.size() == 3 && length[0] == length[1] && length[1] == length[2];
+}
+
+class TreeNode;
+
+// The mininal tree node data needed to decide the scheme
+struct NodeMetaData
+{
+    size_t                  batch     = 1;
+    size_t                  dimension = 1;
+    std::vector<size_t>     length;
+    std::vector<size_t>     inStride, outStride;
+    size_t                  iDist = 0, oDist = 0;
+    size_t                  iOffset = 0, oOffset = 0;
+    int                     direction    = -1;
+    rocfft_result_placement placement    = rocfft_placement_inplace;
+    rocfft_precision        precision    = rocfft_precision_single;
+    rocfft_array_type       inArrayType  = rocfft_array_type_unset;
+    rocfft_array_type       outArrayType = rocfft_array_type_unset;
+
+    NodeMetaData(TreeNode* refNode);
 };
 
 class TreeNode
 {
-private:
-    // Disallow public creation
+    friend class NodeFactory;
+
+protected:
     TreeNode(TreeNode* p)
         : parent(p)
     {
@@ -115,16 +180,13 @@ private:
         }
     }
 
-    // Maps from length[0] to divLength1 for 1D transforms in
-    // single and double precision using block computing.
-    typedef std::map<size_t, size_t> Map1DLength;
-    static const Map1DLength         map1DLengthSingle;
-    static const Map1DLength         map1DLengthDouble;
-
     // Compute the large twd decomposition base
     size_t large_twiddle_base(size_t length, bool use3Steps);
 
 public:
+    // node type: internal node or leaf node, or un-defined (un-init)
+    NodeType nodeType = NT_UNDEFINED;
+
     // Batch size
     size_t batch = 1;
 
@@ -197,64 +259,26 @@ public:
     // Disallow copy constructor:
     TreeNode(const TreeNode&) = delete;
 
+    // for the derived class
+    virtual ~TreeNode() = default;
+
     // Disallow assignment operator:
     TreeNode& operator=(const TreeNode&) = delete;
 
-    // Create node (user level) using this function
-    static std::unique_ptr<TreeNode> CreateNode(TreeNode* parentNode = nullptr)
-    {
-        // must use 'new' here instead of std::make_unique because
-        // TreeNode's ctor is private
-        return std::unique_ptr<TreeNode>(new TreeNode(parentNode));
-    }
+    // Copy data from another node (to a fused node)
+    void CopyNodeData(const TreeNode& srcNode);
 
-    // Main tree builder:
-    void RecursiveBuildTree();
+    // Copy data from the NodeMetaData (after deciding scheme)
+    void CopyNodeData(const NodeMetaData& data);
 
-    bool use_CS_2D_SINGLE(); // To determine using scheme CS_KERNEL_2D_SINGLE or not
-    bool use_CS_2D_RC(); // To determine using scheme CS_2D_RC or not
-    bool use_CS_3D_BLOCK_RC();
-    // how many SBRC kernels can we put into a 3D transform?
-    size_t count_3D_SBRC_nodes();
+    bool isRootNode();
+    bool isLeafNode();
 
-    bool use_CS_3D_RC();
+    virtual void RecursiveBuildTree(); // Main tree builder: override by child
+    virtual void SanityCheck();
 
-    //To determine fusing CS_KERNEL_STOCKHAM and following CS_KERNEL_TRANSPOSE_Z_XY
-    bool use_CS_KERNEL_TRANSPOSE_Z_XY();
-
-    // Real-complex and complex-real node builders:
-    void build_real();
-    void build_real_embed();
-    void build_real_even_1D(bool fuse_pre_post_processing = false);
-    void build_real_even_2D();
-    void build_real_even_3D();
-
-    // 1D node builders:
-    void build_1D();
-    void build_1DBluestein();
-    void build_1DCS_L1D_TRTRT(const size_t divLength0, const size_t divLength1);
-    void build_1DCS_L1D_CC(const size_t divLength0, const size_t divLength1);
-    void build_1DCS_L1D_CRT(const size_t divLength0, const size_t divLength1);
-
-    // 2D node builders:
-    void build_CS_2D_RTRT();
-    void build_CS_2D_RC();
-
-    // 3D node builders:
-    // 3D 4 node builder, R: 2D FFTs, T: transpose XY_Z, R: row FFTs, T: transpose Z_XY
-    void build_CS_3D_RTRT();
-    // 3D 6 node builder, T: transpose Z_XY, R: row FFTs, T: transpose Z_XY, R: row FFTs, T: transpose Z_XY, R: row FFTs
-    void build_CS_3D_TRTRTR();
-    // 3D 3-5 node builder.  Uses 3D SBRC kernels fused with
-    // transpose for each dimension when possible to do row FFTs +
-    // transpose, falls back to separate kernels for row FFTs +
-    // transpose XY_Z when not possible.
-    void build_CS_3D_BLOCK_RC();
-    // 3D 2 node builder, R: 2D FFTs, C: SBCC
-    // 2D FFTs could be 2D_SINGLE: results in one 2DFFT + one SBCC, or
-    //                  2D_RC: result in (one row FFT + one SBCC) + one SBCC, or
-    //                  2D_RTRT: ...
-    void build_CS_3D_RC();
+    // fusing CS_KERNEL_STOCKHAM and CS_KERNEL_TRANSPOSE_Z_XY ?
+    bool fuse_CS_KERNEL_TRANSPOSE_Z_XY();
 
     // State maintained while traversing the tree.
     //
@@ -276,78 +300,17 @@ public:
     void SetInputBuffer(TraverseState& state);
 
     // Buffer assignment:
-    void TraverseTreeAssignBuffersLogicA(TraverseState&   state,
-                                         OperatingBuffer& flipIn,
-                                         OperatingBuffer& flipOut,
-                                         OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_REAL_TRANSFORM_USING_CMPLX(TraverseState&   state,
-                                                      OperatingBuffer& flipIn,
-                                                      OperatingBuffer& flipOut,
-                                                      OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_REAL_TRANSFORM_EVEN(TraverseState&   state,
-                                               OperatingBuffer& flipIn,
-                                               OperatingBuffer& flipOut,
-                                               OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_REAL_2D_EVEN(TraverseState&   state,
-                                        OperatingBuffer& flipIn,
-                                        OperatingBuffer& flipOut,
-                                        OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_REAL_3D_EVEN(TraverseState&   state,
-                                        OperatingBuffer& flipIn,
-                                        OperatingBuffer& flipOut,
-                                        OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_BLUESTEIN(TraverseState&   state,
-                                     OperatingBuffer& flipIn,
-                                     OperatingBuffer& flipOut,
-                                     OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_L1D_TRTRT(TraverseState&   state,
-                                     OperatingBuffer& flipIn,
-                                     OperatingBuffer& flipOut,
-                                     OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_L1D_CC(TraverseState&   state,
-                                  OperatingBuffer& flipIn,
-                                  OperatingBuffer& flipOut,
-                                  OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_L1D_CRT(TraverseState&   state,
-                                   OperatingBuffer& flipIn,
-                                   OperatingBuffer& flipOut,
-                                   OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_RTRT(TraverseState&   state,
-                                OperatingBuffer& flipIn,
-                                OperatingBuffer& flipOut,
-                                OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_RC(TraverseState&   state,
-                              OperatingBuffer& flipIn,
-                              OperatingBuffer& flipOut,
-                              OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_3D_TRTRTR(TraverseState&   state,
-                                     OperatingBuffer& flipIn,
-                                     OperatingBuffer& flipOut,
-                                     OperatingBuffer& obOutBuf);
-    void assign_buffers_CS_3D_BLOCK_RC(TraverseState&   state,
-                                       OperatingBuffer& flipIn,
-                                       OperatingBuffer& flipOut,
-                                       OperatingBuffer& obOutBuf);
+    virtual void AssignBuffers(TraverseState&   state,
+                               OperatingBuffer& flipIn,
+                               OperatingBuffer& flipOut,
+                               OperatingBuffer& obOutBuf);
 
     // Set placement variable and in/out array types
-    void TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn, rocfft_array_type rootOut);
+    virtual void TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn,
+                                                    rocfft_array_type rootOut);
 
     // Set strides and distances:
-    void TraverseTreeAssignParamsLogicA();
-    void assign_params_CS_REAL_TRANSFORM_USING_CMPLX();
-    void assign_params_CS_REAL_TRANSFORM_EVEN();
-    void assign_params_CS_REAL_2D_EVEN();
-    void assign_params_CS_REAL_3D_EVEN();
-    void assign_params_CS_L1D_CC();
-    void assign_params_CS_L1D_CRT();
-    void assign_params_CS_BLUESTEIN();
-    void assign_params_CS_L1D_TRTRT();
-    void assign_params_CS_2D_RTRT();
-    void assign_params_CS_2D_RC_STRAIGHT();
-    void assign_params_CS_3D_RTRT();
-    void assign_params_CS_3D_BLOCK_RC();
-    void assign_params_CS_3D_TRTRTR();
-    void assign_params_CS_3D_RC_STRAIGHT();
+    virtual void AssignParams();
 
     // Determine work memory requirements:
     void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode*>& seq,
@@ -363,27 +326,108 @@ public:
     //void RecursiveBuildTreeLogicB();
 
     void RecursiveRemoveNode(TreeNode* node);
+
+    // insert a newNode before the node "pos"
+    void RecursiveInsertNode(TreeNode* pos, std::unique_ptr<TreeNode>& newNode);
+
+    virtual bool CreateDevKernelArgs()                                     = 0;
+    virtual bool CreateTwiddleTableResource()                              = 0;
+    virtual void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) = 0;
+
+protected:
+    virtual void BuildTree_internal() = 0;
+    virtual void AssignBuffers_internal(TraverseState&   state,
+                                        OperatingBuffer& flipIn,
+                                        OperatingBuffer& flipOut,
+                                        OperatingBuffer& obOutBuf)
+        = 0;
+    virtual void AssignParams_internal() = 0;
 };
 
-typedef void (*DevFnCall)(const void*, void*);
-
-struct GridParam
+class InternalNode : public TreeNode
 {
-    unsigned int b_x, b_y, b_z; // in HIP, the data type of dimensions of work
-    // items, work groups is unsigned int
-    unsigned int tpb_x, tpb_y, tpb_z;
-    unsigned int lds_bytes; // dynamic LDS allocation size
+    friend class NodeFactory;
 
-    GridParam()
-        : b_x(1)
-        , b_y(1)
-        , b_z(1)
-        , tpb_x(1)
-        , tpb_y(1)
-        , tpb_z(1)
-        , lds_bytes(0)
+protected:
+    InternalNode(TreeNode* p)
+        : TreeNode(p)
+    {
+        nodeType = NT_INTERNAL;
+    }
+
+    virtual bool CreateDevKernelArgs()
+    {
+        throw std::runtime_error("Shouldn't call CreateDevKernelArgs in a non-LeafNode");
+        return false;
+    }
+
+    virtual bool CreateTwiddleTableResource()
+    {
+        throw std::runtime_error("Shouldn't call CreateTwiddleTableResource in a non-LeafNode");
+        return false;
+    }
+
+    virtual void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
+    {
+        throw std::runtime_error("Shouldn't call SetupGridParamAndFuncPtr in a non-LeafNode");
+    }
+};
+
+class LeafNode : public InternalNode
+{
+    friend class NodeFactory;
+
+protected:
+    LeafNode(TreeNode* p, ComputeScheme s)
+        : InternalNode(p)
+    {
+        nodeType = NT_LEAF;
+        scheme   = s;
+    }
+
+    bool                externalKernel = false;
+    bool                need_twd_table = false;
+    bool                twd_no_radices = false;
+    bool                twd_attach_2N  = false;
+    std::vector<size_t> kernelFactors  = {};
+    size_t              bwd            = 1; // bwd, wgs, lds are for grid param lds_bytes
+    size_t              wgs            = 0;
+    size_t              lds            = 0;
+
+    void           BuildTree_internal() final {} // nothing to do in leaf node
+    void           AssignBuffers_internal(TraverseState&   state,
+                                          OperatingBuffer& flipIn,
+                                          OperatingBuffer& flipOut,
+                                          OperatingBuffer& obOutBuf) override;
+    void           AssignParams_internal() final {} // nothing to do in leaf node
+    bool           CreateLargeTwdTable();
+    virtual size_t GetTwiddleTableLength();
+    virtual void   KernelCheck();
+    virtual void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) = 0;
+
+public:
+    void SanityCheck() override;
+    bool CreateDevKernelArgs() override;
+    bool CreateTwiddleTableResource() override;
+    void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) override;
+};
+
+/*****************************************************
+ * CS_KERNEL_TRANSPOSE
+ * CS_KERNEL_TRANSPOSE_XY_Z
+ * CS_KERNEL_TRANSPOSE_Z_XY
+ *****************************************************/
+class TransposeNode : public LeafNode
+{
+    friend class NodeFactory;
+
+protected:
+    TransposeNode(TreeNode* p, ComputeScheme s)
+        : LeafNode(p, s)
     {
     }
+
+    void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 };
 
 struct ExecPlan

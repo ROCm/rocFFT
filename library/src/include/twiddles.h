@@ -16,6 +16,11 @@
 
 static const size_t LTWD_BASE_DEFAULT = 8;
 
+static inline bool IsPo2(size_t u)
+{
+    return (u != 0) && (0 == (u & (u - 1)));
+}
+
 //	help function: Find the smallest power of 2 that is >= n; return its
 //  power of 2 factor
 //	e.g., CeilPo2 (7) returns 3 : (2^3 >= 7)

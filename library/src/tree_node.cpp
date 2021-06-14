@@ -19,29 +19,128 @@
 // THE SOFTWARE.
 
 #include "tree_node.h"
+#include "function_pool.h"
+#include "kernel_launch.h"
+#include "radix_table.h"
 
-// TODO:
-//   - better data structure, and more elements for non pow of 2
-//   - validate corresponding functions existing in function pool or not
-TreeNode::Map1DLength const TreeNode::map1DLengthSingle
-    = {{8192, 64}, // pow of 2: CC (64cc + 128rc)
-       {16384, 64}, //          CC (64cc + 256rc) // 128x128 no faster
-       {32768, 128}, //         CC (128cc + 256rc)
-       {65536, 256}, //         CC (256cc + 256rc)
-       {131072, 64}, //         CRT(64cc + 2048 + transpose)
-       {262144, 64}, //         CRT(64cc + 4096 + transpose)
-       {6561, 81}, // pow of 3: CC (81cc + 81rc)
-       {10000, 100}, // mixed:  CC (100cc + 100rc)
-       {40000, 200}}; //        CC (200cc + 200rc)
+NodeMetaData::NodeMetaData(TreeNode* refNode)
+{
+    if(refNode != nullptr)
+    {
+        precision = refNode->precision;
+        batch     = refNode->batch;
+        direction = refNode->direction;
+    }
+}
 
-TreeNode::Map1DLength const TreeNode::map1DLengthDouble
-    = {{4096, 64}, // pow of 2: CC (64cc + 64rc)
-       {8192, 64}, //           CC (64cc + 128rc)
-       {16384, 128}, //         CC (128cc + 128rc) // faster than 64x256
-       {32768, 128}, //         CC (128cc + 256rc)
-       {65536, 256}, //         CC (256cc + 256rc) // {65536, 64}
-       {131072, 64}, //         CRT(64cc + 2048 + transpose)
-       {6561, 81}, // pow of 3: CC (81cc + 81rc)
-       {2500, 50}, // mixed:    CC (50cc + 50rc)
-       {10000, 100}, //         CC (100cc + 100rc)
-       {40000, 200}}; //        CC (200cc + 200rc)
+void LeafNode::AssignBuffers_internal(TraverseState&   state,
+                                      OperatingBuffer& flipIn,
+                                      OperatingBuffer& flipOut,
+                                      OperatingBuffer& obOutBuf)
+{
+    if(isRootNode())
+    {
+        obOut = obOutBuf;
+    }
+    else
+    {
+        assert(obIn != OB_UNINIT && obOut != OB_UNINIT);
+        if(obIn != obOut)
+        {
+            std::swap(flipIn, flipOut);
+        }
+    }
+}
+
+bool LeafNode::CreateLargeTwdTable()
+{
+    if(large1D != 0)
+    {
+        twiddles_large = twiddles_create(large1D, precision, true, largeTwdBase, false, false);
+        if(twiddles_large == nullptr)
+            return false;
+    }
+
+    return true;
+}
+
+size_t LeafNode::GetTwiddleTableLength()
+{
+    // length used by twiddle table is length[0] by default
+    // could be override by some special schemes
+    return length[0];
+}
+
+void LeafNode::KernelCheck()
+{
+    if(!externalKernel)
+        return;
+
+    // check we have the kernel
+    FMKey key = (dimension == 1) ? fpkey(length[0], precision, scheme)
+                                 : fpkey(length[0], length[1], precision, scheme);
+    if(!function_pool::has_function(key))
+    {
+        PrintMissingKernelInfo(key);
+        throw std::runtime_error("Kernel not found");
+        return;
+    }
+
+    kernelFactors = function_pool::get_kernel(key).factors;
+}
+
+void LeafNode::SanityCheck()
+{
+    TreeNode::SanityCheck();
+    KernelCheck();
+}
+
+bool LeafNode::CreateDevKernelArgs()
+{
+    devKernArg = kargs_create(length, inStride, outStride, iDist, oDist);
+    return (devKernArg != nullptr);
+}
+
+bool LeafNode::CreateTwiddleTableResource()
+{
+    if(need_twd_table)
+    {
+        // Note- kernelFactors: obtained when SanityCheck, twd_len could differ from scheme
+        size_t twd_len = GetTwiddleTableLength();
+        twiddles       = twiddles_create(twd_len,
+                                   precision,
+                                   false,
+                                   LTWD_BASE_DEFAULT,
+                                   twd_no_radices,
+                                   twd_attach_2N,
+                                   kernelFactors);
+        if(twiddles == nullptr)
+            return false;
+    }
+
+    return CreateLargeTwdTable();
+}
+
+void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
+{
+    // derived classes setup the gp (bwd, wgs, lds, padding), funPtr
+    SetupGPAndFnPtr_internal(fnPtr, gp);
+
+    // common: sum up the value;
+    gp.lds_bytes = (lds + lds_padding * bwd) * sizeof_precision(precision);
+    return;
+}
+
+/*****************************************************
+ * CS_KERNEL_TRANSPOSE
+ * CS_KERNEL_TRANSPOSE_XY_Z
+ * CS_KERNEL_TRANSPOSE_Z_XY
+ *****************************************************/
+void TransposeNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
+{
+    fnPtr    = &FN_PRFX(transpose_var2);
+    gp.tpb_x = (precision == rocfft_precision_single) ? 32 : 64;
+    gp.tpb_y = (precision == rocfft_precision_single) ? 32 : 16;
+
+    return;
+}

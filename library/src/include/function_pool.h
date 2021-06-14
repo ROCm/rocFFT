@@ -47,6 +47,19 @@ static inline FMKey fpkey(size_t              length1,
     return {{length1, length2}, precision, scheme, transpose};
 }
 
+inline void PrintMissingKernelInfo(const FMKey key)
+{
+    auto&               lengthVec = std::get<0>(key);
+    rocfft_precision    precision = std::get<1>(key);
+    ComputeScheme       scheme    = std::get<2>(key);
+    SBRC_TRANSPOSE_TYPE trans     = std::get<3>(key);
+    rocfft_cerr << "Kernel not found: \n"
+                << "\tlength: " << lengthVec[0] << "," << lengthVec[1] << "\n"
+                << "\tprecision: " << precision << "\n"
+                << "\tscheme: " << PrintScheme(scheme) << "\n"
+                << "\tSBRC Transpose type: " << PrintSBRCTransposeType(trans) << std::endl;
+}
+
 struct SimpleHash
 {
     size_t operator()(const FMKey& p) const noexcept
@@ -172,6 +185,17 @@ public:
                 abort();
             }
         }
+    }
+
+    // helper for common used
+    static bool has_SBCC_kernel(size_t length, rocfft_precision precision)
+    {
+        return has_function(fpkey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
+    }
+
+    static bool has_SBRC_kernel(size_t length, rocfft_precision precision)
+    {
+        return has_function(fpkey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
     }
 };
 
