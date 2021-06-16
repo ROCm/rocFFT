@@ -173,9 +173,9 @@ int main(int argc, char* argv[])
     std::string manualSmallArgStr;
     std::string manualLargeArgStr;
     std::string manual2DArgStr;
+    std::string noSBCCArgStr;
 
-    std::vector<std::string> precisionList;
-    std::vector<std::string> typeList;
+    std::set<std::string> argStrList;
 
     // clang-format doesn't handle boost program options very well:
     // clang-format off
@@ -191,6 +191,8 @@ int main(int argc, char* argv[])
          "Manual 1D large sizes(Separate by comma)")
         ("manual-2d", value<std::string>(&manual2DArgStr),
          "Manual 2D large sizes(Separate by comma and x)")
+        ("no-sbcc", value<std::string>(&noSBCCArgStr),
+         "gen large sizes with sbrc only, no sbcc (Separate by comma)")
         ("group,g", value<size_t>(&argument.group_num)->default_value(8),
          "Numbers of kernel launch cpp files for 1D small size");
     // clang-format on
@@ -229,14 +231,19 @@ int main(int argc, char* argv[])
     // default type is ALL if not specified, else init_type from arg
     if(vm.count("type"))
     {
-        parse_arg_strings(typeArgStr, typeList);
-        argument.init_type(typeList);
+        parse_arg_strings(typeArgStr, argStrList);
+        argument.init_type(argStrList);
     }
     // default precision is ALL if not specified, else init_precision from arg
     if(vm.count("precision"))
     {
-        parse_arg_strings(precisionArgStr, precisionList);
-        argument.init_precision(precisionList);
+        parse_arg_strings(precisionArgStr, argStrList);
+        argument.init_precision(argStrList);
+    }
+    // default large sizes gen both sbcc and sbrc, except for those tagged with "no-sbcc"
+    if(vm.count("no-sbcc"))
+    {
+        parse_arg_ints(noSBCCArgStr, argument.largeSizesWithoutSBCC);
     }
 
     if(argument.group_num <= 0)
@@ -321,7 +328,8 @@ int main(int argc, char* argv[])
         {
             for(auto i : supported_large_set)
             {
-                // large1D_list.push_back(std::make_tuple(i, CS_KERNEL_STOCKHAM_BLOCK_CC));
+                if(argument.largeSizesWithoutSBCC.count(i) == 0)
+                    large1D_list.push_back(std::make_tuple(i, CS_KERNEL_STOCKHAM_BLOCK_CC));
                 large1D_list.push_back(std::make_tuple(i, CS_KERNEL_STOCKHAM_BLOCK_RC));
             }
         }
@@ -332,7 +340,8 @@ int main(int argc, char* argv[])
         {
             for(auto i : argument.validManualSizeLarge)
             {
-                // large1D_list.push_back(std::make_tuple(i, CS_KERNEL_STOCKHAM_BLOCK_CC));
+                if(argument.largeSizesWithoutSBCC.count(i) == 0)
+                    large1D_list.push_back(std::make_tuple(i, CS_KERNEL_STOCKHAM_BLOCK_CC));
                 large1D_list.push_back(std::make_tuple(i, CS_KERNEL_STOCKHAM_BLOCK_RC));
             }
         }

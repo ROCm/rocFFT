@@ -300,9 +300,11 @@ def generate_large_1d_prototypes(precision, transforms):
                                       transpose=transpose)))
 
     for length, scheme in transforms.items():
-        if scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC':
+        if 0:
             add(f'rocfft_internal_dfn_{precision}_ci_ci_sbcc_{length}', 'CS_KERNEL_STOCKHAM_BLOCK_CC')
         elif scheme == 'CS_KERNEL_STOCKHAM_BLOCK_RC':
+            # for old-sbcc compatibility: always include the sbcc function (but will be overwritten if new gen has it)
+            add(f'rocfft_internal_dfn_{precision}_ci_ci_sbcc_{length}', 'CS_KERNEL_STOCKHAM_BLOCK_CC')
             add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc_{length}', 'CS_KERNEL_STOCKHAM_BLOCK_RC')
             add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_trans_xy_z_tile_aligned_{length}', 'CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z', 'TILE_ALIGNED')
             add(f'rocfft_internal_dfn_{precision}_op_ci_ci_sbrc3d_fft_trans_z_xy_tile_aligned_{length}', 'CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY', 'TILE_ALIGNED')
@@ -606,7 +608,7 @@ def list_new_large_kernels():
         NS(length=50,  factors=[10, 5],      use_3steps_large_twd={'sp': 'true',  'dp': 'true'}, threads_per_block=256),
         NS(length=64,  factors=[8, 8],       use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
         NS(length=81,  factors=[3, 3, 3, 3], use_3steps_large_twd={'sp': 'true',  'dp': 'true'}),
-        NS(length=100, factors=[5, 5, 4],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
+        # NS(length=100, factors=[5, 5, 4],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
         NS(length=128, factors=[8, 4, 4],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
         NS(length=200, factors=[8, 5, 5],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
         NS(length=256, factors=[4, 4, 4, 4], use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
@@ -830,7 +832,7 @@ def cli():
     # return the necessary include files to cmake
     #
     if args.command == 'list':
-        
+
         scprint(set(list_old_generated_kernels(patterns=patterns,
                                            precisions=precisions,
                                            num_small_kernel_groups=args.groups)
@@ -860,11 +862,12 @@ def cli():
 
         old_small_lengths = {f.meta.length for f in psmall.values()}
         old_large_lengths = {f.meta.length for f in plarge.values()} # sbcc=new-gen, sbrc/transpose=old-gen
+        new_large_lengths = {k.length for k in new_large_kernels} # sbcc by new-gen
 
         if old_small_lengths:
             subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-small', cjoin(sorted(old_small_lengths))], check=True)
         if old_large_lengths:
-            subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-large', cjoin(sorted(old_large_lengths))], check=True)
+            subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-large', cjoin(sorted(old_large_lengths)), '--no-sbcc', cjoin(sorted(new_large_lengths))], check=True)
         if dim2:
             # XXX: currently new2d does both precisions...
             new2d = {tuple(x.length) for x in list_new_2d_kernels()}

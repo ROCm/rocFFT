@@ -385,16 +385,16 @@ public:
 inline void notify(const variables_map&) {}
 
 //
-// Parse comma separated list of integers and append to `outVector`.
+// Parse comma separated list of integers and append to `outSet`.
 //
-void parse_arg_ints(std::string const& inStr, std::vector<size_t>& outVector)
+void parse_arg_ints(std::string const& inStr, std::set<size_t>& outSet)
 {
-    // std::cout << inStr << std::endl;
+    outSet.clear();
     for(std::sregex_token_iterator tok{inStr.begin(), inStr.end(), vector_delim, -1};
         tok != std::sregex_token_iterator();
         ++tok)
     {
-        outVector.push_back(std::stoi(tok->str()));
+        outSet.insert(std::stoi(tok->str()));
     }
 }
 
@@ -420,13 +420,14 @@ void parse_arg_pairs(std::string const& inStr, std::set<std::pair<size_t, size_t
     }
 }
 
-void parse_arg_strings(std::string const& inStr, std::vector<std::string>& outVector)
+void parse_arg_strings(std::string const& inStr, std::set<std::string>& outSet)
 {
     // std::cout << inStr << std::endl;
+    outSet.clear();
     for(std::sregex_token_iterator tok{inStr.begin(), inStr.end(), vector_delim, -1};
         tok != std::sregex_token_iterator();
         ++tok)
     {
-        outVector.push_back(tok->str());
+        outSet.insert(tok->str());
     }
 }

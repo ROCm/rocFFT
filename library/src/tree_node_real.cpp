@@ -33,13 +33,21 @@ static bool SBCC_dim_available(const std::vector<size_t>& length,
     // The first R is built recursively with 2D_FFT, leave the check part to themselves
     size_t numTrans = 0;
     // do we have a purpose-built sbcc kernel
-    bool have_sbcc = false;
+    bool have_sbcc   = false;
+    bool is_old_sbcc = false;
     try
     {
         numTrans = function_pool::get_kernel(
                        fpkey(length[sbcc_dim], precision, CS_KERNEL_STOCKHAM_BLOCK_CC))
                        .batches_per_block;
         have_sbcc = true;
+        if(!numTrans)
+        {
+            // this is old sbcc kernel...
+            is_old_sbcc = true;
+            size_t wgs, lds;
+            GetBlockComputeTable(length[sbcc_dim], numTrans, wgs, lds);
+        }
     }
     catch(std::out_of_range&)
     {
@@ -47,22 +55,30 @@ static bool SBCC_dim_available(const std::vector<size_t>& length,
         {
             numTrans
                 = function_pool::get_kernel(fpkey(length[sbcc_dim], precision)).batches_per_block;
+
+            // if we have a size for this transform but numTrans, this must
+            // be an old-generator kernel
+            if(!numTrans)
+            {
+                size_t wgs = 0;
+                DetermineSizes(length[sbcc_dim], wgs, numTrans);
+            }
         }
         catch(std::out_of_range&)
         {
             return false;
         }
     }
-    // if we have a size for this transform but numTrans, this must
-    // be an old-generator kernel
-    if(!numTrans)
-    {
-        size_t wgs = 0;
-        DetermineSizes(length[sbcc_dim], wgs, numTrans);
-    }
 
-    // x-dim should be >= the blockwidth, or it might perform worse..
-    if(length[0] < numTrans)
+    // dim should be >= the blockwidth, or it might perform worse..
+    // for old sbcc, must be divisable by BWD(numTrans)
+    if(is_old_sbcc)
+    {
+        size_t remainLen0 = (length[0] / 2 + 1);
+        if(remainLen0 % numTrans != 0)
+            return false;
+    }
+    else if(length[0] < numTrans)
         return false;
 
     // for regular stockham kernels, ensure we are doing enough rows

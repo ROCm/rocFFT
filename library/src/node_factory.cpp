@@ -537,19 +537,41 @@ bool NodeFactory::use_CS_2D_SINGLE(NodeMetaData& nodeData)
 
 bool NodeFactory::use_CS_2D_RC(NodeMetaData& nodeData)
 {
-    //   For CS_2D_RC, we are reusing SBCC kernel for 1D middle size. The
-    //   current implementation of 1D SBCC supports only 64, 128, and 256.
-    //   However, technically no LDS limitation along the fast dimension
-    //   on upper bound for 2D SBCC cases, and even should not limit to pow
-    //   of 2.
-
-    std::set<int> sbcc_support = {50, 64, 81, 100, 128, 200, 256, 336};
-    if((sbcc_support.find(nodeData.length[1]) != sbcc_support.end()) && (nodeData.length[0] >= 56))
+    try
     {
-        return true;
+        // find the sbcc kernel (throws if not found / or old-sbcc without factors / or new-sbcc with factor)
+        bool oldKernel
+            = function_pool::get_kernel(
+                  fpkey(nodeData.length[1], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_CC))
+                  .factors.empty();
+        if(oldKernel)
+        {
+            // old-sbcc:
+            //   we are reusing SBCC kernel for 1D middle size. The
+            //   current implementation of 1D SBCC supports only 64, 128, and 256.
+            //   However, technically no LDS limitation along the fast dimension
+            //   on upper bound for 2D SBCC cases, and even should not limit to pow
+            //   of 2.
+            if(IsPo2(nodeData.length[1]) && (nodeData.length[0] >= 64))
+            {
+                size_t bwd, wgs, lds;
+                GetBlockComputeTable(nodeData.length[1], bwd, wgs, lds);
+                // need tile-aligned
+                return (nodeData.length[0] % bwd == 0);
+            }
+            return false;
+        }
+        else
+        {
+            // new-sbcc supports non-tile-aligned, only check if exceeds the min threshold.
+            return (nodeData.length[0] >= 56);
+        }
     }
-
-    return false;
+    catch(...)
+    {
+        // get_kernel throws, sbcc kernel not found in pool
+        return false;
+    }
 }
 
 size_t NodeFactory::count_3D_SBRC_nodes(NodeMetaData& nodeData)
@@ -588,6 +610,7 @@ bool NodeFactory::use_CS_3D_RC(NodeMetaData& nodeData)
     {
         // Check the C part.
         // The first R is built recursively with 2D_FFT, leave the check part to themselves
+        // we need to check if the sbcc kernel is old-gen or new-gen to get the correct BWD
         auto krn = function_pool::get_kernel(
             fpkey(nodeData.length[2], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
 
@@ -599,8 +622,19 @@ bool NodeFactory::use_CS_3D_RC(NodeMetaData& nodeData)
             return true;
 
         // x-dim should be >= the blockwidth, or it might perform worse..
-        if(nodeData.length[0] < krn.batches_per_block)
-            return false;
+        if(krn.batches_per_block == 0) // the kernel is from old-gen
+        {
+            size_t bwd, wgs, lds;
+            GetBlockComputeTable(nodeData.length[2], bwd, wgs, lds);
+            if(nodeData.length[0] % bwd != 0)
+                return false;
+        }
+        else
+        {
+            if(nodeData.length[0] < krn.batches_per_block)
+                return false;
+        }
+
         // we don't want a too-large 3D block, sbcc along z-dim might be bad
         if((nodeData.length[0] * nodeData.length[1] * nodeData.length[2]) >= (128 * 128 * 128))
             return false;

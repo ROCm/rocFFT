@@ -41,63 +41,64 @@ public:
     size_t                              group_num     = 8;
     EPrecision                          precision     = EPrecision::ALL;
     EPredefineType                      predefineType = EPredefineType::ALL;
-    std::vector<size_t>                 manualSize;
-    std::vector<size_t>                 manualSizeLarge;
+    std::set<size_t>                    manualSize;
+    std::set<size_t>                    manualSizeLarge;
+    std::set<size_t>                    largeSizesWithoutSBCC;
     std::set<size_t>                    validManualSize;
     std::set<size_t>                    validManualSizeLarge;
     std::set<std::pair<size_t, size_t>> validManual2D;
 
-    void init_precision(const std::vector<std::string>& argString)
+    void init_precision(const std::set<std::string>& argString)
     {
         // we're here only when -p is in the args, starting from none and do bit-OR
         precision = EPrecision::NONE;
-        if(std::find(argString.begin(), argString.end(), "single") != argString.end())
+        if(argString.count("single"))
         {
             precision |= EPrecision::SINGLE;
         }
-        if(std::find(argString.begin(), argString.end(), "double") != argString.end())
+        if(argString.count("double"))
         {
             precision |= EPrecision::DOUBLE;
         }
-        if(std::find(argString.begin(), argString.end(), "all") != argString.end())
+        if(argString.count("all"))
         {
             precision |= EPrecision::ALL;
         }
     }
 
-    void init_type(const std::vector<std::string>& argString)
+    void init_type(const std::set<std::string>& argString)
     {
         // we're here only when -t is in the args, starting from none and do bit-OR
         predefineType = EPredefineType::NONE;
-        if(std::find(argString.begin(), argString.end(), "pow2") != argString.end())
+        if(argString.count("pow2"))
         {
             predefineType |= EPredefineType::POW2;
         }
-        if(std::find(argString.begin(), argString.end(), "pow3") != argString.end())
+        if(argString.count("pow3"))
         {
             predefineType |= EPredefineType::POW3;
         }
-        if(std::find(argString.begin(), argString.end(), "pow5") != argString.end())
+        if(argString.count("pow5"))
         {
             predefineType |= EPredefineType::POW5;
         }
-        if(std::find(argString.begin(), argString.end(), "pow7") != argString.end())
+        if(argString.count("pow7"))
         {
             predefineType |= EPredefineType::POW7;
         }
-        if(std::find(argString.begin(), argString.end(), "small") != argString.end())
+        if(argString.count("small"))
         {
             predefineType |= EPredefineType::SMALL;
         }
-        if(std::find(argString.begin(), argString.end(), "large") != argString.end())
+        if(argString.count("large"))
         {
             predefineType |= EPredefineType::LARGE;
         }
-        if(std::find(argString.begin(), argString.end(), "2D") != argString.end())
+        if(argString.count("2D"))
         {
             predefineType |= EPredefineType::DIM2;
         }
-        if(std::find(argString.begin(), argString.end(), "all") != argString.end())
+        if(argString.count("all"))
         {
             predefineType |= EPredefineType::ALL;
         }
@@ -201,6 +202,11 @@ public:
 
         ss << "valid manual large size:";
         for(auto i : validManualSizeLarge)
+            ss << " " << i;
+        ss << separator;
+
+        ss << "don't gen sbcc for large size:";
+        for(auto i : largeSizesWithoutSBCC)
             ss << " " << i;
         ss << separator;
 

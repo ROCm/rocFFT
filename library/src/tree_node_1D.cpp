@@ -845,12 +845,26 @@ void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
     auto kernel = function_pool::get_kernel(fpkey(length[0], precision, scheme));
     fnPtr       = kernel.device_function;
-    gp.b_x      = ((length[1]) - 1) / kernel.batches_per_block + 1;
-    // repeat for higher dimensions + batch
-    gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
-    gp.tpb_x = kernel.threads_per_block;
-    lds      = length[0] * kernel.batches_per_block;
-    bwd      = kernel.batches_per_block;
+
+    if(kernel.threads_per_block > 0)
+    {
+        gp.b_x = ((length[1]) - 1) / kernel.batches_per_block + 1;
+        // repeat for higher dimensions + batch
+        gp.b_x
+            *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
+        gp.tpb_x = kernel.threads_per_block;
+        lds      = length[0] * kernel.batches_per_block;
+        bwd      = kernel.batches_per_block;
+    }
+    else
+    {
+        GetBlockComputeTable(length[0], bwd, wgs, lds);
+        gp.b_x = (length[1]) / bwd;
+        // repeat for higher dimensions + batch
+        gp.b_x
+            *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
+        gp.tpb_x = wgs;
+    }
 
     return;
 }
