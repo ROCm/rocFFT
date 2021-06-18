@@ -35,6 +35,7 @@ int log_bench_fd    = -1;
 int log_profile_fd  = -1;
 int log_plan_fd     = -1;
 int log_kernelio_fd = -1;
+int log_rtc_fd      = -1;
 
 /**
  *  @brief Logging function
@@ -100,6 +101,10 @@ rocfft_status rocfft_setup()
         // open log_kernelio file
         if(layer_mode & rocfft_layer_mode_log_kernelio)
             open_log_stream("ROCFFT_LOG_KERNELIO_PATH", log_kernelio_fd);
+
+        // open log_rtc file
+        if(layer_mode & rocfft_layer_mode_log_rtc)
+            open_log_stream("ROCFFT_LOG_RTC_PATH", log_rtc_fd);
     }
 
     log_trace(__func__);
@@ -137,6 +142,11 @@ rocfft_status rocfft_cleanup()
     {
         close(log_kernelio_fd);
         log_kernelio_fd = -1;
+    }
+    if(log_rtc_fd != -1)
+    {
+        close(log_rtc_fd);
+        log_rtc_fd = -1;
     }
 
     return rocfft_status_success;
