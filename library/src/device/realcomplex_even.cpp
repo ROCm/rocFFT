@@ -350,87 +350,80 @@ void r2c_1d_post(const void* data_p, void*)
     const dim3 grid(blocks, high_dimension, batch);
     const dim3 threads(block_size, 1, 1);
 
-    try
+    if(onedim)
     {
-        if(onedim)
+        if(data->node->outArrayType == rocfft_array_type_hermitian_interleaved)
         {
-            if(data->node->outArrayType == rocfft_array_type_hermitian_interleaved)
-            {
-                hipLaunchKernelGGL(kernelmap_interleaved_1D.at(params_cb),
-                                   grid,
-                                   threads,
-                                   0,
-                                   data->rocfft_stream,
-                                   half_N,
-                                   bufIn0,
-                                   idist,
-                                   bufOut0,
-                                   odist,
-                                   data->node->twiddles.data(),
-                                   data->callbacks.load_cb_fn,
-                                   data->callbacks.load_cb_data,
-                                   data->callbacks.load_cb_lds_bytes,
-                                   data->callbacks.store_cb_fn,
-                                   data->callbacks.store_cb_data);
-            }
-            else
-            {
-                hipLaunchKernelGGL(kernelmap_planar_1D.at(params),
-                                   grid,
-                                   threads,
-                                   0,
-                                   data->rocfft_stream,
-                                   half_N,
-                                   bufIn0,
-                                   idist,
-                                   bufOut0,
-                                   bufOut1,
-                                   odist,
-                                   data->node->twiddles.data());
-            }
+            hipLaunchKernelGGL(kernelmap_interleaved_1D.at(params_cb),
+                               grid,
+                               threads,
+                               0,
+                               data->rocfft_stream,
+                               half_N,
+                               bufIn0,
+                               idist,
+                               bufOut0,
+                               odist,
+                               data->node->twiddles.data(),
+                               data->callbacks.load_cb_fn,
+                               data->callbacks.load_cb_data,
+                               data->callbacks.load_cb_lds_bytes,
+                               data->callbacks.store_cb_fn,
+                               data->callbacks.store_cb_data);
         }
         else
         {
-            const size_t idist1D = data->node->inStride[1];
-            const size_t odist1D = data->node->outStride[1];
-            if(data->node->outArrayType == rocfft_array_type_hermitian_interleaved)
-            {
-                hipLaunchKernelGGL(kernelmap_interleaved.at(params),
-                                   grid,
-                                   threads,
-                                   0,
-                                   data->rocfft_stream,
-                                   half_N,
-                                   idist1D,
-                                   odist1D,
-                                   bufIn0,
-                                   idist,
-                                   bufOut0,
-                                   odist,
-                                   data->node->twiddles.data());
-            }
-            else
-            {
-                hipLaunchKernelGGL(kernelmap_planar.at(params),
-                                   grid,
-                                   threads,
-                                   0,
-                                   data->rocfft_stream,
-                                   half_N,
-                                   idist1D,
-                                   odist1D,
-                                   bufIn0,
-                                   idist,
-                                   bufOut0,
-                                   bufOut1,
-                                   odist,
-                                   data->node->twiddles.data());
-            }
+            hipLaunchKernelGGL(kernelmap_planar_1D.at(params),
+                               grid,
+                               threads,
+                               0,
+                               data->rocfft_stream,
+                               half_N,
+                               bufIn0,
+                               idist,
+                               bufOut0,
+                               bufOut1,
+                               odist,
+                               data->node->twiddles.data());
         }
     }
-    catch(std::exception& e)
+    else
     {
-        rocfft_cerr << e.what() << std::endl;
+        const size_t idist1D = data->node->inStride[1];
+        const size_t odist1D = data->node->outStride[1];
+        if(data->node->outArrayType == rocfft_array_type_hermitian_interleaved)
+        {
+            hipLaunchKernelGGL(kernelmap_interleaved.at(params),
+                               grid,
+                               threads,
+                               0,
+                               data->rocfft_stream,
+                               half_N,
+                               idist1D,
+                               odist1D,
+                               bufIn0,
+                               idist,
+                               bufOut0,
+                               odist,
+                               data->node->twiddles.data());
+        }
+        else
+        {
+            hipLaunchKernelGGL(kernelmap_planar.at(params),
+                               grid,
+                               threads,
+                               0,
+                               data->rocfft_stream,
+                               half_N,
+                               idist1D,
+                               odist1D,
+                               bufIn0,
+                               idist,
+                               bufOut0,
+                               bufOut1,
+                               odist,
+                               data->node->twiddles.data());
+        }
     }
 }
 
@@ -668,49 +661,42 @@ void c2r_1d_pre(const void* data_p, void*)
     const size_t idist1D = istride;
     const size_t odist1D = ostride;
 
-    try
+    if(data->node->inArrayType == rocfft_array_type_hermitian_interleaved)
     {
-        if(data->node->inArrayType == rocfft_array_type_hermitian_interleaved)
-        {
-            hipLaunchKernelGGL(kernelmap_interleaved.at(params_interleaved),
-                               grid,
-                               threads,
-                               0,
-                               data->rocfft_stream,
-                               half_N,
-                               idist1D,
-                               odist1D,
-                               bufIn0,
-                               idist,
-                               bufOut0,
-                               odist,
-                               data->node->twiddles.data(),
-                               data->callbacks.load_cb_fn,
-                               data->callbacks.load_cb_data,
-                               data->callbacks.load_cb_lds_bytes,
-                               data->callbacks.store_cb_fn,
-                               data->callbacks.store_cb_data);
-        }
-        else
-        {
-            hipLaunchKernelGGL(kernelmap_planar.at(params_planar),
-                               grid,
-                               threads,
-                               0,
-                               data->rocfft_stream,
-                               half_N,
-                               idist1D,
-                               odist1D,
-                               bufIn0,
-                               bufIn1,
-                               idist,
-                               bufOut0,
-                               odist,
-                               data->node->twiddles.data());
-        }
+        hipLaunchKernelGGL(kernelmap_interleaved.at(params_interleaved),
+                           grid,
+                           threads,
+                           0,
+                           data->rocfft_stream,
+                           half_N,
+                           idist1D,
+                           odist1D,
+                           bufIn0,
+                           idist,
+                           bufOut0,
+                           odist,
+                           data->node->twiddles.data(),
+                           data->callbacks.load_cb_fn,
+                           data->callbacks.load_cb_data,
+                           data->callbacks.load_cb_lds_bytes,
+                           data->callbacks.store_cb_fn,
+                           data->callbacks.store_cb_data);
     }
-    catch(std::exception& e)
+    else
     {
-        rocfft_cout << e.what() << std::endl;
+        hipLaunchKernelGGL(kernelmap_planar.at(params_planar),
+                           grid,
+                           threads,
+                           0,
+                           data->rocfft_stream,
+                           half_N,
+                           idist1D,
+                           odist1D,
+                           bufIn0,
+                           bufIn1,
+                           idist,
+                           bufOut0,
+                           odist,
+                           data->node->twiddles.data());
     }
 }

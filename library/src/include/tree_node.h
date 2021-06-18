@@ -31,7 +31,6 @@
 #include "../device/kernels/callback.h"
 #include "../device/kernels/common.h"
 #include "kargs.h"
-#include "rocfft_ostream.hpp"
 #include "twiddles.h"
 #include <hip/hip_runtime_api.h>
 
@@ -163,6 +162,8 @@ struct NodeMetaData
 
     NodeMetaData(TreeNode* refNode);
 };
+
+class rocfft_ostream;
 
 class TreeNode
 {
@@ -320,7 +321,7 @@ public:
                                         size_t&                 chirpSize);
 
     // Output plan information for debug purposes:
-    void Print(rocfft_ostream& os = rocfft_cout, int indent = 0) const;
+    void Print(rocfft_ostream& os, int indent = 0) const;
 
     // logic B - using in-place transposes, todo
     //void RecursiveBuildTreeLogicB();

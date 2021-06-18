@@ -116,7 +116,7 @@ std::shared_ptr<rocfft_ostream::worker> rocfft_ostream::get_worker(int fd)
 }
 
 // Construct rocfft_ostream from a file descriptor
-ROCFFT_EXPORT rocfft_ostream::rocfft_ostream(int fd)
+rocfft_ostream::rocfft_ostream(int fd)
     : worker_ptr(get_worker(fd))
 {
     if(!worker_ptr)
@@ -127,7 +127,7 @@ ROCFFT_EXPORT rocfft_ostream::rocfft_ostream(int fd)
 }
 
 // Construct rocfft_ostream from a filename opened for writing with truncation
-ROCFFT_EXPORT rocfft_ostream::rocfft_ostream(const char* filename)
+rocfft_ostream::rocfft_ostream(const char* filename)
 {
     int fd     = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND | O_CLOEXEC, 0644);
     worker_ptr = get_worker(fd);
@@ -140,7 +140,7 @@ ROCFFT_EXPORT rocfft_ostream::rocfft_ostream(const char* filename)
 }
 
 // Flush the output
-ROCFFT_EXPORT void rocfft_ostream::flush()
+void rocfft_ostream::flush()
 {
     // Flush only if this stream contains a worker (i.e., is not a string)
     if(worker_ptr)
@@ -162,7 +162,7 @@ ROCFFT_EXPORT void rocfft_ostream::flush()
  ***********************************************************************/
 
 // Floating-point output
-ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, double x)
+rocfft_ostream& operator<<(rocfft_ostream& os, double x)
 {
     char        s[32];
     const char* out;
@@ -192,40 +192,40 @@ ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, double x)
     return os;
 }
 
-ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, float f)
+rocfft_ostream& operator<<(rocfft_ostream& os, float f)
 {
     return os << static_cast<double>(f);
 }
 
 // bool output
-ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, bool b)
+rocfft_ostream& operator<<(rocfft_ostream& os, bool b)
 {
     os.os << (b ? 1 : 0);
     return os;
 }
 
 // Character output
-ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, char c)
+rocfft_ostream& operator<<(rocfft_ostream& os, char c)
 {
     os.os << c;
     return os;
 }
 
 // String output
-ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, const char* s)
+rocfft_ostream& operator<<(rocfft_ostream& os, const char* s)
 {
     os.os << s;
     return os;
 }
 
-ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, const std::string& s)
+rocfft_ostream& operator<<(rocfft_ostream& os, const std::string& s)
 {
     os.os << s;
     return os;
 }
 
 // IO Manipulators
-ROCFFT_EXPORT rocfft_ostream& operator<<(rocfft_ostream& os, std::ostream& (*pf)(std::ostream&))
+rocfft_ostream& operator<<(rocfft_ostream& os, std::ostream& (*pf)(std::ostream&))
 {
     // Output the manipulator to the buffer
     os.os << pf;

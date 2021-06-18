@@ -334,7 +334,7 @@ void hermitian2complex(const void* data_p, void* back_p)
     size_t blocks = (hermitian_size - 1) / LAUNCH_BOUNDS_R2C_C2R_KERNEL + 1;
 
     if(data->node->length.size() > 3)
-        rocfft_cout << "Error: dimension larger than 3, which is not handled" << std::endl;
+        throw std::runtime_error("Error: dimension larger than 3, which is not handled");
 
     size_t dim_1 = 1, dim_2 = 1;
     if(data->node->length.size() >= 2)

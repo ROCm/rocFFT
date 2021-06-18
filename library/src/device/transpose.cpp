@@ -180,11 +180,14 @@ rocfft_status rocfft_transpose_outofplace_template(size_t       m,
                                store_cb_data);
         else
         {
-            rocfft_cout << "scheme: " << scheme << std::endl;
-            rocfft_cout << "twl: " << twl << std::endl;
-            rocfft_cout << "dir: " << dir << std::endl;
-            rocfft_cout << "all: " << all << std::endl;
-            rocfft_cout << "diagonal: " << diagonal << std::endl;
+            std::stringstream msg;
+            msg << "transpose kernel not found, ";
+            msg << "scheme: " << scheme << std::endl;
+            msg << "twl: " << twl << std::endl;
+            msg << "dir: " << dir << std::endl;
+            msg << "all: " << all << std::endl;
+            msg << "diagonal: " << diagonal << std::endl;
+            throw std::runtime_error(msg.str());
         }
     }
     else
@@ -232,11 +235,14 @@ rocfft_status rocfft_transpose_outofplace_template(size_t       m,
         }
         else
         {
-            rocfft_cout << "scheme: " << scheme << std::endl;
-            rocfft_cout << "twl: " << twl << std::endl;
-            rocfft_cout << "dir: " << dir << std::endl;
-            rocfft_cout << "all: " << all << std::endl;
-            rocfft_cout << "diagonal: " << diagonal << std::endl;
+            std::stringstream msg;
+            msg << "transpose kernel not found, ";
+            msg << "scheme: " << scheme << std::endl;
+            msg << "twl: " << twl << std::endl;
+            msg << "dir: " << dir << std::endl;
+            msg << "all: " << all << std::endl;
+            msg << "diagonal: " << diagonal << std::endl;
+            throw std::runtime_error(msg.str());
         }
     }
 

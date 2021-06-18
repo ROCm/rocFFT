@@ -53,11 +53,13 @@ inline void PrintMissingKernelInfo(const FMKey key)
     rocfft_precision    precision = std::get<1>(key);
     ComputeScheme       scheme    = std::get<2>(key);
     SBRC_TRANSPOSE_TYPE trans     = std::get<3>(key);
-    rocfft_cerr << "Kernel not found: \n"
-                << "\tlength: " << lengthVec[0] << "," << lengthVec[1] << "\n"
-                << "\tprecision: " << precision << "\n"
-                << "\tscheme: " << PrintScheme(scheme) << "\n"
-                << "\tSBRC Transpose type: " << PrintSBRCTransposeType(trans) << std::endl;
+    std::stringstream   msg;
+    msg << "Kernel not found: \n"
+        << "\tlength: " << lengthVec[0] << "," << lengthVec[1] << "\n"
+        << "\tprecision: " << precision << "\n"
+        << "\tscheme: " << PrintScheme(scheme) << "\n"
+        << "\tSBRC Transpose type: " << PrintSBRCTransposeType(trans) << std::endl;
+    throw std::runtime_error(msg.str());
 }
 
 struct SimpleHash
@@ -181,8 +183,7 @@ public:
         {
             if(!f.second.device_function)
             {
-                rocfft_cerr << "null ptr registered in function pool" << std::endl;
-                abort();
+                throw std::runtime_error("null ptr registered in function pool");
             }
         }
     }
