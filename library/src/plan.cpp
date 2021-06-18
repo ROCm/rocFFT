@@ -459,7 +459,15 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     // }
 
     // add this plan into repo, incurs computation, see repo.cpp
-    return Repo::GetRepo().CreatePlan(p);
+    try
+    {
+        return Repo::GetRepo().CreatePlan(p);
+    }
+    catch(std::exception& e)
+    {
+        std::cerr << e.what() << std::endl;
+        return rocfft_status_failure;
+    }
 }
 
 rocfft_status rocfft_plan_allocate(rocfft_plan* plan)

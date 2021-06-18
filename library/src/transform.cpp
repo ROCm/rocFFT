@@ -154,10 +154,17 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
        && (info.callbacks.load_cb_fn || info.callbacks.store_cb_fn))
         return rocfft_status_failure;
 
-    TransformPowX(*execPlan,
-                  in_buffer,
-                  (plan->placement == rocfft_placement_inplace) ? in_buffer : out_buffer,
-                  &info);
+    try
+    {
+        TransformPowX(*execPlan,
+                      in_buffer,
+                      (plan->placement == rocfft_placement_inplace) ? in_buffer : out_buffer,
+                      &info);
+    }
+    catch(std::exception&)
+    {
+        return rocfft_status_failure;
+    }
 
     return rocfft_status_success;
 }
