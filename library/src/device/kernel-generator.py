@@ -655,6 +655,8 @@ def generate_kernel(kernel, precisions):
         LineBreak(),
         Include('<hip/hip_runtime.h>'),
         Include('"kernel_launch.h"'),
+        Include('"kernels/common.h"'),
+        Include('"kernels/butterfly_constant.h"'),
         Include('"rocfft_butterfly_template.h"'),
         Include('"real2complex.h"'),
         LineBreak())

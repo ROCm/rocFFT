@@ -7,8 +7,6 @@
 #ifndef BUTTERFLY_CONSTANT_H
 #define BUTTERFLY_CONSTANT_H
 
-#include "common.h"
-
 // butterfly radix-3 constants
 #define C3QA static_cast<real_type_t<T>>(0.50000000000000000000000000000000)
 #define C3QB static_cast<real_type_t<T>>(0.86602540378443864676372317075294)

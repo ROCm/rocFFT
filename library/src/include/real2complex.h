@@ -21,8 +21,6 @@
 #ifndef REAL_TO_COMPLEX_H
 #define REAL_TO_COMPLEX_H
 
-#include "rocfft_hip.h"
-
 // The even-length real to complex post process device kernel
 template <typename Tcomplex, bool Ndiv4, CallbackType cbtype>
 __device__ inline void post_process_interleaved(const size_t    idx_p,

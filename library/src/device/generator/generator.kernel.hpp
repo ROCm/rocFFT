@@ -30,6 +30,31 @@
 #include <list>
 #include <stdio.h>
 
+// To extract file name out of full path
+static inline constexpr const char* KernelFileName(const char* fullname)
+{
+    const char* f = fullname;
+    while(*fullname)
+    {
+        if(*fullname++ == '/') // TODO: check it for WIN
+        {
+            f = fullname;
+        }
+    }
+    return f;
+}
+
+// To generate back reference line number in generated kernel code at the end
+// of the line.
+//     usage: str += GEN_REF_LINE()
+#define GEN_REF_LINE()               \
+    " // ";                          \
+    const char* fullname = __FILE__; \
+    str += KernelFileName(fullname); \
+    str += ":";                      \
+    str += std::to_string(__LINE__); \
+    str += "\n";
+
 // FFT Stockham Autosort Method
 //
 //   Each pass does one digit reverse in essence. Hence by the time all passes
@@ -2255,7 +2280,8 @@ namespace StockhamGenerator
             =================================================================== */
         void GenerateKernel(std::string& str)
         {
-            // str += "#include \"common.h\"\n";
+            str += "#include \"kernels/common.h\"\n";
+            str += "#include \"kernels/butterfly_constant.h\"\n";
             str += "#include \"rocfft_butterfly_template.h\"\n";
             if(blockCompute && blockComputeType == BCT_R2C)
             {

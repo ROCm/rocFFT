@@ -4,10 +4,8 @@
 
 #ifndef COMMON_H
 #define COMMON_H
-#include "rocfft.h"
+#include <hip/hip_runtime.h>
 #include <hip/hip_vector_types.h>
-#include <iostream>
-#include <string>
 
 // NB:
 //   All kernels were compiled based on the assumption that the default max
@@ -16,31 +14,6 @@
 //   __launch_bounds__ or __attribute__.
 //   Further performance tuning might be done later.
 static const unsigned int LAUNCH_BOUNDS_R2C_C2R_KERNEL = 256;
-
-// To extract file name out of full path
-static inline constexpr const char* KernelFileName(const char* fullname)
-{
-    const char* f = fullname;
-    while(*fullname)
-    {
-        if(*fullname++ == '/') // TODO: check it for WIN
-        {
-            f = fullname;
-        }
-    }
-    return f;
-}
-
-// To generate back reference line number in generated kernel code at the end
-// of the line.
-//     usage: str += GEN_REF_LINE()
-#define GEN_REF_LINE()               \
-    " // ";                          \
-    const char* fullname = __FILE__; \
-    str += KernelFileName(fullname); \
-    str += ":";                      \
-    str += std::to_string(__LINE__); \
-    str += "\n";
 
 #ifdef __NVCC__
 #include "vector_types.h"
@@ -196,28 +169,6 @@ using vector4_type_t = typename vector4_type<T>::type;
 /* example of using vector4_type_t */
 // vector4_type_t<float2> float4_scalar;
 // vector4_type_t<double2> double4_scalar;
-
-template <rocfft_precision T>
-struct vector2_type;
-
-template <>
-struct vector2_type<rocfft_precision_single>
-{
-    typedef float2 type;
-};
-
-template <>
-struct vector2_type<rocfft_precision_double>
-{
-    typedef double2 type;
-};
-
-template <rocfft_precision T>
-using vector2_type_t = typename vector2_type<T>::type;
-
-/* example of using vector2_type_t */
-// vector2_type_t<rocfft_precision_single> float2_scalar;
-// vector2_type_t<rocfft_precision_double> double2_scalar;
 
 template <typename T>
 __device__ inline T lib_make_vector2(real_type_t<T> v0, real_type_t<T> v1);

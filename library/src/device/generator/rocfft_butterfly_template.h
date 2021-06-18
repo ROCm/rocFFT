@@ -7,9 +7,6 @@
 #ifndef ROCFFT_BUTTERFLY_TEMPLATE_H
 #define ROCFFT_BUTTERFLY_TEMPLATE_H
 
-#include "../kernels/butterfly_constant.h"
-#include "../kernels/common.h"
-
 template <typename T, size_t Base>
 __device__ T TW2step(const T* const twiddles, size_t u)
 {
