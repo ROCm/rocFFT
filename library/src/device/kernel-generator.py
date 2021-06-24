@@ -205,7 +205,10 @@ def get_dependent_1D_sizes(list_2D):
 class FFTKernel(BaseNode):
     def __str__(self):
         f = 'FFTKernel('
-        f += str(self.function.address())
+        if self.function.meta.runtime_compile:
+            f += 'nullptr'
+        else:
+            f += str(self.function.address())
         use_3steps_large_twd = getattr(self.function.meta, 'use_3steps_large_twd', None)
         if use_3steps_large_twd is not None:
             f += ', ' + str(use_3steps_large_twd[self.function.meta.precision])
@@ -268,7 +271,8 @@ def generate_small_1d_prototypes(precision, transforms):
                                       length=length,
                                       precision=precision,
                                       scheme=scheme,
-                                      transpose=transpose)))
+                                      transpose=transpose,
+                                      runtime_compile=False)))
 
     for length, scheme in transforms.items():
         add(f'rocfft_internal_dfn_{precision}_ci_ci_stoc_{length}', scheme)
@@ -297,7 +301,8 @@ def generate_large_1d_prototypes(precision, transforms):
                                       precision=precision,
                                       scheme=scheme,
                                       use_3steps_large_twd=use3Steps,
-                                      transpose=transpose)))
+                                      transpose=transpose,
+                                      runtime_compile=False)))
 
     for length, scheme in transforms.items():
         if 0:
@@ -332,7 +337,8 @@ def generate_2d_prototypes(precision, transforms):
                                       length=length,
                                       precision=precision,
                                       scheme=scheme,
-                                      transpose=transpose)))
+                                      transpose=transpose,
+                                      runtime_compile=False)))
 
     for length, scheme in transforms.items():
         add(f'rocfft_internal_dfn_{precision}_ci_ci_2D_{length[0]}_{length[1]}', 'CS_KERNEL_2D_SINGLE', 'NONE')
@@ -409,7 +415,7 @@ def list_old_generated_kernels(patterns=None,
 
 def list_generated_kernels(kernels):
     """Return list of kernel filenames."""
-    return [kernel_file_name(x) for x in kernels]
+    return [kernel_file_name(x) for x in kernels if not x.runtime_compile]
 
 
 #
@@ -626,6 +632,10 @@ def list_new_large_kernels():
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
     return kernels
 
+def default_runtime_compile(kernels):
+    '''Returns a copy of input kernel list with a default value for runtime_compile.'''
+
+    return [k if hasattr(k, 'runtime_compile') else NS(**k.__dict__, runtime_compile=False) for k in kernels]
 
 def generate_kernel(kernel, precisions):
     """Generate a single kernel file for 'kernel'.
@@ -662,9 +672,13 @@ def generate_kernel(kernel, precisions):
         LineBreak())
 
     kdevice, kglobal = stockham.stockham(**kernel.__dict__)
+    # forward runtime compile flag into kglobal.meta so we can know
+    # whether to put a prototype into the function pool
+    kglobal.meta = NS(**kglobal.meta.__dict__, runtime_compile=kernel.runtime_compile)
     length = kglobal.meta.length
     forward, inverse = kglobal.name, kglobal.name.replace('forward', 'inverse')
-    src += stockham.make_variants(kdevice, kglobal)
+    if not kernel.runtime_compile:
+        src += stockham.make_variants(kdevice, kglobal)
 
     cpu_functions = []
     for p in precisions:
@@ -683,10 +697,12 @@ def generate_kernel(kernel, precisions):
         else:
             raise NotImplementedError(f'Unable to generate host functions for scheme {kglobal.meta.scheme}.')
 
-        src += prototype
+        if not kernel.runtime_compile:
+            src += prototype
         cpu_functions += [prototype.function(kglobal.meta, p)]
 
-    format_and_write(kernel_file_name(kernel), src)
+    if not kernel.runtime_compile:
+        format_and_write(kernel_file_name(kernel), src)
     return cpu_functions
 
 
@@ -823,6 +839,9 @@ def cli():
         new_large_kernels = merge_length(new_large_kernels, new_larges)
 
     new_kernels = new_small_kernels + new_large_kernels + list_new_2d_kernels()
+    # set runtime_compile on new kernels that haven't already set a
+    # value
+    new_kernels = default_runtime_compile(new_kernels)
 
     # update the patterns after removing new kernels from old generator to avoid including some missing cpp
     if 'small' in patterns and len(expand_sizes['small']['sp']) == 0 and len(expand_sizes['small']['dp']) == 0:

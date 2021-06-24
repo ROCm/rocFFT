@@ -29,6 +29,7 @@
 #include "rocfft-version.h"
 #include "rocfft.h"
 #include "rocfft_ostream.hpp"
+#include "rtc.h"
 
 #include <algorithm>
 #include <assert.h>
@@ -1746,6 +1747,12 @@ static void OptimizePlan(ExecPlan& execPlan)
     }
 }
 
+void RuntimeCompilePlan(ExecPlan& execPlan)
+{
+    for(auto& node : execPlan.execSeq)
+        node->compiledKernel = RTCKernel::runtime_compile(*node, execPlan.deviceProp.gcnArchName);
+}
+
 void ProcessNode(ExecPlan& execPlan)
 {
     execPlan.rootPlan->RecursiveBuildTree();
@@ -1780,6 +1787,9 @@ void ProcessNode(ExecPlan& execPlan)
         execPlan.execSeq, tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
 
     OptimizePlan(execPlan);
+
+    // compile kernels for applicable nodes
+    RuntimeCompilePlan(execPlan);
 
     execPlan.workBufSize      = tmpBufSize + cmplxForRealSize + blueSize + chirpSize;
     execPlan.tmpWorkBufSize   = tmpBufSize;

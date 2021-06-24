@@ -31,6 +31,7 @@
 #include "../device/kernels/callback.h"
 #include "../device/kernels/common.h"
 #include "kargs.h"
+#include "rtc.h"
 #include "twiddles.h"
 #include <hip/hip_runtime_api.h>
 
@@ -255,6 +256,10 @@ public:
     // comments inserted by optimization passes to explain changes done
     // to the node
     std::vector<std::string> comments;
+
+    // runtime-compiled kernels for this node
+    std::unique_ptr<RTCKernel> compiledKernel;
+    std::unique_ptr<RTCKernel> compiledKernelWithCallbacks;
 
 public:
     // Disallow copy constructor:

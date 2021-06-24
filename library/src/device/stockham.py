@@ -175,13 +175,6 @@ def common_variables(length, params, nregisters):
     return kvars, kvars.__dict__
 
 
-class CallbackDeclaration(BaseNode):
-    def __str__(self):
-        ret = 'auto load_cb = get_load_cb<scalar_type,cbtype>(load_cb_fn);'
-        ret += 'auto store_cb = get_store_cb<scalar_type,cbtype>(store_cb_fn);'
-        return ret
-
-
 #
 # Base helpers
 #
@@ -695,7 +688,8 @@ class StockhamKernel:
         body += self.tiling.store_to_global(self.length, params, **kwvars)
 
         return Function(name=f'forward_length{self.length}_{self.tiling.name}',
-                        qualifier=f'__global__ __launch_bounds__({params.threads_per_block})',
+                        qualifier='__global__',
+                        launch_bounds=params.threads_per_block,
                         arguments=self.global_arguments(kvars, **kwvars),
                         templates=self.global_templates(kvars, **kwvars),
                         meta=NS(factors=self.factors,
@@ -1063,7 +1057,8 @@ class StockhamKernelFused2D(StockhamKernel):
         template_list = TemplateList(kvars.scalar_type, kvars.stride_type)
         argument_list = ArgumentList(kvars.twiddles, kvars.dim, kvars.lengths, kvars.stride, kvars.nbatch, kvars.buf)
         return Function(name=f'forward_length{"x".join(map(str, length))}',
-                        qualifier=f'__global__ __launch_bounds__({params.threads_per_block})',
+                        qualifier='__global__',
+                        launch_bounds=params.threads_per_block,
                         templates=self.global_templates(kvars),
                         arguments=self.global_arguments(kvars),
                         meta=NS(length=tuple(length),
@@ -1340,3 +1335,51 @@ def stockham(length, **kwargs):
         return stockham2d(length, **kwargs)
 
     raise ValueError("length must be an interger or list")
+
+def stockham_rtc(kernel_prelude, specs, **kwargs):
+    """Generate runtime-compile-able stockham kernel source.
+
+    Accepts a namespace object of kernel parameters, returns
+    unformatted stringified device+global functions.
+
+    Key differences of RTC kernels:
+    - global function is de-templatized
+    - it's given "C" linkage, so runtime compiler does not need to do
+      C++ name mangling
+    """
+    op_names = ['buf', 'stride', 'stride0', 'offset']
+
+    def rename(x, pre):
+        if 'forward' in x or 'inverse' in x:
+            return pre + x
+        return x
+
+    def rename_ip(x):
+        return rename_functions(x, lambda n: rename(n, 'ip_'))
+
+    def rename_op(x):
+        return rename_functions(x, lambda n: rename(n, 'op_'))
+
+    kdevice, kglobal = stockham(**kwargs)
+
+    # rewrite the kernel as required to fit the specs
+    if specs['direction'] == 1:
+        kdevice = make_inverse(kdevice, ['twiddles', 'TW2step'])
+        kglobal = make_inverse(kglobal, ['twiddles', 'TW2step'])
+    if specs['inplace']:
+        if specs['input_is_planar']:
+            kdevice = make_planar(kdevice, 'buf')
+            kglobal = make_planar(kglobal, 'buf')
+    else:
+        kdevice = make_out_of_place(kdevice, op_names)
+        kglobal = make_out_of_place(kglobal, op_names)
+        if specs['input_is_planar']:
+            kdevice = make_planar(kdevice, 'buf_in')
+            kglobal = make_planar(kglobal, 'buf_in')
+        if not(specs['inplace']) and specs['output_is_planar']:
+            kdevice = make_planar(kdevice, 'buf_out')
+            kglobal = make_planar(kglobal, 'buf_out')
+
+    # convert global kernel into runtime-compiled version
+    kglobal = make_rtc(kglobal, specs)
+    return ''.join([kernel_prelude, str(kdevice), str(kglobal)])

@@ -176,18 +176,6 @@ public:
         return func_pool.function_map.at(key);
     }
 
-    static void verify_no_null_functions()
-    {
-        function_pool& func_pool = get_function_pool();
-        for(auto& f : func_pool.function_map)
-        {
-            if(!f.second.device_function)
-            {
-                throw std::runtime_error("null ptr registered in function pool");
-            }
-        }
-    }
-
     // helper for common used
     static bool has_SBCC_kernel(size_t length, rocfft_precision precision)
     {

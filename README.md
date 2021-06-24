@@ -15,6 +15,11 @@ are available for each release on the releases tab.
 
 * `sudo apt update && sudo apt install rocfft`
 
+## Dependencies
+
+rocFFT requires python3 libraries to be present at runtime.  These are
+typically present by default in most Linux distributions.
+
 ## Building from source
 
 rocFFT is compiled with hipcc and uses cmake.  There are a number of options
@@ -28,6 +33,10 @@ make -j
 ```
 
 A static library can be compiled by using the option `-DBUILD_SHARED_LIBS=off`
+
+Python3 development files are required to build the library.  These are
+provided by the `libpython3-dev` package on Ubuntu- and Debian-based
+distributions, and by `python3-devel` on RPM distributions.
 
 To use the [hip-clang compiler][3], one must specify
 `-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang` to cmake.  rocFFT enables
@@ -56,7 +65,7 @@ Clients are not built by default.  To build them:
 
 To build all of the above clients, use `-DBUILD_CLIENTS=on`.
 
-To install the client depencencies on Ubuntu, run
+To install the client dependencies on Ubuntu, run
 `sudo apt install libgtest-dev libfftw3-dev libboost-program-options-dev`.
 We use version 1.10 of Google Test (gtest).
 

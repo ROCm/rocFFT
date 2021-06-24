@@ -180,10 +180,10 @@ install_packages( )
     fi
 
     # dependencies needed for rocfft and clients to build
-    local library_dependencies_ubuntu=( "make" "cmake-curses-gui" "pkg-config" )
-    local library_dependencies_centos=( "epel-release" "make" "cmake3" "gcc-c++" "rpm-build" )
-    local library_dependencies_fedora=( "make" "cmake" "gcc-c++" "libcxx-devel" "rpm-build" )
-    local library_dependencies_sles=( "make" "cmake" "gcc-c++" "gcc-fortran" "libcxxtools9" "rpm-build" )
+    local library_dependencies_ubuntu=( "make" "cmake-curses-gui" "pkg-config" "libpython3-dev" )
+    local library_dependencies_centos=( "epel-release" "make" "cmake3" "gcc-c++" "rpm-build" "python3-devel" )
+    local library_dependencies_fedora=( "make" "cmake" "gcc-c++" "libcxx-devel" "rpm-build" "python3-devel" )
+    local library_dependencies_sles=( "make" "cmake" "gcc-c++" "gcc-fortran" "libcxxtools9" "rpm-build" "python3-devel" )
 
     local client_dependencies_ubuntu=( "libfftw3-dev" "libboost-program-options-dev" )
     local client_dependencies_centos=( "fftw-devel" "boost-devel" )

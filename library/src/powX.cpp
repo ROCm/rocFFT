@@ -32,6 +32,7 @@
 #include "logging.h"
 #include "plan.h"
 #include "repo.h"
+#include "rtc.h"
 #include "transform.h"
 
 #include "radix_table.h"
@@ -46,8 +47,6 @@
 #include "../../shared/printbuffer.h"
 #include "rocfft_hip.h"
 
-std::atomic<bool> fn_checked(false);
-
 // This function is called during creation of plan: enqueue the HIP kernels by function
 // pointers. Return true if everything goes well. Any internal device memory allocation
 // failure returns false right away.
@@ -60,12 +59,6 @@ bool PlanPowX(ExecPlan& execPlan)
 
         if(node->CreateDevKernelArgs() == false)
             return false;
-    }
-
-    if(!fn_checked)
-    {
-        fn_checked = true;
-        function_pool::verify_no_null_functions();
     }
 
     for(const auto& node : execPlan.execSeq)
@@ -402,7 +395,7 @@ void TransformPowX(const ExecPlan&       execPlan,
         }
 
         DevFnCall fn = execPlan.devFnCall[i];
-        if(fn)
+        if(fn || data.node->compiledKernel)
         {
 #ifdef REF_DEBUG
             rocfft_cout << "\n---------------------------------------------\n";
@@ -443,11 +436,29 @@ void TransformPowX(const ExecPlan&       execPlan,
             // give callback parameters to kernel launcher
             data.callbacks = execPlan.execSeq[i]->callbacks;
 
+            // if we have a compiled kernel and need to run
+            // callbacks, ensure we've built a kernel that's
+            // callback-capable
+            if(data.node->compiledKernel && data.get_callback_type() != CallbackType::NONE
+               && !data.node->compiledKernelWithCallbacks)
+            {
+                data.node->compiledKernelWithCallbacks
+                    = RTCKernel::runtime_compile(*data.node, execPlan.deviceProp.gcnArchName, true);
+            }
+
+            // choose which compiled kernel to run
+            RTCKernel* localCompiledKernel = data.get_callback_type() == CallbackType::NONE
+                                                 ? data.node->compiledKernel.get()
+                                                 : data.node->compiledKernelWithCallbacks.get();
+
             // skip apply callback kernel if there's no callback
             if(data.node->scheme != CS_KERNEL_APPLY_CALLBACK
                || data.get_callback_type() != CallbackType::NONE)
             {
-                fn(&data, &back);
+                if(localCompiledKernel)
+                    localCompiledKernel->launch(data);
+                else
+                    fn(&data, &back);
             }
             if(emit_profile_log)
                 hipEventRecord(stop);

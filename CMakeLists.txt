@@ -20,10 +20,7 @@
 # THE SOFTWARE.
 # #############################################################################
 
-
-# The ROCm platform requires Ubuntu 16.04 or Fedora 24, which has cmake 3.5
-cmake_minimum_required( VERSION 3.5 )
-
+cmake_minimum_required( VERSION 3.16 )
 
 # This should appear before the project command, because it does not
 # use FORCE

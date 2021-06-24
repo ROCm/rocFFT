@@ -113,6 +113,8 @@ set( BIN_INSTALL_DIR ${CMAKE_INSTALL_BINDIR} )
 set( LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR} )
 set( INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR} )
 
+find_package (Python3 3.6 COMPONENTS Interpreter Development REQUIRED)
+
 # Build into subdirectories
 add_subdirectory( src )
 
@@ -129,11 +131,11 @@ add_subdirectory( src )
 # Package specific CPACK vars
 string( TOLOWER "${HIP_RUNTIME}" HIP_RUNTIME_LOWER )
 if( HIP_RUNTIME_LOWER STREQUAL "rocclr" )
-  set( CPACK_DEBIAN_PACKAGE_DEPENDS "hip-rocclr (>= 3.5.0)" )
-  set( CPACK_RPM_PACKAGE_REQUIRES "hip-rocclr >= 3.5.0" )
+  set( CPACK_DEBIAN_PACKAGE_DEPENDS "hip-rocclr (>= 3.5.0), libpython${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}" )
+  set( CPACK_RPM_PACKAGE_REQUIRES "hip-rocclr >= 3.5.0, python3-libs >= ${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}" )
 elseif( HIP_RUNTIME STREQUAL "cuda" )
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS "hip-nvcc (>= 3.5.0)")
-  set(CPACK_RPM_PACKAGE_REQUIRES "hip-nvcc >= 3.5.0")
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "hip-nvcc (>= 3.5.0), libpython${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}")
+  set(CPACK_RPM_PACKAGE_REQUIRES "hip-nvcc >= 3.5.0, python3-libs >= ${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}")
 endif( )
 set( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE.md" )
 

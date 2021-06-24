@@ -37,3 +37,6 @@ tags
 
 # install.sh build dir
 build/
+
+# python bytecode
+__pycache__

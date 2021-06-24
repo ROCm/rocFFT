@@ -61,6 +61,7 @@ set( rocfft_source
   tree_node_real.cpp
   node_factory.cpp
   hipfft.cpp
+  rtc.cpp
   )
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
@@ -98,6 +99,9 @@ if( BUILD_DOUBLE_PRECISION )
   target_link_libraries( rocfft PRIVATE rocfft-device-double )
 endif()
 target_link_libraries( rocfft PRIVATE rocfft-device-misc )
+
+target_link_libraries( rocfft PRIVATE ${Python3_LIBRARIES} )
+target_include_directories( rocfft PRIVATE ${Python3_INCLUDE_DIRS} )
 
 target_include_directories( rocfft
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>

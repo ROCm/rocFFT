@@ -95,7 +95,7 @@ set( kgen ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py )
 set( kgendeps ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py
               ${CMAKE_SOURCE_DIR}/library/src/device/generator.py
               ${CMAKE_SOURCE_DIR}/library/src/device/stockham.py )
-execute_process(COMMAND python3 ${kgen}
+execute_process(COMMAND ${Python3_EXECUTABLE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
   --groups=${GENERATOR_GROUP_NUM}
@@ -111,7 +111,7 @@ endif()
 # XXX eventually add dependency to kgen here...
 add_custom_command(
   OUTPUT ${gen_headers}
-  COMMAND python3 ${kgen}
+  COMMAND ${Python3_EXECUTABLE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
   --groups=${GENERATOR_GROUP_NUM}
@@ -120,6 +120,24 @@ add_custom_command(
   generate $<TARGET_FILE:rocfft-kernel-generator>
   DEPENDS rocfft-kernel-generator ${kgendeps}
   COMMENT "Generator producing device kernels for rocfft-device"
+)
+
+# embed the generator itself into c++ files
+set( kgen_embed_command ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed-cpp.py )
+set( kgen_embed_h ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed.h )
+set( kgen_embed_files
+     ${kgendeps}
+     ${CMAKE_SOURCE_DIR}/library/src/device/kernels/common.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/kernels/callback.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/kernels/butterfly_constant.h
+     ${CMAKE_SOURCE_DIR}/library/src/include/real2complex.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rocfft_butterfly_template.h
+   )
+add_custom_command(
+  OUTPUT ${kgen_embed_h}
+  COMMAND ${Python3_EXECUTABLE} ${kgen_embed_command}
+  ${kgen_embed_files} ${kgen_embed_h}
+  DEPENDS ${kgen_embed_files}
 )
 
 # The following is a list of implementation files defining the library
@@ -162,7 +180,7 @@ endif()
 set( gen_headers_misc ${gen_headers} )
 list( FILTER gen_headers_misc EXCLUDE REGEX single|double|function_pool )
 # add non-generated stuff to misc
-list( APPEND gen_headers_misc ${rocfft_device_source} ${relative_rocfft_device_headers_public} )
+list( APPEND gen_headers_misc ${rocfft_device_source} ${relative_rocfft_device_headers_public} ${kgen_embed_h} )
 
 # we haven't known if there are any old-kernels generated. It could be empty if all are new-kernels
 set( BUILD_SINGLE_PRECISION OFF PARENT_SCOPE )

@@ -356,6 +356,15 @@ class Declaration(BaseNode):
 def Declarations(*args):
     return [ x.declaration() for x in args ]
 
+class CallbackDeclaration(BaseNode):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.args.append(Variable('scalar_type', 'typename'))
+        self.args.append(Variable('cbtype', 'CallbackType'))
+    def __str__(self):
+        ret = f'auto load_cb = get_load_cb<{str(self.args[0])},{str(self.args[1])}>(load_cb_fn);'
+        ret += f'auto store_cb = get_store_cb<{str(self.args[0])},{str(self.args[1])}>(store_cb_fn);'
+        return ret
 
 class TemplateList(ArgumentList):
     pass
@@ -1077,6 +1086,70 @@ def rename_functions(kernel, sub):
             y = copy(x)
             y.args[0] = sub(x.args[0])
             return y
+        return x
+
+    return depth_first(kernel, visitor)
+
+def make_rtc(kernel, specs):
+    """Turn a global function into a runtime-compile-able function.
+    """
+
+    real_type = specs['real_type']
+    stridebin = specs['stridebin']
+    apply_large_twiddle = specs['apply_large_twiddle']
+    large_twiddle_base = specs['large_twiddle_base']
+    ebtype = specs['ebtype']
+    cbtype = specs['cbtype']
+
+    complex_type = real_type + '2'
+    def visitor(x):
+        if isinstance(x, Function):
+            y = copy(x)
+            # give it "C" linkage so we don't need C++ name mangling
+            y.qualifier = 'extern "C" __global__'
+            y.args[0] = specs['kernel_name']
+            # de-templatize
+            y.templates = None
+            return y
+        elif isinstance(x, Variable):
+            # change templated variables to concrete types
+
+            # scalar type variables + template params
+            if x.args[1] is not None and 'scalar_type' in x.args[1]:
+                y = copy(x)
+                y.args[1] = x.args[1].replace('scalar_type', complex_type)
+                return y
+            # scalar type template params
+            elif x.args[0] == 'scalar_type':
+                y = copy(x)
+                y.args[0] = complex_type
+                return y
+            # other template params
+            elif x.args[0] == 'sb':
+                y = copy(x)
+                y.args[0] = stridebin
+                return y
+            elif x.args[0] == 'apply_large_twiddle':
+                y = copy(x)
+                y.args[0] = 'true' if apply_large_twiddle else 'false'
+                return y
+            elif x.args[0] == 'large_twiddle_base':
+                y = copy(x)
+                y.args[0] = large_twiddle_base
+                return y
+            elif x.args[0] == 'ebtype':
+                y = copy(x)
+                y.args[0] = ebtype
+                return y
+            elif x.args[0] == 'cbtype':
+                y = copy(x)
+                y.args[0] = cbtype
+                return y
+        # declarations
+        elif isinstance(x, str):
+            if 'scalar_type' in x:
+                return x.replace('scalar_type', complex_type)
+
         return x
 
     return depth_first(kernel, visitor)
