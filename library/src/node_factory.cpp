@@ -363,7 +363,13 @@ ComputeScheme NodeFactory::Decide1DScheme(NodeMetaData& nodeData)
         else
         {
             auto largest = function_pool::get_largest_length(nodeData.precision);
-            if(nodeData.length[0] > largest * largest)
+            // need to ignore len 1, or we're going into a infinity decompostion loop
+            // basically not gonna happen unless someone builds only a len1 kernel...
+            if(largest <= 1)
+            {
+                failed = true;
+            }
+            else if(nodeData.length[0] > largest * largest)
             {
                 divLength1 = nodeData.length[0] / largest;
             }
@@ -419,7 +425,10 @@ ComputeScheme NodeFactory::Decide1DScheme(NodeMetaData& nodeData)
                 // divLength0 has to be explictly supported
                 auto divLength0
                     = get_largest_supported_factor(nodeData.precision, nodeData.length[0]);
-                divLength1 = (divLength0 == 0) ? 0 : nodeData.length[0] / divLength0;
+
+                // should ignore factor 1 or we're going into a infinity decompostion loop,
+                // (an example is to run len-81 when we build only pow2 kernels, we'll be here)
+                divLength1 = (divLength0 <= 1) ? 0 : nodeData.length[0] / divLength0;
             }
             failed = divLength1 == 0;
         }

@@ -14,7 +14,8 @@
 #include <tuple>
 #include <vector>
 
-static const size_t LTWD_BASE_DEFAULT = 8;
+static const size_t LTWD_BASE_DEFAULT       = 8;
+static const size_t LARGE_TWIDDLE_THRESHOLD = 4096;
 
 static inline bool IsPo2(size_t u)
 {

@@ -104,21 +104,11 @@ gpubuf twiddles_create(size_t              N,
         assert(largeTwdBase > 0);
 
     if(precision == rocfft_precision_single)
-        return twiddles_create_pr<float2>(N,
-                                          function_pool::get_largest_length(precision),
-                                          large,
-                                          largeTwdBase,
-                                          no_radices,
-                                          attach_2N,
-                                          radices);
+        return twiddles_create_pr<float2>(
+            N, LARGE_TWIDDLE_THRESHOLD, large, largeTwdBase, no_radices, attach_2N, radices);
     else if(precision == rocfft_precision_double)
-        return twiddles_create_pr<double2>(N,
-                                           function_pool::get_largest_length(precision),
-                                           large,
-                                           largeTwdBase,
-                                           no_radices,
-                                           attach_2N,
-                                           radices);
+        return twiddles_create_pr<double2>(
+            N, LARGE_TWIDDLE_THRESHOLD, large, largeTwdBase, no_radices, attach_2N, radices);
     else
     {
         assert(false);
@@ -127,9 +117,9 @@ gpubuf twiddles_create(size_t              N,
 }
 
 template <typename T>
-gpubuf twiddles_create_2D_pr(size_t N1, size_t N2)
+gpubuf twiddles_create_2D_pr(size_t N1, size_t N2, rocfft_precision precision)
 {
-    auto kernel = function_pool::get_kernel(fpkey(N1, N2, rocfft_precision_single));
+    auto kernel = function_pool::get_kernel(fpkey(N1, N2, precision));
     // when old generator goes away, have_factors will always be true
     bool have_factors = !kernel.factors.empty();
 
@@ -193,9 +183,9 @@ gpubuf twiddles_create_2D_pr(size_t N1, size_t N2)
 gpubuf twiddles_create_2D(size_t N1, size_t N2, rocfft_precision precision)
 {
     if(precision == rocfft_precision_single)
-        return twiddles_create_2D_pr<float2>(N1, N2);
+        return twiddles_create_2D_pr<float2>(N1, N2, precision);
     else if(precision == rocfft_precision_double)
-        return twiddles_create_2D_pr<double2>(N1, N2);
+        return twiddles_create_2D_pr<double2>(N1, N2, precision);
     else
     {
         assert(false);
