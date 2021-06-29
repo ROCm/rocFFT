@@ -275,14 +275,3 @@ endif()
 if(gen_headers_double)
   target_link_libraries( rocfft-device-misc PRIVATE rocfft-device-double )
 endif()
-
-rocm_install_symlink_subdir( rocfft )
-
-# During transition to standalone hipFFT repository, don't install
-# symlinks to hipFFT headers.  Once the hipFFT headers are removed
-# from rocFFT, we can delete this..
-if(NOT CMAKE_HOST_WIN32)
-  install(CODE "
-      file(REMOVE \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/include/hipfft.h)
-    ")
-endif()
