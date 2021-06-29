@@ -204,7 +204,7 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
 }
 
 // Entrance function for r2c post-processing kernel, fused with transpose
-void r2c_1d_post_transpose(const void* data_p, void*)
+ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data_p, void*)
 {
     auto data = reinterpret_cast<const DeviceCallIn*>(data_p);
 
@@ -557,7 +557,7 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
 }
 
 // Entrance function for c2r pre-processing kernel, fused with transpose
-void transpose_c2r_1d_pre(const void* data_p, void*)
+ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data_p, void*)
 {
     auto data = reinterpret_cast<const DeviceCallIn*>(data_p);
 

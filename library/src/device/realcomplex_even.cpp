@@ -246,7 +246,7 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 }
 
 // Entrance function for r2c post-processing kernel
-void r2c_1d_post(const void* data_p, void*)
+ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
 {
     // Map to 1D interleaved kernels:
     std::map<std::tuple<rocfft_precision, bool, CallbackType>,
@@ -580,7 +580,7 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 }
 
 // Entrance function for c2r pre-processing kernel
-void c2r_1d_pre(const void* data_p, void*)
+ROCFFT_DEVICE_EXPORT void c2r_1d_pre(const void* data_p, void*)
 {
     // map to interleaved kernels
     std::map<std::tuple<rocfft_precision, bool, CallbackType>,

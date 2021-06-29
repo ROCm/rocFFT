@@ -26,7 +26,11 @@ static void rocfft_abort_once [[noreturn]] ();
 #include "rocfft_ostream.hpp"
 #include <csignal>
 #include <fcntl.h>
+#include <iostream>
 #include <type_traits>
+#ifdef WIN32
+#include <windows.h>
+#endif
 
 /***********************************************************************
  * rocfft_ostream functions                                           *
@@ -36,6 +40,7 @@ static void rocfft_abort_once [[noreturn]] ();
 static void rocfft_abort_once()
 {
     // Make sure the alarm and abort actions are default
+#ifndef WIN32
     signal(SIGALRM, SIG_DFL);
     signal(SIGABRT, SIG_DFL);
 
@@ -48,12 +53,10 @@ static void rocfft_abort_once()
 
     // Timeout in case of deadlock
     alarm(5);
-
-    // Obtain the map lock
-    rocfft_ostream::map_mutex().lock();
+#endif
 
     // Clear the map, stopping all workers
-    rocfft_ostream::map().clear();
+    rocfft_ostream::clear_workers();
 
     // Flush all
     fflush(NULL);
@@ -93,19 +96,37 @@ std::shared_ptr<rocfft_ostream::worker> rocfft_ostream::get_worker(int fd)
                       && std::is_same<decltype(file_id_t::st_ino), decltype(stat::st_ino)>{},
                   "struct stat and file_id_t are not layout-compatible");
 
+#ifndef WIN32
     // Get the device ID and inode, to detect common files
     if(fstat(fd, &statbuf))
     {
         perror("Error executing fstat()");
         return nullptr;
     }
+#else
+    HANDLE                     fh = (HANDLE)_get_osfhandle(fd);
+    BY_HANDLE_FILE_INFORMATION bhfi;
+
+    if(GetFileInformationByHandle(fh, &bhfi))
+    {
+        // Index info should be unique
+        file_id.st_dev = bhfi.nFileIndexLow;
+        file_id.st_ino = bhfi.nFileIndexHigh;
+    }
+    else
+    {
+        // assign what should be unique
+        file_id.st_dev = fd;
+        file_id.st_ino = 0;
+    }
+#endif
 
     // Lock the map from file_id -> std::shared_ptr<rocfft_ostream::worker>
-    std::lock_guard<std::recursive_mutex> lock(map_mutex());
+    std::lock_guard<std::recursive_mutex> lock(worker_map_mutex());
 
     // Insert a nullptr map element if file_id doesn't exist in map already
     // worker_ptr is a reference to the std::shared_ptr<rocfft_ostream::worker>
-    auto& worker_ptr = map().emplace(file_id, nullptr).first->second;
+    auto& worker_ptr = worker_map().emplace(file_id, nullptr).first->second;
 
     // If a new entry was inserted, or an old entry is empty, create new worker
     if(!worker_ptr)
@@ -121,7 +142,7 @@ rocfft_ostream::rocfft_ostream(int fd)
 {
     if(!worker_ptr)
     {
-        dprintf(STDERR_FILENO, "Error: Bad file descriptor %d\n", fd);
+        std::cerr << "Error: Bad file descriptor " << fd << std::endl;
         rocfft_abort();
     }
 }
@@ -129,14 +150,19 @@ rocfft_ostream::rocfft_ostream(int fd)
 // Construct rocfft_ostream from a filename opened for writing with truncation
 rocfft_ostream::rocfft_ostream(const char* filename)
 {
-    int fd     = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND | O_CLOEXEC, 0644);
+    int fd     = OPEN(filename);
     worker_ptr = get_worker(fd);
     if(!worker_ptr)
     {
-        dprintf(STDERR_FILENO, "Cannot open %s: %m\n", filename);
+        std::cerr << "Cannot open " << filename << std::endl;
         rocfft_abort();
     }
-    close(fd);
+    CLOSE(fd);
+}
+
+rocfft_ostream::~rocfft_ostream()
+{
+    flush(); // Flush any pending IO
 }
 
 // Flush the output
@@ -155,6 +181,12 @@ void rocfft_ostream::flush()
         // Clear the string buffer
         clear();
     }
+}
+
+void rocfft_ostream::clear_workers()
+{
+    std::lock_guard<std::recursive_mutex> lock(worker_map_mutex());
+    worker_map().clear();
 }
 
 /***********************************************************************
@@ -247,27 +279,27 @@ rocfft_ostream& operator<<(rocfft_ostream& os, std::ostream& (*pf)(std::ostream&
 // Empty strings tell the worker thread to exit
 void rocfft_ostream::worker::send(std::string str)
 {
-    // Create a promise to wait for the operation to complete
-    std::promise<void> promise;
-
-    // The future indicating when the operation has completed
-    auto future = promise.get_future();
-
     // task_t consists of string and promise
     // std::move transfers ownership of str and promise to task
-    task_t worker_task(std::move(str), std::move(promise));
+    task_t worker_task(std::move(str));
+
+    // The future indicating when the operation has completed
+    auto future = worker_task.get_future();
 
     // Submit the task to the worker assigned to this device/inode
     // Hold mutex for as short as possible, to reduce contention
-    // TODO: Consider whether notification should be done with lock held or released
     {
         std::lock_guard<std::mutex> lock(mutex);
         queue.push(std::move(worker_task));
-        cond.notify_one();
     }
+    // no lock needed for notification
+    cond.notify_one();
 
     // Wait for the task to be completed, to ensure flushed IO
-    future.get();
+#ifdef WIN32
+    if(worker_task.size())
+#endif
+        future.get();
 }
 
 // Worker thread which serializes data to be written to a device/inode
@@ -281,7 +313,7 @@ void rocfft_ostream::worker::thread_function()
 
     while(true)
     {
-        // Wait for any data, ignoring spurious wakeups
+        // Wait for any data, ignoring spurious wakeups, locks lock on continue
         cond.wait(lock, [&] { return !queue.empty(); });
 
         // With the mutex locked, get and pop data from the front of queue
@@ -324,10 +356,14 @@ void rocfft_ostream::worker::thread_function()
 rocfft_ostream::worker::worker(int fd)
 {
     // The worker duplicates the file descriptor (RAII)
+#ifdef WIN32
+    fd = _dup(fd);
+#else
     fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+#endif
 
     // If the dup fails or fdopen fails, print error and abort
-    if(fd == -1 || !(file = fdopen(fd, "a")))
+    if(fd == -1 || !(file = FDOPEN(fd, "a")))
     {
         perror("fdopen() error");
         rocfft_abort();
@@ -338,6 +374,16 @@ rocfft_ostream::worker::worker(int fd)
 
     // Detatch from the worker thread
     thread.detach();
+}
+
+rocfft_ostream::worker::~worker()
+{
+    // Tell worker thread to exit, by sending it an empty string
+    send({});
+
+    // Close the FILE
+    if(file)
+        fclose(file);
 }
 
 // output of rocfft-specific types

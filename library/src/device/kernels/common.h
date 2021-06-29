@@ -7,6 +7,12 @@
 #include <hip/hip_runtime.h>
 #include <hip/hip_vector_types.h>
 
+#ifdef WIN32
+#define ROCFFT_DEVICE_EXPORT __declspec(dllexport)
+#else
+#define ROCFFT_DEVICE_EXPORT
+#endif
+
 // NB:
 //   All kernels were compiled based on the assumption that the default max
 //   work group size is 256. This default value in compiler might change in

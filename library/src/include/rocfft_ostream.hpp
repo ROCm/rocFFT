@@ -41,8 +41,24 @@
 #include <string>
 #include <sys/stat.h>
 #include <thread>
-#include <unistd.h>
 #include <utility>
+#ifdef WIN32
+#include <io.h>
+#include <iostream>
+#include <sstream>
+#include <sys/stat.h>
+#include <sys/types.h>
+#define STDOUT_FILENO _fileno(stdout)
+#define STDERR_FILENO _fileno(stderr)
+#define FDOPEN(A, B) _fdopen(A, B)
+#define OPEN(A) _open(A, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_APPEND, _S_IREAD | _S_IWRITE);
+#define CLOSE(A) _close(A)
+#else
+#include <unistd.h>
+#define FDOPEN(A, B) fdopen(A, B)
+#define OPEN(A) open(A, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND | O_CLOEXEC, 0644);
+#define CLOSE(A) close(A)
+#endif
 
 /*****************************************************************************
  * rocFFT output streams                                                    *
@@ -70,11 +86,15 @@ class rocfft_ostream
             std::promise<void> promise;
 
         public:
-            // The task takes ownership of the string payload and promise
-            task_t(std::string&& str, std::promise<void>&& promise)
+            // The task takes ownership of the string payload
+            task_t(std::string&& str)
                 : str(std::move(str))
-                , promise(std::move(promise))
             {
+            }
+
+            auto get_future()
+            {
+                return promise.get_future();
             }
 
             // Notify the future to wake up
@@ -122,15 +142,7 @@ class rocfft_ostream
         void send(std::string);
 
         // Destroy a worker when all std::shared_ptr references to it are gone
-        ~worker()
-        {
-            // Tell worker thread to exit, by sending it an empty string
-            send({});
-
-            // Close the FILE
-            if(file)
-                fclose(file);
-        }
+        ~worker();
     };
 
     // Two filehandles point to the same file if they share the same (std_dev, std_ino).
@@ -153,15 +165,15 @@ class rocfft_ostream
 
     // Map from file_id to a worker shared_ptr
     // Implemented as singleton to avoid the static initialization order fiasco
-    static auto& map()
+    static auto& worker_map()
     {
-        static std::map<file_id_t, std::shared_ptr<worker>, file_id_less> map;
-        return map;
+        static std::map<file_id_t, std::shared_ptr<worker>, file_id_less> file_id_to_worker_map;
+        return file_id_to_worker_map;
     }
 
     // Mutex for accessing the map
     // Implemented as singleton to avoid the static initialization order fiasco
-    static auto& map_mutex()
+    static auto& worker_map_mutex()
     {
         static std::recursive_mutex map_mutex;
         return map_mutex;
@@ -204,6 +216,9 @@ public:
     {
     }
 
+    // For testing to allow file closing and deletion
+    static void clear_workers();
+
     // Convert stream output to string
     std::string str() const
     {
@@ -221,10 +236,7 @@ public:
     void flush();
 
     // Destroy the rocfft_ostream
-    virtual ~rocfft_ostream()
-    {
-        flush(); // Flush any pending IO
-    }
+    virtual ~rocfft_ostream();
 
     // Implemented as singleton to avoid the static initialization order fiasco
     static rocfft_ostream& cout()
@@ -296,8 +308,6 @@ public:
     {
         return os << str.str();
     }
-
-    friend std::ostream& operator<<(std::ostream& os, const rocfft_ostream& str);
 
     // IO Manipulators
     friend rocfft_ostream& operator<<(rocfft_ostream& os, std::ostream& (*pf)(std::ostream&));

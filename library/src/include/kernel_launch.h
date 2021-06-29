@@ -88,9 +88,9 @@ bcc - block column column
 
 */
 
-void rocfft_internal_mul(const void* data_p, void* back_p);
-void rocfft_internal_chirp(const void* data_p, void* back_p);
-void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
+ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p);
+ROCFFT_DEVICE_EXPORT void rocfft_internal_chirp(const void* data_p, void* back_p);
+ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
 
 /*
    data->node->devKernArg : points to the internal length device pointer
@@ -293,7 +293,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                              OP_FWD_KERN_NAME,                                                \
                              OP_BACK_KERN_NAME,                                               \
                              PRECISION)                                                       \
-    void FUNCTION_NAME(const void* data_p, void* back_p)                                      \
+    ROCFFT_DEVICE_EXPORT void FUNCTION_NAME(const void* data_p, void* back_p)                 \
     {                                                                                         \
         DeviceCallIn* data          = (DeviceCallIn*)data_p;                                  \
         hipStream_t   rocfft_stream = data->rocfft_stream;                                    \
@@ -490,7 +490,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
                                   OP_FWD_KERN_NAME,                                           \
                                   OP_BACK_KERN_NAME,                                          \
                                   PRECISION)                                                  \
-    void FUNCTION_NAME(const void* data_p, void* back_p)                                      \
+    ROCFFT_DEVICE_EXPORT void FUNCTION_NAME(const void* data_p, void* back_p)                 \
     {                                                                                         \
         DeviceCallIn* data          = (DeviceCallIn*)data_p;                                  \
         hipStream_t   rocfft_stream = data->rocfft_stream;                                    \
@@ -691,7 +691,7 @@ void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
 
 #define POWX_LARGE_SBRC_GENERATOR(                                                        \
     FUNCTION_NAME, FWD_KERN_NAME, BACK_KERN_NAME, PRECISION, COL_DIM, TRANSPOSE_TYPE)     \
-    void FUNCTION_NAME(const void* data_p, void* back_p)                                  \
+    ROCFFT_DEVICE_EXPORT void FUNCTION_NAME(const void* data_p, void* back_p)             \
     {                                                                                     \
         DeviceCallIn* data          = (DeviceCallIn*)data_p;                              \
         hipStream_t   rocfft_stream = data->rocfft_stream;                                \

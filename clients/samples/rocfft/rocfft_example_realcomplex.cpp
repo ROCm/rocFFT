@@ -163,7 +163,8 @@ int main(int argc, char* argv[])
     }
     hipDeviceSynchronize();
     hip_status = hipGetLastError();
-    assert(hip_status == hipSuccess);
+    if(hip_status != hipSuccess)
+        throw std::runtime_error("device error");
 
     // Print the output:
     std::cout << "input:\n";
@@ -187,7 +188,8 @@ int main(int argc, char* argv[])
     // Create the a descrition struct to set data layout:
     rocfft_plan_description gpu_description = NULL;
     rc                                      = rocfft_plan_description_create(&gpu_description);
-    assert(rc == rocfft_status_success);
+    if(rc != rocfft_status_success)
+        throw std::runtime_error("failed to create plan description");
     rc = rocfft_plan_description_set_data_layout(
         gpu_description,
         // input data format:
@@ -216,24 +218,29 @@ int main(int argc, char* argv[])
                             length.data(), // lengths
                             1, // Number of transforms
                             gpu_description); // Description
-    assert(rc == rocfft_status_success);
+    if(rc != rocfft_status_success)
+        throw std::runtime_error("failed to create plan");
 
     // Get the execution info for the fft plan (in particular, work memory requirements):
     rocfft_execution_info planinfo = NULL;
     rc                             = rocfft_execution_info_create(&planinfo);
-    assert(rc == rocfft_status_success);
+    if(rc != rocfft_status_success)
+        throw std::runtime_error("failed to create execution info");
     size_t workbuffersize = 0;
     rc                    = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
-    assert(rc == rocfft_status_success);
+    if(rc != rocfft_status_success)
+        throw std::runtime_error("failed to get work buffer size");
 
     // If the transform requires work memory, allocate a work buffer:
     void* wbuffer = NULL;
     if(workbuffersize > 0)
     {
         hip_status = hipMalloc(&wbuffer, workbuffersize);
-        assert(hip_status == hipSuccess);
+        if(hip_status != hipSuccess)
+            throw std::runtime_error("hipMalloc failed");
         rc = rocfft_execution_info_set_work_buffer(planinfo, wbuffer, workbuffersize);
-        assert(rc == rocfft_status_success);
+        if(rc != rocfft_status_success)
+            throw std::runtime_error("failed to set work buffer");
     }
 
     // If the transform is out-of-place, allocate the output buffer as well:
@@ -241,7 +248,8 @@ int main(int argc, char* argv[])
     if(!inplace)
     {
         hip_status = hipMalloc(&gpu_out, obytes);
-        assert(hip_status == hipSuccess);
+        if(hip_status != hipSuccess)
+            throw std::runtime_error("hipMalloc failed");
     }
 
     // Execute the GPU transform:
@@ -249,6 +257,8 @@ int main(int argc, char* argv[])
                         (void**)&gpu_in, // in_buffer
                         (void**)&gpu_out, // out_buffer
                         planinfo); // execution info
+    if(rc != rocfft_status_success)
+        throw std::runtime_error("failed to execute");
 
     // Get the output from the device and print to cout:
     std::cout << "output:\n";

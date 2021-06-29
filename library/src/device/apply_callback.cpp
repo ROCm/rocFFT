@@ -29,7 +29,7 @@ __global__ void __launch_bounds__(APPLY_REAL_CALLBACK_THREADS)
     }
 }
 
-void apply_real_callback(const void* data_p, void* back)
+ROCFFT_DEVICE_EXPORT void apply_real_callback(const void* data_p, void* back)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
 

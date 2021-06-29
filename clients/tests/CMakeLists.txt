@@ -131,3 +131,20 @@ set_target_properties( rocfft-test
 set_target_properties( rocfft-test
   PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging"
   )
+
+if (WIN32)
+
+  # Ensure tests run with HIP DLLs and not anything the driver owns
+  # in system32.  Libraries like amdhip64.dll are also in the HIP
+  # runtime, and we need run with those.  But the only way to make a
+  # same-named DLL override something in system32 is to have it next
+  # to the executable.  So copy them in.
+  file( GLOB third_party_dlls
+    LIST_DIRECTORIES OFF
+    CONFIGURE_DEPENDS
+    ${HIP_DIR}/bin/*.dll
+  )
+  foreach( file_i ${third_party_dlls})
+    add_custom_command( TARGET rocfft-test POST_BUILD COMMAND ${CMAKE_COMMAND} ARGS -E copy ${file_i} ${PROJECT_BINARY_DIR}/staging )
+  endforeach( file_i )
+endif()

@@ -249,7 +249,7 @@ rocfft_status rocfft_transpose_outofplace_template(size_t       m,
     return rocfft_status_success;
 }
 
-void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
+ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
 

@@ -166,19 +166,9 @@ set( gen_headers_single ${gen_headers} )
 list( FILTER gen_headers_single INCLUDE REGEX single )
 set( gen_headers_double ${gen_headers} )
 list( FILTER gen_headers_double INCLUDE REGEX double )
-set( gen_function_pool ${gen_headers} )
-list( FILTER gen_function_pool INCLUDE REGEX function_pool )
-
-if( GENERATOR_PRECISION STREQUAL "single" )
-  list( APPEND gen_headers_single ${gen_function_pool} )
-elseif( GENERATOR_PRECISION STREQUAL "double" )
-  list( APPEND gen_headers_double ${gen_function_pool} )
-else()
-  list( APPEND gen_headers_single ${gen_function_pool} )
-endif()
 
 set( gen_headers_misc ${gen_headers} )
-list( FILTER gen_headers_misc EXCLUDE REGEX single|double|function_pool )
+list( FILTER gen_headers_misc EXCLUDE REGEX single|double )
 # add non-generated stuff to misc
 list( APPEND gen_headers_misc ${rocfft_device_source} ${relative_rocfft_device_headers_public} ${kgen_embed_h} )
 
@@ -222,6 +212,9 @@ foreach( sub ${sub_libraries} )
   if( NOT BUILD_SHARED_LIBS )
     target_link_libraries( rocfft-device-${sub} INTERFACE hip::host )
   endif()
+  if( WIN32 )
+    target_link_libraries( rocfft-device-${sub} PRIVATE hip::device hip::host )
+  endif()
 
   if(HIP_PLATFORM STREQUAL "nvcc")
     target_compile_options( rocfft-device-${sub} PRIVATE
@@ -232,11 +225,14 @@ foreach( sub ${sub_libraries} )
   else()
     target_compile_options( rocfft-device-${sub} PRIVATE -fno-gpu-rdc )
 
+    # the device libraries are all HIP code
+    target_compile_options( rocfft-device-${sub} PRIVATE -x hip )
+
     # Set AMD GPU architecture options
 
     # Enable compilation of desired architectures
     foreach( target ${AMDGPU_TARGETS} )
-      target_compile_options( rocfft-device-${sub} PRIVATE --amdgpu-target=${target} )
+      target_compile_options( rocfft-device-${sub} PRIVATE --offload-arch=${target} )
     endforeach( )
 
   endif()
@@ -270,6 +266,15 @@ foreach( sub ${sub_libraries} )
     PREFIX
     rocfft )
 endforeach()
+
+# misc lib has the function pool which depends on the single/double
+# libs
+if(gen_headers_single)
+  target_link_libraries( rocfft-device-misc PRIVATE rocfft-device-single )
+endif()
+if(gen_headers_double)
+  target_link_libraries( rocfft-device-misc PRIVATE rocfft-device-double )
+endif()
 
 rocm_install_symlink_subdir( rocfft )
 

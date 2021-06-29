@@ -67,7 +67,7 @@ static void open_log_stream(const char* environment_variable_name, int& log_fd)
     auto logfile_pathname = getenv(environment_variable_name);
     if(logfile_pathname)
     {
-        log_fd = open(logfile_pathname, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+        log_fd = OPEN(logfile_pathname);
     }
 }
 
@@ -120,32 +120,32 @@ rocfft_status rocfft_cleanup()
     // Close log files
     if(log_trace_fd != -1)
     {
-        close(log_trace_fd);
+        CLOSE(log_trace_fd);
         log_trace_fd = -1;
     }
     if(log_bench_fd != -1)
     {
-        close(log_bench_fd);
+        CLOSE(log_bench_fd);
         log_bench_fd = -1;
     }
     if(log_profile_fd != -1)
     {
-        close(log_profile_fd);
+        CLOSE(log_profile_fd);
         log_profile_fd = -1;
     }
     if(log_plan_fd != -1)
     {
-        close(log_plan_fd);
+        CLOSE(log_plan_fd);
         log_plan_fd = -1;
     }
     if(log_kernelio_fd != -1)
     {
-        close(log_kernelio_fd);
+        CLOSE(log_kernelio_fd);
         log_kernelio_fd = -1;
     }
     if(log_rtc_fd != -1)
     {
-        close(log_rtc_fd);
+        CLOSE(log_rtc_fd);
         log_rtc_fd = -1;
     }
 

@@ -32,6 +32,15 @@
 #include <thread>
 #include <vector>
 
+#ifdef WIN32
+#include <windows.h>
+#define SETENV(VAR, VAL) SetEnvironmentVariable(VAR, VAL)
+#define UNSETENV(VAR) SetEnvironmentVariable(VAR, NULL)
+#else
+#define SETENV(VAR, VAL) setenv(VAR, VAL, 1)
+#define UNSETENV(VAR) unsetenv(VAR)
+#endif
+
 TEST(rocfft_UnitTest, plan_description)
 {
     rocfft_plan_description desc = nullptr;
@@ -218,14 +227,14 @@ TEST(rocfft_UnitTest, log_multithreading)
     static const char* TRACE_FILE           = "trace.log";
 
     // ask for trace logging, since that's the easiest to trigger
-    setenv("ROCFFT_LAYER", "1", 1);
-    setenv("ROCFFT_LOG_TRACE_PATH", TRACE_FILE, 1);
+    SETENV("ROCFFT_LAYER", "1");
+    SETENV("ROCFFT_LOG_TRACE_PATH", TRACE_FILE);
 
     // clean up environment and temporary file when we exit
     BOOST_SCOPE_EXIT_ALL(=)
     {
-        unsetenv("ROCFFT_LAYER");
-        unsetenv("ROCFFT_LOG_TRACE_PATH");
+        UNSETENV("ROCFFT_LAYER");
+        UNSETENV("ROCFFT_LOG_TRACE_PATH");
         remove(TRACE_FILE);
     };
 

@@ -69,7 +69,7 @@ __global__ static void complex2real_kernel(const size_t           input_size,
 /// @param[in] batch number of transforms
 /// @param[in] precision data type of input buffer. rocfft_precision_single or
 /// rocfft_precsion_double
-void complex2real(const void* data_p, void* back_p)
+ROCFFT_DEVICE_EXPORT void complex2real(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
 
@@ -302,7 +302,7 @@ __global__ static void hermitian2complex_kernel(const size_t    hermitian_size,
 /// @param[in] batch number of transforms
 /// @param[in] precision data type of input and output buffer. rocfft_precision_single or
 /// rocfft_precsion_double
-void hermitian2complex(const void* data_p, void* back_p)
+ROCFFT_DEVICE_EXPORT void hermitian2complex(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
 

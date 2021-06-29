@@ -54,7 +54,8 @@ inline bool
     // Check device total memory:
     hipDeviceProp_t prop;
     auto            retval = hipGetDeviceProperties(&prop, deviceId);
-    assert(retval == hipSuccess);
+    if(retval != hipSuccess)
+        throw std::runtime_error("failed to get device properties");
 
     if(prop.totalGlobalMem < prob_size)
     {

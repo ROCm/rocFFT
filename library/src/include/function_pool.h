@@ -112,7 +112,7 @@ class function_pool
 {
     std::unordered_map<FMKey, FFTKernel, SimpleHash> function_map;
 
-    function_pool();
+    ROCFFT_DEVICE_EXPORT function_pool();
 
 public:
     function_pool(const function_pool&) = delete;

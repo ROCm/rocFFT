@@ -73,7 +73,7 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 ///    @param[in] batch, number of transforms
 ///    @param[in] precision, data type of input buffer. rocfft_precision_single or
 ///                          rocfft_precsion_double
-void real2complex(const void* data_p, void* back_p)
+ROCFFT_DEVICE_EXPORT void real2complex(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
 
@@ -249,7 +249,7 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 /// @param[in] batch, number of transforms
 /// @param[in] precision, data type of input and output buffer. rocfft_precision_single or
 ///            rocfft_precsion_double
-void complex2hermitian(const void* data_p, void* back_p)
+ROCFFT_DEVICE_EXPORT void complex2hermitian(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
 

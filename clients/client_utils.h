@@ -2010,8 +2010,9 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
                 do
                 {
                     const int                  i = compute_index(index, istride, i_base);
-                    const std::complex<Tfloat> val((Tfloat)gen() / (Tfloat)gen.max(),
-                                                   (Tfloat)gen() / (Tfloat)gen.max());
+                    const Tfloat               x = (Tfloat)gen() / (Tfloat)gen.max();
+                    const Tfloat               y = (Tfloat)gen() / (Tfloat)gen.max();
+                    const std::complex<Tfloat> val(x, y);
                     idata[i] = val;
                 } while(increment_rowmajor(index, length));
             }

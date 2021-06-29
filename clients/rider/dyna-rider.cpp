@@ -28,8 +28,14 @@
 #include <math.h>
 #include <vector>
 
+#ifdef WIN32
+#include <windows.h>
+
+#include <psapi.h>
+#else
 #include <dlfcn.h>
 #include <link.h>
+#endif
 
 #include "../../shared/gpubuf.h"
 #include "rider.h"
@@ -38,8 +44,91 @@
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
+#ifdef WIN32
+typedef HMODULE ROCFFT_LIB;
+#else
+typedef void* ROCFFT_LIB;
+#endif
+
+// load the rocfft library
+ROCFFT_LIB rocfft_lib_load(const std::string& path)
+{
+#ifdef WIN32
+    return LoadLibraryA(path.c_str());
+#else
+    return dlopen(path.c_str(), RTLD_LAZY);
+#endif
+}
+
+// return a string describing the error loading rocfft
+const char* rocfft_lib_load_error()
+{
+#ifdef WIN32
+    // just return the error number
+    static std::string error_str;
+    error_str = std::to_string(GetLastError());
+    return error_str.c_str();
+#else
+    return dlerror();
+#endif
+}
+
+// return true if rocfft_device is loaded, which indicates that the
+// library was not built with -DSINGLELIB=ON.
+bool rocfft_lib_device_loaded(ROCFFT_LIB libhandle)
+{
+#ifdef WIN32
+    DWORD arraySize = 0;
+    EnumProcessModules(GetCurrentProcess(), NULL, 0, &arraySize);
+    std::vector<HMODULE> modules(arraySize);
+    if(EnumProcessModules(GetCurrentProcess(), modules.data(), modules.size(), &arraySize))
+    {
+        for(auto& mod : modules)
+        {
+            char name[MAX_PATH] = {0};
+            GetModuleFileNameA(mod, name, MAX_PATH);
+            // poor man's stristr on windows
+            std::transform(name, name + strlen(name), name, [](char c) { return std::tolower(c); });
+            if(strstr(name, "rocfft-device.dll"))
+                return true;
+        }
+    }
+    return false;
+#else
+    struct link_map* link = nullptr;
+    dlinfo(libhandle, RTLD_DI_LINKMAP, &link);
+    for(; link != nullptr; link = link->l_next)
+    {
+        if(strstr(link->l_name, "librocfft-device") != nullptr)
+        {
+            return true;
+        }
+    }
+    return false;
+#endif
+}
+
+// get symbol from rocfft lib
+void* rocfft_lib_symbol(ROCFFT_LIB libhandle, const char* sym)
+{
+#ifdef WIN32
+    return reinterpret_cast<void*>(GetProcAddress(libhandle, sym));
+#else
+    return dlsym(libhandle, sym);
+#endif
+}
+
+void rocfft_lib_close(ROCFFT_LIB libhandle)
+{
+#ifdef WIN32
+    FreeLibrary(libhandle);
+#else
+    dlclose(libhandle);
+#endif
+}
+
 // Given a libhandle from dload, return a plan to a rocFFT plan with the given parameters.
-rocfft_plan make_plan(void*                         libhandle,
+rocfft_plan make_plan(ROCFFT_LIB                    libhandle,
                       const rocfft_result_placement place,
                       const rocfft_transform_type   transformType,
                       const std::vector<size_t>&    length,
@@ -54,18 +143,20 @@ rocfft_plan make_plan(void*                         libhandle,
                       const rocfft_array_type       itype,
                       const rocfft_array_type       otype)
 {
-    auto procfft_setup = (decltype(&rocfft_setup))dlsym(libhandle, "rocfft_setup");
+    auto procfft_setup = (decltype(&rocfft_setup))rocfft_lib_symbol(libhandle, "rocfft_setup");
     if(procfft_setup == NULL)
         exit(1);
-    auto procfft_plan_description_create = (decltype(&rocfft_plan_description_create))dlsym(
-        libhandle, "rocfft_plan_description_create");
-    auto procfft_plan_description_destroy = (decltype(&rocfft_plan_description_destroy))dlsym(
-        libhandle, "rocfft_plan_description_destroy");
+    auto procfft_plan_description_create
+        = (decltype(&rocfft_plan_description_create))rocfft_lib_symbol(
+            libhandle, "rocfft_plan_description_create");
+    auto procfft_plan_description_destroy
+        = (decltype(&rocfft_plan_description_destroy))rocfft_lib_symbol(
+            libhandle, "rocfft_plan_description_destroy");
     auto procfft_plan_description_set_data_layout
-        = (decltype(&rocfft_plan_description_set_data_layout))dlsym(
+        = (decltype(&rocfft_plan_description_set_data_layout))rocfft_lib_symbol(
             libhandle, "rocfft_plan_description_set_data_layout");
     auto procfft_plan_create
-        = (decltype(&rocfft_plan_create))dlsym(libhandle, "rocfft_plan_create");
+        = (decltype(&rocfft_plan_create))rocfft_lib_symbol(libhandle, "rocfft_plan_create");
 
     procfft_setup();
 
@@ -94,30 +185,33 @@ rocfft_plan make_plan(void*                         libhandle,
 }
 
 // Given a libhandle from dload and a rocFFT plan, destroy the plan.
-void destroy_plan(void* libhandle, rocfft_plan& plan)
+void destroy_plan(ROCFFT_LIB libhandle, rocfft_plan& plan)
 {
     auto procfft_plan_destroy
-        = (decltype(&rocfft_plan_destroy))dlsym(libhandle, "rocfft_plan_destroy");
+        = (decltype(&rocfft_plan_destroy))rocfft_lib_symbol(libhandle, "rocfft_plan_destroy");
     procfft_plan_destroy(plan);
-    auto procfft_cleanup = (decltype(&rocfft_cleanup))dlsym(libhandle, "rocfft_cleanup");
+    auto procfft_cleanup
+        = (decltype(&rocfft_cleanup))rocfft_lib_symbol(libhandle, "rocfft_cleanup");
     if(procfft_cleanup)
         procfft_cleanup();
 }
 
 // Given a libhandle from dload and a rocFFT execution info structure, destroy the info.
-void destroy_info(void* libhandle, rocfft_execution_info& info)
+void destroy_info(ROCFFT_LIB libhandle, rocfft_execution_info& info)
 {
-    auto procfft_execution_info_destroy = (decltype(&rocfft_execution_info_destroy))dlsym(
-        libhandle, "rocfft_execution_info_destroy");
+    auto procfft_execution_info_destroy
+        = (decltype(&rocfft_execution_info_destroy))rocfft_lib_symbol(
+            libhandle, "rocfft_execution_info_destroy");
     procfft_execution_info_destroy(info);
 }
 
 // Given a libhandle from dload, and a corresponding rocFFT plan, return how much work
 // buffer is required.
-size_t get_wbuffersize(void* libhandle, const rocfft_plan& plan)
+size_t get_wbuffersize(ROCFFT_LIB libhandle, const rocfft_plan& plan)
 {
-    auto procfft_plan_get_work_buffer_size = (decltype(&rocfft_plan_get_work_buffer_size))dlsym(
-        libhandle, "rocfft_plan_get_work_buffer_size");
+    auto procfft_plan_get_work_buffer_size
+        = (decltype(&rocfft_plan_get_work_buffer_size))rocfft_lib_symbol(
+            libhandle, "rocfft_plan_get_work_buffer_size");
 
     // Get the buffersize
     size_t workBufferSize = 0;
@@ -128,22 +222,22 @@ size_t get_wbuffersize(void* libhandle, const rocfft_plan& plan)
 }
 
 // Given a libhandle from dload and a corresponding rocFFT plan, print the plan information.
-void show_plan(void* libhandle, const rocfft_plan& plan)
+void show_plan(ROCFFT_LIB libhandle, const rocfft_plan& plan)
 {
     auto procfft_plan_get_print
-        = (decltype(&rocfft_plan_get_print))dlsym(libhandle, "rocfft_plan_get_print");
+        = (decltype(&rocfft_plan_get_print))rocfft_lib_symbol(libhandle, "rocfft_plan_get_print");
 
     LIB_V_THROW(procfft_plan_get_print(plan), "rocfft_plan_get_print failed");
 }
 
 // Given a libhandle from dload and a corresponding rocFFT plan, a work buffer size and an
 // allocated work buffer, return a rocFFT execution info for the plan.
-rocfft_execution_info make_execinfo(void* libhandle, const size_t wbuffersize, void* wbuffer)
+rocfft_execution_info make_execinfo(ROCFFT_LIB libhandle, const size_t wbuffersize, void* wbuffer)
 {
-    auto procfft_execution_info_create
-        = (decltype(&rocfft_execution_info_create))dlsym(libhandle, "rocfft_execution_info_create");
+    auto procfft_execution_info_create = (decltype(&rocfft_execution_info_create))rocfft_lib_symbol(
+        libhandle, "rocfft_execution_info_create");
     auto procfft_execution_info_set_work_buffer
-        = (decltype(&rocfft_execution_info_set_work_buffer))dlsym(
+        = (decltype(&rocfft_execution_info_set_work_buffer))rocfft_lib_symbol(
             libhandle, "rocfft_execution_info_set_work_buffer");
 
     rocfft_execution_info info = NULL;
@@ -160,9 +254,11 @@ rocfft_execution_info make_execinfo(void* libhandle, const size_t wbuffersize, v
 // Given a libhandle from dload and a corresponding rocFFT plan and execution info,
 // execute a transform on the given input and output buffers and return the kernel
 // execution time.
-float run_plan(void* libhandle, rocfft_plan plan, rocfft_execution_info info, void** in, void** out)
+float run_plan(
+    ROCFFT_LIB libhandle, rocfft_plan plan, rocfft_execution_info info, void** in, void** out)
 {
-    auto procfft_execute = (decltype(&rocfft_execute))dlsym(libhandle, "rocfft_execute");
+    auto procfft_execute
+        = (decltype(&rocfft_execute))rocfft_lib_symbol(libhandle, "rocfft_execute");
 
     hipEvent_t start, stop;
     HIP_V_THROW(hipEventCreate(&start), "hipEventCreate failed");
@@ -377,25 +473,21 @@ int main(int argc, char* argv[])
     size_t wbuffer_size = 0;
 
     // Set up shared object handles
-    std::vector<void*> handles;
+    std::vector<ROCFFT_LIB> handles;
     for(int idx = 0; idx < libs.size(); ++idx)
     {
-        void* libhandle = dlopen((libs[idx]).c_str(), RTLD_LAZY);
+        auto libhandle = rocfft_lib_load(libs[idx]);
         if(libhandle == NULL)
         {
-            std::cout << "Failed to open " << libs[idx] << ", error: " << dlerror() << std::endl;
+            std::cout << "Failed to open " << libs[idx] << ", error: " << rocfft_lib_load_error()
+                      << std::endl;
             exit(1);
         }
-        struct link_map* link = nullptr;
-        dlinfo(libhandle, RTLD_DI_LINKMAP, &link);
-        for(; link != nullptr; link = link->l_next)
+        if(rocfft_lib_device_loaded(libhandle))
         {
-            if(strstr(link->l_name, "librocfft-device") != nullptr)
-            {
-                std::cerr << "Error: Library " << libs[idx] << " depends on librocfft-device.\n";
-                std::cerr << "All libraries need to be built with -DSINGLELIB=on.\n";
-                exit(1);
-            }
+            std::cerr << "Error: Library " << libs[idx] << " depends on librocfft-device.\n";
+            std::cerr << "All libraries need to be built with -DSINGLELIB=on.\n";
+            exit(1);
         }
         handles.push_back(libhandle);
     }
@@ -570,7 +662,7 @@ int main(int argc, char* argv[])
     {
         destroy_info(handles[idx], info[idx]);
         destroy_plan(handles[idx], plan[idx]);
-        dlclose(handles[idx]);
+        rocfft_lib_close(handles[idx]);
     }
 
     return 0;

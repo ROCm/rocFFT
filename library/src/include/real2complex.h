@@ -232,17 +232,17 @@ __device__ inline void real_pre_process_kernel_inplace(const size_t    idx_p,
     }
 }
 
-void real2complex(const void* data, void* back);
-void complex2hermitian(const void* data, void* back);
+ROCFFT_DEVICE_EXPORT void real2complex(const void* data, void* back);
+ROCFFT_DEVICE_EXPORT void complex2hermitian(const void* data, void* back);
 
-void hermitian2complex(const void* data, void* back);
-void complex2real(const void* data, void* back);
+ROCFFT_DEVICE_EXPORT void hermitian2complex(const void* data, void* back);
+ROCFFT_DEVICE_EXPORT void complex2real(const void* data, void* back);
 
-void r2c_1d_post(const void* data, void* back);
-void r2c_1d_post_transpose(const void* data, void* back);
-void c2r_1d_pre(const void* data, void* back);
-void transpose_c2r_1d_pre(const void* data, void* back);
+ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data, void* back);
+ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data, void* back);
+ROCFFT_DEVICE_EXPORT void c2r_1d_pre(const void* data, void* back);
+ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data, void* back);
 
-void apply_real_callback(const void* data, void* back);
+ROCFFT_DEVICE_EXPORT void apply_real_callback(const void* data, void* back);
 
 #endif // REAL_TO_COMPLEX_H

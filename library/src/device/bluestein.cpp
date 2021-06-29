@@ -47,7 +47,7 @@ rocfft_status chirp_launch(
     return rocfft_status_success;
 }
 
-void rocfft_internal_chirp(const void* data_p, void* back_p)
+ROCFFT_DEVICE_EXPORT void rocfft_internal_chirp(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
 
@@ -90,7 +90,7 @@ void rocfft_internal_chirp(const void* data_p, void* back_p)
                               rocfft_stream);
 }
 
-void rocfft_internal_mul(const void* data_p, void* back_p)
+ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
 
