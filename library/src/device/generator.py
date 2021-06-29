@@ -501,6 +501,11 @@ class And(BaseNodeOps):
     pass
 
 
+@make_binary('||')
+class Or(BaseNodeOps):
+    pass
+
+
 @make_binary('.')
 class Component(BaseNodeOps):
     pass

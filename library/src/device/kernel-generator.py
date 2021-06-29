@@ -23,6 +23,7 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 from functools import reduce
 from operator import mul
+from copy import deepcopy
 
 from generator import (ArgumentList, BaseNode, Call, CommentBlock, ExternC, Function, Include,
                        LineBreak, Map, Pragma, StatementList, Variable, name_args, format_and_write)
@@ -410,7 +411,7 @@ def list_old_generated_kernels(patterns=None,
     for patt in patterns:
         for prec in precisions:
             gen += generated_kernels[f'kernels_launch_{patt}_{prec}']
-    return gen
+    return list(set(gen))
 
 
 def list_generated_kernels(kernels):
@@ -439,6 +440,11 @@ class POWX_SMALL_GENERATOR(BaseNode):
 class POWX_LARGE_SBCC_GENERATOR(POWX_SMALL_GENERATOR):
     def __str__(self):
         return f'POWX_LARGE_SBCC_GENERATOR({cjoin(self.args)});'
+
+@name_args(['name', 'op_fwd', 'op_inv', 'precision', 'sbrc_type', 'transpose_type'])
+class POWX_LARGE_SBRC_GENERATOR(POWX_SMALL_GENERATOR):
+    def __str__(self):
+        return f'POWX_LARGE_SBRC_GENERATOR({cjoin(self.args)});'
 
 
 def kernel_file_name(ns):
@@ -630,6 +636,12 @@ def list_new_large_kernels():
             k.threads_per_block = block_width * reduce(mul, k.factors, 1) // min(k.factors)
         if not hasattr(k, 'length'):
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
+
+    # kernels += [
+    #     NS(length=64,  factors=[4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128),
+    #     NS(length=128, factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128),
+    # ]
+
     return kernels
 
 def default_runtime_compile(kernels):
@@ -684,22 +696,72 @@ def generate_kernel(kernel, precisions):
     for p in precisions:
         if kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM':
             prototype = POWX_SMALL_GENERATOR(f'rocfft_internal_dfn_{p}_ci_ci_stoc_{length}',
-                                    'ip_' + forward, 'ip_' + inverse,
-                                    'op_' + forward, 'op_' + inverse, typename_dict[p])
+                                             'ip_' + forward, 'ip_' + inverse,
+                                             'op_' + forward, 'op_' + inverse, typename_dict[p])
+            src += prototype
+            cpu_functions.append(prototype.function(kglobal.meta, p))
+
         elif kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC':
             prototype = POWX_LARGE_SBCC_GENERATOR(f'rocfft_internal_dfn_{p}_ci_ci_sbcc_{length}',
-                                    'ip_' + forward, 'ip_' + inverse,
-                                    'op_' + forward, 'op_' + inverse, typename_dict[p])
+                                                  'ip_' + forward, 'ip_' + inverse,
+                                                  'op_' + forward, 'op_' + inverse, typename_dict[p])
+            src += prototype
+            cpu_functions.append(prototype.function(kglobal.meta, p))
+
         elif kglobal.meta.scheme == 'CS_KERNEL_2D_SINGLE':
             prototype = POWX_SMALL_GENERATOR(f'rocfft_internal_dfn_{p}_ci_ci_2D_{length[0]}_{length[1]}',
-                                    'ip_' + forward, 'ip_' + inverse,
-                                    'op_' + forward, 'op_' + inverse, typename_dict[p])
+                                             'ip_' + forward, 'ip_' + inverse,
+                                             'op_' + forward, 'op_' + inverse, typename_dict[p])
+            src += prototype
+            cpu_functions.append(prototype.function(kglobal.meta, p))
+
+        elif kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_RC':
+            # SBRC_2D
+            sbrc_type, transpose_type, meta = 'SBRC_2D', 'TILE_ALIGNED', deepcopy(kglobal.meta)
+            prototype = POWX_LARGE_SBRC_GENERATOR(f'rocfft_internal_dfn_{p}_op_ci_ci_sbrc_{length}',
+                                                  'op_' + forward, 'op_' + inverse, typename_dict[p],
+                                                  sbrc_type, transpose_type)
+            src += prototype
+            cpu_functions.append(prototype.function(meta, p))
+
+            # SBRC_3D_FFT_TRANS_XY_Z
+            sbrc_type, transpose_type, meta = 'SBRC_3D_FFT_TRANS_XY_Z', 'TILE_ALIGNED', deepcopy(kglobal.meta)
+            prototype = POWX_LARGE_SBRC_GENERATOR(f'rocfft_internal_dfn_{p}_op_ci_ci_sbrc3d_fft_trans_xy_z_tile_aligned_{length}',
+                                                  'op_' + forward, 'op_' + inverse, typename_dict[p],
+                                                  sbrc_type, transpose_type)
+            src += prototype
+            meta.scheme, meta.transpose = 'CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z', 'TILE_ALIGNED'
+            cpu_functions.append(prototype.function(meta, p))
+
+            sbrc_type, transpose_type, meta = 'SBRC_3D_FFT_TRANS_XY_Z', 'DIAGONAL', deepcopy(kglobal.meta)
+            prototype = POWX_LARGE_SBRC_GENERATOR(f'rocfft_internal_dfn_{p}_op_ci_ci_sbrc3d_fft_trans_xy_z_diagonal_{length}',
+                                                  'op_' + forward, 'op_' + inverse, typename_dict[p],
+                                                  sbrc_type, transpose_type)
+            src += prototype
+            meta.scheme, meta.transpose = 'CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z', 'DIAGONAL'
+            cpu_functions.append(prototype.function(meta, p))
+
+            # SBRC_3D_FFT_TRANS_Z_XY
+            sbrc_type, transpose_type, meta = 'SBRC_3D_FFT_TRANS_Z_XY', 'TILE_ALIGNED', deepcopy(kglobal.meta)
+            prototype = POWX_LARGE_SBRC_GENERATOR(f'rocfft_internal_dfn_{p}_op_ci_ci_sbrc3d_fft_trans_z_xy_tile_aligned_{length}',
+                                                  'op_' + forward, 'op_' + inverse, typename_dict[p],
+                                                  sbrc_type, transpose_type)
+            src += prototype
+            meta.scheme, meta.transpose = 'CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY', 'TILE_ALIGNED'
+            cpu_functions.append(prototype.function(meta, p))
+
+
+            # SBRC_3D_FFT_TRANS_Z_XY
+            sbrc_type, transpose_type, meta = 'SBRC_3D_FFT_ERC_TRANS_Z_XY', 'TILE_ALIGNED', deepcopy(kglobal.meta)
+            prototype = POWX_LARGE_SBRC_GENERATOR(f'rocfft_internal_dfn_{p}_op_ci_ci_sbrc3d_fft_erc_trans_z_xy_tile_aligned_{length}',
+                                                  'op_' + forward, 'op_' + inverse, typename_dict[p],
+                                                  sbrc_type, transpose_type)
+            src += prototype
+            meta.scheme, meta.transpose = 'CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY', 'TILE_ALIGNED'
+            cpu_functions.append(prototype.function(meta, p))
+
         else:
             raise NotImplementedError(f'Unable to generate host functions for scheme {kglobal.meta.scheme}.')
-
-        if not kernel.runtime_compile:
-            src += prototype
-        cpu_functions += [prototype.function(kglobal.meta, p)]
 
     if not kernel.runtime_compile:
         format_and_write(kernel_file_name(kernel), src)

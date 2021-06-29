@@ -286,6 +286,14 @@ class StockhamLargeTwiddles2Step():
 class StockhamTiling(AdditionalArgumentMixin):
     """Base tiling."""
 
+    def __init__(self, factors, params, **kwargs):
+        self.length = product(factors)
+        self.factors = factors
+        self.params = params
+
+    def update_kernel_settings(self, kernel):
+        pass
+
     def calculate_offsets(self, *args, **kwargs):
         """Return code to calculate batch and buffer offsets."""
         return StatementList()
@@ -341,10 +349,11 @@ class StockhamTilingRR(StockhamTiling):
 
     name = 'SBRR'
 
-    def calculate_offsets(self, length, params,
-                          lengths=None, stride=None,
+    def calculate_offsets(self, lengths=None, stride=None,
                           dim=None, transform=None, block_id=None, thread_id=None,
                           batch=None, offset=None, offset_lds=None, lds_padding=None, **kwargs):
+
+        length, params = self.length, self.params
 
         d             = Variable('d', 'int')
         index_along_d = Variable('index_along_d', 'size_t')
@@ -367,10 +376,10 @@ class StockhamTilingRR(StockhamTiling):
 
         return stmts
 
-    def load_from_global(self, length, params,
-                         thread=None, thread_id=None, stride0=None,
+    def load_from_global(self, thread=None, thread_id=None, stride0=None,
                          buf=None, offset=None, lds=None, offset_lds=None,
                          embedded_type=None, **kwargs):
+        length, params = self.length, self.params
         width  = params.threads_per_transform
         height = length // width
         stmts = StatementList()
@@ -390,10 +399,10 @@ class StockhamTilingRR(StockhamTiling):
 
         return stmts
 
-    def store_to_global(self, length, params,
-                        thread=None, thread_id=None, stride0=None,
+    def store_to_global(self, thread=None, thread_id=None, stride0=None,
                         buf=None, offset=None, lds=None, offset_lds=None,
                         embedded_type=None, **kwargs):
+        length, params = self.length, self.params
         width  = params.threads_per_transform
         height = length // width
         stmts = StatementList()
@@ -418,18 +427,20 @@ class StockhamTilingCC(StockhamTiling):
 
     name = 'SBCC'
 
-    def __init__(self):
-        self.tile_index          = Variable('tile_index', 'size_t')
-        self.tile_length         = Variable('tile_length', 'size_t')
-        self.edge                = Variable('edge', 'bool')
-        self.tid1                = Variable('tid1', 'size_t')
-        self.tid0                = Variable('tid0', 'size_t')
+    def __init__(self, factors, params, **kwargs):
+        super().__init__(factors, params, **kwargs)
+        self.tile_index  = Variable('tile_index', 'size_t')
+        self.tile_length = Variable('tile_length', 'size_t')
+        self.edge        = Variable('edge', 'bool')
+        self.tid1        = Variable('tid1', 'size_t')
+        self.tid0        = Variable('tid0', 'size_t')
 
-    def calculate_offsets(self, length, params,
-                          transform=None, dim=None,
+    def calculate_offsets(self, transform=None, dim=None,
                           block_id=None, thread_id=None, lengths=None, stride=None, offset=None, batch=None,
                           offset_lds=None,
                           **kwargs):
+
+        length, params = self.length, self.params
 
         d             = Variable('d', 'int')
         index_along_d = Variable('index_along_d', 'size_t')
@@ -462,10 +473,10 @@ class StockhamTilingCC(StockhamTiling):
 
         return stmts
 
-    def load_from_global(self, length, params,
-                         buf=None, offset=None, lds=None,
+    def load_from_global(self, buf=None, offset=None, lds=None,
                          lengths=None, thread_id=None, stride=None, stride0=None, **kwargs):
 
+        length, params = self.length, self.params
         edge, tid0, tid1 = self.edge, self.tid0, self.tid1
         stripmine_w   = params.transforms_per_block
         stripmine_h   = params.threads_per_block // stripmine_w
@@ -490,10 +501,10 @@ class StockhamTilingCC(StockhamTiling):
 
         return stmts
 
-    def store_to_global(self, length, params,
-                        stride=None, stride0=None, lengths=None, buf=None, offset=None, lds=None,
+    def store_to_global(self, stride=None, stride0=None, lengths=None, buf=None, offset=None, lds=None,
                         **kwargs):
 
+        length, params = self.length, self.params
         edge, tid0, tid1 = self.edge, self.tid0, self.tid1
         stripmine_w   = params.transforms_per_block
         stripmine_h   = params.threads_per_block // stripmine_w
@@ -515,7 +526,324 @@ class StockhamTilingCC(StockhamTiling):
 
 
 class StockhamTilingRC(StockhamTiling):
-    pass
+    """Row/column tiling."""
+
+    name = 'SBRC'
+
+    def __init__(self, factors, params, **kwargs):
+        super().__init__(factors, params, **kwargs)
+        self.sbrc_type = Variable('sbrc_type', 'SBRC_TYPE')
+        self.transpose_type = Variable('transpose_type', 'SBRC_TRANSPOSE_TYPE')
+        self.lds_row_padding = Variable('lds_row_padding', 'unsigned int', value=0)
+        self.rows_per_tile = 16
+        self.n_device_calls = self.rows_per_tile // (self.params.threads_per_block // self.params.threads_per_transform)
+
+    def update_kernel_settings(self, kernel):
+        kernel.n_device_calls = self.n_device_calls
+        kernel.lds_row_padding = self.lds_row_padding
+
+    def add_templates(self, tlist, **kwargs):
+        tlist = copy(tlist)
+        tlist.args.insert(2, self.sbrc_type)
+        tlist.args.insert(3, self.transpose_type)
+        return tlist
+
+    def add_global_arguments(self, alist, **kwargs):
+        # only out-of-place, so replace strides...
+        nargs = copy(alist)
+        for i, arg in enumerate(alist.args):
+            if arg.name == 'stride':
+                si, so = copy(arg), copy(arg)
+                si.name, so.name = 'stride_in', 'stride_out'
+                nargs.args.pop(i)
+                nargs.args.insert(i, so)
+                nargs.args.insert(i, si)
+                return nargs
+
+    def calculate_offsets_2d(self,
+                             tile=None, dim=None, transform=None, thread=None, lengths=None, offset_lds=None,
+                             offset_in=None, offset_out=None, stride_in=None, stride_out=None,
+                             **kwargs):
+
+        length = self.length
+
+        current_length = Variable('current_length', 'unsigned int')
+        remaining = Variable('remaining', 'unsigned int')
+        i, j = Variable('i', 'unsigned int'), Variable('j', 'unsigned int')
+
+        offsets = StatementList()
+        offsets += Declarations(current_length, remaining)
+        offsets += Assign(remaining, tile)
+        offsets += For(i.inline(dim), i > 2, Decrement(i),
+                       StatementList(
+                           Assign(current_length, 1),
+                           For(j.inline(2), j < i, Increment(j),
+                               StatementList(
+                                   MultiplyAssign(current_length, lengths[j]))),
+                           MultiplyAssign(current_length, lengths[1] / self.rows_per_tile),
+                           AddAssign(offset_in, B(remaining / current_length) * stride_in[i]),
+                           AddAssign(offset_out, B(remaining / current_length) * stride_out[i]),
+                           Assign(remaining, remaining % current_length)))
+        offsets += Assign(current_length, lengths[1] / self.rows_per_tile)
+        offsets += AddAssign(offset_in, B(remaining / current_length) * stride_in[2])
+        offsets += AddAssign(offset_in, B(remaining % current_length) * B(self.rows_per_tile * lengths[0]))
+
+        offsets += AddAssign(offset_out, B(remaining / current_length) * stride_out[2])
+        offsets += AddAssign(offset_out, B(remaining % current_length) * B(self.rows_per_tile * stride_out[1]))
+
+        offsets += Assign(offset_lds, length * B(thread / self.rows_per_tile))
+
+        return offsets
+
+    def calculate_offsets_fft_trans_xy_z(self,
+                                         tile=None, dim=None, transform=None, thread=None, lengths=None, offset_lds=None,
+                                         offset_in=None, offset_out=None, stride_in=None, stride_out=None,
+                                         **kwargs):
+
+        length, transforms = self.length, self.params.transforms_per_block
+        tiles_per_batch = B(lengths[1] * B(B(lengths[2] + self.rows_per_tile - 1) / self.rows_per_tile))
+
+        def diagonal():
+            tid = B(tile % lengths[1]) + length * B(B(tile % tiles_per_batch) / lengths[1])
+            read_tile_y = B(tid % self.rows_per_tile)
+            read_tile_x = B(B(B(tid / self.rows_per_tile) + read_tile_y) % length)
+            write_tile_x = read_tile_y
+            write_tile_y = read_tile_x
+            return StatementList(
+                AddAssign(offset_in, read_tile_x * stride_in[1]),
+                AddAssign(offset_in, read_tile_y * self.rows_per_tile * stride_in[2]),
+                AddAssign(offset_in, B(tile / tiles_per_batch) * stride_in[3]),
+                AddAssign(offset_out, write_tile_x * self.rows_per_tile * stride_out[0]),
+                AddAssign(offset_out, write_tile_y * stride_out[2]),
+                AddAssign(offset_out, B(tile / tiles_per_batch) * stride_out[3]),
+                Assign(offset_lds, B(thread / self.rows_per_tile) * length))
+
+        def not_diagonal():
+            read_tile_x = B(tile % lengths[1])
+            read_tile_y = B(B(tile % tiles_per_batch) / lengths[1])
+            write_tile_x = read_tile_y
+            write_tile_y = read_tile_x
+            return StatementList(
+                AddAssign(offset_in, read_tile_x * stride_in[1]),
+                AddAssign(offset_in, read_tile_y * self.rows_per_tile * stride_in[2]),
+                AddAssign(offset_in, B(tile / tiles_per_batch) * stride_in[3]),
+                AddAssign(offset_out, write_tile_x * self.rows_per_tile * stride_out[0]),
+                AddAssign(offset_out, write_tile_y * stride_out[2]),
+                AddAssign(offset_out, B(tile / tiles_per_batch) * stride_out[3]),
+                Assign(offset_lds, B(thread / self.rows_per_tile) * length))
+
+        return StatementList(
+            IfElse(self.transpose_type == 'DIAGONAL', diagonal(), not_diagonal()))
+
+    def calculate_offsets_fft_trans_z_xy(self,
+                                         thread=None, tile=None, lengths=None, offset_lds=None,
+                                         offset_in=None, offset_out=None, stride_in=None, stride_out=None,
+                                         **kwargs):
+
+        length = self.length
+
+        tile_size_x = 1
+        tile_size_y = B(lengths[1] * lengths[2] / self.rows_per_tile)
+        tiles_per_batch = B(tile_size_x * tile_size_y)
+
+        read_tile_x = 0
+        read_tile_y = B(B(tile % tiles_per_batch) / tile_size_x)
+        write_tile_x = read_tile_y
+        write_tile_y = read_tile_x
+        return StatementList(
+            AddAssign(offset_in, read_tile_x * stride_in[1]),
+            AddAssign(offset_in, read_tile_y * self.rows_per_tile * stride_in[1]),
+            AddAssign(offset_in, B(tile / tiles_per_batch) * stride_in[3]),
+            AddAssign(offset_out, write_tile_x * self.rows_per_tile * stride_out[0]),
+            AddAssign(offset_out, write_tile_y * stride_out[3]),
+            AddAssign(offset_out, B(tile / tiles_per_batch) * stride_out[3]),
+            Assign(offset_lds, B(thread / self.rows_per_tile) * B(length + self.lds_row_padding)))
+
+
+    def calculate_offsets(self,
+                          transform=None, dim=None,
+                          block_id=None, thread_id=None, lengths=None, stride=None, offset=None, batch=None,
+                          offset_lds=None,
+                          **kwargs):
+
+        length, params = self.length, self.params
+
+        tile = Variable('tile', 'unsigned int')
+        offset_in = Variable('offset_in', 'unsigned int', value=0)
+        offset_out = Variable('offset_out', 'unsigned int', value=0)
+        stride_in = Variable('stride_in', 'const size_t', array=True)
+        stride_out = Variable('stride_out', 'const size_t', array=True)
+
+        kvars, kwvars = common_variables(length, params, 0)
+        kwvars.update({
+            'tile': tile,
+            'offset_in': offset_in,
+            'offset_out': offset_out,
+            'stride_in': stride_in,
+            'stride_out': stride_out})
+
+        stmts = StatementList()
+        stmts += Declarations(tile, self.lds_row_padding)
+
+        stmts += If(self.sbrc_type == 'SBRC_3D_FFT_ERC_TRANS_Z_XY',
+                    StatementList(
+                        Assign(self.lds_row_padding, 1)))
+
+        stmts += Assign(tile, kvars.block_id)
+        stmts += Assign(kvars.thread, kvars.thread_id)
+        stmts += If(self.sbrc_type == 'SBRC_2D',
+                    self.calculate_offsets_2d(**kwvars))
+        stmts += If(self.sbrc_type == 'SBRC_3D_FFT_TRANS_XY_Z',
+                    self.calculate_offsets_fft_trans_xy_z(**kwvars))
+        stmts += If(Or(self.sbrc_type == 'SBRC_3D_FFT_TRANS_Z_XY',
+                       self.sbrc_type == 'SBRC_3D_FFT_ERC_TRANS_Z_XY'),
+                    self.calculate_offsets_fft_trans_z_xy(**kwvars))
+
+        stmts += Assign(kvars.batch, 0)  # XXX
+
+        return stmts
+
+
+    def load_from_global(self, buf=None, offset=None, lds=None,
+                         lengths=None, thread_id=None, stride=None, stride0=None,
+                         tile=None, **kwargs):
+
+        length, params = self.length, self.params
+        kvars, kwvars = common_variables(length, params, 0)
+        offset_in = Variable('offset_in', 'unsigned int', value=0)
+        offset_out = Variable('offset_out', 'unsigned int', value=0)
+        stride_in = Variable('stride_in', 'const size_t', array=True)
+        stride_out = Variable('stride_out', 'const size_t', array=True)
+
+        height = (length * self.rows_per_tile) // params.threads_per_block
+#        assert(height < self.rows_per_tile)
+
+        stmts = StatementList()
+        stmts += Assign(kvars.thread, kvars.thread_id)
+
+        # SBRC_2D, SBRC_3D_FFT_TRANS_Z_XY, SBRC_3D_FFT_ERC_TRANS_Z_XY
+        load = StatementList()
+        for h in range(height):
+            lidx = kvars.thread
+            lidx += h * B(params.threads_per_block + self.n_device_calls * self.lds_row_padding)
+            lidx += B(kvars.thread / length) * self.lds_row_padding
+            gidx = offset_in + kvars.thread + h * params.threads_per_block
+            load += Assign(kvars.lds[lidx], LoadGlobal(kvars.buf, gidx))
+        stmts += If(Or(self.sbrc_type == 'SBRC_2D',
+                       self.sbrc_type == 'SBRC_3D_FFT_TRANS_Z_XY',
+                       self.sbrc_type == 'SBRC_3D_FFT_ERC_TRANS_Z_XY'), load)
+
+        # SBRC_3D_FFT_TRANS_XY_Z
+        tiles_per_batch = B(lengths[1] * B(B(lengths[2] + self.rows_per_tile - 1) / self.rows_per_tile))
+        tile_in_batch = tile % tiles_per_batch
+        load = StatementList()
+        for h in range(height):
+            lidx = h % height * length
+            lidx += h // height * length
+            lidx += kvars.thread % length
+            lidx += B(kvars.thread / length) * (height * length)
+            gidx = offset_in
+            gidx += B(kvars.thread % length) * stride_in[0]
+            gidx += B(B(kvars.thread / length) * height + h) * stride_in[2]
+            idx = tile_in_batch / lengths[1] * self.rows_per_tile + h + thread / length * self.rows_per_tile / params.threads_per_block
+            load += If(Or(self.transpose_type != 'TILE_UNALIGNED', idx < lengths[2]),
+                       StatementList(Assign(kvars.lds[lidx], LoadGlobal(kvars.buf, gidx))))
+        stmts += If(self.sbrc_type == 'SBRC_3D_FFT_TRANS_XY_Z', load)
+
+        return stmts
+
+
+    def store_to_global(self, stride=None, stride0=None, lengths=None, buf=None, offset=None, lds=None,
+                        **kwargs):
+
+
+
+        length, params = self.length, self.params
+        kvars, kwvars = common_variables(length, params, 0)
+        offset_in = Variable('offset_in', 'unsigned int', value=0)
+        offset_out = Variable('offset_out', 'unsigned int', value=0)
+        stride_in = Variable('stride_in', 'const size_t', array=True)
+        stride_out = Variable('stride_out', 'const size_t', array=True)
+
+        height = length * self.rows_per_tile // params.threads_per_block
+
+        stmts = StatementList()
+
+        # POSTPROCESSING SBRC_3D_FFT_ERC_TRANS_Z_XY
+        post = StatementList()
+        null = Variable('nullptr', 'void*')
+
+        for h in range(height * self.n_device_calls):
+            post += Call('post_process_interleaved_inplace',
+                         templates=TemplateList(kvars.scalar_type, 'true', 'CallbackType::NONE'),
+                         arguments=ArgumentList(kvars.thread,
+                                                length - kvars.thread,
+                                                length,
+                                                length // self.n_device_calls,
+                                                Address(kvars.lds[h * B(length + self.lds_row_padding)]),
+                                                0,
+                                                Address(kvars.twiddles[length]),
+                                                null, null, 0, null, null))
+        post += SyncThreads()
+        stmts += If(self.sbrc_type == 'SBRC_3D_FFT_ERC_TRANS_Z_XY', post)
+
+        # SBRC_2D
+        store = StatementList()
+        for h in range(height):
+            row = B(B(kvars.thread + h * params.threads_per_block) / self.rows_per_tile)
+            col = B(kvars.thread % self.rows_per_tile)
+            lidx = col * length + row
+            gidx = offset_out + row * stride_out[0] + col * stride_out[1]
+            store += StoreGlobal(kvars.buf, gidx, lds[lidx])
+        stmts += If(self.sbrc_type == 'SBRC_2D', store)
+
+        # SBRC_3D_FFT_TRANS_XY_Z
+        store = StatementList()
+        tiles_per_batch = B(lengths[1] * B(B(lengths[2] + self.rows_per_tile - 1) / self.rows_per_tile))
+        tile_in_batch = tile % tiles_per_batch
+
+        for h in range(height):
+            lidx = h * height
+            lidx += B(kvars.thread % self.rows_per_tile) * length
+            lidx += B(kvars.thread / self.rows_per_tile)
+            gidx = offset_out
+            gidx += B(kvars.thread % self.rows_per_tile) * stride_out[0]
+            gidx += B(B(kvars.thread / self.rows_per_tile) + h * height) * stride_out[1]
+            idx = tile_in_batch / lengths[1] * self.rows_per_tile + thread % self.rows_per_tile
+            store += If(Or(self.transpose_type != 'TILE_UNALIGNED', idx < lengths[2]),
+                        StatementList(StoreGlobal(kvars.buf, gidx, lds[lidx])))
+        stmts += If(self.sbrc_type == 'SBRC_3D_FFT_TRANS_XY_Z', store)
+
+        # SBRC_3D_FFT_TRANS_Z_XY, SBRC_3D_FFT_ERC_TRANS_Z_XY
+        store = StatementList()
+        for h in range(height):
+            lidx = h * height
+            lidx += B(kvars.thread % self.rows_per_tile) * B(length + self.lds_row_padding)
+            lidx += B(kvars.thread / self.rows_per_tile)
+            gidx = offset_out
+            gidx += B(kvars.thread % self.rows_per_tile) * stride_out[0]
+            gidx += B(B(kvars.thread / self.rows_per_tile) + h * height) * stride_out[2]
+            store += StoreGlobal(kvars.buf, gidx, lds[lidx])
+
+        h = height
+        lidx = h * height
+        lidx += B(kvars.thread % self.rows_per_tile) * B(length + self.lds_row_padding)
+        lidx += B(kvars.thread / self.rows_per_tile)
+        gidx = offset_out
+        gidx += B(kvars.thread % self.rows_per_tile) * stride_out[0]
+        gidx += B(B(kvars.thread / self.rows_per_tile) + h * height) * stride_out[2]
+        store += If(And(self.sbrc_type == 'SBRC_3D_FFT_ERC_TRANS_Z_XY',
+                        kvars.thread < self.rows_per_tile),
+                    StatementList(
+                        StoreGlobal(kvars.buf, gidx, lds[lidx])))
+        stmts += If(Or(self.sbrc_type == 'SBRC_3D_FFT_TRANS_Z_XY',
+                       self.sbrc_type == 'SBRC_3D_FFT_ERC_TRANS_Z_XY'),
+                    store)
+
+        return stmts
+
+
+
 
 
 class StockhamTilingCR(StockhamTiling):
@@ -579,13 +907,16 @@ def store_lds(width=None, cumheight=None, spass=0,
 class StockhamKernel:
     """Base Stockham kernel."""
 
-    def __init__(self, factors, scheme, tiling, large_twiddles, **kwargs):
-        self.length = product(factors)
+    def __init__(self, factors, params, scheme, tiling, large_twiddles, **kwargs):
         self.factors = factors
+        self.length = product(factors)
+        self.params = params
         self.scheme = scheme
         self.tiling = tiling
         self.large_twiddles = large_twiddles
         self.kwargs = kwargs
+        self.n_device_calls = 1
+        self.lds_row_padding = 1
 
     def device_templates(self, kvars, **kwvars):
         templates = TemplateList(kvars.scalar_type, kvars.stride_type)
@@ -633,9 +964,9 @@ class StockhamKernel:
         """Global Stockham function."""
 
         use_3steps = kwargs.get('3steps')
-        params     = get_launch_params(self.factors, **kwargs)
+        length, params = self.length, self.params
 
-        kvars, kwvars = common_variables(self.length, params, self.nregisters)
+        kvars, kwvars = common_variables(self.n_device_calls * self.length, params, self.nregisters)
 
         body = StatementList()
         body += CommentLines(
@@ -656,14 +987,14 @@ class StockhamKernel:
 
         body += LineBreak()
         body += CommentLines('offsets')
-        body += self.tiling.calculate_offsets(self.length, params, **kwvars)
+        body += self.tiling.calculate_offsets(**kwvars)
 
         body += LineBreak()
         body += If(GreaterEqual(kvars.batch, kvars.nbatch), [ReturnStatement()])
 
         body += LineBreak()
         body += CommentLines('load global')
-        body += self.tiling.load_from_global(self.length, params, **kwvars)
+        body += self.tiling.load_from_global(**kwvars)
 
         body += LineBreak()
         body += CommentLines('handle even-length real to complex pre-process in lds before transform')
@@ -672,11 +1003,16 @@ class StockhamKernel:
         body += LineBreak()
         body += CommentLines('transform')
         body += Assign(kvars.write, 'true')
-        templates = self.device_call_templates(kvars, **kwvars)
-        templates.args[1] = 'SB_UNIT'
-        body += Call(f'forward_length{self.length}_{self.tiling.name}_device',
-                     arguments=self.device_call_arguments(kvars, **kwvars),
-                     templates=templates)
+        for c in range(self.n_device_calls):
+            templates = self.device_call_templates(kvars, **kwvars)
+            arguments = self.device_call_arguments(kvars, **kwvars)
+
+            templates.set_value(kvars.stride_type.name, 'SB_UNIT')
+            if c > 0:
+                arguments.set_value(kvars.offset_lds.name,
+                                    kvars.offset_lds + c * B(length + self.lds_row_padding) * params.transforms_per_block)
+            body += Call(f'forward_length{self.length}_{self.tiling.name}_device',
+                         arguments=arguments, templates=templates)
 
         body += LineBreak()
         body += CommentLines('handle even-length complex to real post-process in lds after transform')
@@ -685,7 +1021,7 @@ class StockhamKernel:
         body += LineBreak()
         body += CommentLines('store global')
         body += SyncThreads()
-        body += self.tiling.store_to_global(self.length, params, **kwvars)
+        body += self.tiling.store_to_global(**kwvars)
 
         return Function(name=f'forward_length{self.length}_{self.tiling.name}',
                         qualifier='__global__',
@@ -923,7 +1259,7 @@ class StockhamKernelTall(StockhamKernel):
 class StockhamKernelFused2D(StockhamKernel):
 
     def __init__(self, device_functions):
-        self.tiling = StockhamTiling()
+        self.tiling = StockhamTiling([], None)
         self.large_twiddles = StockhamLargeTwiddles()
         self.device_functions = device_functions
 
@@ -1276,11 +1612,13 @@ def stockham1d(length, **kwargs):
     if 'scheme' in kwargs:
         kwargs.pop('scheme')
 
+    params = get_launch_params(factors, **kwargs)
+
     tiling = {
-        'CS_KERNEL_STOCKHAM':          StockhamTilingRR(),
-        'CS_KERNEL_STOCKHAM_BLOCK_CC': StockhamTilingCC(),
-        'CS_KERNEL_STOCKHAM_BLOCK_RC': StockhamTilingRC(),
-        'CS_KERNEL_STOCKHAM_BLOCK_CR': StockhamTilingCR(),
+        'CS_KERNEL_STOCKHAM':          StockhamTilingRR(factors, params, **kwargs),
+        'CS_KERNEL_STOCKHAM_BLOCK_CC': StockhamTilingCC(factors, params, **kwargs),
+        'CS_KERNEL_STOCKHAM_BLOCK_RC': StockhamTilingRC(factors, params, **kwargs),
+        'CS_KERNEL_STOCKHAM_BLOCK_CR': StockhamTilingCR(factors, params, **kwargs),
     }[scheme]
 
     twiddles = StockhamLargeTwiddles()
@@ -1288,10 +1626,12 @@ def stockham1d(length, **kwargs):
         twiddles = StockhamLargeTwiddles2Step()
 
     kernel = {
-        'uwide': StockhamKernelUWide(factors, scheme, tiling, twiddles, **kwargs),
-        'wide': StockhamKernelWide(factors, scheme, tiling, twiddles, **kwargs),
-        'tall': StockhamKernelTall(factors, scheme, tiling, twiddles, **kwargs),
+        'uwide': StockhamKernelUWide(factors, params, scheme, tiling, twiddles, **kwargs),
+        'wide': StockhamKernelWide(factors, params, scheme, tiling, twiddles, **kwargs),
+        'tall': StockhamKernelTall(factors, params, scheme, tiling, twiddles, **kwargs),
     }[kwargs.get('flavour', 'uwide')]
+
+    tiling.update_kernel_settings(kernel)
 
     kdevice = kernel.generate_device_function(**kwargs)
     kglobal = kernel.generate_global_function(**kwargs)

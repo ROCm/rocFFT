@@ -8,7 +8,7 @@ sys.path.append(str(top.parent.parent.parent / 'library' / 'src' / 'device'))
 
 import click
 import subprocess
-import stockham
+import stockham2 as stockham
 
 from generator import njoin, format_and_write
 from functools import reduce
@@ -22,6 +22,7 @@ def product(factors):
 @click.option('--one', type=str, help='First dimension comma-separated factors.')
 @click.option('--two', type=str, help='Second dimension comma-separated factors.')
 @click.option('--nbatch', type=int, default=1, help='Number of batches')
+@click.option('--tpt', type=int, default=-1, help='Number of threads per transform.')
 @click.option('--tpb', type=int, default=-1, help='Maximum number of threads per block.')
 @click.option('--tpt', type=int, default=-1, help='Maximum number of threads per transform.')
 @click.option('--flavour', type=str, default='uwide', help='Flavour of kernel(s).')
@@ -58,6 +59,7 @@ def generate_and_run(one, two, nbatch, manual, tpb, tpt, single, flavour):
             kdevice, kglobal = stockham.stockham(nx, factors=one, **kwargs)
             klaunch = stockham.stockham_launch(one, **kwargs)
         kernels = [kdevice, kglobal, klaunch]
+        print("THREADS PER BLOCK", kglobal.meta.threads_per_block)
         format_and_write("stockham_generated_kernel.h", njoin([ str(x) for x in kernels ]))
 
     kname = str(nx)

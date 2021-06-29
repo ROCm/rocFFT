@@ -11,6 +11,7 @@
 
 #include <rocrand/rocrand.hpp>
 
+#include "../../library/src/device/kernels/callback.h"
 #include "timer.h"
 
 #define HIP_CHECK(r)    \
