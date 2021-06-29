@@ -26,7 +26,7 @@ Usage:
 \t\t-w          output directory for graphs and final document
 \t\t-S          plot speedup (default: 1, disabled: 0)
 \t\t-t          data type: time (default) or gflops or roofline
-\t\t-y          secondary acix type: none or gflops
+\t\t-y          secondary axis type: none or gflops or efficiency
 \t\t-s          short run
 \t\t-T          do not perform FFTs; just generate document
 \t\t-f          document format: pdf (default) or docx
@@ -37,6 +37,8 @@ Usage:
 \t\t-R          runtype: report benchmark or efficiency
 \t\t-F          filename to read problem sizes from
 \t\t-p          precision: single or double(default)
+\t\t-B          specify bandwidth for efficiency computation
+\t\t-v          verbose output
 '''
 
 def nextpow(val, radix):
@@ -157,7 +159,7 @@ class figure:
         #     outfigure += ".png"
         return os.path.join(outdir, outfigure)
 
-    def asycmd(self, docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2):
+    def asycmd(self, docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2, bandwidth):
         asycmd = ["asy"]
 
         asycmd.append("-f")
@@ -171,7 +173,6 @@ class figure:
         #     asycmd.append("-render")
         #     asycmd.append("8")
         asycmd.append(os.path.join(sys.path[0],"datagraphs.asy"))
-
 
         asycmd.append("-u")
         inputfiles = self.inputfiles(outdirlist)
@@ -188,14 +189,18 @@ class figure:
             asycmd.append("-u")
             asycmd.append('just1dc2crad2=true')
 
-        if secondtype == "gflops":
+        if secondtype != "":
             asycmd.append("-u")
-            asycmd.append('secondarygflops=true')
+            asycmd.append('secondaryaxis="'+secondtype +'"')
 
         if datatype == "gflops":
             asycmd.append("-u")
             asycmd.append('primaryaxis="gflops"')
 
+        if bandwidth != None:
+            asycmd.append("-u")
+            asycmd.append('bandwidth=' + str(bandwidth) + '')
+                        
         if datatype == "roofline":
             asycmd.append("-u")
             asycmd.append('primaryaxis="roofline"')
@@ -228,18 +233,19 @@ class figure:
         return asycmd
 
     def executeasy(self, docdir, outdirs, labellist, docformat, datatype, ncompare, secondtype,
-                   just1dc2crad2):
+                   just1dc2crad2, bandwidth, verbose):
         fout = tempfile.TemporaryFile(mode="w+")
         ferr = tempfile.TemporaryFile(mode="w+")
         asyproc = subprocess.Popen(self.asycmd(docdir, outdirs, labellist,
                                                docformat, datatype, ncompare, secondtype,
-                                               just1dc2crad2),
+                                               just1dc2crad2, bandwidth),
                                    stdout=fout, stderr=ferr, env=os.environ.copy(),
                                    cwd = sys.path[0])
         asyproc.wait()
         asyrc = asyproc.returncode
         if asyrc != 0:
             print("****asy fail****")
+        if verbose or (asyrc != 0):
             fout.seek(0)
             cout = fout.read()
             print(cout)
@@ -641,9 +647,11 @@ def main(argv):
     secondtype = "none"
     precision = "double"
     problem_file = None
-
+    verbose = False
+    bandwidth = None
+    
     try:
-        opts, args = getopt.getopt(argv,"hb:D:f:Tt:i:o:l:S:sg:d:N:R:w:y:F:p:")
+        opts, args = getopt.getopt(argv,"hb:D:f:Tt:i:o:l:S:sg:d:N:R:w:y:F:p:B:v")
     except getopt.GetoptError:
         print("error in parsing arguments.")
         print(usage)
@@ -691,7 +699,7 @@ def main(argv):
                 sys.exit(1)
             datatype = arg
         elif opt in ("-y"):
-            if arg not in ["none", "gflops"]:
+            if arg not in ["none", "gflops", "efficiency"]:
                 print("data type must be gflops or none")
                 print(usage)
                 sys.exit(1)
@@ -719,6 +727,10 @@ def main(argv):
             precision = arg
         elif opt in ("-F"):
             problem_file = arg
+        elif opt in ("-B"):
+            bandwidth = float(arg)
+        elif opt in ("-v"):
+            verbose = True
 
     print("rundims:")
     print(rundims)
@@ -812,12 +824,15 @@ def main(argv):
                 break
 
         # Compile the data in the outdirs into figures in docdir:
-        ncompare = len(inlist) if speedup else 0
+        ncompare = 0
+        if speedup:
+            ncompare = len(labellist) if dryrun else len(inlist)
+            
         print(fig.labels(labellist))
         if doAsy:
             #plotgflops = runtype == "submission" and not datatype == "gflops"
-            print(fig.asycmd(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2))
-            fig.executeasy(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2)
+            print(fig.asycmd(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2, bandwidth))
+            fig.executeasy(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2, bandwidth, verbose)
 
     if doAsy:
         # Make the document in docdir:
@@ -844,6 +859,17 @@ GFLOP/s are computed based on the Cooley--Tukey operation count \
 for a radix-2 transform, and half that for in the case of \
 real-complex transforms.  The rocFFT operation count may differ from \
 this value: GFLOP/s is provided for the sake of comparison only.'''
+
+
+efficiencytext = '''\
+Efficiency is computed for an idealised FFT which requires exactly \
+one read and one write to global memory.  In practice, this \
+isn't possible for most problem sizes, as the data does \
+not fit into cache, and one must use global memory to store \
+intermediary results.  As FFTs are bandwidth-limited on modern hardware, \
+the efficiency is measured against the theoretical maximum bandwidth \
+for the device.'''
+
 
 # Function for generating a tex document in PDF format.
 def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype, precision):
@@ -970,7 +996,10 @@ def makedocx(figs, outdir, nsample, secondtype, precision):
 
     if secondtype == "gflops":
         document.add_paragraph(gflopstext)
+    if secondtype == "efficiency":
+        document.add_paragraph(efficiencytext)
 
+        
     specfilename = os.path.join(outdir, "specs.txt")
     if os.path.isfile(specfilename):
         with open(specfilename, "r") as f:

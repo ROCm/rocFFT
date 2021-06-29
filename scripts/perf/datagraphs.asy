@@ -32,11 +32,11 @@ bool normalize = false;
 bool just1dc2crad2 = false;
 
 string primaryaxis = "time";
+string secondaryaxis = "";
 
 // Control whether inter-run speedup is plotted:
 int speedup = 1;
 
-bool secondarygflops = false;
 // parameters for computing gflops and arithmetic intesntiy
 real batchsize = 1;
 real problemdim = 1;
@@ -44,6 +44,7 @@ real problemratio = 1;
 bool realcomplex = false;
 bool doubleprec = false;
 string gpuid = "";
+real bandwidth = 1228.8; // MI100
 
 usersetting();
 
@@ -95,28 +96,27 @@ real nkernels(real N)
 }
 
 // Compte the number of bytes read from and written to global memory for a transform.
-real bytes(real N, real batch, real dim, real ratio, bool realcomplex, bool doubleprec)
+real bytes(real Nx, real Ny, real Nz, real batch, bool realcomplex, bool doubleprec)
 {
-    real bytes = batch * 4 * N^dim * ratio; // read and write one complex arrays of length N.
-    if(realcomplex)
-        bytes /= 2;
-    if(doubleprec)
-        bytes *= 8;
-    else
-        bytes *= 4;
+    real nvals = Nx * Ny * Nz * batch;
+    // single or double precision, real or complex.
+    real sizeof = (doubleprec ? 8 : 4) * (realcomplex ? 1 : 2);
+    real nops = 2; // one read, one write.
 
+    real bytes = nvals * sizeof * nops;
+    
     if(just1dc2crad2) {
         // NB: only valid for c2c 1D transforms.
-        bytes *= nkernels(N);
+        bytes *= nkernels(Nx);
     }
-    
+    write("bytes:", Nx, Ny, Nz, batch, bytes);
     return bytes;
 }
 
 // Compute the number of FLOPs for a transform.
-real flop(real N, real batch, real dim, real ratio, bool realcomplex)
+real flop(real Nx, real Ny, real Nz, real batch, bool realcomplex)
 {
-    real size = ratio * N^dim;
+    real size = Nx * Ny * Nz;
     real fact = realcomplex ? 0.5 : 1.0;
     real flop = 5 * fact * batchsize * size * log(size) / log(2);
     return flop;
@@ -124,18 +124,26 @@ real flop(real N, real batch, real dim, real ratio, bool realcomplex)
 
 // Compute the performance in GFLOP/s.
 // time in s, N is the problem size
-real time2gflops(real t, real N, real batch, real dim, real ratio,
-                 bool realcomplex)
+real time2gflops(real t, real Nx, real Ny, real Nz, real batch, bool realcomplex)
 {
-    return 1e-9 *  flop(N, batch, dim, ratio, realcomplex) / t;
+    return 1e-9 * flop(Nx, Ny, Nz, batch, realcomplex) / t;
 }
 
+
+// Compute the performance in GFLOP/s.
+// time in s, N is the problem size
+real time2efficiency(real t, real Nx, real Ny, real Nz, real batch, bool realcomplex, bool doubleprec)
+{
+    real bw = bytes(Nx, Ny, Nz, batch, realcomplex, doubleprec) / t;
+    return bw / (bandwidth * 1e9);
+}
+
+
 // Compute the arithmetic intensity for a transform.
-real arithmeticintensity(real N, real batch, real dim, real ratio, bool realcomplex,
+real arithmeticintensity(real Nx, real Ny, real Nz, real batch, bool realcomplex,
                          bool doubleprec)
 {
-    return flop(N, batch, dim, ratio, realcomplex)
-        / bytes(N, batch, dim, ratio, realcomplex, doubleprec);
+    return flop(Nx, Ny, Nz, batch, realcomplex) / bytes(Nx, Ny, Nz, batch, realcomplex, doubleprec);
 }
 
 // Create an array from a comma-separated string
@@ -165,13 +173,15 @@ string[] listfromcsv(string input)
 string[] testlist = listfromcsv(filenames);
 
 // Data containers:
-real[][] x = new real[testlist.length][];
+real[][] Nx = new real[testlist.length][];
+real[][] Ny = new real[testlist.length][];
+real[][] Nz = new real[testlist.length][];
 real[][][] data = new real[testlist.length][][];
 real xmax = 0.0;
 real xmin = inf;
 
 // Read the data from the rocFFT-formatted data file.
-void readfiles(string[] testlist, real[][] x, real[][][] data)
+void readfiles(string[] testlist, real[][] Nx, real[][] Ny, real[][] Nz, real[][][] data)
 {
 // Get the data from the file:
     for(int n = 0; n < testlist.length; ++n)
@@ -196,12 +206,8 @@ void readfiles(string[] testlist, real[][] x, real[][][] data)
                 break;
             }
             int xval = fin; // x-length
-            if(dim > 1) {
-                int yval = fin; // y-length; ignored
-            }
-            if(dim > 2) {
-                int zval = fin; // z-length; ignored
-            }
+            int yval = (dim > 1) ? fin : 1;
+            int zval = (dim > 2) ? fin : 1;        
             int nbatch = fin; // batch size
 	    
             int N = fin; // Number of data points
@@ -214,7 +220,9 @@ void readfiles(string[] testlist, real[][] x, real[][][] data)
 		  // Only add data if the data isn't all zero.
 		  xmax = max(xval, xmax);
 		  xmin = min(xval, xmin);
-		  x[n].push(xval);
+		  Nx[n].push(xval);
+                  Ny[n].push((dim > 1) ? yval : 1);
+                  Nz[n].push((dim > 2) ? zval : 1);
 		  data[n][dataidx] = xvals;
 		  ++dataidx;
 		}
@@ -223,10 +231,10 @@ void readfiles(string[] testlist, real[][] x, real[][][] data)
     }
 }
 
-readfiles(testlist, x, data);
+readfiles(testlist, Nx, Ny, Nz, data);
 
 // Plot the primary graph:
-for(int n = 0; n < x.length; ++n)
+for(int n = 0; n < Nx.length; ++n)
 {
     pen graphpen = Pen(n);
     if(n == 2)
@@ -234,7 +242,7 @@ for(int n = 0; n < x.length; ++n)
     string legend = myleg ? legends[n] : texify(testlist[n]);
     marker mark = marker(scale(0.5mm) * unitcircle, Draw(graphpen + solid));
     // Multi-axis graphs: set legend to appropriate y-axis.
-    if(secondarygflops)
+    if(secondaryaxis != "")
         legend = "time";
     
     // We need to plot pairs for the error bars.
@@ -242,10 +250,10 @@ for(int n = 0; n < x.length; ++n)
     pair[] dp;
     pair[] dm;
 
-    bool drawme[] = new bool[x[n].length];
+    bool drawme[] = new bool[Nx[n].length];
     for(int i = 0; i < drawme.length; ++i) {
         drawme[i] = true;
-        if(!plotxval(x[n][i]))
+        if(!plotxval(Nx[n][i]))
 	    drawme[i] = false;
     }
 
@@ -258,7 +266,7 @@ for(int n = 0; n < x.length; ++n)
     real[] hy;
     
     if(primaryaxis == "time") {
-        xval = x[n];
+        xval = Nx[n];
         for(int i = 0; i < data[n].length; ++i) {
             if(drawme[i]) {
                 real[] medlh = mediandev(data[n][i]);
@@ -274,13 +282,12 @@ for(int n = 0; n < x.length; ++n)
     }
     
     if(primaryaxis == "gflops") {
-        xval = x[n];
+        xval = Nx[n];
         for(int i = 0; i < data[n].length; ++i) {
             if(drawme[i]) {
                 real[] vals;
                 for(int j = 0; j < data[n][i].length; ++j) {
-                    real val = time2gflops(data[n][i][j], x[n][i],
-                                           batchsize, problemdim, problemratio, realcomplex);
+                    real val = time2gflops(data[n][i][j], Nx[n][i], Ny[n][i], Nz[n][i], batchsize, realcomplex);
                     //write(val);
                     vals.push(val);
                 }
@@ -297,16 +304,16 @@ for(int n = 0; n < x.length; ++n)
     }
 
     if(primaryaxis == "roofline") {
-        for(int i = 0; i < x[n].length; ++i) {
-            xval.push(arithmeticintensity(x[n][i], batchsize, problemdim, problemratio,
+        for(int i = 0; i < Nx[n].length; ++i) {
+            xval.push(arithmeticintensity(Nx[n][i], Ny[n][i], Nz[n][i], batchsize,
                                           realcomplex, doubleprec));
         }
         for(int i = 0; i < data[n].length; ++i) {
             if(drawme[i]) {
                 real[] vals;
                 for(int j = 0; j < data[n][i].length; ++j) {
-                    real val = time2gflops(data[n][i][j], x[n][i],
-                                           batchsize, problemdim, problemratio, realcomplex);
+                    real val = time2gflops(data[n][i][j], Nx[n][i], Ny[n][i], Nz[n][i],
+                                           batchsize, realcomplex);
                     //write(val);
                     vals.push(val);
                 }
@@ -339,7 +346,7 @@ for(int n = 0; n < x.length; ++n)
                 //dot(Scale(z[i]));
                 //dot(Label("(3,5)",align=S),Scale(z));
                 if(i % skip == 0) {
-                    real p = log(x[n][i]) / log(2);
+                    real p = log(Nx[n][i]) / log(2);
                     label("$2^{"+(string)p+"}$",Scale(z[i]),S);
                 }
             }
@@ -382,17 +389,17 @@ for(int n = 0; n < x.length; ++n)
 }
 
 if(doxticks)
-   xaxis(xlabel,BottomTop,LeftTicks);
+    xaxis(xlabel,BottomTop,LeftTicks);
 else
-   xaxis(xlabel);
+    xaxis(xlabel);
 
 if(doyticks)
-    yaxis(ylabel,(speedup > 1 || secondarygflops) ? Left : LeftRight,RightTicks);
+    yaxis(ylabel,(speedup > 1 || (secondaryaxis != "")) ? Left : LeftRight,RightTicks);
 else
-   yaxis(ylabel,LeftRight);
+    yaxis(ylabel,LeftRight);
 
 if(dolegend)
-    attach(legend(),point(plain.E),((speedup > 1  || secondarygflops)
+    attach(legend(),point(plain.E),((speedup > 1  || (secondaryaxis != ""))
                                     ? 60*plain.E + 40 *plain.N
                                     : 20*plain.E)  );
 
@@ -401,7 +408,7 @@ if(speedup > 1) {
     string[] legends = listfromcsv(legendlist);
     // TODO: when there is data missing at one end, the axes might be weird
 
-    picture secondary = secondaryY(new void(picture pic) {
+    picture secondarypic = secondaryY(new void(picture pic) {
             scale(pic,Log,Linear);
             real ymin = inf;
             real ymax = -inf;
@@ -415,16 +422,16 @@ if(speedup > 1) {
                     pair[] dp;
                     pair[] dm;
 		  
-                    for(int i = 0; i < x[n].length; ++i) {
-                        for(int j = 0; j < x[n+next].length; ++j) {
-                            if (x[n][i] == x[n+next][j]) {
-                                baseval.push(x[n][i]);
+                    for(int i = 0; i < Nx[n].length; ++i) {
+                        for(int j = 0; j < Nx[n+next].length; ++j) {
+                            if (Nx[n][i] == Nx[n+next][j]) {
+                                baseval.push(Nx[n][i]);
                                 real yni = getmedian(data[n][i]);
                                 real ynextj = getmedian(data[n+next][j]);
                                 real val = yni / ynextj;
                                 yval.push(val);
 
-                                zy.push((x[n][i], val));
+                                zy.push((Nx[n][i], val));
                                 real[] lowhi = ratiodev(data[n][i], data[n+next][j]);
                                 real hi = lowhi[1];
                                 real low = lowhi[0];
@@ -455,9 +462,9 @@ if(speedup > 1) {
                         real[] fakex = {xmin, xmax};
 
 			if(ymin == inf || ymin == -inf)
-			  ymin = 1;
+                            ymin = 1;
 			if(ymax == inf || ymax == -inf)
-			  ymax = 1;
+                            ymax = 1;
 			real[] fakey = {ymin, ymax};
 			write(fakex);
 			write(fakey);
@@ -473,17 +480,17 @@ if(speedup > 1) {
             yaxis(pic, "speedup", Right, black, LeftTicks);
             attach(legend(pic),point(plain.E), 60*plain.E - 40 *plain.N  );
         });
-
-    add(secondary);
+    
+    add(secondarypic);
 }
 
 // Add a secondary axis showing GFLOP/s.
-if(secondarygflops) {
+if(secondaryaxis == "gflops") {
     string[] legends = listfromcsv(legendlist);
-    picture secondaryG=secondaryY(new void(picture pic) {
+    picture secondaryG = secondaryY(new void(picture pic) {
 	    //int penidx = testlist.length;
             scale(pic, Log(true), Log(true));
-            for(int n = 0; n < x.length; ++n) {
+            for(int n = 0; n < Nx.length; ++n) {
 
                 pen graphpen = Pen(n+1);
                 if(n == 2)
@@ -494,14 +501,14 @@ if(secondarygflops) {
                 real[] ly = new real[];
                 real[] hy = new real[];
                 for(int i = 0; i < data[n].length; ++i) {
-                    write(x[n][i]);
+                    write(Nx[n][i]);
                     real[] gflops = new real[];
                     for(int j = 0; j < data[n][i].length; ++j) {
                         real val = time2gflops(data[n][i][j],
-                                               x[n][i],
+                                               Nx[n][i],
+                                               Ny[n][i],
+                                               Nz[n][i],
                                                batchsize,
-                                               problemdim,
-                                               problemratio,
                                                realcomplex);
                         write(val);
                         gflops.push(val);
@@ -513,13 +520,13 @@ if(secondarygflops) {
                 }
                 guide g = scale(0.5mm) * unitcircle;
                 marker mark = marker(g, Draw(graphpen + solid));
-                draw(pic, graph(pic, x[n], y), graphpen, legend = texify("GFLOP/s"), mark);
+                draw(pic, graph(pic, Nx[n], y), graphpen, legend = texify("GFLOP/s"), mark);
                 
                 pair[] z = new pair[];
                 pair[] dp = new pair[];
                 pair[] dm = new pair[];
-                for(int i = 0; i < x[n].length; ++i) {
-                    z.push((x[n][i] , y[i]));
+                for(int i = 0; i < Nx[n].length; ++i) {
+                    z.push((Nx[n][i] , y[i]));
                     dp.push((0 , y[i] - hy[i]));
                     dm.push((0 , y[i] - ly[i]));
                 }
@@ -534,4 +541,59 @@ if(secondarygflops) {
     add(secondaryG);
  }
 
+// Add a secondary axis showing efficiency.
+if(secondaryaxis == "efficiency") {
+    string[] legends = listfromcsv(legendlist);
+    picture secondaryG = secondaryY(new void(picture pic) {
+	    //int penidx = testlist.length;
+            scale(pic, Log(true), Linear);
+            for(int n = 0; n < Nx.length; ++n) {
 
+                pen graphpen = Pen(n+1);
+                if(n == 2)
+                    graphpen = darkgreen;
+                graphpen += dashed;
+                
+                real[] y = new real[];
+                real[] ly = new real[];
+                real[] hy = new real[];
+                for(int i = 0; i < data[n].length; ++i) {
+                    real[] vals = new real[];
+                    for(int j = 0; j < data[n][i].length; ++j) {
+                        real val = time2efficiency(data[n][i][j],
+                                                   Nx[n][i],
+                                                   Ny[n][i],
+                                                   Nz[n][i],
+                                                   batchsize,
+                                                   realcomplex,
+                                                   doubleprec);
+                        vals.push(val);
+                    }
+                    real[] medlh = mediandev(vals);
+                    y.push(medlh[0]);
+                    ly.push(medlh[1]);
+                    hy.push(medlh[2]);
+                }
+                guide g = scale(0.5mm) * unitcircle;
+                marker mark = marker(g, Draw(graphpen + solid));
+                
+                draw(pic, graph(pic, Nx[n], y), graphpen, legend = texify("efficiency"), mark);
+                
+                pair[] z = new pair[];
+                pair[] dp = new pair[];
+                pair[] dm = new pair[];
+                for(int i = 0; i < Nx[n].length; ++i) {
+                    z.push((Nx[n][i] , y[i]));
+                    dp.push((0 , y[i] - hy[i]));
+                    dm.push((0 , y[i] - ly[i]));
+                }
+                errorbars(pic, z, dp, dm, graphpen);
+            }
+                yaxis(pic, "Efficiency", Right, black, LeftTicks(DefaultFormat, begin=true, end=true), ymin=-infinity, ymax=infinity);
+
+            attach(legend(pic), point(plain.E), 60*plain.E - 40 *plain.N  );
+    
+        });
+
+    add(secondaryG);
+}
