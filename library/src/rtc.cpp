@@ -200,16 +200,16 @@ private:
     PyObject* obj = nullptr;
 };
 
-// wrapper object to handle interpreter initialize/finalize
+// wrapper object to handle interpreter initialization
 struct PyInit
 {
     PyInit()
     {
-        Py_Initialize();
-    }
-    ~PyInit()
-    {
-        Py_Finalize();
+        if(!Py_IsInitialized())
+        {
+            // don't register signal handlers
+            Py_InitializeEx(0);
+        }
     }
 };
 
