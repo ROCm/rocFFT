@@ -87,6 +87,10 @@ endif()
 # "-DGENERATOR_MANUAL_SMALL_SIZE=56,336"
 # "-DGENERATOR_GROUP_NUM=3"
 
+if( NOT DEFINED ${PYTHON3_EXE} )
+  set(PYTHON3_EXE python3)
+endif()
+
 # Make it possible to let install.sh control this ?
 if( NOT GENERATOR_GROUP_NUM )
   set( GENERATOR_GROUP_NUM 150 )
@@ -95,7 +99,7 @@ set( kgen ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py )
 set( kgendeps ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py
               ${CMAKE_SOURCE_DIR}/library/src/device/generator.py
               ${CMAKE_SOURCE_DIR}/library/src/device/stockham.py )
-execute_process(COMMAND ${Python3_EXECUTABLE} ${kgen}
+execute_process(COMMAND ${PYTHON3_EXE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
   --groups=${GENERATOR_GROUP_NUM}
@@ -111,7 +115,7 @@ endif()
 # XXX eventually add dependency to kgen here...
 add_custom_command(
   OUTPUT ${gen_headers}
-  COMMAND ${Python3_EXECUTABLE} ${kgen}
+  COMMAND ${PYTHON3_EXE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
   --groups=${GENERATOR_GROUP_NUM}
@@ -135,7 +139,7 @@ set( kgen_embed_files
    )
 add_custom_command(
   OUTPUT ${kgen_embed_h}
-  COMMAND ${Python3_EXECUTABLE} ${kgen_embed_command}
+  COMMAND ${PYTHON3_EXE} ${kgen_embed_command}
   ${kgen_embed_files} ${kgen_embed_h}
   DEPENDS ${kgen_embed_files}
 )

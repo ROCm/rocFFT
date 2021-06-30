@@ -113,7 +113,9 @@ set( BIN_INSTALL_DIR ${CMAKE_INSTALL_BINDIR} )
 set( LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR} )
 set( INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR} )
 
-find_package (Python3 3.6 COMPONENTS Interpreter Development REQUIRED)
+# look for python development files - we also require an interpreter
+# but the version of it needn't match the development version.
+find_package (Python3 3.6 COMPONENTS Development REQUIRED)
 
 # Build into subdirectories
 add_subdirectory( src )
