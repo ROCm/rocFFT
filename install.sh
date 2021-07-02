@@ -157,7 +157,7 @@ install_zypper_packages( )
 {
     package_dependencies=("$@")
     for package in "${package_dependencies[@]}"; do
-        if [[ $(yum list installed ${package} &> /dev/null; echo $? ) -ne 0 ]]; then
+        if [[ $(rpm -qa ${package} | grep -q ${package}; echo $? ) -ne 0 ]]; then
             printf "\033[32mInstalling \033[33m${package}\033[32m from distro package manager\033[0m\n"
             elevate_if_not_root zypper -n --no-gpg-checks install ${package}
         fi
