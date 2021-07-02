@@ -276,6 +276,49 @@ float run_plan(
     return time;
 }
 
+// Load python library with RTLD_GLOBAL so that rocfft is free to
+// import python modules that need all of the symbols in libpython.
+// Normally, dyna-rider will want to dlopen rocfft's with RTLD_LOCAL.
+// If libpython is brought in this way, python modules might not be
+// able to find the symbols they need and import will fail.
+static void* python_dl = nullptr;
+void         load_python(const std::vector<std::string>& libs)
+{
+#ifndef WIN32
+    // dlopen each lib, taking note of the python library that it needs
+    std::string pythonlib;
+    for(const auto& lib : libs)
+    {
+        void* handle = dlopen(lib.c_str(), RTLD_LAZY);
+        if(handle)
+        {
+            // look through the link map to see what libpython it needs (if any)
+            struct link_map* map;
+            if(dlinfo(handle, RTLD_DI_LINKMAP, &map) == 0)
+            {
+                for(struct link_map* ptr = map; ptr != nullptr; ptr = ptr->l_next)
+                {
+                    std::string libname = ptr->l_name;
+                    if(libname.find("/libpython3.") != std::string::npos)
+                    {
+                        if(!pythonlib.empty() && pythonlib != libname)
+                            throw std::runtime_error("multiple distinct libpythons required");
+                        pythonlib = libname;
+                    }
+                }
+            }
+        }
+        dlclose(handle);
+    }
+
+    if(!pythonlib.empty())
+    {
+        // explicitly dlopen python with RTLD_GLOBAL
+        python_dl = dlopen(pythonlib.c_str(), RTLD_LAZY | RTLD_GLOBAL);
+    }
+#endif
+}
+
 int main(int argc, char* argv[])
 {
     // Control output verbosity:
@@ -472,6 +515,8 @@ int main(int argc, char* argv[])
 
     size_t wbuffer_size = 0;
 
+    load_python(libs);
+
     // Set up shared object handles
     std::vector<ROCFFT_LIB> handles;
     for(int idx = 0; idx < libs.size(); ++idx)
@@ -664,6 +709,9 @@ int main(int argc, char* argv[])
         destroy_plan(handles[idx], plan[idx]);
         rocfft_lib_close(handles[idx]);
     }
+
+    if(python_dl)
+        dlclose(python_dl);
 
     return 0;
 }

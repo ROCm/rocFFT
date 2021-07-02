@@ -229,9 +229,19 @@ struct PythonGenerator
             = Py_CompileString(kernel_generator_py, "kernel-generator.py", Py_file_input);
         kernel_generator_mod = PyImport_ExecCodeModule("kernel_generator", kernel_generator);
 
+        rtccache     = Py_CompileString(rtccache_py, "rtccache.py", Py_file_input);
+        rtccache_mod = PyImport_ExecCodeModule("rtccache", rtccache);
+
         // returns borrowed ref, so add a ref then pass to wrapper
         glob_dict.add_ref(PyModule_GetDict(kernel_generator_mod));
         local_dict = PyDict_New();
+
+        // kernel generator is our "main" module, but it doesn't import
+        // rtccache directly.  so add that module to the global dict
+        PyMapping_SetItemString(glob_dict, "rtccache", rtccache_mod);
+        // set kernel_cache_db = None as a local - we will open it up
+        // on-demand
+        PyMapping_SetItemString(local_dict, "kernel_cache_db", Py_None);
 
         // give static kernel prelude to generator
         std::string kernel_prelude_str = common_h;
@@ -242,6 +252,30 @@ struct PythonGenerator
 
         kernel_prelude = PyUnicode_FromString(kernel_prelude_str.c_str());
         PyMapping_SetItemString(local_dict, "kernel_prelude", kernel_prelude);
+
+        // construct checksum of static kernel prelude and embedded
+        // generator code, so we can know to invalidate the cache if
+        // either changes
+        std::string generator_code = kernel_generator_py;
+        generator_code += generator_py;
+        generator_code += stockham_py;
+        // rtccache itself does not contribute to kernel source code,
+        // so it's not part of the generator
+
+        PyObjWrap generator_code_py = PyUnicode_FromString(generator_code.c_str());
+        PyMapping_SetItemString(local_dict, "generator_code", generator_code_py);
+
+        generator_sum = PyRun_String("rtccache.init_generator(kernel_prelude + generator_code)",
+                                     Py_eval_input,
+                                     glob_dict,
+                                     local_dict);
+        if(generator_sum.is_null())
+            PyErr_PrintEx(0);
+        PyMapping_DelItemString(local_dict, "generator_code");
+
+        int hip_version_int = 0;
+        hipRuntimeGetVersion(&hip_version_int);
+        hip_version = PyLong_FromLong(hip_version_int);
 
         // execute an expression to get supported lengths, call a
         // function for each length.  function accepts length obj and
@@ -434,9 +468,34 @@ struct PythonGenerator
         }
         PyDict_SetItemString(dict, "ebtype", ebtype_val);
 
+        PyObjWrap arch_val = PyUnicode_FromString(specs.arch.c_str());
+        PyDict_SetItemString(dict, "arch", arch_val);
+
         PyDict_SetItemString(dict, "kernel_prelude", kernel_prelude);
+        PyDict_SetItemString(dict, "generator_sum", generator_sum);
+        PyDict_SetItemString(dict, "hip_version", hip_version);
 
         return dict;
+    }
+
+    // open the db if it isn't already open
+    void open_db()
+    {
+        // get user-defined cache path if present
+        const char* env_path = getenv("ROCFFT_RTC_CACHE_PATH");
+        PyObjWrap   env_path_py;
+        if(env_path)
+            env_path_py = PyUnicode_FromString(env_path);
+        PyMapping_SetItemString(local_dict,
+                                "env_path",
+                                env_path_py.is_null() ? Py_None
+                                                      : static_cast<PyObject*>(env_path_py));
+        // make an unused wrapper to handle refcounting
+        PyObjWrap unused = PyRun_String("kernel_cache_db = rtccache.open_db(env_path) if "
+                                        "kernel_cache_db is None else kernel_cache_db",
+                                        Py_single_input,
+                                        glob_dict,
+                                        local_dict);
     }
 
     // interpreter initialization
@@ -452,8 +511,13 @@ struct PythonGenerator
     PyObjWrap kernel_generator;
     PyObjWrap kernel_generator_mod;
 
+    PyObjWrap rtccache;
+    PyObjWrap rtccache_mod;
+
     // variables we pass whenever we generate a kernel
     PyObjWrap kernel_prelude;
+    PyObjWrap generator_sum;
+    PyObjWrap hip_version;
 
     // values we keep around so we can evaluate python expressions
     PyObjWrap glob_dict;
@@ -599,6 +663,31 @@ std::unique_ptr<RTCKernel>
 
     std::vector<char> code;
 
+    // check the cache
+
+    // (re-)init the cache if necessary
+    generator.open_db();
+    PyObjWrap cached_code = PyRun_String("rtccache.get_code_object(kernel_cache_db, specs)",
+                                         Py_eval_input,
+                                         generator.glob_dict,
+                                         generator.local_dict);
+    if(cached_code.is_null())
+    {
+        PyErr_PrintEx(0);
+        PyErr_Clear();
+        // just treat it like no code object was found
+        cached_code = Py_None;
+    }
+    if(cached_code != Py_None)
+    {
+        // cache hit
+        auto        code_len = PyBytes_Size(cached_code);
+        const char* code_ptr = PyBytes_AsString(cached_code);
+        code.resize(code_len);
+        std::copy(code_ptr, code_ptr + code_len, code.data());
+        return std::unique_ptr<RTCKernel>(new RTCKernel(specs.kernel_name, code));
+    }
+
     // get source for the kernel and build it
     std::string kernel_src;
     generator.get_source(specs, enable_callbacks, *kernel_obj, kernel_src);
@@ -612,5 +701,19 @@ std::unique_ptr<RTCKernel>
     PyObjWrap code_py = PyBytes_FromStringAndSize(code.data(), code.size());
     PyMapping_SetItemString(generator.local_dict, "code", code_py);
 
+    PyObjWrap cache_res = PyRun_String("rtccache.store_code_object(kernel_cache_db, specs, code)",
+                                       Py_eval_input,
+                                       generator.glob_dict,
+                                       generator.local_dict);
+    if(cache_res.is_null())
+    {
+        PyErr_PrintEx(0);
+        PyErr_Clear();
+        // couldn't store to cache, but this isn't fatal.  log and
+        // continue.
+        if(LOG_RTC_ENABLED())
+            (*LogSingleton::GetInstance().GetRTCOS())
+                << "Error: failed to store code object for " << specs.kernel_name << std::flush;
+    }
     return std::unique_ptr<RTCKernel>(new RTCKernel(specs.kernel_name, code));
 }
