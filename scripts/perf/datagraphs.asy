@@ -241,9 +241,10 @@ for(int n = 0; n < Nx.length; ++n)
         graphpen = darkgreen;
     string legend = myleg ? legends[n] : texify(testlist[n]);
     marker mark = marker(scale(0.5mm) * unitcircle, Draw(graphpen + solid));
-    // Multi-axis graphs: set legend to appropriate y-axis.
-    if(secondaryaxis != "")
-        legend = "time";
+
+    // Multi-axis graphs: if only one data set, set legend to appropriate y-axis.
+    if(testlist.length == 1 && secondaryaxis != "")
+         legend = "time";
     
     // We need to plot pairs for the error bars.
     pair[] z;
