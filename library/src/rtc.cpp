@@ -647,6 +647,19 @@ static PythonGenerator& get_generator()
     return generator;
 }
 
+void RTCKernel::close_cache()
+{
+    auto& generator = get_generator();
+    // close db and set db to None - will be reopened on next use
+    //
+    // unused wrapper handles refcounting
+    PyObjWrap unused = PyRun_String("if kernel_cache_db is not None:\n    kernel_cache_db.close()",
+                                    Py_single_input,
+                                    generator.glob_dict,
+                                    generator.local_dict);
+    PyMapping_SetItemString(generator.local_dict, "kernel_cache_db", Py_None);
+}
+
 std::unique_ptr<RTCKernel>
     RTCKernel::runtime_compile(TreeNode& node, const char* gpu_arch, bool enable_callbacks)
 {
@@ -716,4 +729,59 @@ std::unique_ptr<RTCKernel>
                 << "Error: failed to store code object for " << specs.kernel_name << std::flush;
     }
     return std::unique_ptr<RTCKernel>(new RTCKernel(specs.kernel_name, code));
+}
+
+rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes)
+{
+    if(!buffer || !buffer_len_bytes)
+        return rocfft_status_invalid_arg_value;
+
+    auto& generator = get_generator();
+    generator.open_db();
+    PyObjWrap cache = PyRun_String("rtccache.serialize_cache(kernel_cache_db)",
+                                   Py_eval_input,
+                                   generator.glob_dict,
+                                   generator.local_dict);
+    if(cache.is_null())
+    {
+        PyErr_PrintEx(0);
+        PyErr_Clear();
+        return rocfft_status_failure;
+    }
+
+    size_t len        = PyBytes_Size(cache);
+    *buffer_len_bytes = len;
+    *buffer           = new char[len];
+    memcpy(*buffer, PyBytes_AsString(cache), len);
+    return rocfft_status_success;
+}
+
+rocfft_status rocfft_cache_buffer_free(void* buffer)
+{
+    delete[] static_cast<char*>(buffer);
+    return rocfft_status_success;
+}
+
+rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_bytes)
+{
+    if(!buffer || !buffer_len_bytes)
+        return rocfft_status_invalid_arg_value;
+
+    auto& generator = get_generator();
+    generator.open_db();
+    PyObjWrap cache
+        = PyByteArray_FromStringAndSize(static_cast<const char*>(buffer), buffer_len_bytes);
+    PyMapping_SetItemString(generator.local_dict, "cache", cache);
+    PyObjWrap ret = PyRun_String("rtccache.deserialize_cache(kernel_cache_db, cache)",
+                                 Py_eval_input,
+                                 generator.glob_dict,
+                                 generator.local_dict);
+    if(ret.is_null())
+    {
+        PyErr_PrintEx(0);
+        PyErr_Clear();
+        return rocfft_status_failure;
+    }
+
+    return rocfft_status_success;
 }

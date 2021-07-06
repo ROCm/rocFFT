@@ -89,7 +89,6 @@ TEST(rocfft_UnitTest, plan_description)
 // This test check duplicated plan creations will cache unique one only in repo.
 TEST(rocfft_UnitTest, cache_plans_in_repo)
 {
-    rocfft_setup();
     size_t plan_unique_count = 0;
     size_t plan_total_count  = 0;
     size_t length            = 8;
@@ -141,8 +140,6 @@ TEST(rocfft_UnitTest, cache_plans_in_repo)
     EXPECT_TRUE(plan_unique_count == 0);
     rocfft_repo_get_total_plan_count(&plan_total_count);
     EXPECT_TRUE(plan_total_count == 0);
-
-    rocfft_cleanup();
 }
 
 std::mutex              test_mutex;
@@ -182,8 +179,6 @@ void creation_test()
 // Multithreading check cache_plans_in_repo case
 TEST(rocfft_UnitTest, cache_plans_in_repo_multithreading)
 {
-    rocfft_setup();
-
     size_t plan_unique_count = 0;
     size_t plan_total_count  = 0;
 
@@ -215,9 +210,30 @@ TEST(rocfft_UnitTest, cache_plans_in_repo_multithreading)
     EXPECT_TRUE(plan_unique_count == 0);
     rocfft_repo_get_total_plan_count(&plan_total_count);
     EXPECT_TRUE(plan_total_count == 0);
-
-    rocfft_cleanup();
 }
+
+// RAII object to set an environment variable and restore it to its
+// previous value on destruction
+struct EnvironmentSetTemp
+{
+    EnvironmentSetTemp(const char* _var, const char* val)
+        : var(_var)
+    {
+        const char* val_ptr = getenv(_var);
+        if(val_ptr)
+            oldvalue = val_ptr;
+        SETENV(_var, val);
+    }
+    ~EnvironmentSetTemp()
+    {
+        if(oldvalue.empty())
+            UNSETENV(var.c_str());
+        else
+            SETENV(var.c_str(), oldvalue.c_str());
+    }
+    std::string var;
+    std::string oldvalue;
+};
 
 // Check whether logs can be emitted from multiple threads properly
 TEST(rocfft_UnitTest, log_multithreading)
@@ -226,17 +242,19 @@ TEST(rocfft_UnitTest, log_multithreading)
     static const int   NUM_ITERS_PER_THREAD = 50;
     static const char* TRACE_FILE           = "trace.log";
 
-    // ask for trace logging, since that's the easiest to trigger
-    SETENV("ROCFFT_LAYER", "1");
-    SETENV("ROCFFT_LOG_TRACE_PATH", TRACE_FILE);
-
     // clean up environment and temporary file when we exit
     BOOST_SCOPE_EXIT_ALL(=)
     {
-        UNSETENV("ROCFFT_LAYER");
-        UNSETENV("ROCFFT_LOG_TRACE_PATH");
+        rocfft_cleanup();
         remove(TRACE_FILE);
+        // re-init logs with default logging
+        rocfft_setup();
     };
+
+    // ask for trace logging, since that's the easiest to trigger
+    rocfft_cleanup();
+    EnvironmentSetTemp layer("ROCFFT_LAYER", "1");
+    EnvironmentSetTemp tracepath("ROCFFT_LOG_TRACE_PATH", TRACE_FILE);
 
     rocfft_setup();
 
@@ -283,8 +301,6 @@ void workmem_test(workmem_sizer sizer,
                   rocfft_status exec_status_expected,
                   bool          give_null_work_buf = false)
 {
-    rocfft_setup();
-
     // Prime size requires Bluestein, which guarantees work memory.
     size_t      length = 8191;
     rocfft_plan plan   = NULL;
@@ -341,7 +357,6 @@ void workmem_test(workmem_sizer sizer,
 
     rocfft_execution_info_destroy(info);
     rocfft_plan_destroy(plan);
-    rocfft_cleanup();
 }
 
 // check what happens if work memory is required but is not provided
@@ -369,4 +384,131 @@ TEST(rocfft_UnitTest, workmem_big)
 TEST(rocfft_UnitTest, workmem_null)
 {
     workmem_test([](size_t requested) { return requested; }, rocfft_status_success, true);
+}
+
+// runtime compilation cache tests
+TEST(rocfft_UnitTest, rtc_cache)
+{
+    // PRECONDITIONS
+
+    // - set cache location to custom path, requires uninitializing
+    //   the lib and reinitializing with some env vars
+    // - also enable RTC logging so we can tell when something was
+    //   actually compiled
+    const std::string rtc_cache_path = std::tmpnam(nullptr);
+    const std::string rtc_log_path   = std::tmpnam(nullptr);
+
+    void*  empty_cache           = nullptr;
+    size_t empty_cache_bytes     = 0;
+    void*  onekernel_cache       = nullptr;
+    size_t onekernel_cache_bytes = 0;
+
+    // cleanup
+    BOOST_SCOPE_EXIT_ALL(=)
+    {
+        // close log file handles
+        rocfft_cleanup();
+        remove(rtc_cache_path.c_str());
+        remove(rtc_log_path.c_str());
+        // re-init lib now that the env vars are gone
+        rocfft_setup();
+        if(empty_cache)
+            rocfft_cache_buffer_free(empty_cache);
+        if(onekernel_cache)
+            rocfft_cache_buffer_free(onekernel_cache);
+    };
+
+    rocfft_cleanup();
+    EnvironmentSetTemp cache_env("ROCFFT_RTC_CACHE_PATH", rtc_cache_path.c_str());
+    EnvironmentSetTemp layer_env("ROCFFT_LAYER", "32");
+    EnvironmentSetTemp log_env("ROCFFT_LOG_RTC_PATH", rtc_log_path.c_str());
+    rocfft_setup();
+
+    // - serialize empty cache as baseline
+    ASSERT_EQ(rocfft_cache_serialize(&empty_cache, &empty_cache_bytes), rocfft_status_success);
+
+    // END PRECONDITIONS
+
+    const size_t length     = 9;
+    auto         build_plan = [&]() {
+        rocfft_plan plan = nullptr;
+        ASSERT_TRUE(rocfft_status_success
+                    == rocfft_plan_create(&plan,
+                                          rocfft_placement_inplace,
+                                          rocfft_transform_type_complex_forward,
+                                          rocfft_precision_single,
+                                          1,
+                                          &length,
+                                          1,
+                                          nullptr));
+        // we don't need to actually execute the plan, so we can
+        // destroy it right away.  this ensures that we don't hold on
+        // to a plan after we cleanup the library
+        rocfft_plan_destroy(plan);
+        plan = nullptr;
+    };
+    auto get_log_size = [&]() {
+        // HACK: logging is done in a worker thread, so sleep for a
+        // bit to give it a chance to actually write.  It at least
+        // should flush after writing.
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        struct stat statbuf;
+        if(stat(rtc_log_path.c_str(), &statbuf) == 0)
+            return statbuf.st_size;
+        else
+            return decltype(statbuf.st_size)(0);
+    };
+
+    // build a plan that requires runtime compilation,
+    // close logs and ensure a kernel was built
+    build_plan();
+    ASSERT_EQ(rocfft_cache_serialize(&onekernel_cache, &onekernel_cache_bytes),
+              rocfft_status_success);
+    rocfft_cleanup();
+    ASSERT_GT(get_log_size(), 0);
+
+    // serialized cache should be bigger than empty cache
+    ASSERT_GT(onekernel_cache_bytes, empty_cache_bytes);
+
+    // blow away the cache, reinit the library,
+    // retry building the plan again and ensure the kernel was rebuilt
+    remove(rtc_cache_path.c_str());
+    rocfft_setup();
+    build_plan();
+    rocfft_cache_buffer_free(onekernel_cache);
+    onekernel_cache = nullptr;
+    ASSERT_EQ(rocfft_cache_serialize(&onekernel_cache, &onekernel_cache_bytes),
+              rocfft_status_success);
+    rocfft_cleanup();
+    ASSERT_GT(get_log_size(), 0);
+    ASSERT_GT(onekernel_cache_bytes, empty_cache_bytes);
+
+    // re-init library without blowing away cache.  rebuild plan and
+    // check that the kernel was not recompiled.
+    rocfft_setup();
+    build_plan();
+    rocfft_cleanup();
+    ASSERT_EQ(get_log_size(), 0);
+
+    // blow away cache again, deserialize one-kernel cache.  re-init
+    // library and rebuild plan - kernel should again not be
+    // recompiled
+    remove(rtc_cache_path.c_str());
+    rocfft_setup();
+    ASSERT_EQ(rocfft_cache_deserialize(onekernel_cache, onekernel_cache_bytes),
+              rocfft_status_success);
+    rocfft_cleanup();
+    ASSERT_EQ(get_log_size(), 0);
+}
+
+// make sure cache API functions tolerate null pointers without crashing
+TEST(rocfft_UnitTest, rtc_cache_null)
+{
+    void*  buf     = nullptr;
+    size_t buf_len = 0;
+    ASSERT_EQ(rocfft_cache_serialize(nullptr, &buf_len), rocfft_status_invalid_arg_value);
+    ASSERT_EQ(rocfft_cache_serialize(&buf, nullptr), rocfft_status_invalid_arg_value);
+    ASSERT_EQ(rocfft_cache_buffer_free(nullptr), rocfft_status_success);
+    ASSERT_EQ(rocfft_cache_deserialize(nullptr, 12345), rocfft_status_invalid_arg_value);
+    ASSERT_EQ(rocfft_cache_deserialize(&buf_len, 0), rocfft_status_invalid_arg_value);
 }

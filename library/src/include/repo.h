@@ -24,6 +24,7 @@
 #ifndef REPO_H
 #define REPO_H
 
+#include "plan.h"
 #include "tree_node.h"
 #include <map>
 #include <mutex>
@@ -63,6 +64,8 @@ public:
     static void      DeletePlan(rocfft_plan plan);
     static size_t    GetUniquePlanCount();
     static size_t    GetTotalPlanCount();
+    // remove cached plans
+    static void Clear();
 
     // Repo is a singleton that should only be destroyed on static
     // deinitialization.  But it's possible for other things to want to

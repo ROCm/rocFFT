@@ -483,7 +483,7 @@ def list_new_kernels():
 #            NS(length=6, factors=[6]),
 #            NS(length=7, factors=[7]),
 #            NS(length=8, factors=[8]),
-            NS(length=9, factors=[3,3]),
+            NS(length=9, factors=[3,3], runtime_compile=True),
 #            NS(length=10, factors=[10]),
             NS(length=12, factors=[6,2]),
             NS(length=14, factors=[7,2]),

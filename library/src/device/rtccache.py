@@ -139,3 +139,42 @@ def store_code_object(db, specs, code):
         )
         ''', db_params)
     db.commit()
+
+def serialize_cache(db):
+    '''Serialize the cache db into a returned bytes object.
+    '''
+
+    # the cache format is a dict of tables, where the key is the
+    # table name and the value is a list of rows.
+    cachedict = {}
+    stockham_v1_rows = list(db.execute('''
+     SELECT
+         kernel_name,
+         arch,
+         hip_version,
+         generator_sum,
+         code
+     FROM stockham_v1
+    '''))
+    cachedict['stockham_v1'] = stockham_v1_rows
+    return pickle.dumps(cachedict)
+
+def deserialize_cache(db, serialized):
+    '''Deserialize a bytes object from serialize_cache into the db.
+    '''
+
+    cachedict = pickle.loads(serialized)
+    # load all the rows in a transaction for efficiency
+    with db:
+        for stockham_v1_row in cachedict.get('stockham_v1', []):
+            db.execute('''
+              INSERT OR REPLACE INTO stockham_v1 (
+                  kernel_name,
+                  arch,
+                  hip_version,
+                  generator_sum,
+                  code
+              )
+              VALUES (
+                  ?, ?, ?, ?, ?
+              )''', stockham_v1_row)

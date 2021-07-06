@@ -492,6 +492,28 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_store_callback(rocfft_exec
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_get_events( const rocfft_execution_info info, void **events, size_t *number_of_events );
 #endif
 
+/*! @brief Serialize compiled kernel cache
+
+ *  @details Serialize rocFFT's cache of compiled kernels into a
+ *  buffer.  This buffer is allocated by rocFFT and must be freed
+ *  with a call to ::rocfft_cache_buffer_free.  The length of the
+ *  buffer in bytes is written to 'buffer_len_bytes'. */
+ROCFFT_EXPORT rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes);
+
+/*! @brief Free cache serialization buffer
+
+ *  @details Deallocate a buffer allocated by ::rocfft_cache_serialize.  */
+ROCFFT_EXPORT rocfft_status rocfft_cache_buffer_free(void* buffer);
+
+/*! @brief Deserialize a buffer into the compiled kernel cache.
+
+ *  @details Kernels in the buffer that match already-cached kernels
+ *  will replace those kernels that are in the cache.  Already-cached
+ *  kernels that do not match those in the buffer are unmodified by
+ *  this operation.  The cache is unmodified if either a null buffer
+ *  pointer or a zero length is passed. */
+ROCFFT_EXPORT rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_bytes);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

@@ -89,14 +89,12 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
         try
         {
             ProcessNode(execPlan); // TODO: more descriptions are needed
-            if(LOG_TRACE_ENABLED())
-                PrintNode(*LogSingleton::GetInstance().GetTraceOS(), execPlan);
         }
         catch(std::exception& e)
         {
             rocfft_cout << e.what() << std::endl;
-            if(LOG_TRACE_ENABLED())
-                PrintNode(*LogSingleton::GetInstance().GetTraceOS(), execPlan);
+            if(LOG_PLAN_ENABLED())
+                PrintNode(*LogSingleton::GetInstance().GetPlanOS(), execPlan);
             return rocfft_status_failure;
         }
 
@@ -189,4 +187,14 @@ size_t Repo::GetTotalPlanCount()
 
     Repo& repo = Repo::GetRepo();
     return repo.execLookup.size();
+}
+
+void Repo::Clear()
+{
+    std::lock_guard<std::mutex> lck(mtx);
+    if(repoDestroyed)
+        return;
+    Repo& repo = Repo::GetRepo();
+    repo.planUnique.clear();
+    repo.execLookup.clear();
 }

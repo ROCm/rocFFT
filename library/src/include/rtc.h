@@ -54,6 +54,10 @@ struct RTCKernel
 
     hipError_t launch(DeviceCallIn& data);
 
+    // close kernel cache explicitly.  cache will be reopened
+    // on-demand.
+    static void close_cache();
+
 private:
     // private ctor, use "runtime_compile" to build kernel for a node
     RTCKernel(const std::string& kernel_name, const std::vector<char>& code);

@@ -21,6 +21,7 @@
 *******************************************************************************/
 
 #include "logging.h"
+#include "repo.h"
 #include "rocfft.h"
 #include "rocfft_hip.h"
 #include "rocfft_ostream.hpp"
@@ -116,6 +117,11 @@ rocfft_status rocfft_cleanup()
 {
     log_trace(__func__);
 
+    // close the RTC cache and clear the repo, so that subsequent
+    // rocfft_setup() + plan creation will start from scratch
+    Repo::Clear();
+    RTCKernel::close_cache();
+
     LogSingleton::GetInstance().SetLayerMode(rocfft_layer_mode_none);
     // Close log files
     if(log_trace_fd != -1)
@@ -148,6 +154,10 @@ rocfft_status rocfft_cleanup()
         CLOSE(log_rtc_fd);
         log_rtc_fd = -1;
     }
+
+    // stop all log worker threads
+    std::lock_guard<std::recursive_mutex> lock(rocfft_ostream::worker_map_mutex());
+    rocfft_ostream::worker_map().clear();
 
     return rocfft_status_success;
 }
