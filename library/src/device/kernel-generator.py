@@ -894,7 +894,7 @@ def cli():
         expand_sizes['small'][p], new_smalls = pick(expand_sizes['small'][p], supported_new_small_kernels)
         expand_sizes['large'][p], new_larges = pick(expand_sizes['large'][p], supported_new_large_kernels, subtract_from_all=False)
         # remove unsupported length in old_gen
-        for length, __ in expand_sizes['large'][p].items():
+        for length in list(expand_sizes['large'][p]):
             if length not in old_gen_supported_large:
                 del expand_sizes['large'][p][length]
         new_small_kernels = merge_length(new_small_kernels, new_smalls)
@@ -950,7 +950,10 @@ def cli():
         if old_small_lengths:
             subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-small', cjoin(sorted(old_small_lengths))], check=True)
         if old_large_lengths:
-            subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-large', cjoin(sorted(old_large_lengths)), '--no-sbcc', cjoin(sorted(new_large_lengths))], check=True)
+            if new_large_lengths:
+                subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-large', cjoin(sorted(old_large_lengths)), '--no-sbcc', cjoin(sorted(new_large_lengths))], check=True)
+            else:
+                subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-large', cjoin(sorted(old_large_lengths))], check=True)
         if dim2:
             # XXX: currently new2d does both precisions...
             new2d = {tuple(x.length) for x in list_new_2d_kernels()}

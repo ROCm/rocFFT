@@ -1106,6 +1106,7 @@ namespace StockhamGenerator
         {
             size_t ldsSize = SharedMemSize(ldsInterleaved);
             str += "\n\t";
+            // if(blockCompute) // this enables dyn-lds for sbcc, but probably need to handle padding!
             if(blockCompute && blockComputeType == BCT_R2C)
                 str += "extern ";
 
@@ -1115,6 +1116,7 @@ namespace StockhamGenerator
             else
                 str += ldsInterleaved ? r2Type : rType;
             str += " lds[";
+            // if(!blockCompute) // this enables dyn-lds for sbcc, but probably need to handle padding!
             if(!(blockCompute && blockComputeType == BCT_R2C))
                 str += std::to_string(ldsSize);
             str += "];\n";

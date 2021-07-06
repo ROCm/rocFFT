@@ -864,6 +864,10 @@ void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
         gp.b_x
             *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
         gp.tpb_x = wgs;
+
+        // TODO: Still can use dyn-lds, but probably should handle the padding
+        // make gp.lds_bytes 0 to disable dyn-lds on old sbcc kernel
+        lds = lds_padding = 0;
     }
 
     return;
