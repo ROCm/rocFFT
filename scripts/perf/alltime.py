@@ -8,6 +8,8 @@ import os
 import re # regexp package
 import shutil
 import tempfile
+import csv
+import random
 
 import perflib
 import timing
@@ -26,7 +28,7 @@ Usage:
 \t\t-w          output directory for graphs and final document
 \t\t-S          plot speedup (default: 1, disabled: 0)
 \t\t-t          data type: time (default) or gflops or roofline
-\t\t-y          secondary axis type: none or gflops or efficiency
+\t\t-y          secondary axis type: none, gflops, efficiency, p
 \t\t-s          short run
 \t\t-T          do not perform FFTs; just generate document
 \t\t-f          document format: pdf (default) or docx
@@ -126,6 +128,30 @@ class rundata:
                 print(idx, ":", inlist[idx], "->", outdirlist[idx])
                 self.runcmd(nsample, [inlist[idx]], [outdirlist[idx]], None, problem_file).run_cases()
 
+# Compute the alpha-confidence interval for the given values using
+# boot-strap resampling.
+def confidence_interval(vals, alpha=0.95, nboot=2000):
+    medians = []
+    for iboot in range(nboot):
+        resample = []
+        for i in range(len(vals)):
+            resample.append(vals[random.randrange(len(vals))])
+        medians.append(np.median(resample))
+    medians = sorted(medians)
+    low = medians[int(np.floor(nboot * 0.5*(1.0 - alpha)))]
+    high = medians[int(np.ceil(nboot * (1.0 - 0.5*(1.0 - alpha))))]
+    return low, high
+
+# Compute the alpha-confidence interval for the ratio of the given
+# sets of values using boot-strap resampling.
+def ratio_confidence_interval(Avals, Bvals, alpha=0.95, nboot=2000):
+    ratios = []
+    for i in range(nboot):
+        ratios.append( Avals[random.randrange(len(Avals))] / Bvals[random.randrange(len(Bvals))])
+    ratios = sorted(ratios)
+    low = ratios[int(np.floor(len(ratios) * 0.5*(1.0 - alpha)))]
+    high = ratios[int(np.ceil(len(ratios) * (1.0 - 0.5*(1.0 - alpha))))]
+    return low, high
 
 # Figure class, which contains runs and provides commands to generate figures.
 class figure:
@@ -150,95 +176,157 @@ class figure:
                 labels.append(label + run.label)
         return labels
 
-    def filename(self, outdir, docformat):
+    def filename(self, outdir):
         outfigure = self.name
         outfigure += ".pdf"
-        # if docformat == "pdf":
-        #     outfigure += ".pdf"
-        # if docformat == "docx":
-        #     outfigure += ".png"
         return os.path.join(outdir, outfigure)
 
-    def asycmd(self, docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2, bandwidth):
+    def asycmd(self, docdir, primary_fnames, secondary_fnames, labellist):
         asycmd = ["asy"]
 
         asycmd.append("-f")
         asycmd.append("pdf")
-        # if docformat == "pdf":
-        #     asycmd.append("-f")
-        #     asycmd.append("pdf")
-        # if docformat == "docx":
-        #     asycmd.append("-f")
-        #     asycmd.append("png")
-        #     asycmd.append("-render")
-        #     asycmd.append("8")
-        asycmd.append(os.path.join(sys.path[0],"datagraphs.asy"))
 
-        asycmd.append("-u")
-        inputfiles = self.inputfiles(outdirlist)
-        asycmd.append('filenames="' + ",".join(inputfiles) + '"')
-
+        asycmd.append(os.path.join(sys.path[0], "datagraphs.asy"))
+       
         asycmd.append("-u")
         labels = self.labels(labellist)
-        asycmd.append('legendlist="' + ",".join(labels) + '"')
-
-        asycmd.append("-u")
-        asycmd.append('speedup=' + str(ncompare))
-
-        if just1dc2crad2 :
+        asycmd.append('filenames="' + ",".join(primary_fnames) + '"')
+        
+        if secondary_fnames != "":
             asycmd.append("-u")
-            asycmd.append('just1dc2crad2=true')
-
-        if secondtype != "":
-            asycmd.append("-u")
-            asycmd.append('secondaryaxis="'+secondtype +'"')
-
-        if datatype == "gflops":
-            asycmd.append("-u")
-            asycmd.append('primaryaxis="gflops"')
-
-        if bandwidth != None:
-            asycmd.append("-u")
-            asycmd.append('bandwidth=' + str(bandwidth) + '')
-                        
-        if datatype == "roofline":
-            asycmd.append("-u")
-            asycmd.append('primaryaxis="roofline"')
-            # roofline on multiple devices doesn't really make sense; just use the first device
-            with open(os.path.join(outdirlist[0], "gpuid.txt"), "r") as f:
-                gpuid = f.read()
-                asycmd.append("-u")
-                asycmd.append('gpuid="' + gpuid.strip() + '"')
-
-        if len(self.runs) > 0:
-            asycmd.append("-u")
-            asycmd.append('batchsize=' + str(self.runs[0].nbatch))
-            asycmd.append("-u")
-            asycmd.append('problemdim=' + str(self.runs[0].dimension))
-            asycmd.append("-u")
-            val = 1
-            for rat in self.runs[0].ratio:
-                val *= rat
-            asycmd.append('problemratio=' + str(val))
-            asycmd.append("-u")
-            if self.runs[0].ffttype == "r2c":
-                asycmd.append("realcomplex=true")
-            else:
-                asycmd.append("realcomplex=false")
-
+            labels = self.labels(labellist)
+            asycmd.append('secondary_filenames="' + ",".join(secondary_fnames) + '"')
 
         asycmd.append("-o")
-        asycmd.append(self.filename(docdir, docformat) )
+        asycmd.append(self.filename(docdir) )
 
         return asycmd
 
-    def executeasy(self, docdir, outdirs, labellist, docformat, datatype, ncompare, secondtype,
+    # Remove anything that starts with #, which we use for a comment character.
+    def decomment(self, csvfile):
+        for row in csvfile:
+            raw = row.split('#')[0].strip()
+            if raw: yield raw
+
+    # Collect the data from individual runs into one data object.
+    def collect_data(self, outdirs):
+        inputfiles = self.inputfiles(outdirs)
+        dataout = []
+        for datafile in inputfiles:
+            idata = []
+            with open(datafile) as csvfile:
+                csvfile.seek(0)
+                reader = csv.reader(self.decomment(csvfile), delimiter='\t')
+                for row in reader:
+                    dim = int(row[0])
+                    lengths = []
+                    for idim in range(dim):
+                        lengths.append(int(row[1 + idim]))
+                    nsample = int(row[2 + dim])
+                    vals = []
+                    offset = 3 + dim
+                    for i in range(nsample):
+                        vals.append(float(row[offset + i]))
+                    idata.append([lengths,  vals])
+                dataout.append(idata)
+        return dataout
+
+    # Compute the median and confidence interval.
+    def process_data(self, data):
+        dataout = []
+        for idata in data:
+            idataout = []
+            for row in idata:
+                low, high =  confidence_interval(row[1])
+                idataout.append([row[0], np.median(row[1]), low, high])
+            dataout.append(idataout)
+        return dataout
+
+    # Compare data from different runs
+    def compare_data(self, data, ncompare, comparison="speedup"):
+        dataout = []
+        for i in range(len(data) // ncompare):
+            for icompare in range(1, ncompare):
+                idataout = []
+                ibase = i * ncompare
+                icomp = ibase + icompare
+                for ibcase in range(len(data[ibase])):
+                    lengths = data[ibase][ibcase][0]
+                    imatch = -1
+                    for iccase in range(len(data[icomp])):
+                        if lengths == data[icomp][iccase][0]:
+                            imatch = iccase
+                            break
+                    if imatch != -1:
+                        Avals = data[ibase][ibcase][1]
+                        Bvals = data[icomp][imatch][1]
+                        if comparison == "speedup":
+                            speedup = np.median(Avals) / np.median(Bvals)
+                            low, high = ratio_confidence_interval(Avals, Bvals)
+                            idataout.append([lengths, speedup, low, high])
+                        elif comparison == "pval":
+                            import scipy.stats
+                            stat, pm, med, tbl = scipy.stats.median_test(Avals, Bvals, ties="ignore")
+                            idataout.append([lengths, pm])
+                dataout.append(idataout)
+        return dataout
+
+    # In the case where we want a linear horizontal axis, we choose a
+    # single value for the indetifier.  One file per curve.
+    def write_linear_output_bounds(self, data, docdir, suffix = ".dat"):
+        filenames = []
+        for idx, idata  in enumerate(data):
+            fname = os.path.join(docdir, self.name + suffix + str(idx))
+            filenames.append(fname)
+            with open(fname, 'w', newline='') as ofile:
+                for row in idata:
+                    ofile.write(str(row[0][0]) + "\t" + str(row[1]) + "\t" + str(row[2]) + "\t" + str(row[3]) + "\n")
+        return filenames
+
+    # In the case where we want a linear horizontal axis, we choose a
+    # single value for the indetifier.  One file per curve.
+    def write_linear_output(self, data, docdir, suffix = ".dat"):
+        filenames = []
+        for idx, idata  in enumerate(data):
+            fname = os.path.join(docdir, self.name + suffix + str(idx))
+            filenames.append(fname)
+            with open(fname, 'w', newline='') as ofile:
+                for row in idata:
+                    ofile.write(str(row[0][0]) + "\t" + str(row[1]) + "\n")
+        return filenames
+                         
+    # Read the raw data, process, and create a figure.
+    def makefig(self, docdir, outdirs, labellist, docformat, datatype, ncompare, secondtype,
                    just1dc2crad2, bandwidth, verbose):
         fout = tempfile.TemporaryFile(mode="w+")
         ferr = tempfile.TemporaryFile(mode="w+")
-        asyproc = subprocess.Popen(self.asycmd(docdir, outdirs, labellist,
-                                               docformat, datatype, ncompare, secondtype,
-                                               just1dc2crad2, bandwidth),
+        
+        data = self.collect_data(outdirs)
+
+        dataout = self.process_data(data)
+
+        # Write primary-axis data:
+        primary_fnames = self.write_linear_output_bounds(dataout, docdir)
+
+        
+        speedupdata = self.compare_data(data, ncompare, "speedup")
+        # Write secondary-axis data:
+        secondary_fnames = self.write_linear_output_bounds(speedupdata, docdir, suffix=".sec")
+
+        pvaldata = self.compare_data(data, ncompare, "pval")
+        print("pvals")
+        print(pvaldata)
+
+        # TODO: roofline
+        # TODO: efficiency
+        # TODO: glfop/s (whatever that means).
+        
+
+        print(primary_fnames)
+        print(secondary_fnames)
+
+        asyproc = subprocess.Popen(self.asycmd(docdir, primary_fnames, secondary_fnames, labellist),
                                    stdout=fout, stderr=ferr, env=os.environ.copy(),
                                    cwd = sys.path[0])
         asyproc.wait()
@@ -830,9 +918,7 @@ def main(argv):
             
         print(fig.labels(labellist))
         if doAsy:
-            #plotgflops = runtype == "submission" and not datatype == "gflops"
-            print(fig.asycmd(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2, bandwidth))
-            fig.executeasy(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2, bandwidth, verbose)
+            fig.makefig(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2, bandwidth, verbose)
 
     if doAsy:
         # Make the document in docdir:
@@ -929,13 +1015,13 @@ def maketex(figs, docdir, outdirlist, labellist, nsample, secondtype, precision)
     texstring += "\n\\section{Figures}\n"
 
     for idx, fig in enumerate(figs):
-        print(fig.filename(docdir, "pdf"))
+        print(fig.filename(docdir))
         print(fig.caption)
         texstring += '''
 \\centering
 \\begin{figure}[htbp]
    \\includegraphics[width=\\textwidth]{'''
-        texstring += fig.filename("", "pdf")
+        texstring += fig.filename("")
         texstring += '''}
    \\caption{''' + fig.caption + '''}
 \\end{figure}
