@@ -527,7 +527,7 @@ void rocfft_transform(const rocfft_params&                 params,
                       const accuracy_test::cpu_fft_params& cpu,
                       const size_t                         ramgb)
 {
-    if(ramgb > 0 && params.needed_ram(verbose) > ramgb * 1e9)
+    if(ramgb > 0 && params.needed_ram(verbose) > ramgb * ONE_GiB)
     {
         if(verbose > 2)
         {
@@ -891,40 +891,10 @@ TEST_P(accuracy_test, vs_fftw)
         params.osize = params.compute_osize();
     }
 
-    if(ramgb > 0)
+    if(ramgb > 0 && params.needed_ram(verbose) > ramgb * ONE_GiB)
     {
-        // Estimate the amount of memory needed, and skip if it's more than we allow.
-
-        // Host input, output, and input copy, gpu input and output: 5 buffers.
-        // This test assumes that all buffers are contiguous; other cases are dealt with when they
-        // are called.
-        // FFTW may require work memory; this is not accounted for.
-        size_t needed_ram
-            = 5
-              * std::accumulate(
-                  params.length.begin(), params.length.end(), 1, std::multiplies<size_t>());
-
-        // Account for precision and data type:
-        if(params.transform_type != rocfft_transform_type_real_forward
-           && params.transform_type != rocfft_transform_type_real_inverse)
-        {
-            needed_ram *= 2;
-        }
-        switch(params.precision)
-        {
-        case rocfft_precision_single:
-            needed_ram *= sizeof(float);
-            break;
-        case rocfft_precision_double:
-            needed_ram *= sizeof(double);
-            break;
-        }
-
-        if(needed_ram > ramgb * 1e9)
-        {
-            GTEST_SKIP();
-            return;
-        }
+        GTEST_SKIP();
+        return;
     }
     auto cpu = accuracy_test::compute_cpu_fft(params);
 

@@ -35,6 +35,8 @@
 #include "rocfft.h"
 #include <hip/hip_runtime_api.h>
 
+static const size_t ONE_GiB = 1 << 30;
+
 // Determine the size of the data type given the precision and type.
 template <typename Tsize>
 inline Tsize var_size(const rocfft_precision precision, const rocfft_array_type type)
@@ -339,7 +341,7 @@ public:
 
         if(verbose > 1)
         {
-            std::cout << "required host memory (GB): " << needed_ram * 1e-9 << std::endl;
+            std::cout << "required host memory (GiB): " << needed_ram / ONE_GiB << std::endl;
         }
 
         return needed_ram;

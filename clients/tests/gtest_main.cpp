@@ -34,6 +34,12 @@
 #include "rocfft_against_fftw.h"
 #include "test_params.h"
 
+#ifdef WIN32
+#include <windows.h>
+#else
+#include <sys/sysinfo.h>
+#endif
+
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
@@ -43,7 +49,7 @@ int verbose;
 // Transform parameters for manual test:
 rocfft_params manual_params;
 
-// Ram limitation for tests (GB).
+// Ram limitation for tests (GiB).
 size_t ramgb;
 
 // Control whether we use FFTW's wisdom (which we use to imply FFTW_MEASURE).
@@ -53,6 +59,24 @@ bool use_fftw_wisdom = false;
 // correspond to the input and output of compute_cpu_fft.
 std::tuple<std::vector<size_t>, size_t, rocfft_transform_type, bool, accuracy_test::cpu_fft_params>
     last_cpu_fft;
+
+static size_t get_system_memory_GiB()
+{
+    // system memory often has a little chunk carved out for other
+    // stuff, so round up to nearest GiB.
+#ifdef WIN32
+    MEMORYSTATUSEX info;
+    info.dwLength = sizeof(info);
+    if(!GlobalMemoryStatusEx(&info))
+        return 0;
+    return (info.ullTotalPhys + ONE_GiB - 1) / ONE_GiB;
+#else
+    struct sysinfo info;
+    if(sysinfo(&info) != 0)
+        return 0;
+    return (info.totalram * info.mem_unit + ONE_GiB - 1) / ONE_GiB;
+#endif
+}
 
 int main(int argc, char* argv[])
 {
@@ -124,7 +148,7 @@ int main(int argc, char* argv[])
          "Logical size of input buffer.")
         ("osize", po::value<std::vector<size_t>>(&manual_params.osize)->multitoken(),
          "Logical size of output.")
-        ("R", po::value<size_t>(&ramgb)->default_value(0), "Ram limit in GB for tests.")
+        ("R", po::value<size_t>(&ramgb)->default_value(get_system_memory_GiB()), "Ram limit in GiB for tests.")
         ("wise,w", "use FFTW wisdom")
         ("wisdomfile,W",
          po::value<std::string>(&fftw_wisdom_filename)->default_value("wisdom3.txt"),
