@@ -25,8 +25,10 @@
 #include "plan.h"
 #include "tree_node.h"
 
+#ifdef ROCFFT_RUNTIME_COMPILE
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#endif
 
 #include <exception>
 #include <map>
@@ -144,6 +146,7 @@ private:
     }
 };
 
+#ifdef ROCFFT_RUNTIME_COMPILE
 // wrapper object to handle reference counting
 class PyObjWrap
 {
@@ -528,6 +531,7 @@ struct PythonGenerator
     std::map<size_t, PyObjWrap>                    supported_lengths_large;
     std::map<std::pair<size_t, size_t>, PyObjWrap> supported_lengths_2D;
 };
+#endif
 
 RTCKernel::RTCKernel(const std::string& kernel_name, const std::vector<char>& code)
 {
@@ -640,15 +644,18 @@ hipError_t RTCKernel::launch(DeviceCallIn& data)
                                  config);
 }
 
+#ifdef ROCFFT_RUNTIME_COMPILE
 // singleton accessor
 static PythonGenerator& get_generator()
 {
     static PythonGenerator generator;
     return generator;
 }
+#endif
 
 void RTCKernel::close_cache()
 {
+#ifdef ROCFFT_RUNTIME_COMPILE
     auto& generator = get_generator();
     // close db and set db to None - will be reopened on next use
     //
@@ -658,11 +665,13 @@ void RTCKernel::close_cache()
                                     generator.glob_dict,
                                     generator.local_dict);
     PyMapping_SetItemString(generator.local_dict, "kernel_cache_db", Py_None);
+#endif
 }
 
 std::unique_ptr<RTCKernel>
     RTCKernel::runtime_compile(TreeNode& node, const char* gpu_arch, bool enable_callbacks)
 {
+#ifdef ROCFFT_RUNTIME_COMPILE
     stockham_specs_t specs(node, gpu_arch, enable_callbacks);
 
     PyObjWrap* kernel_obj = nullptr;
@@ -729,10 +738,14 @@ std::unique_ptr<RTCKernel>
                 << "Error: failed to store code object for " << specs.kernel_name << std::flush;
     }
     return std::unique_ptr<RTCKernel>(new RTCKernel(specs.kernel_name, code));
+#else
+    return nullptr;
+#endif
 }
 
 rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes)
 {
+#ifdef ROCFFT_RUNTIME_COMPILE
     if(!buffer || !buffer_len_bytes)
         return rocfft_status_invalid_arg_value;
 
@@ -754,6 +767,9 @@ rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes)
     *buffer           = new char[len];
     memcpy(*buffer, PyBytes_AsString(cache), len);
     return rocfft_status_success;
+#else
+    return rocfft_status_failure;
+#endif
 }
 
 rocfft_status rocfft_cache_buffer_free(void* buffer)
@@ -764,6 +780,7 @@ rocfft_status rocfft_cache_buffer_free(void* buffer)
 
 rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_bytes)
 {
+#ifdef ROCFFT_RUNTIME_COMPILE
     if(!buffer || !buffer_len_bytes)
         return rocfft_status_invalid_arg_value;
 
@@ -784,4 +801,7 @@ rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_byt
     }
 
     return rocfft_status_success;
+#else
+    return rocfft_status_failure;
+#endif
 }

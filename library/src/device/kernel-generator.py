@@ -788,6 +788,7 @@ def cli():
     parser.add_argument('--precision', type=str, help='Precision to generate.', default='all')
     parser.add_argument('--manual-small', type=str, help='Small kernel sizes to generate.')
     parser.add_argument('--manual-large', type=str, help='Large kernel sizes to generate.')
+    parser.add_argument('--runtime-compile', type=str, help='Allow runtime-compiled kernels.')
 
     list_parser = subparsers.add_parser('list', help='List kernel files that will be generated.')
 
@@ -904,6 +905,10 @@ def cli():
     # set runtime_compile on new kernels that haven't already set a
     # value
     new_kernels = default_runtime_compile(new_kernels)
+
+    if args.runtime_compile != 'ON':
+        for k in new_kernels:
+            k.runtime_compile = False
 
     # update the patterns after removing new kernels from old generator to avoid including some missing cpp
     if 'small' in patterns and len(expand_sizes['small']['sp']) == 0 and len(expand_sizes['small']['dp']) == 0:

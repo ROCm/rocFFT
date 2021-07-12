@@ -100,8 +100,11 @@ if( BUILD_DOUBLE_PRECISION )
 endif()
 target_link_libraries( rocfft PRIVATE rocfft-device-misc )
 
-target_link_libraries( rocfft PRIVATE ${Python3_LIBRARIES} )
-target_include_directories( rocfft PRIVATE ${Python3_INCLUDE_DIRS} )
+if( ROCFFT_RUNTIME_COMPILE )
+  target_link_libraries( rocfft PRIVATE ${Python3_LIBRARIES} )
+  target_include_directories( rocfft PRIVATE ${Python3_INCLUDE_DIRS} )
+  target_compile_options( rocfft PRIVATE -DROCFFT_RUNTIME_COMPILE )
+endif()
 
 target_include_directories( rocfft
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>

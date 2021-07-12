@@ -106,6 +106,7 @@ execute_process(COMMAND ${PYTHON3_EXE} ${kgen}
   --groups=${GENERATOR_GROUP_NUM}
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
+  --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
   list
   OUTPUT_VARIABLE gen_headers
   RESULT_VARIABLE STATUS)
@@ -122,6 +123,7 @@ add_custom_command(
   --groups=${GENERATOR_GROUP_NUM}
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
+  --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
   generate $<TARGET_FILE:rocfft-kernel-generator>
   DEPENDS rocfft-kernel-generator ${kgendeps}
   COMMENT "Generator producing device kernels for rocfft-device"
