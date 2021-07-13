@@ -48,7 +48,7 @@ def runTestCommand (platform, project, boolean debug=false)
                 set -x
                 cd ${project.paths.project_build_prefix}/build/${directory}/clients/staging
                 mkdir -p ${wisdomDir}
-                ${sudo} LD_LIBRARY_PATH=/opt/rocm/lib GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} -w -W ${wisdomDir}/wisdom_${env.EXECUTOR_NUMBER}.txt --gtest_color=yes
+                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} -w -W ${wisdomDir}/wisdom_${env.EXECUTOR_NUMBER}.txt --gtest_color=yes
             """
     platform.runCommand(this, command)
 }
