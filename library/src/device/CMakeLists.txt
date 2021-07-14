@@ -204,6 +204,12 @@ foreach( sub ${sub_libraries} )
     # into librocfft.so Useful for testing purposes.
     add_library( rocfft-device-${sub} STATIC
       ${${gen_headers_var}} )
+
+    # if we're building singlelib, we don't want to export any of the
+    # device library symbols to the main library
+    if(NOT HIP_PLATFORM STREQUAL "nvcc")
+      set_target_properties( rocfft-device-${sub} PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
+    endif()
   endif()
 
   set_property(TARGET rocfft-device-${sub} PROPERTY POSITION_INDEPENDENT_CODE ON)
