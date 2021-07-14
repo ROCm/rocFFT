@@ -281,10 +281,10 @@ float run_plan(
 // Normally, dyna-rider will want to dlopen rocfft's with RTLD_LOCAL.
 // If libpython is brought in this way, python modules might not be
 // able to find the symbols they need and import will fail.
+#ifndef WIN32
 static void* python_dl = nullptr;
 void         load_python(const std::vector<std::string>& libs)
 {
-#ifndef WIN32
     // dlopen each lib, taking note of the python library that it needs
     std::string pythonlib;
     for(const auto& lib : libs)
@@ -316,8 +316,8 @@ void         load_python(const std::vector<std::string>& libs)
         // explicitly dlopen python with RTLD_GLOBAL
         python_dl = dlopen(pythonlib.c_str(), RTLD_LAZY | RTLD_GLOBAL);
     }
-#endif
 }
+#endif
 
 int main(int argc, char* argv[])
 {
@@ -515,7 +515,9 @@ int main(int argc, char* argv[])
 
     size_t wbuffer_size = 0;
 
+#ifndef WIN32
     load_python(libs);
+#endif
 
     // Set up shared object handles
     std::vector<ROCFFT_LIB> handles;
@@ -710,8 +712,10 @@ int main(int argc, char* argv[])
         rocfft_lib_close(handles[idx]);
     }
 
+#ifndef WIN32
     if(python_dl)
         dlclose(python_dl);
+#endif
 
     return 0;
 }

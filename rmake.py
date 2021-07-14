@@ -94,7 +94,7 @@ def config_cmd():
         rocm_path = os.getenv( 'ROCM_CMAKE_PATH', "C:/github/rocm-cmake-master/share/rocm")
         #set CPACK_PACKAGING_INSTALL_PREFIX= defined as blank as it is appended to end of path for archive creation
         cmake_platform_opts.append( f"-DCPACK_PACKAGING_INSTALL_PREFIX=" )
-        cmake_platform_opts.append( f"-DCMAKE_INSTALL_PREFIX=\"C:/hipSDK\"" )
+        cmake_platform_opts.append( f"-DCMAKE_INSTALL_PREFIX=C:/hipSDK" )
         generator = ["-G", "Ninja"]
         cmake_options.extend( generator )
         toolchain = os.path.join( src_path, "toolchain-windows.cmake" )
@@ -102,7 +102,7 @@ def config_cmd():
         rocm_path = os.getenv( 'ROCM_PATH', "/opt/rocm")
         cmake_platform_opts.append( f"-DROCM_DIR:PATH={rocm_path}")
         cmake_platform_opts.append( f"-DCPACK_PACKAGING_INSTALL_PREFIX={rocm_path}" )
-        cmake_platform_opts.append( f"-DCMAKE_INSTALL_PREFIX=\"rocfft-install\"" )
+        cmake_platform_opts.append( f"-DCMAKE_INSTALL_PREFIX=rocfft-install" )
         toolchain = "toolchain-linux.cmake"
 
     print( f"Build source path: {src_path}")
