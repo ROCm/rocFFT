@@ -113,8 +113,6 @@ set( BIN_INSTALL_DIR ${CMAKE_INSTALL_BINDIR} )
 set( LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR} )
 set( INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR} )
 
-option(ROCFFT_RUNTIME_COMPILE "Enable runtime compilation of kernels" ON)
-
 if( ROCFFT_RUNTIME_COMPILE )
   # look for python development files - we also require an interpreter
   # but the version of it needn't match the development version.

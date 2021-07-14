@@ -386,6 +386,7 @@ TEST(rocfft_UnitTest, workmem_null)
     workmem_test([](size_t requested) { return requested; }, rocfft_status_success, true);
 }
 
+#ifdef ROCFFT_RUNTIME_COMPILE
 // runtime compilation cache tests
 TEST(rocfft_UnitTest, rtc_cache)
 {
@@ -512,3 +513,4 @@ TEST(rocfft_UnitTest, rtc_cache_null)
     ASSERT_EQ(rocfft_cache_deserialize(nullptr, 12345), rocfft_status_invalid_arg_value);
     ASSERT_EQ(rocfft_cache_deserialize(&buf_len, 0), rocfft_status_invalid_arg_value);
 }
+#endif

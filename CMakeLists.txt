@@ -113,6 +113,8 @@ option( WERROR "Treat warnings as errors" OFF )
 
 option(BUILD_ADDRESS_SANITIZER "Build with address sanitizer enabled" OFF)
 
+option(ROCFFT_RUNTIME_COMPILE "Enable runtime compilation of kernels" OFF)
+
 if(BUILD_ADDRESS_SANITIZER)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -shared-libasan")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -shared-libasan")
