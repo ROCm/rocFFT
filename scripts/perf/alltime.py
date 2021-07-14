@@ -65,7 +65,7 @@ class rundata:
         self.inplace = inplace
         self.direction = direction
         self.label = label
-
+        
     def outfilename(self, odir):
         outfile = ""
         outfile += "radix" + str(self.radix)
@@ -192,12 +192,16 @@ class figure:
         asycmd.append("-u")
         labels = self.labels(labellist)
         asycmd.append('filenames="' + ",".join(primary_fnames) + '"')
-        
-        if secondary_fnames != "":
+
+        if labellist != None:
             asycmd.append("-u")
             labels = self.labels(labellist)
+            asycmd.append('legendlist="' + ",".join(labels) + '"')
+        
+        if secondary_fnames != None:
+            asycmd.append("-u")
             asycmd.append('secondary_filenames="' + ",".join(secondary_fnames) + '"')
-
+            
         asycmd.append("-o")
         asycmd.append(self.filename(docdir) )
 
@@ -297,8 +301,7 @@ class figure:
         return filenames
                          
     # Read the raw data, process, and create a figure.
-    def makefig(self, docdir, outdirs, labellist, docformat, datatype, ncompare, secondtype,
-                   just1dc2crad2, bandwidth, verbose):
+    def makefig(self, docdir, outdirs, labellist, docformat, datatype, ncompare, secondtype, bandwidth, verbose):
         fout = tempfile.TemporaryFile(mode="w+")
         ferr = tempfile.TemporaryFile(mode="w+")
         
@@ -309,24 +312,26 @@ class figure:
         # Write primary-axis data:
         primary_fnames = self.write_linear_output_bounds(dataout, docdir)
 
-        
-        speedupdata = self.compare_data(data, ncompare, "speedup")
-        # Write secondary-axis data:
-        secondary_fnames = self.write_linear_output_bounds(speedupdata, docdir, suffix=".sec")
-
-        pvaldata = self.compare_data(data, ncompare, "pval")
-        print("pvals")
-        print(pvaldata)
-
-        # TODO: roofline
-        # TODO: efficiency
-        # TODO: glfop/s (whatever that means).
-        
-
         print(primary_fnames)
-        print(secondary_fnames)
 
-        asyproc = subprocess.Popen(self.asycmd(docdir, primary_fnames, secondary_fnames, labellist),
+        secondary_fnames = None
+        if ncompare > 1:
+            speedupdata = self.compare_data(data, ncompare, "speedup")
+            # Write secondary-axis data:
+            secondary_fnames = self.write_linear_output_bounds(speedupdata, docdir, suffix=".sec")
+
+            pvaldata = self.compare_data(data, ncompare, "pval")
+            print("pvals")
+            print(pvaldata)
+
+            # TODO: roofline
+            # TODO: efficiency
+            # TODO: glfop/s (whatever that means).
+            print(secondary_fnames)
+
+        asycommand = self.asycmd(docdir, primary_fnames, secondary_fnames, labellist)
+        print(asycommand)
+        asyproc = subprocess.Popen(asycommand,
                                    stdout=fout, stderr=ferr, env=os.environ.copy(),
                                    cwd = sys.path[0])
         asyproc.wait()
@@ -889,7 +894,6 @@ def main(argv):
         figs = reportfigs(rundims, shortrun, precision)
     if runtype == "efficiency":
         figs = efficiencyfigs(rundims, shortrun, precision)
-    just1dc2crad2 = runtype == "efficiency"
 
     for idx, fig in enumerate(figs):
         for idx2, fig2 in enumerate(figs):
@@ -911,14 +915,14 @@ def main(argv):
             if problem_file:
                 break
 
+
+                
         # Compile the data in the outdirs into figures in docdir:
-        ncompare = 0
-        if speedup:
-            ncompare = len(labellist) if dryrun else len(inlist)
+        ncompare = len(labellist) if dryrun else len(inlist)
             
         print(fig.labels(labellist))
         if doAsy:
-            fig.makefig(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, just1dc2crad2, bandwidth, verbose)
+            fig.makefig(docdir, outdirlist, labellist, docformat, datatype, ncompare, secondtype, bandwidth, verbose)
 
     if doAsy:
         # Make the document in docdir:
@@ -933,7 +937,7 @@ def main(argv):
                 maketex(figs, docdir, outdirlist, labellist, nsample, secondtype, precision)
             if docformat == "docx":
                 makedocx(figs, docdir, nsample, secondtype, precision)
-
+                
         print("Finished!  Output in " + docdir)
 
 def binaryisok(dirname, progname):
@@ -1105,3 +1109,5 @@ def makedocx(figs, outdir, nsample, secondtype, precision):
 if __name__ == "__main__":
     main(sys.argv[1:])
 
+
+    
