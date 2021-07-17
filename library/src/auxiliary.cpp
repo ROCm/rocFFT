@@ -75,6 +75,8 @@ static void open_log_stream(const char* environment_variable_name, int& log_fd)
 // library setup function, called once in program at the start of library use
 rocfft_status rocfft_setup()
 {
+    rocfft_ostream::setup();
+
     // set layer_mode from value of environment variable ROCFFT_LAYER
     auto str_layer_mode = getenv("ROCFFT_LAYER");
 
@@ -156,8 +158,7 @@ rocfft_status rocfft_cleanup()
     }
 
     // stop all log worker threads
-    std::lock_guard<std::recursive_mutex> lock(rocfft_ostream::worker_map_mutex());
-    rocfft_ostream::worker_map().clear();
+    rocfft_ostream::cleanup();
 
     return rocfft_status_success;
 }

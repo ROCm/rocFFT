@@ -247,7 +247,7 @@ void TransformPowX(const ExecPlan&       execPlan,
     // since we will be able to wait for the transform to finish
     bool            emit_profile_log  = LOG_PROFILE_ENABLED() && !info->rocfft_stream;
     bool            emit_kernelio_log = LOG_KERNELIO_ENABLED();
-    rocfft_ostream* kernelio_stream   = LogSingleton::GetInstance().GetKernelIOOS();
+    rocfft_ostream* kernelio_stream   = nullptr;
     float           max_memory_bw     = 0.0;
     hipEvent_t      start, stop;
     if(emit_profile_log)
@@ -379,6 +379,7 @@ void TransformPowX(const ExecPlan&       execPlan,
 
         if(emit_kernelio_log)
         {
+            kernelio_stream = LogSingleton::GetInstance().GetKernelIOOS();
             *kernelio_stream << "--- --- kernel " << i << " (" << PrintScheme(data.node->scheme)
                              << ") input:" << std::endl;
 

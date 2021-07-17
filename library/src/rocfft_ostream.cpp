@@ -32,6 +32,10 @@ static void rocfft_abort_once [[noreturn]] ();
 #include <windows.h>
 #endif
 
+// static data
+std::unique_ptr<rocfft_ostream::worker_map_t> rocfft_ostream::worker_map;
+std::unique_ptr<std::recursive_mutex>         rocfft_ostream::worker_map_mutex;
+
 /***********************************************************************
  * rocfft_ostream functions                                           *
  ***********************************************************************/
@@ -56,7 +60,7 @@ static void rocfft_abort_once()
 #endif
 
     // Clear the map, stopping all workers
-    rocfft_ostream::clear_workers();
+    rocfft_ostream::cleanup();
 
     // Flush all
     fflush(NULL);
@@ -79,6 +83,10 @@ std::shared_ptr<rocfft_ostream::worker> rocfft_ostream::get_worker(int fd)
 {
     // For a file descriptor indicating an error, return a nullptr
     if(fd == -1)
+        return nullptr;
+
+    // if logging is not initialized, there's no worker
+    if(!worker_map_mutex || !worker_map)
         return nullptr;
 
     // C++ allows type punning of common initial sequences
@@ -122,11 +130,11 @@ std::shared_ptr<rocfft_ostream::worker> rocfft_ostream::get_worker(int fd)
 #endif
 
     // Lock the map from file_id -> std::shared_ptr<rocfft_ostream::worker>
-    std::lock_guard<std::recursive_mutex> lock(worker_map_mutex());
+    std::lock_guard<std::recursive_mutex> lock(*worker_map_mutex);
 
     // Insert a nullptr map element if file_id doesn't exist in map already
     // worker_ptr is a reference to the std::shared_ptr<rocfft_ostream::worker>
-    auto& worker_ptr = worker_map().emplace(file_id, nullptr).first->second;
+    auto& worker_ptr = worker_map->emplace(file_id, nullptr).first->second;
 
     // If a new entry was inserted, or an old entry is empty, create new worker
     if(!worker_ptr)
@@ -140,11 +148,6 @@ std::shared_ptr<rocfft_ostream::worker> rocfft_ostream::get_worker(int fd)
 rocfft_ostream::rocfft_ostream(int fd)
     : worker_ptr(get_worker(fd))
 {
-    if(!worker_ptr)
-    {
-        std::cerr << "Error: Bad file descriptor " << fd << std::endl;
-        rocfft_abort();
-    }
 }
 
 // Construct rocfft_ostream from a filename opened for writing with truncation
@@ -183,10 +186,22 @@ void rocfft_ostream::flush()
     }
 }
 
-void rocfft_ostream::clear_workers()
+void rocfft_ostream::setup()
 {
-    std::lock_guard<std::recursive_mutex> lock(worker_map_mutex());
-    worker_map().clear();
+    if(worker_map_mutex && worker_map)
+        return;
+    worker_map_mutex = std::make_unique<std::recursive_mutex>();
+    worker_map       = std::make_unique<worker_map_t>();
+}
+
+void rocfft_ostream::cleanup()
+{
+    if(worker_map_mutex && worker_map)
+    {
+        std::lock_guard<std::recursive_mutex> lock(*worker_map_mutex);
+        worker_map.reset();
+    }
+    worker_map_mutex.reset();
 }
 
 /***********************************************************************

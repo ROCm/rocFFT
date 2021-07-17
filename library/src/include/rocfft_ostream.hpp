@@ -73,6 +73,13 @@
  ***************************************************************************/
 class rocfft_ostream
 {
+public:
+    // open file handles and start up threads on library startup
+    static void setup();
+    // close file handles and clean up threads on library shutdown
+    static void cleanup();
+
+private:
     /**************************************************************************
      * The worker class sets up a worker thread for writing to log files. Two *
      * files are considered the same if they have the same device ID / inode. *
@@ -163,22 +170,6 @@ class rocfft_ostream
         }
     };
 
-    // Map from file_id to a worker shared_ptr
-    // Implemented as singleton to avoid the static initialization order fiasco
-    static auto& worker_map()
-    {
-        static std::map<file_id_t, std::shared_ptr<worker>, file_id_less> file_id_to_worker_map;
-        return file_id_to_worker_map;
-    }
-
-    // Mutex for accessing the map
-    // Implemented as singleton to avoid the static initialization order fiasco
-    static auto& worker_map_mutex()
-    {
-        static std::recursive_mutex map_mutex;
-        return map_mutex;
-    }
-
     // Output buffer for formatted IO
     std::ostringstream os;
 
@@ -187,6 +178,12 @@ class rocfft_ostream
 
     // Get worker for file descriptor
     static std::shared_ptr<worker> get_worker(int fd);
+
+    // map of files to workers (and associated mutex), allocated
+    // during setup() and freed during cleanup()
+    typedef std::map<file_id_t, std::shared_ptr<worker>, file_id_less> worker_map_t;
+    static std::unique_ptr<worker_map_t>                               worker_map;
+    static std::unique_ptr<std::recursive_mutex>                       worker_map_mutex;
 
 public:
     // Default constructor is a std::ostringstream with no worker
@@ -215,9 +212,6 @@ public:
         : rocfft_ostream(filename.c_str())
     {
     }
-
-    // For testing to allow file closing and deletion
-    static void clear_workers();
 
     // Convert stream output to string
     std::string str() const
