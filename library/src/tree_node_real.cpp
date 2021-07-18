@@ -1237,12 +1237,12 @@ void Real3DEvenNode::AssignBuffers_internal(TraverseState&   state,
         // RTRTRT
         else if(childNodes.size() == 6)
         {
-            // NB: for out-of-place transforms, we can't fit the result of the first r2c transform into
-            // the input buffer.
+            // NB: for out-of-place transforms, we can't fit the result of the first r2c transform
+            // into the input buffer.
 
             // T
             childNodes[1]->SetInputBuffer(state);
-            childNodes[1]->obOut        = obOutBuf;
+            childNodes[1]->obOut        = (childNodes[1]->obIn == flipIn) ? flipOut : flipIn;
             childNodes[1]->inArrayType  = childNodes[0]->outArrayType;
             childNodes[1]->outArrayType = outArrayType;
 
@@ -1251,22 +1251,24 @@ void Real3DEvenNode::AssignBuffers_internal(TraverseState&   state,
             childNodes[2]->outArrayType = outArrayType;
             childNodes[2]->SetInputBuffer(state);
             childNodes[2]->obOut = obOutBuf;
-            flipIn               = childNodes[2]->obIn;
-            flipOut              = obOutBuf;
             childNodes[2]->AssignBuffers(state, flipOut, flipIn, obIn);
 
             // T
             childNodes[3]->SetInputBuffer(state);
-            childNodes[3]->obOut        = OB_TEMP;
+            childNodes[3]->obOut        = (childNodes[3]->obIn == flipIn) ? flipOut : flipIn;
             childNodes[3]->inArrayType  = childNodes[2]->outArrayType;
-            childNodes[3]->outArrayType = rocfft_array_type_complex_interleaved;
+            childNodes[3]->outArrayType = (childNodes[3]->obOut == OB_TEMP)
+                                              ? rocfft_array_type_complex_interleaved
+                                              : outArrayType;
 
             // R: c2c
             childNodes[4]->SetInputBuffer(state);
-            childNodes[4]->obOut = OB_TEMP;
+            childNodes[4]->obOut = (obOutBuf == flipIn) ? flipOut : flipIn;
             childNodes[4]->AssignBuffers(state, flipIn, flipOut, obOutBuf);
             childNodes[4]->inArrayType  = childNodes[3]->outArrayType;
-            childNodes[4]->outArrayType = rocfft_array_type_complex_interleaved;
+            childNodes[4]->outArrayType = (childNodes[4]->obOut == OB_TEMP)
+                                              ? rocfft_array_type_complex_interleaved
+                                              : outArrayType;
 
             // T
             childNodes[5]->inArrayType  = childNodes[4]->outArrayType;
