@@ -1506,6 +1506,12 @@ void Optimize_R_TO_CMPLX_TRANSPOSE(ExecPlan& execPlan, std::vector<TreeNode*>& e
         if(it == execSeq.end())
             return;
         auto transpose = *it;
+
+        // check placement
+        if(EffectivePlacement(r_to_cmplx->obIn, transpose->obOut, execPlan.rootPlan->placement)
+           != rocfft_placement_notinplace)
+            return;
+
         if(transpose->scheme == CS_KERNEL_TRANSPOSE
            || transpose->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
         {
@@ -1516,8 +1522,6 @@ void Optimize_R_TO_CMPLX_TRANSPOSE(ExecPlan& execPlan, std::vector<TreeNode*>& e
             r_to_cmplx->outArrayType = transpose->outArrayType;
             r_to_cmplx->placement    = EffectivePlacement(
                 r_to_cmplx->obIn, r_to_cmplx->obOut, execPlan.rootPlan->placement);
-            // transpose must be out-of-place
-            assert(r_to_cmplx->placement == rocfft_placement_notinplace);
             r_to_cmplx->outStride = transpose->outStride;
             r_to_cmplx->oDist     = transpose->oDist;
             r_to_cmplx->comments.push_back("fused " + PrintScheme(CS_KERNEL_R_TO_CMPLX)
