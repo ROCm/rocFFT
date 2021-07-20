@@ -489,6 +489,7 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_store_callback(rocfft_exec
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_get_events( const rocfft_execution_info info, void **events, size_t *number_of_events );
 #endif
 
+#if 0
 /*! @brief Serialize compiled kernel cache
 
  *  @details Serialize rocFFT's cache of compiled kernels into a
@@ -510,6 +511,7 @@ ROCFFT_EXPORT rocfft_status rocfft_cache_buffer_free(void* buffer);
  *  this operation.  The cache is unmodified if either a null buffer
  *  pointer or a zero length is passed. */
 ROCFFT_EXPORT rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_bytes);
+#endif
 
 #ifdef __cplusplus
 }

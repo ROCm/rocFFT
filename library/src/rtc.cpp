@@ -743,6 +743,7 @@ std::unique_ptr<RTCKernel>
 #endif
 }
 
+#if 0
 rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes)
 {
 #ifdef ROCFFT_RUNTIME_COMPILE
@@ -805,3 +806,4 @@ rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_byt
     return rocfft_status_failure;
 #endif
 }
+#endif

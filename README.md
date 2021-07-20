@@ -34,10 +34,6 @@ make -j
 
 A static library can be compiled by using the option `-DBUILD_SHARED_LIBS=off`
 
-Python3 development files are required to build the library.  These are
-provided by the `libpython3-dev` package on Ubuntu- and Debian-based
-distributions, and by `python3-devel` on RPM distributions.
-
 To use the [hip-clang compiler][3], one must specify
 `-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang` to cmake.  rocFFT enables
 use of indirect function calls by default and requires ROCm 4.3 or
