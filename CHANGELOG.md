@@ -8,6 +8,11 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 - Added support for Windows 10 as a build target.
 
+### Fixed
+- Fixed a few validation failures of even-length R2C inplace. 2D, 3D cubics sizes such as
+  100^2 (or ^3), 200^2 (or ^3), 256^2 (or ^3)...etc. We don't combine the three kernels
+  (stockham-r2c-transpose). We only combine two kernels (r2c-transpose) instead.
+
 ## [(Unreleased) rocFFT 1.0.13 for ROCm 4.4.0]
 
 ### Optimizations

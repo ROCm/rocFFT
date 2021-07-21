@@ -776,7 +776,7 @@ bool TreeNode::isRootNode()
 
 bool TreeNode::isLeafNode()
 {
-    return nodeType = NT_LEAF;
+    return nodeType == NT_LEAF;
 }
 
 // Tree node builders
@@ -1550,23 +1550,40 @@ void Optimize_TRANSPOSE_CMPLX_TO_R(ExecPlan& execPlan, std::vector<TreeNode*>& e
                || (*transpose)->scheme == CS_KERNEL_TRANSPOSE_XY_Z)
            && cmplx_to_r != execSeq.rbegin())
         {
-            // connect the transpose operation to the following
-            // transform by default
-            (*cmplx_to_r)->obIn  = (*transpose)->obIn;
-            (*cmplx_to_r)->obOut = (*following)->obIn;
-
             // but transpose needs to be out-of-place, so bring the
             // temp buffer in if the operation would be effectively
             // in-place.
             if(EffectivePlacement(
-                   (*cmplx_to_r)->obIn, (*cmplx_to_r)->obOut, execPlan.rootPlan->placement)
+                   (*transpose)->obIn, (*cmplx_to_r)->obOut, execPlan.rootPlan->placement)
                == rocfft_placement_inplace)
             {
+                auto followingScheme    = (*following)->scheme;
+                bool canChangeNextInput = (followingScheme == CS_KERNEL_STOCKHAM
+                                           || followingScheme == CS_KERNEL_2D_SINGLE
+                                           || followingScheme == CS_KERNEL_STOCKHAM_BLOCK_CC
+                                           || followingScheme == CS_KERNEL_PAD_MUL);
+                // if the following node's input can't be changed (ex, a Transpose)
+                // then we simply give up this fusion, otherwise it leads to a inplace Transpose
+                // a case is: 80 84 312 -t 3, in which the whole following FFT is TRTRT
+                if(!canChangeNextInput)
+                    return;
+
+                // connect the transpose operation to the following
+                // transform and bring in the temp buffer
+                (*cmplx_to_r)->obIn     = (*transpose)->obIn;
                 (*cmplx_to_r)->obOut    = OB_TEMP;
                 (*following)->obIn      = OB_TEMP;
                 (*following)->placement = EffectivePlacement(
                     (*following)->obIn, (*following)->obOut, execPlan.rootPlan->placement);
             }
+            else
+            {
+                // connect the transpose operation to the following
+                // transform by default
+                (*cmplx_to_r)->obIn  = (*transpose)->obIn;
+                (*cmplx_to_r)->obOut = (*following)->obIn;
+            }
+
             (*cmplx_to_r)->placement = rocfft_placement_notinplace;
 
             // NOTE: changing the scheme directly is dangerous, it's OK here because
@@ -1695,7 +1712,10 @@ void Optimize_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY(ExecPlan&               execPla
            && ((*stockham)->length[0] * 2
                == (*stockham)->length[1]) // limit to original "cubic" case
            && (((*stockham)->length.size() == 2)
-               || ((*stockham)->length[1] == (*stockham)->length[2])))
+               || ((*stockham)->length[1] == (*stockham)->length[2]))
+           // FIXME: need more investigate:
+           //        "128 128 -t2 'ip'" and "100 100 -t 2 'ip'" will fail the validations.
+           && (execPlan.rootPlan->placement != rocfft_placement_inplace))
         {
             (*stockham)->scheme       = CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY;
             (*stockham)->obOut        = (*r_to_cmplx_transpose)->obOut;

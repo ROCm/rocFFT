@@ -1304,7 +1304,8 @@ void Real3DEvenNode::AssignBuffers_internal(TraverseState&   state,
 
             // c2c
             childNodes[1]->SetInputBuffer(state);
-            childNodes[1]->obOut        = OB_USER_IN;
+            // Note, need to check ip/op, since IP doesn't have USER_IN
+            childNodes[1]->obOut = placement == rocfft_placement_inplace ? OB_USER_OUT : OB_USER_IN;
             childNodes[1]->inArrayType  = rocfft_array_type_complex_interleaved;
             childNodes[1]->outArrayType = inArrayType;
             childNodes[1]->AssignBuffers(state, flipIn, flipOut, obOutBuf);
@@ -1317,7 +1318,7 @@ void Real3DEvenNode::AssignBuffers_internal(TraverseState&   state,
 
             // c2c
             childNodes[3]->SetInputBuffer(state);
-            childNodes[3]->obOut        = OB_USER_IN;
+            childNodes[3]->obOut = placement == rocfft_placement_inplace ? OB_USER_OUT : OB_USER_IN;
             childNodes[3]->inArrayType  = rocfft_array_type_complex_interleaved;
             childNodes[3]->outArrayType = inArrayType;
             childNodes[3]->AssignBuffers(state, flipOut, flipIn, obOutBuf);
