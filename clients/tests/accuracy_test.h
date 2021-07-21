@@ -473,11 +473,14 @@ inline auto param_generator_base(const std::vector<rocfft_transform_type>&   typ
                                                           != rocfft_array_type_complex_planar
                                                    && param.otype
                                                           != rocfft_array_type_hermitian_planar)
+                                                {
                                                     param.run_callbacks = true;
+                                                }
                                                 else
+                                                {
                                                     continue;
+                                                }
                                             }
-
                                             if(param.valid(0))
                                             {
                                                 params.push_back(param);

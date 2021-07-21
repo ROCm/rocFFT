@@ -527,6 +527,9 @@ void rocfft_transform(const rocfft_params&                 params,
                       const accuracy_test::cpu_fft_params& cpu,
                       const size_t                         ramgb)
 {
+    // Make sure that the parameters make sense:
+    ASSERT_TRUE(params.valid(verbose));
+
     if(ramgb > 0 && params.needed_ram(verbose) > ramgb * ONE_GiB)
     {
         if(verbose > 2)

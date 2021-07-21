@@ -316,6 +316,9 @@ TEST(manual, vs_fftw)
     }
 
     std::cout << "\t" << manual_params.str("\n\t") << std::endl;
+
+    EXPECT_TRUE(manual_params.valid(verbose));
+
     auto cpu = accuracy_test::compute_cpu_fft(manual_params);
 
     accuracy_test::cpu_fft_params cpu_params(manual_params);

@@ -396,7 +396,9 @@ public:
                 if(istride[i] != ostride[i])
                     samestride = false;
             }
-            if(!samestride)
+            if((transform_type == rocfft_transform_type_complex_forward
+                || transform_type == rocfft_transform_type_complex_inverse)
+               && !samestride)
             {
                 // In-place transforms require identical input and output strides.
                 if(verbose)
@@ -410,19 +412,19 @@ public:
                     std::cout << " differ; skipped for in-place transforms: skipping test"
                               << std::endl;
                 }
-                // TODO: mark skipped
                 return false;
             }
 
             if((transform_type == rocfft_transform_type_real_forward
                 || transform_type == rocfft_transform_type_real_inverse)
-               && (istride[0] != 1 || ostride[0] != 1))
+               && (istride.back() != 1 || ostride.back() != 1))
             {
                 // In-place real/complex transforms require unit strides.
                 if(verbose)
                 {
                     std::cout
-                        << "istride[0]: " << istride[0] << " ostride[0]: " << ostride[0]
+                        << "istride.back(): " << istride.back()
+                        << " ostride.back(): " << ostride.back()
                         << " must be unitary for in-place real/complex transforms: skipping test"
                         << std::endl;
                 }
@@ -679,9 +681,6 @@ inline std::vector<T1> compute_stride(const std::vector<T1>&     length,
                                       const std::vector<size_t>& stride0   = std::vector<size_t>(),
                                       const bool                 rcpadding = false)
 {
-    // We can't have more strides than dimensions:
-    assert(stride0.size() <= length.size());
-
     const int dim = length.size();
 
     std::vector<T1> stride(dim);
