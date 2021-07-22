@@ -126,6 +126,10 @@ if( BUILD_CLIENTS_TESTS_OPENMP )
   target_include_directories( rocfft-test PRIVATE ${HIP_CLANG_ROOT}/include )
 endif()
 
+if(FFTW_MULTITHREAD)
+  target_compile_options( rocfft-test PRIVATE -DFFTW_MULTITHREAD )
+endif( )
+
 set_target_properties( rocfft-test
   PROPERTIES DEBUG_POSTFIX "-d"
   CXX_EXTENSIONS NO

@@ -204,6 +204,11 @@ int main(int argc, char* argv[])
     rocfft_get_version_string(v, 256);
     std::cout << "rocFFT version: " << v << std::endl;
 
+#ifdef FFTW_MULTITHREAD
+    fftw_init_threads();
+    fftw_plan_with_nthreads(std::thread::hardware_concurrency());
+#endif
+
     if(use_fftw_wisdom)
     {
         if(verbose)
