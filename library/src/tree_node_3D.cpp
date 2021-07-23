@@ -213,25 +213,42 @@ void TRTRTR3DNode::AssignBuffers_internal(TraverseState&   state,
 {
     assert(childNodes.size() == 6);
 
-    for(int i = 0; i < 6; i += 2)
-    {
-        auto& trans_plan = childNodes[i];
+    auto& T0 = childNodes[0];
+    auto& R0 = childNodes[1];
+    auto& T1 = childNodes[2];
+    auto& R1 = childNodes[3];
+    auto& T2 = childNodes[4];
+    auto& R2 = childNodes[5];
 
-        // T
-        trans_plan->SetInputBuffer(state);
-        trans_plan->obOut        = OB_TEMP;
-        trans_plan->inArrayType  = (i == 0) ? inArrayType : childNodes[i - 1]->outArrayType;
-        trans_plan->outArrayType = rocfft_array_type_complex_interleaved;
+    T0->SetInputBuffer(state);
+    T0->obOut        = flipOut;
+    T0->inArrayType  = inArrayType;
+    T0->outArrayType = T0->obOut == OB_TEMP ? rocfft_array_type_complex_interleaved : outArrayType;
 
-        auto& row_plan = childNodes[i + 1];
-        row_plan->SetInputBuffer(state);
-        row_plan->obOut        = obOutBuf;
-        row_plan->inArrayType  = rocfft_array_type_complex_interleaved;
-        row_plan->outArrayType = outArrayType;
-        row_plan->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-    }
+    R0->SetInputBuffer(state);
+    R0->inArrayType  = T0->outArrayType;
+    R0->obOut        = flipOut;
+    R0->outArrayType = R0->obOut == OB_TEMP ? rocfft_array_type_complex_interleaved : outArrayType;
 
-    obOut = childNodes[childNodes.size() - 1]->obOut;
+    T1->SetInputBuffer(state);
+    T1->inArrayType  = R0->outArrayType;
+    T1->obOut        = flipIn;
+    T1->outArrayType = T1->obOut == OB_TEMP ? rocfft_array_type_complex_interleaved : outArrayType;
+
+    R1->SetInputBuffer(state);
+    R1->inArrayType  = T1->outArrayType;
+    R1->obOut        = flipIn;
+    R1->outArrayType = R1->obOut == OB_TEMP ? rocfft_array_type_complex_interleaved : outArrayType;
+
+    T2->SetInputBuffer(state);
+    T2->inArrayType  = R1->outArrayType;
+    T2->obOut        = flipOut;
+    T2->outArrayType = T2->obOut == OB_TEMP ? rocfft_array_type_complex_interleaved : outArrayType;
+
+    R2->SetInputBuffer(state);
+    R2->inArrayType  = T2->outArrayType;
+    R2->obOut        = obOut;
+    R2->outArrayType = outArrayType;
 }
 
 /*****************************************************
