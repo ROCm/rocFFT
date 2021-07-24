@@ -845,6 +845,8 @@ void Real3DEvenNode::BuildTree_internal()
     // if we have SBCC kernels for the other two dimensions, transform them using SBCC and avoid transposes.
     bool sbcc_inplace
         = SBCC_dim_available(length, 1, precision) && SBCC_dim_available(length, 2, precision);
+
+#if 0
     // ensure the fastest dimensions are big enough to get enough
     // column tiles to perform well
     if(length[0] <= 52 || length[1] <= 52)
@@ -861,6 +863,8 @@ void Real3DEvenNode::BuildTree_internal()
     {
         sbcc_inplace = false;
     }
+#endif
+
     auto add_sbcc_children = [this](const std::vector<size_t>& remainingLength) {
         ComputeScheme scheme;
         // SBCC along Z dimension

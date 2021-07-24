@@ -31,7 +31,7 @@ from generator import (ArgumentList, BaseNode, Call, CommentBlock, ExternC, Func
 
 import stockham
 
-supported_large = [50, 64, 81, 100, 128, 200, 256, 336]
+supported_large = [50, 52, 60, 64, 72, 80, 81, 84, 96, 100, 104, 108, 112, 128, 160, 168, 200, 208, 216, 224, 240, 256, 336]
 old_gen_supported_large = [50, 64, 81, 100, 128, 200, 256]
 
 #
@@ -509,7 +509,6 @@ def list_new_kernels():
             NS(length=75, factors=[5,5,3]),
             NS(length=80, factors=[16,5]),
 #            NS(length=81, factors=[3,3,3,3]),
-#            NS(length=96, factors=[16,6]),
 #            NS(length=100, factors=[10,10]),
             NS(length=108, factors=[6,6,3]),
             NS(length=112, factors=[16,7]),
@@ -541,12 +540,14 @@ def list_new_kernels():
             NS(length=1040, factors=[13,16,5]),
         ],
         ('uwide', 128): [
+            NS(length=96, factors=[6,16]),
             NS(length=272, factors=[16,17]),
         ],
         ('wide', 64): [
 #            NS(length=11, factors=[11]),
             NS(length=22, factors=[2,11]),
             NS(length=44, factors=[4,11]),
+            NS(length=52, factors=[13,4]),
             NS(length=60, factors=[6,10]),
             NS(length=84, factors=[2,6,7]),
             NS(length=90, factors=[3,3,10]),
@@ -618,11 +619,27 @@ def list_new_large_kernels():
 
     kernels = [
         NS(length=50,  factors=[10, 5],      use_3steps_large_twd={'sp': 'true',  'dp': 'true'}, threads_per_block=256),
+        NS(length=52,  factors=[13, 4],      use_3steps_large_twd={'sp': 'true',  'dp': 'true'}),
+        NS(length=60,  factors=[6, 10],      use_3steps_large_twd={'sp': 'false',  'dp': 'false'}),
         NS(length=64,  factors=[8, 8],       use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
+        NS(length=72,  factors=[8, 3, 3],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
+        NS(length=80,  factors=[10, 8]  ,    use_3steps_large_twd={'sp': 'false',  'dp': 'false'}),
         NS(length=81,  factors=[3, 3, 3, 3], use_3steps_large_twd={'sp': 'true',  'dp': 'true'}),
-        # NS(length=100, factors=[5, 5, 4],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
+        NS(length=84,  factors=[7, 2, 6],    use_3steps_large_twd={'sp': 'true',  'dp': 'true'}),
+        NS(length=96,  factors=[6, 16],      use_3steps_large_twd={'sp': 'false',  'dp': 'false'}),
+        NS(length=100, factors=[5, 5, 4],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}, threads_per_block=100),
+        NS(length=104, factors=[13, 8],      use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
+        NS(length=108, factors=[6, 6, 3],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
+        NS(length=112, factors=[4, 7, 4],    use_3steps_large_twd={'sp': 'false',  'dp': 'false'}),
         NS(length=128, factors=[8, 4, 4],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
+        NS(length=160, factors=[4, 10, 4],   use_3steps_large_twd={'sp': 'false', 'dp': 'false'}, flavour='wide'),
+        NS(length=168, factors=[7, 6, 4],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'}, threads_per_block=128),
+        NS(length=192, factors=[6, 4, 4, 2], use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
         NS(length=200, factors=[8, 5, 5],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
+        NS(length=208, factors=[13, 16],     use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
+        NS(length=216, factors=[8, 3, 3, 3], use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
+        NS(length=224, factors=[8, 7, 4],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
+        NS(length=240, factors=[8, 5, 6],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
         NS(length=256, factors=[4, 4, 4, 4], use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
         NS(length=336, factors=[6, 7, 8],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'})
     ]
