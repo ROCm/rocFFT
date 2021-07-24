@@ -229,6 +229,7 @@ void TRTRTR3DNode::AssignBuffers_internal(TraverseState&   state,
     R0->inArrayType  = T0->outArrayType;
     R0->obOut        = flipOut;
     R0->outArrayType = R0->obOut == OB_TEMP ? rocfft_array_type_complex_interleaved : outArrayType;
+    R0->AssignBuffers(state, flipIn, flipOut, obOutBuf);
 
     T1->SetInputBuffer(state);
     T1->inArrayType  = R0->outArrayType;
@@ -239,6 +240,7 @@ void TRTRTR3DNode::AssignBuffers_internal(TraverseState&   state,
     R1->inArrayType  = T1->outArrayType;
     R1->obOut        = flipIn;
     R1->outArrayType = R1->obOut == OB_TEMP ? rocfft_array_type_complex_interleaved : outArrayType;
+    R1->AssignBuffers(state, flipIn, flipOut, obOutBuf);
 
     T2->SetInputBuffer(state);
     T2->inArrayType  = R1->outArrayType;
@@ -249,6 +251,7 @@ void TRTRTR3DNode::AssignBuffers_internal(TraverseState&   state,
     R2->inArrayType  = T2->outArrayType;
     R2->obOut        = obOut;
     R2->outArrayType = outArrayType;
+    R2->AssignBuffers(state, flipIn, flipOut, obOutBuf);
 }
 
 /*****************************************************
