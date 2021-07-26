@@ -2,11 +2,14 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
-## [(Unreleased) rocFFT 1.0.14 for ROCm 4.5.0]
+## (Unreleased) rocFFT 1.0.14
 
 ### Added
 
 - Added support for Windows 10 as a build target.
+
+### Changed
+- Packaging split into a runtime package called rocfft and a development package called rocfft-devel. The development package depends on runtime. The runtime package suggests the development package for all supported OSes except CentOS 7 to aid in the transition. The suggests feature in packaging is introduced as a deprecated feature and will be removed in a future rocm release. 
 
 ### Fixed
 - Fixed a few validation failures of even-length R2C inplace. 2D, 3D cubics sizes such as
