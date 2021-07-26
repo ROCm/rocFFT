@@ -13,6 +13,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
   100^2 (or ^3), 200^2 (or ^3), 256^2 (or ^3)...etc. We don't combine the three kernels
   (stockham-r2c-transpose). We only combine two kernels (r2c-transpose) instead.
 
+### Changed
+- Split 2D device code into separate libraries.
+
 ## [(Unreleased) rocFFT 1.0.13 for ROCm 4.4.0]
 
 ### Optimizations

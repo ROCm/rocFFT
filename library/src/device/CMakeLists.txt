@@ -167,12 +167,22 @@ prepend_path( "../.."
   rocfft_headers_public relative_rocfft_device_headers_public )
 
 option(ROCFFT_CALLBACKS_ENABLED "Enable user-defined callbacks for load/stores from global memory" ON)
-# break down generated headers into "single", "double", and "misc",
-# to build 3 libraries
-set( gen_headers_single ${gen_headers} )
-list( FILTER gen_headers_single INCLUDE REGEX single )
-set( gen_headers_double ${gen_headers} )
-list( FILTER gen_headers_double INCLUDE REGEX double )
+# break down generated headers into "single", "single_2d", "double",
+# "double_2d", and "misc", to build separate libraries
+set( gen_headers_single_all ${gen_headers} )
+list( FILTER gen_headers_single_all INCLUDE REGEX single )
+set( gen_headers_double_all ${gen_headers} )
+list( FILTER gen_headers_double_all INCLUDE REGEX double )
+
+set( gen_headers_single ${gen_headers_single_all} )
+list( FILTER gen_headers_single EXCLUDE REGEX 2D )
+set( gen_headers_double ${gen_headers_double_all} )
+list( FILTER gen_headers_double EXCLUDE REGEX 2D )
+
+set( gen_headers_single2d ${gen_headers_single_all} )
+list( FILTER gen_headers_single2d INCLUDE REGEX 2D )
+set( gen_headers_double2d ${gen_headers_double_all} )
+list( FILTER gen_headers_double2d INCLUDE REGEX 2D )
 
 set( gen_headers_misc ${gen_headers} )
 list( FILTER gen_headers_misc EXCLUDE REGEX single|double )
@@ -182,6 +192,8 @@ list( APPEND gen_headers_misc ${rocfft_device_source} ${relative_rocfft_device_h
 # we haven't known if there are any old-kernels generated. It could be empty if all are new-kernels
 set( BUILD_SINGLE_PRECISION OFF PARENT_SCOPE )
 set( BUILD_DOUBLE_PRECISION OFF PARENT_SCOPE )
+set( BUILD_SINGLE_PRECISION_2D OFF PARENT_SCOPE )
+set( BUILD_DOUBLE_PRECISION_2D OFF PARENT_SCOPE )
 
 set( sub_libraries misc )
 if(gen_headers_single)
@@ -192,6 +204,16 @@ endif()
 if(gen_headers_double)
   list( APPEND sub_libraries double )
   set( BUILD_DOUBLE_PRECISION ON PARENT_SCOPE )
+endif()
+
+if(gen_headers_single2d)
+  list( APPEND sub_libraries single2d )
+  set( BUILD_SINGLE_PRECISION_2D ON PARENT_SCOPE )
+endif()
+
+if(gen_headers_double2d)
+  list( APPEND sub_libraries double2d )
+  set( BUILD_DOUBLE_PRECISION_2D ON PARENT_SCOPE )
 endif()
 
 foreach( sub ${sub_libraries} )
@@ -287,4 +309,10 @@ if(gen_headers_single)
 endif()
 if(gen_headers_double)
   target_link_libraries( rocfft-device-misc PRIVATE rocfft-device-double )
+endif()
+if(gen_headers_single2d)
+  target_link_libraries( rocfft-device-misc PRIVATE rocfft-device-single2d )
+endif()
+if(gen_headers_double2d)
+  target_link_libraries( rocfft-device-misc PRIVATE rocfft-device-double2d )
 endif()
