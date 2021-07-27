@@ -4,8 +4,11 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## (Unreleased) rocFFT 1.0.14
 
-### Added
+### Optimizations
+- Optimized SBCC kernels of length 52, 60, 72, 80, 84, 96, 104, 108, 112, 160,
+  168, 208, 216, 224, 240 with new kernel generator.
 
+### Added
 - Added support for Windows 10 as a build target.
 
 ### Changed
