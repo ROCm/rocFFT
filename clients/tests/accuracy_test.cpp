@@ -377,11 +377,12 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
             }
             return ret;
         }
-        else
-            // Something's unexpected with our test order - we should have
-            // generated the bigger batch first.  Batch ranges provided to
-            // the test suites need to be in descending order.
-            abort();
+        // If the last result has a smaller batch than the new
+        // params, that might be a developer error - tests should be
+        // ordered to generate the bigger batch first.  But if tests
+        // got filtered or skipped due to insufficient memory, we
+        // might never have tried to generate the bigger batch first.
+        // So just fall through and redo the CPU FFT.
     }
 
     rocfft_params contiguous_params;
