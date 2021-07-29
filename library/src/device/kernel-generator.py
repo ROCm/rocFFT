@@ -911,14 +911,21 @@ def cli():
     for p in precisions:
         expand_sizes['small'][p], new_smalls = pick(expand_sizes['small'][p], supported_new_small_kernels)
         expand_sizes['large'][p], new_larges = pick(expand_sizes['large'][p], supported_new_large_kernels, subtract_from_all=False)
-        # remove unsupported length in old_gen
+        # remove the unsupported large sizes in old_gen from arguments
         for length in list(expand_sizes['large'][p]):
             if length not in old_gen_supported_large:
                 del expand_sizes['large'][p][length]
+        # remove the unsupported small sizes in old_gen from arguments
+        old_gen_supported_small = [item[0] for item in supported_small_sizes(p)]
+        for length in list(expand_sizes['small'][p]):
+            if length not in old_gen_supported_small:
+                del expand_sizes['small'][p][length]
         new_small_kernels = merge_length(new_small_kernels, new_smalls)
         new_large_kernels = merge_length(new_large_kernels, new_larges)
 
-    new_kernels = new_small_kernels + new_large_kernels + list_new_2d_kernels()
+    new_kernels = new_small_kernels + new_large_kernels
+    if dim2:
+        new_kernels += list_new_2d_kernels()
     # set runtime_compile on new kernels that haven't already set a
     # value
     new_kernels = default_runtime_compile(new_kernels)
