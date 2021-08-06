@@ -109,6 +109,7 @@ void RealTransCmplxNode::BuildTree_internal()
     // head copy plan
     copyHeadPlan->dimension = dimension;
     copyHeadPlan->length    = length;
+    childNodes.emplace_back(std::move(copyHeadPlan));
 
     // complex fft
     NodeMetaData fftPlanData(this);
@@ -116,16 +117,13 @@ void RealTransCmplxNode::BuildTree_internal()
     fftPlanData.length    = length;
     auto fftPlan          = NodeFactory::CreateExplicitNode(fftPlanData, this);
     fftPlan->RecursiveBuildTree();
+    childNodes.emplace_back(std::move(fftPlan));
 
     // tail copy plan
     auto copyTailPlan = NodeFactory::CreateNodeFromScheme(
         (r2c ? CS_KERNEL_COPY_CMPLX_TO_HERM : CS_KERNEL_COPY_CMPLX_TO_R), this);
     copyTailPlan->dimension = dimension;
     copyTailPlan->length    = length;
-
-    //
-    childNodes.emplace_back(std::move(copyHeadPlan));
-    childNodes.emplace_back(std::move(fftPlan));
     childNodes.emplace_back(std::move(copyTailPlan));
 }
 

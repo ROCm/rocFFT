@@ -913,6 +913,21 @@ void TreeNode::SetInputBuffer(TraverseState& state)
     }
 }
 
+static rocfft_result_placement EffectivePlacement(OperatingBuffer         obIn,
+                                                  OperatingBuffer         obOut,
+                                                  rocfft_result_placement rootPlacement)
+{
+    if(rootPlacement == rocfft_placement_inplace)
+    {
+        // in == out
+        if((obIn == OB_USER_IN || obIn == OB_USER_OUT)
+           && (obOut == OB_USER_IN || obOut == OB_USER_OUT))
+            return rocfft_placement_inplace;
+    }
+    // otherwise just check if the buffers look different
+    return obIn == obOut ? rocfft_placement_inplace : rocfft_placement_notinplace;
+}
+
 // Assign buffers, taking into account out-of-place transposes and
 // padded buffers.
 // NB: this recursive function modifies the parameters in the parent call.
@@ -944,7 +959,53 @@ void TreeNode::AssignBuffers(TraverseState&   state,
     AssignBuffers_internal(state, flipIn, flipOut, obOutBuf);
 
     if(obOut == OB_UNINIT)
+    {
         obOut = obOutBuf; // assign output
+    }
+
+    TreeNode* rootnode = this;
+    while(!rootnode->isRootNode())
+    {
+        rootnode = rootnode->parent;
+    }
+
+    // Verify that nodes that need to be out-of-place are indeed out-of-place.
+    for(const auto& node : childNodes)
+    {
+        // TODO: this list can be expanded, though it may depend on other parameters.
+        if(node->scheme == CS_KERNEL_TRANSPOSE || node->scheme == CS_KERNEL_TRANSPOSE_XY_Z
+           || node->scheme == CS_KERNEL_TRANSPOSE_Z_XY
+           || node->scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z
+           || node->scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY
+           || node->scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY
+           || node->scheme == CS_KERNEL_TRANSPOSE_CMPLX_TO_R)
+        {
+            //if(EffectivePlacement(node->obIn, node->obOut, placement) == rocfft_placement_inplace)
+            if(node->obIn == node->obOut)
+            {
+                throw std::invalid_argument("Transpose must be out-of-place.");
+            }
+        }
+
+        if(rootnode->placement == rocfft_placement_inplace)
+        {
+            if(node->obIn == OB_USER_IN || node->obOut == OB_USER_IN)
+            {
+                throw std::invalid_argument("In-place transforms cannot touch the input buffer; "
+                                            "they are output-to-output.");
+            }
+        }
+
+        if(rootnode->inArrayType != rocfft_array_type_real
+           && rootnode->outArrayType != rocfft_array_type_real)
+        {
+            if(node->obOut == OB_USER_IN)
+            {
+                throw std::invalid_argument(
+                    "Complex-to-complex transforms cannot write to the input buffer.");
+            }
+        }
+    }
 
 #if 0
     auto        here = this;
@@ -1294,21 +1355,6 @@ void InsertNode(ExecPlan& execPlan, TreeNode* pos, std::unique_ptr<TreeNode>& ne
 
     // insert it before pos in the tree structure
     execPlan.rootPlan->RecursiveInsertNode(pos, newNode);
-}
-
-static rocfft_result_placement EffectivePlacement(OperatingBuffer         obIn,
-                                                  OperatingBuffer         obOut,
-                                                  rocfft_result_placement rootPlacement)
-{
-    if(rootPlacement == rocfft_placement_inplace)
-    {
-        // in == out
-        if((obIn == OB_USER_IN || obIn == OB_USER_OUT)
-           && (obOut == OB_USER_IN || obOut == OB_USER_OUT))
-            return rocfft_placement_inplace;
-    }
-    // otherwise just check if the buffers look different
-    return obIn == obOut ? rocfft_placement_inplace : rocfft_placement_notinplace;
 }
 
 static size_t TransformsPerThreadblock(const size_t len, rocfft_precision precision)

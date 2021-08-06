@@ -264,7 +264,7 @@ void BLOCKRC3DNode::BuildTree_internal()
     size_t total_sbrc = 0;
     for(int i = 0; i < 3; ++i)
     {
-        // if we have an sbrc kernel for this length, use it,
+        // If we have an sbrc kernel for this length, use it,
         // otherwise, fall back to row FFT+transpose
         bool have_sbrc = function_pool::has_SBRC_kernel(cur_length.front(), precision);
         // ensure the kernel would be tile-aligned
@@ -276,19 +276,23 @@ void BLOCKRC3DNode::BuildTree_internal()
                 have_sbrc = false;
         }
         if(have_sbrc)
+        {
             ++total_sbrc;
+        }
 
-        // if we're doing in-place, we are unable to do more than 2
-        // sbrc kernels.  we'd ideally want 3 sbrc, but each needs to
-        // be out-of-place:
-        // - kernel 1: IN -> TEMP
-        // - kernel 2: TEMP -> IN
-        // - kernel 3: IN -> ???
+        // We are unable to do more than 2 sbrc kernels.  We'd ideally want 3 sbrc, but each needs
+        // to be out-of-place:
+        //
+        // - kernel 1: IN/OUT -> TEMP
+        // - kernel 2: TEMP -> OUT
+        // - kernel 3: OUT -> ???
         //
         // So we have no way to put the results back into IN.  So
         // limit ourselves to 2 sbrc kernels in that case.
-        if(total_sbrc >= 3 && placement == rocfft_placement_inplace)
+        if(total_sbrc >= 3)
+        {
             have_sbrc = false;
+        }
 
         if(have_sbrc)
         {
@@ -393,34 +397,45 @@ void BLOCKRC3DNode::AssignBuffers_internal(TraverseState&   state,
                                            OperatingBuffer& flipOut,
                                            OperatingBuffer& obOutBuf)
 {
+    auto& RT0 = childNodes[0];
+    auto& R1  = childNodes[1];
+    auto& RT2 = childNodes[2];
+    auto& RT3 = childNodes[3];
+
+    RT0->SetInputBuffer(state);
+    RT0->obOut = flipOut;
+    RT0->AssignBuffers(state, flipIn, flipOut, obOutBuf);
+
+    R1->SetInputBuffer(state);
+    R1->obOut = obOut == flipIn ? flipIn : flipOut;
+    R1->AssignBuffers(state, flipIn, flipOut, obOutBuf);
+
+    RT2->SetInputBuffer(state);
+    RT2->obOut = RT2->obIn == flipIn ? flipOut : flipIn;
+    RT2->AssignBuffers(state, flipIn, flipOut, obOutBuf);
+
+    RT3->SetInputBuffer(state);
+    RT3->obOut = obOut;
+    RT3->AssignBuffers(state, flipIn, flipOut, obOutBuf);
+
     for(size_t i = 0; i < childNodes.size(); ++i)
     {
         auto& node = childNodes[i];
-        node->SetInputBuffer(state);
-        node->inArrayType = (i == 0) ? inArrayType : childNodes[i - 1]->outArrayType;
-        node->obOut       = flipOut == OB_USER_OUT && placement == rocfft_placement_notinplace
-                                ? OB_USER_IN
-                                : flipOut;
-
-        // temp is interleaved, in/out might not be
+        // temp is interleaved, out might not be
         switch(node->obOut)
         {
-        case OB_USER_IN:
-            node->outArrayType = inArrayType;
-            break;
         case OB_USER_OUT:
             node->outArrayType = outArrayType;
             break;
-        default:
+        case OB_TEMP:
+        case OB_TEMP_CMPLX_FOR_REAL:
+        case OB_TEMP_BLUESTEIN:
             node->outArrayType = rocfft_array_type_complex_interleaved;
+            break;
+        default:
+            throw std::runtime_error("Invalid buffer in BLOCKRC3DNode");
         }
-
-        node->AssignBuffers(state, flipIn, flipOut, obOutBuf);
     }
-
-    obOut                           = obOutBuf;
-    childNodes.back()->obOut        = obOut;
-    childNodes.back()->outArrayType = outArrayType;
 }
 
 /*****************************************************
