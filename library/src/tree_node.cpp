@@ -71,10 +71,10 @@ size_t LeafNode::GetTwiddleTableLength()
     return length[0];
 }
 
-void LeafNode::KernelCheck()
+bool LeafNode::KernelCheck()
 {
     if(!externalKernel)
-        return;
+        return true;
 
     // check we have the kernel
     FMKey key = (dimension == 1) ? fpkey(length[0], precision, scheme)
@@ -82,17 +82,19 @@ void LeafNode::KernelCheck()
     if(!function_pool::has_function(key))
     {
         PrintMissingKernelInfo(key);
-        throw std::runtime_error("Kernel not found");
-        return;
+        return false;
     }
 
     kernelFactors = function_pool::get_kernel(key).factors;
+    return true;
 }
 
 void LeafNode::SanityCheck()
 {
+    if(!KernelCheck())
+        throw std::runtime_error("Kernel not found");
+
     TreeNode::SanityCheck();
-    KernelCheck();
 }
 
 bool LeafNode::CreateDevKernelArgs()

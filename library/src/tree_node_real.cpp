@@ -592,8 +592,38 @@ void Real2DEvenNode::BuildTree_internal()
             trans2Plan->length.push_back(length[index]);
         }
 
+        // --------------------------------
+        // Fuse Shims:
+        // 1-1. Try (stockham + r2c)(from real even) + transpose
+        // 1-2. else, try r2c (from real even) + transpose
+        // 2. row2 and trans2: RTFuse
+        // --------------------------------
+        auto STK_R2CTrans = NodeFactory::CreateFuseShim(FT_STOCKHAM_R2C_TRANSPOSE,
+                                                        {row1Plan.get(), trans1Plan.get()});
+        if(STK_R2CTrans->IsSchemeFusable())
+        {
+            fuseShims.emplace_back(std::move(STK_R2CTrans));
+        }
+        else
+        {
+            auto R2CTrans = NodeFactory::CreateFuseShim(
+                FT_R2C_TRANSPOSE, {row1Plan.get(), trans1Plan.get(), row2Plan.get()});
+            if(R2CTrans->IsSchemeFusable())
+                fuseShims.emplace_back(std::move(R2CTrans));
+        }
+
+        auto RT = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS,
+                                              {row2Plan.get(), trans2Plan.get()});
+        if(RT->IsSchemeFusable())
+            fuseShims.emplace_back(std::move(RT));
+
+        // --------------------------------
+        // RTRT
+        // --------------------------------
+        // Fuse r2c trans
         childNodes.emplace_back(std::move(row1Plan));
         childNodes.emplace_back(std::move(trans1Plan));
+        // Fuse RT
         childNodes.emplace_back(std::move(row2Plan));
         childNodes.emplace_back(std::move(trans2Plan));
     }
@@ -643,8 +673,27 @@ void Real2DEvenNode::BuildTree_internal()
         }
         c2rPlan->RecursiveBuildTree();
 
+        // --------------------------------
+        // Fuse Shims:
+        // 1. trans1 and c2c
+        // 2. transpose + c2r (first child of real even)
+        // --------------------------------
+        auto TR = NodeFactory::CreateFuseShim(FT_TRANS_WITH_STOCKHAM,
+                                              {trans1Plan.get(), c2cPlan.get()});
+        if(TR->IsSchemeFusable())
+            fuseShims.emplace_back(std::move(TR));
+
+        auto TransC2R
+            = NodeFactory::CreateFuseShim(FT_TRANSPOSE_C2R, {trans2plan.get(), c2rPlan.get()});
+        if(TransC2R->IsSchemeFusable())
+            fuseShims.emplace_back(std::move(TransC2R));
+
+        // --------------------------------
+        // TRTR
+        // --------------------------------
         childNodes.emplace_back(std::move(trans1Plan));
         childNodes.emplace_back(std::move(c2cPlan));
+        //
         childNodes.emplace_back(std::move(trans2plan));
         childNodes.emplace_back(std::move(c2rPlan));
     }
@@ -894,42 +943,42 @@ void Real3DEvenNode::BuildTree_internal()
         rcplan->length    = length;
         rcplan->dimension = 1;
         rcplan->RecursiveBuildTree();
-        childNodes.emplace_back(std::move(rcplan));
 
         // if we have SBCC kernels for the other two dimensions, transform them using SBCC and avoid transposes
         if(sbcc_inplace)
         {
+            childNodes.emplace_back(std::move(rcplan));
             add_sbcc_children(remainingLength);
         }
         // otherwise, handle remaining dimensions with TRTRT
         else
         {
             // first transpose
-            auto trans1plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
-            trans1plan->length = remainingLength;
-            trans1plan->dimension = 2;
+            auto trans1       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
+            trans1->length    = remainingLength;
+            trans1->dimension = 2;
 
             // first column
             NodeMetaData c1planData(this);
-            c1planData.length
-                = {trans1plan->length[1], trans1plan->length[2], trans1plan->length[0]};
-            c1planData.dimension = 1;
-            c1planData.placement = rocfft_placement_inplace;
-            auto c1plan          = NodeFactory::CreateExplicitNode(c1planData, this);
+            c1planData.length       = {trans1->length[1], trans1->length[2], trans1->length[0]};
+            c1planData.dimension    = 1;
+            c1planData.placement    = rocfft_placement_inplace; // to-do: remove this line
+            auto c1plan             = NodeFactory::CreateExplicitNode(c1planData, this);
+            c1plan->allowOutofplace = false; // let it be inplace
             c1plan->RecursiveBuildTree();
 
             // second transpose
-            auto trans2plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
-            trans2plan->length = c1plan->length;
-            trans2plan->dimension = 2;
+            auto trans2       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
+            trans2->length    = c1plan->length;
+            trans2->dimension = 2;
 
             // second column
             NodeMetaData c2planData(this);
-            c2planData.length
-                = {trans2plan->length[1], trans2plan->length[2], trans2plan->length[0]};
-            c2planData.dimension = 1;
-            c2planData.placement = rocfft_placement_inplace;
-            auto c2plan          = NodeFactory::CreateExplicitNode(c2planData, this);
+            c2planData.length       = {trans2->length[1], trans2->length[2], trans2->length[0]};
+            c2planData.dimension    = 1;
+            c2planData.placement    = rocfft_placement_inplace; // to-do: remove this line
+            auto c2plan             = NodeFactory::CreateExplicitNode(c2planData, this);
+            c2plan->allowOutofplace = false; // let it be inplace
             c2plan->RecursiveBuildTree();
 
             // third transpose
@@ -937,9 +986,64 @@ void Real3DEvenNode::BuildTree_internal()
             trans3->length    = c2plan->length;
             trans3->dimension = 2;
 
-            childNodes.emplace_back(std::move(trans1plan));
+            // --------------------------------
+            // Fuse Shims: [RealEven + T][RT][RT]
+            // 1-1. Try (stockham + r2c)(from real even) + transp
+            // 1-2. else, try r2c (from real even) + transp
+            // 2. RT1 = trans1 check + c1plan + trans2
+            // 3. RT2 = trans2 check + c2plan + trans3
+            // --------------------------------
+            auto STK_R2CTrans = NodeFactory::CreateFuseShim(FT_STOCKHAM_R2C_TRANSPOSE,
+                                                            {rcplan.get(), trans1.get()});
+            if(STK_R2CTrans->IsSchemeFusable())
+            {
+                fuseShims.emplace_back(std::move(STK_R2CTrans));
+            }
+            else
+            {
+                auto R2CTrans = NodeFactory::CreateFuseShim(
+                    FT_R2C_TRANSPOSE, {rcplan.get(), trans1.get(), c1plan.get()});
+                if(R2CTrans->IsSchemeFusable())
+                    fuseShims.emplace_back(std::move(R2CTrans));
+            }
+
+            auto RT1 = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS_Z_XY,
+                                                   {trans1.get(), c1plan.get(), trans2.get()});
+            if(RT1->IsSchemeFusable())
+            {
+                fuseShims.emplace_back(std::move(RT1));
+            }
+            else
+            {
+                auto RTStride1 = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS,
+                                                             {c1plan.get(), trans2.get()});
+                if(RTStride1->IsSchemeFusable())
+                    fuseShims.emplace_back(std::move(RTStride1));
+            }
+
+            auto RT2 = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS_Z_XY,
+                                                   {trans2.get(), c2plan.get(), trans3.get()});
+            if(RT2->IsSchemeFusable())
+            {
+                fuseShims.emplace_back(std::move(RT2));
+            }
+            else
+            {
+                auto RTStride2 = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS,
+                                                             {c2plan.get(), trans3.get()});
+                if(RTStride2->IsSchemeFusable())
+                    fuseShims.emplace_back(std::move(RTStride2));
+            }
+
+            // --------------------------------
+            // 1DEven + TRTRT
+            // --------------------------------
+            childNodes.emplace_back(std::move(rcplan));
+            childNodes.emplace_back(std::move(trans1));
+            // Fuse R + TRANSPOSE_Z_XY
             childNodes.emplace_back(std::move(c1plan));
-            childNodes.emplace_back(std::move(trans2plan));
+            childNodes.emplace_back(std::move(trans2));
+            // Fuse R + TRANSPOSE_Z_XY
             childNodes.emplace_back(std::move(c2plan));
             childNodes.emplace_back(std::move(trans3));
         }
@@ -984,10 +1088,25 @@ void Real3DEvenNode::BuildTree_internal()
             trans1->length    = c1plan->length;
             trans1->dimension = 2;
 
+            // --------------------------------
+            // Fuse Shims:
+            // 1. RT = c2plan + trans2 + c1plan(check-stockham)
+            // --------------------------------
+            auto RT = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS_XY_Z,
+                                                  {c2plan.get(), trans2.get(), c1plan.get()});
+            if(RT->IsSchemeFusable())
+                fuseShims.emplace_back(std::move(RT));
+
+            // --------------------------------
+            // TRTRT + 1DEven
+            // TODO- eventually we should fuse two TR (TRANSPOSE_XY_Z_STOCKHAM)
+            // --------------------------------
             childNodes.emplace_back(std::move(trans3));
+            // Fuse R + TRANSPOSE_XY_Z
             childNodes.emplace_back(std::move(c2plan));
             childNodes.emplace_back(std::move(trans2));
             childNodes.emplace_back(std::move(c1plan));
+            // Fuse this trans and pre-kernel-c2r of 1D-even
             childNodes.emplace_back(std::move(trans1));
         }
 
@@ -999,6 +1118,16 @@ void Real3DEvenNode::BuildTree_internal()
         crplan->dimension = 1;
         crplan->RecursiveBuildTree();
         childNodes.emplace_back(std::move(crplan));
+
+        // --------------------------------
+        // Fuse Shims:
+        // 2. trans1 + c2r (first child of real even)
+        // note the CheckSchemeFusable will check if the first one is transpose
+        // --------------------------------
+        auto TransC2R = NodeFactory::CreateFuseShim(
+            FT_TRANSPOSE_C2R, {childNodes[childNodes.size() - 2].get(), childNodes.back().get()});
+        if(TransC2R->IsSchemeFusable())
+            fuseShims.emplace_back(std::move(TransC2R));
     }
 }
 

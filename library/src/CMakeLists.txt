@@ -59,6 +59,7 @@ set( rocfft_source
   tree_node_3D.cpp
   tree_node_bluestein.cpp
   tree_node_real.cpp
+  fuse_shim.cpp
   node_factory.cpp
   hipfft.cpp
   rtc.cpp

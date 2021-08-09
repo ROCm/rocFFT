@@ -20,6 +20,7 @@
 
 #include "tree_node_1D.h"
 #include "function_pool.h"
+#include "fuse_shim.h"
 #include "node_factory.h"
 #include "radix_table.h"
 
@@ -87,7 +88,22 @@ void TRTRT1DNode::BuildTree_internal()
         trans3Plan->length.push_back(length[index]);
     }
 
-    // TRTRT
+    // --------------------------------
+    // Fuse Shims
+    // --------------------------------
+    auto TR
+        = NodeFactory::CreateFuseShim(FT_TRANS_WITH_STOCKHAM, {trans1Plan.get(), row1Plan.get()});
+    if(TR->IsSchemeFusable())
+        fuseShims.emplace_back(std::move(TR));
+
+    auto RT
+        = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS, {row2Plan.get(), trans3Plan.get()});
+    if(RT->IsSchemeFusable())
+        fuseShims.emplace_back(std::move(RT));
+
+    // --------------------------------
+    // Push to child nodes : TRTRT
+    // --------------------------------
     childNodes.emplace_back(std::move(trans1Plan));
     childNodes.emplace_back(std::move(row1Plan));
     childNodes.emplace_back(std::move(trans2Plan));
@@ -608,7 +624,17 @@ void CRT1DNode::BuildTree_internal()
         transPlan->length.push_back(length[index]);
     }
 
+    // --------------------------------
+    // Fuse Shims
+    // --------------------------------
+    auto RT
+        = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS, {row2rowPlan.get(), transPlan.get()});
+    if(RT->IsSchemeFusable())
+        fuseShims.emplace_back(std::move(RT));
+
+    // --------------------------------
     // CRT
+    // --------------------------------
     childNodes.emplace_back(std::move(col2colPlan));
     childNodes.emplace_back(std::move(row2rowPlan));
     childNodes.emplace_back(std::move(transPlan));

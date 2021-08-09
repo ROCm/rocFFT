@@ -22,9 +22,11 @@
 #define TREE_NODE_H
 
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
+#include <set>
 #include <vector>
 
 #include "../../../shared/gpubuf.h"
@@ -107,6 +109,17 @@ enum NodeType
     NT_LEAF, // a leaf node represents a kernel and has no childrens
 };
 
+enum FuseType
+{
+    FT_TRANS_WITH_STOCKHAM, // T_R
+    FT_STOCKHAM_WITH_TRANS, // R_T
+    FT_STOCKHAM_WITH_TRANS_Z_XY, // R_T-Z_XY
+    FT_STOCKHAM_WITH_TRANS_XY_Z, // R_T-XY_Z
+    FT_R2C_TRANSPOSE, // post-r2c + transpose
+    FT_TRANSPOSE_C2R, // transpose + pre-c2r
+    FT_STOCKHAM_R2C_TRANSPOSE, // Stokham + post-r2c + transpose (Advance of FT_R2C_TRANSPOSE)
+};
+
 std::string PrintScheme(ComputeScheme cs);
 std::string PrintOperatingBuffer(const OperatingBuffer ob);
 std::string PrintOperatingBufferCode(const OperatingBuffer ob);
@@ -165,6 +178,58 @@ struct NodeMetaData
 };
 
 class rocfft_ostream;
+
+class FuseShim
+{
+    friend class NodeFactory;
+
+protected:
+    FuseShim(std::vector<TreeNode*>& components)
+    {
+        nodes = components;
+        // default
+        firstFusedNode = 0;
+        lastFusedNode  = nodes.size() - 1;
+    }
+
+    // if these schemes can be fused
+    virtual bool CheckSchemeFusable() = 0;
+
+    bool schemeFusable = false;
+
+public:
+    // nodes that contained in this shim
+    std::vector<TreeNode*> nodes;
+
+    // basically all fusion should be effectively-outofplace,
+    // but TransC2R and R2CTrans can do some tricks
+    bool   allowInplace;
+    size_t firstFusedNode;
+    size_t lastFusedNode;
+
+public:
+    // for the derived class
+    virtual ~FuseShim() = default;
+
+    // if the in/out buffer meets the placement requirement
+    // the firstOBuffer is optional, used in R2CTrans only
+    virtual bool
+        PlacementFusable(OperatingBuffer iBuf, OperatingBuffer firstOBuf, OperatingBuffer lastOBuf);
+
+    // return the result of CheckSchemeFusable
+    bool IsSchemeFusable();
+
+    void ForEachNode(std::function<void(TreeNode*)> func);
+
+    // the first/last node that to be fused
+    // for R_T, T_R, it is pretty simple [0] and [1]
+    // but for R_T-Z_XY, we store an extra "pre-node" to test if the RT fuse can be done
+    // in this case, the first, last are [1], [2]. [0] doesn't participate the fusion
+    virtual TreeNode* FirstFuseNode();
+    virtual TreeNode* LastFuseNode();
+
+    virtual std::unique_ptr<TreeNode> FuseKernels() = 0;
+};
 
 class TreeNode
 {
@@ -238,6 +303,9 @@ public:
     // owned pointers to children
     std::vector<std::unique_ptr<TreeNode>> childNodes;
 
+    // one shim is a group of several "possibly" fusable nodes
+    std::vector<std::unique_ptr<FuseShim>> fuseShims;
+
     // FIXME: document
     ComputeScheme   scheme = CS_NONE;
     OperatingBuffer obIn = OB_UNINIT, obOut = OB_UNINIT;
@@ -261,6 +329,16 @@ public:
     std::unique_ptr<RTCKernel> compiledKernel;
     std::unique_ptr<RTCKernel> compiledKernelWithCallbacks;
 
+    // Does this node allow inplace/not-inplace? default true,
+    // each class handles the exception
+    // transpose, sbrc, fused stockham only outofplace
+    // bluestein component leaf node (multiply) only inplace
+    bool allowInplace    = true;
+    bool allowOutofplace = true;
+
+    bool inputHasPadding  = false;
+    bool outputHasPadding = false;
+
 public:
     // Disallow copy constructor:
     TreeNode(const TreeNode&) = delete;
@@ -277,14 +355,21 @@ public:
     // Copy data from the NodeMetaData (after deciding scheme)
     void CopyNodeData(const NodeMetaData& data);
 
+    bool isPlacementAllowed(rocfft_result_placement);
     bool isRootNode();
     bool isLeafNode();
 
     virtual void RecursiveBuildTree(); // Main tree builder: override by child
     virtual void SanityCheck();
 
-    // fusing CS_KERNEL_STOCKHAM and CS_KERNEL_TRANSPOSE_Z_XY ?
+    // able to fuse CS_KERNEL_STOCKHAM and CS_KERNEL_TRANSPOSE_Z_XY ?
     bool fuse_CS_KERNEL_TRANSPOSE_Z_XY();
+    // able to fuse CS_KERNEL_STOCKHAM and CS_KERNEL_TRANSPOSE_XY_Z ?
+    bool fuse_CS_KERNEL_TRANSPOSE_XY_Z();
+    // able to fuse STK, r2c, transp to CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY ?
+    bool fuse_CS_KERNEL_STK_R2C_TRANSPOSE();
+
+    void ApplyFusion();
 
     // State maintained while traversing the tree.
     //
@@ -315,15 +400,19 @@ public:
     virtual void TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn,
                                                     rocfft_array_type rootOut);
 
+    void RefreshTree();
+
     // Set strides and distances:
     virtual void AssignParams();
 
+    // Collect LeadNodes and FuseShims:
+    void CollectLeaves(std::vector<TreeNode*>& seq, std::vector<FuseShim*>& fuseSeq);
+
     // Determine work memory requirements:
-    void TraverseTreeCollectLeafsLogicA(std::vector<TreeNode*>& seq,
-                                        size_t&                 tmpBufSize,
-                                        size_t&                 cmplxForRealSize,
-                                        size_t&                 blueSize,
-                                        size_t&                 chirpSize);
+    void DetermineBufferMemory(size_t& tmpBufSize,
+                               size_t& cmplxForRealSize,
+                               size_t& blueSize,
+                               size_t& chirpSize);
 
     // Output plan information for debug purposes:
     void Print(rocfft_ostream& os, int indent = 0) const;
@@ -336,6 +425,11 @@ public:
     // insert a newNode before the node "pos"
     void RecursiveInsertNode(TreeNode* pos, std::unique_ptr<TreeNode>& newNode);
 
+    TreeNode* GetPlanRoot();
+    TreeNode* GetFirstLeaf();
+    TreeNode* GetLastLeaf();
+
+    virtual bool KernelCheck()                                             = 0;
     virtual bool CreateDevKernelArgs()                                     = 0;
     virtual bool CreateTwiddleTableResource()                              = 0;
     virtual void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) = 0;
@@ -361,21 +455,27 @@ protected:
         nodeType = NT_INTERNAL;
     }
 
-    virtual bool CreateDevKernelArgs()
+    bool CreateDevKernelArgs() override
     {
         throw std::runtime_error("Shouldn't call CreateDevKernelArgs in a non-LeafNode");
         return false;
     }
 
-    virtual bool CreateTwiddleTableResource()
+    bool CreateTwiddleTableResource() override
     {
         throw std::runtime_error("Shouldn't call CreateTwiddleTableResource in a non-LeafNode");
         return false;
     }
 
-    virtual void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
+    void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) override
     {
         throw std::runtime_error("Shouldn't call SetupGridParamAndFuncPtr in a non-LeafNode");
+    }
+
+public:
+    bool KernelCheck() override
+    {
+        return true;
     }
 };
 
@@ -408,10 +508,10 @@ protected:
     void           AssignParams_internal() final {} // nothing to do in leaf node
     bool           CreateLargeTwdTable();
     virtual size_t GetTwiddleTableLength();
-    virtual void   KernelCheck();
     virtual void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) = 0;
 
 public:
+    bool KernelCheck() override;
     void SanityCheck() override;
     bool CreateDevKernelArgs() override;
     bool CreateTwiddleTableResource() override;
@@ -431,6 +531,7 @@ protected:
     TransposeNode(TreeNode* p, ComputeScheme s)
         : LeafNode(p, s)
     {
+        allowInplace = false;
     }
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
@@ -444,6 +545,9 @@ struct ExecPlan
     // non-owning pointers to the leaf-node children of rootPlan, which
     // are the nodes that do actual work
     std::vector<TreeNode*> execSeq;
+
+    // flattened potentially-fusable shims of rootPlan
+    std::vector<FuseShim*> fuseShims;
 
     std::vector<DevFnCall> devFnCall;
     std::vector<GridParam> gridParam;

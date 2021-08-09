@@ -727,28 +727,43 @@ ROCFFT_EXPORT rocfft_status rocfft_repo_get_total_plan_count(size_t* count)
 
 void TreeNode::CopyNodeData(const TreeNode& srcNode)
 {
-    dimension    = srcNode.dimension;
-    batch        = srcNode.batch;
-    length       = srcNode.length;
-    inStride     = srcNode.inStride;
-    outStride    = srcNode.outStride;
-    iDist        = srcNode.iDist;
-    oDist        = srcNode.oDist;
-    iOffset      = srcNode.iOffset;
-    oOffset      = srcNode.oOffset;
-    placement    = srcNode.placement;
-    precision    = srcNode.precision;
-    direction    = srcNode.direction;
-    inArrayType  = srcNode.inArrayType;
-    outArrayType = srcNode.outArrayType;
+    dimension        = srcNode.dimension;
+    batch            = srcNode.batch;
+    length           = srcNode.length;
+    inStride         = srcNode.inStride;
+    outStride        = srcNode.outStride;
+    iDist            = srcNode.iDist;
+    oDist            = srcNode.oDist;
+    iOffset          = srcNode.iOffset;
+    oOffset          = srcNode.oOffset;
+    placement        = srcNode.placement;
+    precision        = srcNode.precision;
+    direction        = srcNode.direction;
+    inArrayType      = srcNode.inArrayType;
+    outArrayType     = srcNode.outArrayType;
+    allowInplace     = srcNode.allowInplace;
+    allowOutofplace  = srcNode.allowOutofplace;
+    outputHasPadding = srcNode.outputHasPadding;
+
     // conditional
     large1D        = srcNode.large1D;
     largeTwd3Steps = srcNode.largeTwd3Steps;
     largeTwdBase   = srcNode.largeTwdBase;
     lengthBlue     = srcNode.lengthBlue;
+
     //
     obIn  = srcNode.obIn;
     obOut = srcNode.obOut;
+
+    // NB:
+    //   we don't copy these since it's possible we're copying
+    //   a node to another one that is different scheme/derived class
+    //   (for example, when doing fusion).
+    //   The src ebtype could be incorrect in the new node
+    //   same as lds_padding, lds_padding is initialized for each derived class
+    //   so we don't copy this value, the target node already sets its value
+    // ebtype      = srcNode.ebtype;
+    // lds_padding = srcNode.lds_padding;
 }
 
 void TreeNode::CopyNodeData(const NodeMetaData& data)
@@ -767,6 +782,11 @@ void TreeNode::CopyNodeData(const NodeMetaData& data)
     direction    = data.direction;
     inArrayType  = data.inArrayType;
     outArrayType = data.outArrayType;
+}
+
+bool TreeNode::isPlacementAllowed(rocfft_result_placement test_placement)
+{
+    return (test_placement == rocfft_placement_inplace) ? allowInplace : allowOutofplace;
 }
 
 bool TreeNode::isRootNode()
@@ -802,8 +822,14 @@ void TreeNode::SanityCheck()
         throw std::runtime_error("NT_UNDEFINED node");
 
     // Check buffer: all operating buffers have been assigned
-    assert(obIn != OB_UNINIT);
-    assert(obOut != OB_UNINIT);
+    if(obIn == OB_UNINIT)
+        throw std::runtime_error("obIn un-init");
+    if(obOut == OB_UNINIT)
+        throw std::runtime_error("obOut un-init");
+    if((obIn == obOut) && (placement != rocfft_placement_inplace))
+        throw std::runtime_error("[obIn,obOut] mismatch placement inplace");
+    if((obIn != obOut) && (placement != rocfft_placement_notinplace))
+        throw std::runtime_error("[obIn,obOut] mismatch placement out-of-place");
 
     // Check length and stride and dimension:
     assert(length.size() == inStride.size());
@@ -840,6 +866,31 @@ bool TreeNode::fuse_CS_KERNEL_TRANSPOSE_Z_XY()
         }
     }
 
+    return false;
+}
+
+bool TreeNode::fuse_CS_KERNEL_TRANSPOSE_XY_Z()
+{
+    if(function_pool::has_SBRC_kernel(length[0], precision))
+    {
+        if((length[0] == length[2]) // limit to original "cubic" case
+           && (length[0] / 2 + 1 == length[1])
+           && !IsPo2(length[0]) // Need more investigation for diagonal transpose
+        )
+            return true;
+    }
+    return false;
+}
+
+bool TreeNode::fuse_CS_KERNEL_STK_R2C_TRANSPOSE()
+{
+    if(function_pool::has_SBRC_kernel(length[0], precision)) // kernel available
+    {
+        if((length[0] * 2 == length[1]) // limit to original "cubic" case
+           && (length.size() == 2 || length[1] == length[2]) // 2D or 3D
+        )
+            return true;
+    }
     return false;
 }
 
@@ -1121,6 +1172,47 @@ void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn
     }
 }
 
+void TreeNode::ApplyFusion()
+{
+    // Do the final fusion after the buffer assign is completed
+    for(auto& fuse : fuseShims)
+    {
+        auto fused = fuse->FuseKernels();
+        if(fused)
+        {
+            auto firstFusedNode = fuse->FirstFuseNode();
+            this->RecursiveInsertNode(firstFusedNode, fused);
+
+            // iterate from first to last to remove old nodes
+            fuse->ForEachNode([=](TreeNode* node) { this->RecursiveRemoveNode(node); });
+        }
+    }
+
+    for(auto& child : childNodes)
+        child->ApplyFusion();
+}
+
+void TreeNode::RefreshTree()
+{
+    if(childNodes.empty())
+        return;
+
+    for(auto& child : childNodes)
+        child->RefreshTree();
+
+    auto& first = childNodes.front();
+    auto& last  = childNodes.back();
+
+    // the obIn of chirp is always set to S buffer, which is not really a input buffer
+    // the parent's obIn should be the next node's obIn, instead of the S buffer
+    // this avoid error when finding the callback-load-fn kernel
+    this->obIn         = (first->scheme == CS_KERNEL_CHIRP) ? childNodes[1]->obIn : first->obIn;
+    this->obOut        = last->obOut;
+    this->placement    = (obIn == obOut) ? rocfft_placement_inplace : rocfft_placement_notinplace;
+    this->inArrayType  = first->inArrayType;
+    this->outArrayType = last->outArrayType;
+}
+
 void TreeNode::AssignParams()
 {
     assert(length.size() == inStride.size());
@@ -1130,43 +1222,55 @@ void TreeNode::AssignParams()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Collect leaf node and calculate work memory requirements
-
-void TreeNode::TraverseTreeCollectLeafsLogicA(std::vector<TreeNode*>& seq,
-                                              size_t&                 tmpBufSize,
-                                              size_t&                 cmplxForRealSize,
-                                              size_t&                 blueSize,
-                                              size_t&                 chirpSize)
+/// Collect leaf node
+void TreeNode::CollectLeaves(std::vector<TreeNode*>& seq, std::vector<FuseShim*>& fuseSeq)
 {
-    if(childNodes.size() == 0)
+    // re-collect after kernel fusion, so clear the previous collected elements
+    if(isRootNode())
     {
-        if(scheme == CS_KERNEL_CHIRP)
-        {
-            chirpSize = std::max(2 * lengthBlue, chirpSize);
-        }
-        if(obOut == OB_TEMP_BLUESTEIN)
-        {
-            blueSize = std::max(oDist * batch, blueSize);
-        }
-        if(obOut == OB_TEMP_CMPLX_FOR_REAL)
-        {
-            cmplxForRealSize = std::max(oDist * batch, cmplxForRealSize);
-        }
-        if(obOut == OB_TEMP)
-        {
-            tmpBufSize = std::max(oDist * batch, tmpBufSize);
-        }
+        seq.clear();
+        fuseSeq.clear();
+    }
+
+    if(nodeType == NT_LEAF)
+    {
         seq.push_back(this);
     }
     else
     {
-        for(auto children_p = childNodes.begin(); children_p != childNodes.end(); children_p++)
-        {
-            (*children_p)
-                ->TraverseTreeCollectLeafsLogicA(
-                    seq, tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
-        }
+        for(auto& child : childNodes)
+            child->CollectLeaves(seq, fuseSeq);
+
+        for(auto& fuse : fuseShims)
+            fuseSeq.push_back(fuse.get());
     }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// Calculate work memory requirements,
+/// note this should be done after buffer assignment and deciding oDist
+void TreeNode::DetermineBufferMemory(size_t& tmpBufSize,
+                                     size_t& cmplxForRealSize,
+                                     size_t& blueSize,
+                                     size_t& chirpSize)
+{
+    if(nodeType == NT_LEAF)
+    {
+        if(scheme == CS_KERNEL_CHIRP)
+            chirpSize = std::max(2 * lengthBlue, chirpSize);
+
+        if(obOut == OB_TEMP_BLUESTEIN)
+            blueSize = std::max(oDist * batch, blueSize);
+
+        if(obOut == OB_TEMP_CMPLX_FOR_REAL)
+            cmplxForRealSize = std::max(oDist * batch, cmplxForRealSize);
+
+        if(obOut == OB_TEMP)
+            tmpBufSize = std::max(oDist * batch, tmpBufSize);
+    }
+
+    for(auto& child : childNodes)
+        child->DetermineBufferMemory(tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
 }
 
 void TreeNode::Print(rocfft_ostream& os, const int indent) const
@@ -1211,6 +1315,17 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     os << "iDist: " << iDist;
     os << "\n" << indentStr.c_str();
     os << "oDist: " << oDist;
+
+    if(inputHasPadding)
+    {
+        os << "\n" << indentStr.c_str();
+        os << "inputHasPadding: " << inputHasPadding;
+    }
+    if(outputHasPadding)
+    {
+        os << "\n" << indentStr.c_str();
+        os << "outputHasPadding: " << outputHasPadding;
+    }
 
     os << "\n" << indentStr.c_str();
     os << "direction: " << direction;
@@ -1334,6 +1449,24 @@ void TreeNode::RecursiveInsertNode(TreeNode* pos, std::unique_ptr<TreeNode>& new
     }
 }
 
+TreeNode* TreeNode::GetPlanRoot()
+{
+    if(isRootNode())
+        return this;
+
+    return parent->GetPlanRoot();
+}
+
+TreeNode* TreeNode::GetFirstLeaf()
+{
+    return (nodeType == NT_LEAF) ? this : childNodes.front()->GetFirstLeaf();
+}
+
+TreeNode* TreeNode::GetLastLeaf()
+{
+    return (nodeType == NT_LEAF) ? this : childNodes.back()->GetLastLeaf();
+}
+
 // remove a leaf node from the plan completely - plan optimization
 // can remove unnecessary nodes to skip unnecessary work.
 void RemoveNode(ExecPlan& execPlan, TreeNode* node)
@@ -1355,466 +1488,6 @@ void InsertNode(ExecPlan& execPlan, TreeNode* pos, std::unique_ptr<TreeNode>& ne
 
     // insert it before pos in the tree structure
     execPlan.rootPlan->RecursiveInsertNode(pos, newNode);
-}
-
-static size_t TransformsPerThreadblock(const size_t len, rocfft_precision precision)
-{
-    // look in function pool first to see if it knows
-    auto k = function_pool::get_kernel(fpkey(len, precision));
-    if(k.batches_per_block)
-        return k.batches_per_block;
-    // otherwise fall back to old generator
-    size_t wgs = 0, numTrans = 0;
-    DetermineSizes(len, wgs, numTrans);
-    return numTrans;
-}
-
-void Optimize_Transpose_With_Strides(ExecPlan& execPlan, std::vector<TreeNode*>& execSeq)
-{
-    auto canOptimizeWithStrides = [](TreeNode* stockham) {
-        // for 3D pow2 sizes, manipulating strides looks like it loses to
-        // diagonal transpose
-        if(IsPo2(stockham->length[0]) && stockham->length.size() >= 3)
-            return false;
-        size_t numTrans = TransformsPerThreadblock(stockham->length[0], stockham->precision);
-
-        // ensure we are doing enough rows to coalesce properly. 4
-        // seems to be enough for double-precision, whereas some
-        // sizes that do 7 rows seem to be slower for single.
-        size_t minRows = stockham->precision == rocfft_precision_single ? 8 : 4;
-        return numTrans >= minRows;
-    };
-
-    // If this is a stockham fft that does multiple rows in one
-    // kernel, followed by a transpose, adjust output strides to
-    // replace the transpose.  Multiple rows will ensure that the
-    // transposed column writes are coalesced.
-    for(auto it = execSeq.begin(); it != execSeq.end(); ++it)
-    {
-        auto stockham = *it;
-        if(stockham->scheme != CS_KERNEL_STOCKHAM && stockham->scheme != CS_KERNEL_2D_SINGLE)
-            continue;
-
-        // if we're a child of a plan that we know is doing TR
-        // instead of RT, we don't want to combine the wrong pairs.
-        auto parent = stockham->parent;
-        if(parent != nullptr)
-        {
-            if(parent->scheme == CS_3D_TRTRTR
-               || (parent->scheme == CS_REAL_3D_EVEN && parent->direction == 1)
-               || (parent->scheme == CS_REAL_2D_EVEN && parent->direction == 1))
-                continue;
-        }
-
-        if(!canOptimizeWithStrides(stockham))
-            continue;
-
-        auto next = it + 1;
-        if(next == execSeq.end())
-            break;
-        auto transpose = *next;
-        if(transpose->scheme != CS_KERNEL_TRANSPOSE && transpose->scheme != CS_KERNEL_TRANSPOSE_Z_XY
-           && transpose->scheme != CS_KERNEL_TRANSPOSE_XY_Z)
-            continue;
-        if(stockham->length == transpose->length
-           && stockham->outStride == transpose->inStride
-           // can't get rid of a transpose that also does twiddle multiplication
-           && transpose->large1D == 0
-           // This is a transpose, which must be out-of-place
-           && EffectivePlacement(stockham->obIn, transpose->obOut, execPlan.rootPlan->placement)
-                  == rocfft_placement_notinplace)
-        {
-            stockham->outStride = transpose->outStride;
-            if(transpose->scheme == CS_KERNEL_TRANSPOSE)
-            {
-                std::swap(stockham->outStride[0], stockham->outStride[1]);
-            }
-            else if(transpose->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
-            {
-                // make stockham write Z_XY-transposed outputs
-                stockham->outStride[0] = transpose->outStride[2];
-                stockham->outStride[1] = transpose->outStride[0];
-                stockham->outStride[2] = transpose->outStride[1];
-            }
-            else
-            {
-                // make stockham write XY_Z-transposed outputs
-                stockham->outStride[0] = transpose->outStride[1];
-                stockham->outStride[1] = transpose->outStride[2];
-                stockham->outStride[2] = transpose->outStride[0];
-            }
-            stockham->obOut        = transpose->obOut;
-            stockham->outArrayType = transpose->outArrayType;
-            stockham->placement    = rocfft_placement_notinplace;
-            stockham->oDist        = transpose->oDist;
-
-            stockham->comments.push_back("removed following " + PrintScheme(transpose->scheme)
-                                         + " using strides");
-            RemoveNode(execPlan, transpose);
-        }
-    }
-
-    // In case something was removed, reset our local execSeq so we
-    // don't try to combine an already-removed node with anything
-    execSeq = execPlan.execSeq;
-
-    // Similarly, if we have a transpose followed by a stockham
-    // fft that does multiple rows in one kernel, adjust input
-    // strides to replace the transpose.  Multiple rows will ensure
-    // that the transposed column reads are coalesced.
-    for(auto it = execSeq.begin(); it != execSeq.end(); ++it)
-    {
-        auto transpose = *it;
-        // can't get rid of a transpose that also does twiddle multiplication
-        if((transpose->scheme != CS_KERNEL_TRANSPOSE
-            && transpose->scheme != CS_KERNEL_TRANSPOSE_Z_XY
-            && transpose->scheme != CS_KERNEL_TRANSPOSE_XY_Z)
-           || transpose->large1D != 0)
-            continue;
-
-        auto next = it + 1;
-        if(next == execSeq.end())
-            break;
-        auto stockham = *next;
-
-        if(stockham->scheme != CS_KERNEL_STOCKHAM)
-            continue;
-
-        if(!canOptimizeWithStrides(stockham))
-            continue;
-
-        // verify that the transpose output lengths match the FFT input lengths
-        auto transposeOutputLengths = transpose->length;
-        if(transpose->scheme == CS_KERNEL_TRANSPOSE)
-            std::swap(transposeOutputLengths[0], transposeOutputLengths[1]);
-        else if(transpose->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
-        {
-            std::swap(transposeOutputLengths[0], transposeOutputLengths[1]);
-            std::swap(transposeOutputLengths[1], transposeOutputLengths[2]);
-        }
-        else
-        {
-            // must be XY_Z
-            std::swap(transposeOutputLengths[1], transposeOutputLengths[2]);
-            std::swap(transposeOutputLengths[0], transposeOutputLengths[1]);
-        }
-        if(transposeOutputLengths != stockham->length)
-            continue;
-
-        // This is a transpose, which must be out-of-place
-        if(EffectivePlacement(transpose->obIn, stockham->obOut, execPlan.rootPlan->placement)
-           == rocfft_placement_notinplace)
-        {
-            stockham->inStride = transpose->inStride;
-            if(transpose->scheme == CS_KERNEL_TRANSPOSE)
-                std::swap(stockham->inStride[0], stockham->inStride[1]);
-            else if(transpose->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
-            {
-                // give stockham kernel Z_XY-transposed inputs and outputs
-                stockham->inStride[0] = transpose->inStride[1];
-                stockham->inStride[1] = transpose->inStride[0];
-                stockham->inStride[2] = transpose->inStride[2];
-
-                std::swap(stockham->outStride[1], stockham->outStride[2]);
-                std::swap(stockham->length[1], stockham->length[2]);
-            }
-            else
-            {
-                // give stockham kernel XY_Z-transposed inputs
-                stockham->inStride[0] = transpose->inStride[2];
-                stockham->inStride[1] = transpose->inStride[0];
-                stockham->inStride[2] = transpose->inStride[1];
-            }
-
-            stockham->obIn        = transpose->obIn;
-            stockham->inArrayType = transpose->inArrayType;
-            stockham->placement   = rocfft_placement_notinplace;
-            stockham->iDist       = transpose->iDist;
-
-            stockham->comments.push_back("removed preceding " + PrintScheme(transpose->scheme)
-                                         + " using strides");
-            RemoveNode(execPlan, transpose);
-        }
-    }
-}
-
-void Optimize_R_TO_CMPLX_TRANSPOSE(ExecPlan& execPlan, std::vector<TreeNode*>& execSeq)
-{
-    // combine R_TO_CMPLX and following transpose
-    auto it = std::find_if(execSeq.begin(), execSeq.end(), [](TreeNode* n) {
-        return n->scheme == CS_KERNEL_R_TO_CMPLX;
-    });
-    if(it != execSeq.end())
-    {
-        auto r_to_cmplx = *it;
-        // check that next node is transpose
-        ++it;
-        if(it == execSeq.end())
-            return;
-        auto transpose = *it;
-
-        // check placement
-        if(EffectivePlacement(r_to_cmplx->obIn, transpose->obOut, execPlan.rootPlan->placement)
-           != rocfft_placement_notinplace)
-            return;
-
-        if(transpose->scheme == CS_KERNEL_TRANSPOSE
-           || transpose->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
-        {
-            // NOTE: changing the scheme directly is dangerous, it's OK here because
-            // CS_KERNEL_R_TO_CMPLX and CS_KERNEL_R_TO_CMPLX_TRANSPOSE is same class
-            r_to_cmplx->obOut        = transpose->obOut;
-            r_to_cmplx->scheme       = CS_KERNEL_R_TO_CMPLX_TRANSPOSE;
-            r_to_cmplx->outArrayType = transpose->outArrayType;
-            r_to_cmplx->placement    = EffectivePlacement(
-                r_to_cmplx->obIn, r_to_cmplx->obOut, execPlan.rootPlan->placement);
-            r_to_cmplx->outStride = transpose->outStride;
-            r_to_cmplx->oDist     = transpose->oDist;
-            r_to_cmplx->comments.push_back("fused " + PrintScheme(CS_KERNEL_R_TO_CMPLX)
-                                           + " and following " + PrintScheme(transpose->scheme));
-            RemoveNode(execPlan, transpose);
-        }
-    }
-}
-
-void Optimize_TRANSPOSE_CMPLX_TO_R(ExecPlan& execPlan, std::vector<TreeNode*>& execSeq)
-{
-    // combine CMPLX_TO_R with preceding transpose
-    auto cmplx_to_r = std::find_if(execSeq.rbegin(), execSeq.rend(), [](TreeNode* n) {
-        return n->scheme == CS_KERNEL_CMPLX_TO_R;
-    });
-    // should be a stockham or bluestein kernel following the CMPLX_TO_R, so
-    // CMPLX_TO_R can't be the last node either
-    if(cmplx_to_r != execSeq.rend() && cmplx_to_r != execSeq.rbegin())
-    {
-        auto following = cmplx_to_r - 1;
-        if((*following)->scheme == CS_KERNEL_CHIRP)
-            following = following - 1; // skip CHIRP
-        auto transpose = cmplx_to_r + 1;
-        if(transpose != execSeq.rend()
-           && ((*transpose)->scheme == CS_KERNEL_TRANSPOSE
-               || (*transpose)->scheme == CS_KERNEL_TRANSPOSE_XY_Z)
-           && cmplx_to_r != execSeq.rbegin())
-        {
-            // but transpose needs to be out-of-place, so bring the
-            // temp buffer in if the operation would be effectively
-            // in-place.
-            if(EffectivePlacement(
-                   (*transpose)->obIn, (*cmplx_to_r)->obOut, execPlan.rootPlan->placement)
-               == rocfft_placement_inplace)
-            {
-                auto followingScheme    = (*following)->scheme;
-                bool canChangeNextInput = (followingScheme == CS_KERNEL_STOCKHAM
-                                           || followingScheme == CS_KERNEL_2D_SINGLE
-                                           || followingScheme == CS_KERNEL_STOCKHAM_BLOCK_CC
-                                           || followingScheme == CS_KERNEL_PAD_MUL);
-                // if the following node's input can't be changed (ex, a Transpose)
-                // then we simply give up this fusion, otherwise it leads to a inplace Transpose
-                // a case is: 80 84 312 -t 3, in which the whole following FFT is TRTRT
-                if(!canChangeNextInput)
-                    return;
-
-                // connect the transpose operation to the following
-                // transform and bring in the temp buffer
-                (*cmplx_to_r)->obIn     = (*transpose)->obIn;
-                (*cmplx_to_r)->obOut    = OB_TEMP;
-                (*following)->obIn      = OB_TEMP;
-                (*following)->placement = EffectivePlacement(
-                    (*following)->obIn, (*following)->obOut, execPlan.rootPlan->placement);
-            }
-            else
-            {
-                // connect the transpose operation to the following
-                // transform by default
-                (*cmplx_to_r)->obIn  = (*transpose)->obIn;
-                (*cmplx_to_r)->obOut = (*following)->obIn;
-            }
-
-            (*cmplx_to_r)->placement = rocfft_placement_notinplace;
-
-            // NOTE: changing the scheme directly is dangerous, it's OK here because
-            // CS_KERNEL_CMPLX_TO_R and CS_KERNEL_TRANSPOSE_CMPLX_TO_R is same class
-            (*cmplx_to_r)->scheme      = CS_KERNEL_TRANSPOSE_CMPLX_TO_R;
-            (*cmplx_to_r)->inArrayType = (*transpose)->inArrayType;
-            (*cmplx_to_r)->inStride    = (*transpose)->inStride;
-            (*cmplx_to_r)->length      = (*transpose)->length;
-            (*cmplx_to_r)->iDist       = (*transpose)->iDist;
-            (*cmplx_to_r)
-                ->comments.push_back("fused " + PrintScheme(CS_KERNEL_CMPLX_TO_R)
-                                     + " and preceding " + PrintScheme((*transpose)->scheme));
-            RemoveNode(execPlan, *transpose);
-        }
-    }
-}
-
-// combine CS_KERNEL_STOCKHAM and following CS_KERNEL_TRANSPOSE_Z_XY to CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY if possible
-void Optimize_STOCKHAM_TRANSPOSE_Z_XY(ExecPlan& execPlan, std::vector<TreeNode*>& execSeq)
-{
-    for(auto it = execSeq.rbegin() + 1; it != execSeq.rend(); ++it)
-    {
-
-        if((it != execSeq.rend()) && ((*it)->scheme == CS_KERNEL_STOCKHAM)
-           && ((*(it - 1))->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
-           && ((*(it - 1))->fuse_CS_KERNEL_TRANSPOSE_Z_XY()) // kernel available
-           && ((*it)->obIn
-               != ((*(it - 1))->obOut)) // "in-place" doesn't work without manipulating buffers
-           && (!(((it + 1) != execSeq.rend())
-                 && (*(it + 1))->scheme
-                        == CS_KERNEL_TRANSPOSE_XY_Z)) // don't touch case XY_Z -> FFT -> Z_XY
-        )
-        {
-            auto stockham  = it;
-            auto transpose = it - 1;
-
-            (*stockham)->obOut        = (*transpose)->obOut;
-            (*stockham)->scheme       = CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY;
-            (*stockham)->outArrayType = (*transpose)->outArrayType;
-            (*stockham)->placement    = EffectivePlacement(
-                (*stockham)->obIn, (*stockham)->obOut, execPlan.rootPlan->placement);
-            // transpose must be out-of-place
-            assert((*stockham)->placement == rocfft_placement_notinplace);
-            (*stockham)->outStride = (*transpose)->outStride;
-            (*stockham)->oDist     = (*transpose)->oDist;
-
-            // Note: can't simply change the scheme, need to re-create the node (if different class)
-            // TODO: any safer and elegant code design ?
-            auto replaceNode = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY,
-                                                                 (*stockham)->parent);
-            replaceNode->CopyNodeData(*(*stockham));
-            replaceNode->comments.push_back("fused " + PrintScheme(CS_KERNEL_STOCKHAM)
-                                            + " and following "
-                                            + PrintScheme((*transpose)->scheme));
-
-            InsertNode(execPlan, *stockham, replaceNode);
-            RemoveNode(execPlan, *stockham);
-            RemoveNode(execPlan, *transpose);
-        }
-    }
-}
-
-// combine one CS_KERNEL_STOCKHAM and following CS_KERNEL_TRANSPOSE_XY_Z in 3D complex to real
-// NB: this should be replaced by combining CS_KERNEL_TRANSPOSE_XY_Z and the following
-//     CS_KERNEL_STOCKHAM eventually, in which we might fuse 2 pairs of TR.
-void Optimize_STOCKHAM_TRANSPOSE_XY_Z(ExecPlan& execPlan, std::vector<TreeNode*>& execSeq)
-{
-    auto trans_cmplx_to_r = std::find_if(execSeq.rbegin(), execSeq.rend(), [](TreeNode* n) {
-        return n->scheme == CS_KERNEL_TRANSPOSE_CMPLX_TO_R;
-    });
-    if(trans_cmplx_to_r != execSeq.rend() && trans_cmplx_to_r != execSeq.rbegin())
-    {
-        auto stockham2  = trans_cmplx_to_r + 1;
-        auto transpose2 = trans_cmplx_to_r + 2;
-        auto stockham1  = trans_cmplx_to_r + 3;
-        if(stockham1 != execSeq.rend() && (*stockham2)->scheme == CS_KERNEL_STOCKHAM
-           && (*transpose2)->scheme == CS_KERNEL_TRANSPOSE_XY_Z
-           && (*stockham1)->scheme == CS_KERNEL_STOCKHAM
-           && (function_pool::has_SBRC_kernel((*transpose2)->length[0],
-                                              (*transpose2)->precision)) // kernel available
-           && ((*transpose2)->length[0]
-               == (*transpose2)->length[2]) // limit to original "cubic" case
-           && ((*transpose2)->length[0] / 2 + 1 == (*transpose2)->length[1])
-           && (!IsPo2((*transpose2)->length[0]))) // Need more investigation for diagonal transpose
-        {
-            (*transpose2)->scheme       = CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z;
-            (*transpose2)->obIn         = (*stockham1)->obIn;
-            (*transpose2)->obOut        = (*stockham2)->obOut;
-            (*transpose2)->inArrayType  = (*stockham1)->inArrayType;
-            (*transpose2)->outArrayType = (*stockham2)->outArrayType;
-
-            (*stockham2)->obIn        = (*stockham2)->obOut;
-            (*stockham2)->inArrayType = (*stockham2)->outArrayType;
-            (*stockham2)->placement   = rocfft_placement_inplace;
-
-            // Note: can't simply change the scheme, need to re-create the node (if different class)
-            // TODO: any safer and elegant code design ?
-            auto replaceNode = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z,
-                                                                 (*transpose2)->parent);
-            replaceNode->CopyNodeData(*(*transpose2));
-            replaceNode->comments.push_back("fused " + PrintScheme(CS_KERNEL_TRANSPOSE_XY_Z)
-                                            + " and preceding "
-                                            + PrintScheme((*stockham1)->scheme));
-
-            InsertNode(execPlan, *transpose2, replaceNode);
-            RemoveNode(execPlan, *transpose2);
-            RemoveNode(execPlan, *stockham1);
-        }
-    }
-}
-
-// combine CS_KERNEL_R_TO_CMPLX_TRANSPOSE with preceding CS_KERNEL_STOCKHAM
-//         to CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY
-void Optimize_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY(ExecPlan&               execPlan,
-                                                 std::vector<TreeNode*>& execSeq)
-{
-    auto r_to_cmplx_transpose = std::find_if(execSeq.rbegin(), execSeq.rend(), [](TreeNode* n) {
-        return n->scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE;
-    });
-    if(r_to_cmplx_transpose != execSeq.rend() && r_to_cmplx_transpose != execSeq.rbegin())
-    {
-        auto stockham = r_to_cmplx_transpose + 1;
-        if((*stockham)->scheme == CS_KERNEL_STOCKHAM
-           && (function_pool::has_SBRC_kernel((*stockham)->length[0],
-                                              (*stockham)->precision)) // kernel available
-           && ((*stockham)->length[0] * 2
-               == (*stockham)->length[1]) // limit to original "cubic" case
-           && (((*stockham)->length.size() == 2)
-               || ((*stockham)->length[1] == (*stockham)->length[2]))
-           // FIXME: need more investigate:
-           //        "128 128 -t2 'ip'" and "100 100 -t 2 'ip'" will fail the validations.
-           && (execPlan.rootPlan->placement != rocfft_placement_inplace))
-        {
-            (*stockham)->scheme       = CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY;
-            (*stockham)->obOut        = (*r_to_cmplx_transpose)->obOut;
-            (*stockham)->outArrayType = (*r_to_cmplx_transpose)->outArrayType;
-            (*stockham)->placement    = rocfft_placement_notinplace;
-            (*stockham)->outStride    = (*r_to_cmplx_transpose)->outStride;
-            (*stockham)->oDist        = (*r_to_cmplx_transpose)->oDist;
-
-            // NB:
-            //    The generated CS_KERNEL_R_TO_CMPLX_TRANSPOSE kernel is in 3D fashion.
-            //    We just need extend length and strides to make it work for 2D case.
-            if((*stockham)->length.size() == 2)
-            {
-                (*stockham)->length.push_back(1);
-                (*stockham)->inStride.push_back((*stockham)->inStride[1]);
-                (*stockham)->outStride.push_back((*stockham)->outStride[1]);
-            }
-
-            // Note: can't simply change the scheme, need to re-create the node (if different class)
-            // TODO: any safer and elegant code design ?
-            auto replaceNode = NodeFactory::CreateNodeFromScheme(
-                CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY, (*stockham)->parent);
-            replaceNode->CopyNodeData(*(*stockham));
-            replaceNode->comments.push_back("fused " + PrintScheme(CS_KERNEL_STOCKHAM)
-                                            + " and following "
-                                            + PrintScheme((*r_to_cmplx_transpose)->scheme));
-
-            InsertNode(execPlan, *stockham, replaceNode);
-            RemoveNode(execPlan, *stockham);
-            RemoveNode(execPlan, *r_to_cmplx_transpose);
-        }
-    }
-}
-
-static void OptimizePlan(ExecPlan& execPlan)
-{
-    auto passes = {
-        Optimize_R_TO_CMPLX_TRANSPOSE,
-        Optimize_TRANSPOSE_CMPLX_TO_R,
-        Optimize_STOCKHAM_TRANSPOSE_Z_XY,
-        Optimize_STOCKHAM_TRANSPOSE_XY_Z,
-        Optimize_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY,
-        Optimize_Transpose_With_Strides,
-    };
-    for(auto pass : passes)
-    {
-        // Give each optimization pass its own copy of execSeq, so
-        // that it can call RemoveNode without worrying about
-        // invalidating iterators it might be using.  But it can also
-        // modify nodes willy-nilly via the TreeNode*'s in the vector.
-        auto localExecSeq = execPlan.execSeq;
-        pass(execPlan, localExecSeq);
-    }
 }
 
 void RuntimeCompilePlan(ExecPlan& execPlan)
@@ -1846,17 +1519,25 @@ void ProcessNode(ExecPlan& execPlan)
                                                           execPlan.rootPlan->outArrayType);
     execPlan.rootPlan->AssignParams();
 
-    // Check the buffer, param and tree integrity
+    // Apply the fusion after buffer, strides are assigned
+    execPlan.rootPlan->ApplyFusion();
+
+    // collect the execSeq since we've fused some kernels
+    execPlan.rootPlan->CollectLeaves(execPlan.execSeq, execPlan.fuseShims);
+
+    // So we also need to update the whole tree including internal nodes
+    // NB: The order matters: assign param -> fusion -> refresh internal node param
+    execPlan.rootPlan->RefreshTree();
+
+    // Check the buffer, param and tree integrity, Note we do this after fusion
     execPlan.rootPlan->SanityCheck();
 
+    // get workBufSize..
     size_t tmpBufSize       = 0;
     size_t cmplxForRealSize = 0;
     size_t blueSize         = 0;
     size_t chirpSize        = 0;
-    execPlan.rootPlan->TraverseTreeCollectLeafsLogicA(
-        execPlan.execSeq, tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
-
-    OptimizePlan(execPlan);
+    execPlan.rootPlan->DetermineBufferMemory(tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
 
     // compile kernels for applicable nodes
     RuntimeCompilePlan(execPlan);

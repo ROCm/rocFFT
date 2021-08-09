@@ -34,7 +34,6 @@ private:
 
 public:
     // Create node (user level) using this function
-    // static std::unique_ptr<TreeNode> CreateNode(TreeNode* parentNode = nullptr);
     static std::unique_ptr<TreeNode> CreateNodeFromScheme(ComputeScheme s,
                                                           TreeNode*     parent = nullptr);
     static std::unique_ptr<TreeNode> CreateExplicitNode(NodeMetaData& nodeData, TreeNode* parent);
@@ -53,5 +52,9 @@ public:
     static bool use_CS_3D_RC(NodeMetaData& nodeData);
     // how many SBRC kernels can we put into a 3D transform?
     static size_t count_3D_SBRC_nodes(NodeMetaData& nodeData);
+
+    // FuseShim Creator
+    static std::unique_ptr<FuseShim> CreateFuseShim(FuseType               type,
+                                                    std::vector<TreeNode*> components);
 };
 #endif // TREE_NODE_FACTORY_H

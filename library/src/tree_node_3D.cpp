@@ -65,11 +65,32 @@ void RTRT3DNode::BuildTree_internal()
     trans2Plan->length    = zPlan->length;
     trans2Plan->dimension = 2;
 
-    // RTRT
+    // --------------------------------
+    // Fuse Shims
+    // --------------------------------
+    auto RT1
+        = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS, {xyPlan.get(), trans1Plan.get()});
+    if(RT1->IsSchemeFusable())
+        fuseShims.emplace_back(std::move(RT1));
+
+    auto RT2 = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS, {zPlan.get(), trans2Plan.get()});
+    if(RT2->IsSchemeFusable())
+        fuseShims.emplace_back(std::move(RT2));
+
+    // --------------------------------
+    // Push to child nodes : 3D_RTRT
+    // --------------------------------
     childNodes.emplace_back(std::move(xyPlan));
     childNodes.emplace_back(std::move(trans1Plan));
     childNodes.emplace_back(std::move(zPlan)); // notice that move() will set zPlan to nullptr
     childNodes.emplace_back(std::move(trans2Plan));
+
+    // NB:
+    //    Don't fuse zPlan, trans2Plan to FT_STOCKHAM_WITH_TRANS_Z_XY
+    //    because the preceding trans1 is XY_Z:
+    //    xyPlan handles the first 2 dimensions without a transpose.
+    //    So the XY_Z tranpose arranges the Z dimension to the fastest dim, and
+    //    Z_XY puts it back to the expected arrangement for output.
 }
 
 void RTRT3DNode::AssignParams_internal()
@@ -82,9 +103,7 @@ void RTRT3DNode::AssignParams_internal()
         = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
 
     // B -> B
-    auto& xyPlan = childNodes[0];
-    assert((xyPlan->obOut == OB_USER_OUT) || (xyPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
-           || (xyPlan->obOut == OB_TEMP_BLUESTEIN));
+    auto& xyPlan     = childNodes[0];
     xyPlan->inStride = inStride;
     xyPlan->iDist    = iDist;
 
@@ -94,8 +113,7 @@ void RTRT3DNode::AssignParams_internal()
     xyPlan->AssignParams();
 
     // B -> T
-    auto& trans1Plan = childNodes[1];
-    assert(trans1Plan->obOut == OB_TEMP);
+    auto& trans1Plan     = childNodes[1];
     trans1Plan->inStride = xyPlan->outStride;
     trans1Plan->iDist    = xyPlan->oDist;
 
@@ -111,8 +129,7 @@ void RTRT3DNode::AssignParams_internal()
     }
 
     // T -> T
-    auto& zPlan = childNodes[2];
-    assert(zPlan->obOut == OB_TEMP);
+    auto& zPlan     = childNodes[2];
     zPlan->inStride = trans1Plan->outStride;
     zPlan->iDist    = trans1Plan->oDist;
 
@@ -122,9 +139,7 @@ void RTRT3DNode::AssignParams_internal()
     zPlan->AssignParams();
 
     // T -> B
-    auto& trans2Plan = childNodes[3];
-    assert((trans2Plan->obOut == OB_USER_OUT) || (trans2Plan->obOut == OB_TEMP_CMPLX_FOR_REAL)
-           || (trans2Plan->obOut == OB_TEMP_BLUESTEIN));
+    auto& trans2Plan     = childNodes[3];
     trans2Plan->inStride = zPlan->outStride;
     trans2Plan->iDist    = zPlan->oDist;
 
@@ -159,6 +174,50 @@ void TRTRTR3DNode::BuildTree_internal()
         // TR
         childNodes.emplace_back(std::move(trans_plan));
         childNodes.emplace_back(std::move(row_plan));
+    }
+
+    // --------------------------------
+    // Fuse Shims
+    // T-[RT]-RTR and TRT-[RT]-R
+    // --------------------------------
+    auto RT1 = NodeFactory::CreateFuseShim(
+        FT_STOCKHAM_WITH_TRANS_Z_XY,
+        {childNodes[0].get(), childNodes[1].get(), childNodes[2].get()});
+    bool RT1Fusable = RT1->IsSchemeFusable();
+    if(RT1Fusable)
+        fuseShims.emplace_back(std::move(RT1));
+
+    auto RT2 = NodeFactory::CreateFuseShim(
+        FT_STOCKHAM_WITH_TRANS_Z_XY,
+        {childNodes[2].get(), childNodes[3].get(), childNodes[4].get()});
+    bool RT2Fusable = RT2->IsSchemeFusable();
+    if(RT2Fusable)
+        fuseShims.emplace_back(std::move(RT2));
+
+    // --------------------------------
+    // If only partial fusions work, try if we could fuse alternatively
+    // [TR][TR][TR]
+    // --------------------------------
+    if(!RT1Fusable)
+    {
+        auto TR1 = NodeFactory::CreateFuseShim(FT_TRANS_WITH_STOCKHAM,
+                                               {childNodes[0].get(), childNodes[1].get()});
+        if(TR1->IsSchemeFusable())
+            fuseShims.emplace_back(std::move(TR1));
+    }
+    if(!RT1Fusable && !RT2Fusable)
+    {
+        auto TR2 = NodeFactory::CreateFuseShim(FT_TRANS_WITH_STOCKHAM,
+                                               {childNodes[2].get(), childNodes[3].get()});
+        if(TR2->IsSchemeFusable())
+            fuseShims.emplace_back(std::move(TR2));
+    }
+    if(!RT2Fusable)
+    {
+        auto TR3 = NodeFactory::CreateFuseShim(FT_TRANS_WITH_STOCKHAM,
+                                               {childNodes[4].get(), childNodes[5].get()});
+        if(TR3->IsSchemeFusable())
+            fuseShims.emplace_back(std::move(TR3));
     }
 }
 
@@ -479,9 +538,6 @@ void RC3DNode::AssignParams_internal()
     auto& xyPlan = childNodes[0];
     auto& zPlan  = childNodes[1];
 
-    // B -> B
-    assert((xyPlan->obOut == OB_USER_OUT) || (xyPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
-           || (xyPlan->obOut == OB_TEMP_BLUESTEIN));
     xyPlan->inStride = inStride;
     xyPlan->iDist    = iDist;
 
@@ -490,9 +546,6 @@ void RC3DNode::AssignParams_internal()
 
     xyPlan->AssignParams();
 
-    // B -> B
-    assert((zPlan->obOut == OB_USER_OUT) || (zPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
-           || (zPlan->obOut == OB_TEMP_BLUESTEIN));
     zPlan->inStride.push_back(inStride[2]);
     zPlan->inStride.push_back(inStride[0]);
     zPlan->inStride.push_back(inStride[1]);
@@ -509,7 +562,7 @@ void RC3DNode::AssignParams_internal()
 /*****************************************************
  * Base Class of fused SBRC and Transpose
  *****************************************************/
-void SBRCTranspose3DNode::KernelCheck()
+bool SBRCTranspose3DNode::KernelCheck()
 {
     // check we have the kernel
     // TODO: TILE_UNALIGNED if we have it
@@ -517,8 +570,7 @@ void SBRCTranspose3DNode::KernelCheck()
     if(!function_pool::has_function(key))
     {
         PrintMissingKernelInfo(key);
-        throw std::runtime_error("Kernel not found");
-        return;
+        return false;
     }
 
     if(is_diagonal_sbrc_3D_length(length[0]) && is_cube_size(length))
@@ -527,10 +579,11 @@ void SBRCTranspose3DNode::KernelCheck()
         if(!function_pool::has_function(key))
         {
             PrintMissingKernelInfo(key);
-            throw std::runtime_error("Kernel not found");
-            return;
+            return false;
         }
     }
+
+    return true;
 }
 
 /*****************************************************

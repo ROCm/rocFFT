@@ -141,6 +141,7 @@ protected:
     {
         externalKernel = true;
         need_twd_table = true;
+        allowInplace   = false;
     }
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;

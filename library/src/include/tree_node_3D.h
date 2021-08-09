@@ -135,8 +135,11 @@ protected:
     {
         externalKernel = true;
         need_twd_table = true;
+        allowInplace   = false;
     }
-    void KernelCheck() override;
+
+public:
+    bool KernelCheck() override;
 };
 
 /*****************************************************

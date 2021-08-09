@@ -134,6 +134,7 @@ protected:
     RealTransDataCopyNode(TreeNode* p, ComputeScheme s)
         : LeafNode(p, s)
     {
+        allowInplace = false;
     }
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
@@ -159,6 +160,7 @@ protected:
     {
         need_twd_table = true;
         twd_no_radices = true;
+        allowInplace   = false;
     }
 
     size_t GetTwiddleTableLength() override;

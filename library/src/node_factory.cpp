@@ -20,6 +20,7 @@
 
 #include "node_factory.h"
 #include "function_pool.h"
+#include "fuse_shim.h"
 #include "hip/hip_runtime_api.h"
 #include "logging.h"
 #include "radix_table.h"
@@ -263,6 +264,32 @@ std::unique_ptr<TreeNode> NodeFactory::CreateExplicitNode(NodeMetaData& nodeData
     auto node = CreateNodeFromScheme(s, parent);
     node->CopyNodeData(nodeData);
     return node;
+}
+
+// FuseShim Creator
+std::unique_ptr<FuseShim> NodeFactory::CreateFuseShim(FuseType               type,
+                                                      std::vector<TreeNode*> components)
+{
+    switch(type)
+    {
+    case FT_TRANS_WITH_STOCKHAM:
+        return std::unique_ptr<TRFuseShim>(new TRFuseShim(components));
+    case FT_STOCKHAM_WITH_TRANS:
+        return std::unique_ptr<RTFuseShim>(new RTFuseShim(components));
+    case FT_STOCKHAM_WITH_TRANS_Z_XY:
+        return std::unique_ptr<RT_ZXY_FuseShim>(new RT_ZXY_FuseShim(components));
+    case FT_STOCKHAM_WITH_TRANS_XY_Z:
+        return std::unique_ptr<RT_XYZ_FuseShim>(new RT_XYZ_FuseShim(components));
+    case FT_R2C_TRANSPOSE:
+        return std::unique_ptr<R2CTrans_FuseShim>(new R2CTrans_FuseShim(components));
+    case FT_TRANSPOSE_C2R:
+        return std::unique_ptr<TransC2R_FuseShim>(new TransC2R_FuseShim(components));
+    case FT_STOCKHAM_R2C_TRANSPOSE:
+        return std::unique_ptr<STK_R2CTrans_FuseShim>(new STK_R2CTrans_FuseShim(components));
+    default:
+        throw std::runtime_error("FuseType assertion failed, type not implemented");
+        return nullptr;
+    }
 }
 
 ComputeScheme NodeFactory::DecideNodeScheme(NodeMetaData& nodeData, TreeNode* parent)

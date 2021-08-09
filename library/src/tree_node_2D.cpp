@@ -20,6 +20,7 @@
 
 #include "tree_node_2D.h"
 #include "function_pool.h"
+#include "fuse_shim.h"
 #include "node_factory.h"
 #include "radix_table.h"
 
@@ -72,7 +73,22 @@ void RTRT2DNode::BuildTree_internal()
         trans2Plan->length.push_back(length[index]);
     }
 
+    // --------------------------------
+    // Fuse Shims
+    // --------------------------------
+    auto RT1
+        = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS, {row1Plan.get(), trans1Plan.get()});
+    if(RT1->IsSchemeFusable())
+        fuseShims.emplace_back(std::move(RT1));
+
+    auto RT2
+        = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS, {row2Plan.get(), trans2Plan.get()});
+    if(RT2->IsSchemeFusable())
+        fuseShims.emplace_back(std::move(RT2));
+
+    // --------------------------------
     // RTRT
+    // --------------------------------
     childNodes.emplace_back(std::move(row1Plan));
     childNodes.emplace_back(std::move(trans1Plan));
     childNodes.emplace_back(std::move(row2Plan));
