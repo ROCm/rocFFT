@@ -396,10 +396,10 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_mode( rocfft_execution_inf
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info,
                                                              void*                 stream);
 
-/*! @brief Set a load callback for a plan execution
+/*! @brief Set a load callback for a plan execution (experimental)
  *  @details This function specifies a user-defined callback function
  *  that is run to load input from global memory at the start of the
- *  transform.
+ *  transform.  Callbacks are an experimental feature in rocFFT.
  *
  *  Callback function pointers/data are given as arrays, with one
  *  function/data pointer per device executing this plan.  Currently,
@@ -436,10 +436,10 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_load_callback(rocfft_execu
                                                                     void** cb_data,
                                                                     size_t shared_mem_bytes);
 
-/*! @brief Set a store callback for a plan execution
+/*! @brief Set a store callback for a plan execution (experimental)
  *  @details This function specifies a user-defined callback function
  *  that is run to store output to global memory at the end of the
- *  transform.
+ *  transform.  Callbacks are an experimental feature in rocFFT.
  *
  *  Callback function pointers/data are given as arrays, with one
  *  function/data pointer per device executing this plan.  Currently,

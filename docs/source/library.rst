@@ -328,7 +328,7 @@ Transforms of real data
 Load and Store Callbacks
 ------------------------
 
-rocFFT includes functionality to call user-defined device functions
+rocFFT includes experimental functionality to call user-defined device functions
 when loading input from global memory at the start of a transform, or
 when storing output to global memory at the end of a transform.
 
