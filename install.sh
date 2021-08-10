@@ -42,6 +42,7 @@ function display_help()
     echo "    [--gen-pattern] Specify the FFT patterns to generate (none, pow2, pow3, pow5, pow7, 2D, large, small, all)"
     echo "                    can be a combination such as ='pow2,pow5,2D', default is all"
     echo "    [--gen-precision] Specify the precision type to generate (single, double, all), default is all"
+    echo "    [--gen-group-num] Specify the group numbers of generated kernel files"
     echo "    [--manual-small] Additional small sizes list to generate, ='A[,B,C,..]', default is empty "
     echo "    [--manual-large] Additional large sizes list to generate, ='A[,B,C,..]', default is empty "
     echo "    [--address-sanitizer] build with address sanitizer enabled"
@@ -270,6 +271,7 @@ build_relocatable=false
 build_hip_clang=true
 pattern_arg=false
 precision_arg=false
+group_num=false
 manual_small_arg=false
 manual_large_arg=false
 build_address_sanitizer=false
@@ -281,7 +283,7 @@ build_address_sanitizer=false
 # check if we have a modern version of getopt that can handle whitespace and long parameters
 getopt -T
 if [[ $? -eq 4 ]]; then
-    GETOPT_PARSE=$(getopt --name "${0}" -o 'hidcgr' --long 'help,install,clients,dependencies,debug,hip-clang,prefix:,relocatable,gen-pattern:,gen-precision:,manual-small:,manual-large:,address-sanitizer' --options hicgdr -- "$@")
+    GETOPT_PARSE=$(getopt --name "${0}" -o 'hidcgr' --long 'help,install,clients,dependencies,debug,hip-clang,prefix:,relocatable,gen-pattern:,gen-precision:,gen-group-num:,manual-small:,manual-large:,address-sanitizer' --options hicgdr -- "$@")
 else
     echo "Need a new version of getopt"
     exit 1
@@ -332,6 +334,10 @@ while true; do
         --gen-precision)
             # echo $2
             precision_arg=${2}
+            shift 2 ;;
+        --gen-group-num)
+            # echo $2
+            group_num=${2}
             shift 2 ;;
         --manual-small)
             # echo $2
@@ -427,6 +433,10 @@ fi
 
 if [[ "${precision_arg}" != false ]]; then
     cmake_common_options="${cmake_common_options} -DGENERATOR_PRECISION=${precision_arg}"
+fi
+
+if [[ "${group_num}" != false ]]; then
+    cmake_common_options="${cmake_common_options} -DGENERATOR_GROUP_NUM=${group_num}"
 fi
 
 if [[ "${manual_small_arg}" != false ]]; then
