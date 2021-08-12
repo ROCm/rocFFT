@@ -7,8 +7,11 @@ import sys
 import functools
 import glob
 import os
+import scipy.stats
 import shutil
 import random
+
+from pathlib import Path
 
 class Sample:
     def __init__(self, data, batch):
@@ -39,12 +42,12 @@ def data_dict_to_frame(data_dict):
     lengths = []
     samples = []
     batches = []
-    min_samples = sys.maxsize
 
     for cur_lengths_str, cur_sample in data_dict.items():
+        if not cur_sample.data:
+            continue
+
         cur_lengths = [int(x) for x in cur_lengths_str.split('x')]
-        if len(cur_sample.data) < min_samples:
-            min_samples = len(cur_sample.data)
 
         num_elems.append(functools.reduce((lambda x, y: x * y), cur_lengths))
         lengths.append(cur_lengths_str)
@@ -109,6 +112,21 @@ def basename_to_title(basename):
         title += 'out-of-place'
     return title
 
+def get_title(path):
+    """Read title from '# title: ' line in `basename`, or generate from `basename`."""
+
+    try:
+        lines = path.read_text().splitlines()
+    except:
+        lines = []
+
+    for line in lines:
+        if line.startswith('# title: '):
+            return line[9:].strip()
+
+    return basename_to_title(path.name)
+
+
 # return tuple with low,high to define the interval
 def speedup_confidence(length_series, dir0_data_dict, dir1_data_dict):
     ret = []
@@ -156,6 +174,16 @@ def speedup_colors(speedup):
             ret.append('rgb({0},255,{0})'.format(saturation))
     return ret
 
+def significance_colors(significance, threshold=0.05):
+    ret = []
+    for s in significance:
+        if s < threshold:
+            saturation = 128 + int(128 * (s / threshold))
+            ret.append('rgb({0},{0},255)'.format(saturation))
+        else:
+            ret.append('white')
+    return ret
+
 # returns a tuple of the plotly graph object and the table object with
 # the same data
 def graph_file(basename, dirs, logscale, docdir):
@@ -166,54 +194,68 @@ def graph_file(basename, dirs, logscale, docdir):
     traces = []
     for dir in dirs:
         dir = os.path.normpath(dir)
+        try:
+            dd = file_to_data_dict(os.path.join(dir,basename))
+            for samples in dd.values():
+                if len(samples.data) < 1:
+                    raise ValueError
+        except:
+            continue
+
         dir_basenames.append(os.path.basename(dir))
         dir_dirnames.append(os.path.dirname(dir))
-        data_dicts.append(file_to_data_dict(os.path.join(dir,basename)))
-        data_frames.append(data_dict_to_frame(data_dicts[-1]))
-        
-    graph_data = data_frames[0]
-    graph_data.sort_values('num_elems',inplace=True)
+        data_dicts.append(dd)
+        data_frames.append(data_dict_to_frame(dd))
 
-    # "initial" line
-    traces.append(go.Scatter(
-        x=graph_data['num_elems'],
-        y=graph_data['median_sample'],
-        hovertext=make_hovertext(graph_data['lengths'],graph_data['batches']),
-        name=dir_basenames[0]
-    ))
+    if not data_frames:
+        return
 
-    for i in range(1,len(data_frames)):
-        i_str = str(i)
-        cur_graph_data = graph_data.copy()
-        cur_graph_data.insert(5, 'median_sample_' + i_str, data_frames[i]['median_sample'])
-        cur_graph_data.insert(6, 'max_sample_' + i_str, data_frames[i]['max_sample'])
-        cur_graph_data.insert(7, 'min_sample_' + i_str, data_frames[i]['min_sample'])
+    for i in range(len(data_frames)):
+        data_frames[i].set_index('lengths')
+        data_frames[i].sort_values('num_elems', inplace=True)
+        if i > 0:
+            data_frames[i].reindex(index=data_frames[0].index)
 
-        cur_graph_data = cur_graph_data.assign(
+    for i in range(1, len(data_frames)):
+        pvalues = []
+        for l in data_frames[0].lengths:
+            _, p, _, _ = scipy.stats.median_test(data_dicts[i][l].data, data_dicts[0][l].data)
+            pvalues.append(p)
+        data_frames[i] = data_frames[i].assign(
             # speedup and speedup confidence interval
-            speedup=lambda x: x.median_sample / getattr(x,'median_sample_' + i_str),
+            speedup=data_frames[0].median_sample / data_frames[i].median_sample,
+            pvalue=pvalues,
             # FIXME: we're doing speedup_confidence twice, which is
             # unnecessary
             speedup_errlow=lambda x: [x[0] for x in speedup_confidence(x.lengths, data_dicts[0], data_dicts[i])],
             speedup_errhigh=lambda x: [x[1] for x in speedup_confidence(x.lengths, data_dicts[0], data_dicts[i])],
         )
 
+    # initial line
+    traces.append(go.Scatter(
+        x=data_frames[0].num_elems,
+        y=data_frames[0].median_sample,
+        hovertext=make_hovertext(data_frames[0].lengths, data_frames[0].batches),
+        name=dir_basenames[0]
+    ))
+
+    for i in range(1,len(data_frames)):
         traces.append(go.Scatter(
-            x=cur_graph_data['num_elems'],
-            y=cur_graph_data['median_sample_' + i_str],
-            hovertext=make_hovertext(cur_graph_data['lengths'],cur_graph_data['batches']),
+            x=data_frames[i].num_elems,
+            y=data_frames[i].median_sample,
+            hovertext=make_hovertext(data_frames[i].lengths, data_frames[i].batches),
             name=dir_basenames[i]
         ))
         traces.append(go.Scatter(
-            x=cur_graph_data['num_elems'],
-            y=cur_graph_data['speedup'],
+            x=data_frames[i].num_elems,
+            y=data_frames[i].speedup,
             name='Speedup {} over {}'.format(dir_basenames[i], dir_basenames[0]),
             yaxis='y2',
             error_y = dict(
                 type='data',
                 symmetric=False,
-                array=cur_graph_data['speedup_errhigh'],
-                arrayminus=cur_graph_data['speedup_errlow'],
+                array=data_frames[i].speedup_errhigh,
+                arrayminus=data_frames[i].speedup_errlow,
             )
         ))
         
@@ -225,8 +267,9 @@ def graph_file(basename, dirs, logscale, docdir):
         x_title = 'Problem size (elements)'
         axis_type = 'linear'
         y_title = 'Time (ms)'
+
     layout = go.Layout(
-        title=basename_to_title(basename),
+        title=get_title(Path(dirs[0]) / basename),
         xaxis=dict(
             title=x_title,
             type=axis_type,
@@ -257,35 +300,38 @@ def graph_file(basename, dirs, logscale, docdir):
     # add speedup=1 reference line
     fig.add_shape(
         type='line',
-        x0=graph_data['num_elems'].min(),
+        x0=data_frames[0].num_elems.min(),
         y0=1,
-        x1=graph_data['num_elems'].max(),
+        x1=data_frames[0].num_elems.max(),
         y1=1,
         line=dict(color='grey', dash='dash'),
         yref='y2'
     )
 
+    nrows = len(data_frames[0].index)
     headers = ['Problem size', 'Elements']
     values = [
-        # shorten 'batch' in table so the column isn't so wide
-        [t.replace(' batch ', ' b') for t in traces[0].hovertext],
-        traces[0].x,
+        [f"{length} b{batch}" for length, batch in zip(data_frames[0].lengths, data_frames[0].batches)],
+        data_frames[0].num_elems
     ]
     fill_colors = [
-        ['white'] * len(traces[0].hovertext),
-        ['white'] * len(traces[0].x),
+        ['white'] * nrows,
+        ['white'] * nrows,
     ]
-    for t in traces:
-        if t.name.startswith('Speedup'):
-            headers.append(t.name)
-            values.append(["{:.4f}".format(x) for x in t.y])
-            fill_colors.append(speedup_colors(t.y))
-        else:
-            headers.append(t.name + ' (median)')
-            # use exponent notation for data since numbers could be
-            # tiny or huge
-            values.append(["{:.4e}".format(x) for x in t.y])
-            fill_colors.append(['white'] * len(t.y))
+    for i in range(len(data_frames)):
+        headers.append(dir_basenames[i] + ' (median)')
+        values.append(["{:.4f}".format(x) for x in data_frames[i].median_sample])
+        fill_colors.append(['white'] * nrows)
+
+        if i > 0:
+            headers.append('Speedup {} over {}'.format(dir_basenames[i], dir_basenames[0]))
+            values.append(["{:.4f}".format(x) for x in data_frames[i].speedup])
+            fill_colors.append(speedup_colors(data_frames[i].speedup))
+
+            headers.append('Significance of {} over {}'.format(dir_basenames[i], dir_basenames[0]))
+            values.append(["{:.4f}".format(x) for x in data_frames[i].pvalue])
+            fill_colors.append(significance_colors(data_frames[i].pvalue))
+
     table = go.Figure(
         data = [
             go.Table(header=dict(values=headers),
@@ -293,7 +339,7 @@ def graph_file(basename, dirs, logscale, docdir):
                      ),
         ],
         layout = go.Layout(
-            title=basename_to_title(basename)
+            title=get_title(Path(dirs[0]) / basename)
             )
     )
     # 900 seems to be enough for 2 dirs
@@ -328,7 +374,11 @@ def graph_dirs(dirs, title, docdir):
     # collect a list of figure+table pairs
     figs_list = []
     for filename in dat_files:
-        figs_list.append(graph_file(os.path.basename(filename), dirs, True, docdir))
+        g = graph_file(os.path.basename(filename), dirs, True, docdir)
+        if g is not None:
+            figs_list.append(g)
+        else:
+            print(f'Skipped {filename}...')
 
     # make links to each figure at the top of the report
     outfile.write('''<b>Quick links:</b><br/>''')
