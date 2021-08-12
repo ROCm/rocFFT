@@ -25,9 +25,12 @@ set( sample_list fixed-16-float fixed-16-double )
 foreach( sample ${sample_list} )
 
   add_executable( ${sample} ${sample}.cpp )
+  if( BUILD_FFTW OR NOT FFTW_FOUND )
+    add_dependencies( ${sample} fftw_double fftw_single )
+  endif()
 
   target_include_directories( ${sample}
-    PRIVATE $<BUILD_INTERFACE:${FFTW_INCLUDE_DIRS}>
+    PRIVATE $<BUILD_INTERFACE:${FFTW_INCLUDES}>
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
   )
 

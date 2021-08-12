@@ -59,7 +59,8 @@ Clients are not built by default.  To build them:
 | rocfft-selftest | `-DBUILD_CLIENTS_SELFTEST=on` | Google Test                              |
 | samples         | `-DBUILD_CLIENTS_SAMPLES=on`  | Boost program options, FFTW              |
 
-To build all of the above clients, use `-DBUILD_CLIENTS=on`.
+To build all of the above clients, use `-DBUILD_CLIENTS=on`.  The build process will download and build Google Test
+and FFTW if they are not installed.
 
 To install the client dependencies on Ubuntu, run
 `sudo apt install libgtest-dev libfftw3-dev libboost-program-options-dev`.

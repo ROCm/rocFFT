@@ -54,7 +54,9 @@ if( NOT Boost_LIBRARIES )
   set( Boost_LIBRARIES Boost::program_options )
 endif()
 
-find_package( FFTW 3.0 REQUIRED MODULE COMPONENTS FLOAT DOUBLE )
+if( BUILD_FFTW OR NOT FFTW_FOUND )
+  add_dependencies( rocfft-test fftw_double fftw_single )
+endif()
 
 set( rocfft-test_include_dirs
   $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
