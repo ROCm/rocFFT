@@ -498,6 +498,92 @@ void BLOCKRC3DNode::AssignBuffers_internal(TraverseState&   state,
 }
 
 /*****************************************************
+ * CS_3D_BLOCK_CR  *
+ *****************************************************/
+void BLOCKCR3DNode::BuildTree_internal()
+{
+    // TODO: It works only for 3 SBCR children nodes for now.
+    //       The final logic will be similar to what SBRC has.
+
+    std::vector<size_t> cur_length = length;
+    for(int i = 0; i < 3; ++i)
+    {
+        auto node = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CR, this);
+        node->length.push_back(cur_length[2]);
+        node->length.push_back(cur_length[0] * cur_length[1]);
+        childNodes.emplace_back(std::move(node));
+        std::swap(cur_length[1], cur_length[2]);
+        std::swap(cur_length[2], cur_length[0]);
+    }
+}
+
+void BLOCKCR3DNode::AssignParams_internal()
+{
+    // TODO: It works only for 3 SBCR children nodes for now.
+    //       The final logic will be similar to what SBRC has.
+
+    assert(scheme == CS_3D_BLOCK_CR);
+
+    childNodes[0]->inStride.push_back(inStride[2]);
+    childNodes[0]->inStride.push_back(inStride[0]);
+    childNodes[0]->iDist = iDist;
+
+    childNodes[0]->outStride.push_back(1);
+    childNodes[0]->outStride.push_back(childNodes[0]->length[0]);
+    childNodes[0]->oDist = childNodes[0]->outStride[1] * childNodes[0]->length[1];
+
+    childNodes[1]->inStride.push_back(childNodes[1]->length[1]);
+    childNodes[1]->inStride.push_back(1);
+    childNodes[1]->iDist = childNodes[0]->oDist;
+
+    childNodes[1]->outStride.push_back(1);
+    childNodes[1]->outStride.push_back(childNodes[1]->length[0]);
+    childNodes[1]->oDist = childNodes[1]->outStride[1] * childNodes[1]->length[1];
+
+    childNodes[2]->inStride.push_back(childNodes[2]->length[1]);
+    childNodes[2]->inStride.push_back(1);
+    childNodes[2]->iDist = childNodes[1]->oDist;
+
+    childNodes[2]->outStride = outStride;
+    childNodes[2]->oDist     = oDist;
+}
+
+void BLOCKCR3DNode::AssignBuffers_internal(TraverseState&   state,
+                                           OperatingBuffer& flipIn,
+                                           OperatingBuffer& flipOut,
+                                           OperatingBuffer& obOutBuf)
+{
+    for(size_t i = 0; i < childNodes.size(); ++i)
+    {
+        auto& node = childNodes[i];
+        node->SetInputBuffer(state);
+        node->inArrayType = (i == 0) ? inArrayType : childNodes[i - 1]->outArrayType;
+        node->obOut       = flipOut == OB_USER_OUT && placement == rocfft_placement_notinplace
+                                ? OB_USER_IN
+                                : flipOut;
+
+        // temp is interleaved, in/out might not be
+        switch(node->obOut)
+        {
+        case OB_USER_IN:
+            node->outArrayType = inArrayType;
+            break;
+        case OB_USER_OUT:
+            node->outArrayType = outArrayType;
+            break;
+        default:
+            node->outArrayType = rocfft_array_type_complex_interleaved;
+        }
+
+        node->AssignBuffers(state, flipIn, flipOut, obOutBuf);
+    }
+
+    obOut                           = obOutBuf;
+    childNodes.back()->obOut        = obOut;
+    childNodes.back()->outArrayType = outArrayType;
+}
+
+/*****************************************************
  * CS_3D_RC  *
  *****************************************************/
 void RC3DNode::BuildTree_internal()

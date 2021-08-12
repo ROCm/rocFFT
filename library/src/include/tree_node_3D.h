@@ -100,6 +100,32 @@ protected:
 };
 
 /*****************************************************
+ * CS_3D_BLOCK_CR  *
+ * 3D 3-5 node builder.
+ * Uses 3D SBCR kernels fused with transpose
+ * for each dimension when possible to do
+ * row FFTs + transpose.
+ *****************************************************/
+class BLOCKCR3DNode : public InternalNode
+{
+    friend class NodeFactory;
+
+protected:
+    BLOCKCR3DNode(TreeNode* p)
+        : InternalNode(p)
+    {
+        scheme = CS_3D_BLOCK_CR;
+    }
+
+    void AssignBuffers_internal(TraverseState&   state,
+                                OperatingBuffer& flipIn,
+                                OperatingBuffer& flipOut,
+                                OperatingBuffer& obOutBuf) override;
+    void AssignParams_internal() override;
+    void BuildTree_internal() override;
+};
+
+/*****************************************************
  * CS_3D_RC  *
  * 3D 2 node builder, R: 2D FFTs, C: SBCC
  * 2D FFTs could be:

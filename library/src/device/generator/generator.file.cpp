@@ -195,6 +195,11 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
             str += "void rocfft_internal_dfn_sp_ci_ci_sbcc_";
             str += str_len + str_interface;
         }
+        else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
+        {
+            str += "void rocfft_internal_dfn_sp_ci_ci_sbcr_";
+            str += str_len + str_interface;
+        }
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
         {
             str += "void rocfft_internal_dfn_sp_op_ci_ci_sbrc_";
@@ -229,6 +234,11 @@ void WriteCPUHeaders(const std::vector<size_t>&                                 
         if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
         {
             str += "void rocfft_internal_dfn_dp_ci_ci_sbcc_";
+            str += str_len + str_interface;
+        }
+        else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
+        {
+            str += "void rocfft_internal_dfn_dp_ci_ci_sbcr_";
             str += str_len + str_interface;
         }
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
@@ -463,6 +473,15 @@ void write_cpu_function_large(std::vector<std::tuple<size_t, ComputeScheme>> lar
             str += "POWX_LARGE_SBCC_GENERATOR( rocfft_internal_dfn_" + short_name_precision
                    + "_ci_ci_sbcc_" + str_len + ", fft_fwd_ip_len" + str_len + name_suffix
                    + ", fft_back_ip_len" + str_len + name_suffix + ", fft_fwd_op_len" + str_len
+                   + name_suffix + ", fft_back_op_len" + str_len + name_suffix + ", "
+                   + complex_case_precision + ")\n";
+        }
+        else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
+        {
+            name_suffix = "_sbcr";
+            str += "#include \"rocfft_kernel_" + str_len + name_suffix + ".h\" \n";
+            str += "POWX_LARGE_SBCR_GENERATOR( rocfft_internal_dfn_" + short_name_precision
+                   + "_ci_ci_sbcr_" + str_len + name_suffix + ", fft_fwd_op_len" + str_len
                    + name_suffix + ", fft_back_op_len" + str_len + name_suffix + ", "
                    + complex_case_precision + ")\n";
         }
@@ -724,6 +743,14 @@ void AddCPUFunctionToPool(
                    + str_len + ";\n";
             ;
         }
+        else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
+        {
+            str += "\tfunction_map_single[std::make_pair(" + str_len
+                   + ", CS_KERNEL_STOCKHAM_BLOCK_CR)] = "
+                     "&rocfft_internal_dfn_sp_ci_ci_sbcr_"
+                   + str_len + ";\n";
+            ;
+        }
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
         {
             str += "\tfunction_map_single[std::make_pair(" + str_len
@@ -778,6 +805,14 @@ void AddCPUFunctionToPool(
             str += "\tfunction_map_double[std::make_pair(" + str_len
                    + ", CS_KERNEL_STOCKHAM_BLOCK_CC)] = "
                      "&rocfft_internal_dfn_dp_ci_ci_sbcc_"
+                   + str_len + ";\n";
+            ;
+        }
+        else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
+        {
+            str += "\tfunction_map_double[std::make_pair(" + str_len
+                   + ", CS_KERNEL_STOCKHAM_BLOCK_CC)] = "
+                     "&rocfft_internal_dfn_dp_ci_ci_sbcr_"
                    + str_len + ";\n";
             ;
         }

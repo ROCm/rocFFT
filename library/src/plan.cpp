@@ -102,6 +102,7 @@ std::string PrintScheme(ComputeScheme cs)
            {ENUMSTR(CS_3D_TRTRTR)},
            {ENUMSTR(CS_3D_RTRT)},
            {ENUMSTR(CS_3D_BLOCK_RC)},
+           {ENUMSTR(CS_3D_BLOCK_CR)},
            {ENUMSTR(CS_3D_RC)},
            {ENUMSTR(CS_KERNEL_3D_STOCKHAM_BLOCK_CC)},
            {ENUMSTR(CS_KERNEL_3D_SINGLE)}};

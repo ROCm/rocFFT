@@ -210,6 +210,8 @@ std::unique_ptr<TreeNode> NodeFactory::CreateNodeFromScheme(ComputeScheme s, Tre
         return std::unique_ptr<TRTRTR3DNode>(new TRTRTR3DNode(parent));
     case CS_3D_BLOCK_RC:
         return std::unique_ptr<BLOCKRC3DNode>(new BLOCKRC3DNode(parent));
+    case CS_3D_BLOCK_CR:
+        return std::unique_ptr<BLOCKCR3DNode>(new BLOCKCR3DNode(parent));
     case CS_3D_RC:
         return std::unique_ptr<RC3DNode>(new RC3DNode(parent));
 
@@ -220,6 +222,8 @@ std::unique_ptr<TreeNode> NodeFactory::CreateNodeFromScheme(ComputeScheme s, Tre
         return std::unique_ptr<SBCCNode>(new SBCCNode(parent, s));
     case CS_KERNEL_STOCKHAM_BLOCK_RC:
         return std::unique_ptr<SBRCNode>(new SBRCNode(parent, s));
+    case CS_KERNEL_STOCKHAM_BLOCK_CR:
+        return std::unique_ptr<SBCRNode>(new SBCRNode(parent, s));
     case CS_KERNEL_2D_SINGLE:
         return std::unique_ptr<Single2DNode>(new Single2DNode(parent, s));
     case CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z:

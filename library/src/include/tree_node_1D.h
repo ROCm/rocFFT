@@ -147,4 +147,22 @@ protected:
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 };
 
+/*****************************************************
+ * SBCR  *
+ *****************************************************/
+class SBCRNode : public LeafNode
+{
+    friend class NodeFactory;
+
+protected:
+    SBCRNode(TreeNode* p, ComputeScheme s)
+        : LeafNode(p, s)
+    {
+        externalKernel = true;
+        need_twd_table = true;
+    }
+
+    void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+};
+
 #endif // TREE_NODE_1D_H

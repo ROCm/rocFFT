@@ -53,7 +53,7 @@ enum ComputeScheme
     CS_KERNEL_STOCKHAM,
     CS_KERNEL_STOCKHAM_BLOCK_CC,
     CS_KERNEL_STOCKHAM_BLOCK_RC,
-    CS_KERNEL_STOCKHAM_BLOCK_CR, // not implemented yet
+    CS_KERNEL_STOCKHAM_BLOCK_CR,
     CS_KERNEL_TRANSPOSE,
     CS_KERNEL_TRANSPOSE_XY_Z,
     CS_KERNEL_TRANSPOSE_Z_XY,
@@ -97,6 +97,7 @@ enum ComputeScheme
     CS_3D_TRTRTR,
     CS_3D_RTRT,
     CS_3D_BLOCK_RC,
+    CS_3D_BLOCK_CR,
     CS_3D_RC,
     CS_KERNEL_3D_STOCKHAM_BLOCK_CC, // not implemented yet
     CS_KERNEL_3D_SINGLE // not implemented yet

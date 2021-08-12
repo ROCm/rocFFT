@@ -847,7 +847,115 @@ class StockhamTilingRC(StockhamTiling):
 
 
 class StockhamTilingCR(StockhamTiling):
-    pass
+    """Column/row tiling."""
+
+    name = 'SBCR'
+
+    def __init__(self, factors, params, **kwargs):
+        super().__init__(factors, params, **kwargs)
+        self.tile_index = Variable('tile_index', 'size_t')
+        self.tile_length = Variable('tile_length', 'size_t')
+        self.edge = Variable('edge', 'bool')
+        self.tid1 = Variable('tid1', 'size_t')
+        self.tid0 = Variable('tid0', 'size_t')
+
+    def calculate_offsets(self, transform=None, dim=None,
+                          block_id=None, thread_id=None, lengths=None, stride=None, offset=None, batch=None,
+                          offset_lds=None,
+                          **kwargs):
+
+        length, params = self.length, self.params
+
+        d             = Variable('d', 'int')
+        index_along_d = Variable('index_along_d', 'size_t')
+        remaining     = Variable('remaining', 'size_t')
+        plength       = Variable('plength', 'size_t', value=1)
+
+        stmts = StatementList()
+        stmts += Declarations(self.tile_index, self.tile_length)
+        stmts += LineBreak()
+        stmts += CommentLines('calculate offset for each tile:',
+                              '  tile_index  now means index of the tile along dim1',
+                              '  tile_length now means number of tiles along dim1')
+        stmts += Declarations(plength, remaining, index_along_d)
+        stmts += Assign(self.tile_length, B(lengths[1] - 1) / params.transforms_per_block + 1)
+        stmts += Assign(plength, self.tile_length)
+        stmts += Assign(self.tile_index, block_id % self.tile_length)
+        stmts += Assign(remaining, block_id / self.tile_length)
+        stmts += Assign(offset, self.tile_index * params.transforms_per_block * stride[1])
+        stmts += For(d.inline(2), d < dim, Increment(d),
+                     StatementList(
+                         Assign(plength, plength * lengths[d]),
+                         Assign(index_along_d, remaining % lengths[d]),
+                         Assign(remaining, remaining / lengths[d]),
+                         Assign(offset, offset + index_along_d * stride[d])))
+        stmts += LineBreak()
+        stmts += Assign(transform, self.tile_index * params.transforms_per_block + thread_id / params.threads_per_transform)
+        stmts += Assign(batch, block_id / plength)
+        stmts += Assign(offset, offset + batch * stride[dim])
+        stmts += Assign(offset_lds, length * B(transform % params.transforms_per_block))
+
+        return stmts
+
+    def load_from_global(self, buf=None, offset=None, lds=None,
+                         lengths=None, thread_id=None, stride=None, stride0=None, **kwargs):
+
+        length, params = self.length, self.params
+
+        edge, tid0, tid1 = self.edge, self.tid0, self.tid1
+        stripmine_w   = params.transforms_per_block
+        stripmine_h   = params.threads_per_block // stripmine_w
+        stride_lds    = length + kwargs.get('lds_padding', 0)  # XXX
+
+        stmts = StatementList()
+        stmts += Declarations(edge, tid0, tid1)
+        stmts += ConditionalAssign(edge,
+                                   Greater(B(self.tile_index + 1) * params.transforms_per_block, lengths[1]),
+                                   'true', 'false')
+        stmts += Assign(tid1, thread_id % stripmine_w)  # tid0 walks the columns; tid1 walks the rows
+        stmts += Assign(tid0, thread_id / stripmine_w)
+        offset_tile_rbuf = lambda i : tid1 * stride[1]  + B(tid0 + i * stripmine_h) * stride0
+        offset_tile_wlds = lambda i : tid1 * stride_lds + B(tid0 + i * stripmine_h) * 1
+        pred, tmp_stmts = StatementList(), StatementList()
+        pred = self.tile_index * params.transforms_per_block + tid1 < lengths[1]
+        for i in range(length // stripmine_h):
+            tmp_stmts += Assign(lds[offset_tile_wlds(i)], LoadGlobal(buf, offset + offset_tile_rbuf(i)))
+
+        stmts += If(Not(edge), tmp_stmts)
+        stmts += If(edge, If(pred, tmp_stmts))
+
+        return stmts
+
+    def store_to_global(self, stride=None, stride0=None, lengths=None, thread_id=None, buf=None,
+                        offset=None, lds=None, lds_padding=None, **kwargs):
+
+        length, params = self.length, self.params
+        kvars, kwvars = common_variables(length, params, 0)
+        edge, tid0, tid1 = self.edge, self.tid0, self.tid1
+        stripmine_w   = params.transforms_per_block
+        stripmine_h   = params.threads_per_block // stripmine_w
+        stride_lds    = length + kwargs.get('lds_padding', 0)  # XXX
+
+        lds_strip_h   = params.threads_per_block // length
+
+        stmts = StatementList()
+        offset_tile_rbuf = lambda i : i * lds_strip_h * stride[1] + tid1 * stride[1] + tid0 * stride0
+        offset_tile_wlds = lambda i : i * params.threads_per_block + tid1 * B(length + lds_padding) + tid0
+        offset_tile_wbuf = offset_tile_rbuf
+        offset_tile_rlds = offset_tile_wlds
+
+        stmts += Assign(tid0, thread_id % length)
+        stmts += Assign(tid1, thread_id / length)
+
+        pred, tmp_stmts = StatementList(), StatementList()
+        pred = self.tile_index * params.transforms_per_block + tid1 < lengths[1]
+        for i in range(params.transforms_per_block // lds_strip_h):
+            tmp_stmts += StoreGlobal(buf, offset + offset_tile_wbuf(i), lds[offset_tile_rlds(i)])
+        stmts += If(Not(edge), tmp_stmts)
+        stmts += If(edge, If(pred, tmp_stmts))
+
+        return stmts
+
 
 
 #
@@ -1433,7 +1541,7 @@ def make_variants(kdevice, kglobal):
     def rename_op(x):
         return rename_functions(x, lambda n: rename(n, 'op_'))
 
-    if kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_RC':
+    if kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_RC' or kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CR':
         # out-of-place only
         kernels = [
             rename_op(make_out_of_place(kdevice, op_names)),

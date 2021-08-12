@@ -13,6 +13,7 @@ Note that 'small' kernels don't decompose their lengths.
 
 import argparse
 import collections
+import copy
 import functools
 import itertools
 import os
@@ -447,6 +448,12 @@ class POWX_LARGE_SBRC_GENERATOR(POWX_SMALL_GENERATOR):
         return f'POWX_LARGE_SBRC_GENERATOR({cjoin(self.args)});'
 
 
+@name_args(['name', 'op_fwd', 'op_inv', 'precision'])
+class POWX_LARGE_SBCR_GENERATOR(POWX_SMALL_GENERATOR):
+    def __str__(self):
+        return f'POWX_LARGE_SBCR_GENERATOR({cjoin(self.args)});'
+
+
 def kernel_file_name(ns):
     """Given kernel info namespace, return reasonable file name."""
 
@@ -461,6 +468,8 @@ def kernel_file_name(ns):
         postfix = '_sbcc'
     elif ns.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_RC':
         postfix = '_sbrc'
+    elif ns.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CR':
+        postfix = '_sbcr'
 
     return f'rocfft_len{length}{postfix}.cpp'
 
@@ -617,49 +626,93 @@ def list_new_2d_kernels():
 def list_new_large_kernels():
     """Return list of large kernels to generate with the new generator."""
 
-    kernels = [
-        NS(length=50,  factors=[10, 5],      use_3steps_large_twd={'sp': 'true',  'dp': 'true'}, threads_per_block=256),
-        NS(length=52,  factors=[13, 4],      use_3steps_large_twd={'sp': 'true',  'dp': 'true'}),
-        NS(length=60,  factors=[6, 10],      use_3steps_large_twd={'sp': 'false',  'dp': 'false'}),
-        NS(length=64,  factors=[8, 8],       use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
-        NS(length=72,  factors=[8, 3, 3],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
-        NS(length=80,  factors=[10, 8]  ,    use_3steps_large_twd={'sp': 'false',  'dp': 'false'}),
-        NS(length=81,  factors=[3, 3, 3, 3], use_3steps_large_twd={'sp': 'true',  'dp': 'true'}),
-        NS(length=84,  factors=[7, 2, 6],    use_3steps_large_twd={'sp': 'true',  'dp': 'true'}),
-        NS(length=96,  factors=[6, 16],      use_3steps_large_twd={'sp': 'false',  'dp': 'false'}),
-        NS(length=100, factors=[5, 5, 4],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}, threads_per_block=100),
-        NS(length=104, factors=[13, 8],      use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
-        NS(length=108, factors=[6, 6, 3],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
-        NS(length=112, factors=[4, 7, 4],    use_3steps_large_twd={'sp': 'false',  'dp': 'false'}),
-        NS(length=128, factors=[8, 4, 4],    use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
-        NS(length=160, factors=[4, 10, 4],   use_3steps_large_twd={'sp': 'false', 'dp': 'false'}, flavour='wide'),
-        NS(length=168, factors=[7, 6, 4],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'}, threads_per_block=128),
-        NS(length=192, factors=[6, 4, 4, 2], use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
-        NS(length=200, factors=[8, 5, 5],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
-        NS(length=208, factors=[13, 16],     use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
-        NS(length=216, factors=[8, 3, 3, 3], use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
-        NS(length=224, factors=[8, 7, 4],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
-        NS(length=240, factors=[8, 5, 6],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
-        NS(length=256, factors=[4, 4, 4, 4], use_3steps_large_twd={'sp': 'true',  'dp': 'false'}),
-        NS(length=336, factors=[6, 7, 8],    use_3steps_large_twd={'sp': 'false', 'dp': 'false'})
+    sbcc_kernels = [
+        NS(length=50,  factors=[10, 5],      use_3steps_large_twd={
+           'sp': 'true',  'dp': 'true'}, threads_per_block=256),
+        NS(length=52,  factors=[13, 4],      use_3steps_large_twd={
+           'sp': 'true',  'dp': 'true'}),
+        NS(length=60,  factors=[6, 10],      use_3steps_large_twd={
+           'sp': 'false',  'dp': 'false'}),
+        NS(length=64,  factors=[8, 8],       use_3steps_large_twd={
+           'sp': 'true',  'dp': 'false'}),
+        NS(length=72,  factors=[8, 3, 3],    use_3steps_large_twd={
+           'sp': 'true',  'dp': 'false'}),
+        NS(length=80,  factors=[10, 8],    use_3steps_large_twd={
+           'sp': 'false',  'dp': 'false'}),
+        NS(length=81,  factors=[3, 3, 3, 3], use_3steps_large_twd={
+           'sp': 'true',  'dp': 'true'}),
+        NS(length=84,  factors=[7, 2, 6],    use_3steps_large_twd={
+           'sp': 'true',  'dp': 'true'}),
+        NS(length=96,  factors=[6, 16],      use_3steps_large_twd={
+           'sp': 'false',  'dp': 'false'}),
+        NS(length=100, factors=[5, 5, 4],    use_3steps_large_twd={
+           'sp': 'true',  'dp': 'false'}, threads_per_block=100),
+        NS(length=104, factors=[13, 8],      use_3steps_large_twd={
+           'sp': 'true',  'dp': 'false'}),
+        NS(length=108, factors=[6, 6, 3],    use_3steps_large_twd={
+           'sp': 'true',  'dp': 'false'}),
+        NS(length=112, factors=[4, 7, 4],    use_3steps_large_twd={
+           'sp': 'false',  'dp': 'false'}),
+        NS(length=128, factors=[8, 4, 4],    use_3steps_large_twd={
+           'sp': 'true',  'dp': 'false'}),
+        NS(length=160, factors=[4, 10, 4],   use_3steps_large_twd={
+           'sp': 'false', 'dp': 'false'}, flavour='wide'),
+        NS(length=168, factors=[7, 6, 4],    use_3steps_large_twd={
+           'sp': 'false', 'dp': 'false'}, threads_per_block=128),
+        NS(length=192, factors=[6, 4, 4, 2], use_3steps_large_twd={
+           'sp': 'false', 'dp': 'false'}),
+        NS(length=200, factors=[8, 5, 5],    use_3steps_large_twd={
+           'sp': 'false', 'dp': 'false'}),
+        NS(length=208, factors=[13, 16],     use_3steps_large_twd={
+           'sp': 'false', 'dp': 'false'}),
+        NS(length=216, factors=[8, 3, 3, 3], use_3steps_large_twd={
+           'sp': 'false', 'dp': 'false'}),
+        NS(length=224, factors=[8, 7, 4],    use_3steps_large_twd={
+           'sp': 'false', 'dp': 'false'}),
+        NS(length=240, factors=[8, 5, 6],    use_3steps_large_twd={
+           'sp': 'false', 'dp': 'false'}),
+        NS(length=256, factors=[4, 4, 4, 4], use_3steps_large_twd={
+           'sp': 'true',  'dp': 'false'}),
+        NS(length=336, factors=[6, 7, 8],    use_3steps_large_twd={
+           'sp': 'false', 'dp': 'false'})
     ]
 
     # for SBCC kernel, increase desired threads_per_block so that columns per
     # thread block is also increased. currently targeting for 16 columns
     block_width = 16
-    for k in kernels:
+    for k in sbcc_kernels:
         k.scheme = 'CS_KERNEL_STOCKHAM_BLOCK_CC'
         if not hasattr(k, 'threads_per_block'):
-            k.threads_per_block = block_width * reduce(mul, k.factors, 1) // min(k.factors)
+            k.threads_per_block = block_width * \
+                reduce(mul, k.factors, 1) // min(k.factors)
         if not hasattr(k, 'length'):
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
 
-    # kernels += [
-    #     NS(length=64,  factors=[4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128),
-    #     NS(length=128, factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128),
-    # ]
+    # NB:
+    # Technically, we could have SBCR kernels the same amount as SBCC.
+    #
+    # sbcr_kernels = copy.deepcopy(sbcc_kernels)
+    # for k in sbcr_kernels:
+    #     k.scheme = 'CS_KERNEL_STOCKHAM_BLOCK_CR'
+    #
+    # Just enable length 64 for now.
 
-    return kernels
+    sbcr_kernels = [
+        NS(length=64,  factors=[8, 8],       use_3steps_large_twd={
+           'sp': 'true',  'dp': 'false'})
+    ]
+
+    block_width = 16
+    for k in sbcr_kernels:
+        k.scheme = 'CS_KERNEL_STOCKHAM_BLOCK_CR'
+        if not hasattr(k, 'threads_per_block'):
+            k.threads_per_block = block_width * \
+                reduce(mul, k.factors, 1) // min(k.factors)
+        if not hasattr(k, 'length'):
+            k.length = functools.reduce(lambda a, b: a * b, k.factors)
+
+    return sbcc_kernels + sbcr_kernels
+
 
 def default_runtime_compile(kernels):
     '''Returns a copy of input kernel list with a default value for runtime_compile.'''
@@ -722,6 +775,13 @@ def generate_kernel(kernel, precisions):
             prototype = POWX_LARGE_SBCC_GENERATOR(f'rocfft_internal_dfn_{p}_ci_ci_sbcc_{length}',
                                                   'ip_' + forward, 'ip_' + inverse,
                                                   'op_' + forward, 'op_' + inverse, typename_dict[p])
+            src += prototype
+            cpu_functions.append(prototype.function(kglobal.meta, p))
+
+        elif kglobal.meta.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CR':
+            prototype = POWX_LARGE_SBCR_GENERATOR(f'rocfft_internal_dfn_{p}_ci_ci_sbcr_{length}',
+                                                  'op_' + forward, 'op_' + inverse, typename_dict[p])
+
             src += prototype
             cpu_functions.append(prototype.function(kglobal.meta, p))
 
@@ -904,7 +964,7 @@ def cli():
     # which kernels by new-gen and which by old-gen? categorize input kernels
     #
     supported_new_small_kernels = list_new_kernels()
-    supported_new_large_kernels = list_new_large_kernels() # currently 'large' really is sbcc kernels only
+    supported_new_large_kernels = list_new_large_kernels()
     new_small_kernels = new_large_kernels = []
 
     # Don't subtract_from_all for large, since so far sbrc and transpose still rely on old-gen.
@@ -996,3 +1056,4 @@ def cli():
 
 if __name__ == '__main__':
     cli()
+
