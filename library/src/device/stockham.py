@@ -5,7 +5,7 @@ import math
 import sys
 
 from collections import namedtuple
-from math import ceil
+from math import ceil, floor
 from pathlib import Path
 from types import SimpleNamespace as NS
 from enum import Enum
@@ -44,7 +44,7 @@ def get_launch_params(factors,
                       bytes_per_element=16,
                       lds_byte_limit=32 * 1024,
                       threads_per_block=256,
-                      threads_per_transform=1,
+                      threads_per_transform=None,
                       **kwargs):
     """Return kernel launch parameters.
 
@@ -57,10 +57,14 @@ def get_launch_params(factors,
     length = product(factors)
     bytes_per_batch = length * bytes_per_element
 
-    if flavour == 'uwide':
-        threads_per_transform = length // min(factors)
-    elif flavour == 'wide':
-        threads_per_transform = length // max(factors)
+    if threads_per_transform is None:
+        threads_per_transform = 1
+        for t in range(2, length):
+            if t > threads_per_block:
+                continue
+            if length % t == 0:
+                if all((length // t) % f == 0 for f in factors):
+                    threads_per_transform = t
 
     batches_per_block = lds_byte_limit // bytes_per_batch
     while threads_per_transform * batches_per_block > threads_per_block:
@@ -358,19 +362,17 @@ class StockhamTilingRR(StockhamTiling):
         d             = Variable('d', 'int')
         index_along_d = Variable('index_along_d', 'size_t')
         remaining     = Variable('remaining', 'size_t')
-        plength       = Variable('plength', 'size_t', value=1)
 
         stmts = StatementList()
-        stmts += Declarations(remaining, plength, index_along_d)
+        stmts += Declarations(remaining, index_along_d)
         stmts += Assign(transform, block_id * params.transforms_per_block + thread_id / params.threads_per_transform)
         stmts += Assign(remaining, transform)
         stmts += For(d.inline(1), d < dim, Increment(d),
                      StatementList(
-                         Assign(plength, plength * lengths[d]),
                          Assign(index_along_d, remaining % lengths[d]),
                          Assign(remaining, remaining / lengths[d]),
                          Assign(offset, offset + index_along_d * stride[d])))
-        stmts += Assign(batch, transform / plength)
+        stmts += Assign(batch, remaining)
         stmts += Assign(offset, offset + batch * stride[dim])
         stmts += Assign(offset_lds, B(length + lds_padding) * B(transform % params.transforms_per_block))
 
@@ -962,51 +964,124 @@ class StockhamTilingCR(StockhamTiling):
 # Kernel helpers
 #
 
-def load_lds(width=None, height=None, spass=0,
-             thread=None, R=None, lds=None, offset_lds=None, lstride=None, **kwargs):
+def add_work(generator, guard=False, write=None,
+             length=None, width=None, height=None,
+             thread=None, threads_per_transform=None,
+             **kwargs):
+    """Call `generator` as many times as needed..."""
+    stmts = StatementList()
+    iheight = floor(height)
+
+    if height > iheight and threads_per_transform > length // width:
+        iheight += 1
+    # else:
+    #     guard = False
+
+    kwargs = kwargs.copy()
+    kwargs.update(dict(length=length, width=width, height=height, iheight=iheight,
+                       thread=thread, threads_per_transform=threads_per_transform))
+
+    work = StatementList()
+    for h in range(iheight):
+        work += generator(h, **kwargs)
+
+    if guard:
+        stmts += CommentLines('more than enough threads, some do nothing')
+        if threads_per_transform != length // width:
+            stmts += If(And(write, thread < length // width), work)
+        else:
+            stmts += If(write, work)
+    else:
+        stmts += work
+
+    if height > iheight and threads_per_transform < length // width:
+        stmts += CommentLines('not enough threads, some threads do extra work')
+        stmts += If(And(write, thread + iheight * threads_per_transform < length // width),
+                    generator(0, hr=iheight, dt=iheight*threads_per_transform, **kwargs))
+    stmts += LineBreak()
+    return stmts
+
+
+def load_lds_generator(h, hr=None, dt=0, threads_per_transform=None,
+                       thread=None, length=None, width=None, component=None,
+                       R=None, lds=None, offset_lds=None, lstride=None, **kwargs):
     """Load registers 'R' from LDS 'X'."""
-    stmts = StatementList()
+    hr = hr or h
+    load = StatementList()
     for w in range(width):
-        idx = offset_lds + B(thread + w * height) * lstride
-        stmts += Assign(R[spass * width + w], lds[idx])
-    stmts += LineBreak()
-    return stmts
+        tid = B(thread + dt + h * threads_per_transform)
+        idx = offset_lds + B(tid + w * (length // width)) * lstride
+        if component is not None:
+            load += Assign(getattr(R[hr * width + w], component), lds[idx])
+        else:
+            load += Assign(R[hr * width + w], lds[idx])
+    return load
 
 
-def twiddle(width=None, cumheight=None, spass=0,
-            thread=None, W=None, t=None, twiddles=None, R=None, **kwargs):
+def load_global_generator(h, hr=None, dt=0, threads_per_transform=None,
+                          thread=None, length=None, width=None,
+                          R=None, buf=None, offset=None, stride0=None, **kwargs):
+    """Load registers 'R' from global 'buf'."""
+    hr = hr or h
+    load = StatementList()
+    for w in range(width):
+        tid = B(thread + dt + h * threads_per_transform)
+        idx = B(tid + w * (length // width))
+        load += Assign(R[hr * width + w], LoadGlobal(buf, offset + B(idx) * stride0))
+    return load
+
+
+def apply_twiddle_generator(h, hr=None, dt=0, threads_per_transform=None,
+                            thread=None, width=None, cumheight=None,
+                            W=None, t=None, twiddles=None, R=None, **kwargs):
     """Apply twiddles from 'T' to registers 'R'."""
-    stmts = StatementList()
+
+    hr = hr or h
+    work = StatementList()
     for w in range(1, width):
-        tidx = cumheight - 1 + w - 1 + (width - 1) * B(thread % cumheight)
-        ridx = spass * width + w
-        stmts += Assign(W, twiddles[tidx])
-        stmts += Assign(t.x, W.x * R[ridx].x - W.y * R[ridx].y)
-        stmts += Assign(t.y, W.y * R[ridx].x + W.x * R[ridx].y)
-        stmts += Assign(R[ridx], t)
-    stmts += LineBreak()
-    return stmts
+        tid  = B(thread + dt + h * threads_per_transform)
+        tidx = cumheight - 1 + w - 1 + (width - 1) * B(tid % cumheight)
+        ridx = hr * width + w
+        work += Assign(W, twiddles[tidx])
+        work += Assign(t.x, W.x * R[ridx].x - W.y * R[ridx].y)
+        work += Assign(t.y, W.y * R[ridx].x + W.x * R[ridx].y)
+        work += Assign(R[ridx], t)
+    return work
 
 
-def butterfly(width=None, R=None, spass=0, **kwargs):
+def butterfly_generator(h, hr=None, width=None, R=None, **kwargs):
     """Apply butterly to registers 'R'."""
-    stmts = StatementList()
-    stmts += Call(name=f'FwdRad{width}B1',
-                  arguments=ArgumentList(*[R[spass * width + w].address() for w in range(width)]))
-    stmts += LineBreak()
-    return stmts
+    hr = hr or h
+    return Call(name=f'FwdRad{width}B1',
+                arguments=ArgumentList(*[R[hr * width + w].address() for w in range(width)]))
 
 
-def store_lds(width=None, cumheight=None, spass=0,
-              lds=None, R=None, thread=None, offset_lds=None, lstride=None, **kwargs):
+def store_lds_generator(h, hr=None, dt=0, threads_per_transform=None,
+                        thread=None, width=None, cumheight=None, component=None,
+                        lds=None, R=None, offset_lds=None, lstride=None, **kwargs):
     """Store registers 'R' to LDS 'X'."""
-    stmts = StatementList()
+    hr = hr or h
+    work = StatementList()
     for w in range(width):
-        idx = offset_lds + B(B(thread / cumheight) * (width * cumheight) + thread % cumheight + w * cumheight) * lstride
-        stmts += Assign(lds[idx], R[spass * width + w])
-    stmts += LineBreak()
-    return stmts
+        tid  = B(thread + dt + h * threads_per_transform)
+        idx = offset_lds + B(B(tid / cumheight) * (width * cumheight) + tid % cumheight + w * cumheight) * lstride
+        if component is not None:
+            work += Assign(lds[idx], getattr(R[hr * width + w], component))
+        else:
+            work += Assign(lds[idx], R[hr * width + w])
+    return work
 
+def store_global_generator(h, hr=None, dt=0, threads_per_transform=None,
+                           thread=None, width=None, cumheight=None,
+                           buf=None, R=None, offset=None, stride0=None, **kwargs):
+    """Store registers 'R' to LDS 'X'."""
+    hr = hr or h
+    work = StatementList()
+    for w in range(width):
+        tid  = B(thread + dt + h * threads_per_transform)
+        idx = offset + B(B(tid / cumheight) * (width * cumheight) + tid % cumheight + w * cumheight) * stride0
+        work += Assign(buf[idx], R[hr * width + w])
+    return work
 
 #
 # Stockham kernels
@@ -1147,50 +1222,67 @@ class StockhamKernel:
                         body=body)
 
 
-class StockhamKernelUWide(StockhamKernel):
-    """Stockham ultra-wide kernel.
-
-    Each thread does at-most one butterfly.
-    """
+class StockhamKernelConsolidated(StockhamKernel):
+    """Consolidated device..."""
 
     @property
     def nregisters(self):
-        return max(self.factors)
+        registers = [ceil(self.length / width / self.params.threads_per_transform) * width for width in self.factors]
+        return max(registers)
 
     def generate_device_function(self, **kwargs):
-        factors, length, params = self.factors, self.length, get_launch_params(self.factors, **kwargs)
-        kvars, kwvars = common_variables(self.length, params, self.nregisters)
+        factors, length, params = self.factors, self.length, self.params
+        kvars, kwvars = common_variables(length, params, self.nregisters)
 
         body = StatementList()
         body += Declarations(kvars.thread, kvars.R, kvars.W, kvars.t)
         body += Declaration(kvars.lstride.name, kvars.lstride.type,
                             value=Ternary(kvars.stride_type == 'SB_UNIT', 1, kvars.stride_lds))
 
-        body += Assign(kvars.thread, kvars.thread_id % (length // min(factors)))
+        if length == 1:
+            return Function(f'forward_length{length}_{self.tiling.name}_device',
+                            arguments=self.device_arguments(kvars, **kwvars),
+                            templates=self.device_templates(kvars, **kwvars),
+                            body=StatementList(),
+                            qualifier='__device__',
+                            meta=NS(factors=self.factors,
+                                    length=self.length,
+                                    params=params,
+                                    nregisters=self.nregisters,
+                                    flavour='consolidated'))
+
+
+        body = StatementList()
+        body += Declarations(kvars.thread, kvars.R, kvars.W, kvars.t)
+        body += Declaration(kvars.lstride.name, kvars.lstride.type,
+                            value=Ternary(kvars.stride_type == 'SB_UNIT', 1, kvars.stride_lds))
+
+        body += Assign(kvars.thread, kvars.thread_id % params.threads_per_transform)
 
         for npass, width in enumerate(factors):
+            height = length // width / params.threads_per_transform
             cumheight = product(factors[:npass])
 
-            body += LineBreak()
-            body += CommentLines(f'pass {npass}')
-            body += SyncThreads()
+            kwvars.update(length=length, width=width, height=height, cumheight=cumheight,
+                          threads_per_transform=params.threads_per_transform)
 
-            body += load_lds(width=width, height=length // width, **kwvars)
+            body += LineBreak()
+            body += CommentLines(f'pass {npass}, width {width}',
+                                 f'using {params.threads_per_transform} threads we need to do {length // width} radix-{width} butterflies',
+                                 f'therefore each thread will do {height} butterflies')
+            body += SyncThreads()
+            body += add_work(load_lds_generator, **kwvars)
 
             if npass > 0:
-                body += twiddle(width=width, cumheight=cumheight, **kwvars)
+                body += add_work(apply_twiddle_generator, **kwvars)
 
-            body += butterfly(width=width, **kwvars)
+            body += add_work(butterfly_generator, **kwvars)
 
             if npass == len(factors) - 1:
-                body += self.large_twiddles.multiply(width, cumheight, **kwvars)
+                body += self.large_twiddles.multiply(**kwvars)
 
             body += SyncThreads()
-            if width == min(factors):
-                body += If(kvars.write, store_lds(width=width, cumheight=cumheight, **kwvars))
-            else:
-                body += If(And(kvars.write, kvars.thread < length // width),
-                           store_lds(width=width, cumheight=cumheight, **kwvars))
+            body += add_work(store_lds_generator, guard=True, **kwvars)
 
         return Function(f'forward_length{length}_{self.tiling.name}_device',
                         arguments=self.device_arguments(kvars, **kwvars),
@@ -1200,168 +1292,8 @@ class StockhamKernelUWide(StockhamKernel):
                         meta=NS(factors=self.factors,
                                 length=self.length,
                                 params=params,
-                                flavour='uwide'))
-
-
-class StockhamKernelWide(StockhamKernel):
-    """Stockham wide kernel.
-
-    Each thread does at-least one butterfly.
-    """
-
-    @property
-    def nregisters(self):
-        return 2 * max(self.factors)
-
-    def generate_device_function(self, **kwargs):
-        factors, length, params = self.factors, self.length, get_launch_params(self.factors, **kwargs)
-        kvars, kwvars = common_variables(length, params, self.nregisters)
-
-        height0 = length // max(factors)
-
-        def add_work(codelet, assign=True, check_write=False, **kwargs):
-            stmts = StatementList()
-            if assign:
-                stmts += Assign(kvars.thread, kvars.thread_id % height0 + nsubpass * height0)
-            if nsubpasses == 1 or nsubpass < nsubpasses - 1:
-                stmts += codelet(**kwargs)
-                if check_write:
-                    stmts = If(kvars.write, stmts)
-                return stmts
-            needs_work = kvars.thread_id % height0 + nsubpass * height0 < length // width
-            if check_write:
-                needs_work = And(kvars.write, B(needs_work))
-            stmts += If(needs_work, codelet(**kwargs))
-            return stmts
-
-        body = StatementList()
-        body += Declarations(kvars.thread, kvars.R, kvars.W, kvars.t)
-        body += Declaration(kvars.lstride.name, kvars.lstride.type,
-                            value=Ternary(kvars.stride_type == 'SB_UNIT', 1, kvars.stride_lds))
-        body += LineBreak()
-
-        body += SyncThreads()
-        body += LineBreak()
-
-        for npass, width in enumerate(factors):
-            cumheight = product(factors[:npass])
-            nsubpasses = ceil(max(factors) / factors[npass])
-
-            body += CommentLines(f'pass {npass}')
-
-            if npass > 0:
-                body += SyncThreads()
-                body += LineBreak()
-
-            for nsubpass in range(nsubpasses):
-                body += add_work(load_lds, width=width, height=length // width, spass=nsubpass, **kwvars)
-
-            if npass > 0:
-                for nsubpass in range(nsubpasses):
-                    body += add_work(twiddle, width=width, cumheight=cumheight, spass=nsubpass, **kwvars)
-                body += LineBreak()
-
-            for nsubpass in range(nsubpasses):
-                body += add_work(butterfly, width=width, spass=nsubpass, assign=False, **kwvars)
-
-            body += SyncThreads()
-            for nsubpass in range(nsubpasses):
-                body += add_work(store_lds, width=width, cumheight=cumheight, spass=nsubpass, check_write=True, **kwvars)
-
-            body += LineBreak()
-
-        return Function(f'forward_length{length}_{self.tiling.name}_device',
-                        arguments=self.device_arguments(kvars, **kwvars),
-                        templates=self.device_templates(kvars, **kwvars),
-                        body=body,
-                        qualifier='__device__',
-                        meta=NS(factors=self.factors,
-                                length=self.length,
-                                params=params,
-                                flavour='wide'))
-
-
-class StockhamKernelTall(StockhamKernel):
-    """Stockham tall kernel.
-
-    Each thread does multiple butterflies.
-    """
-
-    @property
-    def nregisters(self):
-        self.threads_per_transform = self.kwargs.get('threads_per_transform', 1)
-        return self.length // self.threads_per_transform
-
-    def generate_device_function(self, **kwargs):
-        factors, length, params = self.factors, self.length, get_launch_params(self.factors, **kwargs)
-        kvars, kwvars = common_variables(length, params, self.nregisters)
-
-        body = StatementList()
-        body += Declarations(kvars.thread, kvars.R, kvars.W, kvars.t)
-        body += Declaration(kvars.lstride.name, kvars.lstride.type,
-                            value=Ternary(kvars.stride_type == 'SB_UNIT', 1, kvars.stride_lds))
-        body += LineBreak()
-
-        height0 = self.nregisters
-        for width in factors:
-            if height0 % width != 0:
-                raise RuntimeError(f"Can't use tall kernel: threads-per-transform {self.threads_per_transform} and factor {width} are incompatible.")
-        # XXX also need to catch redundant case; ie 7 7 with tpt 1
-
-        body += Assign(kvars.thread, kvars.thread_id % (length // height0))
-        body += SyncThreads()
-        body += LineBreak()
-
-        for npass, width in enumerate(factors):
-            cumheight = product(factors[:npass])
-            height = length // width
-
-            body += CommentLines(f'pass {npass}')
-            if npass > 0:
-                body += SyncThreads()
-                body += LineBreak()
-
-            for h in range(height0 // width):
-                for w in range(width):
-                    idx = kvars.offset_lds + B(kvars.thread * (height0 // width) + (w * height + h)) * kvars.lstride
-                    body += Assign(kvars.R[h * width + w], kvars.lds[idx])
-
-            if npass > 0:
-                W, t, R = kvars.W, kvars.t, kvars.R
-                for h in range(height0 // width):
-                    for w in range(1, width):
-                        tid = B((height0 // width) * kvars.thread + h)
-                        tidx = cumheight - 1 + w - 1 + (width - 1) * B(tid % cumheight)
-                        ridx = h * width + w
-                        body += Assign(W, kvars.twiddles[tidx])
-                        body += Assign(t.x, W.x * R[ridx].x - W.y * R[ridx].y)
-                        body += Assign(t.y, W.y * R[ridx].x + W.x * R[ridx].y)
-                        body += Assign(R[ridx], t)
-                body += LineBreak()
-
-            for h in range(height0 // width):
-                body += butterfly(width=width, spass=h, assign=False, **kwvars)
-
-            body += SyncThreads()
-            store = StatementList()
-            for h in range(height0 // width):
-                for w in range(width):
-                    tid = B((height0 // width) * kvars.thread + h)
-                    idx = kvars.offset_lds + B(B(tid / cumheight) * (width * cumheight) + tid % cumheight + w * cumheight) * kvars.lstride
-                    store += Assign(kvars.lds[idx], kvars.R[h * width + w])
-            body += If(kvars.write, store)
-
-            body += LineBreak()
-
-        return Function(f'forward_length{length}_{self.tiling.name}_device',
-                        arguments=self.device_arguments(kvars, **kwvars),
-                        templates=self.device_templates(kvars, **kwvars),
-                        body=body,
-                        qualifier='__device__',
-                        meta=NS(factors=self.factors,
-                                length=self.length,
-                                params=params,
-                                flavour='tall'))
+                                nregisters=self.nregisters,
+                                flavour='consolidated'))
 
 
 class StockhamKernelFused2D(StockhamKernel):
@@ -1371,19 +1303,23 @@ class StockhamKernelFused2D(StockhamKernel):
         self.large_twiddles = StockhamLargeTwiddles()
         self.device_functions = device_functions
 
-    def generate_global_function(self, **kwargs):
-
         kernels = self.device_functions
         length = [ x.meta.length for x in self.device_functions ]
+        tpt = max(length[1]*kernels[0].meta.params.threads_per_transform,
+                  length[0]*kernels[1].meta.params.threads_per_transform)
+        tpb = max(kernels[0].meta.params.threads_per_block,
+                  kernels[1].meta.params.threads_per_block)
+        self.params =  get_launch_params(length,
+                                         threads_per_transform=tpt,
+                                         threads_per_block=tpb)
 
-        # XXX
-        params = get_launch_params(length,
-                                   flavour='2d',
-                                   threads_per_transform=max(length[1]*kernels[0].meta.params.threads_per_transform,
-                                                             length[0]*kernels[1].meta.params.threads_per_transform),
-                                   threads_per_block=kwargs.get('threads_per_block', 256))
 
-        kvars, kwvars = common_variables(product(length), params, 0)
+    def generate_global_function(self, **kwargs):
+
+        params, kernels = self.params, self.device_functions
+        length = [ x.meta.length for x in kernels ]
+        kvars, kwvars = common_variables(product(length), params,
+                                         max(x.meta.nregisters for x in kernels))
 
         body = StatementList()
         body += LineBreak()
@@ -1720,6 +1656,14 @@ def stockham1d(length, **kwargs):
     if 'scheme' in kwargs:
         kwargs.pop('scheme')
 
+    threads_per_transform = kwargs.get('threads_per_transform', {
+        'uwide': length // min(factors),
+        'wide': length // max(factors),
+        'tall': None,
+        'consolidated': None
+        }[kwargs.get('flavour', 'uwide')])
+    kwargs['threads_per_transform'] = threads_per_transform
+
     params = get_launch_params(factors, **kwargs)
 
     tiling = {
@@ -1733,11 +1677,7 @@ def stockham1d(length, **kwargs):
     if scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC':
         twiddles = StockhamLargeTwiddles2Step()
 
-    kernel = {
-        'uwide': StockhamKernelUWide(factors, params, scheme, tiling, twiddles, **kwargs),
-        'wide': StockhamKernelWide(factors, params, scheme, tiling, twiddles, **kwargs),
-        'tall': StockhamKernelTall(factors, params, scheme, tiling, twiddles, **kwargs),
-    }[kwargs.get('flavour', 'uwide')]
+    kernel = StockhamKernelConsolidated(factors, params, scheme, tiling, twiddles, **kwargs)
 
     tiling.update_kernel_settings(kernel)
 
