@@ -50,7 +50,7 @@ NodeFactory::Map1DLength const NodeFactory::map1DLengthSingle
 NodeFactory::Map1DLength const NodeFactory::map1DLengthDouble
     = {{4096, 64}, // pow of 2: CC (64cc + 64rc)
        {8192, 64}, //           CC (64cc + 128rc)
-       {16384, 128}, //         CC (128cc + 128rc) // faster than 64x256
+       {16384, 64}, //          CC (64cc + 256rc) // 128x128 ?
        {32768, 128}, //         CC (128cc + 256rc)
        {65536, 256}, //         CC (256cc + 256rc) // {65536, 64}
        {131072, 64}, //         CRT(64cc + 2048 + transpose)

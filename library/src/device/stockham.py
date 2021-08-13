@@ -273,7 +273,13 @@ class StockhamLargeTwiddles2Step():
         stmts = StatementList()
         stmts += CommentLines('large twiddle multiplication')
         for w in range(width):
-            idx = B(B(thread % cumheight) + w * cumheight) * self.trans_local
+            # FIXME- using a .cast('type') would be graceful!
+            #        Why casting to ((int)thread % 8) only when passing to TW2step ?
+            #        This is completely based on the testing result. We observed that it can
+            #        reduce a few vgprs (we don't know why since its behind the compiler)
+            #        and avoid the drop of occuapancy (espcially for sbcc_len64_inverse)
+            # idx = B(B(thread % cumheight) + w * cumheight) * self.trans_local
+            idx = f'(((int){thread} % {cumheight}) + {w} * {cumheight}) * {self.trans_local}'
             stmts += Assign(W, InlineCall('TW2step',
                                           arguments=ArgumentList(self.large_twiddles, idx),
                                           templates=TemplateList(scalar_type, self.large_twiddle_base)))
