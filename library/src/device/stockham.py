@@ -713,11 +713,12 @@ class StockhamTilingRC(StockhamTiling):
 
 
     def load_from_global(self, buf=None, offset=None, lds=None,
-                         lengths=None, thread_id=None, stride=None, stride0=None,
-                         tile=None, **kwargs):
+                         lengths=None, thread=None, thread_id=None, stride=None, stride0=None,
+                         **kwargs):
 
         length, params = self.length, self.params
         kvars, kwvars = common_variables(length, params, 0)
+        tile = Variable('tile', 'unsigned int')
         offset_in = Variable('offset_in', 'unsigned int', value=0)
         offset_out = Variable('offset_out', 'unsigned int', value=0)
         stride_in = Variable('stride_in', 'const size_t', array=True)
@@ -761,13 +762,12 @@ class StockhamTilingRC(StockhamTiling):
         return stmts
 
 
-    def store_to_global(self, stride=None, stride0=None, lengths=None, buf=None, offset=None, lds=None,
+    def store_to_global(self, stride=None, stride0=None, thread=None,
+                        lengths=None, buf=None, offset=None, lds=None,
                         **kwargs):
-
-
-
         length, params = self.length, self.params
         kvars, kwvars = common_variables(length, params, 0)
+        tile = Variable('tile', 'unsigned int')
         offset_in = Variable('offset_in', 'unsigned int', value=0)
         offset_out = Variable('offset_out', 'unsigned int', value=0)
         stride_in = Variable('stride_in', 'const size_t', array=True)

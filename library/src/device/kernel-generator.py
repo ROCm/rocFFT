@@ -688,6 +688,12 @@ def list_new_large_kernels():
         if not hasattr(k, 'length'):
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
 
+    # SBRC
+    sbrc_kernels = [
+        NS(length=64,  factors=[4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128),
+        # NS(length=128, factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128),
+    ]
+
     # NB:
     # Technically, we could have SBCR kernels the same amount as SBCC.
     #
@@ -711,7 +717,7 @@ def list_new_large_kernels():
         if not hasattr(k, 'length'):
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
 
-    return sbcc_kernels + sbcr_kernels
+    return sbcc_kernels + sbcr_kernels + sbrc_kernels
 
 
 def default_runtime_compile(kernels):

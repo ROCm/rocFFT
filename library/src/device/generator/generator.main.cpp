@@ -163,7 +163,7 @@ int main(int argc, char* argv[])
   */
 
     // collection of supported 1D large sizes
-    std::set<size_t> supported_large_set({50, 64, 81, 100, 128, 200, 256});
+    std::set<size_t> supported_large_set({50, 81, 100, 128, 200, 256});
 
     /* =====================================================================
      Parsing Arguments

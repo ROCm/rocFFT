@@ -234,6 +234,9 @@ class BaseNodeOps(BaseNode):
     def __eq__(self, a):
         return Equal(self, a)
 
+    def __ne__(self, a):
+        return NotEqual(self, a)
+
     def __ge__(self, a):
         return GreaterEqual(self, a)
 
@@ -568,6 +571,11 @@ class ModAssign(BaseAssign):
 
 @make_binary(' == ')
 class Equal(BaseNodeOps):
+    pass
+
+
+@make_binary(' != ')
+class NotEqual(BaseNodeOps):
     pass
 
 
