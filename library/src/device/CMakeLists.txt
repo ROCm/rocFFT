@@ -87,10 +87,6 @@ endif()
 # "-DGENERATOR_MANUAL_SMALL_SIZE=56,336"
 # "-DGENERATOR_GROUP_NUM=3"
 
-if( NOT DEFINED PYTHON3_EXE )
-  set(PYTHON3_EXE python3)
-endif()
-
 # Make it possible to let install.sh control this ?
 if( NOT GENERATOR_GROUP_NUM )
   set( GENERATOR_GROUP_NUM 150 )
@@ -127,24 +123,6 @@ add_custom_command(
   generate $<TARGET_FILE:rocfft-kernel-generator>
   DEPENDS rocfft-kernel-generator ${kgendeps}
   COMMENT "Generator producing device kernels for rocfft-device"
-)
-
-# embed the generator itself into c++ files
-set( kgen_embed_command ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed-cpp.py )
-set( kgen_embed_h ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed.h )
-set( kgen_embed_files
-     ${kgendeps}
-     ${CMAKE_SOURCE_DIR}/library/src/device/kernels/common.h
-     ${CMAKE_SOURCE_DIR}/library/src/device/kernels/callback.h
-     ${CMAKE_SOURCE_DIR}/library/src/device/kernels/butterfly_constant.h
-     ${CMAKE_SOURCE_DIR}/library/src/include/real2complex.h
-     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rocfft_butterfly_template.h
-   )
-add_custom_command(
-  OUTPUT ${kgen_embed_h}
-  COMMAND ${PYTHON3_EXE} ${kgen_embed_command}
-  ${kgen_embed_files} ${kgen_embed_h}
-  DEPENDS ${kgen_embed_files}
 )
 
 # The following is a list of implementation files defining the library
@@ -187,7 +165,7 @@ list( FILTER gen_headers_double2d INCLUDE REGEX 2D )
 set( gen_headers_misc ${gen_headers} )
 list( FILTER gen_headers_misc EXCLUDE REGEX single|double )
 # add non-generated stuff to misc
-list( APPEND gen_headers_misc ${rocfft_device_source} ${relative_rocfft_device_headers_public} ${kgen_embed_h} )
+list( APPEND gen_headers_misc ${rocfft_device_source} ${relative_rocfft_device_headers_public} )
 
 # we haven't known if there are any old-kernels generated. It could be empty if all are new-kernels
 set( BUILD_SINGLE_PRECISION OFF PARENT_SCOPE )

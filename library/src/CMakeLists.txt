@@ -40,7 +40,29 @@ set( package_targets rocfft )
 # from shared library
 include( GenerateExportHeader )
 
+if( NOT DEFINED PYTHON3_EXE )
+  set(PYTHON3_EXE python3)
+endif()
+
 add_subdirectory( device )
+
+# embed the generator itself into c++ files
+set( kgen_embed_command ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed-cpp.py )
+set( kgen_embed_h ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed.h )
+set( kgen_embed_files
+     ${kgendeps}
+     ${CMAKE_SOURCE_DIR}/library/src/device/kernels/common.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/kernels/callback.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/kernels/butterfly_constant.h
+     ${CMAKE_SOURCE_DIR}/library/src/include/real2complex.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rocfft_butterfly_template.h
+   )
+add_custom_command(
+  OUTPUT ${kgen_embed_h}
+  COMMAND ${PYTHON3_EXE} ${kgen_embed_command}
+  ${kgen_embed_files} ${kgen_embed_h}
+  DEPENDS ${kgen_embed_files}
+)
 
 # The following is a list of implementation files defining the library
 set( rocfft_source
@@ -64,6 +86,11 @@ set( rocfft_source
   hipfft.cpp
   rtc.cpp
   )
+
+set_property(
+  SOURCE rtc.cpp
+  PROPERTY OBJECT_DEPENDS ${kgen_embed_h}
+)
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 
