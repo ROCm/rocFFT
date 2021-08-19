@@ -145,65 +145,39 @@ prepend_path( "../.."
   rocfft_headers_public relative_rocfft_device_headers_public )
 
 option(ROCFFT_CALLBACKS_ENABLED "Enable user-defined callbacks for load/stores from global memory" ON)
-# break down generated headers into "single", "single_2d", "double",
-# "double_2d", and "misc", to build separate libraries
-set( gen_headers_single_all ${gen_headers} )
-list( FILTER gen_headers_single_all INCLUDE REGEX single )
-set( gen_headers_double_all ${gen_headers} )
-list( FILTER gen_headers_double_all INCLUDE REGEX double )
 
-set( gen_headers_single ${gen_headers_single_all} )
-list( FILTER gen_headers_single EXCLUDE REGEX 2D )
-set( gen_headers_double ${gen_headers_double_all} )
-list( FILTER gen_headers_double EXCLUDE REGEX 2D )
+# add generated files to the source list - do this after setting
+# warning flags so that they apply only to manually-maintained files
+list( APPEND rocfft_device_source ${gen_headers} )
 
-set( gen_headers_single2d ${gen_headers_single_all} )
-list( FILTER gen_headers_single2d INCLUDE REGEX 2D )
-set( gen_headers_double2d ${gen_headers_double_all} )
-list( FILTER gen_headers_double2d INCLUDE REGEX 2D )
+# function pool is a generated file, but force it to be the first
+# item in the list, so we can easily make it depend on the other
+# libraries
+list( FILTER rocfft_device_source EXCLUDE REGEX function_pool.cpp )
+list( INSERT rocfft_device_source 0 function_pool.cpp )
 
-set( gen_headers_misc ${gen_headers} )
-list( FILTER gen_headers_misc EXCLUDE REGEX single|double )
-# add non-generated stuff to misc
-list( APPEND gen_headers_misc ${rocfft_device_source} ${relative_rocfft_device_headers_public} )
+# split device lib into 4 so that no single library gets too large to
+# link
+list( LENGTH rocfft_device_source rocfft_device_source_len )
+math(EXPR split_len "${rocfft_device_source_len} / 4")
+math(EXPR split_idx_2 "${rocfft_device_source_len} / 4 * 2")
+math(EXPR split_idx_3 "${rocfft_device_source_len} / 4 * 3")
 
-# we haven't known if there are any old-kernels generated. It could be empty if all are new-kernels
-set( BUILD_SINGLE_PRECISION OFF PARENT_SCOPE )
-set( BUILD_DOUBLE_PRECISION OFF PARENT_SCOPE )
-set( BUILD_SINGLE_PRECISION_2D OFF PARENT_SCOPE )
-set( BUILD_DOUBLE_PRECISION_2D OFF PARENT_SCOPE )
+list( SUBLIST rocfft_device_source 0 ${split_len} rocfft_device_source_0 )
+list( SUBLIST rocfft_device_source ${split_len} ${split_len} rocfft_device_source_1 )
+list( SUBLIST rocfft_device_source ${split_idx_2} ${split_len} rocfft_device_source_2 )
+list( SUBLIST rocfft_device_source ${split_idx_3} -1 rocfft_device_source_3 )
 
-set( sub_libraries misc )
-if(gen_headers_single)
-  list( APPEND sub_libraries single )
-  set( BUILD_SINGLE_PRECISION ON PARENT_SCOPE )
-endif()
-
-if(gen_headers_double)
-  list( APPEND sub_libraries double )
-  set( BUILD_DOUBLE_PRECISION ON PARENT_SCOPE )
-endif()
-
-if(gen_headers_single2d)
-  list( APPEND sub_libraries single2d )
-  set( BUILD_SINGLE_PRECISION_2D ON PARENT_SCOPE )
-endif()
-
-if(gen_headers_double2d)
-  list( APPEND sub_libraries double2d )
-  set( BUILD_DOUBLE_PRECISION_2D ON PARENT_SCOPE )
-endif()
-
-foreach( sub ${sub_libraries} )
-  set( gen_headers_var gen_headers_${sub} )
+foreach( sub RANGE 3 )
+  set( rocfft_device_source_var rocfft_device_source_${sub} )
   if(NOT SINGLELIB)
     add_library( rocfft-device-${sub}
-      ${${gen_headers_var}} )
+      ${${rocfft_device_source_var}} )
   else()
     # Compile the device lib as a static library, which is then linked
     # into librocfft.so Useful for testing purposes.
     add_library( rocfft-device-${sub} STATIC
-      ${${gen_headers_var}} )
+      ${${rocfft_device_source_var}} )
 
     # if we're building singlelib, we don't want to export any of the
     # device library symbols to the main library
@@ -280,17 +254,8 @@ foreach( sub ${sub_libraries} )
     rocfft )
 endforeach()
 
-# misc lib has the function pool which depends on the single/double
+# first lib has the function pool which depends on the remaining
 # libs
-if(gen_headers_single)
-  target_link_libraries( rocfft-device-misc PRIVATE rocfft-device-single )
-endif()
-if(gen_headers_double)
-  target_link_libraries( rocfft-device-misc PRIVATE rocfft-device-double )
-endif()
-if(gen_headers_single2d)
-  target_link_libraries( rocfft-device-misc PRIVATE rocfft-device-single2d )
-endif()
-if(gen_headers_double2d)
-  target_link_libraries( rocfft-device-misc PRIVATE rocfft-device-double2d )
-endif()
+foreach( sub RANGE 1 3 )
+  target_link_libraries( rocfft-device-0 PRIVATE rocfft-device-${sub} )
+endforeach()

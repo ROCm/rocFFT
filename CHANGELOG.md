@@ -2,6 +2,11 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
+## (Unreleased) rocFFT 1.0.15
+
+### CHanged
+- Re-aligned split device library into 4 roughly equal libraries.
+
 ## (Unreleased) rocFFT 1.0.14
 
 ### Optimizations
