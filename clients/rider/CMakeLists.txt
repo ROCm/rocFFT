@@ -21,10 +21,6 @@
 # #############################################################################
 
 find_package( Boost COMPONENTS program_options REQUIRED)
-if(NOT Boost_LIBRARIES)
-  # Fixes a bug in Boost's CMAKE where Boost_LIBRARIES is not set.
-  set(Boost_LIBRARIES Boost::program_options)
-endif()
 
 set( rider_list rocfft-rider dyna-rocfft-rider )
 foreach( rider ${rider_list})
@@ -60,7 +56,7 @@ foreach( rider ${rider_list})
     target_link_libraries( ${rider}
       PRIVATE
       roc::rocfft
-      ${Boost_LIBRARIES}
+      Boost::program_options
       )
   else()
     target_link_libraries( ${rider} 

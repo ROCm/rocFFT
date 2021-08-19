@@ -46,13 +46,8 @@ find_package( Boost COMPONENTS program_options REQUIRED)
 set( Boost_DEBUG ON )
 set( Boost_USE_MULTITHREADED ON )
 set( Boost_DETAILED_FAILURE_MSG ON )
-set( Boost_ADDITIONAL_VERSIONS 1.65.1 1.65 )
 set( Boost_USE_STATIC_LIBS OFF )
 
-if( NOT Boost_LIBRARIES )
-  # Fixes a bug in Boost's CMAKE where Boost_LIBRARIES is not set.
-  set( Boost_LIBRARIES Boost::program_options )
-endif()
 
 if( BUILD_FFTW OR NOT FFTW_FOUND )
   add_dependencies( rocfft-test fftw_double fftw_single )
@@ -67,7 +62,7 @@ set( rocfft-test_include_dirs
 
 set( rocfft-test_link_libs
   ${FFTW_LIBRARIES}
-  ${Boost_LIBRARIES}
+  Boost::program_options
   )
 
 if( GTEST_FOUND)
