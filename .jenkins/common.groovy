@@ -32,13 +32,11 @@ def runTestCommand (platform, project, boolean debug=false)
     String sudo = auxiliary.sudo(platform.jenkinsLabel)
     String testBinaryName = debug ? 'rocfft-test-d' : 'rocfft-test'
     String directory = debug ? 'debug' : 'release'
-    String wisdomDir = "\$JENKINS_HOME_DIR/rocfft_wisdom/"
 
     def command = """#!/usr/bin/env bash
                 set -x
                 cd ${project.paths.project_build_prefix}/build/${directory}/clients/staging
-                mkdir -p ${wisdomDir}
-                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} -w -W ${wisdomDir}/wisdom_${env.EXECUTOR_NUMBER}.txt --gtest_color=yes
+                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --gtest_color=yes
             """
     platform.runCommand(this, command)
 }
