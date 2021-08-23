@@ -111,8 +111,10 @@ if( STATUS AND NOT STATUS EQUAL 0 )
 endif()
 
 # XXX eventually add dependency to kgen here...
-add_custom_command(
-  OUTPUT ${gen_headers}
+#
+# This is a workaround to use function_pool.cpp as a target output to
+# avoid triggering kernel generation multiple times.
+add_custom_target(function_pool.cpp
   COMMAND ${PYTHON3_EXE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
@@ -122,6 +124,7 @@ add_custom_command(
   --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
   generate $<TARGET_FILE:rocfft-kernel-generator>
   DEPENDS rocfft-kernel-generator ${kgendeps}
+  BYPRODUCTS ${gen_headers}
   COMMENT "Generator producing device kernels for rocfft-device"
 )
 
