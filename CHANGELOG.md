@@ -4,8 +4,11 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## (Unreleased) rocFFT 1.0.15
 
-### CHanged
+### Changed
 - Re-aligned split device library into 4 roughly equal libraries.
+
+### Optimizations
+- Optimized twiddle-conjugation; complex-to-complex inverse transforms should have similar performance to foward transforms now.
 
 ## (Unreleased) rocFFT 1.0.14
 

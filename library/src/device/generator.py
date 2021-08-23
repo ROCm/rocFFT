@@ -534,6 +534,20 @@ class Multiply(BaseNodeOps):
     pass
 
 
+class TwiddleMultiply(BaseNode):
+    # complex a * b
+    def __str__(self):
+        a, b = self.args
+        return str(ComplexLiteral(a.x * b.x - a.y * b.y, a.y * b.x + a.x * b.y))
+
+
+class TwiddleMultiplyConjugate(BaseNode):
+    # complex a * conj(b)
+    def __str__(self):
+        a, b = self.args
+        return str(ComplexLiteral(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y))
+
+
 @make_binary(' % ')
 class Mod(BaseNodeOps):
     pass
@@ -1057,7 +1071,7 @@ def make_out_of_place(kernel, names):
     return depth_first(kernel, visitor)
 
 
-def make_inverse(kernel, twiddles):
+def make_inverse(kernel):
     """Rewrite forward 'kernel' to be an inverse kernel.
 
     Forward butterfly calls like this
@@ -1066,25 +1080,19 @@ def make_inverse(kernel, twiddles):
 
     are re-written to backward butterfly calls like this
 
-       InvRadX(...)
+       InvRadX(...);
 
-    and entries from the twiddle table in 'twiddles' are changed to
-    their complex conjugate.
+    and instances of TwiddleMultiply are changed to TwiddleMultiplyConjugate.
     """
 
     kernel = rename_functions(kernel, lambda x: x.replace('forward', 'inverse'))
     kernel = rename_functions(kernel, lambda x: x.replace('FwdRad', 'InvRad'))
 
     def visitor(x):
-        if isinstance(x, BaseAssign):
-            lhs, rhs = x.lhs, x.rhs
-            # on rhs
-            if isinstance(rhs, ArrayElement) or isinstance(rhs, InlineCall):
-                name, *_ = rhs.args
-                if name in twiddles:
-                    return Assign(lhs,
-                                  ComplexLiteral(Component(rhs, 'x'),
-                                                 Negate(Component(rhs, 'y'))))
+        if isinstance(x, TwiddleMultiply):
+            y = TwiddleMultiplyConjugate()
+            y.args = x.args
+            return y
         return x
 
     return depth_first(kernel, visitor)

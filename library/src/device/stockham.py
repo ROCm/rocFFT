@@ -283,8 +283,7 @@ class StockhamLargeTwiddles2Step():
             stmts += Assign(W, InlineCall('TW2step',
                                           arguments=ArgumentList(self.large_twiddles, idx),
                                           templates=TemplateList(scalar_type, self.large_twiddle_base)))
-            stmts += Assign(t.x, W.x * R[w].x - W.y * R[w].y)
-            stmts += Assign(t.y, W.y * R[w].x + W.x * R[w].y)
+            stmts += Assign(t, TwiddleMultiply(R[w], W))
             stmts += Assign(R[w], t)
         return If(self.apply_large_twiddle, stmts)
 
@@ -1049,8 +1048,7 @@ def apply_twiddle_generator(h, hr=None, dt=0, threads_per_transform=None,
         tidx = cumheight - 1 + w - 1 + (width - 1) * B(tid % cumheight)
         ridx = hr * width + w
         work += Assign(W, twiddles[tidx])
-        work += Assign(t.x, W.x * R[ridx].x - W.y * R[ridx].y)
-        work += Assign(t.y, W.y * R[ridx].x + W.x * R[ridx].y)
+        work += Assign(t, TwiddleMultiply(R[ridx], W))
         work += Assign(R[ridx], t)
     return work
 
@@ -1492,8 +1490,8 @@ def make_variants(kdevice, kglobal):
             rename_op(make_planar(make_out_of_place(kglobal, op_names), 'buf_in')),
             rename_op(make_planar(make_planar(make_out_of_place(kglobal, op_names), 'buf_out'), 'buf_in'))
             ]
-        kdevice = make_inverse(kdevice, ['twiddles', 'TW2step'])
-        kglobal = make_inverse(kglobal, ['twiddles', 'TW2step'])
+        kdevice = make_inverse(kdevice)
+        kglobal = make_inverse(kglobal)
         kernels += [
             rename_op(make_out_of_place(kdevice, op_names)),
             rename_op(make_out_of_place(kglobal, op_names)),
@@ -1521,8 +1519,8 @@ def make_variants(kdevice, kglobal):
         rename_op(make_planar(make_planar(make_out_of_place(kglobal, op_names), 'buf_out'), 'buf_in')),
     ]
 
-    kdevice = make_inverse(kdevice, ['twiddles', 'TW2step'])
-    kglobal = make_inverse(kglobal, ['twiddles', 'TW2step'])
+    kdevice = make_inverse(kdevice)
+    kglobal = make_inverse(kglobal)
 
     kernels += [
         # in-place, interleaved
@@ -1758,8 +1756,8 @@ def stockham_rtc(kernel_prelude, specs, **kwargs):
 
     # rewrite the kernel as required to fit the specs
     if specs['direction'] == 1:
-        kdevice = make_inverse(kdevice, ['twiddles', 'TW2step'])
-        kglobal = make_inverse(kglobal, ['twiddles', 'TW2step'])
+        kdevice = make_inverse(kdevice)
+        kglobal = make_inverse(kglobal)
     if specs['inplace']:
         if specs['input_is_planar']:
             kdevice = make_planar(kdevice, 'buf')
