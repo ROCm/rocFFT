@@ -462,7 +462,7 @@ if [[ "${build_clients}" == true ]]; then
     cmake_client_options="${cmake_client_options} -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON"
 fi
 
-compiler="hcc"
+compiler="hipcc"
 if [[ "${build_hip_clang}" == true ]]; then
     compiler="hipcc"
 fi
@@ -471,15 +471,13 @@ if [[ "${build_hip_clang}" == true ]]; then
     cmake_common_options="${cmake_common_options} -DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang"
 fi
 
-# On ROCm platforms, hcc compiler can build everything
-
 # Build library with AMD toolchain because of existense of device kernels
 if [[ "${build_clients}" == false ]]; then
     cmake_client_options=" "
 fi
 if [[ "${build_relocatable}" == true ]]; then
     CXX=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DCPACK_PACKAGING_INSTALL_PREFIX="${rocm_path}" \
-       -DCMAKE_PREFIX_PATH="${rocm_path} ${rocm_path}/hcc ${rocm_path}/hip" \
+       -DCMAKE_PREFIX_PATH="${rocm_path} ${rocm_path}/hipcc ${rocm_path}/hip" \
        -DCMAKE_SHARED_LINKER_FLAGS="${rocm_rpath}" \
        -DROCM_DISABLE_LDCONFIG=ON \
        ../..

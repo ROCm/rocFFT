@@ -185,7 +185,7 @@ endif()
 set(AMDGPU_TARGETS "${DEFAULT_AMDGPU_TARGETS}" CACHE STRING "List of specific machine types for library to target")
 
 # Find HCC/HIP dependencies
-if( CMAKE_CXX_COMPILER MATCHES ".*/hcc$|.*/hipcc$" )
+if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
   message( STATUS "Building with ROCm tools" )
   find_package( hip REQUIRED CONFIG PATHS )
 endif( )

@@ -4,7 +4,7 @@
 # are installed, and if so, uses the installed version to format
 # the staged changes.
 
-base=/opt/rocm/hcc/bin/clang-format
+base=/opt/rocm/llvm/bin/clang-format
 format=""
 
 # Redirect output to stderr.
