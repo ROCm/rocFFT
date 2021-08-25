@@ -80,9 +80,32 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
 
         rootPlanData.inArrayType  = plan->desc.inArrayType;
         rootPlanData.outArrayType = plan->desc.outArrayType;
+        rootPlanData.rootIsC2C    = (rootPlanData.inArrayType != rocfft_array_type_real)
+                                 && (rootPlanData.outArrayType != rocfft_array_type_real);
 
         ExecPlan execPlan;
         execPlan.rootPlan = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
+
+        std::copy(plan->lengths.begin(),
+                  plan->lengths.begin() + plan->rank,
+                  std::back_inserter(execPlan.iLength));
+        std::copy(plan->lengths.begin(),
+                  plan->lengths.begin() + plan->rank,
+                  std::back_inserter(execPlan.oLength));
+
+        if(plan->transformType == rocfft_transform_type_real_inverse)
+        {
+            execPlan.iLength.front() = execPlan.iLength.front() / 2 + 1;
+            if(plan->placement == rocfft_placement_inplace)
+                execPlan.oLength.front() = execPlan.iLength.front() * 2;
+        }
+        if(plan->transformType == rocfft_transform_type_real_forward)
+        {
+            execPlan.oLength.front() = execPlan.oLength.front() / 2 + 1;
+            if(plan->placement == rocfft_placement_inplace)
+                execPlan.iLength.front() = execPlan.oLength.front() * 2;
+        }
+
         if(hipGetDeviceProperties(&(execPlan.deviceProp), deviceId) != hipSuccess)
             return rocfft_status_failure;
 

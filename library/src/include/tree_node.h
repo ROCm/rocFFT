@@ -21,6 +21,8 @@
 #ifndef TREE_NODE_H
 #define TREE_NODE_H
 
+#define GENERIC_BUF_ASSIGMENT 1
+
 #include <cstring>
 #include <functional>
 #include <iostream>
@@ -39,12 +41,12 @@
 
 enum OperatingBuffer
 {
-    OB_UNINIT,
-    OB_USER_IN,
-    OB_USER_OUT,
-    OB_TEMP,
-    OB_TEMP_CMPLX_FOR_REAL,
-    OB_TEMP_BLUESTEIN,
+    OB_UNINIT              = 0b00000,
+    OB_USER_IN             = 0b00001,
+    OB_USER_OUT            = 0b00010,
+    OB_TEMP                = 0b00100,
+    OB_TEMP_CMPLX_FOR_REAL = 0b01000,
+    OB_TEMP_BLUESTEIN      = 0b10000,
 };
 
 enum ComputeScheme
@@ -121,6 +123,15 @@ enum FuseType
     FT_STOCKHAM_R2C_TRANSPOSE, // Stokham + post-r2c + transpose (Advance of FT_R2C_TRANSPOSE)
 };
 
+// TODO: move this to rocfft.h and allow users to select via plan description
+// the decision strategy for buffer assigment
+enum rocfft_optimize_strategy
+{
+    rocfft_optimize_min_buffer, // minimize number of buffers, possibly fewer fusions
+    rocfft_optimize_balance, // balance between buffer and fusion
+    rocfft_optimize_max_fusion, // maximize number of fusions, possibly more buffers
+};
+
 std::string PrintScheme(ComputeScheme cs);
 std::string PrintOperatingBuffer(const OperatingBuffer ob);
 std::string PrintOperatingBufferCode(const OperatingBuffer ob);
@@ -174,6 +185,7 @@ struct NodeMetaData
     rocfft_precision        precision    = rocfft_precision_single;
     rocfft_array_type       inArrayType  = rocfft_array_type_unset;
     rocfft_array_type       outArrayType = rocfft_array_type_unset;
+    bool                    rootIsC2C;
 
     NodeMetaData(TreeNode* refNode);
 };
@@ -185,9 +197,10 @@ class FuseShim
     friend class NodeFactory;
 
 protected:
-    FuseShim(std::vector<TreeNode*>& components)
+    FuseShim(std::vector<TreeNode*>& components, FuseType type)
     {
-        nodes = components;
+        fuseType = type;
+        nodes    = components;
         // default
         firstFusedNode = 0;
         lastFusedNode  = nodes.size() - 1;
@@ -199,6 +212,8 @@ protected:
     bool schemeFusable = false;
 
 public:
+    FuseType fuseType;
+
     // nodes that contained in this shim
     std::vector<TreeNode*> nodes;
 
@@ -219,6 +234,12 @@ public:
 
     // return the result of CheckSchemeFusable
     bool IsSchemeFusable();
+
+    // NB: Some fusions perform better or worse in different arch.
+    //     We mark those exceptions from the execPlan.
+    //     (We can only know the arch name from execPlan)
+    //     A known case is RTFuse, length 168 in MI50
+    void OverwriteFusableFlag(bool fusable);
 
     void ForEachNode(std::function<void(TreeNode*)> func);
 
@@ -246,6 +267,14 @@ protected:
             batch     = p->batch;
             direction = p->direction;
         }
+
+        allowedOutBuf
+            = OB_USER_IN | OB_USER_OUT | OB_TEMP | OB_TEMP_CMPLX_FOR_REAL | OB_TEMP_BLUESTEIN;
+
+        allowedOutArrayTypes = {rocfft_array_type_complex_interleaved,
+                                rocfft_array_type_complex_planar,
+                                rocfft_array_type_real,
+                                rocfft_array_type_hermitian_interleaved};
     }
 
     // Compute the large twd decomposition base
@@ -337,8 +366,10 @@ public:
     bool allowInplace    = true;
     bool allowOutofplace = true;
 
-    bool inputHasPadding  = false;
     bool outputHasPadding = false;
+
+    size_t                      allowedOutBuf;
+    std::set<rocfft_array_type> allowedOutArrayTypes;
 
 public:
     // Disallow copy constructor:
@@ -357,8 +388,17 @@ public:
     void CopyNodeData(const NodeMetaData& data);
 
     bool isPlacementAllowed(rocfft_result_placement);
+    bool isOutBufAllowed(OperatingBuffer oB);
+    bool isOutArrayTypeAllowed(rocfft_array_type);
     bool isRootNode();
     bool isLeafNode();
+
+    // this is used for making buffer-assignment decision
+    // if the assignment fits the preferable placement then we pick it as possible
+    // intuitively, inplace is always better than out-of-place (default: return true),
+    // somehow there are some exceptions according to the experiment (SBCC_len_168)
+    // so we use this func to control the preference.
+    virtual bool isInplacePreferable();
 
     virtual void RecursiveBuildTree(); // Main tree builder: override by child
     virtual void SanityCheck();
@@ -372,6 +412,7 @@ public:
 
     void ApplyFusion();
 
+#if !GENERIC_BUF_ASSIGMENT
     // State maintained while traversing the tree.
     //
     // Preparation and execution of the tree basically involves a
@@ -396,15 +437,14 @@ public:
                                OperatingBuffer& flipIn,
                                OperatingBuffer& flipOut,
                                OperatingBuffer& obOutBuf);
-
     // Set placement variable and in/out array types
     virtual void TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn,
                                                     rocfft_array_type rootOut);
-
+#endif
     void RefreshTree();
 
     // Set strides and distances:
-    virtual void AssignParams();
+    void AssignParams();
 
     // Collect LeadNodes and FuseShims:
     void CollectLeaves(std::vector<TreeNode*>& seq, std::vector<FuseShim*>& fuseSeq);
@@ -429,6 +469,9 @@ public:
     TreeNode* GetPlanRoot();
     TreeNode* GetFirstLeaf();
     TreeNode* GetLastLeaf();
+    TreeNode* GetBluesteinComponentParent();
+    bool      IsLastLeafNodeOfBluesteinComponent();
+    bool      IsRootPlanC2CTransform();
 
     virtual bool KernelCheck()                                             = 0;
     virtual bool CreateDevKernelArgs()                                     = 0;
@@ -437,11 +480,13 @@ public:
 
 protected:
     virtual void BuildTree_internal() = 0;
+#if !GENERIC_BUF_ASSIGMENT
     virtual void AssignBuffers_internal(TraverseState&   state,
                                         OperatingBuffer& flipIn,
                                         OperatingBuffer& flipOut,
                                         OperatingBuffer& obOutBuf)
         = 0;
+#endif
     virtual void AssignParams_internal() = 0;
 };
 
@@ -501,11 +546,13 @@ protected:
     size_t              wgs            = 0;
     size_t              lds            = 0;
 
-    void           BuildTree_internal() final {} // nothing to do in leaf node
-    void           AssignBuffers_internal(TraverseState&   state,
-                                          OperatingBuffer& flipIn,
-                                          OperatingBuffer& flipOut,
-                                          OperatingBuffer& obOutBuf) override;
+    void BuildTree_internal() final {} // nothing to do in leaf node
+#if !GENERIC_BUF_ASSIGMENT
+    void AssignBuffers_internal(TraverseState&   state,
+                                OperatingBuffer& flipIn,
+                                OperatingBuffer& flipOut,
+                                OperatingBuffer& obOutBuf) override;
+#endif
     void           AssignParams_internal() final {} // nothing to do in leaf node
     bool           CreateLargeTwdTable();
     virtual size_t GetTwiddleTableLength();
@@ -554,6 +601,13 @@ struct ExecPlan
     std::vector<GridParam> gridParam;
 
     hipDeviceProp_t deviceProp;
+
+    std::vector<size_t> iLength;
+    std::vector<size_t> oLength;
+
+    // default: starting from ABT, balance buffers and fusions
+    // we could allow users to set in the later PR
+    rocfft_optimize_strategy assignOptStrategy = rocfft_optimize_balance;
 
     // these sizes count in complex elements
     size_t workBufSize      = 0;

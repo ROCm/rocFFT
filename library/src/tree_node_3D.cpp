@@ -39,17 +39,27 @@ SBRC_TRANSPOSE_TYPE sbrc_3D_transpose_type(unsigned int               blockWidth
  *****************************************************/
 void RTRT3DNode::BuildTree_internal()
 {
+    // We do the padding test in advance, for the "outputHasPadding" flag
+    // this flag is an important information for buffer-assignment
+    // Adding padding in 3D_RTRT is safe since it has no parent with padding.
+    const size_t biggerDim  = std::max(length[0] * length[1], length[2]);
+    const size_t smallerDim = std::min(length[0] * length[1], length[2]);
+    const size_t padding
+        = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
+
     // 2d fft
     NodeMetaData xyPlanData(this);
-    xyPlanData.length    = length;
-    xyPlanData.dimension = 2;
-    auto xyPlan          = NodeFactory::CreateExplicitNode(xyPlanData, this);
+    xyPlanData.length        = length;
+    xyPlanData.dimension     = 2;
+    auto xyPlan              = NodeFactory::CreateExplicitNode(xyPlanData, this);
+    xyPlan->outputHasPadding = false;
     xyPlan->RecursiveBuildTree();
 
     // first transpose
     auto trans1Plan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
     trans1Plan->length    = length;
     trans1Plan->dimension = 2;
+    trans1Plan->outputHasPadding = (padding > 0);
 
     // z fft
     NodeMetaData zPlanData(this);
@@ -57,13 +67,15 @@ void RTRT3DNode::BuildTree_internal()
     zPlanData.length.push_back(length[2]);
     zPlanData.length.push_back(length[0]);
     zPlanData.length.push_back(length[1]);
-    auto zPlan = NodeFactory::CreateExplicitNode(zPlanData, this);
+    auto zPlan              = NodeFactory::CreateExplicitNode(zPlanData, this);
+    zPlan->outputHasPadding = trans1Plan->outputHasPadding;
     zPlan->RecursiveBuildTree();
 
     // second transpose
     auto trans2Plan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
     trans2Plan->length    = zPlan->length;
     trans2Plan->dimension = 2;
+    trans2Plan->outputHasPadding = this->outputHasPadding;
 
     // --------------------------------
     // Fuse Shims
@@ -223,7 +235,6 @@ void TRTRTR3DNode::BuildTree_internal()
 
 void TRTRTR3DNode::AssignParams_internal()
 {
-    assert(scheme == CS_3D_TRTRTR);
     assert(childNodes.size() == 6);
 
     for(int i = 0; i < 6; i += 2)
@@ -265,6 +276,7 @@ void TRTRTR3DNode::AssignParams_internal()
     }
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 void TRTRTR3DNode::AssignBuffers_internal(TraverseState&   state,
                                           OperatingBuffer& flipIn,
                                           OperatingBuffer& flipOut,
@@ -312,6 +324,7 @@ void TRTRTR3DNode::AssignBuffers_internal(TraverseState&   state,
     R2->outArrayType = outArrayType;
     R2->AssignBuffers(state, flipIn, flipOut, obOutBuf);
 }
+#endif
 
 /*****************************************************
  * CS_3D_BLOCK_RC  *
@@ -386,7 +399,6 @@ void BLOCKRC3DNode::BuildTree_internal()
 
 void BLOCKRC3DNode::AssignParams_internal()
 {
-    assert(scheme == CS_3D_BLOCK_RC);
     // could go as low as 3 kernels if all dimensions are SBRC-able,
     // but less than 6.  If we ended up with 6 we should have just
     // done 3D_TRTRTR instead.
@@ -442,7 +454,6 @@ void BLOCKRC3DNode::AssignParams_internal()
         default:
             // build_CS_3D_BLOCK_RC should not have created any other node types
             throw std::runtime_error("Scheme Assertion Failed, unexpected node scheme.");
-            assert(false);
         }
         prev_outStride = node->outStride;
         prev_oDist     = node->oDist;
@@ -451,6 +462,7 @@ void BLOCKRC3DNode::AssignParams_internal()
     childNodes.back()->oDist     = oDist;
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 void BLOCKRC3DNode::AssignBuffers_internal(TraverseState&   state,
                                            OperatingBuffer& flipIn,
                                            OperatingBuffer& flipOut,
@@ -496,6 +508,7 @@ void BLOCKRC3DNode::AssignBuffers_internal(TraverseState&   state,
         }
     }
 }
+#endif
 
 /*****************************************************
  * CS_3D_BLOCK_CR  *
@@ -548,6 +561,7 @@ void BLOCKCR3DNode::AssignParams_internal()
     childNodes[2]->oDist     = oDist;
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 void BLOCKCR3DNode::AssignBuffers_internal(TraverseState&   state,
                                            OperatingBuffer& flipIn,
                                            OperatingBuffer& flipOut,
@@ -582,6 +596,7 @@ void BLOCKCR3DNode::AssignBuffers_internal(TraverseState&   state,
     childNodes.back()->obOut        = obOut;
     childNodes.back()->outArrayType = outArrayType;
 }
+#endif
 
 /*****************************************************
  * CS_3D_RC  *

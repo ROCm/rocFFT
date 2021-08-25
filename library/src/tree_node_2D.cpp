@@ -29,6 +29,14 @@
  *****************************************************/
 void RTRT2DNode::BuildTree_internal()
 {
+    // We do the padding test in advance, for the "outputHasPadding" flag
+    // this flag is an important information for buffer-assignment
+    // Adding padding in 2D_RTRT is safe since it has no parent with padding.
+    const size_t biggerDim  = std::max(length[0], length[1]);
+    const size_t smallerDim = std::min(length[0], length[1]);
+    const size_t padding
+        = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
+
     // first row fft
     NodeMetaData row1PlanData(this);
     row1PlanData.length.push_back(length[0]);
@@ -38,7 +46,8 @@ void RTRT2DNode::BuildTree_internal()
     {
         row1PlanData.length.push_back(length[index]);
     }
-    auto row1Plan = NodeFactory::CreateExplicitNode(row1PlanData, this);
+    auto row1Plan              = NodeFactory::CreateExplicitNode(row1PlanData, this);
+    row1Plan->outputHasPadding = false;
     row1Plan->RecursiveBuildTree();
 
     // first transpose
@@ -50,6 +59,7 @@ void RTRT2DNode::BuildTree_internal()
     {
         trans1Plan->length.push_back(length[index]);
     }
+    trans1Plan->outputHasPadding = (padding > 0);
 
     // second row fft
     NodeMetaData row2PlanData(this);
@@ -60,7 +70,8 @@ void RTRT2DNode::BuildTree_internal()
     {
         row2PlanData.length.push_back(length[index]);
     }
-    auto row2Plan = NodeFactory::CreateExplicitNode(row2PlanData, this);
+    auto row2Plan              = NodeFactory::CreateExplicitNode(row2PlanData, this);
+    row2Plan->outputHasPadding = trans1Plan->outputHasPadding;
     row2Plan->RecursiveBuildTree();
 
     // second transpose
@@ -72,6 +83,7 @@ void RTRT2DNode::BuildTree_internal()
     {
         trans2Plan->length.push_back(length[index]);
     }
+    trans2Plan->outputHasPadding = this->outputHasPadding;
 
     // --------------------------------
     // Fuse Shims
@@ -135,6 +147,7 @@ void RTRT2DNode::AssignParams_internal()
     trans2Plan->oDist     = oDist;
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 // 3D RTRT calls this as well
 void RTRT2DNode::AssignBuffers_internal(TraverseState&   state,
                                         OperatingBuffer& flipIn,
@@ -172,6 +185,7 @@ void RTRT2DNode::AssignBuffers_internal(TraverseState&   state,
     assert(childNodes[1]->obIn != childNodes[1]->obOut);
     assert(childNodes[3]->obIn != childNodes[3]->obOut);
 }
+#endif
 
 /*****************************************************
  * 2D_RC  *
@@ -211,9 +225,6 @@ void RC2DNode::AssignParams_internal()
     auto& rowPlan = childNodes[0];
     auto& colPlan = childNodes[1];
 
-    // B -> B
-    // assert((rowPlan->obOut == OB_USER_OUT) || (rowPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
-    //        || (rowPlan->obOut == OB_TEMP_BLUESTEIN));
     rowPlan->inStride = inStride;
     rowPlan->iDist    = iDist;
 
@@ -221,12 +232,8 @@ void RC2DNode::AssignParams_internal()
     // in/out strides are incompatible for the same buffer
     rowPlan->outStride = inStride;
     rowPlan->oDist     = iDist;
-
     rowPlan->AssignParams();
 
-    // B -> B
-    assert((colPlan->obOut == OB_USER_OUT) || (colPlan->obOut == OB_TEMP_CMPLX_FOR_REAL)
-           || (colPlan->obOut == OB_TEMP_BLUESTEIN));
     colPlan->inStride = rowPlan->outStride;
     std::swap(colPlan->inStride[0], colPlan->inStride[1]);
 
@@ -237,6 +244,7 @@ void RC2DNode::AssignParams_internal()
     colPlan->oDist = oDist;
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 // 3D RC calls this as well...
 void RC2DNode::AssignBuffers_internal(TraverseState&   state,
                                       OperatingBuffer& flipIn,
@@ -254,6 +262,7 @@ void RC2DNode::AssignBuffers_internal(TraverseState&   state,
     obIn  = childNodes[0]->obIn;
     obOut = childNodes[1]->obOut;
 }
+#endif
 
 // Leaf Node..
 /*****************************************************

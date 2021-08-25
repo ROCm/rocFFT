@@ -264,7 +264,8 @@ std::unique_ptr<TreeNode> NodeFactory::CreateExplicitNode(NodeMetaData& nodeData
 {
     // TreeNode*     p = dummyNode->parent;
     ComputeScheme s = DecideNodeScheme(nodeData, parent);
-    assert(s != CS_NONE);
+    if(s == CS_NONE)
+        throw std::runtime_error("DecideNodeScheme Failed!: CS_NONE");
     auto node = CreateNodeFromScheme(s, parent);
     node->CopyNodeData(nodeData);
     return node;
@@ -277,19 +278,19 @@ std::unique_ptr<FuseShim> NodeFactory::CreateFuseShim(FuseType               typ
     switch(type)
     {
     case FT_TRANS_WITH_STOCKHAM:
-        return std::unique_ptr<TRFuseShim>(new TRFuseShim(components));
+        return std::unique_ptr<TRFuseShim>(new TRFuseShim(components, type));
     case FT_STOCKHAM_WITH_TRANS:
-        return std::unique_ptr<RTFuseShim>(new RTFuseShim(components));
+        return std::unique_ptr<RTFuseShim>(new RTFuseShim(components, type));
     case FT_STOCKHAM_WITH_TRANS_Z_XY:
-        return std::unique_ptr<RT_ZXY_FuseShim>(new RT_ZXY_FuseShim(components));
+        return std::unique_ptr<RT_ZXY_FuseShim>(new RT_ZXY_FuseShim(components, type));
     case FT_STOCKHAM_WITH_TRANS_XY_Z:
-        return std::unique_ptr<RT_XYZ_FuseShim>(new RT_XYZ_FuseShim(components));
+        return std::unique_ptr<RT_XYZ_FuseShim>(new RT_XYZ_FuseShim(components, type));
     case FT_R2C_TRANSPOSE:
-        return std::unique_ptr<R2CTrans_FuseShim>(new R2CTrans_FuseShim(components));
+        return std::unique_ptr<R2CTrans_FuseShim>(new R2CTrans_FuseShim(components, type));
     case FT_TRANSPOSE_C2R:
-        return std::unique_ptr<TransC2R_FuseShim>(new TransC2R_FuseShim(components));
+        return std::unique_ptr<TransC2R_FuseShim>(new TransC2R_FuseShim(components, type));
     case FT_STOCKHAM_R2C_TRANSPOSE:
-        return std::unique_ptr<STK_R2CTrans_FuseShim>(new STK_R2CTrans_FuseShim(components));
+        return std::unique_ptr<STK_R2CTrans_FuseShim>(new STK_R2CTrans_FuseShim(components, type));
     default:
         throw std::runtime_error("FuseType assertion failed, type not implemented");
         return nullptr;
@@ -315,7 +316,6 @@ ComputeScheme NodeFactory::DecideNodeScheme(NodeMetaData& nodeData, TreeNode* pa
         return Decide3DScheme(nodeData);
     default:
         throw std::runtime_error("Invalid dimension");
-        assert(false);
     }
 
     return CS_NONE;
@@ -467,8 +467,8 @@ ComputeScheme NodeFactory::Decide1DScheme(NodeMetaData& nodeData)
 
     if(failed)
     {
+        // can't find the length in map1DLengthSingle/Double.
         PrintFailInfo(nodeData.precision, nodeData.length[0], scheme);
-        assert(false); // can't find the length in map1DLengthSingle/Double.
         return CS_NONE;
     }
 
@@ -527,6 +527,20 @@ ComputeScheme NodeFactory::Decide3DScheme(NodeMetaData& nodeData)
         child0.length       = nodeData.length;
         child0.dimension    = 2;
         auto childScheme    = DecideNodeScheme(child0, nullptr);
+
+        // TODO: investigate those SBCC kernels (84,108,112,168)
+        //       in 3D C2C transforms, using 3D_RTRT (2D_RC + TRT) is slower than
+        //       using 3D_TRTRTR + (BufAssign & FuseShim), the fused TRFuse are faster (3~4 kernels)
+        //       (Nothing to do with Real3D. For Real3DEven, using inplace sbcc are still faster)
+        std::map<rocfft_precision, std::set<size_t>> exceptions
+            = {{rocfft_precision_single, {84, 112, 168}},
+               {rocfft_precision_double, {84, 108, 112, 168}}};
+        if(childScheme == CS_2D_RC && exceptions.at(nodeData.precision).count(nodeData.length[1])
+           && nodeData.rootIsC2C)
+        {
+            return CS_3D_TRTRTR;
+        }
+
         if(childScheme == CS_2D_RTRT)
         {
             return CS_3D_TRTRTR;

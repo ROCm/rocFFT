@@ -77,6 +77,11 @@ bool FuseShim::IsSchemeFusable()
     return schemeFusable;
 }
 
+void FuseShim::OverwriteFusableFlag(bool fusable)
+{
+    schemeFusable = fusable;
+}
+
 TreeNode* FuseShim::FirstFuseNode()
 {
     if(nodes.size() <= firstFusedNode)
@@ -161,11 +166,10 @@ std::unique_ptr<TreeNode> TRFuseShim::FuseKernels()
     if(!fused->KernelCheck())
         return nullptr;
 
-    fused->placement       = rocfft_placement_notinplace;
-    fused->inputHasPadding = transpose->inputHasPadding;
-    fused->inArrayType     = transpose->inArrayType;
-    fused->obIn            = transpose->obIn;
-    fused->iDist           = transpose->iDist;
+    fused->placement   = rocfft_placement_notinplace;
+    fused->inArrayType = transpose->inArrayType;
+    fused->obIn        = transpose->obIn;
+    fused->iDist       = transpose->iDist;
     fused->comments.push_back("TRFuseShim: fused " + PrintScheme(transpose->scheme)
                               + " and following " + PrintScheme(stockham->scheme));
 

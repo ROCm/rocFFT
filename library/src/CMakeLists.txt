@@ -82,6 +82,7 @@ set( rocfft_source
   tree_node_bluestein.cpp
   tree_node_real.cpp
   fuse_shim.cpp
+  assignment_policy.cpp
   node_factory.cpp
   hipfft.cpp
   rtc.cpp

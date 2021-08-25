@@ -117,6 +117,13 @@ void RealTransCmplxNode::BuildTree_internal()
     fftPlanData.length    = length;
     auto fftPlan          = NodeFactory::CreateExplicitNode(fftPlanData, this);
     fftPlan->RecursiveBuildTree();
+
+    // NB:
+    //   The tail copy kernel allows only CI type, so the previous kernel should output CI type
+    // TODO: make it more elegant..
+    //   for example, simply set allowedOutArrayTypes to fftPlan without GetLastLeaf() (propagate)
+    //   or add a allowedInArrayType..
+    fftPlan->GetLastLeaf()->allowedOutArrayTypes = {rocfft_array_type_complex_interleaved};
     childNodes.emplace_back(std::move(fftPlan));
 
     // tail copy plan
@@ -159,6 +166,7 @@ void RealTransCmplxNode::AssignParams_internal()
     copyTailPlan->oDist     = oDist;
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 void RealTransCmplxNode::AssignBuffers_internal(TraverseState&   state,
                                                 OperatingBuffer& flipIn,
                                                 OperatingBuffer& flipOut,
@@ -175,9 +183,6 @@ void RealTransCmplxNode::AssignBuffers_internal(TraverseState&   state,
            || (direction == 1 && childNodes[0]->scheme == CS_KERNEL_COPY_HERM_TO_CMPLX));
 
     obOut = OB_USER_OUT;
-
-    assert((direction == -1 && childNodes[0]->scheme == CS_KERNEL_COPY_R_TO_CMPLX)
-           || (direction == 1 && childNodes[0]->scheme == CS_KERNEL_COPY_HERM_TO_CMPLX));
 
     childNodes[0]->SetInputBuffer(state);
     childNodes[0]->obOut        = OB_TEMP_CMPLX_FOR_REAL;
@@ -211,6 +216,7 @@ void RealTransCmplxNode::AssignBuffers_internal(TraverseState&   state,
     childNodes[2]->inArrayType  = rocfft_array_type_complex_interleaved;
     childNodes[2]->outArrayType = outArrayType;
 }
+#endif
 
 /*****************************************************
  * CS_REAL_TRANSFORM_EVEN
@@ -220,16 +226,19 @@ void RealTransEvenNode::BuildTree_internal()
     // Fastest moving dimension must be even:
     assert(length[0] % 2 == 0);
 
+    // NB:
+    // immediate FFT children of CS_REAL_TRANSFORM_EVEN must be
+    // in-place because they're working directly on the real buffer,
+    // but pretending it's complex
+
     NodeMetaData cfftPlanData(this);
     cfftPlanData.dimension = dimension;
     cfftPlanData.length    = length;
     cfftPlanData.length[0] = cfftPlanData.length[0] / 2;
-    cfftPlanData.placement = rocfft_placement_inplace;
     auto cfftPlan          = NodeFactory::CreateExplicitNode(cfftPlanData, this);
-
     // cfftPlan works in-place on the input buffer for R2C, on the
     // output buffer for C2R
-
+    cfftPlan->allowOutofplace = false; // force it to be inplace
     // NB: the buffer is real, but we treat it as complex
     cfftPlan->RecursiveBuildTree();
 
@@ -259,10 +268,12 @@ void RealTransEvenNode::BuildTree_internal()
         auto applyCallback = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
         applyCallback->dimension = dimension;
         applyCallback->length    = length;
-        applyCallback->placement = rocfft_placement_inplace;
 
         if(try_fuse_pre_post_processing)
-            cfftPlan->ebtype = EmbeddedType::Real2C_POST;
+        {
+            cfftPlan->ebtype          = EmbeddedType::Real2C_POST;
+            cfftPlan->allowOutofplace = true; // re-enable out-of-place
+        }
 
         childNodes.emplace_back(std::move(applyCallback));
         childNodes.emplace_back(std::move(cfftPlan));
@@ -270,6 +281,14 @@ void RealTransEvenNode::BuildTree_internal()
         // add separate post-processing if we couldn't fuse
         if(!try_fuse_pre_post_processing)
         {
+            // NB:
+            //   input of CS_KERNEL_R_TO_CMPLX allows single-ptr-buffer type only (can't be planar),
+            //   so we set the allowed-out-type of the previous kernel to follow the rule.
+            //   Precisely, it should be {real, interleaved}, but CI is enough since we only use
+            //   CI/CP internally during assign-buffer.
+            childNodes.back()->GetLastLeaf()->allowedOutArrayTypes
+                = {rocfft_array_type_complex_interleaved};
+
             auto postPlan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_R_TO_CMPLX, this);
             postPlan->dimension = 1;
             postPlan->length    = length;
@@ -282,9 +301,7 @@ void RealTransEvenNode::BuildTree_internal()
     {
         // complex-to-real transform: pre-process followed by in-place complex transform
 
-        if(try_fuse_pre_post_processing)
-            cfftPlan->ebtype = EmbeddedType::C2Real_PRE;
-        else
+        if(!try_fuse_pre_post_processing)
         {
             // add separate pre-processing if we couldn't fuse
             auto prePlan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_CMPLX_TO_R, this);
@@ -293,6 +310,11 @@ void RealTransEvenNode::BuildTree_internal()
             prePlan->length[0] /= 2;
             childNodes.emplace_back(std::move(prePlan));
         }
+        else
+        {
+            cfftPlan->ebtype          = EmbeddedType::C2Real_PRE;
+            cfftPlan->allowOutofplace = true; // re-enable out-of-place
+        }
 
         // insert a node that's prepared to apply the user's
         // callback, since the callback would expect reals and this
@@ -300,7 +322,6 @@ void RealTransEvenNode::BuildTree_internal()
         auto applyCallback = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
         applyCallback->dimension = dimension;
         applyCallback->length    = length;
-        applyCallback->placement = rocfft_placement_inplace;
 
         childNodes.emplace_back(std::move(cfftPlan));
         childNodes.emplace_back(std::move(applyCallback));
@@ -431,6 +452,7 @@ void RealTransEvenNode::AssignParams_internal()
     }
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 void RealTransEvenNode::AssignBuffers_internal(TraverseState&   state,
                                                OperatingBuffer& flipIn,
                                                OperatingBuffer& flipOut,
@@ -536,6 +558,7 @@ void RealTransEvenNode::AssignBuffers_internal(TraverseState&   state,
         childNodes.back()->outArrayType = rocfft_array_type_real;
     }
 }
+#endif
 
 /*****************************************************
  * CS_REAL_2D_EVEN
@@ -544,7 +567,11 @@ void Real2DEvenNode::BuildTree_internal()
 {
     // Fastest moving dimension must be even:
     assert(length[0] % 2 == 0);
-    assert(inArrayType == rocfft_array_type_real || outArrayType == rocfft_array_type_real);
+
+    const size_t biggerDim  = std::max(length[0], length[1]);
+    const size_t smallerDim = std::min(length[0], length[1]);
+    const size_t padding
+        = (((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512)) ? 64 : 0;
 
     if(inArrayType == rocfft_array_type_real) //forward
     {
@@ -558,6 +585,7 @@ void Real2DEvenNode::BuildTree_internal()
         {
             row1Plan->length.push_back(length[index]);
         }
+        row1Plan->outputHasPadding = false;
         row1Plan->RecursiveBuildTree();
 
         // first transpose
@@ -569,6 +597,7 @@ void Real2DEvenNode::BuildTree_internal()
         {
             trans1Plan->length.push_back(length[index]);
         }
+        trans1Plan->outputHasPadding = (padding > 0);
 
         // second row fft
         NodeMetaData row2PlanData(this);
@@ -579,7 +608,8 @@ void Real2DEvenNode::BuildTree_internal()
         {
             row2PlanData.length.push_back(length[index]);
         }
-        auto row2Plan = NodeFactory::CreateExplicitNode(row2PlanData, this);
+        auto row2Plan              = NodeFactory::CreateExplicitNode(row2PlanData, this);
+        row2Plan->outputHasPadding = trans1Plan->outputHasPadding;
         row2Plan->RecursiveBuildTree();
 
         // second transpose
@@ -591,6 +621,7 @@ void Real2DEvenNode::BuildTree_internal()
         {
             trans2Plan->length.push_back(length[index]);
         }
+        trans2Plan->outputHasPadding = this->outputHasPadding;
 
         // --------------------------------
         // Fuse Shims:
@@ -639,6 +670,7 @@ void Real2DEvenNode::BuildTree_internal()
         {
             trans1Plan->length.push_back(length[index]);
         }
+        trans1Plan->outputHasPadding = (padding > 0);
 
         // c2c row transform
         NodeMetaData c2cPlanData(this);
@@ -649,7 +681,8 @@ void Real2DEvenNode::BuildTree_internal()
         {
             c2cPlanData.length.push_back(length[index]);
         }
-        auto c2cPlan = NodeFactory::CreateExplicitNode(c2cPlanData, this);
+        auto c2cPlan              = NodeFactory::CreateExplicitNode(c2cPlanData, this);
+        c2cPlan->outputHasPadding = trans1Plan->outputHasPadding;
         c2cPlan->RecursiveBuildTree();
 
         // second transpose
@@ -661,6 +694,8 @@ void Real2DEvenNode::BuildTree_internal()
         {
             trans2plan->length.push_back(length[index]);
         }
+        // NOTE
+        trans2plan->outputHasPadding = false;
 
         // c2r row transform
         auto c2rPlan = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
@@ -671,6 +706,7 @@ void Real2DEvenNode::BuildTree_internal()
         {
             c2rPlan->length.push_back(length[index]);
         }
+        c2rPlan->outputHasPadding = this->outputHasPadding;
         c2rPlan->RecursiveBuildTree();
 
         // --------------------------------
@@ -796,6 +832,7 @@ void Real2DEvenNode::AssignParams_internal()
     }
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 void Real2DEvenNode::AssignBuffers_internal(TraverseState&   state,
                                             OperatingBuffer& flipIn,
                                             OperatingBuffer& flipOut,
@@ -879,6 +916,7 @@ void Real2DEvenNode::AssignBuffers_internal(TraverseState&   state,
         childNodes[3]->AssignBuffers(state, flipIn, flipOut, obOutBuf);
     }
 }
+#endif
 
 /*****************************************************
  * CS_REAL_3D_EVEN
@@ -887,7 +925,6 @@ void Real3DEvenNode::BuildTree_internal()
 {
     // Fastest moving dimension must be even:
     assert(length[0] % 2 == 0);
-    assert(inArrayType == rocfft_array_type_real || outArrayType == rocfft_array_type_real);
 
     // if we have SBCC kernels for the other two dimensions, transform them using SBCC and avoid transposes.
     bool sbcc_inplace
@@ -962,7 +999,6 @@ void Real3DEvenNode::BuildTree_internal()
             NodeMetaData c1planData(this);
             c1planData.length       = {trans1->length[1], trans1->length[2], trans1->length[0]};
             c1planData.dimension    = 1;
-            c1planData.placement    = rocfft_placement_inplace; // to-do: remove this line
             auto c1plan             = NodeFactory::CreateExplicitNode(c1planData, this);
             c1plan->allowOutofplace = false; // let it be inplace
             c1plan->RecursiveBuildTree();
@@ -976,7 +1012,6 @@ void Real3DEvenNode::BuildTree_internal()
             NodeMetaData c2planData(this);
             c2planData.length       = {trans2->length[1], trans2->length[2], trans2->length[0]};
             c2planData.dimension    = 1;
-            c2planData.placement    = rocfft_placement_inplace; // to-do: remove this line
             auto c2plan             = NodeFactory::CreateExplicitNode(c2planData, this);
             c2plan->allowOutofplace = false; // let it be inplace
             c2plan->RecursiveBuildTree();
@@ -1064,10 +1099,10 @@ void Real3DEvenNode::BuildTree_internal()
 
             // column
             NodeMetaData c2planData(this);
-            c2planData.length    = {trans3->length[2], trans3->length[0], trans3->length[1]};
-            c2planData.dimension = 1;
-            c2planData.placement = rocfft_placement_inplace;
-            auto c2plan          = NodeFactory::CreateExplicitNode(c2planData, this);
+            c2planData.length       = {trans3->length[2], trans3->length[0], trans3->length[1]};
+            c2planData.dimension    = 1;
+            auto c2plan             = NodeFactory::CreateExplicitNode(c2planData, this);
+            c2plan->allowOutofplace = false; // let it be inplace
             c2plan->RecursiveBuildTree();
 
             // transpose
@@ -1077,10 +1112,10 @@ void Real3DEvenNode::BuildTree_internal()
 
             // column
             NodeMetaData c1planData(this);
-            c1planData.length    = {trans2->length[2], trans2->length[0], trans2->length[1]};
-            c1planData.dimension = 1;
-            c1planData.placement = rocfft_placement_inplace;
-            auto c1plan          = NodeFactory::CreateExplicitNode(c1planData, this);
+            c1planData.length       = {trans2->length[2], trans2->length[0], trans2->length[1]};
+            c1planData.dimension    = 1;
+            auto c1plan             = NodeFactory::CreateExplicitNode(c1planData, this);
+            c1plan->allowOutofplace = false; // let it be inplace
             c1plan->RecursiveBuildTree();
 
             // transpose
@@ -1319,6 +1354,7 @@ void Real3DEvenNode::AssignParams_internal()
     }
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 void Real3DEvenNode::AssignBuffers_internal(TraverseState&   state,
                                             OperatingBuffer& flipIn,
                                             OperatingBuffer& flipOut,
@@ -1482,6 +1518,7 @@ void Real3DEvenNode::AssignBuffers_internal(TraverseState&   state,
     }
 #endif
 }
+#endif
 
 /*****************************************************
  * CS_KERNEL_COPY_R_TO_CMPLX
@@ -1489,6 +1526,7 @@ void Real3DEvenNode::AssignBuffers_internal(TraverseState&   state,
  * CS_KERNEL_COPY_CMPLX_TO_HERM
  * CS_KERNEL_COPY_CMPLX_TO_R
  * CS_KERNEL_APPLY_CALLBACK
+ * NOTE- Temp Complex Buffer implements interleaved only
  *****************************************************/
 RealTransDataCopyNode::SchemeFnCall const RealTransDataCopyNode::FnCallMap
     = {{CS_KERNEL_APPLY_CALLBACK, &apply_real_callback},

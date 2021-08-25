@@ -31,8 +31,20 @@ void TRTRT1DNode::BuildTree_internal()
 {
     size_t lenFactor1 = length.back();
     size_t lenFactor0 = length[0] / lenFactor1;
-    assert(lenFactor0 * lenFactor1 == length[0]);
+    if(lenFactor0 * lenFactor1 != length[0])
+        throw std::runtime_error("L1D_TRTRT wrong factorization");
     length.pop_back();
+
+    // FIXME: Should need more consideration about the padding of large1D
+    //        Especially when its parent already added padding.
+#if 0
+    const size_t biggerDim  = std::max(lenFactor0, lenFactor1);
+    const size_t smallerDim = std::min(lenFactor0, lenFactor1);
+    const size_t padding
+        = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
+#else
+    const size_t padding = 0;
+#endif
 
     // first transpose
     auto trans1Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
@@ -43,6 +55,7 @@ void TRTRT1DNode::BuildTree_internal()
     {
         trans1Plan->length.push_back(length[index]);
     }
+    trans1Plan->outputHasPadding = (padding > 0);
 
     // first row fft
     NodeMetaData row1PlanData(this);
@@ -53,8 +66,9 @@ void TRTRT1DNode::BuildTree_internal()
     {
         row1PlanData.length.push_back(length[index]);
     }
-    auto row1Plan     = NodeFactory::CreateExplicitNode(row1PlanData, this);
-    row1Plan->large1D = 0;
+    auto row1Plan              = NodeFactory::CreateExplicitNode(row1PlanData, this);
+    row1Plan->large1D          = 0;
+    row1Plan->outputHasPadding = trans1Plan->outputHasPadding;
     row1Plan->RecursiveBuildTree();
 
     // second transpose
@@ -67,6 +81,7 @@ void TRTRT1DNode::BuildTree_internal()
     {
         trans2Plan->length.push_back(length[index]);
     }
+    trans2Plan->outputHasPadding = row1Plan->outputHasPadding;
 
     // second row fft
     auto row2Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM, this);
@@ -77,6 +92,7 @@ void TRTRT1DNode::BuildTree_internal()
     {
         row2Plan->length.push_back(length[index]);
     }
+    row2Plan->outputHasPadding = trans2Plan->outputHasPadding;
 
     // third transpose
     auto trans3Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
@@ -87,6 +103,7 @@ void TRTRT1DNode::BuildTree_internal()
     {
         trans3Plan->length.push_back(length[index]);
     }
+    trans3Plan->outputHasPadding = this->outputHasPadding;
 
     // --------------------------------
     // Fuse Shims
@@ -113,10 +130,16 @@ void TRTRT1DNode::BuildTree_internal()
 
 void TRTRT1DNode::AssignParams_internal()
 {
+    // FIXME: Should need more consideration about the padding of large1D
+    //        Especially when its parent already added padding.
+#if 0
     const size_t biggerDim  = std::max(childNodes[0]->length[0], childNodes[0]->length[1]);
     const size_t smallerDim = std::min(childNodes[0]->length[0], childNodes[0]->length[1]);
     const size_t padding
         = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
+#else
+    const size_t padding = 0;
+#endif
 
     auto& trans1Plan = childNodes[0];
     auto& row1Plan   = childNodes[1];
@@ -144,7 +167,7 @@ void TRTRT1DNode::AssignParams_internal()
     }
     else
     {
-        if(parent->scheme == CS_L1D_TRTRT)
+        if((parent == NULL) || (parent->scheme == CS_L1D_TRTRT))
         {
             trans1Plan->outStride.push_back(outStride[0]);
             trans1Plan->outStride.push_back(outStride[0] * (trans1Plan->length[1]));
@@ -157,18 +180,7 @@ void TRTRT1DNode::AssignParams_internal()
         {
             // we dont have B info here, need to assume packed data and descended
             // from 2D/3D
-            assert((parent->obOut == OB_USER_OUT) || (parent->obOut == OB_TEMP_CMPLX_FOR_REAL));
-
-            assert(parent->outStride[0] == 1);
-            // CS_REAL_2D_EVEN pads the lengths/strides, and mixes
-            // counts between reals and complexes, so the math for
-            // the assert below doesn't work out
-            if(parent->scheme != CS_REAL_2D_EVEN)
-            {
-                for(size_t index = 1; index < parent->length.size(); index++)
-                    assert(parent->outStride[index]
-                           == (parent->outStride[index - 1] * parent->length[index - 1]));
-            }
+            // assert((parent->obOut == OB_USER_OUT) || (parent->obOut == OB_TEMP_CMPLX_FOR_REAL));
 
             trans1Plan->outStride.push_back(1);
             trans1Plan->outStride.push_back(trans1Plan->length[1]);
@@ -302,6 +314,7 @@ void TRTRT1DNode::AssignParams_internal()
         trans3Plan->outStride.push_back(outStride[index]);
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 void TRTRT1DNode::AssignBuffers_internal(TraverseState&   state,
                                          OperatingBuffer& flipIn,
                                          OperatingBuffer& flipOut,
@@ -363,6 +376,7 @@ void TRTRT1DNode::AssignBuffers_internal(TraverseState&   state,
         childNodes[4]->obOut = obOut;
     }
 }
+#endif
 
 /*****************************************************
  * L1D_CC  *
@@ -371,13 +385,9 @@ void CC1DNode::BuildTree_internal()
 {
     size_t lenFactor1 = length.back();
     size_t lenFactor0 = length[0] / lenFactor1;
-    assert(lenFactor0 * lenFactor1 == length[0]);
+    if(lenFactor0 * lenFactor1 != length[0])
+        throw std::runtime_error("L1D_CC wrong factorization");
     length.pop_back();
-
-    //  Note:
-    //  The kernel CS_KERNEL_STOCKHAM_BLOCK_CC and CS_KERNEL_STOCKHAM_BLOCK_RC
-    //  are only enabled for outplace for now. Check more details in generator.file.cpp,
-    //  and in generated kernel_lunch_single_large.cpp.h
 
     // first plan, column-to-column
     auto col2colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
@@ -399,6 +409,7 @@ void CC1DNode::BuildTree_internal()
     {
         col2colPlan->length.push_back(length[index]);
     }
+    col2colPlan->outputHasPadding = false;
 
     // second plan, row-to-column
     auto row2colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_RC, this);
@@ -409,6 +420,7 @@ void CC1DNode::BuildTree_internal()
     {
         row2colPlan->length.push_back(length[index]);
     }
+    row2colPlan->outputHasPadding = this->outputHasPadding;
 
     // CC , RC
     childNodes.emplace_back(std::move(col2colPlan));
@@ -456,13 +468,12 @@ void CC1DNode::AssignParams_internal()
     }
     else
     {
+        // a root node must output to OB_USER_OUT,
+        // so if we're here, the parent must not be nullptr (not a root node)
+        if(isRootNode())
+            throw std::runtime_error("error: out-buffer mangled for root node (L1D_CC)");
+
         // here we don't have B info right away, we get it through its parent
-
-        // TODO: what is this assert for?
-        assert(parent->obOut == OB_USER_IN || parent->obOut == OB_USER_OUT
-               || parent->obOut == OB_TEMP_CMPLX_FOR_REAL
-               || parent->scheme == CS_REAL_TRANSFORM_EVEN);
-
         // T-> B
         col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
         col2colPlan->inStride.push_back(inStride[0]);
@@ -535,6 +546,7 @@ void CC1DNode::AssignParams_internal()
     }
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 void CC1DNode::AssignBuffers_internal(TraverseState&   state,
                                       OperatingBuffer& flipIn,
                                       OperatingBuffer& flipOut,
@@ -572,6 +584,7 @@ void CC1DNode::AssignBuffers_internal(TraverseState&   state,
         childNodes[1]->obOut = obOut;
     }
 }
+#endif
 
 /*****************************************************
  * L1D_CRT  *
@@ -580,7 +593,8 @@ void CRT1DNode::BuildTree_internal()
 {
     size_t lenFactor1 = length.back();
     size_t lenFactor0 = length[0] / lenFactor1;
-    assert(lenFactor0 * lenFactor1 == length[0]);
+    if(lenFactor0 * lenFactor1 != length[0])
+        throw std::runtime_error("L1D_CRT wrong factorization");
     length.pop_back();
 
     // first plan, column-to-column
@@ -603,6 +617,7 @@ void CRT1DNode::BuildTree_internal()
     {
         col2colPlan->length.push_back(length[index]);
     }
+    col2colPlan->outputHasPadding = false;
 
     // second plan, row-to-row
     auto row2rowPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM, this);
@@ -613,6 +628,9 @@ void CRT1DNode::BuildTree_internal()
     {
         row2rowPlan->length.push_back(length[index]);
     }
+    row2rowPlan->outputHasPadding = col2colPlan->outputHasPadding;
+    // memo: A worth-noting try
+    // row2rowPlan->allowOutofplace = false;
 
     // third plan, transpose
     auto transPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
@@ -623,6 +641,7 @@ void CRT1DNode::BuildTree_internal()
     {
         transPlan->length.push_back(length[index]);
     }
+    transPlan->outputHasPadding = this->outputHasPadding;
 
     // --------------------------------
     // Fuse Shims
@@ -691,6 +710,11 @@ void CRT1DNode::AssignParams_internal()
     }
     else
     {
+        // a root node must output to OB_USER_OUT,
+        // so if we're here, the parent must not be nullptr (not a root node)
+        if(isRootNode())
+            throw std::runtime_error("error: out-buffer mangled for root node (L1D_CRT)");
+
         // T -> B
         col2colPlan->inStride.push_back(inStride[0] * col2colPlan->length[1]);
         col2colPlan->inStride.push_back(inStride[0]);
@@ -773,6 +797,7 @@ void CRT1DNode::AssignParams_internal()
     }
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 void CRT1DNode::AssignBuffers_internal(TraverseState&   state,
                                        OperatingBuffer& flipIn,
                                        OperatingBuffer& flipOut,
@@ -818,6 +843,7 @@ void CRT1DNode::AssignBuffers_internal(TraverseState&   state,
         childNodes[2]->obOut = obOut;
     }
 }
+#endif
 
 // Leaf Node..
 /*****************************************************
@@ -897,6 +923,16 @@ void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
     }
 
     return;
+}
+
+// FIXME: So far, we override this for sbcc 1en 168,
+// but eventually we need to investigate why there are those exceptions.
+bool SBCCNode::isInplacePreferable()
+{
+    if(length[0] == 168)
+        return false;
+
+    return true;
 }
 
 /*****************************************************

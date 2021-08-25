@@ -310,18 +310,28 @@ void TransformPowX(const ExecPlan&       execPlan,
                 // interleaved format, and we just need to split it for
                 // planar.
                 data.bufIn[1]
-                    = (void*)((char*)info->workBuffer + execPlan.workBufSize * complexTSize / 2);
+                    = (void*)((char*)info->workBuffer + execPlan.tmpWorkBufSize * complexTSize / 2);
             }
             break;
         case OB_TEMP_CMPLX_FOR_REAL:
             data.bufIn[0]
                 = (void*)((char*)info->workBuffer + execPlan.tmpWorkBufSize * complexTSize);
+            // TODO: Can we use this in planar as well ??
+            // if(data.node->inArrayType == rocfft_array_type_complex_planar
+            //    || data.node->inArrayType == rocfft_array_type_hermitian_planar)
+            // {
+            //     data.bufIn[1] = (void*)((char*)info->workBuffer
+            //                             + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize / 2)
+            //                                   * complexTSize);
+            // }
             break;
         case OB_TEMP_BLUESTEIN:
             data.bufIn[0] = (void*)((char*)info->workBuffer
                                     + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize
                                        + data.node->iOffset)
                                           * complexTSize);
+            // Bluestein mul-kernels (3 types) work well for CI->CI
+            // so we only consider CI->CI now
             break;
         case OB_UNINIT:
             rocfft_cerr << "Error: operating buffer not initialized for kernel!\n";
@@ -358,18 +368,28 @@ void TransformPowX(const ExecPlan&       execPlan,
                 // interleaved format, and we just need to split it for
                 // planar.
                 data.bufOut[1]
-                    = (void*)((char*)info->workBuffer + execPlan.workBufSize * complexTSize / 2);
+                    = (void*)((char*)info->workBuffer + execPlan.tmpWorkBufSize * complexTSize / 2);
             }
             break;
         case OB_TEMP_CMPLX_FOR_REAL:
             data.bufOut[0]
                 = (void*)((char*)info->workBuffer + execPlan.tmpWorkBufSize * complexTSize);
+            // TODO: Can we use this in planar as well ??
+            // if(data.node->outArrayType == rocfft_array_type_complex_planar
+            //    || data.node->outArrayType == rocfft_array_type_hermitian_planar)
+            // {
+            //     data.bufOut[1] = (void*)((char*)info->workBuffer
+            //                              + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize / 2)
+            //                                    * complexTSize);
+            // }
             break;
         case OB_TEMP_BLUESTEIN:
             data.bufOut[0] = (void*)((char*)info->workBuffer
                                      + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize
                                         + data.node->oOffset)
                                            * complexTSize);
+            // Bluestein mul-kernels (3 types) work well for CI->CI
+            // so we only consider CI->CI now
             break;
         default:
             assert(false);

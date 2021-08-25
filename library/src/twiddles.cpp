@@ -101,7 +101,10 @@ gpubuf twiddles_create(size_t              N,
                        std::vector<size_t> radices)
 {
     if(large)
-        assert(largeTwdBase > 0);
+    {
+        if(!largeTwdBase)
+            throw std::runtime_error("missing largeTwdBase value for large twiddle");
+    }
 
     if(precision == rocfft_precision_single)
         return twiddles_create_pr<float2>(

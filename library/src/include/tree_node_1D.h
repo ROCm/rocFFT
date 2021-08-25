@@ -36,11 +36,12 @@ protected:
     {
         scheme = CS_L1D_TRTRT;
     }
-
+#if !GENERIC_BUF_ASSIGMENT
     void AssignBuffers_internal(TraverseState&   state,
                                 OperatingBuffer& flipIn,
                                 OperatingBuffer& flipOut,
                                 OperatingBuffer& obOutBuf) override;
+#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 };
@@ -58,11 +59,12 @@ protected:
     {
         scheme = CS_L1D_CC;
     }
-
+#if !GENERIC_BUF_ASSIGMENT
     void AssignBuffers_internal(TraverseState&   state,
                                 OperatingBuffer& flipIn,
                                 OperatingBuffer& flipOut,
                                 OperatingBuffer& obOutBuf) override;
+#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 };
@@ -80,11 +82,12 @@ protected:
     {
         scheme = CS_L1D_CRT;
     }
-
+#if !GENERIC_BUF_ASSIGMENT
     void AssignBuffers_internal(TraverseState&   state,
                                 OperatingBuffer& flipIn,
                                 OperatingBuffer& flipOut,
                                 OperatingBuffer& obOutBuf) override;
+#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 };
@@ -126,6 +129,9 @@ protected:
     }
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+
+public:
+    bool isInplacePreferable() override;
 };
 
 /*****************************************************
@@ -160,6 +166,7 @@ protected:
     {
         externalKernel = true;
         need_twd_table = true;
+        allowInplace   = false;
     }
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;

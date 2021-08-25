@@ -133,6 +133,10 @@ struct Test_Transform
         rocfft_execution_info info;
         ASSERT_EQ(rocfft_execution_info_create(&info), rocfft_status_success);
         ASSERT_EQ(rocfft_execution_info_set_stream(info, stream), rocfft_status_success);
+        // NOTE: This multithread test is intended to test the cases having work_buffer_size
+        //       If the assert fails, this means we should change the problem.
+        //       But that rarely happens (maybe when the opt_strategy is minimal_buffer)
+        //       So we don't put this one inside the if(work_buffer_size){ ... }
         ASSERT_EQ(rocfft_execution_info_set_work_buffer(info, work_buffer, work_buffer_size),
                   rocfft_status_success);
 

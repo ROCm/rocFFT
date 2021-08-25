@@ -36,11 +36,12 @@ protected:
     {
         scheme = CS_REAL_TRANSFORM_USING_CMPLX;
     }
-
+#if !GENERIC_BUF_ASSIGMENT
     void AssignBuffers_internal(TraverseState&   state,
                                 OperatingBuffer& flipIn,
                                 OperatingBuffer& flipOut,
                                 OperatingBuffer& obOutBuf) override;
+#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 };
@@ -58,11 +59,12 @@ protected:
     {
         scheme = CS_REAL_TRANSFORM_EVEN;
     }
-
+#if !GENERIC_BUF_ASSIGMENT
     void AssignBuffers_internal(TraverseState&   state,
                                 OperatingBuffer& flipIn,
                                 OperatingBuffer& flipOut,
                                 OperatingBuffer& obOutBuf) override;
+#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 
@@ -84,11 +86,12 @@ protected:
     {
         scheme = CS_REAL_2D_EVEN;
     }
-
+#if !GENERIC_BUF_ASSIGMENT
     void AssignBuffers_internal(TraverseState&   state,
                                 OperatingBuffer& flipIn,
                                 OperatingBuffer& flipOut,
                                 OperatingBuffer& obOutBuf) override;
+#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 };
@@ -106,11 +109,12 @@ protected:
     {
         scheme = CS_REAL_3D_EVEN;
     }
-
+#if !GENERIC_BUF_ASSIGMENT
     void AssignBuffers_internal(TraverseState&   state,
                                 OperatingBuffer& flipIn,
                                 OperatingBuffer& flipOut,
                                 OperatingBuffer& obOutBuf) override;
+#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 };
@@ -134,7 +138,37 @@ protected:
     RealTransDataCopyNode(TreeNode* p, ComputeScheme s)
         : LeafNode(p, s)
     {
-        allowInplace = false;
+        /************
+        * Placement
+        *************/
+        // callback node allows only in-place, others (copy) allow only out-of-place
+        if(scheme == CS_KERNEL_APPLY_CALLBACK)
+            allowOutofplace = false;
+        else
+            allowInplace = false;
+
+        /********************
+        * Buffer and ArrayType
+        *********************/
+        // the two r2c copy-head kernels MUST output to TEMP CMPLX buffer
+        if(scheme == CS_KERNEL_COPY_R_TO_CMPLX || scheme == CS_KERNEL_COPY_HERM_TO_CMPLX)
+        {
+            allowedOutBuf        = OB_TEMP_CMPLX_FOR_REAL | OB_TEMP;
+            allowedOutArrayTypes = {rocfft_array_type_complex_interleaved};
+        }
+        // should be real, but could be treated as CI (the alias type)
+        else if(scheme == CS_KERNEL_COPY_CMPLX_TO_R || scheme == CS_KERNEL_APPLY_CALLBACK)
+        {
+            allowedOutArrayTypes = {rocfft_array_type_real, rocfft_array_type_complex_interleaved};
+        }
+        // should be HI(or HP), but could be treated as CI(or HI) (the alias type)
+        else if(scheme == CS_KERNEL_COPY_CMPLX_TO_HERM)
+        {
+            allowedOutArrayTypes = {rocfft_array_type_hermitian_interleaved,
+                                    rocfft_array_type_complex_interleaved,
+                                    rocfft_array_type_hermitian_planar,
+                                    rocfft_array_type_complex_planar};
+        }
     }
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
@@ -160,7 +194,30 @@ protected:
     {
         need_twd_table = true;
         twd_no_radices = true;
-        allowInplace   = false;
+
+        /************
+        * Placement
+        *************/
+        // transpose-typed needs to be out-of-place
+        if(scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE || scheme == CS_KERNEL_TRANSPOSE_CMPLX_TO_R)
+        {
+            allowInplace = false;
+        }
+        else
+        {
+            // CS_KERNEL_R_TO_CMPLX and CS_KERNEL_CMPLX_TO_R, inherit from parent (1D Even)
+            // 1D Even = pre + fft(IP) + callback(IP) / callback(IP) + fft(IP) + post
+            allowInplace    = parent->allowInplace;
+            allowOutofplace = parent->allowOutofplace;
+        }
+
+        /********************
+        * ArrayType
+        *********************/
+        if(scheme == CS_KERNEL_CMPLX_TO_R || scheme == CS_KERNEL_TRANSPOSE_CMPLX_TO_R)
+        {
+            allowedOutArrayTypes = {rocfft_array_type_real, rocfft_array_type_complex_interleaved};
+        }
     }
 
     size_t GetTwiddleTableLength() override;

@@ -30,9 +30,11 @@ NodeMetaData::NodeMetaData(TreeNode* refNode)
         precision = refNode->precision;
         batch     = refNode->batch;
         direction = refNode->direction;
+        rootIsC2C = refNode->IsRootPlanC2CTransform();
     }
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 void LeafNode::AssignBuffers_internal(TraverseState&   state,
                                       OperatingBuffer& flipIn,
                                       OperatingBuffer& flipOut,
@@ -51,6 +53,7 @@ void LeafNode::AssignBuffers_internal(TraverseState&   state,
         }
     }
 }
+#endif
 
 bool LeafNode::CreateLargeTwdTable()
 {

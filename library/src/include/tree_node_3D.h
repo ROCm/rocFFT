@@ -62,11 +62,12 @@ protected:
     {
         scheme = CS_3D_TRTRTR;
     }
-
+#if !GENERIC_BUF_ASSIGMENT
     void AssignBuffers_internal(TraverseState&   state,
                                 OperatingBuffer& flipIn,
                                 OperatingBuffer& flipOut,
                                 OperatingBuffer& obOutBuf) override;
+#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 };
@@ -90,11 +91,12 @@ protected:
     {
         scheme = CS_3D_BLOCK_RC;
     }
-
+#if !GENERIC_BUF_ASSIGMENT
     void AssignBuffers_internal(TraverseState&   state,
                                 OperatingBuffer& flipIn,
                                 OperatingBuffer& flipOut,
                                 OperatingBuffer& obOutBuf) override;
+#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 };
@@ -116,11 +118,12 @@ protected:
     {
         scheme = CS_3D_BLOCK_CR;
     }
-
+#if !GENERIC_BUF_ASSIGMENT
     void AssignBuffers_internal(TraverseState&   state,
                                 OperatingBuffer& flipIn,
                                 OperatingBuffer& flipOut,
                                 OperatingBuffer& obOutBuf) override;
+#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 };

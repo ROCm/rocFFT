@@ -31,8 +31,8 @@ class TRFuseShim : public FuseShim
     friend class NodeFactory;
 
 protected:
-    TRFuseShim(std::vector<TreeNode*>& components)
-        : FuseShim(components)
+    TRFuseShim(std::vector<TreeNode*>& components, FuseType type)
+        : FuseShim(components, type)
     {
         allowInplace  = false;
         schemeFusable = CheckSchemeFusable();
@@ -52,8 +52,8 @@ class RTFuseShim : public FuseShim
     friend class NodeFactory;
 
 protected:
-    RTFuseShim(std::vector<TreeNode*>& components)
-        : FuseShim(components)
+    RTFuseShim(std::vector<TreeNode*>& components, FuseType type)
+        : FuseShim(components, type)
     {
         allowInplace  = false;
         schemeFusable = CheckSchemeFusable();
@@ -73,8 +73,8 @@ class RT_ZXY_FuseShim : public FuseShim
     friend class NodeFactory;
 
 protected:
-    RT_ZXY_FuseShim(std::vector<TreeNode*>& components)
-        : FuseShim(components)
+    RT_ZXY_FuseShim(std::vector<TreeNode*>& components, FuseType type)
+        : FuseShim(components, type)
     {
         allowInplace  = false;
         schemeFusable = CheckSchemeFusable();
@@ -94,8 +94,8 @@ class RT_XYZ_FuseShim : public FuseShim
     friend class NodeFactory;
 
 protected:
-    RT_XYZ_FuseShim(std::vector<TreeNode*>& components)
-        : FuseShim(components)
+    RT_XYZ_FuseShim(std::vector<TreeNode*>& components, FuseType type)
+        : FuseShim(components, type)
     {
         allowInplace  = false;
         schemeFusable = CheckSchemeFusable();
@@ -115,8 +115,8 @@ class R2CTrans_FuseShim : public FuseShim
     friend class NodeFactory;
 
 protected:
-    R2CTrans_FuseShim(std::vector<TreeNode*>& components)
-        : FuseShim(components)
+    R2CTrans_FuseShim(std::vector<TreeNode*>& components, FuseType type)
+        : FuseShim(components, type)
     {
         allowInplace  = false;
         schemeFusable = CheckSchemeFusable();
@@ -140,8 +140,8 @@ class TransC2R_FuseShim : public FuseShim
     friend class NodeFactory;
 
 protected:
-    TransC2R_FuseShim(std::vector<TreeNode*>& components)
-        : FuseShim(components)
+    TransC2R_FuseShim(std::vector<TreeNode*>& components, FuseType type)
+        : FuseShim(components, type)
     {
         allowInplace  = false;
         schemeFusable = CheckSchemeFusable();
@@ -161,8 +161,8 @@ class STK_R2CTrans_FuseShim : public FuseShim
     friend class NodeFactory;
 
 protected:
-    STK_R2CTrans_FuseShim(std::vector<TreeNode*>& components)
-        : FuseShim(components)
+    STK_R2CTrans_FuseShim(std::vector<TreeNode*>& components, FuseType type)
+        : FuseShim(components, type)
     {
         allowInplace  = false;
         schemeFusable = CheckSchemeFusable();

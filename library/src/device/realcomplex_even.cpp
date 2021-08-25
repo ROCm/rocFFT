@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include "./kernels/array_format.h"
 #include "./kernels/common.h"
 #include "kernel_launch.h"
 #include "rocfft.h"
@@ -352,7 +353,7 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
 
     if(onedim)
     {
-        if(data->node->outArrayType == rocfft_array_type_hermitian_interleaved)
+        if(is_complex_interleaved(data->node->outArrayType))
         {
             hipLaunchKernelGGL(kernelmap_interleaved_1D.at(params_cb),
                                grid,
@@ -391,7 +392,7 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
     {
         const size_t idist1D = data->node->inStride[1];
         const size_t odist1D = data->node->outStride[1];
-        if(data->node->outArrayType == rocfft_array_type_hermitian_interleaved)
+        if(is_complex_interleaved(data->node->outArrayType))
         {
             hipLaunchKernelGGL(kernelmap_interleaved.at(params),
                                grid,
@@ -661,7 +662,7 @@ ROCFFT_DEVICE_EXPORT void c2r_1d_pre(const void* data_p, void*)
     const size_t idist1D = istride;
     const size_t odist1D = ostride;
 
-    if(data->node->inArrayType == rocfft_array_type_hermitian_interleaved)
+    if(is_complex_interleaved(data->node->inArrayType))
     {
         hipLaunchKernelGGL(kernelmap_interleaved.at(params_interleaved),
                            grid,

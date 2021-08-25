@@ -48,10 +48,13 @@ void BluesteinNode::BuildTree_internal()
     chirpPlan->batch      = 1;
     chirpPlan->large1D    = 2 * length[0];
 
-    auto padmulPlan        = NodeFactory::CreateNodeFromScheme(CS_KERNEL_PAD_MUL, this);
-    padmulPlan->dimension  = 1;
-    padmulPlan->length     = length;
-    padmulPlan->lengthBlue = lengthBlue;
+    // chirp has no input buffer, and must output to separated bluestein buffer
+    // other plans, we simply mark they have padding so won't use USER_IN and USER_OUT
+    auto padmulPlan              = NodeFactory::CreateNodeFromScheme(CS_KERNEL_PAD_MUL, this);
+    padmulPlan->dimension        = 1;
+    padmulPlan->length           = length;
+    padmulPlan->lengthBlue       = lengthBlue;
+    padmulPlan->outputHasPadding = true;
 
     NodeMetaData fftiPlanData(this);
     fftiPlanData.dimension = 1;
@@ -60,18 +63,20 @@ void BluesteinNode::BuildTree_internal()
     {
         fftiPlanData.length.push_back(length[index]);
     }
-    fftiPlanData.iOffset = 2 * lengthBlue;
-    fftiPlanData.oOffset = 2 * lengthBlue;
-    auto fftiPlan        = NodeFactory::CreateExplicitNode(fftiPlanData, this);
+    fftiPlanData.iOffset       = 2 * lengthBlue;
+    fftiPlanData.oOffset       = 2 * lengthBlue;
+    auto fftiPlan              = NodeFactory::CreateExplicitNode(fftiPlanData, this);
+    fftiPlan->outputHasPadding = true;
     fftiPlan->RecursiveBuildTree();
 
     NodeMetaData fftcPlanData(this);
     fftcPlanData.dimension = 1;
     fftcPlanData.length.push_back(lengthBlue);
-    fftcPlanData.batch   = 1;
-    fftcPlanData.iOffset = lengthBlue;
-    fftcPlanData.oOffset = lengthBlue;
-    auto fftcPlan        = NodeFactory::CreateExplicitNode(fftcPlanData, this);
+    fftcPlanData.batch         = 1;
+    fftcPlanData.iOffset       = lengthBlue;
+    fftcPlanData.oOffset       = lengthBlue;
+    auto fftcPlan              = NodeFactory::CreateExplicitNode(fftcPlanData, this);
+    fftcPlan->outputHasPadding = true;
     fftcPlan->RecursiveBuildTree();
 
     auto fftmulPlan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_FFT_MUL, this);
@@ -81,7 +86,8 @@ void BluesteinNode::BuildTree_internal()
     {
         fftmulPlan->length.push_back(length[index]);
     }
-    fftmulPlan->lengthBlue = lengthBlue;
+    fftmulPlan->lengthBlue       = lengthBlue;
+    fftmulPlan->outputHasPadding = true;
 
     NodeMetaData fftrPlanData(this);
     fftrPlanData.dimension = 1;
@@ -90,16 +96,19 @@ void BluesteinNode::BuildTree_internal()
     {
         fftrPlanData.length.push_back(length[index]);
     }
-    fftrPlanData.direction = -direction;
-    fftrPlanData.iOffset   = 2 * lengthBlue;
-    fftrPlanData.oOffset   = 2 * lengthBlue;
-    auto fftrPlan          = NodeFactory::CreateExplicitNode(fftrPlanData, this);
+    fftrPlanData.direction     = -direction;
+    fftrPlanData.iOffset       = 2 * lengthBlue;
+    fftrPlanData.oOffset       = 2 * lengthBlue;
+    auto fftrPlan              = NodeFactory::CreateExplicitNode(fftrPlanData, this);
+    fftrPlan->outputHasPadding = true;
     fftrPlan->RecursiveBuildTree();
 
     auto resmulPlan        = NodeFactory::CreateNodeFromScheme(CS_KERNEL_RES_MUL, this);
     resmulPlan->dimension  = 1;
     resmulPlan->length     = length;
     resmulPlan->lengthBlue = lengthBlue;
+    // only resmulPlan can output to A or B
+    resmulPlan->outputHasPadding = this->outputHasPadding;
 
     // 7 node of bluestein
     childNodes.emplace_back(std::move(chirpPlan));
@@ -169,6 +178,7 @@ void BluesteinNode::AssignParams_internal()
     resmulPlan->oDist     = oDist;
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 void BluesteinNode::AssignBuffers_internal(TraverseState&   state,
                                            OperatingBuffer& flipIn,
                                            OperatingBuffer& flipOut,
@@ -221,6 +231,7 @@ void BluesteinNode::AssignBuffers_internal(TraverseState&   state,
     flipOut  = savFlipOut;
     obOutBuf = savOutBuf;
 }
+#endif
 
 /*****************************************************
  * Component of Bluestein

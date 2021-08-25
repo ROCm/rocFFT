@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "plan.h"
+#include "assignment_policy.h"
 #include "function_pool.h"
 #include "hip/hip_runtime_api.h"
 #include "logging.h"
@@ -131,6 +132,15 @@ std::string PrintOperatingBufferCode(const OperatingBuffer ob)
                                                                    {OB_TEMP_CMPLX_FOR_REAL, "C"},
                                                                    {OB_TEMP_BLUESTEIN, "S"}};
     return BuffertoString.at(ob);
+}
+
+std::string PrintOptimizeStrategy(const rocfft_optimize_strategy ros)
+{
+    const std::map<rocfft_optimize_strategy, const char*> StrategytoString
+        = {{rocfft_optimize_min_buffer, "MINIMIZE_BUFFER"},
+           {rocfft_optimize_balance, "BALANCE_BUFFER_FUSION"},
+           {rocfft_optimize_max_fusion, "MAXIMIZE_FUSION"}};
+    return StrategytoString.at(ros);
 }
 
 std::string PrintSBRCTransposeType(const SBRC_TRANSPOSE_TYPE ty)
@@ -790,6 +800,16 @@ bool TreeNode::isPlacementAllowed(rocfft_result_placement test_placement)
     return (test_placement == rocfft_placement_inplace) ? allowInplace : allowOutofplace;
 }
 
+bool TreeNode::isOutBufAllowed(OperatingBuffer oB)
+{
+    return (oB & allowedOutBuf) != 0;
+}
+
+bool TreeNode::isOutArrayTypeAllowed(rocfft_array_type oArrayType)
+{
+    return allowedOutArrayTypes.count(oArrayType) > 0;
+}
+
 bool TreeNode::isRootNode()
 {
     return parent == nullptr;
@@ -798,6 +818,12 @@ bool TreeNode::isRootNode()
 bool TreeNode::isLeafNode()
 {
     return nodeType == NT_LEAF;
+}
+
+bool TreeNode::isInplacePreferable()
+{
+    // see comments in header
+    return true;
 }
 
 // Tree node builders
@@ -809,8 +835,13 @@ bool TreeNode::isLeafNode()
 
 void TreeNode::RecursiveBuildTree()
 {
-    // keep the flexibilty to add any other "common action" here
     // Some-Common-Work...
+    // We must follow the placement of RootPlan, so needs to make it explicit
+    if(isRootNode())
+    {
+        allowInplace    = (placement == rocfft_placement_inplace);
+        allowOutofplace = !allowInplace;
+    }
 
     // overriden by each derived class
     BuildTree_internal();
@@ -833,9 +864,12 @@ void TreeNode::SanityCheck()
         throw std::runtime_error("[obIn,obOut] mismatch placement out-of-place");
 
     // Check length and stride and dimension:
-    assert(length.size() == inStride.size());
-    assert(length.size() == outStride.size());
-    assert(length.size() >= dimension);
+    if(length.size() != inStride.size())
+        throw std::runtime_error("length.size() mismatch inStride.size()");
+    if(length.size() != outStride.size())
+        throw std::runtime_error("length.size() mismatch outStride.size()");
+    if(length.size() < dimension)
+        throw std::runtime_error("not enough length[] for dimension");
 
     for(int i = 0; i < childNodes.size(); ++i)
     {
@@ -910,6 +944,7 @@ size_t TreeNode::large_twiddle_base(size_t length, bool use3Steps)
         return 8;
 }
 
+#if !GENERIC_BUF_ASSIGMENT
 struct TreeNode::TraverseState
 {
     TraverseState(const ExecPlan& execPlan)
@@ -1172,12 +1207,17 @@ void TreeNode::TraverseTreeAssignPlacementsLogicA(const rocfft_array_type rootIn
         (*children_p)->TraverseTreeAssignPlacementsLogicA(rootIn, rootOut);
     }
 }
+#endif
 
 void TreeNode::ApplyFusion()
 {
     // Do the final fusion after the buffer assign is completed
     for(auto& fuse : fuseShims)
     {
+        // the flag was overwritten by execPlan (according to the arch for some specical cases)
+        if(!fuse->IsSchemeFusable())
+            continue;
+
         auto fused = fuse->FuseKernels();
         if(fused)
         {
@@ -1216,8 +1256,14 @@ void TreeNode::RefreshTree()
 
 void TreeNode::AssignParams()
 {
-    assert(length.size() == inStride.size());
-    assert(length.size() == outStride.size());
+    if((length.size() != inStride.size()) || (length.size() != outStride.size()))
+        throw std::runtime_error("length size mismatches stride size");
+
+    for(auto& child : childNodes)
+    {
+        child->inStride.clear();
+        child->outStride.clear();
+    }
 
     AssignParams_internal();
 }
@@ -1244,6 +1290,50 @@ void TreeNode::CollectLeaves(std::vector<TreeNode*>& seq, std::vector<FuseShim*>
 
         for(auto& fuse : fuseShims)
             fuseSeq.push_back(fuse.get());
+    }
+}
+
+// Important: Make sure the order of the fuse-shim is consistent with the execSeq
+// This is essential for BackTracking in BufferAssignment
+void OrderFuseShims(std::vector<TreeNode*>& seq, std::vector<FuseShim*>& fuseSeq)
+{
+    std::vector<FuseShim*> reordered;
+    for(auto node : seq)
+    {
+        for(size_t fuseID = 0; fuseID < fuseSeq.size(); ++fuseID)
+        {
+            if(node == fuseSeq[fuseID]->FirstFuseNode())
+            {
+                reordered.emplace_back(fuseSeq[fuseID]);
+                break;
+            }
+        }
+    }
+
+    if(reordered.size() != fuseSeq.size())
+        throw std::runtime_error("reorder fuse shim list error");
+
+    fuseSeq.swap(reordered);
+}
+
+void CheckFuseShimForArch(ExecPlan& execPlan)
+{
+    std::string arch(execPlan.deviceProp.gcnArchName);
+    // for gfx906...
+    if(arch.compare(0, 6, "gfx906") == 0)
+    {
+        auto& fusions = execPlan.fuseShims;
+        for(auto& fusion : fusions)
+        {
+            if(fusion->fuseType == FT_STOCKHAM_WITH_TRANS
+               && fusion->FirstFuseNode()->length[0] == 168)
+            {
+                fusion->OverwriteFusableFlag(false);
+
+                // remove it from the execPlan list
+                fusions.erase(std::remove(fusions.begin(), fusions.end(), fusion), fusions.end());
+            }
+        }
     }
 }
 
@@ -1317,11 +1407,6 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     os << "\n" << indentStr.c_str();
     os << "oDist: " << oDist;
 
-    if(inputHasPadding)
-    {
-        os << "\n" << indentStr.c_str();
-        os << "inputHasPadding: " << inputHasPadding;
-    }
     if(outputHasPadding)
     {
         os << "\n" << indentStr.c_str();
@@ -1468,6 +1553,32 @@ TreeNode* TreeNode::GetLastLeaf()
     return (nodeType == NT_LEAF) ? this : childNodes.back()->GetLastLeaf();
 }
 
+// if this is in one of the 7 bluestein "componenet nodes", return that component node
+TreeNode* TreeNode::GetBluesteinComponentParent()
+{
+    if(isRootNode())
+        return nullptr;
+
+    return (parent->scheme == CS_BLUESTEIN) ? this : parent->GetBluesteinComponentParent();
+}
+
+bool TreeNode::IsLastLeafNodeOfBluesteinComponent()
+{
+    // Note: blueComp is one of the 7 "component nodes", not bluestein node itself
+    TreeNode* blueComp = GetBluesteinComponentParent();
+
+    // if in bluestein tree, test if this is the last leaf, else return false
+    // for example, if this the last leaf of the FFT-scheme ?
+    return (blueComp) ? (blueComp->GetLastLeaf() == this) : false;
+}
+
+bool TreeNode::IsRootPlanC2CTransform()
+{
+    auto root = GetPlanRoot();
+    return (root->inArrayType != rocfft_array_type_real)
+           && (root->outArrayType != rocfft_array_type_real);
+}
+
 // remove a leaf node from the plan completely - plan optimization
 // can remove unnecessary nodes to skip unnecessary work.
 void RemoveNode(ExecPlan& execPlan, TreeNode* node)
@@ -1505,12 +1616,27 @@ void ProcessNode(ExecPlan& execPlan)
     assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->inStride.size());
     assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->outStride.size());
 
+    // collect leaf-nodes to execSeq and fuseShims
+    execPlan.rootPlan->CollectLeaves(execPlan.execSeq, execPlan.fuseShims);
+    CheckFuseShimForArch(execPlan);
+    OrderFuseShims(execPlan.execSeq, execPlan.fuseShims);
+
     // initialize root plan input/output location if not already done
     if(execPlan.rootPlan->obOut == OB_UNINIT)
         execPlan.rootPlan->obOut = OB_USER_OUT;
     if(execPlan.rootPlan->obIn == OB_UNINIT)
         execPlan.rootPlan->obIn
             = execPlan.rootPlan->placement == rocfft_placement_inplace ? OB_USER_OUT : OB_USER_IN;
+
+#if GENERIC_BUF_ASSIGMENT
+    // guarantee min buffers but possible less fusions
+    // execPlan.assignOptStrategy = rocfft_optimize_min_buffer;
+    // starting from ABT
+    execPlan.assignOptStrategy = rocfft_optimize_balance;
+    // try to use all buffer to get most fusion
+    //execPlan.assignOptStrategy = rocfft_optimize_max_fusion;
+    AssignmentPolicy::AssignBuffers(execPlan);
+#else
     // initialize traverse state so we can initialize obIn + obOut for all nodes
     TreeNode::TraverseState state(execPlan);
     OperatingBuffer         flipIn = OB_UNINIT, flipOut = OB_UNINIT, obOutBuf = OB_UNINIT;
@@ -1519,6 +1645,7 @@ void ProcessNode(ExecPlan& execPlan)
     execPlan.rootPlan->TraverseTreeAssignPlacementsLogicA(execPlan.rootPlan->inArrayType,
                                                           execPlan.rootPlan->outArrayType);
     execPlan.rootPlan->AssignParams();
+#endif
 
     // Apply the fusion after buffer, strides are assigned
     execPlan.rootPlan->ApplyFusion();
@@ -1562,6 +1689,7 @@ void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan)
                                      std::multiplies<size_t>());
     os << "Work buffer size: " << execPlan.workBufSize << std::endl;
     os << "Work buffer ratio: " << (double)execPlan.workBufSize / (double)N << std::endl;
+    os << "Assignment strategy: " << PrintOptimizeStrategy(execPlan.assignOptStrategy) << std::endl;
 
     if(execPlan.execSeq.size() > 1)
     {
