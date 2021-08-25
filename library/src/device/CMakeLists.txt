@@ -110,11 +110,7 @@ if( STATUS AND NOT STATUS EQUAL 0 )
   message( FATAL_ERROR "Kernel generator failed (list): ${STATUS}")
 endif()
 
-# XXX eventually add dependency to kgen here...
-#
-# This is a workaround to use function_pool.cpp as a target output to
-# avoid triggering kernel generation multiple times.
-add_custom_target(function_pool.cpp
+add_custom_command(OUTPUT ${gen_headers}
   COMMAND ${PYTHON3_EXE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
@@ -124,8 +120,13 @@ add_custom_target(function_pool.cpp
   --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
   generate $<TARGET_FILE:rocfft-kernel-generator>
   DEPENDS rocfft-kernel-generator ${kgendeps}
-  BYPRODUCTS ${gen_headers}
   COMMENT "Generator producing device kernels for rocfft-device"
+)
+
+# add virtual build target for generated kernels
+add_custom_target(gen_headers_target
+  DEPENDS ${gen_headers}
+  VERBATIM
 )
 
 # The following is a list of implementation files defining the library
@@ -198,6 +199,10 @@ foreach( sub RANGE 3 )
   add_library( roc::rocfft-device-${sub} ALIAS rocfft-device-${sub} )
   target_compile_features( rocfft-device-${sub} PRIVATE
     cxx_static_assert cxx_nullptr cxx_auto_type )
+
+  # To help "make" to figure out the dependency, in which make sure
+  # the kernel generator runs only once.
+  add_dependencies(rocfft-device-${sub} gen_headers_target)
 
   if( NOT BUILD_SHARED_LIBS )
     target_link_libraries( rocfft-device-${sub} INTERFACE hip::host )
