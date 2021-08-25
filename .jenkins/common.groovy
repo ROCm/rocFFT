@@ -53,8 +53,7 @@ def runSubsetBuildCommand(platform, project, jobName, genPattern, genSmall, genL
 {
     project.paths.construct_build_prefix()
 
-    // Don't build client for now..
-    // String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON'
+    // Don't build clients, since we're just testing if the library can build
     String clientArgs = ''
     String warningArgs = '-DWERROR=ON'
     String buildTypeArg = '-DCMAKE_BUILD_TYPE=Release'
@@ -73,16 +72,6 @@ def runSubsetBuildCommand(platform, project, jobName, genPattern, genSmall, genL
 
     def command = """#!/usr/bin/env bash
                 set -x
-
-                ls /fftw/lib
-
-                export FFTW_ROOT=/fftw
-                export FFTW_INCLUDE_PATH=\${FFTW_ROOT}/include
-                export FFTW_LIB_PATH=\${FFTW_ROOT}/lib
-                export LD_LIBRARY_PATH=\${FFTW_LIB_PATH}:\$LD_LIBRARY_PATH
-                export CPLUS_INCLUDE_PATH=\${FFTW_INCLUDE_PATH}:\${CPLUS_INCLUDE_PATH}
-                export CMAKE_PREFIX_PATH=\${FFTW_LIB_PATH}/cmake/fftw3:\${CMAKE_PREFIX_PATH}
-                export CMAKE_PREFIX_PATH=\${FFTW_LIB_PATH}/cmake/fftw3f:\${CMAKE_PREFIX_PATH}
 
                 cd ${project.paths.project_build_prefix}
                 rm -rf build/${buildTypeDir}
