@@ -860,7 +860,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
     }
 
 #define POWX_LARGE_SBCR_GENERATOR(FUNCTION_NAME, FWD_KERN_NAME, BACK_KERN_NAME, PRECISION) \
-    void FUNCTION_NAME(const void* data_p, void* back_p)                                   \
+    ROCFFT_DEVICE_EXPORT void FUNCTION_NAME(const void* data_p, void* back_p)              \
     {                                                                                      \
         DeviceCallIn* data          = (DeviceCallIn*)data_p;                               \
         hipStream_t   rocfft_stream = data->rocfft_stream;                                 \
