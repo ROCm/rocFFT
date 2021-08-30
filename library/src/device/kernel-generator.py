@@ -378,38 +378,18 @@ def list_old_generated_kernels(patterns=None,
         'kernels_launch_large_dp': [
             'kernel_launch_double_large.cpp',
         ],
-        'kernels_launch_2D_sp': [
-            'kernel_launch_single_2D_pow2.cpp',
-            'kernel_launch_single_2D_pow3.cpp',
-            'kernel_launch_single_2D_pow5.cpp',
-            'kernel_launch_single_2D_mix_pow2_3.cpp',
-            'kernel_launch_single_2D_mix_pow3_2.cpp',
-            'kernel_launch_single_2D_mix_pow3_5.cpp',
-            'kernel_launch_single_2D_mix_pow5_3.cpp',
-            'kernel_launch_single_2D_mix_pow2_5.cpp',
-            'kernel_launch_single_2D_mix_pow5_2.cpp',
-        ],
-        'kernels_launch_2D_dp': [
-            'kernel_launch_double_2D_pow2.cpp',
-            'kernel_launch_double_2D_pow3.cpp',
-            'kernel_launch_double_2D_pow5.cpp',
-            'kernel_launch_double_2D_mix_pow2_3.cpp',
-            'kernel_launch_double_2D_mix_pow3_2.cpp',
-            'kernel_launch_double_2D_mix_pow3_5.cpp',
-            'kernel_launch_double_2D_mix_pow5_3.cpp',
-            'kernel_launch_double_2D_mix_pow2_5.cpp',
-            'kernel_launch_double_2D_mix_pow5_2.cpp',
-        ],
     }
     generated_kernels['kernels_launch_small_all'] = generated_kernels['kernels_launch_small_sp'] + generated_kernels['kernels_launch_small_dp']
     generated_kernels['kernels_launch_large_all'] = generated_kernels['kernels_launch_large_sp'] + generated_kernels['kernels_launch_large_dp']
-    generated_kernels['kernels_launch_2D_all']    = generated_kernels['kernels_launch_2D_sp']    + generated_kernels['kernels_launch_2D_dp']
-    generated_kernels['kernels_launch_all_sp']    = generated_kernels['kernels_launch_small_sp'] + generated_kernels['kernels_launch_large_sp'] + generated_kernels['kernels_launch_2D_sp']
-    generated_kernels['kernels_launch_all_dp']    = generated_kernels['kernels_launch_small_dp'] + generated_kernels['kernels_launch_large_dp'] + generated_kernels['kernels_launch_2D_dp']
+    generated_kernels['kernels_launch_all_sp']    = generated_kernels['kernels_launch_small_sp'] + generated_kernels['kernels_launch_large_sp']
+    generated_kernels['kernels_launch_all_dp']    = generated_kernels['kernels_launch_small_dp'] + generated_kernels['kernels_launch_large_dp']
     generated_kernels['kernels_launch_all_all']   = generated_kernels['kernels_launch_all_sp']   + generated_kernels['kernels_launch_all_dp']
 
     gen = generated_kernels['kernels_launch_basic']
     for patt in patterns:
+        # old gen no longer handles any 2D_SINGLE kernels
+        if patt == '2D':
+            continue
         for prec in precisions:
             gen += generated_kernels[f'kernels_launch_{patt}_{prec}']
     return list(set(gen))
@@ -606,19 +586,125 @@ def list_new_2d_kernels():
 
     # can probably merge this with above when old gen is gone
 
-    fused_kernels = {
-        (('tall', 'tall'), 128): [
-            NS(length=[32, 32], factors=[[8,4],[8,4]], threads_per_transform=4),
-        ],
-    }
+    fused_kernels = [
+        NS(length=[4,4], factors=[[2,2],[2,2]], threads_per_transform=[2,2], threads_per_block=8),
+        NS(length=[4,8], factors=[[2,2],[4,2]], threads_per_transform=[2,2], threads_per_block=16),
+        NS(length=[4,9], factors=[[2,2],[3,3]], threads_per_transform=[2,3], threads_per_block=18),
+        NS(length=[4,16], factors=[[2,2],[4,4]], threads_per_transform=[2,4], threads_per_block=32),
+        NS(length=[4,25], factors=[[2,2],[5,5]], threads_per_transform=[2,5], threads_per_block=50),
+        NS(length=[4,27], factors=[[2,2],[3,3,3]], threads_per_transform=[2,9], threads_per_block=54),
+        NS(length=[4,32], factors=[[2,2],[8,4]], threads_per_transform=[2,4], threads_per_block=64),
+        NS(length=[4,64], factors=[[2,2],[4,4,4]], threads_per_transform=[2,16], threads_per_block=128),
+        NS(length=[4,81], factors=[[2,2],[3,3,3,3]], threads_per_transform=[2,27], threads_per_block=162),
+        NS(length=[4,125], factors=[[2,2],[5,5,5]], threads_per_transform=[2,25], threads_per_block=250),
+        NS(length=[4,128], factors=[[2,2],[8,4,4]], threads_per_transform=[2,16], threads_per_block=256),
+        NS(length=[4,243], factors=[[2,2],[3,3,3,3,3]], threads_per_transform=[2,81], threads_per_block=486),
+        NS(length=[4,256], factors=[[2,2],[4,4,4,4]], threads_per_transform=[2,64], threads_per_block=512),
+        NS(length=[8,4], factors=[[4,2],[2,2]], threads_per_transform=[2,2], threads_per_block=16),
+        NS(length=[8,8], factors=[[4,2],[4,2]], threads_per_transform=[2,2], threads_per_block=16),
+        NS(length=[8,9], factors=[[4,2],[3,3]], threads_per_transform=[2,3], threads_per_block=24),
+        NS(length=[8,16], factors=[[4,2],[4,4]], threads_per_transform=[2,4], threads_per_block=32),
+        NS(length=[8,25], factors=[[4,2],[5,5]], threads_per_transform=[2,5], threads_per_block=50),
+        NS(length=[8,27], factors=[[4,2],[3,3,3]], threads_per_transform=[2,9], threads_per_block=72),
+        NS(length=[8,32], factors=[[4,2],[8,4]], threads_per_transform=[2,4], threads_per_block=64),
+        NS(length=[8,64], factors=[[4,2],[4,4,4]], threads_per_transform=[2,16], threads_per_block=128),
+        NS(length=[8,81], factors=[[4,2],[3,3,3,3]], threads_per_transform=[2,27], threads_per_block=216),
+        NS(length=[8,125], factors=[[4,2],[5,5,5]], threads_per_transform=[2,25], threads_per_block=250),
+        NS(length=[8,128], factors=[[4,2],[8,4,4]], threads_per_transform=[2,16], threads_per_block=256),
+        NS(length=[8,243], factors=[[4,2],[3,3,3,3,3]], threads_per_transform=[2,81], threads_per_block=648),
+        NS(length=[8,256], factors=[[4,2],[4,4,4,4]], threads_per_transform=[2,64], threads_per_block=512),
+        NS(length=[9,4], factors=[[3,3],[2,2]], threads_per_transform=[3,2], threads_per_block=18),
+        NS(length=[9,8], factors=[[3,3],[4,2]], threads_per_transform=[3,2], threads_per_block=24),
+        NS(length=[9,9], factors=[[3,3],[3,3]], threads_per_transform=[3,3], threads_per_block=27),
+        NS(length=[9,16], factors=[[3,3],[4,4]], threads_per_transform=[3,4], threads_per_block=48),
+        NS(length=[9,25], factors=[[3,3],[5,5]], threads_per_transform=[3,5], threads_per_block=75),
+        NS(length=[9,27], factors=[[3,3],[3,3,3]], threads_per_transform=[3,9], threads_per_block=81),
+        NS(length=[9,32], factors=[[3,3],[8,4]], threads_per_transform=[3,4], threads_per_block=96),
+        NS(length=[9,64], factors=[[3,3],[4,4,4]], threads_per_transform=[3,16], threads_per_block=192),
+        NS(length=[9,81], factors=[[3,3],[3,3,3,3]], threads_per_transform=[3,27], threads_per_block=243),
+        NS(length=[9,125], factors=[[3,3],[5,5,5]], threads_per_transform=[3,25], threads_per_block=375),
+        NS(length=[9,128], factors=[[3,3],[8,4,4]], threads_per_transform=[3,16], threads_per_block=384),
+        NS(length=[9,243], factors=[[3,3],[3,3,3,3,3]], threads_per_transform=[3,81], threads_per_block=729),
+        NS(length=[9,256], factors=[[3,3],[4,4,4,4]], threads_per_transform=[3,64], threads_per_block=768),
+        NS(length=[16,4], factors=[[4,4],[2,2]], threads_per_transform=[4,2], threads_per_block=32),
+        NS(length=[16,8], factors=[[4,4],[4,2]], threads_per_transform=[4,2], threads_per_block=32),
+        NS(length=[16,9], factors=[[4,4],[3,3]], threads_per_transform=[4,3], threads_per_block=48),
+        NS(length=[16,16], factors=[[4,4],[4,4]], threads_per_transform=[4,4], threads_per_block=64),
+        NS(length=[16,25], factors=[[4,4],[5,5]], threads_per_transform=[4,5], threads_per_block=100),
+        NS(length=[16,27], factors=[[4,4],[3,3,3]], threads_per_transform=[4,9], threads_per_block=144),
+        NS(length=[16,32], factors=[[4,4],[8,4]], threads_per_transform=[4,4], threads_per_block=128),
+        NS(length=[16,64], factors=[[4,4],[4,4,4]], threads_per_transform=[4,16], threads_per_block=256),
+        NS(length=[16,81], factors=[[4,4],[3,3,3,3]], threads_per_transform=[4,27], threads_per_block=432),
+        NS(length=[16,125], factors=[[4,4],[5,5,5]], threads_per_transform=[4,25], threads_per_block=500),
+        NS(length=[16,128], factors=[[4,4],[8,4,4]], threads_per_transform=[4,16], threads_per_block=512),
+        NS(length=[25,4], factors=[[5,5],[2,2]], threads_per_transform=[5,2], threads_per_block=50),
+        NS(length=[25,8], factors=[[5,5],[4,2]], threads_per_transform=[5,2], threads_per_block=50),
+        NS(length=[25,9], factors=[[5,5],[3,3]], threads_per_transform=[5,3], threads_per_block=75),
+        NS(length=[25,16], factors=[[5,5],[4,4]], threads_per_transform=[5,4], threads_per_block=100),
+        NS(length=[25,25], factors=[[5,5],[5,5]], threads_per_transform=[5,5], threads_per_block=125),
+        NS(length=[25,27], factors=[[5,5],[3,3,3]], threads_per_transform=[5,9], threads_per_block=225),
+        NS(length=[25,32], factors=[[5,5],[8,4]], threads_per_transform=[5,4], threads_per_block=160),
+        NS(length=[25,64], factors=[[5,5],[4,4,4]], threads_per_transform=[5,16], threads_per_block=400),
+        NS(length=[25,81], factors=[[5,5],[3,3,3,3]], threads_per_transform=[5,27], threads_per_block=675),
+        NS(length=[25,125], factors=[[5,5],[5,5,5]], threads_per_transform=[5,25], threads_per_block=625),
+        NS(length=[25,128], factors=[[5,5],[8,4,4]], threads_per_transform=[5,16], threads_per_block=640),
+        NS(length=[27,4], factors=[[3,3,3],[2,2]], threads_per_transform=[9,2], threads_per_block=54),
+        NS(length=[27,8], factors=[[3,3,3],[4,2]], threads_per_transform=[9,2], threads_per_block=72),
+        NS(length=[27,9], factors=[[3,3,3],[3,3]], threads_per_transform=[9,3], threads_per_block=81),
+        NS(length=[27,16], factors=[[3,3,3],[4,4]], threads_per_transform=[9,4], threads_per_block=144),
+        NS(length=[27,25], factors=[[3,3,3],[5,5]], threads_per_transform=[9,5], threads_per_block=225),
+        NS(length=[27,27], factors=[[3,3,3],[3,3,3]], threads_per_transform=[9,9], threads_per_block=243),
+        NS(length=[27,32], factors=[[3,3,3],[8,4]], threads_per_transform=[9,4], threads_per_block=288),
+        NS(length=[27,64], factors=[[3,3,3],[4,4,4]], threads_per_transform=[9,16], threads_per_block=576),
+        NS(length=[27,81], factors=[[3,3,3],[3,3,3,3]], threads_per_transform=[9,27], threads_per_block=729),
+        NS(length=[32,4], factors=[[8,4],[2,2]], threads_per_transform=[4,2], threads_per_block=64),
+        NS(length=[32,8], factors=[[8,4],[4,2]], threads_per_transform=[4,2], threads_per_block=64),
+        NS(length=[32,9], factors=[[8,4],[3,3]], threads_per_transform=[4,3], threads_per_block=96),
+        NS(length=[32,16], factors=[[8,4],[4,4]], threads_per_transform=[4,4], threads_per_block=128),
+        NS(length=[32,25], factors=[[8,4],[5,5]], threads_per_transform=[4,5], threads_per_block=160),
+        NS(length=[32,27], factors=[[8,4],[3,3,3]], threads_per_transform=[4,9], threads_per_block=288),
+        NS(length=[32,32], factors=[[8,4],[8,4]], threads_per_transform=[4,4], threads_per_block=128),
+        NS(length=[32,64], factors=[[8,4],[4,4,4]], threads_per_transform=[4,16], threads_per_block=512),
+        NS(length=[32,81], factors=[[8,4],[3,3,3,3]], threads_per_transform=[4,27], threads_per_block=864),
+        NS(length=[32,125], factors=[[8,4],[5,5,5]], threads_per_transform=[4,25], threads_per_block=800),
+        NS(length=[32,128], factors=[[8,4],[8,4,4]], threads_per_transform=[4,16], threads_per_block=512),
+        NS(length=[64,4], factors=[[4,4,4],[2,2]], threads_per_transform=[16,2], threads_per_block=128),
+        NS(length=[64,8], factors=[[4,4,4],[4,2]], threads_per_transform=[16,2], threads_per_block=128),
+        NS(length=[64,9], factors=[[4,4,4],[3,3]], threads_per_transform=[16,3], threads_per_block=192),
+        NS(length=[64,16], factors=[[4,4,4],[4,4]], threads_per_transform=[16,4], threads_per_block=256),
+        NS(length=[64,25], factors=[[4,4,4],[5,5]], threads_per_transform=[16,5], threads_per_block=400),
+        NS(length=[64,27], factors=[[4,4,4],[3,3,3]], threads_per_transform=[16,9], threads_per_block=576),
+        NS(length=[64,32], factors=[[4,4,4],[8,4]], threads_per_transform=[16,4], threads_per_block=512),
+        NS(length=[81,4], factors=[[3,3,3,3],[2,2]], threads_per_transform=[27,2], threads_per_block=162),
+        NS(length=[81,8], factors=[[3,3,3,3],[4,2]], threads_per_transform=[27,2], threads_per_block=216),
+        NS(length=[81,9], factors=[[3,3,3,3],[3,3]], threads_per_transform=[27,3], threads_per_block=243),
+        NS(length=[81,16], factors=[[3,3,3,3],[4,4]], threads_per_transform=[27,4], threads_per_block=432),
+        NS(length=[81,25], factors=[[3,3,3,3],[5,5]], threads_per_transform=[27,5], threads_per_block=675),
+        NS(length=[81,27], factors=[[3,3,3,3],[3,3,3]], threads_per_transform=[27,9], threads_per_block=729),
+        NS(length=[81,32], factors=[[3,3,3,3],[8,4]], threads_per_transform=[27,4], threads_per_block=864),
+        NS(length=[125,4], factors=[[5,5,5],[2,2]], threads_per_transform=[25,2], threads_per_block=250),
+        NS(length=[125,8], factors=[[5,5,5],[4,2]], threads_per_transform=[25,2], threads_per_block=250),
+        NS(length=[125,9], factors=[[5,5,5],[3,3]], threads_per_transform=[25,3], threads_per_block=375),
+        NS(length=[125,16], factors=[[5,5,5],[4,4]], threads_per_transform=[25,4], threads_per_block=500),
+        NS(length=[125,25], factors=[[5,5,5],[5,5]], threads_per_transform=[25,5], threads_per_block=625),
+        NS(length=[125,32], factors=[[5,5,5],[8,4]], threads_per_transform=[25,4], threads_per_block=800),
+        NS(length=[128,4], factors=[[8,4,4],[2,2]], threads_per_transform=[16,2], threads_per_block=256),
+        NS(length=[128,8], factors=[[8,4,4],[4,2]], threads_per_transform=[16,2], threads_per_block=256),
+        NS(length=[128,9], factors=[[8,4,4],[3,3]], threads_per_transform=[16,3], threads_per_block=384),
+        NS(length=[128,16], factors=[[8,4,4],[4,4]], threads_per_transform=[16,4], threads_per_block=512),
+        NS(length=[128,25], factors=[[8,4,4],[5,5]], threads_per_transform=[16,5], threads_per_block=640),
+        NS(length=[128,32], factors=[[8,4,4],[8,4]], threads_per_transform=[16,4], threads_per_block=512),
+        NS(length=[243,4], factors=[[3,3,3,3,3],[2,2]], threads_per_transform=[81,2], threads_per_block=486),
+        NS(length=[243,8], factors=[[3,3,3,3,3],[4,2]], threads_per_transform=[81,2], threads_per_block=648),
+        NS(length=[243,9], factors=[[3,3,3,3,3],[3,3]], threads_per_transform=[81,3], threads_per_block=729),
+        NS(length=[256,4], factors=[[4,4,4,4],[2,2]], threads_per_transform=[64,2], threads_per_block=512),
+        NS(length=[256,8], factors=[[4,4,4,4],[4,2]], threads_per_transform=[64,2], threads_per_block=512),
+        NS(length=[256,9], factors=[[4,4,4,4],[3,3]], threads_per_transform=[64,3], threads_per_block=768),
+    ]
 
     expanded = []
-    for params, kernels in fused_kernels.items():
-        flavours, threads_per_block = params
-        expanded.extend(NS(**kernel.__dict__,
-                           flavour=flavours,
-                           threads_per_block=threads_per_block,
-                           scheme='CS_KERNEL_2D_SINGLE') for kernel in kernels)
+    expanded.extend(NS(**kernel.__dict__,
+                       scheme='CS_KERNEL_2D_SINGLE') for kernel in fused_kernels)
 
     return expanded
 
@@ -962,10 +1048,6 @@ def cli():
         for p in precisions:
             expand_sizes['large'][p] = merge(expand_sizes['large'][p], manual_large)
 
-    # TODO- let dim2 ("CS_KERNEL_2D_SINGLE"-typed) use new-gen 1D kernels, and get the dependent kernels.
-    # For now, 2D_SINGLE kernels still use old-gen small kernels
-
-
     #
     # which kernels by new-gen and which by old-gen? categorize input kernels
     #
@@ -1049,15 +1131,6 @@ def cli():
                 subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-large', cjoin(sorted(old_large_lengths)), '--no-sbcc', cjoin(sorted(new_large_lengths))], check=True)
             else:
                 subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-large', cjoin(sorted(old_large_lengths))], check=True)
-        if dim2:
-            # XXX: currently new2d does both precisions...
-            new2d = {tuple(x.length) for x in list_new_2d_kernels()}
-            if 'sp' in precisions:
-                old2d = {f.meta.length for f in p2d.values() if f.meta.precision == 'sp'}
-                subprocess.run([args.generator, '-g', str(args.groups), '-p', 'single', '-t', '2D', '--manual-2d', cjoin('x'.join(map(str, lengths)) for lengths in old2d - new2d)], check=True)
-            if 'dp' in precisions:
-                old2d = {f.meta.length for f in p2d.values() if f.meta.precision == 'dp'}
-                subprocess.run([args.generator, '-g', str(args.groups), '-p', 'double', '-t', '2D', '--manual-2d', cjoin('x'.join(map(str, lengths)) for lengths in old2d - new2d)], check=True)
 
 
 if __name__ == '__main__':

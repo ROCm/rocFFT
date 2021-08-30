@@ -285,7 +285,10 @@ void Single2DNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
         // when old generator goes away, we will always have factors
         gp.b_x   = (batch + kernel.batches_per_block - 1) / kernel.batches_per_block;
         gp.tpb_x = kernel.threads_per_block;
-        lds      = length[0] * length[1] * kernel.batches_per_block;
+
+        // if fastest length is power of 2, pad it to avoid LDS bank conflicts
+        auto padded_len0 = IsPo2(length[0]) ? length[0] + 1 : length[0];
+        lds              = padded_len0 * length[1] * kernel.batches_per_block;
     }
     else
     {

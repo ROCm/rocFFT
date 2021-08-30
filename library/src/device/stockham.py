@@ -69,6 +69,9 @@ def get_launch_params(factors,
     batches_per_block = lds_byte_limit // bytes_per_batch
     while threads_per_transform * batches_per_block > threads_per_block:
         batches_per_block -= 1
+    other_dim_2d = kwargs.get('other_dim_2d', batches_per_block)
+    batches_per_block = min(other_dim_2d, batches_per_block)
+
     return LaunchParams(batches_per_block,
                         quantize(threads_per_transform * batches_per_block, thread_granularity),
                         threads_per_transform)
@@ -1302,7 +1305,7 @@ class StockhamKernelConsolidated(StockhamKernel):
 
 class StockhamKernelFused2D(StockhamKernel):
 
-    def __init__(self, device_functions):
+    def __init__(self, device_functions, threads_per_block):
         self.tiling = StockhamTiling([], None)
         self.large_twiddles = StockhamLargeTwiddles()
         self.device_functions = device_functions
@@ -1311,12 +1314,10 @@ class StockhamKernelFused2D(StockhamKernel):
         length = [ x.meta.length for x in self.device_functions ]
         tpt = max(length[1]*kernels[0].meta.params.threads_per_transform,
                   length[0]*kernels[1].meta.params.threads_per_transform)
-        tpb = max(kernels[0].meta.params.threads_per_block,
-                  kernels[1].meta.params.threads_per_block)
         self.params =  get_launch_params(length,
                                          threads_per_transform=tpt,
-                                         threads_per_block=tpb)
-
+                                         threads_per_block=threads_per_block,
+                                         lds_byte_limit=64*1024)
 
     def generate_global_function(self, **kwargs):
 
@@ -1324,6 +1325,11 @@ class StockhamKernelFused2D(StockhamKernel):
         length = [ x.meta.length for x in kernels ]
         kvars, kwvars = common_variables(product(length), params,
                                          max(x.meta.nregisters for x in kernels))
+
+        # pad each row of LDS if it's a power of 2, to avoid bank conflicts
+        def is_pow2(n):
+            return n != 0 and n & (n-1) == 0
+        length0_padded = length[0] + 1 if is_pow2(length[0]) else length[0]
 
         body = StatementList()
         body += LineBreak()
@@ -1340,28 +1346,21 @@ class StockhamKernelFused2D(StockhamKernel):
         remaining     = Variable('remaining', 'size_t')
         plength       = Variable('plength', 'size_t', value=1)
 
-        stride0 = Variable('stride0', 'size_t')
         batch0  = Variable('batch0', 'size_t')
-        batch1  = Variable('batch1', 'size_t')
         write   = Variable('write', 'bool')
 
         body += Declarations(kvars.lds_uchar, kvars.lds,
                              kvars.thread, kvars.transform,
                              kvars.offset, kvars.offset_lds, kvars.stride_lds, kvars.write,
-                             stride0, batch0, batch1, remaining, plength, d, index_along_d)
+                             batch0, remaining, plength, d, index_along_d)
         body += CallbackDeclaration()
 
-        # load
         body += LineBreak()
-        body += CommentLines('', f'length: {length[0]}', '')
-
-        body += LineBreak()
-        tpb = length[1] * params.transforms_per_block
-        body += CommentLines(f'transform is: length {length[0]} transform number',
-                             f'there are {length[1]} * {params.transforms_per_block} = {tpb} of them per block')
-        body += Assign(kvars.transform, kvars.block_id * tpb + kvars.thread_id / (params.threads_per_block // tpb))
+        body += CommentLines('transform is: 2D slab number (1 per block)')
+        body += Assign(kvars.transform, kvars.block_id)
         body += Assign(remaining, kvars.transform)
-        body += For(InlineAssign(d, 1), d < kvars.dim, Increment(d),
+        body += CommentLines('compute 2D slab offset (start from length/stride index 2)')
+        body += For(InlineAssign(d, 2), d < kvars.dim, Increment(d),
                     StatementList(
                         Assign(plength, plength * kvars.lengths[d]),
                         Assign(index_along_d, remaining % kvars.lengths[d]),
@@ -1370,19 +1369,33 @@ class StockhamKernelFused2D(StockhamKernel):
         body += Assign(batch0, kvars.transform / plength)
         body += Assign(kvars.offset, kvars.offset + batch0 * kvars.stride[kvars.dim])
 
+        # load
         body += LineBreak()
-        body += CommentLines(f'load following length {length[0]}')
+        rw_iters = length[0] * length[1] // params.threads_per_block
+        body += CommentLines(f'load length-{length[0]} rows using all threads.',
+                             f'need {rw_iters} iterations to load all {length[1]} rows in the slab')
+        # just use rw_iters * threads_per_block threads total, break
+        # it down into row/column accesses to fill LDS
+        for i in range(rw_iters):
+            row_offset = B(B(i * params.threads_per_block + kvars.thread_id) / length[0])
+            col_offset = B(B(i * params.threads_per_block + kvars.thread_id) % length[0])
+            body += Assign(kvars.lds[row_offset * length0_padded + col_offset], LoadGlobal(kvars.buf, kvars.offset + col_offset * kvars.stride[0] + row_offset * kvars.stride[1]))
+
+        body += LineBreak()
+        body += CommentLines('', f'length: {length[0]}', '')
+
+        body += LineBreak()
         width = length[0] // kernels[0].meta.params.threads_per_transform
         height = kernels[0].meta.params.threads_per_transform
-        body += Assign(kvars.write, batch0 < kvars.nbatch)
+        active_threads_rows = self.device_functions[0].meta.params.threads_per_transform * self.device_functions[1].meta.length
+        body += CommentLines(f'each block handles {length[1]} rows of length {length[0]}.',
+                             f'each row needs {self.device_functions[0].meta.params.threads_per_transform} threads, so {active_threads_rows} are active in the block')
+        if active_threads_rows == params.threads_per_block:
+            body += Assign(kvars.write, 1)
+        else:
+            body += Assign(kvars.write, kvars.thread_id < active_threads_rows)
         body += Assign(kvars.thread, kvars.thread_id % height)
-        body += Assign(stride0, kvars.stride[0])
-        body += Assign(kvars.offset_lds, length[0] * B(kvars.transform % (length[1] * params.transforms_per_block)))
-        stmts = StatementList()
-        for w in range(width):
-            idx = kvars.thread + w * height
-            stmts += Assign(kvars.lds[kvars.offset_lds + idx], LoadGlobal(kvars.buf, kvars.offset + B(idx) * stride0))
-        body += If(kvars.write, stmts)
+        body += Assign(kvars.offset_lds, length0_padded * B(kvars.thread_id / height))
 
         templates = self.device_call_templates(kvars, **kwvars)
         templates.set_value(kvars.stride_type.name, 'SB_UNIT')
@@ -1397,46 +1410,36 @@ class StockhamKernelFused2D(StockhamKernel):
 
         width = length[1] // kernels[1].meta.params.threads_per_transform
         height = kernels[1].meta.params.threads_per_transform
-        tpb = length[0] * params.transforms_per_block
-        body += CommentLines(f'transform is: length {length[1]} transform number',
-                             f'there are {length[0]} * {params.transforms_per_block} = {tpb} of them per block')
 
-        body += Assign(kvars.transform, kvars.block_id * tpb + kvars.thread_id / (params.threads_per_block // tpb))
-        body += Assign(plength, kvars.lengths[0])
-        body += For(InlineAssign(d, 2), d < kvars.dim, Increment(d),
-                    StatementList(
-                        Assign(plength, plength * kvars.lengths[d])))
-        body += Assign(batch1, kvars.transform / plength)
-        body += Assign(kvars.write, batch1 < kvars.nbatch)
+        active_threads_cols = self.device_functions[1].meta.params.threads_per_transform * self.device_functions[0].meta.length
+        body += CommentLines(f'each block handles {length[0]} columns of length {length[1]}.',
+                             f'each column needs {self.device_functions[1].meta.params.threads_per_transform} threads, so {active_threads_cols} are active in the block')
+        if active_threads_cols == params.threads_per_block:
+            body += Assign(kvars.write, 1)
+        else:
+            body += Assign(kvars.write, kvars.thread_id < active_threads_cols)
         body += Assign(kvars.thread, kvars.thread_id % height)
-        body += Assign(kvars.offset_lds, (length[0]*length[1]) * B(B(kvars.transform % tpb) / length[0]) + kvars.transform % length[0])
+        body += Assign(kvars.offset_lds, kvars.thread_id / height)
 
         templates = self.device_call_templates(kvars, **kwvars)
         templates.set_value(kvars.stride_type.name, 'SB_NONUNIT')
         arguments = self.device_call_arguments(kvars, **kwvars)
         if kernels[0].meta.factors != kernels[1].meta.factors:
             arguments.set_value(kvars.twiddles.name, kvars.twiddles + length[0])
-        body += Assign(kvars.stride_lds, length[0])
+        body += Assign(kvars.stride_lds, length0_padded)
         body += kernels[1].call(arguments, templates)
 
         # store
-        body += LineBreak()
-        body += CommentLines(f'store following length {length[0]}')
         body += SyncThreads()
-        tpb = length[1] * params.transforms_per_block
-        body += Assign(kvars.transform, kvars.block_id * tpb + kvars.thread_id / (params.threads_per_block // tpb))
-
-        width = length[0] // kernels[0].meta.params.threads_per_transform
-        height = kernels[0].meta.params.threads_per_transform
-
-        body += Assign(kvars.write, batch0 < kvars.nbatch)
-        body += Assign(kvars.thread, kvars.thread_id % height)
-        body += Assign(kvars.offset_lds, length[0] * B(kvars.transform % (length[1] * params.transforms_per_block)))
-        stmts = StatementList()
-        for w in range(width):
-            idx = kvars.thread + w * height
-            stmts += StoreGlobal(kvars.buf, kvars.offset + B(idx) * stride0, kvars.lds[kvars.offset_lds + idx])
-        body += If(kvars.write, stmts)
+        body += LineBreak()
+        body += CommentLines(f'store length-{length[0]} rows using all threads.',
+                             f'need {rw_iters} iterations to store all {length[1]} rows in the slab')
+        # just use rw_iters * threads_per_block threads total, break
+        # it down into row/column accesses to fill LDS
+        for i in range(rw_iters):
+            row_offset = B(B(i * params.threads_per_block + kvars.thread_id) / length[0])
+            col_offset = B(B(i * params.threads_per_block + kvars.thread_id) % length[0])
+            body += StoreGlobal(kvars.buf, kvars.offset + col_offset * kvars.stride[0] + row_offset * kvars.stride[1], kvars.lds[row_offset * length0_padded + col_offset])
 
         template_list = TemplateList(kvars.scalar_type, kvars.stride_type)
         argument_list = ArgumentList(kvars.twiddles, kvars.dim, kvars.lengths, kvars.stride, kvars.nbatch, kvars.buf)
@@ -1690,7 +1693,6 @@ def stockham1d(length, **kwargs):
 
     return kdevice, kglobal
 
-
 def stockham2d(lengths, **kwargs):
     """Generate fused 2D Stockham kernel."""
 
@@ -1703,13 +1705,19 @@ def stockham2d(lengths, **kwargs):
         kwargs.pop('flavour')
     if 'scheme' in kwargs:
         kwargs.pop('scheme')
+    threads_per_transform = kwargs.pop('threads_per_transform')
+
+    # reverse the lengths so we can know what the "other" dimension
+    # of the 2D transform is
+    lengths_reverse = lengths.copy()
+    lengths_reverse.reverse()
 
     device_functions = []
-    for length, factors, flavour in zip(lengths, factorss, flavours):
-        kdevice, _ = stockham1d(length, factors=factors, flavour=flavour, scheme='CS_KERNEL_STOCKHAM', **kwargs)
+    for length, factors, flavour, threads_per_transform, other_dim_2d in zip(lengths, factorss, flavours, threads_per_transform, lengths_reverse):
+        kdevice, _ = stockham1d(length, factors=factors, flavour=flavour, scheme='CS_KERNEL_STOCKHAM', threads_per_transform=threads_per_transform, other_dim_2d = other_dim_2d, **kwargs)
         device_functions.append(kdevice)
 
-    kernel = StockhamKernelFused2D(device_functions)
+    kernel = StockhamKernelFused2D(device_functions, kwargs['threads_per_block'])
     kglobal = kernel.generate_global_function(**kwargs)
 
     if device_functions[0].name == device_functions[1].name:

@@ -14,6 +14,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Optimizations
 - Optimized twiddle-conjugation; complex-to-complex inverse transforms should have similar performance to foward transforms now.
+- Improved performance of single-kernel small 2D transforms.
 
 ## (Unreleased) rocFFT 1.0.14
 

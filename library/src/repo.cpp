@@ -115,7 +115,7 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
         }
         catch(std::exception& e)
         {
-            rocfft_cout << e.what() << std::endl;
+            rocfft_cerr << e.what() << std::endl;
             if(LOG_PLAN_ENABLED())
                 PrintNode(*LogSingleton::GetInstance().GetPlanOS(), execPlan);
             return rocfft_status_failure;
