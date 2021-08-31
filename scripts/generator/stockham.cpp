@@ -12,34 +12,16 @@
 #include <rocrand/rocrand.hpp>
 
 #include "../../library/src/device/kernels/callback.h"
+#include "../../library/src/device/kernels/common.h"
+#include "../../library/src/include/real2complex.h"
+#include "butterfly_template.h"
 #include "timer.h"
+
+using namespace std;
 
 #define HIP_CHECK(r)    \
     if(r != hipSuccess) \
         return {};
-
-using namespace std;
-
-template <class T>
-struct real_type;
-
-template <>
-struct real_type<hipComplex>
-{
-    typedef float type;
-};
-
-template <>
-struct real_type<hipDoubleComplex>
-{
-    typedef double type;
-};
-
-template <class T>
-using real_type_t = typename real_type<T>::type;
-
-#include "../../library/src/device/kernels/callback.h"
-#include "butterfly_template.h"
 
 //
 // Random inputs
@@ -194,26 +176,10 @@ __global__ void stockham_twiddles(int ntwiddles, T* twiddles, int nfactors, int*
     twiddles[m].y = real_type_t<T>(sint);
 }
 
-#define TWIDDLE_MUL_FWD(TWIDDLES, INDEX, REG)  \
-    {                                          \
-        T              W = TWIDDLES[INDEX];    \
-        real_type_t<T> TR, TI;                 \
-        TR    = (W.x * REG.x) - (W.y * REG.y); \
-        TI    = (W.y * REG.x) + (W.x * REG.y); \
-        REG.x = TR;                            \
-        REG.y = TI;                            \
-    }
-
-enum StrideBin
-{
-    SB_UNIT,
-    SB_NONUNIT,
-};
-
-#include "stockham_generated_kernel.h"
+#include GENERATED_KERNEL_FILE
 
 template <typename T>
-tuple<float, float, vector<T>> fft_stockham_gpu(vector<T> const& x, int nx, int nbatch)
+tuple<vector<float>, vector<T>> fft_stockham_gpu(vector<T> const& x, int nx, int nbatch)
 {
     vector<float> times;
     int           ntrials = 10;
@@ -235,7 +201,8 @@ tuple<float, float, vector<T>> fft_stockham_gpu(vector<T> const& x, int nx, int 
     HIP_CHECK(hipMalloc(&d_factors, factors[0].size() * sizeof(int)));
     HIP_CHECK(hipMemcpy(
         d_factors, factors[0].data(), factors[0].size() * sizeof(int), hipMemcpyHostToDevice));
-    stockham_twiddles<<<1, nx - 1>>>(nx - 1, twiddles, factors[0].size(), d_factors);
+    int t_blocks = (nx - 1 + 255) / 256;
+    stockham_twiddles<<<t_blocks, 256>>>(nx - 1, twiddles, factors[0].size(), d_factors);
     HIP_CHECK(hipFree(d_factors));
 
     if(false)
@@ -260,7 +227,7 @@ tuple<float, float, vector<T>> fft_stockham_gpu(vector<T> const& x, int nx, int 
     {
         timer.tic();
         // 1,1 means unit-stride (TODO: arbitrary stride)
-        GENERATED_KERNEL_LAUNCH(X, nbatch, twiddles, d_kargs, 1, 1);
+        GENERATED_KERNEL_LAUNCH(X, nbatch, 0, twiddles, d_kargs, 1, 1);
 
         timer.toc();
         if(n > 0)
@@ -274,11 +241,11 @@ tuple<float, float, vector<T>> fft_stockham_gpu(vector<T> const& x, int nx, int 
     HIP_CHECK(hipFree(twiddles));
     HIP_CHECK(hipFree(X));
 
-    return {average(times), total.elapsed(), move(z)};
+    return {move(times), move(z)};
 }
 
 template <typename T>
-tuple<float, float, vector<T>> fft_stockham_gpu(vector<T> const& x, int nx, int ny, int nbatch)
+tuple<vector<float>, vector<T>> fft_stockham_gpu(vector<T> const& x, int nx, int ny, int nbatch)
 {
     vector<float> times;
     int           ntrials = 1;
@@ -332,7 +299,7 @@ tuple<float, float, vector<T>> fft_stockham_gpu(vector<T> const& x, int nx, int 
     {
         timer.tic();
         // 1,1 means unit-stride (TODO: arbitrary stride)
-        GENERATED_KERNEL_LAUNCH(X, nbatch, twiddles, d_kargs, 1, 1);
+        GENERATED_KERNEL_LAUNCH(X, nbatch, 0, twiddles, d_kargs, 1, 1);
 
         timer.toc();
         if(n > 0)
@@ -346,7 +313,7 @@ tuple<float, float, vector<T>> fft_stockham_gpu(vector<T> const& x, int nx, int 
     HIP_CHECK(hipFree(twiddles));
     HIP_CHECK(hipFree(X));
 
-    return {average(times), total.elapsed(), move(z)};
+    return {move(times), move(z)};
 }
 
 //
@@ -361,10 +328,11 @@ double compare(vector<T> const& z1, vector<T> const& z2)
     {
         double dx = z1[n].x - z2[n].x;
         double dy = z1[n].y - z2[n].y;
-        // if(dx * dx + dy * dy > 1.e-7)
-        // {
-        //     cout << n << " " << sqrt(dx * dx + dy * dy) << " " << z1[n].x << " " << z2[n].x << endl;
-        // }
+        double dr = abs(dx * dx + dy * dy);
+        if(!isfinite(dr) || abs(d) > 1.e-7)
+        {
+            cout << n << " " << sqrt(dx * dx + dy * dy) << " " << z1[n].x << " " << z2[n].x << endl;
+        }
         d += dx * dx + dy * dy;
         r += z1[n].x * z1[n].x + z1[n].y * z1[n].y;
     }
@@ -381,52 +349,59 @@ void test1d(size_t n, size_t nbatch)
     double GB  = double(n * nbatch * sizeof(T)) / 1000 / 1000 / 1000;
 
     cout << "# 1d test" << endl;
-    cout << "1d input length: " << n << " (" << nbatch << ")" << endl;
-    cout << "1d input size:   " << GiB << " GiB" << endl;
-    cout << "1d input size:   " << GB << " GB" << endl;
+    cout << "1d input length:  " << n << " (" << nbatch << ")" << endl;
+    cout << "1d input size:    " << GiB << " GiB" << endl;
+    cout << "1d input size:    " << GB << " GB" << endl;
 
     auto x = random_vector<T>(n * nbatch);
 
     auto [t1, z1] = fft_fftw(x, n, nbatch);
-    cout << "FFTW time:       " << t1 << " ms" << endl;
+    cout << "FFTW time:        " << t1 << " ms" << endl;
 
-    auto [t2, t2t, z2] = fft_stockham_gpu(x, n, nbatch);
+    auto [a2, z2] = fft_stockham_gpu(x, n, nbatch);
+    auto t2       = average(a2);
 
-    cout << "GPU rel diff:    " << compare(z1, z2) << endl;
-    cout << "GPU kernel time: " << t2 << " ms (average)" << endl;
-    cout << "GPU throughput:  " << GiB * 1000 / t2 << " GiB/s one-way" << endl;
-    cout << "GPU throughput:  " << GB * 1000 / t2 << " GB/s one-way" << endl;
-    cout << "GPU throughput:  " << 2 * GiB * 1000 / t2 << " GiB/s two-way" << endl;
-    cout << "GPU throughput:  " << 2 * GB * 1000 / t2 << " GB/s two-way" << endl;
-    cout << "GFLOPS:          " << nbatch * 5 * n * log(n) / log(2.0) / (1e6 * t2) << endl;
-    cout << "TFLOPS:          " << nbatch * 5 * n * log(n) / log(2.0) / (1e9 * t2) << endl;
+    cout << "GPU rel diff:     " << compare(z1, z2) << endl;
+    cout << "GPU kernel time:  " << t2 << " ms (average)" << endl;
+    cout << "GPU kernel times: ";
+    for(auto& t : a2)
+    {
+        cout << t << " ";
+    }
+    cout << "ms" << endl;
+    cout << "GPU throughput:   " << GiB * 1000 / t2 << " GiB/s one-way" << endl;
+    cout << "GPU throughput:   " << GB * 1000 / t2 << " GB/s one-way" << endl;
+    cout << "GPU throughput:   " << 2 * GiB * 1000 / t2 << " GiB/s two-way" << endl;
+    cout << "GPU throughput:   " << 2 * GB * 1000 / t2 << " GB/s two-way" << endl;
+    cout << "GFLOPS:           " << nbatch * 5 * n * log(n) / log(2.0) / (1e6 * t2) << endl;
+    cout << "TFLOPS:           " << nbatch * 5 * n * log(n) / log(2.0) / (1e9 * t2) << endl;
 }
 
-template <typename T>
-void test2d(size_t nx, size_t ny, size_t nbatch)
-{
-    double GiB = double(nx * ny * nbatch * sizeof(T)) / 1024 / 1024 / 1024;
-    double GB  = double(nx * ny * nbatch * sizeof(T)) / 1000 / 1000 / 1000;
+// template <typename T>
+// void test2d(size_t nx, size_t ny, size_t nbatch)
+// {
+//     double GiB = double(nx * ny * nbatch * sizeof(T)) / 1024 / 1024 / 1024;
+//     double GB  = double(nx * ny * nbatch * sizeof(T)) / 1000 / 1000 / 1000;
 
-    cout << "# 2d test" << endl;
-    cout << "2d input length: " << nx << "x" << ny << " (" << nbatch << ")" << endl;
-    cout << "2d input size:   " << GiB << " GiB" << endl;
-    cout << "2d input size:   " << GB << " GB" << endl;
+//     cout << "# 2d test" << endl;
+//     cout << "2d input length: " << nx << "x" << ny << " (" << nbatch << ")" << endl;
+//     cout << "2d input size:   " << GiB << " GiB" << endl;
+//     cout << "2d input size:   " << GB << " GB" << endl;
 
-    auto x = random_vector<T>(nx * ny * nbatch);
+//     auto x = random_vector<T>(nx * ny * nbatch);
 
-    auto [t1, z1] = fft_fftw(x, nx, ny, nbatch);
-    cout << "FFTW time:       " << t1 << " ms" << endl;
+//     auto [t1, z1] = fft_fftw(x, nx, ny, nbatch);
+//     cout << "FFTW time:       " << t1 << " ms" << endl;
 
-    auto [t2, t2t, z2] = fft_stockham_gpu(x, nx, ny, nbatch);
+//     auto [t2, t2t, z2] = fft_stockham_gpu(x, nx, ny, nbatch);
 
-    cout << "GPU rel diff:    " << compare(z1, z2) << endl;
-    cout << "GPU kernel time: " << t2 << " ms (average)" << endl;
-    cout << "GPU throughput:  " << GiB * 1000 / t2 << " GiB/s one-way" << endl;
-    cout << "GPU throughput:  " << GB * 1000 / t2 << " GB/s one-way" << endl;
-    cout << "GPU throughput:  " << 2 * GiB * 1000 / t2 << " GiB/s two-way" << endl;
-    cout << "GPU throughput:  " << 2 * GB * 1000 / t2 << " GB/s two-way" << endl;
-}
+//     cout << "GPU rel diff:    " << compare(z1, z2) << endl;
+//     cout << "GPU kernel time: " << t2 << " ms (average)" << endl;
+//     cout << "GPU throughput:  " << GiB * 1000 / t2 << " GiB/s one-way" << endl;
+//     cout << "GPU throughput:  " << GB * 1000 / t2 << " GB/s one-way" << endl;
+//     cout << "GPU throughput:  " << 2 * GiB * 1000 / t2 << " GiB/s two-way" << endl;
+//     cout << "GPU throughput:  " << 2 * GB * 1000 / t2 << " GB/s two-way" << endl;
+// }
 
 int main(int argc, char* argv[])
 {
@@ -439,7 +414,7 @@ int main(int argc, char* argv[])
 
     if(factors.size() == 2)
     {
-        test2d<GENERATED_PRECISION>(GENERATED_NX, GENERATED_NY, nbatch);
+        //        test2d<GENERATED_PRECISION>(GENERATED_NX, GENERATED_NY, nbatch);
     }
     else
     {

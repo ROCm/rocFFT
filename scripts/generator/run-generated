@@ -8,15 +8,9 @@ sys.path.append(str(top.parent.parent.parent / 'library' / 'src' / 'device'))
 
 import click
 import subprocess
-import stockham2 as stockham
+import stockham
 
-from generator import njoin, format_and_write
-from functools import reduce
-
-
-def product(factors):
-    return reduce(lambda x, y: x * y, factors)
-
+from launch import *
 
 @click.command()
 @click.option('--one', type=str, help='First dimension comma-separated factors.')
@@ -25,10 +19,10 @@ def product(factors):
 @click.option('--tpt', type=int, default=-1, help='Number of threads per transform.')
 @click.option('--tpb', type=int, default=-1, help='Maximum number of threads per block.')
 @click.option('--tpt', type=int, default=-1, help='Maximum number of threads per transform.')
-@click.option('--flavour', type=str, default='uwide', help='Flavour of kernel(s).')
+@click.option('--ldsk', type=int, default=-1, help='LDS byte limit in KiB.')
 @click.option('--manual', type=bool, default=False, is_flag=True, help='I manually modified the thing...')
 @click.option('--single', type=bool, default=False, is_flag=True, help='Single-precision complex data type')
-def generate_and_run(one, two, nbatch, manual, tpb, tpt, single, flavour):
+def generate_and_run(one, two, nbatch, manual, tpb, tpt, ldsk, single):
 
     one = [ int(x) for x in one.split(',') ]
     if two:
@@ -43,24 +37,26 @@ def generate_and_run(one, two, nbatch, manual, tpb, tpt, single, flavour):
     # run the generator
     if not manual:
         # run the generator
-        kwargs = { 'flavour': flavour }
+        kwargs = {}
+#        kwargs['half_lds'] = False
         if single:
             kwargs['bytes_per_element'] = 8
         if tpb > 0:
             kwargs['threads_per_block'] = tpb
         if tpt > 0:
             kwargs['threads_per_transform'] = tpt
+        if ldsk > 0:
+            kwargs['lds_byte_limit'] = ldsk * 1024
         if two:
             kwargs['flavour'] = [flavour, flavour]
             kdevice, kglobal = stockham.stockham([nx, ny], factors=[one, two], **kwargs)
-            klaunch = stockham.stockham_launch2d([nx, ny], kglobal.meta.params, **kwargs)
+            klaunch = stockham_launch2d([nx, ny], kglobal.meta.params, **kwargs)
             kernels = [kdevice, kglobal, klaunch]
         else:
             kdevice, kglobal = stockham.stockham(nx, factors=one, **kwargs)
-            klaunch = stockham.stockham_launch(one, **kwargs)
+            klaunch = stockham_launch(kglobal, **kwargs)
         kernels = [kdevice, kglobal, klaunch]
-        print("THREADS PER BLOCK", kglobal.meta.threads_per_block)
-        format_and_write("stockham_generated_kernel.h", njoin([ str(x) for x in kernels ]))
+        write("stockham_generated_kernel.h", njoin([ str(x) for x in kernels ]), format=True)
 
     kname = str(nx)
     if two:
@@ -83,6 +79,7 @@ def generate_and_run(one, two, nbatch, manual, tpb, tpt, single, flavour):
             f'-DGENERATED_NX={nx}',
             f'-DGENERATED_NY={ny}',
             f'-DGENERATED_KERNEL_LAUNCH=forward_length{kname}_launch',
+            f'-DGENERATED_KERNEL_FILE="stockham_generated_kernel.h"',
             '-o', 'stockham',
             'stockham.cpp',
             '-lfftw3',

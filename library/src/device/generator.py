@@ -46,7 +46,7 @@ def cjoin(n):
     return join(', ', n)
 
 
-def format(code):
+def clang_format(code):
     """Format code using clang-format."""
     try:
         p = subprocess.run(['/opt/rocm/llvm/bin/clang-format', '-style=file'],
@@ -60,12 +60,15 @@ def format(code):
     return str(code)
 
 
-def format_and_write(fname, code):
+def write(fname, code, format=False):
     """Format code and write to `fname`.
 
     If `fname` already exists, only write if the contents changed.
     """
-    code = format(code)
+    if format:
+        code = clang_format(code)
+    else:
+        code = str(code)
     f = path(fname)
     if f.exists():
         existing = f.read_text()
@@ -491,7 +494,7 @@ class InlineAssign(BaseNode):
 @name_args(['buf', 'offset'])
 class LoadGlobal(BaseNode):
     def __str__(self):
-        return f'load_cb({self.args[0]}, {self.args[1]}, load_cb_data, nullptr);'
+        return f'load_cb({self.args[0]}, {self.args[1]}, load_cb_data, nullptr)'
 
 @name_args(['buf', 'offset', 'element'])
 class StoreGlobal(BaseNode):
@@ -740,20 +743,14 @@ class Block(BaseNode):
         return '{' + njoin(self.args) + '}'
 
 
-@name_args(['condition', 'body', 'const'])
+@name_args(['condition', 'body'])
 class If(BaseNode):
     def __str__(self):
-        # constexpr is c++17, skip for now
-        # if self.const:
-        #     return 'if constexpr (' + str(self.condition) + ') {' + njoin(self.body) + '}'
         return 'if(' + str(self.condition) + ') {' + njoin(self.body) + '}'
 
-@name_args(['condition', 'bodyif', 'bodyelse', 'const'])
+@name_args(['condition', 'bodyif', 'bodyelse'])
 class IfElse(BaseNode):
     def __str__(self):
-        # constexpr is c++17, skip for now
-        # if self.const:
-        #     return 'if constexpr (' + str(self.condition) + ') {' + njoin(self.bodyif) + '} else {' + njoin(self.bodyelse) + '}'
         return 'if(' + str(self.condition) + ') {' + njoin(self.bodyif) + '} else {' + njoin(self.bodyelse) + '}'
 
 
@@ -1003,7 +1000,7 @@ def make_out_of_place(kernel, names):
         return x
 
     def duplicate_visitor(x):
-        if getattr(x, 'name', None) in names:
+        if str(getattr(x, 'name', None)) in names:
             xi, xo = copy(x), copy(x)
             xi.args[0] = x.name + '_in'
             xo.args[0] = x.name + '_out'

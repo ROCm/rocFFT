@@ -19,7 +19,8 @@ from generator import *
 
 LaunchParams = namedtuple('LaunchParams', ['transforms_per_block',
                                            'threads_per_block',
-                                           'threads_per_transform'])
+                                           'threads_per_transform',
+                                           'half_lds'])
 
 
 def kernel_launch_name(length, precision):
@@ -45,6 +46,7 @@ def get_launch_params(factors,
                       lds_byte_limit=32 * 1024,
                       threads_per_block=256,
                       threads_per_transform=None,
+                      half_lds=False,
                       **kwargs):
     """Return kernel launch parameters.
 
@@ -53,6 +55,9 @@ def get_launch_params(factors,
     - going beyond 'threads_per_block' threads per block.
     """
     thread_granularity = 1
+
+    if half_lds:
+        bytes_per_element //= 2
 
     length = product(factors)
     bytes_per_batch = length * bytes_per_element
@@ -74,7 +79,8 @@ def get_launch_params(factors,
 
     return LaunchParams(batches_per_block,
                         quantize(threads_per_transform * batches_per_block, thread_granularity),
-                        threads_per_transform)
+                        threads_per_transform,
+                        half_lds)
 
 
 def get_callback_args():
@@ -96,6 +102,7 @@ def common_variables(length, params, nregisters):
         #
 
         scalar_type   = Variable('scalar_type', 'typename'),
+        lds_type      = Variable('lds_type', 'typename'),
         callback_type = Variable('cbtype', 'CallbackType'),
         stride_type   = Variable('sb', 'StrideBin'),
         embedded_type = Variable('ebtype', 'EmbeddedType'),
@@ -128,6 +135,9 @@ def common_variables(length, params, nregisters):
         # should the device function write to lds?
         write = Variable('write', 'bool'),
 
+        # is LDS real-only?
+        lds_is_real = Variable('lds_is_real', 'const bool'),
+
         #
         # locals
         #
@@ -136,8 +146,11 @@ def common_variables(length, params, nregisters):
         lds_uchar     = Variable('lds_uchar', 'unsigned char',
                             size='dynamic',  post_qualifier='__align__(sizeof(scalar_type))',
                             array=True, shared=True),
-        lds = Variable('lds', 'scalar_type', array=True, restrict=True, pointer=True,
-                       value = 'reinterpret_cast<scalar_type *>(lds_uchar)'), # FIXME: do it in AST properly),
+        # FIXME: do it in AST properly
+        lds_real = Variable('lds_real', 'real_type_t<scalar_type>', array=True, restrict=True, pointer=True,
+                            value='reinterpret_cast<real_type_t<scalar_type>*>(lds_uchar)'),
+        lds_complex = Variable('lds_complex', 'scalar_type', array=True, restrict=True, pointer=True,
+                               value='reinterpret_cast<scalar_type*>(lds_uchar)'),
 
         # hip thread block id
         block_id = Variable('blockIdx.x'),
@@ -177,7 +190,7 @@ def common_variables(length, params, nregisters):
         t = Variable('t', 'scalar_type'),
 
         # butterfly registers
-        R = Variable('R', 'scalar_type', size=nregisters),
+        R = Variable('R', 'scalar_type', array=True, size=nregisters),
     )
     return kvars, kvars.__dict__
 
@@ -302,6 +315,7 @@ class StockhamTiling(AdditionalArgumentMixin):
         self.length = product(factors)
         self.factors = factors
         self.params = params
+        self.load_from_lds = True
 
     def update_kernel_settings(self, kernel):
         pass
@@ -318,7 +332,7 @@ class StockhamTiling(AdditionalArgumentMixin):
         """Return code to store LDS to global buffer."""
         return StatementList()
 
-    def real2cmplx_pre_post(self, half_N, isPre, param, thread=None, thread_id=None, lds=None,
+    def real2cmplx_pre_post(self, half_N, isPre, param, thread=None, thread_id=None, lds_complex=None,
             offset_lds=None, twiddles=None, lds_padding=None, embedded_type=None, scalar_type=None,
             buf=None, offset=None, stride=None, **kwargs):
         """Return code to handle even-length real to complex pre/post-process in lds."""
@@ -347,7 +361,7 @@ class StockhamTiling(AdditionalArgumentMixin):
                     templates = TemplateList(scalar_type, Ndiv4),
                     arguments = ArgumentList(thread % quarter_N + i * param.threads_per_transform,
                         half_N - thread % quarter_N - i * param.threads_per_transform, quarter_N,
-                        lds[offset_lds].address(),
+                        lds_complex[offset_lds].address(),
                         0, twiddles[half_N].address()),)
         if (isPre):
             stmts += SyncThreads()
@@ -360,6 +374,10 @@ class StockhamTilingRR(StockhamTiling):
     """Row/row tiling."""
 
     name = 'SBRR'
+
+    def __init__(self, factors, params, **kwargs):
+        super().__init__(factors, params, **kwargs)
+        self.load_from_lds = False
 
     def calculate_offsets(self, lengths=None, stride=None,
                           dim=None, transform=None, block_id=None, thread_id=None,
@@ -387,47 +405,77 @@ class StockhamTilingRR(StockhamTiling):
         return stmts
 
     def load_from_global(self, thread=None, thread_id=None, stride0=None,
-                         buf=None, offset=None, lds=None, offset_lds=None,
-                         embedded_type=None, **kwargs):
+                         buf=None, offset=None, lds_complex=None, R=None, offset_lds=None,
+                         embedded_type=None, load_registers=False, **kwargs):
         length, params = self.length, self.params
-        width  = params.threads_per_transform
+        width  = self.factors[0]
         height = length // width
-        stmts = StatementList()
-        stmts += Assign(thread, thread_id % width)
-        for w in range(height):
-            idx = thread + w * width
-            stmts += Assign(lds[offset_lds + idx], LoadGlobal(buf, offset + B(idx) * stride0))
 
-        stmts += LineBreak()
-        stmts += CommentLines('append extra global loading for C2Real pre-process only')
-        stmts_c2real_pre = StatementList()
-        stmts_c2real_pre += CommentLines('use the last thread of each transform to load one more element per row')
-        stmts_c2real_pre += If(Equal(thread, params.threads_per_transform - 1),
-            Assign(lds[offset_lds + thread + (height - 1) * width + 1],
-            LoadGlobal(buf, offset + B(thread + (height - 1) * width + 1) * stride0)))
-        stmts += If(Equal(embedded_type, 'EmbeddedType::C2Real_PRE'), stmts_c2real_pre)
+        stmts = StatementList()
+        stmts += Assign(thread, thread_id % params.threads_per_transform)
+
+        if not load_registers:
+            width = params.threads_per_transform
+            height = length // width
+            for h in range(height):
+                idx = thread + h * width
+                stmts += Assign(lds_complex[offset_lds + idx], LoadGlobal(buf, offset + B(idx) * stride0))
+
+            stmts += LineBreak()
+            stmts += CommentLines('append extra global loading for C2Real pre-process only')
+            stmts_c2real_pre = StatementList()
+            stmts_c2real_pre += CommentLines('use the last thread of each transform to load one more element per row')
+            stmts_c2real_pre += If(Equal(thread, params.threads_per_transform - 1),
+                Assign(lds_complex[offset_lds + thread + (height - 1) * width + 1],
+                LoadGlobal(buf, offset + B(thread + (height - 1) * width + 1) * stride0)))
+            stmts += If(Equal(embedded_type, 'EmbeddedType::C2Real_PRE'), stmts_c2real_pre)
+
+        else:
+            width = self.factors[0]
+            height = length // width / params.threads_per_transform
+
+            kwvars = kwargs.copy()
+            kwvars.update(thread=thread, length=length,
+                          stride0=stride0, width=width, height=height, R=R, buf=buf,
+                          offset=offset,
+                          threads_per_transform=params.threads_per_transform)
+            stmts += add_work(load_global_generator, guard=True, **kwvars)
+
 
         return stmts
 
     def store_to_global(self, thread=None, thread_id=None, stride0=None,
-                        buf=None, offset=None, lds=None, offset_lds=None,
-                        embedded_type=None, **kwargs):
+                        buf=None, offset=None, lds_complex=None, R=None, offset_lds=None,
+                        embedded_type=None, store_registers=False, **kwargs):
         length, params = self.length, self.params
-        width  = params.threads_per_transform
-        height = length // width
         stmts = StatementList()
-        for w in range(height):
-            idx = thread + w * width
-            stmts += StoreGlobal(buf, offset + B(idx) * stride0, lds[offset_lds + idx])
 
-        stmts += LineBreak()
-        stmts += CommentLines('append extra global write for Real2C post-process only')
-        stmts_real2c_post = StatementList()
-        stmts_real2c_post += CommentLines('use the last thread of each transform to write one more element per row')
-        stmts_real2c_post += If(Equal(thread, params.threads_per_transform - 1),
-            StoreGlobal(buf, offset + B(thread + (height - 1) * width + 1) * stride0,
-            lds[offset_lds + thread + (height - 1) * width + 1]))
-        stmts += If(Equal(embedded_type, 'EmbeddedType::Real2C_POST'), stmts_real2c_post)
+        if not store_registers:
+            width  = params.threads_per_transform
+            height = length // width
+            for h in range(height):
+                idx = thread + h * width
+                stmts += StoreGlobal(buf, offset + B(idx) * stride0, lds_complex[offset_lds + idx])
+
+            stmts += LineBreak()
+            stmts += CommentLines('append extra global write for Real2C post-process only')
+            stmts_real2c_post = StatementList()
+            stmts_real2c_post += CommentLines('use the last thread of each transform to write one more element per row')
+            stmts_real2c_post += If(Equal(thread, params.threads_per_transform - 1),
+                StoreGlobal(buf, offset + B(thread + (height - 1) * width + 1) * stride0,
+                lds_complex[offset_lds + thread + (height - 1) * width + 1]))
+            stmts += If(Equal(embedded_type, 'EmbeddedType::Real2C_POST'), stmts_real2c_post)
+        else:
+            width = self.factors[-1]
+            cumheight = product(self.factors[:-1])
+            height = length // width / params.threads_per_transform
+
+            kwvars = kwargs.copy()
+            kwvars.update(thread=thread, length=length,
+                          stride0=stride0, width=width, height=height, R=R, buf=buf,
+                          offset=offset, cumheight=cumheight,
+                          threads_per_transform=params.threads_per_transform)
+            stmts += add_work(store_global_generator, guard=True, **kwvars)
 
         return stmts
 
@@ -483,7 +531,7 @@ class StockhamTilingCC(StockhamTiling):
 
         return stmts
 
-    def load_from_global(self, buf=None, offset=None, lds=None,
+    def load_from_global(self, buf=None, offset=None, lds_complex=None,
                          lengths=None, thread_id=None, stride=None, stride0=None, **kwargs):
 
         length, params = self.length, self.params
@@ -504,14 +552,14 @@ class StockhamTilingCC(StockhamTiling):
         pred, tmp_stmts = StatementList(), StatementList()
         pred = self.tile_index * params.transforms_per_block + tid1 < lengths[1]
         for i in range(length // stripmine_h):
-            tmp_stmts += Assign(lds[offset_tile_wlds(i)], LoadGlobal(buf, offset + offset_tile_rbuf(i)))
+            tmp_stmts += Assign(lds_complex[offset_tile_wlds(i)], LoadGlobal(buf, offset + offset_tile_rbuf(i)))
 
         stmts += If(Not(edge), tmp_stmts)
         stmts += If(edge, If(pred, tmp_stmts))
 
         return stmts
 
-    def store_to_global(self, stride=None, stride0=None, lengths=None, buf=None, offset=None, lds=None,
+    def store_to_global(self, stride=None, stride0=None, lengths=None, buf=None, offset=None, lds_complex=None,
                         **kwargs):
 
         length, params = self.length, self.params
@@ -528,7 +576,7 @@ class StockhamTilingCC(StockhamTiling):
         pred, tmp_stmts = StatementList(), StatementList()
         pred = self.tile_index * params.transforms_per_block + tid1 < lengths[1]
         for i in range(length // stripmine_h):
-            tmp_stmts += StoreGlobal(buf, offset + offset_tile_wbuf(i), lds[offset_tile_rlds(i)])
+            tmp_stmts += StoreGlobal(buf, offset + offset_tile_wbuf(i), lds_complex[offset_tile_rlds(i)])
         stmts += If(Not(edge), tmp_stmts)
         stmts += If(edge, If(pred, tmp_stmts))
 
@@ -714,9 +762,9 @@ class StockhamTilingRC(StockhamTiling):
         return stmts
 
 
-    def load_from_global(self, buf=None, offset=None, lds=None,
+    def load_from_global(self, buf=None, offset=None, lds_complex=None,
                          lengths=None, thread=None, thread_id=None, stride=None, stride0=None,
-                         **kwargs):
+                         tile=None, **kwargs):
 
         length, params = self.length, self.params
         kvars, kwvars = common_variables(length, params, 0)
@@ -739,7 +787,7 @@ class StockhamTilingRC(StockhamTiling):
             lidx += h * B(params.threads_per_block + self.n_device_calls * self.lds_row_padding)
             lidx += B(kvars.thread / length) * self.lds_row_padding
             gidx = offset_in + kvars.thread + h * params.threads_per_block
-            load += Assign(kvars.lds[lidx], LoadGlobal(kvars.buf, gidx))
+            load += Assign(kvars.lds_complex[lidx], LoadGlobal(kvars.buf, gidx))
         stmts += If(Or(self.sbrc_type == 'SBRC_2D',
                        self.sbrc_type == 'SBRC_3D_FFT_TRANS_Z_XY',
                        self.sbrc_type == 'SBRC_3D_FFT_ERC_TRANS_Z_XY'), load)
@@ -758,15 +806,15 @@ class StockhamTilingRC(StockhamTiling):
             gidx += B(B(kvars.thread / length) * height + h) * stride_in[2]
             idx = tile_in_batch / lengths[1] * self.rows_per_tile + h + thread / length * self.rows_per_tile / params.threads_per_block
             load += If(Or(self.transpose_type != 'TILE_UNALIGNED', idx < lengths[2]),
-                       StatementList(Assign(kvars.lds[lidx], LoadGlobal(kvars.buf, gidx))))
+                       StatementList(Assign(kvars.lds_complex[lidx], LoadGlobal(kvars.buf, gidx))))
         stmts += If(self.sbrc_type == 'SBRC_3D_FFT_TRANS_XY_Z', load)
 
         return stmts
 
 
-    def store_to_global(self, stride=None, stride0=None, thread=None,
-                        lengths=None, buf=None, offset=None, lds=None,
-                        **kwargs):
+    def store_to_global(self, stride=None, stride0=None, lengths=None, thread=None,
+                        buf=None, offset=None, lds_complex=None, **kwargs):
+
         length, params = self.length, self.params
         kvars, kwvars = common_variables(length, params, 0)
         tile = Variable('tile', 'unsigned int')
@@ -790,7 +838,7 @@ class StockhamTilingRC(StockhamTiling):
                                                 length - kvars.thread,
                                                 length,
                                                 length // self.n_device_calls,
-                                                Address(kvars.lds[h * B(length + self.lds_row_padding)]),
+                                                Address(kvars.lds_complex[h * B(length + self.lds_row_padding)]),
                                                 0,
                                                 Address(kvars.twiddles[length]),
                                                 null, null, 0, null, null))
@@ -804,7 +852,7 @@ class StockhamTilingRC(StockhamTiling):
             col = B(kvars.thread % self.rows_per_tile)
             lidx = col * length + row
             gidx = offset_out + row * stride_out[0] + col * stride_out[1]
-            store += StoreGlobal(kvars.buf, gidx, lds[lidx])
+            store += StoreGlobal(kvars.buf, gidx, lds_complex[lidx])
         stmts += If(self.sbrc_type == 'SBRC_2D', store)
 
         # SBRC_3D_FFT_TRANS_XY_Z
@@ -821,7 +869,7 @@ class StockhamTilingRC(StockhamTiling):
             gidx += B(B(kvars.thread / self.rows_per_tile) + h * height) * stride_out[1]
             idx = tile_in_batch / lengths[1] * self.rows_per_tile + thread % self.rows_per_tile
             store += If(Or(self.transpose_type != 'TILE_UNALIGNED', idx < lengths[2]),
-                        StatementList(StoreGlobal(kvars.buf, gidx, lds[lidx])))
+                        StatementList(StoreGlobal(kvars.buf, gidx, lds_complex[lidx])))
         stmts += If(self.sbrc_type == 'SBRC_3D_FFT_TRANS_XY_Z', store)
 
         # SBRC_3D_FFT_TRANS_Z_XY, SBRC_3D_FFT_ERC_TRANS_Z_XY
@@ -833,7 +881,7 @@ class StockhamTilingRC(StockhamTiling):
             gidx = offset_out
             gidx += B(kvars.thread % self.rows_per_tile) * stride_out[0]
             gidx += B(B(kvars.thread / self.rows_per_tile) + h * height) * stride_out[2]
-            store += StoreGlobal(kvars.buf, gidx, lds[lidx])
+            store += StoreGlobal(kvars.buf, gidx, lds_complex[lidx])
 
         h = height
         lidx = h * height
@@ -845,7 +893,7 @@ class StockhamTilingRC(StockhamTiling):
         store += If(And(self.sbrc_type == 'SBRC_3D_FFT_ERC_TRANS_Z_XY',
                         kvars.thread < self.rows_per_tile),
                     StatementList(
-                        StoreGlobal(kvars.buf, gidx, lds[lidx])))
+                        StoreGlobal(kvars.buf, gidx, lds_complex[lidx])))
         stmts += If(Or(self.sbrc_type == 'SBRC_3D_FFT_TRANS_Z_XY',
                        self.sbrc_type == 'SBRC_3D_FFT_ERC_TRANS_Z_XY'),
                     store)
@@ -907,7 +955,7 @@ class StockhamTilingCR(StockhamTiling):
 
         return stmts
 
-    def load_from_global(self, buf=None, offset=None, lds=None,
+    def load_from_global(self, buf=None, offset=None, lds_complex=None,
                          lengths=None, thread_id=None, stride=None, stride0=None, **kwargs):
 
         length, params = self.length, self.params
@@ -929,7 +977,7 @@ class StockhamTilingCR(StockhamTiling):
         pred, tmp_stmts = StatementList(), StatementList()
         pred = self.tile_index * params.transforms_per_block + tid1 < lengths[1]
         for i in range(length // stripmine_h):
-            tmp_stmts += Assign(lds[offset_tile_wlds(i)], LoadGlobal(buf, offset + offset_tile_rbuf(i)))
+            tmp_stmts += Assign(lds_complex[offset_tile_wlds(i)], LoadGlobal(buf, offset + offset_tile_rbuf(i)))
 
         stmts += If(Not(edge), tmp_stmts)
         stmts += If(edge, If(pred, tmp_stmts))
@@ -937,7 +985,7 @@ class StockhamTilingCR(StockhamTiling):
         return stmts
 
     def store_to_global(self, stride=None, stride0=None, lengths=None, thread_id=None, buf=None,
-                        offset=None, lds=None, lds_padding=None, **kwargs):
+                        offset=None, lds_complex=None, lds_padding=None, **kwargs):
 
         length, params = self.length, self.params
         kvars, kwvars = common_variables(length, params, 0)
@@ -960,7 +1008,7 @@ class StockhamTilingCR(StockhamTiling):
         pred, tmp_stmts = StatementList(), StatementList()
         pred = self.tile_index * params.transforms_per_block + tid1 < lengths[1]
         for i in range(params.transforms_per_block // lds_strip_h):
-            tmp_stmts += StoreGlobal(buf, offset + offset_tile_wbuf(i), lds[offset_tile_rlds(i)])
+            tmp_stmts += StoreGlobal(buf, offset + offset_tile_wbuf(i), lds_complex[offset_tile_rlds(i)])
         stmts += If(Not(edge), tmp_stmts)
         stmts += If(edge, If(pred, tmp_stmts))
 
@@ -1012,7 +1060,7 @@ def add_work(generator, guard=False, write=None,
 
 def load_lds_generator(h, hr=None, dt=0, threads_per_transform=None,
                        thread=None, length=None, width=None, component=None,
-                       R=None, lds=None, offset_lds=None, lstride=None, **kwargs):
+                       R=None, lds_real=None, lds_complex=None, offset_lds=None, lstride=None, **kwargs):
     """Load registers 'R' from LDS 'X'."""
     hr = hr or h
     load = StatementList()
@@ -1020,9 +1068,9 @@ def load_lds_generator(h, hr=None, dt=0, threads_per_transform=None,
         tid = B(thread + dt + h * threads_per_transform)
         idx = offset_lds + B(tid + w * (length // width)) * lstride
         if component is not None:
-            load += Assign(getattr(R[hr * width + w], component), lds[idx])
+            load += Assign(getattr(R[hr * width + w], component), lds_real[idx])
         else:
-            load += Assign(R[hr * width + w], lds[idx])
+            load += Assign(R[hr * width + w], lds_complex[idx])
     return load
 
 
@@ -1065,7 +1113,7 @@ def butterfly_generator(h, hr=None, width=None, R=None, **kwargs):
 
 def store_lds_generator(h, hr=None, dt=0, threads_per_transform=None,
                         thread=None, width=None, cumheight=None, component=None,
-                        lds=None, R=None, offset_lds=None, lstride=None, **kwargs):
+                        lds_complex=None, lds_real=None, R=None, offset_lds=None, lstride=None, **kwargs):
     """Store registers 'R' to LDS 'X'."""
     hr = hr or h
     work = StatementList()
@@ -1073,9 +1121,9 @@ def store_lds_generator(h, hr=None, dt=0, threads_per_transform=None,
         tid  = B(thread + dt + h * threads_per_transform)
         idx = offset_lds + B(B(tid / cumheight) * (width * cumheight) + tid % cumheight + w * cumheight) * lstride
         if component is not None:
-            work += Assign(lds[idx], getattr(R[hr * width + w], component))
+            work += Assign(lds_real[idx], getattr(R[hr * width + w], component))
         else:
-            work += Assign(lds[idx], R[hr * width + w])
+            work += Assign(lds_complex[idx], R[hr * width + w])
     return work
 
 def store_global_generator(h, hr=None, dt=0, threads_per_transform=None,
@@ -1087,7 +1135,7 @@ def store_global_generator(h, hr=None, dt=0, threads_per_transform=None,
     for w in range(width):
         tid  = B(thread + dt + h * threads_per_transform)
         idx = offset + B(B(tid / cumheight) * (width * cumheight) + tid % cumheight + w * cumheight) * stride0
-        work += Assign(buf[idx], R[hr * width + w])
+        work += StoreGlobal(buf, idx, R[hr * width + w])
     return work
 
 #
@@ -1109,13 +1157,13 @@ class StockhamKernel:
         self.lds_row_padding = 1
 
     def device_templates(self, kvars, **kwvars):
-        templates = TemplateList(kvars.scalar_type, kvars.stride_type)
+        templates = TemplateList(kvars.scalar_type, kvars.lds_is_real, kvars.stride_type)
         templates = self.large_twiddles.add_templates(templates, **kwvars)
         templates = self.tiling.add_templates(templates, **kwvars)
         return templates
 
     def device_call_templates(self, kvars, **kwvars):
-        templates = TemplateList(kvars.scalar_type, kvars.stride_type)
+        templates = TemplateList(kvars.scalar_type, kvars.lds_is_real, kvars.stride_type)
         templates = self.large_twiddles.add_templates(templates, **kwvars)
         templates = self.tiling.add_templates(templates, **kwvars)
         return templates
@@ -1127,13 +1175,13 @@ class StockhamKernel:
         return templates
 
     def device_arguments(self, kvars, **kwvars):
-        arguments = ArgumentList(kvars.lds, kvars.twiddles, kvars.stride_lds, kvars.offset_lds, kvars.write)
+        arguments = ArgumentList(kvars.R, kvars.lds_real, kvars.lds_complex, kvars.twiddles, kvars.stride_lds, kvars.offset_lds, kvars.write)
         arguments = self.large_twiddles.add_device_arguments(arguments, **kwvars)
         arguments = self.tiling.add_device_arguments(arguments, **kwvars)
         return arguments
 
     def device_call_arguments(self, kvars, **kwvars):
-        arguments = ArgumentList(kvars.lds, kvars.twiddles, kvars.stride_lds, kvars.offset_lds, kvars.write)
+        arguments = ArgumentList(kvars.R, kvars.lds_real, kvars.lds_complex, kvars.twiddles, kvars.stride_lds, kvars.offset_lds, kvars.write)
         arguments = self.large_twiddles.add_device_call_arguments(arguments, **kwvars)
         arguments = self.tiling.add_device_call_arguments(arguments, **kwvars)
         return arguments
@@ -1157,6 +1205,7 @@ class StockhamKernel:
         length, params = self.length, self.params
 
         kvars, kwvars = common_variables(self.n_device_calls * self.length, params, self.nregisters)
+        half_lds = kwargs.get('half_lds', False)
 
         body = StatementList()
         body += CommentLines(
@@ -1164,31 +1213,46 @@ class StockhamKernel:
             f'  uses {params.threads_per_transform} threads per transform',
             f'  does {params.transforms_per_block} transforms per thread block',
             f'therefore it should be called with {params.threads_per_block} threads per thread block')
-        body += Declarations(kvars.lds_uchar, kvars.lds,
+        body += Declarations(kvars.R, kvars.lds_uchar, kvars.lds_real, kvars.lds_complex,
                              kvars.offset, kvars.offset_lds, kvars.stride_lds,
                              kvars.batch, kvars.transform, kvars.thread, kvars.write)
+        if half_lds:
+            body += Declaration(kvars.lds_is_real, kvars.lds_is_real.type,
+                                value=kvars.embedded_type == 'EmbeddedType::NONE')
+        else:
+            body += Declaration(kvars.lds_is_real, kvars.lds_is_real.type,
+                                value='false')
         body += Declaration(kvars.stride0.name, kvars.stride0.type,
                             value=Ternary(kvars.stride_type == 'SB_UNIT', 1, kvars.stride[0]))
         body += CallbackDeclaration()
 
         body += LineBreak()
         body += CommentLines('large twiddles')
-        body += self.large_twiddles.load(self.length, params, **kwvars)
+        body += self.large_twiddles.load(length, params, **kwvars)
 
         body += LineBreak()
         body += CommentLines('offsets')
         body += self.tiling.calculate_offsets(**kwvars)
 
         body += LineBreak()
-        body += If(GreaterEqual(kvars.batch, kvars.nbatch), [ReturnStatement()])
-
+        body += Assign(kvars.write, 'true')
+        body += If(kvars.batch >= kvars.nbatch, StatementList(ReturnStatement()))
         body += LineBreak()
-        body += CommentLines('load global')
-        body += self.tiling.load_from_global(**kwvars)
 
-        body += LineBreak()
-        body += CommentLines('handle even-length real to complex pre-process in lds before transform')
-        body += self.tiling.real2cmplx_pre_post(self.length, True, params, **kwvars)
+        loadlds = StatementList()
+        loadlds += CommentLines('load global into lds')
+        loadlds += self.tiling.load_from_global(**kwvars)
+        loadlds += LineBreak()
+        loadlds += CommentLines('handle even-length real to complex pre-process in lds before transform')
+        loadlds += self.tiling.real2cmplx_pre_post(length, True, params, **kwvars)
+
+        if self.tiling.load_from_lds:
+            body += loadlds
+        else:
+            loadr = StatementList()
+            loadr += CommentLines('load global into registers')
+            loadr += self.tiling.load_from_global(load_registers=True, **kwvars)
+            body += IfElse(Not(kvars.lds_is_real), loadlds, loadr)
 
         body += LineBreak()
         body += CommentLines('transform')
@@ -1204,14 +1268,24 @@ class StockhamKernel:
             body += Call(f'forward_length{self.length}_{self.tiling.name}_device',
                          arguments=arguments, templates=templates)
 
-        body += LineBreak()
-        body += CommentLines('handle even-length complex to real post-process in lds after transform')
-        body += self.tiling.real2cmplx_pre_post(self.length, False, params, **kwvars)
+        storelds = StatementList()
+        storelds += LineBreak()
+        storelds += CommentLines('handle even-length complex to real post-process in lds after transform')
+        storelds += self.tiling.real2cmplx_pre_post(length, False, params, **kwvars)
 
-        body += LineBreak()
-        body += CommentLines('store global')
-        body += SyncThreads()
-        body += self.tiling.store_to_global(**kwvars)
+        storelds += LineBreak()
+
+        storelds += CommentLines('store global')
+        storelds += SyncThreads()
+        storelds += self.tiling.store_to_global(**kwvars)
+
+        if self.tiling.load_from_lds:
+            body += storelds
+        else:
+            storer = StatementList()
+            storer += CommentLines('store registers into global')
+            storer += self.tiling.store_to_global(store_registers=True, **kwvars)
+            body += IfElse(Not(kvars.lds_is_real), storelds, storer)
 
         return Function(name=f'forward_length{self.length}_{self.tiling.name}',
                         qualifier='__global__',
@@ -1241,10 +1315,7 @@ class StockhamKernelConsolidated(StockhamKernel):
         factors, length, params = self.factors, self.length, self.params
         kvars, kwvars = common_variables(length, params, self.nregisters)
 
-        body = StatementList()
-        body += Declarations(kvars.thread, kvars.R, kvars.W, kvars.t)
-        body += Declaration(kvars.lstride.name, kvars.lstride.type,
-                            value=Ternary(kvars.stride_type == 'SB_UNIT', 1, kvars.stride_lds))
+        half_lds = self.params.half_lds
 
         if length == 1:
             return Function(f'forward_length{length}_{self.tiling.name}_device',
@@ -1260,7 +1331,7 @@ class StockhamKernelConsolidated(StockhamKernel):
 
 
         body = StatementList()
-        body += Declarations(kvars.thread, kvars.R, kvars.W, kvars.t)
+        body += Declarations(kvars.thread, kvars.W, kvars.t)
         body += Declaration(kvars.lstride.name, kvars.lstride.type,
                             value=Ternary(kvars.stride_type == 'SB_UNIT', 1, kvars.stride_lds))
 
@@ -1278,7 +1349,8 @@ class StockhamKernelConsolidated(StockhamKernel):
                                  f'using {params.threads_per_transform} threads we need to do {length // width} radix-{width} butterflies',
                                  f'therefore each thread will do {height} butterflies')
             body += SyncThreads()
-            body += add_work(load_lds_generator, **kwvars)
+
+            body += If(Not(kvars.lds_is_real), add_work(load_lds_generator, **kwvars))
 
             if npass > 0:
                 body += add_work(apply_twiddle_generator, **kwvars)
@@ -1288,8 +1360,28 @@ class StockhamKernelConsolidated(StockhamKernel):
             if npass == len(factors) - 1:
                 body += self.large_twiddles.multiply(**kwvars)
 
-            body += SyncThreads()
-            body += add_work(store_lds_generator, guard=True, **kwvars)
+            store_half = StatementList()
+            if npass < len(factors) - 1:
+                svars = kwvars.copy()
+                for component in ['x', 'y']:
+                    svars.update(component=component)
+                    width = factors[npass]
+                    height = length // width / params.threads_per_transform
+                    svars.update(width=width, height=height, component=component)
+                    store_half += add_work(store_lds_generator, guard=True, **svars)
+                    store_half += SyncThreads()
+
+                    width = factors[npass+1]
+                    height = length // width / params.threads_per_transform
+                    svars.update(width=width, height=height)
+                    store_half += add_work(load_lds_generator, guard=True, **svars)
+                    store_half += SyncThreads()
+
+            store_full = StatementList()
+            store_full += SyncThreads()
+            store_full += add_work(store_lds_generator, guard=True, **kwvars)
+
+            body += IfElse(Not(kvars.lds_is_real), store_full, store_half)
 
         return Function(f'forward_length{length}_{self.tiling.name}_device',
                         arguments=self.device_arguments(kvars, **kwvars),
@@ -1349,10 +1441,11 @@ class StockhamKernelFused2D(StockhamKernel):
         batch0  = Variable('batch0', 'size_t')
         write   = Variable('write', 'bool')
 
-        body += Declarations(kvars.lds_uchar, kvars.lds,
+        body += Declarations(kvars.lds_uchar, kvars.lds_complex, kvars.lds_real, kvars.R,
                              kvars.thread, kvars.transform,
                              kvars.offset, kvars.offset_lds, kvars.stride_lds, kvars.write,
                              batch0, remaining, plength, d, index_along_d)
+        body += Declaration(kvars.lds_is_real, kvars.lds_is_real.type, value='false')
         body += CallbackDeclaration()
 
         body += LineBreak()
@@ -1379,7 +1472,7 @@ class StockhamKernelFused2D(StockhamKernel):
         for i in range(rw_iters):
             row_offset = B(B(i * params.threads_per_block + kvars.thread_id) / length[0])
             col_offset = B(B(i * params.threads_per_block + kvars.thread_id) % length[0])
-            body += Assign(kvars.lds[row_offset * length0_padded + col_offset], LoadGlobal(kvars.buf, kvars.offset + col_offset * kvars.stride[0] + row_offset * kvars.stride[1]))
+            body += Assign(kvars.lds_complex[row_offset * length0_padded + col_offset], LoadGlobal(kvars.buf, kvars.offset + col_offset * kvars.stride[0] + row_offset * kvars.stride[1]))
 
         body += LineBreak()
         body += CommentLines('', f'length: {length[0]}', '')
@@ -1439,7 +1532,7 @@ class StockhamKernelFused2D(StockhamKernel):
         for i in range(rw_iters):
             row_offset = B(B(i * params.threads_per_block + kvars.thread_id) / length[0])
             col_offset = B(B(i * params.threads_per_block + kvars.thread_id) % length[0])
-            body += StoreGlobal(kvars.buf, kvars.offset + col_offset * kvars.stride[0] + row_offset * kvars.stride[1], kvars.lds[row_offset * length0_padded + col_offset])
+            body += StoreGlobal(kvars.buf, kvars.offset + col_offset * kvars.stride[0] + row_offset * kvars.stride[1], kvars.lds_complex[row_offset * length0_padded + col_offset])
 
         template_list = TemplateList(kvars.scalar_type, kvars.stride_type)
         argument_list = ArgumentList(kvars.twiddles, kvars.dim, kvars.lengths, kvars.stride, kvars.nbatch, kvars.buf)
@@ -1504,7 +1597,43 @@ def make_variants(kdevice, kglobal):
         ]
         return kernels
 
-    # XXX: Don't need in-place/out-of-place device functions anymore
+    if kglobal.meta.scheme in ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_2D_SINGLE']:
+        kernels = [
+            # in-place, interleaved
+            rename_ip(kdevice),
+            rename_ip(kglobal),
+            # in-place, planar
+            rename_ip(make_planar(kglobal, 'buf')),
+            # out-of-place, interleaved -> interleaved
+            rename_op(make_out_of_place(kdevice, op_names)),
+            rename_op(make_out_of_place(kglobal, op_names)),
+            # out-of-place, interleaved -> planar
+            rename_op(make_planar(make_out_of_place(kglobal, op_names), 'buf_out')),
+            # out-of-place, planar -> interleaved
+            rename_op(make_planar(make_out_of_place(kglobal, op_names), 'buf_in')),
+            # out-of-place, planar -> planar
+            rename_op(make_planar(make_planar(make_out_of_place(kglobal, op_names), 'buf_out'), 'buf_in')),
+        ]
+        kdevice = make_inverse(kdevice)
+        kglobal = make_inverse(kglobal)
+        kernels += [
+            # in-place, interleaved
+            rename_ip(kdevice),
+            rename_ip(kglobal),
+            # in-place, planar
+            rename_ip(make_planar(kglobal, 'buf')),
+            # out-of-place, interleaved -> interleaved
+            rename_op(make_out_of_place(kdevice, op_names)),
+            rename_op(make_out_of_place(kglobal, op_names)),
+            # out-of-place, interleaved -> planar
+            rename_op(make_planar(make_out_of_place(kglobal, op_names), 'buf_out')),
+            # out-of-place, planar -> interleaved
+            rename_op(make_planar(make_out_of_place(kglobal, op_names), 'buf_in')),
+            # out-of-place, planar -> planar
+            rename_op(make_planar(make_planar(make_out_of_place(kglobal, op_names), 'buf_out'), 'buf_in')),
+        ]
+        return kernels
+
     kernels = [
         # in-place, interleaved
         rename_ip(kdevice),
@@ -1663,6 +1792,9 @@ def stockham1d(length, **kwargs):
     if 'scheme' in kwargs:
         kwargs.pop('scheme')
 
+    if 'half_lds' not in kwargs and scheme == 'CS_KERNEL_STOCKHAM':
+        kwargs['half_lds'] = True
+
     threads_per_transform = kwargs.get('threads_per_transform', {
         'uwide': length // min(factors),
         'wide': length // max(factors),
@@ -1714,7 +1846,7 @@ def stockham2d(lengths, **kwargs):
 
     device_functions = []
     for length, factors, flavour, threads_per_transform, other_dim_2d in zip(lengths, factorss, flavours, threads_per_transform, lengths_reverse):
-        kdevice, _ = stockham1d(length, factors=factors, flavour=flavour, scheme='CS_KERNEL_STOCKHAM', threads_per_transform=threads_per_transform, other_dim_2d = other_dim_2d, **kwargs)
+        kdevice, _ = stockham1d(length, factors=factors, flavour=flavour, scheme='CS_KERNEL_STOCKHAM', threads_per_transform=threads_per_transform, other_dim_2d = other_dim_2d, half_lds=False, **kwargs)
         device_functions.append(kdevice)
 
     kernel = StockhamKernelFused2D(device_functions, kwargs['threads_per_block'])
@@ -1735,6 +1867,7 @@ def stockham(length, **kwargs):
         return stockham2d(length, **kwargs)
 
     raise ValueError("length must be an interger or list")
+
 
 def stockham_rtc(kernel_prelude, specs, **kwargs):
     """Generate runtime-compile-able stockham kernel source.

@@ -27,7 +27,7 @@ from operator import mul
 from copy import deepcopy
 
 from generator import (ArgumentList, BaseNode, Call, CommentBlock, ExternC, Function, Include,
-                       LineBreak, Map, Pragma, StatementList, Variable, name_args, format_and_write)
+                       LineBreak, Map, Pragma, StatementList, Variable, name_args, write)
 
 
 import stockham
@@ -225,6 +225,11 @@ class FFTKernel(BaseNode):
         threads_per_block = getattr(self.function.meta, 'threads_per_block', None)
         if threads_per_block is not None:
             f += ', ' + str(threads_per_block)
+        half_lds = None
+        if hasattr(self.function.meta, 'params'):
+            half_lds = getattr(self.function.meta.params, 'half_lds', None)
+        if half_lds is not None:
+            f += ', ' + str(half_lds).lower()
         f += ')'
         return f
 
@@ -577,6 +582,7 @@ def list_new_kernels():
         expanded.extend(NS(**kernel.__dict__,
                            flavour=flavour,
                            threads_per_block=threads_per_block,
+                           half_lds=kernel.length==56,
                            scheme='CS_KERNEL_STOCKHAM') for kernel in kernels)
 
     return expanded
@@ -933,7 +939,7 @@ def generate_kernel(kernel, precisions):
             raise NotImplementedError(f'Unable to generate host functions for scheme {kglobal.meta.scheme}.')
 
     if not kernel.runtime_compile:
-        format_and_write(kernel_file_name(kernel), src)
+        write(kernel_file_name(kernel), src, format=False)
     return cpu_functions
 
 
@@ -1118,7 +1124,7 @@ def cli():
         pnew = pmerge({}, generate_new_kernels(new_kernels, precisions))
 
         cpu_functions = list(merge(psmall, plarge, p2d, pnew).values())
-        format_and_write('function_pool.cpp', generate_cpu_function_pool(cpu_functions))
+        write('function_pool.cpp', generate_cpu_function_pool(cpu_functions), format=True)
 
         old_small_lengths = {f.meta.length for f in psmall.values()}
         old_large_lengths = {f.meta.length for f in plarge.values()} # sbcc=new-gen, sbrc/transpose=old-gen

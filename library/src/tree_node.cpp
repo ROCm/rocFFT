@@ -133,6 +133,16 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
 
     // common: sum up the value;
     gp.lds_bytes = (lds + lds_padding * bwd) * sizeof_precision(precision);
+    if(scheme == CS_KERNEL_STOCKHAM && ebtype == EmbeddedType::NONE)
+    {
+        auto key = fpkey(length[0], precision, scheme);
+        if(function_pool::has_function(key))
+        {
+            auto kernel = function_pool::get_kernel(key);
+            if(kernel.half_lds)
+                gp.lds_bytes /= 2;
+        }
+    }
     return;
 }
 
