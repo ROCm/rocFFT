@@ -1733,7 +1733,7 @@ void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan)
     for(const auto& gp : execPlan.gridParam)
     {
         os << "  b[" << gp.b_x << "," << gp.b_y << "," << gp.b_z << "] tpb[" << gp.tpb_x << ","
-           << gp.tpb_y << "," << gp.tpb_z << "]\n";
+           << gp.tpb_y << "," << gp.tpb_z << "], dy_lds bytes " << gp.lds_bytes << "\n";
     }
     os << "End GridParams\n";
 

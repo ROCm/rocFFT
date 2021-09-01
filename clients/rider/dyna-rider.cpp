@@ -176,8 +176,10 @@ rocfft_plan make_plan(ROCFFT_LIB                    libhandle,
                 "rocfft_plan_description_data_layout failed");
     rocfft_plan plan = NULL;
 
-    procfft_plan_create(
-        &plan, place, transformType, precision, length.size(), length.data(), nbatch, desc);
+    LIB_V_THROW(
+        procfft_plan_create(
+            &plan, place, transformType, precision, length.size(), length.data(), nbatch, desc),
+        "rocfft_plan_create failed");
 
     LIB_V_THROW(procfft_plan_description_destroy(desc), "rocfft_plan_description_destroy failed");
 
@@ -189,11 +191,13 @@ void destroy_plan(ROCFFT_LIB libhandle, rocfft_plan& plan)
 {
     auto procfft_plan_destroy
         = (decltype(&rocfft_plan_destroy))rocfft_lib_symbol(libhandle, "rocfft_plan_destroy");
-    procfft_plan_destroy(plan);
+
+    LIB_V_THROW(procfft_plan_destroy(plan), "rocfft_plan_destroy failed");
+
     auto procfft_cleanup
         = (decltype(&rocfft_cleanup))rocfft_lib_symbol(libhandle, "rocfft_cleanup");
     if(procfft_cleanup)
-        procfft_cleanup();
+        LIB_V_THROW(procfft_cleanup(), "rocfft_cleanup failed");
 }
 
 // Given a libhandle from dload and a rocFFT execution info structure, destroy the info.
@@ -202,7 +206,7 @@ void destroy_info(ROCFFT_LIB libhandle, rocfft_execution_info& info)
     auto procfft_execution_info_destroy
         = (decltype(&rocfft_execution_info_destroy))rocfft_lib_symbol(
             libhandle, "rocfft_execution_info_destroy");
-    procfft_execution_info_destroy(info);
+    LIB_V_THROW(procfft_execution_info_destroy(info), "rocfft_execution_info_destroy failed");
 }
 
 // Given a libhandle from dload, and a corresponding rocFFT plan, return how much work

@@ -137,12 +137,12 @@ extern int log_rtc_fd;
 typedef enum rocfft_layer_mode_
 {
     rocfft_layer_mode_none         = 0b0000000000,
-    rocfft_layer_mode_log_trace    = 0b0000000001,
-    rocfft_layer_mode_log_bench    = 0b0000000010,
-    rocfft_layer_mode_log_profile  = 0b0000000100,
-    rocfft_layer_mode_log_plan     = 0b0000001000,
-    rocfft_layer_mode_log_kernelio = 0b0000010000,
-    rocfft_layer_mode_log_rtc      = 0b0000100000,
+    rocfft_layer_mode_log_trace    = 0b0000000001, //  1
+    rocfft_layer_mode_log_bench    = 0b0000000010, //  2
+    rocfft_layer_mode_log_profile  = 0b0000000100, //  4
+    rocfft_layer_mode_log_plan     = 0b0000001000, //  8
+    rocfft_layer_mode_log_kernelio = 0b0000010000, // 16
+    rocfft_layer_mode_log_rtc      = 0b0000100000, // 32
 } rocfft_layer_mode;
 
 class LogSingleton

@@ -248,14 +248,15 @@ int main(int argc, char* argv[])
 
     // Create the plan
     rocfft_plan plan = NULL;
-    rocfft_plan_create(&plan,
-                       params.placement,
-                       params.transform_type,
-                       params.precision,
-                       params.length_cm().size(),
-                       params.length_cm().data(),
-                       params.nbatch,
-                       desc);
+    LIB_V_THROW(rocfft_plan_create(&plan,
+                                   params.placement,
+                                   params.transform_type,
+                                   params.precision,
+                                   params.length_cm().size(),
+                                   params.length_cm().data(),
+                                   params.nbatch,
+                                   desc),
+                "rocfft_plan_create failed");
 
     // Get work buffer size and allocated info-associated work buffer is necessary
     size_t workBufferSize = 0;
@@ -336,7 +337,6 @@ int main(int argc, char* argv[])
     HIP_V_THROW(hipEventCreate(&stop), "hipEventCreate failed");
     for(int itrial = 0; itrial < gpu_time.size(); ++itrial)
     {
-
         // Copy the input data to the GPU:
         for(int idx = 0; idx < gpu_input.size(); ++idx)
         {
