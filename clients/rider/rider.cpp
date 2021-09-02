@@ -224,6 +224,11 @@ int main(int argc, char* argv[])
         }
     }
 
+    if(!params.valid(verbose))
+    {
+        throw std::runtime_error("Invalid parameters, add --verbose=1 for detail");
+    }
+
     if(verbose)
     {
         std::cout << params.str() << std::endl;

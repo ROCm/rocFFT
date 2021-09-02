@@ -537,12 +537,17 @@ void rocfft_transform(const rocfft_params&                 params,
         {
             std::cout << "skipped!" << std::endl;
         }
+        GTEST_SKIP();
         return;
     }
 
     if(!params.valid(verbose))
     {
-        // Invalid parameters; skip this test.
+        if(verbose)
+        {
+            std::cout << "Invalid parameters, skip this test." << std::endl;
+        }
+        GTEST_SKIP();
         return;
     }
 
@@ -606,6 +611,7 @@ void rocfft_transform(const rocfft_params&                 params,
         {
             std::cout << "Problem won't fit on device; skipped\n";
         }
+        GTEST_SKIP();
         return;
     }
 

@@ -415,6 +415,20 @@ public:
                 return false;
             }
 
+            if((transform_type == rocfft_transform_type_complex_forward
+                || transform_type == rocfft_transform_type_complex_inverse)
+               && (idist != odist))
+            {
+                // In-place transforms require identical distance
+                if(verbose)
+                {
+                    std::cout << "idist:" << idist << " odist:" << odist
+                              << " differ; skipped for in-place transforms: skipping test"
+                              << std::endl;
+                }
+                return false;
+            }
+
             if((transform_type == rocfft_transform_type_real_forward
                 || transform_type == rocfft_transform_type_real_inverse)
                && (istride.back() != 1 || ostride.back() != 1))
