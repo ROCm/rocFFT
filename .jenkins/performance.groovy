@@ -9,27 +9,45 @@ import com.amd.project.*
 import com.amd.docker.*
 import java.nio.file.Path
 
+def runCompileCommand(platform, project, jobName, boolean debug=false, boolean buildStatic=false)
+{
+    def reference = (env.BRANCH_NAME ==~ /PR-\d+/) ? 'develop' : 'master'
+
+    project.paths.construct_build_prefix()
+    dir("${project.paths.project_build_prefix}/ref-repo") {
+       git branch: "${reference}", url: 'https://github.com/ROCmSoftwarePlatform/rocFFT.git'
+    }
+
+    String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON -DBUILD_FFTW=ON'
+    String warningArgs = '-DWERROR=ON'
+    String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DROCFFT_DEVICE_FORCE_RELEASE=ON' : '-DCMAKE_BUILD_TYPE=Release'
+    String buildTypeDir = debug ? 'debug' : 'release'
+    String hipClangArgs = jobName.contains('hipclang') ? '-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang' : ''
+    String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
+
+    def command = """#!/usr/bin/env bash
+                set -x
+
+                cd ${project.paths.project_build_prefix}
+                mkdir -p build/${buildTypeDir} && pushd build/${buildTypeDir}
+                ${auxiliary.gfxTargetParser()}
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DAMDGPU_TARGETS=\$gfx_arch -DSINGLELIB=on ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ../..
+                make -j\$(nproc)
+                popd 
+                cd ref-repo
+                mkdir -p build/${buildTypeDir} && pushd build/${buildTypeDir}
+                ${auxiliary.gfxTargetParser()}
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DAMDGPU_TARGETS=\$gfx_arch -DSINGLELIB=on ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ../..
+                make -j\$(nproc)
+            """
+    platform.runCommand(this, command)
+}
+
 def runTestCommand (platform, project, boolean debug=false)
 {
     String sudo = auxiliary.sudo(platform.jenkinsLabel)
     String testBinaryName = debug ? 'rocfft-test-d' : 'rocfft-test'
     String directory = debug ? 'debug' : 'release'
-
-    def reference = (env.BRANCH_NAME ==~ /PR-\d+/) ? 'develop' : 'master'
-    def getDependenciesCommand = ""
-    if (project.installLibraryDependenciesFromCI)
-    {
-        project.libraryDependencies.each
-        { libraryName ->
-            getDependenciesCommand += auxiliary.getLibrary(libraryName, platform.jenkinsLabel, reference, false)
-        }
-    }
-
-    def depCommand = """#!/usr/bin/env bash
-                    set -x
-                    ${getDependenciesCommand}
-                    """
-    platform.runCommand(this, depCommand)
 
     def dataTypes = ['single', 'double']
     for (def dataType in dataTypes)
@@ -38,20 +56,20 @@ def runTestCommand (platform, project, boolean debug=false)
                     set -x
                     pwd
                     cd ${project.paths.project_build_prefix}
-                    ./scripts/perf/alltime.py -i /opt/rocm/rocfft/clients/rocfft-rider -o ./${dataType}Ref -g 0 -p $dataType
-                    ./scripts/perf/alltime.py -i ./build/${directory}/clients/staging/rocfft-rider -o ./${dataType}Change -g 0 -p $dataType
-                    mkdir ${dataType}Results
-                    ./scripts/perf/html_report.py ./${dataType}Ref ./${dataType}Change ./${dataType}Results
-                    ls \$dataType
-                    mv ${dataType}Results/figs.html ${dataType}Results/figs_${platform.gpu}.html
+                    ./scripts/perf/alltime.py -b ./build/${directory}/clients/staging/dyna-rocfft-rider -i ./ref-repo/build/${directory}/library/src/librocfft.so -i ./build/${directory}/library/src/librocfft.so -o ./${dataType}_ref -o ./${dataType}_change -g 0 -p ${dataType}
+                    ls ${dataType}_change
+                    ls ${dataType}_ref
+                    mkdir ${dataType}_results
+                    ./scripts/perf/html_report.py ./${dataType}_ref ./${dataType}_change ./${dataType}_results
+                    mv ${dataType}_results/figs.html ${dataType}_results/figs_${platform.gpu}.html
                 """
          platform.runCommand(this, command)
          
-         archiveArtifacts "${project.paths.project_build_prefix}/singleResults/*.html"
+         archiveArtifacts "${project.paths.project_build_prefix}/${dataType}_results/*.html"
          publishHTML([allowMissing: false,
                     alwaysLinkToLastBuild: false,
                     keepAll: false,
-                    reportDir: "${project.paths.project_build_prefix}/${dataType}Results",
+                    reportDir: "${project.paths.project_build_prefix}/${dataType}_results",
                     reportFiles: "figs_${platform.gpu}.html",
                     reportName: "${dataType} Precision ${platform.gpu}",
                     reportTitles: "${dataType} Precision${platform.gpu}"])
@@ -81,7 +99,7 @@ def runCI =
         platform, project->
 
         commonGroovy = load "${project.paths.project_src_prefix}/.jenkins/common.groovy"
-        commonGroovy.runCompileCommand(platform, project, jobName)
+        runCompileCommand(platform, project, jobName)
     }
 
     def testCommand =
