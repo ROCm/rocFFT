@@ -617,16 +617,28 @@ void RC3DNode::BuildTree_internal()
     xyPlan->RecursiveBuildTree();
 
     // z col fft
-    auto zPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
-    // make this always inplace, and let the previous one follow the root's placement
-    zPlan->placement = rocfft_placement_inplace;
-    zPlan->length.push_back(length[2]);
-    zPlan->dimension = 1;
-    zPlan->length.push_back(length[0]);
-    zPlan->length.push_back(length[1]);
+    NodeMetaData zPlanData(this);
+    zPlanData.length.push_back(length[2]);
+    zPlanData.dimension = 1;
+    zPlanData.length.push_back(length[0]);
+    zPlanData.length.push_back(length[1]);
     for(size_t index = 3; index < length.size(); index++)
     {
-        zPlan->length.push_back(length[index]);
+        zPlanData.length.push_back(length[index]);
+    }
+
+    // use explicit SBCC kernel if available
+    std::unique_ptr<TreeNode> zPlan;
+    if(function_pool::has_SBCC_kernel(length[2], precision))
+    {
+        zPlan            = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
+        zPlan->length    = zPlanData.length;
+        zPlan->dimension = 1;
+    }
+    else
+    {
+        zPlan = NodeFactory::CreateExplicitNode(zPlanData, this);
+        zPlan->RecursiveBuildTree();
     }
 
     // RC
@@ -657,6 +669,7 @@ void RC3DNode::AssignParams_internal()
 
     zPlan->outStride = zPlan->inStride;
     zPlan->oDist     = zPlan->iDist;
+    zPlan->AssignParams();
 }
 
 // Leaf Node

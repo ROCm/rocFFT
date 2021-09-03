@@ -40,10 +40,6 @@ size_t TransformsPerThreadblock(const size_t len, rocfft_precision precision)
 
 bool canOptimizeWithStride(TreeNode* stockham)
 {
-    // TODO: Need to handle this when subset build ?
-    // if(stockham->scheme == CS_KERNEL_2D_SINGLE)
-    //     return true;
-
     // for 3D pow2 sizes, manipulating strides looks like it loses to
     // diagonal transpose
     if(IsPo2(stockham->length[0]) && stockham->length.size() >= 3)
@@ -200,7 +196,7 @@ std::unique_ptr<TreeNode> TRFuseShim::FuseKernels()
 }
 
 /*****************************************************
- * RT= FFT + transpose, R could be 1D and 2D_SINGLE
+ * RT= FFT + transpose
  *
  * If this is a stockham fft that does multiple rows in one
  * kernel, followed by a transpose, adjust output strides to
@@ -212,7 +208,7 @@ bool RTFuseShim::CheckSchemeFusable()
     auto stockham  = nodes[0];
     auto transpose = nodes[1];
 
-    if(stockham->scheme != CS_KERNEL_STOCKHAM && stockham->scheme != CS_KERNEL_2D_SINGLE)
+    if(stockham->scheme != CS_KERNEL_STOCKHAM)
         return false;
 
     if((transpose->scheme != CS_KERNEL_TRANSPOSE && transpose->scheme != CS_KERNEL_TRANSPOSE_Z_XY
@@ -241,7 +237,7 @@ std::unique_ptr<TreeNode> RTFuseShim::FuseKernels()
     if(!PlacementFusable(stockham->obIn, stockham->obOut, transpose->obOut))
         return nullptr;
 
-    // could be stockham or stockham_2D_SINGLE
+    // should be stockham
     auto fused = NodeFactory::CreateNodeFromScheme(stockham->scheme, stockham->parent);
     fused->CopyNodeData(*stockham);
     // actually no need to check kernel exists, we already have the kernel with the same length/scheme
@@ -415,14 +411,13 @@ bool R2CTrans_FuseShim::CheckSchemeFusable()
     firstFusedNode = 0;
     lastFusedNode  = 1;
 
-    // if the nextLeafNode is stockham, 2D single, SBCC,
+    // if the nextLeafNode is stockham or SBCC,
     //   we allow the EffectivePlacement of (r2c-in, trans-out) to be inplace,
     //   then we force it to be OP, but change the nextLeafNode's input..
     // So if the nextLeafNode isn't one of these (ex, a transpose for TRTRT)
     //   then we couldn't change tranpose's input buffer
     ComputeScheme nextFFTScheme = nodes[2]->scheme;
-    if(nextFFTScheme == CS_KERNEL_STOCKHAM || nextFFTScheme == CS_KERNEL_2D_SINGLE
-       || nextFFTScheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
+    if(nextFFTScheme == CS_KERNEL_STOCKHAM || nextFFTScheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
         allowInplace = true;
     else
         allowInplace = false;
@@ -527,14 +522,14 @@ bool TransC2R_FuseShim::CheckSchemeFusable()
     firstFusedNode = 0;
     lastFusedNode  = 1;
 
-    // if the nextLeafNode is stockham, 2D single, SBCC or PAD-MUL,
+    // if the nextLeafNode is stockham, SBCC or PAD-MUL,
     //   we allow the EffectivePlacement of (trans-in, c2r-out) to be inplace,
     //   then we force it to be OP, but change the nextLeafNode's input..
     // So if the nextLeafNode isn't one of these (ex, a transpose for TRTRT)
     //   then we couldn't change tranpose's input buffer
     ComputeScheme nextFFTScheme = nodes[2]->scheme;
-    if(nextFFTScheme == CS_KERNEL_STOCKHAM || nextFFTScheme == CS_KERNEL_2D_SINGLE
-       || nextFFTScheme == CS_KERNEL_STOCKHAM_BLOCK_CC || nextFFTScheme == CS_KERNEL_CHIRP)
+    if(nextFFTScheme == CS_KERNEL_STOCKHAM || nextFFTScheme == CS_KERNEL_STOCKHAM_BLOCK_CC
+       || nextFFTScheme == CS_KERNEL_CHIRP)
         allowInplace = true;
     else
         allowInplace = false;

@@ -660,6 +660,18 @@ bool NodeFactory::use_CS_3D_RC(NodeMetaData& nodeData)
     if(nodeData.iDist == 1 || nodeData.oDist == 1)
         return false;
 
+    // Peek the first child
+    // Give up if 1st child is 2D_RTRT (means the poor RTRT_C),
+    NodeMetaData child0 = nodeData;
+    child0.length       = nodeData.length;
+    child0.dimension    = 2;
+    auto childScheme    = DecideNodeScheme(child0, nullptr);
+
+    // if first 2 dimensions can be handled with 2D_SINGLE, just run
+    // with this 2-kernel plan.
+    if(childScheme == CS_KERNEL_2D_SINGLE)
+        return true;
+
     try
     {
         // Check the C part.
@@ -693,18 +705,11 @@ bool NodeFactory::use_CS_3D_RC(NodeMetaData& nodeData)
         if((nodeData.length[0] * nodeData.length[1] * nodeData.length[2]) >= (128 * 128 * 128))
             return false;
 
-        // Peek the first child
-        // Give up if 1st child is 2D_RTRT (means the poor RTRT_C),
-        NodeMetaData child0 = nodeData;
-        child0.length       = nodeData.length;
-        child0.dimension    = 2;
-        auto childScheme    = DecideNodeScheme(child0, nullptr);
         if(childScheme == CS_2D_RTRT)
             return false;
 
-        // if we are here, the 2D sheme is either
-        // 2D_SINGLE+CC (2 kernels) or 2D_RC+CC (3 kernels),
-        assert(childScheme == CS_KERNEL_2D_SINGLE || childScheme == CS_2D_RC);
+        // if we are here, the 2D scheme must be 2D_RC (3 kernels total)
+        assert(childScheme == CS_2D_RC);
         return true;
     }
     catch(...)
