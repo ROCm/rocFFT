@@ -86,7 +86,7 @@ def runCI =
         commonGroovy.runSubsetBuildCommand(platform, project, jobName, 'none', '23,1024', '10,50,100,200,336', true)
 
         // all the manual sizes are not supported
-        commonGroovy.runSubsetBuildCommand(platform, project, jobName, 'none', '23', '10', true)
+        //commonGroovy.runSubsetBuildCommand(platform, project, jobName, 'none', '23', '10', true)
     }
 
     buildProject(kernelSubsetPrj , formatCheck, nodesForPrj2.dockerArray, compileSubsetCommand, null, null)

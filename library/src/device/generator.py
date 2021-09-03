@@ -411,6 +411,11 @@ class ReturnStatement(BaseNode):
     pass
 
 
+@make_raw('break;')
+class BreakStatement(BaseNode):
+    pass
+
+
 @make_raw('__syncthreads();')
 class SyncThreads(BaseNode):
     pass
