@@ -58,7 +58,7 @@ public:
         repoDestroyed = true;
     }
 
-    static rocfft_status CreatePlan(rocfft_plan plan);
+    static void CreatePlan(rocfft_plan plan);
     // may return nullptr if the plan is not known to the repo
     static ExecPlan* GetPlan(rocfft_plan plan);
     static void      DeletePlan(rocfft_plan plan);

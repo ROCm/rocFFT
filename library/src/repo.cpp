@@ -35,21 +35,27 @@
 std::mutex        Repo::mtx;
 std::atomic<bool> Repo::repoDestroyed(false);
 
-rocfft_status Repo::CreatePlan(rocfft_plan plan)
+void Repo::CreatePlan(rocfft_plan plan)
 {
     if(plan == nullptr)
-        return rocfft_status_failure;
+    {
+        throw std::runtime_error("Plan passed to repo is null.");
+    }
 
     std::lock_guard<std::mutex> lck(mtx);
     if(repoDestroyed)
-        return rocfft_status_failure;
+    {
+        throw std::runtime_error("Repo prematurely destroyed.");
+    }
 
     Repo& repo = Repo::GetRepo();
 
     // see if the repo has already stored the plan or not
     int deviceId = 0;
     if(hipGetDevice(&deviceId) != hipSuccess)
-        return rocfft_status_failure;
+    {
+        throw std::runtime_error("hipGetDevice failed.");
+    }
     plan_unique_key_t uniqueKey{*plan, deviceId};
     exec_lookup_key_t lookupKey{plan, deviceId};
 
@@ -107,23 +113,26 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
         }
 
         if(hipGetDeviceProperties(&(execPlan.deviceProp), deviceId) != hipSuccess)
-            return rocfft_status_failure;
+        {
+            throw std::runtime_error("hipGetDeviceProperties failed for deviceId "
+                                     + std::to_string(deviceId));
+        }
 
         try
         {
             ProcessNode(execPlan); // TODO: more descriptions are needed
         }
-        catch(std::exception& e)
+        catch(std::exception&)
         {
-            rocfft_cerr << e.what() << std::endl;
             if(LOG_PLAN_ENABLED())
                 PrintNode(*LogSingleton::GetInstance().GetPlanOS(), execPlan);
-            return rocfft_status_failure;
+            throw;
         }
 
         if(!PlanPowX(execPlan)) // PlanPowX enqueues the GPU kernels by function
         {
-            return rocfft_status_failure;
+
+            throw std::runtime_error("Unable to find execution plan.");
         }
 
         // pointers but does not execute kernels
@@ -139,9 +148,8 @@ rocfft_status Repo::CreatePlan(rocfft_plan plan)
             = it->second.first; // retrieve this plan and put it into member execLookup
         it->second.second++;
     }
-
-    return rocfft_status_success;
 }
+
 // According to input plan, return the corresponding execPlan
 ExecPlan* Repo::GetPlan(rocfft_plan plan)
 {
