@@ -591,17 +591,29 @@ void rocfft_transform(const rocfft_params&                 params,
     fft_status            = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT get buffer size get failure";
 
-    // Sizes of individual input and output variables
-    const size_t isize_t = var_size<size_t>(params.precision, params.itype);
-    const size_t osize_t = var_size<size_t>(params.precision, params.otype);
-
     // Check if the problem fits on the device; if it doesn't skip it.
-    if(!vram_fits_problem(std::accumulate(params.isize.begin(), params.isize.end(), 0) * isize_t,
-                          (params.placement == rocfft_placement_inplace)
-                              ? 0
-                              : std::accumulate(params.osize.begin(), params.osize.end(), 0)
-                                    * osize_t,
-                          workbuffersize))
+    auto       ibuffer_sizes = params.ibuffer_sizes();
+    auto       obuffer_sizes = params.obuffer_sizes();
+    const auto vram_footprint
+        = params.nibuffer() * ibuffer_sizes[0]
+          + (params.placement == rocfft_placement_inplace ? 0
+                                                          : params.nobuffer() * obuffer_sizes[0])
+          + workbuffersize;
+    if(verbose > 1)
+    {
+        size_t     free   = 0;
+        size_t     total  = 0;
+        hipError_t retval = hipMemGetInfo(&free, &total);
+        if(retval != hipSuccess)
+        {
+            std::cerr << "hipMemGetInfo failed" << std::endl;
+        }
+        std::cout << "vram footprint: " << vram_footprint << " (" << (double)vram_footprint
+                  << ") workbuffer: " << workbuffersize << " (" << (double)workbuffersize
+                  << ") free: " << free << " (" << (double)free << ") total: " << total << " ("
+                  << (double)total << ")\n";
+    }
+    if(!vram_fits_problem(vram_footprint))
     {
         rocfft_plan_destroy(gpu_plan);
         rocfft_plan_description_destroy(desc);
@@ -611,7 +623,7 @@ void rocfft_transform(const rocfft_params&                 params,
         {
             std::cout << "Problem won't fit on device; skipped\n";
         }
-        GTEST_SKIP();
+        GTEST_SKIP() << "Problem size (" << vram_footprint << ") too large for device";
         return;
     }
 
@@ -622,7 +634,24 @@ void rocfft_transform(const rocfft_params&                 params,
     if(workbuffersize > 0)
     {
         hip_status = wbuffer.alloc(workbuffersize);
-        ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure for work buffer";
+        if(hip_status != hipSuccess)
+        {
+
+            size_t     free   = 0;
+            size_t     total  = 0;
+            hipError_t retval = hipMemGetInfo(&free, &total);
+            if(retval == hipSuccess)
+            {
+                std::cerr << "free vram: " << free << " total vram: " << total << std::endl;
+            }
+            else
+            {
+                std::cerr << "hipMemGetInfo also failed" << std::endl;
+            }
+        }
+        ASSERT_TRUE(hip_status == hipSuccess)
+            << "hipMalloc failure for work buffer of size " << workbuffersize << std::endl;
+
         fft_status = rocfft_execution_info_set_work_buffer(info, wbuffer.data(), workbuffersize);
         ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
     }
@@ -665,14 +694,24 @@ void rocfft_transform(const rocfft_params&                 params,
     }
 
     // GPU input and output buffers:
-    auto                ibuffer_sizes = params.ibuffer_sizes();
     std::vector<gpubuf> ibuffer(ibuffer_sizes.size());
     std::vector<void*>  pibuffer(ibuffer_sizes.size());
     for(unsigned int i = 0; i < ibuffer.size(); ++i)
     {
         hip_status = ibuffer[i].alloc(ibuffer_sizes[i]);
-        ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure for input buffer " << i
-                                              << " size " << ibuffer_sizes[i] << params.str();
+        if(hip_status != hipSuccess)
+        {
+            size_t     free   = 0;
+            size_t     total  = 0;
+            hipError_t retval = hipMemGetInfo(&free, &total);
+            if(retval != hipSuccess)
+            {
+                std::cerr << "hipMemGetInfo also failed" << std::endl;
+            }
+        }
+        ASSERT_TRUE(hip_status == hipSuccess)
+            << "hipMalloc failure for input buffer " << i << " size " << ibuffer_sizes[i] << "\n"
+            << params.str();
         pibuffer[i] = ibuffer[i].data();
     }
 
@@ -689,8 +728,30 @@ void rocfft_transform(const rocfft_params&                 params,
         for(unsigned int i = 0; i < obuffer_data.size(); ++i)
         {
             hip_status = obuffer_data[i].alloc(obuffer_sizes[i]);
-            ASSERT_TRUE(hip_status == hipSuccess) << "hipMalloc failure for output buffer " << i
-                                                  << " size " << obuffer_sizes[i] << params.str();
+            if(hip_status != hipSuccess)
+            {
+                size_t     free   = 0;
+                size_t     total  = 0;
+                hipError_t retval = hipMemGetInfo(&free, &total);
+                if(retval == hipSuccess)
+                {
+                    std::cerr << "free vram: " << free << " (" << (double)free
+                              << ") total vram: " << total << " (" << (double)total << ")"
+                              << std::endl;
+                    if(free > obuffer_sizes[i])
+                    {
+                        std::cerr << "The system reports that there is enough space." << std::endl;
+                    }
+                }
+                else
+                {
+                    std::cerr << "hipMemGetInfo also failed" << std::endl;
+                }
+            }
+            ASSERT_TRUE(hip_status == hipSuccess)
+                << "hipMalloc failure for output buffer " << i << " size " << obuffer_sizes[i]
+                << " (" << (double)obuffer_sizes[i] << ")\n"
+                << params.str();
         }
     }
     std::vector<void*> pobuffer(obuffer->size());
@@ -709,11 +770,12 @@ void rocfft_transform(const rocfft_params&                 params,
         load_cb_data_host.scalar = params.load_cb_scalar;
         load_cb_data_host.base   = ibuffer.front().data();
 
-        load_cb_data_dev.alloc(sizeof(callback_test_data));
-        hipMemcpy(load_cb_data_dev.data(),
-                  &load_cb_data_host,
-                  sizeof(callback_test_data),
-                  hipMemcpyHostToDevice);
+        ASSERT_TRUE(hipSuccess == load_cb_data_dev.alloc(sizeof(callback_test_data)));
+        ASSERT_TRUE(hipSuccess
+                    == hipMemcpy(load_cb_data_dev.data(),
+                                 &load_cb_data_host,
+                                 sizeof(callback_test_data),
+                                 hipMemcpyHostToDevice));
 
         void* load_cb_data = load_cb_data_dev.data();
         fft_status = rocfft_execution_info_set_load_callback(info, &load_cb_host, &load_cb_data, 0);
@@ -725,11 +787,12 @@ void rocfft_transform(const rocfft_params&                 params,
         store_cb_data_host.scalar = params.store_cb_scalar;
         store_cb_data_host.base   = obuffer->front().data();
 
-        store_cb_data_dev.alloc(sizeof(callback_test_data));
-        hipMemcpy(store_cb_data_dev.data(),
-                  &store_cb_data_host,
-                  sizeof(callback_test_data),
-                  hipMemcpyHostToDevice);
+        ASSERT_TRUE(hipSuccess == store_cb_data_dev.alloc(sizeof(callback_test_data)));
+        ASSERT_TRUE(hipSuccess
+                    == hipMemcpy(store_cb_data_dev.data(),
+                                 &store_cb_data_host,
+                                 sizeof(callback_test_data),
+                                 hipMemcpyHostToDevice));
 
         void* store_cb_data = store_cb_data_dev.data();
         fft_status

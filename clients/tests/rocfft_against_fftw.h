@@ -46,18 +46,18 @@ inline rocfft_precision precision_selector<double>()
 }
 
 // Check if the required buffers fit in the device vram.
-inline bool
-    vram_fits_problem(const size_t isize, const size_t osize, const size_t wsize, int deviceId = 0)
+inline bool vram_fits_problem(const size_t prob_size, int deviceId = 0)
 {
-    const size_t prob_size = isize + osize + wsize;
-
     // Check device total memory:
     hipDeviceProp_t prop;
     auto            retval = hipGetDeviceProperties(&prop, deviceId);
     if(retval != hipSuccess)
         throw std::runtime_error("failed to get device properties");
 
-    if(prop.totalGlobalMem < prob_size)
+    // We keep a small margin of error for fitting the problem into vram:
+    const size_t extra = 1 << 20;
+
+    if(prop.totalGlobalMem < prob_size + extra)
     {
         return false;
     }
@@ -66,14 +66,19 @@ inline bool
     size_t free  = 0;
     size_t total = 0;
     retval       = hipMemGetInfo(&free, &total);
-    assert(retval == hipSuccess);
 
-    if(total < prob_size)
+    if(retval != hipSuccess)
+    {
+        std::cerr << "Failure in hipMemGetInfo" << std::endl;
+        return false;
+    }
+
+    if(total < prob_size + extra)
     {
         return false;
     }
 
-    if(free < prob_size)
+    if(free < prob_size + extra)
     {
         return false;
     }
