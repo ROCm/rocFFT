@@ -74,12 +74,6 @@ else()
   list( APPEND rocfft-test_link_libs ${GTEST_LIBRARIES} )
 endif()
 
-target_compile_features( rocfft-test
-  PRIVATE
-  cxx_static_assert
-  cxx_nullptr
-  cxx_auto_type
-  )
 target_compile_options( rocfft-test PRIVATE ${WARNING_FLAGS} )
 
 if( ROCFFT_RUNTIME_COMPILE )
@@ -127,11 +121,11 @@ if(FFTW_MULTITHREAD)
   target_compile_options( rocfft-test PRIVATE -DFFTW_MULTITHREAD )
 endif( )
 
-set_target_properties( rocfft-test
-  PROPERTIES DEBUG_POSTFIX "-d"
-  CXX_EXTENSIONS NO
+set_target_properties( rocfft-test PROPERTIES
+  DEBUG_POSTFIX "-d"
   CXX_STANDARD 14
-  )
+  CXX_STANDARD_REQUIRED ON
+)
 
 set_target_properties( rocfft-test
   PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging"

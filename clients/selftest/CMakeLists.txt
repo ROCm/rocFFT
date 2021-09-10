@@ -57,12 +57,6 @@ else()
   list( APPEND rocfft-selftest_link_libs ${GTEST_LIBRARIES} )
 endif()
 
-target_compile_features( rocfft-selftest
-  PRIVATE
-  cxx_static_assert
-  cxx_nullptr cxx_lambdas
-  cxx_auto_type
-  )
 target_compile_options( rocfft-selftest PRIVATE ${WARNING_FLAGS} )
 
 target_include_directories( rocfft-selftest
@@ -88,7 +82,15 @@ else()
   target_link_libraries( rocfft-selftest PRIVATE hip::device )
 endif( )
 
-set_target_properties( rocfft-selftest PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
+set_target_properties( rocfft-selftest PROPERTIES
+  DEBUG_POSTFIX "-d"
+  CXX_STANDARD 14
+  CXX_STANDARD_REQUIRED ON
+)
 set_target_properties( rocfft-selftest PROPERTIES RUNTIME_OUTPUT_DIRECTORY
   "${PROJECT_BINARY_DIR}/staging"
   )
+
+set( THREADS_PREFER_PTHREAD_FLAG ON )
+find_package( Threads REQUIRED )
+target_link_libraries( rocfft-selftest PRIVATE Threads::Threads )

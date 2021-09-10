@@ -197,8 +197,6 @@ foreach( sub RANGE 3 )
   endif()
 
   add_library( roc::rocfft-device-${sub} ALIAS rocfft-device-${sub} )
-  target_compile_features( rocfft-device-${sub} PRIVATE
-    cxx_static_assert cxx_nullptr cxx_auto_type )
 
   # To help "make" to figure out the dependency, in which make sure
   # the kernel generator runs only once.
@@ -207,9 +205,7 @@ foreach( sub RANGE 3 )
   if( NOT BUILD_SHARED_LIBS )
     target_link_libraries( rocfft-device-${sub} INTERFACE hip::host )
   endif()
-  if( WIN32 )
-    target_link_libraries( rocfft-device-${sub} PRIVATE hip::device hip::host )
-  endif()
+  target_link_libraries( rocfft-device-${sub} PRIVATE hip::device hip::host )
 
   if(HIP_PLATFORM STREQUAL "nvcc")
     target_compile_options( rocfft-device-${sub} PRIVATE
@@ -219,9 +215,6 @@ foreach( sub RANGE 3 )
       target_compile_options( rocfft-device-${sub} PRIVATE -Xcompiler -fPIC)
   else()
     target_compile_options( rocfft-device-${sub} PRIVATE -fno-gpu-rdc )
-
-    # the device libraries are all HIP code
-    target_compile_options( rocfft-device-${sub} PRIVATE -x hip )
 
     # Set AMD GPU architecture options
 
@@ -243,11 +236,12 @@ foreach( sub RANGE 3 )
   )
 
   rocm_set_soversion( rocfft-device-${sub} ${rocfft_SOVERSION} )
-  set_target_properties( rocfft-device-${sub} PROPERTIES CXX_EXTENSIONS NO )
   set_target_properties( rocfft-device-${sub} PROPERTIES RUNTIME_OUTPUT_DIRECTORY
     "${PROJECT_BINARY_DIR}/staging" )
-  set_target_properties( rocfft-device-${sub} PROPERTIES CXX_STANDARD 14
-    CXX_STANDARD_REQUIRED ON )
+  set_target_properties( rocfft-device-${sub} PROPERTIES
+    CXX_STANDARD 14
+    CXX_STANDARD_REQUIRED ON
+  )
 
   # Following Boost conventions of prefixing 'lib' on static built
   # libraries, across all platforms

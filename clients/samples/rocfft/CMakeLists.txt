@@ -57,10 +57,13 @@ target_link_libraries(
   ${Boost_LIBRARIES}
   )
 
-  target_compile_features( ${sample} PRIVATE cxx_static_assert cxx_nullptr cxx_auto_type )
   target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} )
 
-  set_target_properties( ${sample} PROPERTIES DEBUG_POSTFIX "-d" CXX_EXTENSIONS NO )
+  set_target_properties( ${sample} PROPERTIES
+    DEBUG_POSTFIX "-d"
+    CXX_STANDARD 11
+    CXX_STANDARD_REQUIRED ON
+  )
   set_target_properties( ${sample} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
 
   if( CUDA_FOUND )

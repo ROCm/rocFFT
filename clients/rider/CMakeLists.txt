@@ -31,18 +31,6 @@ foreach( rider ${rider_list})
     add_executable( ${rider} dyna-rider.cpp rider.h )
   endif()
 
-  target_compile_features( ${rider}
-    PRIVATE
-    cxx_static_assert
-    cxx_nullptr
-    cxx_auto_type )
-
-  target_compile_features( ${rider}
-    PRIVATE
-    cxx_static_assert
-    cxx_nullptr
-    cxx_auto_type )
-
   target_compile_options( ${rider} PRIVATE ${WARNING_FLAGS} )
 
   target_include_directories( ${rider}
@@ -82,8 +70,11 @@ foreach( rider ${rider_list})
     target_link_libraries( ${rider} PUBLIC hip::device )
   endif()
 
-  set_target_properties( ${rider} PROPERTIES DEBUG_POSTFIX "-d"
-    CXX_EXTENSIONS NO )
+  set_target_properties( ${rider} PROPERTIES
+    DEBUG_POSTFIX "-d"
+    CXX_STANDARD 14
+    CXX_STANDARD_REQUIRED ON
+  )
 
   set_target_properties( ${rider}
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )

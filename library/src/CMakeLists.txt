@@ -110,9 +110,6 @@ set_property(
 # flags
 #target_compile_options( rocfft PRIVATE ${WARNING_FLAGS} )
 
-target_compile_features( rocfft PRIVATE cxx_static_assert cxx_nullptr
-  cxx_auto_type )
-
 if( NOT BUILD_SHARED_LIBS )
   target_link_libraries( rocfft INTERFACE hip::host )
 endif()
@@ -141,10 +138,12 @@ target_include_directories( rocfft
   )
 
 rocm_set_soversion( rocfft ${rocfft_SOVERSION} )
-set_target_properties( rocfft PROPERTIES CXX_EXTENSIONS NO )
 set_target_properties( rocfft PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
 set_target_properties( rocfft PROPERTIES DEBUG_POSTFIX "-d" )
-set_target_properties( rocfft PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON )
+set_target_properties( rocfft PROPERTIES
+  CXX_STANDARD 14
+  CXX_STANDARD_REQUIRED ON
+)
 
 #TODO:
 # hipcc(with nvcc backend) build has problem for share library visibility,
