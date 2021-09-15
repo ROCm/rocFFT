@@ -595,11 +595,11 @@ hipError_t RTCKernel::launch(DeviceCallIn& data)
     // dim
     kargs.push_back(reinterpret_cast<void*>(data.node->length.size()));
     // lengths
-    kargs.push_back(data.node->devKernArg.data());
+    kargs.push_back(kargs_lengths(data.node->devKernArg));
     // stride in/out
-    kargs.push_back(data.node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH);
+    kargs.push_back(kargs_stride_in(data.node->devKernArg));
     if(data.node->placement == rocfft_placement_notinplace)
-        kargs.push_back(data.node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH);
+        kargs.push_back(kargs_stride_out(data.node->devKernArg));
     // nbatch
     kargs.push_back(reinterpret_cast<void*>(data.node->batch));
     // lds padding

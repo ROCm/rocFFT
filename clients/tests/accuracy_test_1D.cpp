@@ -301,7 +301,7 @@ INSTANTIATE_TEST_SUITE_P(
     accuracy_test::TestName);
 
 INSTANTIATE_TEST_SUITE_P(
-    DISABLED_pow2_1D_stride_real,
+    pow2_1D_stride_real,
     accuracy_test,
     ::testing::ValuesIn(param_generator_real(generate_lengths({pow2_range_for_stride}),
                                              precision_range,

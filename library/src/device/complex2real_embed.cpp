@@ -24,28 +24,54 @@
 #include "rocfft_hip.h"
 #include <iostream>
 
-template <typename Tcomplex, CallbackType cbtype>
-__global__ static void complex2real_kernel(const size_t           input_size,
-                                           const size_t           idist1D,
-                                           const size_t           odist1D,
-                                           const Tcomplex*        input0,
-                                           const size_t           idist,
-                                           real_type_t<Tcomplex>* output0,
-                                           const size_t           odist,
+template <typename Tcomplex, CallbackType cbtype, unsigned int dim>
+__global__ static void complex2real_kernel(unsigned int           lengths0,
+                                           unsigned int           lengths1,
+                                           unsigned int           lengths2,
+                                           unsigned int           stride_in0,
+                                           unsigned int           stride_in1,
+                                           unsigned int           stride_in2,
+                                           unsigned int           stride_in3,
+                                           unsigned int           stride_out0,
+                                           unsigned int           stride_out1,
+                                           unsigned int           stride_out2,
+                                           unsigned int           stride_out3,
+                                           const Tcomplex*        input,
+                                           real_type_t<Tcomplex>* output,
                                            void* __restrict__ load_cb_fn,
                                            void* __restrict__ load_cb_data,
                                            uint32_t load_cb_lds_bytes,
                                            void* __restrict__ store_cb_fn,
                                            void* __restrict__ store_cb_data)
 {
-    const size_t tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+    size_t idx_0 = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if(tid < input_size)
+    const unsigned int lengths[3]    = {lengths0, lengths1, lengths2};
+    const unsigned int stride_in[4]  = {stride_in0, stride_in1, stride_in2, stride_in3};
+    const unsigned int stride_out[4] = {stride_out0, stride_out1, stride_out2, stride_out3};
+
+    // offsets
+    size_t offset_in  = 0;
+    size_t offset_out = 0;
+    size_t remaining;
+    size_t index_along_d;
+    remaining = blockIdx.y;
+    for(int d = 1; d < dim; ++d)
     {
-        // blockIdx.y gives the multi-dimensional offset
-        // blockIdx.z gives the batch offset
-        const auto input     = input0 + blockIdx.y * idist1D + blockIdx.z * idist;
-        auto       outputIdx = blockIdx.y * odist1D + blockIdx.z * odist;
+        index_along_d = remaining % lengths[d];
+        remaining     = remaining / lengths[d];
+        offset_in     = offset_in + index_along_d * stride_in[d];
+        offset_out    = offset_out + index_along_d * stride_out[d];
+    }
+    // remaining should be 1 at this point, since batch goes into blockIdx.z
+    size_t batch = blockIdx.z;
+    offset_in    = offset_in + batch * stride_in[dim];
+    offset_out   = offset_out + batch * stride_out[dim];
+
+    if(idx_0 < lengths[0])
+    {
+        const auto inputIdx  = offset_in + idx_0 * stride_in[0];
+        const auto outputIdx = offset_out + idx_0 * stride_out[0];
 
         // we would do real2complex at the end of a C2R transform, so
         // it would never be the first kernel to read from global
@@ -53,44 +79,75 @@ __global__ static void complex2real_kernel(const size_t           input_size,
         // global memory.
 
         auto store_cb = get_store_cb<real_type_t<Tcomplex>, cbtype>(store_cb_fn);
-        store_cb(output0, outputIdx + tid, input[tid].x, store_cb_data, nullptr);
+        store_cb(output, outputIdx, input[inputIdx].x, store_cb_data, nullptr);
     }
 }
 
+#define COMPLEX2REAL_KERNEL_LAUNCH_DIM(TFLOAT, DIM)                                         \
+    decltype(&complex2real_kernel<TFLOAT, CallbackType::USER_LOAD_STORE, DIM>) kernel_func; \
+    if(data->get_callback_type() == CallbackType::USER_LOAD_STORE)                          \
+        kernel_func = complex2real_kernel<TFLOAT, CallbackType::USER_LOAD_STORE, DIM>;      \
+    else                                                                                    \
+        kernel_func = complex2real_kernel<TFLOAT, CallbackType::NONE, DIM>;                 \
+    hipLaunchKernelGGL(kernel_func,                                                         \
+                       grid,                                                                \
+                       threads,                                                             \
+                       0,                                                                   \
+                       rocfft_stream,                                                       \
+                       kern_lengths[0],                                                     \
+                       kern_lengths[1],                                                     \
+                       kern_lengths[2],                                                     \
+                       kern_stride_in[0],                                                   \
+                       kern_stride_in[1],                                                   \
+                       kern_stride_in[2],                                                   \
+                       kern_stride_in[3],                                                   \
+                       kern_stride_out[0],                                                  \
+                       kern_stride_out[1],                                                  \
+                       kern_stride_out[2],                                                  \
+                       kern_stride_out[3],                                                  \
+                       static_cast<TFLOAT*>(input_buffer),                                  \
+                       static_cast<real_type_t<TFLOAT>*>(output_buffer),                    \
+                       data->callbacks.load_cb_fn,                                          \
+                       data->callbacks.load_cb_data,                                        \
+                       data->callbacks.load_cb_lds_bytes,                                   \
+                       data->callbacks.store_cb_fn,                                         \
+                       data->callbacks.store_cb_data);
+
+// assign real2complex function pointer given a float type
+#define COMPLEX2REAL_KERNEL_LAUNCH(TFLOAT)         \
+    if(dim == 1)                                   \
+    {                                              \
+        COMPLEX2REAL_KERNEL_LAUNCH_DIM(TFLOAT, 1); \
+    }                                              \
+    else if(dim == 2)                              \
+    {                                              \
+        COMPLEX2REAL_KERNEL_LAUNCH_DIM(TFLOAT, 2); \
+    }                                              \
+    else if(dim == 3)                              \
+    {                                              \
+        COMPLEX2REAL_KERNEL_LAUNCH_DIM(TFLOAT, 3); \
+    }                                              \
+    else                                           \
+        throw std::runtime_error("invalid dimension in complex2real");
+
 /// \brief auxiliary function
 ///   Convert a complex vector into a real one by only taking the real part of the complex
-///   vector.  Currently only works for stride=1 cases
-/// @param[in] input_size size of input buffer
-/// @param[in] input_buffer data type : float2 or double2
-/// @param[in] input_distance distance between consecutive batch members for input buffer
-/// @param[in,output] output_buffer data type : float or double
-/// @param[in] output_distance distance between consecutive batch members for output
-/// buffer
-/// @param[in] batch number of transforms
-/// @param[in] precision data type of input buffer. rocfft_precision_single or
-/// rocfft_precsion_double
+///   vector.
 ROCFFT_DEVICE_EXPORT void complex2real(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
 
     size_t input_size = data->node->length[0];
 
-    size_t input_distance  = data->node->iDist;
-    size_t output_distance = data->node->oDist;
-
-    size_t input_stride
-        = (data->node->length.size() > 1) ? data->node->inStride[1] : input_distance;
-    size_t output_stride
-        = (data->node->length.size() > 1) ? data->node->outStride[1] : output_distance;
-
     void* input_buffer  = data->bufIn[0];
     void* output_buffer = data->bufOut[0];
 
     size_t batch          = data->node->batch;
     size_t high_dimension = 1;
-    if(data->node->length.size() > 1)
+    size_t dim            = data->node->length.size();
+    if(dim > 1)
     {
-        for(int i = 1; i < data->node->length.size(); i++)
+        for(int i = 1; i < dim; i++)
         {
             high_dimension *= data->node->length[i];
         }
@@ -122,89 +179,75 @@ ROCFFT_DEVICE_EXPORT void complex2real(const void* data_p, void* back_p)
     // }
     // free(tmp);
 
+    // explode lengths/strides out to pass to the kernel
+    std::array<size_t, 3> kern_lengths{1, 1, 1};
+    std::array<size_t, 4> kern_stride_in{1, 1, 1, 1};
+    std::array<size_t, 4> kern_stride_out{1, 1, 1, 1};
+
+    std::copy(data->node->length.begin(), data->node->length.end(), kern_lengths.begin());
+    std::copy(data->node->inStride.begin(), data->node->inStride.end(), kern_stride_in.begin());
+    kern_stride_in[dim] = data->node->iDist;
+    std::copy(data->node->outStride.begin(), data->node->outStride.end(), kern_stride_out.begin());
+    kern_stride_out[dim] = data->node->oDist;
+
     if(precision == rocfft_precision_single)
-        hipLaunchKernelGGL(
-            data->get_callback_type() == CallbackType::USER_LOAD_STORE
-                ? HIP_KERNEL_NAME(complex2real_kernel<float2, CallbackType::USER_LOAD_STORE>)
-                : HIP_KERNEL_NAME(complex2real_kernel<float2, CallbackType::NONE>),
-            grid,
-            threads,
-            0,
-            rocfft_stream,
-            input_size,
-            input_stride,
-            output_stride,
-            (float2*)input_buffer,
-            input_distance,
-            (float*)output_buffer,
-            output_distance,
-            data->callbacks.load_cb_fn,
-            data->callbacks.load_cb_data,
-            data->callbacks.load_cb_lds_bytes,
-            data->callbacks.store_cb_fn,
-            data->callbacks.store_cb_data);
+    {
+        COMPLEX2REAL_KERNEL_LAUNCH(float2);
+    }
     else
-        hipLaunchKernelGGL(
-            data->get_callback_type() == CallbackType::USER_LOAD_STORE
-                ? HIP_KERNEL_NAME(complex2real_kernel<double2, CallbackType::USER_LOAD_STORE>)
-                : HIP_KERNEL_NAME(complex2real_kernel<double2, CallbackType::NONE>),
-            grid,
-            threads,
-            0,
-            rocfft_stream,
-            input_size,
-            input_stride,
-            output_stride,
-            (double2*)input_buffer,
-            input_distance,
-            (double*)output_buffer,
-            output_distance,
-            data->callbacks.load_cb_fn,
-            data->callbacks.load_cb_data,
-            data->callbacks.load_cb_lds_bytes,
-            data->callbacks.store_cb_fn,
-            data->callbacks.store_cb_data);
+    {
+        COMPLEX2REAL_KERNEL_LAUNCH(double2);
+    }
 }
 
-template <typename T, CallbackType cbtype>
-__global__ static void hermitian2complex_kernel(const size_t hermitian_size,
-                                                const size_t dim_0,
-                                                const size_t dim_1,
-                                                const size_t dim_2,
-                                                const size_t input_stride,
-                                                const size_t output_stride,
-                                                T*           input,
-                                                const size_t input_distance,
-                                                T*           output,
-                                                const size_t output_distance,
+template <typename T, CallbackType cbtype, unsigned int dim>
+__global__ static void hermitian2complex_kernel(const unsigned int hermitian_size,
+                                                unsigned int       dim_0,
+                                                unsigned int       dim_1,
+                                                unsigned int       dim_2,
+                                                unsigned int       stride_in0,
+                                                unsigned int       stride_in1,
+                                                unsigned int       stride_in2,
+                                                unsigned int       stride_in3,
+                                                unsigned int       stride_out0,
+                                                unsigned int       stride_out1,
+                                                unsigned int       stride_out2,
+                                                unsigned int       stride_out3,
+                                                T* __restrict__ input,
+                                                T* __restrict__ output,
                                                 void* __restrict__ load_cb_fn,
                                                 void* __restrict__ load_cb_data,
                                                 uint32_t load_cb_lds_bytes,
                                                 void* __restrict__ store_cb_fn,
                                                 void* __restrict__ store_cb_data)
 {
-    const size_t tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+    const size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-    size_t input_offset   = hipBlockIdx_z * input_distance;
-    size_t outputs_offset = hipBlockIdx_z * output_distance; // straight copy
-    size_t outputc_offset = hipBlockIdx_z * output_distance; // conjugate copy
+    const unsigned int stride_in[4]  = {stride_in0, stride_in1, stride_in2, stride_in3};
+    const unsigned int stride_out[4] = {stride_out0, stride_out1, stride_out2, stride_out3};
+
+    // start with batch offset
+    size_t input_offset   = blockIdx.z * stride_in[dim];
+    size_t outputs_offset = blockIdx.z * stride_out[dim]; // straight copy
+    size_t outputc_offset = blockIdx.z * stride_out[dim]; // conjugate copy
 
     // straight copy indices
     size_t is0 = tid;
-    size_t is1 = hipBlockIdx_y % dim_1;
-    size_t is2 = hipBlockIdx_y / dim_1;
+    size_t is1 = blockIdx.y % dim_1;
+    size_t is2 = blockIdx.y / dim_1;
 
     // conjugate copy indices
     size_t ic0 = (is0 == 0) ? 0 : dim_0 - is0;
     size_t ic1 = (is1 == 0) ? 0 : dim_1 - is1;
     size_t ic2 = (is2 == 0) ? 0 : dim_2 - is2;
 
-    input_offset += hipBlockIdx_y * input_stride + is0; // notice for 1D,
-    // hipBlockIdx_y == 0 and
+    input_offset += is2 * stride_in2 + is1 * stride_in1 + is0 * stride_in0;
+    // notice for 1D,
+    // blockIdx.y == 0 and
     // thus has no effect for
     // input_offset
-    outputs_offset += (is2 * dim_1 + is1) * output_stride + is0;
-    outputc_offset += (ic2 * dim_1 + ic1) * output_stride + ic0;
+    outputs_offset += is2 * stride_out2 + is1 * stride_out1 + is0 * stride_out0;
+    outputc_offset += ic2 * stride_out2 + ic1 * stride_out1 + ic0 * stride_out0;
 
     auto load_cb = get_load_cb<T, cbtype>(load_cb_fn);
 
@@ -231,41 +274,50 @@ __global__ static void hermitian2complex_kernel(const size_t hermitian_size,
     }
 }
 
-template <typename T>
-__global__ static void hermitian2complex_kernel(const size_t    hermitian_size,
-                                                const size_t    dim_0,
-                                                const size_t    dim_1,
-                                                const size_t    dim_2,
-                                                const size_t    input_stride,
-                                                const size_t    output_stride,
-                                                real_type_t<T>* inputRe,
-                                                real_type_t<T>* inputIm,
-                                                const size_t    input_distance,
-                                                T*              output,
-                                                const size_t    output_distance)
+template <typename T, unsigned int dim>
+__global__ static void hermitian2complex_planar_kernel(const unsigned int hermitian_size,
+                                                       unsigned int       dim_0,
+                                                       unsigned int       dim_1,
+                                                       unsigned int       dim_2,
+                                                       unsigned int       stride_in0,
+                                                       unsigned int       stride_in1,
+                                                       unsigned int       stride_in2,
+                                                       unsigned int       stride_in3,
+                                                       unsigned int       stride_out0,
+                                                       unsigned int       stride_out1,
+                                                       unsigned int       stride_out2,
+                                                       unsigned int       stride_out3,
+                                                       real_type_t<T>* __restrict__ inputRe,
+                                                       real_type_t<T>* __restrict__ inputIm,
+                                                       T* __restrict__ output)
 {
-    const size_t tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+    const size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-    size_t input_offset   = hipBlockIdx_z * input_distance;
-    size_t outputs_offset = hipBlockIdx_z * output_distance; // straight copy
-    size_t outputc_offset = hipBlockIdx_z * output_distance; // conjugate copy
+    const unsigned int stride_in[4]  = {stride_in0, stride_in1, stride_in2, stride_in3};
+    const unsigned int stride_out[4] = {stride_out0, stride_out1, stride_out2, stride_out3};
+
+    // start with batch offset
+    size_t input_offset   = blockIdx.z * stride_in[dim];
+    size_t outputs_offset = blockIdx.z * stride_out[dim]; // straight copy
+    size_t outputc_offset = blockIdx.z * stride_out[dim]; // conjugate copy
 
     // straight copy indices
     size_t is0 = tid;
-    size_t is1 = hipBlockIdx_y % dim_1;
-    size_t is2 = hipBlockIdx_y / dim_1;
+    size_t is1 = blockIdx.y % dim_1;
+    size_t is2 = blockIdx.y / dim_1;
 
     // conjugate copy indices
     size_t ic0 = (is0 == 0) ? 0 : dim_0 - is0;
     size_t ic1 = (is1 == 0) ? 0 : dim_1 - is1;
     size_t ic2 = (is2 == 0) ? 0 : dim_2 - is2;
 
-    input_offset += hipBlockIdx_y * input_stride + is0; // notice for 1D,
-    // hipBlockIdx_y == 0 and
+    input_offset += is2 * stride_in2 + is1 * stride_in1 + is0 * stride_in0;
+    // notice for 1D,
+    // blockIdx.y == 0 and
     // thus has no effect for
     // input_offset
-    outputs_offset += (is2 * dim_1 + is1) * output_stride + is0;
-    outputc_offset += (ic2 * dim_1 + ic1) * output_stride + ic0;
+    outputs_offset += is2 * stride_out2 + is1 * stride_out1 + is0 * stride_out0;
+    outputc_offset += ic2 * stride_out2 + ic1 * stride_out1 + ic0 * stride_out0;
 
     inputRe += input_offset;
     inputIm += input_offset;
@@ -288,20 +340,101 @@ __global__ static void hermitian2complex_kernel(const size_t    hermitian_size,
     }
 }
 
+#define HERM2COMPLEX_KERNEL_LAUNCH_DIM(TFLOAT, DIM)                                         \
+    decltype(&hermitian2complex_kernel<TFLOAT, CallbackType::NONE, DIM>) kernel_func;       \
+    if(data->get_callback_type() == CallbackType::USER_LOAD_STORE)                          \
+        kernel_func = hermitian2complex_kernel<TFLOAT, CallbackType::USER_LOAD_STORE, DIM>; \
+    else                                                                                    \
+        kernel_func = hermitian2complex_kernel<TFLOAT, CallbackType::NONE, DIM>;            \
+    hipLaunchKernelGGL(kernel_func,                                                         \
+                       grid,                                                                \
+                       threads,                                                             \
+                       0,                                                                   \
+                       rocfft_stream,                                                       \
+                       hermitian_size,                                                      \
+                       dim_0,                                                               \
+                       dim_1,                                                               \
+                       dim_2,                                                               \
+                       kern_stride_in[0],                                                   \
+                       kern_stride_in[1],                                                   \
+                       kern_stride_in[2],                                                   \
+                       kern_stride_in[3],                                                   \
+                       kern_stride_out[0],                                                  \
+                       kern_stride_out[1],                                                  \
+                       kern_stride_out[2],                                                  \
+                       kern_stride_out[3],                                                  \
+                       static_cast<TFLOAT*>(input_buffer),                                  \
+                       static_cast<TFLOAT*>(output_buffer),                                 \
+                       data->callbacks.load_cb_fn,                                          \
+                       data->callbacks.load_cb_data,                                        \
+                       data->callbacks.load_cb_lds_bytes,                                   \
+                       data->callbacks.store_cb_fn,                                         \
+                       data->callbacks.store_cb_data);
+
+// assign hermitian2complex function pointer given a float type
+#define HERM2COMPLEX_KERNEL_LAUNCH(TFLOAT)         \
+    if(dim == 1)                                   \
+    {                                              \
+        HERM2COMPLEX_KERNEL_LAUNCH_DIM(TFLOAT, 1); \
+    }                                              \
+    else if(dim == 2)                              \
+    {                                              \
+        HERM2COMPLEX_KERNEL_LAUNCH_DIM(TFLOAT, 2); \
+    }                                              \
+    else if(dim == 3)                              \
+    {                                              \
+        HERM2COMPLEX_KERNEL_LAUNCH_DIM(TFLOAT, 3); \
+    }                                              \
+    else                                           \
+        throw std::runtime_error("invalid dimension in hermitian2complex");
+
+#define HERM2COMPLEX_PLANAR_KERNEL_LAUNCH_DIM(TFLOAT, DIM)                \
+    decltype(&hermitian2complex_planar_kernel<TFLOAT, DIM>) kernel_func;  \
+    if(data->get_callback_type() == CallbackType::USER_LOAD_STORE)        \
+        kernel_func = hermitian2complex_planar_kernel<TFLOAT, DIM>;       \
+    else                                                                  \
+        kernel_func = hermitian2complex_planar_kernel<TFLOAT, DIM>;       \
+    hipLaunchKernelGGL(kernel_func,                                       \
+                       grid,                                              \
+                       threads,                                           \
+                       0,                                                 \
+                       rocfft_stream,                                     \
+                       hermitian_size,                                    \
+                       dim_0,                                             \
+                       dim_1,                                             \
+                       dim_2,                                             \
+                       kern_stride_in[0],                                 \
+                       kern_stride_in[1],                                 \
+                       kern_stride_in[2],                                 \
+                       kern_stride_in[3],                                 \
+                       kern_stride_out[0],                                \
+                       kern_stride_out[1],                                \
+                       kern_stride_out[2],                                \
+                       kern_stride_out[3],                                \
+                       static_cast<real_type_t<TFLOAT>*>(data->bufIn[0]), \
+                       static_cast<real_type_t<TFLOAT>*>(data->bufIn[1]), \
+                       static_cast<TFLOAT*>(output_buffer));
+
+// assign hermitian2complex_planar function pointer given a float type
+#define HERM2COMPLEX_PLANAR_KERNEL_LAUNCH(TFLOAT)         \
+    if(dim == 1)                                          \
+    {                                                     \
+        HERM2COMPLEX_PLANAR_KERNEL_LAUNCH_DIM(TFLOAT, 1); \
+    }                                                     \
+    else if(dim == 2)                                     \
+    {                                                     \
+        HERM2COMPLEX_PLANAR_KERNEL_LAUNCH_DIM(TFLOAT, 2); \
+    }                                                     \
+    else if(dim == 3)                                     \
+    {                                                     \
+        HERM2COMPLEX_PLANAR_KERNEL_LAUNCH_DIM(TFLOAT, 3); \
+    }                                                     \
+    else                                                  \
+        throw std::runtime_error("invalid dimension in hermitian2complex_planar");
+
 /// \brief auxiliary function
 ///   Read from input_buffer of hermitian structure into an output_buffer of regular
 ///   complex structure by padding 0.
-/// @param[in] dim_0 size of problem, not the size of input buffer
-/// @param[in] input_buffer data type : complex type (float2 or double2) but only store
-/// first [1 + dim_0/2] elements according to conjugate symmetry
-/// @param[in] input_distance distance between consecutive batch members for input buffer
-/// @param[in,output] output_buffer data type : complex type (float2 or double2) of size
-/// dim_0
-/// @param[in] output_distance distance between consecutive batch members for output
-/// buffer
-/// @param[in] batch number of transforms
-/// @param[in] precision data type of input and output buffer. rocfft_precision_single or
-/// rocfft_precsion_double
 ROCFFT_DEVICE_EXPORT void hermitian2complex(const void* data_p, void* back_p)
 {
     DeviceCallIn* data = (DeviceCallIn*)data_p;
@@ -309,22 +442,15 @@ ROCFFT_DEVICE_EXPORT void hermitian2complex(const void* data_p, void* back_p)
     size_t dim_0          = data->node->length[0]; // dim_0 is the innermost dimension
     size_t hermitian_size = dim_0 / 2 + 1;
 
-    size_t input_distance  = data->node->iDist;
-    size_t output_distance = data->node->oDist;
-
-    size_t input_stride
-        = (data->node->length.size() > 1) ? data->node->inStride[1] : input_distance;
-    size_t output_stride
-        = (data->node->length.size() > 1) ? data->node->outStride[1] : output_distance;
-
     void* input_buffer  = data->bufIn[0];
     void* output_buffer = data->bufOut[0];
 
     size_t batch          = data->node->batch;
     size_t high_dimension = 1;
-    if(data->node->length.size() > 1)
+    size_t dim            = data->node->length.size();
+    if(dim > 1)
     {
-        for(int i = 1; i < data->node->length.size(); i++)
+        for(int i = 1; i < dim; i++)
         {
             high_dimension *= data->node->length[i];
         }
@@ -333,7 +459,7 @@ ROCFFT_DEVICE_EXPORT void hermitian2complex(const void* data_p, void* back_p)
 
     size_t blocks = (hermitian_size - 1) / LAUNCH_BOUNDS_R2C_C2R_KERNEL + 1;
 
-    if(data->node->length.size() > 3)
+    if(dim > 3)
         throw std::runtime_error("Error: dimension larger than 3, which is not handled");
 
     size_t dim_1 = 1, dim_2 = 1;
@@ -368,95 +494,36 @@ ROCFFT_DEVICE_EXPORT void hermitian2complex(const void* data_p, void* back_p)
     //       }
     //   }
 
+    // explode strides out to pass to the kernel
+    std::array<size_t, 4> kern_stride_in{1, 1, 1, 1};
+    std::array<size_t, 4> kern_stride_out{1, 1, 1, 1};
+
+    std::copy(data->node->inStride.begin(), data->node->inStride.end(), kern_stride_in.begin());
+    kern_stride_in[dim] = data->node->iDist;
+    std::copy(data->node->outStride.begin(), data->node->outStride.end(), kern_stride_out.begin());
+    kern_stride_out[dim] = data->node->oDist;
+
     if(data->node->inArrayType == rocfft_array_type_hermitian_interleaved)
     {
         if(precision == rocfft_precision_single)
-            hipLaunchKernelGGL(
-                data->get_callback_type() == CallbackType::USER_LOAD_STORE
-                    ? HIP_KERNEL_NAME(
-                        hermitian2complex_kernel<float2, CallbackType::USER_LOAD_STORE>)
-                    : HIP_KERNEL_NAME(hermitian2complex_kernel<float2, CallbackType::NONE>),
-                grid,
-                threads,
-                0,
-                rocfft_stream,
-                hermitian_size,
-                dim_0,
-                dim_1,
-                dim_2,
-                input_stride,
-                output_stride,
-                (float2*)input_buffer,
-                input_distance,
-                (float2*)output_buffer,
-                output_distance,
-                data->callbacks.load_cb_fn,
-                data->callbacks.load_cb_data,
-                data->callbacks.load_cb_lds_bytes,
-                data->callbacks.store_cb_fn,
-                data->callbacks.store_cb_data);
+        {
+            HERM2COMPLEX_KERNEL_LAUNCH(float2);
+        }
         else
-            hipLaunchKernelGGL(
-                data->get_callback_type() == CallbackType::USER_LOAD_STORE
-                    ? HIP_KERNEL_NAME(
-                        hermitian2complex_kernel<double2, CallbackType::USER_LOAD_STORE>)
-                    : HIP_KERNEL_NAME(hermitian2complex_kernel<double2, CallbackType::NONE>),
-                grid,
-                threads,
-                0,
-                rocfft_stream,
-                hermitian_size,
-                dim_0,
-                dim_1,
-                dim_2,
-                input_stride,
-                output_stride,
-                (double2*)input_buffer,
-                input_distance,
-                (double2*)output_buffer,
-                output_distance,
-                data->callbacks.load_cb_fn,
-                data->callbacks.load_cb_data,
-                data->callbacks.load_cb_lds_bytes,
-                data->callbacks.store_cb_fn,
-                data->callbacks.store_cb_data);
+        {
+            HERM2COMPLEX_KERNEL_LAUNCH(double2);
+        }
     }
     else if(data->node->inArrayType == rocfft_array_type_hermitian_planar)
     {
         if(precision == rocfft_precision_single)
-            hipLaunchKernelGGL(hermitian2complex_kernel<float2>,
-                               grid,
-                               threads,
-                               0,
-                               rocfft_stream,
-                               hermitian_size,
-                               dim_0,
-                               dim_1,
-                               dim_2,
-                               input_stride,
-                               output_stride,
-                               (float*)data->bufIn[0],
-                               (float*)data->bufIn[1],
-                               input_distance,
-                               (float2*)output_buffer,
-                               output_distance);
+        {
+            HERM2COMPLEX_PLANAR_KERNEL_LAUNCH(float2);
+        }
         else
-            hipLaunchKernelGGL(hermitian2complex_kernel<double2>,
-                               grid,
-                               threads,
-                               0,
-                               rocfft_stream,
-                               hermitian_size,
-                               dim_0,
-                               dim_1,
-                               dim_2,
-                               input_stride,
-                               output_stride,
-                               (double*)data->bufIn[0],
-                               (double*)data->bufIn[1],
-                               input_distance,
-                               (double2*)output_buffer,
-                               output_distance);
+        {
+            HERM2COMPLEX_PLANAR_KERNEL_LAUNCH(double2);
+        }
     }
 
     // float2* tmpo; tmpo = (float2*)malloc(sizeof(float2)*output_distance*batch);

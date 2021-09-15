@@ -1545,9 +1545,9 @@ void RealTransDataCopyNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam
     }
     else
     {
-        gp.b_x   = (length[0] - 1) / 512 + 1;
+        gp.b_x   = (length[0] - 1) / LAUNCH_BOUNDS_R2C_C2R_KERNEL + 1;
         gp.b_y   = batch;
-        gp.tpb_x = 512;
+        gp.tpb_x = LAUNCH_BOUNDS_R2C_C2R_KERNEL;
         gp.tpb_y = 1;
     }
 

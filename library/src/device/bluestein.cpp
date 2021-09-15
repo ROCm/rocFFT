@@ -184,9 +184,9 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                 (const float2*)bufIn0,
                 (float2*)bufOut0,
                 data->node->length.size(),
-                data->node->devKernArg.data(),
-                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                kargs_lengths(data->node->devKernArg),
+                kargs_stride_in(data->node->devKernArg),
+                kargs_stride_out(data->node->devKernArg),
                 dir,
                 scheme,
                 data->callbacks.load_cb_fn,
@@ -212,9 +212,9 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                 (const double2*)bufIn0,
                 (double2*)bufOut0,
                 data->node->length.size(),
-                data->node->devKernArg.data(),
-                data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                kargs_lengths(data->node->devKernArg),
+                kargs_stride_in(data->node->devKernArg),
+                kargs_stride_out(data->node->devKernArg),
                 dir,
                 scheme,
                 data->callbacks.load_cb_fn,
@@ -247,9 +247,9 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                                (const real_type_t<float2>*)bufIn1,
                                (float2*)bufOut0,
                                data->node->length.size(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               kargs_lengths(data->node->devKernArg),
+                               kargs_stride_in(data->node->devKernArg),
+                               kargs_stride_out(data->node->devKernArg),
                                dir,
                                scheme);
         }
@@ -268,9 +268,9 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                                (const real_type_t<double2>*)bufIn1,
                                (double2*)bufOut0,
                                data->node->length.size(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               kargs_lengths(data->node->devKernArg),
+                               kargs_stride_in(data->node->devKernArg),
+                               kargs_stride_out(data->node->devKernArg),
                                dir,
                                scheme);
         }
@@ -298,9 +298,9 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                                (real_type_t<float2>*)bufOut0,
                                (real_type_t<float2>*)bufOut1,
                                data->node->length.size(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               kargs_lengths(data->node->devKernArg),
+                               kargs_stride_in(data->node->devKernArg),
+                               kargs_stride_out(data->node->devKernArg),
                                dir,
                                scheme);
         }
@@ -319,9 +319,9 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                                (real_type_t<double2>*)bufOut0,
                                (real_type_t<double2>*)bufOut1,
                                data->node->length.size(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               kargs_lengths(data->node->devKernArg),
+                               kargs_stride_in(data->node->devKernArg),
+                               kargs_stride_out(data->node->devKernArg),
                                dir,
                                scheme);
         }
@@ -351,9 +351,9 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                                (real_type_t<float2>*)bufOut0,
                                (real_type_t<float2>*)bufOut1,
                                data->node->length.size(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               kargs_lengths(data->node->devKernArg),
+                               kargs_stride_in(data->node->devKernArg),
+                               kargs_stride_out(data->node->devKernArg),
                                dir,
                                scheme);
         }
@@ -373,9 +373,9 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                                (real_type_t<double2>*)bufOut0,
                                (real_type_t<double2>*)bufOut1,
                                data->node->length.size(),
-                               data->node->devKernArg.data(),
-                               data->node->devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH,
-                               data->node->devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH,
+                               kargs_lengths(data->node->devKernArg),
+                               kargs_stride_in(data->node->devKernArg),
+                               kargs_stride_out(data->node->devKernArg),
                                dir,
                                scheme);
         }
