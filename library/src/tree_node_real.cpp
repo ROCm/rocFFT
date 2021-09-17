@@ -975,7 +975,9 @@ void Real3DEvenNode::BuildTree_internal()
     {
         // first row fft + postproc is mandatory for fastest dimension
         auto rcplan = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
-        static_cast<RealTransEvenNode*>(rcplan.get())->try_fuse_pre_post_processing = sbcc_inplace;
+        // for length > 2048, don't try pre/post because LDS usage is too high
+        static_cast<RealTransEvenNode*>(rcplan.get())->try_fuse_pre_post_processing
+            = sbcc_inplace && length[0] <= 2048;
 
         rcplan->length    = length;
         rcplan->dimension = 1;
@@ -1147,7 +1149,9 @@ void Real3DEvenNode::BuildTree_internal()
 
         // c2r
         auto crplan = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
-        static_cast<RealTransEvenNode*>(crplan.get())->try_fuse_pre_post_processing = sbcc_inplace;
+        // for length > 2048, don't try pre/post because LDS usage is too high
+        static_cast<RealTransEvenNode*>(crplan.get())->try_fuse_pre_post_processing
+            = sbcc_inplace && length[0] <= 2048;
 
         crplan->length    = length;
         crplan->dimension = 1;

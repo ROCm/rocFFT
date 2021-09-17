@@ -1,33 +1,26 @@
 #!/usr/bin/env python3
 """rocFFT kernel generator.
 
-Currently this acts as a shim between CMake and the C++ kernel generator.
-
 It accept two sub-commands:
 1. list - lists files that will be generated
-2. generate - pass arguments down to the old generator
-
-Note that 'small' kernels don't decompose their lengths.
+2. generate - generate them!
 
 """
 
 import argparse
 import collections
-import copy
 import functools
 import itertools
-import os
 import subprocess
 import sys
 
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace as NS
-from functools import reduce
 from operator import mul
-from copy import deepcopy
 
-from generator import (ArgumentList, BaseNode, Call, CommentBlock, ExternC, Function, Include,
-                       LineBreak, Map, Pragma, StatementList, Variable, name_args, write)
+from generator import (ArgumentList, BaseNode, Call, CommentBlock, Function, Include,
+                       LineBreak, Map, StatementList, Variable, name_args, write)
 
 
 import stockham
@@ -55,148 +48,23 @@ def cjoin(xs):
 # Helpers
 #
 
-def product(*args):
-    """Cartesian product of input iteratables, as a list."""
-    return list(itertools.product(*args))
-
-
-def merge(*ds):
-    """Merge dictionaries; last one wins."""
-    r = collections.OrderedDict()
-    for d in ds:
-        r.update(d)
-    return r
-
-
-def pmerge(d, fs):
-    """Merge d with dicts of {(length, precision, scheme, transpose): f}."""
-    r = collections.OrderedDict()
-    r.update(d)
-    for f in fs:
-        r[f.meta.length, f.meta.precision, f.meta.scheme, f.meta.transpose] = f
-    return r
-
-
 def flatten(lst):
     """Flatten a list of lists to a list."""
     return sum(lst, [])
 
 
-# this function should eventually go away
-def pick(all, new_kernels, subtract_from_all=True):
-    """From all old kernels, pick out those supported by new kernel, and remove from old list."""
-    old = collections.OrderedDict(all)
-    new = []
-
-    for nk in new_kernels:
-        assert hasattr(nk, 'length')
-        for target_length in all:
-            if nk.length == target_length:
-                new.append(nk) # pick out, put to new
-                if subtract_from_all:
-                    del old[target_length] # remove from old
-                break
-    # old-list to old-gen, new-list to new-gen
-    return old, new
-
-
-def merge_length(kernel_list, ks):
+def unique(kernels):
     """Merge kernel lists without duplicated meta.length; ignore later ones."""
-    merged_list = list(kernel_list)
-    lengths = [ item.length for item in kernel_list ]
-    for k in ks:
-        if k.length not in lengths:
-            merged_list.append(k)
-    return merged_list
-
-#
-# Supported kernel sizes
-#
-
-# this function should eventually go away
-def supported_small_sizes(precision, pow2=True, pow3=True, pow5=True, commonRadix=True):
-    """Return list of 1D small kernels."""
-
-    upper_bound = {
-        'sp': 4096,
-        'dp': 4096,         # of course this isn't 2048... not sure why (double len 1594323 will fail)
-    }
-
-    powers = {
-        5: [5**k for k in range(6 if pow5 else 1)],
-        3: [3**k for k in range(8 if pow3 else 1)],
-        2: [2**k for k in range(13 if pow2 else 1)],
-    }
-
-    lengths = [p2 * p3 * p5 for p2, p3, p5 in product(powers[2], powers[3], powers[5])]
-
-    # common radix 7, 11, and 13
-    if commonRadix:
-        lengths += [7, 14, 21, 28, 42, 49, 56, 84, 112, 168, 224, 336, 343]
-        lengths += [11, 22, 44, 88, 121, 176]
-        lengths += [13, 17, 26, 52, 104, 169, 208, 272, 528, 1040]
-
-    def filter_bound(length):
-        return length <= upper_bound[precision]
-
-    filtered = sorted([x for x in set(lengths) if filter_bound(x)])
-
-    return product(filtered, ['CS_KERNEL_STOCKHAM'])
-
-
-def supported_large_sizes(precision):
-    """Return list of 1D large block kernels."""
-
-    supported_large = [50, 52, 60, 64, 72, 80, 81, 84, 96, 100, 104, 108, 112, 128, 160, 168, 200, 208, 216, 224, 240, 256, 336]
-
-    return product(supported_large, ['CS_KERNEL_STOCKHAM_BLOCK_CC',
-                                     'CS_KERNEL_STOCKHAM_BLOCK_RC'])
-
-
-# this function should eventually go away
-def supported_2d_sizes(precision):
-    """Return list of 2D kernels."""
-
-    # for now, mimic order of old generator so diffing is easier
-    powers = {
-        5: [5**k for k in range(3, 1, -1)],
-        3: [3**k for k in range(5, 1, -1)],
-        2: [2**k for k in range(8, 1, -1)],
-    }
-
-    lengths = []
-    for b1, b2 in [(2, 2), (3, 3), (5, 5), (2, 3), (3, 2), (3, 5), (5, 3), (2, 5), (5, 2)]:
-        lengths.extend(product(powers[b1], powers[b2]))
-
-    max_lds_size_bytes = 64 * 1024
-    bytes_per_element = {'sp': 8, 'dp': 16}[precision]
-
-    def filter_lds(length):
-        return length[0] * length[1] * bytes_per_element * 1.5 <= max_lds_size_bytes
-
-    # explicit list of fused 2D kernels that the old generator doesn't
-    # like; usually because the thread counts are wonky.
-    avoid = {
-        'sp': [(16, 243), (16, 256), (27, 125), (27, 128), (64, 64), (64, 81)],
-        'dp': [(16, 243), (16, 256), (25, 125), (27, 125), (32, 125), (25, 128), (27, 128), (32, 128), (64, 64), (64, 81)]
-    }[precision]
-
-    def filter_threads(length):
-        rlength = (length[1], length[0])
-        return length not in avoid and rlength not in avoid
-
-    filtered = [x for x in lengths if filter_lds(x) and filter_threads(x)]
-
-    return product(filtered, ['CS_KERNEL_2D_SINGLE'])
-
-
-# this function should eventually go away
-def get_dependent_1D_sizes(list_2D):
-    dep_1D = set()
-    for problem in list_2D:
-        dep_1D.update( [problem[0][0], problem[0][1]] )
-
-    return product(dep_1D, ['CS_KERNEL_STOCKHAM'])
+    r, s = list(), set()
+    for kernel in kernels:
+        if isinstance(kernel.length, list):
+            key = tuple(kernel.length) + (kernel.scheme,)
+        else:
+            key = (kernel.length, kernel.scheme)
+        if key not in s:
+            s.add(key)
+            r.append(kernel)
+    return r
 
 #
 # Prototype generators
@@ -262,96 +130,6 @@ def generate_cpu_function_pool(functions):
                  body=populate))
 
 
-# this function should eventually go away
-def generate_small_1d_prototypes(precision, transforms):
-    """Generate prototypes for 1D small kernels that will be generated by the old generator."""
-
-    data = Variable('data_p', 'const void *')
-    back = Variable('back_p', 'void *')
-    functions = []
-
-    def add(name, scheme, transpose=None):
-        functions.append(Function(name=name,
-                                  arguments=ArgumentList(data, back),
-                                  meta=NS(
-                                      length=length,
-                                      precision=precision,
-                                      scheme=scheme,
-                                      transpose=transpose,
-                                      runtime_compile=False)))
-
-    for length, scheme in transforms.items():
-        add(f'rocfft_internal_dfn_{precision}_ci_ci_stoc_{length}', scheme)
-
-    return functions
-
-
-# this function should eventually go away
-def generate_2d_prototypes(precision, transforms):
-    """Generate prototypes for 2D kernels that will be generated by the old generator."""
-
-    data = Variable('data_p', 'const void *')
-    back = Variable('back_p', 'void *')
-    functions = []
-
-    def add(name, scheme, transpose=None):
-        functions.append(Function(name=name,
-                                  arguments=ArgumentList(data, back),
-                                  meta=NS(
-                                      length=length,
-                                      precision=precision,
-                                      scheme=scheme,
-                                      transpose=transpose,
-                                      runtime_compile=False)))
-
-    for length, scheme in transforms.items():
-        add(f'rocfft_internal_dfn_{precision}_ci_ci_2D_{length[0]}_{length[1]}', 'CS_KERNEL_2D_SINGLE', 'NONE')
-
-    return functions
-
-
-# this function should eventually go away
-def list_old_generated_kernels(patterns=None,
-                               precisions=None,
-                               num_small_kernel_groups=150):
-    """Return a list (for CMake) of files created by the (old) generator."""
-
-    if patterns is None:
-        patterns = ['all']
-    if precisions is None:
-        precisions = ['all']
-
-    #
-    # all this 'generated_kernels' should go away when the old generator goes away
-    #
-    generated_kernels = {
-        'kernels_launch_basic': [
-            'function_pool.cpp',
-        ],
-        'kernels_launch_small_sp':
-          [f'kernel_launch_single_{i}.cpp' for i in range(num_small_kernel_groups)]
-          + [f'kernel_launch_single_{i}.cpp.h' for i in range(num_small_kernel_groups)],
-        'kernels_launch_small_dp':
-          [f'kernel_launch_double_{i}.cpp' for i in range(num_small_kernel_groups)]
-          + [f'kernel_launch_double_{i}.cpp.h' for i in range(num_small_kernel_groups)],
-    }
-    generated_kernels['kernels_launch_small_all'] = generated_kernels['kernels_launch_small_sp'] + generated_kernels['kernels_launch_small_dp']
-    generated_kernels['kernels_launch_all_sp']    = generated_kernels['kernels_launch_small_sp']
-    generated_kernels['kernels_launch_all_dp']    = generated_kernels['kernels_launch_small_dp']
-    generated_kernels['kernels_launch_all_all']   = generated_kernels['kernels_launch_all_sp']   + generated_kernels['kernels_launch_all_dp']
-    generated_kernels['kernels_launch_large_dp']  = []
-    generated_kernels['kernels_launch_large_sp']  = []
-
-    gen = generated_kernels['kernels_launch_basic']
-    for patt in patterns:
-        # old gen no longer handles any 2D_SINGLE kernels
-        if patt == '2D':
-            continue
-        for prec in precisions:
-            gen += generated_kernels[f'kernels_launch_{patt}_{prec}']
-    return list(set(gen))
-
-
 def list_generated_kernels(kernels):
     """Return list of kernel filenames."""
     return [kernel_file_name(x) for x in kernels if not x.runtime_compile]
@@ -411,136 +189,186 @@ def kernel_file_name(ns):
     return f'rocfft_len{length}{postfix}.cpp'
 
 
-def list_new_kernels():
-    """Return list of kernels to generate with the new generator."""
+def list_small_kernels():
+    """Return list of small kernels to generate."""
 
-    # remaining lenghts less than 1024: 121 192 224 250 320 336 375
-    # 384 405 432 450 480 500 512 576 600 625 640 675 750 768 800 810
-    # 864 900 972 1000
+    kernels1d = [
+        NS(length=   1, threads_per_block= 64, threads_per_transform=  1, factors=(1,)),
+        NS(length=   2, threads_per_block= 64, threads_per_transform=  1, factors=(2,)),
+        NS(length=   3, threads_per_block= 64, threads_per_transform=  1, factors=(3,)),
+        NS(length=   4, threads_per_block=128, threads_per_transform=  1, factors=(4,)),
+        NS(length=   5, threads_per_block=128, threads_per_transform=  1, factors=(5,)),
+        NS(length=   6, threads_per_block=128, threads_per_transform=  1, factors=(6,)),
+        NS(length=   7, threads_per_block= 64, threads_per_transform=  1, factors=(7,)),
+        NS(length=   8, threads_per_block= 64, threads_per_transform=  4, factors=(4, 2)),
+        NS(length=   9, threads_per_block= 64, threads_per_transform=  3, factors=(3, 3)),
+        NS(length=  10, threads_per_block= 64, threads_per_transform=  1, factors=(10,)),
+        NS(length=  11, threads_per_block=128, threads_per_transform=  1, factors=(11,)),
+        NS(length=  12, threads_per_block=128, threads_per_transform=  6, factors=(6, 2)),
+        NS(length=  13, threads_per_block= 64, threads_per_transform=  1, factors=(13,)),
+        NS(length=  14, threads_per_block=128, threads_per_transform=  7, factors=(7, 2)),
+        NS(length=  15, threads_per_block=128, threads_per_transform=  5, factors=(3, 5)),
+        NS(length=  16, threads_per_block= 64, threads_per_transform=  4, factors=(4, 4)),
+        NS(length=  17, threads_per_block=256, threads_per_transform=  1, factors=(17,)),
+        NS(length=  18, threads_per_block= 64, threads_per_transform=  6, factors=(3, 6)),
+        NS(length=  20, threads_per_block=256, threads_per_transform= 10, factors=(5, 4)),
+        NS(length=  21, threads_per_block=128, threads_per_transform=  7, factors=(3, 7)),
+        NS(length=  22, threads_per_block= 64, threads_per_transform=  2, factors=(11, 2)),
+        NS(length=  24, threads_per_block=256, threads_per_transform=  8, factors=(8, 3)),
+        NS(length=  25, threads_per_block=256, threads_per_transform=  5, factors=(5, 5)),
+        NS(length=  26, threads_per_block= 64, threads_per_transform=  2, factors=(13, 2)),
+        NS(length=  27, threads_per_block=256, threads_per_transform=  9, factors=(3, 3, 3)),
+        NS(length=  28, threads_per_block= 64, threads_per_transform=  4, factors=(7, 4)),
+        NS(length=  30, threads_per_block=128, threads_per_transform= 10, factors=(10, 3)),
+        NS(length=  32, threads_per_block= 64, threads_per_transform= 16, factors=(16, 2)),
+        NS(length=  36, threads_per_block= 64, threads_per_transform=  6, factors=(6, 6)),
+        NS(length=  40, threads_per_block=128, threads_per_transform= 10, factors=(10, 4)),
+        NS(length=  42, threads_per_block=256, threads_per_transform=  7, factors=(7, 6)),
+        NS(length=  44, threads_per_block= 64, threads_per_transform=  4, factors=(11, 4)),
+        NS(length=  45, threads_per_block=128, threads_per_transform= 15, factors=(5, 3, 3)),
+        NS(length=  48, threads_per_block= 64, threads_per_transform= 16, factors=(4, 3, 4)),
+        NS(length=  49, threads_per_block= 64, threads_per_transform=  7, factors=(7, 7)),
+        NS(length=  50, threads_per_block=256, threads_per_transform= 10, factors=(10, 5)),
+        NS(length=  52, threads_per_block= 64, threads_per_transform=  4, factors=(13, 4)),
+        NS(length=  54, threads_per_block=256, threads_per_transform= 18, factors=(6, 3, 3)),
+        NS(length=  56, threads_per_block=128, threads_per_transform=  8, factors=(7, 8)),
+        NS(length=  60, threads_per_block= 64, threads_per_transform= 10, factors=(6, 10)),
+        NS(length=  64, threads_per_block= 64, threads_per_transform= 16, factors=(4, 4, 4)),
+        NS(length=  72, threads_per_block= 64, threads_per_transform=  9, factors=(8, 3, 3)),
+        NS(length=  75, threads_per_block=256, threads_per_transform= 25, factors=(5, 5, 3)),
+        NS(length=  80, threads_per_block= 64, threads_per_transform= 10, factors=(5, 2, 8)),
+        NS(length=  81, threads_per_block=128, threads_per_transform= 27, factors=(3, 3, 3, 3)),
+        NS(length=  84, threads_per_block=128, threads_per_transform= 12, factors=(7, 2, 6)),
+        NS(length=  88, threads_per_block=128, threads_per_transform= 11, factors=(11, 8)),
+        NS(length=  90, threads_per_block= 64, threads_per_transform=  9, factors=(3, 3, 10)),
+        NS(length=  96, threads_per_block=128, threads_per_transform= 16, factors=(6, 16)),
+        NS(length= 100, threads_per_block= 64, threads_per_transform= 10, factors=(10, 10)),
+        NS(length= 104, threads_per_block= 64, threads_per_transform=  8, factors=(13, 8)),
+        NS(length= 108, threads_per_block=256, threads_per_transform= 36, factors=(6, 6, 3)),
+        NS(length= 112, threads_per_block=256, threads_per_transform= 16, factors=(4, 7, 4), half_lds=False),
+        NS(length= 120, threads_per_block= 64, threads_per_transform= 12, factors=(6, 10, 2)),
+        NS(length= 121, threads_per_block=128, threads_per_transform= 11, factors=(11, 11)),
+        NS(length= 125, threads_per_block=256, threads_per_transform= 25, factors=(5, 5, 5), half_lds=False),
+        NS(length= 128, threads_per_block=256, threads_per_transform= 16, factors=(16, 8)),
+        NS(length= 135, threads_per_block=128, threads_per_transform=  9, factors=(5, 3, 3, 3)),
+        NS(length= 144, threads_per_block=128, threads_per_transform= 12, factors=(6, 6, 4)),
+        NS(length= 150, threads_per_block= 64, threads_per_transform=  5, factors=(10, 5, 3)),
+        NS(length= 160, threads_per_block=256, threads_per_transform= 16, factors=(16, 10)),
+        NS(length= 162, threads_per_block=256, threads_per_transform= 27, factors=(6, 3, 3, 3)),
+        NS(length= 168, threads_per_block=256, threads_per_transform= 56, factors=(8, 7, 3), half_lds=False),
+        NS(length= 169, threads_per_block=256, threads_per_transform= 13, factors=(13, 13)),
+        NS(length= 176, threads_per_block= 64, threads_per_transform= 16, factors=(11, 16)),
+        NS(length= 180, threads_per_block=256, threads_per_transform= 60, factors=(10, 6, 3), half_lds=False),
+        NS(length= 192, threads_per_block=128, threads_per_transform= 16, factors=(6, 4, 4, 2)),
+        NS(length= 200, threads_per_block= 64, threads_per_transform= 20, factors=(10, 10, 2)),
+        NS(length= 208, threads_per_block= 64, threads_per_transform= 16, factors=(13, 16)),
+        NS(length= 216, threads_per_block=256, threads_per_transform= 36, factors=(6, 6, 6)),
+        NS(length= 224, threads_per_block= 64, threads_per_transform= 16, factors=(7, 2, 2, 2, 2, 2)),
+        NS(length= 225, threads_per_block=256, threads_per_transform= 75, factors=(5, 5, 3, 3)),
+        NS(length= 240, threads_per_block=128, threads_per_transform= 48, factors=(8, 5, 6)),
+        NS(length= 243, threads_per_block=256, threads_per_transform= 81, factors=(3, 3, 3, 3, 3)),
+        NS(length= 250, threads_per_block=128, threads_per_transform= 25, factors=(10, 5, 5)),
+        NS(length= 256, threads_per_block= 64, threads_per_transform= 64, factors=(4, 4, 4, 4)),
+        NS(length= 270, threads_per_block=128, threads_per_transform= 27, factors=(10, 3, 3, 3)),
+        NS(length= 272, threads_per_block=128, threads_per_transform= 17, factors=(16, 17)),
+        NS(length= 288, threads_per_block=128, threads_per_transform= 24, factors=(6, 6, 4, 2)),
+        NS(length= 300, threads_per_block= 64, threads_per_transform= 30, factors=(10, 10, 3)),
+        NS(length= 320, threads_per_block= 64, threads_per_transform= 16, factors=(10, 4, 4, 2)),
+        NS(length= 324, threads_per_block= 64, threads_per_transform= 54, factors=(3, 6, 6, 3)),
+        NS(length= 336, threads_per_block=128, threads_per_transform= 56, factors=(8, 7, 6)),
+        NS(length= 343, threads_per_block=256, threads_per_transform= 49, factors=(7, 7, 7)),
+        NS(length= 360, threads_per_block=256, threads_per_transform= 60, factors=(10, 6, 6)),
+        NS(length= 375, threads_per_block=128, threads_per_transform= 25, factors=(5, 5, 5, 3)),
+        NS(length= 384, threads_per_block=128, threads_per_transform= 32, factors=(6, 4, 4, 4)),
+        NS(length= 400, threads_per_block=128, threads_per_transform= 40, factors=(4, 10, 10)),
+        NS(length= 405, threads_per_block=128, threads_per_transform= 27, factors=(5, 3, 3, 3, 3)),
+        NS(length= 432, threads_per_block= 64, threads_per_transform= 27, factors=(3, 16, 3, 3)),
+        NS(length= 450, threads_per_block=128, threads_per_transform= 30, factors=(10, 5, 3, 3)),
+        NS(length= 480, threads_per_block= 64, threads_per_transform= 16, factors=(10, 8, 6)),
+        NS(length= 486, threads_per_block=256, threads_per_transform=162, factors=(6, 3, 3, 3, 3)),
+        NS(length= 500, threads_per_block=128, threads_per_transform=100, factors=(10, 5, 10)),
+        NS(length= 512, threads_per_block= 64, threads_per_transform= 64, factors=(8, 8, 8)),
+        NS(length= 528, threads_per_block= 64, threads_per_transform= 48, factors=(4, 4, 3, 11)),
+        NS(length= 540, threads_per_block=256, threads_per_transform= 54, factors=(3, 10, 6, 3)),
+        NS(length= 576, threads_per_block=128, threads_per_transform= 96, factors=(16, 6, 6)),
+        NS(length= 600, threads_per_block= 64, threads_per_transform= 60, factors=(10, 6, 10)),
+        NS(length= 625, threads_per_block=128, threads_per_transform=125, factors=(5, 5, 5, 5)),
+        NS(length= 640, threads_per_block=128, threads_per_transform= 64, factors=(8, 10, 8)),
+        NS(length= 648, threads_per_block=256, threads_per_transform=216, factors=(8, 3, 3, 3, 3)),
+        NS(length= 675, threads_per_block=256, threads_per_transform=225, factors=(5, 5, 3, 3, 3)),
+        NS(length= 720, threads_per_block=256, threads_per_transform=120, factors=(10, 3, 8, 3)),
+        NS(length= 729, threads_per_block=256, threads_per_transform=243, factors=(3, 3, 3, 3, 3, 3)),
+        NS(length= 750, threads_per_block=256, threads_per_transform=250, factors=(10, 5, 3, 5)),
+        NS(length= 768, threads_per_block= 64, threads_per_transform= 48, factors=(16, 3, 16)),
+        NS(length= 800, threads_per_block=256, threads_per_transform=160, factors=(16, 5, 10)),
+        NS(length= 810, threads_per_block=128, threads_per_transform= 81, factors=(3, 10, 3, 3, 3)),
+        NS(length= 864, threads_per_block= 64, threads_per_transform= 54, factors=(3, 6, 16, 3)),
+        NS(length= 900, threads_per_block=256, threads_per_transform= 90, factors=(10, 10, 3, 3)),
+        NS(length= 960, threads_per_block=256, threads_per_transform=160, factors=(16, 10, 6), half_lds=False),
+        NS(length= 972, threads_per_block=256, threads_per_transform=162, factors=(3, 6, 3, 6, 3)),
+        NS(length=1000, threads_per_block=128, threads_per_transform=100, factors=(10, 10, 10)),
+        NS(length=1024, threads_per_block=128, threads_per_transform=128, factors=(8, 8, 4, 4)),
+        NS(length=1040, threads_per_block=256, threads_per_transform=208, factors=(13, 16, 5)),
+        NS(length=1080, threads_per_block=256, threads_per_transform=108, factors=(6, 10, 6, 3)),
+        NS(length=1125, threads_per_block=256, threads_per_transform=225, factors=(5, 5, 3, 3, 5)),
+        NS(length=1152, threads_per_block=256, threads_per_transform=144, factors=(4, 3, 8, 3, 4)),
+        NS(length=1200, threads_per_block=256, threads_per_transform= 75, factors=(5, 5, 16, 3)),
+        NS(length=1215, threads_per_block=256, threads_per_transform=243, factors=(5, 3, 3, 3, 3, 3)),
+        NS(length=1250, threads_per_block=256, threads_per_transform=250, factors=(5, 10, 5, 5)),
+        NS(length=1280, threads_per_block=128, threads_per_transform= 80, factors=(16, 5, 16)),
+        NS(length=1296, threads_per_block=128, threads_per_transform=108, factors=(6, 6, 6, 6)),
+        NS(length=1350, threads_per_block=256, threads_per_transform=135, factors=(5, 10, 3, 3, 3)),
+        NS(length=1440, threads_per_block=128, threads_per_transform= 90, factors=(10, 16, 3, 3)),
+        NS(length=1458, threads_per_block=256, threads_per_transform=243, factors=(6, 3, 3, 3, 3, 3)),
+        NS(length=1500, threads_per_block=256, threads_per_transform=150, factors=(5, 10, 10, 3)),
+        NS(length=1536, threads_per_block=256, threads_per_transform=256, factors=(16, 16, 6)),
+        NS(length=1600, threads_per_block=256, threads_per_transform=100, factors=(10, 16, 10)),
+        NS(length=1620, threads_per_block=256, threads_per_transform=162, factors=(10, 3, 3, 6, 3)),
+        NS(length=1728, threads_per_block=128, threads_per_transform=108, factors=(3, 6, 6, 16)),
+        NS(length=1800, threads_per_block=256, threads_per_transform=180, factors=(10, 6, 10, 3)),
+        NS(length=1875, threads_per_block=256, threads_per_transform=125, factors=(5, 5, 5, 5, 3)),
+        NS(length=1920, threads_per_block=256, threads_per_transform=120, factors=(10, 6, 16, 2)),
+        NS(length=1944, threads_per_block=256, threads_per_transform=243, factors=(3, 3, 3, 3, 8, 3)),
+        NS(length=2000, threads_per_block=128, threads_per_transform=125, factors=(5, 5, 5, 16)),
+        NS(length=2025, threads_per_block=256, threads_per_transform=135, factors=(3, 3, 5, 5, 3, 3)),
+        NS(length=2048, threads_per_block=256, threads_per_transform=256, factors=(16, 16, 8)),
+        NS(length=2160, threads_per_block=256, threads_per_transform= 60, factors=(10, 6, 6, 6)),
+        NS(length=2187, threads_per_block=256, threads_per_transform=243, factors=(3, 3, 3, 3, 3, 3, 3)),
+        NS(length=2250, threads_per_block=256, threads_per_transform= 90, factors=(10, 3, 5, 3, 5)),
+        NS(length=2304, threads_per_block=256, threads_per_transform=192, factors=(6, 6, 4, 4, 4)),
+        NS(length=2400, threads_per_block=256, threads_per_transform=240, factors=(4, 10, 10, 6)),
+        NS(length=2430, threads_per_block=256, threads_per_transform= 81, factors=(10, 3, 3, 3, 3, 3)),
+        NS(length=2500, threads_per_block=256, threads_per_transform=250, factors=(10, 5, 10, 5)),
+        NS(length=2560, threads_per_block=128, threads_per_transform=128, factors=(4, 4, 4, 10, 4)),
+        NS(length=2592, threads_per_block=256, threads_per_transform=216, factors=(6, 6, 6, 6, 2)),
+        NS(length=2700, threads_per_block=128, threads_per_transform= 90, factors=(3, 10, 10, 3, 3)),
+        NS(length=2880, threads_per_block=256, threads_per_transform= 96, factors=(10, 6, 6, 2, 2, 2)),
+        NS(length=2916, threads_per_block=256, threads_per_transform=243, factors=(6, 6, 3, 3, 3, 3)),
+        NS(length=3000, threads_per_block=128, threads_per_transform=100, factors=(10, 3, 10, 10)),
+        NS(length=3072, threads_per_block=256, threads_per_transform=256, factors=(6, 4, 4, 4, 4, 2)),
+        NS(length=3125, threads_per_block=128, threads_per_transform=125, factors=(5, 5, 5, 5, 5)),
+        NS(length=3200, threads_per_block=256, threads_per_transform=160, factors=(10, 10, 4, 4, 2)),
+        NS(length=3240, threads_per_block=128, threads_per_transform=108, factors=(3, 3, 10, 6, 6)),
+        NS(length=3375, threads_per_block=256, threads_per_transform=225, factors=(5, 5, 5, 3, 3, 3)),
+        NS(length=3456, threads_per_block=256, threads_per_transform=144, factors=(6, 6, 6, 4, 4)),
+        NS(length=3600, threads_per_block=256, threads_per_transform=120, factors=(10, 10, 6, 6)),
+        NS(length=3645, threads_per_block=256, threads_per_transform=243, factors=(5, 3, 3, 3, 3, 3, 3)),
+        NS(length=3750, threads_per_block=256, threads_per_transform=125, factors=(3, 5, 5, 10, 5)),
+        NS(length=3840, threads_per_block=256, threads_per_transform=128, factors=(10, 6, 2, 2, 2, 2, 2, 2)),
+        NS(length=3888, threads_per_block=512, threads_per_transform=324, factors=(16, 3, 3, 3, 3, 3)),
+        NS(length=4000, threads_per_block=256, threads_per_transform=200, factors=(10, 10, 10, 4)),
+        NS(length=4050, threads_per_block=256, threads_per_transform=135, factors=(10, 5, 3, 3, 3, 3)),
+        NS(length=4096, threads_per_block=256, threads_per_transform=256, factors=(16, 16, 16)),
+    ]
 
+    kernels = [NS(**kernel.__dict__,
+                  scheme='CS_KERNEL_STOCKHAM',
+                  precision=['sp', 'dp']) for kernel in kernels1d]
 
-    # dictionary of (flavour, threads_per_block) -> list of kernels to generate
-    # note the length property is necessary for the latter pick and merge_length
-    small_kernels = {
-        ('uwide', 256): [
-#            NS(length=2, factors=[2]),
-#            NS(length=3, factors=[3]),
-#            NS(length=5, factors=[5]),
-#            NS(length=6, factors=[6]),
-#            NS(length=7, factors=[7]),
-#            NS(length=8, factors=[8]),
-            NS(length=9, factors=[3,3], runtime_compile=True),
-#            NS(length=10, factors=[10]),
-            NS(length=12, factors=[6,2]),
-            NS(length=14, factors=[7,2]),
-            NS(length=15, factors=[5,3]),
-            NS(length=17, factors=[17]),
-#            NS(length=18, factors=[6,3]),
-            NS(length=20, factors=[10,2]),
-            NS(length=21, factors=[7,3]),
-            NS(length=24, factors=[8,3]),
-            NS(length=25, factors=[5,5]),
-#            NS(length=27, factors=[3,3,3]),
-            NS(length=28, factors=[7,4]),
-            NS(length=30, factors=[10,3]),
-            NS(length=36, factors=[6,6]),
-            NS(length=42, factors=[7,6]),
-            NS(length=45, factors=[5,3,3]),
-#            NS(length=49, factors=[7,7]),
-            NS(length=50, factors=[10,5]),
-            NS(length=54, factors=[6,3,3]),
-            NS(length=56, factors=[8,7]),
-#            NS(length=64, factors=[16,4]),
-#            NS(length=72, factors=[8,3,3]),
-            NS(length=75, factors=[5,5,3]),
-            NS(length=80, factors=[16,5]),
-#            NS(length=81, factors=[3,3,3,3]),
-#            NS(length=100, factors=[10,10]),
-            NS(length=108, factors=[6,6,3]),
-            NS(length=112, factors=[16,7]),
-            NS(length=125, factors=[5,5,5]),
-#            NS(length=128, factors=[16,8]),
-#            NS(length=135, factors=[5,3,3,3]),
-#            NS(length=150, factors=[10,5,3]),
-            NS(length=160, factors=[16,10]),
-#            NS(length=162, factors=[6,3,3,3]),
-            NS(length=168, factors=[8,7,3]),
-            NS(length=180, factors=[10,6,3]),
-#            NS(length=216, factors=[8,3,3,3]),
-            NS(length=225, factors=[5,5,3,3]),
-            NS(length=240, factors=[16,5,3]),
-#            NS(length=243, factors=[3,3,3,3,3]),
-#            NS(length=256, factors=[16,16]),
-#            NS(length=270, factors=[10,3,3,3]),
-#            NS(length=288, factors=[16,6,3]),
-            NS(length=324, factors=[6,6,3,3]),
-            NS(length=343, factors=[7,7,7]),
-            NS(length=360, factors=[10,6,6]),
-            NS(length=400, factors=[16,5,5]),
-#            NS(length=486, factors=[6,3,3,3,3]),
-#            NS(length=540, factors=[10,6,3,3]),
-            NS(length=648, factors=[8,3,3,3,3]),
-            NS(length=720, factors=[16,5,3,3]),
-#            NS(length=729, factors=[3,3,3,3,3,3]),
-            NS(length=960, factors=[16,10,6]),
-            NS(length=1040, factors=[13,16,5]),
-        ],
-        ('uwide', 128): [
-            NS(length=96, factors=[6,16]),
-            NS(length=272, factors=[16,17]),
-        ],
-        ('wide', 64): [
-#            NS(length=11, factors=[11]),
-            NS(length=22, factors=[2,11]),
-            NS(length=44, factors=[4,11]),
-            NS(length=52, factors=[13,4]),
-            NS(length=60, factors=[6,10]),
-            NS(length=84, factors=[2,6,7]),
-            NS(length=90, factors=[3,3,10]),
-            NS(length=120, factors=[2,6,10]),
-#            NS(length=200, factors=[2,10,10]),
-            NS(length=300, factors=[3,10,10]),
-            NS(length=528, factors=[4,4,3,11]),
-        ],
-        ('uwide', 64): [
-            NS(length=32, factors=[16,2]),
-            NS(length=40, factors=[10,4]),
-            NS(length=48, factors=[3,4,4]),
-            NS(length=88, factors=[11,8]),
-            NS(length=176, factors=[16,11]),
-            NS(length=336, factors=[7,8,6]),
-        ],
-        # ('tall', X): [
-        #     NS(length=4),
-        #     NS(length=13),
-        #     NS(length=16),
-        #     NS(length=26),
-        #     NS(length=52),
-        #     NS(length=104),
-        #     NS(length=169),
-        #     NS(length=192),
-        #     NS(length=208),
-        #     NS(length=320),
-        #     NS(length=512),
-        #     NS(length=625),
-        #     NS(length=864),
-        #     NS(length=1000),
-        # ]
-    }
+    return kernels
 
-    expanded = []
-    for params, kernels in small_kernels.items():
-        flavour, threads_per_block = params
-        expanded.extend(NS(**kernel.__dict__,
-                           flavour=flavour,
-                           threads_per_block=threads_per_block,
-                           half_lds=kernel.length==56,
-                           scheme='CS_KERNEL_STOCKHAM') for kernel in kernels)
-
-    return expanded
-
-def list_new_2d_kernels():
-    """Return list of fused 2D kernels to generate with new generator."""
+def list_2d_kernels():
+    """Return list of fused 2D kernels to generate."""
 
     # can probably merge this with above when old gen is gone
 
@@ -667,8 +495,8 @@ def list_new_2d_kernels():
     return expanded
 
 
-def list_new_large_kernels():
-    """Return list of large kernels to generate with the new generator."""
+def list_large_kernels():
+    """Return list of large kernels to generate."""
 
     sbcc_kernels = [
         NS(length=50,  factors=[10, 5],      use_3steps_large_twd={
@@ -703,8 +531,8 @@ def list_new_large_kernels():
            'sp': 'false', 'dp': 'false'}, flavour='wide'),
         NS(length=168, factors=[7, 6, 4],    use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'}, threads_per_block=128),
-        NS(length=192, factors=[6, 4, 4, 2], use_3steps_large_twd={
-           'sp': 'false', 'dp': 'false'}),
+        # NS(length=192, factors=[6, 4, 4, 2], use_3steps_large_twd={
+        #    'sp': 'false', 'dp': 'false'}),
         NS(length=200, factors=[8, 5, 5],    use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'}),
         NS(length=208, factors=[13, 16],     use_3steps_large_twd={
@@ -728,7 +556,7 @@ def list_new_large_kernels():
         k.scheme = 'CS_KERNEL_STOCKHAM_BLOCK_CC'
         if not hasattr(k, 'threads_per_block'):
             k.threads_per_block = block_width * \
-                reduce(mul, k.factors, 1) // min(k.factors)
+                functools.reduce(mul, k.factors, 1) // min(k.factors)
         if not hasattr(k, 'length'):
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
 
@@ -762,7 +590,7 @@ def list_new_large_kernels():
         k.scheme = 'CS_KERNEL_STOCKHAM_BLOCK_CR'
         if not hasattr(k, 'threads_per_block'):
             k.threads_per_block = block_width * \
-                reduce(mul, k.factors, 1) // min(k.factors)
+                functools.reduce(mul, k.factors, 1) // min(k.factors)
         if not hasattr(k, 'length'):
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
 
@@ -900,7 +728,7 @@ def generate_kernel(kernel, precisions):
     return cpu_functions
 
 
-def generate_new_kernels(kernels, precisions):
+def generate_kernels(kernels, precisions):
     """Generate and write kernels from the kernel list.
 
     Entries in the kernel list are simple namespaces.  These are
@@ -915,7 +743,6 @@ def cli():
     """Command line interface..."""
     parser = argparse.ArgumentParser(prog='kernel-generator')
     subparsers = parser.add_subparsers(dest='command')
-    parser.add_argument('--groups', type=int, help='Numer of small kernel groups.', default=150)
     parser.add_argument('--pattern', type=str, help='Kernel pattern to generate.', default='all')
     parser.add_argument('--precision', type=str, help='Precision to generate.', default='all')
     parser.add_argument('--manual-small', type=str, help='Small kernel sizes to generate.')
@@ -929,155 +756,73 @@ def cli():
 
     args = parser.parse_args()
 
-    #
-    # which kernels to build? set the flags for generate before modifying patterns
-    #
     patterns = args.pattern.split(',')
-    large = 'all' in patterns or 'large' in patterns
-    small = 'all' in patterns or 'small' in patterns
-    dim2  = 'all' in patterns or '2D' in patterns
-    pow2  = small or 'pow2' in patterns
-    pow3  = small or 'pow3' in patterns
-    pow5  = small or 'pow5' in patterns
-    pow7  = small or 'pow7' in patterns
-
-    if patterns == ['none']:
-        patterns = []
-    if args.manual_small:
-        patterns += ['small']
-    if args.manual_large:
-        patterns += ['large']
-    # TODO- if dim2, pattern += small as well
-
-    replacements = {
-        'pow2': 'small',
-        'pow3': 'small',
-        'pow5': 'small',
-        'pow7': 'small',
-    }
-
-    patterns = [replacements.get(key, key) for key in patterns if key != 'none']
-    if 'all' in patterns:
-        patterns += ['small']
-        patterns += ['large']
-        patterns += ['2D']
-    patterns = set(patterns)
-
-    #
-    # which precicions to build?
-    #
     precisions = args.precision.split(',')
-
-    replacements = {
-        'single': 'sp',
-        'double': 'dp',
-    }
-
-    precisions = [replacements.get(key, key) for key in precisions if key != 'none']
     if 'all' in precisions:
         precisions = ['sp', 'dp']
-    precisions = set(precisions)
-
+    precisions = [{'single': 'sp', 'double': 'dp'}.get(p, p) for p in precisions]
 
     #
-    # list all the exact sizes of kernels to build
+    # kernel list
     #
-    manual_small = None
+
+    kernels = []
+    all_kernels = list_small_kernels() + list_large_kernels() + list_2d_kernels()
+
+    manual_small, manual_large = [], []
     if args.manual_small:
-        manual_small = product(map(int, args.manual_small.split(',')),
-                               ['CS_KERNEL_STOCKHAM'])
-
-    manual_large = None
+        manual_small = list(map(int, args.manual_small.split(',')))
     if args.manual_large:
-        manual_large = product(map(int, args.manual_large.split(',')),
-                               ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC'])
+        manual_large = list(map(int, args.manual_large.split(',')))
 
-    # all kernels to be generated from arguments
-    expand_sizes = {
-        'small': { 'sp': [], 'dp': [] },
-        'large': { 'sp': [], 'dp': [] },
-    }
-
-    if small or pow2 or pow3 or pow5 or pow7:
-        for p in precisions:
-            expand_sizes['small'][p] = merge(expand_sizes['small'][p], supported_small_sizes(p, pow2, pow3, pow5, pow7))
+    if 'all' in patterns and not manual_small and not manual_large:
+        kernels += all_kernels
+    if 'pow2' in patterns:
+        lengths = [2**x for x in range(13)]
+        kernels += [k for k in all_kernels if k.length in lengths]
+    if 'pow3' in patterns:
+        lengths = [3**x for x in range(8)]
+        kernels += [k for k in all_kernels if k.length in lengths]
+    if 'pow5' in patterns:
+        lengths = [5**x for x in range(6)]
+        kernels += [k for k in all_kernels if k.length in lengths]
+    if 'pow7' in patterns:
+        lengths = [7**x for x in range(5)]
+        kernels += [k for k in all_kernels if k.length in lengths]
+    if 'small' in patterns:
+        schemes = ['CS_KERNEL_STOCKHAM']
+        kernels += [k for k in all_kernels if k.scheme in schemes]
+    if 'large' in patterns:
+        schemes = ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC']
+        kernels += [k for k in all_kernels if k.scheme in schemes]
     if manual_small:
-        for p in precisions:
-            expand_sizes['small'][p] = merge(expand_sizes['small'][p], manual_small)
-    if large:
-        for p in precisions:
-            expand_sizes['large'][p] = merge(expand_sizes['large'][p], supported_large_sizes(p))
+        schemes = ['CS_KERNEL_STOCKHAM']
+        kernels += [k for k in all_kernels if k.length in manual_small and k.scheme in schemes]
     if manual_large:
-        for p in precisions:
-            expand_sizes['large'][p] = merge(expand_sizes['large'][p], manual_large)
+        schemes = ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC']
+        kernels += [k for k in all_kernels if k.length in manual_large and k.scheme in schemes]
+
+    kernels = unique(kernels)
 
     #
-    # which kernels by new-gen and which by old-gen? categorize input kernels
+    # set runtime compile
     #
-    supported_new_small_kernels = list_new_kernels()
-    supported_new_large_kernels = list_new_large_kernels()
-    new_small_kernels = new_large_kernels = []
 
-    # Don't subtract_from_all for large, since so far sbrc and transpose still rely on old-gen.
-    for p in precisions:
-        expand_sizes['small'][p], new_smalls = pick(expand_sizes['small'][p], supported_new_small_kernels)
-        expand_sizes['large'][p], new_larges = pick(expand_sizes['large'][p], supported_new_large_kernels, subtract_from_all=False)
-        new_small_kernels = merge_length(new_small_kernels, new_smalls)
-        new_large_kernels = merge_length(new_large_kernels, new_larges)
-
-    new_kernels = new_small_kernels + new_large_kernels
-    if dim2:
-        new_kernels += list_new_2d_kernels()
-    # set runtime_compile on new kernels that haven't already set a
-    # value
-    new_kernels = default_runtime_compile(new_kernels)
-
+    kernels = default_runtime_compile(kernels)
     if args.runtime_compile != 'ON':
-        for k in new_kernels:
+        for k in kernels:
             k.runtime_compile = False
 
-    # update the patterns after removing new kernels from old generator to avoid including some missing cpp
-    if 'small' in patterns and len(expand_sizes['small']['sp']) == 0 and len(expand_sizes['small']['dp']) == 0:
-        patterns.remove('small')
-    if 'large' in patterns and len(expand_sizes['large']['sp']) == 0 and len(expand_sizes['large']['dp']) == 0:
-        patterns.remove('large')
+    #
+    # sub commands
+    #
 
-    #
-    # return the necessary include files to cmake
-    #
     if args.command == 'list':
-
-        scprint(set(list_old_generated_kernels(patterns=patterns,
-                                               precisions=precisions,
-                                               num_small_kernel_groups=args.groups)
-                    + list_generated_kernels(new_kernels)))
-        return
+        scprint(set(['function_pool.cpp'] + list_generated_kernels(kernels)))
 
     if args.command == 'generate':
-
-        # collection of Functions to generate prototypes for
-        psmall, plarge, p2d = {}, {}, {}
-
-        # already excludes small and large-1D from new-generators
-        for p in precisions:
-            psmall = pmerge(psmall, generate_small_1d_prototypes(p, expand_sizes['small'][p]))
-
-        if dim2:
-            for p in precisions:
-                transform_2D = merge([], supported_2d_sizes(p))
-                p2d = pmerge(p2d, generate_2d_prototypes(p, transform_2D))
-
-        # hijack a few new kernels...
-        pnew = pmerge({}, generate_new_kernels(new_kernels, precisions))
-
-        cpu_functions = list(merge(psmall, plarge, p2d, pnew).values())
+        cpu_functions = generate_kernels(kernels, precisions)
         write('function_pool.cpp', generate_cpu_function_pool(cpu_functions), format=True)
-
-        old_small_lengths = {f.meta.length for f in psmall.values()}
-        new_large_lengths = {k.length for k in new_large_kernels} # sbcc by new-gen
-
-        if old_small_lengths:
-            subprocess.run([args.generator, '-g', str(args.groups), '-p', args.precision, '-t', 'none', '--manual-small', cjoin(sorted(old_small_lengths))], check=True)
 
 
 if __name__ == '__main__':

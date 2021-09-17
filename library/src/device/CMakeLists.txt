@@ -68,29 +68,22 @@ if( NOT GENERATOR_MANUAL_LARGE_SIZE )
 endif()
 
 # default:
-# not specifying any properties generate all size, with all precision with 150 small kernel groups (cpp)
+# not specifying any properties generate all size, with all precision
 
 # example 1:
 # Adding the following cmd lines to generate only [small-4096], [large-100-sbcc/sbrc] with single precision
-# And GENERATOR_GROUP_NUM=8 generates 8 small kernel groups (cpp)
 # "-DGENERATOR_PATTERN=none"
 # "-DGENERATOR_PRECISION=single"
 # "-DGENERATOR_MANUAL_SMALL_SIZE=4096"
 # "-DGENERATOR_MANUAL_LARGE_SIZE=100"
-# "-DGENERATOR_GROUP_NUM=8"
 
 # example 2:
 # Adding the following cmd lines to generate all [2D], [pow2], and [small-336, 56] with double precision
-# And GENERATOR_GROUP_NUM=3 generates 3 small kernel groups (cpp)
 # "-DGENERATOR_PATTERN=2D,pow2"
 # "-DGENERATOR_PRECISION=double"
 # "-DGENERATOR_MANUAL_SMALL_SIZE=56,336"
-# "-DGENERATOR_GROUP_NUM=3"
 
 # Make it possible to let install.sh control this ?
-if( NOT GENERATOR_GROUP_NUM )
-  set( GENERATOR_GROUP_NUM 150 )
-endif()
 set( kgen ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py )
 set( kgendeps ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py
               ${CMAKE_SOURCE_DIR}/library/src/device/generator.py
@@ -99,7 +92,6 @@ set( kgendeps ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py
 execute_process(COMMAND ${PYTHON3_EXE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
-  --groups=${GENERATOR_GROUP_NUM}
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
   --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
@@ -114,7 +106,6 @@ add_custom_command(OUTPUT ${gen_headers}
   COMMAND ${PYTHON3_EXE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
-  --groups=${GENERATOR_GROUP_NUM}
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
   --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
