@@ -175,8 +175,11 @@ struct cmplx_planar_device_buffer
         planar<T> hostBuf;
         hostBuf.R = static_cast<real_type_t<T>*>(real);
         hostBuf.I = static_cast<real_type_t<T>*>(imag);
-        deviceBuf.alloc(sizeof(hostBuf));
-        hipMemcpy(deviceBuf.data(), &hostBuf, sizeof(hostBuf), hipMemcpyHostToDevice);
+        if(deviceBuf.alloc(sizeof(hostBuf)) != hipSuccess)
+            throw std::bad_alloc();
+        if(hipMemcpy(deviceBuf.data(), &hostBuf, sizeof(hostBuf), hipMemcpyHostToDevice)
+           != hipSuccess)
+            throw std::runtime_error("failed to copy planar buffer");
     }
     // if we're given const pointers, cheat and cast away const to
     // simplify this struct.  the goal of this struct is to

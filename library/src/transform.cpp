@@ -139,7 +139,8 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
         if(!info.workBuffer)
         {
             // user didn't provide a buffer, alloc one now
-            autoAllocWorkBuf.alloc(requiredWorkBufBytes);
+            if(autoAllocWorkBuf.alloc(requiredWorkBufBytes) != hipSuccess)
+                return rocfft_status_failure;
             info.workBufferSize = requiredWorkBufBytes;
             info.workBuffer     = autoAllocWorkBuf.data();
         }

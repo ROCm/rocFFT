@@ -582,7 +582,7 @@ std::vector<char> RTCKernel::compile(const std::string& kernel_src)
     return code;
 }
 
-hipError_t RTCKernel::launch(DeviceCallIn& data)
+void RTCKernel::launch(DeviceCallIn& data)
 {
     // arguments get pushed in an array of 64-bit values
     std::vector<void*> kargs;
@@ -631,17 +631,19 @@ hipError_t RTCKernel::launch(DeviceCallIn& data)
 
     const auto& gp = data.gridParam;
 
-    return hipModuleLaunchKernel(kernel,
-                                 gp.b_x,
-                                 gp.b_y,
-                                 gp.b_z,
-                                 gp.tpb_x,
-                                 gp.tpb_y,
-                                 gp.tpb_z,
-                                 gp.lds_bytes,
-                                 nullptr,
-                                 nullptr,
-                                 config);
+    if(hipModuleLaunchKernel(kernel,
+                             gp.b_x,
+                             gp.b_y,
+                             gp.b_z,
+                             gp.tpb_x,
+                             gp.tpb_y,
+                             gp.tpb_z,
+                             gp.lds_bytes,
+                             nullptr,
+                             nullptr,
+                             config)
+       != hipSuccess)
+        throw std::runtime_error("hipModuleLaunchKernel failure");
 }
 
 #ifdef ROCFFT_RUNTIME_COMPILE

@@ -43,7 +43,7 @@ struct RTCKernel
     ~RTCKernel()
     {
         kernel = nullptr;
-        hipModuleUnload(module);
+        (void)hipModuleUnload(module);
         module = nullptr;
     }
 
@@ -52,7 +52,7 @@ struct RTCKernel
     RTCKernel(RTCKernel&&)      = delete;
     void operator=(const RTCKernel&) = delete;
 
-    hipError_t launch(DeviceCallIn& data);
+    void launch(DeviceCallIn& data);
 
     // close kernel cache explicitly.  cache will be reopened
     // on-demand.

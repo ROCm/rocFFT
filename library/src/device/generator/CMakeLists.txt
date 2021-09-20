@@ -12,7 +12,7 @@ endif( )
 
 set_target_properties( rocfft-kernel-generator PROPERTIES DEBUG_POSTFIX "-d" )
 set_target_properties( rocfft-kernel-generator PROPERTIES
-  CXX_STANDARD 14
+  CXX_STANDARD 17
   CXX_STANDARD_REQUIRED ON
 )
 

@@ -131,11 +131,17 @@ static float max_memory_bandwidth_GB_per_s()
 
     // Try to get the device bandwidth from hip calls:
     int deviceid = 0;
-    hipGetDevice(&deviceid);
+    if(hipGetDevice(&deviceid) != hipSuccess)
+        // default to first device
+        deviceid = 0;
     int max_memory_clock_kHz = 0;
     int memory_bus_width     = 0;
-    hipDeviceGetAttribute(&max_memory_clock_kHz, hipDeviceAttributeMemoryClockRate, deviceid);
-    hipDeviceGetAttribute(&memory_bus_width, hipDeviceAttributeMemoryBusWidth, deviceid);
+    if(hipDeviceGetAttribute(&max_memory_clock_kHz, hipDeviceAttributeMemoryClockRate, deviceid)
+       != hipSuccess)
+        max_memory_clock_kHz = 0;
+    if(hipDeviceGetAttribute(&memory_bus_width, hipDeviceAttributeMemoryBusWidth, deviceid)
+       != hipSuccess)
+        memory_bus_width = 0;
     auto max_memory_clock_MHz = static_cast<float>(max_memory_clock_kHz) / 1000.0;
     // multiply by 2.0 because transfer is bidirectional
     // divide by 8.0 because bus width is in bits and we want bytes
@@ -195,8 +201,12 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
         bufvec.resize(2);
         bufvec.front().resize(size_bytes / 2);
         bufvec.back().resize(size_bytes / 2);
-        hipMemcpy(bufvec.front().data(), buffer[0], size_bytes / 2, hipMemcpyDeviceToHost);
-        hipMemcpy(bufvec.back().data(), buffer[1], size_bytes / 2, hipMemcpyDeviceToHost);
+        if(hipMemcpy(bufvec.front().data(), buffer[0], size_bytes / 2, hipMemcpyDeviceToHost)
+           != hipSuccess)
+            throw std::runtime_error("hipMemcpy failure");
+        if(hipMemcpy(bufvec.back().data(), buffer[1], size_bytes / 2, hipMemcpyDeviceToHost)
+           != hipSuccess)
+            throw std::runtime_error("hipMemcpy failure");
 
         printbuffer(
             precision, type, bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
@@ -205,7 +215,9 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
     {
         bufvec.resize(1);
         bufvec.front().resize(size_bytes);
-        hipMemcpy(bufvec.front().data(), buffer[0], size_bytes, hipMemcpyDeviceToHost);
+        if(hipMemcpy(bufvec.front().data(), buffer[0], size_bytes, hipMemcpyDeviceToHost)
+           != hipSuccess)
+            throw std::runtime_error("hipMemcpy failure");
         printbuffer(
             precision, type, bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
     }
@@ -252,8 +264,8 @@ void TransformPowX(const ExecPlan&       execPlan,
     hipEvent_t      start, stop;
     if(emit_profile_log)
     {
-        hipEventCreate(&start);
-        hipEventCreate(&stop);
+        if(hipEventCreate(&start) != hipSuccess || hipEventCreate(&stop) != hipSuccess)
+            throw std::runtime_error("hipEventCreate failure");
         max_memory_bw = max_memory_bandwidth_GB_per_s();
     }
 
@@ -403,7 +415,8 @@ void TransformPowX(const ExecPlan&       execPlan,
             *kernelio_stream << "--- --- kernel " << i << " (" << PrintScheme(data.node->scheme)
                              << ") input:" << std::endl;
 
-            hipDeviceSynchronize();
+            if(hipDeviceSynchronize() != hipSuccess)
+                throw std::runtime_error("hipDeviceSynchronize failure");
             DebugPrintBuffer(*kernelio_stream,
                              data.node->inArrayType,
                              data.node->precision,
@@ -451,7 +464,9 @@ void TransformPowX(const ExecPlan&       execPlan,
 
             // execution kernel:
             if(emit_profile_log)
-                hipEventRecord(start);
+                if(hipEventRecord(start) != hipSuccess)
+                    throw std::runtime_error("hipEventRecord failure");
+
             DeviceCallOut back;
 
             // give callback parameters to kernel launcher
@@ -482,7 +497,8 @@ void TransformPowX(const ExecPlan&       execPlan,
                     fn(&data, &back);
             }
             if(emit_profile_log)
-                hipEventRecord(stop);
+                if(hipEventRecord(stop) != hipSuccess)
+                    throw std::runtime_error("hipEventRecord failure");
 
             // If we were on the null stream, measure elapsed time
             // and emit profile logging.  If a stream was given, we
@@ -490,7 +506,8 @@ void TransformPowX(const ExecPlan&       execPlan,
             // emit any information.
             if(emit_profile_log)
             {
-                hipEventSynchronize(stop);
+                if(hipEventSynchronize(stop) != hipSuccess)
+                    throw std::runtime_error("hipEventSynchronize failure");
                 size_t in_size_bytes = data_size_bytes(
                     data.node->length, data.node->precision, data.node->inArrayType);
                 size_t out_size_bytes = data_size_bytes(
@@ -498,7 +515,8 @@ void TransformPowX(const ExecPlan&       execPlan,
                 size_t total_size_bytes = (in_size_bytes + out_size_bytes) * data.node->batch;
 
                 float duration_ms = 0.0f;
-                hipEventElapsedTime(&duration_ms, start, stop);
+                if(hipEventElapsedTime(&duration_ms, start, stop) != hipSuccess)
+                    throw std::runtime_error("hipEventElapsedTime failure");
                 auto exec_bw        = execution_bandwidth_GB_per_s(total_size_bytes, duration_ms);
                 auto efficiency_pct = 0.0;
                 if(max_memory_bw != 0.0)
@@ -539,7 +557,8 @@ void TransformPowX(const ExecPlan&       execPlan,
                                  << hipGetErrorString(err) << std::endl;
                 exit(-1);
             }
-            hipDeviceSynchronize();
+            if(hipDeviceSynchronize() != hipSuccess)
+                throw std::runtime_error("hipDeviceSynchronize failure");
             *kernelio_stream << "executed kernel " << i << " (" << PrintScheme(data.node->scheme)
                              << ")" << std::endl;
         }
@@ -561,7 +580,7 @@ void TransformPowX(const ExecPlan&       execPlan,
     }
     if(emit_profile_log)
     {
-        hipEventDestroy(start);
-        hipEventDestroy(stop);
+        (void)hipEventDestroy(start);
+        (void)hipEventDestroy(stop);
     }
 }

@@ -347,13 +347,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
     {
         if(data->node->precision == rocfft_precision_single)
         {
-            cmplx_float_planar in_planar;
-            in_planar.R = (real_type_t<float2>*)data->bufIn[0];
-            in_planar.I = (real_type_t<float2>*)data->bufIn[1];
-
-            void* d_in_planar;
-            hipMalloc(&d_in_planar, sizeof(cmplx_float_planar));
-            hipMemcpy(d_in_planar, &in_planar, sizeof(cmplx_float_planar), hipMemcpyHostToDevice);
+            cmplx_planar_device_buffer<float2> d_in_planar(data->bufIn[0], data->bufIn[1]);
 
             rocfft_transpose_outofplace_template<cmplx_float,
                                                  cmplx_float_planar,
@@ -361,7 +355,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                  64,
                                                  16>(m,
                                                      n,
-                                                     (const cmplx_float_planar*)d_in_planar,
+                                                     d_in_planar.devicePtr(),
                                                      (cmplx_float*)data->bufOut[0],
                                                      data->node->twiddles_large.data(),
                                                      count,
@@ -382,18 +376,10 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                      data->callbacks.load_cb_lds_bytes,
                                                      data->callbacks.store_cb_fn,
                                                      data->callbacks.store_cb_data);
-
-            hipFree(d_in_planar);
         }
         else
         {
-            cmplx_double_planar in_planar;
-            in_planar.R = (real_type_t<double2>*)data->bufIn[0];
-            in_planar.I = (real_type_t<double2>*)data->bufIn[1];
-
-            void* d_in_planar;
-            hipMalloc(&d_in_planar, sizeof(cmplx_double_planar));
-            hipMemcpy(d_in_planar, &in_planar, sizeof(cmplx_double_planar), hipMemcpyHostToDevice);
+            cmplx_planar_device_buffer<double2> d_in_planar(data->bufIn[0], data->bufIn[1]);
 
             rocfft_transpose_outofplace_template<cmplx_double,
                                                  cmplx_double_planar,
@@ -401,7 +387,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                  32,
                                                  32>(m,
                                                      n,
-                                                     (const cmplx_double_planar*)d_in_planar,
+                                                     d_in_planar.devicePtr(),
                                                      (double2*)data->bufOut[0],
                                                      data->node->twiddles_large.data(),
                                                      count,
@@ -422,8 +408,6 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                      data->callbacks.load_cb_lds_bytes,
                                                      data->callbacks.store_cb_fn,
                                                      data->callbacks.store_cb_data);
-
-            hipFree(d_in_planar);
         }
     }
     else if((data->node->inArrayType == rocfft_array_type_complex_interleaved
@@ -433,13 +417,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
     {
         if(data->node->precision == rocfft_precision_single)
         {
-            cmplx_float_planar out_planar;
-            out_planar.R = (real_type_t<float2>*)data->bufOut[0];
-            out_planar.I = (real_type_t<float2>*)data->bufOut[1];
-
-            void* d_out_planar;
-            hipMalloc(&d_out_planar, sizeof(cmplx_float_planar));
-            hipMemcpy(d_out_planar, &out_planar, sizeof(cmplx_float_planar), hipMemcpyHostToDevice);
+            cmplx_planar_device_buffer<float2> d_out_planar(data->bufOut[0], data->bufOut[1]);
 
             rocfft_transpose_outofplace_template<cmplx_float,
                                                  cmplx_float,
@@ -448,7 +426,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                  16>(m,
                                                      n,
                                                      (const cmplx_float*)data->bufIn[0],
-                                                     (cmplx_float_planar*)d_out_planar,
+                                                     d_out_planar.devicePtr(),
                                                      data->node->twiddles_large.data(),
                                                      count,
                                                      kargs_lengths(data->node->devKernArg),
@@ -468,19 +446,10 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                      data->callbacks.load_cb_lds_bytes,
                                                      data->callbacks.store_cb_fn,
                                                      data->callbacks.store_cb_data);
-
-            hipFree(d_out_planar);
         }
         else
         {
-            cmplx_double_planar out_planar;
-            out_planar.R = (real_type_t<double2>*)data->bufOut[0];
-            out_planar.I = (real_type_t<double2>*)data->bufOut[1];
-
-            void* d_out_planar;
-            hipMalloc(&d_out_planar, sizeof(cmplx_double_planar));
-            hipMemcpy(
-                d_out_planar, &out_planar, sizeof(cmplx_double_planar), hipMemcpyHostToDevice);
+            cmplx_planar_device_buffer<double2> d_out_planar(data->bufOut[0], data->bufOut[1]);
 
             rocfft_transpose_outofplace_template<cmplx_double,
                                                  cmplx_double,
@@ -489,7 +458,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                  32>(m,
                                                      n,
                                                      (const cmplx_double*)data->bufIn[0],
-                                                     (cmplx_double_planar*)d_out_planar,
+                                                     d_out_planar.devicePtr(),
                                                      data->node->twiddles_large.data(),
                                                      count,
                                                      kargs_lengths(data->node->devKernArg),
@@ -509,8 +478,6 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                      data->callbacks.load_cb_lds_bytes,
                                                      data->callbacks.store_cb_fn,
                                                      data->callbacks.store_cb_data);
-
-            hipFree(d_out_planar);
         }
     }
     else if((data->node->inArrayType == rocfft_array_type_complex_planar
@@ -520,20 +487,8 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
     {
         if(data->node->precision == rocfft_precision_single)
         {
-            cmplx_float_planar in_planar;
-            in_planar.R = (real_type_t<float2>*)data->bufIn[0];
-            in_planar.I = (real_type_t<float2>*)data->bufIn[1];
-            cmplx_float_planar out_planar;
-            out_planar.R = (real_type_t<float2>*)data->bufOut[0];
-            out_planar.I = (real_type_t<float2>*)data->bufOut[1];
-
-            void* d_in_planar;
-            hipMalloc(&d_in_planar, sizeof(cmplx_float_planar));
-            hipMemcpy(d_in_planar, &in_planar, sizeof(cmplx_float_planar), hipMemcpyHostToDevice);
-
-            void* d_out_planar;
-            hipMalloc(&d_out_planar, sizeof(cmplx_float_planar));
-            hipMemcpy(d_out_planar, &out_planar, sizeof(cmplx_float_planar), hipMemcpyHostToDevice);
+            cmplx_planar_device_buffer<float2> d_in_planar(data->bufIn[0], data->bufIn[1]);
+            cmplx_planar_device_buffer<float2> d_out_planar(data->bufOut[0], data->bufOut[1]);
 
             rocfft_transpose_outofplace_template<cmplx_float,
                                                  cmplx_float_planar,
@@ -541,8 +496,8 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                  64,
                                                  16>(m,
                                                      n,
-                                                     (const cmplx_float_planar*)d_in_planar,
-                                                     (cmplx_float_planar*)d_out_planar,
+                                                     d_in_planar.devicePtr(),
+                                                     d_out_planar.devicePtr(),
                                                      data->node->twiddles_large.data(),
                                                      count,
                                                      kargs_lengths(data->node->devKernArg),
@@ -562,27 +517,11 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                      data->callbacks.load_cb_lds_bytes,
                                                      data->callbacks.store_cb_fn,
                                                      data->callbacks.store_cb_data);
-
-            hipFree(d_in_planar);
-            hipFree(d_out_planar);
         }
         else
         {
-            cmplx_double_planar in_planar;
-            in_planar.R = (real_type_t<double2>*)data->bufIn[0];
-            in_planar.I = (real_type_t<double2>*)data->bufIn[1];
-            cmplx_double_planar out_planar;
-            out_planar.R = (real_type_t<double2>*)data->bufOut[0];
-            out_planar.I = (real_type_t<double2>*)data->bufOut[1];
-
-            void* d_in_planar;
-            hipMalloc(&d_in_planar, sizeof(cmplx_double_planar));
-            hipMemcpy(d_in_planar, &in_planar, sizeof(cmplx_double_planar), hipMemcpyHostToDevice);
-
-            void* d_out_planar;
-            hipMalloc(&d_out_planar, sizeof(cmplx_double_planar));
-            hipMemcpy(
-                d_out_planar, &out_planar, sizeof(cmplx_double_planar), hipMemcpyHostToDevice);
+            cmplx_planar_device_buffer<double2> d_in_planar(data->bufIn[0], data->bufIn[1]);
+            cmplx_planar_device_buffer<double2> d_out_planar(data->bufOut[0], data->bufOut[1]);
 
             rocfft_transpose_outofplace_template<cmplx_double,
                                                  cmplx_double_planar,
@@ -590,8 +529,8 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                  32,
                                                  32>(m,
                                                      n,
-                                                     (const cmplx_double_planar*)d_in_planar,
-                                                     (cmplx_double_planar*)d_out_planar,
+                                                     d_in_planar.devicePtr(),
+                                                     d_out_planar.devicePtr(),
                                                      data->node->twiddles_large.data(),
                                                      count,
                                                      kargs_lengths(data->node->devKernArg),
@@ -611,9 +550,6 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                      data->callbacks.load_cb_lds_bytes,
                                                      data->callbacks.store_cb_fn,
                                                      data->callbacks.store_cb_data);
-
-            hipFree(d_in_planar);
-            hipFree(d_out_planar);
         }
     }
     else

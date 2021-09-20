@@ -963,7 +963,7 @@ hipfftResult hipfftDestroy(hipfftHandle plan)
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_plan_destroy(plan->op_inverse));
 
         if(plan->autoAllocate)
-            hipFree(plan->workBuffer);
+            (void)hipFree(plan->workBuffer);
 
         ROC_FFT_CHECK_INVALID_VALUE(rocfft_execution_info_destroy(plan->info));
 

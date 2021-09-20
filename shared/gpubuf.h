@@ -71,7 +71,7 @@ public:
     {
         if(buf != nullptr)
         {
-            hipFree(buf);
+            (void)hipFree(buf);
             buf = nullptr;
         }
     }
