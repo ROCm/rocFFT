@@ -122,7 +122,7 @@ namespace AssignmentPolicy
 
     bool CheckAssignmentValid(ExecPlan& execPlan);
 
-    bool ValidPathExists(ExecPlan& execPlan);
+    void UpdateWinnerFromValidPaths(ExecPlan& execPlan);
 
     bool AssignBuffers(ExecPlan& execPlan);
 

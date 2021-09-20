@@ -138,6 +138,9 @@ namespace AssignmentPolicy
     std::vector<PlacementTrace*> winnerCandidates;
     std::set<OperatingBuffer>    availableBuffers;
     std::set<rocfft_array_type>  availableArrayTypes;
+    int  numCurWinnerFusions; // -1 means no winner, else = curr winner's #-fusions
+    bool mustUseTBuffer;
+    bool mustUseCBuffer;
 
     std::vector<size_t> GetEffectiveNodeOutLen(ExecPlan& execPlan, const TreeNode& node)
     {
@@ -381,10 +384,12 @@ namespace AssignmentPolicy
         return true;
     }
 
-    bool ValidPathExists(ExecPlan& execPlan)
+    void UpdateWinnerFromValidPaths(ExecPlan& execPlan)
     {
         if(winnerCandidates.empty())
-            return false;
+            return;
+
+        // std::cout << "total candidates: " << winnerCandidates.size() << std::endl;
 
         // sort the candidate, front is the best
         std::sort(
@@ -396,7 +401,6 @@ namespace AssignmentPolicy
                     return false;
 
                 // if tie, we still choose the one with less buffers
-                // (when we put all the buffers in one try)
                 if(lhs->NumUsedBuffers() < rhs->NumUsedBuffers())
                     return true;
                 if(lhs->NumUsedBuffers() > rhs->NumUsedBuffers())
@@ -442,15 +446,21 @@ namespace AssignmentPolicy
                 // std::cout << ", num IP:" << winner->numInplace;
                 // std::cout << ", placement score: " << winner->placementScore;
                 // std::cout << std::endl;
-                return true;
+                numCurWinnerFusions = winner->numFusedNodes;
+                return;
             }
         }
-        return false;
+        return;
     }
 
     bool AssignBuffers(ExecPlan& execPlan)
     {
-        // remember to clear either in the beginning or at the end
+        int maxFusions      = execPlan.fuseShims.size();
+        numCurWinnerFusions = -1; // no winner yet
+        mustUseTBuffer      = false;
+        mustUseCBuffer      = false;
+
+        // remember to clear the container either in the beginning or at the end
         winnerCandidates.clear();
         availableBuffers.clear();
         availableArrayTypes.clear();
@@ -463,20 +473,6 @@ namespace AssignmentPolicy
             // For real-transform, USER_IN is always allowed to be modified.
             // For c2c-transform, we should keep USER_IN read-only. So remove it if exists.
             availableBuffers.erase(OB_USER_IN);
-        }
-
-        // Starting with adding the temp buffer if we want to increase the fusion possibility.
-        // but it doesn't mean the best will definitely use temp buffer,
-        // we just put ABT together in the same round trying assignment
-        if(execPlan.assignOptStrategy > rocfft_optimize_min_buffer)
-        {
-            availableBuffers.insert(OB_TEMP);
-            // most aggressive: try using all buffers
-            if(execPlan.assignOptStrategy > rocfft_optimize_balance)
-            {
-                availableBuffers.insert(OB_TEMP_CMPLX_FOR_REAL);
-                availableArrayTypes.insert(rocfft_array_type_complex_interleaved);
-            }
         }
 
         // Insert the valid ArrayTypes to use internally
@@ -506,33 +502,56 @@ namespace AssignmentPolicy
         dummyRoot.outBuf = execPlan.rootPlan->obIn;
         dummyRoot.oType  = aliasInType;
         Enumerate(&dummyRoot, execPlan, 0, dummyRoot.outBuf, dummyRoot.oType);
-        if(ValidPathExists(execPlan))
+        // update num-of-winner's-fusions from winnerCandidates list
+        UpdateWinnerFromValidPaths(execPlan);
+        if(numCurWinnerFusions != -1)
+        {
+            // we already satisfy the strategy, so don't need to go further
+            if(execPlan.assignOptStrategy <= rocfft_optimize_min_buffer)
+                return true;
+            // we already fulfill all possible fusions
+            if(numCurWinnerFusions == maxFusions)
+                return true;
+        }
+
+        // if we are here:
+        // 1. we haven't found a winner (working assignment)
+        // 2. we found a assignment but we want to try if it's possible
+        //    to have more fusions by adding TEMP buffer
+        //    (strategy > rocfft_optimize_min_buffer)
+        mustUseTBuffer = true;
+        availableBuffers.insert(OB_TEMP);
+        dummyRoot.branches.clear();
+        winnerCandidates.clear();
+        Enumerate(&dummyRoot, execPlan, 0, dummyRoot.outBuf, dummyRoot.oType);
+        // NB:
+        //   in this ABT try, winnerCandidates must contain T-buf (mustUseTBuffer=true)
+        //   and it's possible winnerCandidates is empty because there is no new path giving more fusions.
+        //   So num-of-winner's-fusions won't be updated, but we may have a winner from prev try
+        //   in this case, we should return if the strategy is "balance".
+        UpdateWinnerFromValidPaths(execPlan);
+        if(numCurWinnerFusions != -1)
+        {
+            // we already satisfy the strategy, so don't need to go further
+            if(execPlan.assignOptStrategy <= rocfft_optimize_balance)
+                return true;
+            // we already fulfill all possible fusions
+            if(numCurWinnerFusions == maxFusions)
+                return true;
+        }
+
+        // Same as above: if we are here....
+        mustUseCBuffer = true;
+        availableBuffers.insert(OB_TEMP_CMPLX_FOR_REAL);
+        availableArrayTypes.insert(rocfft_array_type_complex_interleaved);
+        dummyRoot.branches.clear();
+        winnerCandidates.clear();
+        Enumerate(&dummyRoot, execPlan, 0, dummyRoot.outBuf, dummyRoot.oType);
+        // NB:
+        //   in this ABTC try, winnerCandidates must contain C-buf (mustUseCBuffer=true)
+        UpdateWinnerFromValidPaths(execPlan);
+        if(numCurWinnerFusions != -1)
             return true;
-
-        // if we didn't find a working assignment
-        // try again with temp buffer (if we haven't added)
-        if(availableBuffers.count(OB_TEMP) == 0)
-        {
-            availableBuffers.insert(OB_TEMP);
-            dummyRoot.branches.clear();
-            winnerCandidates.clear();
-            Enumerate(&dummyRoot, execPlan, 0, dummyRoot.outBuf, dummyRoot.oType);
-            if(ValidPathExists(execPlan))
-                return true;
-        }
-
-        // if we didn't find a working assignment
-        // try again with another buffer (if we haven't added)
-        if(availableBuffers.count(OB_TEMP_CMPLX_FOR_REAL) == 0)
-        {
-            availableBuffers.insert(OB_TEMP_CMPLX_FOR_REAL);
-            availableArrayTypes.insert(rocfft_array_type_complex_interleaved);
-            dummyRoot.branches.clear();
-            winnerCandidates.clear();
-            Enumerate(&dummyRoot, execPlan, 0, dummyRoot.outBuf, dummyRoot.oType);
-            if(ValidPathExists(execPlan))
-                return true;
-        }
 
         // else, we can't find any valid buffer assignment !
         throw std::runtime_error("Can't find valid buffer assignment with current buffers.");
@@ -558,8 +577,23 @@ namespace AssignmentPolicy
             // the out buf and array type must match
             if(parent->outBuf == endBuf && EquivalentArrayType(endArrayType, parent->oType))
             {
+                // we are in the second try (adding T Buffer) but we don't have it in the path:
+                // this means we've already tried this path in the previous try.
+                if(mustUseTBuffer && parent->usedBuffers.count(OB_TEMP) == 0)
+                    return;
+
+                // we are in the third try (adding C Buffer) but we don't have it in the path:
+                // this means we've already tried this path in the previous try.
+                if(mustUseCBuffer && parent->usedBuffers.count(OB_TEMP_CMPLX_FOR_REAL) == 0)
+                    return;
+
                 // See how many fusions can be done in this path
-                parent->BackwardCalcFusions(execPlan, fuseShims.size() - 1, nullptr);
+                int numFusions
+                    = parent->BackwardCalcFusions(execPlan, fuseShims.size() - 1, nullptr);
+                // skip it if this doesn't outdo the winner of prev. try (prev try = fewer buffers)
+                if(numCurWinnerFusions >= numFusions)
+                    return;
+
                 // set the oType to its original type of RootPlan (for example, change internal-CP to HP)
                 parent->oType = endArrayType;
 
