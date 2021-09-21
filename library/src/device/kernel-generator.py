@@ -92,10 +92,15 @@ class FFTKernel(BaseNode):
         threads_per_block = getattr(self.function.meta, 'threads_per_block', None)
         if threads_per_block is not None:
             f += ', ' + str(threads_per_block)
+        block_width = getattr(self.function.meta, 'block_width', None)
+        if block_width is not None:
+            f += ', ' + str(block_width)
         half_lds = None
         if hasattr(self.function.meta, 'params'):
             half_lds = getattr(self.function.meta.params, 'half_lds', None)
         if half_lds is not None:
+            if block_width is None:
+                f += ', 0'
             f += ', ' + str(half_lds).lower()
         f += ')'
         return f
@@ -156,6 +161,7 @@ class POWX_SMALL_GENERATOR(BaseNode):
 class POWX_LARGE_SBCC_GENERATOR(POWX_SMALL_GENERATOR):
     def __str__(self):
         return f'POWX_LARGE_SBCC_GENERATOR({cjoin(self.args)});'
+
 
 @name_args(['name', 'op_fwd', 'op_inv', 'precision', 'sbrc_type', 'transpose_type'])
 class POWX_LARGE_SBRC_GENERATOR(POWX_SMALL_GENERATOR):
@@ -370,8 +376,6 @@ def list_small_kernels():
 def list_2d_kernels():
     """Return list of fused 2D kernels to generate."""
 
-    # can probably merge this with above when old gen is gone
-
     fused_kernels = [
         NS(length=[4,4], factors=[[2,2],[2,2]], threads_per_transform=[2,2], threads_per_block=8),
         NS(length=[4,8], factors=[[2,2],[4,2]], threads_per_transform=[2,2], threads_per_block=16),
@@ -560,15 +564,15 @@ def list_large_kernels():
         if not hasattr(k, 'length'):
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
 
-    # SBRC; XXX threads_per_transform need to match GetBlockComputeTable (for now)
+    # SBR
     sbrc_kernels = [
-        NS(length=50,  factors=[10, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=50, threads_per_transform=2),
-        NS(length=64,  factors=[4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128),
-        NS(length=81,  factors=[3, 3, 3, 3], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=81, threads_per_transform=9),
-        NS(length=100,  factors=[10, 10], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=50, threads_per_transform=10),
-        NS(length=128,  factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128, threads_per_transform=16),
-        NS(length=200,  factors=[10, 10, 2], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=100, threads_per_transform=10),
-        NS(length=256, factors=[4, 4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=64),
+        NS(length=50,  factors=[10, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=50, threads_per_transform=2, block_width=10),
+        NS(length=64,  factors=[4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128, block_width=16),
+        NS(length=81,  factors=[3, 3, 3, 3], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=81, threads_per_transform=9, block_width=9),
+        NS(length=100,  factors=[10, 10], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=50, threads_per_transform=10, block_width=5),
+        NS(length=128,  factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128, threads_per_transform=16, block_width=8),
+        NS(length=200,  factors=[10, 10, 2], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=100, threads_per_transform=10, block_width=10),
+        NS(length=256, factors=[4, 4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=64, block_width=8),
     ]
 
     # NB:
@@ -752,7 +756,7 @@ def cli():
     list_parser = subparsers.add_parser('list', help='List kernel files that will be generated.')
 
     generate_parser = subparsers.add_parser('generate', help='Generate kernels.')
-    generate_parser.add_argument('generator', type=str, help='Kernel generator executable.')
+    #generate_parser.add_argument('generator', type=str, help='Kernel generator executable.')
 
     args = parser.parse_args()
 

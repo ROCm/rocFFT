@@ -25,7 +25,6 @@
 #include "logging.h"
 #include "node_factory.h"
 #include "private.h"
-#include "radix_table.h"
 #include "repo.h"
 #include "rocfft-version.h"
 #include "rocfft.h"
@@ -893,13 +892,11 @@ bool TreeNode::fuse_CS_KERNEL_TRANSPOSE_Z_XY()
 {
     if(function_pool::has_SBRC_kernel(length[0], precision))
     {
-        size_t bwd, wgs, lds;
-        GetBlockComputeTable(length[0], bwd, wgs, lds);
-
+        auto kernel
+            = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
+        size_t bwd = kernel.block_width;
         if((length[1] >= bwd) && (length[2] >= bwd) && (length[1] * length[2] % bwd == 0))
-        {
             return true;
-        }
     }
 
     return false;

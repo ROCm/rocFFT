@@ -21,7 +21,6 @@
 #include "tree_node_3D.h"
 #include "function_pool.h"
 #include "node_factory.h"
-#include "radix_table.h"
 
 SBRC_TRANSPOSE_TYPE sbrc_3D_transpose_type(unsigned int               blockWidth,
                                            size_t                     alignment_dimension,
@@ -342,9 +341,9 @@ void BLOCKRC3DNode::BuildTree_internal()
         // ensure the kernel would be tile-aligned
         if(have_sbrc)
         {
-            size_t bwd, wgs, lds;
-            GetBlockComputeTable(cur_length[0], bwd, wgs, lds);
-            if(cur_length[2] % bwd != 0)
+            auto kernel = function_pool::get_kernel(
+                fpkey(cur_length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
+            if(cur_length[2] % kernel.block_width != 0)
                 have_sbrc = false;
         }
         if(have_sbrc)
@@ -706,15 +705,15 @@ bool SBRCTranspose3DNode::KernelCheck()
  *****************************************************/
 void SBRCTransXY_ZNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
-    GetBlockComputeTable(length[0], bwd, wgs, lds);
+    auto kernel
+        = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
+    bwd                = kernel.block_width;
+    wgs                = kernel.threads_per_block;
+    lds                = length[0] * kernel.block_width;
     auto transposeType = sbrc_3D_transpose_type(bwd, length[2], length);
-    fnPtr = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
-
-    // each block handles 'bwd' rows
-    gp.b_x   = DivRoundingUp(length[2], bwd) * length[1] * batch;
-    gp.tpb_x = wgs;
-
-    return;
+    fnPtr    = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
+    gp.b_x   = DivRoundingUp(length[2], size_t(kernel.block_width)) * length[1] * batch;
+    gp.tpb_x = kernel.threads_per_block;
 }
 
 /*****************************************************
@@ -723,16 +722,16 @@ void SBRCTransXY_ZNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
  *****************************************************/
 void SBRCTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
-    GetBlockComputeTable(length[0], bwd, wgs, lds);
+    auto kernel
+        = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
+    bwd                = kernel.block_width;
+    wgs                = kernel.threads_per_block;
+    lds                = length[0] * kernel.block_width;
     auto transposeType = sbrc_3D_transpose_type(bwd, length[1] * length[2], length);
-    fnPtr = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
-
-    // do 'bwd' rows per block
+    fnPtr  = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
     gp.b_x = std::accumulate(length.begin() + 1, length.end(), batch, std::multiplies<size_t>());
-    gp.b_x /= bwd;
-    gp.tpb_x = wgs;
-
-    return;
+    gp.b_x /= kernel.block_width;
+    gp.tpb_x = kernel.threads_per_block;
 }
 
 /*****************************************************
@@ -741,16 +740,15 @@ void SBRCTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
  *****************************************************/
 void RealCmplxTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
-    GetBlockComputeTable(length[0], bwd, wgs, lds);
+    auto kernel
+        = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
+    bwd                = kernel.block_width;
+    wgs                = kernel.threads_per_block;
+    lds                = length[0] * kernel.block_width;
+    lds_padding        = 1;
     auto transposeType = sbrc_3D_transpose_type(bwd, length[1] * length[2], length);
-    fnPtr = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
-
-    // do 'bwd' rows per block
+    fnPtr  = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
     gp.b_x = std::accumulate(length.begin() + 1, length.end(), batch, std::multiplies<size_t>());
-    gp.b_x /= bwd;
-    gp.tpb_x = wgs;
-
-    lds_padding = 1; // 1 element padding per row for even-length real2complx usage
-
-    return;
+    gp.b_x /= kernel.block_width;
+    gp.tpb_x = kernel.threads_per_block;
 }

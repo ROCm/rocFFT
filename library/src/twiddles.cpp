@@ -22,7 +22,6 @@
 
 #include "twiddles.h"
 #include "function_pool.h"
-#include "radix_table.h"
 #include "rocfft_hip.h"
 
 template <typename T>
@@ -48,9 +47,9 @@ gpubuf twiddles_create_pr(size_t              N,
         }
         else
         {
-            if(radices.size() == 0)
+            if(radices.empty())
             {
-                radices = GetRadices(N);
+                throw std::runtime_error("Can't compute twiddle table: missing radices");
             }
             twtc = twTable.GenerateTwiddleTable(radices); // calculate twiddles on host side
         }
@@ -122,47 +121,24 @@ gpubuf twiddles_create(size_t              N,
 template <typename T>
 gpubuf twiddles_create_2D_pr(size_t N1, size_t N2, rocfft_precision precision)
 {
-    auto kernel = function_pool::get_kernel(fpkey(N1, N2, precision));
-    // when old generator goes away, have_factors will always be true
-    bool have_factors = !kernel.factors.empty();
-
+    auto                kernel = function_pool::get_kernel(fpkey(N1, N2, precision));
     std::vector<size_t> radices1, radices2;
 
-    // old: create just one twiddle table if we can get away with it
-    if(!have_factors && N1 == N2)
+    int    count               = 0;
+    size_t cummulative_product = 1;
+    while(cummulative_product != N1)
+    {
+        cummulative_product *= kernel.factors[count++];
+    }
+    radices1.insert(radices1.cbegin(), kernel.factors.cbegin(), kernel.factors.cbegin() + count);
+    radices2.insert(radices2.cbegin(), kernel.factors.cbegin() + count, kernel.factors.cend());
+    if(radices1 == radices2)
     {
         N2 = 0;
     }
 
-    if(have_factors)
-    {
-        int    count               = 0;
-        size_t cummulative_product = 1;
-        while(cummulative_product != N1)
-        {
-            cummulative_product *= kernel.factors[count++];
-        }
-        radices1.insert(
-            radices1.cbegin(), kernel.factors.cbegin(), kernel.factors.cbegin() + count);
-        radices2.insert(radices2.cbegin(), kernel.factors.cbegin() + count, kernel.factors.cend());
-        if(radices1 == radices2)
-        {
-            N2 = 0;
-        }
-    }
-
     TwiddleTable<T> twTable1(N1);
     TwiddleTable<T> twTable2(N2);
-
-    if(!have_factors)
-    {
-        // generate twiddles for each dimension separately
-        radices1 = GetRadices(N1);
-        if(N2)
-        {
-            radices2 = GetRadices(N2);
-        }
-    }
 
     auto twtc1 = twTable1.GenerateTwiddleTable(radices1);
     T*   twtc2 = nullptr;

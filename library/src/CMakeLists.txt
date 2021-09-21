@@ -71,7 +71,6 @@ set( rocfft_source
   transform.cpp
   repo.cpp
   powX.cpp
-  get_radix.cpp
   twiddles.cpp
   kargs.cpp
   rocfft_ostream.cpp

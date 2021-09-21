@@ -21,21 +21,10 @@
 #include "fuse_shim.h"
 #include "function_pool.h"
 #include "node_factory.h"
-#include "radix_table.h"
 
 size_t TransformsPerThreadblock(const size_t len, rocfft_precision precision)
 {
-    // look in function pool first to see if it knows
-    if(function_pool::has_function(fpkey(len, precision)))
-    {
-        auto k = function_pool::get_kernel(fpkey(len, precision));
-        if(k.batches_per_block)
-            return k.batches_per_block;
-    }
-    // otherwise fall back to old generator
-    size_t wgs = 0, numTrans = 0;
-    DetermineSizes(len, wgs, numTrans);
-    return numTrans;
+    return function_pool::get_kernel(fpkey(len, precision)).batches_per_block;
 }
 
 bool canOptimizeWithStride(TreeNode* stockham)

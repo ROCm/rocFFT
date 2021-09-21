@@ -39,8 +39,8 @@ if(ROCFFT_DEVICE_FORCE_RELEASE)
   set (CMAKE_BUILD_TYPE Release)
 endif()
 
-# This builds the generator executable
-add_subdirectory( generator )
+# # This builds the generator executable
+# add_subdirectory( generator )
 
 # Generated kernels
 
@@ -102,6 +102,19 @@ if( STATUS AND NOT STATUS EQUAL 0 )
   message( FATAL_ERROR "Kernel generator failed (list): ${STATUS}")
 endif()
 
+# commented out for now, might need again soon
+# add_custom_command(OUTPUT ${gen_headers}
+#   COMMAND ${PYTHON3_EXE} ${kgen}
+#   --pattern=${GENERATOR_PATTERN}
+#   --precision=${GENERATOR_PRECISION}
+#   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
+#   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
+#   --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
+#   generate $<TARGET_FILE:rocfft-kernel-generator>
+#   DEPENDS rocfft-kernel-generator ${kgendeps}
+#   COMMENT "Generator producing device kernels for rocfft-device"
+# )
+
 add_custom_command(OUTPUT ${gen_headers}
   COMMAND ${PYTHON3_EXE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
@@ -109,8 +122,8 @@ add_custom_command(OUTPUT ${gen_headers}
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
   --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
-  generate $<TARGET_FILE:rocfft-kernel-generator>
-  DEPENDS rocfft-kernel-generator ${kgendeps}
+  generate
+  DEPENDS ${kgendeps}
   COMMENT "Generator producing device kernels for rocfft-device"
 )
 

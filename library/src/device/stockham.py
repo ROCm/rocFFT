@@ -588,24 +588,13 @@ class StockhamTilingRC(StockhamTiling):
 
     name = 'SBRC'
 
-    def __init__(self, factors, params, **kwargs):
+    def __init__(self, factors, params, block_width=None, **kwargs):
         super().__init__(factors, params, **kwargs)
         self.sbrc_type = Variable('sbrc_type', 'SBRC_TYPE')
         self.transpose_type = Variable('transpose_type', 'SBRC_TRANSPOSE_TYPE')
         self.lds_row_padding = Variable('lds_row_padding', 'unsigned int', value=0)
-        self.rows_per_tile = {
-            8: 128,
-            16: 64,
-            32: 32,
-            50: 10,
-            64: 16,
-            81: 9,
-            100: 5,
-            128: 8,
-            200: 10,
-            256: 8,
-            }[self.length]
-        self.n_device_calls = self.rows_per_tile // (self.params.threads_per_block // self.params.threads_per_transform)
+        self.block_width = block_width
+        self.n_device_calls = self.block_width // (self.params.threads_per_block // self.params.threads_per_transform)
 
 
 
@@ -651,16 +640,16 @@ class StockhamTilingRC(StockhamTiling):
                            For(j.inline(2), j < i, Increment(j),
                                StatementList(
                                    MultiplyAssign(current_length, lengths[j]))),
-                           MultiplyAssign(current_length, lengths[1] / self.rows_per_tile),
+                           MultiplyAssign(current_length, lengths[1] / self.block_width),
                            AddAssign(offset_in, B(remaining / current_length) * stride_in[i]),
                            AddAssign(offset_out, B(remaining / current_length) * stride_out[i]),
                            Assign(remaining, remaining % current_length)))
-        offsets += Assign(current_length, lengths[1] / self.rows_per_tile)
+        offsets += Assign(current_length, lengths[1] / self.block_width)
         offsets += AddAssign(offset_in, B(remaining / current_length) * stride_in[2])
-        offsets += AddAssign(offset_in, B(remaining % current_length) * B(self.rows_per_tile * lengths[0]))
+        offsets += AddAssign(offset_in, B(remaining % current_length) * B(self.block_width * lengths[0]))
 
         offsets += AddAssign(offset_out, B(remaining / current_length) * stride_out[2])
-        offsets += AddAssign(offset_out, B(remaining % current_length) * B(self.rows_per_tile * stride_out[1]))
+        offsets += AddAssign(offset_out, B(remaining % current_length) * B(self.block_width * stride_out[1]))
 
         offsets += Assign(offset_lds, B(thread / self.params.threads_per_transform) * B(length + self.lds_row_padding))
         return offsets
@@ -671,9 +660,9 @@ class StockhamTilingRC(StockhamTiling):
                                          **kwargs):
 
         length, transforms = self.length, self.params.transforms_per_block
-        tiles_per_batch = B(lengths[1] * B(B(lengths[2] + self.rows_per_tile - 1) / self.rows_per_tile))
+        tiles_per_batch = B(lengths[1] * B(B(lengths[2] + self.block_width - 1) / self.block_width))
 
-        threads_per_row = self.params.threads_per_block // self.rows_per_tile
+        threads_per_row = self.params.threads_per_block // self.block_width
 
         def diagonal():
             readTileIdx_x = Variable('readTileIdx_x', 'unsigned int', value=tile % lengths[1])
@@ -688,9 +677,9 @@ class StockhamTilingRC(StockhamTiling):
                 tileBlockIdx_y.declaration(),
                 tileBlockIdx_x.declaration(),
                 AddAssign(offset_in, tileBlockIdx_x * stride_in[1]),
-                AddAssign(offset_in, tileBlockIdx_y * self.rows_per_tile * stride_in[2]),
+                AddAssign(offset_in, tileBlockIdx_y * self.block_width * stride_in[2]),
                 AddAssign(offset_in, B(tile / tiles_per_batch) * stride_in[3]),
-                AddAssign(offset_out, tileBlockIdx_y * self.rows_per_tile * stride_out[0]),
+                AddAssign(offset_out, tileBlockIdx_y * self.block_width * stride_out[0]),
                 AddAssign(offset_out, tileBlockIdx_x * stride_out[2]),
                 AddAssign(offset_out, tile / tiles_per_batch * stride_out[3]),
                 Assign(offset_lds, B(thread / self.params.threads_per_transform) * length))
@@ -702,9 +691,9 @@ class StockhamTilingRC(StockhamTiling):
             write_tile_y = read_tile_x
             return StatementList(
                 AddAssign(offset_in, read_tile_x * stride_in[1]),
-                AddAssign(offset_in, read_tile_y * self.rows_per_tile * stride_in[2]),
+                AddAssign(offset_in, read_tile_y * self.block_width * stride_in[2]),
                 AddAssign(offset_in, B(tile / tiles_per_batch) * stride_in[3]),
-                AddAssign(offset_out, write_tile_x * self.rows_per_tile * stride_out[0]),
+                AddAssign(offset_out, write_tile_x * self.block_width * stride_out[0]),
                 AddAssign(offset_out, write_tile_y * stride_out[2]),
                 AddAssign(offset_out, B(tile / tiles_per_batch) * stride_out[3]),
                 Assign(offset_lds, B(thread / self.params.threads_per_transform) * length))
@@ -720,7 +709,7 @@ class StockhamTilingRC(StockhamTiling):
         length = self.length
 
         tile_size_x = Variable('tgs_x', 'unsigned int', value=1)
-        tile_size_y = Variable('tgs_y', 'unsigned int', value=lengths[1] * lengths[2] / self.rows_per_tile)
+        tile_size_y = Variable('tgs_y', 'unsigned int', value=lengths[1] * lengths[2] / self.block_width)
         tiles_per_batch = Variable('tiles_per_batch', 'unsigned int', value=tile_size_x * tile_size_y)
 
         read_tile_x = Variable('readTileIdx_x', 'unsigned int', value=0)
@@ -734,9 +723,9 @@ class StockhamTilingRC(StockhamTiling):
             read_tile_x.declaration(),
             read_tile_y.declaration(),
             AddAssign(offset_in, read_tile_x * stride_in[1]),
-            AddAssign(offset_in, read_tile_y * self.rows_per_tile * stride_in[1]),
+            AddAssign(offset_in, read_tile_y * self.block_width * stride_in[1]),
             AddAssign(offset_in, B(tile / tiles_per_batch) * stride_in[3]),
-            AddAssign(offset_out, write_tile_x * self.rows_per_tile * stride_out[0]),
+            AddAssign(offset_out, write_tile_x * self.block_width * stride_out[0]),
             AddAssign(offset_out, write_tile_y * stride_out[3]),
             AddAssign(offset_out, B(tile / tiles_per_batch) * stride_out[3]),
             Assign(offset_lds, B(thread / self.params.threads_per_transform) * B(length + self.lds_row_padding)))
@@ -798,7 +787,7 @@ class StockhamTilingRC(StockhamTiling):
         stride_in = Variable('stride_in', 'const size_t', array=True)
         stride_out = Variable('stride_out', 'const size_t', array=True)
 
-        height = (length * self.rows_per_tile) // params.threads_per_block
+        height = (length * self.block_width) // params.threads_per_block
 
         stmts = StatementList()
         stmts += Assign(kvars.thread, kvars.thread_id)
@@ -815,22 +804,22 @@ class StockhamTilingRC(StockhamTiling):
                        self.sbrc_type == 'SBRC_3D_FFT_ERC_TRANS_Z_XY'), load)
 
         # SBRC_3D_FFT_TRANS_XY_Z
-        tiles_per_batch = Variable('tiles_per_batch', 'unsigned int', value=lengths[1] * B(B(lengths[2] + self.rows_per_tile - 1) / self.rows_per_tile))
+        tiles_per_batch = Variable('tiles_per_batch', 'unsigned int', value=lengths[1] * B(B(lengths[2] + self.block_width - 1) / self.block_width))
         tile_in_batch = Variable('tile_in_batch', 'unsigned int', value=tile % tiles_per_batch)
 
         load = StatementList()
         load += tiles_per_batch.declaration()
         load += tile_in_batch.declaration()
         for h in range(height):
-            lidx = h % self.rows_per_tile * length
-            lidx += (h // self.rows_per_tile) * params.threads_per_block
+            lidx = h % self.block_width * length
+            lidx += (h // self.block_width) * params.threads_per_block
             lidx += kvars.thread % length
             lidx += B(kvars.thread / length) * (height * length)
             gidx = offset_in
             gidx += B(kvars.thread % length) * stride_in[0]
-            gidx += h // self.rows_per_tile * self.params.threads_per_block * stride_in[0]
-            gidx += B(B(kvars.thread / length) * (params.threads_per_block // params.threads_per_transform) + h % self.rows_per_tile) * stride_in[2]
-            idx = tile_in_batch / lengths[1] * self.rows_per_tile + h % self.rows_per_tile + thread / length * self.rows_per_tile / params.threads_per_block
+            gidx += h // self.block_width * self.params.threads_per_block * stride_in[0]
+            gidx += B(B(kvars.thread / length) * (params.threads_per_block // params.threads_per_transform) + h % self.block_width) * stride_in[2]
+            idx = tile_in_batch / lengths[1] * self.block_width + h % self.block_width + thread / length * self.block_width / params.threads_per_block
 
             load += If(And(self.transpose_type == 'TILE_UNALIGNED', idx >= lengths[2]),
                        StatementList(BreakStatement()))
@@ -852,8 +841,8 @@ class StockhamTilingRC(StockhamTiling):
         stride_in = Variable('stride_in', 'const size_t', array=True)
         stride_out = Variable('stride_out', 'const size_t', array=True)
 
-        threads_per_row = self.params.threads_per_block // self.rows_per_tile
-        height = length * self.rows_per_tile // self.params.threads_per_block
+        threads_per_row = self.params.threads_per_block // self.block_width
+        height = length * self.block_width // self.params.threads_per_block
 
         stmts = StatementList()
 
@@ -861,7 +850,7 @@ class StockhamTilingRC(StockhamTiling):
         post = StatementList()
         null = Variable('nullptr', 'void*')
 
-        for h in range(self.rows_per_tile):
+        for h in range(self.block_width):
             post += Call('post_process_interleaved_inplace',
                          templates=TemplateList(kvars.scalar_type, 'true', 'CallbackType::NONE'),
                          arguments=ArgumentList(kvars.thread,
@@ -878,8 +867,8 @@ class StockhamTilingRC(StockhamTiling):
         # SBRC_2D
         store = StatementList()
         for h in range(height):
-            row = B(B(kvars.thread + h * params.threads_per_block) / self.rows_per_tile)
-            col = B(kvars.thread % self.rows_per_tile)
+            row = B(B(kvars.thread + h * params.threads_per_block) / self.block_width)
+            col = B(kvars.thread % self.block_width)
             lidx = col * length + row
             gidx = offset_out + row * stride_out[0] + col * stride_out[1]
             store += StoreGlobal(kvars.buf, gidx, lds_complex[lidx])
@@ -887,17 +876,17 @@ class StockhamTilingRC(StockhamTiling):
 
         # SBRC_3D_FFT_TRANS_XY_Z
         store = StatementList()
-        tiles_per_batch = B(lengths[1] * B(B(lengths[2] + self.rows_per_tile - 1) / self.rows_per_tile))
+        tiles_per_batch = B(lengths[1] * B(B(lengths[2] + self.block_width - 1) / self.block_width))
         tile_in_batch = tile % tiles_per_batch
 
         for h in range(height):
             lidx = h * threads_per_row
-            lidx += B(kvars.thread % self.rows_per_tile) * length
-            lidx += B(kvars.thread / self.rows_per_tile)
+            lidx += B(kvars.thread % self.block_width) * length
+            lidx += B(kvars.thread / self.block_width)
             gidx = offset_out
-            gidx += B(kvars.thread % self.rows_per_tile) * stride_out[0]
-            gidx += B(B(kvars.thread / self.rows_per_tile) + h * threads_per_row) * stride_out[1]
-            idx = tile_in_batch / lengths[1] * self.rows_per_tile + thread % self.rows_per_tile
+            gidx += B(kvars.thread % self.block_width) * stride_out[0]
+            gidx += B(B(kvars.thread / self.block_width) + h * threads_per_row) * stride_out[1]
+            idx = tile_in_batch / lengths[1] * self.block_width + thread % self.block_width
             store += If(Or(self.transpose_type != 'TILE_UNALIGNED', idx < lengths[2]),
                         StatementList(StoreGlobal(kvars.buf, gidx, lds_complex[lidx])))
         stmts += If(self.sbrc_type == 'SBRC_3D_FFT_TRANS_XY_Z', store)
@@ -906,22 +895,22 @@ class StockhamTilingRC(StockhamTiling):
         store = StatementList()
         for h in range(height):
             lidx = h * threads_per_row
-            lidx += B(kvars.thread % self.rows_per_tile) * B(length + self.lds_row_padding)
-            lidx += B(kvars.thread / self.rows_per_tile)
+            lidx += B(kvars.thread % self.block_width) * B(length + self.lds_row_padding)
+            lidx += B(kvars.thread / self.block_width)
             gidx = offset_out
-            gidx += B(kvars.thread % self.rows_per_tile) * stride_out[0]
-            gidx += B(B(kvars.thread / self.rows_per_tile) + h * threads_per_row) * stride_out[2]
+            gidx += B(kvars.thread % self.block_width) * stride_out[0]
+            gidx += B(B(kvars.thread / self.block_width) + h * threads_per_row) * stride_out[2]
             store += StoreGlobal(kvars.buf, gidx, lds_complex[lidx])
 
         h = height
         lidx = h * threads_per_row
-        lidx += B(kvars.thread % self.rows_per_tile) * B(length + self.lds_row_padding)
-        lidx += B(kvars.thread / self.rows_per_tile)
+        lidx += B(kvars.thread % self.block_width) * B(length + self.lds_row_padding)
+        lidx += B(kvars.thread / self.block_width)
         gidx = offset_out
-        gidx += B(kvars.thread % self.rows_per_tile) * stride_out[0]
-        gidx += B(B(kvars.thread / self.rows_per_tile) + h * threads_per_row) * stride_out[2]
+        gidx += B(kvars.thread % self.block_width) * stride_out[0]
+        gidx += B(B(kvars.thread / self.block_width) + h * threads_per_row) * stride_out[2]
         store += If(And(self.sbrc_type == 'SBRC_3D_FFT_ERC_TRANS_Z_XY',
-                        kvars.thread < self.rows_per_tile),
+                        kvars.thread < self.block_width),
                     StatementList(
                         StoreGlobal(kvars.buf, gidx, lds_complex[lidx])))
         stmts += If(Or(self.sbrc_type == 'SBRC_3D_FFT_TRANS_Z_XY',
@@ -1326,6 +1315,7 @@ class StockhamKernel:
                                 params=params,
                                 scheme=self.scheme,
                                 use_3steps_large_twd=use_3steps,
+                                block_width=getattr(self.tiling, 'block_width', None),
                                 transpose=None),
                         body=body)
 

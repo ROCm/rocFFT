@@ -65,7 +65,7 @@ enum class EmbeddedType
     C2Real_PRE, // Works with even-length complex2real pre-processing
 };
 
-// TODO: remove it when deprecate old code-gen
+// TODO: rework this
 //
 //
 // NB:

@@ -21,7 +21,6 @@
 #include "tree_node.h"
 #include "function_pool.h"
 #include "kernel_launch.h"
-#include "radix_table.h"
 
 NodeMetaData::NodeMetaData(TreeNode* refNode)
 {
@@ -59,7 +58,7 @@ bool LeafNode::CreateLargeTwdTable()
 {
     if(large1D != 0)
     {
-        twiddles_large = twiddles_create(large1D, precision, true, largeTwdBase, false, false);
+        twiddles_large = twiddles_create(large1D, precision, true, largeTwdBase, false, false, {});
         if(twiddles_large == nullptr)
             return false;
     }
@@ -72,6 +71,18 @@ size_t LeafNode::GetTwiddleTableLength()
     // length used by twiddle table is length[0] by default
     // could be override by some special schemes
     return length[0];
+}
+
+void LeafNode::GetKernelFactors()
+{
+    ComputeScheme _scheme = scheme;
+    if(_scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z || _scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY
+       || _scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
+        _scheme = CS_KERNEL_STOCKHAM_BLOCK_RC;
+
+    FMKey key     = (dimension == 1) ? fpkey(length[0], precision, _scheme)
+                                     : fpkey(length[0], length[1], precision, _scheme);
+    kernelFactors = function_pool::get_kernel(key).factors;
 }
 
 bool LeafNode::KernelCheck()
@@ -88,7 +99,7 @@ bool LeafNode::KernelCheck()
         return false;
     }
 
-    kernelFactors = function_pool::get_kernel(key).factors;
+    GetKernelFactors();
     return true;
 }
 
@@ -110,7 +121,8 @@ bool LeafNode::CreateTwiddleTableResource()
 {
     if(need_twd_table)
     {
-        // Note- kernelFactors: obtained when SanityCheck, twd_len could differ from scheme
+        if(!twd_no_radices)
+            GetKernelFactors();
         size_t twd_len = GetTwiddleTableLength();
         twiddles       = twiddles_create(twd_len,
                                    precision,

@@ -21,7 +21,6 @@
 #include "tree_node_real.h"
 #include "function_pool.h"
 #include "node_factory.h"
-#include "radix_table.h"
 #include "real2complex.h"
 
 // check if we have an SBCC kernel along the specified dimension
@@ -33,21 +32,13 @@ static bool SBCC_dim_available(const std::vector<size_t>& length,
     // The first R is built recursively with 2D_FFT, leave the check part to themselves
     size_t numTrans = 0;
     // do we have a purpose-built sbcc kernel
-    bool have_sbcc   = false;
-    bool is_old_sbcc = false;
+    bool have_sbcc = false;
     try
     {
         numTrans = function_pool::get_kernel(
                        fpkey(length[sbcc_dim], precision, CS_KERNEL_STOCKHAM_BLOCK_CC))
                        .batches_per_block;
         have_sbcc = true;
-        if(!numTrans)
-        {
-            // this is old sbcc kernel...
-            is_old_sbcc = true;
-            size_t wgs, lds;
-            GetBlockComputeTable(length[sbcc_dim], numTrans, wgs, lds);
-        }
     }
     catch(std::out_of_range&)
     {
@@ -55,14 +46,6 @@ static bool SBCC_dim_available(const std::vector<size_t>& length,
         {
             numTrans
                 = function_pool::get_kernel(fpkey(length[sbcc_dim], precision)).batches_per_block;
-
-            // if we have a size for this transform but numTrans, this must
-            // be an old-generator kernel
-            if(!numTrans)
-            {
-                size_t wgs = 0;
-                DetermineSizes(length[sbcc_dim], wgs, numTrans);
-            }
         }
         catch(std::out_of_range&)
         {
@@ -70,15 +53,7 @@ static bool SBCC_dim_available(const std::vector<size_t>& length,
         }
     }
 
-    // dim should be >= the blockwidth, or it might perform worse..
-    // for old sbcc, must be divisable by BWD(numTrans)
-    if(is_old_sbcc)
-    {
-        size_t remainLen0 = (length[0] / 2 + 1);
-        if(remainLen0 % numTrans != 0)
-            return false;
-    }
-    else if(length[0] < numTrans)
+    if(length[0] < numTrans)
         return false;
 
     // for regular stockham kernels, ensure we are doing enough rows
@@ -243,17 +218,9 @@ void RealTransEvenNode::BuildTree_internal()
     cfftPlan->RecursiveBuildTree();
 
     // fuse pre/post-processing into fft if it's single-kernel
-    // and **generated with new generator**
     if(try_fuse_pre_post_processing)
     {
-        // NOTE: get_kernel won't throw because we would only have a
-        // single kernel if it's in the function map.  We're also relying
-        // on the fact that old-generator would not populate factors.
-        bool singleKernelFFT
-            = cfftPlan->isLeafNode()
-              && !function_pool::get_kernel(fpkey(cfftPlan->length[0], precision)).factors.empty();
-        if(!singleKernelFFT)
-            try_fuse_pre_post_processing = false;
+        try_fuse_pre_post_processing = cfftPlan->isLeafNode();
     }
 
     switch(direction)

@@ -35,8 +35,6 @@
 #include "rtc.h"
 #include "transform.h"
 
-#include "radix_table.h"
-
 #include "kernel_launch.h"
 
 #include "function_pool.h"
@@ -66,9 +64,6 @@ bool PlanPowX(ExecPlan& execPlan)
         DevFnCall ptr = nullptr;
         GridParam gp;
 
-        // NB:
-        //   bwd stands for blockwidth, which is equivalent to kernel.batches_per_block in new code-gen.
-        //   We should replace it with kernel.batches_per_block all after transition to new code-gen.
         node->SetupGridParamAndFuncPtr(ptr, gp);
 
         execPlan.devFnCall.push_back(ptr);

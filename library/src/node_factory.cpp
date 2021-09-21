@@ -23,7 +23,6 @@
 #include "fuse_shim.h"
 #include "hip/hip_runtime_api.h"
 #include "logging.h"
-#include "radix_table.h"
 #include "tree_node_1D.h"
 #include "tree_node_2D.h"
 #include "tree_node_3D.h"
@@ -553,6 +552,10 @@ ComputeScheme NodeFactory::Decide3DScheme(NodeMetaData& nodeData)
 
 bool NodeFactory::use_CS_2D_SINGLE(NodeMetaData& nodeData)
 {
+    if(!function_pool::has_function(
+           fpkey(nodeData.length[0], nodeData.length[1], nodeData.precision, CS_KERNEL_2D_SINGLE)))
+        return false;
+
     // Get actual LDS size, to check if we can run a 2D_SINGLE
     // kernel that will fit the problem into LDS.
     //
@@ -579,53 +582,23 @@ bool NodeFactory::use_CS_2D_SINGLE(NodeMetaData& nodeData)
                   "hipDeviceGetAttribute failed - assuming normal LDS size for current hardware");
         ldsSize = 0;
     }
-    const auto single2DSizes = Single2DSizes(ldsSize, nodeData.precision, GetWGSAndNT);
-    if(std::find(single2DSizes.begin(),
-                 single2DSizes.end(),
-                 std::make_pair(nodeData.length[0], nodeData.length[1]))
-       != single2DSizes.end())
-        return true;
 
-    return false;
+    auto kernel = function_pool::get_kernel(
+        fpkey(nodeData.length[0], nodeData.length[1], nodeData.precision, CS_KERNEL_2D_SINGLE));
+
+    int ldsUsage = nodeData.length[0] * nodeData.length[1] * kernel.batches_per_block
+                   * sizeof_precision(nodeData.precision);
+    if(1.5 * ldsUsage > ldsSize)
+        return false;
+
+    return true;
 }
 
 bool NodeFactory::use_CS_2D_RC(NodeMetaData& nodeData)
 {
-    try
-    {
-        // find the sbcc kernel (throws if not found / or old-sbcc without factors / or new-sbcc with factor)
-        bool oldKernel
-            = function_pool::get_kernel(
-                  fpkey(nodeData.length[1], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_CC))
-                  .factors.empty();
-        if(oldKernel)
-        {
-            // old-sbcc:
-            //   we are reusing SBCC kernel for 1D middle size. The
-            //   current implementation of 1D SBCC supports only 64, 128, and 256.
-            //   However, technically no LDS limitation along the fast dimension
-            //   on upper bound for 2D SBCC cases, and even should not limit to pow
-            //   of 2.
-            if(IsPo2(nodeData.length[1]) && (nodeData.length[0] >= 64))
-            {
-                size_t bwd, wgs, lds;
-                GetBlockComputeTable(nodeData.length[1], bwd, wgs, lds);
-                // need tile-aligned
-                return (nodeData.length[0] % bwd == 0);
-            }
-            return false;
-        }
-        else
-        {
-            // new-sbcc supports non-tile-aligned, only check if exceeds the min threshold.
-            return (nodeData.length[0] >= 56);
-        }
-    }
-    catch(...)
-    {
-        // get_kernel throws, sbcc kernel not found in pool
-        return false;
-    }
+    if(function_pool::has_SBCC_kernel(nodeData.length[1], nodeData.precision))
+        return nodeData.length[0] >= 56;
+    return false;
 }
 
 size_t NodeFactory::count_3D_SBRC_nodes(NodeMetaData& nodeData)
@@ -636,9 +609,9 @@ size_t NodeFactory::count_3D_SBRC_nodes(NodeMetaData& nodeData)
         if(function_pool::has_SBRC_kernel(nodeData.length[i], nodeData.precision))
         {
             // make sure the SBRC kernel on that dimension would be tile-aligned
-            size_t bwd, wgs, lds;
-            GetBlockComputeTable(nodeData.length[i], bwd, wgs, lds);
-            if(nodeData.length[(i + 2) % nodeData.length.size()] % bwd == 0)
+            auto kernel = function_pool::get_kernel(
+                fpkey(nodeData.length[i], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
+            if(nodeData.length[(i + 2) % nodeData.length.size()] % kernel.block_width == 0)
                 ++sbrc_dimensions;
         }
     }
@@ -676,8 +649,7 @@ bool NodeFactory::use_CS_3D_RC(NodeMetaData& nodeData)
     {
         // Check the C part.
         // The first R is built recursively with 2D_FFT, leave the check part to themselves
-        // we need to check if the sbcc kernel is old-gen or new-gen to get the correct BWD
-        auto krn = function_pool::get_kernel(
+        auto kernel = function_pool::get_kernel(
             fpkey(nodeData.length[2], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
 
         // hack for this special case
@@ -688,18 +660,8 @@ bool NodeFactory::use_CS_3D_RC(NodeMetaData& nodeData)
             return true;
 
         // x-dim should be >= the blockwidth, or it might perform worse..
-        if(krn.batches_per_block == 0) // the kernel is from old-gen
-        {
-            size_t bwd, wgs, lds;
-            GetBlockComputeTable(nodeData.length[2], bwd, wgs, lds);
-            if(nodeData.length[0] % bwd != 0)
-                return false;
-        }
-        else
-        {
-            if(nodeData.length[0] < krn.batches_per_block)
-                return false;
-        }
+        if(nodeData.length[0] < kernel.batches_per_block)
+            return false;
 
         // we don't want a too-large 3D block, sbcc along z-dim might be bad
         if((nodeData.length[0] * nodeData.length[1] * nodeData.length[2]) >= (128 * 128 * 128))

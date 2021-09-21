@@ -22,7 +22,6 @@
 #include "function_pool.h"
 #include "fuse_shim.h"
 #include "node_factory.h"
-#include "radix_table.h"
 
 /*****************************************************
  * 2D_RTRT  *
@@ -280,27 +279,14 @@ void Single2DNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
     auto kernel = function_pool::get_kernel(fpkey(length[0], length[1], precision));
     fnPtr       = kernel.device_function;
-    if(!kernel.factors.empty())
-    {
-        // when old generator goes away, we will always have factors
-        gp.b_x   = (batch + kernel.batches_per_block - 1) / kernel.batches_per_block;
-        gp.tpb_x = kernel.threads_per_block;
 
-        // if fastest length is power of 2, pad it to avoid LDS bank conflicts
-        auto padded_len0 = IsPo2(length[0]) ? length[0] + 1 : length[0];
-        lds              = padded_len0 * length[1] * kernel.batches_per_block;
-    }
-    else
-    {
-        // Run one threadblock per transform, since we're
-        // combining a row transform and a column transform in
-        // one kernel.  The transform must not cross threadblock
-        // boundaries, or else we are unable to make the row
-        // transform finish completely before starting the column
-        // transform.
-        gp.b_x   = batch;
-        gp.tpb_x = Get2DSingleThreadCount(length[0], length[1], GetWGSAndNT);
-    }
+    gp.b_x   = (batch + kernel.batches_per_block - 1) / kernel.batches_per_block;
+    gp.tpb_x = kernel.threads_per_block;
+
+    // if fastest length is power of 2, pad it to avoid LDS bank conflicts
+    auto padded_len0 = IsPo2(length[0]) ? length[0] + 1 : length[0];
+    lds              = padded_len0 * length[1] * kernel.batches_per_block;
+
     // if we're doing 3D transform, we need to repeat the 2D
     // transform in the 3rd dimension
     if(length.size() > 2)

@@ -81,7 +81,7 @@ __device__ inline void post_process_interleaved(const size_t    idx_p,
     }
 }
 
-// TODO: remove it when deprecate old code-gen
+// TODO: rework pre/post processing
 template <typename T, bool Ndiv4, CallbackType cbtype>
 __device__ inline void post_process_interleaved_inplace(const size_t idx_p,
                                                         const size_t idx_q,
