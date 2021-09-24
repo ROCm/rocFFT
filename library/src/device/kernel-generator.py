@@ -566,13 +566,13 @@ def list_large_kernels():
 
     # SBR
     sbrc_kernels = [
-        NS(length=50,  factors=[10, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=50, threads_per_transform=2, block_width=10),
+        NS(length=50,  factors=[10, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=50, threads_per_transform=5, block_width=10),
         NS(length=64,  factors=[4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128, block_width=16),
         NS(length=81,  factors=[3, 3, 3, 3], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=81, threads_per_transform=9, block_width=9),
         NS(length=100,  factors=[10, 10], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=50, threads_per_transform=10, block_width=5),
         NS(length=128,  factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128, threads_per_transform=16, block_width=8),
         NS(length=200,  factors=[10, 10, 2], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=100, threads_per_transform=10, block_width=10),
-        NS(length=256, factors=[4, 4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=64, block_width=8),
+        NS(length=256, factors=[4, 4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=64, block_width=8), # FIXME: tpt should be 32
     ]
 
     # NB:

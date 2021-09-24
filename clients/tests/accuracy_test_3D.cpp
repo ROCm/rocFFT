@@ -182,7 +182,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 // Test combinations of SBRC sizes, plus a non-SBRC size (10) to
 // exercise fused SBRC+transpose kernels.
-static std::vector<size_t> sbrc_range       = {64, 81, 100, 200, 10, 128, 256};
+static std::vector<size_t> sbrc_range       = {50, 64, 81, 100, 200, 10, 128, 256};
 static std::vector<size_t> sbrc_batch_range = {2, 1};
 INSTANTIATE_TEST_SUITE_P(
     sbrc_3D,
