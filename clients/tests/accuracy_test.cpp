@@ -969,6 +969,23 @@ TEST_P(accuracy_test, vs_fftw)
         GTEST_SKIP();
         return;
     }
+
+    // Test also if the smalles problem size can fit in vram
+    auto ibuffer_sizes = params.ibuffer_sizes();
+    auto obuffer_sizes = params.obuffer_sizes();
+    auto minimal_vram_footprint
+        = params.nibuffer() * ibuffer_sizes[0]
+          + (params.placement == rocfft_placement_inplace ? 0
+                                                          : params.nobuffer() * obuffer_sizes[0]);
+    size_t free   = 0;
+    size_t total  = 0;
+    auto   retval = hipMemGetInfo(&free, &total);
+    ASSERT_TRUE(retval == hipSuccess);
+    if(total < minimal_vram_footprint)
+    {
+        GTEST_SKIP() << "won't fit on device, even without work buffer";
+    }
+
     auto cpu = accuracy_test::compute_cpu_fft(params);
 
     // Set up GPU computations:

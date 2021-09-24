@@ -313,13 +313,17 @@ public:
     {
         // Host input, output, and input copy: 3 buffers, all contiguous.
         size_t needed_ram
-            = 3 * std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
+            = 3
+              * std::accumulate(
+                  length.begin(), length.end(), static_cast<size_t>(1), std::multiplies<size_t>());
 
         // GPU input buffer:
-        needed_ram += std::inner_product(length.begin(), length.end(), istride.begin(), 0);
+        needed_ram += std::inner_product(
+            length.begin(), length.end(), istride.begin(), static_cast<size_t>(0));
 
         // GPU output buffer:
-        needed_ram += std::inner_product(length.begin(), length.end(), ostride.begin(), 0);
+        needed_ram += std::inner_product(
+            length.begin(), length.end(), ostride.begin(), static_cast<size_t>(0));
 
         // Account for precision and data type:
         if(transform_type != rocfft_transform_type_real_forward
