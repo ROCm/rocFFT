@@ -1765,25 +1765,6 @@ def stockham_launch2d(length, params, **kwargs):
                     body = body)
 
 
-def stockham_default_factors(length):
-    supported_radixes = [2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 16, 17]
-    supported_radixes.sort(reverse=True)
-
-    remaining_length = length
-    factors = []
-    for f in supported_radixes:
-        while remaining_length % f == 0:
-            factors.append(f)
-            remaining_length /= f
-
-    if remaining_length != 1:
-        raise RuntimeError("length {} not factorizable!".format(length))
-
-    # default order of factors is ascending
-    factors.sort()
-    return factors
-
-
 def stockham1d(length, **kwargs):
     """Generate Stockham kernels!
 
@@ -1791,9 +1772,8 @@ def stockham1d(length, **kwargs):
     is essentially a factory...
     """
 
-    factors = kwargs.get('factors', stockham_default_factors(length))
-    if 'factors' in kwargs:
-        kwargs.pop('factors')
+    factors = kwargs['factors']
+    kwargs.pop('factors')
 
     # assert that factors multiply out to the length
     if functools.reduce(lambda x, y: x * y, factors) != length:
@@ -1845,9 +1825,8 @@ def stockham1d(length, **kwargs):
 def stockham2d(lengths, **kwargs):
     """Generate fused 2D Stockham kernel."""
 
-    factorss = kwargs.get('factors', [stockham_default_factors(l) for l in lengths])
-    if 'factors' in kwargs:
-        kwargs.pop('factors')
+    factorss = kwargs['factors']
+    kwargs.pop('factors')
 
     flavours = kwargs.get('flavour', ['uwide' for l in lengths])
     if 'flavour' in kwargs:

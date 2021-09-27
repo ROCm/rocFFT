@@ -13,6 +13,7 @@ import functools
 import itertools
 import subprocess
 import sys
+import os
 
 from copy import deepcopy
 from pathlib import Path
@@ -606,7 +607,7 @@ def default_runtime_compile(kernels):
 
     return [k if hasattr(k, 'runtime_compile') else NS(**k.__dict__, runtime_compile=False) for k in kernels]
 
-def generate_kernel(kernel, precisions):
+def generate_kernel(kernel, precisions, stockham_aot):
     """Generate a single kernel file for 'kernel'.
 
     The kernel file contains all kernel variations corresponding to
@@ -614,6 +615,79 @@ def generate_kernel(kernel, precisions):
 
     A list of CPU functions is returned.
     """
+
+    args = [stockham_aot]
+    # 2D single kernels always specify threads per transform
+    if isinstance(kernel.length, list):
+        args.append(','.join([str(f) for f in kernel.factors[0]]))
+        args.append(','.join([str(f) for f in kernel.factors[1]]))
+        args.append(','.join([str(f) for f in kernel.threads_per_transform]))
+    else:
+        args.append(','.join([str(f) for f in kernel.factors]))
+        # 1D kernels might not, and need to default to 'uwide'
+        threads_per_transform = getattr(kernel,'threads_per_transform', {
+            'uwide': kernel.length // min(kernel.factors),
+            'wide': kernel.length // max(kernel.factors),
+            'tall': 0,
+            'consolidated': 0
+            }[getattr(kernel,'flavour', 'uwide')])
+        args.append(str(threads_per_transform))
+
+    # default half_lds to True only for CS_KERNEL_STOCKHAM
+    half_lds = getattr(kernel, 'half_lds', kernel.scheme == 'CS_KERNEL_STOCKHAM')
+
+    args.append(str(kernel.threads_per_block))
+    args.append(str(getattr(kernel, 'block_width', 0)))
+    args.append('1' if half_lds else '0')
+    args.append(kernel.scheme)
+    args.append(kernel_file_name(kernel))
+
+    proc = subprocess.run(args=args, stdout=subprocess.PIPE, check=True)
+
+    import json
+    launchers = json.loads(proc.stdout.decode('ascii'))
+
+    cpu_functions = []
+    data = Variable('data_p', 'const void *')
+    back = Variable('back_p', 'void *')
+    for launcher_dict in launchers:
+        launcher = NS(**launcher_dict)
+
+        factors = launcher.factors
+        length = launcher.lengths[0] if len(launcher.lengths) == 1 else (launcher.lengths[0], launcher.lengths[1])
+        transforms_per_block = launcher.transforms_per_block
+        threads_per_block = launcher.threads_per_block
+        threads_per_transform = threads_per_block // transforms_per_block
+        half_lds = launcher.half_lds
+        scheme = launcher.scheme
+        sbrc_type = launcher.sbrc_type
+        sbrc_transpose_type = launcher.sbrc_transpose_type
+        precision = 'dp' if launcher.double_precision else 'sp'
+        runtime_compile = kernel.runtime_compile
+        use_3steps_large_twd = getattr(kernel, '3steps', None)
+        block_width = getattr(kernel, 'block_width', 0)
+
+        params = stockham.LaunchParams(transforms_per_block, threads_per_block, threads_per_transform, half_lds)
+
+        f = Function(name=launcher.name,
+                     arguments=ArgumentList(data, back),
+                     meta=NS(
+                         factors=factors,
+                         length=length,
+                         params=params,
+                         precision=precision,
+                         runtime_compile=runtime_compile,
+                         scheme=scheme,
+                         threads_per_block=threads_per_block,
+                         transforms_per_block=transforms_per_block,
+                         transpose=sbrc_transpose_type,
+                         use_3steps_large_twd=use_3steps_large_twd,
+                         block_width=block_width,
+                         ))
+
+        cpu_functions.append(f)
+
+    return cpu_functions
 
     fname = Path(__file__).resolve()
 
@@ -732,7 +806,7 @@ def generate_kernel(kernel, precisions):
     return cpu_functions
 
 
-def generate_kernels(kernels, precisions):
+def generate_kernels(kernels, precisions, stockham_aot):
     """Generate and write kernels from the kernel list.
 
     Entries in the kernel list are simple namespaces.  These are
@@ -740,7 +814,53 @@ def generate_kernels(kernels, precisions):
 
     A list of CPU functions is returned.
     """
-    return flatten([generate_kernel(k, precisions) for k in kernels])
+    import threading
+    import queue
+
+    # push all the work to a queue
+    q_in = queue.Queue()
+    for k in kernels:
+        q_in.put(k)
+
+    # queue for outputs
+    q_out = queue.Queue()
+
+    def threadfunc():
+        nonlocal q_in
+        nonlocal q_out
+        nonlocal precisions
+        nonlocal stockham_aot
+        try:
+            while not q_in.empty():
+                k = q_in.get()
+                q_out.put(generate_kernel(k, precisions, stockham_aot))
+        except queue.Empty:
+            pass
+
+    # by default, start up worker threads.  disable this if you want
+    # to use pdb to debug
+    use_threads = True
+
+    if use_threads:
+        threads = []
+        for i in range(os.cpu_count()):
+            threads.append(threading.Thread(target=threadfunc))
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    else:
+        threadfunc()
+
+    # iterate over the queue
+    def queue_iter(q_out):
+        try:
+            while not q_out.empty():
+                yield q_out.get()
+        except queue.Empty:
+            pass
+
+    return flatten(queue_iter(q_out))
 
 
 def cli():
@@ -756,7 +876,7 @@ def cli():
     list_parser = subparsers.add_parser('list', help='List kernel files that will be generated.')
 
     generate_parser = subparsers.add_parser('generate', help='Generate kernels.')
-    #generate_parser.add_argument('generator', type=str, help='Kernel generator executable.')
+    generate_parser.add_argument('stockham_aot', type=str, help='Stockham AOT executable.')
 
     args = parser.parse_args()
 
@@ -825,7 +945,7 @@ def cli():
         scprint(set(['function_pool.cpp'] + list_generated_kernels(kernels)))
 
     if args.command == 'generate':
-        cpu_functions = generate_kernels(kernels, precisions)
+        cpu_functions = generate_kernels(kernels, precisions, args.stockham_aot)
         write('function_pool.cpp', generate_cpu_function_pool(cpu_functions), format=True)
 
 

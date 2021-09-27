@@ -39,8 +39,8 @@ if(ROCFFT_DEVICE_FORCE_RELEASE)
   set (CMAKE_BUILD_TYPE Release)
 endif()
 
-# # This builds the generator executable
-# add_subdirectory( generator )
+# This builds the generator executable
+add_subdirectory( generator )
 
 # Generated kernels
 
@@ -122,8 +122,8 @@ add_custom_command(OUTPUT ${gen_headers}
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
   --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
-  generate
-  DEPENDS ${kgendeps}
+  generate $<TARGET_FILE:stockham_aot>
+  DEPENDS stockham_aot ${kgendeps}
   COMMENT "Generator producing device kernels for rocfft-device"
 )
 
