@@ -56,7 +56,6 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
                                        void* __restrict__ store_cb_fn,
                                        void* __restrict__ store_cb_data)
 {
-    size_t idist1D            = inStride[1];
     size_t input_batch_start  = idist * blockIdx.z;
     size_t output_batch_start = odist * blockIdx.z;
     auto   twiddles           = static_cast<const T*>(twiddles0);
@@ -94,10 +93,12 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
     if(row_end > row_limit)
         row_end = row_limit;
 
-    const size_t lds_row = threadIdx.y;
-    const size_t lds_col = threadIdx.x;
-    // TODO: currently assumes idist2D has no extra padding
-    const size_t input_row_base = (row_start + lds_row) * idist1D;
+    const size_t lds_row        = threadIdx.y;
+    const size_t lds_col        = threadIdx.x;
+    const size_t input_row_idx  = row_start + lds_row;
+    size_t       input_row_base = input_row_idx % lengths[1] * inStride[1];
+    if(dim > 2)
+        input_row_base += input_row_idx / lengths[1] * inStride[2];
 
     if(row_start + lds_row < row_end && lds_col < cols_to_read)
     {
@@ -404,8 +405,6 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
                                       void* __restrict__ store_cb_fn,
                                       void* __restrict__ store_cb_data)
 {
-    size_t idist1D            = dim == 2 ? inStride[1] : inStride[2];
-    size_t odist1D            = outStride[1];
     size_t input_batch_start  = idist * blockIdx.z;
     size_t output_batch_start = odist * blockIdx.z;
     auto   twiddles           = static_cast<const T*>(twiddles0);
@@ -440,27 +439,29 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
 
     const size_t col_start = blockIdx.x * DIM_X;
     size_t       col_end   = DIM_X + col_start;
-    // TODO: currently assumes idist2D has no extra padding
     const size_t col_limit = dim == 2 ? lengths[0] : lengths[0] * lengths[1];
     if(col_end > col_limit)
         col_end = col_limit;
 
     const size_t lds_row        = threadIdx.y;
     const size_t lds_col        = threadIdx.x;
-    const size_t input_col_base = col_start;
+    const size_t input_col_base = (col_start + lds_col) % lengths[0] * inStride[0]
+                                  + (col_start + lds_col) / lengths[0] * inStride[1];
+    const size_t input_col_stride = dim == 2 ? inStride[1] : inStride[2];
 
     if(col_start + lds_col < col_end && lds_row < rows_to_read)
     {
         auto v                    = Handler<T_I, cbtype>::read(input0,
-                                            input_batch_start + input_col_base + lds_col
-                                                + (top_row_start + lds_row) * idist1D,
+                                            input_batch_start + input_col_base
+                                                + (top_row_start + lds_row) * input_col_stride,
                                             load_cb_fn,
                                             load_cb_data);
         topTile[lds_col][lds_row] = v;
 
         auto v2 = Handler<T_I, cbtype>::read(input0,
-                                             input_batch_start + input_col_base + lds_col
-                                                 + (len1 - (top_row_start + lds_row)) * idist1D,
+                                             input_batch_start + input_col_base
+                                                 + (len1 - (top_row_start + lds_row))
+                                                       * input_col_stride,
                                              load_cb_fn,
                                              load_cb_data);
         // TODO: reads values-to-butterfly into same col/row in LDS.
@@ -476,35 +477,35 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
     if(blockIdx.y == 0 && threadIdx.y == 0 && col_start + lds_col < col_end)
     {
         first_elem = Handler<T_I, cbtype>::read(
-            input0, input_batch_start + col_start + lds_col, load_cb_fn, load_cb_data);
+            input0, input_batch_start + input_col_base, load_cb_fn, load_cb_data);
         if(len1 % 2 == 0)
         {
             middle_elem = Handler<T_I, cbtype>::read(input0,
-                                                     input_batch_start + col_start + lds_col
-                                                         + middle * idist1D,
+                                                     input_batch_start + input_col_base
+                                                         + middle * input_col_stride,
                                                      load_cb_fn,
                                                      load_cb_data);
         }
-        last_elem
-            = Handler<T_I, cbtype>::read(input0,
-                                         input_batch_start + col_start + lds_col + len1 * idist1D,
-                                         load_cb_fn,
-                                         load_cb_data);
+        last_elem = Handler<T_I, cbtype>::read(input0,
+                                               input_batch_start + input_col_base
+                                                   + len1 * input_col_stride,
+                                               load_cb_fn,
+                                               load_cb_data);
     }
 
     __syncthreads();
 
     // write first + middle
+    const size_t output_row_base = (col_start + lds_col) % lengths[0] * outStride[1]
+                                   + (col_start + lds_col) / lengths[0] * outStride[2];
+    const size_t output_row_stride = outStride[0];
     if(blockIdx.y == 0 && threadIdx.y == 0 && col_start + lds_col < col_end)
     {
         T tmp;
         tmp.x = first_elem.x - first_elem.y + last_elem.x + last_elem.y;
         tmp.y = first_elem.x + first_elem.y - last_elem.x + last_elem.y;
-        Handler<T_O, cbtype>::write(output0,
-                                    output_batch_start + outStride[1] * (col_start + lds_col),
-                                    tmp,
-                                    store_cb_fn,
-                                    store_cb_data);
+        Handler<T_O, cbtype>::write(
+            output0, output_batch_start + output_row_base, tmp, store_cb_fn, store_cb_data);
 
         if(len1 % 2 == 0)
         {
@@ -513,8 +514,8 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
             tmp.y = -2.0 * middle_elem.y;
 
             Handler<T_O, cbtype>::write(output0,
-                                        output_batch_start + outStride[1] * (col_start + lds_col)
-                                            + middle,
+                                        output_batch_start + output_row_base
+                                            + middle * output_row_stride,
                                         tmp,
                                         store_cb_fn,
                                         store_cb_data);
@@ -537,8 +538,8 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
         tmp.x = u.x + v.x * twd_p.y - u.y * twd_p.x;
         tmp.y = v.y + u.y * twd_p.y + v.x * twd_p.x;
         Handler<T_O, cbtype>::write(output0,
-                                    output_batch_start + top_row_start + lds_row
-                                        + (col_start + lds_col) * odist1D,
+                                    output_batch_start + output_row_base
+                                        + (top_row_start + lds_row) * output_row_stride,
                                     tmp,
                                     store_cb_fn,
                                     store_cb_data);
@@ -548,8 +549,8 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
         tmp2.x = u.x - v.x * twd_p.y + u.y * twd_p.x;
         tmp2.y = -v.y + u.y * twd_p.y + v.x * twd_p.x;
         Handler<T_O, cbtype>::write(output0,
-                                    output_batch_start + (len1 - (top_row_start + lds_row))
-                                        + (col_start + lds_col) * odist1D,
+                                    output_batch_start + output_row_base
+                                        + (len1 - (top_row_start + lds_row)) * output_row_stride,
                                     tmp2,
                                     store_cb_fn,
                                     store_cb_data);

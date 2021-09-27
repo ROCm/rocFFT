@@ -2,6 +2,11 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
+## (Unreleased) rocFFT 1.0.16
+
+### Fixed
+- Fixed correctness of some R2C transforms with unusual strides.
+
 ## (Unreleased) rocFFT 1.0.15
 
 ### Changed
