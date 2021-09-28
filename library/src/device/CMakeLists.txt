@@ -87,8 +87,7 @@ endif()
 set( kgen ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py )
 set( kgendeps ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py
               ${CMAKE_SOURCE_DIR}/library/src/device/generator.py
-              ${CMAKE_SOURCE_DIR}/library/src/device/rtccache.py
-              ${CMAKE_SOURCE_DIR}/library/src/device/stockham.py )
+              ${CMAKE_SOURCE_DIR}/library/src/device/rtccache.py )
 execute_process(COMMAND ${PYTHON3_EXE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
