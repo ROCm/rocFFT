@@ -56,9 +56,20 @@ def clang_format(code):
                            check=True)
         return p.stdout
     except FileNotFoundError:
+        # code formatting doesn't affect functionality, so just assume
+        # default ROCm path and ignore errors if it's not there.
         pass
     return str(code)
 
+def clang_format_file(filename):
+    """Format a file using clang-format.  Ignores errors so the file
+       remains unformatted if clang-format isn't runnable."""
+    try:
+        p = subprocess.run(['/opt/rocm/llvm/bin/clang-format', '-i', filename])
+    except:
+        # code formatting doesn't affect functionality, so just assume
+        # default ROCm path and ignore errors if it's not there.
+        pass
 
 def write(fname, code, format=False):
     """Format code and write to `fname`.

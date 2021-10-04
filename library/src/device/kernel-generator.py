@@ -21,7 +21,8 @@ from types import SimpleNamespace as NS
 from operator import mul
 
 from generator import (ArgumentList, BaseNode, Call, CommentBlock, Function, Include,
-                       LineBreak, Map, StatementList, Variable, name_args, write)
+                       LineBreak, Map, StatementList, Variable, name_args, write,
+                       clang_format_file)
 
 
 from collections import namedtuple
@@ -610,13 +611,16 @@ def generate_kernel(kernel, precisions, stockham_aot):
     # default half_lds to True only for CS_KERNEL_STOCKHAM
     half_lds = getattr(kernel, 'half_lds', kernel.scheme == 'CS_KERNEL_STOCKHAM')
 
+    filename = kernel_file_name(kernel)
+
     args.append(str(kernel.threads_per_block))
     args.append(str(getattr(kernel, 'block_width', 0)))
     args.append('1' if half_lds else '0')
     args.append(kernel.scheme)
-    args.append(kernel_file_name(kernel))
+    args.append(filename)
 
     proc = subprocess.run(args=args, stdout=subprocess.PIPE, check=True)
+    clang_format_file(filename)
 
     import json
     launchers = json.loads(proc.stdout.decode('ascii'))
