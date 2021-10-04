@@ -1633,7 +1633,8 @@ void ProcessNode(ExecPlan& execPlan)
     execPlan.assignOptStrategy = rocfft_optimize_balance;
     // try to use all buffer to get most fusion
     //execPlan.assignOptStrategy = rocfft_optimize_max_fusion;
-    AssignmentPolicy::AssignBuffers(execPlan);
+    AssignmentPolicy policy;
+    policy.AssignBuffers(execPlan);
 #else
     // initialize traverse state so we can initialize obIn + obOut for all nodes
     TreeNode::TraverseState state(execPlan);

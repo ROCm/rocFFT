@@ -105,8 +105,14 @@ struct PlacementTrace
     void Backtracking(ExecPlan& execPlan, int planID);
 };
 
-namespace AssignmentPolicy
+class AssignmentPolicy
 {
+public:
+    AssignmentPolicy() = default;
+
+    bool AssignBuffers(ExecPlan& execPlan);
+
+private:
     std::vector<size_t> GetEffectiveNodeOutLen(ExecPlan& execPlan, const TreeNode& node);
 
     // test if rootArrayType == testArrayType,
@@ -124,13 +130,18 @@ namespace AssignmentPolicy
 
     void UpdateWinnerFromValidPaths(ExecPlan& execPlan);
 
-    bool AssignBuffers(ExecPlan& execPlan);
-
     void Enumerate(PlacementTrace*   parent,
                    ExecPlan&         execPlan,
                    size_t            curSeqID,
                    OperatingBuffer   startBuf,
                    rocfft_array_type startType);
+
+    std::vector<PlacementTrace*> winnerCandidates;
+    std::set<OperatingBuffer>    availableBuffers;
+    std::set<rocfft_array_type>  availableArrayTypes;
+    int  numCurWinnerFusions; // -1 means no winner, else = curr winner's #-fusions
+    bool mustUseTBuffer = false;
+    bool mustUseCBuffer = false;
 };
 
 #endif // ASSIGNMENT_POLICY_H
