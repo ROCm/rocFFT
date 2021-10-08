@@ -169,6 +169,17 @@ public:
         ss << "olength:";
         for(const auto i : olength())
             ss << " " << i;
+        ss << separator;
+
+        ss << "ibuffer_size:";
+        for(const auto i : ibuffer_sizes())
+            ss << " " << i;
+        ss << separator;
+
+        ss << "obuffer_size:";
+        for(const auto i : obuffer_sizes())
+            ss << " " << i;
+        ss << separator;
 
         return ss.str();
     }
@@ -230,14 +241,29 @@ public:
         return nbuffer(otype);
     }
 
+    // Compute the farthest point from the original pointer.
+    size_t compute_ptrdiff(const std::vector<size_t>& length,
+                           const std::vector<size_t>& stride,
+                           const size_t               nbatch,
+                           const size_t               dist) const
+    {
+        size_t val = 0;
+        if(!length.empty())
+        {
+            val = 1;
+            for(int i = 0; i < length.size(); ++i)
+            {
+                val += (length[i] - 1) * stride[i];
+            }
+            val += (nbatch - 1) * dist;
+        }
+        return val;
+    }
+
     auto compute_isize() const
     {
-        auto   il  = ilength();
-        size_t val = nbatch * idist;
-        for(int i = 0; i < il.size(); ++i)
-        {
-            val = std::max(val, il[i] * istride[i]);
-        }
+        auto                il  = ilength();
+        size_t              val = compute_ptrdiff(il, istride, nbatch, idist);
         std::vector<size_t> isize(nibuffer());
         for(int i = 0; i < isize.size(); ++i)
         {
@@ -248,12 +274,8 @@ public:
 
     auto compute_osize() const
     {
-        auto   ol  = olength();
-        size_t val = nbatch * odist;
-        for(int i = 0; i < ol.size(); ++i)
-        {
-            val = std::max(val, ol[i] * ostride[i]);
-        }
+        auto                ol  = olength();
+        size_t              val = compute_ptrdiff(ol, ostride, nbatch, odist);
         std::vector<size_t> osize(nobuffer());
         for(int i = 0; i < osize.size(); ++i)
         {
@@ -265,6 +287,14 @@ public:
     std::vector<size_t> ibuffer_sizes() const
     {
         std::vector<size_t> ibuffer_sizes;
+
+        // In-place real-to-complex transforms need to have enough space in the input buffer to
+        // accomadate the output, which is slightly larger.
+        if(placement == rocfft_placement_inplace
+           && transform_type == rocfft_transform_type_real_forward)
+        {
+            return obuffer_sizes();
+        }
 
         if(isize.empty())
             return ibuffer_sizes;
