@@ -185,7 +185,11 @@ protected:
     {
     }
 
-    void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+    void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+    size_t sbrc_3D_alignment_dimension() override
+    {
+        return length[2];
+    }
 };
 
 /*****************************************************
@@ -202,7 +206,11 @@ protected:
     {
     }
 
-    void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+    void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+    size_t sbrc_3D_alignment_dimension() override
+    {
+        return length[1] * length[2];
+    }
 };
 
 /*****************************************************
@@ -220,7 +228,11 @@ protected:
         twd_attach_2N = true;
     }
 
-    void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+    void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+    size_t sbrc_3D_alignment_dimension() override
+    {
+        return length[1] * length[2];
+    }
 };
 
 #endif // TREE_NODE_3D_H

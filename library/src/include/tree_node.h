@@ -491,6 +491,26 @@ public:
     virtual bool CreateTwiddleTableResource()                              = 0;
     virtual void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) = 0;
 
+    // for 3D SBRC kernels, decide the transpose type based on the
+    // block width and lengths that the block tiles need to align on.
+    // default value for alignment_dimension is 0, meaning this isn't a
+    // 3D SBRC node.
+    virtual size_t sbrc_3D_alignment_dimension()
+    {
+        return 0;
+    }
+    virtual SBRC_TRANSPOSE_TYPE sbrc_3D_transpose_type(unsigned int blockWidth)
+    {
+        auto alignment_dimension = sbrc_3D_alignment_dimension();
+        if(alignment_dimension == 0)
+            return NONE;
+        if(is_diagonal_sbrc_3D_length(length.front()) && is_cube_size(length))
+            return DIAGONAL;
+        if(alignment_dimension % blockWidth == 0)
+            return TILE_ALIGNED;
+        return TILE_UNALIGNED;
+    }
+
 protected:
     virtual void BuildTree_internal() = 0;
 #if !GENERIC_BUF_ASSIGMENT

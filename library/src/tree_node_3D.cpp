@@ -22,17 +22,6 @@
 #include "function_pool.h"
 #include "node_factory.h"
 
-SBRC_TRANSPOSE_TYPE sbrc_3D_transpose_type(unsigned int               blockWidth,
-                                           size_t                     alignment_dimension,
-                                           const std::vector<size_t>& length)
-{
-    if(is_diagonal_sbrc_3D_length(length.front()) && is_cube_size(length))
-        return DIAGONAL;
-    if(alignment_dimension % blockWidth == 0)
-        return TILE_ALIGNED;
-    return TILE_UNALIGNED;
-}
-
 /*****************************************************
  * 3D_RTRT  *
  *****************************************************/
@@ -710,7 +699,7 @@ void SBRCTransXY_ZNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
     bwd                = kernel.block_width;
     wgs                = kernel.threads_per_block;
     lds                = length[0] * kernel.block_width;
-    auto transposeType = sbrc_3D_transpose_type(bwd, length[2], length);
+    auto transposeType = sbrc_3D_transpose_type(bwd);
     fnPtr    = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
     gp.b_x   = DivRoundingUp(length[2], size_t(kernel.block_width)) * length[1] * batch;
     gp.tpb_x = kernel.threads_per_block;
@@ -727,7 +716,7 @@ void SBRCTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
     bwd                = kernel.block_width;
     wgs                = kernel.threads_per_block;
     lds                = length[0] * kernel.block_width;
-    auto transposeType = sbrc_3D_transpose_type(bwd, length[1] * length[2], length);
+    auto transposeType = sbrc_3D_transpose_type(bwd);
     fnPtr  = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
     gp.b_x = std::accumulate(length.begin() + 1, length.end(), batch, std::multiplies<size_t>());
     gp.b_x /= kernel.block_width;
@@ -746,7 +735,7 @@ void RealCmplxTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridPara
     wgs                = kernel.threads_per_block;
     lds                = length[0] * kernel.block_width;
     lds_padding        = 1;
-    auto transposeType = sbrc_3D_transpose_type(bwd, length[1] * length[2], length);
+    auto transposeType = sbrc_3D_transpose_type(bwd);
     fnPtr  = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
     gp.b_x = std::accumulate(length.begin() + 1, length.end(), batch, std::multiplies<size_t>());
     gp.b_x /= kernel.block_width;
