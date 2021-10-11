@@ -46,22 +46,58 @@ endif()
 
 add_subdirectory( device )
 
+#
 # embed the generator itself into c++ files
+#
+
+# script that produces an include file
 set( kgen_embed_command ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed-cpp.py )
+
+# location of the include file
 set( kgen_embed_h ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed.h )
+
+# files that need to be embedded into the library, to be able to generate code
 set( kgen_embed_files
-     ${kgendeps}
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/common.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/callback.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/butterfly_constant.h
      ${CMAKE_SOURCE_DIR}/library/src/include/real2complex.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/rocfft_butterfly_template.h
    )
+
+# files that contribute to the logic of how code gets generated -
+# embedded files obviously already contribute.  these are checksummed
+# to serve as a "version" for the code generator.
+set( kgen_logic_files
+
+     # python code that does the embedding
+     ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed-cpp.py
+
+     # python code that decides kernel parameters
+     ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator.py
+
+     # stockham generator code
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/generator.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_aot.cpp
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen.cpp
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_2d.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_base.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_cc.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_cr.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_rc.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_rr.h
+
+     # c++ code that does rtc-specific adjustments
+     ${CMAKE_SOURCE_DIR}/library/src/rtc.cpp
+   )
+
 add_custom_command(
   OUTPUT ${kgen_embed_h}
   COMMAND ${PYTHON3_EXE} ${kgen_embed_command}
-  ${kgen_embed_files} ${kgen_embed_h}
-  DEPENDS ${kgen_embed_files}
+  --embed ${kgen_embed_files} --logic ${kgen_logic_files} --output ${kgen_embed_h}
+  DEPENDS ${kgen_embed_command} ${kgen_embed_files} ${kgen_logic_files}
 )
 
 # The following is a list of implementation files defining the library
@@ -123,8 +159,7 @@ target_link_libraries( rocfft PRIVATE rocfft-device-2 )
 target_link_libraries( rocfft PRIVATE rocfft-device-3 )
 
 if( ROCFFT_RUNTIME_COMPILE )
-  target_link_libraries( rocfft PRIVATE ${Python3_LIBRARIES} )
-  target_include_directories( rocfft PRIVATE ${Python3_INCLUDE_DIRS} )
+  target_link_libraries( rocfft PRIVATE stockham_gen )
   target_compile_options( rocfft PRIVATE -DROCFFT_RUNTIME_COMPILE )
 endif()
 

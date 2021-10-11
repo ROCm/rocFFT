@@ -99,6 +99,7 @@ class FFTKernel(BaseNode):
         threads_per_block = getattr(self.function.meta, 'threads_per_block', None)
         if threads_per_block is not None:
             f += ', ' + str(threads_per_block)
+        f += ', {' + ','.join([str(s) for s in self.function.meta.threads_per_transform]) + '}'
         block_width = getattr(self.function.meta, 'block_width', None)
         if block_width is not None:
             f += ', ' + str(block_width)
@@ -647,6 +648,9 @@ def generate_kernel(kernel, precisions, stockham_aot):
 
         params = LaunchParams(transforms_per_block, threads_per_block, threads_per_transform, half_lds)
 
+        # make 2D list of threads_per_transform to populate FFTKernel
+        tpt_list = kernel.threads_per_transform if scheme == 'CS_KERNEL_2D_SINGLE' else [threads_per_transform, 0]
+
         f = Function(name=launcher.name,
                      arguments=ArgumentList(data, back),
                      meta=NS(
@@ -658,6 +662,7 @@ def generate_kernel(kernel, precisions, stockham_aot):
                          scheme=scheme,
                          threads_per_block=threads_per_block,
                          transforms_per_block=transforms_per_block,
+                         threads_per_transform=tpt_list,
                          transpose=sbrc_transpose_type,
                          use_3steps_large_twd=use_3steps_large_twd,
                          block_width=block_width,

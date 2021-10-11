@@ -18,520 +18,323 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include <functional>
+
+using namespace std::placeholders;
+
+#include "../../shared/array_predicate.h"
+#include "device/generator/generator.h"
+#include "device/generator/stockham_gen.h"
+#include "device/generator/stockham_gen_base.h"
 #include "rtc.h"
+
+#include "device/generator/stockham_gen_cc.h"
+#include "device/generator/stockham_gen_cr.h"
+#include "device/generator/stockham_gen_rc.h"
+#include "device/generator/stockham_gen_rr.h"
+
+#include "device/generator/stockham_gen_2d.h"
+
 #include "device/kernel-generator-embed.h"
+#include "function_pool.h"
 #include "kernel_launch.h"
 #include "logging.h"
 #include "plan.h"
 #include "tree_node.h"
 
-#ifdef ROCFFT_RUNTIME_COMPILE
-#define PY_SSIZE_T_CLEAN
-#include <Python.h>
-#endif
-
-#include <exception>
-#include <map>
-
-// specifications of stockham kernel
-struct stockham_specs_t
+// generate name for RTC stockham kernel
+//
+// NOTE: this is the key for finding kernels in the cache, so distinct
+// kernels *MUST* have unique names.
+std::string stockham_rtc_kernel_name(const TreeNode&     node,
+                                     SBRC_TRANSPOSE_TYPE transpose_type,
+                                     bool                enable_callbacks)
 {
-    stockham_specs_t(const TreeNode& node, const char* gpu_arch, bool _enable_callbacks)
-        : scheme(node.scheme)
-        , length(node.length.front())
-        , length2D(node.scheme == CS_KERNEL_2D_SINGLE ? node.length[1] : 0)
-        , placement(node.placement)
-        , direction(node.direction)
-        , in_type(node.inArrayType)
-        , out_type(node.outArrayType)
-        , precision(node.precision)
-        , unit_stride(node.inStride.front() == 1 && node.outStride.front() == 1)
-        , apply_large_twiddle(node.large1D > 0)
-        , large_twiddle_base(node.largeTwdBase)
-        , ebtype(node.ebtype)
-        , enable_callbacks(_enable_callbacks)
-        , arch(gpu_arch)
+    std::string kernel_name = "fft_rtc";
+
+    if(node.direction == -1)
+        kernel_name += "_fwd";
+    else
+        kernel_name += "_back";
+
+    size_t length   = node.length.front();
+    size_t length2D = node.scheme == CS_KERNEL_2D_SINGLE ? node.length[1] : 0;
+
+    kernel_name += "_len";
+    kernel_name += std::to_string(length);
+    if(length2D)
+        kernel_name += "x" + std::to_string(length2D);
+
+    auto array_type_name = [](rocfft_array_type type) {
+        switch(type)
+        {
+        case rocfft_array_type_complex_interleaved:
+            return "_CI";
+        case rocfft_array_type_complex_planar:
+            return "_CP";
+        case rocfft_array_type_real:
+            return "_R";
+        case rocfft_array_type_hermitian_interleaved:
+            return "_HI";
+        case rocfft_array_type_hermitian_planar:
+            return "_HP";
+        default:
+            return "_UN";
+        }
+    };
+
+    kernel_name += node.precision == rocfft_precision_single ? "_sp" : "_dp";
+
+    if(node.placement == rocfft_placement_inplace)
     {
-        set_kernel_name();
+        kernel_name += "_ip";
+        kernel_name += array_type_name(node.inArrayType);
+    }
+    else
+    {
+        kernel_name += "_op";
+        kernel_name += array_type_name(node.inArrayType);
+        kernel_name += array_type_name(node.outArrayType);
     }
 
-    ComputeScheme           scheme;
-    size_t                  length;
-    size_t                  length2D;
-    rocfft_result_placement placement;
-    int                     direction;
-    rocfft_array_type       in_type;
-    rocfft_array_type       out_type;
-    rocfft_precision        precision;
-    bool                    unit_stride;
-    bool                    apply_large_twiddle;
-    size_t                  large_twiddle_base;
-    EmbeddedType            ebtype;
-    bool                    enable_callbacks;
-    std::string             arch;
+    if(node.inStride.front() == 1 && node.outStride.front() == 1)
+        kernel_name += "_unitstride";
 
-    std::string kernel_name;
-
-private:
-    // generate name for the desired variant of kernel.
-    // NOTE: this is the key for finding kernels in the cache, so distinct
-    // kernels *MUST* have unique names.
-    void set_kernel_name()
+    switch(node.scheme)
     {
-        kernel_name = "fft_rtc";
-
-        if(direction == -1)
-            kernel_name += "_fwd";
-        else
-            kernel_name += "_back";
-
-        kernel_name += "_len";
-        kernel_name += std::to_string(length);
-        if(length2D)
-            kernel_name += "x" + std::to_string(length2D);
-
-        auto array_type_name = [](rocfft_array_type type) {
-            switch(type)
-            {
-            case rocfft_array_type_complex_interleaved:
-                return "_CI";
-            case rocfft_array_type_complex_planar:
-                return "_CP";
-            case rocfft_array_type_real:
-                return "_R";
-            case rocfft_array_type_hermitian_interleaved:
-                return "_HI";
-            case rocfft_array_type_hermitian_planar:
-                return "_HP";
-            default:
-                return "_UN";
-            }
-        };
-
-        kernel_name += precision == rocfft_precision_single ? "_sp" : "_dp";
-
-        if(placement == rocfft_placement_inplace)
-        {
-            kernel_name += "_ip";
-            kernel_name += array_type_name(in_type);
-        }
-        else
-        {
-            kernel_name += "_op";
-            kernel_name += array_type_name(in_type);
-            kernel_name += array_type_name(out_type);
-        }
-
-        if(unit_stride)
-            kernel_name += "_unitstride";
-
-        if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-            kernel_name += "_sbcc";
-        if(apply_large_twiddle)
-            kernel_name += "_twdbase" + std::to_string(large_twiddle_base);
-
-        switch(ebtype)
-        {
-        case EmbeddedType::NONE:
-            break;
-        case EmbeddedType::C2Real_PRE:
-            kernel_name += "_C2R";
-            break;
-        case EmbeddedType::Real2C_POST:
-            kernel_name += "_R2C";
-            break;
-        }
-        if(enable_callbacks)
-            kernel_name += "_CB";
+    case CS_KERNEL_STOCKHAM:
+        kernel_name += "_sbrr";
+        break;
+    case CS_KERNEL_STOCKHAM_BLOCK_CC:
+        kernel_name += "_sbcc";
+        break;
+    case CS_KERNEL_STOCKHAM_BLOCK_CR:
+        kernel_name += "_sbcr";
+        break;
+    case CS_KERNEL_2D_SINGLE:
+        // both lengths were already added above, which indicates it's
+        // 2D_SINGLE
+        break;
+    case CS_KERNEL_STOCKHAM_BLOCK_RC:
+    {
+        kernel_name += "_sbrc";
+        break;
     }
-};
+    case CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z:
+    {
+        auto transpose_type = kernel_name += "_sbrc_xy_z";
+        break;
+    }
+    case CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY:
+    {
+        kernel_name += "_sbrc_z_xy";
+        break;
+    }
+    case CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY:
+    {
+        kernel_name += "_sbrc_erc_z_xy";
+        break;
+    }
+    default:
+        throw std::runtime_error("unsupported scheme in stockham_rtc_kernel_name");
+    }
 
-#ifdef ROCFFT_RUNTIME_COMPILE
-// wrapper object to handle reference counting
-class PyObjWrap
+    switch(transpose_type)
+    {
+    case NONE:
+        break;
+    case DIAGONAL:
+        kernel_name += "_diag";
+        break;
+    case TILE_ALIGNED:
+        kernel_name += "_aligned";
+        break;
+    case TILE_UNALIGNED:
+        kernel_name += "_unaligned";
+        break;
+    }
+
+    if(node.large1D > 0)
+        kernel_name += "_twdbase" + std::to_string(node.largeTwdBase);
+
+    switch(node.ebtype)
+    {
+    case EmbeddedType::NONE:
+        break;
+    case EmbeddedType::C2Real_PRE:
+        kernel_name += "_C2R";
+        break;
+    case EmbeddedType::Real2C_POST:
+        kernel_name += "_R2C";
+        break;
+    }
+    if(enable_callbacks)
+        kernel_name += "_CB";
+    return kernel_name;
+}
+
+std::string stockham_rtc(StockhamGeneratorSpecs& specs,
+                         StockhamGeneratorSpecs& specs2d,
+                         const std::string&      kernel_name,
+                         TreeNode&               node,
+                         SBRC_TRANSPOSE_TYPE     transpose_type,
+                         bool                    enable_callbacks)
 {
-public:
-    PyObjWrap() {}
-    PyObjWrap(PyObject* ptr)
-    {
-        reset(ptr);
-    }
-    // accept naked pointer
-    PyObjWrap& operator=(PyObject* ptr)
-    {
-        reset(ptr);
-        return *this;
-    }
-    // allow move
-    PyObjWrap(PyObjWrap&& other)
-    {
-        reset(other.obj);
-        other.obj = nullptr;
-    }
+    std::unique_ptr<Function> device;
+    std::unique_ptr<Function> device1;
+    std::unique_ptr<Function> global;
 
-    // disallow copy
-    void operator=(const PyObjWrap&) = delete;
-    PyObjWrap(const PyObjWrap&)      = delete;
-
-    ~PyObjWrap()
+    if(node.scheme == CS_KERNEL_2D_SINGLE)
     {
-        reset();
+        StockhamKernelFused2D kernel(specs, specs2d);
+        device = std::make_unique<Function>(kernel.kernel0.generate_device_function());
+        if(kernel.kernel0.length != kernel.kernel1.length)
+            device1 = std::make_unique<Function>(kernel.kernel1.generate_device_function());
+        global = std::make_unique<Function>(kernel.generate_global_function());
     }
-    void reset(PyObject* ptr = nullptr)
+    else
     {
-        Py_XDECREF(obj);
-        obj = ptr;
-    }
-    // add reference to a borrowed object, and take ownership of the ref
-    void add_ref(PyObject* ptr)
-    {
-        Py_INCREF(ptr);
-        reset(ptr);
-    }
-    bool is_null()
-    {
-        return obj == nullptr;
-    }
-
-    // auto-cast to pointer, to pass to python API
-    operator PyObject*()
-    {
-        return obj;
-    }
-
-private:
-    PyObject* obj = nullptr;
-};
-
-// wrapper object to handle interpreter initialization
-struct PyInit
-{
-    PyInit()
-    {
-        if(!Py_IsInitialized())
+        std::unique_ptr<StockhamKernel> kernel;
+        if(node.scheme == CS_KERNEL_STOCKHAM)
+            kernel = std::make_unique<StockhamKernelRR>(specs);
+        else if(node.scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
+            kernel = std::make_unique<StockhamKernelCC>(specs);
+        else if(node.scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
+            kernel = std::make_unique<StockhamKernelCR>(specs);
+        else if(CS_KERNEL_STOCKHAM_BLOCK_RC)
         {
-            // don't register signal handlers
-            Py_InitializeEx(0);
+            kernel = std::make_unique<StockhamKernelRC>(specs);
         }
-    }
-};
-
-// structure we can turn into a static object that maintains python state
-struct PythonGenerator
-{
-    PythonGenerator()
-    {
-        // compile each module and turn each into a module
-        generator     = Py_CompileString(generator_py, "generator.py", Py_file_input);
-        generator_mod = PyImport_ExecCodeModule("generator", generator);
-
-        stockham     = Py_CompileString(stockham_py, "stockham.py", Py_file_input);
-        stockham_mod = PyImport_ExecCodeModule("stockham", stockham);
-
-        kernel_generator
-            = Py_CompileString(kernel_generator_py, "kernel-generator.py", Py_file_input);
-        kernel_generator_mod = PyImport_ExecCodeModule("kernel_generator", kernel_generator);
-
-        rtccache     = Py_CompileString(rtccache_py, "rtccache.py", Py_file_input);
-        rtccache_mod = PyImport_ExecCodeModule("rtccache", rtccache);
-
-        // returns borrowed ref, so add a ref then pass to wrapper
-        glob_dict.add_ref(PyModule_GetDict(kernel_generator_mod));
-        local_dict = PyDict_New();
-
-        // kernel generator is our "main" module, but it doesn't import
-        // rtccache directly.  so add that module to the global dict
-        PyMapping_SetItemString(glob_dict, "rtccache", rtccache_mod);
-        // set kernel_cache_db = None as a local - we will open it up
-        // on-demand
-        PyMapping_SetItemString(local_dict, "kernel_cache_db", Py_None);
-
-        // give static kernel prelude to generator
-        std::string kernel_prelude_str = common_h;
-        kernel_prelude_str += callback_h;
-        kernel_prelude_str += butterfly_constant_h;
-        kernel_prelude_str += rocfft_butterfly_template_h;
-        kernel_prelude_str += real2complex_h;
-
-        kernel_prelude = PyUnicode_FromString(kernel_prelude_str.c_str());
-        PyMapping_SetItemString(local_dict, "kernel_prelude", kernel_prelude);
-
-        // construct checksum of static kernel prelude and embedded
-        // generator code, so we can know to invalidate the cache if
-        // either changes
-        std::string generator_code = kernel_generator_py;
-        generator_code += generator_py;
-        generator_code += stockham_py;
-        // rtccache itself does not contribute to kernel source code,
-        // so it's not part of the generator
-
-        PyObjWrap generator_code_py = PyUnicode_FromString(generator_code.c_str());
-        PyMapping_SetItemString(local_dict, "generator_code", generator_code_py);
-
-        generator_sum = PyRun_String("rtccache.init_generator(kernel_prelude + generator_code)",
-                                     Py_eval_input,
-                                     glob_dict,
-                                     local_dict);
-        if(generator_sum.is_null())
-            PyErr_PrintEx(0);
-        PyMapping_DelItemString(local_dict, "generator_code");
-
-        int hip_version_int = 0;
-        hipRuntimeGetVersion(&hip_version_int);
-        hip_version = PyLong_FromLong(hip_version_int);
-
-        // execute an expression to get supported lengths, call a
-        // function for each length.  function accepts length obj and
-        // kernel object.
-        auto get_supported_lengths = [this](const char*                                   pyexpr,
-                                            std::function<void(PyObjWrap&, PyObjWrap &&)> func) {
-            PyObjWrap kernel_list = PyRun_String(pyexpr, Py_eval_input, glob_dict, local_dict);
-
-            // extract all of the lengths from that list
-            auto list_size = PyList_Size(kernel_list);
-            for(Py_ssize_t i = 0; i < list_size; ++i)
-            {
-                PyObjWrap item;
-                item.add_ref(PyList_GetItem(kernel_list, i));
-                PyObjWrap length_obj = PyObject_GetAttrString(item, "length");
-
-                // make sure runtime compilation is turned on for this kernel
-                PyObjWrap rtc_flag = PyObject_GetAttrString(item, "runtime_compile");
-                if(!PyObject_IsTrue(rtc_flag))
-                    continue;
-
-                func(length_obj, std::move(item));
-            }
-        };
-        auto get_supported_lengths_1D
-            = [=](const char* pyexpr, std::map<size_t, PyObjWrap>& output_lengths) {
-                  get_supported_lengths(pyexpr, [&](PyObjWrap& length_obj, PyObjWrap&& kernel) {
-                      output_lengths.emplace(PyLong_AsSize_t(length_obj), std::move(kernel));
-                  });
-              };
-        get_supported_lengths_1D("default_runtime_compile(list_new_kernels())", supported_lengths);
-        get_supported_lengths_1D("default_runtime_compile(list_new_large_kernels())",
-                                 supported_lengths_large);
-        get_supported_lengths("default_runtime_compile(list_new_2d_kernels())",
-                              [this](PyObjWrap& length_obj, PyObjWrap&& kernel) {
-                                  std::pair<size_t, size_t> len_2D{
-                                      PyLong_AsSize_t(PyList_GetItem(length_obj, 0)),
-                                      PyLong_AsSize_t(PyList_GetItem(length_obj, 1))};
-                                  supported_lengths_2D.emplace(len_2D, std::move(kernel));
-                              });
-    }
-    ~PythonGenerator() {}
-
-    // outputs the python kernel object in kernel_obj
-    bool length_is_supported(const stockham_specs_t& specs, PyObjWrap*& kernel_obj)
-    {
-        if(specs.scheme == CS_KERNEL_2D_SINGLE)
-        {
-            std::pair<size_t, size_t> length2D = {specs.length, specs.length2D};
-            auto                      k        = supported_lengths_2D.find(length2D);
-            if(k != supported_lengths_2D.end())
-            {
-                kernel_obj = &(k->second);
-                return true;
-            }
-            return false;
-        }
-
-        std::map<size_t, PyObjWrap>::iterator k;
-        if(specs.scheme == CS_KERNEL_STOCKHAM)
-        {
-            k = supported_lengths.find(specs.length);
-            if(k == supported_lengths.end())
-                return false;
-        }
-        else if(specs.scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-        {
-            k = supported_lengths_large.find(specs.length);
-            if(k == supported_lengths_large.end())
-                return false;
-        }
+        else if(CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
+            kernel = std::make_unique<StockhamKernelRC>(specs);
+        else if(CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)
+            kernel = std::make_unique<StockhamKernelRC>(specs);
+        else if(CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
+            kernel = std::make_unique<StockhamKernelRC>(specs);
         else
-            return false;
-        kernel_obj = &(k->second);
-        return true;
+            throw std::runtime_error("unhandled scheme");
+        device = std::make_unique<Function>(kernel->generate_device_function());
+        global = std::make_unique<Function>(kernel->generate_global_function());
     }
 
-    bool get_source(const stockham_specs_t& specs,
-                    bool                    enable_callbacks,
-                    PyObjWrap&              kernel_obj,
-                    std::string&            kernel_src)
+    // generated functions default to forward in-place interleaved.
+    // adjust for direction, placement, format.
+    if(node.direction == 1)
     {
-        kernel_src.clear();
-
-        // call python to generate the kernel
-
-        // set this kernel object as a local called "k", possibly
-        // overwriting any previous "k"
-        PyMapping_SetItemString(local_dict, "k", kernel_obj);
-
-        // get source code for kernel
-        PyObjWrap py_src
-            = PyRun_String("stockham.stockham_rtc(kernel_prelude, specs, **k.__dict__)",
-                           Py_eval_input,
-                           glob_dict,
-                           local_dict);
-
-        if(py_src.is_null())
-        {
-            PyErr_PrintEx(0);
-            PyErr_Clear();
-            throw std::runtime_error("error generating kernel");
-        }
-
-        Py_ssize_t  src_len = 0;
-        const char* src     = PyUnicode_AsUTF8AndSize(py_src, &src_len);
-
-        // need common.h and callback.h to define all of the template parameters
-        kernel_src += "// ROCFFT_RTC_BEGIN " + specs.kernel_name;
-        kernel_src += "\n";
-        kernel_src += common_h;
-        // callbacks must be enabled
-        kernel_src += "\n#define ROCFFT_CALLBACKS_ENABLED\n";
-        kernel_src += callback_h;
-        // and we need butterfly helpers
-        kernel_src += butterfly_constant_h;
-        kernel_src += rocfft_butterfly_template_h;
-        kernel_src.append(src, src_len);
-        kernel_src += "\n// ROCFFT_RTC_END " + specs.kernel_name;
-        kernel_src += "\n";
-        return true;
+        *device = make_inverse(*device);
+        if(device1)
+            *device1 = make_inverse(*device1);
+        *global = make_inverse(*global);
     }
-
-    // produce a dict of parameters for the desired variant of kernel
-    PyObjWrap get_kernel_specs_dict(const stockham_specs_t& specs, bool enable_callbacks)
+    if(node.placement == rocfft_placement_notinplace)
     {
-        PyObjWrap dict = PyDict_New();
-
-        PyObjWrap kernel_name_val = PyUnicode_FromString(specs.kernel_name.c_str());
-        PyDict_SetItemString(dict, "kernel_name", kernel_name_val);
-
-        PyObjWrap scheme_val = PyUnicode_FromString(PrintScheme(specs.scheme).c_str());
-        PyDict_SetItemString(dict, "scheme", scheme_val);
-
-        PyObjWrap length_val = PyLong_FromLong(specs.length);
-        if(specs.length2D == 0)
-        {
-            // 1D kernel
-            PyDict_SetItemString(dict, "length", length_val);
-        }
-        else
-        {
-            // 2D kernel needs tuple for length
-            PyObjWrap length_tuple = PyTuple_New(2);
-            PyTuple_SetItem(length_tuple, 0, PyLong_FromLong(specs.length));
-            PyTuple_SetItem(length_tuple, 1, PyLong_FromLong(specs.length2D));
-            PyDict_SetItemString(dict, "length", length_tuple);
-        }
-
-        PyDict_SetItemString(
-            dict, "inplace", specs.placement == rocfft_placement_inplace ? Py_True : Py_False);
-
-        PyObjWrap direction_val = PyLong_FromLong(specs.direction);
-        PyDict_SetItemString(dict, "direction", direction_val);
-
-        PyDict_SetItemString(
-            dict, "input_is_planar", array_type_is_planar(specs.in_type) ? Py_True : Py_False);
-        PyDict_SetItemString(
-            dict, "output_is_planar", array_type_is_planar(specs.out_type) ? Py_True : Py_False);
-
-        PyObjWrap real_type_val
-            = PyUnicode_FromString(specs.precision == rocfft_precision_single ? "float" : "double");
-        PyDict_SetItemString(dict, "real_type", real_type_val);
-
-        PyObjWrap stridebin_val
-            = PyUnicode_FromString(specs.unit_stride ? "SB_UNIT" : "SB_NONUNIT");
-        PyDict_SetItemString(dict, "stridebin", stridebin_val);
-        PyDict_SetItemString(
-            dict, "apply_large_twiddle", specs.apply_large_twiddle ? Py_True : Py_False);
-        PyObjWrap large_twiddle_base_val = PyLong_FromLong(specs.large_twiddle_base);
-        PyDict_SetItemString(dict, "large_twiddle_base", large_twiddle_base_val);
-
-        PyObjWrap cbtype_val = specs.enable_callbacks
-                                   ? PyUnicode_FromString("CallbackType::USER_LOAD_STORE")
-                                   : PyUnicode_FromString("CallbackType::NONE");
-        PyDict_SetItemString(dict, "cbtype", cbtype_val);
-
-        PyObjWrap ebtype_val;
-        switch(specs.ebtype)
-        {
-        case EmbeddedType::NONE:
-            ebtype_val.reset(PyUnicode_FromString("EmbeddedType::NONE"));
-            break;
-        case EmbeddedType::Real2C_POST:
-            ebtype_val.reset(PyUnicode_FromString("EmbeddedType::Real2C_POST"));
-            break;
-        case EmbeddedType::C2Real_PRE:
-            ebtype_val.reset(PyUnicode_FromString("EmbeddedType::C2Real_PRE"));
-            break;
-        }
-        PyDict_SetItemString(dict, "ebtype", ebtype_val);
-
-        PyObjWrap arch_val = PyUnicode_FromString(specs.arch.c_str());
-        PyDict_SetItemString(dict, "arch", arch_val);
-
-        PyDict_SetItemString(dict, "kernel_prelude", kernel_prelude);
-        PyDict_SetItemString(dict, "generator_sum", generator_sum);
-        PyDict_SetItemString(dict, "hip_version", hip_version);
-
-        return dict;
+        *device = make_outofplace(*device);
+        if(device1)
+            *device1 = make_outofplace(*device1);
+        *global = make_outofplace(*global);
+        if(array_type_is_planar(node.inArrayType))
+            *global = make_planar(*global, "buf_in");
+        if(array_type_is_planar(node.outArrayType))
+            *global = make_planar(*global, "buf_out");
     }
-
-    // open the db if it isn't already open
-    void open_db()
+    else
     {
-        // get user-defined cache path if present
-        const char* env_path = getenv("ROCFFT_RTC_CACHE_PATH");
-        PyObjWrap   env_path_py;
-        if(env_path)
-            env_path_py = PyUnicode_FromString(env_path);
-        PyMapping_SetItemString(local_dict,
-                                "env_path",
-                                env_path_py.is_null() ? Py_None
-                                                      : static_cast<PyObject*>(env_path_py));
-        // make an unused wrapper to handle refcounting
-        PyObjWrap unused = PyRun_String("kernel_cache_db = rtccache.open_db(env_path) if "
-                                        "kernel_cache_db is None else kernel_cache_db",
-                                        Py_single_input,
-                                        glob_dict,
-                                        local_dict);
+        if(array_type_is_planar(node.inArrayType))
+            *global = make_planar(*global, "buf");
     }
 
-    // interpreter initialization
-    PyInit init;
+    // start off with includes
+    std::string src = "// ROCFFT_RTC_BEGIN " + kernel_name + "\n";
+    // callbacks are always potentially enabled, and activated by
+    // checking the enable_callbacks variable later
+    src += "#define ROCFFT_CALLBACKS_ENABLED\n";
+    src += common_h;
+    src += callback_h;
+    src += butterfly_constant_h;
+    src += rocfft_butterfly_template_h;
+    src += real2complex_h;
 
-    // handles to the embedded modules
-    PyObjWrap generator;
-    PyObjWrap generator_mod;
+    src += device->render();
+    if(device1)
+        src += device1->render();
 
-    PyObjWrap stockham;
-    PyObjWrap stockham_mod;
+    // make_rtc removes templates from global function - add typedefs
+    // and constants to replace them
+    switch(node.precision)
+    {
+    case rocfft_precision_single:
+        src += "typedef float2 scalar_type;\n";
+        break;
+    case rocfft_precision_double:
+        src += "typedef double2 scalar_type;\n";
+        break;
+    }
+    if(node.inStride.front() == 1 && node.outStride.front() == 1)
+        src += "static const StrideBin sb = SB_UNIT;\n";
+    else
+        src += "static const StrideBin sb = SB_NONUNIT;\n";
 
-    PyObjWrap kernel_generator;
-    PyObjWrap kernel_generator_mod;
+    switch(node.ebtype)
+    {
+    case EmbeddedType::NONE:
+        src += "static const EmbeddedType ebtype = EmbeddedType::NONE;\n";
+        break;
+    case EmbeddedType::Real2C_POST:
+        src += "static const EmbeddedType ebtype = EmbeddedType::Real2C_POST;\n";
+        break;
+    case EmbeddedType::C2Real_PRE:
+        src += "static const EmbeddedType ebtype = EmbeddedType::C2Real_PRE;\n";
+        break;
+    }
 
-    PyObjWrap rtccache;
-    PyObjWrap rtccache_mod;
+    // SBRC-specific template parameters that are ignored for other kernels
+    switch(node.scheme)
+    {
+    case CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z:
+        src += "static const SBRC_TYPE sbrc_type = SBRC_3D_FFT_TRANS_XY_Z;\n";
+        break;
+    case CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY:
+        src += "static const SBRC_TYPE sbrc_type = SBRC_3D_FFT_TRANS_Z_XY;\n";
+        break;
+    case CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY:
+        src += "static const SBRC_TYPE sbrc_type = SBRC_3D_FFT_ERC_TRANS_Z_XY;\n";
+        break;
+    default:
+        src += "static const SBRC_TYPE sbrc_type = SBRC_2D;\n";
+    }
+    switch(transpose_type)
+    {
+    case NONE:
+        src += "static const SBRC_TRANSPOSE_TYPE transpose_type = NONE;\n";
+        break;
+    case DIAGONAL:
+        src += "static const SBRC_TRANSPOSE_TYPE transpose_type = DIAGONAL;\n";
+        break;
+    case TILE_ALIGNED:
+        src += "static const SBRC_TRANSPOSE_TYPE transpose_type = TILE_ALIGNED;\n";
+        break;
+    case TILE_UNALIGNED:
+        src += "static const SBRC_TRANSPOSE_TYPE transpose_type = TILE_UNALIGNED;\n";
+        break;
+    }
 
-    // variables we pass whenever we generate a kernel
-    PyObjWrap kernel_prelude;
-    PyObjWrap generator_sum;
-    PyObjWrap hip_version;
+    if(enable_callbacks)
+        src += "static const CallbackType cbtype = CallbackType::USER_LOAD_STORE;\n";
+    else
+        src += "static const CallbackType cbtype = CallbackType::NONE;\n";
 
-    // values we keep around so we can evaluate python expressions
-    PyObjWrap glob_dict;
-    PyObjWrap local_dict;
+    src += "static const bool apply_large_twiddle = ";
+    if(node.large1D > 0)
+        src += "true;\n";
+    else
+        src += "false;\n";
 
-    // map length to python kernel object
-    std::map<size_t, PyObjWrap>                    supported_lengths;
-    std::map<size_t, PyObjWrap>                    supported_lengths_large;
-    std::map<std::pair<size_t, size_t>, PyObjWrap> supported_lengths_2D;
-};
-#endif
+    src += "static const size_t large_twiddle_base = " + std::to_string(node.largeTwdBase) + ";\n";
+
+    src += make_rtc(*global, kernel_name).render();
+    src += "// ROCFFT_RTC_END " + kernel_name + "\n";
+    return src;
+}
 
 RTCKernel::RTCKernel(const std::string& kernel_name, const std::vector<char>& code)
 {
@@ -646,75 +449,127 @@ void RTCKernel::launch(DeviceCallIn& data)
         throw std::runtime_error("hipModuleLaunchKernel failure");
 }
 
-#ifdef ROCFFT_RUNTIME_COMPILE
-// singleton accessor
-static PythonGenerator& get_generator()
-{
-    static PythonGenerator generator;
-    return generator;
-}
-#endif
-
 void RTCKernel::close_cache()
 {
-#ifdef ROCFFT_RUNTIME_COMPILE
-    auto& generator = get_generator();
-    // close db and set db to None - will be reopened on next use
-    //
-    // unused wrapper handles refcounting
-    PyObjWrap unused = PyRun_String("if kernel_cache_db is not None:\n    kernel_cache_db.close()",
-                                    Py_single_input,
-                                    generator.glob_dict,
-                                    generator.local_dict);
-    PyMapping_SetItemString(generator.local_dict, "kernel_cache_db", Py_None);
-#endif
+    // FIXME: reimplement
 }
 
 std::unique_ptr<RTCKernel>
     RTCKernel::runtime_compile(TreeNode& node, const char* gpu_arch, bool enable_callbacks)
 {
-#ifdef ROCFFT_RUNTIME_COMPILE
-    stockham_specs_t specs(node, gpu_arch, enable_callbacks);
+#if ROCFFT_RUNTIME_COMPILE
+    function_pool& pool = function_pool::get_function_pool();
 
-    PyObjWrap* kernel_obj = nullptr;
-    auto&      generator  = get_generator();
-    if(!generator.length_is_supported(specs, kernel_obj))
+    std::unique_ptr<StockhamGeneratorSpecs> specs;
+    std::unique_ptr<StockhamGeneratorSpecs> specs2d;
+
+    SBRC_TRANSPOSE_TYPE transpose_type = NONE;
+
+    // SBRC variants look in the function pool for plain BLOCK_RC to
+    // learn the block width, then decide on the transpose type once
+    // that's known.
+    auto pool_scheme = node.scheme;
+    if(pool_scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z
+       || pool_scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY
+       || pool_scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
+        pool_scheme = CS_KERNEL_STOCKHAM_BLOCK_RC;
+
+    // find function pool entry so we can construct specs for the generator
+    FMKey key;
+    switch(pool_scheme)
+    {
+    case CS_KERNEL_STOCKHAM:
+    case CS_KERNEL_STOCKHAM_BLOCK_CC:
+    case CS_KERNEL_STOCKHAM_BLOCK_CR:
+    case CS_KERNEL_STOCKHAM_BLOCK_RC:
+    {
+        // these go into the function pool normally and are passed to
+        // the generator as-is
+        key              = fpkey(node.length[0], node.precision, pool_scheme);
+        FFTKernel kernel = pool.get_kernel(key);
+        // already precompiled?
+        if(kernel.device_function)
+            return nullptr;
+
+        // for SBRC variants, get the "real" kernel using the block
+        // width and correct transpose type
+        if(node.scheme != pool_scheme)
+        {
+            transpose_type = node.sbrc_3D_transpose_type(kernel.block_width);
+            key            = fpkey(node.length[0], node.precision, node.scheme, transpose_type);
+            kernel         = pool.get_kernel(key);
+        }
+
+        std::vector<unsigned int> factors;
+        std::copy(kernel.factors.begin(), kernel.factors.end(), std::back_inserter(factors));
+
+        specs = std::make_unique<StockhamGeneratorSpecs>(
+            factors,
+            std::vector<unsigned int>(),
+            static_cast<unsigned int>(kernel.threads_per_block),
+            PrintScheme(node.scheme));
+        specs->threads_per_transform = kernel.threads_per_transform[0];
+        specs->half_lds              = kernel.half_lds;
+        specs->block_width           = kernel.block_width;
+        break;
+    }
+    case CS_KERNEL_2D_SINGLE:
+    {
+        key              = fpkey(node.length[0], node.length[1], node.precision, node.scheme);
+        FFTKernel kernel = pool.get_kernel(key);
+        // already precompiled?
+        if(kernel.device_function)
+            return nullptr;
+
+        std::vector<unsigned int> factors1d;
+        std::vector<unsigned int> factors2d;
+
+        // need to break down factors into first dim and second dim
+        size_t len0_remain = node.length[0];
+        for(auto& f : kernel.factors)
+        {
+            len0_remain /= f;
+            if(len0_remain > 0)
+            {
+                factors1d.push_back(f);
+            }
+            else
+            {
+                factors2d.push_back(f);
+            }
+        }
+
+        specs = std::make_unique<StockhamGeneratorSpecs>(
+            factors1d,
+            factors2d,
+            static_cast<unsigned int>(kernel.threads_per_block),
+            PrintScheme(node.scheme));
+        specs->threads_per_transform = kernel.threads_per_transform[0];
+        specs->half_lds              = kernel.half_lds;
+        specs->block_width           = kernel.block_width;
+
+        specs2d = std::make_unique<StockhamGeneratorSpecs>(
+            factors2d,
+            factors1d,
+            static_cast<unsigned int>(kernel.threads_per_block),
+            PrintScheme(node.scheme));
+        specs2d->threads_per_transform = kernel.threads_per_transform[1];
+        specs2d->half_lds              = kernel.half_lds;
+        specs2d->block_width           = kernel.block_width;
+        break;
+    }
+    default:
         return nullptr;
+    }
 
-    // give info to generator so it can construct the right variant
-    PyObjWrap dict = generator.get_kernel_specs_dict(specs, enable_callbacks);
-    PyMapping_SetItemString(generator.local_dict, "specs", dict);
+    std::string kernel_name = stockham_rtc_kernel_name(node, transpose_type, enable_callbacks);
+
+    // TODO: check the cache
 
     std::vector<char> code;
 
-    // check the cache
-
-    // (re-)init the cache if necessary
-    generator.open_db();
-    PyObjWrap cached_code = PyRun_String("rtccache.get_code_object(kernel_cache_db, specs)",
-                                         Py_eval_input,
-                                         generator.glob_dict,
-                                         generator.local_dict);
-    if(cached_code.is_null())
-    {
-        PyErr_PrintEx(0);
-        PyErr_Clear();
-        // just treat it like no code object was found
-        cached_code = Py_None;
-    }
-    if(cached_code != Py_None)
-    {
-        // cache hit
-        auto        code_len = PyBytes_Size(cached_code);
-        const char* code_ptr = PyBytes_AsString(cached_code);
-        code.resize(code_len);
-        std::copy(code_ptr, code_ptr + code_len, code.data());
-        return std::unique_ptr<RTCKernel>(new RTCKernel(specs.kernel_name, code));
-    }
-
-    // get source for the kernel and build it
-    std::string kernel_src;
-    generator.get_source(specs, enable_callbacks, *kernel_obj, kernel_src);
+    auto kernel_src = stockham_rtc(
+        *specs, specs2d ? *specs2d : *specs, kernel_name, node, transpose_type, enable_callbacks);
 
     if(LOG_RTC_ENABLED())
         (*LogSingleton::GetInstance().GetRTCOS()) << kernel_src << std::flush;
@@ -722,33 +577,17 @@ std::unique_ptr<RTCKernel>
     // compile to code object
     code = compile(kernel_src);
 
-    PyObjWrap code_py = PyBytes_FromStringAndSize(code.data(), code.size());
-    PyMapping_SetItemString(generator.local_dict, "code", code_py);
+    // TODO: store code object to cache
 
-    PyObjWrap cache_res = PyRun_String("rtccache.store_code_object(kernel_cache_db, specs, code)",
-                                       Py_eval_input,
-                                       generator.glob_dict,
-                                       generator.local_dict);
-    if(cache_res.is_null())
-    {
-        PyErr_PrintEx(0);
-        PyErr_Clear();
-        // couldn't store to cache, but this isn't fatal.  log and
-        // continue.
-        if(LOG_RTC_ENABLED())
-            (*LogSingleton::GetInstance().GetRTCOS())
-                << "Error: failed to store code object for " << specs.kernel_name << std::flush;
-    }
-    return std::unique_ptr<RTCKernel>(new RTCKernel(specs.kernel_name, code));
+    return std::unique_ptr<RTCKernel>(new RTCKernel(kernel_name, code));
 #else
     return nullptr;
 #endif
 }
 
-#if 0
 rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes)
 {
-#ifdef ROCFFT_RUNTIME_COMPILE
+#if 0
     if(!buffer || !buffer_len_bytes)
         return rocfft_status_invalid_arg_value;
 
@@ -783,7 +622,7 @@ rocfft_status rocfft_cache_buffer_free(void* buffer)
 
 rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_bytes)
 {
-#ifdef ROCFFT_RUNTIME_COMPILE
+#if 0
     if(!buffer || !buffer_len_bytes)
         return rocfft_status_invalid_arg_value;
 
@@ -808,4 +647,3 @@ rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_byt
     return rocfft_status_failure;
 #endif
 }
-#endif

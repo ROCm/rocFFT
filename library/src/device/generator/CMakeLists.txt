@@ -25,11 +25,15 @@ add_library( stockham_gen STATIC stockham_gen.cpp )
 add_executable( stockham_aot stockham_aot.cpp )
 target_link_libraries( stockham_aot PRIVATE stockham_gen )
 
-foreach( stockham stockham_gen stockham_aot )
-  set_target_properties( ${stockham} PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON )
-endforeach()
-
 foreach( target stockham_gen stockham_aot )
+  set_target_properties( ${target} PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_VISIBILITY_PRESET "hidden"
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON
+  )
+
   target_compile_options( ${target} PRIVATE ${WARNING_FLAGS} )
 
   target_include_directories( ${target}

@@ -1798,7 +1798,10 @@ Function make_inverse(const Function& f)
 
 struct MakeRTCVisitor : public BaseVisitor
 {
-    MakeRTCVisitor() = default;
+    MakeRTCVisitor(const std::string& kernel_name)
+        : kernel_name(kernel_name)
+    {
+    }
     Function visit_Function(const Function& x) override
     {
         if(x.qualifier != "__global__")
@@ -1807,17 +1810,19 @@ struct MakeRTCVisitor : public BaseVisitor
         // mangling
         Function y{x};
         y.qualifier = "extern \"C\" __global__";
-        // rocfft library would give us a name for the function
-        y.name = "fft_rtc";
+        // rocfft constructed a name for the function
+        y.name = kernel_name;
         // assume some global-scope typedefs + consts have removed
         // the need for template args.
         y.templates.arguments.clear();
         return BaseVisitor::visit_Function(y);
     }
+
+    std::string kernel_name;
 };
 
-Function make_rtc(const Function& f)
+Function make_rtc(const Function& f, const std::string& kernel_name)
 {
-    auto visitor = MakeRTCVisitor();
+    auto visitor = MakeRTCVisitor(kernel_name);
     return visitor(f);
 }

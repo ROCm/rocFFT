@@ -489,7 +489,7 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_store_callback(rocfft_exec
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_get_events( const rocfft_execution_info info, void **events, size_t *number_of_events );
 #endif
 
-#if 0
+#ifdef ROCFFT_RUNTIME_COMPILE
 /*! @brief Serialize compiled kernel cache
 
  *  @details Serialize rocFFT's cache of compiled kernels into a

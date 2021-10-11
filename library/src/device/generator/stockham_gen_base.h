@@ -74,6 +74,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         nregisters = compute_nregisters(length, factors, threads_per_transform);
         R.size     = Expression{nregisters};
     }
+    virtual ~StockhamKernel(){};
 
     unsigned int nregisters;
     unsigned int batches_per_block;

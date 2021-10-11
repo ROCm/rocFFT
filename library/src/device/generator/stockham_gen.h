@@ -21,6 +21,7 @@
 // interface for generation of stockham kernels
 
 #pragma once
+#include "rocfft.h"
 #include <numeric>
 #include <string>
 #include <vector>

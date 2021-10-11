@@ -86,8 +86,7 @@ endif()
 # Make it possible to let install.sh control this ?
 set( kgen ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py )
 set( kgendeps ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator.py
-              ${CMAKE_SOURCE_DIR}/library/src/device/generator.py
-              ${CMAKE_SOURCE_DIR}/library/src/device/rtccache.py )
+              ${CMAKE_SOURCE_DIR}/library/src/device/generator.py )
 execute_process(COMMAND ${PYTHON3_EXE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
@@ -100,19 +99,6 @@ execute_process(COMMAND ${PYTHON3_EXE} ${kgen}
 if( STATUS AND NOT STATUS EQUAL 0 )
   message( FATAL_ERROR "Kernel generator failed (list): ${STATUS}")
 endif()
-
-# commented out for now, might need again soon
-# add_custom_command(OUTPUT ${gen_headers}
-#   COMMAND ${PYTHON3_EXE} ${kgen}
-#   --pattern=${GENERATOR_PATTERN}
-#   --precision=${GENERATOR_PRECISION}
-#   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
-#   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
-#   --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
-#   generate $<TARGET_FILE:rocfft-kernel-generator>
-#   DEPENDS rocfft-kernel-generator ${kgendeps}
-#   COMMENT "Generator producing device kernels for rocfft-device"
-# )
 
 add_custom_command(OUTPUT ${gen_headers}
   COMMAND ${PYTHON3_EXE} ${kgen}

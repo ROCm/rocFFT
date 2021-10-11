@@ -81,35 +81,38 @@ struct FFTKernel
 
     DevFnCall           device_function = nullptr;
     std::vector<size_t> factors;
-    int                 batches_per_block    = 0;
-    int                 threads_per_block    = 0;
-    bool                use_3steps_large_twd = false;
-    int                 block_width          = 0;
-    bool                half_lds             = false;
+    // number of transforms performed by one threadblock
+    int batches_per_block = 0;
+    int threads_per_block = 0;
+    // 2D_SINGLE specifies separate threads for each dimension;
+    // otherwise second dim's threads will be 0
+    std::array<int, 2> threads_per_transform = {0, 0};
+    bool               use_3steps_large_twd  = false;
+    // number of transforms processed by one device function call.
+    // normally the same as batches_per_block, but some kernels can
+    // call the device function multiple times and will have
+    // block_width < batches_per_block.
+    int  block_width = 0;
+    bool half_lds    = false;
 
     FFTKernel() = delete;
-    FFTKernel(DevFnCall fn)
-        : device_function(fn)
-    {
-    }
 
-    FFTKernel(DevFnCall fn, bool use_3steps)
-        : device_function(fn)
-        , use_3steps_large_twd(use_3steps)
-    {
-    }
+    FFTKernel(const FFTKernel&) = default;
+    FFTKernel& operator=(const FFTKernel&) = default;
 
     FFTKernel(DevFnCall           fn,
               bool                use_3steps,
               std::vector<size_t> factors,
               int                 bpb,
               int                 tpb,
+              std::array<int, 2>  tpt,
               int                 bwd      = 0,
               bool                half_lds = false)
         : device_function(fn)
         , factors(factors)
         , batches_per_block(bpb)
         , threads_per_block(tpb)
+        , threads_per_transform(tpt)
         , use_3steps_large_twd(use_3steps)
         , block_width(bwd)
         , half_lds(half_lds)
