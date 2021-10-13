@@ -911,8 +911,22 @@ public:
     std::string scalar_type;
     std::string render() const
     {
-        return "extern __shared__ unsigned char __align__(sizeof(" + scalar_type
-               + ")) lds_uchar[];\nreal_type_t<" + scalar_type
+        // Declare an LDS buffer whose size is defined at launch time.
+        // The declared buffer is of type unsigned char, but is aligned
+        // to a complex unit.
+        //
+        // We then define pointers to that buffer with real and
+        // complex types, since the body of the function may look at
+        // LDS as real values or as complex values (code for both is
+        // generated, and we choose one at compile time via a template
+        // parameter).
+        //
+        // TODO: Ideally we would use C++11 "alignas" and "alignof"
+        // for alignment, but they're incompatible with "extern
+        // __shared__".  Another alternative would be the __align__
+        // HIP macro, but that is not currently present in hipRTC.
+        return "extern __shared__ unsigned char __attribute__((aligned(sizeof(" + scalar_type
+               + ")))) lds_uchar[];\nreal_type_t<" + scalar_type
                + ">* __restrict__ lds_real = reinterpret_cast<real_type_t<" + scalar_type
                + ">*>(lds_uchar);\n" + scalar_type
                + "* __restrict__ lds_complex = reinterpret_cast<" + scalar_type + "*>(lds_uchar);";

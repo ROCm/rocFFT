@@ -63,6 +63,7 @@ set( kgen_embed_files
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/butterfly_constant.h
      ${CMAKE_SOURCE_DIR}/library/src/include/real2complex.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/rocfft_butterfly_template.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_workarounds.h
    )
 
 # files that contribute to the logic of how code gets generated -

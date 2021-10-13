@@ -3,6 +3,7 @@ import sys
 import os
 import argparse
 import hashlib
+import re
 
 def filename_to_cpp_ident(filename):
     base = os.path.basename(filename)
@@ -23,6 +24,11 @@ if __name__ == '__main__':
 
     outfile = open(output, 'w')
 
+    # regex to filter out #include statements, since those can't work
+    # for RTC.  The runtime ensures that all the really important
+    # includes are already done for us.
+    include_regex = re.compile('''^\s*#include''')
+
     # embed files as strings
     outfile.write("#pragma once\n")
     for input in args.embed:
@@ -31,6 +37,8 @@ if __name__ == '__main__':
         outfile.write('R"_PY_EMBED_(\n')
         with open(input, 'r') as f:
             for line in f:
+                if include_regex.match(line):
+                    continue
                 outfile.write(line)
         outfile.write(')_PY_EMBED_"};\n')
 
