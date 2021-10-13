@@ -147,13 +147,12 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
                                     tmp,
                                     store_cb_fn,
                                     store_cb_data);
-        T tmp2;
-        tmp2.x = first_elem.x + first_elem.y;
-        tmp2.y = 0.0;
+        tmp.x = first_elem.x + first_elem.y;
+        tmp.y = 0.0;
         Handler<T_O, cbtype>::write(output0,
                                     output_row_base(dim, output_batch_start, outStride, 0)
                                         + row_start + lds_row,
-                                    tmp2,
+                                    tmp,
                                     store_cb_fn,
                                     store_cb_data);
 
@@ -195,12 +194,11 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
             output0, output_left_base + row_start + lds_row, tmp, store_cb_fn, store_cb_data);
 
         // write right side
-        T tmp2;
-        tmp2.x                 = u.x - v.x * twd_p.y - u.y * twd_p.x;
-        tmp2.y                 = -v.y + u.y * twd_p.y - v.x * twd_p.x;
+        tmp.x                  = u.x - v.x * twd_p.y - u.y * twd_p.x;
+        tmp.y                  = -v.y + u.y * twd_p.y - v.x * twd_p.x;
         auto output_right_base = output_row_base(dim, output_batch_start, outStride, len0 - col);
         Handler<T_O, cbtype>::write(
-            output0, output_right_base + row_start + lds_row, tmp2, store_cb_fn, store_cb_data);
+            output0, output_right_base + row_start + lds_row, tmp, store_cb_fn, store_cb_data);
     }
 }
 
@@ -502,8 +500,8 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
     if(blockIdx.y == 0 && threadIdx.y == 0 && col_start + lds_col < col_end)
     {
         T tmp;
-        tmp.x = first_elem.x - first_elem.y + last_elem.x + last_elem.y;
-        tmp.y = first_elem.x + first_elem.y - last_elem.x + last_elem.y;
+        tmp.x = first_elem.x + last_elem.x;
+        tmp.y = first_elem.x - last_elem.x;
         Handler<T_O, cbtype>::write(
             output0, output_batch_start + output_row_base, tmp, store_cb_fn, store_cb_data);
 
@@ -545,13 +543,12 @@ __global__ static void __launch_bounds__(DIM_X* DIM_Y)
                                     store_cb_data);
 
         // write bottom side
-        T tmp2;
-        tmp2.x = u.x - v.x * twd_p.y + u.y * twd_p.x;
-        tmp2.y = -v.y + u.y * twd_p.y + v.x * twd_p.x;
+        tmp.x = u.x - v.x * twd_p.y + u.y * twd_p.x;
+        tmp.y = -v.y + u.y * twd_p.y + v.x * twd_p.x;
         Handler<T_O, cbtype>::write(output0,
                                     output_batch_start + output_row_base
                                         + (len1 - (top_row_start + lds_row)) * output_row_stride,
-                                    tmp2,
+                                    tmp,
                                     store_cb_fn,
                                     store_cb_data);
     }

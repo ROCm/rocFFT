@@ -477,8 +477,8 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 
             const Tcomplex p = load_cb(input, inputIdx + idx_p, load_cb_data, nullptr);
             const Tcomplex q = load_cb(input, inputIdx + idx_q, load_cb_data, nullptr);
-            output[idx_p].x  = p.x - p.y + q.x + q.y;
-            output[idx_p].y  = p.x + p.y - q.x + q.y;
+            output[idx_p].x  = p.x + q.x;
+            output[idx_p].y  = p.x - q.x;
 
             if(Ndiv4)
             {

@@ -16,6 +16,8 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
   is no longer performed by each node. We designed a generic algorithm to
   test and pick the best assignment path.
   - With the help of FuseShim, we can achieve more kernel-fusions as possible.
+  Do not read the imaginary part of the DC and Nyquist modes for even-length
+  complex-to-real transforms.
 
 ### Optimizations
 - Optimized twiddle-conjugation; complex-to-complex inverse transforms should have similar performance to foward transforms now.
