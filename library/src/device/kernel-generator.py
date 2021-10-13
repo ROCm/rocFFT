@@ -490,7 +490,7 @@ def list_large_kernels():
            'sp': 'true',  'dp': 'false'}),
         NS(length=72,  factors=[8, 3, 3],    use_3steps_large_twd={
            'sp': 'true',  'dp': 'false'}),
-        NS(length=80,  factors=[10, 8],    use_3steps_large_twd={
+        NS(length=80,  factors=[10, 8],      use_3steps_large_twd={
            'sp': 'false',  'dp': 'false'}),
         NS(length=81,  factors=[3, 3, 3, 3], use_3steps_large_twd={
            'sp': 'true',  'dp': 'true'}),
@@ -507,7 +507,7 @@ def list_large_kernels():
         NS(length=112, factors=[4, 7, 4],    use_3steps_large_twd={
            'sp': 'false',  'dp': 'false'}),
         NS(length=128, factors=[8, 4, 4],    use_3steps_large_twd={
-           'sp': 'true',  'dp': 'false'}),
+           'sp': 'true',  'dp': 'true'}, threads_per_block=256),
         NS(length=160, factors=[4, 10, 4],   use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'}, flavour='wide'),
         NS(length=168, factors=[7, 6, 4],    use_3steps_large_twd={
@@ -524,8 +524,8 @@ def list_large_kernels():
            'sp': 'false', 'dp': 'false'}),
         NS(length=240, factors=[8, 5, 6],    use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'}),
-        NS(length=256, factors=[4, 4, 4, 4], use_3steps_large_twd={
-           'sp': 'true',  'dp': 'false'}),
+        NS(length=256, factors=[8, 4, 8], use_3steps_large_twd={
+           'sp': 'true',  'dp': 'false'}, flavour='wide'),
         NS(length=336, factors=[6, 7, 8],    use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'})
     ]
@@ -541,15 +541,18 @@ def list_large_kernels():
         if not hasattr(k, 'length'):
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
 
-    # SBR
+    # SBRC
+    # still have room to improve...such as 200
     sbrc_kernels = [
         NS(length=50,  factors=[10, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=50, threads_per_transform=5, block_width=10),
+        # SBRC64: tpb=256 poor in MI50, FIXME: need to investigate why we can't set tpt=8? 61 128 256 fault
         NS(length=64,  factors=[4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128, block_width=16),
-        NS(length=81,  factors=[3, 3, 3, 3], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=81, threads_per_transform=9, block_width=9),
-        NS(length=100,  factors=[10, 10], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=50, threads_per_transform=10, block_width=5),
-        NS(length=128,  factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128, threads_per_transform=16, block_width=8),
-        NS(length=200,  factors=[10, 10, 2], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=100, threads_per_transform=10, block_width=10),
-        NS(length=256, factors=[4, 4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=64, block_width=8), # FIXME: tpt should be 32
+        NS(length=81,  factors=[3, 3, 3, 3], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=81, threads_per_transform=27, block_width=9),
+        NS(length=100, factors=[5, 5, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=100, threads_per_transform=25, block_width=4),
+        NS(length=128, factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128, threads_per_transform=16, block_width=8),
+        # NS(length=128, factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=32, block_width=8), # correctness issue
+        NS(length=200, factors=[10, 10, 2], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=100, threads_per_transform=10, block_width=10),
+        NS(length=256, factors=[4, 4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=64, block_width=8), # tpt should be 32?
     ]
 
     # NB:
