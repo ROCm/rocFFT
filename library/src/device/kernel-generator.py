@@ -562,11 +562,13 @@ def list_large_kernels():
     # for k in sbcr_kernels:
     #     k.scheme = 'CS_KERNEL_STOCKHAM_BLOCK_CR'
     #
-    # Just enable length 64 for now.
+    # Just enable length 100 and 200 for now.
 
     sbcr_kernels = [
-        NS(length=64,  factors=[8, 8],       use_3steps_large_twd={
-           'sp': 'true',  'dp': 'false'})
+        NS(length=100, factors=[10, 10],    use_3steps_large_twd={
+           'sp': 'true',  'dp': 'false'}, threads_per_block=100),
+        NS(length=200, factors=[8, 5, 5],    use_3steps_large_twd={
+           'sp': 'false', 'dp': 'false'})
     ]
 
     block_width = 16
@@ -787,13 +789,13 @@ def cli():
         schemes = ['CS_KERNEL_STOCKHAM']
         kernels += [k for k in all_kernels if k.scheme in schemes]
     if 'large' in patterns:
-        schemes = ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC']
+        schemes = ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC', 'CS_KERNEL_STOCKHAM_BLOCK_CR']
         kernels += [k for k in all_kernels if k.scheme in schemes]
     if manual_small:
         schemes = ['CS_KERNEL_STOCKHAM']
         kernels += [k for k in all_kernels if k.length in manual_small and k.scheme in schemes]
     if manual_large:
-        schemes = ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC']
+        schemes = ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC', 'CS_KERNEL_STOCKHAM_BLOCK_CR']
         kernels += [k for k in all_kernels if k.length in manual_large and k.scheme in schemes]
 
     kernels = unique(kernels)

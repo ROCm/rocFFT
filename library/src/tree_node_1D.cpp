@@ -919,10 +919,20 @@ void SBCRNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
     auto kernel = function_pool::get_kernel(fpkey(length[0], precision, scheme));
     fnPtr       = kernel.device_function;
-    bwd         = kernel.batches_per_block;
     wgs         = kernel.threads_per_block;
     lds         = length[0] * kernel.batches_per_block;
     gp.b_x      = ((length[1]) - 1) / kernel.batches_per_block + 1;
     gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
     gp.tpb_x = kernel.threads_per_block;
+    bwd      = kernel.batches_per_block;
+    if(ebtype != EmbeddedType::NONE)
+        lds_padding = 1;
+    lds = (length[0] + lds_padding) * kernel.batches_per_block;
+    return;
+}
+
+bool SBCRNode::CreateTwiddleTableResource()
+{
+    twd_attach_2N = (ebtype != EmbeddedType::NONE);
+    return LeafNode::CreateTwiddleTableResource();
 }

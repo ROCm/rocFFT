@@ -81,7 +81,8 @@ struct StockhamKernelCR : public StockhamKernel
                         tile_index * transforms_per_block + thread_id / threads_per_transform};
         stmts += Assign{batch, block_id / plength};
         stmts += Assign{offset, offset + batch * stride[dim]};
-        stmts += Assign{offset_lds, length * (transform % transforms_per_block)};
+        stmts += Assign{stride_lds, (length + lds_padding)};
+        stmts += Assign{offset_lds, stride_lds * (transform % transforms_per_block)};
 
         return stmts;
     }
@@ -106,51 +107,79 @@ struct StockhamKernelCR : public StockhamKernel
 
         auto offset_tile_rbuf
             = [&](unsigned int i) { return tid1 * stride[1] + (tid0 + i * stripmine_h) * stride0; };
-        auto offset_tile_wlds = [&](unsigned int i) {
-            return tid1 * length + lds_padding + (tid0 + i * stripmine_h) * 1;
-        };
+        auto offset_tile_wlds
+            = [&](unsigned int i) { return tid1 * stride_lds + (tid0 + i * stripmine_h) * 1; };
 
-        StatementList tmp_stmts;
-        Expression    pred{tile_index * transforms_per_block + tid1 < lengths[1]};
+        StatementList regular_load;
+
         for(unsigned int i = 0; i < length / stripmine_h; ++i)
-            tmp_stmts += Assign{lds_complex[offset_tile_wlds(i)],
-                                LoadGlobal{buf, offset + offset_tile_rbuf(i)}};
+            regular_load += Assign{lds_complex[offset_tile_wlds(i)],
+                                   LoadGlobal{buf, offset + offset_tile_rbuf(i)}};
 
-        stmts += If{Not{edge}, tmp_stmts};
-        stmts += If{edge, {If{pred, tmp_stmts}}};
+        StatementList stmts_c2real_pre_no_edge;
+        stmts_c2real_pre_no_edge += regular_load;
+        stmts_c2real_pre_no_edge += LineBreak{};
+        stmts_c2real_pre_no_edge += CommentLines{
+            "append extra global loading for C2Real pre-process only, one more element per col."};
+
+        stmts_c2real_pre_no_edge
+            += If{Equal{embedded_type, "EmbeddedType::C2Real_PRE"},
+                  {If{Less{thread_id, transforms_per_block},
+                      {Assign{lds_complex[tid1 * stride_lds + length],
+                              LoadGlobal{buf, offset + offset_tile_rbuf(length / stripmine_h)}}}}}};
+
+        stmts += If{Not{edge}, stmts_c2real_pre_no_edge};
+
+        StatementList stmts_c2real_pre_edge;
+        stmts_c2real_pre_edge += regular_load;
+        stmts_c2real_pre_edge += LineBreak{};
+        stmts_c2real_pre_edge += CommentLines{
+            "append extra global loading for C2Real pre-process only, one more element per col."};
+
+        stmts_c2real_pre_edge
+            += If{Equal{embedded_type, "EmbeddedType::C2Real_PRE"},
+                  {If{Less{thread_id,
+                           Parens{transforms_per_block
+                                  - (tile_index + 1) * transforms_per_block % lengths[1]}},
+                      {Assign{lds_complex[tid1 * stride_lds + length],
+                              LoadGlobal{buf, offset + offset_tile_rbuf(length / stripmine_h)}}}}}};
+
+        stmts += If{
+            edge,
+            {If{tile_index * transforms_per_block + tid1 < lengths[1], stmts_c2real_pre_edge}}};
 
         return stmts;
     }
 
     StatementList store_to_global(bool store_registers) override
     {
-        auto stripmine_w = transforms_per_block;
-        auto stripmine_h = threads_per_block / stripmine_w;
-
-        auto lds_strip_h = threads_per_block / length;
-
         StatementList stmts;
 
-        auto offset_tile_rbuf = [&](unsigned int i) {
-            return i * lds_strip_h * stride[1] + tid1 * stride[1] + tid0 * stride0;
-        };
-        auto offset_tile_wlds = [&](unsigned int i) {
-            return i * threads_per_block + tid1 * (length + lds_padding) + tid0;
-        };
-        auto offset_tile_wbuf = offset_tile_rbuf;
-        auto offset_tile_rlds = offset_tile_wlds;
+        StatementList regular_store;
+        for(unsigned int i = 0; i < length / threads_per_transform; ++i)
+        {
+            regular_store += Assign{tid0, (i * threads_per_block + thread_id) % length};
+            regular_store += Assign{tid1, (i * threads_per_block + thread_id) / length};
+            regular_store += StoreGlobal{buf,
+                                         offset + tid1 * stride[1] + tid0 * stride0,
+                                         lds_complex[tid1 * stride_lds + tid0]};
+        }
+        stmts += If{Not{edge}, regular_store};
 
-        stmts += Assign{tid0, thread_id % length};
-        stmts += Assign{tid1, thread_id / length};
-
-        StatementList tmp_stmts;
-        Expression    pred{tile_index * transforms_per_block + tid1 < lengths[1]};
-        for(unsigned int i = 0; i < length / stripmine_h; ++i)
-            tmp_stmts
-                += StoreGlobal{buf, offset + offset_tile_wbuf(i), lds_complex[offset_tile_rlds(i)]};
-
-        stmts += If{Not{edge}, tmp_stmts};
-        stmts += If{edge, {If{pred, tmp_stmts}}};
+        StatementList partial_store;
+        Variable      t{"t", "int"};
+        partial_store += For{t,
+                             0,
+                             Parens{(t * threads_per_block + thread_id) / length}
+                                 < Parens{transforms_per_block
+                                          - (tile_index + 1) * transforms_per_block % lengths[1]},
+                             1,
+                             {Assign{tid0, (t * threads_per_block + thread_id) % length},
+                              Assign{tid1, (t * threads_per_block + thread_id) / length},
+                              StoreGlobal{buf,
+                                          offset + tid1 * stride[1] + tid0 * stride0,
+                                          lds_complex[tid1 * stride_lds + tid0]}}};
+        stmts += If{edge, partial_store};
 
         return stmts;
     }

@@ -70,6 +70,14 @@ static bool SBCC_dim_available(const std::vector<size_t>& length,
     return true;
 }
 
+// check if we have an SBCR kernel along the specified dimension
+static bool SBCR_dim_available(const std::vector<size_t>& length,
+                               size_t                     sbcr_dim,
+                               rocfft_precision           precision)
+{
+    return function_pool::has_SBCR_kernel(length[sbcr_dim], precision);
+}
+
 /*****************************************************
  * CS_REAL_TRANSFORM_USING_CMPLX
  *****************************************************/
@@ -890,13 +898,59 @@ void Real2DEvenNode::AssignBuffers_internal(TraverseState&   state,
  *****************************************************/
 void Real3DEvenNode::BuildTree_internal()
 {
+    Build_solution();
+
+    switch(solution)
+    {
+    case INPLACE_SBCC:
+        BuildTree_internal_SBCC();
+        break;
+    case SBCR:
+        BuildTree_internal_SBCR();
+        break;
+    case TR_PAIRS:
+        BuildTree_internal_TR_pairs();
+        break;
+    default:
+        throw std::runtime_error("3D R2C/C2R build tree failure: " + PrintScheme(scheme));
+        break;
+    }
+}
+
+void Real3DEvenNode::Build_solution()
+{
     // Fastest moving dimension must be even:
     assert(length[0] % 2 == 0);
+
+    // NB:
+    //   - We need better general mechanism to choose In-place SBCC, SBCR and SBRC solution.
+
+    if(inArrayType != rocfft_array_type_real)
+    {
+        // FIXME:
+        //    Currently, BuildTree_internal_SBCR and AssignParams_internal_SBCR
+        //    support unit strides only. We might want to differentiate
+        //    implementation for unit/non-unit strides cases both on host and
+        //    device side.
+        std::vector<size_t> c2r_length = {length[0] / 2, length[1], length[2]};
+        if((SBCR_dim_available(c2r_length, 0, precision))
+           && (SBCR_dim_available(c2r_length, 1, precision))
+           && (SBCR_dim_available(c2r_length, 2, precision))
+           && (placement
+               == rocfft_placement_notinplace) // In-place SBCC is faster than SBCR solution for in-place
+           && (inStride[0] == 1 && outStride[0] == 1
+               && inStride[1] == (length[0] / 2 + 1) // unit strides
+               && outStride[1] == length[0] && inStride[2] == inStride[1] * length[1]
+               && outStride[2] == outStride[1] * length[1]))
+        {
+            solution = SBCR;
+            return;
+        }
+    }
 
     // if we have SBCC kernels for the other two dimensions, transform them using SBCC and avoid transposes.
     bool sbcc_inplace
         = SBCC_dim_available(length, 1, precision) && SBCC_dim_available(length, 2, precision);
-
 #if 0
     // ensure the fastest dimensions are big enough to get enough
     // column tiles to perform well
@@ -916,6 +970,11 @@ void Real3DEvenNode::BuildTree_internal()
     }
 #endif
 
+    solution = (sbcc_inplace) ? INPLACE_SBCC : TR_PAIRS;
+}
+
+void Real3DEvenNode::BuildTree_internal_SBCC()
+{
     auto add_sbcc_children = [this](const std::vector<size_t>& remainingLength) {
         ComputeScheme scheme;
         // SBCC along Z dimension
@@ -944,181 +1003,232 @@ void Real3DEvenNode::BuildTree_internal()
         auto rcplan = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
         // for length > 2048, don't try pre/post because LDS usage is too high
         static_cast<RealTransEvenNode*>(rcplan.get())->try_fuse_pre_post_processing
-            = sbcc_inplace && length[0] <= 2048;
+            = length[0] <= 2048;
 
         rcplan->length    = length;
         rcplan->dimension = 1;
         rcplan->RecursiveBuildTree();
 
         // if we have SBCC kernels for the other two dimensions, transform them using SBCC and avoid transposes
-        if(sbcc_inplace)
-        {
-            childNodes.emplace_back(std::move(rcplan));
-            add_sbcc_children(remainingLength);
-        }
-        // otherwise, handle remaining dimensions with TRTRT
-        else
-        {
-            // first transpose
-            auto trans1       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
-            trans1->length    = remainingLength;
-            trans1->dimension = 2;
-
-            // first column
-            NodeMetaData c1planData(this);
-            c1planData.length       = {trans1->length[1], trans1->length[2], trans1->length[0]};
-            c1planData.dimension    = 1;
-            auto c1plan             = NodeFactory::CreateExplicitNode(c1planData, this);
-            c1plan->allowOutofplace = false; // let it be inplace
-            c1plan->RecursiveBuildTree();
-
-            // second transpose
-            auto trans2       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
-            trans2->length    = c1plan->length;
-            trans2->dimension = 2;
-
-            // second column
-            NodeMetaData c2planData(this);
-            c2planData.length       = {trans2->length[1], trans2->length[2], trans2->length[0]};
-            c2planData.dimension    = 1;
-            auto c2plan             = NodeFactory::CreateExplicitNode(c2planData, this);
-            c2plan->allowOutofplace = false; // let it be inplace
-            c2plan->RecursiveBuildTree();
-
-            // third transpose
-            auto trans3       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
-            trans3->length    = c2plan->length;
-            trans3->dimension = 2;
-
-            // --------------------------------
-            // Fuse Shims: [RealEven + T][RT][RT]
-            // 1-1. Try (stockham + r2c)(from real even) + transp
-            // 1-2. else, try r2c (from real even) + transp
-            // 2. RT1 = trans1 check + c1plan + trans2
-            // 3. RT2 = trans2 check + c2plan + trans3
-            // --------------------------------
-            auto STK_R2CTrans = NodeFactory::CreateFuseShim(FT_STOCKHAM_R2C_TRANSPOSE,
-                                                            {rcplan.get(), trans1.get()});
-            if(STK_R2CTrans->IsSchemeFusable())
-            {
-                fuseShims.emplace_back(std::move(STK_R2CTrans));
-            }
-            else
-            {
-                auto R2CTrans = NodeFactory::CreateFuseShim(
-                    FT_R2C_TRANSPOSE, {rcplan.get(), trans1.get(), c1plan.get()});
-                if(R2CTrans->IsSchemeFusable())
-                    fuseShims.emplace_back(std::move(R2CTrans));
-            }
-
-            auto RT1 = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS_Z_XY,
-                                                   {trans1.get(), c1plan.get(), trans2.get()});
-            if(RT1->IsSchemeFusable())
-            {
-                fuseShims.emplace_back(std::move(RT1));
-            }
-            else
-            {
-                auto RTStride1 = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS,
-                                                             {c1plan.get(), trans2.get()});
-                if(RTStride1->IsSchemeFusable())
-                    fuseShims.emplace_back(std::move(RTStride1));
-            }
-
-            auto RT2 = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS_Z_XY,
-                                                   {trans2.get(), c2plan.get(), trans3.get()});
-            if(RT2->IsSchemeFusable())
-            {
-                fuseShims.emplace_back(std::move(RT2));
-            }
-            else
-            {
-                auto RTStride2 = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS,
-                                                             {c2plan.get(), trans3.get()});
-                if(RTStride2->IsSchemeFusable())
-                    fuseShims.emplace_back(std::move(RTStride2));
-            }
-
-            // --------------------------------
-            // 1DEven + TRTRT
-            // --------------------------------
-            childNodes.emplace_back(std::move(rcplan));
-            childNodes.emplace_back(std::move(trans1));
-            // Fuse R + TRANSPOSE_Z_XY
-            childNodes.emplace_back(std::move(c1plan));
-            childNodes.emplace_back(std::move(trans2));
-            // Fuse R + TRANSPOSE_Z_XY
-            childNodes.emplace_back(std::move(c2plan));
-            childNodes.emplace_back(std::move(trans3));
-        }
+        childNodes.emplace_back(std::move(rcplan));
+        add_sbcc_children(remainingLength);
     }
     else
     {
-        if(sbcc_inplace)
-        {
-            add_sbcc_children(remainingLength);
-        }
-        // otherwise, TRTRTR
-        else
-        {
-            // transpose
-            auto trans3       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
-            trans3->length    = {length[0] / 2 + 1, length[1], length[2]};
-            trans3->dimension = 2;
-
-            // column
-            NodeMetaData c2planData(this);
-            c2planData.length       = {trans3->length[2], trans3->length[0], trans3->length[1]};
-            c2planData.dimension    = 1;
-            auto c2plan             = NodeFactory::CreateExplicitNode(c2planData, this);
-            c2plan->allowOutofplace = false; // let it be inplace
-            c2plan->RecursiveBuildTree();
-
-            // transpose
-            auto trans2       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
-            trans2->length    = c2plan->length;
-            trans2->dimension = 2;
-
-            // column
-            NodeMetaData c1planData(this);
-            c1planData.length       = {trans2->length[2], trans2->length[0], trans2->length[1]};
-            c1planData.dimension    = 1;
-            auto c1plan             = NodeFactory::CreateExplicitNode(c1planData, this);
-            c1plan->allowOutofplace = false; // let it be inplace
-            c1plan->RecursiveBuildTree();
-
-            // transpose
-            auto trans1       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
-            trans1->length    = c1plan->length;
-            trans1->dimension = 2;
-
-            // --------------------------------
-            // Fuse Shims:
-            // 1. RT = c2plan + trans2 + c1plan(check-stockham)
-            // --------------------------------
-            auto RT = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS_XY_Z,
-                                                  {c2plan.get(), trans2.get(), c1plan.get()});
-            if(RT->IsSchemeFusable())
-                fuseShims.emplace_back(std::move(RT));
-
-            // --------------------------------
-            // TRTRT + 1DEven
-            // TODO- eventually we should fuse two TR (TRANSPOSE_XY_Z_STOCKHAM)
-            // --------------------------------
-            childNodes.emplace_back(std::move(trans3));
-            // Fuse R + TRANSPOSE_XY_Z
-            childNodes.emplace_back(std::move(c2plan));
-            childNodes.emplace_back(std::move(trans2));
-            childNodes.emplace_back(std::move(c1plan));
-            // Fuse this trans and pre-kernel-c2r of 1D-even
-            childNodes.emplace_back(std::move(trans1));
-        }
+        add_sbcc_children(remainingLength);
 
         // c2r
         auto crplan = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
         // for length > 2048, don't try pre/post because LDS usage is too high
         static_cast<RealTransEvenNode*>(crplan.get())->try_fuse_pre_post_processing
-            = sbcc_inplace && length[0] <= 2048;
+            = length[0] <= 2048;
+
+        crplan->length    = length;
+        crplan->dimension = 1;
+        crplan->RecursiveBuildTree();
+        childNodes.emplace_back(std::move(crplan));
+
+        // --------------------------------
+        // Fuse Shims:
+        // 2. trans1 + c2r (first child of real even)
+        // note the CheckSchemeFusable will check if the first one is transpose
+        // --------------------------------
+        auto TransC2R = NodeFactory::CreateFuseShim(
+            FT_TRANSPOSE_C2R, {childNodes[childNodes.size() - 2].get(), childNodes.back().get()});
+        if(TransC2R->IsSchemeFusable())
+            fuseShims.emplace_back(std::move(TransC2R));
+    }
+}
+
+void Real3DEvenNode::BuildTree_internal_SBCR()
+{
+    std::vector<size_t> C2R_length = {length[0] / 2 + 1, length[1], length[2]};
+
+    auto sbcrZ       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CR, this);
+    sbcrZ->length    = {length[2], (length[0] / 2 + 1) * length[1]};
+    sbcrZ->dimension = 1;
+    childNodes.emplace_back(std::move(sbcrZ));
+
+    auto sbcrY       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CR, this);
+    sbcrY->length    = {length[1], length[2] * (length[0] / 2 + 1)};
+    sbcrY->dimension = 1;
+    childNodes.emplace_back(std::move(sbcrY));
+
+    auto sbcrX       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CR, this);
+    sbcrX->length    = {length[0] / 2, length[1] * length[2]};
+    sbcrX->dimension = 1;
+    childNodes.emplace_back(std::move(sbcrX));
+
+    // insert a node that's prepared to apply the user's
+    // callback, since the callback would expect reals and this
+    // plan would otherwise pretend it's complex
+    auto applyCallback       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
+    applyCallback->dimension = dimension;
+    applyCallback->length    = length;
+    childNodes.emplace_back(std::move(applyCallback));
+}
+
+void Real3DEvenNode::BuildTree_internal_TR_pairs()
+{
+    std::vector<size_t> remainingLength = {length[0] / 2 + 1, length[1], length[2]};
+
+    if(inArrayType == rocfft_array_type_real) // forward
+    {
+        // first row fft + postproc is mandatory for fastest dimension
+        auto rcplan = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
+
+        rcplan->length    = length;
+        rcplan->dimension = 1;
+        rcplan->RecursiveBuildTree();
+
+        // first transpose
+        auto trans1       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
+        trans1->length    = remainingLength;
+        trans1->dimension = 2;
+
+        // first column
+        NodeMetaData c1planData(this);
+        c1planData.length       = {trans1->length[1], trans1->length[2], trans1->length[0]};
+        c1planData.dimension    = 1;
+        auto c1plan             = NodeFactory::CreateExplicitNode(c1planData, this);
+        c1plan->allowOutofplace = false; // let it be inplace
+        c1plan->RecursiveBuildTree();
+
+        // second transpose
+        auto trans2       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
+        trans2->length    = c1plan->length;
+        trans2->dimension = 2;
+
+        // second column
+        NodeMetaData c2planData(this);
+        c2planData.length       = {trans2->length[1], trans2->length[2], trans2->length[0]};
+        c2planData.dimension    = 1;
+        auto c2plan             = NodeFactory::CreateExplicitNode(c2planData, this);
+        c2plan->allowOutofplace = false; // let it be inplace
+        c2plan->RecursiveBuildTree();
+
+        // third transpose
+        auto trans3       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
+        trans3->length    = c2plan->length;
+        trans3->dimension = 2;
+
+        // --------------------------------
+        // Fuse Shims: [RealEven + T][RT][RT]
+        // 1-1. Try (stockham + r2c)(from real even) + transp
+        // 1-2. else, try r2c (from real even) + transp
+        // 2. RT1 = trans1 check + c1plan + trans2
+        // 3. RT2 = trans2 check + c2plan + trans3
+        // --------------------------------
+        auto STK_R2CTrans
+            = NodeFactory::CreateFuseShim(FT_STOCKHAM_R2C_TRANSPOSE, {rcplan.get(), trans1.get()});
+        if(STK_R2CTrans->IsSchemeFusable())
+        {
+            fuseShims.emplace_back(std::move(STK_R2CTrans));
+        }
+        else
+        {
+            auto R2CTrans = NodeFactory::CreateFuseShim(FT_R2C_TRANSPOSE,
+                                                        {rcplan.get(), trans1.get(), c1plan.get()});
+            if(R2CTrans->IsSchemeFusable())
+                fuseShims.emplace_back(std::move(R2CTrans));
+        }
+
+        auto RT1 = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS_Z_XY,
+                                               {trans1.get(), c1plan.get(), trans2.get()});
+        if(RT1->IsSchemeFusable())
+        {
+            fuseShims.emplace_back(std::move(RT1));
+        }
+        else
+        {
+            auto RTStride1
+                = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS, {c1plan.get(), trans2.get()});
+            if(RTStride1->IsSchemeFusable())
+                fuseShims.emplace_back(std::move(RTStride1));
+        }
+
+        auto RT2 = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS_Z_XY,
+                                               {trans2.get(), c2plan.get(), trans3.get()});
+        if(RT2->IsSchemeFusable())
+        {
+            fuseShims.emplace_back(std::move(RT2));
+        }
+        else
+        {
+            auto RTStride2
+                = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS, {c2plan.get(), trans3.get()});
+            if(RTStride2->IsSchemeFusable())
+                fuseShims.emplace_back(std::move(RTStride2));
+        }
+
+        // --------------------------------
+        // 1DEven + TRTRT
+        // --------------------------------
+        childNodes.emplace_back(std::move(rcplan));
+        childNodes.emplace_back(std::move(trans1));
+        // Fuse R + TRANSPOSE_Z_XY
+        childNodes.emplace_back(std::move(c1plan));
+        childNodes.emplace_back(std::move(trans2));
+        // Fuse R + TRANSPOSE_Z_XY
+        childNodes.emplace_back(std::move(c2plan));
+        childNodes.emplace_back(std::move(trans3));
+    }
+    else
+    {
+        // transpose
+        auto trans3       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
+        trans3->length    = {length[0] / 2 + 1, length[1], length[2]};
+        trans3->dimension = 2;
+
+        // column
+        NodeMetaData c2planData(this);
+        c2planData.length       = {trans3->length[2], trans3->length[0], trans3->length[1]};
+        c2planData.dimension    = 1;
+        auto c2plan             = NodeFactory::CreateExplicitNode(c2planData, this);
+        c2plan->allowOutofplace = false; // let it be inplace
+        c2plan->RecursiveBuildTree();
+
+        // transpose
+        auto trans2       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
+        trans2->length    = c2plan->length;
+        trans2->dimension = 2;
+
+        // column
+        NodeMetaData c1planData(this);
+        c1planData.length       = {trans2->length[2], trans2->length[0], trans2->length[1]};
+        c1planData.dimension    = 1;
+        auto c1plan             = NodeFactory::CreateExplicitNode(c1planData, this);
+        c1plan->allowOutofplace = false; // let it be inplace
+        c1plan->RecursiveBuildTree();
+
+        // transpose
+        auto trans1       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
+        trans1->length    = c1plan->length;
+        trans1->dimension = 2;
+
+        // --------------------------------
+        // Fuse Shims:
+        // 1. RT = c2plan + trans2 + c1plan(check-stockham)
+        // --------------------------------
+        auto RT = NodeFactory::CreateFuseShim(FT_STOCKHAM_WITH_TRANS_XY_Z,
+                                              {c2plan.get(), trans2.get(), c1plan.get()});
+        if(RT->IsSchemeFusable())
+            fuseShims.emplace_back(std::move(RT));
+
+        // --------------------------------
+        // TRTRT + 1DEven
+        // TODO- eventually we should fuse two TR (TRANSPOSE_XY_Z_STOCKHAM)
+        // --------------------------------
+        childNodes.emplace_back(std::move(trans3));
+        // Fuse R + TRANSPOSE_XY_Z
+        childNodes.emplace_back(std::move(c2plan));
+        childNodes.emplace_back(std::move(trans2));
+        childNodes.emplace_back(std::move(c1plan));
+        // Fuse this trans and pre-kernel-c2r of 1D-even
+        childNodes.emplace_back(std::move(trans1));
+
+        // c2r
+        auto crplan = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
 
         crplan->length    = length;
         crplan->dimension = 1;
@@ -1139,7 +1249,26 @@ void Real3DEvenNode::BuildTree_internal()
 
 void Real3DEvenNode::AssignParams_internal()
 {
-    // TODO: add padding?
+    switch(solution)
+    {
+    case INPLACE_SBCC:
+        AssignParams_internal_SBCC();
+        break;
+    case SBCR:
+        AssignParams_internal_SBCR();
+        break;
+    case TR_PAIRS:
+        AssignParams_internal_TR_pairs();
+        break;
+    default:
+        throw std::runtime_error("3D R2C/C2R assign params failure: " + PrintScheme(scheme));
+        break;
+    }
+}
+
+void Real3DEvenNode::AssignParams_internal_SBCC()
+{
+    assert(childNodes.size() == 3);
 
     const bool forward = inArrayType == rocfft_array_type_real;
     if(forward)
@@ -1156,7 +1285,6 @@ void Real3DEvenNode::AssignParams_internal()
         }
 
         // in-place SBCC for higher dims
-        if(childNodes.size() == 3)
         {
             auto& sbccZ     = childNodes[1];
             sbccZ->inStride = outStride;
@@ -1177,57 +1305,6 @@ void Real3DEvenNode::AssignParams_internal()
             sbccY->oDist     = oDist;
             sbccY->AssignParams();
         }
-        // TRTRTR
-        else
-        {
-            auto& trans1 = childNodes[1];
-            {
-                trans1->inStride = rcplan->outStride;
-                trans1->iDist    = rcplan->oDist;
-                trans1->outStride.push_back(1);
-                trans1->outStride.push_back(trans1->length[1]);
-                trans1->outStride.push_back(trans1->length[2] * trans1->outStride[1]);
-                trans1->oDist = trans1->iDist;
-            }
-
-            auto& c1plan = childNodes[2];
-            {
-                c1plan->inStride  = trans1->outStride;
-                c1plan->iDist     = trans1->oDist;
-                c1plan->outStride = c1plan->inStride;
-                c1plan->oDist     = c1plan->iDist;
-                c1plan->dimension = 1;
-                c1plan->AssignParams();
-            }
-
-            auto& trans2 = childNodes[3];
-            {
-                trans2->inStride = c1plan->outStride;
-                trans2->iDist    = c1plan->oDist;
-                trans2->outStride.push_back(1);
-                trans2->outStride.push_back(trans2->length[1]);
-                trans2->outStride.push_back(trans2->length[2] * trans2->outStride[1]);
-                trans2->oDist = trans2->iDist;
-            }
-
-            auto& c2plan = childNodes[4];
-            {
-                c2plan->inStride  = trans2->outStride;
-                c2plan->iDist     = trans2->oDist;
-                c2plan->outStride = c2plan->inStride;
-                c2plan->oDist     = c2plan->iDist;
-                c2plan->dimension = 1;
-                c2plan->AssignParams();
-            }
-
-            auto& trans3 = childNodes[5];
-            {
-                trans3->inStride  = c2plan->outStride;
-                trans3->iDist     = c2plan->oDist;
-                trans3->outStride = outStride;
-                trans3->oDist     = oDist;
-            }
-        }
     }
     else
     {
@@ -1236,7 +1313,6 @@ void Real3DEvenNode::AssignParams_internal()
         size_t              c2r_iDist    = iDist;
 
         // in-place SBCC for higher dimensions
-        if(childNodes.size() == 3)
         {
             auto& sbccZ     = childNodes[0];
             sbccZ->inStride = inStride;
@@ -1257,60 +1333,181 @@ void Real3DEvenNode::AssignParams_internal()
             sbccY->oDist     = iDist;
             sbccY->AssignParams();
         }
-        // RTRTRT
-        else
+
+        auto& crplan = childNodes.back();
         {
-            {
-                auto& trans3     = childNodes[0];
-                trans3->inStride = inStride;
-                trans3->iDist    = iDist;
-                trans3->outStride.push_back(1);
-                trans3->outStride.push_back(trans3->outStride[0] * trans3->length[2]);
-                trans3->outStride.push_back(trans3->outStride[1] * trans3->length[0]);
-                trans3->oDist = trans3->iDist;
-            }
+            crplan->inStride  = c2r_inStride;
+            crplan->iDist     = c2r_iDist;
+            crplan->outStride = outStride;
+            crplan->oDist     = oDist;
+            crplan->dimension = 1;
+            crplan->AssignParams();
+        }
+    }
+}
 
-            {
-                auto& ccplan      = childNodes[1];
-                ccplan->inStride  = childNodes[0]->outStride;
-                ccplan->iDist     = childNodes[0]->oDist;
-                ccplan->outStride = ccplan->inStride;
-                ccplan->oDist     = ccplan->iDist;
-                ccplan->dimension = 1;
-                ccplan->AssignParams();
-            }
+void Real3DEvenNode::AssignParams_internal_SBCR()
+{
+    if(childNodes.size() != 4)
+        throw std::runtime_error("Require SBCR childNodes.size() == 4");
 
-            {
-                auto& trans2     = childNodes[2];
-                trans2->inStride = childNodes[1]->outStride;
-                trans2->iDist    = childNodes[1]->oDist;
-                trans2->outStride.push_back(1);
-                trans2->outStride.push_back(trans2->outStride[0] * trans2->length[2]);
-                trans2->outStride.push_back(trans2->outStride[1] * trans2->length[0]);
-                trans2->oDist = trans2->iDist;
-            }
+    auto& sbcrZ      = childNodes[0];
+    sbcrZ->inStride  = {inStride[2], inStride[0]};
+    sbcrZ->iDist     = iDist;
+    sbcrZ->outStride = {1, sbcrZ->length[0]};
+    sbcrZ->oDist     = iDist;
 
-            {
-                auto& ccplan      = childNodes[3];
-                ccplan->inStride  = childNodes[2]->outStride;
-                ccplan->iDist     = childNodes[2]->oDist;
-                ccplan->outStride = ccplan->inStride;
-                ccplan->oDist     = ccplan->iDist;
-                ccplan->dimension = 1;
-                ccplan->AssignParams();
-            }
+    sbcrZ->AssignParams();
 
-            {
-                auto& trans1     = childNodes[4];
-                trans1->inStride = childNodes[3]->outStride;
-                trans1->iDist    = childNodes[3]->oDist;
-                trans1->outStride.push_back(1);
-                trans1->outStride.push_back(trans1->outStride[0] * trans1->length[2]);
-                trans1->outStride.push_back(trans1->outStride[1] * trans1->length[0]);
-                trans1->oDist = trans1->iDist;
-                c2r_inStride  = trans1->outStride;
-                c2r_iDist     = trans1->oDist;
-            }
+    auto& sbcrY      = childNodes[1];
+    sbcrY->inStride  = {sbcrY->length[1], 1};
+    sbcrY->iDist     = sbcrY->length[0] * sbcrY->length[1];
+    sbcrY->outStride = {1, sbcrY->length[0]};
+    sbcrY->oDist     = sbcrY->iDist;
+    sbcrY->AssignParams();
+
+    auto& sbcrX         = childNodes[2];
+    sbcrX->ebtype       = EmbeddedType::C2Real_PRE;
+    sbcrX->outArrayType = rocfft_array_type_complex_interleaved;
+    sbcrX->inStride     = {sbcrX->length[1], 1};
+    sbcrX->iDist        = (sbcrX->length[0] + 1) * sbcrX->length[1];
+    sbcrX->outStride    = {1, sbcrX->length[0]};
+    sbcrX->oDist = sbcrX->length[0] * sbcrX->length[1]; // TODO: refactor for non-unit strides
+
+    sbcrX->AssignParams();
+
+    // we apply callbacks on the root plan's output
+    TreeNode* rootPlan = this;
+    while(rootPlan->parent != nullptr)
+        rootPlan = rootPlan->parent;
+
+    auto& applyCallback      = childNodes.back();
+    applyCallback->inStride  = rootPlan->outStride;
+    applyCallback->iDist     = rootPlan->oDist;
+    applyCallback->outStride = rootPlan->outStride;
+    applyCallback->oDist     = rootPlan->oDist;
+}
+
+void Real3DEvenNode::AssignParams_internal_TR_pairs()
+{
+    const bool forward = inArrayType == rocfft_array_type_real;
+    if(forward)
+    {
+        auto& rcplan = childNodes[0];
+        {
+            // The first sub-plan changes type in real/complex transforms.
+            rcplan->inStride  = inStride;
+            rcplan->iDist     = iDist;
+            rcplan->outStride = outStride;
+            rcplan->oDist     = oDist;
+            rcplan->dimension = 1;
+            rcplan->AssignParams();
+        }
+
+        auto& trans1 = childNodes[1];
+        {
+            trans1->inStride = rcplan->outStride;
+            trans1->iDist    = rcplan->oDist;
+            trans1->outStride.push_back(1);
+            trans1->outStride.push_back(trans1->length[1]);
+            trans1->outStride.push_back(trans1->length[2] * trans1->outStride[1]);
+            trans1->oDist = trans1->iDist;
+        }
+
+        auto& c1plan = childNodes[2];
+        {
+            c1plan->inStride  = trans1->outStride;
+            c1plan->iDist     = trans1->oDist;
+            c1plan->outStride = c1plan->inStride;
+            c1plan->oDist     = c1plan->iDist;
+            c1plan->dimension = 1;
+            c1plan->AssignParams();
+        }
+
+        auto& trans2 = childNodes[3];
+        {
+            trans2->inStride = c1plan->outStride;
+            trans2->iDist    = c1plan->oDist;
+            trans2->outStride.push_back(1);
+            trans2->outStride.push_back(trans2->length[1]);
+            trans2->outStride.push_back(trans2->length[2] * trans2->outStride[1]);
+            trans2->oDist = trans2->iDist;
+        }
+
+        auto& c2plan = childNodes[4];
+        {
+            c2plan->inStride  = trans2->outStride;
+            c2plan->iDist     = trans2->oDist;
+            c2plan->outStride = c2plan->inStride;
+            c2plan->oDist     = c2plan->iDist;
+            c2plan->dimension = 1;
+            c2plan->AssignParams();
+        }
+
+        auto& trans3 = childNodes[5];
+        {
+            trans3->inStride  = c2plan->outStride;
+            trans3->iDist     = c2plan->oDist;
+            trans3->outStride = outStride;
+            trans3->oDist     = oDist;
+        }
+    }
+    else
+    {
+        // input strides for last c2r node
+        std::vector<size_t> c2r_inStride = inStride;
+        size_t              c2r_iDist    = iDist;
+
+        {
+            auto& trans3     = childNodes[0];
+            trans3->inStride = inStride;
+            trans3->iDist    = iDist;
+            trans3->outStride.push_back(1);
+            trans3->outStride.push_back(trans3->outStride[0] * trans3->length[2]);
+            trans3->outStride.push_back(trans3->outStride[1] * trans3->length[0]);
+            trans3->oDist = trans3->iDist;
+        }
+
+        {
+            auto& ccplan      = childNodes[1];
+            ccplan->inStride  = childNodes[0]->outStride;
+            ccplan->iDist     = childNodes[0]->oDist;
+            ccplan->outStride = ccplan->inStride;
+            ccplan->oDist     = ccplan->iDist;
+            ccplan->dimension = 1;
+            ccplan->AssignParams();
+        }
+
+        {
+            auto& trans2     = childNodes[2];
+            trans2->inStride = childNodes[1]->outStride;
+            trans2->iDist    = childNodes[1]->oDist;
+            trans2->outStride.push_back(1);
+            trans2->outStride.push_back(trans2->outStride[0] * trans2->length[2]);
+            trans2->outStride.push_back(trans2->outStride[1] * trans2->length[0]);
+            trans2->oDist = trans2->iDist;
+        }
+
+        {
+            auto& ccplan      = childNodes[3];
+            ccplan->inStride  = childNodes[2]->outStride;
+            ccplan->iDist     = childNodes[2]->oDist;
+            ccplan->outStride = ccplan->inStride;
+            ccplan->oDist     = ccplan->iDist;
+            ccplan->dimension = 1;
+            ccplan->AssignParams();
+        }
+
+        {
+            auto& trans1     = childNodes[4];
+            trans1->inStride = childNodes[3]->outStride;
+            trans1->iDist    = childNodes[3]->oDist;
+            trans1->outStride.push_back(1);
+            trans1->outStride.push_back(trans1->outStride[0] * trans1->length[2]);
+            trans1->outStride.push_back(trans1->outStride[1] * trans1->length[0]);
+            trans1->oDist = trans1->iDist;
+            c2r_inStride  = trans1->outStride;
+            c2r_iDist     = trans1->oDist;
         }
 
         auto& crplan = childNodes.back();

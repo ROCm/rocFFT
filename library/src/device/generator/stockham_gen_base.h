@@ -644,12 +644,13 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             TemplateList tpls;
             tpls.append(scalar_type);
             tpls.append(Ndiv4);
-            std::vector<Expression> args{thread % quarter_N + i * threads_per_transform,
-                                         half_N - thread % quarter_N - i * threads_per_transform,
-                                         quarter_N,
-                                         lds_complex + offset_lds,
-                                         0,
-                                         twiddles + half_N};
+            std::vector<Expression> args{
+                thread_id % threads_per_transform + i * threads_per_transform,
+                half_N - thread_id % threads_per_transform - i * threads_per_transform,
+                quarter_N,
+                lds_complex + offset_lds,
+                0,
+                twiddles + half_N};
             stmts += Call{function_name, tpls, args};
         }
         if(type == ProcessingType::PRE)

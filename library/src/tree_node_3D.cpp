@@ -545,8 +545,9 @@ void BLOCKCR3DNode::AssignParams_internal()
     childNodes[2]->inStride.push_back(1);
     childNodes[2]->iDist = childNodes[1]->oDist;
 
-    childNodes[2]->outStride = outStride;
-    childNodes[2]->oDist     = oDist;
+    childNodes[2]->outStride.push_back(outStride[0]);
+    childNodes[2]->outStride.push_back(outStride[1]);
+    childNodes[2]->oDist = oDist;
 }
 
 #if !GENERIC_BUF_ASSIGMENT

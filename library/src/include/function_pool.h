@@ -191,6 +191,11 @@ public:
     {
         return has_function(fpkey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
     }
+
+    static bool has_SBCR_kernel(size_t length, rocfft_precision precision)
+    {
+        return has_function(fpkey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_CR));
+    }
 };
 
 #endif // FUNCTION_POOL_H

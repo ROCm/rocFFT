@@ -4,6 +4,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## (Unreleased) rocFFT 1.0.16
 
+### Optimizations
+- Optimized 3D 200^3 C2R case.
+
 ### Fixed
 - Fixed correctness of some R2C transforms with unusual strides.
 

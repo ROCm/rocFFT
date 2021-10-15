@@ -103,6 +103,14 @@ class Real3DEvenNode : public InternalNode
 {
     friend class NodeFactory;
 
+    enum Solution
+    {
+        INPLACE_SBCC, // SBCC + SBCC + SBRR with pre/post processing
+        SBCR, // SBCR + SBCR + SBCR with pre-processing for C2Real only
+        SBRC, // SBRC + SBRC + SBRC with post-processing for Real2C only
+        TR_PAIRS // TRTRTR Real2C, or RTRTRT for C2Real
+    };
+
 protected:
     Real3DEvenNode(TreeNode* p)
         : InternalNode(p)
@@ -117,6 +125,18 @@ protected:
 #endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
+
+    Solution solution;
+
+    void Build_solution();
+
+    void BuildTree_internal_SBCC();
+    void BuildTree_internal_SBCR();
+    void BuildTree_internal_TR_pairs();
+
+    void AssignParams_internal_SBCC();
+    void AssignParams_internal_SBCR();
+    void AssignParams_internal_TR_pairs();
 };
 
 /*****************************************************
