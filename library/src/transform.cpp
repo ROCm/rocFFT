@@ -162,8 +162,12 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
                       (plan->placement == rocfft_placement_inplace) ? in_buffer : out_buffer,
                       &info);
     }
-    catch(std::exception&)
+    catch(std::exception& e)
     {
+        if(LOG_TRACE_ENABLED())
+        {
+            (*LogSingleton::GetInstance().GetTraceOS()) << e.what() << std::endl;
+        }
         return rocfft_status_failure;
     }
 

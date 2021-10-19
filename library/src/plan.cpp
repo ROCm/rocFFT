@@ -477,7 +477,10 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     }
     catch(std::exception& e)
     {
-        std::cerr << e.what() << std::endl;
+        if(LOG_TRACE_ENABLED())
+        {
+            (*LogSingleton::GetInstance().GetTraceOS()) << e.what() << std::endl;
+        }
         return rocfft_status_failure;
     }
 }
