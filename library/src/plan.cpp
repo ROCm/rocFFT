@@ -1709,7 +1709,8 @@ void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan)
                     {
                         os << "error in stride assignments" << std::endl;
                     }
-                    if(outfact * (*curr_p)->iDist != infact * (*curr_p)->oDist)
+                    if(((*curr_p)->batch > 1)
+                       && (outfact * (*curr_p)->iDist != infact * (*curr_p)->oDist))
                     {
                         os << "error in dist assignments" << std::endl;
                     }

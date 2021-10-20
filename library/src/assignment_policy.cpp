@@ -217,7 +217,12 @@ bool AssignmentPolicy::BufferIsUnitStride(ExecPlan& execPlan, OperatingBuffer bu
         stride.erase(stride.begin());
         length.erase(length.begin());
     } while(!stride.empty());
-    return curStride == dist;
+
+    // NB: users may input incorrect i/o-dist value for inplace transform
+    //     however, when the batch-size is 1, we can simply make it permissive
+    //     since the dist is not used in single batch. But note that we still need
+    //     to pass the above do-while to ensure all the previous strides are valid.
+    return (execPlan.rootPlan->batch == 1) || (curStride == dist);
 }
 
 bool AssignmentPolicy::ValidOutBuffer(ExecPlan&         execPlan,
@@ -353,7 +358,7 @@ bool AssignmentPolicy::CheckAssignmentValid(ExecPlan& execPlan)
         {
             const int infact  = curr->inArrayType == rocfft_array_type_real ? 1 : 2;
             const int outfact = curr->outArrayType == rocfft_array_type_real ? 1 : 2;
-            if(outfact * curr->iDist != infact * curr->oDist)
+            if((curr->batch > 1) && (outfact * curr->iDist != infact * curr->oDist))
             {
                 // std::cout << "error in dist assignments, re-assign" << std::endl;
                 return false;

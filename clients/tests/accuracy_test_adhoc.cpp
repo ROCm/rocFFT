@@ -64,3 +64,41 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_adhoc,
                                                              ooffset_range,
                                                              place_range)),
                          accuracy_test::TestName);
+
+inline auto param_permissive_iodist()
+{
+    std::vector<std::vector<size_t>> lengths = adhoc_sizes;
+    lengths.push_back({4});
+
+    std::vector<rocfft_params> params;
+    for(const auto precision : precision_range)
+    {
+        for(const auto trans_type : trans_type_range)
+        {
+            for(const auto& types : generate_types(trans_type, place_range))
+            {
+                for(const auto& len : lengths)
+                {
+                    rocfft_params param;
+
+                    param.length         = len;
+                    param.precision      = precision;
+                    param.idist          = 2;
+                    param.odist          = 3;
+                    param.transform_type = std::get<0>(types);
+                    param.placement      = std::get<1>(types);
+                    param.itype          = std::get<2>(types);
+                    param.otype          = std::get<3>(types);
+                    params.push_back(param);
+                }
+            }
+        }
+    }
+
+    return params;
+}
+
+INSTANTIATE_TEST_SUITE_P(adhoc_dist,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_permissive_iodist()),
+                         accuracy_test::TestName);

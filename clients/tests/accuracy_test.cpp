@@ -541,16 +541,6 @@ void rocfft_transform(const rocfft_params&                 params,
         return;
     }
 
-    if(!params.valid(verbose))
-    {
-        if(verbose)
-        {
-            std::cout << "Invalid parameters, skip this test." << std::endl;
-        }
-        GTEST_SKIP();
-        return;
-    }
-
     rocfft_status fft_status = rocfft_status_success;
 
     // Create FFT description
@@ -984,6 +974,15 @@ TEST_P(accuracy_test, vs_fftw)
     if(total < minimal_vram_footprint)
     {
         GTEST_SKIP() << "won't fit on device, even without work buffer";
+    }
+
+    if(!params.valid(verbose))
+    {
+        if(verbose)
+        {
+            std::cout << "Invalid parameters, skip this test." << std::endl;
+        }
+        GTEST_SKIP();
     }
 
     auto cpu = accuracy_test::compute_cpu_fft(params);

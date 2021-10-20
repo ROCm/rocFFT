@@ -320,9 +320,16 @@ TEST(manual, vs_fftw)
         manual_params.osize = manual_params.compute_osize();
     }
 
-    std::cout << "\t" << manual_params.str("\n\t") << std::endl;
+    if(!manual_params.valid(verbose))
+    {
+        if(verbose)
+        {
+            std::cout << "Invalid parameters, skip this test." << std::endl;
+        }
+        GTEST_SKIP();
+    }
 
-    EXPECT_TRUE(manual_params.valid(verbose));
+    std::cout << "\t" << manual_params.str("\n\t") << std::endl;
 
     auto cpu = accuracy_test::compute_cpu_fft(manual_params);
 

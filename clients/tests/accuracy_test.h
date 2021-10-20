@@ -235,6 +235,11 @@ const static std::vector<rocfft_precision> precision_range
     = {rocfft_precision_double, rocfft_precision_single};
 const static std::vector<rocfft_result_placement> place_range
     = {rocfft_placement_inplace, rocfft_placement_notinplace};
+const static std::vector<rocfft_transform_type> trans_type_range
+    = {rocfft_transform_type_complex_forward,
+       rocfft_transform_type_complex_inverse,
+       rocfft_transform_type_real_forward,
+       rocfft_transform_type_real_inverse};
 
 // Given a vector of vector of lengths, generate all unique permutations.
 // Add an optional vector of ad-hoc lengths to the result.
