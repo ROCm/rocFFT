@@ -321,6 +321,15 @@ void BLOCKRC3DNode::BuildTree_internal()
 {
     std::vector<size_t> cur_length = length;
 
+    // NB:
+    //   The idea is to change the SBRC from doing XZ-plane to doing XY-plane
+    //   We apply on cubic sizes for now, all candidates are {50,64,81,100,128,200,256}
+    //   but 64^3, 81^3, 100^3 are still faster with 3D_RC
+    // TODO:
+    //   implement DIAGONAL transpose on Z_XY, so we can apply on 128^3 and 256^3
+    std::set<size_t> experiments  = {50, 200};
+    bool             use_ZXY_sbrc = is_cube_size(length) && experiments.count(length[0]);
+
     size_t total_sbrc = 0;
     for(int i = 0; i < 3; ++i)
     {
@@ -349,15 +358,16 @@ void BLOCKRC3DNode::BuildTree_internal()
         //
         // So we have no way to put the results back into IN.  So
         // limit ourselves to 2 sbrc kernels in that case.
-        if(total_sbrc >= 3)
+        if(total_sbrc >= 3 && placement == rocfft_placement_inplace)
         {
             have_sbrc = false;
         }
 
         if(have_sbrc)
         {
-            auto sbrc_node
-                = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z, this);
+            auto sbrcScheme   = (use_ZXY_sbrc) ? CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY
+                                               : CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z;
+            auto sbrc_node    = NodeFactory::CreateNodeFromScheme(sbrcScheme, this);
             sbrc_node->length = cur_length;
             childNodes.emplace_back(std::move(sbrc_node));
         }
@@ -371,8 +381,9 @@ void BLOCKRC3DNode::BuildTree_internal()
             row_plan->RecursiveBuildTree();
 
             // transpose XY_Z
-            auto trans_plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
-            trans_plan->length = cur_length;
+            auto transScheme = (use_ZXY_sbrc) ? CS_KERNEL_TRANSPOSE_Z_XY : CS_KERNEL_TRANSPOSE_XY_Z;
+            auto trans_plan  = NodeFactory::CreateNodeFromScheme(transScheme, this);
+            trans_plan->length    = cur_length;
             trans_plan->dimension = 2;
 
             // RT
@@ -424,6 +435,14 @@ void BLOCKRC3DNode::AssignParams_internal()
             node->oDist = node->outStride[2] * node->length[1];
             break;
         }
+        case CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY:
+        {
+            node->outStride.push_back(1);
+            node->outStride.push_back(node->length[1]);
+            node->outStride.push_back(node->outStride[1] * node->length[0]);
+            node->oDist = node->outStride[2] * node->length[2];
+            break;
+        }
         case CS_KERNEL_STOCKHAM:
         {
             node->outStride = node->inStride;
@@ -435,6 +454,14 @@ void BLOCKRC3DNode::AssignParams_internal()
         {
             node->outStride.push_back(1);
             node->outStride.push_back(node->outStride[0] * node->length[2]);
+            node->outStride.push_back(node->outStride[1] * node->length[0]);
+            node->oDist = node->iDist;
+            break;
+        }
+        case CS_KERNEL_TRANSPOSE_Z_XY:
+        {
+            node->outStride.push_back(1);
+            node->outStride.push_back(node->outStride[0] * node->length[1]);
             node->outStride.push_back(node->outStride[1] * node->length[0]);
             node->oDist = node->iDist;
             break;
