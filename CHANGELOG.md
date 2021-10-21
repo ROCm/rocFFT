@@ -4,6 +4,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## (Unreleased) rocFFT 1.0.16
 
+### Changed
+- Enabled runtime compilation of length-2304 FFT kernel during plan creation.
+
 ### Optimizations
 - Optimized 3D 200^3 C2R case.
 

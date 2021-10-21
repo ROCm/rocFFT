@@ -386,7 +386,7 @@ TEST(rocfft_UnitTest, workmem_null)
     workmem_test([](size_t requested) { return requested; }, rocfft_status_success, true);
 }
 
-#ifdef ROCFFT_RUNTIME_COMPILE
+#if 0
 // runtime compilation cache tests
 TEST(rocfft_UnitTest, rtc_cache)
 {

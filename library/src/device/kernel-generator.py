@@ -318,7 +318,7 @@ def list_small_kernels():
         NS(length=2160, threads_per_block=256, threads_per_transform= 60, factors=(10, 6, 6, 6)),
         NS(length=2187, threads_per_block=256, threads_per_transform=243, factors=(3, 3, 3, 3, 3, 3, 3)),
         NS(length=2250, threads_per_block=256, threads_per_transform= 90, factors=(10, 3, 5, 3, 5)),
-        NS(length=2304, threads_per_block=256, threads_per_transform=192, factors=(6, 6, 4, 4, 4)),
+        NS(length=2304, threads_per_block=256, threads_per_transform=192, factors=(6, 6, 4, 4, 4), runtime_compile=True),
         NS(length=2400, threads_per_block=256, threads_per_transform=240, factors=(4, 10, 10, 6)),
         NS(length=2430, threads_per_block=256, threads_per_transform= 81, factors=(10, 3, 3, 3, 3, 3)),
         NS(length=2500, threads_per_block=256, threads_per_transform=250, factors=(10, 5, 10, 5)),
