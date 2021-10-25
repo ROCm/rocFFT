@@ -13,6 +13,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Fixed
 - Fixed correctness of some R2C transforms with unusual strides.
 
+### Removed
+- The hipFFT API (header) has been removed from after a long deprecation period.  Please use the [hipFFT](https://github.com/ROCmSoftwarePlatform/hipFFT) package/repository to obtain the hipFFT API.
+
 ## (Unreleased) rocFFT 1.0.15
 
 ### Changed

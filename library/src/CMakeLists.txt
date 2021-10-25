@@ -120,7 +120,6 @@ set( rocfft_source
   fuse_shim.cpp
   assignment_policy.cpp
   node_factory.cpp
-  hipfft.cpp
   rtc.cpp
   rtccache.cpp
   )
@@ -172,17 +171,7 @@ if( ROCFFT_RUNTIME_COMPILE )
   target_compile_options( rocfft PRIVATE -DROCFFT_RUNTIME_COMPILE )
 endif()
 
-# add warning flags on everything but hipfft.cpp, which has a known
-# deprecation warning in it
-set( rocfft_warn_source ${rocfft_source})
-list( REMOVE_ITEM rocfft_warn_source hipfft.cpp )
-set_property(
-  SOURCE ${rocfft_warn_source}
-  PROPERTY COMPILE_OPTIONS ${WARNING_FLAGS}
-  )
-# when hipfft.cpp is removed, flip the whole target to use the same
-# flags
-#target_compile_options( rocfft PRIVATE ${WARNING_FLAGS} )
+target_compile_options( rocfft PRIVATE ${WARNING_FLAGS} )
 
 if( NOT BUILD_SHARED_LIBS )
   target_link_libraries( rocfft INTERFACE hip::host )
@@ -247,12 +236,3 @@ rocm_export_targets(
   )
 
 rocm_install_symlink_subdir( rocfft )
-
-# During transition to standalone hipFFT repository, don't install
-# symlinks to hipFFT headers.  Once the hipFFT headers are removed
-# from rocFFT, we can delete this..
-if(NOT CMAKE_HOST_WIN32)
-  rocm_install(CODE "
-      file(REMOVE \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/include/hipfft.h\")
-    ")
-endif()

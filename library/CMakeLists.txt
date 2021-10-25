@@ -90,7 +90,6 @@ configure_file( "${CMAKE_CURRENT_SOURCE_DIR}/include/rocfft-version.h.in" "${PRO
 
 set( rocfft_headers_public
   include/rocfft.h
-  include/hipfft.h
   ${PROJECT_BINARY_DIR}/include/rocfft-version.h
 )
 
