@@ -122,7 +122,37 @@ set( rocfft_source
   node_factory.cpp
   hipfft.cpp
   rtc.cpp
+  rtccache.cpp
   )
+
+# SQLite 3.36.0 enabled the backup API by default, which we need
+# for cache serialization.  We also want to use a static SQLite,
+# and distro static libraries aren't typically built
+# position-independent.
+include( FetchContent )
+
+# embed SQLite
+FetchContent_Declare(sqlite_local
+  URL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip
+  URL_HASH SHA256=999826fe4c871f18919fdb8ed7ec9dd8217180854dd1fe21eea96aed36186729
+)
+FetchContent_MakeAvailable(sqlite_local)
+add_library( sqlite3 STATIC ${sqlite_local_SOURCE_DIR}/sqlite3.c )
+# some CI pipelines seem to not find sqlite3.h where it is - work around that by
+# copying into the library's include
+file( COPY ${sqlite_local_SOURCE_DIR}/sqlite3.h DESTINATION ${CMAKE_SOURCE_DIR}/library/src/include )
+set_target_properties( sqlite3 PROPERTIES
+  C_VISIBILITY_PRESET "hidden"
+  VISIBILITY_INLINES_HIDDEN ON
+  POSITION_INDEPENDENT_CODE ON
+  )
+
+# we don't need extensions, and omitting them from SQLite removes the
+# need for dlopen/dlclose from within rocFFT
+target_compile_options(
+  sqlite3
+  PRIVATE -DSQLITE_OMIT_LOAD_EXTENSION
+)
 
 set_property(
   SOURCE rtc.cpp
@@ -133,6 +163,14 @@ prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 
 add_library( rocfft ${rocfft_source} ${relative_rocfft_headers_public} )
 add_library( roc::rocfft ALIAS rocfft )
+
+target_link_libraries( rocfft PRIVATE stockham_gen sqlite3 )
+if( NOT WIN32 )
+  target_link_libraries( rocfft PRIVATE -lstdc++fs )
+endif()
+if( ROCFFT_RUNTIME_COMPILE )
+  target_compile_options( rocfft PRIVATE -DROCFFT_RUNTIME_COMPILE )
+endif()
 
 # add warning flags on everything but hipfft.cpp, which has a known
 # deprecation warning in it
@@ -158,11 +196,6 @@ target_link_libraries( rocfft PRIVATE rocfft-device-0 )
 target_link_libraries( rocfft PRIVATE rocfft-device-1 )
 target_link_libraries( rocfft PRIVATE rocfft-device-2 )
 target_link_libraries( rocfft PRIVATE rocfft-device-3 )
-
-if( ROCFFT_RUNTIME_COMPILE )
-  target_link_libraries( rocfft PRIVATE stockham_gen )
-  target_compile_options( rocfft PRIVATE -DROCFFT_RUNTIME_COMPILE )
-endif()
 
 target_include_directories( rocfft
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>

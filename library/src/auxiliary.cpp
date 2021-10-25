@@ -25,6 +25,7 @@
 #include "rocfft.h"
 #include "rocfft_hip.h"
 #include "rocfft_ostream.hpp"
+#include "rtccache.h"
 #include <fcntl.h>
 #include <memory>
 
@@ -77,6 +78,10 @@ rocfft_status rocfft_setup()
 {
     rocfft_ostream::setup();
 
+#ifdef ROCFFT_RUNTIME_COMPILE
+    RTCCache::single = std::make_unique<RTCCache>();
+#endif
+
     // set layer_mode from value of environment variable ROCFFT_LAYER
     auto str_layer_mode = getenv("ROCFFT_LAYER");
 
@@ -122,7 +127,9 @@ rocfft_status rocfft_cleanup()
     // close the RTC cache and clear the repo, so that subsequent
     // rocfft_setup() + plan creation will start from scratch
     Repo::Clear();
-    RTCKernel::close_cache();
+#ifdef ROCFFT_RUNTIME_COMPILE
+    RTCCache::single.reset();
+#endif
 
     LogSingleton::GetInstance().SetLayerMode(rocfft_layer_mode_none);
     // Close log files

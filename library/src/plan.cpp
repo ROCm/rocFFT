@@ -1605,8 +1605,10 @@ void InsertNode(ExecPlan& execPlan, TreeNode* pos, std::unique_ptr<TreeNode>& ne
 
 void RuntimeCompilePlan(ExecPlan& execPlan)
 {
+#ifdef ROCFFT_RUNTIME_COMPILE
     for(auto& node : execPlan.execSeq)
         node->compiledKernel = RTCKernel::runtime_compile(*node, execPlan.deviceProp.gcnArchName);
+#endif
 }
 
 void ProcessNode(ExecPlan& execPlan)

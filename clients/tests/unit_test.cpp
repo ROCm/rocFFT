@@ -386,7 +386,7 @@ TEST(rocfft_UnitTest, workmem_null)
     workmem_test([](size_t requested) { return requested; }, rocfft_status_success, true);
 }
 
-#if 0
+#ifdef ROCFFT_RUNTIME_COMPILE
 // runtime compilation cache tests
 TEST(rocfft_UnitTest, rtc_cache)
 {
@@ -430,7 +430,8 @@ TEST(rocfft_UnitTest, rtc_cache)
 
     // END PRECONDITIONS
 
-    const size_t length     = 9;
+    // pick a length that's runtime compiled
+    const size_t length     = 2304;
     auto         build_plan = [&]() {
         rocfft_plan plan = nullptr;
         ASSERT_TRUE(rocfft_status_success
@@ -448,16 +449,21 @@ TEST(rocfft_UnitTest, rtc_cache)
         rocfft_plan_destroy(plan);
         plan = nullptr;
     };
-    auto get_log_size = [&]() {
+    // check the RTC log to see if a kernel got compiled
+    auto kernel_was_compiled = [&]() {
         // HACK: logging is done in a worker thread, so sleep for a
         // bit to give it a chance to actually write.  It at least
         // should flush after writing.
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        struct stat statbuf;
-        if(stat(rtc_log_path.c_str(), &statbuf) == 0)
-            return statbuf.st_size;
-        else
-            return decltype(statbuf.st_size)(0);
+        // look for a ROCFFT_RTC_BEGIN line that indicates RTC happened
+        std::ifstream logfile(rtc_log_path);
+        std::string   line;
+        while(logfile >> line)
+        {
+            if(line.find("ROCFFT_RTC_BEGIN") != std::string::npos)
+                return true;
+        }
+        return false;
     };
 
     // build a plan that requires runtime compilation,
@@ -466,7 +472,7 @@ TEST(rocfft_UnitTest, rtc_cache)
     ASSERT_EQ(rocfft_cache_serialize(&onekernel_cache, &onekernel_cache_bytes),
               rocfft_status_success);
     rocfft_cleanup();
-    ASSERT_GT(get_log_size(), 0);
+    ASSERT_TRUE(kernel_was_compiled());
 
     // serialized cache should be bigger than empty cache
     ASSERT_GT(onekernel_cache_bytes, empty_cache_bytes);
@@ -481,7 +487,7 @@ TEST(rocfft_UnitTest, rtc_cache)
     ASSERT_EQ(rocfft_cache_serialize(&onekernel_cache, &onekernel_cache_bytes),
               rocfft_status_success);
     rocfft_cleanup();
-    ASSERT_GT(get_log_size(), 0);
+    ASSERT_TRUE(kernel_was_compiled());
     ASSERT_GT(onekernel_cache_bytes, empty_cache_bytes);
 
     // re-init library without blowing away cache.  rebuild plan and
@@ -489,7 +495,7 @@ TEST(rocfft_UnitTest, rtc_cache)
     rocfft_setup();
     build_plan();
     rocfft_cleanup();
-    ASSERT_EQ(get_log_size(), 0);
+    ASSERT_FALSE(kernel_was_compiled());
 
     // blow away cache again, deserialize one-kernel cache.  re-init
     // library and rebuild plan - kernel should again not be
@@ -499,7 +505,12 @@ TEST(rocfft_UnitTest, rtc_cache)
     ASSERT_EQ(rocfft_cache_deserialize(onekernel_cache, onekernel_cache_bytes),
               rocfft_status_success);
     rocfft_cleanup();
-    ASSERT_EQ(get_log_size(), 0);
+    ASSERT_FALSE(kernel_was_compiled());
+
+    rocfft_setup();
+    build_plan();
+    rocfft_cleanup();
+    ASSERT_FALSE(kernel_was_compiled());
 }
 
 // make sure cache API functions tolerate null pointers without crashing

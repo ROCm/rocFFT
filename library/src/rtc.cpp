@@ -40,7 +40,10 @@ using namespace std::placeholders;
 #include "kernel_launch.h"
 #include "logging.h"
 #include "plan.h"
+#include "rtccache.h"
 #include "tree_node.h"
+
+#include <chrono>
 
 // generate name for RTC stockham kernel
 //
@@ -450,15 +453,9 @@ void RTCKernel::launch(DeviceCallIn& data)
         throw std::runtime_error("hipModuleLaunchKernel failure");
 }
 
-void RTCKernel::close_cache()
-{
-    // FIXME: reimplement
-}
-
 std::unique_ptr<RTCKernel>
     RTCKernel::runtime_compile(TreeNode& node, const char* gpu_arch, bool enable_callbacks)
 {
-#if ROCFFT_RUNTIME_COMPILE
     function_pool& pool = function_pool::get_function_pool();
 
     std::unique_ptr<StockhamGeneratorSpecs> specs;
@@ -565,86 +562,102 @@ std::unique_ptr<RTCKernel>
 
     std::string kernel_name = stockham_rtc_kernel_name(node, transpose_type, enable_callbacks);
 
-    // TODO: check the cache
-
+    // check the cache
     std::vector<char> code;
 
-    auto kernel_src = stockham_rtc(
+    int hip_version = 0;
+    if(hipRuntimeGetVersion(&hip_version) != hipSuccess)
+        return nullptr;
+
+    std::vector<char> generator_sum_vec(generator_sum, generator_sum + generator_sum_bytes);
+    if(RTCCache::single)
+    {
+        code = RTCCache::single->get_code_object(
+            kernel_name, gpu_arch, hip_version, generator_sum_vec);
+    }
+
+    if(!code.empty())
+    {
+        // cache hit
+        try
+        {
+            if(LOG_RTC_ENABLED())
+            {
+                (*LogSingleton::GetInstance().GetRTCOS())
+                    << "// cache hit for " << kernel_name << std::endl;
+            }
+            return std::unique_ptr<RTCKernel>(new RTCKernel(kernel_name, code));
+        }
+        catch(std::exception&)
+        {
+            // if for some reason the cached object was not
+            // usable, fall through to generating the source and
+            // recompiling
+        }
+    }
+
+    auto generate_begin = std::chrono::steady_clock::now();
+    auto kernel_src     = stockham_rtc(
         *specs, specs2d ? *specs2d : *specs, kernel_name, node, transpose_type, enable_callbacks);
+    auto generate_end = std::chrono::steady_clock::now();
 
     if(LOG_RTC_ENABLED())
-        (*LogSingleton::GetInstance().GetRTCOS()) << kernel_src << std::flush;
+    {
+        std::chrono::duration<float, std::milli> generate_ms = generate_end - generate_begin;
+
+        (*LogSingleton::GetInstance().GetRTCOS())
+            << kernel_src << "// generate duration: " << static_cast<int>(generate_ms.count())
+            << " ms" << std::endl;
+    }
 
     // compile to code object
-    code = compile(kernel_src);
+    auto compile_begin = std::chrono::steady_clock::now();
+    code               = compile(kernel_src);
+    auto compile_end   = std::chrono::steady_clock::now();
 
-    // TODO: store code object to cache
+    if(LOG_RTC_ENABLED())
+    {
+        std::chrono::duration<float, std::milli> compile_ms = compile_end - compile_begin;
 
+        (*LogSingleton::GetInstance().GetRTCOS())
+            << "// compile duration: " << static_cast<int>(compile_ms.count()) << " ms\n"
+            << std::endl;
+    }
+
+    if(RTCCache::single)
+    {
+        RTCCache::single->store_code_object(
+            kernel_name, gpu_arch, hip_version, generator_sum_vec, code);
+    }
     return std::unique_ptr<RTCKernel>(new RTCKernel(kernel_name, code));
-#else
-    return nullptr;
-#endif
 }
 
 rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes)
 {
-#if 0
     if(!buffer || !buffer_len_bytes)
         return rocfft_status_invalid_arg_value;
 
-    auto& generator = get_generator();
-    generator.open_db();
-    PyObjWrap cache = PyRun_String("rtccache.serialize_cache(kernel_cache_db)",
-                                   Py_eval_input,
-                                   generator.glob_dict,
-                                   generator.local_dict);
-    if(cache.is_null())
-    {
-        PyErr_PrintEx(0);
-        PyErr_Clear();
+    if(!RTCCache::single)
         return rocfft_status_failure;
-    }
 
-    size_t len        = PyBytes_Size(cache);
-    *buffer_len_bytes = len;
-    *buffer           = new char[len];
-    memcpy(*buffer, PyBytes_AsString(cache), len);
-    return rocfft_status_success;
-#else
-    return rocfft_status_failure;
-#endif
+    return RTCCache::single->serialize(buffer, buffer_len_bytes);
 }
 
 rocfft_status rocfft_cache_buffer_free(void* buffer)
 {
-    delete[] static_cast<char*>(buffer);
+    if(!RTCCache::single)
+        return rocfft_status_failure;
+    RTCCache::single->serialize_free(buffer);
     return rocfft_status_success;
 }
 
 rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_bytes)
 {
-#if 0
     if(!buffer || !buffer_len_bytes)
         return rocfft_status_invalid_arg_value;
 
-    auto& generator = get_generator();
-    generator.open_db();
-    PyObjWrap cache
-        = PyByteArray_FromStringAndSize(static_cast<const char*>(buffer), buffer_len_bytes);
-    PyMapping_SetItemString(generator.local_dict, "cache", cache);
-    PyObjWrap ret = PyRun_String("rtccache.deserialize_cache(kernel_cache_db, cache)",
-                                 Py_eval_input,
-                                 generator.glob_dict,
-                                 generator.local_dict);
-    if(ret.is_null())
-    {
-        PyErr_PrintEx(0);
-        PyErr_Clear();
+    if(!RTCCache::single)
         return rocfft_status_failure;
-    }
 
-    return rocfft_status_success;
-#else
-    return rocfft_status_failure;
-#endif
+    return RTCCache::single->deserialize(buffer, buffer_len_bytes);
 }

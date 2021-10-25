@@ -45,7 +45,7 @@ if( NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT DEFINED CMAKE_BUILD_TYPE )
 endif()
 
 
-project( rocfft LANGUAGES CXX )
+project( rocfft LANGUAGES CXX C )
 
 
 # Control hip-clang use:
