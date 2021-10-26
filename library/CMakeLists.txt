@@ -110,15 +110,16 @@ endif()
 # Build into subdirectories
 add_subdirectory( src )
 
-# The following code is setting variables to control the behavior of CPack to generate our
-# if( WIN32 )
-#     set( CPACK_SOURCE_GENERATOR "ZIP" )
-#     set( CPACK_GENERATOR "ZIP" )
-# else( )
-#     set( CPACK_SOURCE_GENERATOR "TGZ" )
-#     set( CPACK_GENERATOR "DEB;RPM" CACHE STRING "cpack list: 7Z, DEB, IFW, NSIS, NSIS64, RPM, STGZ, TBZ2, TGZ, TXZ, TZ, ZIP" )
-#     # set( CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON )
-# endif( )
+if(WIN32)
+  set(CPACK_SOURCE_GENERATOR "ZIP")
+  set(CPACK_GENERATOR "ZIP")
+  set(CMAKE_INSTALL_PREFIX "C:/hipSDK" CACHE PATH "Install path" FORCE)
+  set(INSTALL_PREFIX "C:/hipSDK")
+  set(CPACK_SET_DESTDIR OFF)
+  set(CPACK_PACKAGE_INSTALL_DIRECTORY "C:/hipSDK")
+  set(CPACK_PACKAGING_INSTALL_PREFIX "")
+  set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
+endif()
 
 # Package specific CPACK vars
 string( TOLOWER "${HIP_RUNTIME}" HIP_RUNTIME_LOWER )
