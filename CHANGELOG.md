@@ -52,7 +52,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Changed
 - Split 2D device code into separate libraries.
 
-## [(Unreleased) rocFFT 1.0.13 for ROCm 4.4.0]
+## [rocFFT 1.0.13 for ROCm 4.4.0]
 
 ### Optimizations
 - Improved many plans by removing unnecessary transpose steps.
