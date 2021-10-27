@@ -342,8 +342,9 @@ public:
     size_t needed_ram(const int verbose) const
     {
         // Host input, output, and input copy: 3 buffers, all contiguous.
+        // Also: FFTW dummy input, and an input copy for shared futures.  Total 5.
         size_t needed_ram
-            = 3
+            = 5
               * std::accumulate(
                   length.begin(), length.end(), static_cast<size_t>(1), std::multiplies<size_t>());
 
@@ -373,7 +374,7 @@ public:
 
         needed_ram *= nbatch;
 
-        if(verbose > 1)
+        if(verbose)
         {
             std::cout << "required host memory (GiB): " << needed_ram / ONE_GiB << std::endl;
         }
@@ -692,7 +693,7 @@ std::vector<std::pair<std::tuple<T1, T1, T1>, std::tuple<T1, T1, T1>>>
 
 // Specialized computation of index given 1-, 2-, 3- dimension length + stride
 template <typename T1, typename T2>
-int compute_index(T1 length, T2 stride, size_t base)
+size_t compute_index(T1 length, T2 stride, size_t base)
 {
     static_assert(std::is_integral<T1>::value, "Integral required.");
     static_assert(std::is_integral<T2>::value, "Integral required.");
@@ -700,7 +701,8 @@ int compute_index(T1 length, T2 stride, size_t base)
 }
 
 template <typename T1, typename T2>
-int compute_index(const std::tuple<T1, T1>& length, const std::tuple<T2, T2>& stride, size_t base)
+size_t
+    compute_index(const std::tuple<T1, T1>& length, const std::tuple<T2, T2>& stride, size_t base)
 {
     static_assert(std::is_integral<T1>::value, "Integral required.");
     static_assert(std::is_integral<T2>::value, "Integral required.");
@@ -709,9 +711,9 @@ int compute_index(const std::tuple<T1, T1>& length, const std::tuple<T2, T2>& st
 }
 
 template <typename T1, typename T2>
-int compute_index(const std::tuple<T1, T1, T1>& length,
-                  const std::tuple<T2, T2, T2>& stride,
-                  size_t                        base)
+size_t compute_index(const std::tuple<T1, T1, T1>& length,
+                     const std::tuple<T2, T2, T2>& stride,
+                     size_t                        base)
 {
     static_assert(std::is_integral<T1>::value, "Integral required.");
     static_assert(std::is_integral<T2>::value, "Integral required.");
@@ -795,8 +797,8 @@ inline void copy_buffers_1to1(const Tval*                input,
             const auto length = partitions[part].second;
             do
             {
-                const int idx = compute_index(index, istride, idx_base);
-                const int odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const auto idx = compute_index(index, istride, idx_base);
+                const auto odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
                 output[odx + ooffset[0]] = input[idx + ioffset[0]];
             } while(increment_rowmajor(index, length));
         }
@@ -832,8 +834,8 @@ inline void copy_buffers_2to1(const Tval*                input0,
             const auto length = partitions[part].second;
             do
             {
-                const int idx = compute_index(index, istride, idx_base);
-                const int odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const auto idx = compute_index(index, istride, idx_base);
+                const auto odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
                 output[odx + ooffset[0]]
                     = std::complex<Tval>(input0[idx + ioffset[0]], input1[idx + ioffset[1]]);
             } while(increment_rowmajor(index, length));
@@ -870,8 +872,8 @@ inline void copy_buffers_1to2(const std::complex<Tval>*  input,
             const auto length = partitions[part].second;
             do
             {
-                const int idx = compute_index(index, istride, idx_base);
-                const int odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const auto idx = compute_index(index, istride, idx_base);
+                const auto odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
                 output0[odx + ooffset[0]] = input[idx + ioffset[0]].real();
                 output1[odx + ooffset[1]] = input[idx + ioffset[0]].imag();
             } while(increment_rowmajor(index, length));
@@ -1165,8 +1167,8 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
 
             do
             {
-                const int    idx = compute_index(index, istride, idx_base);
-                const int    odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const auto   idx = compute_index(index, istride, idx_base);
+                const auto   odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
                 const double rdiff
                     = std::abs(output[odx + ooffset[0]].real() - input[idx + ioffset[0]].real());
                 cur_linf = std::max(rdiff, cur_linf);
@@ -1236,8 +1238,8 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
             const auto length   = partitions[part].second;
             do
             {
-                const int    idx  = compute_index(index, istride, idx_base);
-                const int    odx  = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const auto   idx  = compute_index(index, istride, idx_base);
+                const auto   odx  = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
                 const double diff = std::abs(output[odx + ooffset[0]] - input[idx + ioffset[0]]);
                 cur_linf          = std::max(diff, cur_linf);
                 if(cur_linf > linf_cutoff)
@@ -1295,8 +1297,8 @@ inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
             const auto length   = partitions[part].second;
             do
             {
-                const int    idx = compute_index(index, istride, idx_base);
-                const int    odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const auto   idx = compute_index(index, istride, idx_base);
+                const auto   odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
                 const double rdiff
                     = std::abs(output0[odx + ooffset[0]] - input[idx + ioffset[0]].real());
                 cur_linf = std::max(rdiff, cur_linf);
@@ -1632,7 +1634,7 @@ inline VectorNorms norm_complex(const Tcomplex*            input,
             const auto length   = partitions[part].second;
             do
             {
-                const int idx = compute_index(index, istride, idx_base);
+                const auto idx = compute_index(index, istride, idx_base);
 
                 const double rval = std::abs(input[idx + offset[0]].real());
                 cur_linf          = std::max(rval, cur_linf);
@@ -1676,7 +1678,7 @@ inline VectorNorms norm_real(const Tfloat*              input,
             const auto length   = partitions[part].second;
             do
             {
-                const int    idx = compute_index(index, istride, idx_base);
+                const auto   idx = compute_index(index, istride, idx_base);
                 const double val = std::abs(input[idx + offset[0]]);
                 cur_linf         = std::max(val, cur_linf);
                 cur_l2 += val * val;
@@ -2058,7 +2060,7 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
                 std::mt19937 gen(compute_index(index, istride, i_base));
                 do
                 {
-                    const int                  i = compute_index(index, istride, i_base);
+                    const auto                 i = compute_index(index, istride, i_base);
                     const Tfloat               x = (Tfloat)gen() / (Tfloat)gen.max();
                     const Tfloat               y = (Tfloat)gen() / (Tfloat)gen.max();
                     const std::complex<Tfloat> val(x, y);
@@ -2085,7 +2087,7 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
                 std::mt19937 gen(compute_index(index, istride, i_base));
                 do
                 {
-                    const int                  i = compute_index(index, istride, i_base);
+                    const auto                 i = compute_index(index, istride, i_base);
                     const std::complex<Tfloat> val((Tfloat)gen() / (Tfloat)gen.max(),
                                                    (Tfloat)gen() / (Tfloat)gen.max());
                     ireal[i] = val.real();
@@ -2110,7 +2112,7 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
                 std::mt19937 gen(compute_index(index, istride, i_base));
                 do
                 {
-                    const int    i   = compute_index(index, istride, i_base);
+                    const auto   i   = compute_index(index, istride, i_base);
                     const Tfloat val = (Tfloat)gen() / (Tfloat)gen.max();
                     idata[i]         = val;
                 } while(increment_rowmajor(index, length));

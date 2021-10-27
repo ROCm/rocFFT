@@ -385,6 +385,19 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
         // So just fall through and redo the CPU FFT.
     }
 
+    // Use steal+swap-with-empty idiom to deallocate previous input/output
+    auto last_ret = std::get<4>(last_cpu_fft);
+    if(last_ret.input.valid())
+    {
+        fftw_data_t z;
+        z.swap(const_cast<fftw_data_t&>(last_ret.input.get()));
+    }
+    if(last_ret.output.valid())
+    {
+        fftw_data_t z;
+        z.swap(const_cast<fftw_data_t&>(last_ret.output.get()));
+    }
+
     rocfft_params contiguous_params;
     contiguous_params.length         = params.length;
     contiguous_params.precision      = params.precision;
@@ -533,9 +546,9 @@ void rocfft_transform(const rocfft_params&                 params,
 
     if(ramgb > 0 && params.needed_ram(verbose) > ramgb * ONE_GiB)
     {
-        if(verbose > 2)
+        if(verbose)
         {
-            std::cout << "skipped!" << std::endl;
+            std::cout << "Problem exceeds memory limit; skipped [rocfft_transform]." << std::endl;
         }
         GTEST_SKIP();
         return;
@@ -611,7 +624,7 @@ void rocfft_transform(const rocfft_params&                 params,
 
         if(verbose)
         {
-            std::cout << "Problem won't fit on device; skipped\n";
+            std::cout << "Problem won't fit on device; skipped [rocfft_transform]." << std::endl;
         }
         GTEST_SKIP() << "Problem size (" << vram_footprint << ") too large for device";
         return;
@@ -956,6 +969,10 @@ TEST_P(accuracy_test, vs_fftw)
 
     if(ramgb > 0 && params.needed_ram(verbose) > ramgb * ONE_GiB)
     {
+        if(verbose)
+        {
+            std::cout << "Problem exceeds memory limit; skipped [accuracy_test]." << std::endl;
+        }
         GTEST_SKIP();
         return;
     }
@@ -973,6 +990,10 @@ TEST_P(accuracy_test, vs_fftw)
     ASSERT_TRUE(retval == hipSuccess);
     if(total < minimal_vram_footprint)
     {
+        if(verbose)
+        {
+            std::cout << "Problem won't fit on device; skipped [accuracy_test]." << std::endl;
+        }
         GTEST_SKIP() << "won't fit on device, even without work buffer";
     }
 
