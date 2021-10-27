@@ -369,8 +369,8 @@ public:
     std::vector<std::string> comments;
 
     // runtime-compiled kernels for this node
-    std::unique_ptr<RTCKernel> compiledKernel;
-    std::unique_ptr<RTCKernel> compiledKernelWithCallbacks;
+    std::shared_future<std::unique_ptr<RTCKernel>> compiledKernel;
+    std::shared_future<std::unique_ptr<RTCKernel>> compiledKernelWithCallbacks;
 
     // Does this node allow inplace/not-inplace? default true,
     // each class handles the exception
@@ -656,6 +656,10 @@ struct ExecPlan
         // complex numbers
         return workBufSize * 2 * base_type_size;
     }
+
+    // for callbacks, work out which nodes of the plan are loading data
+    // from global memory, and storing data to global memory
+    std::pair<TreeNode*, TreeNode*> get_load_store_nodes() const;
 };
 
 void ProcessNode(ExecPlan& execPlan);

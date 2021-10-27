@@ -18,11 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include "rocfft.h"
+
+#include "../../shared/environment.h"
 #include "../../shared/gpubuf.h"
 #include "hip/hip_runtime_api.h"
 #include "hip/hip_vector_types.h"
 #include "private.h"
-#include "rocfft.h"
 #include <boost/scope_exit.hpp>
 #include <condition_variable>
 #include <fstream>
@@ -32,13 +34,21 @@
 #include <thread>
 #include <vector>
 
-#ifdef WIN32
-#include <windows.h>
-#define SETENV(VAR, VAL) SetEnvironmentVariable(VAR, VAL)
-#define UNSETENV(VAR) SetEnvironmentVariable(VAR, NULL)
+#if __has_include(<filesystem>)
+#include <filesystem>
 #else
-#define SETENV(VAR, VAL) setenv(VAR, VAL, 1)
-#define UNSETENV(VAR) unsetenv(VAR)
+#include <experimental/filesystem>
+namespace std
+{
+    namespace filesystem = experimental::filesystem;
+}
+#endif
+
+namespace fs = std::filesystem;
+
+#ifndef WIN32
+// get program_invocation_name
+#include <errno.h>
 #endif
 
 TEST(rocfft_UnitTest, plan_description)
@@ -219,17 +229,17 @@ struct EnvironmentSetTemp
     EnvironmentSetTemp(const char* _var, const char* val)
         : var(_var)
     {
-        const char* val_ptr = getenv(_var);
-        if(val_ptr)
+        auto val_ptr = rocfft_getenv(_var);
+        if(!val_ptr.empty())
             oldvalue = val_ptr;
-        SETENV(_var, val);
+        rocfft_setenv(_var, val);
     }
     ~EnvironmentSetTemp()
     {
         if(oldvalue.empty())
-            UNSETENV(var.c_str());
+            rocfft_unsetenv(var.c_str());
         else
-            SETENV(var.c_str(), oldvalue.c_str());
+            rocfft_setenv(var.c_str(), oldvalue.c_str());
     }
     std::string var;
     std::string oldvalue;
@@ -326,7 +336,7 @@ void workmem_test(workmem_sizer sizer,
     gpubuf work_buffer;
     if(alloc_work_size)
     {
-        work_buffer.alloc(alloc_work_size);
+        ASSERT_EQ(work_buffer.alloc(alloc_work_size), hipSuccess);
 
         void*         work_buffer_ptr;
         rocfft_status set_work_expected_status;
@@ -349,8 +359,10 @@ void workmem_test(workmem_sizer sizer,
     gpubuf             data_device;
     auto               data_size_bytes = data_host.size() * sizeof(float);
 
-    data_device.alloc(data_size_bytes);
-    hipMemcpy(data_device.data(), data_host.data(), data_size_bytes, hipMemcpyHostToDevice);
+    ASSERT_EQ(data_device.alloc(data_size_bytes), hipSuccess);
+    ASSERT_EQ(
+        hipMemcpy(data_device.data(), data_host.data(), data_size_bytes, hipMemcpyHostToDevice),
+        hipSuccess);
     std::vector<void*> ibuffers(1, static_cast<void*>(data_device.data()));
 
     ASSERT_EQ(rocfft_execute(plan, ibuffers.data(), nullptr, info), exec_status_expected);
@@ -385,6 +397,8 @@ TEST(rocfft_UnitTest, workmem_null)
 {
     workmem_test([](size_t requested) { return requested; }, rocfft_status_success, true);
 }
+
+static const size_t RTC_PROBLEM_SIZE = 2304;
 
 #ifdef ROCFFT_RUNTIME_COMPILE
 // runtime compilation cache tests
@@ -431,8 +445,7 @@ TEST(rocfft_UnitTest, rtc_cache)
     // END PRECONDITIONS
 
     // pick a length that's runtime compiled
-    const size_t length     = 2304;
-    auto         build_plan = [&]() {
+    auto build_plan = [&]() {
         rocfft_plan plan = nullptr;
         ASSERT_TRUE(rocfft_status_success
                     == rocfft_plan_create(&plan,
@@ -440,7 +453,7 @@ TEST(rocfft_UnitTest, rtc_cache)
                                           rocfft_transform_type_complex_forward,
                                           rocfft_precision_single,
                                           1,
-                                          &length,
+                                          &RTC_PROBLEM_SIZE,
                                           1,
                                           nullptr));
         // we don't need to actually execute the plan, so we can
@@ -523,5 +536,69 @@ TEST(rocfft_UnitTest, rtc_cache_null)
     ASSERT_EQ(rocfft_cache_buffer_free(nullptr), rocfft_status_success);
     ASSERT_EQ(rocfft_cache_deserialize(nullptr, 12345), rocfft_status_invalid_arg_value);
     ASSERT_EQ(rocfft_cache_deserialize(&buf_len, 0), rocfft_status_invalid_arg_value);
+}
+
+// make sure RTC gracefully handles a helper process that crashes
+TEST(rocfft_UnitTest, rtc_helper_crash)
+{
+#ifdef WIN32
+    char filename[MAX_PATH];
+    GetModuleFileNameA(NULL, filename, MAX_PATH);
+    fs::path test_exe    = filename;
+    fs::path crasher_exe = test_exe.replace_filename("rtc_helper_crash.exe");
+#else
+    fs::path test_exe    = program_invocation_name;
+    fs::path crasher_exe = test_exe.replace_filename("rtc_helper_crash");
+#endif
+
+    // use the crashing helper
+    EnvironmentSetTemp env_helper("ROCFFT_RTC_PROCESS_HELPER", crasher_exe.string().c_str());
+    // don't touch the cache, to force compilation
+    EnvironmentSetTemp env_read("ROCFFT_RTC_CACHE_READ_DISABLE", "1");
+    EnvironmentSetTemp env_write("ROCFFT_RTC_CACHE_WRITE_DISABLE", "1");
+
+    rocfft_plan plan = nullptr;
+    ASSERT_TRUE(rocfft_status_success
+                == rocfft_plan_create(&plan,
+                                      rocfft_placement_inplace,
+                                      rocfft_transform_type_complex_forward,
+                                      rocfft_precision_single,
+                                      1,
+                                      &RTC_PROBLEM_SIZE,
+                                      1,
+                                      nullptr));
+
+    // alloc a complex buffer
+    gpubuf_t<float2> data;
+    ASSERT_EQ(data.alloc(RTC_PROBLEM_SIZE * sizeof(float2)), hipSuccess);
+
+    std::vector<void*> ibuffers(1, static_cast<void*>(data.data()));
+
+    ASSERT_EQ(rocfft_execute(plan, ibuffers.data(), nullptr, nullptr), rocfft_status_success);
+
+    rocfft_plan_destroy(plan);
+    plan = nullptr;
+
+    rocfft_cleanup();
+    rocfft_setup();
+
+    // also try with forcing use of the subprocess, which is a
+    // different code path from the default "try in-process, then
+    // fall back to out-of-process"
+    EnvironmentSetTemp env_force("ROCFFT_RTC_PROCESS", "1");
+
+    ASSERT_TRUE(rocfft_status_success
+                == rocfft_plan_create(&plan,
+                                      rocfft_placement_inplace,
+                                      rocfft_transform_type_complex_forward,
+                                      rocfft_precision_single,
+                                      1,
+                                      &RTC_PROBLEM_SIZE,
+                                      1,
+                                      nullptr));
+    ASSERT_EQ(rocfft_execute(plan, ibuffers.data(), nullptr, nullptr), rocfft_status_success);
+
+    rocfft_plan_destroy(plan);
+    plan = nullptr;
 }
 #endif

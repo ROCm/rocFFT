@@ -24,7 +24,10 @@
 #include "rocfft.h"
 #include <hip/hip_runtime.h>
 #include <hip/hiprtc.h>
+
+#include <future>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -37,8 +40,8 @@ struct RTCKernel
     // node if successful.  returns nullptr if there is no matching
     // supported scheme + problem size.  throws runtime_error on
     // error.
-    static std::unique_ptr<RTCKernel>
-        runtime_compile(TreeNode& node, const char* gpu_arch, bool enable_callbacks = false);
+    static std::shared_future<std::unique_ptr<RTCKernel>>
+        runtime_compile(TreeNode& node, const std::string& gpu_arch, bool enable_callbacks = false);
 
     ~RTCKernel()
     {
@@ -54,14 +57,21 @@ struct RTCKernel
 
     void launch(DeviceCallIn& data);
 
+    // compile source to a code object
+    static std::vector<char> compile(const std::string& kernel_src);
+
 private:
     // private ctor, use "runtime_compile" to build kernel for a node
     RTCKernel(const std::string& kernel_name, const std::vector<char>& code);
     hipModule_t   module = nullptr;
     hipFunction_t kernel = nullptr;
 
-    // compile source to a code object
-    static std::vector<char> compile(const std::string& kernel_src);
+    // Lock for in-process compilation - due to limits in ROCclr, we
+    // can do at most one compilation in a process before we have to
+    // delegate to a subprocess.  But we should at least do one
+    // in-process instead of making everything go to subprocess.
+    static std::mutex        compile_lock;
+    static std::vector<char> compile_subprocess(const std::string& kernel_src);
 };
 
 #endif

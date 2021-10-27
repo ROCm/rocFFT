@@ -1603,11 +1603,50 @@ void InsertNode(ExecPlan& execPlan, TreeNode* pos, std::unique_ptr<TreeNode>& ne
     execPlan.rootPlan->RecursiveInsertNode(pos, newNode);
 }
 
+std::pair<TreeNode*, TreeNode*> ExecPlan::get_load_store_nodes() const
+{
+    const auto& seq = execSeq;
+
+    // look forward for the first node that reads from input
+    auto load_it = std::find_if(
+        seq.begin(), seq.end(), [&](const TreeNode* n) { return n->obIn == rootPlan->obIn; });
+    TreeNode* load = load_it == seq.end() ? nullptr : *load_it;
+
+    // look backward for the last node that writes to output
+    auto store_it = std::find_if(
+        seq.rbegin(), seq.rend(), [&](const TreeNode* n) { return n->obOut == rootPlan->obOut; });
+    TreeNode* store = store_it == seq.rend() ? nullptr : *store_it;
+
+    assert(load && store);
+    return std::make_pair(load, store);
+}
+
 void RuntimeCompilePlan(ExecPlan& execPlan)
 {
 #ifdef ROCFFT_RUNTIME_COMPILE
     for(auto& node : execPlan.execSeq)
         node->compiledKernel = RTCKernel::runtime_compile(*node, execPlan.deviceProp.gcnArchName);
+    TreeNode* load_node             = nullptr;
+    TreeNode* store_node            = nullptr;
+    std::tie(load_node, store_node) = execPlan.get_load_store_nodes();
+    load_node->compiledKernelWithCallbacks
+        = RTCKernel::runtime_compile(*load_node, execPlan.deviceProp.gcnArchName, true);
+    if(store_node != load_node)
+    {
+        store_node->compiledKernelWithCallbacks
+            = RTCKernel::runtime_compile(*store_node, execPlan.deviceProp.gcnArchName, true);
+    }
+
+    // All of the compilations are started in parallel (via futures),
+    // so resolve the futures now.  That ensures that the plan is
+    // ready to run as soon as the caller gets the plan back.
+    for(auto& node : execPlan.execSeq)
+    {
+        if(node->compiledKernel.valid())
+            node->compiledKernel.get();
+        if(node->compiledKernelWithCallbacks.valid())
+            node->compiledKernelWithCallbacks.get();
+    }
 #endif
 }
 

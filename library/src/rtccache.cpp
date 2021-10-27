@@ -18,8 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "rtccache.h"
+#include "../../shared/environment.h"
+
 #include "logging.h"
+#include "rtccache.h"
 #include "sqlite3.h"
 
 namespace fs = std::filesystem;
@@ -32,18 +34,18 @@ static std::vector<fs::path> rtccache_db_paths()
 {
     // use user-defined cache path if present
     std::vector<fs::path> paths;
-    const char*           env_path = getenv("ROCFFT_RTC_CACHE_PATH");
+    auto                  env_path = rocfft_getenv("ROCFFT_RTC_CACHE_PATH");
 
     static const char* default_cache_filename = "rocfft_kernel_cache.db";
 
-    if(env_path)
+    if(!env_path.empty())
         paths.push_back(env_path);
     else
     {
         // come up with other candidate locations
-        const char* home_path = getenv("HOME");
+        auto home_path = rocfft_getenv("HOME");
         // try persistent home directory location
-        if(home_path)
+        if(!home_path.empty())
         {
             auto dir = fs::path(home_path) / ".cache" / "rocFFT";
             fs::create_directories(dir);
@@ -157,7 +159,7 @@ std::vector<char> RTCCache::get_code_object(const std::string&       kernel_name
     std::vector<char> code;
 
     // allow env variable to disable reads
-    if(getenv("ROCFFT_RTC_CACHE_READ_DISABLE"))
+    if(!rocfft_getenv("ROCFFT_RTC_CACHE_READ_DISABLE").empty())
         return code;
 
     std::lock_guard<std::mutex> lock(get_mutex);
@@ -193,7 +195,7 @@ void RTCCache::store_code_object(const std::string&       kernel_name,
                                  const std::vector<char>& code)
 {
     // allow env variable to disable writes
-    if(getenv("ROCFFT_RTC_CACHE_WRITE_DISABLE"))
+    if(!rocfft_getenv("ROCFFT_RTC_CACHE_WRITE_DISABLE").empty())
         return;
 
     std::lock_guard<std::mutex> lock(store_mutex);

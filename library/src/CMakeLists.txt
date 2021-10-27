@@ -34,7 +34,15 @@ function( prepend_path prefix source_list_of_files return_list_of_files )
   set( ${return_list_of_files} ${new_list} PARENT_SCOPE )
 endfunction( )
 
-set( package_targets rocfft )
+add_executable( rocfft_rtc_helper rocfft_rtc_helper.cpp rtccompile.cpp )
+
+set( package_targets rocfft rocfft_rtc_helper )
+target_include_directories( rocfft_rtc_helper
+  PRIVATE
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
+)
+target_link_libraries( rocfft_rtc_helper PRIVATE hip::host )
+set_target_properties( rocfft_rtc_helper PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON )
 
 # Package that helps me set visibility for function names exported
 # from shared library
@@ -122,6 +130,8 @@ set( rocfft_source
   node_factory.cpp
   rtc.cpp
   rtccache.cpp
+  rtccompile.cpp
+  rtcsubprocess.cpp
   )
 
 # SQLite 3.36.0 enabled the backup API by default, which we need

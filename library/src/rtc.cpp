@@ -23,6 +23,7 @@
 using namespace std::placeholders;
 
 #include "../../shared/array_predicate.h"
+#include "../../shared/environment.h"
 #include "device/generator/generator.h"
 #include "device/generator/stockham_gen.h"
 #include "device/generator/stockham_gen_base.h"
@@ -349,46 +350,6 @@ RTCKernel::RTCKernel(const std::string& kernel_name, const std::vector<char>& co
         throw std::runtime_error("failed to get function");
 }
 
-std::vector<char> RTCKernel::compile(const std::string& kernel_src)
-{
-    hiprtcProgram prog;
-    // give it a .cu extension so it'll be compiled as HIP code
-    if(hiprtcCreateProgram(&prog, kernel_src.c_str(), "rocfft_rtc.cu", 0, nullptr, nullptr)
-       != HIPRTC_SUCCESS)
-    {
-        throw std::runtime_error("unable to create program");
-    }
-
-    std::vector<const char*> options;
-    options.push_back("-O3");
-    options.push_back("-std=c++14");
-
-    auto compileResult = hiprtcCompileProgram(prog, options.size(), options.data());
-    if(compileResult != HIPRTC_SUCCESS)
-    {
-        size_t logSize = 0;
-        hiprtcGetProgramLogSize(prog, &logSize);
-
-        if(logSize)
-        {
-            std::vector<char> log(logSize, '\0');
-            if(hiprtcGetProgramLog(prog, log.data()) == HIPRTC_SUCCESS)
-                throw std::runtime_error(log.data());
-        }
-        throw std::runtime_error("compile failed without log");
-    }
-
-    size_t codeSize;
-    if(hiprtcGetCodeSize(prog, &codeSize) != HIPRTC_SUCCESS)
-        throw std::runtime_error("failed to get code size");
-
-    std::vector<char> code(codeSize);
-    if(hiprtcGetCode(prog, code.data()) != HIPRTC_SUCCESS)
-        throw std::runtime_error("failed to get code");
-    hiprtcDestroyProgram(&prog);
-    return code;
-}
-
 void RTCKernel::launch(DeviceCallIn& data)
 {
     // arguments get pushed in an array of 64-bit values
@@ -453,8 +414,34 @@ void RTCKernel::launch(DeviceCallIn& data)
         throw std::runtime_error("hipModuleLaunchKernel failure");
 }
 
-std::unique_ptr<RTCKernel>
-    RTCKernel::runtime_compile(TreeNode& node, const char* gpu_arch, bool enable_callbacks)
+// allow user control of whether RTC is done in-process or out-of-process
+enum class RTCProcessType
+{
+    // allow one in-process compile, fallback to out-of-process if
+    // one is already in progress.  fall back further to waiting for
+    // the lock if subprocess failed.
+    DEFAULT,
+    // only try in-process, waiting for lock if necessary
+    FORCE_IN_PROCESS,
+    // only try out-of-process, never needs lock
+    FORCE_OUT_PROCESS,
+};
+
+static RTCProcessType get_rtc_process_type()
+{
+    auto var = rocfft_getenv("ROCFFT_RTC_PROCESS");
+    // defined and equal to 0 means force in-process
+    if(var == "0")
+        return RTCProcessType::FORCE_IN_PROCESS;
+    // defined and equal to 1 means force out-process
+    if(var == "1")
+        return RTCProcessType::FORCE_OUT_PROCESS;
+    // otherwise, either it's undefined or some other value.  do the default.
+    return RTCProcessType::DEFAULT;
+}
+
+std::shared_future<std::unique_ptr<RTCKernel>>
+    RTCKernel::runtime_compile(TreeNode& node, const std::string& gpu_arch, bool enable_callbacks)
 {
     function_pool& pool = function_pool::get_function_pool();
 
@@ -487,7 +474,11 @@ std::unique_ptr<RTCKernel>
         FFTKernel kernel = pool.get_kernel(key);
         // already precompiled?
         if(kernel.device_function)
-            return nullptr;
+        {
+            std::promise<std::unique_ptr<RTCKernel>> p;
+            p.set_value(nullptr);
+            return p.get_future();
+        }
 
         // for SBRC variants, get the "real" kernel using the block
         // width and correct transpose type
@@ -517,7 +508,11 @@ std::unique_ptr<RTCKernel>
         FFTKernel kernel = pool.get_kernel(key);
         // already precompiled?
         if(kernel.device_function)
-            return nullptr;
+        {
+            std::promise<std::unique_ptr<RTCKernel>> p;
+            p.set_value(nullptr);
+            return p.get_future();
+        }
 
         std::vector<unsigned int> factors1d;
         std::vector<unsigned int> factors2d;
@@ -557,7 +552,11 @@ std::unique_ptr<RTCKernel>
         break;
     }
     default:
-        return nullptr;
+    {
+        std::promise<std::unique_ptr<RTCKernel>> p;
+        p.set_value(nullptr);
+        return p.get_future();
+    }
     }
 
     std::string kernel_name = stockham_rtc_kernel_name(node, transpose_type, enable_callbacks);
@@ -567,7 +566,11 @@ std::unique_ptr<RTCKernel>
 
     int hip_version = 0;
     if(hipRuntimeGetVersion(&hip_version) != hipSuccess)
-        return nullptr;
+    {
+        std::promise<std::unique_ptr<RTCKernel>> p;
+        p.set_value(nullptr);
+        return p.get_future();
+    }
 
     std::vector<char> generator_sum_vec(generator_sum, generator_sum + generator_sum_bytes);
     if(RTCCache::single)
@@ -586,50 +589,127 @@ std::unique_ptr<RTCKernel>
                 (*LogSingleton::GetInstance().GetRTCOS())
                     << "// cache hit for " << kernel_name << std::endl;
             }
-            return std::unique_ptr<RTCKernel>(new RTCKernel(kernel_name, code));
+            std::promise<std::unique_ptr<RTCKernel>> p;
+            p.set_value(std::unique_ptr<RTCKernel>(new RTCKernel(kernel_name, code)));
+            return p.get_future();
         }
         catch(std::exception&)
         {
             // if for some reason the cached object was not
             // usable, fall through to generating the source and
             // recompiling
+            if(LOG_RTC_ENABLED())
+            {
+                (*LogSingleton::GetInstance().GetRTCOS())
+                    << "// cache unusable for " << kernel_name << std::endl;
+            }
         }
     }
 
-    auto generate_begin = std::chrono::steady_clock::now();
-    auto kernel_src     = stockham_rtc(
-        *specs, specs2d ? *specs2d : *specs, kernel_name, node, transpose_type, enable_callbacks);
-    auto generate_end = std::chrono::steady_clock::now();
-
-    if(LOG_RTC_ENABLED())
-    {
-        std::chrono::duration<float, std::milli> generate_ms = generate_end - generate_begin;
-
-        (*LogSingleton::GetInstance().GetRTCOS())
-            << kernel_src << "// generate duration: " << static_cast<int>(generate_ms.count())
-            << " ms" << std::endl;
-    }
+    // otherwise, we did not find a cached code object, and need to
+    // compile the source
 
     // compile to code object
-    auto compile_begin = std::chrono::steady_clock::now();
-    code               = compile(kernel_src);
-    auto compile_end   = std::chrono::steady_clock::now();
+    return std::async(
+        std::launch::async, [=, &node, specs = move(specs), specs2d = move(specs2d)]() {
+            auto generate_begin = std::chrono::steady_clock::now();
+            auto kernel_src     = stockham_rtc(*specs,
+                                           specs2d ? *specs2d : *specs,
+                                           kernel_name,
+                                           node,
+                                           transpose_type,
+                                           enable_callbacks);
+            auto generate_end   = std::chrono::steady_clock::now();
 
-    if(LOG_RTC_ENABLED())
-    {
-        std::chrono::duration<float, std::milli> compile_ms = compile_end - compile_begin;
+            if(LOG_RTC_ENABLED())
+            {
+                std::chrono::duration<float, std::milli> generate_ms
+                    = generate_end - generate_begin;
 
-        (*LogSingleton::GetInstance().GetRTCOS())
-            << "// compile duration: " << static_cast<int>(compile_ms.count()) << " ms\n"
-            << std::endl;
-    }
+                (*LogSingleton::GetInstance().GetRTCOS())
+                    << kernel_src << "// " << kernel_name
+                    << " generate duration: " << static_cast<int>(generate_ms.count()) << " ms"
+                    << std::endl;
+            }
 
-    if(RTCCache::single)
-    {
-        RTCCache::single->store_code_object(
-            kernel_name, gpu_arch, hip_version, generator_sum_vec, code);
-    }
-    return std::unique_ptr<RTCKernel>(new RTCKernel(kernel_name, code));
+            std::vector<char> code;
+            // try to set compile_begin time right when we're really
+            // about to compile (i.e. after acquiring any locks)
+            std::chrono::time_point<std::chrono::steady_clock> compile_begin;
+
+            RTCProcessType process_type = get_rtc_process_type();
+            switch(process_type)
+            {
+            case RTCProcessType::FORCE_OUT_PROCESS:
+            {
+                compile_begin = std::chrono::steady_clock::now();
+                try
+                {
+                    code = compile_subprocess(kernel_src);
+                    break;
+                }
+                catch(std::exception&)
+                {
+                    // if subprocess had a problem, ignore it and
+                    // fall through to forced-in-process compile
+                }
+            }
+            case RTCProcessType::FORCE_IN_PROCESS:
+            {
+                std::lock_guard<std::mutex> lck(compile_lock);
+                compile_begin = std::chrono::steady_clock::now();
+                code          = compile(kernel_src);
+                break;
+            }
+            default:
+            {
+                // do it in-process if possible
+                std::unique_lock<std::mutex> lock(compile_lock, std::try_to_lock);
+                if(lock.owns_lock())
+                {
+                    compile_begin = std::chrono::steady_clock::now();
+                    code          = compile(kernel_src);
+                    lock.unlock();
+                }
+                else
+                {
+                    // couldn't acquire lock, so try instead in a subprocess
+                    try
+                    {
+                        compile_begin = std::chrono::steady_clock::now();
+                        code          = compile_subprocess(kernel_src);
+                    }
+                    catch(std::exception&)
+                    {
+                        // subprocess still didn't work, re-acquire lock
+                        // and fall back to in-process if something went
+                        // wrong
+                        std::lock_guard<std::mutex> lck(compile_lock);
+                        compile_begin = std::chrono::steady_clock::now();
+                        code          = compile(kernel_src);
+                    }
+                }
+            }
+            }
+            auto compile_end = std::chrono::steady_clock::now();
+
+            if(LOG_RTC_ENABLED())
+            {
+                std::chrono::duration<float, std::milli> compile_ms = compile_end - compile_begin;
+
+                (*LogSingleton::GetInstance().GetRTCOS())
+                    << "// " << kernel_name
+                    << " compile duration: " << static_cast<int>(compile_ms.count()) << " ms\n"
+                    << std::endl;
+            }
+
+            if(RTCCache::single)
+            {
+                RTCCache::single->store_code_object(
+                    kernel_name, gpu_arch, hip_version, generator_sum_vec, code);
+            }
+            return std::unique_ptr<RTCKernel>(new RTCKernel(kernel_name, code));
+        });
 }
 
 rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes)

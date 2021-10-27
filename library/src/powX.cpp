@@ -42,6 +42,7 @@
 
 #include "real2complex.h"
 
+#include "../../shared/environment.h"
 #include "../../shared/printbuffer.h"
 #include "rocfft_hip.h"
 
@@ -117,11 +118,10 @@ static float execution_bandwidth_GB_per_s(size_t data_size_bytes, float duration
 static float max_memory_bandwidth_GB_per_s()
 {
     // Try to get the device bandwidth from an environment variable:
-    char* pdevbw = NULL;
-    pdevbw       = getenv("ROCFFT_DEVICE_BW");
-    if(pdevbw != NULL)
+    auto pdevbw = rocfft_getenv("ROCFFT_DEVICE_BW");
+    if(!pdevbw.empty())
     {
-        return atof(pdevbw);
+        return atof(pdevbw.c_str());
     }
 
     // Try to get the device bandwidth from hip calls:
@@ -218,28 +218,6 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
     }
 }
 
-// for callbacks, work out which nodes of the plan are loading data
-// from global memory, and storing data to global memory
-static std::pair<TreeNode*, TreeNode*> get_load_store_nodes(const ExecPlan& execPlan)
-{
-    const auto& seq = execPlan.execSeq;
-
-    // look forward for the first node that reads from input
-    auto      load_it = std::find_if(seq.begin(), seq.end(), [&](const TreeNode* n) {
-        return n->obIn == execPlan.rootPlan->obIn;
-    });
-    TreeNode* load    = load_it == seq.end() ? nullptr : *load_it;
-
-    // look backward for the last node that writes to output
-    auto      store_it = std::find_if(seq.rbegin(), seq.rend(), [&](const TreeNode* n) {
-        return n->obOut == execPlan.rootPlan->obOut;
-    });
-    TreeNode* store    = store_it == seq.rend() ? nullptr : *store_it;
-
-    assert(load && store);
-    return std::make_pair(load, store);
-}
-
 // Internal plan executor.
 // For in-place transforms, in_buffer == out_buffer.
 void TransformPowX(const ExecPlan&       execPlan,
@@ -268,7 +246,7 @@ void TransformPowX(const ExecPlan&       execPlan,
     // loading and storing to/from global memory
     TreeNode* load_node             = nullptr;
     TreeNode* store_node            = nullptr;
-    std::tie(load_node, store_node) = get_load_store_nodes(execPlan);
+    std::tie(load_node, store_node) = execPlan.get_load_store_nodes();
 
     load_node->callbacks.load_cb_fn        = info->callbacks.load_cb_fn;
     load_node->callbacks.load_cb_data      = info->callbacks.load_cb_data;
@@ -424,7 +402,7 @@ void TransformPowX(const ExecPlan&       execPlan,
         }
 
         DevFnCall fn = execPlan.devFnCall[i];
-        if(fn || data.node->compiledKernel)
+        if(fn || data.node->compiledKernel.get())
         {
 #ifdef REF_DEBUG
             rocfft_cout << "\n---------------------------------------------\n";
@@ -467,20 +445,11 @@ void TransformPowX(const ExecPlan&       execPlan,
             // give callback parameters to kernel launcher
             data.callbacks = execPlan.execSeq[i]->callbacks;
 
-            // if we have a compiled kernel and need to run
-            // callbacks, ensure we've built a kernel that's
-            // callback-capable
-            if(data.node->compiledKernel && data.get_callback_type() != CallbackType::NONE
-               && !data.node->compiledKernelWithCallbacks)
-            {
-                data.node->compiledKernelWithCallbacks
-                    = RTCKernel::runtime_compile(*data.node, execPlan.deviceProp.gcnArchName, true);
-            }
-
             // choose which compiled kernel to run
-            RTCKernel* localCompiledKernel = data.get_callback_type() == CallbackType::NONE
-                                                 ? data.node->compiledKernel.get()
-                                                 : data.node->compiledKernelWithCallbacks.get();
+            RTCKernel* localCompiledKernel
+                = data.get_callback_type() == CallbackType::NONE
+                      ? data.node->compiledKernel.get().get()
+                      : data.node->compiledKernelWithCallbacks.get().get();
 
             // skip apply callback kernel if there's no callback
             if(data.node->scheme != CS_KERNEL_APPLY_CALLBACK

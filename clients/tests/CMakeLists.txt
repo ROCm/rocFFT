@@ -41,6 +41,7 @@ set( rocfft-test_includes
   )
 
 add_executable( rocfft-test ${rocfft-test_source} ${rocfft-test_includes} )
+add_executable( rtc_helper_crash rtc_helper_crash.cpp )
 
 find_package( Boost COMPONENTS program_options REQUIRED)
 set( Boost_DEBUG ON )
@@ -123,11 +124,14 @@ endif( )
 
 set_target_properties( rocfft-test PROPERTIES
   DEBUG_POSTFIX "-d"
-  CXX_STANDARD 14
+  CXX_STANDARD 17
   CXX_STANDARD_REQUIRED ON
 )
 
 set_target_properties( rocfft-test
+  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging"
+  )
+set_target_properties( rtc_helper_crash
   PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging"
   )
 

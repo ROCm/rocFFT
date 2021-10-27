@@ -20,6 +20,7 @@
 * THE SOFTWARE.
 *******************************************************************************/
 
+#include "../../shared/environment.h"
 #include "logging.h"
 #include "repo.h"
 #include "rocfft.h"
@@ -66,10 +67,10 @@ static void open_log_stream(const char* environment_variable_name, int& log_fd)
     // if environment variable is set, open file at logfile_pathname contained in
     // the
     // environment variable
-    auto logfile_pathname = getenv(environment_variable_name);
-    if(logfile_pathname)
+    auto logfile_pathname = rocfft_getenv(environment_variable_name);
+    if(!logfile_pathname.empty())
     {
-        log_fd = OPEN(logfile_pathname);
+        log_fd = OPEN(logfile_pathname.c_str());
     }
 }
 
@@ -83,11 +84,12 @@ rocfft_status rocfft_setup()
 #endif
 
     // set layer_mode from value of environment variable ROCFFT_LAYER
-    auto str_layer_mode = getenv("ROCFFT_LAYER");
+    auto str_layer_mode = rocfft_getenv("ROCFFT_LAYER");
 
-    if(str_layer_mode)
+    if(!str_layer_mode.empty())
     {
-        rocfft_layer_mode layer_mode = static_cast<rocfft_layer_mode>(strtol(str_layer_mode, 0, 0));
+        rocfft_layer_mode layer_mode
+            = static_cast<rocfft_layer_mode>(strtol(str_layer_mode.c_str(), 0, 0));
         LogSingleton::GetInstance().SetLayerMode(layer_mode);
 
         // open log_trace file
