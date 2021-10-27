@@ -138,7 +138,7 @@ bool LeafNode::CreateTwiddleTableResource()
     return CreateLargeTwdTable();
 }
 
-void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
+void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp, hipDeviceProp_t deviceProp)
 {
     // derived classes setup the gp (bwd, wgs, lds, padding), funPtr
     SetupGPAndFnPtr_internal(fnPtr, gp);
@@ -151,7 +151,22 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
         if(function_pool::has_function(key))
         {
             auto kernel = function_pool::get_kernel(key);
-            if(kernel.half_lds)
+
+            // NB:
+            // Special case on specific arch:
+            // For some cases using hald_lds, finer tuning(enlarge) dynamic
+            // lds allocation size affects occupancy without changing the
+            // kernel code. It is a middle solution between perf and code
+            // consistency. Eventually, we need better solution arch
+            // specific.
+            bool        double_half_lds_alloc = false;
+            std::string arch(deviceProp.gcnArchName);
+            if(arch.compare(0, 6, "gfx90a") == 0 && length[0] == 16807)
+            {
+                double_half_lds_alloc = true;
+            }
+
+            if(kernel.half_lds && (!double_half_lds_alloc))
                 gp.lds_bytes /= 2;
         }
     }
