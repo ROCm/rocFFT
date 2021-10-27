@@ -195,6 +195,10 @@ target_link_libraries( rocfft PRIVATE rocfft-device-0 )
 target_link_libraries( rocfft PRIVATE rocfft-device-1 )
 target_link_libraries( rocfft PRIVATE rocfft-device-2 )
 target_link_libraries( rocfft PRIVATE rocfft-device-3 )
+# rocfft uses dladdr to find the RTC helper program
+if( NOT WIN32 )
+  target_link_libraries( rocfft PUBLIC -ldl )
+endif()
 
 target_include_directories( rocfft
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
