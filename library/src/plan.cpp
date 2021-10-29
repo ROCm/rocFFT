@@ -1623,7 +1623,6 @@ std::pair<TreeNode*, TreeNode*> ExecPlan::get_load_store_nodes() const
 
 void RuntimeCompilePlan(ExecPlan& execPlan)
 {
-#ifdef ROCFFT_RUNTIME_COMPILE
     for(auto& node : execPlan.execSeq)
         node->compiledKernel = RTCKernel::runtime_compile(*node, execPlan.deviceProp.gcnArchName);
     TreeNode* load_node             = nullptr;
@@ -1647,7 +1646,6 @@ void RuntimeCompilePlan(ExecPlan& execPlan)
         if(node->compiledKernelWithCallbacks.valid())
             node->compiledKernelWithCallbacks.get();
     }
-#endif
 }
 
 void ProcessNode(ExecPlan& execPlan)

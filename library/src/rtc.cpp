@@ -443,6 +443,7 @@ static RTCProcessType get_rtc_process_type()
 std::shared_future<std::unique_ptr<RTCKernel>>
     RTCKernel::runtime_compile(TreeNode& node, const std::string& gpu_arch, bool enable_callbacks)
 {
+#ifdef ROCFFT_RUNTIME_COMPILE
     function_pool& pool = function_pool::get_function_pool();
 
     std::unique_ptr<StockhamGeneratorSpecs> specs;
@@ -710,6 +711,12 @@ std::shared_future<std::unique_ptr<RTCKernel>>
             }
             return std::unique_ptr<RTCKernel>(new RTCKernel(kernel_name, code));
         });
+#else
+    // runtime compilation is not enabled, return null RTCKernel
+    std::promise<std::unique_ptr<RTCKernel>> p;
+    p.set_value(nullptr);
+    return p.get_future();
+#endif
 }
 
 rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes)

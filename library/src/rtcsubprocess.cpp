@@ -71,7 +71,7 @@ static fs::path get_library_path()
     // get address of rocfft lib by looking for a symbol in it
     Dl_info   info;
     link_map* map = nullptr;
-    if(!dladdr1(reinterpret_cast<const void*>(rocfft_cache_serialize),
+    if(!dladdr1(reinterpret_cast<const void*>(rocfft_plan_create),
                 &info,
                 reinterpret_cast<void**>(&map),
                 RTLD_DL_LINKMAP))
