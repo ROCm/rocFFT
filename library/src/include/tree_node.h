@@ -158,6 +158,12 @@ struct GridParam
     }
 };
 
+static bool is_device_gcn_arch(const hipDeviceProp_t& prop, const std::string& cmpTarget)
+{
+    std::string archName(prop.gcnArchName);
+    return archName.find(cmpTarget) != -1;
+}
+
 static bool is_diagonal_sbrc_3D_length(size_t len)
 {
     // SBRC diagonal-transpose dimensions are currently 128, 256
@@ -198,6 +204,7 @@ struct NodeMetaData
     rocfft_precision        precision    = rocfft_precision_single;
     rocfft_array_type       inArrayType  = rocfft_array_type_unset;
     rocfft_array_type       outArrayType = rocfft_array_type_unset;
+    hipDeviceProp_t         deviceProp   = {};
     bool                    rootIsC2C;
 
     NodeMetaData(TreeNode* refNode);
@@ -276,9 +283,10 @@ protected:
     {
         if(p != nullptr)
         {
-            precision = p->precision;
-            batch     = p->batch;
-            direction = p->direction;
+            precision  = p->precision;
+            batch      = p->batch;
+            direction  = p->direction;
+            deviceProp = p->deviceProp;
         }
 
         allowedOutBuf
@@ -363,6 +371,8 @@ public:
 
     // callback parameters
     UserCallbacks callbacks;
+
+    hipDeviceProp_t deviceProp = {};
 
     // comments inserted by optimization passes to explain changes done
     // to the node
@@ -486,12 +496,10 @@ public:
     bool      IsLastLeafNodeOfBluesteinComponent();
     bool      IsRootPlanC2CTransform();
 
-    virtual bool KernelCheck()                = 0;
-    virtual bool CreateDevKernelArgs()        = 0;
-    virtual bool CreateTwiddleTableResource() = 0;
-    virtual void
-        SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp, hipDeviceProp_t deviceProp)
-        = 0;
+    virtual bool KernelCheck()                                             = 0;
+    virtual bool CreateDevKernelArgs()                                     = 0;
+    virtual bool CreateTwiddleTableResource()                              = 0;
+    virtual void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) = 0;
 
     // for 3D SBRC kernels, decide the transpose type based on the
     // block width and lengths that the block tiles need to align on.
@@ -548,9 +556,7 @@ protected:
         return false;
     }
 
-    void SetupGridParamAndFuncPtr(DevFnCall&      fnPtr,
-                                  GridParam&      gp,
-                                  hipDeviceProp_t deviceProp) override
+    void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) override
     {
         throw std::runtime_error("Shouldn't call SetupGridParamAndFuncPtr in a non-LeafNode");
     }
@@ -600,9 +606,7 @@ public:
     void SanityCheck() override;
     bool CreateDevKernelArgs() override;
     bool CreateTwiddleTableResource() override;
-    void SetupGridParamAndFuncPtr(DevFnCall&      fnPtr,
-                                  GridParam&      gp,
-                                  hipDeviceProp_t deviceProp) override;
+    void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) override;
     void GetKernelFactors();
 };
 

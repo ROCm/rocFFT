@@ -26,10 +26,11 @@ NodeMetaData::NodeMetaData(TreeNode* refNode)
 {
     if(refNode != nullptr)
     {
-        precision = refNode->precision;
-        batch     = refNode->batch;
-        direction = refNode->direction;
-        rootIsC2C = refNode->IsRootPlanC2CTransform();
+        precision  = refNode->precision;
+        batch      = refNode->batch;
+        direction  = refNode->direction;
+        rootIsC2C  = refNode->IsRootPlanC2CTransform();
+        deviceProp = refNode->deviceProp;
     }
 }
 
@@ -138,7 +139,7 @@ bool LeafNode::CreateTwiddleTableResource()
     return CreateLargeTwdTable();
 }
 
-void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp, hipDeviceProp_t deviceProp)
+void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
 {
     // derived classes setup the gp (bwd, wgs, lds, padding), funPtr
     SetupGPAndFnPtr_internal(fnPtr, gp);
@@ -159,9 +160,8 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp, hipDevi
             // kernel code. It is a middle solution between perf and code
             // consistency. Eventually, we need better solution arch
             // specific.
-            bool        double_half_lds_alloc = false;
-            std::string arch(deviceProp.gcnArchName);
-            if(arch.compare(0, 6, "gfx90a") == 0 && length[0] == 16807)
+            bool double_half_lds_alloc = false;
+            if(is_device_gcn_arch(deviceProp, "gfx90a") && length[0] == 16807)
             {
                 double_half_lds_alloc = true;
             }

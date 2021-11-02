@@ -90,7 +90,13 @@ void Repo::CreatePlan(rocfft_plan plan)
                                  && (rootPlanData.outArrayType != rocfft_array_type_real);
 
         ExecPlan execPlan;
-        execPlan.rootPlan = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
+        if(hipGetDeviceProperties(&(execPlan.deviceProp), deviceId) != hipSuccess)
+        {
+            throw std::runtime_error("hipGetDeviceProperties failed for deviceId "
+                                     + std::to_string(deviceId));
+        }
+        rootPlanData.deviceProp = execPlan.deviceProp;
+        execPlan.rootPlan       = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
 
         std::copy(plan->lengths.begin(),
                   plan->lengths.begin() + plan->rank,
@@ -110,12 +116,6 @@ void Repo::CreatePlan(rocfft_plan plan)
             execPlan.oLength.front() = execPlan.oLength.front() / 2 + 1;
             if(plan->placement == rocfft_placement_inplace)
                 execPlan.iLength.front() = execPlan.oLength.front() * 2;
-        }
-
-        if(hipGetDeviceProperties(&(execPlan.deviceProp), deviceId) != hipSuccess)
-        {
-            throw std::runtime_error("hipGetDeviceProperties failed for deviceId "
-                                     + std::to_string(deviceId));
         }
 
         try

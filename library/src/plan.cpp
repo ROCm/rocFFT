@@ -758,6 +758,7 @@ void TreeNode::CopyNodeData(const TreeNode& srcNode)
     allowInplace     = srcNode.allowInplace;
     allowOutofplace  = srcNode.allowOutofplace;
     outputHasPadding = srcNode.outputHasPadding;
+    deviceProp       = srcNode.deviceProp;
 
     // conditional
     large1D        = srcNode.large1D;
@@ -796,6 +797,7 @@ void TreeNode::CopyNodeData(const NodeMetaData& data)
     direction    = data.direction;
     inArrayType  = data.inArrayType;
     outArrayType = data.outArrayType;
+    deviceProp   = data.deviceProp;
 }
 
 bool TreeNode::isPlacementAllowed(rocfft_result_placement test_placement)
@@ -1319,9 +1321,8 @@ void OrderFuseShims(std::vector<TreeNode*>& seq, std::vector<FuseShim*>& fuseSeq
 
 void CheckFuseShimForArch(ExecPlan& execPlan)
 {
-    std::string arch(execPlan.deviceProp.gcnArchName);
     // for gfx906...
-    if(arch.compare(0, 6, "gfx906") == 0)
+    if(is_device_gcn_arch(execPlan.deviceProp, "gfx906"))
     {
         auto& fusions = execPlan.fuseShims;
         for(auto& fusion : fusions)

@@ -65,7 +65,7 @@ bool PlanPowX(ExecPlan& execPlan)
         DevFnCall ptr = nullptr;
         GridParam gp;
 
-        node->SetupGridParamAndFuncPtr(ptr, gp, execPlan.deviceProp);
+        node->SetupGridParamAndFuncPtr(ptr, gp);
 
         execPlan.devFnCall.push_back(ptr);
         execPlan.gridParam.push_back(gp);

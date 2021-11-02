@@ -282,8 +282,8 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
     // NB:
     //    Need better arch comparison other than strings.
     //    Need to check it for Navi and other oncoming new Archs.
-    std::string arch(data->deviceProp.gcnArchName);
-    if(arch.compare(0, 6, "gfx908") == 0 || arch.compare(0, 6, "gfx90a") == 0)
+    if(is_device_gcn_arch(data->deviceProp, "gfx908")
+       || is_device_gcn_arch(data->deviceProp, "gfx90a"))
     {
         diagonal = (m % 256) == 0 && (data->node->outStride[1] % 256 == 0)
                    && (data->node->scheme != CS_KERNEL_TRANSPOSE_XY_Z);
