@@ -476,13 +476,13 @@ if [[ "${build_clients}" == false ]]; then
     cmake_client_options=" "
 fi
 if [[ "${build_relocatable}" == true ]]; then
-    CXX=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DCPACK_PACKAGING_INSTALL_PREFIX="${rocm_path}" \
+    CXX=${compiler} CC=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX="${install_prefix}" -DCPACK_PACKAGING_INSTALL_PREFIX="${rocm_path}" \
        -DCMAKE_PREFIX_PATH="${rocm_path} ${rocm_path}/hipcc ${rocm_path}/hip" \
        -DCMAKE_SHARED_LINKER_FLAGS="${rocm_rpath}" \
        -DROCM_DISABLE_LDCONFIG=ON \
        ../..
 else
-    CXX=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX=${install_prefix} -DCPACK_PACKAGING_INSTALL_PREFIX=/opt/rocm ../..
+    CXX=${compiler} CC=${compiler} ${cmake_executable} ${cmake_common_options} ${cmake_client_options} -DCPACK_SET_DESTDIR=OFF -DCMAKE_INSTALL_PREFIX=${install_prefix} -DCPACK_PACKAGING_INSTALL_PREFIX=/opt/rocm ../..
 fi
 check_exit_code
 make -j$(nproc)
