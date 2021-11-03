@@ -327,8 +327,38 @@ void BLOCKRC3DNode::BuildTree_internal()
     //   but 64^3, 81^3, 100^3 are still faster with 3D_RC
     // TODO:
     //   implement DIAGONAL transpose on Z_XY, so we can apply on 128^3 and 256^3
-    std::set<size_t> experiments  = {50, 200};
-    bool             use_ZXY_sbrc = is_cube_size(length) && experiments.count(length[0]);
+    bool is906           = is_device_gcn_arch(deviceProp, "gfx906");
+    bool is908           = is_device_gcn_arch(deviceProp, "gfx908");
+    bool isSingle        = (precision == rocfft_precision_single);
+    bool isDiagonalTrans = is_diagonal_sbrc_3D_length(length[0]) && is_cube_size(length);
+
+    // Yet, we only tested on gfx906 and gfx908, don't touch others for now.
+    // and Z_XY hasn't supported DIAGONAL Transpose, so set false if is diagnol trans
+    bool use_ZXY_sbrc = !isDiagonalTrans && (is906 || is908);
+    if(use_ZXY_sbrc)
+    {
+        if(is906)
+        {
+            // on gfx906, single-precision performs worse in Z_XY len-100
+            // double-precision, using Z_XY is always better!
+            if(isSingle && (length[0] == 100 || length[1] == 100 || length[2] == 100))
+                use_ZXY_sbrc = false;
+        }
+        else
+        {
+            // on gfx908, none of 64, 128, 256 is better than XY_Z
+            if(IsPo2(length[0]) || IsPo2(length[1]) || IsPo2(length[2]))
+                use_ZXY_sbrc = false;
+
+            // for single, Z_XY len-50 is bad,
+            if(isSingle && (length[0] == 50 || length[1] == 50 || length[2] == 50))
+                use_ZXY_sbrc = false;
+
+            // for double, Z_XY len-100 is bad.
+            if(!isSingle && (length[0] == 100 || length[1] == 100 || length[2] == 100))
+                use_ZXY_sbrc = false;
+        }
+    }
 
     size_t total_sbrc = 0;
     for(int i = 0; i < 3; ++i)
@@ -341,7 +371,9 @@ void BLOCKRC3DNode::BuildTree_internal()
         {
             auto kernel = function_pool::get_kernel(
                 fpkey(cur_length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-            if(cur_length[2] % kernel.block_width != 0)
+
+            size_t otherDim = use_ZXY_sbrc ? cur_length[1] : cur_length[2];
+            if(otherDim % kernel.block_width != 0)
                 have_sbrc = false;
         }
         if(have_sbrc)
@@ -391,8 +423,16 @@ void BLOCKRC3DNode::BuildTree_internal()
             childNodes.emplace_back(std::move(trans_plan));
         }
 
-        std::swap(cur_length[2], cur_length[1]);
-        std::swap(cur_length[1], cur_length[0]);
+        if(use_ZXY_sbrc)
+        {
+            std::swap(cur_length[1], cur_length[0]);
+            std::swap(cur_length[2], cur_length[1]);
+        }
+        else
+        {
+            std::swap(cur_length[2], cur_length[1]);
+            std::swap(cur_length[1], cur_length[0]);
+        }
     }
 }
 
@@ -439,8 +479,8 @@ void BLOCKRC3DNode::AssignParams_internal()
         {
             node->outStride.push_back(1);
             node->outStride.push_back(node->length[1]);
-            node->outStride.push_back(node->outStride[1] * node->length[0]);
-            node->oDist = node->outStride[2] * node->length[2];
+            node->outStride.push_back(node->outStride[1] * node->length[2]);
+            node->oDist = node->outStride[2] * node->length[0];
             break;
         }
         case CS_KERNEL_STOCKHAM:
@@ -462,7 +502,7 @@ void BLOCKRC3DNode::AssignParams_internal()
         {
             node->outStride.push_back(1);
             node->outStride.push_back(node->outStride[0] * node->length[1]);
-            node->outStride.push_back(node->outStride[1] * node->length[0]);
+            node->outStride.push_back(node->outStride[1] * node->length[2]);
             node->oDist = node->iDist;
             break;
         }
