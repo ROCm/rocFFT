@@ -648,7 +648,7 @@ def generate_kernel(kernel, precisions, stockham_aot):
         sbrc_transpose_type = launcher.sbrc_transpose_type
         precision = 'dp' if launcher.double_precision else 'sp'
         runtime_compile = kernel.runtime_compile
-        use_3steps_large_twd = getattr(kernel, '3steps', None)
+        use_3steps_large_twd = getattr(kernel, 'use_3steps_large_twd', None)
         block_width = getattr(kernel, 'block_width', 0)
 
         params = LaunchParams(transforms_per_block, threads_per_block, threads_per_transform, half_lds)
