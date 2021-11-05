@@ -232,7 +232,7 @@ __device__ inline double4 lib_make_vector4(double v0, double v1, double v2, doub
 #endif
 
 template <typename T>
-__device__ T TWLstep1(T* twiddles, size_t u)
+__device__ T TWLstep1(const T* twiddles, size_t u)
 {
     size_t j      = u & 255;
     T      result = twiddles[j];
@@ -240,7 +240,7 @@ __device__ T TWLstep1(T* twiddles, size_t u)
 }
 
 template <typename T>
-__device__ T TWLstep2(T* twiddles, size_t u)
+__device__ T TWLstep2(const T* twiddles, size_t u)
 {
     size_t j      = u & 255;
     T      result = twiddles[j];
@@ -252,7 +252,7 @@ __device__ T TWLstep2(T* twiddles, size_t u)
 }
 
 template <typename T>
-__device__ T TWLstep3(T* twiddles, size_t u)
+__device__ T TWLstep3(const T* twiddles, size_t u)
 {
     size_t j      = u & 255;
     T      result = twiddles[j];
@@ -268,7 +268,7 @@ __device__ T TWLstep3(T* twiddles, size_t u)
 }
 
 template <typename T>
-__device__ T TWLstep4(T* twiddles, size_t u)
+__device__ T TWLstep4(const T* twiddles, size_t u)
 {
     size_t j      = u & 255;
     T      result = twiddles[j];

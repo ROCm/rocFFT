@@ -30,8 +30,13 @@
 static const unsigned int LAUNCH_BOUNDS_BLUESTEIN_KERNEL = 64;
 
 template <typename T>
-__global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL) chirp_device(
-    const size_t N, const size_t M, T* output, T* twiddles_large, const int twl, const int dir)
+__global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
+    chirp_device(const size_t N,
+                 const size_t M,
+                 T*           output,
+                 const T*     twiddles_large,
+                 const int    twl,
+                 const int    dir)
 {
     size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
 
