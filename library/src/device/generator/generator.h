@@ -1759,7 +1759,7 @@ static const char*  INVRAD_PREFIX      = "InvRad";
 struct MakeInverseVisitor : public BaseVisitor
 {
     MakeInverseVisitor()
-        : twiddle_vars{"twiddles", "TW2step"}
+        : twiddle_vars{"twiddles", "TW_NSteps"}
     {
     }
     const std::vector<std::string> twiddle_vars;

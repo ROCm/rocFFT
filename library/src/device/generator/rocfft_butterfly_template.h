@@ -7,14 +7,15 @@
 #ifndef ROCFFT_BUTTERFLY_TEMPLATE_H
 #define ROCFFT_BUTTERFLY_TEMPLATE_H
 
-template <typename T, size_t Base>
-__device__ T TW2step(const T* const twiddles, size_t u)
+template <typename T, size_t Base, size_t Steps>
+__device__ T TW_NSteps(const T* const twiddles, size_t u)
 {
     size_t j      = u & ((1 << Base) - 1); // get the lowest Base bits
     T      result = twiddles[j];
     u >>= Base; // discard the lowest Base bits
     int i = 0;
-    while(u > 0)
+    // static compiled, currently, steps can only be 2 or 3
+    if(Steps >= 2)
     {
         i += 1;
         j      = u & ((1 << Base) - 1);
@@ -22,8 +23,21 @@ __device__ T TW2step(const T* const twiddles, size_t u)
                                       - result.y * twiddles[(1 << Base) * i + j].y),
                                      (result.y * twiddles[(1 << Base) * i + j].x
                                       + result.x * twiddles[(1 << Base) * i + j].y));
-        u >>= Base; // discard the lowest Base bits
     }
+    // static compiled
+    if(Steps >= 3)
+    {
+        u >>= Base; // discard the lowest Base bits
+
+        i += 1;
+        j      = u & ((1 << Base) - 1);
+        result = lib_make_vector2<T>((result.x * twiddles[(1 << Base) * i + j].x
+                                      - result.y * twiddles[(1 << Base) * i + j].y),
+                                     (result.y * twiddles[(1 << Base) * i + j].x
+                                      + result.x * twiddles[(1 << Base) * i + j].y));
+    }
+    // we probably don't have 4-steps for large-twiddle
+    // if(Steps >= 4){...}
 
     return result;
 }

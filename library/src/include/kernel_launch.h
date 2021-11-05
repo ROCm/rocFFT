@@ -171,13 +171,20 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
             if(data->node->large1D)                                                                \
             {                                                                                      \
                 if(data->node->largeTwdBase == 4)                                                  \
-                    kernel_func = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 4>;    \
+                    kernel_func = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 3, 4>; \
                 else if(data->node->largeTwdBase == 5)                                             \
-                    kernel_func = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 5>;    \
+                    kernel_func = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 3, 5>; \
                 else if(data->node->largeTwdBase == 6)                                             \
-                    kernel_func = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 6>;    \
+                    kernel_func = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 3, 6>; \
                 else                                                                               \
-                    kernel_func = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true>;       \
+                {                                                                                  \
+                    if(data->node->ltwdSteps == 3)                                                 \
+                        kernel_func                                                                \
+                            = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 3>;        \
+                    else                                                                           \
+                        kernel_func                                                                \
+                            = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 2>;        \
+                }                                                                                  \
             }                                                                                      \
             else                                                                                   \
                 kernel_func = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, false>;          \
@@ -187,13 +194,23 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
             if(data->node->large1D)                                                                \
             {                                                                                      \
                 if(data->node->largeTwdBase == 4)                                                  \
-                    kernel_func = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 4>;   \
+                    kernel_func                                                                    \
+                        = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 3, 4>;        \
                 else if(data->node->largeTwdBase == 5)                                             \
-                    kernel_func = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 5>;   \
+                    kernel_func                                                                    \
+                        = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 3, 5>;        \
                 else if(data->node->largeTwdBase == 6)                                             \
-                    kernel_func = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 6>;   \
+                    kernel_func                                                                    \
+                        = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 3, 6>;        \
                 else                                                                               \
-                    kernel_func = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true>;      \
+                {                                                                                  \
+                    if(data->node->ltwdSteps == 3)                                                 \
+                        kernel_func                                                                \
+                            = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 3>;       \
+                    else                                                                           \
+                        kernel_func                                                                \
+                            = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, true, 2>;       \
+                }                                                                                  \
             }                                                                                      \
             else                                                                                   \
                 kernel_func = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, false>;         \
@@ -206,13 +223,23 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
             if(data->node->large1D)                                                                \
             {                                                                                      \
                 if(data->node->largeTwdBase == 4)                                                  \
-                    kernel_func = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 4>; \
+                    kernel_func                                                                    \
+                        = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 3, 4>;      \
                 else if(data->node->largeTwdBase == 5)                                             \
-                    kernel_func = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 5>; \
+                    kernel_func                                                                    \
+                        = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 3, 5>;      \
                 else if(data->node->largeTwdBase == 6)                                             \
-                    kernel_func = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 6>; \
+                    kernel_func                                                                    \
+                        = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 3, 6>;      \
                 else                                                                               \
-                    kernel_func = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true>;    \
+                {                                                                                  \
+                    if(data->node->ltwdSteps == 3)                                                 \
+                        kernel_func                                                                \
+                            = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 3>;     \
+                    else                                                                           \
+                        kernel_func                                                                \
+                            = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 2>;     \
+                }                                                                                  \
             }                                                                                      \
             else                                                                                   \
                 kernel_func = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, false>;       \
@@ -223,15 +250,22 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
             {                                                                                      \
                 if(data->node->largeTwdBase == 4)                                                  \
                     kernel_func                                                                    \
-                        = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 4>;        \
+                        = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 3, 4>;     \
                 else if(data->node->largeTwdBase == 5)                                             \
                     kernel_func                                                                    \
-                        = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 5>;        \
+                        = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 3, 5>;     \
                 else if(data->node->largeTwdBase == 6)                                             \
                     kernel_func                                                                    \
-                        = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 6>;        \
+                        = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 3, 6>;     \
                 else                                                                               \
-                    kernel_func = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true>;   \
+                {                                                                                  \
+                    if(data->node->ltwdSteps == 3)                                                 \
+                        kernel_func                                                                \
+                            = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 3>;    \
+                    else                                                                           \
+                        kernel_func                                                                \
+                            = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, true, 2>;    \
+                }                                                                                  \
             }                                                                                      \
             else                                                                                   \
                 kernel_func = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, false>;      \

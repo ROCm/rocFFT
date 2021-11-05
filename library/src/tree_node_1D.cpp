@@ -399,7 +399,7 @@ void CC1DNode::BuildTree_internal()
         auto kernel
             = function_pool::get_kernel(fpkey(lenFactor1, precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
         col2colPlan->largeTwd3Steps = kernel.use_3steps_large_twd;
-        col2colPlan->largeTwdBase   = large_twiddle_base(length[0], col2colPlan->largeTwd3Steps);
+        col2colPlan->set_large_twd_base_steps(length[0]);
     }
     col2colPlan->length.push_back(lenFactor1);
     col2colPlan->length.push_back(lenFactor0);
@@ -607,7 +607,7 @@ void CRT1DNode::BuildTree_internal()
         auto kernel
             = function_pool::get_kernel(fpkey(lenFactor1, precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
         col2colPlan->largeTwd3Steps = kernel.use_3steps_large_twd;
-        col2colPlan->largeTwdBase   = large_twiddle_base(length[0], col2colPlan->largeTwd3Steps);
+        col2colPlan->set_large_twd_base_steps(length[0]);
     }
     col2colPlan->length.push_back(lenFactor1);
     col2colPlan->length.push_back(lenFactor0);

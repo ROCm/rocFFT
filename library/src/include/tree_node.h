@@ -298,9 +298,6 @@ protected:
                                 rocfft_array_type_hermitian_interleaved};
     }
 
-    // Compute the large twd decomposition base
-    size_t large_twiddle_base(size_t length, bool use3Steps);
-
 public:
     // node type: internal node or leaf node, or un-defined (un-init)
     NodeType nodeType = NT_UNDEFINED;
@@ -344,6 +341,10 @@ public:
     // flag indicating if using the 3-step decomp. for large twiddle? (16^3, 32^3, 64^3)
     // if false, always use 8 as the base (256*256*256....)
     bool largeTwd3Steps = false;
+    // "Steps": how many exact loops we need to decompose the LTWD?
+    // if we pass this as a template arg in kernel, should avoid dynamic while-loop
+    // We will update this in set_large_twd_base_steps()
+    size_t ltwdSteps = 0;
 
     // embedded C2R/R2C pre/post processing
     EmbeddedType ebtype = EmbeddedType::NONE;
@@ -520,6 +521,9 @@ public:
             return TILE_ALIGNED;
         return TILE_UNALIGNED;
     }
+
+    // Compute the large twd decomposition base
+    void set_large_twd_base_steps(size_t largeTWDLength);
 
 protected:
     virtual void BuildTree_internal() = 0;

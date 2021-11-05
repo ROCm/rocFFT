@@ -937,14 +937,27 @@ bool TreeNode::fuse_CS_KERNEL_STK_R2C_TRANSPOSE()
 //  e.g., ( CeilPo2(10000)+ 1 ) / 2 , returns 7 : (2^7)*(2^7) = 16384 >= 10000
 // 3-Steps:
 //  e.g., ( CeilPo2(10000)+ 2 ) / 3 , returns 5 : (2^5)*(2^5)*(2^5) = 32768 >= 10000
-size_t TreeNode::large_twiddle_base(size_t length, bool use3Steps)
+void TreeNode::set_large_twd_base_steps(size_t largeTWDLength)
 {
-    if(use3Steps)
-        // 16^3 ~ 64^3, basically enough for 262144
-        return std::min((size_t)6, std::max((size_t)4, (CeilPo2(length) + 2) / 3));
-    else
-        // always return 8, 256^2, if exceed 65536, it becomes 256^3...
-        return 8;
+    // if is largeTwd3Steps, then 16^3 ~ 64^3, basically enough for 262144
+    // else, base is 8 (2^8 = 256), could be 2-steps 256^2 = 65536, if exceed, then is 256^3, and so on..
+    largeTwdBase = this->largeTwd3Steps
+                       ? std::min((size_t)6, std::max((size_t)4, (CeilPo2(largeTWDLength) + 2) / 3))
+                       : 8;
+
+    // but we still want to know the exact steps we will loop
+    ltwdSteps = 0;
+    while(largeTWDLength > 1)
+    {
+        ltwdSteps++;
+        largeTWDLength >>= largeTwdBase;
+    }
+
+    if(largeTwdBase == 8 && ltwdSteps > 3)
+        throw std::runtime_error(
+            "large-twd-base 8 could be 2,3 steps, but not supported for 4-steps yet");
+    if(largeTwdBase < 8 && ltwdSteps != 3)
+        throw std::runtime_error("large-twd-base for 4,5,6 must be 3-steps");
 }
 
 #if !GENERIC_BUF_ASSIGMENT
@@ -1474,6 +1487,7 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     {
         os << "\n" << indentStr.c_str() << "large1D: " << large1D;
         os << "\n" << indentStr.c_str() << "largeTwdBase: " << largeTwdBase;
+        os << "\n" << indentStr.c_str() << "largeTwdSteps: " << ltwdSteps;
     }
     if(lengthBlue)
         os << "\n" << indentStr.c_str() << "lengthBlue: " << lengthBlue;

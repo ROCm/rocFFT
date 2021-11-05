@@ -26,13 +26,15 @@ struct StockhamKernelCC : public StockhamKernel
     StockhamKernelCC(StockhamGeneratorSpecs& specs)
         : StockhamKernel(specs)
     {
-        large_twiddle_base.decl_default = 8;
+        large_twiddle_steps.decl_default = 3;
+        large_twiddle_base.decl_default  = 8;
     }
 
     //
     // templates
     //
     Variable apply_large_twiddle{"apply_large_twiddle", "bool"};
+    Variable large_twiddle_steps{"large_twiddle_steps", "size_t"};
     Variable large_twiddle_base{"large_twiddle_base", "size_t"};
 
     //
@@ -167,6 +169,7 @@ struct StockhamKernelCC : public StockhamKernel
     {
         TemplateList tpls = StockhamKernel::device_templates();
         tpls.append(apply_large_twiddle);
+        tpls.append(large_twiddle_steps);
         tpls.append(large_twiddle_base);
         return tpls;
     }
@@ -183,6 +186,7 @@ struct StockhamKernelCC : public StockhamKernel
     {
         TemplateList tpls = StockhamKernel::global_templates();
         tpls.append(apply_large_twiddle);
+        tpls.append(large_twiddle_steps);
         tpls.append(large_twiddle_base);
         return tpls;
     }
@@ -199,6 +203,7 @@ struct StockhamKernelCC : public StockhamKernel
     {
         TemplateList tpls = StockhamKernel::device_call_templates();
         tpls.append(apply_large_twiddle);
+        tpls.append(large_twiddle_steps);
         tpls.append(large_twiddle_base);
         return tpls;
     }
@@ -236,7 +241,7 @@ struct StockhamKernelCC : public StockhamKernel
         for(unsigned int w = 0; w < width; ++w)
         {
             // FIXME- using a .cast('type') would be graceful!
-            //        Why casting to ((int)thread % 8) only when passing to TW2step ?
+            //        Why casting to ((int)thread % 8) only when passing to TW_NSteps ?
             //        This is completely based on the testing result. We observed that it can
             //        reduce a few vgprs (we don't know why since its behind the compiler)
             //        and avoid the drop of occuapancy (espcially for sbcc_len64_inverse)
@@ -244,10 +249,11 @@ struct StockhamKernelCC : public StockhamKernel
             auto idx = std::string("(((int)") + thread.render() + " % " + std::to_string(cumheight)
                        + ") + " + std::to_string(w) + " * " + std::to_string(cumheight) + ") * "
                        + trans_local.render();
-            stmts += Assign{W,
-                            CallExpr{"TW2step",
-                                     TemplateList{scalar_type, large_twiddle_base},
-                                     {large_twiddles, idx}}};
+            stmts += Assign{
+                W,
+                CallExpr{"TW_NSteps",
+                         TemplateList{scalar_type, large_twiddle_base, large_twiddle_steps},
+                         {large_twiddles, idx}}};
             stmts += Assign{t, TwiddleMultiply{R[w], W}};
             stmts += Assign{R[w], t};
         }
