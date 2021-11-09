@@ -404,24 +404,15 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
     contiguous_params.placement      = rocfft_placement_notinplace;
     contiguous_params.transform_type = params.transform_type;
     contiguous_params.nbatch         = params.nbatch;
+    contiguous_params.itype          = contiguous_itype(params.transform_type);
+    contiguous_params.otype          = contiguous_otype(contiguous_params.transform_type);
 
-    // Input cpu parameters:
-    contiguous_params.istride = compute_stride(contiguous_params.ilength());
-    contiguous_params.itype   = contiguous_itype(params.transform_type);
-    contiguous_params.idist   = set_idist(rocfft_placement_notinplace,
-                                        contiguous_params.transform_type,
-                                        contiguous_params.length,
-                                        contiguous_params.istride);
-    contiguous_params.isize.push_back(contiguous_params.idist * contiguous_params.nbatch);
+    contiguous_params.validate();
 
-    // Output cpu parameters:
-    contiguous_params.ostride = compute_stride(contiguous_params.olength());
-    contiguous_params.odist   = set_odist(rocfft_placement_notinplace,
-                                        contiguous_params.transform_type,
-                                        contiguous_params.length,
-                                        contiguous_params.ostride);
-    contiguous_params.otype   = contiguous_otype(contiguous_params.transform_type);
-    contiguous_params.osize.push_back(contiguous_params.odist * contiguous_params.nbatch);
+    if(!contiguous_params.valid(verbose))
+    {
+        throw std::runtime_error("Invalid contiguous params");
+    }
 
     if(verbose > 3)
     {
@@ -544,7 +535,7 @@ void rocfft_transform(const rocfft_params&                 params,
     // Make sure that the parameters make sense:
     ASSERT_TRUE(params.valid(verbose));
 
-    if(ramgb > 0 && params.needed_ram(verbose) > ramgb * ONE_GiB)
+    if(ramgb > 0 && needed_ram(params, verbose) > ramgb * ONE_GiB)
     {
         if(verbose)
         {
@@ -936,38 +927,18 @@ TEST_P(accuracy_test, vs_fftw)
 {
     rocfft_params params = GetParam();
 
-    params.istride
-        = compute_stride(params.ilength(),
-                         params.istride,
-                         params.placement == rocfft_placement_inplace
-                             && params.transform_type == rocfft_transform_type_real_forward);
-    params.ostride
-        = compute_stride(params.olength(),
-                         params.ostride,
-                         params.placement == rocfft_placement_inplace
-                             && params.transform_type == rocfft_transform_type_real_inverse);
+    params.validate();
 
-    if(params.idist == 0)
+    if(!params.valid(verbose))
     {
-        params.idist
-            = set_idist(params.placement, params.transform_type, params.length, params.istride);
-    }
-    if(params.odist == 0)
-    {
-        params.odist
-            = set_odist(params.placement, params.transform_type, params.length, params.ostride);
+        if(verbose)
+        {
+            std::cout << "Invalid parameters, skip this test." << std::endl;
+        }
+        GTEST_SKIP();
     }
 
-    if(params.isize.empty())
-    {
-        params.isize = params.compute_isize();
-    }
-    if(params.osize.empty())
-    {
-        params.osize = params.compute_osize();
-    }
-
-    if(ramgb > 0 && params.needed_ram(verbose) > ramgb * ONE_GiB)
+    if(ramgb > 0 && needed_ram(params, verbose) > ramgb * ONE_GiB)
     {
         if(verbose)
         {
@@ -995,15 +966,6 @@ TEST_P(accuracy_test, vs_fftw)
             std::cout << "Problem won't fit on device; skipped [accuracy_test]." << std::endl;
         }
         GTEST_SKIP() << "won't fit on device, even without work buffer";
-    }
-
-    if(!params.valid(verbose))
-    {
-        if(verbose)
-        {
-            std::cout << "Invalid parameters, skip this test." << std::endl;
-        }
-        GTEST_SKIP();
     }
 
     auto cpu = accuracy_test::compute_cpu_fft(params);

@@ -278,47 +278,7 @@ TEST(manual, vs_fftw)
 
     std::cout << "Manual test:" << std::endl;
 
-    manual_params.istride
-        = compute_stride(manual_params.ilength(),
-                         manual_params.istride,
-                         manual_params.placement == rocfft_placement_inplace
-                             && manual_params.transform_type == rocfft_transform_type_real_forward);
-
-    manual_params.ostride
-        = compute_stride(manual_params.olength(),
-                         manual_params.ostride,
-                         manual_params.placement == rocfft_placement_inplace
-                             && manual_params.transform_type == rocfft_transform_type_real_inverse);
-
-    if(manual_params.idist == 0)
-    {
-        manual_params.idist = set_idist(manual_params.placement,
-                                        manual_params.transform_type,
-                                        manual_params.length,
-                                        manual_params.istride);
-    }
-    if(manual_params.odist == 0)
-    {
-        manual_params.odist = set_odist(manual_params.placement,
-                                        manual_params.transform_type,
-                                        manual_params.length,
-                                        manual_params.ostride);
-    }
-
-    check_set_iotypes(manual_params.placement,
-                      manual_params.transform_type,
-                      manual_params.itype,
-                      manual_params.otype);
-
-    if(manual_params.isize.empty())
-    {
-        manual_params.isize = manual_params.compute_isize();
-    }
-
-    if(manual_params.osize.empty())
-    {
-        manual_params.osize = manual_params.compute_osize();
-    }
+    manual_params.validate();
 
     if(!manual_params.valid(verbose))
     {

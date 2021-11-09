@@ -33,7 +33,6 @@
 
 #include "../shared/printbuffer.h"
 #include "rocfft.h"
-#include <hip/hip_runtime_api.h>
 
 static const size_t ONE_GiB = 1 << 30;
 
@@ -77,8 +76,8 @@ public:
     rocfft_result_placement placement      = rocfft_placement_inplace;
     size_t                  idist          = 0;
     size_t                  odist          = 0;
-    rocfft_array_type       itype          = rocfft_array_type_complex_interleaved;
-    rocfft_array_type       otype          = rocfft_array_type_complex_interleaved;
+    rocfft_array_type       itype          = rocfft_array_type_unset;
+    rocfft_array_type       otype          = rocfft_array_type_unset;
     std::vector<size_t>     ioffset        = {0, 0};
     std::vector<size_t>     ooffset        = {0, 0};
 
@@ -109,6 +108,21 @@ public:
             return "rocfft_array_type_unset";
         }
         return "";
+    }
+
+    std::string transform_type_name() const
+    {
+        switch(transform_type)
+        {
+        case rocfft_transform_type_complex_forward:
+            return "rocfft_transform_type_complex_forward";
+        case rocfft_transform_type_complex_inverse:
+            return "rocfft_transform_type_complex_inverse";
+        case rocfft_transform_type_real_forward:
+            return "rocfft_transform_type_real_forward";
+        case rocfft_transform_type_real_inverse:
+            return "rocfft_transform_type_real_inverse";
+        }
     }
 
     // Convert to string for output.
@@ -155,6 +169,7 @@ public:
         else
             ss << "out-of-place";
         ss << separator;
+        ss << "transform_type: " << transform_type_name() << separator;
         ss << array_type_name(itype) << " -> " << array_type_name(otype) << separator;
         if(precision == rocfft_precision_single)
             ss << "single-precision";
@@ -260,28 +275,191 @@ public:
         return val;
     }
 
-    auto compute_isize() const
+    void set_iotypes()
     {
-        auto                il  = ilength();
-        size_t              val = compute_ptrdiff(il, istride, nbatch, idist);
-        std::vector<size_t> isize(nibuffer());
+        if(itype == rocfft_array_type_unset)
+        {
+            switch(transform_type)
+            {
+            case rocfft_transform_type_complex_forward:
+            case rocfft_transform_type_complex_inverse:
+                itype = rocfft_array_type_complex_interleaved;
+                break;
+            case rocfft_transform_type_real_forward:
+                itype = rocfft_array_type_real;
+                break;
+            case rocfft_transform_type_real_inverse:
+                itype = rocfft_array_type_hermitian_interleaved;
+                break;
+            default:
+                throw std::runtime_error("Invalid transform type");
+            }
+        }
+        if(otype == rocfft_array_type_unset)
+        {
+            switch(transform_type)
+            {
+            case rocfft_transform_type_complex_forward:
+            case rocfft_transform_type_complex_inverse:
+                otype = rocfft_array_type_complex_interleaved;
+                break;
+            case rocfft_transform_type_real_forward:
+                otype = rocfft_array_type_hermitian_interleaved;
+                break;
+            case rocfft_transform_type_real_inverse:
+                otype = rocfft_array_type_real;
+                break;
+            default:
+                throw std::runtime_error("Invalid transform type");
+            }
+        }
+    }
+
+    // Check that the input and output types are consistent.
+    bool check_iotypes() const
+    {
+        switch(itype)
+        {
+        case rocfft_array_type_complex_interleaved:
+        case rocfft_array_type_complex_planar:
+        case rocfft_array_type_hermitian_interleaved:
+        case rocfft_array_type_hermitian_planar:
+        case rocfft_array_type_real:
+            break;
+        default:
+            throw std::runtime_error("Invalid Input array type format");
+        }
+
+        switch(otype)
+        {
+        case rocfft_array_type_complex_interleaved:
+        case rocfft_array_type_complex_planar:
+        case rocfft_array_type_hermitian_interleaved:
+        case rocfft_array_type_hermitian_planar:
+        case rocfft_array_type_real:
+            break;
+        default:
+            throw std::runtime_error("Invalid Input array type format");
+        }
+
+        // Check that format choices are supported
+        if(transform_type != rocfft_transform_type_real_forward
+           && transform_type != rocfft_transform_type_real_inverse)
+        {
+            if(placement == rocfft_placement_inplace && itype != otype)
+            {
+                throw std::runtime_error(
+                    "In-place transforms must have identical input and output types");
+            }
+        }
+
+        bool okformat = true;
+        switch(itype)
+        {
+        case rocfft_array_type_complex_interleaved:
+        case rocfft_array_type_complex_planar:
+            okformat = (otype == rocfft_array_type_complex_interleaved
+                        || otype == rocfft_array_type_complex_planar);
+            break;
+        case rocfft_array_type_hermitian_interleaved:
+        case rocfft_array_type_hermitian_planar:
+            okformat = otype == rocfft_array_type_real;
+            break;
+        case rocfft_array_type_real:
+            okformat = (otype == rocfft_array_type_hermitian_interleaved
+                        || otype == rocfft_array_type_hermitian_planar);
+            break;
+        default:
+            throw std::runtime_error("Invalid Input array type format");
+        }
+
+        return okformat;
+    }
+
+    // Given a length vector, set the rest of the strides.
+    // The optional argument stride0 sets the stride for the contiguous dimension.
+    // The optional rcpadding argument sets the stride correctly for in-place
+    // multi-dimensional real/complex transforms.
+    // Format is row-major.
+    template <typename T1>
+    std::vector<T1> compute_stride(const std::vector<T1>&     length,
+                                   const std::vector<size_t>& stride0   = std::vector<size_t>(),
+                                   const bool                 rcpadding = false)
+    {
+        const int dim = length.size();
+
+        std::vector<T1> stride(dim);
+
+        int dimoffset = 0;
+
+        if(stride0.size() == 0)
+        {
+            // Set the contiguous stride:
+            stride[dim - 1] = 1;
+            dimoffset       = 1;
+        }
+        else
+        {
+            // Copy the input values to the end of the stride array:
+            for(int i = 0; i < stride0.size(); ++i)
+            {
+                stride[dim - stride0.size() + i] = stride0[i];
+            }
+        }
+
+        if(stride0.size() < dim)
+        {
+            // Compute any remaining values via recursion.
+            for(int i = dim - dimoffset - stride0.size(); i-- > 0;)
+            {
+                auto lengthip1 = length[i + 1];
+                if(rcpadding && i == dim - 2)
+                {
+                    lengthip1 = 2 * (lengthip1 / 2 + 1);
+                }
+                stride[i] = stride[i + 1] * lengthip1;
+            }
+        }
+
+        return stride;
+    }
+
+    void compute_istride()
+    {
+        istride = compute_stride(ilength(),
+                                 istride,
+                                 placement == rocfft_placement_inplace
+                                     && transform_type == rocfft_transform_type_real_forward);
+    }
+
+    void compute_ostride()
+    {
+        ostride = compute_stride(olength(),
+                                 ostride,
+                                 placement == rocfft_placement_inplace
+                                     && transform_type == rocfft_transform_type_real_inverse);
+    }
+
+    void compute_isize()
+    {
+        auto   il  = ilength();
+        size_t val = compute_ptrdiff(il, istride, nbatch, idist);
+        isize.resize(nibuffer());
         for(int i = 0; i < isize.size(); ++i)
         {
             isize[i] = val + ioffset[i];
         }
-        return isize;
     }
 
-    auto compute_osize() const
+    void compute_osize()
     {
-        auto                ol  = olength();
-        size_t              val = compute_ptrdiff(ol, ostride, nbatch, odist);
-        std::vector<size_t> osize(nobuffer());
+        auto   ol  = olength();
+        size_t val = compute_ptrdiff(ol, ostride, nbatch, odist);
+        osize.resize(nobuffer());
         for(int i = 0; i < osize.size(); ++i)
         {
             osize[i] = val + ooffset[i];
         }
-        return osize;
     }
 
     std::vector<size_t> ibuffer_sizes() const
@@ -338,81 +516,68 @@ public:
         return obuffer_sizes;
     }
 
-    // Estimate the amount of host memory needed.
-    size_t needed_ram(const int verbose) const
+    // Compute the idist for a given transform based on the placeness, transform type, and data
+    // layout.
+    void set_idist()
     {
-        // Host input, output, and input copy: 3 buffers, all contiguous.
-        // Also: FFTW dummy input, and an input copy for shared futures.  Total 5.
-        size_t needed_ram
-            = 5
-              * std::accumulate(
-                  length.begin(), length.end(), static_cast<size_t>(1), std::multiplies<size_t>());
+        if(idist != 0)
+            return;
 
-        // GPU input buffer:
-        needed_ram += std::inner_product(
-            length.begin(), length.end(), istride.begin(), static_cast<size_t>(0));
+        const auto dim = length.size();
 
-        // GPU output buffer:
-        needed_ram += std::inner_product(
-            length.begin(), length.end(), ostride.begin(), static_cast<size_t>(0));
-
-        // Account for precision and data type:
-        if(transform_type != rocfft_transform_type_real_forward
-           && transform_type != rocfft_transform_type_real_inverse)
+        // In-place 1D transforms need extra dist.
+        if(transform_type == rocfft_transform_type_real_forward && dim == 1
+           && placement == rocfft_placement_inplace)
         {
-            needed_ram *= 2;
-        }
-        switch(precision)
-        {
-        case rocfft_precision_single:
-            needed_ram *= 4;
-            break;
-        case rocfft_precision_double:
-            needed_ram *= 8;
-            break;
+            idist = 2 * (length[0] / 2 + 1) * istride[0];
+            return;
         }
 
-        needed_ram *= nbatch;
-
-        if(verbose)
+        if(transform_type == rocfft_transform_type_real_inverse && dim == 1)
         {
-            std::cout << "required host memory (GiB): " << needed_ram / ONE_GiB << std::endl;
+            idist = (length[0] / 2 + 1) * istride[0];
+            return;
         }
 
-        return needed_ram;
+        idist = (transform_type == rocfft_transform_type_real_inverse)
+                    ? (length[dim - 1] / 2 + 1) * istride[dim - 1]
+                    : length[dim - 1] * istride[dim - 1];
+        for(int i = 0; i < dim - 1; ++i)
+        {
+            idist = std::max(length[i] * istride[i], idist);
+        }
     }
 
-    // Column-major getters:
-    std::vector<size_t> ilength_cm() const
+    // Compute the odist for a given transform based on the placeness, transform type, and data
+    // layout.  Row-major.
+    void set_odist()
     {
-        auto ilength_cm = ilength();
-        std::reverse(std::begin(ilength_cm), std::end(ilength_cm));
-        return ilength_cm;
-    }
-    std::vector<size_t> olength_cm() const
-    {
-        auto olength_cm = olength();
-        std::reverse(std::begin(olength_cm), std::end(olength_cm));
-        return olength_cm;
-    }
-    std::vector<size_t> length_cm() const
-    {
-        auto length_cm = length;
-        std::reverse(std::begin(length_cm), std::end(length_cm));
-        return length_cm;
-    }
+        if(odist != 0)
+            return;
 
-    std::vector<size_t> istride_cm() const
-    {
-        auto istride_cm = istride;
-        std::reverse(std::begin(istride_cm), std::end(istride_cm));
-        return istride_cm;
-    }
-    std::vector<size_t> ostride_cm() const
-    {
-        auto ostride_cm = ostride;
-        std::reverse(std::begin(ostride_cm), std::end(ostride_cm));
-        return ostride_cm;
+        const auto dim = length.size();
+
+        // In-place 1D transforms need extra dist.
+        if(transform_type == rocfft_transform_type_real_inverse && dim == 1
+           && placement == rocfft_placement_inplace)
+        {
+            odist = 2 * (length[0] / 2 + 1) * ostride[0];
+            return;
+        }
+
+        if(transform_type == rocfft_transform_type_real_forward && dim == 1)
+        {
+            odist = (length[0] / 2 + 1) * ostride[0];
+            return;
+        }
+
+        odist = (transform_type == rocfft_transform_type_real_forward)
+                    ? (length[dim - 1] / 2 + 1) * ostride[dim - 1]
+                    : length[dim - 1] * ostride[dim - 1];
+        for(int i = 0; i < dim - 1; ++i)
+        {
+            odist = std::max(length[i] * ostride[i], odist);
+        }
     }
 
     // Return true if the given GPU parameters would produce a valid transform.
@@ -514,8 +679,43 @@ public:
             }
         }
 
+        if(!check_iotypes())
+            return false;
+
         // The parameters are valid.
         return true;
+    }
+
+    // Fill in any missing parameters.
+    void validate()
+    {
+        set_iotypes();
+        compute_istride();
+        compute_ostride();
+        set_idist();
+        set_odist();
+        compute_isize();
+        compute_osize();
+    }
+
+    // Column-major getters:
+    std::vector<size_t> length_cm() const
+    {
+        auto length_cm = length;
+        std::reverse(std::begin(length_cm), std::end(length_cm));
+        return length_cm;
+    }
+    std::vector<size_t> istride_cm() const
+    {
+        auto istride_cm = istride;
+        std::reverse(std::begin(istride_cm), std::end(istride_cm));
+        return istride_cm;
+    }
+    std::vector<size_t> ostride_cm() const
+    {
+        auto ostride_cm = ostride;
+        std::reverse(std::begin(ostride_cm), std::end(ostride_cm));
+        return ostride_cm;
     }
 };
 
@@ -719,54 +919,6 @@ size_t compute_index(const std::tuple<T1, T1, T1>& length,
     static_assert(std::is_integral<T2>::value, "Integral required.");
     return (std::get<0>(length) * std::get<0>(stride)) + (std::get<1>(length) * std::get<1>(stride))
            + (std::get<2>(length) * std::get<2>(stride)) + base;
-}
-
-// Given a length vector, set the rest of the strides.
-// The optional argument stride0 sets the stride for the contiguous dimension.
-// The optional rcpadding argument sets the stride correctly for in-place
-// multi-dimensional real/complex transforms.
-// Format is row-major.
-template <typename T1>
-inline std::vector<T1> compute_stride(const std::vector<T1>&     length,
-                                      const std::vector<size_t>& stride0   = std::vector<size_t>(),
-                                      const bool                 rcpadding = false)
-{
-    const int dim = length.size();
-
-    std::vector<T1> stride(dim);
-
-    int dimoffset = 0;
-
-    if(stride0.size() == 0)
-    {
-        // Set the contiguous stride:
-        stride[dim - 1] = 1;
-        dimoffset       = 1;
-    }
-    else
-    {
-        // Copy the input values to the end of the stride array:
-        for(int i = 0; i < stride0.size(); ++i)
-        {
-            stride[dim - stride0.size() + i] = stride0[i];
-        }
-    }
-
-    if(stride0.size() < dim)
-    {
-        // Compute any remaining values via recursion.
-        for(int i = dim - dimoffset - stride0.size(); i-- > 0;)
-        {
-            auto lengthip1 = length[i + 1];
-            if(rcpadding && i == dim - 2)
-            {
-                lengthip1 = 2 * (lengthip1 / 2 + 1);
-            }
-            stride[i] = stride[i + 1] * lengthip1;
-        }
-    }
-
-    return stride;
 }
 
 // Copy data of dimensions length with strides istride and length idist between batches to
@@ -2161,72 +2313,8 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
     }
 }
 
-// Compute the idist for a given transform based on the placeness, transform type, and
-// data layout.
-template <typename Tsize>
-inline size_t set_idist(const rocfft_result_placement place,
-                        const rocfft_transform_type   transformType,
-                        const std::vector<Tsize>&     length,
-                        const std::vector<Tsize>&     istride)
-{
-    const Tsize dim = length.size();
-
-    // In-place 1D transforms need extra dist.
-    if(transformType == rocfft_transform_type_real_forward && dim == 1
-       && place == rocfft_placement_inplace)
-    {
-        return 2 * (length[0] / 2 + 1) * istride[0];
-    }
-
-    if(transformType == rocfft_transform_type_real_inverse && dim == 1)
-    {
-        return (length[0] / 2 + 1) * istride[0];
-    }
-
-    Tsize idist = (transformType == rocfft_transform_type_real_inverse)
-                      ? (length[dim - 1] / 2 + 1) * istride[dim - 1]
-                      : length[dim - 1] * istride[dim - 1];
-    for(int i = 0; i < dim - 1; ++i)
-    {
-        idist = std::max(length[i] * istride[i], idist);
-    }
-    return idist;
-}
-
-// Compute the odist for a given transform based on the placeness, transform type, and
-// data layout.  Row-major.
-template <typename Tsize>
-inline size_t set_odist(const rocfft_result_placement place,
-                        const rocfft_transform_type   transformType,
-                        const std::vector<Tsize>&     length,
-                        const std::vector<Tsize>&     ostride)
-{
-    const Tsize dim = length.size();
-
-    // In-place 1D transforms need extra dist.
-    if(transformType == rocfft_transform_type_real_inverse && dim == 1
-       && place == rocfft_placement_inplace)
-    {
-        return 2 * (length[0] / 2 + 1) * ostride[0];
-    }
-
-    if(transformType == rocfft_transform_type_real_forward && dim == 1)
-    {
-        return (length[0] / 2 + 1) * ostride[0];
-    }
-
-    Tsize odist = (transformType == rocfft_transform_type_real_forward)
-                      ? (length[dim - 1] / 2 + 1) * ostride[dim - 1]
-                      : length[dim - 1] * ostride[dim - 1];
-    for(int i = 0; i < dim - 1; ++i)
-    {
-        odist = std::max(length[i] * ostride[i], odist);
-    }
-    return odist;
-}
-
-// Given a data type and precision, the distance between batches, and the batch size,
-// allocate the required host buffer(s).
+// Given a data type and precision, the distance between batches, and
+// the batch size, allocate the required host buffer(s).
 template <typename Allocator = std::allocator<char>>
 inline std::vector<std::vector<char, Allocator>> allocate_host_buffer(
     const rocfft_precision precision, const rocfft_array_type type, const std::vector<size_t>& size)
@@ -2279,130 +2367,6 @@ inline std::vector<std::vector<char, Allocator>> compute_input(const rocfft_para
         }
     }
     return input;
-}
-
-// Check that the input and output types are consistent.
-inline void check_iotypes(const rocfft_result_placement place,
-                          const rocfft_transform_type   transformType,
-                          const rocfft_array_type       itype,
-                          const rocfft_array_type       otype)
-{
-    switch(itype)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_interleaved:
-    case rocfft_array_type_hermitian_planar:
-    case rocfft_array_type_real:
-        break;
-    default:
-        throw std::runtime_error("Invalid Input array type format");
-    }
-
-    switch(otype)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_interleaved:
-    case rocfft_array_type_hermitian_planar:
-    case rocfft_array_type_real:
-        break;
-    default:
-        throw std::runtime_error("Invalid Input array type format");
-    }
-
-    // Check that format choices are supported
-    if(transformType != rocfft_transform_type_real_forward
-       && transformType != rocfft_transform_type_real_inverse)
-    {
-        if(place == rocfft_placement_inplace && itype != otype)
-        {
-            throw std::runtime_error(
-                "In-place transforms must have identical input and output types");
-        }
-    }
-
-    bool okformat = true;
-    switch(itype)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_complex_planar:
-        okformat = (otype == rocfft_array_type_complex_interleaved
-                    || otype == rocfft_array_type_complex_planar);
-        break;
-    case rocfft_array_type_hermitian_interleaved:
-    case rocfft_array_type_hermitian_planar:
-        okformat = otype == rocfft_array_type_real;
-        break;
-    case rocfft_array_type_real:
-        okformat = (otype == rocfft_array_type_hermitian_interleaved
-                    || otype == rocfft_array_type_hermitian_planar);
-        break;
-    default:
-        throw std::runtime_error("Invalid Input array type format");
-    }
-    switch(otype)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_interleaved:
-    case rocfft_array_type_hermitian_planar:
-    case rocfft_array_type_real:
-        break;
-    default:
-        okformat = false;
-    }
-    if(!okformat)
-    {
-        throw std::runtime_error("Invalid combination of Input/Output array type formats");
-    }
-}
-
-// Check that the input and output types are consistent.  If they are unset, assign
-// default values based on the transform type.
-inline void check_set_iotypes(const rocfft_result_placement place,
-                              const rocfft_transform_type   transformType,
-                              rocfft_array_type&            itype,
-                              rocfft_array_type&            otype)
-{
-    if(itype == rocfft_array_type_unset)
-    {
-        switch(transformType)
-        {
-        case rocfft_transform_type_complex_forward:
-        case rocfft_transform_type_complex_inverse:
-            itype = rocfft_array_type_complex_interleaved;
-            break;
-        case rocfft_transform_type_real_forward:
-            itype = rocfft_array_type_real;
-            break;
-        case rocfft_transform_type_real_inverse:
-            itype = rocfft_array_type_hermitian_interleaved;
-            break;
-        default:
-            throw std::runtime_error("Invalid transform type");
-        }
-    }
-    if(otype == rocfft_array_type_unset)
-    {
-        switch(transformType)
-        {
-        case rocfft_transform_type_complex_forward:
-        case rocfft_transform_type_complex_inverse:
-            otype = rocfft_array_type_complex_interleaved;
-            break;
-        case rocfft_transform_type_real_forward:
-            otype = rocfft_array_type_hermitian_interleaved;
-            break;
-        case rocfft_transform_type_real_inverse:
-            otype = rocfft_array_type_real;
-            break;
-        default:
-            throw std::runtime_error("Invalid transform type");
-        }
-    }
-
-    check_iotypes(place, transformType, itype, otype);
 }
 
 #endif

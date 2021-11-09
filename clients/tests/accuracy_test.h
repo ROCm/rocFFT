@@ -39,6 +39,51 @@ typedef std::
     tuple<rocfft_transform_type, rocfft_result_placement, rocfft_array_type, rocfft_array_type>
         type_place_io_t;
 
+// Estimate the amount of host memory needed.
+inline size_t needed_ram(const rocfft_params& params, const int verbose)
+{
+    // Host input, output, and input copy: 3 buffers, all contiguous.
+    // Also: FFTW dummy input, and an input copy for shared futures.  Total 5.
+    size_t needed_ram = 5
+                        * std::accumulate(params.length.begin(),
+                                          params.length.end(),
+                                          static_cast<size_t>(1),
+                                          std::multiplies<size_t>());
+
+    // GPU input buffer:
+    needed_ram += std::inner_product(
+        params.length.begin(), params.length.end(), params.istride.begin(), static_cast<size_t>(0));
+
+    // GPU output buffer:
+    needed_ram += std::inner_product(
+        params.length.begin(), params.length.end(), params.ostride.begin(), static_cast<size_t>(0));
+
+    // Account for precision and data type:
+    if(params.transform_type != rocfft_transform_type_real_forward
+       && params.transform_type != rocfft_transform_type_real_inverse)
+    {
+        needed_ram *= 2;
+    }
+    switch(params.precision)
+    {
+    case rocfft_precision_single:
+        needed_ram *= 4;
+        break;
+    case rocfft_precision_double:
+        needed_ram *= 8;
+        break;
+    }
+
+    needed_ram *= params.nbatch;
+
+    if(verbose)
+    {
+        std::cout << "required host memory (GiB): " << needed_ram / ONE_GiB << std::endl;
+    }
+
+    return needed_ram;
+}
+
 // Base gtest class for comparison with FFTW.
 class accuracy_test : public ::testing::TestWithParam<rocfft_params>
 {

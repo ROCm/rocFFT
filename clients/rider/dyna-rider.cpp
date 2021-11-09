@@ -471,44 +471,7 @@ int main(int argc, char* argv[])
     // bewteen hip runtime and rocm-smi.
     // HIP_V_THROW(hipSetDevice(deviceId), "set device failed!");
 
-    check_set_iotypes(params.placement, params.transform_type, params.itype, params.otype);
-
-    params.istride
-        = compute_stride(params.ilength(),
-                         params.istride,
-                         params.placement == rocfft_placement_inplace
-                             && params.transform_type == rocfft_transform_type_real_forward);
-    params.ostride
-        = compute_stride(params.olength(),
-                         params.ostride,
-                         params.placement == rocfft_placement_inplace
-                             && params.transform_type == rocfft_transform_type_real_inverse);
-
-    if(params.idist == 0)
-    {
-        params.idist
-            = set_idist(params.placement, params.transform_type, params.length, params.istride);
-    }
-    if(params.odist == 0)
-    {
-        params.odist
-            = set_odist(params.placement, params.transform_type, params.length, params.ostride);
-    }
-
-    if(params.isize.empty())
-    {
-        for(int i = 0; i < params.nibuffer(); ++i)
-        {
-            params.isize.push_back(params.nbatch * params.idist);
-        }
-    }
-    if(params.osize.empty())
-    {
-        for(int i = 0; i < params.nobuffer(); ++i)
-        {
-            params.osize.push_back(params.nbatch * params.odist);
-        }
-    }
+    params.validate();
 
     if(!params.valid(verbose))
     {
