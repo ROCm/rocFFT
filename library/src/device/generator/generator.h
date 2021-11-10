@@ -773,6 +773,7 @@ class If;
 class Else;
 class StoreGlobal;
 class StatementList;
+class Butterfly;
 
 struct LineBreak
 {
@@ -841,7 +842,8 @@ using Statement = std::variant<Assign,
                                LineBreak,
                                Return,
                                Break,
-                               SyncThreads>;
+                               SyncThreads,
+                               Butterfly>;
 
 class Assign
 {
@@ -1083,6 +1085,34 @@ public:
     Expression value;
 };
 
+class Butterfly
+{
+public:
+    static const unsigned int precedence = 0;
+    Butterfly(bool forward, std::vector<Expression> args)
+        : forward(forward)
+        , args(args)
+    {
+    }
+    bool                    forward;
+    std::vector<Expression> args;
+    std::string             render() const;
+};
+
+std::string Butterfly::render() const
+{
+    std::string func;
+    if(forward)
+    {
+        func += "FwdRad" + std::to_string(args.size()) + "B1";
+    }
+    else
+    {
+        func += "InvRad" + std::to_string(args.size()) + "B1";
+    }
+    return Call{func, args}.render();
+}
+
 std::string StatementList::render() const
 {
     std::string r;
@@ -1260,6 +1290,7 @@ struct BaseVisitor
     MAKE_VISITOR_OPERATOR(StatementList, Return);
     MAKE_VISITOR_OPERATOR(StatementList, Break);
     MAKE_VISITOR_OPERATOR(StatementList, SyncThreads);
+    MAKE_VISITOR_OPERATOR(StatementList, Butterfly);
 
     MAKE_VISITOR_OPERATOR(ArgumentList, ArgumentList);
 
@@ -1354,6 +1385,7 @@ struct BaseVisitor
     MAKE_TRIVIAL_STATEMENT_VISIT(Return)
     MAKE_TRIVIAL_STATEMENT_VISIT(Break)
     MAKE_TRIVIAL_STATEMENT_VISIT(SyncThreads)
+    MAKE_TRIVIAL_STATEMENT_VISIT(Butterfly);
 
     MAKE_TRIVIAL_VISIT(Expression, Variable)
 
@@ -1752,21 +1784,17 @@ Function make_inplace(const Function& f)
 static const char*  FORWARD_PREFIX     = "forward_";
 static const size_t FORWARD_PREFIX_LEN = strlen(FORWARD_PREFIX);
 static const char*  INVERSE_PREFIX     = "inverse_";
-static const char*  FWDRAD_PREFIX      = "FwdRad";
-static const size_t FWDRAD_PREFIX_LEN  = strlen(FWDRAD_PREFIX);
-static const char*  INVRAD_PREFIX      = "InvRad";
 
 struct MakeInverseVisitor : public BaseVisitor
 {
-    MakeInverseVisitor()
-        : twiddle_vars{"twiddles", "TW_NSteps"}
-    {
-    }
-    const std::vector<std::string> twiddle_vars;
-
     Expression visit_TwiddleMultiply(const TwiddleMultiply& x) override
     {
         return TwiddleMultiplyConjugate{x.a, x.b};
+    }
+
+    StatementList visit_Butterfly(const Butterfly& x) override
+    {
+        return {Butterfly{false, x.args}};
     }
 
     Expression visit_CallExpr(const CallExpr& x) override
@@ -1776,14 +1804,6 @@ struct MakeInverseVisitor : public BaseVisitor
         {
             CallExpr y{x};
             y.name.replace(0, FORWARD_PREFIX_LEN, INVERSE_PREFIX);
-            return y;
-        }
-
-        pos = x.name.rfind(FWDRAD_PREFIX, 0);
-        if(pos == 0)
-        {
-            CallExpr y{x};
-            y.name.replace(0, FWDRAD_PREFIX_LEN, INVRAD_PREFIX);
             return y;
         }
         return BaseVisitor::visit_CallExpr(x);

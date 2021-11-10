@@ -335,7 +335,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         std::vector<Expression> args;
         for(unsigned int w = 0; w < width; ++w)
             args.push_back(R + (hr * width + w));
-        return {Call{"FwdRad" + std::to_string(width) + "B1", args}};
+        return {Butterfly{true, args}};
     }
 
     StatementList
