@@ -332,8 +332,10 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
 
     const size_t batch = data->node->batch;
 
-    const size_t high_dimension = std::accumulate(
-        data->node->length.begin() + 1, data->node->length.end(), 1, std::multiplies<size_t>());
+    const size_t high_dimension = std::accumulate(data->node->length.begin() + 1,
+                                                  data->node->length.end(),
+                                                  static_cast<size_t>(1),
+                                                  std::multiplies<size_t>());
     // Strides are actually distances between contiguous data vectors.
     const bool onedim = high_dimension == 1;
 
@@ -640,8 +642,10 @@ ROCFFT_DEVICE_EXPORT void c2r_1d_pre(const void* data_p, void*)
 
     const size_t batch = data->node->batch;
 
-    const size_t high_dimension = std::accumulate(
-        data->node->length.begin() + 1, data->node->length.end(), 1, std::multiplies<size_t>());
+    const size_t high_dimension = std::accumulate(data->node->length.begin() + 1,
+                                                  data->node->length.end(),
+                                                  static_cast<size_t>(1),
+                                                  std::multiplies<size_t>());
     // Strides are actually distances between contiguous data vectors.
     const size_t istride = high_dimension > 1 ? data->node->inStride[1] : 0;
     const size_t ostride = high_dimension > 1 ? data->node->outStride[1] : 0;

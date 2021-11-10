@@ -279,8 +279,8 @@ class RefLibOp
                     std::vector<size_t>  length,
                     std::vector<size_t>  stride)
     {
-        size_t lenSize
-            = std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
+        size_t lenSize = std::accumulate(
+            length.begin(), length.end(), static_cast<size_t>(1), std::multiplies<size_t>());
 
         size_t b = 0;
         while(b < batch)

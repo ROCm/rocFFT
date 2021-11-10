@@ -859,9 +859,11 @@ void rocfft_transform(const rocfft_params&                 params,
 
     // Compute the l-infinity and l-2 distance between the CPU and GPU output:
     std::vector<std::pair<size_t, size_t>> linf_failures;
-    const auto                             total_length
-        = std::accumulate(params.length.begin(), params.length.end(), 1, std::multiplies<size_t>());
-    const double linf_cutoff
+    const auto                             total_length = std::accumulate(params.length.begin(),
+                                              params.length.end(),
+                                              static_cast<size_t>(1),
+                                              std::multiplies<size_t>());
+    const double                           linf_cutoff
         = type_epsilon(params.precision) * cpu.output_norm.get().l_inf * log(total_length);
     auto diff = distance(cpu.output.get(),
                          gpu_output,

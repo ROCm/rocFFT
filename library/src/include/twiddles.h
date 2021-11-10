@@ -64,7 +64,10 @@ public:
 
         // Make sure the radices vector multiplication product up to N
         assert(N
-               == std::accumulate(std::begin(radices), std::end(radices), 1, std::multiplies<>()));
+               == std::accumulate(std::begin(radices),
+                                  std::end(radices),
+                                  static_cast<size_t>(1),
+                                  std::multiplies<>()));
 
         // Generate the table
         size_t L  = 1;
@@ -159,7 +162,7 @@ public:
         : N(length)
         , largeTwdBase(base)
     {
-        X         = size_t(1) << largeTwdBase; // ex: 2^8 = 256
+        X         = static_cast<size_t>(1) << largeTwdBase; // ex: 2^8 = 256
         Y         = DivRoundingUp<size_t>(CeilPo2(N), largeTwdBase);
         tableSize = X * Y;
 
@@ -175,7 +178,7 @@ public:
         double phi = TWO_PI / double(N);
         for(size_t iY = 0; iY < Y; ++iY)
         {
-            size_t i = size_t(1) << (iY * largeTwdBase);
+            size_t i = static_cast<size_t>(1) << (iY * largeTwdBase);
             for(size_t iX = 0; iX < X; ++iX)
             {
                 size_t j = i * iX;

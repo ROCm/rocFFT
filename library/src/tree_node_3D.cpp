@@ -768,8 +768,8 @@ void SBRCTransXY_ZNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
     wgs                = kernel.threads_per_block;
     lds                = length[0] * kernel.block_width;
     auto transposeType = sbrc_3D_transpose_type(bwd);
-    fnPtr    = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
-    gp.b_x   = DivRoundingUp(length[2], size_t(kernel.block_width)) * length[1] * batch;
+    fnPtr  = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
+    gp.b_x = DivRoundingUp(length[2], static_cast<size_t>(kernel.block_width)) * length[1] * batch;
     gp.tpb_x = kernel.threads_per_block;
 }
 
