@@ -40,7 +40,7 @@ typedef std::
         type_place_io_t;
 
 // Estimate the amount of host memory needed.
-inline size_t needed_ram(const rocfft_params& params, const int verbose)
+inline size_t needed_ram(const fft_params& params, const int verbose)
 {
     // Host input, output, and input copy: 3 buffers, all contiguous.
     // Also: FFTW dummy input, and an input copy for shared futures.  Total 5.
@@ -85,7 +85,7 @@ inline size_t needed_ram(const rocfft_params& params, const int verbose)
 }
 
 // Base gtest class for comparison with FFTW.
-class accuracy_test : public ::testing::TestWithParam<rocfft_params>
+class accuracy_test : public ::testing::TestWithParam<fft_params>
 {
 protected:
     void SetUp() override {}
@@ -119,7 +119,7 @@ public:
         cpu_fft_params()                      = default;
         cpu_fft_params(cpu_fft_params&&)      = default;
         cpu_fft_params(const cpu_fft_params&) = default;
-        cpu_fft_params(const rocfft_params& rocparams)
+        cpu_fft_params(const fft_params& rocparams)
         {
             itype = rocparams.itype;
             otype = rocparams.otype;
@@ -151,7 +151,7 @@ public:
         cpu_fft_params& operator=(const cpu_fft_params&) = default;
         ~cpu_fft_params()                                = default;
     };
-    static cpu_fft_params compute_cpu_fft(const rocfft_params& params);
+    static cpu_fft_params compute_cpu_fft(const fft_params& params);
 
     static std::string TestName(const testing::TestParamInfo<accuracy_test::ParamType>& info)
     {
@@ -266,7 +266,7 @@ public:
 };
 
 // Compute the rocFFT transform and verify the accuracy against the provided CPU data.
-void rocfft_transform(const rocfft_params&                 params,
+void rocfft_transform(const fft_params&                    params,
                       const accuracy_test::cpu_fft_params& cpu,
                       const size_t                         ramgb);
 
@@ -465,7 +465,7 @@ inline auto param_generator_base(const std::vector<rocfft_transform_type>&   typ
                                  bool                                        run_callbacks = false)
 {
 
-    std::vector<rocfft_params> params;
+    std::vector<fft_params> params;
 
     // For any length, we compute double-precision CPU reference
     // for largest batch size first and reuse for smaller batch
@@ -497,7 +497,7 @@ inline auto param_generator_base(const std::vector<rocfft_transform_type>&   typ
                                     {
                                         for(const auto& ooffset : ooffset_range)
                                         {
-                                            rocfft_params param;
+                                            fft_params param;
 
                                             param.length         = lengths;
                                             param.istride        = istride_dist.stride;

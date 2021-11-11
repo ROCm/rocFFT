@@ -47,7 +47,7 @@ namespace po = boost::program_options;
 int verbose;
 
 // Transform parameters for manual test:
-rocfft_params manual_params;
+fft_params manual_params;
 
 // Ram limitation for tests (GiB).
 size_t ramgb;

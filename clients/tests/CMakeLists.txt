@@ -30,6 +30,7 @@ set( rocfft-test_source
   accuracy_test_adhoc.cpp
   accuracy_test_callback.cpp
   multithread_test.cpp
+  hermitian_test.cpp
   unit_test.cpp
   misc/source/test_exception.cpp
   )

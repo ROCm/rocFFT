@@ -162,7 +162,7 @@ void* get_store_callback_host(rocfft_array_type otype, rocfft_precision precisio
 }
 
 // apply load callback if necessary
-void apply_load_callback(const rocfft_params& params, fftw_data_t& input)
+void apply_load_callback(const fft_params& params, fftw_data_t& input)
 {
     if(!params.run_callbacks)
         return;
@@ -237,7 +237,7 @@ void apply_load_callback(const rocfft_params& params, fftw_data_t& input)
 }
 
 // apply store callback if necessary
-void apply_store_callback(const rocfft_params& params, fftw_data_t& output)
+void apply_store_callback(const fft_params& params, fftw_data_t& output)
 {
     if(!params.run_callbacks)
         return;
@@ -312,7 +312,7 @@ void apply_store_callback(const rocfft_params& params, fftw_data_t& output)
     }
 }
 
-accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params& params)
+accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const fft_params& params)
 {
     // Check cache first - nbatch is a >= comparison because we compute
     // the largest batch size and cache it.  Smaller batch runs can
@@ -398,7 +398,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
         z.swap(const_cast<fftw_data_t&>(last_ret.output.get()));
     }
 
-    rocfft_params contiguous_params;
+    fft_params contiguous_params;
     contiguous_params.length         = params.length;
     contiguous_params.precision      = params.precision;
     contiguous_params.placement      = rocfft_placement_notinplace;
@@ -528,7 +528,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const rocfft_params
 }
 
 // Compute a FFT using rocFFT and compare with the provided CPU reference computation.
-void rocfft_transform(const rocfft_params&                 params,
+void rocfft_transform(const fft_params&                    params,
                       const accuracy_test::cpu_fft_params& cpu,
                       const size_t                         ramgb)
 {
@@ -927,7 +927,7 @@ void rocfft_transform(const rocfft_params&                 params,
 // Test for comparison between FFTW and rocFFT.
 TEST_P(accuracy_test, vs_fftw)
 {
-    rocfft_params params = GetParam();
+    fft_params params = GetParam();
 
     params.validate();
 

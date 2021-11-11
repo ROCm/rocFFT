@@ -63,7 +63,7 @@ inline Tsize var_size(const rocfft_precision precision, const rocfft_array_type 
 }
 
 // Container class for test parameters.
-class rocfft_params
+class fft_params
 {
 public:
     // All parameters are row-major.
@@ -200,7 +200,7 @@ public:
     }
 
     // Stream output operator (for gtest, etc).
-    friend std::ostream& operator<<(std::ostream& stream, const rocfft_params& params)
+    friend std::ostream& operator<<(std::ostream& stream, const fft_params& params)
     {
         stream << params.str();
         return stream;
@@ -716,6 +716,75 @@ public:
         auto ostride_cm = ostride;
         std::reverse(std::begin(ostride_cm), std::end(ostride_cm));
         return ostride_cm;
+    }
+};
+
+class rocfft_params : public fft_params
+{
+public:
+    rocfft_plan             plan = nullptr;
+    rocfft_execution_info   info = nullptr;
+    rocfft_plan_description desc = nullptr;
+
+    rocfft_params(){};
+
+    ~rocfft_params()
+    {
+        if(plan != nullptr)
+        {
+            rocfft_plan_destroy(plan);
+            plan = nullptr;
+        }
+        if(info != nullptr)
+        {
+            rocfft_execution_info_destroy(info);
+            info = nullptr;
+        }
+        if(desc != nullptr)
+        {
+            rocfft_plan_description_destroy(desc);
+            desc = nullptr;
+        }
+    };
+
+    rocfft_status make_plan()
+    {
+        rocfft_status fft_status = rocfft_status_success;
+        fft_status               = rocfft_plan_description_create(&desc);
+        if(fft_status != rocfft_status_success)
+            return fft_status;
+        fft_status = rocfft_plan_description_set_data_layout(desc,
+                                                             itype,
+                                                             otype,
+                                                             ioffset.data(),
+                                                             ooffset.data(),
+                                                             istride_cm().size(),
+                                                             istride_cm().data(),
+                                                             idist,
+                                                             ostride_cm().size(),
+                                                             ostride_cm().data(),
+                                                             odist);
+        if(fft_status != rocfft_status_success)
+            return fft_status;
+
+        fft_status = rocfft_plan_create(&plan,
+                                        placement,
+                                        transform_type,
+                                        precision,
+                                        length_cm().size(),
+                                        length_cm().data(),
+                                        nbatch,
+                                        desc);
+        if(fft_status != rocfft_status_success)
+            return fft_status;
+
+        fft_status = rocfft_execution_info_create(&info);
+        return fft_status;
+    }
+
+    rocfft_status execute(void** in, void** out)
+    {
+        return rocfft_execute(plan, in, out, info);
     }
 };
 
@@ -2331,7 +2400,7 @@ inline std::vector<std::vector<char, Allocator>> allocate_host_buffer(
 // necessary.
 // NB: length is the logical size of the FFT, and not necessarily the data dimensions
 template <typename Allocator = std::allocator<char>>
-inline std::vector<std::vector<char, Allocator>> compute_input(const rocfft_params& params)
+inline std::vector<std::vector<char, Allocator>> compute_input(const fft_params& params)
 {
     auto input = allocate_host_buffer<Allocator>(params.precision, params.itype, params.isize);
     for(auto& i : input)

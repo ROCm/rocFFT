@@ -340,7 +340,7 @@ inline auto
                                           const std::vector<rocfft_result_placement>& place_range)
 {
 
-    std::vector<rocfft_params> params;
+    std::vector<fft_params> params;
 
     for(auto& transform_type :
         {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse})
@@ -362,7 +362,7 @@ inline auto
                     {
                         for(const auto& ooffset : ooffset_range)
                         {
-                            rocfft_params param;
+                            fft_params param;
 
                             param.length         = lengths;
                             param.istride        = lengths;

@@ -338,7 +338,7 @@ int main(int argc, char* argv[])
     std::vector<std::string> libs;
 
     // FFT parameters:
-    rocfft_params params;
+    fft_params params;
 
     // Declare the supported options.
 

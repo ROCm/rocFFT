@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
     int ntrial;
 
     // FFT parameters:
-    rocfft_params params;
+    fft_params params;
 
     // Declare the supported options.
 

@@ -32,6 +32,7 @@ class gpubuf_t
 public:
     gpubuf_t()
         : buf(nullptr)
+        , bsize(0)
     {
     }
     // buffers are movable but not copyable
@@ -59,12 +60,21 @@ public:
 
     hipError_t alloc(const size_t size)
     {
+        bsize                     = size;
         static bool alloc_managed = use_alloc_managed();
         free();
-        auto ret = alloc_managed ? hipMallocManaged(&buf, size) : hipMalloc(&buf, size);
+        auto ret = alloc_managed ? hipMallocManaged(&buf, bsize) : hipMalloc(&buf, bsize);
         if(ret != hipSuccess)
-            buf = nullptr;
+        {
+            buf   = nullptr;
+            bsize = 0;
+        }
         return ret;
+    }
+
+    size_t size() const
+    {
+        return bsize;
     }
 
     void free()
@@ -97,7 +107,8 @@ public:
 
 private:
     // The GPU buffer
-    void* buf;
+    void*  buf;
+    size_t bsize;
 };
 
 // default gpubuf that gives out void* pointers

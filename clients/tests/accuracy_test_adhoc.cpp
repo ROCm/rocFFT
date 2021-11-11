@@ -70,7 +70,7 @@ inline auto param_permissive_iodist()
     std::vector<std::vector<size_t>> lengths = adhoc_sizes;
     lengths.push_back({4});
 
-    std::vector<rocfft_params> params;
+    std::vector<fft_params> params;
     for(const auto precision : precision_range)
     {
         for(const auto trans_type : trans_type_range)
@@ -79,7 +79,7 @@ inline auto param_permissive_iodist()
             {
                 for(const auto& len : lengths)
                 {
-                    rocfft_params param;
+                    fft_params param;
 
                     param.length         = len;
                     param.precision      = precision;
