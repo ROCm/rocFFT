@@ -42,9 +42,9 @@ __device__ size_t output_row_base(size_t        dim,
 template <typename T, typename T_I, typename T_O, size_t DIM_X, size_t DIM_Y, CallbackType cbtype>
 __global__ static void __launch_bounds__(DIM_X* DIM_Y)
     real_post_process_kernel_transpose(size_t        dim,
-                                       const T_I*    input0,
+                                       const T_I     input0,
                                        size_t        idist,
-                                       T_O*          output0,
+                                       T_O           output0,
                                        size_t        odist,
                                        const void*   twiddles0,
                                        const size_t* lengths,
@@ -210,9 +210,9 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data_p, void*)
     const size_t idist = data->node->iDist;
     const size_t odist = data->node->oDist;
 
-    const void* bufIn0  = data->bufIn[0];
-    void*       bufOut0 = data->bufOut[0];
-    void*       bufOut1 = data->bufOut[1];
+    void* bufIn0  = data->bufIn[0];
+    void* bufOut0 = data->bufOut[0];
+    void* bufOut1 = data->bufOut[1];
 
     size_t count = data->node->batch;
     size_t m     = data->node->length[1];
@@ -250,11 +250,10 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data_p, void*)
     {
         if(is_complex_planar(data->node->outArrayType))
         {
-            cmplx_planar_device_buffer<float2> out_planar(bufOut0, bufOut1);
             hipLaunchKernelGGL(
-                HIP_KERNEL_NAME(real_post_process_kernel_transpose<cmplx_float,
-                                                                   cmplx_float,
-                                                                   cmplx_float_planar,
+                HIP_KERNEL_NAME(real_post_process_kernel_transpose<float2,
+                                                                   interleaved<float2>,
+                                                                   planar<float2>,
                                                                    DIM_X,
                                                                    DIM_Y,
                                                                    CallbackType::NONE>),
@@ -263,9 +262,9 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data_p, void*)
                 0,
                 data->rocfft_stream,
                 dim,
-                static_cast<const cmplx_float*>(bufIn0),
+                interleaved<float2>{bufIn0},
                 idist,
-                out_planar.devicePtr(),
+                planar<float2>{bufOut0, bufOut1},
                 odist,
                 data->node->twiddles.data(),
                 kargs_lengths(data->node->devKernArg),
@@ -282,15 +281,15 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data_p, void*)
             hipLaunchKernelGGL(
                 cbtype == CallbackType::USER_LOAD_STORE
                     ? HIP_KERNEL_NAME(
-                        real_post_process_kernel_transpose<cmplx_float,
-                                                           cmplx_float,
-                                                           cmplx_float,
+                        real_post_process_kernel_transpose<float2,
+                                                           interleaved<float2>,
+                                                           interleaved<float2>,
                                                            DIM_X,
                                                            DIM_Y,
                                                            CallbackType::USER_LOAD_STORE>)
-                    : HIP_KERNEL_NAME(real_post_process_kernel_transpose<cmplx_float,
-                                                                         cmplx_float,
-                                                                         cmplx_float,
+                    : HIP_KERNEL_NAME(real_post_process_kernel_transpose<float2,
+                                                                         interleaved<float2>,
+                                                                         interleaved<float2>,
                                                                          DIM_X,
                                                                          DIM_Y,
                                                                          CallbackType::NONE>),
@@ -299,9 +298,9 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data_p, void*)
                 0,
                 data->rocfft_stream,
                 dim,
-                static_cast<const cmplx_float*>(bufIn0),
+                interleaved<float2>{bufIn0},
                 idist,
-                static_cast<cmplx_float*>(bufOut0),
+                interleaved<float2>{bufOut0},
                 odist,
                 data->node->twiddles.data(),
                 kargs_lengths(data->node->devKernArg),
@@ -318,11 +317,10 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data_p, void*)
     {
         if(is_complex_planar(data->node->outArrayType))
         {
-            cmplx_planar_device_buffer<double2> out_planar(bufOut0, bufOut1);
             hipLaunchKernelGGL(
-                HIP_KERNEL_NAME(real_post_process_kernel_transpose<cmplx_double,
-                                                                   cmplx_double,
-                                                                   cmplx_double_planar,
+                HIP_KERNEL_NAME(real_post_process_kernel_transpose<double2,
+                                                                   interleaved<double2>,
+                                                                   planar<double2>,
                                                                    DIM_X,
                                                                    DIM_Y,
                                                                    CallbackType::NONE>),
@@ -331,9 +329,9 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data_p, void*)
                 0,
                 data->rocfft_stream,
                 dim,
-                static_cast<const cmplx_double*>(bufIn0),
+                interleaved<double2>{bufIn0},
                 idist,
-                out_planar.devicePtr(),
+                planar<double2>{bufOut0, bufOut1},
                 odist,
                 data->node->twiddles.data(),
                 kargs_lengths(data->node->devKernArg),
@@ -350,15 +348,15 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data_p, void*)
             hipLaunchKernelGGL(
                 cbtype == CallbackType::USER_LOAD_STORE
                     ? HIP_KERNEL_NAME(
-                        real_post_process_kernel_transpose<cmplx_double,
-                                                           cmplx_double,
-                                                           cmplx_double,
+                        real_post_process_kernel_transpose<double2,
+                                                           interleaved<double2>,
+                                                           interleaved<double2>,
                                                            DIM_X,
                                                            DIM_Y,
                                                            CallbackType::USER_LOAD_STORE>)
-                    : HIP_KERNEL_NAME(real_post_process_kernel_transpose<cmplx_double,
-                                                                         cmplx_double,
-                                                                         cmplx_double,
+                    : HIP_KERNEL_NAME(real_post_process_kernel_transpose<double2,
+                                                                         interleaved<double2>,
+                                                                         interleaved<double2>,
                                                                          DIM_X,
                                                                          DIM_Y,
                                                                          CallbackType::NONE>),
@@ -367,9 +365,9 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data_p, void*)
                 0,
                 data->rocfft_stream,
                 dim,
-                static_cast<const cmplx_double*>(bufIn0),
+                interleaved<double2>{bufIn0},
                 idist,
-                static_cast<cmplx_double*>(bufOut0),
+                interleaved<double2>{bufOut0},
                 odist,
                 data->node->twiddles.data(),
                 kargs_lengths(data->node->devKernArg),
@@ -389,9 +387,9 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data_p, void*)
 template <typename T, typename T_I, typename T_O, size_t DIM_X, size_t DIM_Y, CallbackType cbtype>
 __global__ static void __launch_bounds__(DIM_X* DIM_Y)
     transpose_real_pre_process_kernel(size_t        dim,
-                                      const T_I*    input0,
+                                      const T_I     input0,
                                       size_t        idist,
-                                      T_O*          output0,
+                                      T_O           output0,
                                       size_t        odist,
                                       const void*   twiddles0,
                                       const size_t* lengths,
@@ -562,9 +560,9 @@ ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data_p, void*)
     const size_t idist = data->node->iDist;
     const size_t odist = data->node->oDist;
 
-    const void* bufIn0  = data->bufIn[0];
-    const void* bufIn1  = data->bufIn[1];
-    void*       bufOut0 = data->bufOut[0];
+    void* bufIn0  = data->bufIn[0];
+    void* bufIn1  = data->bufIn[1];
+    void* bufOut0 = data->bufOut[0];
 
     size_t count = data->node->batch;
     size_t m     = data->node->length[1];
@@ -612,11 +610,10 @@ ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data_p, void*)
     {
         if(is_complex_planar(data->node->inArrayType))
         {
-            cmplx_planar_device_buffer<float2> in_planar(bufIn0, bufIn1);
             hipLaunchKernelGGL(
-                HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_float,
-                                                                  cmplx_float_planar,
-                                                                  cmplx_float,
+                HIP_KERNEL_NAME(transpose_real_pre_process_kernel<float2,
+                                                                  planar<float2>,
+                                                                  interleaved<float2>,
                                                                   DIM_X,
                                                                   DIM_Y,
                                                                   CallbackType::NONE>),
@@ -625,9 +622,9 @@ ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data_p, void*)
                 0,
                 data->rocfft_stream,
                 dim,
-                in_planar.devicePtr(),
+                planar<float2>{bufIn0, bufIn1},
                 idist,
-                static_cast<cmplx_float*>(bufOut0),
+                interleaved<float2>{bufOut0},
                 odist,
                 data->node->twiddles.data(),
                 kargs_lengths(data->node->devKernArg),
@@ -644,15 +641,15 @@ ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data_p, void*)
             hipLaunchKernelGGL(
                 cbtype == CallbackType::USER_LOAD_STORE
                     ? HIP_KERNEL_NAME(
-                        transpose_real_pre_process_kernel<cmplx_float,
-                                                          cmplx_float,
-                                                          cmplx_float,
+                        transpose_real_pre_process_kernel<float2,
+                                                          interleaved<float2>,
+                                                          interleaved<float2>,
                                                           DIM_X,
                                                           DIM_Y,
                                                           CallbackType::USER_LOAD_STORE>)
-                    : HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_float,
-                                                                        cmplx_float,
-                                                                        cmplx_float,
+                    : HIP_KERNEL_NAME(transpose_real_pre_process_kernel<float2,
+                                                                        interleaved<float2>,
+                                                                        interleaved<float2>,
                                                                         DIM_X,
                                                                         DIM_Y,
                                                                         CallbackType::NONE>),
@@ -661,9 +658,9 @@ ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data_p, void*)
                 0,
                 data->rocfft_stream,
                 dim,
-                static_cast<const cmplx_float*>(bufIn0),
+                interleaved<float2>{bufIn0},
                 idist,
-                static_cast<cmplx_float*>(bufOut0),
+                interleaved<float2>{bufOut0},
                 odist,
                 data->node->twiddles.data(),
                 kargs_lengths(data->node->devKernArg),
@@ -680,11 +677,10 @@ ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data_p, void*)
     {
         if(is_complex_planar(data->node->inArrayType))
         {
-            cmplx_planar_device_buffer<double2> in_planar(bufIn0, bufIn1);
             hipLaunchKernelGGL(
-                HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_double,
-                                                                  cmplx_double_planar,
-                                                                  cmplx_double,
+                HIP_KERNEL_NAME(transpose_real_pre_process_kernel<double2,
+                                                                  planar<double2>,
+                                                                  interleaved<double2>,
                                                                   DIM_X,
                                                                   DIM_Y,
                                                                   CallbackType::NONE>),
@@ -693,9 +689,9 @@ ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data_p, void*)
                 0,
                 data->rocfft_stream,
                 dim,
-                in_planar.devicePtr(),
+                planar<double2>{bufIn0, bufIn1},
                 idist,
-                static_cast<cmplx_double*>(bufOut0),
+                interleaved<double2>{bufOut0},
                 odist,
                 data->node->twiddles.data(),
                 kargs_lengths(data->node->devKernArg),
@@ -713,15 +709,15 @@ ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data_p, void*)
             hipLaunchKernelGGL(
                 cbtype == CallbackType::USER_LOAD_STORE
                     ? HIP_KERNEL_NAME(
-                        transpose_real_pre_process_kernel<cmplx_double,
-                                                          cmplx_double,
-                                                          cmplx_double,
+                        transpose_real_pre_process_kernel<double2,
+                                                          interleaved<double2>,
+                                                          interleaved<double2>,
                                                           DIM_X,
                                                           DIM_Y,
                                                           CallbackType::USER_LOAD_STORE>)
-                    : HIP_KERNEL_NAME(transpose_real_pre_process_kernel<cmplx_double,
-                                                                        cmplx_double,
-                                                                        cmplx_double,
+                    : HIP_KERNEL_NAME(transpose_real_pre_process_kernel<double2,
+                                                                        interleaved<double2>,
+                                                                        interleaved<double2>,
                                                                         DIM_X,
                                                                         DIM_Y,
                                                                         CallbackType::NONE>),
@@ -730,9 +726,9 @@ ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data_p, void*)
                 0,
                 data->rocfft_stream,
                 dim,
-                static_cast<const cmplx_double*>(bufIn0),
+                interleaved<double2>{bufIn0},
                 idist,
-                static_cast<cmplx_double*>(bufOut0),
+                interleaved<double2>{bufOut0},
                 odist,
                 data->node->twiddles.data(),
                 kargs_lengths(data->node->devKernArg),
