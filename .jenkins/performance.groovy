@@ -56,12 +56,12 @@ def runTestCommand (platform, project, boolean debug=false)
                     set -x
                     pwd
                     cd ${project.paths.project_build_prefix}
-                    ./scripts/perf/alltime.py -b ./build/${directory}/clients/staging/dyna-rocfft-rider -i ./ref-repo/build/${directory}/library/src/librocfft.so -i ./build/${directory}/library/src/librocfft.so -o ./${dataType}_ref -o ./${dataType}_change -g 0 -p ${dataType}
+                    ./scripts/perf/rocfft-perf run --rider ./build/${directory}/clients/staging/dyna-rocfft-rider --lib ./ref-repo/build/${directory}/library/src/librocfft.so --lib ./build/${directory}/library/src/librocfft.so --out ./${dataType}_ref --out ./${dataType}_change --device 0 --precision ${dataType} --suite benchmarks
                     ls ${dataType}_change
                     ls ${dataType}_ref
                     mkdir ${dataType}_results
-                    ./scripts/perf/html_report.py ./${dataType}_ref ./${dataType}_change ./${dataType}_results
-                    mv ${dataType}_results/figs.html ${dataType}_results/figs_${platform.gpu}.html
+                    ./scripts/perf/rocfft-perf post ./${dataType}_results ./${dataType}_ref ./${dataType}_change
+                    ./scripts/perf/rocfft-perf html ./${dataType}_results ./${dataType}_ref ./${dataType}_change
                 """
          platform.runCommand(this, command)
          

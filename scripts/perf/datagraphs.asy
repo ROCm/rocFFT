@@ -23,7 +23,7 @@ if(primaryaxis == "gflops") {
     ylabel = "GFLOP/s";
 }
 
-write("filenames:\"", filenames+"\"");
+//write("filenames:\"", filenames+"\"");
 if(filenames == "") {
     filenames = getstring("filenames");
 }
@@ -45,30 +45,20 @@ pair[][] xyval = new real[testlist.length][];
 pair[][] ylowhigh = new real[testlist.length][];
 
 
-readfiles(testlist, xyval, ylowhigh, true);
+readfiles(testlist, xyval, ylowhigh, false);
 
-write(ylowhigh);
+//write(xyval);
+//write(ylowhigh);
 
 // Find the bounds on the data to determine if the scales should be
 // logarithmic.
-real xmax = 0.0;
-real xmin = inf;
-real ymax = 0.0;
-real ymin = inf;
-for(int i = 0; i < xyval.length; ++i) {
-  for(int j = 0; j < xyval[i].length; ++j) {
-    xmax = max(xmax, xyval[i][j].x);
-    ymax = max(ymax, xyval[i][j].y);
-    xmin = min(xmin, xyval[i][j].x);
-    ymin = min(ymin, xyval[i][j].y);
-  }
-}
+real[] bounds = xyminmax( xyval );
 bool xlog = true;
-if(xmax / xmin < 10) {
+if(bounds[1] / bounds[0] < 10) {
     xlog = false;
 }
 bool ylog = true;
-if(ymax / ymin < 10) {
+if(bounds[3] / bounds[2] < 10) {
     ylog = false;
 }
 scale(xlog ? Log : Linear, ylog ? Log : Linear);
@@ -90,8 +80,8 @@ for(int n = 0; n < xyval.length; ++n)
         dp.push((0, -xyval[n][i].y + ylowhigh[n][i].y));
         dm.push((0, -xyval[n][i].y + ylowhigh[n][i].x));
     }
-    write(dp);
-    write(dm);
+    //write(dp);
+    //write(dm);
     errorbars(xyval[n], dp, dm, graphpen);
     
     // Actualy plot things:
@@ -102,10 +92,11 @@ xaxis(xlabel, BottomTop, LeftTicks);
 
 yaxis(ylabel, (secondary_filenames != "") ? Left : LeftRight,RightTicks);
 
-attach(legend(),point(plain.E),(((secondary_filenames != ""))
-                                ? 60*plain.E + 40 *plain.N
-                                : 20*plain.E)  );
-
+// attach(legend(),point(plain.E),(((secondary_filenames != ""))
+//                                 ? 60*plain.E + 40 *plain.N
+//                                 : 20*plain.E)  );
+//attach(legend(),point(plain.S), N);
+attach(legend(), point(S), 50*S);
 
 if(secondary_filenames != "")
 {
@@ -118,7 +109,7 @@ if(secondary_filenames != "")
     
     // FIXME: speedup has error bounds, so we should read it, but
     // p-vals does not.
-    readfiles(second_list, xyval, ylowhigh, interval); 
+    readfiles(second_list, xyval, ylowhigh, true);
 
     picture secondarypic = secondaryY(new void(picture pic) {
             int penidx = testlist.length;
@@ -152,7 +143,8 @@ if(secondary_filenames != "")
             }
 
             yaxis(pic, secondaryaxis, Right, black, LeftTicks);
-            attach(legend(pic), point(plain.E), 60*plain.E - 40 *plain.N  );
+//            attach(legend(pic), point(plain.E), 60*plain.E - 40 *plain.N  );
+            attach(legend(pic), point(plain.S), 120*S);
         });
     add(secondarypic);
 }

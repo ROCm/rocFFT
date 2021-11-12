@@ -1,4 +1,4 @@
-'''Get host/gpu specs.'''
+"""Get host/gpu specs."""
 
 import re
 import socket
@@ -7,6 +7,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path as path
 from textwrap import dedent
+
 
 @dataclass
 class MachineSpecs:
@@ -26,7 +27,7 @@ class MachineSpecs:
     bandwidth: str
 
     def __str__(self):
-        return  dedent(f'''\
+        return dedent(f'''\
         Host info:
             hostname:       {self.hostname}
             cpu info:       {self.cpu}
@@ -53,6 +54,7 @@ def search(pattern, string):
     m = re.search(pattern, string, re.MULTILINE)
     if m is not None:
         return m.group(1)
+    return None
 
 
 def get_machine_specs(devicenum):
