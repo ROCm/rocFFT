@@ -35,6 +35,7 @@
 // TODO:
 //   - better data structure, and more elements for non pow of 2
 //   - validate corresponding functions existing in function pool or not
+//   - SBRC should support un-aligned dim with BWD such as 10752 = 84 x 128(bwd=8)
 NodeFactory::Map1DLength const NodeFactory::map1DLengthSingle
     = {{8192, 64}, // pow of 2: CC (64cc + 128rc)
        {16384, 64}, //          CC (64cc + 256rc) // 128x128 no faster
@@ -44,7 +45,9 @@ NodeFactory::Map1DLength const NodeFactory::map1DLengthSingle
        {262144, 64}, //         CRT(64cc + 4096 + transpose)
        {6561, 81}, // pow of 3: CC (81cc + 81rc)
        {10000, 100}, // mixed:  CC (100cc + 100rc)
-       {40000, 200}}; //        CC (200cc + 200rc)
+       {40000, 200}, //         CC (200cc + 200rc)
+       {21504, 168}, //         CC (168cc + 128rc)
+       {43008, 168}}; //        CC (168cc + 256rc)
 
 NodeFactory::Map1DLength const NodeFactory::map1DLengthDouble
     = {{4096, 64}, // pow of 2: CC (64cc + 64rc)
@@ -56,7 +59,9 @@ NodeFactory::Map1DLength const NodeFactory::map1DLengthDouble
        {6561, 81}, // pow of 3: CC (81cc + 81rc)
        {2500, 50}, // mixed:    CC (50cc + 50rc)
        {10000, 100}, //         CC (100cc + 100rc)
-       {40000, 200}}; //        CC (200cc + 200rc)
+       {40000, 200}, //         CC (200cc + 200rc)
+       {21504, 168}, //         CC (168cc + 128rc)
+       {43008, 168}}; //        CC (168cc + 256rc)
 
 //
 // Factorisation helpers
@@ -434,7 +439,12 @@ ComputeScheme NodeFactory::Decide1DScheme(NodeMetaData& nodeData)
         }
         else if(nodeData.precision == rocfft_precision_double)
         {
-            if(map1DLengthDouble.find(nodeData.length[0]) != map1DLengthDouble.end())
+            // FIXME: SBCC-168 dp is not good for gfx906 and eats up the gained performance.
+            bool isException
+                = nodeData.length[0] == 43008 && is_device_gcn_arch(nodeData.deviceProp, "gfx906");
+
+            if(map1DLengthDouble.find(nodeData.length[0]) != map1DLengthDouble.end()
+               && !isException)
             {
                 divLength1 = map1DLengthDouble.at(nodeData.length[0]);
                 scheme     = CS_L1D_CC;
