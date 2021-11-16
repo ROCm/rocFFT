@@ -147,9 +147,6 @@ FetchContent_Declare(sqlite_local
 )
 FetchContent_MakeAvailable(sqlite_local)
 add_library( sqlite3 STATIC ${sqlite_local_SOURCE_DIR}/sqlite3.c )
-# some CI pipelines seem to not find sqlite3.h where it is - work around that by
-# copying into the library's include
-file( COPY ${sqlite_local_SOURCE_DIR}/sqlite3.h DESTINATION ${CMAKE_SOURCE_DIR}/library/src/include )
 set_target_properties( sqlite3 PROPERTIES
   C_VISIBILITY_PRESET "hidden"
   VISIBILITY_INLINES_HIDDEN ON
@@ -203,6 +200,7 @@ endif()
 target_include_directories( rocfft
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
   $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
+  ${sqlite_local_SOURCE_DIR}
   PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
   $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
   $<INSTALL_INTERFACE:include>
