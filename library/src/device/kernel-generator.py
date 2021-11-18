@@ -763,7 +763,9 @@ def cli():
     #
 
     kernels = []
-    all_kernels = list_small_kernels() + list_large_kernels() + list_2d_kernels()
+    # move 2d out from all, no need to iterate the 2d-kernels for non-2d patterns
+    kernels_2d = list_2d_kernels()
+    all_kernels = list_small_kernels() + list_large_kernels()
 
     manual_small, manual_large = [], []
     if args.manual_small:
@@ -772,7 +774,7 @@ def cli():
         manual_large = list(map(int, args.manual_large.split(',')))
 
     if 'all' in patterns and not manual_small and not manual_large:
-        kernels += all_kernels
+        kernels += all_kernels + kernels_2d
     if 'pow2' in patterns:
         lengths = [2**x for x in range(13)]
         kernels += [k for k in all_kernels if k.length in lengths]
@@ -791,6 +793,8 @@ def cli():
     if 'large' in patterns:
         schemes = ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC', 'CS_KERNEL_STOCKHAM_BLOCK_CR']
         kernels += [k for k in all_kernels if k.scheme in schemes]
+    if '2D' in patterns:
+        kernels += kernels_2d
     if manual_small:
         schemes = ['CS_KERNEL_STOCKHAM']
         kernels += [k for k in all_kernels if k.length in manual_small and k.scheme in schemes]
