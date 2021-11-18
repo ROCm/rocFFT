@@ -161,7 +161,7 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
             // consistency. Eventually, we need better solution arch
             // specific.
             bool double_half_lds_alloc = false;
-            if(is_device_gcn_arch(deviceProp, "gfx90a") && length[0] == 16807)
+            if(is_device_gcn_arch(deviceProp, "gfx90a") && (length[0] == 343 || length[0] == 49))
             {
                 double_half_lds_alloc = true;
             }
