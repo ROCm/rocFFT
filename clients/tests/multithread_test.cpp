@@ -88,12 +88,12 @@ struct Test_Transform
         : device_mem_in(std::move(other.device_mem_in))
         , device_mem_out(std::move(other.device_mem_out))
     {
-        this->stream      = other.stream;
+        stream            = other.stream;
         other.stream      = nullptr;
-        this->work_buffer = other.work_buffer;
+        work_buffer       = other.work_buffer;
         other.work_buffer = nullptr;
-        this->host_mem_in.swap(other.host_mem_in);
-        this->host_mem_out.swap(other.host_mem_out);
+        host_mem_in.swap(other.host_mem_in);
+        host_mem_out.swap(other.host_mem_out);
     }
 
     void run_transform()

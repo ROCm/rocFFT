@@ -36,12 +36,12 @@ static std::vector<fs::path> rtccache_db_paths()
     std::vector<fs::path> paths;
     auto                  env_path = rocfft_getenv("ROCFFT_RTC_CACHE_PATH");
 
-    static const char* default_cache_filename = "rocfft_kernel_cache.db";
-
     if(!env_path.empty())
         paths.push_back(env_path);
     else
     {
+        static const char* default_cache_filename = "rocfft_kernel_cache.db";
+
         // come up with other candidate locations
         auto home_path = rocfft_getenv("HOME");
         // try persistent home directory location

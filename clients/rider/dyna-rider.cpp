@@ -136,8 +136,8 @@ rocfft_plan make_plan(ROCFFT_LIB                    libhandle,
                       const std::vector<size_t>&    ostride,
                       const size_t                  idist,
                       const size_t                  odist,
-                      const std::vector<size_t>     ioffset,
-                      const std::vector<size_t>     ooffset,
+                      const std::vector<size_t>&    ioffset,
+                      const std::vector<size_t>&    ooffset,
                       const size_t                  nbatch,
                       const rocfft_precision        precision,
                       const rocfft_array_type       itype,
@@ -326,13 +326,13 @@ void         load_python(const std::vector<std::string>& libs)
 int main(int argc, char* argv[])
 {
     // Control output verbosity:
-    int verbose;
+    int verbose{};
 
     // hip Device number for running tests:
-    int deviceId;
+    int deviceId{};
 
     // Number of performance trial samples
-    int ntrial;
+    int ntrial{};
 
     // Vector of test target libraries
     std::vector<std::string> libs;

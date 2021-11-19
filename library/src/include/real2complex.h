@@ -238,9 +238,9 @@ ROCFFT_DEVICE_EXPORT void complex2hermitian(const void* data, void* back);
 ROCFFT_DEVICE_EXPORT void hermitian2complex(const void* data, void* back);
 ROCFFT_DEVICE_EXPORT void complex2real(const void* data, void* back);
 
-ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data, void* back);
+ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*);
 ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data, void* back);
-ROCFFT_DEVICE_EXPORT void c2r_1d_pre(const void* data, void* back);
+ROCFFT_DEVICE_EXPORT void c2r_1d_pre(const void* data_p, void*);
 ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data, void* back);
 
 ROCFFT_DEVICE_EXPORT void apply_real_callback(const void* data, void* back);

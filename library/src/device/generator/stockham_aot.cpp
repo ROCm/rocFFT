@@ -30,10 +30,9 @@ std::vector<unsigned int> parse_uints_csv(const std::string& arg)
     std::vector<std::string>  uints_str;
 
     size_t prev_pos = 0;
-    size_t pos      = 0;
     for(;;)
     {
-        pos = arg.find(',', prev_pos);
+        auto pos = arg.find(',', prev_pos);
         if(pos == std::string::npos)
         {
             uints.push_back(std::stoi(arg.substr(prev_pos)));

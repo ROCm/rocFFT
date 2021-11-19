@@ -172,7 +172,7 @@ public:
         data = (void*)(*local_fftwf_malloc)(typesize * size);
         assert(data != NULL);
     }
-    size_t bufsize()
+    size_t bufsize() const
     {
         return size * typesize;
     };
@@ -196,7 +196,7 @@ class RefLibOp
     {
         RefLibHandle& refHandle = RefLibHandle::GetRefLibHandle();
 
-        DeviceCallIn* data = (DeviceCallIn*)data_p;
+        auto data = static_cast<const DeviceCallIn*>(data_p);
 
         size_t totalSize;
 
@@ -272,12 +272,12 @@ class RefLibOp
 
     // Copy a host vector to a host vector, taking strides and other
     // data layout elements into account.
-    void CopyVector(local_fftwf_complex* dst,
-                    local_fftwf_complex* src,
-                    size_t               batch,
-                    size_t               dist,
-                    std::vector<size_t>  length,
-                    std::vector<size_t>  stride)
+    void CopyVector(local_fftwf_complex*       dst,
+                    local_fftwf_complex*       src,
+                    size_t                     batch,
+                    size_t                     dist,
+                    const std::vector<size_t>& length,
+                    const std::vector<size_t>& stride)
     {
         size_t lenSize = std::accumulate(
             length.begin(), length.end(), static_cast<size_t>(1), std::multiplies<size_t>());
@@ -286,7 +286,6 @@ class RefLibOp
         while(b < batch)
         {
             size_t offset_dst   = 0;
-            size_t offset_src   = 0;
             size_t offset_src_d = 0;
             size_t pos          = 0;
             bool   obreak       = false;
@@ -296,7 +295,7 @@ class RefLibOp
 
             while(true)
             {
-                offset_src = offset_src_d + current[0] * stride[0];
+                size_t offset_src = offset_src_d + current[0] * stride[0];
 
                 dst[offset_dst][0] = src[offset_src][0];
                 dst[offset_dst][1] = src[offset_src][1];
@@ -335,7 +334,7 @@ class RefLibOp
 
     void CopyInputVector(const void* data_p, size_t offset = 0)
     {
-        DeviceCallIn* data = (DeviceCallIn*)data_p;
+        auto data = static_cast<DeviceCallIn*>(data_p);
 
         size_t in_size_bytes = (data->node->iDist * data->node->batch) * sizeof(float);
 
@@ -356,7 +355,7 @@ class RefLibOp
                    data->node->inStride);
     }
 
-    inline float2
+    inline static float2
         TwMul(float2* twiddles, const size_t twl, const int direction, float2 val, size_t u)
     {
         size_t j      = u & 255;
@@ -392,7 +391,7 @@ class RefLibOp
         return result;
     }
 
-    inline void chirp(size_t N, size_t M, int dir, local_fftwf_complex* vec)
+    inline static void chirp(size_t N, size_t M, int dir, local_fftwf_complex* vec)
     {
         const double TWO_PI = atan(1.0) * 8.0 * (double)(-dir);
 
@@ -431,7 +430,7 @@ class RefLibOp
         }
     }
 
-    inline void chirp_fft(size_t N, size_t M, int dir, local_fftwf_complex* vec)
+    inline static void chirp_fft(size_t N, size_t M, int dir, local_fftwf_complex* vec)
     {
         RefLibHandle&             refHandle = RefLibHandle::GetRefLibHandle();
         ftype_fftwf_plan_many_dft local_fftwf_plan_many_dft
@@ -463,7 +462,7 @@ class RefLibOp
 
     void Execute(const void* data_p)
     {
-        DeviceCallIn* data = (DeviceCallIn*)data_p;
+        auto data = static_cast<DeviceCallIn*>(data_p);
 
         switch(data->node->scheme)
         {
@@ -899,7 +898,7 @@ class RefLibOp
     }
 
 public:
-    RefLibOp(const void* data_p)
+    explicit RefLibOp(const void* data_p)
     {
         DataSetup(data_p);
         Execute(data_p);
@@ -907,9 +906,9 @@ public:
 
     void VerifyResult(const void* data_p)
     {
-        DeviceCallIn* data        = (DeviceCallIn*)data_p;
-        size_t        out_size    = (data->node->oDist * data->node->batch);
-        size_t        checklength = data->node->length[0];
+        auto   data        = static_cast<DeviceCallIn*>(data_p);
+        size_t out_size    = (data->node->oDist * data->node->batch);
+        size_t checklength = data->node->length[0];
         for(int i = 1; i < data->node->length.size(); ++i)
         {
             checklength *= data->node->length[i];

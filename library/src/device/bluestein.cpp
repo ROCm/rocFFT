@@ -49,7 +49,7 @@ rocfft_status chirp_launch(
 
 ROCFFT_DEVICE_EXPORT void rocfft_internal_chirp(const void* data_p, void* back_p)
 {
-    DeviceCallIn* data = (DeviceCallIn*)data_p;
+    auto data = static_cast<const DeviceCallIn*>(data_p);
 
     size_t N = data->node->length[0];
     size_t M = data->node->lengthBlue;
@@ -92,7 +92,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_chirp(const void* data_p, void* back_p
 
 ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
 {
-    DeviceCallIn* data = (DeviceCallIn*)data_p;
+    auto data = static_cast<const DeviceCallIn*>(data_p);
 
     size_t N = data->node->length[0];
     size_t M = data->node->lengthBlue;

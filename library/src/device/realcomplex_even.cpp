@@ -317,7 +317,7 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
     kernelmap_planar.emplace(std::make_tuple(rocfft_precision_double, false),
                              &(real_post_process_kernel_planar<double2, false>));
 
-    const DeviceCallIn* data = (DeviceCallIn*)data_p;
+    auto data = static_cast<const DeviceCallIn*>(data_p);
 
     // Input_size is the innermost dimension
     // The upper level provides always N/2, that is regular complex fft size
@@ -627,7 +627,7 @@ ROCFFT_DEVICE_EXPORT void c2r_1d_pre(const void* data_p, void*)
     kernelmap_planar.emplace(std::make_tuple(rocfft_precision_double, false),
                              &(real_pre_process_kernel_planar<double2, false>));
 
-    const DeviceCallIn* data = (DeviceCallIn*)data_p;
+    auto data = static_cast<const DeviceCallIn*>(data_p);
 
     // Input_size is the innermost dimension
     // The upper level provides always N/2, that is regular complex fft size

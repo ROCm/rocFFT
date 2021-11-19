@@ -34,7 +34,7 @@ class RTRT3DNode : public RTRT2DNode
     friend class NodeFactory;
 
 protected:
-    RTRT3DNode(TreeNode* p)
+    explicit RTRT3DNode(TreeNode* p)
         : RTRT2DNode(p)
     {
         scheme = CS_3D_RTRT;
@@ -57,7 +57,7 @@ class TRTRTR3DNode : public InternalNode
     friend class NodeFactory;
 
 protected:
-    TRTRTR3DNode(TreeNode* p)
+    explicit TRTRTR3DNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_3D_TRTRTR;
@@ -86,7 +86,7 @@ class BLOCKRC3DNode : public InternalNode
     friend class NodeFactory;
 
 protected:
-    BLOCKRC3DNode(TreeNode* p)
+    explicit BLOCKRC3DNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_3D_BLOCK_RC;
@@ -113,7 +113,7 @@ class BLOCKCR3DNode : public InternalNode
     friend class NodeFactory;
 
 protected:
-    BLOCKCR3DNode(TreeNode* p)
+    explicit BLOCKCR3DNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_3D_BLOCK_CR;
@@ -141,7 +141,7 @@ class RC3DNode : public RC2DNode
     friend class NodeFactory;
 
 protected:
-    RC3DNode(TreeNode* p)
+    explicit RC3DNode(TreeNode* p)
         : RC2DNode(p)
     {
         scheme = CS_3D_RC;
@@ -186,7 +186,7 @@ protected:
     }
 
     void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
-    size_t sbrc_3D_alignment_dimension() override
+    size_t sbrc_3D_alignment_dimension() const override
     {
         return length[2];
     }
@@ -207,7 +207,7 @@ protected:
     }
 
     void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
-    size_t sbrc_3D_alignment_dimension() override
+    size_t sbrc_3D_alignment_dimension() const override
     {
         return length[1] * length[2];
     }
@@ -229,7 +229,7 @@ protected:
     }
 
     void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
-    size_t sbrc_3D_alignment_dimension() override
+    size_t sbrc_3D_alignment_dimension() const override
     {
         return length[1] * length[2];
     }

@@ -54,7 +54,7 @@ public:
     static size_t count_3D_SBRC_nodes(NodeMetaData& nodeData);
 
     // FuseShim Creator
-    static std::unique_ptr<FuseShim> CreateFuseShim(FuseType               type,
-                                                    std::vector<TreeNode*> components);
+    static std::unique_ptr<FuseShim> CreateFuseShim(FuseType                      type,
+                                                    const std::vector<TreeNode*>& components);
 };
 #endif // TREE_NODE_FACTORY_H

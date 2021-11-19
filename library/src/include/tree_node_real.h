@@ -31,7 +31,7 @@ class RealTransCmplxNode : public InternalNode
     friend class NodeFactory;
 
 protected:
-    RealTransCmplxNode(TreeNode* p)
+    explicit RealTransCmplxNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_REAL_TRANSFORM_USING_CMPLX;
@@ -54,7 +54,7 @@ class RealTransEvenNode : public InternalNode
     friend class NodeFactory;
 
 protected:
-    RealTransEvenNode(TreeNode* p)
+    explicit RealTransEvenNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_REAL_TRANSFORM_EVEN;
@@ -81,7 +81,7 @@ class Real2DEvenNode : public InternalNode
     friend class NodeFactory;
 
 protected:
-    Real2DEvenNode(TreeNode* p)
+    explicit Real2DEvenNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_REAL_2D_EVEN;
@@ -112,7 +112,7 @@ class Real3DEvenNode : public InternalNode
     };
 
 protected:
-    Real3DEvenNode(TreeNode* p)
+    explicit Real3DEvenNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_REAL_3D_EVEN;
@@ -126,7 +126,7 @@ protected:
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 
-    Solution solution;
+    Solution solution = TR_PAIRS;
 
     void Build_solution();
 

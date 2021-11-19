@@ -46,8 +46,8 @@ bool increment_colmajor(std::vector<T1>& index, const std::vector<T2>& length)
 // separated by dist.
 template <class Tdata, class Tint1, class Tint2>
 void printbuffer(const std::vector<Tdata>& data,
-                 const std::vector<Tint1>  length,
-                 const std::vector<Tint2>  stride,
+                 const std::vector<Tint1>& length,
+                 const std::vector<Tint2>& stride,
                  const size_t              nbatch,
                  const size_t              dist)
 {
@@ -81,8 +81,8 @@ void printbuffer(const std::vector<Tdata>& data,
 // and straide stride, with nbatch copies separated by dist is Hermitian-symmetric.
 template <class Tfloat, class Tint1, class Tint2>
 bool check_symmetry(const std::vector<std::complex<Tfloat>>& data,
-                    const std::vector<Tint1>                 length,
-                    const std::vector<Tint2>                 stride,
+                    const std::vector<Tint1>&                length,
+                    const std::vector<Tint2>&                stride,
                     const size_t                             nbatch,
                     const size_t                             dist)
 {

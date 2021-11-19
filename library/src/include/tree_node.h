@@ -207,7 +207,7 @@ struct NodeMetaData
     hipDeviceProp_t         deviceProp   = {};
     bool                    rootIsC2C;
 
-    NodeMetaData(TreeNode* refNode);
+    explicit NodeMetaData(TreeNode* refNode);
 };
 
 class rocfft_ostream;
@@ -217,13 +217,12 @@ class FuseShim
     friend class NodeFactory;
 
 protected:
-    FuseShim(std::vector<TreeNode*>& components, FuseType type)
+    FuseShim(const std::vector<TreeNode*>& components, FuseType type)
+        : fuseType(type)
+        , nodes(components)
     {
-        fuseType = type;
-        nodes    = components;
         // default
-        firstFusedNode = 0;
-        lastFusedNode  = nodes.size() - 1;
+        lastFusedNode = nodes.size() - 1;
     }
 
     // if these schemes can be fused
@@ -239,8 +238,8 @@ public:
 
     // basically all fusion should be effectively-outofplace,
     // but TransC2R and R2CTrans can do some tricks
-    bool   allowInplace;
-    size_t firstFusedNode;
+    bool   allowInplace   = true;
+    size_t firstFusedNode = 0;
     size_t lastFusedNode;
 
 public:
@@ -253,7 +252,7 @@ public:
         PlacementFusable(OperatingBuffer iBuf, OperatingBuffer firstOBuf, OperatingBuffer lastOBuf);
 
     // return the result of CheckSchemeFusable
-    bool IsSchemeFusable();
+    bool IsSchemeFusable() const;
 
     // NB: Some fusions perform better or worse in different arch.
     //     We mark those exceptions from the execPlan.
@@ -267,8 +266,8 @@ public:
     // for R_T, T_R, it is pretty simple [0] and [1]
     // but for R_T-Z_XY, we store an extra "pre-node" to test if the RT fuse can be done
     // in this case, the first, last are [1], [2]. [0] doesn't participate the fusion
-    virtual TreeNode* FirstFuseNode();
-    virtual TreeNode* LastFuseNode();
+    virtual TreeNode* FirstFuseNode() const;
+    virtual TreeNode* LastFuseNode() const;
 
     virtual std::unique_ptr<TreeNode> FuseKernels() = 0;
 };
@@ -411,18 +410,18 @@ public:
     // Copy data from the NodeMetaData (after deciding scheme)
     void CopyNodeData(const NodeMetaData& data);
 
-    bool isPlacementAllowed(rocfft_result_placement);
-    bool isOutBufAllowed(OperatingBuffer oB);
-    bool isOutArrayTypeAllowed(rocfft_array_type);
-    bool isRootNode();
-    bool isLeafNode();
+    bool isPlacementAllowed(rocfft_result_placement) const;
+    bool isOutBufAllowed(OperatingBuffer oB) const;
+    bool isOutArrayTypeAllowed(rocfft_array_type) const;
+    bool isRootNode() const;
+    bool isLeafNode() const;
 
     // this is used for making buffer-assignment decision
     // if the assignment fits the preferable placement then we pick it as possible
     // intuitively, inplace is always better than out-of-place (default: return true),
     // somehow there are some exceptions according to the experiment (SBCC_len_168)
     // so we use this func to control the preference.
-    virtual bool isInplacePreferable();
+    virtual bool isInplacePreferable() const;
 
     virtual void RecursiveBuildTree(); // Main tree builder: override by child
     virtual void SanityCheck();
@@ -506,11 +505,11 @@ public:
     // block width and lengths that the block tiles need to align on.
     // default value for alignment_dimension is 0, meaning this isn't a
     // 3D SBRC node.
-    virtual size_t sbrc_3D_alignment_dimension()
+    virtual size_t sbrc_3D_alignment_dimension() const
     {
         return 0;
     }
-    virtual SBRC_TRANSPOSE_TYPE sbrc_3D_transpose_type(unsigned int blockWidth)
+    virtual SBRC_TRANSPOSE_TYPE sbrc_3D_transpose_type(unsigned int blockWidth) const
     {
         auto alignment_dimension = sbrc_3D_alignment_dimension();
         if(alignment_dimension == 0)
@@ -542,7 +541,7 @@ class InternalNode : public TreeNode
     friend class NodeFactory;
 
 protected:
-    InternalNode(TreeNode* p)
+    explicit InternalNode(TreeNode* p)
         : TreeNode(p)
     {
         nodeType = NT_INTERNAL;
@@ -664,7 +663,7 @@ struct ExecPlan
     size_t blueWorkBufSize  = 0;
     size_t chirpWorkBufSize = 0;
 
-    size_t WorkBufBytes(size_t base_type_size)
+    size_t WorkBufBytes(size_t base_type_size) const
     {
         // base type is the size of one real, work buf counts in
         // complex numbers

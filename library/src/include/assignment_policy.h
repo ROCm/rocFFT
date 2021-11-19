@@ -98,11 +98,11 @@ struct PlacementTrace
     size_t BackwardCalcFusions(ExecPlan& execPlan, int curFuseShimID, PlacementTrace* shimLastNode);
 
     // How many buffers are used in this assignment
-    size_t NumUsedBuffers();
+    size_t NumUsedBuffers() const;
 
     // Starting from the tail (leaf of each branch) back to the head (root),
     // Fill-in the assignment from the PlacemenTraces to the nodes
-    void Backtracking(ExecPlan& execPlan, int planID);
+    void Backtracking(ExecPlan& execPlan, int execSeqID);
 };
 
 class AssignmentPolicy
@@ -113,20 +113,20 @@ public:
     bool AssignBuffers(ExecPlan& execPlan);
 
 private:
-    std::vector<size_t> GetEffectiveNodeOutLen(ExecPlan& execPlan, const TreeNode& node);
+    static std::vector<size_t> GetEffectiveNodeOutLen(ExecPlan& execPlan, const TreeNode& node);
 
     // test if rootArrayType == testArrayType,
     // but could be alias if root is real, and test is CI, or root is HI and test is CI
-    bool EquivalentArrayType(rocfft_array_type rootAryType, rocfft_array_type testAryType);
+    static bool EquivalentArrayType(rocfft_array_type rootAryType, rocfft_array_type testAryType);
 
-    bool BufferIsUnitStride(ExecPlan& execPlan, OperatingBuffer buf);
+    static bool BufferIsUnitStride(ExecPlan& execPlan, OperatingBuffer buf);
 
     bool ValidOutBuffer(ExecPlan&         execPlan,
                         TreeNode&         node,
                         OperatingBuffer   buffer,
                         rocfft_array_type arrayType);
 
-    bool CheckAssignmentValid(ExecPlan& execPlan);
+    static bool CheckAssignmentValid(ExecPlan& execPlan);
 
     void UpdateWinnerFromValidPaths(ExecPlan& execPlan);
 

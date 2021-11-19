@@ -23,7 +23,7 @@
 
 struct StockhamKernelRC : public StockhamKernel
 {
-    StockhamKernelRC(StockhamGeneratorSpecs& specs)
+    explicit StockhamKernelRC(StockhamGeneratorSpecs& specs)
         : StockhamKernel(specs)
     {
         n_device_calls = block_width / (threads_per_block / threads_per_transform);

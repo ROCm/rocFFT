@@ -167,7 +167,7 @@ public:
     {
         layer_mode = mode;
     }
-    rocfft_layer_mode const GetLayerMode()
+    rocfft_layer_mode GetLayerMode() const
     {
         return layer_mode;
     }

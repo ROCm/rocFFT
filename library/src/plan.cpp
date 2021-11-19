@@ -800,32 +800,32 @@ void TreeNode::CopyNodeData(const NodeMetaData& data)
     deviceProp   = data.deviceProp;
 }
 
-bool TreeNode::isPlacementAllowed(rocfft_result_placement test_placement)
+bool TreeNode::isPlacementAllowed(rocfft_result_placement test_placement) const
 {
     return (test_placement == rocfft_placement_inplace) ? allowInplace : allowOutofplace;
 }
 
-bool TreeNode::isOutBufAllowed(OperatingBuffer oB)
+bool TreeNode::isOutBufAllowed(OperatingBuffer oB) const
 {
     return (oB & allowedOutBuf) != 0;
 }
 
-bool TreeNode::isOutArrayTypeAllowed(rocfft_array_type oArrayType)
+bool TreeNode::isOutArrayTypeAllowed(rocfft_array_type oArrayType) const
 {
     return allowedOutArrayTypes.count(oArrayType) > 0;
 }
 
-bool TreeNode::isRootNode()
+bool TreeNode::isRootNode() const
 {
     return parent == nullptr;
 }
 
-bool TreeNode::isLeafNode()
+bool TreeNode::isLeafNode() const
 {
     return nodeType == NT_LEAF;
 }
 
-bool TreeNode::isInplacePreferable()
+bool TreeNode::isInplacePreferable() const
 {
     // see comments in header
     return true;
@@ -1780,7 +1780,7 @@ void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan)
             }
 
             prev_p = curr_p;
-            curr_p++;
+            ++curr_p;
         }
     }
 

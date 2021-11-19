@@ -54,6 +54,9 @@ void TRTRT1DNode::BuildTree_internal()
     {
         trans1Plan->length.push_back(length[index]);
     }
+    // NOTE: padding is constant if logic for it is ifdef'ed out
+    //
+    // cppcheck-suppress knownConditionTrueFalse
     trans1Plan->outputHasPadding = (padding > 0);
 
     // first row fft
@@ -890,7 +893,7 @@ void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 
 // FIXME: So far, we override this for sbcc 1en 168,
 // but eventually we need to investigate why there are those exceptions.
-bool SBCCNode::isInplacePreferable()
+bool SBCCNode::isInplacePreferable() const
 {
     if(length[0] == 168)
         return false;

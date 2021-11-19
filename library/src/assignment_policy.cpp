@@ -87,7 +87,7 @@ size_t PlacementTrace::BackwardCalcFusions(ExecPlan&       execPlan,
     return numFusedNodes;
 }
 
-size_t PlacementTrace::NumUsedBuffers()
+size_t PlacementTrace::NumUsedBuffers() const
 {
     return usedBuffers.size();
 }
@@ -231,7 +231,7 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&         execPlan,
                                       rocfft_array_type arrayType)
 {
     // define a local function.
-    auto dataFits = [this, &execPlan](
+    auto dataFits = [&execPlan](
                         const TreeNode& node, OperatingBuffer buffer, std::vector<size_t> bufLen) {
         if(node.outputHasPadding)
             return false;
@@ -332,7 +332,7 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&         execPlan,
     return true;
 }
 
-static void RecursiveTraverse(TreeNode* node, std::function<void(TreeNode*)> func)
+static void RecursiveTraverse(TreeNode* node, const std::function<void(TreeNode*)>& func)
 {
     func(node);
     for(auto& n : node->childNodes)

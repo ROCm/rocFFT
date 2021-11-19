@@ -94,7 +94,7 @@ private:
 
         public:
             // The task takes ownership of the string payload
-            task_t(std::string&& str)
+            explicit task_t(std::string&& str)
                 : str(std::move(str))
             {
             }

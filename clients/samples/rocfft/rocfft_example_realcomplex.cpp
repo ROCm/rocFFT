@@ -150,9 +150,8 @@ int main(int argc, char* argv[])
 
     // Create HIP device object and initialize data
     // Kernels are provided in examplekernels.h
-    hipError_t hip_status = hipSuccess;
     void*      gpu_in     = NULL;
-    hip_status            = hipMalloc(&gpu_in, ibytes);
+    hipError_t hip_status = hipMalloc(&gpu_in, ibytes);
     if(forward)
     {
         initreal(length, istride, gpu_in);
@@ -182,12 +181,10 @@ int main(int argc, char* argv[])
         check_symmetry(cdata, length, istride, 1, isize);
     }
 
-    // rocfft_status can be used to capture API status info
-    rocfft_status rc = rocfft_status_success;
-
     // Create the a descrition struct to set data layout:
     rocfft_plan_description gpu_description = NULL;
-    rc                                      = rocfft_plan_description_create(&gpu_description);
+    // rocfft_status can be used to capture API status info
+    rocfft_status rc = rocfft_plan_description_create(&gpu_description);
     if(rc != rocfft_status_success)
         throw std::runtime_error("failed to create plan description");
     rc = rocfft_plan_description_set_data_layout(
@@ -204,6 +201,8 @@ int main(int argc, char* argv[])
         ostride.size(), // output stride length
         ostride.data(), // output stride data
         0); // ouptut batch distance
+    if(rc != rocfft_status_success)
+        throw std::runtime_error("failed to set data layout");
     // We can also pass "NULL" instead of a description; rocFFT will use reasonable
     // default parameters.  If the data isn't contiguous, we need to set strides, etc,
     // using the description.

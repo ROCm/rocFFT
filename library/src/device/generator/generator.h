@@ -142,14 +142,15 @@ public:
     static const unsigned int precedence = 0;
 
     Literal(int num)
+        : value(std::to_string(num))
+
     {
-        value = std::to_string(num);
     }
     Literal(unsigned int num)
+        : value(std::to_string(num))
     {
-        value = std::to_string(num);
     }
-    Literal(std::string val)
+    Literal(const std::string& val)
         : value(val)
     {
     }
@@ -170,7 +171,7 @@ struct ScalarVariable
 {
     static const unsigned int precedence = 0;
     std::string               name, type;
-    ScalarVariable(std::string name, std::string type)
+    ScalarVariable(const std::string& name, const std::string& type)
         : name(name)
         , type(type){};
     std::string render() const;
@@ -181,20 +182,24 @@ class Variable
 public:
     static const unsigned int precedence = 0;
     std::string               name, type;
-    bool                      pointer, restrict;
+    bool                      pointer = false, restrict = false;
     ScalarVariable            x, y;
     OptionalExpression        index;
     OptionalExpression        size;
     // default value for argument and template declarations
     OptionalExpression decl_default;
 
-    Variable(std::string _name,
-             std::string _type,
-             bool        pointer = false,
-             bool restrict       = false,
-             unsigned int size   = 0);
+    Variable(const std::string& _name,
+             const std::string& _type,
+             bool               pointer = false,
+             bool restrict              = false,
+             unsigned int size          = 0);
 
-    Variable(std::string _name, std::string _type, bool pointer, bool restrict, Expression _size);
+    Variable(const std::string& _name,
+             const std::string& _type,
+             bool               pointer,
+             bool restrict,
+             const Expression& _size);
 
     Variable(const ScalarVariable& v)
         : name(v.name)
@@ -203,7 +208,8 @@ public:
         , y(v.name + ".y", v.type){};
 
     Variable(const Variable& v);
-    Variable(const Variable& v, const Expression& index);
+    Variable& operator=(const Variable&) = default;
+    Variable(const Variable& v, const Expression& _index);
 
     Variable       operator[](const Expression& index) const;
     ScalarVariable address() const;
@@ -215,9 +221,9 @@ class ArgumentList
 {
 public:
     ArgumentList(){};
-    ArgumentList(std::initializer_list<Variable> il)
+    ArgumentList(const std::initializer_list<Variable>& il)
         : arguments(il){};
-    ArgumentList(std::vector<Variable> arguments)
+    ArgumentList(const std::vector<Variable>& arguments)
         : arguments(arguments){};
     std::vector<Variable> arguments;
     std::string           render() const;
@@ -280,10 +286,12 @@ public:
     TemplateList            templates;
     std::vector<Expression> arguments;
 
-    CallExpr(std::string name, std::vector<Expression> arguments)
+    CallExpr(const std::string& name, const std::vector<Expression>& arguments)
         : name(name)
         , arguments(arguments){};
-    CallExpr(std::string name, TemplateList templates, std::vector<Expression> arguments)
+    CallExpr(const std::string&             name,
+             const TemplateList&            templates,
+             const std::vector<Expression>& arguments)
         : name(name)
         , templates(templates)
         , arguments(arguments){};
@@ -295,7 +303,7 @@ class Ternary
 {
 public:
     static const unsigned int precedence = 16;
-    Ternary(Expression cond, Expression true_result, Expression false_result);
+    Ternary(const Expression& cond, const Expression& true_result, const Expression& false_result);
     explicit Ternary(const std::vector<Expression>& args)
         : args(args)
     {
@@ -309,7 +317,7 @@ class LoadGlobal
 {
 public:
     static const unsigned int precedence = 18;
-    LoadGlobal(Expression ptr, Expression index);
+    LoadGlobal(const Expression& ptr, const Expression& index);
     explicit LoadGlobal(const std::vector<Expression>& args)
         : args(args)
     {
@@ -324,7 +332,7 @@ class TwiddleMultiply
 {
 public:
     static const unsigned int precedence = 18;
-    TwiddleMultiply(Variable a, Variable b)
+    TwiddleMultiply(const Variable& a, const Variable& b)
         : a(a)
         , b(b)
     {
@@ -338,7 +346,7 @@ class TwiddleMultiplyConjugate
 {
 public:
     static const unsigned int precedence = 18;
-    TwiddleMultiplyConjugate(Variable a, Variable b)
+    TwiddleMultiplyConjugate(const Variable& a, const Variable& b)
         : a(a)
         , b(b)
     {
@@ -352,7 +360,7 @@ class Parens
 {
 public:
     static const unsigned int precedence = 0;
-    explicit Parens(Expression inside);
+    explicit Parens(const Expression& inside);
     explicit Parens(const std::vector<Expression>& args)
         : args{args}
     {
@@ -362,19 +370,19 @@ public:
     std::string             render() const;
 };
 
-#define MAKE_OPER(NAME, OPER, PRECEDENCE)                   \
-    class NAME                                              \
-    {                                                       \
-        std::string oper{OPER};                             \
-                                                            \
-    public:                                                 \
-        static const unsigned int precedence = PRECEDENCE;  \
-        std::vector<Expression>   args;                     \
-        explicit NAME(std::initializer_list<Expression> il) \
-            : args(il){};                                   \
-        explicit NAME(std::vector<Expression> il)           \
-            : args(il){};                                   \
-        std::string render() const;                         \
+#define MAKE_OPER(NAME, OPER, PRECEDENCE)                          \
+    class NAME                                                     \
+    {                                                              \
+        std::string oper{OPER};                                    \
+                                                                   \
+    public:                                                        \
+        static const unsigned int precedence = PRECEDENCE;         \
+        std::vector<Expression>   args;                            \
+        explicit NAME(const std::initializer_list<Expression>& il) \
+            : args(il){};                                          \
+        explicit NAME(const std::vector<Expression>& il)           \
+            : args(il){};                                          \
+        std::string render() const;                                \
     };
 
 #define MAKE_BINARY_METHODS(NAME)                                  \
@@ -480,7 +488,9 @@ MAKE_UNARY_PREFIX_METHODS(Not);
 MAKE_UNARY_PREFIX_METHODS(PreIncrement);
 MAKE_UNARY_PREFIX_METHODS(PreDecrement);
 
-Ternary::Ternary(Expression cond, Expression true_result, Expression false_result)
+Ternary::Ternary(const Expression& cond,
+                 const Expression& true_result,
+                 const Expression& false_result)
     : args{cond, true_result, false_result}
 {
 }
@@ -489,7 +499,7 @@ std::string Ternary::render() const
     return vrender(args[0]) + " ? " + vrender(args[1]) + " : " + vrender(args[2]);
 }
 
-LoadGlobal::LoadGlobal(Expression ptr, Expression index)
+LoadGlobal::LoadGlobal(const Expression& ptr, const Expression& index)
     : args{ptr, index}
 {
 }
@@ -525,8 +535,11 @@ std::string ArgumentList::render_decl() const
     return f;
 }
 
-Variable::Variable(
-    std::string _name, std::string _type, bool pointer, bool restrict, unsigned int size)
+Variable::Variable(const std::string& _name,
+                   const std::string& _type,
+                   bool               pointer,
+                   bool restrict,
+                   unsigned int size)
     : name(_name)
     , type(_type)
     , pointer(pointer)
@@ -539,8 +552,11 @@ Variable::Variable(
         this->size = Expression{size};
 }
 
-Variable::Variable(
-    std::string _name, std::string _type, bool pointer, bool restrict, Expression _size)
+Variable::Variable(const std::string& _name,
+                   const std::string& _type,
+                   bool               pointer,
+                   bool restrict,
+                   const Expression& _size)
     : name(_name)
     , type(_type)
     , pointer(pointer)
@@ -551,6 +567,10 @@ Variable::Variable(
 {
 }
 
+// NOTE: cppcheck doesn't realize all of the members are actually
+// initialized here
+//
+// cppcheck-suppress uninitMemberVar
 Variable::Variable(const Variable& v)
     : name(v.name)
     , type(v.type)
@@ -558,11 +578,10 @@ Variable::Variable(const Variable& v)
     , restrict(v.restrict)
     , x(v.name + ".x", v.type)
     , y(v.name + ".y", v.type)
+    , index(v.index)
+    , size(v.size)
+    , decl_default(v.decl_default)
 {
-    index        = v.index;
-    size         = v.size;
-    decl_default = v.decl_default;
-
     if(index)
     {
         x.name = v.name + "[" + vrender(*index) + "].x";
@@ -717,9 +736,9 @@ OptionalExpression::OptionalExpression(const Expression& expr)
 {
     this->expr = expr;
 }
-OptionalExpression& OptionalExpression::operator=(const Expression& expr)
+OptionalExpression& OptionalExpression::operator=(const Expression& in_expr)
 {
-    this->expr = expr;
+    this->expr = in_expr;
     return *this;
 }
 
@@ -748,7 +767,7 @@ std::string TwiddleMultiplyConjugate::render() const
     return ComplexLiteral{a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y}.render();
 }
 
-Parens::Parens(Expression inside)
+Parens::Parens(const Expression& inside)
     : args{inside}
 {
 }
@@ -777,7 +796,7 @@ class Butterfly;
 
 struct LineBreak
 {
-    std::string render() const
+    static std::string render()
     {
         return "\n\n";
     }
@@ -785,7 +804,7 @@ struct LineBreak
 
 struct SyncThreads
 {
-    std::string render() const
+    static std::string render()
     {
         return "__syncthreads();";
     }
@@ -793,7 +812,7 @@ struct SyncThreads
 
 struct Return
 {
-    std::string render() const
+    static std::string render()
     {
         return "return;\n";
     }
@@ -801,7 +820,7 @@ struct Return
 
 struct Break
 {
-    std::string render() const
+    static std::string render()
     {
         return "break;\n";
     }
@@ -852,7 +871,7 @@ public:
     Expression  rhs;
     std::string oper;
 
-    Assign(Variable lhs, Expression rhs, std::string oper = "=")
+    Assign(const Variable& lhs, const Expression& rhs, const std::string& oper = "=")
         : lhs(lhs)
         , rhs(rhs)
         , oper(oper){};
@@ -864,11 +883,11 @@ public:
 };
 
 // +=, *= operators are just Assign with another operator
-Assign AddAssign(Variable lhs, Expression rhs)
+Assign AddAssign(const Variable& lhs, const Expression& rhs)
 {
     return Assign(lhs, rhs, "+=");
 }
-Assign MultiplyAssign(Variable lhs, Expression rhs)
+Assign MultiplyAssign(const Variable& lhs, const Expression& rhs)
 {
     return Assign(lhs, rhs, "*=");
 }
@@ -882,9 +901,9 @@ class Declaration
 public:
     Variable                  var;
     std::optional<Expression> value;
-    explicit Declaration(Variable v)
+    explicit Declaration(const Variable& v)
         : var(v){};
-    Declaration(Variable v, Expression val)
+    Declaration(const Variable& v, const Expression& val)
         : var(v)
         , value(val){};
     std::string render() const;
@@ -908,7 +927,7 @@ std::string Declaration::render() const
 class LDSDeclaration
 {
 public:
-    explicit LDSDeclaration(std::string scalar_type)
+    explicit LDSDeclaration(const std::string& scalar_type)
         : scalar_type(scalar_type){};
     std::string scalar_type;
     std::string render() const
@@ -938,7 +957,7 @@ public:
 class CallbackDeclaration
 {
 public:
-    CallbackDeclaration(std::string scalar_type, std::string cbtype)
+    CallbackDeclaration(const std::string& scalar_type, const std::string& cbtype)
         : scalar_type(scalar_type)
         , cbtype(cbtype){};
     std::string scalar_type;
@@ -954,11 +973,13 @@ public:
 class Call
 {
 public:
-    Call(std::string name, std::vector<Expression> arguments)
+    Call(const std::string& name, const std::vector<Expression>& arguments)
         : expr(name, arguments)
     {
     }
-    Call(std::string name, TemplateList templates, std::vector<Expression> arguments)
+    Call(const std::string&             name,
+         const TemplateList&            templates,
+         const std::vector<Expression>& arguments)
         : expr(name, templates, arguments)
     {
     }
@@ -1008,7 +1029,7 @@ class StatementList
 public:
     std::vector<Statement> statements;
     StatementList(){};
-    StatementList(std::initializer_list<Statement> il)
+    StatementList(const std::initializer_list<Statement>& il)
         : statements(il){};
     std::string render() const;
 };
@@ -1021,11 +1042,11 @@ public:
     Expression    condition;
     Expression    increment;
     StatementList body;
-    For(Variable      var,
-        Expression    initial,
-        Expression    condition,
-        Expression    increment,
-        StatementList body = {})
+    For(const Variable&      var,
+        const Expression&    initial,
+        const Expression&    condition,
+        const Expression&    increment,
+        const StatementList& body = {})
         : var(var)
         , initial(initial)
         , condition(condition)
@@ -1039,7 +1060,7 @@ class While
 public:
     Expression    condition;
     StatementList body;
-    While(Expression condition, StatementList body = {})
+    While(const Expression& condition, const StatementList& body = {})
         : condition(condition)
         , body(body){};
     std::string render() const;
@@ -1050,7 +1071,7 @@ class If
 public:
     Expression    condition;
     StatementList body;
-    If(Expression condition, StatementList body)
+    If(const Expression& condition, const StatementList& body)
         : condition(condition)
         , body(body){};
     std::string render() const;
@@ -1060,7 +1081,7 @@ class Else
 {
 public:
     StatementList body;
-    explicit Else(StatementList body)
+    explicit Else(const StatementList& body)
         : body(body){};
     std::string render() const;
 };
@@ -1068,7 +1089,7 @@ public:
 class StoreGlobal
 {
 public:
-    StoreGlobal(Expression ptr, Expression index, Expression value)
+    StoreGlobal(const Expression& ptr, const Expression& index, const Expression& value)
         : ptr{ptr}
         , index{index}
         , value{value}
@@ -1089,7 +1110,7 @@ class Butterfly
 {
 public:
     static const unsigned int precedence = 0;
-    Butterfly(bool forward, std::vector<Expression> args)
+    Butterfly(bool forward, const std::vector<Expression>& args)
         : forward(forward)
         , args(args)
     {
@@ -1201,7 +1222,7 @@ public:
     std::string   qualifier;
     unsigned int  launch_bounds = 0;
 
-    explicit Function(std::string name)
+    explicit Function(const std::string& name)
         : name(name){};
 
     std::string render() const;
@@ -1501,11 +1522,11 @@ struct MakePlanarVisitor : public BaseVisitor
 {
     std::string varname, rename, imname;
 
-    MakePlanarVisitor(std::string varname)
+    MakePlanarVisitor(const std::string& varname)
         : varname(varname)
+        , rename(varname + "re")
+        , imname(varname + "im")
     {
-        rename = varname + "re";
-        imname = varname + "im";
     }
 
     ArgumentList visit_ArgumentList(const ArgumentList& x) override
@@ -1609,7 +1630,7 @@ struct MakePlanarVisitor : public BaseVisitor
     }
 };
 
-Function make_planar(const Function& f, std::string varname)
+Function make_planar(const Function& f, const std::string& varname)
 {
     auto visitor = MakePlanarVisitor(varname);
     return visitor(f);

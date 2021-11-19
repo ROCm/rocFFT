@@ -32,7 +32,7 @@ class RTRT2DNode : public InternalNode
     friend class NodeFactory;
 
 protected:
-    RTRT2DNode(TreeNode* p)
+    explicit RTRT2DNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_2D_RTRT;
@@ -55,7 +55,7 @@ class RC2DNode : public InternalNode
     friend class NodeFactory;
 
 protected:
-    RC2DNode(TreeNode* p)
+    explicit RC2DNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_2D_RC;

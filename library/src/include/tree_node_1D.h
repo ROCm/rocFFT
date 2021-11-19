@@ -31,7 +31,7 @@ class TRTRT1DNode : public InternalNode
     friend class NodeFactory;
 
 protected:
-    TRTRT1DNode(TreeNode* p)
+    explicit TRTRT1DNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_L1D_TRTRT;
@@ -54,7 +54,7 @@ class CC1DNode : public InternalNode
     friend class NodeFactory;
 
 protected:
-    CC1DNode(TreeNode* p)
+    explicit CC1DNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_L1D_CC;
@@ -77,7 +77,7 @@ class CRT1DNode : public InternalNode
     friend class NodeFactory;
 
 protected:
-    CRT1DNode(TreeNode* p)
+    explicit CRT1DNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_L1D_CRT;
@@ -131,7 +131,7 @@ protected:
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 
 public:
-    bool isInplacePreferable() override;
+    bool isInplacePreferable() const override;
 };
 
 /*****************************************************

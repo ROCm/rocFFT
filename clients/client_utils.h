@@ -90,7 +90,7 @@ public:
     static constexpr double store_cb_scalar = 0.391504938;
 
     // Given an array type, return the name as a string.
-    std::string array_type_name(const rocfft_array_type type) const
+    static std::string array_type_name(const rocfft_array_type type)
     {
         switch(type)
         {
@@ -228,7 +228,7 @@ public:
         return olength;
     }
 
-    size_t nbuffer(const rocfft_array_type type) const
+    static size_t nbuffer(const rocfft_array_type type)
     {
         switch(type)
         {
@@ -384,7 +384,7 @@ public:
     template <typename T1>
     std::vector<T1> compute_stride(const std::vector<T1>&     length,
                                    const std::vector<size_t>& stride0   = std::vector<size_t>(),
-                                   const bool                 rcpadding = false)
+                                   const bool                 rcpadding = false) const
     {
         const int dim = length.size();
 
@@ -749,8 +749,7 @@ public:
 
     rocfft_status make_plan()
     {
-        rocfft_status fft_status = rocfft_status_success;
-        fft_status               = rocfft_plan_description_create(&desc);
+        rocfft_status fft_status = rocfft_plan_description_create(&desc);
         if(fft_status != rocfft_status_success)
             return fft_status;
         fft_status = rocfft_plan_description_set_data_layout(desc,

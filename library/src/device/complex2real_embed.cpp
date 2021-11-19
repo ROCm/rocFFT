@@ -54,14 +54,13 @@ __global__ static void complex2real_kernel(unsigned int           lengths0,
     size_t offset_in  = 0;
     size_t offset_out = 0;
     size_t remaining;
-    size_t index_along_d;
     remaining = blockIdx.y;
     for(int d = 1; d < dim; ++d)
     {
-        index_along_d = remaining % lengths[d];
-        remaining     = remaining / lengths[d];
-        offset_in     = offset_in + index_along_d * stride_in[d];
-        offset_out    = offset_out + index_along_d * stride_out[d];
+        auto index_along_d = remaining % lengths[d];
+        remaining          = remaining / lengths[d];
+        offset_in          = offset_in + index_along_d * stride_in[d];
+        offset_out         = offset_out + index_along_d * stride_out[d];
     }
     // remaining should be 1 at this point, since batch goes into blockIdx.z
     size_t batch = blockIdx.z;
@@ -135,7 +134,7 @@ __global__ static void complex2real_kernel(unsigned int           lengths0,
 ///   vector.
 ROCFFT_DEVICE_EXPORT void complex2real(const void* data_p, void* back_p)
 {
-    DeviceCallIn* data = (DeviceCallIn*)data_p;
+    auto data = static_cast<const DeviceCallIn*>(data_p);
 
     size_t input_size = data->node->length[0];
 
@@ -437,7 +436,7 @@ __global__ static void hermitian2complex_planar_kernel(const unsigned int hermit
 ///   complex structure by padding 0.
 ROCFFT_DEVICE_EXPORT void hermitian2complex(const void* data_p, void* back_p)
 {
-    DeviceCallIn* data = (DeviceCallIn*)data_p;
+    auto data = static_cast<const DeviceCallIn*>(data_p);
 
     size_t dim_0          = data->node->length[0]; // dim_0 is the innermost dimension
     size_t hermitian_size = dim_0 / 2 + 1;

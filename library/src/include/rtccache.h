@@ -38,14 +38,14 @@ namespace std
 // deleters for sqlite objects
 struct sqlite3_deleter
 {
-    void operator()(sqlite3* db)
+    void operator()(sqlite3* db) const
     {
         sqlite3_close(db);
     }
 };
 struct sqlite3_stmt_deleter
 {
-    void operator()(sqlite3_stmt* stmt)
+    void operator()(sqlite3_stmt* stmt) const
     {
         sqlite3_finalize(stmt);
     }
@@ -76,7 +76,7 @@ struct RTCCache
 
     // allocates buffer, call serialize_free to free it
     rocfft_status serialize(void** buffer, size_t* buffer_len_bytes);
-    void          serialize_free(void* buffer);
+    static void   serialize_free(void* buffer);
     rocfft_status deserialize(const void* buffer, size_t buffer_len_bytes);
 
     // singleton allocated in rocfft_setup and freed in rocfft_cleanup

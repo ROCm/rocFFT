@@ -82,8 +82,10 @@ public:
 
         hipMalloc(&dev, L * B * sizeof(CT));
     }
+    FftBasisVectorMixComplex(const FftBasisVectorMixComplex&) = delete;
+    void operator=(FftBasisVectorMixComplex&) = delete;
 
-    void RawPtrs(CT** in, CT** out, CT** devb)
+    void RawPtrs(CT** in, CT** out, CT** devb) const
     {
         *in   = mix;
         *out  = otp;

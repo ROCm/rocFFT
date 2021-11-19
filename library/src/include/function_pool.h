@@ -47,7 +47,7 @@ static inline FMKey fpkey(size_t              length1,
     return {{length1, length2}, precision, scheme, transpose};
 }
 
-inline void PrintMissingKernelInfo(const FMKey key)
+inline void PrintMissingKernelInfo(const FMKey& key)
 {
     auto&               lengthVec = std::get<0>(key);
     rocfft_precision    precision = std::get<1>(key);
@@ -100,14 +100,14 @@ struct FFTKernel
     FFTKernel(const FFTKernel&) = default;
     FFTKernel& operator=(const FFTKernel&) = default;
 
-    FFTKernel(DevFnCall           fn,
-              bool                use_3steps,
-              std::vector<size_t> factors,
-              int                 bpb,
-              int                 tpb,
-              std::array<int, 2>  tpt,
-              int                 bwd      = 0,
-              bool                half_lds = false)
+    FFTKernel(DevFnCall             fn,
+              bool                  use_3steps,
+              std::vector<size_t>&& factors,
+              int                   bpb,
+              int                   tpb,
+              std::array<int, 2>&&  tpt,
+              int                   bwd      = 0,
+              bool                  half_lds = false)
         : device_function(fn)
         , factors(factors)
         , batches_per_block(bpb)
@@ -138,7 +138,7 @@ public:
 
     ~function_pool() {}
 
-    static bool has_function(const FMKey key)
+    static bool has_function(const FMKey& key)
     {
         function_pool& func_pool = get_function_pool();
         return func_pool.function_map.count(key) > 0;
@@ -169,13 +169,13 @@ public:
         return lengths;
     }
 
-    static DevFnCall get_function(const FMKey key)
+    static DevFnCall get_function(const FMKey& key)
     {
         function_pool& func_pool = get_function_pool();
         return func_pool.function_map.at(key).device_function;
     }
 
-    static FFTKernel get_kernel(const FMKey key)
+    static FFTKernel get_kernel(const FMKey& key)
     {
         function_pool& func_pool = get_function_pool();
         return func_pool.function_map.at(key);

@@ -1042,8 +1042,6 @@ void Real3DEvenNode::BuildTree_internal_SBCC()
 
 void Real3DEvenNode::BuildTree_internal_SBCR()
 {
-    std::vector<size_t> C2R_length = {length[0] / 2 + 1, length[1], length[2]};
-
     auto sbcrZ       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CR, this);
     sbcrZ->length    = {length[2], (length[0] / 2 + 1) * length[1]};
     sbcrZ->dimension = 1;

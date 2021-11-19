@@ -76,9 +76,9 @@ inline bool reverse_factors(size_t length)
 }
 
 // Search function pool for length where is_supported_factor(length) returns true.
-inline size_t search_pool(rocfft_precision            precision,
-                          size_t                      length,
-                          std::function<bool(size_t)> is_supported_factor)
+inline size_t search_pool(rocfft_precision                   precision,
+                          size_t                             length,
+                          const std::function<bool(size_t)>& is_supported_factor)
 {
     // query supported lengths from function pool, largest to smallest
     auto supported  = function_pool::get_lengths(precision, CS_KERNEL_STOCKHAM);
@@ -276,8 +276,8 @@ std::unique_ptr<TreeNode> NodeFactory::CreateExplicitNode(NodeMetaData& nodeData
 }
 
 // FuseShim Creator
-std::unique_ptr<FuseShim> NodeFactory::CreateFuseShim(FuseType               type,
-                                                      std::vector<TreeNode*> components)
+std::unique_ptr<FuseShim> NodeFactory::CreateFuseShim(FuseType                      type,
+                                                      const std::vector<TreeNode*>& components)
 {
     switch(type)
     {

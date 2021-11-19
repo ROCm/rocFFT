@@ -57,7 +57,7 @@ bool FuseShim::PlacementFusable(OperatingBuffer iBuf,
 }
 
 // return the check result of if these schemes can be fused
-bool FuseShim::IsSchemeFusable()
+bool FuseShim::IsSchemeFusable() const
 {
     return schemeFusable;
 }
@@ -67,14 +67,14 @@ void FuseShim::OverwriteFusableFlag(bool fusable)
     schemeFusable = fusable;
 }
 
-TreeNode* FuseShim::FirstFuseNode()
+TreeNode* FuseShim::FirstFuseNode() const
 {
     if(nodes.size() <= firstFusedNode)
         throw std::runtime_error("firstFusedNode exceeds vector size");
     return nodes[firstFusedNode];
 }
 
-TreeNode* FuseShim::LastFuseNode()
+TreeNode* FuseShim::LastFuseNode() const
 {
     if(nodes.size() <= lastFusedNode)
         throw std::runtime_error("lastFusedNode exceeds vector size");

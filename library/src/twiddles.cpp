@@ -26,18 +26,16 @@
 
 template <typename T>
 
-gpubuf twiddles_create_pr(size_t              N,
-                          size_t              threshold,
-                          bool                large,
-                          size_t              largeTwdBase,
-                          bool                no_radices,
-                          bool                attach_2N,
-                          std::vector<size_t> radices)
+gpubuf twiddles_create_pr(size_t                     N,
+                          size_t                     threshold,
+                          bool                       large,
+                          size_t                     largeTwdBase,
+                          bool                       no_radices,
+                          bool                       attach_2N,
+                          const std::vector<size_t>& radices)
 {
     gpubuf twts; // device side
     void*  twtc; // host side
-    size_t ns = 0; // table size
-
     if((N <= threshold) && !large)
     {
         TwiddleTable<T> twTable(N);
@@ -80,6 +78,8 @@ gpubuf twiddles_create_pr(size_t              N,
         else
         {
             TwiddleTableLarge<T> twTable(N, largeTwdBase); // does not generate radices
+            size_t               ns = 0; // table size
+
             std::tie(ns, twtc) = twTable.GenerateTwiddleTable(); // calculate twiddles on host side
 
             if(twts.alloc(ns * sizeof(T)) != hipSuccess
@@ -91,13 +91,13 @@ gpubuf twiddles_create_pr(size_t              N,
     return twts;
 }
 
-gpubuf twiddles_create(size_t              N,
-                       rocfft_precision    precision,
-                       bool                large,
-                       size_t              largeTwdBase,
-                       bool                no_radices,
-                       bool                attach_2N,
-                       std::vector<size_t> radices)
+gpubuf twiddles_create(size_t                     N,
+                       rocfft_precision           precision,
+                       bool                       large,
+                       size_t                     largeTwdBase,
+                       bool                       no_radices,
+                       bool                       attach_2N,
+                       const std::vector<size_t>& radices)
 {
     if(large)
     {

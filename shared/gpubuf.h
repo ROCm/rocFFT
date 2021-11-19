@@ -30,19 +30,17 @@ template <class T = void>
 class gpubuf_t
 {
 public:
-    gpubuf_t()
-        : buf(nullptr)
-        , bsize(0)
-    {
-    }
+    gpubuf_t() {}
     // buffers are movable but not copyable
     gpubuf_t(gpubuf_t&& other)
     {
         std::swap(buf, other.buf);
+        std::swap(bsize, other.bsize);
     }
     gpubuf_t& operator=(gpubuf_t&& other)
     {
         std::swap(buf, other.buf);
+        std::swap(bsize, other.bsize);
         return *this;
     }
     gpubuf_t(const gpubuf_t&) = delete;
@@ -107,8 +105,8 @@ public:
 
 private:
     // The GPU buffer
-    void*  buf;
-    size_t bsize;
+    void*  buf   = nullptr;
+    size_t bsize = 0;
 };
 
 // default gpubuf that gives out void* pointers

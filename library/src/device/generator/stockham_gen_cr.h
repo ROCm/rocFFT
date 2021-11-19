@@ -23,7 +23,7 @@
 
 struct StockhamKernelCR : public StockhamKernel
 {
-    StockhamKernelCR(StockhamGeneratorSpecs& specs)
+    explicit StockhamKernelCR(StockhamGeneratorSpecs& specs)
         : StockhamKernel(specs)
     {
     }

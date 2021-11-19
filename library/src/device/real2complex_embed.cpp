@@ -140,7 +140,7 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 ///    convert a real vector into a complex one by padding the imaginary part with  0.
 ROCFFT_DEVICE_EXPORT void real2complex(const void* data_p, void* back_p)
 {
-    DeviceCallIn* data = (DeviceCallIn*)data_p;
+    auto data = static_cast<const DeviceCallIn*>(data_p);
 
     size_t input_size = data->node->length[0]; // input_size is the innermost dimension
 
@@ -416,7 +416,7 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 ///   the output_buffer
 ROCFFT_DEVICE_EXPORT void complex2hermitian(const void* data_p, void* back_p)
 {
-    DeviceCallIn* data = (DeviceCallIn*)data_p;
+    auto data = static_cast<const DeviceCallIn*>(data_p);
 
     size_t input_size = data->node->length[0]; // input_size is the innermost dimension
 

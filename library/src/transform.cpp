@@ -52,13 +52,12 @@ rocfft_status rocfft_execution_info_destroy(rocfft_execution_info info)
 
 rocfft_status rocfft_execution_info_set_work_buffer(rocfft_execution_info info,
                                                     void*                 work_buffer,
-                                                    size_t                work_buffer_size)
+                                                    const size_t          size_in_bytes)
 {
-    log_trace(
-        __func__, "info", info, "work_buffer", work_buffer, "work_buffer_size", work_buffer_size);
+    log_trace(__func__, "info", info, "work_buffer", work_buffer, "size_in_bytes", size_in_bytes);
     if(!work_buffer)
         return rocfft_status_invalid_work_buffer;
-    info->workBufferSize = work_buffer_size;
+    info->workBufferSize = size_in_bytes;
     info->workBuffer     = work_buffer;
 
     return rocfft_status_success;
@@ -74,49 +73,42 @@ rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info, void*
 rocfft_status rocfft_execution_info_set_load_callback(rocfft_execution_info info,
                                                       void**                cb_functions,
                                                       void**                cb_data,
-                                                      size_t                shared_mem_size)
+                                                      size_t                shared_mem_bytes)
 {
     // currently, we're not allocating LDS for callbacks, so fail
     // if any was requested
-    if(shared_mem_size)
+    if(shared_mem_bytes)
         return rocfft_status_invalid_arg_value;
 
     info->callbacks.load_cb_fn        = cb_functions ? cb_functions[0] : nullptr;
     info->callbacks.load_cb_data      = cb_data ? cb_data[0] : nullptr;
-    info->callbacks.load_cb_lds_bytes = shared_mem_size;
+    info->callbacks.load_cb_lds_bytes = shared_mem_bytes;
     return rocfft_status_success;
 }
 
 rocfft_status rocfft_execution_info_set_store_callback(rocfft_execution_info info,
                                                        void**                cb_functions,
                                                        void**                cb_data,
-                                                       size_t                shared_mem_size)
+                                                       size_t                shared_mem_bytes)
 {
     // currently, we're not allocating LDS for callbacks, so fail
     // if any was requested
-    if(shared_mem_size)
+    if(shared_mem_bytes)
         return rocfft_status_invalid_arg_value;
 
     info->callbacks.store_cb_fn        = cb_functions ? cb_functions[0] : nullptr;
     info->callbacks.store_cb_data      = cb_data ? cb_data[0] : nullptr;
-    info->callbacks.store_cb_lds_bytes = shared_mem_size;
+    info->callbacks.store_cb_lds_bytes = shared_mem_bytes;
     return rocfft_status_success;
 }
 
 rocfft_status rocfft_execute(const rocfft_plan     plan,
                              void*                 in_buffer[],
                              void*                 out_buffer[],
-                             rocfft_execution_info user_info)
+                             rocfft_execution_info info)
 {
-    log_trace(__func__,
-              "plan",
-              plan,
-              "in_buffer",
-              in_buffer,
-              "out_buffer",
-              out_buffer,
-              "info",
-              user_info);
+    log_trace(
+        __func__, "plan", plan, "in_buffer", in_buffer, "out_buffer", out_buffer, "info", info);
 
     Repo&     repo     = Repo::GetRepo();
     ExecPlan* execPlan = repo.GetPlan(plan);
@@ -127,32 +119,32 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
         PrintNode(*LogSingleton::GetInstance().GetPlanOS(), *execPlan);
 
     // tolerate user not providing an execution_info
-    rocfft_execution_info_t info;
-    if(user_info)
-        info = *user_info;
+    rocfft_execution_info_t exec_info;
+    if(info)
+        exec_info = *info;
 
     gpubuf autoAllocWorkBuf;
 
     if(execPlan->workBufSize > 0)
     {
         auto requiredWorkBufBytes = execPlan->WorkBufBytes(plan->base_type_size);
-        if(!info.workBuffer)
+        if(!exec_info.workBuffer)
         {
             // user didn't provide a buffer, alloc one now
             if(autoAllocWorkBuf.alloc(requiredWorkBufBytes) != hipSuccess)
                 return rocfft_status_failure;
-            info.workBufferSize = requiredWorkBufBytes;
-            info.workBuffer     = autoAllocWorkBuf.data();
+            exec_info.workBufferSize = requiredWorkBufBytes;
+            exec_info.workBuffer     = autoAllocWorkBuf.data();
         }
         // otherwise user provided a buffer, but complain if it's too small
-        else if(info.workBufferSize < requiredWorkBufBytes)
+        else if(exec_info.workBufferSize < requiredWorkBufBytes)
             return rocfft_status_invalid_work_buffer;
     }
 
     // Callbacks do not currently support planar format
     if((array_type_is_planar(execPlan->rootPlan->inArrayType)
         || array_type_is_planar(execPlan->rootPlan->outArrayType))
-       && (info.callbacks.load_cb_fn || info.callbacks.store_cb_fn))
+       && (exec_info.callbacks.load_cb_fn || exec_info.callbacks.store_cb_fn))
         return rocfft_status_failure;
 
     try
@@ -160,7 +152,7 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
         TransformPowX(*execPlan,
                       in_buffer,
                       (plan->placement == rocfft_placement_inplace) ? in_buffer : out_buffer,
-                      &info);
+                      &exec_info);
     }
     catch(std::exception& e)
     {

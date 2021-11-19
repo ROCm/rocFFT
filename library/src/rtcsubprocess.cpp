@@ -120,7 +120,7 @@ struct file_handle_wrapper
 #endif
 
     file_handle_wrapper() = default;
-    file_handle_wrapper(file_handle_type fd)
+    explicit file_handle_wrapper(file_handle_type fd)
         : fd(fd)
     {
     }
@@ -144,7 +144,7 @@ struct file_handle_wrapper
 #endif
         fd = FILE_HANDLE_INVALID;
     }
-    operator file_handle_type()
+    operator file_handle_type() const
     {
         return fd;
     }
@@ -214,12 +214,12 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
     file_handle_wrapper hThread(pi.hThread);
 
     // overlapped I/O handles and structs
-    file_handle_wrapper stdin_write_event = CreateEventA(NULL, TRUE, TRUE, NULL);
-    file_handle_wrapper stdout_read_event = CreateEventA(NULL, TRUE, TRUE, NULL);
-    OVERLAPPED          stdin_write_ovl   = {0};
-    stdin_write_ovl.hEvent                = stdin_write_event;
-    OVERLAPPED stdout_read_ovl            = {0};
-    stdout_read_ovl.hEvent                = stdout_read_event;
+    file_handle_wrapper stdin_write_event{CreateEventA(NULL, TRUE, TRUE, NULL)};
+    file_handle_wrapper stdout_read_event{CreateEventA(NULL, TRUE, TRUE, NULL)};
+    OVERLAPPED          stdin_write_ovl = {0};
+    stdin_write_ovl.hEvent              = stdin_write_event;
+    OVERLAPPED stdout_read_ovl          = {0};
+    stdout_read_ovl.hEvent              = stdout_read_event;
 
     HANDLE handles[3];
     handles[0] = pi.hProcess;

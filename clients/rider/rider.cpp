@@ -35,13 +35,13 @@ int main(int argc, char* argv[])
     std::ios::sync_with_stdio(false);
 
     // Control output verbosity:
-    int verbose;
+    int verbose{};
 
     // hip Device number for running tests:
-    int deviceId;
+    int deviceId{};
 
     // Number of performance trial samples
-    int ntrial;
+    int ntrial{};
 
     // FFT parameters:
     fft_params params;

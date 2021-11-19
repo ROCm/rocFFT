@@ -338,8 +338,10 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return {Butterfly{true, args}};
     }
 
-    StatementList
-        load_global_generator(unsigned int h, unsigned int hr, unsigned int width, unsigned int dt)
+    StatementList load_global_generator(unsigned int h,
+                                        unsigned int hr,
+                                        unsigned int width,
+                                        unsigned int dt) const
     {
         if(hr == 0)
             hr = h;
@@ -669,7 +671,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                      generator,
         unsigned int width,
         double       height,
-        bool         guard = false)
+        bool         guard = false) const
     {
         StatementList stmts;
         unsigned int  iheight = floor(height);

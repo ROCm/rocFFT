@@ -430,7 +430,7 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_stream(rocfft_execution_in
  *  @param[in] info execution info handle
  *  @param[in] cb callback function pointers
  *  @param[in] cbdata callback function data, passed to the function pointer when it is called
- *  @param[in] shared_mem_size amount of shared memory to allocate for the callback function to use */
+ *  @param[in] shared_mem_bytes amount of shared memory to allocate for the callback function to use */
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_load_callback(rocfft_execution_info info,
                                                                     void** cb_functions,
                                                                     void** cb_data,
@@ -470,12 +470,12 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_load_callback(rocfft_execu
  *  @param[in] info execution info handle
  *  @param[in] cb callbacks function pointers
  *  @param[in] cbdata callback function data, passed to the function pointer when it is called
- *  @param[in] shared_mem_size amount of shared memory to allocate for the callback function to use
+ *  @param[in] shared_mem_bytes amount of shared memory to allocate for the callback function to use
  *  */
-ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_store_callback(rocfft_execution_info desc,
+ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_store_callback(rocfft_execution_info info,
                                                                      void** cb_functions,
                                                                      void** cb_data,
-                                                                     size_t shared_mem_size);
+                                                                     size_t shared_mem_bytes);
 
 #if 0
 /*! @brief Get events from execution info

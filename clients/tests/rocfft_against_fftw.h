@@ -92,12 +92,12 @@ extern bool use_fftw_wisdom;
 // an object which will destruct correctly.
 template <typename Tfloat, typename Tallocator>
 inline std::vector<std::vector<char, Tallocator>>
-    fftw_transform(const std::vector<fftw_iodim64> dims,
-                   const std::vector<fftw_iodim64> howmany_dims,
-                   const rocfft_transform_type     transformType,
-                   const size_t                    isize,
-                   const size_t                    osize,
-                   void*                           cpu_in)
+    fftw_transform(const std::vector<fftw_iodim64>& dims,
+                   const std::vector<fftw_iodim64>& howmany_dims,
+                   const rocfft_transform_type      transformType,
+                   const size_t                     isize,
+                   const size_t                     osize,
+                   void*                            cpu_in)
 {
     typename fftw_trait<Tfloat>::fftw_plan_type cpu_plan = NULL;
     using fftw_complex_type = typename fftw_trait<Tfloat>::fftw_complex_type;

@@ -46,7 +46,7 @@ struct planar
 template <typename PRECISION>
 struct interleaved
 {
-    interleaved(void* in)
+    explicit interleaved(void* in)
         : C(static_cast<PRECISION*>(in))
     {
     }

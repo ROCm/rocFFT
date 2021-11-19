@@ -31,7 +31,7 @@ __global__ void __launch_bounds__(APPLY_REAL_CALLBACK_THREADS)
 
 ROCFFT_DEVICE_EXPORT void apply_real_callback(const void* data_p, void* back)
 {
-    DeviceCallIn* data = (DeviceCallIn*)data_p;
+    auto data = static_cast<const DeviceCallIn*>(data_p);
 
     size_t input_size = data->node->length[0];
 

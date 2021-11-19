@@ -312,6 +312,9 @@ void rocfft_ostream::worker::send(std::string str)
 
     // Wait for the task to be completed, to ensure flushed IO
 #ifdef WIN32
+    // NOTE: this is a hack to avoid hangs at shutdown
+    //
+    // cppcheck-suppress accessMoved
     if(worker_task.size())
 #endif
         future.get();

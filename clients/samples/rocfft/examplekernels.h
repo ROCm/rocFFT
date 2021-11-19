@@ -350,7 +350,7 @@ Tint1 ceildiv(const Tint1 nominator, const Tint2 denominator)
 
 // The following functions call the above kernels to initalize the input data for the transform.
 
-void initcomplex(const std::vector<size_t> length, const std::vector<size_t> stride, void* gpu_in)
+void initcomplex(const std::vector<size_t>& length, const std::vector<size_t>& stride, void* gpu_in)
 {
     switch(length.size())
     {
@@ -406,7 +406,7 @@ void initcomplex(const std::vector<size_t> length, const std::vector<size_t> str
 
 // Initialize the real input buffer where the data has lengths given in length and stride given in
 // stride.  The device buffer is assumed to have been allocated.
-void initreal(const std::vector<size_t> length, const std::vector<size_t> stride, void* gpu_in)
+void initreal(const std::vector<size_t>& length, const std::vector<size_t>& stride, void* gpu_in)
 {
     switch(length.size())
     {
@@ -463,10 +463,10 @@ void initreal(const std::vector<size_t> length, const std::vector<size_t> stride
 // Initialize the real input buffer where the data has lengths given in length, the transform has
 // lengths given in length and stride given in stride.  The device buffer is assumed to have been
 // allocated.
-void inithermitiancomplex(const std::vector<size_t> length,
-                          const std::vector<size_t> ilength,
-                          const std::vector<size_t> stride,
-                          void*                     gpu_in)
+void inithermitiancomplex(const std::vector<size_t>& length,
+                          const std::vector<size_t>& ilength,
+                          const std::vector<size_t>& stride,
+                          void*                      gpu_in)
 {
     switch(length.size())
     {

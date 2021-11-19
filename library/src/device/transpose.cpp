@@ -251,7 +251,7 @@ rocfft_status rocfft_transpose_outofplace_template(size_t       m,
 
 ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, void* back_p)
 {
-    DeviceCallIn* data = (DeviceCallIn*)data_p;
+    auto data = static_cast<const DeviceCallIn*>(data_p);
 
     size_t m = data->node->length[1];
     size_t n = data->node->length[0];

@@ -23,7 +23,7 @@
 
 struct StockhamKernelCC : public StockhamKernel
 {
-    StockhamKernelCC(StockhamGeneratorSpecs& specs)
+    explicit StockhamKernelCC(StockhamGeneratorSpecs& specs)
         : StockhamKernel(specs)
     {
         large_twiddle_steps.decl_default = 3;

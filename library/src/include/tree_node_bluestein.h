@@ -31,7 +31,7 @@ class BluesteinNode : public InternalNode
     friend class NodeFactory;
 
 protected:
-    BluesteinNode(TreeNode* p)
+    explicit BluesteinNode(TreeNode* p)
         : InternalNode(p)
     {
         scheme = CS_BLUESTEIN;

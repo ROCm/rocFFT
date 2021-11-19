@@ -545,11 +545,9 @@ void rocfft_transform(const fft_params&                    params,
         return;
     }
 
-    rocfft_status fft_status = rocfft_status_success;
-
     // Create FFT description
-    rocfft_plan_description desc = NULL;
-    fft_status                   = rocfft_plan_description_create(&desc);
+    rocfft_plan_description desc       = NULL;
+    rocfft_status           fft_status = rocfft_plan_description_create(&desc);
     ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT description creation failure";
     fft_status = rocfft_plan_description_set_data_layout(desc,
                                                          params.itype,
