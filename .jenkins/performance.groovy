@@ -62,6 +62,7 @@ def runTestCommand (platform, project, boolean debug=false)
                     mkdir ${dataType}_results
                     ./scripts/perf/rocfft-perf post ./${dataType}_results ./${dataType}_ref ./${dataType}_change
                     ./scripts/perf/rocfft-perf html ./${dataType}_results ./${dataType}_ref ./${dataType}_change
+                    mv ${dataType}_results/figs.html ${dataType}_results/figs_${platform.gpu}.html
                 """
          platform.runCommand(this, command)
          
@@ -71,8 +72,8 @@ def runTestCommand (platform, project, boolean debug=false)
                     keepAll: false,
                     reportDir: "${project.paths.project_build_prefix}/${dataType}_results",
                     reportFiles: "figs_${platform.gpu}.html",
-                    reportName: "${dataType} Precision ${platform.gpu}",
-                    reportTitles: "${dataType} Precision${platform.gpu}"])
+                    reportName: "${dataType}-precision-${platform.gpu}",
+                    reportTitles: "${dataType}-precision-${platform.gpu}"])
     }
 }
 
@@ -80,7 +81,7 @@ def runCI =
 {
     nodeDetails, jobName->
 
-    def prj  = new rocProject('rocFFT-internal', 'PreCheckin')
+    def prj  = new rocProject('rocFFT-internal', 'Performance')
 
     prj.defaults.ccache = true
     prj.timeout.compile = 600
@@ -93,11 +94,14 @@ def runCI =
     boolean formatCheck = false
 
     def commonGroovy
+    def gpus = []
+    def dataTypes = ['single', 'double']
 
     def compileCommand =
     {
         platform, project->
 
+        gpus.add(platform.gpu)
         commonGroovy = load "${project.paths.project_src_prefix}/.jenkins/common.groovy"
         runCompileCommand(platform, project, jobName)
     }
@@ -110,6 +114,20 @@ def runCI =
     }
 
     buildProject(prj, formatCheck, nodes.dockerArray, compileCommand, testCommand, null)
+    boolean commentExists = false
+    for (prComment in pullRequest.comments) {
+        if (prComment.body.contains("Performance reports:"))
+            commentExists = true
+    }
+    if (!commentExists) {
+        def commentString = "Performance reports: \n"
+        for (gpu in gpus) {
+            for (dataType in dataTypes) {
+                commentString += "[${gpu} ${dataType} report](${JOB_URL}/${dataType}-precision-${gpu})\n"
+            }
+        }
+        def comment = pullRequest.comment(commentString)
+    }
 }
 
 ci: { 
