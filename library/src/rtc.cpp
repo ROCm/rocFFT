@@ -492,10 +492,12 @@ std::shared_future<std::unique_ptr<RTCKernel>>
 
         std::vector<unsigned int> factors;
         std::copy(kernel.factors.begin(), kernel.factors.end(), std::back_inserter(factors));
+        std::vector<unsigned int> precisions = {static_cast<unsigned int>(node.precision)};
 
         specs = std::make_unique<StockhamGeneratorSpecs>(
             factors,
             std::vector<unsigned int>(),
+            precisions,
             static_cast<unsigned int>(kernel.threads_per_block),
             PrintScheme(node.scheme));
         specs->threads_per_transform = kernel.threads_per_transform[0];
@@ -517,6 +519,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
 
         std::vector<unsigned int> factors1d;
         std::vector<unsigned int> factors2d;
+        std::vector<unsigned int> precisions = {static_cast<unsigned int>(node.precision)};
 
         // need to break down factors into first dim and second dim
         size_t len0_remain = node.length[0];
@@ -536,6 +539,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
         specs = std::make_unique<StockhamGeneratorSpecs>(
             factors1d,
             factors2d,
+            precisions,
             static_cast<unsigned int>(kernel.threads_per_block),
             PrintScheme(node.scheme));
         specs->threads_per_transform = kernel.threads_per_transform[0];
@@ -545,6 +549,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
         specs2d = std::make_unique<StockhamGeneratorSpecs>(
             factors2d,
             factors1d,
+            precisions,
             static_cast<unsigned int>(kernel.threads_per_block),
             PrintScheme(node.scheme));
         specs2d->threads_per_transform = kernel.threads_per_transform[1];

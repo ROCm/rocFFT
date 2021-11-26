@@ -168,6 +168,7 @@ struct LaunchSuffix
 // make launcher using POWX macro
 std::string make_launcher(unsigned int                     length,
                           bool                             allow_inplace,
+                          const std::vector<unsigned int>& precision_types,
                           const char*                      macro,
                           const std::vector<LaunchSuffix>& launcher_suffixes,
                           const std::string&               kernel_suffix,
@@ -181,10 +182,11 @@ std::string make_launcher(unsigned int                     length,
     static const auto directions      = {"forward", "inverse"};
 
     static const std::array<std::array<const char*, 2>, 2> precisions{
-        {{"double", "dp"}, {"float", "sp"}}};
+        {{"float", "sp"}, {"double", "dp"}}};
 
-    for(auto&& precision : precisions)
+    for(auto precision_type : precision_types)
     {
+        auto&& precision = precisions[precision_type];
         for(auto&& launcher : launcher_suffixes)
         {
             std::string launcher_name = "rocfft_internal_dfn_";
@@ -213,7 +215,7 @@ std::string make_launcher(unsigned int                     length,
             generated_launchers.emplace_back(kernel,
                                              launcher.scheme,
                                              launcher_name,
-                                             strcmp(precision[0], "double") == 0,
+                                             precision_type == rocfft_precision_double,
                                              launcher.sbrc_type,
                                              launcher.sbrc_transpose_type);
         }
@@ -259,6 +261,7 @@ std::string stockham_variants(StockhamGeneratorSpecs& specs, StockhamGeneratorSp
             kernel.generate_device_function(), {}, kernel.generate_global_function(), true);
         output += make_launcher(specs.length,
                                 true,
+                                specs.precisions,
                                 "POWX_SMALL_GENERATOR",
                                 {{"stoc", specs.scheme, "", ""}},
                                 "SBRR",
@@ -272,6 +275,7 @@ std::string stockham_variants(StockhamGeneratorSpecs& specs, StockhamGeneratorSp
             kernel.generate_device_function(), {}, kernel.generate_global_function(), true);
         output += make_launcher(specs.length,
                                 true,
+                                specs.precisions,
                                 "POWX_LARGE_SBCC_GENERATOR",
                                 {{"sbcc", specs.scheme, "", ""}},
                                 "SBCC",
@@ -303,8 +307,14 @@ std::string stockham_variants(StockhamGeneratorSpecs& specs, StockhamGeneratorSp
                             "SBRC_3D_FFT_ERC_TRANS_Z_XY",
                             "TILE_ALIGNED"});
 
-        output += make_launcher(
-            specs.length, false, "POWX_LARGE_SBRC_GENERATOR", suffixes, "SBRC", kernel, launchers);
+        output += make_launcher(specs.length,
+                                false,
+                                specs.precisions,
+                                "POWX_LARGE_SBRC_GENERATOR",
+                                suffixes,
+                                "SBRC",
+                                kernel,
+                                launchers);
     }
     else if(specs.scheme == "CS_KERNEL_STOCKHAM_BLOCK_CR")
     {
@@ -314,6 +324,7 @@ std::string stockham_variants(StockhamGeneratorSpecs& specs, StockhamGeneratorSp
 
         output += make_launcher(specs.length,
                                 false,
+                                specs.precisions,
                                 "POWX_LARGE_SBCR_GENERATOR",
                                 {{"sbcr", specs.scheme, "", ""}},
                                 "SBCR",
@@ -338,15 +349,20 @@ std::string stockham_variants(StockhamGeneratorSpecs& specs, StockhamGeneratorSp
         std::string length_x = "length" + std::to_string(fused2d.kernel0.length) + "x"
                                + std::to_string(fused2d.kernel1.length);
 
-        std::string launcher_dp = "rocfft_internal_dfn_dp_ci_ci_2D_" + length_fn;
-        output += "POWX_SMALL_GENERATOR(" + launcher_dp + ",ip_forward_" + length_x + ",ip_inverse_"
-                  + length_x + ",op_forward_" + length_x + ",op_inverse_" + length_x + ",double2);";
-        launchers.emplace_back(fused2d, specs.scheme, launcher_dp, true, "", "");
+        static const std::array<std::array<const char*, 2>, 2> precisions{
+            {{"float", "sp"}, {"double", "dp"}}};
 
-        std::string launcher_sp = "rocfft_internal_dfn_sp_ci_ci_2D_" + length_fn;
-        output += "POWX_SMALL_GENERATOR(" + launcher_sp + ",ip_forward_" + length_x + ",ip_inverse_"
-                  + length_x + ",op_forward_" + length_x + ",op_inverse_" + length_x + ",float2);";
-        launchers.emplace_back(fused2d, specs.scheme, launcher_sp, false, "", "");
+        for(auto prec_type : specs.precisions)
+        {
+            auto&&      prec = precisions[prec_type];
+            std::string launcher
+                = "rocfft_internal_dfn_" + std::string(prec[1]) + "_ci_ci_2D_" + length_fn;
+            output += "POWX_SMALL_GENERATOR(" + launcher + ",ip_forward_" + length_x
+                      + ",ip_inverse_" + length_x + ",op_forward_" + length_x + ",op_inverse_"
+                      + length_x + "," + prec[0] + "2);";
+            launchers.emplace_back(
+                fused2d, specs.scheme, launcher, (prec_type == rocfft_precision_double), "", "");
+        }
     }
     else
         throw std::runtime_error("unhandled scheme");

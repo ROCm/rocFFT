@@ -55,12 +55,13 @@ int main(int argc, char** _argv)
     }
 
     // expected args:
-    // factors1d <factors2d> threads_per_transform threads_per_block block_width half_lds scheme output_filename
+    // factors1d <factors2d> precisions threads_per_transform threads_per_block block_width half_lds scheme output_filename
     //
-    // factors1d, factors2d, and threads_per_transform are
+    // factors1d, factors2d, precisions and threads_per_transform are
     // comma-separated values, factors2d is only present for
     // 2D_SINGLE kernels
     //
+    // precisions is a vector containing enums of rocfft_precision (represented by u-int)
     // block_width may be 0 for tilings that aren't explicit about it
 
     // work backwards from the end
@@ -84,6 +85,10 @@ int main(int argc, char** _argv)
     std::vector<unsigned int> threads_per_transform;
     threads_per_transform = parse_uints_csv(*arg);
 
+    ++arg;
+    std::vector<unsigned int> precisions;
+    precisions = parse_uints_csv(*arg);
+
     std::vector<unsigned int> factors;
     std::vector<unsigned int> factors2d;
     if(scheme == "CS_KERNEL_2D_SINGLE")
@@ -95,14 +100,14 @@ int main(int argc, char** _argv)
     ++arg;
     factors = parse_uints_csv(*arg);
 
-    StockhamGeneratorSpecs specs(factors, factors2d, threads_per_block, scheme);
+    StockhamGeneratorSpecs specs(factors, factors2d, precisions, threads_per_block, scheme);
     specs.half_lds = half_lds;
 
     specs.threads_per_transform = threads_per_transform.front();
     specs.block_width           = block_width;
 
     // second dimension for 2D_SINGLE
-    StockhamGeneratorSpecs specs2d(factors2d, factors, threads_per_block, scheme);
+    StockhamGeneratorSpecs specs2d(factors2d, factors, precisions, threads_per_block, scheme);
     if(!threads_per_transform.empty())
         specs2d.threads_per_transform = threads_per_transform.back();
 

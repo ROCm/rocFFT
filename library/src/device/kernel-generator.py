@@ -598,13 +598,16 @@ def generate_kernel(kernel, precisions, stockham_aot):
     """
 
     args = [stockham_aot]
+    pre_enum = { 'sp': 0, 'dp': 1 }
     # 2D single kernels always specify threads per transform
     if isinstance(kernel.length, list):
         args.append(','.join([str(f) for f in kernel.factors[0]]))
         args.append(','.join([str(f) for f in kernel.factors[1]]))
+        args.append(','.join([str(pre_enum[pre]) for pre in precisions]))
         args.append(','.join([str(f) for f in kernel.threads_per_transform]))
     else:
         args.append(','.join([str(f) for f in kernel.factors]))
+        args.append(','.join([str(pre_enum[pre]) for pre in precisions]))
         # 1D kernels might not, and need to default to 'uwide'
         threads_per_transform = getattr(kernel,'threads_per_transform', {
             'uwide': kernel.length // min(kernel.factors),
