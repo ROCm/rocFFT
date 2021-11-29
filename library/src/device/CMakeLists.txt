@@ -151,6 +151,10 @@ list( INSERT rocfft_device_source 0 function_pool.cpp )
 
 # split device lib into 4 so that no single library gets too large to
 # link
+#
+# sort the list to keep the split library contents relatively stable
+# over time
+list( SORT rocfft_device_source )
 list( LENGTH rocfft_device_source rocfft_device_source_len )
 math(EXPR split_len "${rocfft_device_source_len} / 4")
 math(EXPR split_idx_2 "${rocfft_device_source_len} / 4 * 2")
