@@ -186,7 +186,7 @@ def get_post_processed(dname, docdir, outdirs):
 
     secondary = []
     for outdir in outdirs[1:]:
-        path = (docdir / (str(outdir) + "-over-" + str(outdirs[0]) + "-" + dname)).with_suffix('.sdat')
+        path = (docdir / (str(outdir.name) + "-over-" + str(outdirs[0].name) + "-" + dname)).with_suffix('.sdat')
         if path.exists():
             secondary.append(path)
 

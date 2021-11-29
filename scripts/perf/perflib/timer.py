@@ -58,7 +58,11 @@ class GroupedTimer:
         for problem in generator.generate_problems():
             all_problems[problem.tag].append(problem)
 
-        for tag, problems in all_problems.items():
+        total_problems = sum([len(v) for v in all_problems.values()])
+        print(f'Timing {total_problems} problems in {len(all_problems)} groups')
+
+        for i, (tag, problems) in enumerate(all_problems.items()):
+            print(f'\n{tag} (group {i} of {len(all_problems)}): {len(problems)} problems')
             timer = Timer(**self.__dict__)
             timer.out = [path(x) / (tag + '.dat') for x in self.out]
             timer.run_cases(perflib.generators.VerbatimGenerator(problems))

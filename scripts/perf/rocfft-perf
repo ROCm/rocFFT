@@ -9,6 +9,7 @@ General workflow:
 - run: runs a suite of FFTs to collect timing information
 - post: post processes timing information to compute various statistics
 - plot: generate pdf or html plots of the results
+- autodyna: clones, builds, dyna-runs, posts, and plots two rocFFT commits
 
 Multiple runs can be compared at the post processing and plotting
 stages.  Multiple runs may:
@@ -98,6 +99,7 @@ import logging
 import statistics
 import scipy
 import sys
+import os
 
 from pathlib import Path
 
@@ -108,6 +110,7 @@ import perflib
 
 console = logging.StreamHandler()
 
+import types
 
 #
 # Helpers
@@ -191,7 +194,7 @@ def command_post(outdirs, docdir):
                     low, high = perflib.analysis.ratio_confidence_interval(Avals, Bvals)
                     _, pval, _, _ = scipy.stats.median_test(Avals, Bvals)
                     speedups.append([sample.label, perflib.utils.product(length), speedup, low, high, pval])
-                path = docdir / (str(otherdat.path.parent) + '-over-' + str(refdat.path.parent) + '-' + dat_name + '.sdat')
+                path = docdir / (str(otherdat.path.parent.name) + '-over-' + str(refdat.path.parent.name) + '-' + dat_name + '.sdat')
                 perflib.utils.write_tsv(path, speedups, meta=refdat.meta, overwrite=True)
 
 
@@ -299,6 +302,59 @@ def command_run(arguments):
     timer.run_cases(filtered(generator))
 
 
+def command_autodyna(workdir, reference_commit, reference_repository, reference_label, commit, repository, label, suite, format, **kwargs):
+    """Compare performance of two builds automagically."""
+
+    from perflib.build import build_rocfft
+
+    if reference_repository is None:
+        reference_repository = repository
+
+    if reference_label is None:
+        reference_label = reference_commit
+
+    if label is None:
+        label = commit
+
+    top = Path(workdir).resolve()
+    build1  = top / f'build-{reference_commit}'
+    build2  = top / f'build-{commit}'
+    output  = top / f'doc-{commit}'
+
+    # build rocFFTs
+    top.mkdir(parents=True, exist_ok=True)
+    os.chdir(str(top))
+
+    lib1 = build1 / 'lib' / 'librocfft.so'
+    lib1.parent.mkdir(parents=True, exist_ok=True)
+    if not lib1.exists():
+        build_rocfft(reference_commit, dest=build1, repo=reference_repository, ccache=True)
+
+    lib2 = build2 / 'lib' / 'librocfft.so'
+    lib2.parent.mkdir(parents=True, exist_ok=True)
+    if not lib2.exists():
+        build_rocfft(commit, dest=build2, repo=repository, ccache=True)
+
+    # run cases
+    timer = perflib.timer.GroupedTimer()
+    timer.rider = build1 / 'dyna-rocfft-rider'
+    timer.lib = [lib1, lib2]
+    timer.out = [build1, build2]
+
+    specs = perflib.specs.get_machine_specs(timer.device)
+    for out in timer.out:
+        specs_file = Path(out) / 'specs.txt'
+        specs_file.write_text(str(specs))
+
+    generator = perflib.generators.SuiteProblemGenerator(suite)
+    timer.run_cases(generator)
+
+    # post-process results
+    command_post([build1, build2], output)
+
+    # generate report
+    for report_type in format:
+        command_generate(runs=[build1, build2], label=[reference_label, label], output=output, type=report_type)
 #
 # Main
 #
@@ -353,6 +409,17 @@ def main():
     run_parser.add_argument('-N', '--ntrial', type=int, help='number of trials')
     run_parser.add_argument('-f', '--precision', type=str, help='precision', action='append')
 
+    autodyna_parser = subparsers.add_parser('autodyna', help='clone, build, dyna-run, post, and plot two rocFFT commits')
+    autodyna_parser.add_argument('--workdir', type=str, help='Working directory', default='.')
+    autodyna_parser.add_argument('--reference_commit', type=str, help='Reference commit', required=True)
+    autodyna_parser.add_argument('--reference_repository', type=str, help='Reference repository (if different from repository)')
+    autodyna_parser.add_argument('--reference_label', type=str, help='Reference label (if different from reference commit)')
+    autodyna_parser.add_argument('--commit', type=str, help='Commit to test', required=True)
+    autodyna_parser.add_argument('--repository', type=str, help='Repository to test', required=True)
+    autodyna_parser.add_argument('--label', type=str, help='Test label (if different from test commit)')
+    autodyna_parser.add_argument('--suite', type=str, help='Test suite name (appendable)', action='append', required=True)
+    autodyna_parser.add_argument('--format', type=str, help='Output format (appendable)', action='append', default=['html'])
+
     arguments = parser.parse_args()
 
     if arguments.verbose:
@@ -385,6 +452,8 @@ def main():
     if arguments.command == 'docx':
         command_generate(type='docx', **vars(arguments))
 
+    if arguments.command == 'autodyna':
+        command_autodyna(**vars(arguments))
 
 if __name__ == '__main__':
     logging.basicConfig(filename='rocfft-perf.log',

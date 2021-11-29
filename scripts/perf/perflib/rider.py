@@ -46,6 +46,8 @@ def run(rider, length, direction=-1, real=False, inplace=True,
     logging.info('running: ' + ' '.join(cmd))
     if verbose:
         print('running: ' + ' '.join(cmd))
+    else:
+        print('.', end='', flush=True)
     p = subprocess.run(cmd,
                        stdout=subprocess.PIPE,
                        stderr=subprocess.STDOUT,
