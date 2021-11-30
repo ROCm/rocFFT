@@ -82,6 +82,12 @@ struct FFTKernel
     DevFnCall           device_function = nullptr;
     std::vector<size_t> factors;
     // number of transforms performed by one threadblock
+    // TODO: should avoid confusion about "batches" and "transforms"
+    // Ideas: batches -> transforms
+    //       batches_per_block (bpb) -> transforms_per_block (tpb)
+    //       threads_per_transform (tbt)
+    //       threads_per_block (tpb) -> workgroup_size = wgs
+    //       workgroup_size = threads_per_transform (tpt) * transforms_per_block (tpb)
     int batches_per_block = 0;
     int threads_per_block = 0;
     // 2D_SINGLE specifies separate threads for each dimension;

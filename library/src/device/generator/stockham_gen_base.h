@@ -82,6 +82,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     // data that may be overridden by subclasses (different tiling types)
     bool         load_from_lds  = true;
     unsigned int n_device_calls = 1;
+    bool         writeGuard     = false;
 
     static unsigned int compute_nregisters(unsigned int                     length,
                                            const std::vector<unsigned int>& factors,
@@ -130,6 +131,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     Variable lds_padding{"lds_padding", "const unsigned int"};
 
     // should the device function write to lds?
+    // only used for 2D
     Variable write{"write", "bool"};
 
     // is LDS real-only?
@@ -494,7 +496,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         body += Declaration{batch};
         body += Declaration{transform};
         body += Declaration{thread};
-        body += Declaration{write};
 
         if(half_lds)
             body += Declaration{lds_is_real, embedded_type == "EmbeddedType::NONE"};
@@ -513,7 +514,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         body += calculate_offsets();
 
         body += LineBreak{};
-        body += Assign{write, "true"};
         body += If{batch >= nbatch, {Return{}}};
         body += LineBreak{};
 
@@ -538,7 +538,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
         body += LineBreak{};
         body += CommentLines{"transform"};
-        body += Assign{write, "true"};
         for(unsigned int c = 0; c < n_device_calls; ++c)
         {
             auto templates = device_call_templates();
@@ -603,11 +602,9 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 lds_complex,
                 twiddles,
                 stride_lds,
-                call_iter
-                    ? Expression{offset_lds
-                                 + call_iter * (length + lds_row_padding) * transforms_per_block}
-                    : Expression{offset_lds},
-                write};
+                call_iter ? Expression{offset_lds + call_iter * stride_lds * transforms_per_block}
+                          : Expression{offset_lds},
+                Literal{"true"}};
     }
 
     enum class ProcessingType
@@ -685,9 +682,19 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         {
             stmts += CommentLines{"more than enough threads, some do nothing"};
             if(threads_per_transform != length / width)
-                stmts += If{write && (thread < length / width), work};
+            {
+                if(writeGuard)
+                    stmts += If{write && (thread < length / width), work};
+                else
+                    stmts += If{thread < length / width, work};
+            }
             else
-                stmts += If{write, work};
+            {
+                if(writeGuard)
+                    stmts += If{write, work};
+                else
+                    stmts += work;
+            }
         }
         else
         {
@@ -699,7 +706,10 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             stmts += CommentLines{"not enough threads, some threads do extra work"};
             unsigned int dt = iheight * threads_per_transform;
             work            = generator(0, iheight, width, dt);
-            stmts += If{write && (thread + dt < length / width), work};
+            if(writeGuard)
+                stmts += If{write && (thread + dt < length / width), work};
+            else
+                stmts += If{thread + dt < length / width, work};
         }
 
         return stmts;

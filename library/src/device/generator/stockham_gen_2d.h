@@ -34,6 +34,11 @@ struct StockhamKernelFused2D : public StockhamKernelRR
         threads_per_block    = threads_per_transform;
         transforms_per_block = 1;
         R.size               = std::max(kernel0.nregisters, kernel1.nregisters);
+        kernel0.writeGuard   = true;
+        kernel1.writeGuard   = true;
+        // 2D kernels use kernel0 and kernel1 device functions,
+        // so this writeGuard value is not used and irrelevant
+        writeGuard = true;
     }
 
     StockhamKernelRR kernel0;
@@ -49,6 +54,18 @@ struct StockhamKernelFused2D : public StockhamKernelRR
         std::copy(kernel0.factors.begin(), kernel0.factors.end(), std::back_inserter(ret));
         std::copy(kernel1.factors.begin(), kernel1.factors.end(), std::back_inserter(ret));
         return ret;
+    }
+
+    std::vector<Expression> device_call_arguments(unsigned int call_iter) override
+    {
+        return {R,
+                lds_real,
+                lds_complex,
+                twiddles,
+                stride_lds,
+                call_iter ? Expression{offset_lds + call_iter * stride_lds * transforms_per_block}
+                          : Expression{offset_lds},
+                write};
     }
 
     Function generate_global_function() override
@@ -80,7 +97,6 @@ struct StockhamKernelFused2D : public StockhamKernelRR
         Variable plength{"plength", "size_t"};
 
         Variable batch0{"batch0", "size_t"};
-        Variable write{"write", "bool"};
 
         body += LDSDeclaration{scalar_type.name};
         body += Declaration{R};

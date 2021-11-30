@@ -54,6 +54,13 @@ struct StockhamKernelRC : public StockhamKernel
         StatementList stmts;
 
         stmts += Declaration{tile};
+
+        stmts += LineBreak{};
+        stmts += CommentLines{"so far, lds_padding is either 0 or 1, assigning only 0 or 1",
+                              "to a local var can make compiler able to optimize the asm,",
+                              "such as removing un-neccessary add, mul and s_load, especially"
+                              "when this variable is used many times!"
+                              "the padding here is ROW_PADDING"};
         stmts += Declaration{lds_row_padding, 0};
 
         stmts += If{sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY", {Assign{lds_row_padding, 1}}};
@@ -348,5 +355,21 @@ struct StockhamKernelRC : public StockhamKernel
         tpls.arguments.insert(tpls.arguments.begin() + 2, sbrc_type);
         tpls.arguments.insert(tpls.arguments.begin() + 3, transpose_type);
         return tpls;
+    }
+
+    std::vector<Expression> device_call_arguments(unsigned int call_iter) override
+    {
+        // TODO: We eventually will replace "length + lds_row_padding" with stride_lds
+        //       after we finish refactoring all SBRC-type
+        return {R,
+                lds_real,
+                lds_complex,
+                twiddles,
+                stride_lds,
+                call_iter
+                    ? Expression{offset_lds
+                                 + call_iter * (length + lds_row_padding) * transforms_per_block}
+                    : Expression{offset_lds},
+                Literal{"true"}};
     }
 };

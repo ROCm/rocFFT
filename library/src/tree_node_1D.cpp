@@ -866,8 +866,16 @@ void Stockham1DNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 
     gp.b_x   = (batch_accum + kernel.batches_per_block - 1) / kernel.batches_per_block;
     gp.tpb_x = kernel.threads_per_block;
-    lds      = (length[0] + lds_padding) * kernel.batches_per_block;
     bwd      = kernel.batches_per_block;
+
+    // we don't even need lds (kernel_1,2,3,4,5,6,7,10,11,13,17) since we don't use them at all
+    // TODO: we can even use swizzle to do the butterfly shuffle if threads_per_transform[0] <= warpSize
+    //       such as kernel_8 = [4, 2] can probably gain some perf.
+    if(kernel.threads_per_transform[0] <= deviceProp.warpSize && ebtype == EmbeddedType::NONE
+       && kernel.factors.size() == 1)
+        lds = 0;
+    else
+        lds = (length[0] + lds_padding) * kernel.batches_per_block;
 }
 
 bool Stockham1DNode::CreateTwiddleTableResource()

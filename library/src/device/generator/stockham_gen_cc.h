@@ -103,7 +103,8 @@ struct StockhamKernelCC : public StockhamKernel
                         tile_index * transforms_per_block + thread_id / threads_per_transform};
         stmts += Assign{batch, block_id / plength};
         stmts += Assign{offset, offset + batch * stride[dim]};
-        stmts += Assign{offset_lds, length * (transform % transforms_per_block)};
+        stmts += Assign{stride_lds, (length + lds_padding)};
+        stmts += Assign{offset_lds, stride_lds * (transform % transforms_per_block)};
 
         return stmts;
     }
@@ -127,9 +128,8 @@ struct StockhamKernelCC : public StockhamKernel
 
         auto offset_tile_rbuf
             = [&](unsigned int i) { return tid1 * stride[1] + (tid0 + i * stripmine_h) * stride0; };
-        auto offset_tile_wlds = [&](unsigned int i) {
-            return tid1 * length + lds_padding + (tid0 + i * stripmine_h) * 1;
-        };
+        auto offset_tile_wlds
+            = [&](unsigned int i) { return tid1 * stride_lds + (tid0 + i * stripmine_h) * 1; };
 
         StatementList tmp_stmts;
         Expression    pred{tile_index * transforms_per_block + tid1 < lengths[1]};
@@ -151,9 +151,8 @@ struct StockhamKernelCC : public StockhamKernel
 
         auto offset_tile_wbuf
             = [&](unsigned int i) { return tid1 * stride[1] + (tid0 + i * stripmine_h) * stride0; };
-        auto offset_tile_rlds = [&](unsigned int i) {
-            return tid1 * length + lds_padding + (tid0 + i * stripmine_h) * 1;
-        };
+        auto offset_tile_rlds
+            = [&](unsigned int i) { return tid1 * stride_lds + (tid0 + i * stripmine_h) * 1; };
         StatementList tmp_stmts;
         Expression    pred{tile_index * transforms_per_block + tid1 < lengths[1]};
         for(unsigned int i = 0; i < length / stripmine_h; ++i)
