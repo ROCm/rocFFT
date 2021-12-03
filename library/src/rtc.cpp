@@ -335,6 +335,7 @@ std::string stockham_rtc(StockhamGeneratorSpecs& specs,
         src += "false;\n";
 
     src += "static const size_t large_twiddle_base = " + std::to_string(node.largeTwdBase) + ";\n";
+    src += "static const size_t large_twiddle_steps = " + std::to_string(node.ltwdSteps) + ";\n";
 
     src += make_rtc(*global, kernel_name).render();
     src += "// ROCFFT_RTC_END " + kernel_name + "\n";
