@@ -2,6 +2,11 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
+## (Unreleased) rocFFT 1.0.17
+
+### Changed
+- Enabled runtime compilation of single FFT kernels > length 1024.
+
 ## (Unreleased) rocFFT 1.0.16
 
 ### Changed
