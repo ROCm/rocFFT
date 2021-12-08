@@ -20,7 +20,7 @@
 # THE SOFTWARE.
 # #############################################################################
 
-add_library( stockham_gen STATIC stockham_gen.cpp )
+add_library( stockham_gen OBJECT stockham_gen.cpp )
 
 add_executable( stockham_aot stockham_aot.cpp )
 target_link_libraries( stockham_aot PRIVATE stockham_gen )

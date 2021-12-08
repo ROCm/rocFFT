@@ -146,7 +146,7 @@ FetchContent_Declare(sqlite_local
   URL_HASH SHA256=999826fe4c871f18919fdb8ed7ec9dd8217180854dd1fe21eea96aed36186729
 )
 FetchContent_MakeAvailable(sqlite_local)
-add_library( sqlite3 STATIC ${sqlite_local_SOURCE_DIR}/sqlite3.c )
+add_library( sqlite3 OBJECT ${sqlite_local_SOURCE_DIR}/sqlite3.c )
 set_target_properties( sqlite3 PROPERTIES
   C_VISIBILITY_PRESET "hidden"
   VISIBILITY_INLINES_HIDDEN ON
@@ -167,10 +167,13 @@ set_property(
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 
-add_library( rocfft ${rocfft_source} ${relative_rocfft_headers_public} )
+add_library( rocfft
+  ${rocfft_source}
+  ${relative_rocfft_headers_public}
+  $<TARGET_OBJECTS:sqlite3>
+  )
 add_library( roc::rocfft ALIAS rocfft )
 
-target_link_libraries( rocfft PRIVATE stockham_gen sqlite3 )
 if( NOT WIN32 )
   target_link_libraries( rocfft PRIVATE -lstdc++fs )
 endif()
