@@ -140,10 +140,13 @@ set( rocfft_source
 # position-independent.
 include( FetchContent )
 
+set(SQLITE_SRC_URL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip CACHE STRING "Location of SQLite source code")
+set(SQLITE_SRC_SHA256 999826fe4c871f18919fdb8ed7ec9dd8217180854dd1fe21eea96aed36186729 CACHE STRING "SHA256 hash of SQLite source code")
+
 # embed SQLite
 FetchContent_Declare(sqlite_local
-  URL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip
-  URL_HASH SHA256=999826fe4c871f18919fdb8ed7ec9dd8217180854dd1fe21eea96aed36186729
+  URL ${SQLITE_SRC_URL}
+  URL_HASH SHA256=${SQLITE_SRC_SHA256}
 )
 FetchContent_MakeAvailable(sqlite_local)
 add_library( sqlite3 OBJECT ${sqlite_local_SOURCE_DIR}/sqlite3.c )

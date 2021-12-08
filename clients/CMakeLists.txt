@@ -85,9 +85,12 @@ if( BUILD_CLIENTS_TESTS  OR BUILD_CLIENTS_SELFTEST )
       ${CMAKE_CURRENT_BINARY_DIR}/src/gtest-build/lib/${CMAKE_STATIC_LIBRARY_PREFIX}gtest_main${CMAKE_STATIC_LIBRARY_SUFFIX}
       )
 
+    set(GTEST_SRC_URL https://github.com/google/googletest/archive/release-1.10.0.tar.gz CACHE STRING "Location of GTest source code")
+    set(GTEST_SRC_SHA256 9dc9157a9a1551ec7a7e43daea9a694a0bb5fb8bec81235d8a1e6ef64c716dcb CACHE STRING "SHA256 hash of GTest source code")
+
     ExternalProject_Add( gtest
-      URL https://github.com/google/googletest/archive/release-1.10.0.tar.gz
-      URL_HASH SHA256=9dc9157a9a1551ec7a7e43daea9a694a0bb5fb8bec81235d8a1e6ef64c716dcb
+      URL ${GTEST_SRC_URL}
+      URL_HASH SHA256=${GTEST_SRC_SHA256}
       PREFIX ${CMAKE_CURRENT_BINARY_DIR}
       CMAKE_ARGS -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
       INSTALL_COMMAND ""
@@ -115,7 +118,7 @@ if( BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SAMPLES )
      ${CMAKE_CURRENT_BINARY_DIR}/src/fftw_single-build/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3f_threads${CMAKE_STATIC_LIBRARY_SUFFIX}
      ${CMAKE_CURRENT_BINARY_DIR}/src/fftw_single-build/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3f${CMAKE_STATIC_LIBRARY_SUFFIX}
    )
-   
+
    set( FFTW_CMAKE_ARGS_COMMON
      -DDISABLE_FORTRAN=ON
      -DENABLE_AVX2=ON
@@ -125,10 +128,13 @@ if( BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SAMPLES )
      -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
    )
 
+   set(FFTW_SRC_URL http://www.fftw.org/fftw-3.3.9.tar.gz CACHE STRING "Location of FFTW source code")
+   set(FFTW_SRC_SHA256 bf2c7ce40b04ae811af714deb512510cc2c17b9ab9d6ddcf49fe4487eea7af3d CACHE STRING "SHA256 hash of FFTW source code")
+
    # build double-precision FFTW
    ExternalProject_Add( fftw_double
-     URL http://www.fftw.org/fftw-3.3.9.tar.gz
-     URL_HASH SHA256=bf2c7ce40b04ae811af714deb512510cc2c17b9ab9d6ddcf49fe4487eea7af3d
+     URL ${FFTW_SRC_URL}
+     URL_HASH SHA256=${FFTW_SRC_SHA256}
      SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/src/fftw
      PREFIX ${CMAKE_CURRENT_BINARY_DIR}
      CMAKE_ARGS ${FFTW_CMAKE_ARGS_COMMON}
