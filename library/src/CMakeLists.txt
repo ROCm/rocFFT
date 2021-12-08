@@ -179,6 +179,9 @@ if( ROCFFT_RUNTIME_COMPILE )
 endif()
 
 target_compile_options( rocfft PRIVATE ${WARNING_FLAGS} )
+if( ${CMAKE_BUILD_TYPE} STREQUAL Debug )
+  target_compile_options(rocfft PRIVATE -Og)
+endif()
 
 if( NOT BUILD_SHARED_LIBS )
   target_link_libraries( rocfft INTERFACE hip::host )
