@@ -2,6 +2,7 @@
 from itertools import product
 from perflib.generators import Problem
 from perflib.generators import RadixProblemGenerator
+import sympy
 
 lengths = {
 
@@ -54,7 +55,55 @@ lengths = {
 
         (25,20,20),
         (42,32,32),
-        (75,55,55)
+        (75,55,55),
+    ],
+
+    'misc3d': [
+        (256, 256, 256),
+        (336, 336, 56),
+    ],
+
+    'misc2d': [
+        (256, 256),
+        (56, 336),
+        (4096, 4096),
+        (336, 18816),
+    ],
+
+    'large1d': [
+        8192,
+        10000,
+        10752,
+        16384,
+        16807,
+        18816,
+        21504,
+        32256,
+        43008,
+    ],
+
+    'mixed': [
+        225, 240, 300, 486, 600, 900, 958, 1014, 1139,
+        1250, 1427, 1463, 1480, 1500, 1568, 1608, 1616, 1638, 1656,
+        1689, 1696, 1708, 1727, 1744, 1752, 1755, 1787, 1789, 1828,
+        1833, 1845, 1860, 1865, 1875, 1892, 1897, 1899, 1900, 1903,
+        1905, 1912, 1933, 1938, 1951, 1952, 1954, 1956, 1961, 1964,
+        1976, 1997, 2004, 2005, 2006, 2012, 2016, 2028, 2033, 2034,
+        2038, 2069, 2100, 2113, 2116, 2123, 2136, 2152, 2160, 2167,
+        2181, 2182, 2187, 2205, 2208, 2242, 2250, 2251, 2288, 2306,
+        2342, 2347, 2352, 2355, 2359, 2365, 2367, 2383, 2385, 2387,
+        2389, 2429, 2439, 2445, 2448, 2462, 2467, 2474, 2478, 2484,
+        2486, 2496, 2500, 2503, 2519, 2525, 2526, 2533, 2537, 2556,
+        2558, 2559, 2566, 2574, 2576, 2594, 2604, 2607, 2608, 2612,
+        2613, 2618, 2632, 2635, 2636, 2641, 2652, 2654, 2657, 2661,
+        2663, 2678, 2688, 2690, 2723, 2724, 2728, 2729, 2733, 2745,
+        2755, 2760, 2772, 2773, 2780, 2786, 2789, 2790, 2805, 2807,
+        2808, 2812, 2815, 2816, 2820, 2826, 2830, 2834, 2841, 2847,
+        2848, 2850, 2852, 2853, 2872, 2877, 2882, 2883, 2886, 2887,
+        2892, 2893, 2917, 2922, 2924, 2926, 2928, 2929, 2932, 2933,
+        2934, 2938, 2951, 2960, 2970, 2979, 2990, 2994, 2998, 2999,
+        3000, 3001, 3003, 3004, 3008, 3034, 3035, 3039, 3040, 3042,
+        3048, 3052, 3055, 3060, 3065, 4000, 12000, 24000,
     ],
 
     'generated': [ 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18,
@@ -84,24 +133,28 @@ def mktag(tag, dimension, precision, direction, inplace, real):
     return "_".join(t)
 
 
-def md():
-    """Molecular dynamics suite."""
-
+# yield problem sizes with default precision, direction, etc
+def default_length_params(tag, lengths, nbatch):
     precisions = ['single', 'double']
     directions = [-1, 1]
     inplaces   = [True,False]
     reals      = [True,False]
 
     for precision, direction, inplace, real in product(precisions, directions, inplaces, reals):
-        for length in lengths['md']:
-            nbatch = 10
+        for length in lengths:
+            length = (length,) if isinstance(length,int) else length
             yield Problem(length,
-                          tag=mktag("md", len(length), precision, direction, inplace, real),
+                          tag=mktag(tag, len(length), precision, direction, inplace, real),
                           nbatch=nbatch,
                           direction=direction,
                           inplace=inplace,
                           real=real,
                           precision=precision)
+
+def md():
+    """Molecular dynamics suite."""
+
+    yield from default_length_params("md", lengths['md'], 10)
 
 def qa():
     """AMD QA suite."""
@@ -142,43 +195,38 @@ def qa():
                           real=True,
                           precision='single')
 
+def misc2d():
+    """Miscellaneous 2D sizes."""
+
+    yield from default_length_params("misc2d", lengths['misc2d'], 1)
+
+def misc3d():
+    """Miscellaneous 3D sizes."""
+
+    yield from default_length_params("misc3d", lengths['misc3d'], 1)
+
+def large1d():
+    """Large 1D sizes."""
+
+    yield from default_length_params("large1d", lengths['large1d'], 10000)
+
 
 def generated1d():
     """Explicitly generated 1D lengths."""
 
-    precisions = ['single', 'double']
-    directions = [-1, 1]
-    inplaces   = [True,False]
-    reals      = [True,False]
-
-    for precision, direction, inplace, real in product(precisions, directions, inplaces, reals):
-        for length in lengths['generated']:
-            yield Problem([length],
-                          tag=mktag("generated1d", 1, precision, direction, inplace, real),
-                          nbatch=1000,
-                          direction=direction,
-                          inplace=inplace,
-                          real=real,
-                          precision=precision)
+    yield from default_length_params("generated1d", lengths['generated'], 1000)
 
 def generated2d():
     """Explicitly generated 2D lengths."""
 
     lengths2d  = list(filter(lambda x: x <= 1024, lengths['generated']))
-    precisions = ['single', 'double']
-    directions = [-1, 1]
-    inplaces   = [True,False]
-    reals      = [True,False]
+    yield from default_length_params("generated2d", lengths2d, 100)
 
-    for precision, direction, inplace, real in product(precisions, directions, inplaces, reals):
-        for length in lengths2d:
-            yield Problem([length,length],
-                          tag=mktag("generated2d", 2, precision, direction, inplace, real),
-                          nbatch=1000,
-                          direction=direction,
-                          inplace=inplace,
-                          real=real,
-                          precision=precision)
+def generated3d():
+    """Explicitly generated 3D lengths."""
+
+    lengths2d  = list(filter(lambda x: x <= 512, lengths['generated']))
+    yield from default_length_params("generated2d", lengths2d, 1)
 
 def benchmarks():
     """Benchmarks: XXX"""
@@ -191,21 +239,34 @@ def benchmarks():
         3: (16, 1024),
     }
 
-    lengths    = sorted(pow2 + pow3)
+    all_lengths    = sorted(pow2 + pow3)
     dimensions = [1, 2, 3]
-    precisions = ['single', 'double']
-    directions = [-1, 1]
-    inplaces   = [True,False]
-    reals      = [True,False]
 
-    for dimension, precision, direction, inplace, real in product(dimensions, precisions, directions, inplaces, reals):
+    for dimension in dimensions:
         min1, max1 = minmax[dimension]
-        for length in lengths:
-            if min1 <= length <= max1:
-                yield Problem((3*[length])[:dimension],
-                              tag=mktag('benchmark', dimension, precision, direction, inplace, real),
-                              nbatch=1,
-                              direction=direction,
-                              inplace=inplace,
-                              real=real,
-                              precision=precision)
+        lengths = [(3*[length])[:dimension] for length in all_lengths if min1 <= length <= max1]
+        yield from default_length_params('benchmark', lengths, 1)
+
+def all():
+    """All suites run during regular testing."""
+
+    # pow 2, 5, 7
+    yield from default_length_params("pow2", [ 2**k for k in range(9,17) ], 10000)
+    yield from default_length_params("pow5", [ 5**k for k in range(4,8) ], 5000)
+    yield from default_length_params("pow7", [ 7**k for k in range(3,7) ], 5000)
+
+    # prime
+    yield from default_length_params("prime", list(sympy.sieve.primerange(11, 1000)), 10000)
+
+    # mixed 1D
+    yield from default_length_params("mixed", lengths['mixed'], 10000)
+
+    yield from md()
+
+    yield from generated1d()
+    yield from generated2d()
+    yield from generated3d()
+
+    yield from large1d()
+    yield from misc2d()
+    yield from misc3d()

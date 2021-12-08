@@ -103,6 +103,8 @@ import os
 
 from pathlib import Path
 
+from multiprocessing import Pool
+
 top = Path(__file__).resolve().parent
 sys.path.append(str(top))
 
@@ -149,6 +151,15 @@ def command_moods(runs, percent, moods):
         print("--length " + perflib.utils.sjoin(length))
 
 
+def generate_mdat(dat):
+    confidence = [['length', 'elements', 'median_sample', 'median_low', 'median_high']]
+    for _, elements, sample in dat.sorted_samples():
+        median = statistics.median(sample.times)
+        low, high = perflib.analysis.confidence_interval(sample.times)
+        confidence.append([sample.label, elements, median, low, high])
+    path = dat.path.with_suffix('.mdat')
+    perflib.utils.write_tsv(path, confidence, meta=dat.meta, overwrite=True)
+
 def command_post(outdirs, docdir):
     """Post process results in directories listed in `outdirs`.
 
@@ -167,14 +178,8 @@ def command_post(outdirs, docdir):
 
     # median confidence intervals
     for run in all_runs:
-        for dat in run.dats.values():
-            confidence = [['length', 'elements', 'median_sample', 'median_low', 'median_high']]
-            for _, elements, sample in dat.sorted_samples():
-                median = statistics.median(sample.times)
-                low, high = perflib.analysis.confidence_interval(sample.times)
-                confidence.append([sample.label, elements, median, low, high])
-            path = dat.path.with_suffix('.mdat')
-            perflib.utils.write_tsv(path, confidence, meta=dat.meta, overwrite=True)
+        with Pool(None) as p:
+            p.map(generate_mdat, run.dats.values())
 
     # speedup and pvals
     if len(outdirs) > 1:

@@ -212,6 +212,6 @@ def to_data_frames(primaries, secondaries):
 
     for i, secondary in enumerate(secondaries):
         df = pandas.read_csv(secondary, delimiter='\t', comment='#')
-        data_frames[i+1] = data_frames[i+1].merge(df, how='left', on='length', suffixes=(None, '_y'))
+        data_frames[i+1] = data_frames[i+1].merge(df, how='left', on='length', suffixes=('', '_y'))
 
     return data_frames
