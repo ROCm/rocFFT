@@ -360,6 +360,12 @@ void BLOCKRC3DNode::BuildTree_internal()
         }
     }
 
+    // FIXME: the new SBRC_81 param setting causes seg fault in XY_Z type, force it Z_XY
+    if(length[0] == 81 || length[1] == 81 || length[2] == 81)
+    {
+        use_ZXY_sbrc = true;
+    }
+
     size_t total_sbrc = 0;
     for(int i = 0; i < 3; ++i)
     {
@@ -764,11 +770,11 @@ void SBRCTransXY_ZNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
 {
     auto kernel
         = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-    bwd                = kernel.block_width;
-    wgs                = kernel.threads_per_block;
-    lds                = length[0] * kernel.block_width;
-    auto transposeType = sbrc_3D_transpose_type(bwd);
-    fnPtr  = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
+    bwd           = kernel.block_width;
+    wgs           = kernel.threads_per_block;
+    lds           = length[0] * kernel.block_width;
+    sbrcTranstype = sbrc_transpose_type(bwd);
+    fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
     gp.b_x = DivRoundingUp(length[2], static_cast<size_t>(kernel.block_width)) * length[1] * batch;
     gp.tpb_x = kernel.threads_per_block;
 }
@@ -781,11 +787,11 @@ void SBRCTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
 {
     auto kernel
         = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-    bwd                = kernel.block_width;
-    wgs                = kernel.threads_per_block;
-    lds                = length[0] * kernel.block_width;
-    auto transposeType = sbrc_3D_transpose_type(bwd);
-    fnPtr  = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
+    bwd           = kernel.block_width;
+    wgs           = kernel.threads_per_block;
+    lds           = length[0] * kernel.block_width;
+    sbrcTranstype = sbrc_transpose_type(bwd);
+    fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
     gp.b_x = std::accumulate(length.begin() + 1, length.end(), batch, std::multiplies<size_t>());
     gp.b_x /= kernel.block_width;
     gp.tpb_x = kernel.threads_per_block;
@@ -799,12 +805,12 @@ void RealCmplxTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridPara
 {
     auto kernel
         = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-    bwd                = kernel.block_width;
-    wgs                = kernel.threads_per_block;
-    lds                = length[0] * kernel.block_width;
-    lds_padding        = 1;
-    auto transposeType = sbrc_3D_transpose_type(bwd);
-    fnPtr  = function_pool::get_function(fpkey(length[0], precision, scheme, transposeType));
+    bwd           = kernel.block_width;
+    wgs           = kernel.threads_per_block;
+    lds           = length[0] * kernel.block_width;
+    lds_padding   = 1;
+    sbrcTranstype = sbrc_transpose_type(bwd);
+    fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
     gp.b_x = std::accumulate(length.begin() + 1, length.end(), batch, std::multiplies<size_t>());
     gp.b_x /= kernel.block_width;
     gp.tpb_x = kernel.threads_per_block;

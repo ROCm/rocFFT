@@ -543,16 +543,22 @@ def list_large_kernels():
 
     # SBRC
     # still have room to improve...such as 200
+    # TODO- We eventually need to tweak the params and remove block_width after all SBRC-Types are re-written.
+    #       Especially for len 64, 81 and 128, we should test them more.
     sbrc_kernels = [
+        NS(length=49,  factors=[7, 7], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=196, threads_per_transform=7, block_width=28),
         NS(length=50,  factors=[10, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=50, threads_per_transform=5, block_width=10),
-        # SBRC64: tpb=256 poor in MI50, FIXME: need to investigate why we can't set tpt=8? 61 128 256 fault
+        # SBRC64: tpb=256 poor in MI50, FIXME: need to investigate why we can't set tpt=8? 64 128 256 fault
         NS(length=64,  factors=[4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128, block_width=16),
-        NS(length=81,  factors=[3, 3, 3, 3], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=81, threads_per_transform=27, block_width=9),
+        # NS(length=81,  factors=[3, 3, 3, 3], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=486, threads_per_transform=27, block_width=18),
+        NS(length=81,  factors=[3, 3, 3, 3], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=243, threads_per_transform=27, block_width=9),
         NS(length=100, factors=[5, 5, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=100, threads_per_transform=25, block_width=4),
+        NS(length=112, factors=[4, 7, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=448, threads_per_transform=28, block_width=16),
         NS(length=128, factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128, threads_per_transform=16, block_width=8),
-        # NS(length=128, factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=32, block_width=8), # correctness issue
+        # NS(length=128, factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=32, block_width=8),
+        NS(length=192, factors=[6, 4, 4, 2], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=192, threads_per_transform=24, block_width=8),
         NS(length=200, factors=[10, 10, 2], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=100, threads_per_transform=10, block_width=10),
-        NS(length=256, factors=[4, 4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=64, block_width=8), # tpt should be 32?
+        NS(length=256, factors=[4, 4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=32, block_width=8),
     ]
 
     # NB:

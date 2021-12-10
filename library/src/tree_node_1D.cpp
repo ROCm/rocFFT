@@ -890,11 +890,11 @@ bool Stockham1DNode::CreateTwiddleTableResource()
 void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
     auto kernel = function_pool::get_kernel(fpkey(length[0], precision, scheme));
+    fnPtr       = kernel.device_function;
     bwd         = kernel.batches_per_block;
     wgs         = kernel.threads_per_block;
-    lds         = length[0] * kernel.batches_per_block;
-    fnPtr       = kernel.device_function;
-    gp.b_x      = ((length[1]) - 1) / kernel.batches_per_block + 1;
+    lds         = length[0] * bwd;
+    gp.b_x      = ((length[1]) - 1) / bwd + 1;
     gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
     gp.tpb_x = kernel.threads_per_block;
 }
@@ -913,14 +913,22 @@ bool SBCCNode::isInplacePreferable() const
  *****************************************************/
 void SBRCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
-    auto kernel = function_pool::get_kernel(fpkey(length[0], precision, scheme));
-    fnPtr       = kernel.device_function;
-    bwd         = kernel.block_width;
-    wgs         = kernel.threads_per_block;
-    lds         = length[0] * kernel.block_width;
-    gp.b_x      = length[1] / bwd;
+    auto kernel   = function_pool::get_kernel(fpkey(length[0], precision, scheme));
+    bwd           = kernel.batches_per_block;
+    wgs           = kernel.threads_per_block;
+    lds           = length[0] * bwd;
+    sbrcTranstype = sbrc_transpose_type(bwd);
+    fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
+    gp.b_x        = (length[1] - 1) / bwd + 1;
     gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
     gp.tpb_x = kernel.threads_per_block;
+}
+
+SBRC_TRANSPOSE_TYPE SBRCNode::sbrc_transpose_type(unsigned int blockWidth) const
+{
+    // NB: Since we need a NONE as default, so this NONE is actually TILE_ALIGNED
+    auto alignment_dimension = length[1];
+    return (alignment_dimension % blockWidth == 0) ? NONE : TILE_UNALIGNED;
 }
 
 /*****************************************************

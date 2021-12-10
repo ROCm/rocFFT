@@ -290,6 +290,8 @@ std::string stockham_variants(StockhamGeneratorSpecs& specs, StockhamGeneratorSp
 
         std::vector<LaunchSuffix> suffixes;
         suffixes.push_back({"sbrc", "CS_KERNEL_STOCKHAM_BLOCK_RC", "SBRC_2D", "NONE"});
+        suffixes.push_back(
+            {"sbrc_unaligned", "CS_KERNEL_STOCKHAM_BLOCK_RC", "SBRC_2D", "TILE_UNALIGNED"});
         suffixes.push_back({"sbrc3d_fft_trans_xy_z_tile_aligned",
                             "CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z",
                             "SBRC_3D_FFT_TRANS_XY_Z",

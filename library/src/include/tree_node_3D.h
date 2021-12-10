@@ -167,8 +167,26 @@ protected:
         allowInplace   = false;
     }
 
+    // should be overriden by the derived class
+    virtual size_t sbrc_3D_alignment_dimension() const
+    {
+        return 0;
+    }
+
 public:
     bool KernelCheck() override;
+
+    SBRC_TRANSPOSE_TYPE sbrc_transpose_type(unsigned int blockWidth) const override
+    {
+        auto alignment_dimension = sbrc_3D_alignment_dimension();
+        if(alignment_dimension == 0)
+            return NONE;
+        if(is_diagonal_sbrc_3D_length(length.front()) && is_cube_size(length))
+            return DIAGONAL;
+        if(alignment_dimension % blockWidth == 0)
+            return TILE_ALIGNED;
+        return TILE_UNALIGNED;
+    }
 };
 
 /*****************************************************

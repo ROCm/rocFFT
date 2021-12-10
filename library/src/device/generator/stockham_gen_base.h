@@ -163,7 +163,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     // current batch
     Variable batch{"batch", "size_t"};
 
-    // current transform
+    // current transform index in a batch
     Variable transform{"transform", "size_t"};
 
     // stride between consecutive indexes
@@ -601,7 +601,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 lds_real,
                 lds_complex,
                 twiddles,
-                stride_lds,
+                Literal{"1"},
                 call_iter ? Expression{offset_lds + call_iter * stride_lds * transforms_per_block}
                           : Expression{offset_lds},
                 Literal{"true"}};

@@ -26,7 +26,7 @@ struct StockhamKernelRC : public StockhamKernel
     explicit StockhamKernelRC(StockhamGeneratorSpecs& specs)
         : StockhamKernel(specs)
     {
-        n_device_calls = block_width / (threads_per_block / threads_per_transform);
+        n_device_calls = block_width / transforms_per_block;
     }
 
     //
@@ -44,9 +44,199 @@ struct StockhamKernelRC : public StockhamKernel
     Variable stride_in{"stride_in", "const size_t", true};
     Variable stride_out{"stride_out", "const size_t", true};
 
+    //
+    // locals
+    //
+    Variable tile_index{"tile_index", "size_t"};
+    Variable num_of_tiles{"num_of_tiles", "size_t"};
+    Variable edge{"edge", "bool"};
+    Variable tid1{"tid1", "size_t"};
+    Variable tid0{"tid0", "size_t"};
+
     std::string tiling_name() override
     {
         return "SBRC";
+    }
+
+    StatementList generate_2d_global_function()
+    {
+        StatementList body;
+
+        body += LineBreak{};
+        body += CommentLines{"offsets"};
+        body += calculate_offsets_2d();
+
+        body += LineBreak{};
+        body += If{batch >= nbatch, {Return{}}};
+        body += LineBreak{};
+
+        StatementList loadlds;
+        loadlds += CommentLines{"load global into lds"};
+        loadlds += load_from_global_2d(false);
+        // loadlds += LineBreak{};
+        // loadlds += CommentLines{
+        //     "handle even-length real to complex pre-process in lds before transform"};
+        // loadlds += real2cmplx_pre_post(length, ProcessingType::PRE);
+
+        if(load_from_lds)
+            body += loadlds;
+        else
+        {
+            StatementList loadr;
+            loadr += CommentLines{"load global into registers"};
+            loadr += load_from_global_2d(true);
+            body += If{Not{lds_is_real}, loadlds};
+            body += Else{loadr};
+        }
+
+        body += LineBreak{};
+        body += CommentLines{"transform"};
+        auto templates = device_call_templates();
+        auto arguments = device_call_arguments(0);
+
+        templates.set_value(stride_type.name, "SB_UNIT");
+        body += Call{"forward_length" + std::to_string(length) + "_" + tiling_name() + "_device",
+                     templates,
+                     arguments};
+
+        StatementList storelds;
+        // storelds += LineBreak{};
+        // storelds += CommentLines{
+        //     "handle even-length complex to real post-process in lds after transform"};
+        // storelds += real2cmplx_pre_post(length, ProcessingType::POST);
+
+        storelds += LineBreak{};
+
+        storelds += CommentLines{"store global"};
+        storelds += SyncThreads{};
+        storelds += store_to_global_2d(false);
+
+        if(load_from_lds)
+            body += storelds;
+        else
+        {
+            StatementList storer;
+            storer += CommentLines{"store registers into global"};
+            storer += store_to_global_2d(true);
+            body += If{Not{lds_is_real}, storelds};
+            body += Else{storer};
+        }
+
+        return body;
+    }
+
+    StatementList generate_non_2d_global_function()
+    {
+        StatementList body;
+
+        body += LineBreak{};
+        body += CommentLines{"offsets"};
+        body += calculate_offsets();
+
+        body += LineBreak{};
+        body += If{batch >= nbatch, {Return{}}};
+        body += LineBreak{};
+
+        StatementList loadlds;
+        loadlds += CommentLines{"load global into lds"};
+        loadlds += load_from_global(false);
+        loadlds += LineBreak{};
+        loadlds += CommentLines{
+            "handle even-length real to complex pre-process in lds before transform"};
+        loadlds += real2cmplx_pre_post(length, ProcessingType::PRE);
+
+        if(load_from_lds)
+            body += loadlds;
+        else
+        {
+            StatementList loadr;
+            loadr += CommentLines{"load global into registers"};
+            loadr += load_from_global(true);
+            body += If{Not{lds_is_real}, loadlds};
+            body += Else{loadr};
+        }
+
+        body += LineBreak{};
+        body += CommentLines{"transform"};
+        for(unsigned int c = 0; c < n_device_calls; ++c)
+        {
+            auto templates = device_call_templates();
+            auto arguments = device_call_arguments(c);
+
+            templates.set_value(stride_type.name, "SB_UNIT");
+
+            body
+                += Call{"forward_length" + std::to_string(length) + "_" + tiling_name() + "_device",
+                        templates,
+                        arguments};
+        }
+
+        StatementList storelds;
+        storelds += LineBreak{};
+        storelds += CommentLines{
+            "handle even-length complex to real post-process in lds after transform"};
+        storelds += real2cmplx_pre_post(length, ProcessingType::POST);
+
+        storelds += LineBreak{};
+
+        storelds += CommentLines{"store global"};
+        storelds += SyncThreads{};
+        storelds += store_to_global(false);
+
+        if(load_from_lds)
+            body += storelds;
+        else
+        {
+            StatementList storer;
+            storer += CommentLines{"store registers into global"};
+            storer += store_to_global(true);
+            body += If{Not{lds_is_real}, storelds};
+            body += Else{storer};
+        }
+
+        return body;
+    }
+
+    Function generate_global_function() override
+    {
+        Function f("forward_length" + std::to_string(length) + "_" + tiling_name());
+        f.qualifier     = "__global__";
+        f.launch_bounds = threads_per_block;
+
+        StatementList& body = f.body;
+        body += CommentLines{
+            "this kernel:",
+            "  uses " + std::to_string(threads_per_transform) + " threads per transform",
+            "  does " + std::to_string(transforms_per_block) + " transforms per thread block",
+            "therefore it should be called with " + std::to_string(threads_per_block)
+                + " threads per thread block"};
+        body += Declaration{R};
+        body += LDSDeclaration{scalar_type.name};
+        body += Declaration{offset, 0};
+        body += Declaration{offset_lds};
+        body += Declaration{stride_lds};
+        body += Declaration{batch};
+        body += Declaration{transform};
+        body += Declaration{thread};
+
+        if(half_lds)
+            body += Declaration{lds_is_real, embedded_type == "EmbeddedType::NONE"};
+        else
+            body += Declaration{lds_is_real, Literal{"false"}};
+        body += Declaration{
+            stride0, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride[0]}}};
+        body += CallbackDeclaration{scalar_type.name, callback_type.name};
+
+        body += LineBreak{};
+        body += CommentLines{"large twiddles"};
+        body += large_twiddles_load();
+
+        body += If{sbrc_type == "SBRC_2D", generate_2d_global_function()};
+        body += Else{generate_non_2d_global_function()};
+
+        f.templates = global_templates();
+        f.arguments = global_arguments();
+        return f;
     }
 
     StatementList calculate_offsets() override
@@ -67,7 +257,6 @@ struct StockhamKernelRC : public StockhamKernel
         stmts += Assign{tile, block_id};
         stmts += Assign{thread, thread_id};
 
-        stmts += If{sbrc_type == "SBRC_2D", calculate_offsets_2d()};
         stmts += If{sbrc_type == "SBRC_3D_FFT_TRANS_XY_Z", calculate_offsets_fft_trans_xy_z()};
         stmts += If{
             Or{sbrc_type == "SBRC_3D_FFT_TRANS_Z_XY", sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY"},
@@ -80,39 +269,49 @@ struct StockhamKernelRC : public StockhamKernel
 
     StatementList calculate_offsets_2d()
     {
-        Variable current_length{"current_length", "unsigned int"};
-        Variable remaining{"remaining", "unsigned int"};
-        Variable i{"i", "unsigned int"};
-        Variable j{"j", "unsigned int"};
+        Variable d{"d", "int"};
+        Variable index_along_d{"index_along_d", "size_t"};
+        Variable remaining{"remaining", "size_t"};
+        Variable plength{"plength", "size_t"};
 
-        StatementList offsets;
-        offsets += Declaration{current_length};
-        offsets += Declaration{remaining};
-        offsets += Assign{remaining, tile};
+        StatementList stmts;
 
-        offsets += For{i,
-                       dim,
-                       i > 2,
-                       -1,
-                       {Assign{current_length, 1},
-                        For{j, 2, j < i, 1, {MultiplyAssign(current_length, lengths[j])}},
-                        MultiplyAssign(current_length, lengths[1] / block_width),
-                        AddAssign(offset_in, Parens{remaining / current_length} * stride_in[i]),
-                        AddAssign(offset_out, Parens{remaining / current_length} * stride_out[i]),
-                        Assign{remaining, remaining % current_length}}};
+        stmts += Declaration{tile_index};
+        stmts += Declaration{num_of_tiles};
 
-        offsets += Assign{current_length, lengths[1] / block_width};
-        offsets += AddAssign(offset_in, Parens{remaining / current_length} * stride_in[2]);
-        offsets += AddAssign(offset_in,
-                             Parens{remaining % current_length} * Parens{block_width * lengths[0]});
+        stmts += LineBreak{};
+        stmts += Declaration{lds_row_padding, 0};
 
-        offsets += AddAssign(offset_out, Parens{remaining / current_length} * stride_out[2]);
-        offsets += AddAssign(
-            offset_out, Parens{remaining % current_length} * Parens{block_width * stride_out[1]});
+        stmts += CommentLines{"calculate offset for each tile:",
+                              "  tile_index  now means index of the tile along dim1",
+                              "  num_of_tiles now means number of tiles along dim1"};
+        stmts += Declaration{plength, 1};
+        stmts += Declaration{remaining};
+        stmts += Declaration{index_along_d};
+        stmts += Assign{num_of_tiles, (lengths[1] - 1) / transforms_per_block + 1};
+        stmts += Assign{plength, num_of_tiles};
+        stmts += Assign{tile_index, block_id % num_of_tiles};
+        stmts += Assign{remaining, block_id / num_of_tiles};
+        stmts += Assign{offset, tile_index * transforms_per_block * stride[1]};
 
-        offsets += Assign{offset_lds,
-                          Parens{thread / threads_per_transform} * (length + lds_row_padding)};
-        return offsets;
+        stmts += For{d,
+                     2,
+                     d < dim,
+                     1,
+                     {Assign{plength, plength * lengths[d]},
+                      Assign{index_along_d, remaining % lengths[d]},
+                      Assign{remaining, remaining / lengths[d]},
+                      Assign{offset, offset + index_along_d * stride[d]}}};
+
+        stmts += LineBreak{};
+        stmts += Assign{transform,
+                        tile_index * transforms_per_block + thread_id / threads_per_transform};
+        stmts += Assign{batch, block_id / plength};
+        stmts += Assign{offset, offset + batch * stride[dim]};
+        stmts += Assign{stride_lds, (length + lds_row_padding)};
+        stmts += Assign{offset_lds, stride_lds * (transform % transforms_per_block)};
+
+        return stmts;
     }
 
     StatementList calculate_offsets_fft_trans_xy_z()
@@ -191,6 +390,95 @@ struct StockhamKernelRC : public StockhamKernel
                        Parens{thread / threads_per_transform} * (length + lds_row_padding)}};
     }
 
+    StatementList load_from_global_2d(bool load_registers)
+    {
+        // #-load for each thread to load all element in a tile
+        auto num_load_blocks = (length * transforms_per_block) / threads_per_block;
+        // #-row for a load block (global mem) = each thread will across these rows
+        auto tid0_inc_step = transforms_per_block / num_load_blocks;
+
+        StatementList stmts;
+        stmts += Declaration{edge, "false"};
+        stmts += Declaration{tid0};
+        stmts += Declaration{tid1};
+
+        stmts += If{transpose_type == "TILE_UNALIGNED",
+                    {Assign{edge,
+                            Ternary{Parens((tile_index + 1) * transforms_per_block > lengths[1]),
+                                    "true",
+                                    "false"}}}};
+
+        // [dim0, dim1] = [tid0, tid1] :
+        // each thread reads position [tid0, tid1], [tid0+step_h*1, tid1] , [tid0+step_h*2, tid1]...
+        // tid0 walks the columns; tid1 walks the rows
+        stmts += Assign{tid0, thread_id / length};
+        stmts += Assign{tid1, thread_id % length};
+
+        auto offset_tile_rbuf = [&](unsigned int i) {
+            return tid1 * stride0 + (tid0 + i * tid0_inc_step) * stride_in[1];
+        };
+        auto offset_tile_wlds
+            = [&](unsigned int i) { return tid1 * 1 + (tid0 + i * tid0_inc_step) * stride_lds; };
+
+        StatementList regular_load;
+        for(unsigned int i = 0; i < num_load_blocks; ++i)
+            regular_load += Assign{lds_complex[offset_tile_wlds(i)],
+                                   LoadGlobal{buf, offset_in + offset_tile_rbuf(i)}};
+
+        StatementList edge_load;
+        Variable      t{"t", "unsigned int"};
+        edge_load += For{
+            t,
+            0,
+            Parens{(tile_index * transforms_per_block + tid0 + t) < lengths[1]},
+            tid0_inc_step,
+            {Assign{lds_complex[tid1 * 1 + (tid0 + t) * stride_lds],
+                    LoadGlobal{buf, offset_in + tid1 * stride0 + (tid0 + t) * stride_in[1]}}}};
+
+        stmts += If{Or{transpose_type != "TILE_UNALIGNED", Not{edge}}, regular_load};
+        stmts += Else{edge_load};
+
+        return stmts;
+    }
+
+    StatementList store_to_global_2d(bool store_registers)
+    {
+        // #-column for a store block (global mem)
+        auto store_block_w = transforms_per_block;
+        // #-store for each thread to store all element in a tile
+        auto num_store_blocks = (length * transforms_per_block) / threads_per_block;
+        // #-row for a store block (global mem) = each thread will across these rows
+        auto tid0_inc_step = length / num_store_blocks;
+
+        StatementList stmts;
+
+        // [dim0, dim1] = [tid0, tid1]:
+        // each thread write GLOBAL_POS [tid0, tid1], [tid0+step_h*1, tid1] , [tid0+step_h*2, tid1].
+        // NB: This is a transpose from LDS to global, so the pos of lds_read should be remapped
+        stmts += Assign{tid0, thread_id / store_block_w};
+        stmts += Assign{tid1, thread_id % store_block_w};
+
+        auto offset_tile_wbuf = [&](unsigned int i) {
+            return tid1 * stride_out[1] + (tid0 + i * tid0_inc_step) * stride0;
+        };
+        auto offset_tile_rlds
+            = [&](unsigned int i) { return tid1 * stride_lds + (tid0 + i * tid0_inc_step) * 1; };
+
+        StatementList regular_store;
+        Expression    pred{tile_index * transforms_per_block + tid1 < lengths[1]};
+        for(unsigned int i = 0; i < num_store_blocks; ++i)
+            regular_store
+                += StoreGlobal{buf, offset + offset_tile_wbuf(i), lds_complex[offset_tile_rlds(i)]};
+
+        StatementList edge_store;
+        edge_store += If{pred, regular_store};
+
+        stmts += If{Or{transpose_type != "TILE_UNALIGNED", Not{edge}}, regular_store};
+        stmts += Else{edge_store};
+
+        return stmts;
+    }
+
     StatementList load_from_global(bool load_registers) override
     {
         auto height = length * block_width / threads_per_block;
@@ -198,7 +486,7 @@ struct StockhamKernelRC : public StockhamKernel
         StatementList stmts;
         stmts += Assign{thread, thread_id};
 
-        // SBRC_2D, SBRC_3D_FFT_TRANS_Z_XY, SBRC_3D_FFT_ERC_TRANS_Z_XY
+        // SBRC_3D_FFT_TRANS_Z_XY, SBRC_3D_FFT_ERC_TRANS_Z_XY
         StatementList load;
         for(unsigned int h = 0; h < height; ++h)
         {
@@ -207,10 +495,9 @@ struct StockhamKernelRC : public StockhamKernel
             auto gidx    = offset_in + thread + h * threads_per_block;
             load += Assign{lds_complex[lidx], LoadGlobal{buf, gidx}};
         }
-        stmts += If{Or{sbrc_type == "SBRC_2D",
-                       sbrc_type == "SBRC_3D_FFT_TRANS_Z_XY",
-                       sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY"},
-                    load};
+        stmts += If{
+            Or{sbrc_type == "SBRC_3D_FFT_TRANS_Z_XY", sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY"},
+            load};
 
         // SBRC_3D_FFT_TRANS_XY_Z
         Variable tiles_per_batch{"tiles_per_batch", "unsigned int"};
@@ -276,18 +563,7 @@ struct StockhamKernelRC : public StockhamKernel
         post += SyncThreads{};
         stmts += If{sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY", post};
 
-        // SBRC_2D
         StatementList store;
-        for(unsigned int h = 0; h < height; ++h)
-        {
-            auto row  = Parens{(thread + h * threads_per_block) / block_width};
-            auto col  = Parens{thread % block_width};
-            auto lidx = col * length + row;
-            auto gidx = offset_out + row * stride_out[0] + col * stride_out[1];
-            store += StoreGlobal{buf, gidx, lds_complex[lidx]};
-        }
-        stmts += If{sbrc_type == "SBRC_2D", store};
-
         // SBRC_3D_FFT_TRANS_XY_Z
         store.statements.clear();
         auto tiles_per_batch
@@ -365,7 +641,7 @@ struct StockhamKernelRC : public StockhamKernel
                 lds_real,
                 lds_complex,
                 twiddles,
-                stride_lds,
+                Literal{"1"},
                 call_iter
                     ? Expression{offset_lds
                                  + call_iter * (length + lds_row_padding) * transforms_per_block}

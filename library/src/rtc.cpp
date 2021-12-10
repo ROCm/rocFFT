@@ -486,7 +486,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
         // width and correct transpose type
         if(node.scheme != pool_scheme)
         {
-            transpose_type = node.sbrc_3D_transpose_type(kernel.block_width);
+            transpose_type = node.sbrc_transpose_type(kernel.block_width);
             key            = fpkey(node.length[0], node.precision, node.scheme, transpose_type);
             kernel         = pool.get_kernel(key);
         }

@@ -52,6 +52,8 @@ gpubuf_t<size_t> kargs_create(std::vector<size_t> length,
         i++;
     }
 
+    // NB: iDist is right after the last inStride[dim-1], i.e. inStride[dim] = batch-in-stride
+    //     oDist is right after the last outStride[dim-1], i.e. outStride[dim] = batch-out-stride
     devkHost[i + 1 * KERN_ARGS_ARRAY_WIDTH] = iDist;
     devkHost[i + 2 * KERN_ARGS_ARRAY_WIDTH] = oDist;
 

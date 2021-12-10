@@ -47,7 +47,7 @@ struct StockhamKernelCC : public StockhamKernel
     // locals
     //
     Variable tile_index{"tile_index", "size_t"};
-    Variable tile_length{"tile_length", "size_t"};
+    Variable num_of_tiles{"num_of_tiles", "size_t"};
     Variable edge{"edge", "bool"};
     Variable tid1{"tid1", "size_t"};
     Variable tid0{"tid0", "size_t"};
@@ -75,18 +75,19 @@ struct StockhamKernelCC : public StockhamKernel
 
         StatementList stmts;
         stmts += Declaration{tile_index};
-        stmts += Declaration{tile_length};
+        stmts += Declaration{num_of_tiles};
+
         stmts += LineBreak{};
         stmts += CommentLines{"calculate offset for each tile:",
                               "  tile_index  now means index of the tile along dim1",
-                              "  tile_length now means number of tiles along dim1"};
+                              "  num_of_tiles now means number of tiles along dim1"};
         stmts += Declaration{plength, 1};
         stmts += Declaration{remaining};
         stmts += Declaration{index_along_d};
-        stmts += Assign{tile_length, (lengths[1] - 1) / transforms_per_block + 1};
-        stmts += Assign{plength, tile_length};
-        stmts += Assign{tile_index, block_id % tile_length};
-        stmts += Assign{remaining, block_id / tile_length};
+        stmts += Assign{num_of_tiles, (lengths[1] - 1) / transforms_per_block + 1};
+        stmts += Assign{plength, num_of_tiles};
+        stmts += Assign{tile_index, block_id % num_of_tiles};
+        stmts += Assign{remaining, block_id / num_of_tiles};
         stmts += Assign{offset, tile_index * transforms_per_block * stride[1]};
 
         stmts += For{d,
@@ -122,9 +123,11 @@ struct StockhamKernelCC : public StockhamKernel
         stmts += Assign{
             edge,
             Ternary{Parens((tile_index + 1) * transforms_per_block > lengths[1]), "true", "false"}};
+        // [dim0, dim1] = [tid0, tid1] :
+        // each thread reads position [tid0, tid1], [tid0+step_h*1, tid1] , [tid0+step_h*2, tid1]...
         // tid0 walks the columns; tid1 walks the rows
-        stmts += Assign{tid1, thread_id % stripmine_w};
         stmts += Assign{tid0, thread_id / stripmine_w};
+        stmts += Assign{tid1, thread_id % stripmine_w};
 
         auto offset_tile_rbuf
             = [&](unsigned int i) { return tid1 * stride[1] + (tid0 + i * stripmine_h) * stride0; };

@@ -348,6 +348,9 @@ public:
     // embedded C2R/R2C pre/post processing
     EmbeddedType ebtype = EmbeddedType::NONE;
 
+    // sbrc transpose type
+    SBRC_TRANSPOSE_TYPE sbrcTranstype = SBRC_TRANSPOSE_TYPE::NONE;
+
     // Tree structure:
     // non-owning pointer to parent node, may be null
     TreeNode* parent = nullptr;
@@ -503,22 +506,10 @@ public:
 
     // for 3D SBRC kernels, decide the transpose type based on the
     // block width and lengths that the block tiles need to align on.
-    // default value for alignment_dimension is 0, meaning this isn't a
-    // 3D SBRC node.
-    virtual size_t sbrc_3D_alignment_dimension() const
+    // default type is NONE, meaning this isn't a SBRC node
+    virtual SBRC_TRANSPOSE_TYPE sbrc_transpose_type(unsigned int blockWidth) const
     {
-        return 0;
-    }
-    virtual SBRC_TRANSPOSE_TYPE sbrc_3D_transpose_type(unsigned int blockWidth) const
-    {
-        auto alignment_dimension = sbrc_3D_alignment_dimension();
-        if(alignment_dimension == 0)
-            return NONE;
-        if(is_diagonal_sbrc_3D_length(length.front()) && is_cube_size(length))
-            return DIAGONAL;
-        if(alignment_dimension % blockWidth == 0)
-            return TILE_ALIGNED;
-        return TILE_UNALIGNED;
+        return NONE;
     }
 
     // Compute the large twd decomposition base
