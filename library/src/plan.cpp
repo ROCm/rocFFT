@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <assert.h>
 #include <functional>
+#include <iterator>
 #include <map>
 #include <numeric>
 #include <set>
@@ -259,6 +260,39 @@ rocfft_status rocfft_plan_description_destroy(rocfft_plan_description descriptio
     return rocfft_status_success;
 }
 
+std::string rocfft_rider_command(rocfft_plan plan)
+{
+    std::stringstream rider;
+    rider << "rocfft-rider --length ";
+    std::ostream_iterator<size_t> rider_iter(rider, " ");
+    std::copy(plan->lengths.rbegin() + (3 - plan->rank), plan->lengths.rend(), rider_iter);
+    rider << "-b " << plan->batch << " ";
+
+    if(plan->placement == rocfft_placement_notinplace)
+        rider << "-o ";
+
+    rider << "-t " << plan->transformType << " ";
+
+    if(plan->precision == rocfft_precision_double)
+        rider << "--double ";
+    rider << "--itype " << plan->desc.inArrayType << " ";
+    rider << "--otype " << plan->desc.outArrayType << " ";
+    rider << "--istride ";
+    std::copy(
+        plan->desc.inStrides.rbegin() + (3 - plan->rank), plan->desc.inStrides.rend(), rider_iter);
+    rider << "--ostride ";
+    std::copy(plan->desc.outStrides.rbegin() + (3 - plan->rank),
+              plan->desc.outStrides.rend(),
+              rider_iter);
+    rider << "--idist " << plan->desc.inDist << " ";
+    rider << "--odist " << plan->desc.outDist << " ";
+    rider << "--ioffset ";
+    std::copy(plan->desc.inOffset.begin(), plan->desc.inOffset.end(), rider_iter);
+    rider << "--ooffset ";
+    std::copy(plan->desc.outOffset.begin(), plan->desc.outOffset.end(), rider_iter);
+    return rider.str();
+}
+
 rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
                                           const rocfft_result_placement placement,
                                           const rocfft_transform_type   transform_type,
@@ -457,6 +491,8 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
         p->desc.outDist = p->lengths[p->rank - 1] * p->desc.outStrides[p->rank - 1];
     }
 
+    log_bench(rocfft_rider_command(p));
+
     // size_t prodLength = 1;
     // for(size_t i = 0; i < (p->rank); i++)
     // {
@@ -527,25 +563,6 @@ rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
               number_of_transforms,
               "description",
               description);
-
-    std::stringstream ss;
-    ss << "./rocfft-rider"
-       << " -t " << transform_type << " -x " << log_len[0] << " -y " << log_len[1] << " -z "
-       << log_len[2] << " -b " << number_of_transforms;
-    if(placement == rocfft_placement_notinplace)
-        ss << " -o ";
-    if(precision == rocfft_precision_double)
-        ss << " --double ";
-    if(description != NULL)
-        ss << " --isX " << description->inStrides[0] << " --isY " << description->inStrides[1]
-           << " --isZ " << description->inStrides[2] << " --osX " << description->outStrides[0]
-           << " --osY " << description->outStrides[1] << " --osZ " << description->outStrides[2]
-           << " --scale " << description->scale << " --iOff0 " << description->inOffset[0]
-           << " --iOff1 " << description->inOffset[1] << " --oOff0 " << description->outOffset[0]
-           << " --oOff1 " << description->outOffset[1] << " --inArrType "
-           << description->inArrayType << " --outArrType " << description->outArrayType;
-
-    log_bench(ss.str());
 
     return rocfft_plan_create_internal(*plan,
                                        placement,
