@@ -4,6 +4,11 @@ from perflib.generators import Problem
 from perflib.generators import RadixProblemGenerator
 import sympy
 
+all_precisions = ['single', 'double']
+all_directions = [-1, 1]
+all_inplaces   = [True,False]
+all_reals      = [True,False]
+
 lengths = {
 
     'md': [
@@ -70,6 +75,16 @@ lengths = {
         (336, 18816),
     ],
 
+    'simpleL1D': [
+        6561,
+        8192,
+        10000,
+        16384,
+        32768,
+        40000,
+        65536,
+    ],
+
     'large1d': [
         8192,
         10000,
@@ -134,11 +149,8 @@ def mktag(tag, dimension, precision, direction, inplace, real):
 
 
 # yield problem sizes with default precision, direction, etc
-def default_length_params(tag, lengths, nbatch):
-    precisions = ['single', 'double']
-    directions = [-1, 1]
-    inplaces   = [True,False]
-    reals      = [True,False]
+def default_length_params(tag, lengths, nbatch, precisions=all_precisions, \
+    directions=all_directions, inplaces=all_inplaces, reals=all_reals):
 
     for precision, direction, inplace, real in product(precisions, directions, inplaces, reals):
         for length in lengths:
@@ -188,7 +200,7 @@ def qa():
     for length3 in lengths['md']:
         for direction in [-1, 1]:
             yield Problem(length3,
-                          tag=mktag('qa3md', 3, 'single', direction, inplace, False, True),
+                          tag=mktag('qa3md', 3, 'single', direction, False, True),
                           nbatch=1,
                           direction=direction,
                           inplace=False,
@@ -204,6 +216,11 @@ def misc3d():
     """Miscellaneous 3D sizes."""
 
     yield from default_length_params("misc3d", lengths['misc3d'], 1)
+
+def simpleL1D():
+    """Basic C2C Large 1D sizes."""
+
+    yield from default_length_params("C2C_L1D", lengths['simpleL1D'], 8000, reals=[False])
 
 def large1d():
     """Large 1D sizes."""
