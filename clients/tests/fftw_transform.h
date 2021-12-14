@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 
 #pragma once
-#if !defined(FFTWTRANSFORM_H)
+#ifndef FFTWTRANSFORM_H
 #define FFTWTRANSFORM_H
 
 #include "test_params.h"

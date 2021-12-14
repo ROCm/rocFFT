@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef CLIENT_UTILS_H
-#define CLIENT_UTILS_H
+#ifndef FFT_PARAMS_H
+#define FFT_PARAMS_H
 
 #include <algorithm>
 #include <complex>
@@ -32,28 +32,68 @@
 #include <vector>
 
 #include "../shared/printbuffer.h"
-#include "rocfft.h"
 
-static const size_t ONE_GiB = 1 << 30;
+enum fft_status
+{
+    fft_status_success,
+    fft_status_failure,
+    fft_status_invalid_arg_value,
+    fft_status_invalid_dimensions,
+    fft_status_invalid_array_type,
+    fft_status_invalid_strides,
+    fft_status_invalid_distance,
+    fft_status_invalid_offset,
+    fft_status_invalid_work_buffer,
+};
+
+enum fft_transform_type
+{
+    fft_transform_type_complex_forward,
+    fft_transform_type_complex_inverse,
+    fft_transform_type_real_forward,
+    fft_transform_type_real_inverse,
+};
+
+enum fft_precision
+{
+    fft_precision_single,
+    fft_precision_double,
+};
+
+enum fft_array_type
+{
+    fft_array_type_complex_interleaved,
+    fft_array_type_complex_planar,
+    fft_array_type_real,
+    fft_array_type_hermitian_interleaved,
+    fft_array_type_hermitian_planar,
+    fft_array_type_unset,
+};
+
+enum fft_result_placement
+{
+    fft_placement_inplace,
+    fft_placement_notinplace,
+};
 
 // Determine the size of the data type given the precision and type.
 template <typename Tsize>
-inline Tsize var_size(const rocfft_precision precision, const rocfft_array_type type)
+inline Tsize var_size(const fft_precision precision, const fft_array_type type)
 {
     size_t var_size = 0;
     switch(precision)
     {
-    case rocfft_precision_single:
+    case fft_precision_single:
         var_size = sizeof(float);
         break;
-    case rocfft_precision_double:
+    case fft_precision_double:
         var_size = sizeof(double);
         break;
     }
     switch(type)
     {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_hermitian_interleaved:
+    case fft_array_type_complex_interleaved:
+    case fft_array_type_hermitian_interleaved:
         var_size *= 2;
         break;
     default:
@@ -67,45 +107,50 @@ class fft_params
 {
 public:
     // All parameters are row-major.
-    std::vector<size_t>     length;
-    std::vector<size_t>     istride;
-    std::vector<size_t>     ostride;
-    size_t                  nbatch         = 1;
-    rocfft_precision        precision      = rocfft_precision_double;
-    rocfft_transform_type   transform_type = rocfft_transform_type_complex_forward;
-    rocfft_result_placement placement      = rocfft_placement_inplace;
-    size_t                  idist          = 0;
-    size_t                  odist          = 0;
-    rocfft_array_type       itype          = rocfft_array_type_unset;
-    rocfft_array_type       otype          = rocfft_array_type_unset;
-    std::vector<size_t>     ioffset        = {0, 0};
-    std::vector<size_t>     ooffset        = {0, 0};
+    std::vector<size_t>  length;
+    std::vector<size_t>  istride;
+    std::vector<size_t>  ostride;
+    size_t               nbatch         = 1;
+    fft_precision        precision      = fft_precision_double;
+    fft_transform_type   transform_type = fft_transform_type_complex_forward;
+    fft_result_placement placement      = fft_placement_inplace;
+    size_t               idist          = 0;
+    size_t               odist          = 0;
+    fft_array_type       itype          = fft_array_type_unset;
+    fft_array_type       otype          = fft_array_type_unset;
+    std::vector<size_t>  ioffset        = {0, 0};
+    std::vector<size_t>  ooffset        = {0, 0};
 
     std::vector<size_t> isize;
     std::vector<size_t> osize;
+
+    size_t workbuffersize = 0;
 
     // run testing load/store callbacks
     bool                    run_callbacks   = false;
     static constexpr double load_cb_scalar  = 0.457813941;
     static constexpr double store_cb_scalar = 0.391504938;
 
+    fft_params(){};
+    virtual ~fft_params(){};
+
     // Given an array type, return the name as a string.
-    static std::string array_type_name(const rocfft_array_type type)
+    static std::string array_type_name(const fft_array_type type)
     {
         switch(type)
         {
-        case rocfft_array_type_complex_interleaved:
-            return "rocfft_array_type_complex_interleaved";
-        case rocfft_array_type_complex_planar:
-            return "rocfft_array_type_complex_planar";
-        case rocfft_array_type_real:
-            return "rocfft_array_type_real";
-        case rocfft_array_type_hermitian_interleaved:
-            return "rocfft_array_type_hermitian_interleaved";
-        case rocfft_array_type_hermitian_planar:
-            return "rocfft_array_type_hermitian_planar";
-        case rocfft_array_type_unset:
-            return "rocfft_array_type_unset";
+        case fft_array_type_complex_interleaved:
+            return "fft_array_type_complex_interleaved";
+        case fft_array_type_complex_planar:
+            return "fft_array_type_complex_planar";
+        case fft_array_type_real:
+            return "fft_array_type_real";
+        case fft_array_type_hermitian_interleaved:
+            return "fft_array_type_hermitian_interleaved";
+        case fft_array_type_hermitian_planar:
+            return "fft_array_type_hermitian_planar";
+        case fft_array_type_unset:
+            return "fft_array_type_unset";
         }
         return "";
     }
@@ -114,14 +159,14 @@ public:
     {
         switch(transform_type)
         {
-        case rocfft_transform_type_complex_forward:
-            return "rocfft_transform_type_complex_forward";
-        case rocfft_transform_type_complex_inverse:
-            return "rocfft_transform_type_complex_inverse";
-        case rocfft_transform_type_real_forward:
-            return "rocfft_transform_type_real_forward";
-        case rocfft_transform_type_real_inverse:
-            return "rocfft_transform_type_real_inverse";
+        case fft_transform_type_complex_forward:
+            return "fft_transform_type_complex_forward";
+        case fft_transform_type_complex_inverse:
+            return "fft_transform_type_complex_inverse";
+        case fft_transform_type_real_forward:
+            return "fft_transform_type_real_forward";
+        case fft_transform_type_real_inverse:
+            return "fft_transform_type_real_inverse";
         }
     }
 
@@ -164,14 +209,14 @@ public:
             ss << " " << i;
         ss << separator;
 
-        if(placement == rocfft_placement_inplace)
+        if(placement == fft_placement_inplace)
             ss << "in-place";
         else
             ss << "out-of-place";
         ss << separator;
         ss << "transform_type: " << transform_type_name() << separator;
         ss << array_type_name(itype) << " -> " << array_type_name(otype) << separator;
-        if(precision == rocfft_precision_single)
+        if(precision == fft_precision_single)
             ss << "single-precision";
         else
             ss << "double-precision";
@@ -215,7 +260,7 @@ public:
     std::vector<size_t> ilength() const
     {
         auto ilength = length;
-        if(transform_type == rocfft_transform_type_real_inverse)
+        if(transform_type == fft_transform_type_real_inverse)
             ilength[dim() - 1] = ilength[dim() - 1] / 2 + 1;
         return ilength;
     }
@@ -223,23 +268,23 @@ public:
     std::vector<size_t> olength() const
     {
         auto olength = length;
-        if(transform_type == rocfft_transform_type_real_forward)
+        if(transform_type == fft_transform_type_real_forward)
             olength[dim() - 1] = olength[dim() - 1] / 2 + 1;
         return olength;
     }
 
-    static size_t nbuffer(const rocfft_array_type type)
+    static size_t nbuffer(const fft_array_type type)
     {
         switch(type)
         {
-        case rocfft_array_type_real:
-        case rocfft_array_type_complex_interleaved:
-        case rocfft_array_type_hermitian_interleaved:
+        case fft_array_type_real:
+        case fft_array_type_complex_interleaved:
+        case fft_array_type_hermitian_interleaved:
             return 1;
-        case rocfft_array_type_complex_planar:
-        case rocfft_array_type_hermitian_planar:
+        case fft_array_type_complex_planar:
+        case fft_array_type_hermitian_planar:
             return 2;
-        case rocfft_array_type_unset:
+        case fft_array_type_unset:
             return 0;
         }
     }
@@ -277,37 +322,37 @@ public:
 
     void set_iotypes()
     {
-        if(itype == rocfft_array_type_unset)
+        if(itype == fft_array_type_unset)
         {
             switch(transform_type)
             {
-            case rocfft_transform_type_complex_forward:
-            case rocfft_transform_type_complex_inverse:
-                itype = rocfft_array_type_complex_interleaved;
+            case fft_transform_type_complex_forward:
+            case fft_transform_type_complex_inverse:
+                itype = fft_array_type_complex_interleaved;
                 break;
-            case rocfft_transform_type_real_forward:
-                itype = rocfft_array_type_real;
+            case fft_transform_type_real_forward:
+                itype = fft_array_type_real;
                 break;
-            case rocfft_transform_type_real_inverse:
-                itype = rocfft_array_type_hermitian_interleaved;
+            case fft_transform_type_real_inverse:
+                itype = fft_array_type_hermitian_interleaved;
                 break;
             default:
                 throw std::runtime_error("Invalid transform type");
             }
         }
-        if(otype == rocfft_array_type_unset)
+        if(otype == fft_array_type_unset)
         {
             switch(transform_type)
             {
-            case rocfft_transform_type_complex_forward:
-            case rocfft_transform_type_complex_inverse:
-                otype = rocfft_array_type_complex_interleaved;
+            case fft_transform_type_complex_forward:
+            case fft_transform_type_complex_inverse:
+                otype = fft_array_type_complex_interleaved;
                 break;
-            case rocfft_transform_type_real_forward:
-                otype = rocfft_array_type_hermitian_interleaved;
+            case fft_transform_type_real_forward:
+                otype = fft_array_type_hermitian_interleaved;
                 break;
-            case rocfft_transform_type_real_inverse:
-                otype = rocfft_array_type_real;
+            case fft_transform_type_real_inverse:
+                otype = fft_array_type_real;
                 break;
             default:
                 throw std::runtime_error("Invalid transform type");
@@ -320,11 +365,11 @@ public:
     {
         switch(itype)
         {
-        case rocfft_array_type_complex_interleaved:
-        case rocfft_array_type_complex_planar:
-        case rocfft_array_type_hermitian_interleaved:
-        case rocfft_array_type_hermitian_planar:
-        case rocfft_array_type_real:
+        case fft_array_type_complex_interleaved:
+        case fft_array_type_complex_planar:
+        case fft_array_type_hermitian_interleaved:
+        case fft_array_type_hermitian_planar:
+        case fft_array_type_real:
             break;
         default:
             throw std::runtime_error("Invalid Input array type format");
@@ -332,21 +377,21 @@ public:
 
         switch(otype)
         {
-        case rocfft_array_type_complex_interleaved:
-        case rocfft_array_type_complex_planar:
-        case rocfft_array_type_hermitian_interleaved:
-        case rocfft_array_type_hermitian_planar:
-        case rocfft_array_type_real:
+        case fft_array_type_complex_interleaved:
+        case fft_array_type_complex_planar:
+        case fft_array_type_hermitian_interleaved:
+        case fft_array_type_hermitian_planar:
+        case fft_array_type_real:
             break;
         default:
             throw std::runtime_error("Invalid Input array type format");
         }
 
         // Check that format choices are supported
-        if(transform_type != rocfft_transform_type_real_forward
-           && transform_type != rocfft_transform_type_real_inverse)
+        if(transform_type != fft_transform_type_real_forward
+           && transform_type != fft_transform_type_real_inverse)
         {
-            if(placement == rocfft_placement_inplace && itype != otype)
+            if(placement == fft_placement_inplace && itype != otype)
             {
                 throw std::runtime_error(
                     "In-place transforms must have identical input and output types");
@@ -356,18 +401,18 @@ public:
         bool okformat = true;
         switch(itype)
         {
-        case rocfft_array_type_complex_interleaved:
-        case rocfft_array_type_complex_planar:
-            okformat = (otype == rocfft_array_type_complex_interleaved
-                        || otype == rocfft_array_type_complex_planar);
+        case fft_array_type_complex_interleaved:
+        case fft_array_type_complex_planar:
+            okformat = (otype == fft_array_type_complex_interleaved
+                        || otype == fft_array_type_complex_planar);
             break;
-        case rocfft_array_type_hermitian_interleaved:
-        case rocfft_array_type_hermitian_planar:
-            okformat = otype == rocfft_array_type_real;
+        case fft_array_type_hermitian_interleaved:
+        case fft_array_type_hermitian_planar:
+            okformat = otype == fft_array_type_real;
             break;
-        case rocfft_array_type_real:
-            okformat = (otype == rocfft_array_type_hermitian_interleaved
-                        || otype == rocfft_array_type_hermitian_planar);
+        case fft_array_type_real:
+            okformat = (otype == fft_array_type_hermitian_interleaved
+                        || otype == fft_array_type_hermitian_planar);
             break;
         default:
             throw std::runtime_error("Invalid Input array type format");
@@ -386,34 +431,32 @@ public:
                                    const std::vector<size_t>& stride0   = std::vector<size_t>(),
                                    const bool                 rcpadding = false) const
     {
-        const int dim = length.size();
+        std::vector<T1> stride(dim());
 
-        std::vector<T1> stride(dim);
-
-        int dimoffset = 0;
+        size_t dimoffset = 0;
 
         if(stride0.size() == 0)
         {
             // Set the contiguous stride:
-            stride[dim - 1] = 1;
-            dimoffset       = 1;
+            stride[dim() - 1] = 1;
+            dimoffset         = 1;
         }
         else
         {
             // Copy the input values to the end of the stride array:
-            for(int i = 0; i < stride0.size(); ++i)
+            for(size_t i = 0; i < stride0.size(); ++i)
             {
-                stride[dim - stride0.size() + i] = stride0[i];
+                stride[dim() - stride0.size() + i] = stride0[i];
             }
         }
 
-        if(stride0.size() < dim)
+        if(stride0.size() < dim())
         {
             // Compute any remaining values via recursion.
-            for(int i = dim - dimoffset - stride0.size(); i-- > 0;)
+            for(size_t i = dim() - dimoffset - stride0.size(); i-- > 0;)
             {
                 auto lengthip1 = length[i + 1];
-                if(rcpadding && i == dim - 2)
+                if(rcpadding && i == dim() - 2)
                 {
                     lengthip1 = 2 * (lengthip1 / 2 + 1);
                 }
@@ -428,16 +471,16 @@ public:
     {
         istride = compute_stride(ilength(),
                                  istride,
-                                 placement == rocfft_placement_inplace
-                                     && transform_type == rocfft_transform_type_real_forward);
+                                 placement == fft_placement_inplace
+                                     && transform_type == fft_transform_type_real_forward);
     }
 
     void compute_ostride()
     {
         ostride = compute_stride(olength(),
                                  ostride,
-                                 placement == rocfft_placement_inplace
-                                     && transform_type == rocfft_transform_type_real_inverse);
+                                 placement == fft_placement_inplace
+                                     && transform_type == fft_transform_type_real_inverse);
     }
 
     void compute_isize()
@@ -468,8 +511,7 @@ public:
 
         // In-place real-to-complex transforms need to have enough space in the input buffer to
         // accomadate the output, which is slightly larger.
-        if(placement == rocfft_placement_inplace
-           && transform_type == rocfft_transform_type_real_forward)
+        if(placement == fft_placement_inplace && transform_type == fft_transform_type_real_forward)
         {
             return obuffer_sizes();
         }
@@ -479,8 +521,8 @@ public:
 
         switch(itype)
         {
-        case rocfft_array_type_complex_planar:
-        case rocfft_array_type_hermitian_planar:
+        case fft_array_type_complex_planar:
+        case fft_array_type_hermitian_planar:
             ibuffer_sizes.resize(2);
             break;
         default:
@@ -502,8 +544,8 @@ public:
 
         switch(otype)
         {
-        case rocfft_array_type_complex_planar:
-        case rocfft_array_type_hermitian_planar:
+        case fft_array_type_complex_planar:
+        case fft_array_type_hermitian_planar:
             obuffer_sizes.resize(2);
             break;
         default:
@@ -523,26 +565,24 @@ public:
         if(idist != 0)
             return;
 
-        const auto dim = length.size();
-
         // In-place 1D transforms need extra dist.
-        if(transform_type == rocfft_transform_type_real_forward && dim == 1
-           && placement == rocfft_placement_inplace)
+        if(transform_type == fft_transform_type_real_forward && dim() == 1
+           && placement == fft_placement_inplace)
         {
             idist = 2 * (length[0] / 2 + 1) * istride[0];
             return;
         }
 
-        if(transform_type == rocfft_transform_type_real_inverse && dim == 1)
+        if(transform_type == fft_transform_type_real_inverse && dim() == 1)
         {
             idist = (length[0] / 2 + 1) * istride[0];
             return;
         }
 
-        idist = (transform_type == rocfft_transform_type_real_inverse)
-                    ? (length[dim - 1] / 2 + 1) * istride[dim - 1]
-                    : length[dim - 1] * istride[dim - 1];
-        for(int i = 0; i < dim - 1; ++i)
+        idist = (transform_type == fft_transform_type_real_inverse)
+                    ? (length[dim() - 1] / 2 + 1) * istride[dim() - 1]
+                    : length[dim() - 1] * istride[dim() - 1];
+        for(int i = 0; i < dim() - 1; ++i)
         {
             idist = std::max(length[i] * istride[i], idist);
         }
@@ -555,26 +595,24 @@ public:
         if(odist != 0)
             return;
 
-        const auto dim = length.size();
-
         // In-place 1D transforms need extra dist.
-        if(transform_type == rocfft_transform_type_real_inverse && dim == 1
-           && placement == rocfft_placement_inplace)
+        if(transform_type == fft_transform_type_real_inverse && dim() == 1
+           && placement == fft_placement_inplace)
         {
             odist = 2 * (length[0] / 2 + 1) * ostride[0];
             return;
         }
 
-        if(transform_type == rocfft_transform_type_real_forward && dim == 1)
+        if(transform_type == fft_transform_type_real_forward && dim() == 1)
         {
             odist = (length[0] / 2 + 1) * ostride[0];
             return;
         }
 
-        odist = (transform_type == rocfft_transform_type_real_forward)
-                    ? (length[dim - 1] / 2 + 1) * ostride[dim - 1]
-                    : length[dim - 1] * ostride[dim - 1];
-        for(int i = 0; i < dim - 1; ++i)
+        odist = (transform_type == fft_transform_type_real_forward)
+                    ? (length[dim() - 1] / 2 + 1) * ostride[dim() - 1]
+                    : length[dim() - 1] * ostride[dim() - 1];
+        for(int i = 0; i < dim() - 1; ++i)
         {
             odist = std::max(length[i] * ostride[i], odist);
         }
@@ -587,7 +625,7 @@ public:
             return false;
 
         // Check that in-place transforms have the same input and output stride:
-        if(placement == rocfft_placement_inplace)
+        if(placement == fft_placement_inplace)
         {
             const auto stridesize = std::min(istride.size(), ostride.size());
             bool       samestride = true;
@@ -596,8 +634,8 @@ public:
                 if(istride[i] != ostride[i])
                     samestride = false;
             }
-            if((transform_type == rocfft_transform_type_complex_forward
-                || transform_type == rocfft_transform_type_complex_inverse)
+            if((transform_type == fft_transform_type_complex_forward
+                || transform_type == fft_transform_type_complex_inverse)
                && !samestride)
             {
                 // In-place transforms require identical input and output strides.
@@ -615,8 +653,8 @@ public:
                 return false;
             }
 
-            if((transform_type == rocfft_transform_type_complex_forward
-                || transform_type == rocfft_transform_type_complex_inverse)
+            if((transform_type == fft_transform_type_complex_forward
+                || transform_type == fft_transform_type_complex_inverse)
                && (idist != odist))
             {
                 // In-place transforms require identical distance
@@ -629,8 +667,8 @@ public:
                 return false;
             }
 
-            if((transform_type == rocfft_transform_type_real_forward
-                || transform_type == rocfft_transform_type_real_inverse)
+            if((transform_type == fft_transform_type_real_forward
+                || transform_type == fft_transform_type_real_inverse)
                && (istride.back() != 1 || ostride.back() != 1))
             {
                 // In-place real/complex transforms require unit strides.
@@ -645,10 +683,10 @@ public:
                 return false;
             }
 
-            if((itype == rocfft_array_type_complex_interleaved
-                && otype == rocfft_array_type_complex_planar)
-               || (itype == rocfft_array_type_complex_planar
-                   && otype == rocfft_array_type_complex_interleaved))
+            if((itype == fft_array_type_complex_interleaved
+                && otype == fft_array_type_complex_planar)
+               || (itype == fft_array_type_complex_planar
+                   && otype == fft_array_type_complex_interleaved))
             {
                 if(verbose)
                 {
@@ -660,19 +698,19 @@ public:
             // Check offsets
             switch(transform_type)
             {
-            case rocfft_transform_type_complex_forward:
-            case rocfft_transform_type_complex_inverse:
+            case fft_transform_type_complex_forward:
+            case fft_transform_type_complex_inverse:
                 for(int i = 0; i < nibuffer(); ++i)
                 {
                     if(ioffset[i] != ooffset[i])
                         return false;
                 }
                 break;
-            case rocfft_transform_type_real_forward:
+            case fft_transform_type_real_forward:
                 if(ioffset[0] != 2 * ooffset[0])
                     return false;
                 break;
-            case rocfft_transform_type_real_inverse:
+            case fft_transform_type_real_inverse:
                 if(2 * ioffset[0] != ooffset[0])
                     return false;
                 break;
@@ -717,73 +755,229 @@ public:
         std::reverse(std::begin(ostride_cm), std::end(ostride_cm));
         return ostride_cm;
     }
-};
 
-class rocfft_params : public fft_params
-{
-public:
-    rocfft_plan             plan = nullptr;
-    rocfft_execution_info   info = nullptr;
-    rocfft_plan_description desc = nullptr;
-
-    rocfft_params(){};
-
-    ~rocfft_params()
+    template <typename Tallocator, typename Tstream = std::ostream>
+    void print_ibuffer(const std::vector<std::vector<char, Tallocator>>& buf,
+                       Tstream&                                          stream = std::cout) const
     {
-        if(plan != nullptr)
+        switch(itype)
         {
-            rocfft_plan_destroy(plan);
-            plan = nullptr;
-        }
-        if(info != nullptr)
+        case fft_array_type_complex_interleaved:
+        case fft_array_type_hermitian_interleaved:
         {
-            rocfft_execution_info_destroy(info);
-            info = nullptr;
+            switch(precision)
+            {
+            case fft_precision_single:
+            {
+                buffer_printer<std::complex<float>> s;
+                s.print_buffer(buf, ilength(), istride, nbatch, idist, ioffset);
+                break;
+            }
+            case fft_precision_double:
+            {
+                buffer_printer<std::complex<double>> s;
+                s.print_buffer(buf, ilength(), istride, nbatch, idist, ioffset);
+                break;
+            }
+            }
+            break;
         }
-        if(desc != nullptr)
+        case fft_array_type_complex_planar:
+        case fft_array_type_hermitian_planar:
+        case fft_array_type_real:
         {
-            rocfft_plan_description_destroy(desc);
-            desc = nullptr;
+            switch(precision)
+            {
+            case fft_precision_single:
+            {
+                buffer_printer<float> s;
+                s.print_buffer(buf, ilength(), istride, nbatch, idist, ioffset);
+                break;
+            }
+            case fft_precision_double:
+            {
+                buffer_printer<double> s;
+                s.print_buffer(buf, ilength(), istride, nbatch, idist, ioffset);
+                break;
+            }
+            }
+            break;
         }
-    };
-
-    rocfft_status make_plan()
-    {
-        rocfft_status fft_status = rocfft_plan_description_create(&desc);
-        if(fft_status != rocfft_status_success)
-            return fft_status;
-        fft_status = rocfft_plan_description_set_data_layout(desc,
-                                                             itype,
-                                                             otype,
-                                                             ioffset.data(),
-                                                             ooffset.data(),
-                                                             istride_cm().size(),
-                                                             istride_cm().data(),
-                                                             idist,
-                                                             ostride_cm().size(),
-                                                             ostride_cm().data(),
-                                                             odist);
-        if(fft_status != rocfft_status_success)
-            return fft_status;
-
-        fft_status = rocfft_plan_create(&plan,
-                                        placement,
-                                        transform_type,
-                                        precision,
-                                        length_cm().size(),
-                                        length_cm().data(),
-                                        nbatch,
-                                        desc);
-        if(fft_status != rocfft_status_success)
-            return fft_status;
-
-        fft_status = rocfft_execution_info_create(&info);
-        return fft_status;
+        default:
+            throw std::runtime_error("Invalid itype in print_ibuffer");
+        }
     }
 
-    rocfft_status execute(void** in, void** out)
+    template <typename Tallocator, typename Tstream = std::ostream>
+    void print_obuffer(const std::vector<std::vector<char, Tallocator>>& buf,
+                       Tstream&                                          stream = std::cout) const
     {
-        return rocfft_execute(plan, in, out, info);
+        switch(itype)
+        {
+        case fft_array_type_complex_interleaved:
+        case fft_array_type_hermitian_interleaved:
+        {
+            switch(precision)
+            {
+            case fft_precision_single:
+            {
+                buffer_printer<std::complex<float>> s;
+                s.print_buffer(buf, olength(), ostride, nbatch, odist, ooffset);
+                break;
+            }
+            case fft_precision_double:
+                buffer_printer<std::complex<double>> s;
+                s.print_buffer(buf, olength(), ostride, nbatch, odist, ooffset);
+                break;
+            }
+            break;
+        }
+        case fft_array_type_complex_planar:
+        case fft_array_type_hermitian_planar:
+        case fft_array_type_real:
+        {
+            switch(precision)
+            {
+            case fft_precision_single:
+            {
+                buffer_printer<float> s;
+                s.print_buffer(buf, olength(), ostride, nbatch, odist, ooffset);
+                break;
+            }
+            case fft_precision_double:
+            {
+                buffer_printer<double> s;
+                s.print_buffer(buf, olength(), ostride, nbatch, odist, ooffset);
+                break;
+            }
+            }
+            break;
+        }
+
+        default:
+            throw std::runtime_error("Invalid itype in print_obuffer");
+        }
+    }
+
+    template <typename Tallocator>
+    void print_ibuffer_flat(const std::vector<std::vector<char, Tallocator>>& buf) const
+    {
+        switch(itype)
+        {
+        case fft_array_type_complex_interleaved:
+        case fft_array_type_hermitian_interleaved:
+        {
+            switch(precision)
+            {
+            case fft_precision_single:
+            {
+                buffer_printer<std::complex<float>> s;
+                s.print_buffer_flat(buf, osize, ooffset);
+                break;
+            }
+            case fft_precision_double:
+                buffer_printer<std::complex<double>> s;
+                s.print_buffer_flat(buf, osize, ooffset);
+                break;
+            }
+            break;
+        }
+        case fft_array_type_complex_planar:
+        case fft_array_type_hermitian_planar:
+        case fft_array_type_real:
+        {
+            switch(precision)
+            {
+            case fft_precision_single:
+            {
+                buffer_printer<float> s;
+                s.print_buffer_flat(buf, osize, ooffset);
+                break;
+            }
+            case fft_precision_double:
+            {
+                buffer_printer<double> s;
+                s.print_buffer_flat(buf, osize, ooffset);
+                break;
+            }
+            }
+            break;
+        default:
+            throw std::runtime_error("Invalid itype in print_ibuffer_flat");
+        }
+        }
+    }
+
+    template <typename Tallocator>
+    void print_obuffer_flat(const std::vector<std::vector<char, Tallocator>>& buf) const
+    {
+        switch(otype)
+        {
+        case fft_array_type_complex_interleaved:
+        case fft_array_type_hermitian_interleaved:
+        {
+            switch(precision)
+            {
+            case fft_precision_single:
+            {
+                buffer_printer<std::complex<float>> s;
+                s.print_buffer_flat(buf, osize, ooffset);
+                break;
+            }
+            case fft_precision_double:
+                buffer_printer<std::complex<double>> s;
+                s.print_buffer_flat(buf, osize, ooffset);
+                break;
+            }
+            break;
+        }
+        case fft_array_type_complex_planar:
+        case fft_array_type_hermitian_planar:
+        case fft_array_type_real:
+        {
+            switch(precision)
+            {
+            case fft_precision_single:
+            {
+                buffer_printer<float> s;
+                s.print_buffer_flat(buf, osize, ooffset);
+                break;
+            }
+
+            case fft_precision_double:
+            {
+                buffer_printer<double> s;
+                s.print_buffer_flat(buf, osize, ooffset);
+                break;
+            }
+            break;
+            }
+        default:
+            throw std::runtime_error("Invalid itype in print_ibuffer_flat");
+        }
+        }
+    }
+
+    virtual fft_status execute(void** in, void** out)
+    {
+        return fft_status_success;
+    };
+
+    virtual size_t vram_footprint()
+    {
+        const auto ibuf_size = ibuffer_sizes();
+        size_t     val       = std::accumulate(ibuf_size.begin(), ibuf_size.end(), (size_t)1);
+        if(placement == fft_placement_notinplace)
+        {
+            const auto obuf_size = obuffer_sizes();
+            val += std::accumulate(obuf_size.begin(), obuf_size.end(), (size_t)1);
+        }
+        return val;
+    }
+
+    virtual fft_status setup()
+    {
+        return fft_status_success;
     }
 };
 
@@ -791,22 +985,22 @@ public:
 // command line and we store into an enum varaible
 template <typename _Elem, typename _Traits>
 std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits>& stream,
-                                               rocfft_array_type&                  atype)
+                                               fft_array_type&                     atype)
 {
     unsigned tmp;
     stream >> tmp;
-    atype = rocfft_array_type(tmp);
+    atype = fft_array_type(tmp);
     return stream;
 }
 
 // similarly for transform type
 template <typename _Elem, typename _Traits>
 std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits>& stream,
-                                               rocfft_transform_type&              ttype)
+                                               fft_transform_type&                 ttype)
 {
     unsigned tmp;
     stream >> tmp;
-    ttype = rocfft_transform_type(tmp);
+    ttype = fft_transform_type(tmp);
     return stream;
 }
 
@@ -1113,11 +1307,11 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                          std::vector<std::vector<char, Tallocator2>>&       output,
                          const Tint1&                                       length,
                          const size_t                                       nbatch,
-                         const rocfft_precision                             precision,
-                         const rocfft_array_type                            itype,
+                         const fft_precision                                precision,
+                         const fft_array_type                               itype,
                          const Tint2&                                       istride,
                          const size_t                                       idist,
-                         const rocfft_array_type                            otype,
+                         const fft_array_type                               otype,
                          const Tint3&                                       ostride,
                          const size_t                                       odist,
                          const std::vector<size_t>&                         ioffset,
@@ -1127,11 +1321,11 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
     {
         switch(itype)
         {
-        case rocfft_array_type_complex_interleaved:
-        case rocfft_array_type_hermitian_interleaved:
+        case fft_array_type_complex_interleaved:
+        case fft_array_type_hermitian_interleaved:
             switch(precision)
             {
-            case rocfft_precision_single:
+            case fft_precision_single:
                 copy_buffers_1to1(reinterpret_cast<const std::complex<float>*>(input[0].data()),
                                   reinterpret_cast<std::complex<float>*>(output[0].data()),
                                   length,
@@ -1143,7 +1337,7 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                                   ioffset,
                                   ooffset);
                 break;
-            case rocfft_precision_double:
+            case fft_precision_double:
                 copy_buffers_1to1(reinterpret_cast<const std::complex<double>*>(input[0].data()),
                                   reinterpret_cast<std::complex<double>*>(output[0].data()),
                                   length,
@@ -1157,14 +1351,14 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                 break;
             }
             break;
-        case rocfft_array_type_real:
-        case rocfft_array_type_complex_planar:
-        case rocfft_array_type_hermitian_planar:
+        case fft_array_type_real:
+        case fft_array_type_complex_planar:
+        case fft_array_type_hermitian_planar:
             for(int idx = 0; idx < input.size(); ++idx)
             {
                 switch(precision)
                 {
-                case rocfft_precision_single:
+                case fft_precision_single:
                     copy_buffers_1to1(reinterpret_cast<const float*>(input[idx].data()),
                                       reinterpret_cast<float*>(output[idx].data()),
                                       length,
@@ -1176,7 +1370,7 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                                       ioffset,
                                       ooffset);
                     break;
-                case rocfft_precision_double:
+                case fft_precision_double:
                     copy_buffers_1to1(reinterpret_cast<const double*>(input[idx].data()),
                                       reinterpret_cast<double*>(output[idx].data()),
                                       length,
@@ -1196,15 +1390,14 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
             break;
         }
     }
-    else if((itype == rocfft_array_type_complex_interleaved
-             && otype == rocfft_array_type_complex_planar)
-            || (itype == rocfft_array_type_hermitian_interleaved
-                && otype == rocfft_array_type_hermitian_planar))
+    else if((itype == fft_array_type_complex_interleaved && otype == fft_array_type_complex_planar)
+            || (itype == fft_array_type_hermitian_interleaved
+                && otype == fft_array_type_hermitian_planar))
     {
         // copy 1to2
         switch(precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
             copy_buffers_1to2(reinterpret_cast<const std::complex<float>*>(input[0].data()),
                               reinterpret_cast<float*>(output[0].data()),
                               reinterpret_cast<float*>(output[1].data()),
@@ -1217,7 +1410,7 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                               ioffset,
                               ooffset);
             break;
-        case rocfft_precision_double:
+        case fft_precision_double:
             copy_buffers_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
                               reinterpret_cast<double*>(output[0].data()),
                               reinterpret_cast<double*>(output[1].data()),
@@ -1232,15 +1425,14 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
             break;
         }
     }
-    else if((itype == rocfft_array_type_complex_planar
-             && otype == rocfft_array_type_complex_interleaved)
-            || (itype == rocfft_array_type_hermitian_planar
-                && otype == rocfft_array_type_hermitian_interleaved))
+    else if((itype == fft_array_type_complex_planar && otype == fft_array_type_complex_interleaved)
+            || (itype == fft_array_type_hermitian_planar
+                && otype == fft_array_type_hermitian_interleaved))
     {
         // copy 2 to 1
         switch(precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
             copy_buffers_2to1(reinterpret_cast<const float*>(input[0].data()),
                               reinterpret_cast<const float*>(input[1].data()),
                               reinterpret_cast<std::complex<float>*>(output[0].data()),
@@ -1253,7 +1445,7 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                               ioffset,
                               ooffset);
             break;
-        case rocfft_precision_double:
+        case fft_precision_double:
             copy_buffers_2to1(reinterpret_cast<const double*>(input[0].data()),
                               reinterpret_cast<const double*>(input[1].data()),
                               reinterpret_cast<std::complex<double>*>(output[0].data()),
@@ -1284,11 +1476,11 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                          std::vector<std::vector<char, Tallocator2>>&       output,
                          const std::vector<Tint1>&                          length,
                          const size_t                                       nbatch,
-                         const rocfft_precision                             precision,
-                         const rocfft_array_type                            itype,
+                         const fft_precision                                precision,
+                         const fft_array_type                               itype,
                          const std::vector<Tint2>&                          istride,
                          const size_t                                       idist,
-                         const rocfft_array_type                            otype,
+                         const fft_array_type                               otype,
                          const std::vector<Tint3>&                          ostride,
                          const size_t                                       odist,
                          const std::vector<size_t>&                         ioffset,
@@ -1562,11 +1754,11 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                             const std::vector<std::vector<char, Tallocator2>>& output,
                             const Tint1&                                       length,
                             const size_t                                       nbatch,
-                            const rocfft_precision                             precision,
-                            const rocfft_array_type                            itype,
+                            const fft_precision                                precision,
+                            const fft_array_type                               itype,
                             const Tint2&                                       istride,
                             const size_t                                       idist,
-                            const rocfft_array_type                            otype,
+                            const fft_array_type                               otype,
                             const Tint3&                                       ostride,
                             const size_t                                       odist,
                             std::vector<std::pair<size_t, size_t>>&            linf_failures,
@@ -1580,11 +1772,11 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
     {
         switch(itype)
         {
-        case rocfft_array_type_complex_interleaved:
-        case rocfft_array_type_hermitian_interleaved:
+        case fft_array_type_complex_interleaved:
+        case fft_array_type_hermitian_interleaved:
             switch(precision)
             {
-            case rocfft_precision_single:
+            case fft_precision_single:
                 dist = distance_1to1_complex(
                     reinterpret_cast<const std::complex<float>*>(input[0].data()),
                     reinterpret_cast<const std::complex<float>*>(output[0].data()),
@@ -1599,7 +1791,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                     ioffset,
                     ooffset);
                 break;
-            case rocfft_precision_double:
+            case fft_precision_double:
                 dist = distance_1to1_complex(
                     reinterpret_cast<const std::complex<double>*>(input[0].data()),
                     reinterpret_cast<const std::complex<double>*>(output[0].data()),
@@ -1617,15 +1809,15 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
             }
             dist.l_2 *= dist.l_2;
             break;
-        case rocfft_array_type_real:
-        case rocfft_array_type_complex_planar:
-        case rocfft_array_type_hermitian_planar:
+        case fft_array_type_real:
+        case fft_array_type_complex_planar:
+        case fft_array_type_hermitian_planar:
             for(int idx = 0; idx < input.size(); ++idx)
             {
                 VectorNorms d;
                 switch(precision)
                 {
-                case rocfft_precision_single:
+                case fft_precision_single:
                     d = distance_1to1_real(reinterpret_cast<const float*>(input[idx].data()),
                                            reinterpret_cast<const float*>(output[idx].data()),
                                            length,
@@ -1639,7 +1831,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                            ioffset,
                                            ooffset);
                     break;
-                case rocfft_precision_double:
+                case fft_precision_double:
                     d = distance_1to1_real(reinterpret_cast<const double*>(input[idx].data()),
                                            reinterpret_cast<const double*>(output[idx].data()),
                                            length,
@@ -1663,14 +1855,13 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
             break;
         }
     }
-    else if((itype == rocfft_array_type_complex_interleaved
-             && otype == rocfft_array_type_complex_planar)
-            || (itype == rocfft_array_type_hermitian_interleaved
-                && otype == rocfft_array_type_hermitian_planar))
+    else if((itype == fft_array_type_complex_interleaved && otype == fft_array_type_complex_planar)
+            || (itype == fft_array_type_hermitian_interleaved
+                && otype == fft_array_type_hermitian_planar))
     {
         switch(precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
             dist = distance_1to2(reinterpret_cast<const std::complex<float>*>(input[0].data()),
                                  reinterpret_cast<const float*>(output[0].data()),
                                  reinterpret_cast<const float*>(output[1].data()),
@@ -1685,7 +1876,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  ioffset,
                                  ooffset);
             break;
-        case rocfft_precision_double:
+        case fft_precision_double:
             dist = distance_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
                                  reinterpret_cast<const double*>(output[0].data()),
                                  reinterpret_cast<const double*>(output[1].data()),
@@ -1703,14 +1894,13 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
         }
         dist.l_2 *= dist.l_2;
     }
-    else if((itype == rocfft_array_type_complex_planar
-             && otype == rocfft_array_type_complex_interleaved)
-            || (itype == rocfft_array_type_hermitian_planar
-                && otype == rocfft_array_type_hermitian_interleaved))
+    else if((itype == fft_array_type_complex_planar && otype == fft_array_type_complex_interleaved)
+            || (itype == fft_array_type_hermitian_planar
+                && otype == fft_array_type_hermitian_interleaved))
     {
         switch(precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
             dist = distance_1to2(reinterpret_cast<const std::complex<float>*>(output[0].data()),
                                  reinterpret_cast<const float*>(input[0].data()),
                                  reinterpret_cast<const float*>(input[1].data()),
@@ -1725,7 +1915,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  ioffset,
                                  ooffset);
             break;
-        case rocfft_precision_double:
+        case fft_precision_double:
             dist = distance_1to2(reinterpret_cast<const std::complex<double>*>(output[0].data()),
                                  reinterpret_cast<const double*>(input[0].data()),
                                  reinterpret_cast<const double*>(input[1].data()),
@@ -1761,11 +1951,11 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                             const std::vector<std::vector<char, Tallocator2>>& output,
                             const std::vector<Tint1>&                          length,
                             const size_t                                       nbatch,
-                            const rocfft_precision                             precision,
-                            const rocfft_array_type                            itype,
+                            const fft_precision                                precision,
+                            const fft_array_type                               itype,
                             const std::vector<Tint2>&                          istride,
                             const size_t                                       idist,
-                            const rocfft_array_type                            otype,
+                            const fft_array_type                               otype,
                             const std::vector<Tint3>&                          ostride,
                             const size_t                                       odist,
                             std::vector<std::pair<size_t, size_t>>&            linf_failures,
@@ -1917,8 +2107,8 @@ template <typename Tallocator1, typename T1, typename T2>
 inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input,
                         const T1&                                          length,
                         const size_t                                       nbatch,
-                        const rocfft_precision                             precision,
-                        const rocfft_array_type                            itype,
+                        const fft_precision                                precision,
+                        const fft_array_type                               itype,
                         const T2&                                          istride,
                         const size_t                                       idist,
                         const std::vector<size_t>&                         offset)
@@ -1927,11 +2117,11 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
 
     switch(itype)
     {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_hermitian_interleaved:
+    case fft_array_type_complex_interleaved:
+    case fft_array_type_hermitian_interleaved:
         switch(precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
             norm = norm_complex(reinterpret_cast<const std::complex<float>*>(input[0].data()),
                                 length,
                                 nbatch,
@@ -1939,7 +2129,7 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
                                 idist,
                                 offset);
             break;
-        case rocfft_precision_double:
+        case fft_precision_double:
             norm = norm_complex(reinterpret_cast<const std::complex<double>*>(input[0].data()),
                                 length,
                                 nbatch,
@@ -1950,15 +2140,15 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
         }
         norm.l_2 *= norm.l_2;
         break;
-    case rocfft_array_type_real:
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_planar:
+    case fft_array_type_real:
+    case fft_array_type_complex_planar:
+    case fft_array_type_hermitian_planar:
         for(int idx = 0; idx < input.size(); ++idx)
         {
             VectorNorms n;
             switch(precision)
             {
-            case rocfft_precision_single:
+            case fft_precision_single:
                 n = norm_real(reinterpret_cast<const float*>(input[idx].data()),
                               length,
                               nbatch,
@@ -1966,7 +2156,7 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
                               idist,
                               offset);
                 break;
-            case rocfft_precision_double:
+            case fft_precision_double:
                 n = norm_real(reinterpret_cast<const double*>(input[idx].data()),
                               length,
                               nbatch,
@@ -1993,8 +2183,8 @@ template <typename Tallocator1, typename T1, typename T2>
 inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input,
                         const std::vector<T1>&                             length,
                         const size_t                                       nbatch,
-                        const rocfft_precision                             precision,
-                        const rocfft_array_type                            type,
+                        const fft_precision                                precision,
+                        const fft_array_type                               type,
                         const std::vector<T2>&                             stride,
                         const size_t                                       dist,
                         const std::vector<size_t>&                         offset)
@@ -2226,10 +2416,10 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
             {
             case 3:
                 throw std::runtime_error("Not implemented");
-                // FIXME: implement
+                // TODO: implement
             case 2:
                 throw std::runtime_error("Not implemented");
-                // FIXME: implement
+                // TODO: implement
             case 1:
                 idata[0] = 0.0;
                 if(length[0] % 2 == 0)
@@ -2256,7 +2446,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
 // lengths are the memory lengths (ie not the transform parameters)
 template <typename Tfloat, typename Tallocator, typename Tint1>
 inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
-                      const rocfft_array_type                     itype,
+                      const fft_array_type                        itype,
                       const Tint1&                                whole_length,
                       const Tint1&                                istride,
                       const size_t                                idist,
@@ -2264,8 +2454,8 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
 {
     switch(itype)
     {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_hermitian_interleaved:
+    case fft_array_type_complex_interleaved:
+    case fft_array_type_hermitian_interleaved:
     {
         auto   idata      = (std::complex<Tfloat>*)input[0].data();
         size_t i_base     = 0;
@@ -2290,8 +2480,8 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
         }
         break;
     }
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_planar:
+    case fft_array_type_complex_planar:
+    case fft_array_type_hermitian_planar:
     {
         auto   ireal      = (Tfloat*)input[0].data();
         auto   iimag      = (Tfloat*)input[1].data();
@@ -2317,7 +2507,7 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
         }
         break;
     }
-    case rocfft_array_type_real:
+    case fft_array_type_real:
     {
         auto   idata      = (Tfloat*)input[0].data();
         size_t i_base     = 0;
@@ -2349,7 +2539,7 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
 // unroll set_input for dimension 1, 2, 3
 template <typename Tfloat, typename Tallocator>
 inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
-                      const rocfft_array_type                     itype,
+                      const fft_array_type                        itype,
                       const std::vector<size_t>&                  length,
                       const std::vector<size_t>&                  istride,
                       const size_t                                idist,
@@ -2385,7 +2575,7 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
 // the batch size, allocate the required host buffer(s).
 template <typename Allocator = std::allocator<char>>
 inline std::vector<std::vector<char, Allocator>> allocate_host_buffer(
-    const rocfft_precision precision, const rocfft_array_type type, const std::vector<size_t>& size)
+    const fft_precision precision, const fft_array_type type, const std::vector<size_t>& size)
 {
     std::vector<std::vector<char, Allocator>> buffers(size.size());
     for(int i = 0; i < size.size(); ++i)
@@ -2409,26 +2599,26 @@ inline std::vector<std::vector<char, Allocator>> compute_input(const fft_params&
 
     switch(params.precision)
     {
-    case rocfft_precision_double:
+    case fft_precision_double:
         set_input<double>(
             input, params.itype, params.ilength(), params.istride, params.idist, params.nbatch);
         break;
-    case rocfft_precision_single:
+    case fft_precision_single:
         set_input<float>(
             input, params.itype, params.ilength(), params.istride, params.idist, params.nbatch);
         break;
     }
 
-    if(params.itype == rocfft_array_type_hermitian_interleaved
-       || params.itype == rocfft_array_type_hermitian_planar)
+    if(params.itype == fft_array_type_hermitian_interleaved
+       || params.itype == fft_array_type_hermitian_planar)
     {
         switch(params.precision)
         {
-        case rocfft_precision_double:
+        case fft_precision_double:
             impose_hermitian_symmetry<double>(
                 input, params.length, params.istride, params.idist, params.nbatch);
             break;
-        case rocfft_precision_single:
+        case fft_precision_single:
             impose_hermitian_symmetry<float>(
                 input, params.length, params.istride, params.idist, params.nbatch);
             break;

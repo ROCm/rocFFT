@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "../../shared/gpubuf.h"
-#include "../client_utils.h"
+#include "../rocfft_params.h"
 #include "accuracy_test.h"
 #include "fftw_transform.h"
 #include "rocfft.h"
@@ -58,38 +58,38 @@ __device__ auto load_callback_dev_float2  = load_callback<float2>;
 __device__ auto load_callback_dev_double  = load_callback<double>;
 __device__ auto load_callback_dev_double2 = load_callback<double2>;
 
-void* get_load_callback_host(rocfft_array_type itype, rocfft_precision precision)
+void* get_load_callback_host(fft_array_type itype, fft_precision precision)
 {
     void* load_callback_host = nullptr;
     switch(itype)
     {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_hermitian_interleaved:
+    case fft_array_type_complex_interleaved:
+    case fft_array_type_hermitian_interleaved:
     {
         switch(precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
             EXPECT_EQ(
                 hipMemcpyFromSymbol(&load_callback_host, load_callback_dev_float2, sizeof(void*)),
                 hipSuccess);
             return load_callback_host;
-        case rocfft_precision_double:
+        case fft_precision_double:
             EXPECT_EQ(
                 hipMemcpyFromSymbol(&load_callback_host, load_callback_dev_double2, sizeof(void*)),
                 hipSuccess);
             return load_callback_host;
         }
     }
-    case rocfft_array_type_real:
+    case fft_array_type_real:
     {
         switch(precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
             EXPECT_EQ(
                 hipMemcpyFromSymbol(&load_callback_host, load_callback_dev_float, sizeof(void*)),
                 hipSuccess);
             return load_callback_host;
-        case rocfft_precision_double:
+        case fft_precision_double:
             EXPECT_EQ(
                 hipMemcpyFromSymbol(&load_callback_host, load_callback_dev_double, sizeof(void*)),
                 hipSuccess);
@@ -117,38 +117,38 @@ __device__ auto store_callback_dev_float2  = store_callback<float2>;
 __device__ auto store_callback_dev_double  = store_callback<double>;
 __device__ auto store_callback_dev_double2 = store_callback<double2>;
 
-void* get_store_callback_host(rocfft_array_type otype, rocfft_precision precision)
+void* get_store_callback_host(fft_array_type otype, fft_precision precision)
 {
     void* store_callback_host = nullptr;
     switch(otype)
     {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_hermitian_interleaved:
+    case fft_array_type_complex_interleaved:
+    case fft_array_type_hermitian_interleaved:
     {
         switch(precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
             EXPECT_EQ(
                 hipMemcpyFromSymbol(&store_callback_host, store_callback_dev_float2, sizeof(void*)),
                 hipSuccess);
             return store_callback_host;
-        case rocfft_precision_double:
+        case fft_precision_double:
             EXPECT_EQ(hipMemcpyFromSymbol(
                           &store_callback_host, store_callback_dev_double2, sizeof(void*)),
                       hipSuccess);
             return store_callback_host;
         }
     }
-    case rocfft_array_type_real:
+    case fft_array_type_real:
     {
         switch(precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
             EXPECT_EQ(
                 hipMemcpyFromSymbol(&store_callback_host, store_callback_dev_float, sizeof(void*)),
                 hipSuccess);
             return store_callback_host;
-        case rocfft_precision_double:
+        case fft_precision_double:
             EXPECT_EQ(
                 hipMemcpyFromSymbol(&store_callback_host, store_callback_dev_double, sizeof(void*)),
                 hipSuccess);
@@ -175,12 +175,12 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
 
     switch(params.itype)
     {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_hermitian_interleaved:
+    case fft_array_type_complex_interleaved:
+    case fft_array_type_hermitian_interleaved:
     {
         switch(params.precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
         {
             const size_t elem_size = 2 * sizeof(float);
             const size_t num_elems = input.front().size() / elem_size;
@@ -190,7 +190,7 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
                 input_begin[i] = load_callback(input_begin, i, &cbdata, nullptr);
             break;
         }
-        case rocfft_precision_double:
+        case fft_precision_double:
         {
             const size_t elem_size = 2 * sizeof(double);
             const size_t num_elems = input.front().size() / elem_size;
@@ -203,11 +203,11 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
         }
     }
     break;
-    case rocfft_array_type_real:
+    case fft_array_type_real:
     {
         switch(params.precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
         {
             const size_t elem_size = sizeof(float);
             const size_t num_elems = input.front().size() / elem_size;
@@ -217,7 +217,7 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
                 input_begin[i] = load_callback(input_begin, i, &cbdata, nullptr);
             break;
         }
-        case rocfft_precision_double:
+        case fft_precision_double:
         {
             const size_t elem_size = sizeof(double);
             const size_t num_elems = input.front().size() / elem_size;
@@ -251,12 +251,12 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
 
     switch(params.otype)
     {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_hermitian_interleaved:
+    case fft_array_type_complex_interleaved:
+    case fft_array_type_hermitian_interleaved:
     {
         switch(params.precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
         {
             const size_t elem_size = 2 * sizeof(float);
             const size_t num_elems = output.front().size() / elem_size;
@@ -266,7 +266,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
                 store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
             break;
         }
-        case rocfft_precision_double:
+        case fft_precision_double:
         {
             const size_t elem_size = 2 * sizeof(double);
             const size_t num_elems = output.front().size() / elem_size;
@@ -279,11 +279,11 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
         }
     }
     break;
-    case rocfft_array_type_real:
+    case fft_array_type_real:
     {
         switch(params.precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
         {
             const size_t elem_size = sizeof(float);
             const size_t num_elems = output.front().size() / elem_size;
@@ -293,7 +293,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
                 store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
             break;
         }
-        case rocfft_precision_double:
+        case fft_precision_double:
         {
             const size_t elem_size = sizeof(double);
             const size_t num_elems = output.front().size() / elem_size;
@@ -327,7 +327,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const fft_params& p
             if(params.precision != ret.precision)
             {
                 // Tests should be ordered so we do double first, then float.
-                if(ret.precision == rocfft_precision_double)
+                if(ret.precision == fft_precision_double)
                 {
                     // convert double input/output to float in-place so
                     // we don't need extra memory
@@ -364,7 +364,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const fft_params& p
                     // replace the cached futures with these conversions
                     ret.input     = std::move(input_future);
                     ret.output    = std::move(output_future);
-                    ret.precision = rocfft_precision_single;
+                    ret.precision = fft_precision_single;
                 }
                 else
                 {
@@ -401,7 +401,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const fft_params& p
     fft_params contiguous_params;
     contiguous_params.length         = params.length;
     contiguous_params.precision      = params.precision;
-    contiguous_params.placement      = rocfft_placement_notinplace;
+    contiguous_params.placement      = fft_placement_notinplace;
     contiguous_params.transform_type = params.transform_type;
     contiguous_params.nbatch         = params.nbatch;
     contiguous_params.itype          = contiguous_itype(params.transform_type);
@@ -428,14 +428,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const fft_params& p
     if(verbose > 3)
     {
         std::cout << "CPU input:\n";
-        printbuffer(params.precision,
-                    contiguous_params.itype,
-                    input.get(),
-                    params.ilength(),
-                    contiguous_params.istride,
-                    params.nbatch,
-                    contiguous_params.idist,
-                    contiguous_params.ioffset);
+        contiguous_params.print_ibuffer(input.get());
     }
 
     auto input_norm = std::async(std::launch::async, [=]() {
@@ -473,14 +466,7 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const fft_params& p
         if(verbose > 3)
         {
             std::cout << "CPU output:\n";
-            printbuffer(params.precision,
-                        contiguous_params.otype,
-                        output,
-                        params.olength(),
-                        contiguous_params.ostride,
-                        params.nbatch,
-                        contiguous_params.odist,
-                        contiguous_params.ooffset);
+            contiguous_params.print_obuffer(output);
         }
         return output;
     });
@@ -528,10 +514,10 @@ accuracy_test::cpu_fft_params accuracy_test::compute_cpu_fft(const fft_params& p
 }
 
 // Compute a FFT using rocFFT and compare with the provided CPU reference computation.
-void rocfft_transform(const fft_params&                    params,
-                      const accuracy_test::cpu_fft_params& cpu,
-                      const size_t                         ramgb)
+void rocfft_transform(fft_params& params0, accuracy_test::cpu_fft_params& cpu, const size_t ramgb)
 {
+    rocfft_params params(params0);
+
     // Make sure that the parameters make sense:
     ASSERT_TRUE(params.valid(verbose));
 
@@ -545,52 +531,10 @@ void rocfft_transform(const fft_params&                    params,
         return;
     }
 
-    // Create FFT description
-    rocfft_plan_description desc       = NULL;
-    rocfft_status           fft_status = rocfft_plan_description_create(&desc);
-    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT description creation failure";
-    fft_status = rocfft_plan_description_set_data_layout(desc,
-                                                         params.itype,
-                                                         params.otype,
-                                                         params.ioffset.data(),
-                                                         params.ooffset.data(),
-                                                         params.istride_cm().size(),
-                                                         params.istride_cm().data(),
-                                                         params.idist,
-                                                         params.ostride_cm().size(),
-                                                         params.ostride_cm().data(),
-                                                         params.odist);
-    ASSERT_TRUE(fft_status == rocfft_status_success)
-        << "rocFFT data layout failure: " << fft_status;
-
-    // Create the plan
-    rocfft_plan gpu_plan = NULL;
-    fft_status           = rocfft_plan_create(&gpu_plan,
-                                    params.placement,
-                                    params.transform_type,
-                                    params.precision,
-                                    params.length_cm().size(),
-                                    params.length_cm().data(),
-                                    params.nbatch,
-                                    desc);
-    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan creation failure";
-
-    // Create execution info
-    rocfft_execution_info info = NULL;
-    fft_status                 = rocfft_execution_info_create(&info);
-    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT execution info creation failure";
-    size_t workbuffersize = 0;
-    fft_status            = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
-    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT get buffer size get failure";
-
     // Check if the problem fits on the device; if it doesn't skip it.
-    auto       ibuffer_sizes = params.ibuffer_sizes();
-    auto       obuffer_sizes = params.obuffer_sizes();
-    const auto vram_footprint
-        = params.nibuffer() * ibuffer_sizes[0]
-          + (params.placement == rocfft_placement_inplace ? 0
-                                                          : params.nobuffer() * obuffer_sizes[0])
-          + workbuffersize;
+    auto       ibuffer_sizes  = params.ibuffer_sizes();
+    auto       obuffer_sizes  = params.obuffer_sizes();
+    const auto vram_footprint = params.vram_footprint();
     if(verbose > 1)
     {
         size_t     free   = 0;
@@ -601,15 +545,12 @@ void rocfft_transform(const fft_params&                    params,
             std::cerr << "hipMemGetInfo failed" << std::endl;
         }
         std::cout << "vram footprint: " << vram_footprint << " (" << (double)vram_footprint
-                  << ") workbuffer: " << workbuffersize << " (" << (double)workbuffersize
-                  << ") free: " << free << " (" << (double)free << ") total: " << total << " ("
-                  << (double)total << ")\n";
+                  << ") workbuffer: " << params.workbuffersize << " ("
+                  << (double)params.workbuffersize << ") free: " << free << " (" << (double)free
+                  << ") total: " << total << " (" << (double)total << ")\n";
     }
     if(!vram_fits_problem(vram_footprint))
     {
-        rocfft_plan_destroy(gpu_plan);
-        rocfft_plan_description_destroy(desc);
-        rocfft_execution_info_destroy(info);
 
         if(verbose)
         {
@@ -619,34 +560,11 @@ void rocfft_transform(const fft_params&                    params,
         return;
     }
 
+    // Create the plan
+    fft_status fft_status = params.setup();
+    ASSERT_TRUE(fft_status == fft_status_success) << "rocFFT setup failure";
+
     hipError_t hip_status = hipSuccess;
-
-    // Allocate work memory and associate with the execution info
-    gpubuf wbuffer;
-    if(workbuffersize > 0)
-    {
-        hip_status = wbuffer.alloc(workbuffersize);
-        if(hip_status != hipSuccess)
-        {
-
-            size_t     free   = 0;
-            size_t     total  = 0;
-            hipError_t retval = hipMemGetInfo(&free, &total);
-            if(retval == hipSuccess)
-            {
-                std::cerr << "free vram: " << free << " total vram: " << total << std::endl;
-            }
-            else
-            {
-                std::cerr << "hipMemGetInfo also failed" << std::endl;
-            }
-        }
-        ASSERT_TRUE(hip_status == hipSuccess)
-            << "hipMalloc failure for work buffer of size " << workbuffersize << std::endl;
-
-        fft_status = rocfft_execution_info_set_work_buffer(info, wbuffer.data(), workbuffersize);
-        ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT set work buffer failure";
-    }
 
     // Formatted input data:
     auto gpu_input
@@ -670,19 +588,12 @@ void rocfft_transform(const fft_params&                    params,
     if(verbose > 4)
     {
         std::cout << "GPU input:\n";
-        printbuffer(params.precision,
-                    params.itype,
-                    gpu_input,
-                    params.ilength(),
-                    params.istride,
-                    params.nbatch,
-                    params.idist,
-                    params.ioffset);
+        params.print_ibuffer(gpu_input);
     }
     if(verbose > 5)
     {
         std::cout << "flat GPU input:\n";
-        printbuffer_flat(params.precision, params.itype, gpu_input, params.isize, params.ioffset);
+        params.print_ibuffer_flat(gpu_input);
     }
 
     // GPU input and output buffers:
@@ -709,13 +620,12 @@ void rocfft_transform(const fft_params&                    params,
 
     std::vector<gpubuf>  obuffer_data;
     std::vector<gpubuf>* obuffer = &obuffer_data;
-    if(params.placement == rocfft_placement_inplace)
+    if(params.placement == fft_placement_inplace)
     {
         obuffer = &ibuffer;
     }
     else
     {
-        auto obuffer_sizes = params.obuffer_sizes();
         obuffer_data.resize(obuffer_sizes.size());
         for(unsigned int i = 0; i < obuffer_data.size(); ++i)
         {
@@ -770,8 +680,9 @@ void rocfft_transform(const fft_params&                    params,
                                  hipMemcpyHostToDevice));
 
         void* load_cb_data = load_cb_data_dev.data();
-        fft_status = rocfft_execution_info_set_load_callback(info, &load_cb_host, &load_cb_data, 0);
-        ASSERT_TRUE(fft_status == rocfft_status_success);
+        ASSERT_TRUE(
+            rocfft_execution_info_set_load_callback(params.info, &load_cb_host, &load_cb_data, 0)
+            == rocfft_status_success);
 
         void* store_cb_host = get_store_callback_host(params.otype, params.precision);
 
@@ -787,9 +698,10 @@ void rocfft_transform(const fft_params&                    params,
                                  hipMemcpyHostToDevice));
 
         void* store_cb_data = store_cb_data_dev.data();
-        fft_status
-            = rocfft_execution_info_set_store_callback(info, &store_cb_host, &store_cb_data, 0);
-        ASSERT_TRUE(fft_status == rocfft_status_success);
+
+        ASSERT_TRUE(
+            rocfft_execution_info_set_store_callback(params.info, &store_cb_host, &store_cb_data, 0)
+            == rocfft_status_success);
     }
 
     // Copy the input data to the GPU:
@@ -803,11 +715,8 @@ void rocfft_transform(const fft_params&                    params,
     }
 
     // Execute the transform:
-    fft_status = rocfft_execute(gpu_plan, // plan
-                                (void**)pibuffer.data(), // in buffers
-                                (void**)pobuffer.data(), // out buffers
-                                info); // execution info
-    ASSERT_TRUE(fft_status == rocfft_status_success) << "rocFFT plan execution failure";
+    fft_status = params.execute((void**)pibuffer.data(), (void**)pobuffer.data());
+    ASSERT_TRUE(fft_status == fft_status_success) << "rocFFT plan execution failure";
 
     // Copy the data back to the host:
     ASSERT_TRUE(!params.osize.empty()) << "Error: params osize is empty";
@@ -828,19 +737,12 @@ void rocfft_transform(const fft_params&                    params,
     if(verbose > 2)
     {
         std::cout << "GPU output:\n";
-        printbuffer(params.precision,
-                    params.otype,
-                    gpu_output,
-                    params.olength(),
-                    params.ostride,
-                    params.nbatch,
-                    params.odist,
-                    params.ooffset);
+        params.print_obuffer(gpu_output);
     }
     if(verbose > 5)
     {
         std::cout << "flat GPU output:\n";
-        printbuffer_flat(params.precision, params.otype, gpu_output, params.osize, params.ooffset);
+        params.print_obuffer_flat(gpu_output);
     }
 
     // Compute the Linfinity and L2 norm of the GPU output:
@@ -913,19 +815,12 @@ void rocfft_transform(const fft_params&                    params,
         << "\tnormalized L2: " << diff.l_2 / cpu.output_norm.get().l_2
         << "\tepsilon: " << sqrt(log2(total_length)) * type_epsilon(params.precision)
         << params.str();
-
-    rocfft_plan_destroy(gpu_plan);
-    gpu_plan = NULL;
-    rocfft_plan_description_destroy(desc);
-    desc = NULL;
-    rocfft_execution_info_destroy(info);
-    info = NULL;
 }
 
 // Test for comparison between FFTW and rocFFT.
 TEST_P(accuracy_test, vs_fftw)
 {
-    fft_params params = GetParam();
+    rocfft_params params(GetParam());
 
     params.validate();
 
@@ -953,8 +848,7 @@ TEST_P(accuracy_test, vs_fftw)
     auto obuffer_sizes = params.obuffer_sizes();
     auto minimal_vram_footprint
         = params.nibuffer() * ibuffer_sizes[0]
-          + (params.placement == rocfft_placement_inplace ? 0
-                                                          : params.nobuffer() * obuffer_sizes[0]);
+          + (params.placement == fft_placement_inplace ? 0 : params.nobuffer() * obuffer_sizes[0]);
     size_t free   = 0;
     size_t total  = 0;
     auto   retval = hipMemGetInfo(&free, &total);

@@ -49,11 +49,11 @@ static inline FMKey fpkey(size_t              length1,
 
 inline void PrintMissingKernelInfo(const FMKey& key)
 {
-    auto&               lengthVec = std::get<0>(key);
-    rocfft_precision    precision = std::get<1>(key);
-    ComputeScheme       scheme    = std::get<2>(key);
-    SBRC_TRANSPOSE_TYPE trans     = std::get<3>(key);
-    std::stringstream   msg;
+    const auto&               lengthVec = std::get<0>(key);
+    const rocfft_precision    precision = std::get<1>(key);
+    const ComputeScheme       scheme    = std::get<2>(key);
+    const SBRC_TRANSPOSE_TYPE trans     = std::get<3>(key);
+    std::stringstream         msg;
     msg << "Kernel not found: \n"
         << "\tlength: " << lengthVec[0] << "," << lengthVec[1] << "\n"
         << "\tprecision: " << precision << "\n"
@@ -161,8 +161,8 @@ public:
 
     static std::vector<size_t> get_lengths(rocfft_precision precision, ComputeScheme scheme)
     {
-        function_pool&      func_pool = get_function_pool();
-        std::vector<size_t> lengths;
+        const function_pool& func_pool = get_function_pool();
+        std::vector<size_t>  lengths;
         for(auto const& kv : func_pool.function_map)
         {
             if(std::get<0>(kv.first)[1] == 0 && std::get<1>(kv.first) == precision

@@ -103,6 +103,11 @@ TEST(rocfft_UnitTest, cache_plans_in_repo)
     size_t plan_total_count  = 0;
     size_t length            = 8;
 
+    rocfft_repo_get_unique_plan_count(&plan_unique_count);
+    EXPECT_TRUE(plan_unique_count == 0) << "plan_unique_count: " << plan_unique_count;
+    rocfft_repo_get_total_plan_count(&plan_total_count);
+    EXPECT_TRUE(plan_total_count == 0) << "plan_total_count: " << plan_total_count;
+
     // Create plan0
     rocfft_plan plan0 = NULL;
 
@@ -116,9 +121,9 @@ TEST(rocfft_UnitTest, cache_plans_in_repo)
                        NULL);
 
     rocfft_repo_get_unique_plan_count(&plan_unique_count);
-    EXPECT_TRUE(plan_unique_count == 1);
+    EXPECT_TRUE(plan_unique_count == 1) << "plan_unique_count: " << plan_unique_count;
     rocfft_repo_get_total_plan_count(&plan_total_count);
-    EXPECT_TRUE(plan_total_count == 1);
+    EXPECT_TRUE(plan_total_count == 1) << "plan_total_count: " << plan_total_count;
 
     // Create plan1 with the same params to plan0
     rocfft_plan plan1 = NULL;

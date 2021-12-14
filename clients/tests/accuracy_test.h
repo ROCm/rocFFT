@@ -28,16 +28,16 @@
 #include <iterator>
 #include <vector>
 
-#include "../client_utils.h"
+#include "../fft_params.h"
 #include "fftw_transform.h"
-#include "rocfft.h"
 #include "rocfft_against_fftw.h"
+
+static const size_t ONE_GiB = 1 << 30;
 
 typedef std::vector<std::vector<char, fftwAllocator<char>>> fftw_data_t;
 
-typedef std::
-    tuple<rocfft_transform_type, rocfft_result_placement, rocfft_array_type, rocfft_array_type>
-        type_place_io_t;
+typedef std::tuple<fft_transform_type, fft_result_placement, fft_array_type, fft_array_type>
+    type_place_io_t;
 
 // Estimate the amount of host memory needed.
 inline size_t needed_ram(const fft_params& params, const int verbose)
@@ -59,17 +59,17 @@ inline size_t needed_ram(const fft_params& params, const int verbose)
         params.length.begin(), params.length.end(), params.ostride.begin(), static_cast<size_t>(0));
 
     // Account for precision and data type:
-    if(params.transform_type != rocfft_transform_type_real_forward
-       && params.transform_type != rocfft_transform_type_real_inverse)
+    if(params.transform_type != fft_transform_type_real_forward
+       && params.transform_type != fft_transform_type_real_inverse)
     {
         needed_ram *= 2;
     }
     switch(params.precision)
     {
-    case rocfft_precision_single:
+    case fft_precision_single:
         needed_ram *= 4;
         break;
-    case rocfft_precision_double:
+    case fft_precision_double:
         needed_ram *= 8;
         break;
     }
@@ -94,21 +94,21 @@ protected:
 public:
     struct cpu_fft_params
     {
-        std::vector<size_t>   length;
-        size_t                nbatch         = 0;
-        rocfft_precision      precision      = rocfft_precision_single;
-        rocfft_transform_type transform_type = rocfft_transform_type_complex_forward;
+        std::vector<size_t> length;
+        size_t              nbatch         = 0;
+        fft_precision       precision      = fft_precision_single;
+        fft_transform_type  transform_type = fft_transform_type_complex_forward;
 
         // Input cpu parameters:
         std::vector<size_t> ilength;
         std::vector<size_t> istride;
-        rocfft_array_type   itype = rocfft_array_type_complex_interleaved;
+        fft_array_type      itype = fft_array_type_complex_interleaved;
         size_t              idist = 0;
 
         // Output cpu parameters:
         std::vector<size_t> olength;
         std::vector<size_t> ostride;
-        rocfft_array_type   otype = rocfft_array_type_complex_interleaved;
+        fft_array_type      otype = fft_array_type_complex_interleaved;
         size_t              odist = 0;
 
         std::shared_future<fftw_data_t> input;
@@ -134,13 +134,13 @@ public:
 
             const auto dim = rocparams.length.size();
 
-            if(rocparams.transform_type == rocfft_transform_type_real_inverse)
+            if(rocparams.transform_type == fft_transform_type_real_inverse)
             {
                 ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
             }
             std::reverse(std::begin(ilength), std::end(ilength));
 
-            if(rocparams.transform_type == rocfft_transform_type_real_forward)
+            if(rocparams.transform_type == fft_transform_type_real_forward)
             {
                 olength[dim - 1] = olength[dim - 1] / 2 + 1;
             }
@@ -157,16 +157,16 @@ public:
 
         switch(info.param.transform_type)
         {
-        case rocfft_transform_type_complex_forward:
+        case fft_transform_type_complex_forward:
             ret += "complex_forward_";
             break;
-        case rocfft_transform_type_complex_inverse:
+        case fft_transform_type_complex_inverse:
             ret += "complex_inverse_";
             break;
-        case rocfft_transform_type_real_forward:
+        case fft_transform_type_real_forward:
             ret += "real_forward_";
             break;
-        case rocfft_transform_type_real_inverse:
+        case fft_transform_type_real_inverse:
             ret += "real_inverse_";
             break;
         }
@@ -180,20 +180,20 @@ public:
         }
         switch(info.param.precision)
         {
-        case rocfft_precision_single:
+        case fft_precision_single:
             ret += "single_";
             break;
-        case rocfft_precision_double:
+        case fft_precision_double:
             ret += "double_";
             break;
         }
 
         switch(info.param.placement)
         {
-        case rocfft_placement_inplace:
+        case fft_placement_inplace:
             ret += "ip_";
             break;
-        case rocfft_placement_notinplace:
+        case fft_placement_notinplace:
             ret += "op_";
             break;
         }
@@ -201,7 +201,7 @@ public:
         ret += "batch_";
         ret += std::to_string(info.param.nbatch);
 
-        auto append_array_info = [&ret](const std::vector<size_t>& stride, rocfft_array_type type) {
+        auto append_array_info = [&ret](const std::vector<size_t>& stride, fft_array_type type) {
             for(auto s : stride)
             {
                 ret += std::to_string(s);
@@ -210,19 +210,19 @@ public:
 
             switch(type)
             {
-            case rocfft_array_type_complex_interleaved:
+            case fft_array_type_complex_interleaved:
                 ret += "CI";
                 break;
-            case rocfft_array_type_complex_planar:
+            case fft_array_type_complex_planar:
                 ret += "CP";
                 break;
-            case rocfft_array_type_real:
+            case fft_array_type_real:
                 ret += "R";
                 break;
-            case rocfft_array_type_hermitian_interleaved:
+            case fft_array_type_hermitian_interleaved:
                 ret += "HI";
                 break;
-            case rocfft_array_type_hermitian_planar:
+            case fft_array_type_hermitian_planar:
                 ret += "HP";
                 break;
             default:
@@ -264,25 +264,22 @@ public:
 };
 
 // Compute the rocFFT transform and verify the accuracy against the provided CPU data.
-void rocfft_transform(const fft_params&                    params,
-                      const accuracy_test::cpu_fft_params& cpu,
-                      const size_t                         ramgb);
+void rocfft_transform(fft_params& params, accuracy_test::cpu_fft_params& cpu, const size_t ramgb);
 
 extern std::
-    tuple<std::vector<size_t>, size_t, rocfft_transform_type, bool, accuracy_test::cpu_fft_params>
+    tuple<std::vector<size_t>, size_t, fft_transform_type, bool, accuracy_test::cpu_fft_params>
         last_cpu_fft;
 
 const static std::vector<size_t> batch_range = {2, 1};
 
-const static std::vector<rocfft_precision> precision_range
-    = {rocfft_precision_double, rocfft_precision_single};
-const static std::vector<rocfft_result_placement> place_range
-    = {rocfft_placement_inplace, rocfft_placement_notinplace};
-const static std::vector<rocfft_transform_type> trans_type_range
-    = {rocfft_transform_type_complex_forward,
-       rocfft_transform_type_complex_inverse,
-       rocfft_transform_type_real_forward,
-       rocfft_transform_type_real_inverse};
+const static std::vector<fft_precision> precision_range
+    = {fft_precision_double, fft_precision_single};
+const static std::vector<fft_result_placement> place_range
+    = {fft_placement_inplace, fft_placement_notinplace};
+const static std::vector<fft_transform_type> trans_type_range = {fft_transform_type_complex_forward,
+                                                                 fft_transform_type_complex_inverse,
+                                                                 fft_transform_type_real_forward,
+                                                                 fft_transform_type_real_inverse};
 
 // Given a vector of vector of lengths, generate all unique permutations.
 // Add an optional vector of ad-hoc lengths to the result.
@@ -320,42 +317,42 @@ inline std::vector<std::vector<size_t>>
 }
 
 // Return the valid rocFFT input and output types for a given transform type.
-inline std::vector<std::pair<rocfft_array_type, rocfft_array_type>>
-    iotypes(const rocfft_transform_type transformType, const rocfft_result_placement place)
+inline std::vector<std::pair<fft_array_type, fft_array_type>>
+    iotypes(const fft_transform_type transformType, const fft_result_placement place)
 {
-    std::vector<std::pair<rocfft_array_type, rocfft_array_type>> iotypes;
+    std::vector<std::pair<fft_array_type, fft_array_type>> iotypes;
     switch(transformType)
     {
-    case rocfft_transform_type_complex_forward:
-    case rocfft_transform_type_complex_inverse:
-        iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
-            rocfft_array_type_complex_interleaved, rocfft_array_type_complex_interleaved));
-        iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
-            rocfft_array_type_complex_planar, rocfft_array_type_complex_planar));
-        if(place == rocfft_placement_notinplace)
+    case fft_transform_type_complex_forward:
+    case fft_transform_type_complex_inverse:
+        iotypes.push_back(std::make_pair<fft_array_type, fft_array_type>(
+            fft_array_type_complex_interleaved, fft_array_type_complex_interleaved));
+        iotypes.push_back(std::make_pair<fft_array_type, fft_array_type>(
+            fft_array_type_complex_planar, fft_array_type_complex_planar));
+        if(place == fft_placement_notinplace)
         {
-            iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
-                rocfft_array_type_complex_planar, rocfft_array_type_complex_interleaved));
-            iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
-                rocfft_array_type_complex_interleaved, rocfft_array_type_complex_planar));
+            iotypes.push_back(std::make_pair<fft_array_type, fft_array_type>(
+                fft_array_type_complex_planar, fft_array_type_complex_interleaved));
+            iotypes.push_back(std::make_pair<fft_array_type, fft_array_type>(
+                fft_array_type_complex_interleaved, fft_array_type_complex_planar));
         }
         break;
-    case rocfft_transform_type_real_forward:
-        iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
-            rocfft_array_type_real, rocfft_array_type_hermitian_interleaved));
-        if(place == rocfft_placement_notinplace)
+    case fft_transform_type_real_forward:
+        iotypes.push_back(std::make_pair<fft_array_type, fft_array_type>(
+            fft_array_type_real, fft_array_type_hermitian_interleaved));
+        if(place == fft_placement_notinplace)
         {
-            iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
-                rocfft_array_type_real, rocfft_array_type_hermitian_planar));
+            iotypes.push_back(std::make_pair<fft_array_type, fft_array_type>(
+                fft_array_type_real, fft_array_type_hermitian_planar));
         }
         break;
-    case rocfft_transform_type_real_inverse:
-        iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
-            rocfft_array_type_hermitian_interleaved, rocfft_array_type_real));
-        if(place == rocfft_placement_notinplace)
+    case fft_transform_type_real_inverse:
+        iotypes.push_back(std::make_pair<fft_array_type, fft_array_type>(
+            fft_array_type_hermitian_interleaved, fft_array_type_real));
+        if(place == fft_placement_notinplace)
         {
-            iotypes.push_back(std::make_pair<rocfft_array_type, rocfft_array_type>(
-                rocfft_array_type_hermitian_planar, rocfft_array_type_real));
+            iotypes.push_back(std::make_pair<fft_array_type, fft_array_type>(
+                fft_array_type_hermitian_planar, fft_array_type_real));
         }
         break;
     default:
@@ -367,15 +364,15 @@ inline std::vector<std::pair<rocfft_array_type, rocfft_array_type>>
 // Generate all combinations of input/output types, from combinations of transform and placement
 // types.
 static std::vector<type_place_io_t>
-    generate_types(rocfft_transform_type                       transformType,
-                   const std::vector<rocfft_result_placement>& place_range)
+    generate_types(fft_transform_type                       transform_type,
+                   const std::vector<fft_result_placement>& place_range)
 {
     std::vector<type_place_io_t> ret;
     for(auto place : place_range)
     {
-        for(auto iotype : iotypes(transformType, place))
+        for(auto iotype : iotypes(transform_type, place))
         {
-            ret.push_back(std::make_tuple(transformType, place, iotype.first, iotype.second));
+            ret.push_back(std::make_tuple(transform_type, place, iotype.first, iotype.second));
         }
     }
     return ret;
@@ -453,17 +450,17 @@ struct stride_generator_3D_inner_batch : public stride_generator
 
 // Create an array of parameters to pass to gtest.  Base generator
 // that allows choosing transform type.
-inline auto param_generator_base(const std::vector<rocfft_transform_type>&   type_range,
-                                 const std::vector<std::vector<size_t>>&     v_lengths,
-                                 const std::vector<rocfft_precision>&        precision_range,
-                                 const std::vector<size_t>&                  batch_range,
-                                 decltype(generate_types)                    types_generator,
-                                 const stride_generator&                     istride,
-                                 const stride_generator&                     ostride,
-                                 const std::vector<std::vector<size_t>>&     ioffset_range,
-                                 const std::vector<std::vector<size_t>>&     ooffset_range,
-                                 const std::vector<rocfft_result_placement>& place_range,
-                                 bool                                        run_callbacks = false)
+inline auto param_generator_base(const std::vector<fft_transform_type>&   type_range,
+                                 const std::vector<std::vector<size_t>>&  v_lengths,
+                                 const std::vector<fft_precision>&        precision_range,
+                                 const std::vector<size_t>&               batch_range,
+                                 decltype(generate_types)                 types_generator,
+                                 const stride_generator&                  istride,
+                                 const stride_generator&                  ostride,
+                                 const std::vector<std::vector<size_t>>&  ioffset_range,
+                                 const std::vector<std::vector<size_t>>&  ooffset_range,
+                                 const std::vector<fft_result_placement>& place_range,
+                                 bool                                     run_callbacks = false)
 {
 
     std::vector<fft_params> params;
@@ -517,13 +514,11 @@ inline auto param_generator_base(const std::vector<rocfft_transform_type>&   typ
                                             if(run_callbacks)
                                             {
                                                 // add a test if both input and output support callbacks
-                                                if(param.itype != rocfft_array_type_complex_planar
-                                                   && param.itype
-                                                          != rocfft_array_type_hermitian_planar
+                                                if(param.itype != fft_array_type_complex_planar
+                                                   && param.itype != fft_array_type_hermitian_planar
+                                                   && param.otype != fft_array_type_complex_planar
                                                    && param.otype
-                                                          != rocfft_array_type_complex_planar
-                                                   && param.otype
-                                                          != rocfft_array_type_hermitian_planar)
+                                                          != fft_array_type_hermitian_planar)
                                                 {
                                                     param.run_callbacks = true;
                                                 }
@@ -551,19 +546,19 @@ inline auto param_generator_base(const std::vector<rocfft_transform_type>&   typ
 
 // Create an array of parameters to pass to gtest.  Default generator
 // that picks all transform types.
-inline auto param_generator(const std::vector<std::vector<size_t>>&     v_lengths,
-                            const std::vector<rocfft_precision>&        precision_range,
-                            const std::vector<size_t>&                  batch_range,
-                            const stride_generator&                     istride,
-                            const stride_generator&                     ostride,
-                            const std::vector<std::vector<size_t>>&     ioffset_range,
-                            const std::vector<std::vector<size_t>>&     ooffset_range,
-                            const std::vector<rocfft_result_placement>& place_range)
+inline auto param_generator(const std::vector<std::vector<size_t>>&  v_lengths,
+                            const std::vector<fft_precision>&        precision_range,
+                            const std::vector<size_t>&               batch_range,
+                            const stride_generator&                  istride,
+                            const stride_generator&                  ostride,
+                            const std::vector<std::vector<size_t>>&  ioffset_range,
+                            const std::vector<std::vector<size_t>>&  ooffset_range,
+                            const std::vector<fft_result_placement>& place_range)
 {
-    return param_generator_base({rocfft_transform_type_complex_forward,
-                                 rocfft_transform_type_complex_inverse,
-                                 rocfft_transform_type_real_forward,
-                                 rocfft_transform_type_real_inverse},
+    return param_generator_base({fft_transform_type_complex_forward,
+                                 fft_transform_type_complex_inverse,
+                                 fft_transform_type_real_forward,
+                                 fft_transform_type_real_inverse},
                                 v_lengths,
                                 precision_range,
                                 batch_range,
@@ -576,17 +571,17 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&     v_length
 }
 
 // Create an array of parameters to pass to gtest.  Only tests complex-type transforms
-inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     v_lengths,
-                                    const std::vector<rocfft_precision>&        precision_range,
-                                    const std::vector<size_t>&                  batch_range,
-                                    const stride_generator&                     istride,
-                                    const stride_generator&                     ostride,
-                                    const std::vector<std::vector<size_t>>&     ioffset_range,
-                                    const std::vector<std::vector<size_t>>&     ooffset_range,
-                                    const std::vector<rocfft_result_placement>& place_range)
+inline auto param_generator_complex(const std::vector<std::vector<size_t>>&  v_lengths,
+                                    const std::vector<fft_precision>&        precision_range,
+                                    const std::vector<size_t>&               batch_range,
+                                    const stride_generator&                  istride,
+                                    const stride_generator&                  ostride,
+                                    const std::vector<std::vector<size_t>>&  ioffset_range,
+                                    const std::vector<std::vector<size_t>>&  ooffset_range,
+                                    const std::vector<fft_result_placement>& place_range)
 {
     return param_generator_base(
-        {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse},
+        {fft_transform_type_complex_forward, fft_transform_type_complex_inverse},
         v_lengths,
         precision_range,
         batch_range,
@@ -599,26 +594,25 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&     
 }
 
 // Create an array of parameters to pass to gtest.
-inline auto param_generator_real(const std::vector<std::vector<size_t>>&     v_lengths,
-                                 const std::vector<rocfft_precision>&        precision_range,
-                                 const std::vector<size_t>&                  batch_range,
-                                 const stride_generator&                     istride,
-                                 const stride_generator&                     ostride,
-                                 const std::vector<std::vector<size_t>>&     ioffset_range,
-                                 const std::vector<std::vector<size_t>>&     ooffset_range,
-                                 const std::vector<rocfft_result_placement>& place_range)
+inline auto param_generator_real(const std::vector<std::vector<size_t>>&  v_lengths,
+                                 const std::vector<fft_precision>&        precision_range,
+                                 const std::vector<size_t>&               batch_range,
+                                 const stride_generator&                  istride,
+                                 const stride_generator&                  ostride,
+                                 const std::vector<std::vector<size_t>>&  ioffset_range,
+                                 const std::vector<std::vector<size_t>>&  ooffset_range,
+                                 const std::vector<fft_result_placement>& place_range)
 {
-    return param_generator_base(
-        {rocfft_transform_type_real_forward, rocfft_transform_type_real_inverse},
-        v_lengths,
-        precision_range,
-        batch_range,
-        generate_types,
-        istride,
-        ostride,
-        ioffset_range,
-        ooffset_range,
-        place_range);
+    return param_generator_base({fft_transform_type_real_forward, fft_transform_type_real_inverse},
+                                v_lengths,
+                                precision_range,
+                                batch_range,
+                                generate_types,
+                                istride,
+                                ostride,
+                                ioffset_range,
+                                ooffset_range,
+                                place_range);
 }
 
 #endif

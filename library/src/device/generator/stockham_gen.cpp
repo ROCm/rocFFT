@@ -121,7 +121,7 @@ struct GeneratedLauncher
         const char* OBJ_DELIM = "";
         const char* COMMA     = ",";
 
-        auto quote_str  = [](const std::string s) { return "\"" + s + "\""; };
+        auto quote_str  = [](const std::string& s) { return "\"" + s + "\""; };
         auto add_member = [&](const std::string& key, const std::string& value) {
             output += OBJ_DELIM;
             output += quote_str(key) + ": " + value;

@@ -24,6 +24,7 @@
 #include <sstream>
 
 #include "../../shared/gpubuf.h"
+#include "../rocfft_params.h"
 #include "rider.h"
 #include "rocfft.h"
 #include <boost/program_options.hpp>
@@ -44,7 +45,7 @@ int main(int argc, char* argv[])
     int ntrial{};
 
     // FFT parameters:
-    fft_params params;
+    rocfft_params params;
 
     // Declare the supported options.
 
@@ -58,18 +59,18 @@ int main(int argc, char* argv[])
         ("ntrial,N", po::value<int>(&ntrial)->default_value(1), "Trial size for the problem")
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
         ("double", "Double precision transform (default: single)")
-        ("transformType,t", po::value<rocfft_transform_type>(&params.transform_type)
-         ->default_value(rocfft_transform_type_complex_forward),
+        ("transformType,t", po::value<fft_transform_type>(&params.transform_type)
+         ->default_value(fft_transform_type_complex_forward),
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
          "forward\n3) real inverse")
         ( "batchSize,b", po::value<size_t>(&params.nbatch)->default_value(1),
           "If this value is greater than one, arrays will be used ")
-        ( "itype", po::value<rocfft_array_type>(&params.itype)
-          ->default_value(rocfft_array_type_unset),
+        ( "itype", po::value<fft_array_type>(&params.itype)
+          ->default_value(fft_array_type_unset),
           "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
-        ( "otype", po::value<rocfft_array_type>(&params.otype)
-          ->default_value(rocfft_array_type_unset),
+        ( "otype", po::value<fft_array_type>(&params.otype)
+          ->default_value(fft_array_type_unset),
           "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
         ("length",  po::value<std::vector<size_t>>(&params.length)->multitoken(), "Lengths.")
@@ -112,9 +113,8 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    params.placement
-        = vm.count("notInPlace") ? rocfft_placement_notinplace : rocfft_placement_inplace;
-    params.precision = vm.count("double") ? rocfft_precision_double : rocfft_precision_single;
+    params.placement = vm.count("notInPlace") ? fft_placement_notinplace : fft_placement_inplace;
+    params.precision = vm.count("double") ? fft_precision_double : fft_precision_single;
 
     if(vm.count("notInPlace"))
     {
@@ -197,48 +197,9 @@ int main(int argc, char* argv[])
         std::cout << params.str() << std::endl;
     }
 
-    // Create FFT description
-    rocfft_plan_description desc = NULL;
-    LIB_V_THROW(rocfft_plan_description_create(&desc), "rocfft_plan_description_create failed");
-    LIB_V_THROW(rocfft_plan_description_set_data_layout(desc,
-                                                        params.itype,
-                                                        params.otype,
-                                                        params.ioffset.data(),
-                                                        params.ooffset.data(),
-                                                        params.istride_cm().size(),
-                                                        params.istride_cm().data(),
-                                                        params.idist,
-                                                        params.ostride_cm().size(),
-                                                        params.ostride_cm().data(),
-                                                        params.odist),
-                "rocfft_plan_description_data_layout failed");
-    assert(desc != NULL);
-
-    // Create the plan
-    rocfft_plan plan = NULL;
-    LIB_V_THROW(rocfft_plan_create(&plan,
-                                   params.placement,
-                                   params.transform_type,
-                                   params.precision,
-                                   params.length_cm().size(),
-                                   params.length_cm().data(),
-                                   params.nbatch,
-                                   desc),
-                "rocfft_plan_create failed");
-
-    // Get work buffer size and allocated info-associated work buffer is necessary
-    size_t workBufferSize = 0;
-    LIB_V_THROW(rocfft_plan_get_work_buffer_size(plan, &workBufferSize),
-                "rocfft_plan_get_work_buffer_size failed");
-    rocfft_execution_info info = NULL;
-    LIB_V_THROW(rocfft_execution_info_create(&info), "rocfft_execution_info_create failed");
-    gpubuf wbuffer;
-    if(workBufferSize > 0)
-    {
-        HIP_V_THROW(wbuffer.alloc(workBufferSize), "Creating intermediate Buffer failed");
-        LIB_V_THROW(rocfft_execution_info_set_work_buffer(info, wbuffer.data(), workBufferSize),
-                    "rocfft_execution_info_set_work_buffer failed");
-    }
+    auto ret = params.setup();
+    if(ret != fft_status_success)
+        throw std::runtime_error("Setup failed");
 
     // Input data:
     const auto gpu_input = compute_input(params);
@@ -246,14 +207,7 @@ int main(int argc, char* argv[])
     if(verbose > 1)
     {
         std::cout << "GPU input:\n";
-        printbuffer(params.precision,
-                    params.itype,
-                    gpu_input,
-                    params.ilength(),
-                    params.istride,
-                    params.nbatch,
-                    params.idist,
-                    params.ioffset);
+        params.print_ibuffer(gpu_input);
     }
 
     // GPU input and output buffers:
@@ -268,7 +222,7 @@ int main(int argc, char* argv[])
 
     std::vector<gpubuf>  obuffer_data;
     std::vector<gpubuf>* obuffer = &obuffer_data;
-    if(params.placement == rocfft_placement_inplace)
+    if(params.placement == fft_placement_inplace)
     {
         obuffer = &ibuffer;
     }
@@ -295,7 +249,8 @@ int main(int argc, char* argv[])
                 pibuffer[idx], gpu_input[idx].data(), gpu_input[idx].size(), hipMemcpyHostToDevice),
             "hipMemcpy failed");
     }
-    rocfft_execute(plan, pibuffer.data(), pobuffer.data(), info);
+
+    params.execute(pibuffer.data(), pobuffer.data());
 
     // Run the transform several times and record the execution time:
     std::vector<double> gpu_time(ntrial);
@@ -317,7 +272,7 @@ int main(int argc, char* argv[])
 
         HIP_V_THROW(hipEventRecord(start), "hipEventRecord failed");
 
-        rocfft_execute(plan, pibuffer.data(), pobuffer.data(), info);
+        params.execute(pibuffer.data(), pobuffer.data());
 
         HIP_V_THROW(hipEventRecord(stop), "hipEventRecord failed");
         HIP_V_THROW(hipEventSynchronize(stop), "hipEventSynchronize failed");
@@ -335,14 +290,7 @@ int main(int argc, char* argv[])
                     output[idx].data(), pobuffer[idx], output[idx].size(), hipMemcpyDeviceToHost);
             }
             std::cout << "GPU output:\n";
-            printbuffer(params.precision,
-                        params.otype,
-                        output,
-                        params.olength(),
-                        params.ostride,
-                        params.nbatch,
-                        params.odist,
-                        params.ooffset);
+            params.print_obuffer(output);
         }
     }
 
@@ -357,20 +305,14 @@ int main(int argc, char* argv[])
     const double totsize
         = std::accumulate(params.length.begin(), params.length.end(), 1, std::multiplies<size_t>());
     const double k
-        = ((params.itype == rocfft_array_type_real) || (params.otype == rocfft_array_type_real))
-              ? 2.5
-              : 5.0;
+        = ((params.itype == fft_array_type_real) || (params.otype == fft_array_type_real)) ? 2.5
+                                                                                           : 5.0;
     const double opscount = (double)params.nbatch * k * totsize * log(totsize) / log(2.0);
     for(const auto& i : gpu_time)
     {
         std::cout << " " << opscount / (1e6 * i);
     }
     std::cout << std::endl;
-
-    // Clean up:
-    rocfft_plan_description_destroy(desc);
-    rocfft_execution_info_destroy(info);
-    rocfft_plan_destroy(plan);
 
     rocfft_cleanup();
 }

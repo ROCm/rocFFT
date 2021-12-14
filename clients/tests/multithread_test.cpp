@@ -17,8 +17,9 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+
 #include "../../shared/gpubuf.h"
-#include "../client_utils.h"
+#include "../rocfft_params.h"
 #include "accuracy_test.h"
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"
@@ -85,12 +86,12 @@ struct Test_Transform
     Test_Transform(const Test_Transform&) = delete;
     void operator=(const Test_Transform&) = delete;
     Test_Transform(Test_Transform&& other)
-        : device_mem_in(std::move(other.device_mem_in))
+        : stream(other.stream)
+        , work_buffer(other.work_buffer)
+        , device_mem_in(std::move(other.device_mem_in))
         , device_mem_out(std::move(other.device_mem_out))
     {
-        stream            = other.stream;
         other.stream      = nullptr;
-        work_buffer       = other.work_buffer;
         other.work_buffer = nullptr;
         host_mem_in.swap(other.host_mem_in);
         host_mem_out.swap(other.host_mem_out);
@@ -199,7 +200,7 @@ struct Test_Transform
             std::vector<std::pair<size_t, size_t>> linf_failures;
             const double                           MAX_TRANSFORM_ERROR = 2 * type_epsilon<float>();
 
-            auto norm
+            auto input_norm
                 = norm_complex(reinterpret_cast<const std::complex<float>*>(host_mem_in.data()),
                                host_mem_in.size(),
                                1,
@@ -221,8 +222,10 @@ struct Test_Transform
                 {0},
                 {0});
 
-            EXPECT_LT(diff.l_2 / norm.l_2, sqrt(log2(host_mem_in.size())) * MAX_TRANSFORM_ERROR);
-            EXPECT_LT(diff.l_inf / norm.l_inf, log2(host_mem_in.size()) * MAX_TRANSFORM_ERROR);
+            EXPECT_LT(diff.l_2 / input_norm.l_2,
+                      sqrt(log2(host_mem_in.size())) * MAX_TRANSFORM_ERROR);
+            EXPECT_LT(diff.l_inf / input_norm.l_inf,
+                      log2(host_mem_in.size()) * MAX_TRANSFORM_ERROR);
 
             // Free buffers
             host_mem_in.clear();

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "../client_utils.h"
+#include "../rocfft_params.h"
 
 #include "accuracy_test.h"
 
@@ -103,10 +103,10 @@ const static std::vector<std::vector<size_t>> ooffset_range_zero = {{0, 0}};
 const static std::vector<std::vector<size_t>> ioffset_range = {{0, 0}, {1, 1}};
 const static std::vector<std::vector<size_t>> ooffset_range = {{0, 0}, {1, 1}};
 
-auto transform_types = {rocfft_transform_type_complex_forward,
-                        rocfft_transform_type_complex_inverse,
-                        rocfft_transform_type_real_forward,
-                        rocfft_transform_type_real_inverse};
+auto transform_types = {fft_transform_type_complex_forward,
+                        fft_transform_type_complex_inverse,
+                        fft_transform_type_real_forward,
+                        fft_transform_type_real_inverse};
 
 INSTANTIATE_TEST_SUITE_P(callback,
                          accuracy_test,

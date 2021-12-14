@@ -47,9 +47,9 @@ inline void printbuffer(const Toutput*         output,
             const int i
                 = std::inner_product(index.begin(), index.end(), stride.begin(), i_base + offset);
             stream << output[i] << " ";
-            for(int i = index.size(); i-- > 0;)
+            for(int li = index.size(); li-- > 0;)
             {
-                if(index[i] == (length[i] - 1))
+                if(index[li] == (length[li] - 1))
                 {
                     stream << "\n";
                 }
@@ -125,9 +125,190 @@ inline void printbuffer(const rocfft_precision                            precis
         }
         break;
     default:
-        std::cout << "unknown array type\n";
+        std::cerr << "unknown array type\n";
     }
 }
+
+// Partial template specializations for printing different buffer types.
+template <typename Toutput>
+class buffer_printer
+{
+public:
+    template <typename Tallocator,
+              typename Tint1,
+              typename Tint2,
+              typename Tsize,
+              typename Tstream = std::ostream>
+    void print_buffer(const std::vector<std::vector<char, Tallocator>>& buf,
+                      const std::vector<Tint1>&                         length,
+                      const std::vector<Tint2>&                         stride,
+                      const Tsize                                       nbatch,
+                      const Tsize                                       dist,
+                      const std::vector<size_t>&                        offset,
+                      Tstream&                                          stream = std::cout){
+        // Not implemented.
+    };
+    template <typename Tallocator>
+    void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
+                           const std::vector<size_t>&                        size,
+                           const std::vector<size_t>&                        offset){
+        // Not implemented
+    };
+};
+
+template <>
+class buffer_printer<float>
+{
+    // The scalar versions might be part of a planar format.
+public:
+    template <typename Tallocator,
+              typename Tint1,
+              typename Tint2,
+              typename Tsize,
+              typename Tstream = std::ostream>
+    static void print_buffer(const std::vector<std::vector<char, Tallocator>>& buf,
+                             const std::vector<Tint1>&                         length,
+                             const std::vector<Tint2>&                         stride,
+                             const Tsize                                       nbatch,
+                             const Tsize                                       dist,
+                             const std::vector<size_t>&                        offset,
+                             Tstream&                                          stream = std::cout)
+    {
+        for(const auto& vec : buf)
+        {
+            printbuffer(
+                (const float*)(vec.data()), length, stride, nbatch, dist, offset[0], stream);
+        }
+    };
+    template <typename Tallocator>
+    static void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
+                                  const std::vector<size_t>&                        size,
+                                  const std::vector<size_t>&                        offset)
+    {
+        for(const auto& vec : buf)
+        {
+            auto data = reinterpret_cast<const float*>(vec.data());
+            std::cout << "idx " << 0;
+            for(size_t i = 0; i < size[0]; ++i)
+                std::cout << " " << data[i];
+            std::cout << std::endl;
+        }
+    };
+};
+
+template <>
+class buffer_printer<double>
+{
+    // The scalar versions might be part of a planar format.
+public:
+    template <typename Tallocator,
+              typename Tint1,
+              typename Tint2,
+              typename Tsize,
+              typename Tstream = std::ostream>
+    static void print_buffer(const std::vector<std::vector<char, Tallocator>>& buf,
+                             const std::vector<Tint1>&                         length,
+                             const std::vector<Tint2>&                         stride,
+                             const Tsize                                       nbatch,
+                             const Tsize                                       dist,
+                             const std::vector<size_t>&                        offset,
+                             Tstream&                                          stream = std::cout)
+    {
+        for(const auto& vec : buf)
+        {
+            printbuffer(
+                (const double*)(vec.data()), length, stride, nbatch, dist, offset[0], stream);
+        }
+    };
+    template <typename Tallocator>
+    static void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
+                                  const std::vector<size_t>&                        size,
+                                  const std::vector<size_t>&                        offset)
+    {
+        for(const auto& vec : buf)
+        {
+            auto data = reinterpret_cast<const double*>(vec.data());
+            std::cout << "idx " << 0;
+            for(size_t i = 0; i < size[0]; ++i)
+                std::cout << " " << data[i];
+            std::cout << std::endl;
+        }
+    };
+};
+
+template <>
+class buffer_printer<std::complex<float>>
+{
+public:
+    template <typename Tallocator,
+              typename Tint1,
+              typename Tint2,
+              typename Tsize,
+              typename Tstream = std::ostream>
+    static void print_buffer(const std::vector<std::vector<char, Tallocator>>& buf,
+                             const std::vector<Tint1>&                         length,
+                             const std::vector<Tint2>&                         stride,
+                             const Tsize                                       nbatch,
+                             const Tsize                                       dist,
+                             const std::vector<size_t>&                        offset,
+                             Tstream&                                          stream = std::cout)
+    {
+        printbuffer((const std::complex<float>*)(buf[0].data()),
+                    length,
+                    stride,
+                    nbatch,
+                    dist,
+                    offset[0],
+                    stream);
+    };
+    template <typename Tallocator>
+    static void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
+                                  const std::vector<size_t>&                        size,
+                                  const std::vector<size_t>&                        offset)
+    {
+        auto data = reinterpret_cast<const std::complex<float>*>(buf[0].data());
+        for(size_t i = 0; i < size[0]; ++i)
+            std::cout << " " << data[i];
+        std::cout << std::endl;
+    };
+};
+
+template <>
+class buffer_printer<std::complex<double>>
+{
+public:
+    template <typename Tallocator,
+              typename Tint1,
+              typename Tint2,
+              typename Tsize,
+              typename Tstream = std::ostream>
+    static void print_buffer(const std::vector<std::vector<char, Tallocator>>& buf,
+                             const std::vector<Tint1>&                         length,
+                             const std::vector<Tint2>&                         stride,
+                             const Tsize                                       nbatch,
+                             const Tsize                                       dist,
+                             const std::vector<size_t>&                        offset,
+                             Tstream&                                          stream = std::cout)
+    {
+        printbuffer((const std::complex<double>*)(buf[0].data()),
+                    length,
+                    stride,
+                    nbatch,
+                    dist,
+                    offset[0],
+                    stream);
+    };
+    template <typename Tallocator>
+    static void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
+                                  const std::vector<size_t>&                        size,
+                                  const std::vector<size_t>&                        offset)
+    {
+        auto data = reinterpret_cast<const std::complex<double>*>(buf[0].data());
+        for(size_t i = 0; i < size[0]; ++i)
+            std::cout << " " << data[i];
+        std::cout << std::endl;
+    };
+};
 
 // Print the contents of a buffer stored as a std::vector of chars.  The output is flat,
 // ie the entire memory range is printed as though it were a contiguous 1D array.

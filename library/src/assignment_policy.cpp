@@ -94,7 +94,7 @@ size_t PlacementTrace::NumUsedBuffers() const
 
 void PlacementTrace::Backtracking(ExecPlan& execPlan, int execSeqID)
 {
-    auto& execSeq = execPlan.execSeq;
+    const auto& execSeq = execPlan.execSeq;
 
     if((execSeqID < 0) || (curNode != execSeq[execSeqID]))
         throw std::runtime_error("Backtracking error: accessing invalid resource");
@@ -200,7 +200,7 @@ bool AssignmentPolicy::EquivalentArrayType(rocfft_array_type rootAryType,
     return (testAryType == rootAryType);
 }
 
-bool AssignmentPolicy::BufferIsUnitStride(ExecPlan& execPlan, OperatingBuffer buf)
+bool AssignmentPolicy::BufferIsUnitStride(const ExecPlan& execPlan, OperatingBuffer buf)
 {
     // temp buffers are unit stride
     if(buf != OB_USER_IN && buf != OB_USER_OUT)

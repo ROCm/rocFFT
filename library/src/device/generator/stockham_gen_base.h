@@ -257,8 +257,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         StatementList load;
         for(unsigned int w = 0; w < width; ++w)
         {
-            auto tid = Parens{thread + dt + h * threads_per_transform};
-            auto idx = offset_lds + (tid + w * length / width) * lstride;
+            const auto tid = Parens{thread + dt + h * threads_per_transform};
+            const auto idx = offset_lds + (tid + w * length / width) * lstride;
             switch(component)
             {
             case Component::X:
@@ -286,11 +286,11 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         StatementList work;
         for(unsigned int w = 0; w < width; ++w)
         {
-            auto tid = thread + dt + h * threads_per_transform;
-            auto idx = offset_lds
-                       + (Parens{tid / cumheight} * (width * cumheight) + tid % cumheight
-                          + w * cumheight)
-                             * lstride;
+            const auto tid = thread + dt + h * threads_per_transform;
+            const auto idx = offset_lds
+                             + (Parens{tid / cumheight} * (width * cumheight) + tid % cumheight
+                                + w * cumheight)
+                                   * lstride;
             switch(component)
             {
             case Component::X:

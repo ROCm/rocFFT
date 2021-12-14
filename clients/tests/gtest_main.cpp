@@ -28,6 +28,7 @@
 #include <streambuf>
 #include <string>
 
+#include "../rocfft_params.h"
 #include "accuracy_test.h"
 #include "fftw_transform.h"
 #include "rocfft.h"
@@ -57,7 +58,7 @@ bool use_fftw_wisdom = false;
 
 // Cache the last cpu fft that was requested - the tuple members
 // correspond to the input and output of compute_cpu_fft.
-std::tuple<std::vector<size_t>, size_t, rocfft_transform_type, bool, accuracy_test::cpu_fft_params>
+std::tuple<std::vector<size_t>, size_t, fft_transform_type, bool, accuracy_test::cpu_fft_params>
     last_cpu_fft;
 
 static size_t get_system_memory_GiB()
@@ -114,19 +115,19 @@ int main(int argc, char* argv[])
         ("help,h", "produces this help message")
         ("verbose,v",  po::value<int>()->default_value(0),
         "print out detailed information for the tests.")
-        ("transformType,t", po::value<rocfft_transform_type>(&manual_params.transform_type)
-         ->default_value(rocfft_transform_type_complex_forward),
+        ("transformType,t", po::value<fft_transform_type>(&manual_params.transform_type)
+         ->default_value(fft_transform_type_complex_forward),
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
          "forward\n3) real inverse")
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
         ("callback", "Inject load/store callbacks")
         ("double", "Double precision transform (default: single)")
-        ( "itype", po::value<rocfft_array_type>(&manual_params.itype)
-          ->default_value(rocfft_array_type_unset),
+        ( "itype", po::value<fft_array_type>(&manual_params.itype)
+          ->default_value(fft_array_type_unset),
           "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
-        ( "otype", po::value<rocfft_array_type>(&manual_params.otype)
-          ->default_value(rocfft_array_type_unset),
+        ( "otype", po::value<fft_array_type>(&manual_params.otype)
+          ->default_value(fft_array_type_unset),
           "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
         ("length",  po::value<std::vector<size_t>>(&manual_params.length)->multitoken(), "Lengths.")
@@ -165,9 +166,8 @@ int main(int argc, char* argv[])
         return 0;
     }
     manual_params.placement
-        = vm.count("notInPlace") ? rocfft_placement_notinplace : rocfft_placement_inplace;
-    manual_params.precision
-        = vm.count("double") ? rocfft_precision_double : rocfft_precision_single;
+        = vm.count("notInPlace") ? fft_placement_notinplace : fft_placement_inplace;
+    manual_params.precision = vm.count("double") ? fft_precision_double : fft_precision_single;
 
     verbose = vm["verbose"].as<int>();
 
@@ -295,7 +295,8 @@ TEST(manual, vs_fftw)
 
     accuracy_test::cpu_fft_params cpu_params(manual_params);
 
-    rocfft_transform(manual_params, cpu, ramgb);
+    rocfft_params rparams(manual_params);
+    rocfft_transform(rparams, cpu, ramgb);
 
     auto cpu_input_norm = cpu.input_norm.get();
     EXPECT_TRUE(std::isfinite(cpu_input_norm.l_2));
@@ -304,4 +305,8 @@ TEST(manual, vs_fftw)
     auto cpu_output_norm = cpu.output_norm.get();
     EXPECT_TRUE(std::isfinite(cpu_output_norm.l_2));
     EXPECT_TRUE(std::isfinite(cpu_output_norm.l_inf));
+
+    // We need to manually free the plan so that the unit tests which count plan numbers don't get
+    // confused.
+    rparams.free();
 }

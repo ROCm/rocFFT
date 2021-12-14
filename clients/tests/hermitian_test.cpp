@@ -17,8 +17,9 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+
 #include "../../shared/gpubuf.h"
-#include "../client_utils.h"
+#include "../rocfft_params.h"
 #include "accuracy_test.h"
 #include "rocfft.h"
 #include <functional>
@@ -39,9 +40,9 @@ TEST(rocfft_UnitTest, 1D_hermitian)
 
     rocfft_params p;
     p.length         = {8};
-    p.precision      = rocfft_precision_double;
-    p.transform_type = rocfft_transform_type_real_inverse;
-    p.placement      = rocfft_placement_notinplace;
+    p.precision      = fft_precision_double;
+    p.transform_type = fft_transform_type_real_inverse;
+    p.placement      = fft_placement_notinplace;
     p.validate();
 
     if(verbose)
@@ -79,11 +80,12 @@ TEST(rocfft_UnitTest, 1D_hermitian)
     gpubuf obuf;
     ASSERT_TRUE(obuf.alloc(p.obuffer_sizes()[0]) == hipSuccess);
 
-    ASSERT_TRUE(p.make_plan() == rocfft_status_success);
+    gpubuf wbuffer;
+    ASSERT_TRUE(p.setup() == fft_status_success);
 
     std::vector<void*> pibuf = {ibuf.data()};
     std::vector<void*> pobuf = {obuf.data()};
-    ASSERT_TRUE(p.execute(pibuf.data(), pobuf.data()) == rocfft_status_success);
+    ASSERT_TRUE(p.execute(pibuf.data(), pobuf.data()) == fft_status_success);
 
     std::vector<double> h_output(p.osize[0]);
     ASSERT_TRUE(hipMemcpy(h_output.data(), obuf.data(), obuf.size(), hipMemcpyDeviceToHost)
@@ -130,7 +132,7 @@ TEST(rocfft_UnitTest, 1D_hermitian)
 
     ASSERT_TRUE(hipMemcpy(ibuf.data(), h_input1.data(), ibuf.size(), hipMemcpyHostToDevice)
                 == hipSuccess);
-    ASSERT_TRUE(p.execute(pibuf.data(), pobuf.data()) == rocfft_status_success);
+    ASSERT_TRUE(p.execute(pibuf.data(), pobuf.data()) == fft_status_success);
     std::vector<double> h_output1(p.osize[0]);
     ASSERT_TRUE(hipMemcpy(h_output1.data(), obuf.data(), obuf.size(), hipMemcpyDeviceToHost)
                 == hipSuccess);

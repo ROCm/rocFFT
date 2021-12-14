@@ -28,21 +28,20 @@
 #include <vector>
 
 #include "fftw_transform.h"
-#include "rocfft.h"
 #include <hip/hip_runtime.h>
 
 // Return the precision enum for rocFFT based upon the type.
 template <typename Tfloat>
-inline rocfft_precision precision_selector();
+inline fft_precision precision_selector();
 template <>
-inline rocfft_precision precision_selector<float>()
+inline fft_precision precision_selector<float>()
 {
-    return rocfft_precision_single;
+    return fft_precision_single;
 }
 template <>
-inline rocfft_precision precision_selector<double>()
+inline fft_precision precision_selector<double>()
 {
-    return rocfft_precision_double;
+    return fft_precision_double;
 }
 
 // Check if the required buffers fit in the device vram.
@@ -94,7 +93,7 @@ template <typename Tfloat, typename Tallocator>
 inline std::vector<std::vector<char, Tallocator>>
     fftw_transform(const std::vector<fftw_iodim64>& dims,
                    const std::vector<fftw_iodim64>& howmany_dims,
-                   const rocfft_transform_type      transformType,
+                   const fft_transform_type         transformType,
                    const size_t                     isize,
                    const size_t                     osize,
                    void*                            cpu_in)
@@ -110,7 +109,7 @@ inline std::vector<std::vector<char, Tallocator>>
 
     switch(transformType)
     {
-    case rocfft_transform_type_complex_forward:
+    case fft_transform_type_complex_forward:
     {
         dummy_input.resize(isize * sizeof(fftw_complex_type));
         output[0].resize(osize * sizeof(fftw_complex_type));
@@ -128,7 +127,7 @@ inline std::vector<std::vector<char, Tallocator>>
                                       reinterpret_cast<fftw_complex_type*>(output[0].data()));
     }
     break;
-    case rocfft_transform_type_complex_inverse:
+    case fft_transform_type_complex_inverse:
     {
         dummy_input.resize(isize * sizeof(fftw_complex_type));
         output[0].resize(osize * sizeof(fftw_complex_type));
@@ -146,7 +145,7 @@ inline std::vector<std::vector<char, Tallocator>>
                                       reinterpret_cast<fftw_complex_type*>(output[0].data()));
     }
     break;
-    case rocfft_transform_type_real_forward:
+    case fft_transform_type_real_forward:
     {
         dummy_input.resize(isize * sizeof(Tfloat));
         output[0].resize(osize * sizeof(fftw_complex_type));
@@ -163,7 +162,7 @@ inline std::vector<std::vector<char, Tallocator>>
                                       reinterpret_cast<fftw_complex_type*>(output[0].data()));
         break;
     }
-    case rocfft_transform_type_real_inverse:
+    case fft_transform_type_real_inverse:
     {
         dummy_input.resize(isize * sizeof(fftw_complex_type));
         output[0].resize(osize * sizeof(Tfloat));
@@ -196,8 +195,8 @@ inline std::vector<std::vector<char, Tallocator>>
                     const size_t                                nbatch,
                     const size_t                                idist,
                     const size_t                                odist,
-                    const rocfft_precision                      precision,
-                    const rocfft_transform_type                 transformType,
+                    const fft_precision                         precision,
+                    const fft_transform_type                    transform_type,
                     std::vector<std::vector<char, Tallocator>>& input)
 {
     // Dimension configuration:
@@ -217,18 +216,18 @@ inline std::vector<std::vector<char, Tallocator>>
 
     switch(precision)
     {
-    case rocfft_precision_single:
+    case fft_precision_single:
         return fftw_transform<float, Tallocator>(dims,
                                                  howmany_dims,
-                                                 transformType,
+                                                 transform_type,
                                                  idist * nbatch,
                                                  odist * nbatch,
                                                  (void*)input[0].data());
         break;
-    case rocfft_precision_double:
+    case fft_precision_double:
         return fftw_transform<double, Tallocator>(dims,
                                                   howmany_dims,
-                                                  transformType,
+                                                  transform_type,
                                                   idist * nbatch,
                                                   odist * nbatch,
                                                   (void*)input[0].data());
@@ -237,50 +236,50 @@ inline std::vector<std::vector<char, Tallocator>>
 }
 
 // Given a transform type, return the contiguous input type.
-inline rocfft_array_type contiguous_itype(const rocfft_transform_type transformType)
+inline fft_array_type contiguous_itype(const fft_transform_type transformType)
 {
     switch(transformType)
     {
-    case rocfft_transform_type_complex_forward:
-    case rocfft_transform_type_complex_inverse:
-        return rocfft_array_type_complex_interleaved;
-    case rocfft_transform_type_real_forward:
-        return rocfft_array_type_real;
-    case rocfft_transform_type_real_inverse:
-        return rocfft_array_type_hermitian_interleaved;
+    case fft_transform_type_complex_forward:
+    case fft_transform_type_complex_inverse:
+        return fft_array_type_complex_interleaved;
+    case fft_transform_type_real_forward:
+        return fft_array_type_real;
+    case fft_transform_type_real_inverse:
+        return fft_array_type_hermitian_interleaved;
     default:
         throw std::runtime_error("Invalid transform type");
     }
-    return rocfft_array_type_complex_interleaved;
+    return fft_array_type_complex_interleaved;
 }
 
 // Given a transform type, return the contiguous output type.
-inline rocfft_array_type contiguous_otype(const rocfft_transform_type transformType)
+inline fft_array_type contiguous_otype(const fft_transform_type transformType)
 {
     switch(transformType)
     {
-    case rocfft_transform_type_complex_forward:
-    case rocfft_transform_type_complex_inverse:
-        return rocfft_array_type_complex_interleaved;
-    case rocfft_transform_type_real_forward:
-        return rocfft_array_type_hermitian_interleaved;
-    case rocfft_transform_type_real_inverse:
-        return rocfft_array_type_real;
+    case fft_transform_type_complex_forward:
+    case fft_transform_type_complex_inverse:
+        return fft_array_type_complex_interleaved;
+    case fft_transform_type_real_forward:
+        return fft_array_type_hermitian_interleaved;
+    case fft_transform_type_real_inverse:
+        return fft_array_type_real;
     default:
         throw std::runtime_error("Invalid transform type");
     }
-    return rocfft_array_type_complex_interleaved;
+    return fft_array_type_complex_interleaved;
 }
 
 // Given a precision, return the acceptable tolerance.
-inline double type_epsilon(const rocfft_precision precision)
+inline double type_epsilon(const fft_precision precision)
 {
     switch(precision)
     {
-    case rocfft_precision_single:
+    case fft_precision_single:
         return type_epsilon<float>();
         break;
-    case rocfft_precision_double:
+    case fft_precision_double:
         return type_epsilon<double>();
         break;
     default:

@@ -134,7 +134,7 @@ __global__ void
     {
         // Nyquist mode
         auto pos = (Nx - 1) * xstride;
-        auto val = x[pos];
+        val      = x[pos];
         val.y    = 0.0;
         x[pos]   = val;
     }
@@ -178,9 +178,9 @@ __global__ void impose_hermitian_symmetry2(double2*     x,
 
         if(Nxeven)
         {
-            const auto pos  = (Nx - 1) * xstride + idy * ystride;
-            const auto cpos = (Nx - 1) * xstride + ((Ny - idy) % Ny) * ystride;
-            auto       val  = x[pos];
+            const auto pos_even  = (Nx - 1) * xstride + idy * ystride;
+            const auto cpos_even = (Nx - 1) * xstride + ((Ny - idy) % Ny) * ystride;
+            val                  = x[pos_even];
 
             // x-Nyquist
             if(idy == 0)
@@ -200,7 +200,7 @@ __global__ void impose_hermitian_symmetry2(double2*     x,
                 val.y = 0.0;
             }
 
-            x[cpos] = val;
+            x[cpos_even] = val;
         }
     }
 }
@@ -282,10 +282,10 @@ __global__ void impose_hermitian_symmetry3(double2*     x,
 
         if(Nxeven)
         {
-            const auto pos = (Nx - 1) * xstride + idy * ystride + idz * zstride;
-            const auto cpos
+            const auto pos_even = (Nx - 1) * xstride + idy * ystride + idz * zstride;
+            const auto cpos_even
                 = (Nx - 1) * xstride + ((Ny - idy) % Ny) * ystride + ((Nz - idz) % Nz) * zstride;
-            auto val = x[pos];
+            val = x[pos_even];
 
             // x-Nyquist
             if(idy == 0 && idz == 0)
@@ -336,7 +336,7 @@ __global__ void impose_hermitian_symmetry3(double2*     x,
                 val.y = 0;
             }
 
-            x[cpos] = val;
+            x[cpos_even] = val;
         }
     }
 }

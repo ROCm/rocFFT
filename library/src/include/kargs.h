@@ -41,17 +41,17 @@ gpubuf_t<size_t> kargs_create(std::vector<size_t> length,
 // stride device pointer
 // data->node->devKernArg + 2*KERN_ARGS_ARRAY_WIDTH : points to the internal out
 // stride device pointer, only used in outof place kernels
-static size_t* kargs_lengths(gpubuf_t<size_t>& devKernArg)
+static size_t* kargs_lengths(const gpubuf_t<size_t>& devKernArg)
 {
     return devKernArg.data();
 }
 
-static size_t* kargs_stride_in(gpubuf_t<size_t>& devKernArg)
+static size_t* kargs_stride_in(const gpubuf_t<size_t>& devKernArg)
 {
     return devKernArg.data() + 1 * KERN_ARGS_ARRAY_WIDTH;
 }
 
-static size_t* kargs_stride_out(gpubuf_t<size_t>& devKernArg)
+static size_t* kargs_stride_out(const gpubuf_t<size_t>& devKernArg)
 {
     return devKernArg.data() + 2 * KERN_ARGS_ARRAY_WIDTH;
 }

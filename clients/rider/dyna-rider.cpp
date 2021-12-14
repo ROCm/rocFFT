@@ -38,6 +38,7 @@
 #endif
 
 #include "../../shared/gpubuf.h"
+#include "../rocfft_params.h"
 #include "rider.h"
 #include "rocfft.h"
 
@@ -50,7 +51,7 @@ typedef HMODULE ROCFFT_LIB;
 typedef void* ROCFFT_LIB;
 #endif
 
-// load the rocfft library
+// Load the rocfft library
 ROCFFT_LIB rocfft_lib_load(const std::string& path)
 {
 #ifdef WIN32
@@ -60,7 +61,7 @@ ROCFFT_LIB rocfft_lib_load(const std::string& path)
 #endif
 }
 
-// return a string describing the error loading rocfft
+// Return a string describing the error loading rocfft
 const char* rocfft_lib_load_error()
 {
 #ifdef WIN32
@@ -73,7 +74,7 @@ const char* rocfft_lib_load_error()
 #endif
 }
 
-// return true if rocfft_device is loaded, which indicates that the
+// Return true if rocfft_device is loaded, which indicates that the
 // library was not built with -DSINGLELIB=ON.
 bool rocfft_lib_device_loaded(ROCFFT_LIB libhandle)
 {
@@ -108,7 +109,7 @@ bool rocfft_lib_device_loaded(ROCFFT_LIB libhandle)
 #endif
 }
 
-// get symbol from rocfft lib
+// Get symbol from rocfft lib
 void* rocfft_lib_symbol(ROCFFT_LIB libhandle, const char* sym)
 {
 #ifdef WIN32
@@ -130,7 +131,7 @@ void rocfft_lib_close(ROCFFT_LIB libhandle)
 // Given a libhandle from dload, return a plan to a rocFFT plan with the given parameters.
 rocfft_plan make_plan(ROCFFT_LIB                    libhandle,
                       const rocfft_result_placement place,
-                      const rocfft_transform_type   transformType,
+                      const fft_transform_type      transform_type,
                       const std::vector<size_t>&    length,
                       const std::vector<size_t>&    istride,
                       const std::vector<size_t>&    ostride,
@@ -176,10 +177,15 @@ rocfft_plan make_plan(ROCFFT_LIB                    libhandle,
                 "rocfft_plan_description_data_layout failed");
     rocfft_plan plan = NULL;
 
-    LIB_V_THROW(
-        procfft_plan_create(
-            &plan, place, transformType, precision, length.size(), length.data(), nbatch, desc),
-        "rocfft_plan_create failed");
+    LIB_V_THROW(procfft_plan_create(&plan,
+                                    place,
+                                    rocfft_transform_type_from_fftparams(transform_type),
+                                    precision,
+                                    length.size(),
+                                    length.data(),
+                                    nbatch,
+                                    desc),
+                "rocfft_plan_create failed");
 
     LIB_V_THROW(procfft_plan_description_destroy(desc), "rocfft_plan_description_destroy failed");
 
@@ -352,18 +358,18 @@ int main(int argc, char* argv[])
         ("ntrial,N", po::value<int>(&ntrial)->default_value(1), "Trial size for the problem")
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
         ("double", "Double precision transform (default: single)")
-        ("transformType,t", po::value<rocfft_transform_type>(&params.transform_type)
-         ->default_value(rocfft_transform_type_complex_forward),
+        ("transformType,t", po::value<fft_transform_type>(&params.transform_type)
+         ->default_value(fft_transform_type_complex_forward),
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
          "forward\n3) real inverse")
         ( "batchSize,b", po::value<size_t>(&params.nbatch)->default_value(1),
           "If this value is greater than one, arrays will be used ")
-        ( "itype", po::value<rocfft_array_type>(&params.itype)
-          ->default_value(rocfft_array_type_unset),
+        ( "itype", po::value<fft_array_type>(&params.itype)
+          ->default_value(fft_array_type_unset),
           "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
-        ( "otype", po::value<rocfft_array_type>(&params.otype)
-          ->default_value(rocfft_array_type_unset),
+        ( "otype", po::value<fft_array_type>(&params.otype)
+          ->default_value(fft_array_type_unset),
           "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
         ("lib",  po::value<std::vector<std::string>>(&libs)->multitoken(),
@@ -400,9 +406,8 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    params.placement
-        = vm.count("notInPlace") ? rocfft_placement_notinplace : rocfft_placement_inplace;
-    params.precision = vm.count("double") ? rocfft_precision_double : rocfft_precision_single;
+    params.placement = vm.count("notInPlace") ? fft_placement_notinplace : fft_placement_inplace;
+    params.precision = vm.count("double") ? fft_precision_double : fft_precision_single;
 
     if(vm.count("notInPlace"))
     {
@@ -516,7 +521,7 @@ int main(int argc, char* argv[])
     {
         std::cout << idx << ": " << libs[idx] << std::endl;
         plan.push_back(make_plan(handles[idx],
-                                 params.placement,
+                                 rocfft_result_placement_from_fftparams(params.placement),
                                  params.transform_type,
                                  params.length_cm(),
                                  params.istride_cm(),
@@ -526,9 +531,9 @@ int main(int argc, char* argv[])
                                  params.ioffset,
                                  params.ooffset,
                                  params.nbatch,
-                                 params.precision,
-                                 params.itype,
-                                 params.otype));
+                                 rocfft_precision_from_fftparams(params.precision),
+                                 rocfft_array_type_from_fftparams(params.itype),
+                                 rocfft_array_type_from_fftparams(params.otype)));
         show_plan(handles[idx], plan[idx]);
         wbuffer_size = std::max(wbuffer_size, get_wbuffersize(handles[idx], plan[idx]));
     }
@@ -555,14 +560,7 @@ int main(int argc, char* argv[])
     if(verbose > 1)
     {
         std::cout << "GPU input:\n";
-        printbuffer(params.precision,
-                    params.itype,
-                    input,
-                    params.ilength(),
-                    params.istride,
-                    params.nbatch,
-                    params.idist,
-                    params.ioffset);
+        params.print_ibuffer(input);
     }
 
     // GPU input and output buffers:
@@ -577,7 +575,7 @@ int main(int argc, char* argv[])
 
     std::vector<gpubuf>  obuffer_data;
     std::vector<gpubuf>* obuffer = &obuffer_data;
-    if(params.placement == rocfft_placement_inplace)
+    if(params.placement == fft_placement_inplace)
     {
         obuffer = &ibuffer;
     }
@@ -633,11 +631,11 @@ int main(int argc, char* argv[])
         //     continue;
 
         // Copy the input data to the GPU:
-        for(int idx = 0; idx < input.size(); ++idx)
+        for(int bidx = 0; bidx < input.size(); ++bidx)
         {
             HIP_V_THROW(
                 hipMemcpy(
-                    pibuffer[idx], input[idx].data(), input[idx].size(), hipMemcpyHostToDevice),
+                    pibuffer[bidx], input[bidx].data(), input[bidx].size(), hipMemcpyHostToDevice),
                 "hipMemcpy failed");
         }
 
@@ -648,20 +646,15 @@ int main(int argc, char* argv[])
         if(verbose > 2)
         {
             auto output = allocate_host_buffer(params.precision, params.otype, params.osize);
-            for(int idx = 0; idx < output.size(); ++idx)
+            for(int iout = 0; iout < output.size(); ++iout)
             {
-                hipMemcpy(
-                    output[idx].data(), pobuffer[idx], output[idx].size(), hipMemcpyDeviceToHost);
+                hipMemcpy(output[iout].data(),
+                          pobuffer[iout],
+                          output[iout].size(),
+                          hipMemcpyDeviceToHost);
             }
             std::cout << "GPU output:\n";
-            printbuffer(params.precision,
-                        params.otype,
-                        output,
-                        params.olength(),
-                        params.ostride,
-                        params.nbatch,
-                        params.odist,
-                        params.ooffset);
+            params.print_obuffer(output);
         }
     }
 

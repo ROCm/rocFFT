@@ -204,8 +204,21 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
            != hipSuccess)
             throw std::runtime_error("hipMemcpy failure");
 
-        printbuffer(
-            precision, type, bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+        switch(precision)
+        {
+        case rocfft_precision_single:
+        {
+            buffer_printer<float> s;
+            s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+            break;
+        }
+        case rocfft_precision_double:
+        {
+            buffer_printer<double> s;
+            s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+            break;
+        }
+        }
     }
     else
     {
@@ -214,8 +227,54 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
         if(hipMemcpy(bufvec.front().data(), buffer[0], size_bytes, hipMemcpyDeviceToHost)
            != hipSuccess)
             throw std::runtime_error("hipMemcpy failure");
-        printbuffer(
-            precision, type, bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+
+        switch(precision)
+        {
+        case rocfft_precision_single:
+        {
+            switch(type)
+            {
+            case rocfft_array_type_complex_interleaved:
+            case rocfft_array_type_hermitian_interleaved:
+            {
+                buffer_printer<std::complex<float>> s;
+                s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+                break;
+            }
+            case rocfft_array_type_real:
+            {
+                buffer_printer<float> s;
+                s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+                break;
+            }
+            default:
+                throw std::runtime_error("invalid array format");
+            }
+            break;
+        }
+        case rocfft_precision_double:
+        {
+            switch(type)
+            {
+            case rocfft_array_type_complex_interleaved:
+            case rocfft_array_type_hermitian_interleaved:
+            {
+                buffer_printer<std::complex<double>> s;
+                s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+                break;
+            }
+            case rocfft_array_type_real:
+            {
+                buffer_printer<double> s;
+                s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+                break;
+            }
+            default:
+                throw std::runtime_error("invalid array format");
+            }
+            break;
+        }
+        }
     }
 }
 

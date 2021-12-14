@@ -19,14 +19,14 @@
 // THE SOFTWARE.
 
 #pragma once
-#if !defined(TESTCONSTANTS_H)
+#ifndef TESTCONSTANTS_H
 #define TESTCONSTANTS_H
 
 #include "rocfft.h"
 
 #include <stdexcept>
-void handle_exception(const std::exception& except);
 
 extern int    verbose;
 extern size_t ramgb;
+
 #endif

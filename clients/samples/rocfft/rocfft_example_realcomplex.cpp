@@ -161,7 +161,6 @@ int main(int argc, char* argv[])
         inithermitiancomplex(length, ilength, istride, gpu_in);
     }
     hipDeviceSynchronize();
-    hip_status = hipGetLastError();
     if(hip_status != hipSuccess)
         throw std::runtime_error("device error");
 

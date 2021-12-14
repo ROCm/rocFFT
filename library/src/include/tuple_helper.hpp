@@ -115,7 +115,9 @@ public:
     {
         size_t seed = 0;
         for(size_t h : {hash(std::get<I * 2 + 1>(tuple))...})
+        {
             seed ^= h + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        }
         return seed;
     }
 

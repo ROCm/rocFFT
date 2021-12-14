@@ -157,7 +157,7 @@ public:
 private:
     LogSingleton() {}
 
-    rocfft_layer_mode layer_mode;
+    rocfft_layer_mode layer_mode{};
 
     LogSingleton(LogSingleton const&);
     void operator=(LogSingleton const&);

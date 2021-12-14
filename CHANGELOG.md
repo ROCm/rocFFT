@@ -7,7 +7,8 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Changed
 - Enabled runtime compilation of single FFT kernels > length 1024.
 - Supported unaligned tile dimension for SBRC_2D kernels.
-
+  Improved (more RAII) test and benchmark infrastructure.
+	
 ## (Unreleased) rocFFT 1.0.16
 
 ### Changed

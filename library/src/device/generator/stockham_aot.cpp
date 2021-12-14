@@ -27,7 +27,6 @@
 std::vector<unsigned int> parse_uints_csv(const std::string& arg)
 {
     std::vector<unsigned int> uints;
-    std::vector<std::string>  uints_str;
 
     size_t prev_pos = 0;
     for(;;)

@@ -61,9 +61,9 @@ void printbuffer(const std::vector<Tdata>& data,
             assert(i >= 0);
             assert(i < data.size());
             std::cout << data[i] << " ";
-            for(size_t i = 0; i < index.size(); ++i)
+            for(size_t idx = 0; idx < index.size(); ++idx)
             {
-                if(index[i] == (length[i] - 1))
+                if(index[idx] == (length[idx] - 1))
                 {
                     std::cout << "\n";
                 }

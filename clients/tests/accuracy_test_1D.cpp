@@ -23,11 +23,8 @@
 #include <stdexcept>
 #include <vector>
 
-#include "../client_utils.h"
-
 #include "accuracy_test.h"
 #include "fftw_transform.h"
-#include "rocfft.h"
 #include "rocfft_against_fftw.h"
 
 using ::testing::ValuesIn;
@@ -273,23 +270,23 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_mix_1D,
 INSTANTIATE_TEST_SUITE_P(small_1D,
                          accuracy_test,
                          ::testing::ValuesIn(param_generator_base(
-                             {rocfft_transform_type_complex_forward},
+                             {fft_transform_type_complex_forward},
                              generate_lengths({small_1D_sizes()}),
-                             {rocfft_precision_single},
+                             {fft_precision_single},
                              {1},
-                             [](rocfft_transform_type                       t,
-                                const std::vector<rocfft_result_placement>& place_range) {
+                             [](fft_transform_type                       t,
+                                const std::vector<fft_result_placement>& place_range) {
                                  return std::vector<type_place_io_t>{
                                      std::make_tuple(t,
                                                      place_range[0],
-                                                     rocfft_array_type_complex_interleaved,
-                                                     rocfft_array_type_complex_interleaved)};
+                                                     fft_array_type_complex_interleaved,
+                                                     fft_array_type_complex_interleaved)};
                              },
                              stride_range,
                              stride_range,
                              ioffset_range_zero,
                              ooffset_range_zero,
-                             {rocfft_placement_notinplace})),
+                             {fft_placement_notinplace})),
                          accuracy_test::TestName);
 
 // NB:
@@ -333,17 +330,17 @@ INSTANTIATE_TEST_SUITE_P(
 
 // Create an array parameters for strided 2D batched transforms.
 inline auto
-    param_generator_complex_1d_batched_2d(const std::vector<std::vector<size_t>>& v_lengths,
-                                          const std::vector<rocfft_precision>&    precision_range,
-                                          const std::vector<std::vector<size_t>>& ioffset_range,
-                                          const std::vector<std::vector<size_t>>& ooffset_range,
-                                          const std::vector<rocfft_result_placement>& place_range)
+    param_generator_complex_1d_batched_2d(const std::vector<std::vector<size_t>>&  v_lengths,
+                                          const std::vector<fft_precision>&        precision_range,
+                                          const std::vector<std::vector<size_t>>&  ioffset_range,
+                                          const std::vector<std::vector<size_t>>&  ooffset_range,
+                                          const std::vector<fft_result_placement>& place_range)
 {
 
     std::vector<fft_params> params;
 
     for(auto& transform_type :
-        {rocfft_transform_type_complex_forward, rocfft_transform_type_complex_inverse})
+        {fft_transform_type_complex_forward, fft_transform_type_complex_inverse})
     {
         for(const auto& lengths : v_lengths)
         {
