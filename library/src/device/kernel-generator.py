@@ -496,8 +496,8 @@ def list_large_kernels():
            'sp': 'true',  'dp': 'true'}),
         NS(length=84,  factors=[7, 2, 6],    use_3steps_large_twd={
            'sp': 'true',  'dp': 'true'}),
-        NS(length=96,  factors=[6, 16],      use_3steps_large_twd={
-           'sp': 'false',  'dp': 'false'}),
+        NS(length=96,  factors=[8, 3, 4],    use_3steps_large_twd={
+           'sp': 'false',  'dp': 'false'}, threads_per_block=256),
         NS(length=100, factors=[5, 5, 4],    use_3steps_large_twd={
            'sp': 'true',  'dp': 'false'}, threads_per_block=100),
         NS(length=104, factors=[13, 8],      use_3steps_large_twd={
@@ -521,13 +521,15 @@ def list_large_kernels():
         NS(length=216, factors=[8, 3, 3, 3], use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'}),
         NS(length=224, factors=[8, 7, 4],    use_3steps_large_twd={
-           'sp': 'false', 'dp': 'false'}),
+           'sp': 'true', 'dp': 'false'}),
         NS(length=240, factors=[8, 5, 6],    use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'}),
         NS(length=256, factors=[8, 4, 8], use_3steps_large_twd={
            'sp': 'true',  'dp': 'false'}, flavour='wide'),
         NS(length=336, factors=[6, 7, 8],    use_3steps_large_twd={
-           'sp': 'false', 'dp': 'false'})
+           'sp': 'false', 'dp': 'false'}),
+        NS(length=343, factors=[7, 7, 7],    use_3steps_large_twd={
+           'sp': 'true', 'dp': 'true'})
     ]
 
     # for SBCC kernel, increase desired threads_per_block so that columns per
@@ -556,7 +558,7 @@ def list_large_kernels():
         NS(length=112, factors=[4, 7, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=448, threads_per_transform=28, block_width=16),
         NS(length=128, factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=128, threads_per_transform=16, block_width=8),
         # NS(length=128, factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=32, block_width=8),
-        NS(length=192, factors=[6, 4, 4, 2], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=192, threads_per_transform=24, block_width=8),
+        NS(length=192, factors=[6, 4, 4, 2], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=32, block_width=8),
         NS(length=200, factors=[10, 10, 2], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=100, threads_per_transform=10, block_width=10),
         NS(length=256, factors=[4, 4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', threads_per_block=256, threads_per_transform=32, block_width=8),
     ]

@@ -46,8 +46,12 @@ NodeFactory::Map1DLength const NodeFactory::map1DLengthSingle
        {6561, 81}, // pow of 3: CC (81cc + 81rc)
        {10000, 100}, // mixed:  CC (100cc + 100rc)
        {40000, 200}, //         CC (200cc + 200rc)
+       {10752, 96}, //          CC (96cc + 112rc)
+       {16807, 343}, //         CC (343cc + 49rc)
+       {18816, 168}, //         CC (168cc + 112rc)
        {21504, 168}, //         CC (168cc + 128rc)
-       {43008, 168}}; //        CC (168cc + 256rc)
+       {32256, 168}, //         CC (168cc + 192rc)
+       {43008, 224}}; //        CC (224cc + 192rc) // or {43008, 168}}; CC (168cc + 256rc)
 
 NodeFactory::Map1DLength const NodeFactory::map1DLengthDouble
     = {{4096, 64}, // pow of 2: CC (64cc + 64rc)
@@ -60,8 +64,12 @@ NodeFactory::Map1DLength const NodeFactory::map1DLengthDouble
        {2500, 50}, // mixed:    CC (50cc + 50rc)
        {10000, 100}, //         CC (100cc + 100rc)
        {40000, 200}, //         CC (200cc + 200rc)
+       {10752, 96}, //          CC (96cc + 112rc)
+       {16807, 343}, //         CC (343cc + 49rc)
+       {18816, 168}, //         CC (168cc + 112rc)
        {21504, 168}, //         CC (168cc + 128rc)
-       {43008, 168}}; //        CC (168cc + 256rc)
+       {32256, 168}, //         CC (168cc + 192rc)
+       {43008, 224}}; //        CC (168cc + 256rc) // or {43008, 168}}; CC (168cc + 256rc)
 
 //
 // Factorisation helpers
@@ -439,15 +447,21 @@ ComputeScheme NodeFactory::Decide1DScheme(NodeMetaData& nodeData)
         }
         else if(nodeData.precision == rocfft_precision_double)
         {
-            // FIXME: SBCC-168 dp is not good for gfx906 and eats up the gained performance.
-            bool isException
-                = nodeData.length[0] == 43008 && is_device_gcn_arch(nodeData.deviceProp, "gfx906");
-
-            if(map1DLengthDouble.find(nodeData.length[0]) != map1DLengthDouble.end()
-               && !isException)
+            if(map1DLengthDouble.find(nodeData.length[0]) != map1DLengthDouble.end())
             {
                 divLength1 = map1DLengthDouble.at(nodeData.length[0]);
                 scheme     = CS_L1D_CC;
+
+                // hack for special case of 43008, could be 168cc+256rc or 224cc+192rc
+                //    in 906, L1D_CC is not good neither by 168 nor 224.
+                //    in 908, 168cc is better than 224cc. (For others, 224 is better)
+                if(nodeData.length[0] == 43008)
+                {
+                    if(is_device_gcn_arch(nodeData.deviceProp, "gfx906"))
+                        failed = true;
+                    else if(is_device_gcn_arch(nodeData.deviceProp, "gfx908"))
+                        divLength1 = 168;
+                }
             }
             else
             {
