@@ -570,12 +570,14 @@ def list_large_kernels():
     # for k in sbcr_kernels:
     #     k.scheme = 'CS_KERNEL_STOCKHAM_BLOCK_CR'
     #
-    # Just enable length 100 and 200 for now.
 
     sbcr_kernels = [
+        NS(length=56,  factors=[7, 8],  use_3steps_large_twd={'sp': 'false', 'dp': 'false'}),
         NS(length=100, factors=[10, 10],    use_3steps_large_twd={
            'sp': 'true',  'dp': 'false'}, threads_per_block=100),
         NS(length=200, factors=[8, 5, 5],    use_3steps_large_twd={
+           'sp': 'false', 'dp': 'false'}),
+        NS(length=336, factors=[6, 7, 8],    use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'})
     ]
 

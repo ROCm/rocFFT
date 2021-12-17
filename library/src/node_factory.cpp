@@ -515,13 +515,37 @@ ComputeScheme NodeFactory::Decide2DScheme(NodeMetaData& nodeData)
         return CS_2D_RTRT;
 }
 
+// check if we want to use SBCR solution
+static bool Apply_SBCR(NodeMetaData& nodeData)
+{
+    // NB:
+    //   We enable SBCR for limited problem sizes in kernel-generator.py.
+    //   Will enable it for non-unit stride cases later.
+    return (((is_device_gcn_arch(nodeData.deviceProp, "gfx908")
+              || is_device_gcn_arch(nodeData.deviceProp, "gfx90a"))
+             && function_pool::has_SBCR_kernel(nodeData.length[0], nodeData.precision)
+             && function_pool::has_SBCR_kernel(nodeData.length[1], nodeData.precision)
+             && function_pool::has_SBCR_kernel(nodeData.length[2], nodeData.precision)
+             && (nodeData.placement == rocfft_placement_notinplace)
+             && (nodeData.inStride[0] == 1 && nodeData.outStride[0] == 1 // unit strides
+                 && nodeData.inStride[1] == nodeData.length[0]
+                 && nodeData.outStride[1] == nodeData.length[0]
+                 && nodeData.inStride[2] == nodeData.inStride[1] * nodeData.length[1]
+                 && nodeData.outStride[2] == nodeData.outStride[1] * nodeData.length[1])));
+}
+
 ComputeScheme NodeFactory::Decide3DScheme(NodeMetaData& nodeData)
 {
     // this flag can be enabled when generator can do block column fft in
     // multi-dimension cases and small 2d, 3d within one kernel
     bool MultiDimFuseKernelsAvailable = false;
 
-    if(use_CS_3D_RC(nodeData))
+    // try 3 SBCR kernels first
+    if(Apply_SBCR(nodeData))
+    {
+        return CS_3D_BLOCK_CR;
+    }
+    else if(use_CS_3D_RC(nodeData))
     {
         return CS_3D_RC;
     }

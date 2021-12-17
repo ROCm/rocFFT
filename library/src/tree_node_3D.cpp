@@ -562,6 +562,7 @@ void BLOCKRC3DNode::AssignBuffers_internal(TraverseState&   state,
         case OB_TEMP:
         case OB_TEMP_CMPLX_FOR_REAL:
         case OB_TEMP_BLUESTEIN:
+
             node->outArrayType = rocfft_array_type_complex_interleaved;
             break;
         default:
@@ -587,7 +588,7 @@ void BLOCKCR3DNode::BuildTree_internal()
         node->length.push_back(cur_length[0] * cur_length[1]);
         childNodes.emplace_back(std::move(node));
         std::swap(cur_length[1], cur_length[2]);
-        std::swap(cur_length[2], cur_length[0]);
+        std::swap(cur_length[1], cur_length[0]);
     }
 }
 
