@@ -150,10 +150,9 @@ if(BUILD_ADDRESS_SANITIZER)
 endif()
 
 
+set( WARNING_FLAGS -Wall -Wno-unused-function -Wimplicit-fallthrough -Wunreachable-code )
 if( WERROR )
-  set( WARNING_FLAGS -Wall -Wno-unused-function -Werror )
-else( )
-  set( WARNING_FLAGS -Wall -Wno-unused-function )
+  set( WARNING_FLAGS ${WARNING_FLAGS} -Werror )
 endif( )
 
 # force library install path to lib (CentOS 7 defaults to lib64)

@@ -247,7 +247,7 @@ public:
     }
 
     // Abort function which safely flushes all IO
-    friend void rocfft_abort_once();
+    friend int rocfft_abort_once();
 
     // cleanup function also flushes IO
     friend rocfft_status rocfft_cleanup();

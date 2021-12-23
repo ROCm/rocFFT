@@ -950,8 +950,8 @@ public:
                 s.print_buffer_flat(buf, osize, ooffset);
                 break;
             }
-            break;
             }
+            break;
         default:
             throw std::runtime_error("Invalid itype in print_ibuffer_flat");
         }
@@ -2362,7 +2362,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                     }
                 }
 
-                // fall-through
+                [[fallthrough]];
             case 2:
                 if(length[1] % 2 == 0)
                 {
@@ -2388,8 +2388,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                     }
                 }
 
-                // fall-through
-
+                [[fallthrough]];
             case 1:
                 data[0].imag(0.0);
 

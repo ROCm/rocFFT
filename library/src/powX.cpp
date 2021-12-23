@@ -381,6 +381,7 @@ void TransformPowX(const ExecPlan&       execPlan,
         case OB_UNINIT:
             rocfft_cerr << "Error: operating buffer not initialized for kernel!\n";
             assert(data.node->obIn != OB_UNINIT);
+            break;
         default:
             rocfft_cerr << "Error: operating buffer not specified for kernel!\n";
             assert(false);

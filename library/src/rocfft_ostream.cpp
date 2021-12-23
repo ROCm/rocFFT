@@ -21,7 +21,7 @@
 *******************************************************************************/
 
 // Predeclare rocfft_abort_once() for friend declaration in rocfft_ostream.hpp
-static void rocfft_abort_once [[noreturn]] ();
+static int rocfft_abort_once();
 
 #include "rocfft_ostream.hpp"
 #include <csignal>
@@ -41,7 +41,7 @@ std::unique_ptr<std::recursive_mutex>         rocfft_ostream::worker_map_mutex;
  ***********************************************************************/
 
 // Abort function which is called only once by rocfft_abort
-static void rocfft_abort_once()
+static int rocfft_abort_once()
 {
     // Make sure the alarm and abort actions are default
 #ifndef WIN32
@@ -67,13 +67,14 @@ static void rocfft_abort_once()
 
     // Abort
     std::abort();
+    return 0;
 }
 
 // Abort function which safely flushes all IO
 extern "C" void rocfft_abort()
 {
     // If multiple threads call rocfft_abort(), the first one wins
-    static int once = (rocfft_abort_once(), 0);
+    static int once = rocfft_abort_once();
     // suppress unused variable warning
     (void)once;
 }

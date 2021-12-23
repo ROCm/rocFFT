@@ -205,15 +205,15 @@ std::string stockham_rtc(StockhamGeneratorSpecs& specs,
             kernel = std::make_unique<StockhamKernelCC>(specs);
         else if(node.scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
             kernel = std::make_unique<StockhamKernelCR>(specs);
-        else if(CS_KERNEL_STOCKHAM_BLOCK_RC)
+        else if(node.scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
         {
             kernel = std::make_unique<StockhamKernelRC>(specs);
         }
-        else if(CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
+        else if(node.scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
             kernel = std::make_unique<StockhamKernelRC>(specs);
-        else if(CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)
+        else if(node.scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)
             kernel = std::make_unique<StockhamKernelRC>(specs);
-        else if(CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
+        else if(node.scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
             kernel = std::make_unique<StockhamKernelRC>(specs);
         else
             throw std::runtime_error("unhandled scheme");
