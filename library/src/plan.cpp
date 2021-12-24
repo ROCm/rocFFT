@@ -1506,6 +1506,18 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
         os << "\n" << indentStr.c_str() << "largeTwdBase: " << largeTwdBase;
         os << "\n" << indentStr.c_str() << "largeTwdSteps: " << ltwdSteps;
     }
+    if(twiddles)
+    {
+        os << "\n"
+           << indentStr.c_str()
+           << "twiddle table length: " << twiddles.size() / sizeof_precision(precision);
+    }
+    if(twiddles_large)
+    {
+        os << "\n"
+           << indentStr.c_str()
+           << "large twiddle table length: " << twiddles_large.size() / sizeof_precision(precision);
+    }
     if(lengthBlue)
         os << "\n" << indentStr.c_str() << "lengthBlue: " << lengthBlue;
     os << "\n";

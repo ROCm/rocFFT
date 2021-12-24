@@ -139,10 +139,11 @@ public:
             nt++;
         }
 
-        if(twts.alloc(3 * N * sizeof(T)) != hipSuccess
-           || hipMemcpy(twts.data(), twc_all.data(), 3 * N * sizeof(T), hipMemcpyHostToDevice)
-                  != hipSuccess)
-            twts.free();
+        if(twts.alloc(3 * N * sizeof(T)) != hipSuccess)
+            throw std::runtime_error("unable to allocate twiddle length " + std::to_string(3 * N));
+        if(hipMemcpy(twts.data(), twc_all.data(), 3 * N * sizeof(T), hipMemcpyHostToDevice)
+           != hipSuccess)
+            throw std::runtime_error("failed to copy twiddle length " + std::to_string(3 * N));
     }
 };
 

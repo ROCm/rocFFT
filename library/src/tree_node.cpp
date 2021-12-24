@@ -60,8 +60,6 @@ bool LeafNode::CreateLargeTwdTable()
     if(large1D != 0)
     {
         twiddles_large = twiddles_create(large1D, precision, true, largeTwdBase, false, false, {});
-        if(twiddles_large == nullptr)
-            return false;
     }
 
     return true;
@@ -132,8 +130,6 @@ bool LeafNode::CreateTwiddleTableResource()
                                    twd_no_radices,
                                    twd_attach_2N,
                                    kernelFactors);
-        if(twiddles == nullptr)
-            return false;
     }
 
     return CreateLargeTwdTable();

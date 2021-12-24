@@ -58,9 +58,10 @@ gpubuf twiddles_create_pr(size_t                     N,
         }
         else
         {
-            if(twts.alloc(N * sizeof(T)) != hipSuccess
-               || hipMemcpy(twts.data(), twtc, N * sizeof(T), hipMemcpyHostToDevice) != hipSuccess)
-                twts.free();
+            if(twts.alloc(N * sizeof(T)) != hipSuccess)
+                throw std::runtime_error("unable to allocate twiddle length " + std::to_string(N));
+            if(hipMemcpy(twts.data(), twtc, N * sizeof(T), hipMemcpyHostToDevice) != hipSuccess)
+                throw std::runtime_error("failed to copy twiddle length " + std::to_string(N));
         }
     }
     else
@@ -71,9 +72,10 @@ gpubuf twiddles_create_pr(size_t                     N,
         {
             TwiddleTable<T> twTable(N);
             twtc = twTable.GenerateTwiddleTable();
-            if(twts.alloc(N * sizeof(T)) != hipSuccess
-               || hipMemcpy(twts.data(), twtc, N * sizeof(T), hipMemcpyHostToDevice) != hipSuccess)
-                twts.free();
+            if(twts.alloc(N * sizeof(T)) != hipSuccess)
+                throw std::runtime_error("unable to allocate twiddle length " + std::to_string(N));
+            if(hipMemcpy(twts.data(), twtc, N * sizeof(T), hipMemcpyHostToDevice) != hipSuccess)
+                throw std::runtime_error("failed to copy twiddle length " + std::to_string(N));
         }
         else
         {
@@ -82,9 +84,10 @@ gpubuf twiddles_create_pr(size_t                     N,
 
             std::tie(ns, twtc) = twTable.GenerateTwiddleTable(); // calculate twiddles on host side
 
-            if(twts.alloc(ns * sizeof(T)) != hipSuccess
-               || hipMemcpy(twts.data(), twtc, ns * sizeof(T), hipMemcpyHostToDevice) != hipSuccess)
-                twts.free();
+            if(twts.alloc(ns * sizeof(T)) != hipSuccess)
+                throw std::runtime_error("unable to allocate twiddle length " + std::to_string(ns));
+            if(hipMemcpy(twts.data(), twtc, ns * sizeof(T), hipMemcpyHostToDevice) != hipSuccess)
+                throw std::runtime_error("failed to copy twiddle length " + std::to_string(ns));
         }
     }
 
