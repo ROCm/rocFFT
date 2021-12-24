@@ -42,21 +42,20 @@ typedef std::tuple<fft_transform_type, fft_result_placement, fft_array_type, fft
 // Estimate the amount of host memory needed.
 inline size_t needed_ram(const fft_params& params, const int verbose)
 {
-    // Host input, output, and input copy: 3 buffers, all contiguous.
-    // Also: FFTW dummy input, and an input copy for shared futures.  Total 5.
-    size_t needed_ram = 5
+    // We need at most 3 copies of the raw data: 2 are strictly
+    // required (input + output) but we keep a third copy around to
+    // save effort recomputing input for a smaller batch size or
+    // precision.
+    //
+    // This calculation is assuming contiguous data - noncontiguous
+    // temp buffers may be briefly required to mirror the data layout
+    // on the GPU, but they're assumed to require a close enough
+    // amount of space for the purposes of this estimate.
+    size_t needed_ram = 3
                         * std::accumulate(params.length.begin(),
                                           params.length.end(),
                                           static_cast<size_t>(1),
                                           std::multiplies<size_t>());
-
-    // GPU input buffer:
-    needed_ram += std::inner_product(
-        params.length.begin(), params.length.end(), params.istride.begin(), static_cast<size_t>(0));
-
-    // GPU output buffer:
-    needed_ram += std::inner_product(
-        params.length.begin(), params.length.end(), params.ostride.begin(), static_cast<size_t>(0));
 
     // Account for precision and data type:
     if(params.transform_type != fft_transform_type_real_forward
@@ -92,65 +91,6 @@ protected:
     void TearDown() override {}
 
 public:
-    struct cpu_fft_params
-    {
-        std::vector<size_t> length;
-        size_t              nbatch         = 0;
-        fft_precision       precision      = fft_precision_single;
-        fft_transform_type  transform_type = fft_transform_type_complex_forward;
-
-        // Input cpu parameters:
-        std::vector<size_t> ilength;
-        std::vector<size_t> istride;
-        fft_array_type      itype = fft_array_type_complex_interleaved;
-        size_t              idist = 0;
-
-        // Output cpu parameters:
-        std::vector<size_t> olength;
-        std::vector<size_t> ostride;
-        fft_array_type      otype = fft_array_type_complex_interleaved;
-        size_t              odist = 0;
-
-        std::shared_future<fftw_data_t> input;
-        std::shared_future<VectorNorms> input_norm;
-        std::shared_future<fftw_data_t> output;
-        std::shared_future<VectorNorms> output_norm;
-
-        cpu_fft_params()                      = default;
-        cpu_fft_params(cpu_fft_params&&)      = default;
-        cpu_fft_params(const cpu_fft_params&) = default;
-        explicit cpu_fft_params(const fft_params& rocparams)
-            : ilength(rocparams.length)
-            , istride(rocparams.istride)
-            , itype(rocparams.itype)
-            , idist(rocparams.idist)
-            , olength(rocparams.length)
-            , ostride(rocparams.ostride)
-            , otype(rocparams.otype)
-            , odist(rocparams.odist)
-        {
-            std::reverse(std::begin(istride), std::end(istride));
-            std::reverse(std::begin(ostride), std::end(ostride));
-
-            const auto dim = rocparams.length.size();
-
-            if(rocparams.transform_type == fft_transform_type_real_inverse)
-            {
-                ilength[dim - 1] = ilength[dim - 1] / 2 + 1;
-            }
-            std::reverse(std::begin(ilength), std::end(ilength));
-
-            if(rocparams.transform_type == fft_transform_type_real_forward)
-            {
-                olength[dim - 1] = olength[dim - 1] / 2 + 1;
-            }
-            std::reverse(std::begin(olength), std::end(olength));
-        }
-        cpu_fft_params& operator=(const cpu_fft_params&) = default;
-        ~cpu_fft_params()                                = default;
-    };
-    static cpu_fft_params compute_cpu_fft(const fft_params& params);
-
     static std::string TestName(const testing::TestParamInfo<accuracy_test::ParamType>& info)
     {
         std::string ret;
@@ -263,12 +203,22 @@ public:
     }
 };
 
-// Compute the rocFFT transform and verify the accuracy against the provided CPU data.
-void rocfft_transform(fft_params& params, accuracy_test::cpu_fft_params& cpu, const size_t ramgb);
+// Remember the results of the last FFT we computed with FFTW.  Tests
+// are ordered so that later cases can often reuse this result.
+struct last_cpu_fft_cache
+{
+    // keys to the cache
+    std::vector<size_t> length;
+    size_t              nbatch         = 0;
+    fft_transform_type  transform_type = fft_transform_type_complex_forward;
+    bool                run_callbacks  = false;
+    fft_precision       precision      = fft_precision_single;
 
-extern std::
-    tuple<std::vector<size_t>, size_t, fft_transform_type, bool, accuracy_test::cpu_fft_params>
-        last_cpu_fft;
+    // FFTW input/output
+    fftw_data_t cpu_input;
+    fftw_data_t cpu_output;
+};
+extern last_cpu_fft_cache last_cpu_fft_data;
 
 const static std::vector<size_t> batch_range = {2, 1};
 
@@ -614,5 +564,8 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&  v_leng
                                 ooffset_range,
                                 place_range);
 }
+
+class rocfft_params;
+void fft_vs_reference(rocfft_params& params);
 
 #endif

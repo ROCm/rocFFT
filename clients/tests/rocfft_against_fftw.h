@@ -47,24 +47,13 @@ inline fft_precision precision_selector<double>()
 // Check if the required buffers fit in the device vram.
 inline bool vram_fits_problem(const size_t prob_size, int deviceId = 0)
 {
-    // Check device total memory:
-    hipDeviceProp_t prop;
-    auto            retval = hipGetDeviceProperties(&prop, deviceId);
-    if(retval != hipSuccess)
-        throw std::runtime_error("failed to get device properties");
-
     // We keep a small margin of error for fitting the problem into vram:
     const size_t extra = 1 << 20;
 
-    if(prop.totalGlobalMem < prob_size + extra)
-    {
-        return false;
-    }
-
     // Check free and total available memory:
-    size_t free  = 0;
-    size_t total = 0;
-    retval       = hipMemGetInfo(&free, &total);
+    size_t free   = 0;
+    size_t total  = 0;
+    auto   retval = hipMemGetInfo(&free, &total);
 
     if(retval != hipSuccess)
     {
@@ -87,117 +76,77 @@ inline bool vram_fits_problem(const size_t prob_size, int deviceId = 0)
 
 extern bool use_fftw_wisdom;
 
-// Perform and out-of-place computation on contiguous data and then return this in an
-// an object which will destruct correctly.
-template <typename Tfloat, typename Tallocator>
-inline std::vector<std::vector<char, Tallocator>>
-    fftw_transform(const std::vector<fftw_iodim64>& dims,
-                   const std::vector<fftw_iodim64>& howmany_dims,
-                   const fft_transform_type         transformType,
-                   const size_t                     isize,
-                   const size_t                     osize,
-                   void*                            cpu_in)
+// construct and return an FFTW plan with the specified type,
+// precision, and dimensions.  cpu_out is required if we're using
+// wisdom, which runs actual FFTs to work out the best plan.
+template <typename Tfloat>
+static typename fftw_trait<Tfloat>::fftw_plan_type
+    fftw_plan_with_precision(const std::vector<fftw_iodim64>& dims,
+                             const std::vector<fftw_iodim64>& howmany_dims,
+                             const fft_transform_type         transformType,
+                             const size_t                     isize,
+                             void*                            cpu_in,
+                             void*                            cpu_out)
 {
-    typename fftw_trait<Tfloat>::fftw_plan_type cpu_plan = NULL;
     using fftw_complex_type = typename fftw_trait<Tfloat>::fftw_complex_type;
 
-    // NB: Using FFTW_MEASURE implies that the input buffer's data may be destroyed during plan
-    // creation.  Therefore, we create a dummy input buffer.
-    std::vector<char, Tallocator> dummy_input(1);
-
-    std::vector<std::vector<char, Tallocator>> output(1);
+    // NB: Using FFTW_MEASURE implies that the input buffer's data
+    // may be destroyed during plan creation.  But if we're wanting
+    // to run FFTW in the first place, we must have just created an
+    // uninitialized input buffer anyway.
 
     switch(transformType)
     {
     case fft_transform_type_complex_forward:
-    {
-        dummy_input.resize(isize * sizeof(fftw_complex_type));
-        output[0].resize(osize * sizeof(fftw_complex_type));
-        cpu_plan
-            = fftw_plan_guru64_dft<Tfloat>(dims.size(),
-                                           dims.data(),
-                                           howmany_dims.size(),
-                                           howmany_dims.data(),
-                                           reinterpret_cast<fftw_complex_type*>(dummy_input.data()),
-                                           reinterpret_cast<fftw_complex_type*>(output[0].data()),
-                                           -1,
-                                           use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
-        fftw_plan_execute_c2c<Tfloat>(cpu_plan,
-                                      reinterpret_cast<fftw_complex_type*>(cpu_in),
-                                      reinterpret_cast<fftw_complex_type*>(output[0].data()));
-    }
-    break;
+        return fftw_plan_guru64_dft<Tfloat>(dims.size(),
+                                            dims.data(),
+                                            howmany_dims.size(),
+                                            howmany_dims.data(),
+                                            reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                            reinterpret_cast<fftw_complex_type*>(cpu_out),
+                                            -1,
+                                            use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
     case fft_transform_type_complex_inverse:
-    {
-        dummy_input.resize(isize * sizeof(fftw_complex_type));
-        output[0].resize(osize * sizeof(fftw_complex_type));
-        cpu_plan
-            = fftw_plan_guru64_dft<Tfloat>(dims.size(),
-                                           dims.data(),
-                                           howmany_dims.size(),
-                                           howmany_dims.data(),
-                                           reinterpret_cast<fftw_complex_type*>(dummy_input.data()),
-                                           reinterpret_cast<fftw_complex_type*>(output[0].data()),
-                                           1,
-                                           use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
-        fftw_plan_execute_c2c<Tfloat>(cpu_plan,
-                                      reinterpret_cast<fftw_complex_type*>(cpu_in),
-                                      reinterpret_cast<fftw_complex_type*>(output[0].data()));
-    }
-    break;
+        return fftw_plan_guru64_dft<Tfloat>(dims.size(),
+                                            dims.data(),
+                                            howmany_dims.size(),
+                                            howmany_dims.data(),
+                                            reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                            reinterpret_cast<fftw_complex_type*>(cpu_out),
+                                            1,
+                                            use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
     case fft_transform_type_real_forward:
-    {
-        dummy_input.resize(isize * sizeof(Tfloat));
-        output[0].resize(osize * sizeof(fftw_complex_type));
-        cpu_plan
-            = fftw_plan_guru64_r2c<Tfloat>(dims.size(),
-                                           dims.data(),
-                                           howmany_dims.size(),
-                                           howmany_dims.data(),
-                                           reinterpret_cast<Tfloat*>(dummy_input.data()),
-                                           reinterpret_cast<fftw_complex_type*>(output[0].data()),
-                                           use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
-        fftw_plan_execute_r2c<Tfloat>(cpu_plan,
-                                      reinterpret_cast<Tfloat*>(cpu_in),
-                                      reinterpret_cast<fftw_complex_type*>(output[0].data()));
-        break;
-    }
+        return fftw_plan_guru64_r2c<Tfloat>(dims.size(),
+                                            dims.data(),
+                                            howmany_dims.size(),
+                                            howmany_dims.data(),
+                                            reinterpret_cast<Tfloat*>(cpu_in),
+                                            reinterpret_cast<fftw_complex_type*>(cpu_out),
+                                            use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
     case fft_transform_type_real_inverse:
-    {
-        dummy_input.resize(isize * sizeof(fftw_complex_type));
-        output[0].resize(osize * sizeof(Tfloat));
-        cpu_plan
-            = fftw_plan_guru64_c2r<Tfloat>(dims.size(),
-                                           dims.data(),
-                                           howmany_dims.size(),
-                                           howmany_dims.data(),
-                                           reinterpret_cast<fftw_complex_type*>(dummy_input.data()),
-                                           reinterpret_cast<Tfloat*>(output[0].data()),
-                                           use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
-        fftw_plan_execute_c2r<Tfloat>(cpu_plan,
-                                      reinterpret_cast<fftw_complex_type*>(cpu_in),
-                                      reinterpret_cast<Tfloat*>(output[0].data()));
+        return fftw_plan_guru64_c2r<Tfloat>(dims.size(),
+                                            dims.data(),
+                                            howmany_dims.size(),
+                                            howmany_dims.data(),
+                                            reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                            reinterpret_cast<Tfloat*>(cpu_out),
+                                            use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
     }
-    break;
-    }
-
-    fftw_destroy_plan_type(cpu_plan);
-    return output;
 }
 
-// Given input in a std::vector<char>, perform a FFT using FFTW of type given in
-// transformType with the data layout given in length, istride, etc.
-template <typename Tallocator>
-inline std::vector<std::vector<char, Tallocator>>
-    fftw_via_rocfft(const std::vector<size_t>&                  length,
-                    const std::vector<size_t>&                  istride,
-                    const std::vector<size_t>&                  ostride,
-                    const size_t                                nbatch,
-                    const size_t                                idist,
-                    const size_t                                odist,
-                    const fft_precision                         precision,
-                    const fft_transform_type                    transform_type,
-                    std::vector<std::vector<char, Tallocator>>& input)
+// construct an FFTW plan, given rocFFT parameters.  output is
+// required if planning with wisdom.
+template <typename Tfloat, typename Tallocator>
+static typename fftw_trait<Tfloat>::fftw_plan_type
+    fftw_plan_via_rocfft(const std::vector<size_t>&                  length,
+                         const std::vector<size_t>&                  istride,
+                         const std::vector<size_t>&                  ostride,
+                         const size_t                                nbatch,
+                         const size_t                                idist,
+                         const size_t                                odist,
+                         const fft_transform_type                    transformType,
+                         std::vector<std::vector<char, Tallocator>>& input,
+                         std::vector<std::vector<char, Tallocator>>& output)
 {
     // Dimension configuration:
     std::vector<fftw_iodim64> dims(length.size());
@@ -214,24 +163,52 @@ inline std::vector<std::vector<char, Tallocator>>
     howmany_dims[0].is = idist;
     howmany_dims[0].os = odist;
 
-    switch(precision)
+    return fftw_plan_with_precision<Tfloat>(dims,
+                                            howmany_dims,
+                                            transformType,
+                                            idist * nbatch,
+                                            input.front().data(),
+                                            output.empty() ? nullptr : output.front().data());
+}
+
+template <typename Tfloat>
+void fftw_run(fft_transform_type                          transformType,
+              typename fftw_trait<Tfloat>::fftw_plan_type cpu_plan,
+              void*                                       cpu_in,
+              void*                                       cpu_out)
+{
+    using fftw_complex_type = typename fftw_trait<Tfloat>::fftw_complex_type;
+
+    switch(transformType)
     {
-    case fft_precision_single:
-        return fftw_transform<float, Tallocator>(dims,
-                                                 howmany_dims,
-                                                 transform_type,
-                                                 idist * nbatch,
-                                                 odist * nbatch,
-                                                 (void*)input[0].data());
+    case fft_transform_type_complex_forward:
+    {
+        fftw_plan_execute_c2c<Tfloat>(cpu_plan,
+                                      reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                      reinterpret_cast<fftw_complex_type*>(cpu_out));
         break;
-    case fft_precision_double:
-        return fftw_transform<double, Tallocator>(dims,
-                                                  howmany_dims,
-                                                  transform_type,
-                                                  idist * nbatch,
-                                                  odist * nbatch,
-                                                  (void*)input[0].data());
+    }
+    case fft_transform_type_complex_inverse:
+    {
+        fftw_plan_execute_c2c<Tfloat>(cpu_plan,
+                                      reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                      reinterpret_cast<fftw_complex_type*>(cpu_out));
         break;
+    }
+    case fft_transform_type_real_forward:
+    {
+        fftw_plan_execute_r2c<Tfloat>(cpu_plan,
+                                      reinterpret_cast<Tfloat*>(cpu_in),
+                                      reinterpret_cast<fftw_complex_type*>(cpu_out));
+        break;
+    }
+    case fft_transform_type_real_inverse:
+    {
+        fftw_plan_execute_c2r<Tfloat>(cpu_plan,
+                                      reinterpret_cast<fftw_complex_type*>(cpu_in),
+                                      reinterpret_cast<Tfloat*>(cpu_out));
+        break;
+    }
     }
 }
 

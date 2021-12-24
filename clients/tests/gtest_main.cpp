@@ -56,10 +56,8 @@ size_t ramgb;
 // Control whether we use FFTW's wisdom (which we use to imply FFTW_MEASURE).
 bool use_fftw_wisdom = false;
 
-// Cache the last cpu fft that was requested - the tuple members
-// correspond to the input and output of compute_cpu_fft.
-std::tuple<std::vector<size_t>, size_t, fft_transform_type, bool, accuracy_test::cpu_fft_params>
-    last_cpu_fft;
+// Cache the last cpu fft that was requested
+last_cpu_fft_cache last_cpu_fft_data;
 
 static size_t get_system_memory_GiB()
 {
@@ -280,33 +278,6 @@ TEST(manual, vs_fftw)
 
     manual_params.validate();
 
-    if(!manual_params.valid(verbose))
-    {
-        if(verbose)
-        {
-            std::cout << "Invalid parameters, skip this test." << std::endl;
-        }
-        GTEST_SKIP();
-    }
-
-    std::cout << "\t" << manual_params.str("\n\t") << std::endl;
-
-    auto cpu = accuracy_test::compute_cpu_fft(manual_params);
-
-    accuracy_test::cpu_fft_params cpu_params(manual_params);
-
-    rocfft_params rparams(manual_params);
-    rocfft_transform(rparams, cpu, ramgb);
-
-    auto cpu_input_norm = cpu.input_norm.get();
-    EXPECT_TRUE(std::isfinite(cpu_input_norm.l_2));
-    EXPECT_TRUE(std::isfinite(cpu_input_norm.l_inf));
-
-    auto cpu_output_norm = cpu.output_norm.get();
-    EXPECT_TRUE(std::isfinite(cpu_output_norm.l_2));
-    EXPECT_TRUE(std::isfinite(cpu_output_norm.l_inf));
-
-    // We need to manually free the plan so that the unit tests which count plan numbers don't get
-    // confused.
-    rparams.free();
+    rocfft_params params(manual_params);
+    fft_vs_reference(params);
 }

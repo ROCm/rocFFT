@@ -80,8 +80,7 @@ TEST(rocfft_UnitTest, 1D_hermitian)
     gpubuf obuf;
     ASSERT_TRUE(obuf.alloc(p.obuffer_sizes()[0]) == hipSuccess);
 
-    gpubuf wbuffer;
-    ASSERT_TRUE(p.setup() == fft_status_success);
+    ASSERT_TRUE(p.create_plan() == fft_status_success);
 
     std::vector<void*> pibuf = {ibuf.data()};
     std::vector<void*> pobuf = {obuf.data()};

@@ -958,6 +958,14 @@ public:
         }
     }
 
+    virtual fft_status set_callbacks(void* load_cb_host,
+                                     void* load_cb_data,
+                                     void* store_cb_host,
+                                     void* store_cb_data)
+    {
+        return fft_status_success;
+    }
+
     virtual fft_status execute(void** in, void** out)
     {
         return fft_status_success;
@@ -975,7 +983,17 @@ public:
         return val;
     }
 
-    virtual fft_status setup()
+    // Specific exception type for work buffer allocation failure.
+    // Tests that hit this can't fit on the GPU and should be skipped.
+    struct work_buffer_alloc_failure : public std::runtime_error
+    {
+        work_buffer_alloc_failure(const std::string& s)
+            : std::runtime_error(s)
+        {
+        }
+    };
+
+    virtual fft_status create_plan()
     {
         return fft_status_success;
     }
@@ -1387,7 +1405,6 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
             break;
         default:
             throw std::runtime_error("Invalid data type");
-            break;
         }
     }
     else if((itype == fft_array_type_complex_interleaved && otype == fft_array_type_complex_planar)
@@ -1852,7 +1869,6 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
             break;
         default:
             throw std::runtime_error("Invalid input and output types.");
-            break;
         }
     }
     else if((itype == fft_array_type_complex_interleaved && otype == fft_array_type_complex_planar)
@@ -2171,7 +2187,6 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
         break;
     default:
         throw std::runtime_error("Invalid data type");
-        break;
     }
 
     norm.l_2 = sqrt(norm.l_2);
@@ -2400,7 +2415,6 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
 
             default:
                 throw std::runtime_error("Invalid dimension for imposeHermitianSymmetry");
-                break;
             }
         }
         break;
@@ -2428,14 +2442,12 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 break;
             default:
                 throw std::runtime_error("Invalid dimension for imposeHermitianSymmetry");
-                break;
             }
         }
         break;
     }
     default:
         throw std::runtime_error("Invalid data type");
-        break;
     }
 }
 
@@ -2531,7 +2543,6 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
     }
     default:
         throw std::runtime_error("Input layout format not yet supported");
-        break;
     }
 }
 
@@ -2588,14 +2599,9 @@ inline std::vector<std::vector<char, Allocator>> allocate_host_buffer(
 // necessary.
 // NB: length is the logical size of the FFT, and not necessarily the data dimensions
 template <typename Allocator = std::allocator<char>>
-inline std::vector<std::vector<char, Allocator>> compute_input(const fft_params& params)
+inline void compute_input(const fft_params&                          params,
+                          std::vector<std::vector<char, Allocator>>& input)
 {
-    auto input = allocate_host_buffer<Allocator>(params.precision, params.itype, params.isize);
-    for(auto& i : input)
-    {
-        std::fill(i.begin(), i.end(), 0.0);
-    }
-
     switch(params.precision)
     {
     case fft_precision_double:
@@ -2623,7 +2629,6 @@ inline std::vector<std::vector<char, Allocator>> compute_input(const fft_params&
             break;
         }
     }
-    return input;
 }
 
 #endif

@@ -197,12 +197,13 @@ int main(int argc, char* argv[])
         std::cout << params.str() << std::endl;
     }
 
-    auto ret = params.setup();
+    auto ret = params.create_plan();
     if(ret != fft_status_success)
-        throw std::runtime_error("Setup failed");
+        throw std::runtime_error("Plan creation failed");
 
     // Input data:
-    const auto gpu_input = compute_input(params);
+    auto gpu_input = allocate_host_buffer(params.precision, params.itype, params.isize);
+    compute_input(params, gpu_input);
 
     if(verbose > 1)
     {

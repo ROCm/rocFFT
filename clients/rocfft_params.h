@@ -122,6 +122,9 @@ public:
     explicit rocfft_params(const fft_params& p)
         : fft_params(p){};
 
+    rocfft_params(const rocfft_params&) = delete;
+    rocfft_params& operator=(const rocfft_params&) = delete;
+
     ~rocfft_params()
     {
         free();
@@ -186,7 +189,6 @@ public:
             if(fft_status != rocfft_status_success)
             {
                 throw std::runtime_error("rocfft_plan_description_set_data_layout failed");
-                return fft_status_from_rocfftparams(fft_status);
             }
         }
 
@@ -203,7 +205,6 @@ public:
             if(fft_status != rocfft_status_success)
             {
                 throw std::runtime_error("rocfft_plan_create failed");
-                return fft_status_from_rocfftparams(fft_status);
             }
         }
 
@@ -213,7 +214,6 @@ public:
             if(fft_status != rocfft_status_success)
             {
                 throw std::runtime_error("rocfft_execution_info_create failed");
-                return fft_status_from_rocfftparams(fft_status);
             }
         }
 
@@ -221,13 +221,12 @@ public:
         if(fft_status != rocfft_status_success)
         {
             throw std::runtime_error("rocfft_plan_get_work_buffer_size failed");
-            return fft_status_from_rocfftparams(fft_status);
         }
 
         return fft_status_from_rocfftparams(fft_status);
     }
 
-    fft_status setup() override
+    fft_status create_plan() override
     {
         fft_status ret = setup_structs();
         if(ret != fft_status_success)
@@ -253,8 +252,7 @@ public:
                 {
                     oss << "hipMemGetInfo also failed";
                 }
-                throw std::runtime_error(oss.str());
-                return fft_status_failure;
+                throw work_buffer_alloc_failure(oss.str());
             }
 
             auto rocret
@@ -262,14 +260,33 @@ public:
             if(rocret != rocfft_status_success)
             {
                 throw std::runtime_error("rocfft_execution_info_set_work_buffer failed");
-                return fft_status_from_rocfftparams(rocret);
             }
         }
 
         return ret;
     }
 
-    virtual fft_status execute(void** in, void** out) override
+    fft_status set_callbacks(void* load_cb_host,
+                             void* load_cb_data,
+                             void* store_cb_host,
+                             void* store_cb_data) override
+    {
+        if(run_callbacks)
+        {
+            auto roc_status
+                = rocfft_execution_info_set_load_callback(info, &load_cb_host, &load_cb_data, 0);
+            if(roc_status != rocfft_status_success)
+                return fft_status_from_rocfftparams(roc_status);
+
+            roc_status
+                = rocfft_execution_info_set_store_callback(info, &store_cb_host, &store_cb_data, 0);
+            if(roc_status != rocfft_status_success)
+                return fft_status_from_rocfftparams(roc_status);
+        }
+        return fft_status_success;
+    }
+
+    fft_status execute(void** in, void** out) override
     {
         auto ret = rocfft_execute(plan, in, out, info);
         return fft_status_from_rocfftparams(ret);

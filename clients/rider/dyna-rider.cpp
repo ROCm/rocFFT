@@ -555,7 +555,8 @@ int main(int argc, char* argv[])
     }
 
     // Input data:
-    const auto input = compute_input(params);
+    auto input = allocate_host_buffer(params.precision, params.itype, params.isize);
+    compute_input(params, input);
 
     if(verbose > 1)
     {
