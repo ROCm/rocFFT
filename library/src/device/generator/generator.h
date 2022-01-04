@@ -46,6 +46,26 @@ unsigned int get_precedence(const T& x)
     return std::visit([](const auto a) { return a.precedence; }, x);
 }
 
+// We have a circular dependency here when trying to use std::variant
+// for our abstract syntax tree, e.g.:
+//
+// - Expression variants contains classes like Variable, Literal,
+//   Add, Subtract
+// - Those classes can themselves contain Expressions
+//
+// But, std::variant and std::vector can both use incomplete types,
+// so long as we don't call any methods on the containers while
+// the types are still incomplete.
+//
+// So we can resolve this:
+// - forward-declare all classes that can go into the variant
+// - declare the variant type in terms of the classes
+// - declare all of the classes
+//   - if they require Expression members, put them in a std::vector
+//   - don't implement any method bodies that would call std::vector methods
+//     (including constructors)
+// - after all classes are declared, implement all remaining class methods
+
 //
 // Expressions
 //
@@ -88,11 +108,6 @@ class Parens;
 
 class CallExpr;
 
-// We have a potential circular dependency here - Expression is
-// defined using forward-declared classes, but classes might like to
-// have Expression members.  We can work around that by storing
-// Expression members in std::vectors, which tolerate the Expression
-// type not being fully specified.
 using Expression = std::variant<ScalarVariable,
                                 Variable,
                                 Literal,
@@ -225,6 +240,7 @@ public:
         : arguments(il){};
     ArgumentList(const std::vector<Variable>& arguments)
         : arguments(arguments){};
+
     std::vector<Variable> arguments;
     std::string           render() const;
     std::string           render_decl() const;
@@ -286,15 +302,10 @@ public:
     TemplateList            templates;
     std::vector<Expression> arguments;
 
-    CallExpr(const std::string& name, const std::vector<Expression>& arguments)
-        : name(name)
-        , arguments(arguments){};
+    CallExpr(const std::string& name, const std::vector<Expression>& arguments);
     CallExpr(const std::string&             name,
              const TemplateList&            templates,
-             const std::vector<Expression>& arguments)
-        : name(name)
-        , templates(templates)
-        , arguments(arguments){};
+             const std::vector<Expression>& arguments);
 
     std::string render() const;
 };
@@ -304,10 +315,7 @@ class Ternary
 public:
     static const unsigned int precedence = 16;
     Ternary(const Expression& cond, const Expression& true_result, const Expression& false_result);
-    explicit Ternary(const std::vector<Expression>& args)
-        : args(args)
-    {
-    }
+    explicit Ternary(const std::vector<Expression>& args);
     std::string render() const;
 
     std::vector<Expression> args;
@@ -318,10 +326,7 @@ class LoadGlobal
 public:
     static const unsigned int precedence = 18;
     LoadGlobal(const Expression& ptr, const Expression& index);
-    explicit LoadGlobal(const std::vector<Expression>& args)
-        : args(args)
-    {
-    }
+    explicit LoadGlobal(const std::vector<Expression>& args);
 
     std::string render() const;
 
@@ -361,29 +366,30 @@ class Parens
 public:
     static const unsigned int precedence = 0;
     explicit Parens(const Expression& inside);
-    explicit Parens(const std::vector<Expression>& args)
-        : args{args}
-    {
-    }
+    explicit Parens(const std::vector<Expression>& args);
 
     std::vector<Expression> args;
     std::string             render() const;
 };
 
-#define MAKE_OPER(NAME, OPER, PRECEDENCE)                          \
-    class NAME                                                     \
-    {                                                              \
-        std::string oper{OPER};                                    \
-                                                                   \
-    public:                                                        \
-        static const unsigned int precedence = PRECEDENCE;         \
-        std::vector<Expression>   args;                            \
-        explicit NAME(const std::initializer_list<Expression>& il) \
-            : args(il){};                                          \
-        explicit NAME(const std::vector<Expression>& il)           \
-            : args(il){};                                          \
-        std::string render() const;                                \
+#define MAKE_OPER(NAME, OPER, PRECEDENCE)                           \
+    class NAME                                                      \
+    {                                                               \
+        std::string oper{OPER};                                     \
+                                                                    \
+    public:                                                         \
+        static const unsigned int precedence = PRECEDENCE;          \
+        std::vector<Expression>   args;                             \
+        explicit NAME(const std::initializer_list<Expression>& il); \
+        explicit NAME(const std::vector<Expression>& il);           \
+        std::string render() const;                                 \
     };
+
+#define CONSTRUCT_OPER(NAME)                                \
+    NAME::NAME(const std::initializer_list<Expression>& il) \
+        : args(il){};                                       \
+    NAME::NAME(const std::vector<Expression>& il)           \
+        : args(il){};
 
 #define MAKE_BINARY_METHODS(NAME)                                  \
     std::string NAME::render() const                               \
@@ -438,6 +444,32 @@ MAKE_OPER(PreIncrement, " ++", 3);
 MAKE_OPER(PreDecrement, " --", 3);
 
 MAKE_OPER(ComplexLiteral, ",", 17);
+
+// end of Expression class declarations
+
+CONSTRUCT_OPER(Add);
+CONSTRUCT_OPER(Subtract);
+CONSTRUCT_OPER(Multiply);
+CONSTRUCT_OPER(Divide);
+CONSTRUCT_OPER(Modulus);
+
+CONSTRUCT_OPER(Less);
+CONSTRUCT_OPER(LessEqual);
+CONSTRUCT_OPER(Greater);
+CONSTRUCT_OPER(GreaterEqual);
+CONSTRUCT_OPER(Equal);
+CONSTRUCT_OPER(NotEqual);
+CONSTRUCT_OPER(ShiftLeft);
+CONSTRUCT_OPER(ShiftRight);
+CONSTRUCT_OPER(And);
+CONSTRUCT_OPER(Or);
+
+CONSTRUCT_OPER(UnaryMinus);
+CONSTRUCT_OPER(Not);
+CONSTRUCT_OPER(PreIncrement);
+CONSTRUCT_OPER(PreDecrement);
+
+CONSTRUCT_OPER(ComplexLiteral);
 
 // TODO: use the standard binary method for Add when we no longer
 // need to generate identical source to the python generator.
@@ -494,6 +526,12 @@ Ternary::Ternary(const Expression& cond,
     : args{cond, true_result, false_result}
 {
 }
+
+Ternary::Ternary(const std::vector<Expression>& args)
+    : args(args)
+{
+}
+
 std::string Ternary::render() const
 {
     return vrender(args[0]) + " ? " + vrender(args[1]) + " : " + vrender(args[2]);
@@ -503,6 +541,12 @@ LoadGlobal::LoadGlobal(const Expression& ptr, const Expression& index)
     : args{ptr, index}
 {
 }
+
+LoadGlobal::LoadGlobal(const std::vector<Expression>& args)
+    : args(args)
+{
+}
+
 std::string LoadGlobal::render() const
 {
     return "load_cb(" + vrender(args[0]) + "," + vrender(args[1]) + ", load_cb_data, nullptr)";
@@ -772,14 +816,65 @@ Parens::Parens(const Expression& inside)
 {
 }
 
+Parens::Parens(const std::vector<Expression>& args)
+    : args{args}
+{
+}
+
 std::string Parens::render() const
 {
     return "(" + vrender(args.front()) + ")";
 }
 
+CallExpr::CallExpr(const std::string& name, const std::vector<Expression>& arguments)
+    : name(name)
+    , arguments(arguments){};
+
+CallExpr::CallExpr(const std::string&             name,
+                   const TemplateList&            templates,
+                   const std::vector<Expression>& arguments)
+    : name(name)
+    , templates(templates)
+    , arguments(arguments){};
+
+std::string CallExpr::render() const
+{
+    std::string f;
+    f += name;
+    const char* separator = nullptr;
+    const char* comma     = ",";
+    if(!templates.arguments.empty())
+    {
+        f += "<";
+        // template args just have the names, not types
+        for(const auto& arg : templates.arguments)
+        {
+            if(separator)
+                f += separator;
+            f += arg.name;
+            separator = comma;
+        }
+        f += ">";
+    }
+    f += "(";
+    separator = nullptr;
+    for(const auto& arg : arguments)
+    {
+        if(separator)
+            f += separator;
+        f += vrender(arg);
+        separator = comma;
+    }
+    f += ")";
+    return f;
+}
+
 //
 // Statements
 //
+
+// Statements also have a circular dependency as described above for
+// Expressions, for some classes.
 
 class Assign;
 class Call;
@@ -992,45 +1087,12 @@ public:
     }
 };
 
-std::string CallExpr::render() const
-{
-    std::string f;
-    f += name;
-    const char* separator = nullptr;
-    const char* comma     = ",";
-    if(!templates.arguments.empty())
-    {
-        f += "<";
-        // template args just have the names, not types
-        for(const auto& arg : templates.arguments)
-        {
-            if(separator)
-                f += separator;
-            f += arg.name;
-            separator = comma;
-        }
-        f += ">";
-    }
-    f += "(";
-    separator = nullptr;
-    for(const auto& arg : arguments)
-    {
-        if(separator)
-            f += separator;
-        f += vrender(arg);
-        separator = comma;
-    }
-    f += ")";
-    return f;
-}
-
 class StatementList
 {
 public:
     std::vector<Statement> statements;
-    StatementList(){};
-    StatementList(const std::initializer_list<Statement>& il)
-        : statements(il){};
+    StatementList();
+    StatementList(const std::initializer_list<Statement>& il);
     std::string render() const;
 };
 
@@ -1046,12 +1108,7 @@ public:
         const Expression&    initial,
         const Expression&    condition,
         const Expression&    increment,
-        const StatementList& body = {})
-        : var(var)
-        , initial(initial)
-        , condition(condition)
-        , increment(increment)
-        , body(body){};
+        const StatementList& body = {});
     std::string render() const;
 };
 
@@ -1060,9 +1117,7 @@ class While
 public:
     Expression    condition;
     StatementList body;
-    While(const Expression& condition, const StatementList& body = {})
-        : condition(condition)
-        , body(body){};
+    While(const Expression& condition, const StatementList& body = {});
     std::string render() const;
 };
 
@@ -1071,9 +1126,7 @@ class If
 public:
     Expression    condition;
     StatementList body;
-    If(const Expression& condition, const StatementList& body)
-        : condition(condition)
-        , body(body){};
+    If(const Expression& condition, const StatementList& body);
     std::string render() const;
 };
 
@@ -1081,8 +1134,7 @@ class Else
 {
 public:
     StatementList body;
-    explicit Else(const StatementList& body)
-        : body(body){};
+    explicit Else(const StatementList& body);
     std::string render() const;
 };
 
@@ -1120,6 +1172,8 @@ public:
     std::string             render() const;
 };
 
+// end of Statement class declarations
+
 std::string Butterfly::render() const
 {
     std::string func;
@@ -1134,6 +1188,9 @@ std::string Butterfly::render() const
     return Call{func, args}.render();
 }
 
+StatementList::StatementList() {}
+StatementList::StatementList(const std::initializer_list<Statement>& il)
+    : statements(il){};
 std::string StatementList::render() const
 {
     std::string r;
@@ -1155,6 +1212,17 @@ void operator+=(StatementList& stmts, const StatementList& s)
         stmts += x;
     }
 }
+
+For::For(const Variable&      var,
+         const Expression&    initial,
+         const Expression&    condition,
+         const Expression&    increment,
+         const StatementList& body)
+    : var(var)
+    , initial(initial)
+    , condition(condition)
+    , increment(increment)
+    , body(body){};
 
 std::string For::render() const
 {
@@ -1178,6 +1246,9 @@ std::string For::render() const
     return s;
 }
 
+While::While(const Expression& condition, const StatementList& body)
+    : condition(condition)
+    , body(body){};
 std::string While::render() const
 {
     std::string s;
@@ -1188,6 +1259,9 @@ std::string While::render() const
     return s;
 }
 
+If::If(const Expression& condition, const StatementList& body)
+    : condition(condition)
+    , body(body){};
 std::string If::render() const
 {
     std::string s;
@@ -1199,6 +1273,8 @@ std::string If::render() const
     return s;
 }
 
+Else::Else(const StatementList& body)
+    : body(body){};
 std::string Else::render() const
 {
     std::string s;
