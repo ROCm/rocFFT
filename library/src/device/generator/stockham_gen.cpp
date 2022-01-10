@@ -234,7 +234,7 @@ std::string make_variants(const Function&                device,
     output += "#include \"kernel_launch.h\"\n";
     output += "#include \"kernels/butterfly_constant.h\"\n";
     output += "#include \"kernels/common.h\"\n";
-    output += "#include \"real2complex.h\"\n";
+    output += "#include \"real2complex_device.h\"\n";
     output += "#include \"rocfft_butterfly_template.h\"\n";
     output += "#include <hip/hip_runtime.h>\n\n";
 

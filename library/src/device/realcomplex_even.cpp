@@ -24,7 +24,7 @@
 #include "rocfft.h"
 #include "rocfft_hip.h"
 
-#include "real2complex.h"
+#include "real2complex_device.h"
 #include <iostream>
 #include <numeric>
 

@@ -256,7 +256,7 @@ std::string stockham_rtc(StockhamGeneratorSpecs& specs,
     src += callback_h;
     src += butterfly_constant_h;
     src += rocfft_butterfly_template_h;
-    src += real2complex_h;
+    src += real2complex_device_h;
     src += rtc_workarounds_h;
 
     src += device->render();
