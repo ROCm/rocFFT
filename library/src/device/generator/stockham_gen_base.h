@@ -242,6 +242,14 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 Variable{"store_cb_data", "void", true, true}};
     }
 
+    // we currently only use LDS padding for embedded R2C/C2R, so
+    // there's no reason to look at the lds_padding parameter
+    // otherwise.
+    Expression get_lds_padding()
+    {
+        return Ternary{embedded_type == "EmbeddedType::NONE", 0, lds_padding};
+    }
+
     // load registers R from lds_complex
     enum class Component
     {

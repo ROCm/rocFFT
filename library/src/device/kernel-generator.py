@@ -768,7 +768,7 @@ def cli():
     patterns = args.pattern.split(',')
     precisions = args.precision.split(',')
     if 'all' in precisions:
-        precisions = ['sp', 'dp']
+        precisions = ['dp', 'sp']
     precisions = [{'single': 'sp', 'double': 'dp'}.get(p, p) for p in precisions]
 
     #

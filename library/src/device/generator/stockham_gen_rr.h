@@ -56,7 +56,7 @@ struct StockhamKernelRR : public StockhamKernel
 
         stmts += Assign{batch, remaining};
         stmts += Assign{offset, offset + batch * stride[dim]};
-        stmts += Assign{stride_lds, (length + lds_padding)};
+        stmts += Assign{stride_lds, (length + get_lds_padding())};
         stmts += Assign{offset_lds, stride_lds * Parens{transform % transforms_per_block}};
         return stmts;
     }

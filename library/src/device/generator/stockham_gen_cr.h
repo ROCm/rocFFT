@@ -81,7 +81,7 @@ struct StockhamKernelCR : public StockhamKernel
                         tile_index * transforms_per_block + thread_id / threads_per_transform};
         stmts += Assign{batch, block_id / plength};
         stmts += Assign{offset, offset + batch * stride[dim]};
-        stmts += Assign{stride_lds, (length + lds_padding)};
+        stmts += Assign{stride_lds, (length + get_lds_padding())};
         stmts += Assign{offset_lds, stride_lds * (transform % transforms_per_block)};
 
         return stmts;
