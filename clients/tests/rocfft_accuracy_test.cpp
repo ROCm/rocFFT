@@ -1,4 +1,4 @@
-// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2022 - present Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,22 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#pragma once
-#ifndef TESTCONSTANTS_H
-#define TESTCONSTANTS_H
-
-#include "rocfft.h"
-
+#include <boost/scope_exit.hpp>
+#include <gtest/gtest.h>
+#include <math.h>
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
-extern int    verbose;
-extern size_t ramgb;
-extern double single_epsilon;
-extern double double_epsilon;
+#include "../../shared/gpubuf.h"
+#include "../rocfft_params.h"
+#include "fftw_transform.h"
+#include "rocfft.h"
+#include "rocfft_accuracy_test.h"
+#include "rocfft_against_fftw.h"
 
-extern double max_linf_eps_double;
-extern double max_l2_eps_double;
-extern double max_linf_eps_single;
-extern double max_l2_eps_single;
+void fft_vs_reference(rocfft_params& params)
+{
+    switch(params.precision)
+    {
+    case fft_precision_single:
+        fft_vs_reference_impl<float, rocfft_params>(params);
+        break;
+    case fft_precision_double:
+        fft_vs_reference_impl<double, rocfft_params>(params);
+        break;
+    }
+}
 
-#endif
+// Test for comparison between FFTW and rocFFT.
+TEST_P(accuracy_test, vs_fftw)
+{
+    rocfft_params params(GetParam());
+
+    params.validate();
+
+    if(!params.valid(verbose))
+    {
+        if(verbose)
+        {
+            std::cout << "Invalid parameters, skip this test." << std::endl;
+        }
+        GTEST_SKIP();
+    }
+
+    fft_vs_reference(params);
+    SUCCEED();
+}

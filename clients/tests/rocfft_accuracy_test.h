@@ -1,4 +1,4 @@
-// Copyright (c) 2016 - present Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2022 - present Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,21 +19,14 @@
 // THE SOFTWARE.
 
 #pragma once
-#ifndef TESTCONSTANTS_H
-#define TESTCONSTANTS_H
 
-#include "rocfft.h"
+#ifndef ROCFFT_ACCURACY_TEST
+#define ROCFFT_ACCURACY_TEST
 
-#include <stdexcept>
+#include "../rocfft_params.h"
+#include "accuracy_test.h"
+#include "rocfft_accuracy_test.h"
 
-extern int    verbose;
-extern size_t ramgb;
-extern double single_epsilon;
-extern double double_epsilon;
-
-extern double max_linf_eps_double;
-extern double max_l2_eps_double;
-extern double max_linf_eps_single;
-extern double max_l2_eps_single;
+void fft_vs_reference(rocfft_params& params);
 
 #endif

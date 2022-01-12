@@ -136,7 +136,9 @@ INSTANTIATE_TEST_SUITE_P(pow2_1D,
                                                              stride_range,
                                                              ioffset_range_zero,
                                                              ooffset_range_zero,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow2_1D,
                          accuracy_test,
@@ -147,7 +149,9 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow2_1D,
                                                              stride_range,
                                                              ioffset_range,
                                                              ooffset_range,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 
 INSTANTIATE_TEST_SUITE_P(pow3_1D,
@@ -159,7 +163,9 @@ INSTANTIATE_TEST_SUITE_P(pow3_1D,
                                                              stride_range,
                                                              ioffset_range_zero,
                                                              ooffset_range_zero,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow3_1D,
                          accuracy_test,
@@ -170,7 +176,9 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow3_1D,
                                                              stride_range,
                                                              ioffset_range,
                                                              ooffset_range,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 
 INSTANTIATE_TEST_SUITE_P(pow5_1D,
@@ -182,7 +190,9 @@ INSTANTIATE_TEST_SUITE_P(pow5_1D,
                                                              stride_range,
                                                              ioffset_range_zero,
                                                              ooffset_range_zero,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow5_1D,
                          accuracy_test,
@@ -193,7 +203,9 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow5_1D,
                                                              stride_range,
                                                              ioffset_range,
                                                              ooffset_range,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 
 INSTANTIATE_TEST_SUITE_P(radX_1D,
@@ -205,7 +217,9 @@ INSTANTIATE_TEST_SUITE_P(radX_1D,
                                                              stride_range,
                                                              ioffset_range_zero,
                                                              ooffset_range_zero,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_radX_1D,
                          accuracy_test,
@@ -216,7 +230,9 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_radX_1D,
                                                              stride_range,
                                                              ioffset_range,
                                                              ooffset_range,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 
 INSTANTIATE_TEST_SUITE_P(prime_1D,
@@ -228,7 +244,9 @@ INSTANTIATE_TEST_SUITE_P(prime_1D,
                                                              stride_range,
                                                              ioffset_range_zero,
                                                              ooffset_range_zero,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_prime_1D,
                          accuracy_test,
@@ -239,7 +257,9 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_prime_1D,
                                                              stride_range,
                                                              ioffset_range,
                                                              ooffset_range,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 
 INSTANTIATE_TEST_SUITE_P(mix_1D,
@@ -251,7 +271,9 @@ INSTANTIATE_TEST_SUITE_P(mix_1D,
                                                              stride_range,
                                                              ioffset_range_zero,
                                                              ooffset_range_zero,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_mix_1D,
                          accuracy_test,
@@ -262,7 +284,9 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_mix_1D,
                                                              stride_range,
                                                              ioffset_range,
                                                              ooffset_range,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 
 // small 1D sizes just need to make sure our factorization isn't
@@ -275,7 +299,8 @@ INSTANTIATE_TEST_SUITE_P(small_1D,
                              {fft_precision_single},
                              {1},
                              [](fft_transform_type                       t,
-                                const std::vector<fft_result_placement>& place_range) {
+                                const std::vector<fft_result_placement>& place_range,
+                                const bool                               planar) {
                                  return std::vector<type_place_io_t>{
                                      std::make_tuple(t,
                                                      place_range[0],
@@ -286,7 +311,9 @@ INSTANTIATE_TEST_SUITE_P(small_1D,
                              stride_range,
                              ioffset_range_zero,
                              ooffset_range_zero,
-                             {fft_placement_notinplace})),
+                             {fft_placement_notinplace},
+                             true,
+                             true)),
                          accuracy_test::TestName);
 
 // NB:
@@ -312,7 +339,9 @@ INSTANTIATE_TEST_SUITE_P(
                                                 stride_range_for_pow2,
                                                 ioffset_range_zero,
                                                 ooffset_range_zero,
-                                                place_range)),
+                                                place_range,
+                                                true,
+                                                true)),
     accuracy_test::TestName);
 
 INSTANTIATE_TEST_SUITE_P(
@@ -325,7 +354,9 @@ INSTANTIATE_TEST_SUITE_P(
                                              stride_range_for_pow2,
                                              ioffset_range_zero,
                                              ooffset_range_zero,
-                                             place_range)),
+                                             place_range,
+                                             true,
+                                             true)),
     accuracy_test::TestName);
 
 // Create an array parameters for strided 2D batched transforms.
@@ -353,7 +384,7 @@ inline auto
             }
             for(const auto precision : precision_range)
             {
-                for(const auto& types : generate_types(transform_type, place_range))
+                for(const auto& types : generate_types(transform_type, place_range, true))
                 {
                     for(const auto& ioffset : ioffset_range)
                     {

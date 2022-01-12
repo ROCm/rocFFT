@@ -23,8 +23,9 @@
 
 set( rocfft-test_source
   gtest_main.cpp
+  rocfft_accuracy_test.cpp
   accuracy_test.cpp
-  accuracy_test_1D.cpp
+  accuracy_test_1D.cpp	
   accuracy_test_2D.cpp
   accuracy_test_3D.cpp
   accuracy_test_adhoc.cpp

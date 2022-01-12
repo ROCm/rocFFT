@@ -29,10 +29,8 @@
 #include <string>
 
 #include "../rocfft_params.h"
-#include "accuracy_test.h"
-#include "fftw_transform.h"
 #include "rocfft.h"
-#include "rocfft_against_fftw.h"
+#include "rocfft_accuracy_test.h"
 #include "test_params.h"
 
 #ifdef WIN32
@@ -50,8 +48,18 @@ int verbose;
 // Transform parameters for manual test:
 fft_params manual_params;
 
-// Ram limitation for tests (GiB).
+// Ram limitation for tests (GiB):
 size_t ramgb;
+
+// Manually specified precision cutoffs:
+double single_epsilon;
+double double_epsilon;
+
+// Measured precision cutoffs:
+double max_linf_eps_double = 0.0;
+double max_l2_eps_double   = 0.0;
+double max_linf_eps_single = 0.0;
+double max_l2_eps_single   = 0.0;
 
 // Control whether we use FFTW's wisdom (which we use to imply FFTW_MEASURE).
 bool use_fftw_wisdom = false;
@@ -148,6 +156,8 @@ int main(int argc, char* argv[])
         ("osize", po::value<std::vector<size_t>>(&manual_params.osize)->multitoken(),
          "Logical size of output.")
         ("R", po::value<size_t>(&ramgb)->default_value(get_system_memory_GiB()), "Ram limit in GiB for tests.")
+        ("single_epsilon",  po::value<double>(&single_epsilon)->default_value(3.75e-5)) 
+	("double_epsilon",  po::value<double>(&double_epsilon)->default_value(1e-15))
         ("wise,w", "use FFTW wisdom")
         ("wisdomfile,W",
          po::value<std::string>(&fftw_wisdom_filename)->default_value("wisdom3.txt"),
@@ -168,6 +178,9 @@ int main(int argc, char* argv[])
     manual_params.precision = vm.count("double") ? fft_precision_double : fft_precision_single;
 
     verbose = vm["verbose"].as<int>();
+
+    std::cout << "single epsilon: " << single_epsilon << "\tdouble epsilon: " << double_epsilon
+              << std::endl;
 
     if(vm.count("wise"))
     {
@@ -267,6 +280,12 @@ int main(int argc, char* argv[])
     }
 
     rocfft_cleanup();
+
+    std::cout << "single precision max l-inf epsilon: " << max_linf_eps_single << std::endl;
+    std::cout << "single precision max l2 epsilon:     " << max_l2_eps_single << std::endl;
+    std::cout << "double precision max l-inf epsilon: " << max_linf_eps_double << std::endl;
+    std::cout << "double precision max l2 epsilon:     " << max_l2_eps_double << std::endl;
+
     return retval;
 }
 
@@ -274,7 +293,8 @@ TEST(manual, vs_fftw)
 {
     // Run an individual test using the provided command-line parameters.
 
-    std::cout << "Manual test:" << std::endl;
+    std::cout << "Manual test:"
+              << "\n\t" << manual_params.str("\n\t") << std::endl;
 
     manual_params.validate();
 

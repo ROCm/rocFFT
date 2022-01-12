@@ -1,3 +1,4 @@
+
 // Copyright (c) 2021 - present Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -50,7 +51,9 @@ INSTANTIATE_TEST_SUITE_P(adhoc,
                                                              stride_range,
                                                              ioffset_range_zero,
                                                              ooffset_range_zero,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_adhoc,
@@ -62,7 +65,9 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_adhoc,
                                                              stride_range,
                                                              ioffset_range,
                                                              ooffset_range,
-                                                             place_range)),
+                                                             place_range,
+                                                             true,
+                                                             true)),
                          accuracy_test::TestName);
 
 inline auto param_permissive_iodist()
@@ -75,7 +80,7 @@ inline auto param_permissive_iodist()
     {
         for(const auto trans_type : trans_type_range)
         {
-            for(const auto& types : generate_types(trans_type, place_range))
+            for(const auto& types : generate_types(trans_type, place_range, true))
             {
                 for(const auto& len : lengths)
                 {

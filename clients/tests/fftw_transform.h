@@ -46,12 +46,12 @@ inline double type_epsilon();
 template <>
 inline double type_epsilon<float>()
 {
-    return 3.75e-7;
+    return single_epsilon;
 }
 template <>
 inline double type_epsilon<double>()
 {
-    return 1e-15;
+    return double_epsilon;
 }
 
 // C++ traits to translate float->fftwf_complex and
