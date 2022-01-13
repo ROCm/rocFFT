@@ -129,9 +129,6 @@ protected:
     }
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
-
-public:
-    bool isInplacePreferable() const override;
 };
 
 /*****************************************************

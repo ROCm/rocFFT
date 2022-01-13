@@ -899,15 +899,6 @@ void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
     gp.tpb_x = kernel.threads_per_block;
 }
 
-// FIXME: So far, we override this for sbcc 1en 168,
-// but eventually we need to investigate why there are those exceptions.
-bool SBCCNode::isInplacePreferable() const
-{
-    if(length[0] == 168)
-        return false;
-    return true;
-}
-
 /*****************************************************
  * SBRC  *
  *****************************************************/

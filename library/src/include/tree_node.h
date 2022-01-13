@@ -419,13 +419,6 @@ public:
     bool isRootNode() const;
     bool isLeafNode() const;
 
-    // this is used for making buffer-assignment decision
-    // if the assignment fits the preferable placement then we pick it as possible
-    // intuitively, inplace is always better than out-of-place (default: return true),
-    // somehow there are some exceptions according to the experiment (SBCC_len_168)
-    // so we use this func to control the preference.
-    virtual bool isInplacePreferable() const;
-
     virtual void RecursiveBuildTree(); // Main tree builder: override by child
     virtual void SanityCheck();
 

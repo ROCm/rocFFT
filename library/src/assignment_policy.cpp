@@ -39,7 +39,6 @@ void PlacementTrace::Print(rocfft_ostream& os)
     {
         os << ": num-fused-kernels= " << parent->numFusedNodes;
         os << ", num-inplace-kernels= " << parent->numInplace;
-        os << ", placement-score= " << parent->placementScore;
         os << std::endl;
     }
 }
@@ -225,11 +224,16 @@ bool AssignmentPolicy::BufferIsUnitStride(const ExecPlan& execPlan, OperatingBuf
     return (execPlan.rootPlan->batch == 1) || (curStride == dist);
 }
 
-bool AssignmentPolicy::ValidOutBuffer(ExecPlan&         execPlan,
-                                      TreeNode&         node,
-                                      OperatingBuffer   buffer,
-                                      rocfft_array_type arrayType)
+bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
+                                      NodeBufTestCacheKey cacheMapKey,
+                                      TreeNode&           node,
+                                      OperatingBuffer     buffer,
+                                      rocfft_array_type   arrayType)
 {
+    auto cacheMapIter = node_buf_test_cache.find(cacheMapKey);
+    if(cacheMapIter != node_buf_test_cache.end())
+        return cacheMapIter->second;
+
     // define a local function.
     auto dataFits = [&execPlan](
                         const TreeNode& node, OperatingBuffer buffer, std::vector<size_t> bufLen) {
@@ -291,45 +295,53 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&         execPlan,
         return true;
     };
 
+    bool test_result = true;
+
     // an initial elimination to reject those illegal out-buffer
     if(node.isOutBufAllowed(buffer) == false)
-        return false;
-
+    {
+        test_result = false;
+    }
     // an initial elimination to reject those illegal out-arrayType
-    if(node.isOutArrayTypeAllowed(arrayType) == false)
-        return false;
-
+    else if(node.isOutArrayTypeAllowed(arrayType) == false)
+    {
+        test_result = false;
+    }
     // Bluestein and CMPLX buffer must be CI
-    if((buffer == OB_TEMP_BLUESTEIN || buffer == OB_TEMP_CMPLX_FOR_REAL)
-       && arrayType != rocfft_array_type_complex_interleaved)
-        return false;
-
+    else if((buffer == OB_TEMP_BLUESTEIN || buffer == OB_TEMP_CMPLX_FOR_REAL)
+            && arrayType != rocfft_array_type_complex_interleaved)
+    {
+        test_result = false;
+    }
     // the only restriction of APPLY_CALLBACK is that it needs to be inplace
-    if(node.scheme == CS_KERNEL_APPLY_CALLBACK)
-        return true;
-
+    else if(node.scheme == CS_KERNEL_APPLY_CALLBACK)
+    {
+        test_result = true;
+    }
     // More requirement for Bluestein: the 7 component-nodes need to output to bluestein buffer
     // except for the last RES_MUL
-    if(node.IsLastLeafNodeOfBluesteinComponent() && node.scheme != CS_KERNEL_RES_MUL)
-        return buffer == OB_TEMP_BLUESTEIN;
-
+    else if(node.IsLastLeafNodeOfBluesteinComponent() && node.scheme != CS_KERNEL_RES_MUL)
+    {
+        test_result = (buffer == OB_TEMP_BLUESTEIN);
+    }
     // if output goes to a temp buffer, that will be dynamically sized
     // to be big enough so it's always ok but if output is in/out, we
     // have to fit into whatever the user gave us
-    if(buffer == OB_USER_IN
-       && (!dataFits(node, buffer, execPlan.iLength)
-           || !EquivalentArrayType(execPlan.rootPlan->inArrayType, arrayType)))
+    else if(buffer == OB_USER_IN
+            && (!dataFits(node, buffer, execPlan.iLength)
+                || !EquivalentArrayType(execPlan.rootPlan->inArrayType, arrayType)))
     {
-        return false;
+        test_result = false;
     }
-    if(buffer == OB_USER_OUT
-       && (!dataFits(node, buffer, execPlan.oLength)
-           || !EquivalentArrayType(execPlan.rootPlan->outArrayType, arrayType)))
+    else if(buffer == OB_USER_OUT
+            && (!dataFits(node, buffer, execPlan.oLength)
+                || !EquivalentArrayType(execPlan.rootPlan->outArrayType, arrayType)))
     {
-        return false;
+        test_result = false;
     }
 
-    return true;
+    node_buf_test_cache[cacheMapKey] = test_result;
+    return test_result;
 }
 
 static void RecursiveTraverse(TreeNode* node, const std::function<void(TreeNode*)>& func)
@@ -404,15 +416,6 @@ void AssignmentPolicy::UpdateWinnerFromValidPaths(ExecPlan& execPlan)
                 return true;
             if(lhs->NumUsedBuffers() > rhs->NumUsedBuffers())
                 return false;
-#if 0
-                // if tie, compare score of placement (higher is better)
-                // the "score" is a workaround for len168 SBCC (it performs better when OP)
-                // see comments in .h for more explaination. (PlacementTrace ctor)
-                if(lhs->placementScore > rhs->placementScore)
-                    return true;
-                if(lhs->placementScore < rhs->placementScore)
-                    return false;
-#endif
             // if tie, we still choose the one with more inplace
             if(lhs->numInplace > rhs->numInplace)
                 return true;
@@ -443,7 +446,6 @@ void AssignmentPolicy::UpdateWinnerFromValidPaths(ExecPlan& execPlan)
         {
             // std::cout << "num Fused: " << winner->numFusedNodes;
             // std::cout << ", num IP:" << winner->numInplace;
-            // std::cout << ", placement score: " << winner->placementScore;
             // std::cout << std::endl;
             numCurWinnerFusions = winner->numFusedNodes;
             return;
@@ -463,6 +465,7 @@ bool AssignmentPolicy::AssignBuffers(ExecPlan& execPlan)
     winnerCandidates.clear();
     availableBuffers.clear();
     availableArrayTypes.clear();
+    node_buf_test_cache.clear();
 
     // Start from a minimal requirement; // in, out buffer
     availableBuffers.insert(execPlan.rootPlan->obIn);
@@ -633,7 +636,8 @@ void AssignmentPolicy::Enumerate(PlacementTrace*   parent,
         // If buffer is not available (when USER_IN is read-only), skip as well.
         if(availableBuffers.count(startBuf))
         {
-            if(ValidOutBuffer(execPlan, *curNode, startBuf, startType))
+            NodeBufTestCacheKey cKey{curSeqID, startBuf, startType};
+            if(ValidOutBuffer(execPlan, cKey, *curNode, startBuf, startType))
             {
                 // Create/Push a PlacementTrace for an Inplace-Operation (others recurs)
                 parent->branches.emplace_back(std::make_unique<PlacementTrace>(
@@ -658,7 +662,8 @@ void AssignmentPolicy::Enumerate(PlacementTrace*   parent,
             // try every available array type
             for(auto testOutType : availableArrayTypes)
             {
-                if(ValidOutBuffer(execPlan, *curNode, testOutputBuf, testOutType))
+                NodeBufTestCacheKey cKey{curSeqID, testOutputBuf, testOutType};
+                if(ValidOutBuffer(execPlan, cKey, *curNode, testOutputBuf, testOutType))
                 {
                     // Create/Push a PlacementTrace for OuOfPlace-Operation (others recurs)
                     parent->branches.emplace_back(std::make_unique<PlacementTrace>(

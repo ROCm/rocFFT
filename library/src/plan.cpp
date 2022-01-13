@@ -842,12 +842,6 @@ bool TreeNode::isLeafNode() const
     return nodeType == NT_LEAF;
 }
 
-bool TreeNode::isInplacePreferable() const
-{
-    // see comments in header
-    return true;
-}
-
 // Tree node builders
 
 // NB:

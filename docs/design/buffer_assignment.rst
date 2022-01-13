@@ -268,6 +268,11 @@ some cases:
   root plan itself, depending on if it's R2C or C2R, IP or OP, which
   gives us the explicit length of in/out buffer size.
 
+Since the exhaustive search is a depth-first-search, so when we go back
+to the upper nodes and proceed to another branch, the node-vs-buffer-test
+in the deeper nodes could be repeated, so we can put the test results in
+a cache to make a slight optimization.
+
 Fusions
 ^^^^^^^
 

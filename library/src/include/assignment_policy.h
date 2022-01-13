@@ -43,7 +43,6 @@ struct PlacementTrace
     rocfft_array_type iType            = rocfft_array_type_unset;
     rocfft_array_type oType            = rocfft_array_type_unset;
     size_t            numInplace       = 0;
-    size_t            placementScore   = 0;
     size_t            numTypeSwitching = 0;
     size_t            numFusedNodes    = 0;
 
@@ -74,20 +73,6 @@ struct PlacementTrace
         usedBuffers = parent->usedBuffers;
         usedBuffers.insert(iB);
         usedBuffers.insert(oB);
-
-        // In 3D_RTRT, we found sbcc len 168 performs better in out-of-place,
-        // so we do some hack for that. But eventually the best way is to make it
-        // 3D_TRTRTR and the FuseShim can beat 3D_RTRT,
-        // Leave this comment for now until we've fixed the len 168..
-#if 0
-        // is the placement preferable for this kernel?
-        // FIXME: see comments in isInplacePreferable (especially for sbcc len168),
-        //        sbcc len168, OP performs much better than IP, eventually we need fix this
-        size_t score = 0;
-        if(isInplace == curNode->isInplacePreferable())
-            score += (isInplace ? 1 : 2);
-        placementScore = parent->placementScore + score;
-#endif
     }
 
     // print the [in->out] for this placement
@@ -103,6 +88,22 @@ struct PlacementTrace
     // Starting from the tail (leaf of each branch) back to the head (root),
     // Fill-in the assignment from the PlacemenTraces to the nodes
     void Backtracking(ExecPlan& execPlan, int execSeqID);
+};
+
+using NodeBufTestCacheKey = std::tuple<size_t, OperatingBuffer, rocfft_array_type>;
+struct CmpNodeBufTestCacheKey
+{
+    // Key comparison function.
+    //  Comparing order is ID-in-exeSeq (means that node) -> buffer_ENUM -> array-type_ENUM
+    bool operator()(NodeBufTestCacheKey const& lhs, NodeBufTestCacheKey const& rhs) const
+    {
+        if(std::get<0>(lhs) < std::get<0>(rhs))
+            return true;
+        else if(std::get<1>(lhs) < std::get<1>(rhs))
+            return true;
+        else
+            return std::get<2>(lhs) < std::get<2>(rhs);
+    }
 };
 
 class AssignmentPolicy
@@ -121,10 +122,11 @@ private:
 
     static bool BufferIsUnitStride(const ExecPlan& execPlan, OperatingBuffer buf);
 
-    bool ValidOutBuffer(ExecPlan&         execPlan,
-                        TreeNode&         node,
-                        OperatingBuffer   buffer,
-                        rocfft_array_type arrayType);
+    bool ValidOutBuffer(ExecPlan&           execPlan,
+                        NodeBufTestCacheKey cacheMapKey,
+                        TreeNode&           node,
+                        OperatingBuffer     buffer,
+                        rocfft_array_type   arrayType);
 
     static bool CheckAssignmentValid(ExecPlan& execPlan);
 
@@ -142,6 +144,8 @@ private:
     int  numCurWinnerFusions; // -1 means no winner, else = curr winner's #-fusions
     bool mustUseTBuffer = false;
     bool mustUseCBuffer = false;
+
+    std::map<NodeBufTestCacheKey, bool, CmpNodeBufTestCacheKey> node_buf_test_cache;
 };
 
 #endif // ASSIGNMENT_POLICY_H
