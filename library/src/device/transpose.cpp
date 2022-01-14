@@ -270,8 +270,13 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
         n      = data->node->length[0];
     }
 
+    // these ld_in/ld_out are only used for 3D transposes
+    // (i.e. scheme != 0).  if we only have 2 stride values then this
+    // must be a 2D transform, but let's make sure we're not reading
+    // past the end of the stride vectors.
     size_t ld_in  = scheme == 1 ? data->node->inStride[2] : data->node->inStride[1];
-    size_t ld_out = scheme == 1 ? data->node->outStride[1] : data->node->outStride[2];
+    size_t ld_out = (scheme == 1 || data->node->outStride.size() < 3) ? data->node->outStride[1]
+                                                                      : data->node->outStride[2];
 
     // TODO:
     //   - Might open this option to upstream
