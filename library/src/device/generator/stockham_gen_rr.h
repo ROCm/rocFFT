@@ -40,6 +40,7 @@ struct StockhamKernelRR : public StockhamKernel
         Variable remaining{"remaining", "size_t"};
 
         StatementList stmts;
+        stmts += Declaration{thread};
         stmts += Declaration(remaining);
         stmts += Declaration(index_along_d);
         stmts += Assign{transform,

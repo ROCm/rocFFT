@@ -884,6 +884,7 @@ class LDSDeclaration;
 class For;
 class While;
 class If;
+class ElseIf;
 class Else;
 class StoreGlobal;
 class StatementList;
@@ -951,6 +952,7 @@ using Statement = std::variant<Assign,
                                For,
                                While,
                                If,
+                               ElseIf,
                                Else,
                                StoreGlobal,
                                LineBreak,
@@ -1130,6 +1132,15 @@ public:
     std::string render() const;
 };
 
+class ElseIf
+{
+public:
+    Expression    condition;
+    StatementList body;
+    ElseIf(const Expression& condition, const StatementList& body);
+    std::string render() const;
+};
+
 class Else
 {
 public:
@@ -1273,6 +1284,20 @@ std::string If::render() const
     return s;
 }
 
+ElseIf::ElseIf(const Expression& condition, const StatementList& body)
+    : condition(condition)
+    , body(body){};
+std::string ElseIf::render() const
+{
+    std::string s;
+    s += "else if(";
+    s += vrender(condition);
+    s += ") {\n";
+    s += body.render();
+    s += "\n}\n";
+    return s;
+}
+
 Else::Else(const StatementList& body)
     : body(body){};
 std::string Else::render() const
@@ -1381,6 +1406,7 @@ struct BaseVisitor
     MAKE_VISITOR_OPERATOR(StatementList, For);
     MAKE_VISITOR_OPERATOR(StatementList, While);
     MAKE_VISITOR_OPERATOR(StatementList, If);
+    MAKE_VISITOR_OPERATOR(StatementList, ElseIf);
     MAKE_VISITOR_OPERATOR(StatementList, Else);
     MAKE_VISITOR_OPERATOR(StatementList, StoreGlobal);
     MAKE_VISITOR_OPERATOR(StatementList, LineBreak);
@@ -1562,6 +1588,13 @@ struct BaseVisitor
         auto condition = std::visit(*this, x.condition);
         auto body      = visit_StatementList(x.body);
         return StatementList{If(condition, body)};
+    }
+
+    virtual StatementList visit_ElseIf(const ElseIf& x)
+    {
+        auto condition = std::visit(*this, x.condition);
+        auto body      = visit_StatementList(x.body);
+        return StatementList{ElseIf(condition, body)};
     }
 
     virtual StatementList visit_Else(const Else& x)

@@ -225,12 +225,17 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
     virtual StatementList large_twiddles_load()
     {
-        return {};
+        return {CommentLines{"- no large twiddles"}};
     }
 
     virtual StatementList large_twiddles_multiply(unsigned int width, unsigned int cumheight)
     {
         return {};
+    }
+
+    virtual StatementList check_batch()
+    {
+        return {If{batch >= nbatch, {Return{}}}};
     }
 
     static ArgumentList get_callback_args()
@@ -245,7 +250,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     // we currently only use LDS padding for embedded R2C/C2R, so
     // there's no reason to look at the lds_padding parameter
     // otherwise.
-    Expression get_lds_padding()
+    virtual Expression get_lds_padding()
     {
         return Ternary{embedded_type == "EmbeddedType::NONE", 0, lds_padding};
     }
@@ -503,7 +508,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         body += Declaration{stride_lds};
         body += Declaration{batch};
         body += Declaration{transform};
-        body += Declaration{thread};
 
         if(half_lds)
             body += Declaration{lds_is_real, embedded_type == "EmbeddedType::NONE"};
@@ -522,7 +526,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         body += calculate_offsets();
 
         body += LineBreak{};
-        body += If{batch >= nbatch, {Return{}}};
+        body += check_batch();
         body += LineBreak{};
 
         StatementList loadlds;

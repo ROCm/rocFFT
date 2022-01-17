@@ -323,47 +323,41 @@ void BLOCKRC3DNode::BuildTree_internal()
 
     // NB:
     //   The idea is to change the SBRC from doing XZ-plane to doing XY-plane
-    //   We apply on cubic sizes for now, all candidates are {50,64,81,100,128,200,256}
-    //   but 64^3, 81^3, 100^3 are still faster with 3D_RC
-    // TODO:
-    //   implement DIAGONAL transpose on Z_XY, so we can apply on 128^3 and 256^3
-    bool is906           = is_device_gcn_arch(deviceProp, "gfx906");
-    bool is908           = is_device_gcn_arch(deviceProp, "gfx908");
-    bool isSingle        = (precision == rocfft_precision_single);
+    //   Some problems are still faster with 3D_RC so they never go here
+    bool is906    = is_device_gcn_arch(deviceProp, "gfx906");
+    bool is908    = is_device_gcn_arch(deviceProp, "gfx908");
+    bool is90a    = is_device_gcn_arch(deviceProp, "gfx90a");
+    bool isDouble = (precision == rocfft_precision_double);
+
+    // specific flags for lengths
+    bool has50           = (length[0] == 50 || length[1] == 50 || length[2] == 50);
+    bool has64           = (length[0] == 64 || length[1] == 64 || length[2] == 64);
+    bool has100          = (length[0] == 100 || length[1] == 100 || length[2] == 100);
+    bool has200          = (length[0] == 200 || length[1] == 200 || length[2] == 200);
+    bool hasPow2         = (IsPo2(length[0]) || IsPo2(length[1]) || IsPo2(length[2]));
     bool isDiagonalTrans = is_diagonal_sbrc_3D_length(length[0]) && is_cube_size(length);
 
-    // Yet, we only tested on gfx906 and gfx908, don't touch others for now.
-    // and Z_XY hasn't supported DIAGONAL Transpose, so set false if is diagnol trans
-    bool use_ZXY_sbrc = !isDiagonalTrans && (is906 || is908);
+    //   none of diagonal is better by Z_XY (every arch)
+    //   both 50, 100 are worse by Z_XY (every arch)
+    bool use_ZXY_sbrc = (is906 || is908 || is90a) && (!isDiagonalTrans) && (!has50) && (!has100);
+
     if(use_ZXY_sbrc)
     {
         if(is906)
         {
-            // on gfx906, single-precision performs worse in Z_XY len-100
-            // double-precision, using Z_XY is always better!
-            if(isSingle && (length[0] == 100 || length[1] == 100 || length[2] == 100))
-                use_ZXY_sbrc = false;
+            // sbrc 64 performs worse by Z_XY on 906
+            use_ZXY_sbrc = (has64 == false);
         }
-        else
+        else // 908, 90a
         {
-            // on gfx908, none of 64, 128, 256 is better than XY_Z
-            if(IsPo2(length[0]) || IsPo2(length[1]) || IsPo2(length[2]))
+            // pow-of-2 performs worse by z_xy on 908, 90a
+            if(hasPow2)
                 use_ZXY_sbrc = false;
 
-            // for single, Z_XY len-50 is bad,
-            if(isSingle && (length[0] == 50 || length[1] == 50 || length[2] == 50))
-                use_ZXY_sbrc = false;
-
-            // for double, Z_XY len-100 is bad.
-            if(!isSingle && (length[0] == 100 || length[1] == 100 || length[2] == 100))
+            // sbrc_200 (dp) performs worse by z_xy on 90a
+            if(is90a && has200 && isDouble)
                 use_ZXY_sbrc = false;
         }
-    }
-
-    // FIXME: the new SBRC_81 param setting causes seg fault in XY_Z type, force it Z_XY
-    if(length[0] == 81 || length[1] == 81 || length[2] == 81)
-    {
-        use_ZXY_sbrc = true;
     }
 
     size_t total_sbrc = 0;
@@ -771,13 +765,13 @@ void SBRCTransXY_ZNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
 {
     auto kernel
         = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-    bwd           = kernel.block_width;
+    bwd           = kernel.batches_per_block;
     wgs           = kernel.threads_per_block;
-    lds           = length[0] * kernel.block_width;
+    lds           = length[0] * bwd;
     sbrcTranstype = sbrc_transpose_type(bwd);
     fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
-    gp.b_x = DivRoundingUp(length[2], static_cast<size_t>(kernel.block_width)) * length[1] * batch;
-    gp.tpb_x = kernel.threads_per_block;
+    gp.b_x        = DivRoundingUp(length[2], bwd) * length[1] * batch;
+    gp.tpb_x      = kernel.threads_per_block;
 }
 
 /*****************************************************
@@ -788,14 +782,13 @@ void SBRCTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
 {
     auto kernel
         = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-    bwd           = kernel.block_width;
+    bwd           = kernel.batches_per_block;
     wgs           = kernel.threads_per_block;
-    lds           = length[0] * kernel.block_width;
+    lds           = length[0] * bwd;
     sbrcTranstype = sbrc_transpose_type(bwd);
     fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
-    gp.b_x = std::accumulate(length.begin() + 1, length.end(), batch, std::multiplies<size_t>());
-    gp.b_x /= kernel.block_width;
-    gp.tpb_x = kernel.threads_per_block;
+    gp.b_x        = DivRoundingUp(length[1], bwd) * length[2] * batch;
+    gp.tpb_x      = kernel.threads_per_block;
 }
 
 /*****************************************************
@@ -806,13 +799,12 @@ void RealCmplxTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridPara
 {
     auto kernel
         = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-    bwd           = kernel.block_width;
+    bwd           = kernel.batches_per_block;
     wgs           = kernel.threads_per_block;
-    lds           = length[0] * kernel.block_width;
+    lds           = length[0] * bwd;
     lds_padding   = 1;
     sbrcTranstype = sbrc_transpose_type(bwd);
     fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
-    gp.b_x = std::accumulate(length.begin() + 1, length.end(), batch, std::multiplies<size_t>());
-    gp.b_x /= kernel.block_width;
-    gp.tpb_x = kernel.threads_per_block;
+    gp.b_x        = DivRoundingUp(length[1], bwd) * length[2] * batch;
+    gp.tpb_x      = kernel.threads_per_block;
 }

@@ -457,8 +457,8 @@ void CC1DNode::AssignParams_internal()
         row2colPlan->inStride.push_back(row2colPlan->length[0]);
         row2colPlan->iDist = length[0];
 
-        row2colPlan->outStride.push_back(outStride[0] * row2colPlan->length[1]);
         row2colPlan->outStride.push_back(outStride[0]);
+        row2colPlan->outStride.push_back(outStride[0] * row2colPlan->length[1]);
         row2colPlan->oDist = oDist;
 
         for(size_t index = 1; index < length.size(); index++)
@@ -539,8 +539,8 @@ void CC1DNode::AssignParams_internal()
             }
         }
 
-        row2colPlan->outStride.push_back(outStride[0] * row2colPlan->length[1]);
         row2colPlan->outStride.push_back(outStride[0]);
+        row2colPlan->outStride.push_back(outStride[0] * row2colPlan->length[1]);
         row2colPlan->oDist = oDist;
 
         for(size_t index = 1; index < length.size(); index++)
