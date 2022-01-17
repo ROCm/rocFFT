@@ -113,7 +113,7 @@ struct StockhamKernelCC : public StockhamKernel
     StatementList load_from_global(bool load_registers) override
     {
         auto stripmine_w = transforms_per_block;
-        auto stripmine_h = threads_per_block / stripmine_w;
+        auto stripmine_h = workgroup_size / stripmine_w;
 
         StatementList stmts;
         stmts += Declaration{edge};
@@ -148,7 +148,7 @@ struct StockhamKernelCC : public StockhamKernel
     StatementList store_to_global(bool store_registers) override
     {
         auto stripmine_w = transforms_per_block;
-        auto stripmine_h = threads_per_block / stripmine_w;
+        auto stripmine_h = workgroup_size / stripmine_w;
 
         StatementList stmts;
 
@@ -231,7 +231,7 @@ struct StockhamKernelCC : public StockhamKernel
                     {Declaration{ltwd_id, thread_id},
                      While{Less{ltwd_id, ltwd_entries},
                            {Assign{large_twd_lds[ltwd_id], large_twiddles[ltwd_id]},
-                            AddAssign(ltwd_id, threads_per_block)}}}};
+                            AddAssign(ltwd_id, workgroup_size)}}}};
 
         return stmts;
     }

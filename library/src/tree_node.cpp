@@ -177,8 +177,8 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
 void TransposeNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
     fnPtr    = &FN_PRFX(transpose_var2);
-    gp.tpb_x = (precision == rocfft_precision_single) ? 32 : 64;
-    gp.tpb_y = (precision == rocfft_precision_single) ? 32 : 16;
+    gp.wgs_x = (precision == rocfft_precision_single) ? 32 : 64;
+    gp.wgs_y = (precision == rocfft_precision_single) ? 32 : 16;
 
     return;
 }

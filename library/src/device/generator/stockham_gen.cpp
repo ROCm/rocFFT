@@ -87,12 +87,11 @@ struct GeneratedLauncher
         , lengths(kernel.launcher_lengths())
         , factors(kernel.launcher_factors())
         , transforms_per_block(kernel.transforms_per_block)
-        , threads_per_block(kernel.threads_per_block)
+        , workgroup_size(kernel.workgroup_size)
         , half_lds(kernel.half_lds)
         , sbrc_type(sbrc_type)
         , sbrc_transpose_type(sbrc_transpose_type)
         , double_precision(double_precision)
-        , block_width(kernel.block_width)
     {
     }
 
@@ -102,15 +101,13 @@ struct GeneratedLauncher
     std::vector<unsigned int> factors;
 
     unsigned int transforms_per_block;
-    unsigned int threads_per_block;
+    unsigned int workgroup_size;
     bool         half_lds;
 
     // SBRC transpose type
     std::string sbrc_type;
     std::string sbrc_transpose_type;
     bool        double_precision;
-
-    unsigned int block_width;
 
     // output a json object that the python generator can parse to know
     // how to build the function pool
@@ -145,12 +142,11 @@ struct GeneratedLauncher
         add_member("factors", vec_to_list(factors));
         add_member("lengths", vec_to_list(lengths));
         add_member("transforms_per_block", std::to_string(transforms_per_block));
-        add_member("threads_per_block", std::to_string(threads_per_block));
+        add_member("workgroup_size", std::to_string(workgroup_size));
         add_member("half_lds", half_lds ? "true" : "false");
         add_member("sbrc_type", quote_str(sbrc_type));
         add_member("sbrc_transpose_type", quote_str(sbrc_transpose_type));
         add_member("double_precision", double_precision ? "true" : "false");
-        add_member("block_width", std::to_string(block_width));
 
         output += "}";
         return output;

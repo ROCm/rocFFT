@@ -90,7 +90,7 @@ struct StockhamKernelCR : public StockhamKernel
     StatementList load_from_global(bool load_registers) override
     {
         auto stripmine_w = transforms_per_block;
-        auto stripmine_h = threads_per_block / stripmine_w;
+        auto stripmine_h = workgroup_size / stripmine_w;
 
         StatementList stmts;
         stmts += Declaration{edge};
@@ -158,8 +158,8 @@ struct StockhamKernelCR : public StockhamKernel
         StatementList regular_store;
         for(unsigned int i = 0; i < length / threads_per_transform; ++i)
         {
-            regular_store += Assign{tid0, (i * threads_per_block + thread_id) % length};
-            regular_store += Assign{tid1, (i * threads_per_block + thread_id) / length};
+            regular_store += Assign{tid0, (i * workgroup_size + thread_id) % length};
+            regular_store += Assign{tid1, (i * workgroup_size + thread_id) / length};
             regular_store += StoreGlobal{buf,
                                          offset + tid1 * stride[1] + tid0 * stride0,
                                          lds_complex[tid1 * stride_lds + tid0]};
@@ -170,12 +170,12 @@ struct StockhamKernelCR : public StockhamKernel
         Variable      t{"t", "int"};
         partial_store += For{t,
                              0,
-                             Parens{(t * threads_per_block + thread_id) / length}
+                             Parens{(t * workgroup_size + thread_id) / length}
                                  < Parens{transforms_per_block
                                           - (tile_index + 1) * transforms_per_block % lengths[1]},
                              1,
-                             {Assign{tid0, (t * threads_per_block + thread_id) % length},
-                              Assign{tid1, (t * threads_per_block + thread_id) / length},
+                             {Assign{tid0, (t * workgroup_size + thread_id) % length},
+                              Assign{tid1, (t * workgroup_size + thread_id) / length},
                               StoreGlobal{buf,
                                           offset + tid1 * stride[1] + tid0 * stride0,
                                           lds_complex[tid1 * stride_lds + tid0]}}};

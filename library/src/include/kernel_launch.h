@@ -408,7 +408,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                    PRECISION* __restrict__);                  \
                 hipLaunchKernelGGL(kernel_func,                               \
                                    dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.tpb_x),               \
+                                   dim3(data->gridParam.wgs_x),               \
                                    data->gridParam.lds_bytes,                 \
                                    rocfft_stream,                             \
                                    (PRECISION*)data->node->twiddles.data(),   \
@@ -435,7 +435,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                 real_type_t<PRECISION>* __restrict__);        \
                 hipLaunchKernelGGL(kernel_func,                               \
                                    dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.tpb_x),               \
+                                   dim3(data->gridParam.wgs_x),               \
                                    data->gridParam.lds_bytes,                 \
                                    rocfft_stream,                             \
                                    (PRECISION*)data->node->twiddles.data(),   \
@@ -466,7 +466,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                    PRECISION* __restrict__);                  \
                 hipLaunchKernelGGL(kernel_func,                               \
                                    dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.tpb_x),               \
+                                   dim3(data->gridParam.wgs_x),               \
                                    data->gridParam.lds_bytes,                 \
                                    rocfft_stream,                             \
                                    (PRECISION*)data->node->twiddles.data(),   \
@@ -496,7 +496,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                 real_type_t<PRECISION>* __restrict__);        \
                 hipLaunchKernelGGL(kernel_func,                               \
                                    dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.tpb_x),               \
+                                   dim3(data->gridParam.wgs_x),               \
                                    data->gridParam.lds_bytes,                 \
                                    rocfft_stream,                             \
                                    (PRECISION*)data->node->twiddles.data(),   \
@@ -527,7 +527,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                 PRECISION* __restrict__);                     \
                 hipLaunchKernelGGL(kernel_func,                               \
                                    dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.tpb_x),               \
+                                   dim3(data->gridParam.wgs_x),               \
                                    data->gridParam.lds_bytes,                 \
                                    rocfft_stream,                             \
                                    (PRECISION*)data->node->twiddles.data(),   \
@@ -559,7 +559,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                 real_type_t<PRECISION>* __restrict__);        \
                 hipLaunchKernelGGL(kernel_func,                               \
                                    dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.tpb_x),               \
+                                   dim3(data->gridParam.wgs_x),               \
                                    data->gridParam.lds_bytes,                 \
                                    rocfft_stream,                             \
                                    (PRECISION*)data->node->twiddles.data(),   \
@@ -607,7 +607,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                         PRECISION* __restrict__);                 \
                 hipLaunchKernelGGL(kernel_func,                                   \
                                    dim3(data->gridParam.b_x),                     \
-                                   dim3(data->gridParam.tpb_x),                   \
+                                   dim3(data->gridParam.wgs_x),                   \
                                    data->gridParam.lds_bytes,                     \
                                    rocfft_stream,                                 \
                                    (PRECISION*)data->node->twiddles.data(),       \
@@ -635,7 +635,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                      real_type_t<PRECISION>* __restrict__);       \
                 hipLaunchKernelGGL(kernel_func,                                   \
                                    dim3(data->gridParam.b_x),                     \
-                                   dim3(data->gridParam.tpb_x),                   \
+                                   dim3(data->gridParam.wgs_x),                   \
                                    data->gridParam.lds_bytes,                     \
                                    rocfft_stream,                                 \
                                    (PRECISION*)data->node->twiddles.data(),       \
@@ -667,7 +667,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                         PRECISION* __restrict__);                 \
                 hipLaunchKernelGGL(kernel_func,                                   \
                                    dim3(data->gridParam.b_x),                     \
-                                   dim3(data->gridParam.tpb_x),                   \
+                                   dim3(data->gridParam.wgs_x),                   \
                                    data->gridParam.lds_bytes,                     \
                                    rocfft_stream,                                 \
                                    (PRECISION*)data->node->twiddles.data(),       \
@@ -698,7 +698,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                      real_type_t<PRECISION>* __restrict__);       \
                 hipLaunchKernelGGL(kernel_func,                                   \
                                    dim3(data->gridParam.b_x),                     \
-                                   dim3(data->gridParam.tpb_x),                   \
+                                   dim3(data->gridParam.wgs_x),                   \
                                    data->gridParam.lds_bytes,                     \
                                    rocfft_stream,                                 \
                                    (PRECISION*)data->node->twiddles.data(),       \
@@ -730,7 +730,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                      PRECISION* __restrict__);                    \
                 hipLaunchKernelGGL(kernel_func,                                   \
                                    dim3(data->gridParam.b_x),                     \
-                                   dim3(data->gridParam.tpb_x),                   \
+                                   dim3(data->gridParam.wgs_x),                   \
                                    data->gridParam.lds_bytes,                     \
                                    rocfft_stream,                                 \
                                    (PRECISION*)data->node->twiddles.data(),       \
@@ -763,7 +763,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                      real_type_t<PRECISION>* __restrict__);       \
                 hipLaunchKernelGGL(kernel_func,                                   \
                                    dim3(data->gridParam.b_x),                     \
-                                   dim3(data->gridParam.tpb_x),                   \
+                                   dim3(data->gridParam.wgs_x),                   \
                                    data->gridParam.lds_bytes,                     \
                                    rocfft_stream,                                 \
                                    (PRECISION*)data->node->twiddles.data(),       \
@@ -809,7 +809,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                     PRECISION* __restrict__);                         \
             hipLaunchKernelGGL(kernel_func,                                           \
                                dim3(data->gridParam.b_x),                             \
-                               dim3(data->gridParam.tpb_x),                           \
+                               dim3(data->gridParam.wgs_x),                           \
                                data->gridParam.lds_bytes,                             \
                                rocfft_stream,                                         \
                                (PRECISION*)data->node->twiddles.data(),               \
@@ -841,7 +841,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                  real_type_t<PRECISION>* __restrict__);               \
             hipLaunchKernelGGL(kernel_func,                                           \
                                dim3(data->gridParam.b_x),                             \
-                               dim3(data->gridParam.tpb_x),                           \
+                               dim3(data->gridParam.wgs_x),                           \
                                data->gridParam.lds_bytes,                             \
                                rocfft_stream,                                         \
                                (PRECISION*)data->node->twiddles.data(),               \
@@ -874,7 +874,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                  PRECISION* __restrict__);                            \
             hipLaunchKernelGGL(kernel_func,                                           \
                                dim3(data->gridParam.b_x),                             \
-                               dim3(data->gridParam.tpb_x),                           \
+                               dim3(data->gridParam.wgs_x),                           \
                                data->gridParam.lds_bytes,                             \
                                rocfft_stream,                                         \
                                (PRECISION*)data->node->twiddles.data(),               \
@@ -908,7 +908,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                  real_type_t<PRECISION>* __restrict__);               \
             hipLaunchKernelGGL(kernel_func,                                           \
                                dim3(data->gridParam.b_x),                             \
-                               dim3(data->gridParam.tpb_x),                           \
+                               dim3(data->gridParam.wgs_x),                           \
                                data->gridParam.lds_bytes,                             \
                                rocfft_stream,                                         \
                                (PRECISION*)data->node->twiddles.data(),               \
@@ -949,7 +949,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                     PRECISION* __restrict__);                              \
             hipLaunchKernelGGL(kernel_func,                                                \
                                dim3(data->gridParam.b_x),                                  \
-                               dim3(data->gridParam.tpb_x),                                \
+                               dim3(data->gridParam.wgs_x),                                \
                                data->gridParam.lds_bytes,                                  \
                                rocfft_stream,                                              \
                                (PRECISION*)data->node->twiddles.data(),                    \
@@ -979,7 +979,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                  real_type_t<PRECISION>* __restrict__);                    \
             hipLaunchKernelGGL(kernel_func,                                                \
                                dim3(data->gridParam.b_x),                                  \
-                               dim3(data->gridParam.tpb_x),                                \
+                               dim3(data->gridParam.wgs_x),                                \
                                data->gridParam.lds_bytes,                                  \
                                rocfft_stream,                                              \
                                (PRECISION*)data->node->twiddles.data(),                    \
@@ -1010,7 +1010,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                  PRECISION* __restrict__);                                 \
             hipLaunchKernelGGL(kernel_func,                                                \
                                dim3(data->gridParam.b_x),                                  \
-                               dim3(data->gridParam.tpb_x),                                \
+                               dim3(data->gridParam.wgs_x),                                \
                                data->gridParam.lds_bytes,                                  \
                                rocfft_stream,                                              \
                                (PRECISION*)data->node->twiddles.data(),                    \
@@ -1042,7 +1042,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                  real_type_t<PRECISION>* __restrict__);                    \
             hipLaunchKernelGGL(kernel_func,                                                \
                                dim3(data->gridParam.b_x),                                  \
-                               dim3(data->gridParam.tpb_x),                                \
+                               dim3(data->gridParam.wgs_x),                                \
                                data->gridParam.lds_bytes,                                  \
                                rocfft_stream,                                              \
                                (PRECISION*)data->node->twiddles.data(),                    \

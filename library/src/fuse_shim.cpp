@@ -24,7 +24,7 @@
 
 size_t TransformsPerThreadblock(const size_t len, rocfft_precision precision)
 {
-    return function_pool::get_kernel(fpkey(len, precision)).batches_per_block;
+    return function_pool::get_kernel(fpkey(len, precision)).transforms_per_block;
 }
 
 bool canOptimizeWithStride(TreeNode* stockham)

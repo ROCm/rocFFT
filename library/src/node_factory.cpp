@@ -634,7 +634,7 @@ bool NodeFactory::use_CS_2D_SINGLE(NodeMetaData& nodeData)
     auto kernel = function_pool::get_kernel(
         fpkey(nodeData.length[0], nodeData.length[1], nodeData.precision, CS_KERNEL_2D_SINGLE));
 
-    int ldsUsage = nodeData.length[0] * nodeData.length[1] * kernel.batches_per_block
+    int ldsUsage = nodeData.length[0] * nodeData.length[1] * kernel.transforms_per_block
                    * sizeof_precision(nodeData.precision);
     if(1.5 * ldsUsage > ldsSize)
         return false;
@@ -659,7 +659,7 @@ size_t NodeFactory::count_3D_SBRC_nodes(NodeMetaData& nodeData)
             // make sure the SBRC kernel on that dimension would be tile-aligned
             auto kernel = function_pool::get_kernel(
                 fpkey(nodeData.length[i], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-            if(nodeData.length[(i + 2) % nodeData.length.size()] % kernel.block_width == 0)
+            if(nodeData.length[(i + 2) % nodeData.length.size()] % kernel.transforms_per_block == 0)
                 ++sbrc_dimensions;
         }
     }
@@ -708,7 +708,7 @@ bool NodeFactory::use_CS_3D_RC(NodeMetaData& nodeData)
             return true;
 
         // x-dim should be >= the blockwidth, or it might perform worse..
-        if(nodeData.length[0] < kernel.batches_per_block)
+        if(nodeData.length[0] < kernel.transforms_per_block)
             return false;
 
         // we don't want a too-large 3D block, sbcc along z-dim might be bad

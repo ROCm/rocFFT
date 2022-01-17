@@ -49,7 +49,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             threads_per_transform = 1;
             for(unsigned int t = 2; t < length; ++t)
             {
-                if(t > threads_per_block)
+                if(t > workgroup_size)
                     continue;
                 if(length % t == 0)
                 {
@@ -61,15 +61,13 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             }
         }
 
-        auto batches_per_block = LDS_BYTE_LIMIT / bytes_per_batch;
-        while(threads_per_transform * batches_per_block > threads_per_block)
-            --batches_per_block;
+        transforms_per_block = LDS_BYTE_LIMIT / bytes_per_batch;
+        while(threads_per_transform * transforms_per_block > workgroup_size)
+            --transforms_per_block;
         if(!factors2d.empty())
-            batches_per_block = std::min(batches_per_block, length2d);
+            transforms_per_block = std::min(transforms_per_block, length2d);
 
-        threads_per_block = threads_per_transform * batches_per_block;
-
-        transforms_per_block = threads_per_block / threads_per_transform;
+        workgroup_size = threads_per_transform * transforms_per_block;
 
         nregisters = compute_nregisters(length, factors, threads_per_transform);
         R.size     = Expression{nregisters};
@@ -492,14 +490,14 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     {
         Function f("forward_length" + std::to_string(length) + "_" + tiling_name());
         f.qualifier     = "__global__";
-        f.launch_bounds = threads_per_block;
+        f.launch_bounds = workgroup_size;
 
         StatementList& body = f.body;
         body += CommentLines{
             "this kernel:",
             "  uses " + std::to_string(threads_per_transform) + " threads per transform",
             "  does " + std::to_string(transforms_per_block) + " transforms per thread block",
-            "therefore it should be called with " + std::to_string(threads_per_block)
+            "therefore it should be called with " + std::to_string(workgroup_size)
                 + " threads per thread block"};
         body += Declaration{R};
         body += LDSDeclaration{scalar_type.name};

@@ -30,8 +30,8 @@ struct StockhamKernelFused2D : public StockhamKernelRR
     {
         threads_per_transform = std::max(specs1.length * specs0.threads_per_transform,
                                          specs0.length * specs1.threads_per_transform);
-        // 2D_SINGLE does one 2D slab per threadblock
-        threads_per_block    = threads_per_transform;
+        // 2D_SINGLE does one 2D slab per workgroup(threadblock)
+        workgroup_size       = threads_per_transform;
         transforms_per_block = 1;
         R.size               = std::max(kernel0.nregisters, kernel1.nregisters);
         kernel0.writeGuard   = true;
@@ -87,8 +87,8 @@ struct StockhamKernelFused2D : public StockhamKernelRR
                              "  uses " + std::to_string(threads_per_transform)
                                  + " threads per 2d transform",
                              "  does 1 2d transforms per thread block",
-                             "therefore it should be called with "
-                                 + std::to_string(threads_per_block) + " threads per thread block",
+                             "therefore it should be called with " + std::to_string(workgroup_size)
+                                 + " threads per block",
                              ""};
 
         Variable d{"d", "int"};
@@ -132,17 +132,17 @@ struct StockhamKernelFused2D : public StockhamKernelRR
 
         // load
         body += LineBreak{};
-        auto rw_iters = length0 * length1 / threads_per_block;
+        auto rw_iters = length0 * length1 / workgroup_size;
         body += CommentLines{"load length-" + std::to_string(length0) + " rows using all threads.",
                              "need " + std::to_string(rw_iters) + " iterations to load all "
                                  + std::to_string(length1) + " rows in the slab"};
 
-        // just use rw_iters * threads_per_block threads total, break
+        // just use rw_iters * workgroup_size threads total, break
         // it down into row/column accesses to fill LDS
         for(unsigned int i = 0; i < rw_iters; ++i)
         {
-            auto row_offset = Parens{(i * threads_per_block + thread_id) / length0};
-            auto col_offset = Parens{(i * threads_per_block + thread_id) % length0};
+            auto row_offset = Parens{(i * workgroup_size + thread_id) / length0};
+            auto col_offset = Parens{(i * workgroup_size + thread_id) % length0};
             body += Assign{
                 lds_complex[row_offset * length0_padded + col_offset],
                 LoadGlobal{buf, offset + col_offset * stride[0] + row_offset * stride[1]}};
@@ -161,7 +161,7 @@ struct StockhamKernelFused2D : public StockhamKernelRR
                                  + " threads, so " + std::to_string(active_threads_rows)
                                  + " are active in the block"};
 
-        if(active_threads_rows == threads_per_block)
+        if(active_threads_rows == workgroup_size)
             body += Assign{write, 1};
         else
             body += Assign{write, thread_id < active_threads_rows};
@@ -190,7 +190,7 @@ struct StockhamKernelFused2D : public StockhamKernelRR
                                  + " threads, so " + std::to_string(active_threads_cols)
                                  + " are active in the block"};
 
-        if(active_threads_cols == threads_per_block)
+        if(active_threads_cols == workgroup_size)
             body += Assign{write, 1};
         else
             body += Assign{write, thread_id < active_threads_cols};
@@ -213,12 +213,12 @@ struct StockhamKernelFused2D : public StockhamKernelRR
                              "need " + std::to_string(rw_iters) + " iterations to store all "
                                  + std::to_string(length1) + " rows in the slab"};
 
-        // just use rw_iters * threads_per_block threads total, break
+        // just use rw_iters * workgroup_size threads total, break
         // it down into row/column accesses to fill LDS
         for(unsigned int i = 0; i < rw_iters; ++i)
         {
-            auto row_offset = Parens{(i * threads_per_block + thread_id) / length0};
-            auto col_offset = Parens{(i * threads_per_block + thread_id) % length0};
+            auto row_offset = Parens{(i * workgroup_size + thread_id) / length0};
+            auto col_offset = Parens{(i * workgroup_size + thread_id) % length0};
             body += StoreGlobal{buf,
                                 offset + col_offset * stride[0] + row_offset * stride[1],
                                 lds_complex[row_offset * length0_padded + col_offset]};
@@ -227,7 +227,7 @@ struct StockhamKernelFused2D : public StockhamKernelRR
         f.qualifier     = "__global__";
         f.templates     = global_templates();
         f.arguments     = global_arguments();
-        f.launch_bounds = threads_per_block;
+        f.launch_bounds = workgroup_size;
         return f;
     }
 };

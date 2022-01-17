@@ -37,15 +37,15 @@ static bool SBCC_dim_available(const std::vector<size_t>& length,
     {
         numTrans = function_pool::get_kernel(
                        fpkey(length[sbcc_dim], precision, CS_KERNEL_STOCKHAM_BLOCK_CC))
-                       .batches_per_block;
+                       .transforms_per_block;
         have_sbcc = true;
     }
     catch(std::out_of_range&)
     {
         try
         {
-            numTrans
-                = function_pool::get_kernel(fpkey(length[sbcc_dim], precision)).batches_per_block;
+            numTrans = function_pool::get_kernel(fpkey(length[sbcc_dim], precision))
+                           .transforms_per_block;
         }
         catch(std::out_of_range&)
         {
@@ -1709,14 +1709,14 @@ void RealTransDataCopyNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam
 
     if(scheme == CS_KERNEL_APPLY_CALLBACK)
     {
-        gp.tpb_x = 64;
+        gp.wgs_x = 64;
     }
     else
     {
         gp.b_x   = (length[0] - 1) / LAUNCH_BOUNDS_R2C_C2R_KERNEL + 1;
         gp.b_y   = batch;
-        gp.tpb_x = LAUNCH_BOUNDS_R2C_C2R_KERNEL;
-        gp.tpb_y = 1;
+        gp.wgs_x = LAUNCH_BOUNDS_R2C_C2R_KERNEL;
+        gp.wgs_y = 1;
     }
 
     return;

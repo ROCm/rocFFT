@@ -143,16 +143,16 @@ struct GridParam
 {
     unsigned int b_x, b_y, b_z; // in HIP, the data type of dimensions of work
     // items, work groups is unsigned int
-    unsigned int tpb_x, tpb_y, tpb_z;
+    unsigned int wgs_x, wgs_y, wgs_z;
     unsigned int lds_bytes; // dynamic LDS allocation size
 
     GridParam()
         : b_x(1)
         , b_y(1)
         , b_z(1)
-        , tpb_x(1)
-        , tpb_y(1)
-        , tpb_z(1)
+        , wgs_x(1)
+        , wgs_y(1)
+        , wgs_z(1)
         , lds_bytes(0)
     {
     }

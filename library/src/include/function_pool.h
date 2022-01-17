@@ -81,25 +81,18 @@ struct FFTKernel
 
     DevFnCall           device_function = nullptr;
     std::vector<size_t> factors;
-    // number of transforms performed by one threadblock
-    // TODO: should avoid confusion about "batches" and "transforms"
-    // Ideas: batches -> transforms
-    //       batches_per_block (bpb) -> transforms_per_block (tpb)
-    //       threads_per_transform (tbt)
-    //       threads_per_block (tpb) -> workgroup_size = wgs
-    //       workgroup_size = threads_per_transform (tpt) * transforms_per_block (tpb)
-    int batches_per_block = 0;
-    int threads_per_block = 0;
+    // NB:
+    //    Some abbrevs for namings that we can follow (tpb/wgs/tpt)
+    // number of transforms performed by one threadblock (tpb)
+    int transforms_per_block = 0;
+    // workgroup size： number of threads per block (wgs) = tpt * tpb
+    int workgroup_size = 0;
+    // number of threads to perform single transform (tpt)
     // 2D_SINGLE specifies separate threads for each dimension;
     // otherwise second dim's threads will be 0
     std::array<int, 2> threads_per_transform = {0, 0};
     bool               use_3steps_large_twd  = false;
-    // number of transforms processed by one device function call.
-    // normally the same as batches_per_block, but some kernels can
-    // call the device function multiple times and will have
-    // block_width < batches_per_block.
-    int  block_width = 0;
-    bool half_lds    = false;
+    bool               half_lds              = false;
 
     FFTKernel() = delete;
 
@@ -109,18 +102,16 @@ struct FFTKernel
     FFTKernel(DevFnCall             fn,
               bool                  use_3steps,
               std::vector<size_t>&& factors,
-              int                   bpb,
               int                   tpb,
+              int                   wgs,
               std::array<int, 2>&&  tpt,
-              int                   bwd      = 0,
               bool                  half_lds = false)
         : device_function(fn)
         , factors(factors)
-        , batches_per_block(bpb)
-        , threads_per_block(tpb)
+        , transforms_per_block(tpb)
+        , workgroup_size(wgs)
         , threads_per_transform(tpt)
         , use_3steps_large_twd(use_3steps)
-        , block_width(bwd)
         , half_lds(half_lds)
     {
     }

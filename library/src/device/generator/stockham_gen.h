@@ -38,14 +38,14 @@ struct StockhamGeneratorSpecs
     StockhamGeneratorSpecs(const std::vector<unsigned int>& factors,
                            const std::vector<unsigned int>& factors2d,
                            const std::vector<unsigned int>& precisions,
-                           unsigned int                     threads_per_block,
+                           unsigned int                     workgroup_size,
                            const std::string&               scheme)
         : factors(factors)
         , factors2d(factors2d)
         , precisions(precisions)
         , length(product(factors.begin(), factors.end()))
         , length2d(product(factors2d.begin(), factors2d.end()))
-        , threads_per_block(threads_per_block)
+        , workgroup_size(workgroup_size)
         , scheme(scheme)
     {
     }
@@ -56,9 +56,8 @@ struct StockhamGeneratorSpecs
     unsigned int              length;
     unsigned int              length2d = 0;
 
-    unsigned int threads_per_block;
+    unsigned int workgroup_size;
     unsigned int threads_per_transform = 0;
-    unsigned int block_width           = 0;
     bool         half_lds              = false;
     std::string  scheme;
 };

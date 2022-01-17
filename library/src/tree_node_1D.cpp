@@ -864,9 +864,9 @@ void Stockham1DNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
     if(ebtype != EmbeddedType::NONE)
         lds_padding = 1;
 
-    gp.b_x   = (batch_accum + kernel.batches_per_block - 1) / kernel.batches_per_block;
-    gp.tpb_x = kernel.threads_per_block;
-    bwd      = kernel.batches_per_block;
+    bwd      = kernel.transforms_per_block;
+    gp.b_x   = (batch_accum + bwd - 1) / bwd;
+    gp.wgs_x = kernel.workgroup_size;
 
     // we don't even need lds (kernel_1,2,3,4,5,6,7,10,11,13,17) since we don't use them at all
     // TODO: we can even use swizzle to do the butterfly shuffle if threads_per_transform[0] <= warpSize
@@ -875,7 +875,7 @@ void Stockham1DNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
        && kernel.factors.size() == 1)
         lds = 0;
     else
-        lds = (length[0] + lds_padding) * kernel.batches_per_block;
+        lds = (length[0] + lds_padding) * bwd;
 }
 
 bool Stockham1DNode::CreateTwiddleTableResource()
@@ -891,12 +891,12 @@ void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
     auto kernel = function_pool::get_kernel(fpkey(length[0], precision, scheme));
     fnPtr       = kernel.device_function;
-    bwd         = kernel.batches_per_block;
-    wgs         = kernel.threads_per_block;
+    bwd         = kernel.transforms_per_block;
+    wgs         = kernel.workgroup_size;
     lds         = length[0] * bwd;
     gp.b_x      = ((length[1]) - 1) / bwd + 1;
     gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
-    gp.tpb_x = kernel.threads_per_block;
+    gp.wgs_x = kernel.workgroup_size;
 }
 
 /*****************************************************
@@ -905,14 +905,14 @@ void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 void SBRCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
     auto kernel   = function_pool::get_kernel(fpkey(length[0], precision, scheme));
-    bwd           = kernel.batches_per_block;
-    wgs           = kernel.threads_per_block;
+    bwd           = kernel.transforms_per_block;
+    wgs           = kernel.workgroup_size;
     lds           = length[0] * bwd;
     sbrcTranstype = sbrc_transpose_type(bwd);
     fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
     gp.b_x        = (length[1] - 1) / bwd + 1;
     gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
-    gp.tpb_x = kernel.threads_per_block;
+    gp.wgs_x = kernel.workgroup_size;
 }
 
 SBRC_TRANSPOSE_TYPE SBRCNode::sbrc_transpose_type(unsigned int blockWidth) const
@@ -929,15 +929,16 @@ void SBCRNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
     auto kernel = function_pool::get_kernel(fpkey(length[0], precision, scheme));
     fnPtr       = kernel.device_function;
-    wgs         = kernel.threads_per_block;
-    lds         = length[0] * kernel.batches_per_block;
-    gp.b_x      = ((length[1]) - 1) / kernel.batches_per_block + 1;
+    wgs         = kernel.workgroup_size;
+    bwd         = kernel.transforms_per_block;
+    lds         = length[0] * bwd;
+    gp.b_x      = ((length[1]) - 1) / bwd + 1;
     gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
-    gp.tpb_x = kernel.threads_per_block;
-    bwd      = kernel.batches_per_block;
+    gp.wgs_x = kernel.workgroup_size;
+
     if(ebtype != EmbeddedType::NONE)
         lds_padding = 1;
-    lds = (length[0] + lds_padding) * kernel.batches_per_block;
+    lds = (length[0] + lds_padding) * bwd;
     return;
 }
 

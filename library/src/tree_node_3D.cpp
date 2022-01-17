@@ -373,7 +373,7 @@ void BLOCKRC3DNode::BuildTree_internal()
                 fpkey(cur_length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
 
             size_t otherDim = use_ZXY_sbrc ? cur_length[1] : cur_length[2];
-            if(otherDim % kernel.block_width != 0)
+            if(otherDim % kernel.transforms_per_block != 0)
                 have_sbrc = false;
         }
         if(have_sbrc)
@@ -765,13 +765,13 @@ void SBRCTransXY_ZNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
 {
     auto kernel
         = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-    bwd           = kernel.batches_per_block;
-    wgs           = kernel.threads_per_block;
+    bwd           = kernel.transforms_per_block;
+    wgs           = kernel.workgroup_size;
     lds           = length[0] * bwd;
     sbrcTranstype = sbrc_transpose_type(bwd);
     fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
     gp.b_x        = DivRoundingUp(length[2], bwd) * length[1] * batch;
-    gp.tpb_x      = kernel.threads_per_block;
+    gp.wgs_x      = kernel.workgroup_size;
 }
 
 /*****************************************************
@@ -782,13 +782,13 @@ void SBRCTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
 {
     auto kernel
         = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-    bwd           = kernel.batches_per_block;
-    wgs           = kernel.threads_per_block;
+    bwd           = kernel.transforms_per_block;
+    wgs           = kernel.workgroup_size;
     lds           = length[0] * bwd;
     sbrcTranstype = sbrc_transpose_type(bwd);
     fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
     gp.b_x        = DivRoundingUp(length[1], bwd) * length[2] * batch;
-    gp.tpb_x      = kernel.threads_per_block;
+    gp.wgs_x      = kernel.workgroup_size;
 }
 
 /*****************************************************
@@ -799,12 +799,12 @@ void RealCmplxTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridPara
 {
     auto kernel
         = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-    bwd           = kernel.batches_per_block;
-    wgs           = kernel.threads_per_block;
+    bwd           = kernel.transforms_per_block;
+    wgs           = kernel.workgroup_size;
     lds           = length[0] * bwd;
     lds_padding   = 1;
     sbrcTranstype = sbrc_transpose_type(bwd);
     fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
     gp.b_x        = DivRoundingUp(length[1], bwd) * length[2] * batch;
-    gp.tpb_x      = kernel.threads_per_block;
+    gp.wgs_x      = kernel.workgroup_size;
 }

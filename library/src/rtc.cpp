@@ -404,9 +404,9 @@ void RTCKernel::launch(DeviceCallIn& data)
                              gp.b_x,
                              gp.b_y,
                              gp.b_z,
-                             gp.tpb_x,
-                             gp.tpb_y,
-                             gp.tpb_z,
+                             gp.wgs_x,
+                             gp.wgs_y,
+                             gp.wgs_z,
                              gp.lds_bytes,
                              nullptr,
                              nullptr,
@@ -486,7 +486,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
         // width and correct transpose type
         if(node.scheme != pool_scheme)
         {
-            transpose_type = node.sbrc_transpose_type(kernel.block_width);
+            transpose_type = node.sbrc_transpose_type(kernel.transforms_per_block);
             key            = fpkey(node.length[0], node.precision, node.scheme, transpose_type);
             kernel         = pool.get_kernel(key);
         }
@@ -499,11 +499,10 @@ std::shared_future<std::unique_ptr<RTCKernel>>
             factors,
             std::vector<unsigned int>(),
             precisions,
-            static_cast<unsigned int>(kernel.threads_per_block),
+            static_cast<unsigned int>(kernel.workgroup_size),
             PrintScheme(node.scheme));
         specs->threads_per_transform = kernel.threads_per_transform[0];
         specs->half_lds              = kernel.half_lds;
-        specs->block_width           = kernel.block_width;
         break;
     }
     case CS_KERNEL_2D_SINGLE:
@@ -541,21 +540,19 @@ std::shared_future<std::unique_ptr<RTCKernel>>
             factors1d,
             factors2d,
             precisions,
-            static_cast<unsigned int>(kernel.threads_per_block),
+            static_cast<unsigned int>(kernel.workgroup_size),
             PrintScheme(node.scheme));
         specs->threads_per_transform = kernel.threads_per_transform[0];
         specs->half_lds              = kernel.half_lds;
-        specs->block_width           = kernel.block_width;
 
         specs2d = std::make_unique<StockhamGeneratorSpecs>(
             factors2d,
             factors1d,
             precisions,
-            static_cast<unsigned int>(kernel.threads_per_block),
+            static_cast<unsigned int>(kernel.workgroup_size),
             PrintScheme(node.scheme));
         specs2d->threads_per_transform = kernel.threads_per_transform[1];
         specs2d->half_lds              = kernel.half_lds;
-        specs2d->block_width           = kernel.block_width;
         break;
     }
     default:

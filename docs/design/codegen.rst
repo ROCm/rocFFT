@@ -66,7 +66,7 @@ For rocFFT, we need/want to generate:
 * Tiled (row/column) + strided + batched Stockham kernels for
   arbitrary factorisations
 * May want to extend to Cooley-Tukey kernels as well
-  
+
 Kernels need to handle all combinations of:
 
 * single/double precision (and be extendable to half-float and bfloat)
@@ -210,7 +210,7 @@ the generator will populate a function pool with structs of the form
         void *device_function = nullptr;
         std::vector<int> factors;
         int              transforms_per_block = 0;
-        int              threads_per_block = 0;
+        int              workgroup_size = 0;
         // ...
     };
 

@@ -910,7 +910,7 @@ bool TreeNode::fuse_CS_KERNEL_TRANSPOSE_Z_XY()
     {
         auto kernel
             = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-        size_t bwd = kernel.block_width;
+        size_t bwd = kernel.transforms_per_block;
         if((length[1] >= bwd) && (length[2] >= bwd) && (length[1] * length[2] % bwd == 0))
             return true;
     }
@@ -1815,8 +1815,8 @@ void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan)
     os << "GridParams\n";
     for(const auto& gp : execPlan.gridParam)
     {
-        os << "  b[" << gp.b_x << "," << gp.b_y << "," << gp.b_z << "] tpb[" << gp.tpb_x << ","
-           << gp.tpb_y << "," << gp.tpb_z << "], dy_lds bytes " << gp.lds_bytes << "\n";
+        os << "  b[" << gp.b_x << "," << gp.b_y << "," << gp.b_z << "] wgs[" << gp.wgs_x << ","
+           << gp.wgs_y << "," << gp.wgs_z << "], dy_lds bytes " << gp.lds_bytes << "\n";
     }
     os << "End GridParams\n";
 

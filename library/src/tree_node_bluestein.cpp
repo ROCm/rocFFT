@@ -239,7 +239,7 @@ void BluesteinNode::AssignBuffers_internal(TraverseState&   state,
  *****************************************************/
 void BluesteinComponentNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
-    gp.tpb_x = 64;
+    gp.wgs_x = 64;
     fnPtr    = (scheme == CS_KERNEL_CHIRP) ? &FN_PRFX(chirp) : &FN_PRFX(mul);
 
     return;

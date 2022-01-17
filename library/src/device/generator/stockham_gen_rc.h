@@ -254,7 +254,7 @@ struct StockhamKernelRC : public StockhamKernel
         stmts += Declaration{tid1};
 
         // #-load for each thread to load all element in a tile
-        auto num_load_blocks = (length * transforms_per_block) / threads_per_block;
+        auto num_load_blocks = (length * transforms_per_block) / workgroup_size;
         // #-row for a load block (global mem) = each thread will across these rows
         auto tid0_inc_step = transforms_per_block / num_load_blocks;
 
@@ -303,7 +303,7 @@ struct StockhamKernelRC : public StockhamKernel
         // #-column for a store block (global mem)
         auto store_block_w = transforms_per_block;
         // #-store for each thread to store all element in a tile
-        auto num_store_blocks = (length * transforms_per_block) / threads_per_block;
+        auto num_store_blocks = (length * transforms_per_block) / workgroup_size;
         // #-row for a store block (global mem) = each thread will across these rows
         auto tid0_inc_step = length / num_store_blocks;
 
@@ -353,7 +353,7 @@ struct StockhamKernelRC : public StockhamKernel
         // ERC_Z_XY
         auto i = num_store_blocks;
         regular_store += If{
-            sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY" && thread_id < block_width,
+            sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY" && thread_id < transforms_per_block,
             {StoreGlobal{buf, offset + offset_tile_wbuf(i), lds_complex[offset_tile_rlds(i)]}}};
 
         StatementList edge_store;
