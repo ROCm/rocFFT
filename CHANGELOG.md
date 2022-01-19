@@ -19,6 +19,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Optimizations
 - Optimized 3D 200^3 C2R case.
+- Optimized 1D 2^30 double precision on MI200.
 
 ### Fixed
 - Fixed correctness of some R2C transforms with unusual strides.
