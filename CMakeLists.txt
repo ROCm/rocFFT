@@ -119,7 +119,7 @@ include( ROCMInstallSymlinks )
 include( ROCMCheckTargetIds OPTIONAL )
 
 # Using standardized versioning from rocm-cmake
-set ( VERSION_STRING "1.0.15" )
+set ( VERSION_STRING "1.0.16" )
 rocm_setup_version( VERSION ${VERSION_STRING} )
 
 # Append our library helper cmake path and the cmake path for hip (for

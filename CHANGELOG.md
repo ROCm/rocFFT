@@ -2,22 +2,15 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
-## (Unreleased) rocFFT 1.0.17
-
-### Changed
-- Enabled runtime compilation of single FFT kernels > length 1024.
-- Supported unaligned tile dimension for SBRC_2D kernels.
-- Improved (more RAII) test and benchmark infrastructure.
-
-### Optimizations
-- Optimized more large 1D cases by using L1D_CC plan.
-
 ## (Unreleased) rocFFT 1.0.16
 
 ### Changed
+- Supported unaligned tile dimension for SBRC_2D kernels.
+- Improved (more RAII) test and benchmark infrastructure.
 - Enabled runtime compilation of length-2304 FFT kernel during plan creation.
 
 ### Optimizations
+- Optimized more large 1D cases by using L1D_CC plan.
 - Optimized 3D 200^3 C2R case.
 - Optimized 1D 2^30 double precision on MI200.
 
@@ -30,6 +23,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ## rocFFT 1.0.15
 
 ### Changed
+- Enabled runtime compilation of single FFT kernels > length 1024.
 - Re-aligned split device library into 4 roughly equal libraries.
 - Implemented the FuseShim framework to replace the original OptimizePlan
 - Implemented the generic buffer-assignment framework. The buffer assignment
