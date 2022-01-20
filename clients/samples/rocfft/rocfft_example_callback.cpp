@@ -21,6 +21,7 @@
 *******************************************************************************/
 
 #include "rocfft.h"
+#include <hip/hip_complex.h>
 #include <hip/hip_runtime_api.h>
 #include <hip/hip_vector_types.h>
 #include <iostream>
@@ -40,7 +41,8 @@ __device__ double2 load_callback(double2* input, size_t offset, void* cbdata, vo
     auto data = static_cast<load_cbdata*>(cbdata);
 
     // multiply each element by filter element and scale
-    return (input[offset] * data->filter[offset]) * data->scale;
+    return hipCmul(hipCmul(input[offset], data->filter[offset]),
+                   make_hipDoubleComplex(data->scale, data->scale));
 }
 __device__ auto load_callback_dev = load_callback;
 

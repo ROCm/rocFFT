@@ -20,19 +20,52 @@
 
 #include "accuracy_test.h"
 
+#include <hip/hip_complex.h>
+
+__host__ __device__ float multiply_by_scalar(float a, double b)
+{
+    return a * b;
+}
+__host__ __device__ float2 multiply_by_scalar(float2 a, double b)
+{
+    return hipCmulf(a, make_float2(b, 0.0));
+}
+__host__ __device__ double multiply_by_scalar(double a, double b)
+{
+    return a * b;
+}
+__host__ __device__ double2 multiply_by_scalar(double2 a, double b)
+{
+    return hipCmul(a, make_double2(b, 0.0));
+}
+
+__host__ __device__ float add_scalar(float a, double b)
+{
+    return a + b;
+}
+__host__ __device__ float2 add_scalar(float2 a, double b)
+{
+    return hipCaddf(a, make_float2(b, 0.0));
+}
+__host__ __device__ double add_scalar(double a, double b)
+{
+    return a + b;
+}
+__host__ __device__ double2 add_scalar(double2 a, double b)
+{
+    return hipCadd(a, make_double2(b, 0.0));
+}
+
 // load/store callbacks - cbdata in each is actually a scalar double
 // with a number to apply to each element
 template <typename Tdata>
-__host__ __device__ Tdata
-    load_callback_float(Tdata* input, size_t offset, void* cbdata, void* sharedMem)
+__host__ __device__ Tdata load_callback(Tdata* input, size_t offset, void* cbdata, void* sharedMem)
 {
     auto testdata = static_cast<const callback_test_data*>(cbdata);
     // multiply each element by scalar
     if(input == testdata->base)
-    {
-        return input[offset] * testdata->scalar;
-    }
-
+        return multiply_by_scalar(input[offset], testdata->scalar);
+    // wrong base address passed, return something obviously wrong
     else
     {
         // wrong base address passed, return something obviously wrong
@@ -40,33 +73,10 @@ __host__ __device__ Tdata
     }
 }
 
-// load/store callbacks - cbdata in each is actually a scalar double
-// with a number to apply to each element
-template <typename Tdata>
-__host__ __device__ Tdata
-    load_callback_complex(Tdata* input, size_t offset, void* cbdata, void* sharedMem)
-{
-    auto testdata = static_cast<const callback_test_data*>(cbdata);
-    // multiply each element by scalar
-    if(input == testdata->base)
-    {
-        Tdata val;
-        val.x = input[offset].x * testdata->scalar;
-        val.y = input[offset].y * testdata->scalar;
-        return val;
-    }
-
-    else
-    {
-        // wrong base address passed, return something obviously wrong
-        return input[0];
-    }
-}
-
-__device__ auto load_callback_dev_float   = load_callback_float<float>;
-__device__ auto load_callback_dev_float2  = load_callback_complex<float2>;
-__device__ auto load_callback_dev_double  = load_callback_float<double>;
-__device__ auto load_callback_dev_double2 = load_callback_complex<double2>;
+__device__ auto load_callback_dev_float   = load_callback<float>;
+__device__ auto load_callback_dev_float2  = load_callback<float2>;
+__device__ auto load_callback_dev_double  = load_callback<double>;
+__device__ auto load_callback_dev_double2 = load_callback<double2>;
 
 void* get_load_callback_host(fft_array_type itype, fft_precision precision)
 {
@@ -114,33 +124,20 @@ void* get_load_callback_host(fft_array_type itype, fft_precision precision)
 
 template <typename Tdata>
 __host__ __device__ static void
-    store_callback_float(Tdata* output, size_t offset, Tdata element, void* cbdata, void* sharedMem)
+    store_callback(Tdata* output, size_t offset, Tdata element, void* cbdata, void* sharedMem)
 {
     auto testdata = static_cast<callback_test_data*>(cbdata);
     // add scalar to each element
     if(output == testdata->base)
     {
-        output[offset] = element + testdata->scalar;
+        output[offset] = add_scalar(element, testdata->scalar);
     }
     // otherwise, wrong base address passed, just don't write
 }
-template <typename Tdata>
-__host__ __device__ static void store_callback_complex(
-    Tdata* output, size_t offset, Tdata element, void* cbdata, void* sharedMem)
-{
-    auto testdata = static_cast<callback_test_data*>(cbdata);
-    // add scalar to each element
-    if(output == testdata->base)
-    {
-        output[offset].x = element.x + testdata->scalar;
-        output[offset].y = element.x + testdata->scalar;
-    }
-    // otherwise, wrong base address passed, just don't write
-}
-__device__ auto store_callback_dev_float   = store_callback_float<float>;
-__device__ auto store_callback_dev_float2  = store_callback_complex<float2>;
-__device__ auto store_callback_dev_double  = store_callback_float<double>;
-__device__ auto store_callback_dev_double2 = store_callback_complex<double2>;
+__device__ auto store_callback_dev_float   = store_callback<float>;
+__device__ auto store_callback_dev_float2  = store_callback<float2>;
+__device__ auto store_callback_dev_double  = store_callback<double>;
+__device__ auto store_callback_dev_double2 = store_callback<double2>;
 
 void* get_store_callback_host(fft_array_type otype, fft_precision precision)
 {
@@ -213,7 +210,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
 
             auto output_begin = reinterpret_cast<float2*>(output.front().data());
             for(size_t i = 0; i < num_elems; ++i)
-                store_callback_complex(output_begin, i, output_begin[i], &cbdata, nullptr);
+                store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
             break;
         }
         case fft_precision_double:
@@ -223,7 +220,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
 
             auto output_begin = reinterpret_cast<double2*>(output.front().data());
             for(size_t i = 0; i < num_elems; ++i)
-                store_callback_complex(output_begin, i, output_begin[i], &cbdata, nullptr);
+                store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
             break;
         }
         }
@@ -240,7 +237,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
 
             auto output_begin = reinterpret_cast<float*>(output.front().data());
             for(size_t i = 0; i < num_elems; ++i)
-                store_callback_float(output_begin, i, output_begin[i], &cbdata, nullptr);
+                store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
             break;
         }
         case fft_precision_double:
@@ -250,7 +247,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
 
             auto output_begin = reinterpret_cast<double*>(output.front().data());
             for(size_t i = 0; i < num_elems; ++i)
-                store_callback_float(output_begin, i, output_begin[i], &cbdata, nullptr);
+                store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
             break;
         }
         }
@@ -289,7 +286,7 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
             auto input_begin = reinterpret_cast<float2*>(input.front().data());
             for(size_t i = 0; i < num_elems; ++i)
             {
-                input_begin[i] = load_callback_complex(input_begin, i, &cbdata, nullptr);
+                input_begin[i] = load_callback(input_begin, i, &cbdata, nullptr);
             }
             break;
         }
@@ -301,7 +298,7 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
             auto input_begin = reinterpret_cast<double2*>(input.front().data());
             for(size_t i = 0; i < num_elems; ++i)
             {
-                input_begin[i] = load_callback_complex(input_begin, i, &cbdata, nullptr);
+                input_begin[i] = load_callback(input_begin, i, &cbdata, nullptr);
             }
             break;
         }
@@ -320,7 +317,7 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
             auto input_begin = reinterpret_cast<float*>(input.front().data());
             for(size_t i = 0; i < num_elems; ++i)
             {
-                input_begin[i] = load_callback_float(input_begin, i, &cbdata, nullptr);
+                input_begin[i] = load_callback(input_begin, i, &cbdata, nullptr);
             }
             break;
         }
@@ -332,7 +329,7 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
             auto input_begin = reinterpret_cast<double*>(input.front().data());
             for(size_t i = 0; i < num_elems; ++i)
             {
-                input_begin[i] = load_callback_float(input_begin, i, &cbdata, nullptr);
+                input_begin[i] = load_callback(input_begin, i, &cbdata, nullptr);
             }
             break;
         }
