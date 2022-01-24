@@ -32,8 +32,6 @@ else( )
     "Install path prefix, prepended onto install directories" )
 endif( )
 
-# Workaround for missing llvm cmake files in /opt/rocm/lib/cmake. Remove when this is fixed
-list( APPEND CMAKE_PREFIX_PATH /opt/rocm/llvm /opt/rocm )
 
 
 # This has to be initialized before the project() command appears
@@ -192,6 +190,7 @@ endif( )
 # Hip headers required of all clients; clients use hip to allocate
 # device memory
 find_package( hip REQUIRED CONFIG PATHS )
+
 
 add_subdirectory( library )
 

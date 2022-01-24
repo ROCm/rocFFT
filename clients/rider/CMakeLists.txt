@@ -33,11 +33,15 @@ foreach( rider ${rider_list})
 
   target_compile_options( ${rider} PRIVATE ${WARNING_FLAGS} )
 
+  # NB: hip-clang includes omp.h, so we need to specify the location
+  # of ROCM_CLANG_ROOT at cmake config time if we are using clang++.
+  
   target_include_directories( ${rider}
     PRIVATE
     $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/misc/include>
     ${HIP_CLANG_ROOT}/include
+    ${ROCM_CLANG_ROOT}/include
     )
 
   if(${rider} STREQUAL "rocfft-rider")

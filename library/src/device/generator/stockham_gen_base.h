@@ -21,6 +21,8 @@
 #pragma once
 #include "stockham_gen.h"
 
+#include <cmath>
+
 // Base class for stockham kernels.  Subclasses are responsible for
 // different tiling types.
 //
@@ -89,7 +91,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         unsigned int max_registers = 0;
         for(auto width : factors)
         {
-            unsigned int n = ceil(double(length) / width / threads_per_transform) * width;
+            unsigned int n = std::ceil(double(length) / width / threads_per_transform) * width;
             if(n > max_registers)
                 max_registers = n;
         }
@@ -680,7 +682,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         bool         guard = false) const
     {
         StatementList stmts;
-        unsigned int  iheight = floor(height);
+        unsigned int  iheight = std::floor(height);
         if(height > iheight && threads_per_transform > length / width)
             iheight += 1;
 

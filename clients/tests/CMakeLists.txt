@@ -61,6 +61,7 @@ set( rocfft-test_include_dirs
   $<BUILD_INTERFACE:${FFTW_INCLUDES}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/misc/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../library/src/include>
+  ${ROCM_CLANG_ROOT}/include
   )
 
 set( rocfft-test_link_libs
@@ -115,9 +116,16 @@ endif( )
 option( BUILD_CLIENTS_TESTS_OPENMP "Build tests with OpenMP" ON )
 
 if( BUILD_CLIENTS_TESTS_OPENMP )
-  target_compile_options( rocfft-test PRIVATE -fopenmp -DBUILD_CLIENTS_TESTS_OPENMP )
-  target_link_libraries( rocfft-test PRIVATE -fopenmp -L${HIP_CLANG_ROOT}/lib -Wl,-rpath=${HIP_CLANG_ROOT}/lib )
-  target_include_directories( rocfft-test PRIVATE ${HIP_CLANG_ROOT}/include )
+  if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )  
+    target_compile_options( rocfft-test PRIVATE -fopenmp -DBUILD_CLIENTS_TESTS_OPENMP )
+    target_link_libraries( rocfft-test PRIVATE -fopenmp -L${HIP_CLANG_ROOT}/lib -Wl,-rpath=${HIP_CLANG_ROOT}/lib )
+    target_include_directories( rocfft-test PRIVATE ${HIP_CLANG_ROOT}/include )
+  else()
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+      set(OpenMP_CXX_FLAG "-fopenmp=libomp")
+      target_link_libraries(rocfft-test ${OpenMP_CXX_LIBRARIES})
+    endif()
+  endif()
 endif()
 
 if(FFTW_MULTITHREAD)
