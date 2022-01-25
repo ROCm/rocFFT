@@ -18,11 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef ROCFFT_PRINTBUFFER_H
-#define ROCFFT_PRINTBUFFER_H
+#ifndef PRINTBUFFER_H
+#define PRINTBUFFER_H
 
 #include "increment.h"
-#include "rocfft.h"
 #include <algorithm>
 #include <vector>
 
@@ -63,72 +62,6 @@ inline void printbuffer(const Toutput*         output,
     }
 }
 
-// Print a buffer stored as a std::vector of chars.
-// Template types Tint1 and Tint2 are integer types
-template <typename Tint1, typename Tint2, typename Tallocator, typename Tstream = std::ostream>
-inline void printbuffer(const rocfft_precision                            precision,
-                        const rocfft_array_type                           type,
-                        const std::vector<std::vector<char, Tallocator>>& buf,
-                        const std::vector<Tint1>&                         length,
-                        const std::vector<Tint2>&                         stride,
-                        const size_t                                      nbatch,
-                        const size_t                                      dist,
-                        const std::vector<size_t>&                        offset,
-                        Tstream&                                          stream = std::cout)
-{
-    switch(type)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_hermitian_interleaved:
-        if(precision == rocfft_precision_double)
-        {
-            printbuffer((std::complex<double>*)buf[0].data(),
-                        length,
-                        stride,
-                        nbatch,
-                        dist,
-                        offset[0],
-                        stream);
-        }
-        else
-        {
-            printbuffer((std::complex<float>*)buf[0].data(),
-                        length,
-                        stride,
-                        nbatch,
-                        dist,
-                        offset[0],
-                        stream);
-        }
-        break;
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_planar:
-        if(precision == rocfft_precision_double)
-        {
-            printbuffer((double*)buf[0].data(), length, stride, nbatch, dist, offset[0], stream);
-            printbuffer((double*)buf[1].data(), length, stride, nbatch, dist, offset[1], stream);
-        }
-        else
-        {
-            printbuffer((float*)buf[0].data(), length, stride, nbatch, dist, offset[0], stream);
-            printbuffer((float*)buf[1].data(), length, stride, nbatch, dist, offset[1], stream);
-        }
-        break;
-    case rocfft_array_type_real:
-        if(precision == rocfft_precision_double)
-        {
-            printbuffer((double*)buf[0].data(), length, stride, nbatch, dist, offset[0], stream);
-        }
-        else
-        {
-            printbuffer((float*)buf[0].data(), length, stride, nbatch, dist, offset[0], stream);
-        }
-        break;
-    default:
-        std::cerr << "unknown array type\n";
-    }
-}
-
 // Partial template specializations for printing different buffer types.
 template <typename Toutput>
 class buffer_printer
@@ -145,14 +78,17 @@ public:
                       const Tsize                                       nbatch,
                       const Tsize                                       dist,
                       const std::vector<size_t>&                        offset,
-                      Tstream&                                          stream = std::cout){
-        // Not implemented.
+                      Tstream&                                          stream = std::cout)
+    {
+        throw std::runtime_error("base class for buffer_printer print_buffer not implemented.");
     };
     template <typename Tallocator>
     void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
                            const std::vector<size_t>&                        size,
-                           const std::vector<size_t>&                        offset){
-        // Not implemented
+                           const std::vector<size_t>&                        offset)
+    {
+        throw std::runtime_error(
+            "base class for buffer_printer print_buffer_flat not implemented.");
     };
 };
 
@@ -309,83 +245,5 @@ public:
         std::cout << std::endl;
     };
 };
-
-// Print the contents of a buffer stored as a std::vector of chars.  The output is flat,
-// ie the entire memory range is printed as though it were a contiguous 1D array.
-template <typename Tallocator>
-inline void printbuffer_flat(const rocfft_precision                            precision,
-                             const rocfft_array_type                           type,
-                             const std::vector<std::vector<char, Tallocator>>& buf,
-                             const std::vector<size_t>&                        size,
-                             const std::vector<size_t>&                        offset)
-{
-    switch(type)
-    {
-    case rocfft_array_type_complex_interleaved:
-    case rocfft_array_type_hermitian_interleaved:
-        if(precision == rocfft_precision_double)
-        {
-            auto data = reinterpret_cast<const std::complex<double>*>(buf[0].data());
-            std::cout << "idx " << 0;
-            for(size_t i = 0; i < size[0]; ++i)
-                std::cout << " " << data[i];
-            std::cout << std::endl;
-        }
-        else
-        {
-            auto data = reinterpret_cast<const std::complex<float>*>(buf[0].data());
-            std::cout << "idx " << 0;
-            for(size_t i = 0; i < size[0]; ++i)
-                std::cout << " " << data[i];
-            std::cout << std::endl;
-        }
-        break;
-    case rocfft_array_type_complex_planar:
-    case rocfft_array_type_hermitian_planar:
-        if(precision == rocfft_precision_double)
-        {
-            for(int idx = 0; idx < buf.size(); ++idx)
-            {
-                auto data = reinterpret_cast<const double*>(buf[idx].data());
-                std::cout << "idx " << idx;
-                for(size_t i = 0; i < size[idx]; ++i)
-                    std::cout << " " << data[i];
-                std::cout << std::endl;
-            }
-        }
-        else
-        {
-            for(int idx = 0; idx < buf.size(); ++idx)
-            {
-                auto data = reinterpret_cast<const float*>(buf[idx].data());
-                std::cout << "idx " << idx;
-                for(size_t i = 0; i < size[idx]; ++i)
-                    std::cout << " " << data[i];
-                std::cout << std::endl;
-            }
-        }
-        break;
-    case rocfft_array_type_real:
-        if(precision == rocfft_precision_double)
-        {
-            auto data = reinterpret_cast<const double*>(buf[0].data());
-            std::cout << "idx " << 0;
-            for(size_t i = 0; i < size[0]; ++i)
-                std::cout << " " << data[i];
-            std::cout << std::endl;
-        }
-        else
-        {
-            auto data = reinterpret_cast<const float*>(buf[0].data());
-            std::cout << "idx " << 0;
-            for(size_t i = 0; i < size[0]; ++i)
-                std::cout << " " << data[i];
-            std::cout << std::endl;
-        }
-        break;
-    default:
-        std::cout << "unknown array type\n";
-    }
-}
 
 #endif
