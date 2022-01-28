@@ -524,7 +524,9 @@ def list_large_kernels():
         NS(length=336, factors=[6, 7, 8],    use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'}),
         NS(length=343, factors=[7, 7, 7],    use_3steps_large_twd={
-           'sp': 'true', 'dp': 'true'})
+           'sp': 'true', 'dp': 'true'}),
+        NS(length=512, factors=[8, 8, 8],    use_3steps_large_twd={
+           'sp': 'true', 'dp': 'false'}),
     ]
 
     # for SBCC kernel, increase desired workgroup_size so that columns per
@@ -553,6 +555,7 @@ def list_large_kernels():
         NS(length=192, factors=[6, 4, 4, 2], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=256, threads_per_transform=32), # block_width=8
         NS(length=200, factors=[8, 5, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=400, threads_per_transform=40), # block_width=10
         NS(length=256, factors=[4, 4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=256, threads_per_transform=32), # block_width=8
+        NS(length=512, factors=[8, 8, 8], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=512, threads_per_transform=128),
     ]
 
     # NB:

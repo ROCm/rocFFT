@@ -41,8 +41,8 @@ NodeFactory::Map1DLength const NodeFactory::map1DLengthSingle
        {16384, 64}, //          CC (64cc + 256rc) // 128x128 no faster
        {32768, 128}, //         CC (128cc + 256rc)
        {65536, 256}, //         CC (256cc + 256rc)
-       {131072, 64}, //         CRT(64cc + 2048 + transpose)
-       {262144, 64}, //         CRT(64cc + 4096 + transpose)
+       {131072, 256}, //         CC (256cc + 512rc)
+       {262144, 512}, //         CC (512cc + 512rc)
        {6561, 81}, // pow of 3: CC (81cc + 81rc)
        {10000, 100}, // mixed:  CC (100cc + 100rc)
        {40000, 200}, //         CC (200cc + 200rc)
@@ -53,23 +53,25 @@ NodeFactory::Map1DLength const NodeFactory::map1DLengthSingle
        {32256, 168}, //         CC (168cc + 192rc)
        {43008, 224}}; //        CC (224cc + 192rc) // or {43008, 168}}; CC (168cc + 256rc)
 
-NodeFactory::Map1DLength const NodeFactory::map1DLengthDouble
-    = {{4096, 64}, // pow of 2: CC (64cc + 64rc)
-       {8192, 64}, //           CC (64cc + 128rc)
-       {16384, 64}, //          CC (64cc + 256rc) // 128x128 ?
-       {32768, 128}, //         CC (128cc + 256rc)
-       {65536, 256}, //         CC (256cc + 256rc) // {65536, 64}
-       {131072, 64}, //         CRT(64cc + 2048 + transpose)
-       {6561, 81}, // pow of 3: CC (81cc + 81rc)
-       {2500, 50}, // mixed:    CC (50cc + 50rc)
-       {10000, 100}, //         CC (100cc + 100rc)
-       {40000, 200}, //         CC (200cc + 200rc)
-       {10752, 96}, //          CC (96cc + 112rc)
-       {16807, 343}, //         CC (343cc + 49rc)
-       {18816, 168}, //         CC (168cc + 112rc)
-       {21504, 168}, //         CC (168cc + 128rc)
-       {32256, 168}, //         CC (168cc + 192rc)
-       {43008, 224}}; //        CC (168cc + 256rc) // or {43008, 168}}; CC (168cc + 256rc)
+NodeFactory::Map1DLength const NodeFactory::map1DLengthDouble = {
+    {4096, 64}, // pow of 2: CC (64cc + 64rc)
+    {8192, 64}, //           CC (64cc + 128rc)
+    {16384, 64}, //          CC (64cc + 256rc) // 128x128 ?
+    {32768, 128}, //         CC (128cc + 256rc)
+    {65536, 256}, //         CC (256cc + 256rc) // {65536, 64}
+    {131072, 256}, //         CC (256cc + 512rc)
+    {262144, 512}, //         CC (512cc + 512rc)
+    {6561, 81}, // pow of 3: CC (81cc + 81rc)
+    {2500, 50}, // mixed:    CC (50cc + 50rc)
+    {10000, 100}, //         CC (100cc + 100rc)
+    {40000, 200}, //         CC (200cc + 200rc)
+    {10752, 96}, //          CC (96cc + 112rc)
+    {16807, 343}, //         CC (343cc + 49rc)
+    {18816, 168}, //         CC (168cc + 112rc)
+    {21504, 168}, //         CC (168cc + 128rc)
+    {32256, 168}, //         CC (168cc + 192rc)
+    {43008, 224}, //        CC (168cc + 256rc) // or {43008, 168}}; CC (168cc + 256rc)
+};
 
 //
 // Factorisation helpers
@@ -373,8 +375,6 @@ ComputeScheme NodeFactory::Decide1DScheme(NodeMetaData& nodeData)
     {
         // TODO: wrap the below into a function and check with LDS size
         auto block_threshold = 262144;
-        if(nodeData.precision == rocfft_precision_double)
-            block_threshold /= 2;
         if(nodeData.length[0] <= block_threshold)
         {
             // Enable block compute under these conditions
@@ -400,8 +400,17 @@ ComputeScheme NodeFactory::Decide1DScheme(NodeMetaData& nodeData)
                     failed = true;
                 }
             }
-            // up to 256cc + 256rc for the 1arge-1D, use CRT for even larger
-            scheme = (nodeData.length[0] <= 65536) ? CS_L1D_CC : CS_L1D_CRT;
+            // for gfx906, 512 CC/RC isn't as fast, so use CRT
+            // with a nicer length
+            if(is_device_gcn_arch(nodeData.deviceProp, "gfx906") && nodeData.length[0] == 262144)
+            {
+                divLength1 = 64;
+                scheme     = CS_L1D_CRT;
+            }
+            else
+            {
+                scheme = CS_L1D_CC;
+            }
         }
         else
         {
