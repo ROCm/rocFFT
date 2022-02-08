@@ -41,9 +41,6 @@ higher to build successfully.  `-DROCFFT_CALLBACKS_ENABLED=off`
 may be specified to cmake to disable those calls on older ROCm
 compilers, though callbacks will not work correctly in this configuration.
 
-One can use nvcc as a backend compiler by passing the option `-DUSE_CUDA=yes`
-and setting `HIP_PLATFORM=nvcc` in your environment.
-
 There are several clients included with rocFFT:
 1. rocfft-rider runs general transforms and is useful for performance analysis;
 2. rocfft-test runs various regression tests;

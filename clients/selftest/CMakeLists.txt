@@ -77,10 +77,8 @@ if( USE_CUDA )
     $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
     )
   target_compile_definitions( rocfft-selftest PRIVATE __HIP_PLATFORM_NVCC__ )
-  target_link_libraries( rocfft-selftest PRIVATE ${CUDA_LIBRARIES} )
-else()
-  target_link_libraries( rocfft-selftest PRIVATE hip::device )
 endif( )
+target_link_libraries( rocfft-selftest PRIVATE ${ROCFFT_CLIENTS_HOST_LINK_LIBS} )
 
 set_target_properties( rocfft-selftest PROPERTIES
   DEBUG_POSTFIX "-d"

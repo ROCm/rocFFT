@@ -20,30 +20,6 @@
 # THE SOFTWARE.
 # #############################################################################
 
-
-# target_link_libraries() override
-function( target_link_libraries target_name )
-  # Remove explicit mentions of hip library so cmake doesn't complain
-  # on nvcc path.
-  if( USE_CUDA )
-    foreach( link_library ${ARGN} )
-      if( (link_library MATCHES "^hip::|^hcc::") )
-      else( )
-        if( TARGET ${link_library} )
-          list( APPEND new_list -Xlinker ${link_library} )
-        else( )
-          list( APPEND new_list ${link_library} )
-        endif( )
-      endif( )
-    endforeach( )
-    _target_link_libraries( ${target_name} ${new_list} )
-  else( )
-    _target_link_libraries( ${target_name} ${ARGN} )
-  endif( )
-endfunction( )
-
-
-
 # This is incremented when the ABI to the library changes
 set( rocfft_SOVERSION 0.1 )
 
@@ -101,12 +77,6 @@ set( BIN_INSTALL_DIR ${CMAKE_INSTALL_BINDIR} )
 set( LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR} )
 set( INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR} )
 
-if( ROCFFT_RUNTIME_COMPILE )
-  # look for python development files - we also require an interpreter
-  # but the version of it needn't match the development version.
-  find_package (Python3 3.6 COMPONENTS Development REQUIRED)
-endif()
-
 # Build into subdirectories
 add_subdirectory( src )
 
@@ -126,9 +96,6 @@ string( TOLOWER "${HIP_RUNTIME}" HIP_RUNTIME_LOWER )
 if( HIP_RUNTIME_LOWER STREQUAL "rocclr" )
   set( CPACK_DEBIAN_PACKAGE_DEPENDS "hip-rocclr (>= 3.5.0)" )
   set( CPACK_RPM_PACKAGE_REQUIRES "hip-rocclr >= 3.5.0" )
-elseif( HIP_RUNTIME STREQUAL "cuda" )
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS "hip-nvcc (>= 3.5.0)")
-  set(CPACK_RPM_PACKAGE_REQUIRES "hip-nvcc >= 3.5.0")
 endif( )
 set( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE.md" )
 set( CPACK_RPM_PACKAGE_LICENSE "MIT" )

@@ -66,13 +66,9 @@ foreach( rider ${rider_list})
       )
   endif()
 
-  if( NOT BUILD_SHARED_LIBS )
-    target_link_libraries( ${rider} PUBLIC hip::host )
-  endif()
-
-  if( NOT USE_CUDA )
-    target_link_libraries( ${rider} PUBLIC hip::device )
-  endif()
+  target_link_libraries( ${rider} PUBLIC
+    ${ROCFFT_CLIENTS_HOST_LINK_LIBS}
+  )
 
   set_target_properties( ${rider} PROPERTIES
     DEBUG_POSTFIX "-d"

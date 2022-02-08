@@ -89,10 +89,8 @@ target_include_directories( rocfft-test
   ${rocfft-test_include_dirs}
   )
 
-
 if( NOT BUILD_SHARED_LIBS )
-  #target_link_libraries(rocfft-test INTERFACE hip::host)
-  list(APPEND rocfft-test_link_libs hip::host)
+  list(APPEND rocfft-test_link_libs ${ROCFFT_CLIENTS_HOST_LINK_LIBS} ${ROCFFT_CLIENTS_DEVICE_LINK_LIBS})
 endif()
 
 target_link_libraries( rocfft-test
@@ -108,10 +106,8 @@ if( USE_CUDA )
     $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
     )
   target_compile_definitions( rocfft-test PRIVATE __HIP_PLATFORM_NVCC__ )
-  target_link_libraries( rocfft-test PRIVATE ${CUDA_LIBRARIES} )
-else()
-  target_link_libraries( rocfft-test PRIVATE hip::device )
 endif( )
+target_link_libraries( rocfft-test PRIVATE ${ROCFFT_CLIENTS_HOST_LINK_LIBS} ${ROCFFT_CLIENTS_DEVICE_LINK_LIBS} )
 
 option( BUILD_CLIENTS_TESTS_OPENMP "Build tests with OpenMP" ON )
 

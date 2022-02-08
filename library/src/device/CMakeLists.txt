@@ -42,6 +42,10 @@ endif()
 # This builds the generator executable
 add_subdirectory( generator )
 
+if(USE_CUDA)
+  add_compile_options(--cuda-path=${CUDA_PREFIX} --cuda-gpu-arch=${CUDA_ARCH} -xcuda)
+endif()
+
 # Generated kernels
 
 # list of {"pow2" "pow3" "pow5" "pow7" "small" "large" "2D" "all"}, set to "none" if build only manual size
@@ -178,9 +182,7 @@ foreach( sub RANGE 3 )
 
     # if we're building singlelib, we don't want to export any of the
     # device library symbols to the main library
-    if(NOT HIP_PLATFORM STREQUAL "nvcc")
-      set_target_properties( rocfft-device-${sub} PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
-    endif()
+    set_target_properties( rocfft-device-${sub} PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
   endif()
 
   set_property(TARGET rocfft-device-${sub} PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -196,27 +198,18 @@ foreach( sub RANGE 3 )
   add_dependencies(rocfft-device-${sub} gen_headers_target)
 
   if( NOT BUILD_SHARED_LIBS )
-    target_link_libraries( rocfft-device-${sub} INTERFACE hip::host )
+    target_link_libraries( rocfft-device-${sub} INTERFACE ${ROCFFT_HOST_LINK_LIBS} )
   endif()
-  target_link_libraries( rocfft-device-${sub} PRIVATE hip::device hip::host )
+  target_link_libraries( rocfft-device-${sub} PRIVATE ${ROCFFT_DEVICE_LINK_LIBS} ${ROCFFT_HOST_LINK_LIBS} )
 
-  if(HIP_PLATFORM STREQUAL "nvcc")
-    target_compile_options( rocfft-device-${sub} PRIVATE
-      "-gencode arch=compute_75,code=sm_75"
-      "-gencode arch=compute_70,code=sm_70"
-      "-gencode arch=compute_60,code=sm_60" )
-      target_compile_options( rocfft-device-${sub} PRIVATE -Xcompiler -fPIC)
-  else()
-    target_compile_options( rocfft-device-${sub} PRIVATE -fno-gpu-rdc )
+  target_compile_options( rocfft-device-${sub} PRIVATE -fno-gpu-rdc )
 
-    # Set AMD GPU architecture options
+  # Set AMD GPU architecture options
 
-    # Enable compilation of desired architectures
-    foreach( target ${AMDGPU_TARGETS} )
-      target_compile_options( rocfft-device-${sub} PRIVATE --offload-arch=${target} )
-    endforeach( )
-
-  endif()
+  # Enable compilation of desired architectures
+  foreach( target ${AMDGPU_TARGETS} )
+    target_compile_options( rocfft-device-${sub} PRIVATE --offload-arch=${target} )
+  endforeach( )
 
   target_include_directories( rocfft-device-${sub}
     PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

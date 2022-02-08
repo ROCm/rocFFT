@@ -22,7 +22,7 @@
 
 CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 
-find_package(hip)
+find_package(HIP REQUIRED)
 
 if( NOT TARGET rocfft )
   find_package(rocfft)
@@ -73,9 +73,7 @@ target_link_libraries(
         $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
       )
     target_compile_definitions( ${sample} PRIVATE __HIP_PLATFORM_NVCC__ )
-    target_link_libraries( ${sample} PRIVATE ${CUDA_LIBRARIES} )
-  else( )
-    target_link_libraries( ${sample} PRIVATE hip::device )
   endif( )
+  target_link_libraries( ${sample} PRIVATE ${ROCFFT_CLIENTS_HOST_LINK_LIBS} ${ROCFFT_CLIENTS_DEVICE_LINK_LIBS} )
 
 endforeach( )

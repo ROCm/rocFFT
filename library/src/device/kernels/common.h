@@ -21,8 +21,9 @@
 //   Further performance tuning might be done later.
 static const unsigned int LAUNCH_BOUNDS_R2C_C2R_KERNEL = 256;
 
-#ifdef __NVCC__
+#ifdef __HIP_PLATFORM_NVIDIA__
 #include "vector_types.h"
+#include <cuComplex.h>
 
 __device__ inline float2 operator-(const float2& a, const float2& b)
 {
@@ -36,6 +37,20 @@ __device__ inline float2 operator*(const float& a, const float2& b)
 {
     return make_float2(a * b.x, a * b.y);
 }
+__device__ inline float2 operator*=(float2& a, const float2& b)
+{
+    a = cuCmulf(a, b);
+    return a;
+}
+__device__ inline float2 operator*=(float2& a, const float& b)
+{
+    a = cuCmulf(a, make_float2(b, b));
+    return a;
+}
+__device__ inline float2 operator-(const float2& a)
+{
+    return cuCmulf(a, make_float2(-1.0, -1.0));
+}
 
 __device__ inline double2 operator-(const double2& a, const double2& b)
 {
@@ -48,6 +63,20 @@ __device__ inline double2 operator+(const double2& a, const double2& b)
 __device__ inline double2 operator*(const double& a, const double2& b)
 {
     return make_double2(a * b.x, a * b.y);
+}
+__device__ inline double2 operator*=(double2& a, const double2& b)
+{
+    a = cuCmul(a, b);
+    return a;
+}
+__device__ inline double2 operator*=(double2& a, const double& b)
+{
+    a = cuCmul(a, make_double2(b, b));
+    return a;
+}
+__device__ inline double2 operator-(const double2& a)
+{
+    return cuCmul(a, make_double2(-1.0, -1.0));
 }
 
 #endif
@@ -181,27 +210,15 @@ __device__ inline T lib_make_vector2(real_type_t<T> v0, real_type_t<T> v1);
 
 template <>
 __device__ inline float2 lib_make_vector2(float v0, float v1)
-#ifdef __NVCC__
 {
     return make_float2(v0, v1);
 }
-#else
-{
-    return float2(v0, v1);
-}
-#endif
 
 template <>
 __device__ inline double2 lib_make_vector2(double v0, double v1)
-#ifdef __NVCC__
 {
     return make_double2(v0, v1);
 }
-#else
-{
-    return double2(v0, v1);
-}
-#endif
 
 template <typename T>
 __device__ inline T
@@ -209,27 +226,15 @@ __device__ inline T
 
 template <>
 __device__ inline float4 lib_make_vector4(float v0, float v1, float v2, float v3)
-#ifdef __NVCC__
 {
     return make_float4(v0, v1, v2, v3);
 }
-#else
-{
-    return float4(v0, v1, v2, v3);
-}
-#endif
 
 template <>
 __device__ inline double4 lib_make_vector4(double v0, double v1, double v2, double v3)
-#ifdef __NVCC__
 {
     return make_double4(v0, v1, v2, v3);
 }
-#else
-{
-    return double4(v0, v1, v2, v3);
-}
-#endif
 
 template <typename T>
 __device__ T TWLstep1(const T* twiddles, size_t u)

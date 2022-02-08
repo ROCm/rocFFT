@@ -36,12 +36,20 @@ endfunction( )
 
 add_executable( rocfft_rtc_helper rocfft_rtc_helper.cpp rtccompile.cpp )
 
+# each backend requires different libraries for host and device code
+if( USE_CUDA )
+  set( ROCFFT_HOST_LINK_LIBS -lnvrtc -lnvrtc-builtins -lnvptxcompiler_static -lcuda )
+else()
+  set( ROCFFT_HOST_LINK_LIBS hip::host )
+  set( ROCFFT_DEVICE_LINK_LIBS hip::device )
+endif()
+
 set( package_targets rocfft rocfft_rtc_helper )
 target_include_directories( rocfft_rtc_helper
   PRIVATE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
 )
-target_link_libraries( rocfft_rtc_helper PRIVATE hip::host )
+target_link_libraries( rocfft_rtc_helper PRIVATE ${ROCFFT_HOST_LINK_LIBS} )
 set_target_properties( rocfft_rtc_helper PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON )
 
 # Package that helps me set visibility for function names exported
@@ -190,12 +198,10 @@ if( ${CMAKE_BUILD_TYPE} STREQUAL Debug )
 endif()
 
 if( NOT BUILD_SHARED_LIBS )
-  target_link_libraries( rocfft INTERFACE hip::host )
+  target_link_libraries( rocfft INTERFACE ${ROCFFT_HOST_LINK_LIBS} )
 endif()
 
-if( NOT USE_CUDA )
-  target_link_libraries( rocfft PRIVATE hip::device )
-endif()
+target_link_libraries( rocfft PRIVATE ${ROCFFT_DEVICE_LINK_LIBS} )
 
 target_link_libraries( rocfft PRIVATE rocfft-device-0 )
 target_link_libraries( rocfft PRIVATE rocfft-device-1 )
@@ -223,12 +229,7 @@ set_target_properties( rocfft PROPERTIES
   CXX_STANDARD_REQUIRED ON
 )
 
-#TODO:
-# hipcc(with nvcc backend) build has problem for share library visibility,
-# need to figure out the reason and enable visibility "hidden" for nvcc eventually.
-if(NOT HIP_PLATFORM STREQUAL "nvcc")
-  set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
-endif()
+set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
 
 generate_export_header( rocfft EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft-export.h )
 

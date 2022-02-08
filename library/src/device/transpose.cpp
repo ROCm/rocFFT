@@ -22,6 +22,7 @@
 #include "kernel_launch.h"
 #include "rocfft_hip.h"
 #include <iostream>
+#include <sstream>
 
 // chain of macros to iterate over transpose kernel template parameters, to
 // set a function pointer 'kernel_func'
@@ -577,6 +578,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                      data->callbacks.store_cb_data);
         else
         {
+#ifdef __HIP_PLATFORM_AMD__
             // For some large pow of 2 cases on gfx90a, the 64x16 conig seems better
             if(is_device_gcn_arch(data->deviceProp, "gfx90a")
                && ((m == 512 && n == 512) || (m == 4096 && n == 262144)
@@ -609,6 +611,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                                          data->callbacks.store_cb_fn,
                                                          data->callbacks.store_cb_data);
             else
+#endif
                 rocfft_transpose_outofplace_template<double2,
                                                      interleaved<double2>,
                                                      interleaved<double2>,

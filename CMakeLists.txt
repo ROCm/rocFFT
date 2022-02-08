@@ -56,27 +56,6 @@ else()
   set( HIP_PLATFORM "hcc" )
 endif()
 
-# The nvcc backend can be used to compile for CUDA devices.
-if( USE_CUDA )
-  # NB: CUDA has first-class since cmake 2.8; find_package(CUDA) is deprecated.
-  # See, eg, https://cmake.org/cmake/help/v3.12/module/FindCUDA.html
-  set( ENV{HIP_PLATFORM} "nvcc" )
-  set( HIP_PLATFORM "nvcc" )
-  set( CMAKE_C_COMPILE_OPTIONS_PIC
-    -Xcompiler ${CMAKE_C_COMPILE_OPTIONS_PIC} )
-  set( CMAKE_CXX_COMPILE_OPTIONS_PIC
-    -Xcompiler ${CMAKE_CXX_COMPILE_OPTIONS_PIC} )
-  set( CMAKE_SHARED_LIBRARY_C_FLAGS
-    -Xlinker ${CMAKE_SHARED_LIBRARY_C_FLAGS} )
-  set( CMAKE_SHARED_LIBRARY_CXX_FLAGS "-Xlinker -fPIC" )
-  set( CMAKE_SHARED_LIBRARY_SONAME_C_FLAG "-Xlinker -soname," )
-  set( CMAKE_SHARED_LIBRARY_SONAME_CXX_FLAG "-Xlinker -soname," )
-  set( CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG "-Xlinker -rpath," )
-  set( CMAKE_SHARED_LIBRARY_RUNTIME_CXX_FLAG "-Xlinker -rpath," )
-  set( CMAKE_EXECUTABLE_RUNTIME_C_FLAG "-Xlinker -rpath," )
-  set( CMAKE_EXECUTABLE_RUNTIME_CXX_FLAG "-Xlinker -rpath," )
-endif( )
-
 # This finds the rocm-cmake project, and installs it if not found
 # rocm-cmake contains common cmake code for rocm projects to help setup and install
 set( PROJECT_EXTERN_DIR ${CMAKE_CURRENT_BINARY_DIR}/extern )
@@ -181,15 +160,22 @@ else()
 endif()
 set(AMDGPU_TARGETS "${DEFAULT_AMDGPU_TARGETS}" CACHE STRING "List of specific machine types for library to target")
 
-# Find HCC/HIP dependencies
-if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
-  message( STATUS "Building with ROCm tools" )
-  find_package( hip REQUIRED CONFIG PATHS )
-endif( )
+# HIP is required - library and clients use HIP to access the device
+find_package( HIP REQUIRED )
 
-# Hip headers required of all clients; clients use hip to allocate
-# device memory
-find_package( hip REQUIRED CONFIG PATHS )
+# The nvidia backend can be used to compile for CUDA devices.
+# Specify the CUDA prefix in the CUDA_PREFIX variable.
+# CUDA_ARCH (e.g. sm_75) is also required.
+if( USE_CUDA )
+  if( NOT DEFINED CUDA_PREFIX )
+    message( FATAL_ERROR "CUDA_PREFIX variable is required (e.g. /usr/local/cuda-11.4)" )
+  endif()
+  if( NOT DEFINED CUDA_ARCH )
+    message( FATAL_ERROR "CUDA_ARCH variable is required. (e.g. sm_75)" )
+  endif()
+  add_compile_options(-I${HIP_ROOT_DIR}/include -I${CUDA_PREFIX}/include -D__HIP_PLATFORM_NVIDIA__)
+  add_link_options(-L${CUDA_PREFIX}/lib64 -pthread)
+endif( )
 
 
 add_subdirectory( library )

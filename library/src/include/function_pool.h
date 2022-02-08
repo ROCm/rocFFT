@@ -25,6 +25,7 @@
 
 #include "../device/kernels/common.h"
 #include "tree_node.h"
+#include <sstream>
 #include <unordered_map>
 
 using FMKey

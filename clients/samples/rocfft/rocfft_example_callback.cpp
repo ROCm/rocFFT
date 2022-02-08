@@ -22,7 +22,7 @@
 
 #include "rocfft.h"
 #include <hip/hip_complex.h>
-#include <hip/hip_runtime_api.h>
+#include <hip/hip_runtime.h>
 #include <hip/hip_vector_types.h>
 #include <iostream>
 #include <math.h>
@@ -113,7 +113,12 @@ int main()
     // get a properly-typed host pointer to the device function, as
     // rocfft_execution_info_set_load_callback expects void*.
     void* cbptr_host = nullptr;
+    // hipMemcpyFromSymbol does not currently work properly on nvidia backend
+#ifdef __HIP_PLATFORM_AMD__
     hipMemcpyFromSymbol(&cbptr_host, load_callback_dev, sizeof(void*));
+#else
+    cudaMemcpyFromSymbol(&cbptr_host, load_callback_dev, sizeof(void*));
+#endif
 
     // set callback
     rocfft_execution_info_set_load_callback(info, &cbptr_host, &cbdata_dev, 0);

@@ -11,6 +11,8 @@
 #include <cassert>
 #include <math.h>
 #include <numeric>
+#include <stdexcept>
+#include <string>
 #include <tuple>
 #include <vector>
 

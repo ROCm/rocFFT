@@ -90,12 +90,20 @@ void* get_load_callback_host(fft_array_type itype, fft_precision precision)
         {
         case fft_precision_single:
             EXPECT_EQ(
+#ifdef __HIP_PLATFORM_AMD__
                 hipMemcpyFromSymbol(&load_callback_host, load_callback_dev_float2, sizeof(void*)),
+#else
+                cudaMemcpyFromSymbol(&load_callback_host, load_callback_dev_float2, sizeof(void*)),
+#endif
                 hipSuccess);
             return load_callback_host;
         case fft_precision_double:
             EXPECT_EQ(
+#ifdef __HIP_PLATFORM_AMD__
                 hipMemcpyFromSymbol(&load_callback_host, load_callback_dev_double2, sizeof(void*)),
+#else
+                cudaMemcpyFromSymbol(&load_callback_host, load_callback_dev_double2, sizeof(void*)),
+#endif
                 hipSuccess);
             return load_callback_host;
         }
@@ -106,12 +114,20 @@ void* get_load_callback_host(fft_array_type itype, fft_precision precision)
         {
         case fft_precision_single:
             EXPECT_EQ(
+#ifdef __HIP_PLATFORM_AMD__
                 hipMemcpyFromSymbol(&load_callback_host, load_callback_dev_float, sizeof(void*)),
+#else
+                cudaMemcpyFromSymbol(&load_callback_host, load_callback_dev_float, sizeof(void*)),
+#endif
                 hipSuccess);
             return load_callback_host;
         case fft_precision_double:
             EXPECT_EQ(
+#ifdef __HIP_PLATFORM_AMD__
                 hipMemcpyFromSymbol(&load_callback_host, load_callback_dev_double, sizeof(void*)),
+#else
+                cudaMemcpyFromSymbol(&load_callback_host, load_callback_dev_double, sizeof(void*)),
+#endif
                 hipSuccess);
             return load_callback_host;
         }
@@ -150,14 +166,26 @@ void* get_store_callback_host(fft_array_type otype, fft_precision precision)
         switch(precision)
         {
         case fft_precision_single:
+#ifdef __HIP_PLATFORM_AMD__
             EXPECT_EQ(
                 hipMemcpyFromSymbol(&store_callback_host, store_callback_dev_float2, sizeof(void*)),
                 hipSuccess);
+#else
+            EXPECT_EQ(cudaMemcpyFromSymbol(
+                          &store_callback_host, store_callback_dev_float2, sizeof(void*)),
+                      hipSuccess);
+#endif
             return store_callback_host;
         case fft_precision_double:
+#ifdef __HIP_PLATFORM_AMD__
             EXPECT_EQ(hipMemcpyFromSymbol(
                           &store_callback_host, store_callback_dev_double2, sizeof(void*)),
                       hipSuccess);
+#else
+            EXPECT_EQ(cudaMemcpyFromSymbol(
+                          &store_callback_host, store_callback_dev_double2, sizeof(void*)),
+                      hipSuccess);
+#endif
             return store_callback_host;
         }
     }
@@ -166,14 +194,26 @@ void* get_store_callback_host(fft_array_type otype, fft_precision precision)
         switch(precision)
         {
         case fft_precision_single:
+#ifdef __HIP_PLATFORM_AMD__
             EXPECT_EQ(
                 hipMemcpyFromSymbol(&store_callback_host, store_callback_dev_float, sizeof(void*)),
                 hipSuccess);
+#else
+            EXPECT_EQ(
+                cudaMemcpyFromSymbol(&store_callback_host, store_callback_dev_float, sizeof(void*)),
+                hipSuccess);
+#endif
             return store_callback_host;
         case fft_precision_double:
+#ifdef __HIP_PLATFORM_AMD__
             EXPECT_EQ(
                 hipMemcpyFromSymbol(&store_callback_host, store_callback_dev_double, sizeof(void*)),
                 hipSuccess);
+#else
+            EXPECT_EQ(cudaMemcpyFromSymbol(
+                          &store_callback_host, store_callback_dev_double, sizeof(void*)),
+                      hipSuccess);
+#endif
             return store_callback_host;
         }
     }
