@@ -316,4 +316,7 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
 
     rocfft_cleanup();
+
+    HIP_V_THROW(hipEventDestroy(start), "hipEventDestroy failed");
+    HIP_V_THROW(hipEventDestroy(stop), "hipEventDestroy failed");
 }

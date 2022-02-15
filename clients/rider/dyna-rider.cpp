@@ -284,6 +284,9 @@ float run_plan(
     float time;
     hipEventElapsedTime(&time, start, stop);
     return time;
+
+    HIP_V_THROW(hipEventDestroy(start), "hipEventDestroy failed");
+    HIP_V_THROW(hipEventDestroy(stop), "hipEventDestroy failed");
 }
 
 // Load python library with RTLD_GLOBAL so that rocfft is free to
