@@ -971,6 +971,11 @@ public:
         return fft_status_success;
     };
 
+    size_t fft_params_vram_footprint()
+    {
+        return fft_params::vram_footprint();
+    }
+
     virtual size_t vram_footprint()
     {
         const auto ibuf_size = ibuffer_sizes();

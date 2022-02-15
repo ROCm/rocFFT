@@ -733,9 +733,34 @@ inline void fft_vs_reference_impl(Tparams& params)
     auto ibuffer_sizes = params.ibuffer_sizes();
     auto obuffer_sizes = params.obuffer_sizes();
 
+    auto raw_vram_footprint = params.fft_params_vram_footprint();
+
+    // Add vram footprint from real/complex even twiddle buffer size.
+    if(params.transform_type == fft_transform_type_real_forward
+       || params.transform_type == fft_transform_type_real_inverse)
+    {
+        const auto realdim = params.length.back();
+        if(realdim % 2 == 0)
+        {
+            const auto complex_size = params.precision == fft_precision_single ? 7 : 16;
+            raw_vram_footprint += (realdim / 2) * complex_size;
+        }
+    }
+    if(!vram_fits_problem(raw_vram_footprint))
+    {
+        GTEST_SKIP() << "Raw problem size (" << raw_vram_footprint
+                     << ") raw data too large for device";
+    }
+
+    if(verbose > 2)
+    {
+        std::cout << "Raw problem size: " << raw_vram_footprint << std::endl;
+    }
+
     // Initial check of raw data footprint, not including any work
-    // buffers - if that doesn't fit don't even bother going further
+    // buffers - if that doesn't fit don't even bother going further.
     const auto vram_footprint = params.vram_footprint();
+
     if(!vram_fits_problem(vram_footprint))
     {
         if(verbose)
@@ -743,7 +768,6 @@ inline void fft_vs_reference_impl(Tparams& params)
             std::cout << "Problem raw data won't fit on device; skipped." << std::endl;
         }
         GTEST_SKIP() << "Problem size (" << vram_footprint << ") raw data too large for device";
-        return;
     }
 
     // Create FFT plan - this will also allocate work buffer, but

@@ -162,6 +162,7 @@ public:
             throw std::runtime_error("Struct setup failed");
         }
         val += workbuffersize;
+
         return val;
     }
 
