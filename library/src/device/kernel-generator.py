@@ -501,6 +501,8 @@ def list_large_kernels():
            'sp': 'true',  'dp': 'false'}),
         NS(length=112, factors=[4, 7, 4],    use_3steps_large_twd={
            'sp': 'false',  'dp': 'false'}),
+        NS(length=125, factors=[5, 5, 5],    use_3steps_large_twd={
+           'sp': 'true',  'dp': 'false'}),
         NS(length=128, factors=[8, 4, 4],    use_3steps_large_twd={
            'sp': 'true',  'dp': 'true'}, workgroup_size=256),
         NS(length=160, factors=[4, 10, 4],   use_3steps_large_twd={
@@ -519,6 +521,9 @@ def list_large_kernels():
            'sp': 'true', 'dp': 'false'}),
         NS(length=240, factors=[8, 5, 6],    use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'}),
+        # TODO- radix-9 and do a [9,9,3]
+        NS(length=243, factors=[3, 3, 3, 3, 3],    use_3steps_large_twd={
+           'sp': 'true', 'dp': 'false'}, workgroup_size=243),
         NS(length=256, factors=[8, 4, 8], use_3steps_large_twd={
            'sp': 'true',  'dp': 'false'}, flavour='wide'),
         NS(length=336, factors=[6, 7, 8],    use_3steps_large_twd={
@@ -546,12 +551,11 @@ def list_large_kernels():
         NS(length=50,  factors=[10, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=50, threads_per_transform=5), # block_width=10
         # SBRC64: wgs=256 poor in MI50
         NS(length=64,  factors=[4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=128, threads_per_transform=16), # block_width=8
-        # NS(length=81,  factors=[3, 3, 3, 3], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=486, threads_per_transform=27), # block_width=18
         NS(length=81,  factors=[3, 3, 3, 3], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=243, threads_per_transform=27), # block_width=9
         NS(length=100, factors=[5, 5, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=100, threads_per_transform=25), # block_width=4
         NS(length=112, factors=[4, 7, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=448, threads_per_transform=28), # block_width=16
+        NS(length=125, factors=[5, 5, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=250, threads_per_transform=25), # block_width=10
         NS(length=128, factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=128, threads_per_transform=16), # block_width=8
-        # NS(length=128, factors=[8, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=256, threads_per_transform=32), # block_width=8
         NS(length=192, factors=[6, 4, 4, 2], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=256, threads_per_transform=32), # block_width=8
         NS(length=200, factors=[8, 5, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=400, threads_per_transform=40), # block_width=10
         NS(length=256, factors=[4, 4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=256, threads_per_transform=32), # block_width=8

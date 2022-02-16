@@ -89,9 +89,11 @@ lengths = {
         8192,
         10000,
         10752,
+        15625,
         16384,
         16807,
         18816,
+        19683,
         21504,
         32256,
         43008,
@@ -171,7 +173,7 @@ def md():
 def qa():
     """AMD QA suite."""
 
-    for length1 in [8192, 10752, 18816, 21504, 32256, 43008, 16384, 16807]:
+    for length1 in [8192, 10752, 18816, 21504, 32256, 43008, 16384, 19683, 15625, 16807]:
         for direction in [-1, 1]:
             yield Problem([length1],
                           tag=mktag("qa1", 1, 'double', direction, False, False),
