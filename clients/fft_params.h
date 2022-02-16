@@ -135,22 +135,22 @@ public:
     virtual ~fft_params(){};
 
     // Given an array type, return the name as a string.
-    static std::string array_type_name(const fft_array_type type)
+    static std::string array_type_name(const fft_array_type type, bool verbose = true)
     {
         switch(type)
         {
         case fft_array_type_complex_interleaved:
-            return "fft_array_type_complex_interleaved";
+            return verbose ? "fft_array_type_complex_interleaved" : "CI";
         case fft_array_type_complex_planar:
-            return "fft_array_type_complex_planar";
+            return verbose ? "fft_array_type_complex_planar" : "CP";
         case fft_array_type_real:
-            return "fft_array_type_real";
+            return verbose ? "fft_array_type_real" : "R";
         case fft_array_type_hermitian_interleaved:
-            return "fft_array_type_hermitian_interleaved";
+            return verbose ? "fft_array_type_hermitian_interleaved" : "HI";
         case fft_array_type_hermitian_planar:
-            return "fft_array_type_hermitian_planar";
+            return verbose ? "fft_array_type_hermitian_planar" : "HP";
         case fft_array_type_unset:
-            return "fft_array_type_unset";
+            return verbose ? "fft_array_type_unset" : "UN";
         }
         return "";
     }
@@ -242,6 +242,223 @@ public:
         ss << separator;
 
         return ss.str();
+    }
+
+    // Produce a stringified token of the test fft params.
+    std::string token() const
+    {
+        std::string ret;
+
+        switch(transform_type)
+        {
+        case fft_transform_type_complex_forward:
+            ret += "complex_forward_";
+            break;
+        case fft_transform_type_complex_inverse:
+            ret += "complex_inverse_";
+            break;
+        case fft_transform_type_real_forward:
+            ret += "real_forward_";
+            break;
+        case fft_transform_type_real_inverse:
+            ret += "real_inverse_";
+            break;
+        }
+
+        ret += "len_";
+
+        for(auto n : length)
+        {
+            ret += std::to_string(n);
+            ret += "_";
+        }
+        switch(precision)
+        {
+        case fft_precision_single:
+            ret += "single_";
+            break;
+        case fft_precision_double:
+            ret += "double_";
+            break;
+        }
+
+        switch(placement)
+        {
+        case fft_placement_inplace:
+            ret += "ip_";
+            break;
+        case fft_placement_notinplace:
+            ret += "op_";
+            break;
+        }
+
+        ret += "batch_";
+        ret += std::to_string(nbatch);
+
+        auto append_array_info = [&ret](const std::vector<size_t>& stride, fft_array_type type) {
+            for(auto s : stride)
+            {
+                ret += std::to_string(s);
+                ret += "_";
+            }
+
+            switch(type)
+            {
+            case fft_array_type_complex_interleaved:
+                ret += "CI";
+                break;
+            case fft_array_type_complex_planar:
+                ret += "CP";
+                break;
+            case fft_array_type_real:
+                ret += "R";
+                break;
+            case fft_array_type_hermitian_interleaved:
+                ret += "HI";
+                break;
+            case fft_array_type_hermitian_planar:
+                ret += "HP";
+                break;
+            default:
+                ret += "UN";
+                break;
+            }
+        };
+
+        ret += "_istride_";
+        append_array_info(istride, itype);
+
+        ret += "_ostride_";
+        append_array_info(ostride, otype);
+
+        ret += "_idist_";
+        ret += std::to_string(idist);
+        ret += "_odist_";
+        ret += std::to_string(odist);
+
+        ret += "_ioffset";
+        for(auto n : ioffset)
+        {
+            ret += "_";
+            ret += std::to_string(n);
+        }
+
+        ret += "_ooffset";
+        for(auto n : ooffset)
+        {
+            ret += "_";
+            ret += std::to_string(n);
+        }
+
+        if(run_callbacks)
+            ret += "_CB";
+
+        return ret;
+    }
+
+    // Set all params from a stringified token.
+    void from_token(std::string token)
+    {
+        std::vector<std::string> vals;
+
+        std::string delimiter = "_";
+        {
+            size_t pos = 0;
+            while((pos = token.find(delimiter)) != std::string::npos)
+            {
+                auto val = token.substr(0, pos);
+                vals.push_back(val);
+                token.erase(0, pos + delimiter.length());
+            }
+            vals.push_back(token);
+        }
+
+        auto vector_parser
+            = [](const std::vector<std::string>& vals, const std::string token, int& pos) {
+                  if(vals[pos++] != token)
+                      throw std::runtime_error("Unable to parse token");
+                  std::vector<size_t> vec;
+
+                  while(pos < vals.size())
+                  {
+                      if(std::all_of(vals[pos].begin(), vals[pos].end(), ::isdigit))
+                      {
+                          vec.push_back(std::stoi(vals[pos++]));
+                      }
+                      else
+                      {
+                          break;
+                      }
+                  }
+                  return vec;
+              };
+
+        auto type_parser = [](const std::string& val) {
+            if(val == "CI")
+                return fft_array_type_complex_interleaved;
+            else if(val == "CP")
+                return fft_array_type_complex_planar;
+            else if(val == "R")
+                return fft_array_type_real;
+            else if(val == "HI")
+                return fft_array_type_hermitian_interleaved;
+            else if(val == "HP")
+                return fft_array_type_hermitian_planar;
+            return fft_array_type_unset;
+        };
+
+        int pos = 0;
+
+        bool complex = vals[pos++] == "complex";
+        bool forward = vals[pos++] == "forward";
+
+        if(complex && forward)
+            transform_type = fft_transform_type_complex_forward;
+        if(complex && !forward)
+            transform_type = fft_transform_type_complex_inverse;
+        if(!complex && forward)
+            transform_type = fft_transform_type_real_forward;
+        if(!complex && !forward)
+            transform_type = fft_transform_type_real_inverse;
+
+        length = vector_parser(vals, "len", pos);
+
+        if(vals[pos] == "single")
+            precision = fft_precision_single;
+        else if(vals[pos] == "double")
+            precision = fft_precision_double;
+        pos++;
+
+        placement = (vals[pos++] == "ip") ? fft_placement_inplace : fft_placement_notinplace;
+
+        if(vals[pos++] != "batch")
+            throw std::runtime_error("Unable to parse token");
+        nbatch = std::stoi(vals[pos++]);
+
+        istride = vector_parser(vals, "istride", pos);
+
+        itype = type_parser(vals[pos]);
+        pos++;
+
+        ostride = vector_parser(vals, "ostride", pos);
+
+        otype = type_parser(vals[pos]);
+        pos++;
+
+        if(vals[pos++] != "idist")
+            throw std::runtime_error("Unable to parse token");
+        idist = std::stoi(vals[pos++]);
+
+        if(vals[pos++] != "odist")
+            throw std::runtime_error("Unable to parse token");
+        odist = std::stoi(vals[pos++]);
+
+        ioffset = vector_parser(vals, "ioffset", pos);
+
+        ooffset = vector_parser(vals, "ooffset", pos);
+
+        if(pos < vals.size())
+            run_callbacks = vals[pos] == "CB";
     }
 
     // Stream output operator (for gtest, etc).

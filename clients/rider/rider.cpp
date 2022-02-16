@@ -47,6 +47,9 @@ int main(int argc, char* argv[])
     // FFT parameters:
     rocfft_params params;
 
+    // Token string to fully specify fft params.
+    std::string token;
+
     // Declare the supported options.
 
     // clang-format doesn't handle boost program options very well:
@@ -85,7 +88,8 @@ int main(int argc, char* argv[])
         ("osize", po::value<std::vector<size_t>>(&params.osize)->multitoken(),
          "Logical size of output buffer.")
         ("ioffset", po::value<std::vector<size_t>>(&params.ioffset)->multitoken(), "Input offsets.")
-        ("ooffset", po::value<std::vector<size_t>>(&params.ooffset)->multitoken(), "Output offsets.");
+        ("ooffset", po::value<std::vector<size_t>>(&params.ooffset)->multitoken(), "Output offsets.")
+        ("token", po::value<std::string>(&token));
     // clang-format on
 
     po::variables_map vm;
@@ -106,75 +110,93 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    if(!vm.count("length"))
-    {
-        std::cout << "Please specify transform length!" << std::endl;
-        std::cout << opdesc << std::endl;
-        return 0;
-    }
-
-    params.placement = vm.count("notInPlace") ? fft_placement_notinplace : fft_placement_inplace;
-    params.precision = vm.count("double") ? fft_precision_double : fft_precision_single;
-
-    if(vm.count("notInPlace"))
-    {
-        std::cout << "out-of-place\n";
-    }
-    else
-    {
-        std::cout << "in-place\n";
-    }
-
     if(vm.count("ntrial"))
     {
         std::cout << "Running profile with " << ntrial << " samples\n";
     }
 
-    if(vm.count("length"))
+    if(token != "")
     {
-        std::cout << "length:";
-        for(auto& i : params.length)
-            std::cout << " " << i;
-        std::cout << "\n";
-    }
+        std::cout << "Reading fft params from token:\n" << token << std::endl;
 
-    if(vm.count("istride"))
-    {
-        std::cout << "istride:";
-        for(auto& i : params.istride)
-            std::cout << " " << i;
-        std::cout << "\n";
+        try
+        {
+            params.from_token(token);
+        }
+        catch(...)
+        {
+            std::cout << "Unable to parse token." << std::endl;
+            exit(1);
+        }
     }
-    if(vm.count("ostride"))
+    else
     {
-        std::cout << "ostride:";
-        for(auto& i : params.ostride)
-            std::cout << " " << i;
-        std::cout << "\n";
-    }
+        if(!vm.count("length"))
+        {
+            std::cout << "Please specify transform length!" << std::endl;
+            std::cout << opdesc << std::endl;
+            return 0;
+        }
 
-    if(params.idist > 0)
-    {
-        std::cout << "idist: " << params.idist << "\n";
-    }
-    if(params.odist > 0)
-    {
-        std::cout << "odist: " << params.odist << "\n";
-    }
+        params.placement
+            = vm.count("notInPlace") ? fft_placement_notinplace : fft_placement_inplace;
+        params.precision = vm.count("double") ? fft_precision_double : fft_precision_single;
 
-    if(vm.count("ioffset"))
-    {
-        std::cout << "ioffset:";
-        for(auto& i : params.ioffset)
-            std::cout << " " << i;
-        std::cout << "\n";
-    }
-    if(vm.count("ooffset"))
-    {
-        std::cout << "ooffset:";
-        for(auto& i : params.ooffset)
-            std::cout << " " << i;
-        std::cout << "\n";
+        if(vm.count("notInPlace"))
+        {
+            std::cout << "out-of-place\n";
+        }
+        else
+        {
+            std::cout << "in-place\n";
+        }
+
+        if(vm.count("length"))
+        {
+            std::cout << "length:";
+            for(auto& i : params.length)
+                std::cout << " " << i;
+            std::cout << "\n";
+        }
+
+        if(vm.count("istride"))
+        {
+            std::cout << "istride:";
+            for(auto& i : params.istride)
+                std::cout << " " << i;
+            std::cout << "\n";
+        }
+        if(vm.count("ostride"))
+        {
+            std::cout << "ostride:";
+            for(auto& i : params.ostride)
+                std::cout << " " << i;
+            std::cout << "\n";
+        }
+
+        if(params.idist > 0)
+        {
+            std::cout << "idist: " << params.idist << "\n";
+        }
+        if(params.odist > 0)
+        {
+            std::cout << "odist: " << params.odist << "\n";
+        }
+
+        if(vm.count("ioffset"))
+        {
+            std::cout << "ioffset:";
+            for(auto& i : params.ioffset)
+                std::cout << " " << i;
+            std::cout << "\n";
+        }
+        if(vm.count("ooffset"))
+        {
+            std::cout << "ooffset:";
+            for(auto& i : params.ooffset)
+                std::cout << " " << i;
+            std::cout << "\n";
+        }
     }
 
     std::cout << std::flush;
@@ -194,7 +216,9 @@ int main(int argc, char* argv[])
 
     if(verbose)
     {
-        std::cout << params.str() << std::endl;
+        std::cout << params.str(" ") << std::endl;
+        if(verbose > 1)
+            std::cout << "Token: " << params.token() << std::endl;
     }
 
     auto ret = params.create_plan();

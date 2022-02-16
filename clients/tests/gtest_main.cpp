@@ -95,6 +95,9 @@ int main(int argc, char* argv[])
     // Filename for fftw and fftwf wisdom.
     std::string fftw_wisdom_filename;
 
+    // Token string to fully specify fft params for the manual test.
+    std::string test_token;
+
     po::options_description opdesc(
         "\n"
         "rocFFT Runtime Test command line options\n"
@@ -161,7 +164,8 @@ int main(int argc, char* argv[])
         ("wise,w", "use FFTW wisdom")
         ("wisdomfile,W",
          po::value<std::string>(&fftw_wisdom_filename)->default_value("wisdom3.txt"),
-         "FFTW3 wisdom filename");
+         "FFTW3 wisdom filename")
+        ("token", po::value<std::string>(&test_token)->default_value(""), "Test token name for manual test");
     // clang-format on
 
     po::variables_map vm;
@@ -173,10 +177,6 @@ int main(int argc, char* argv[])
         std::cout << opdesc << std::endl;
         return 0;
     }
-    manual_params.placement
-        = vm.count("notInPlace") ? fft_placement_notinplace : fft_placement_inplace;
-    manual_params.precision = vm.count("double") ? fft_precision_double : fft_precision_single;
-
     verbose = vm["verbose"].as<int>();
 
     std::cout << "single epsilon: " << single_epsilon << "\tdouble epsilon: " << double_epsilon
@@ -185,29 +185,6 @@ int main(int argc, char* argv[])
     if(vm.count("wise"))
     {
         use_fftw_wisdom = true;
-    }
-
-    if(vm.count("callback"))
-    {
-        manual_params.run_callbacks = true;
-    }
-
-    if(manual_params.length.empty())
-    {
-        manual_params.length.push_back(8);
-        // TODO: add random size?
-    }
-
-    if(manual_params.istride.empty())
-    {
-        manual_params.istride.push_back(1);
-        // TODO: add random size?
-    }
-
-    if(manual_params.ostride.empty())
-    {
-        manual_params.ostride.push_back(1);
-        // TODO: add random size?
     }
 
     rocfft_setup();
@@ -266,6 +243,50 @@ int main(int argc, char* argv[])
         fftwf_import_wisdom_from_string(fftwf_wisdom.c_str());
     }
 
+    if(test_token != "")
+    {
+        std::cout << "Reading fft params from token:\n" << test_token << std::endl;
+
+        try
+        {
+            manual_params.from_token(test_token);
+        }
+        catch(...)
+        {
+            std::cout << "Unable to parse token." << std::endl;
+            exit(1);
+        }
+    }
+    else
+    {
+        if(manual_params.length.empty())
+        {
+            manual_params.length.push_back(8);
+            // TODO: add random size?
+        }
+
+        manual_params.placement
+            = vm.count("notInPlace") ? fft_placement_notinplace : fft_placement_inplace;
+        manual_params.precision = vm.count("double") ? fft_precision_double : fft_precision_single;
+
+        if(vm.count("callback"))
+        {
+            manual_params.run_callbacks = true;
+        }
+
+        if(manual_params.istride.empty())
+        {
+            manual_params.istride.push_back(1);
+            // TODO: add random size?
+        }
+
+        if(manual_params.ostride.empty())
+        {
+            manual_params.ostride.push_back(1);
+            // TODO: add random size?
+        }
+    }
+
     auto retval = RUN_ALL_TESTS();
 
     if(use_fftw_wisdom)
@@ -297,6 +318,8 @@ TEST(manual, vs_fftw)
               << "\n\t" << manual_params.str("\n\t") << std::endl;
 
     manual_params.validate();
+
+    std::cout << "Token: " << manual_params.token() << std::endl;
 
     rocfft_params params(manual_params);
     fft_vs_reference(params);

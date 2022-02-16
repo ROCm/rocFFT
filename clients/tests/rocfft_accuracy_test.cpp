@@ -52,6 +52,13 @@ TEST_P(accuracy_test, vs_fftw)
 
     params.validate();
 
+    // Test that the tokenization works as expected.
+    auto       token = params.token();
+    fft_params tokentest;
+    tokentest.from_token(token);
+    auto token1 = tokentest.token();
+    EXPECT_TRUE(token == token1);
+
     if(!params.valid(verbose))
     {
         if(verbose)
