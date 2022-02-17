@@ -36,7 +36,7 @@ def runTestCommand (platform, project, boolean debug=false)
     def command = """#!/usr/bin/env bash
                 set -x
                 cd ${project.paths.project_build_prefix}/build/${directory}/clients/staging
-                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --gtest_color=yes --R 80 --gtest_filter='-*len_768_*:*len_2880_*'
+                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --gtest_color=yes --R 80
             """
     platform.runCommand(this, command)
 }
