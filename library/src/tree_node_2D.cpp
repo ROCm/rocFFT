@@ -59,6 +59,7 @@ void RTRT2DNode::BuildTree_internal()
         trans1Plan->length.push_back(length[index]);
     }
     trans1Plan->outputHasPadding = (padding > 0);
+    trans1Plan->SetTransposeOutputLength();
 
     // second row fft
     NodeMetaData row2PlanData(this);
@@ -83,6 +84,7 @@ void RTRT2DNode::BuildTree_internal()
         trans2Plan->length.push_back(length[index]);
     }
     trans2Plan->outputHasPadding = this->outputHasPadding;
+    trans2Plan->SetTransposeOutputLength();
 
     // --------------------------------
     // Fuse Shims

@@ -1408,6 +1408,15 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     {
         os << length[i] << " ";
     }
+    if(!outputLength.empty())
+    {
+        os << "\n" << indentStr.c_str();
+        os << "outputLength: ";
+        for(size_t i = 0; i < outputLength.size(); i++)
+        {
+            os << outputLength[i] << " ";
+        }
+    }
 
     os << "\n" << indentStr.c_str() << "iStrides: ";
     for(size_t i = 0; i < inStride.size(); i++)

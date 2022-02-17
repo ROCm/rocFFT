@@ -58,6 +58,7 @@ void TRTRT1DNode::BuildTree_internal()
     //
     // cppcheck-suppress knownConditionTrueFalse
     trans1Plan->outputHasPadding = (padding > 0);
+    trans1Plan->SetTransposeOutputLength();
 
     // first row fft
     NodeMetaData row1PlanData(this);
@@ -84,6 +85,7 @@ void TRTRT1DNode::BuildTree_internal()
         trans2Plan->length.push_back(length[index]);
     }
     trans2Plan->outputHasPadding = row1Plan->outputHasPadding;
+    trans2Plan->SetTransposeOutputLength();
 
     // second row fft
     auto row2Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM, this);
@@ -106,6 +108,7 @@ void TRTRT1DNode::BuildTree_internal()
         trans3Plan->length.push_back(length[index]);
     }
     trans3Plan->outputHasPadding = this->outputHasPadding;
+    trans3Plan->SetTransposeOutputLength();
 
     // --------------------------------
     // Fuse Shims
@@ -423,6 +426,8 @@ void CC1DNode::BuildTree_internal()
         row2colPlan->length.push_back(length[index]);
     }
     row2colPlan->outputHasPadding = this->outputHasPadding;
+    row2colPlan->outputLength     = row2colPlan->length;
+    std::swap(row2colPlan->outputLength[0], row2colPlan->outputLength[1]);
 
     // CC , RC
     childNodes.emplace_back(std::move(col2colPlan));

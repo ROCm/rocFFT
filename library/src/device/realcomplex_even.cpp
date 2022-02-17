@@ -630,8 +630,9 @@ ROCFFT_DEVICE_EXPORT void c2r_1d_pre(const void* data_p, void*)
     auto data = static_cast<const DeviceCallIn*>(data_p);
 
     // Input_size is the innermost dimension
-    // The upper level provides always N/2, that is regular complex fft size
-    const size_t half_N = data->node->length[0];
+    // Length on the node is complex fft size.  Compute half_N as
+    // half of the real size.
+    const size_t half_N = data->node->length[0] - 1;
 
     const size_t idist = data->node->iDist;
     const size_t odist = data->node->oDist;

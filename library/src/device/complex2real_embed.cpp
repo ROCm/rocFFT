@@ -438,7 +438,7 @@ ROCFFT_DEVICE_EXPORT void hermitian2complex(const void* data_p, void* back_p)
 {
     auto data = static_cast<const DeviceCallIn*>(data_p);
 
-    size_t dim_0          = data->node->length[0]; // dim_0 is the innermost dimension
+    size_t dim_0          = data->node->outputLength[0]; // dim_0 is the innermost dimension
     size_t hermitian_size = dim_0 / 2 + 1;
 
     void* input_buffer  = data->bufIn[0];

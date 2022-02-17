@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "../shared/printbuffer.h"
+#include "../shared/ptrdiff.h"
 
 enum fft_status
 {
@@ -516,25 +517,6 @@ public:
     size_t nobuffer() const
     {
         return nbuffer(otype);
-    }
-
-    // Compute the farthest point from the original pointer.
-    size_t compute_ptrdiff(const std::vector<size_t>& length,
-                           const std::vector<size_t>& stride,
-                           const size_t               nbatch,
-                           const size_t               dist) const
-    {
-        size_t val = 0;
-        if(!length.empty())
-        {
-            val = 1;
-            for(int i = 0; i < length.size(); ++i)
-            {
-                val += (length[i] - 1) * stride[i];
-            }
-            val += (nbatch - 1) * dist;
-        }
-        return val;
     }
 
     void set_iotypes()

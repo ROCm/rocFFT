@@ -132,55 +132,6 @@ void PlacementTrace::Backtracking(ExecPlan& execPlan, int execSeqID)
     }
 }
 
-std::vector<size_t> AssignmentPolicy::GetEffectiveNodeOutLen(ExecPlan&       execPlan,
-                                                             const TreeNode& node)
-{
-    auto effLen = node.length;
-
-    // R2C kernels change output length, so compensate for that
-    if(node.direction == -1)
-    {
-        // real even: "r2c", or "fused stockham+r2c" (in 3D-even)
-        if(node.scheme == CS_KERNEL_R_TO_CMPLX
-           || (node.scheme == CS_KERNEL_STOCKHAM && node.ebtype == EmbeddedType::Real2C_POST))
-        {
-            effLen.front() = effLen.front() + 1; // ex, 32 -> 33
-        }
-        // odd real: r2c copy tail : CI (but actually is real, node length in real) -> HI (cvt length in cmplx)
-        else if(node.scheme == CS_KERNEL_COPY_CMPLX_TO_HERM)
-        {
-            effLen.front() = effLen.front() / 2 + 1; // ex, node len = 81 real -> 41 cmplx
-        }
-    }
-
-    // in 3D even: the inplace sbcc length[1] is modified by /2 + 1, we compensate here
-    if(node.scheme == CS_KERNEL_STOCKHAM_BLOCK_CC && node.parent
-       && node.parent->scheme == CS_REAL_3D_EVEN)
-    {
-        effLen[1] -= 1;
-    }
-
-    // transpose kernels swap around their output lengths
-    //   (CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY and CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z
-    //    are fused kernels, perhaps not needed)
-    if(node.scheme == CS_KERNEL_TRANSPOSE)
-        std::swap(effLen[0], effLen[1]);
-    else if(node.scheme == CS_KERNEL_TRANSPOSE_Z_XY
-            || node.scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)
-    {
-        std::swap(effLen[0], effLen[1]);
-        std::swap(effLen[1], effLen[2]);
-    }
-    else if(node.scheme == CS_KERNEL_TRANSPOSE_XY_Z
-            || node.scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
-    {
-        std::swap(effLen[1], effLen[2]);
-        std::swap(effLen[0], effLen[1]);
-    }
-    // TODO- Check if any other scheme (leaf-node)
-    return effLen;
-}
-
 // test if rootArrayType == testArrayType,
 // if testAryType == rootAryType, return true (since they're definitely equivalent)
 // but if root is real or HI, the equivalent internal type could be CI (1-ptr)
@@ -234,13 +185,18 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
     if(cacheMapIter != node_buf_test_cache.end())
         return cacheMapIter->second;
 
-    // define a local function.
-    auto dataFits = [&execPlan](
-                        const TreeNode& node, OperatingBuffer buffer, std::vector<size_t> bufLen) {
+    // define a local function to decide if a node's output fits into
+    // OB_USER_IN or OB_USER_OUT.  Temp buffers are dynamically sized
+    // to always fit.  This function accepts OB_USER_IN also to mean
+    // the input side of an in-place R2C transform (which the plan
+    // would normally call OB_USER_OUT).
+    auto dataFits = [&execPlan](const TreeNode& node, OperatingBuffer buffer) {
         if(node.outputHasPadding)
             return false;
 
-        auto nodeLen = GetEffectiveNodeOutLen(execPlan, node);
+        auto nodeLen = node.GetOutputLength();
+        auto bufLen  = buffer == OB_USER_OUT ? execPlan.rootPlan->GetOutputLength()
+                                             : execPlan.rootPlan->length;
 
         // if node's output is complex and buffer's format is real,
         // adjust output length to be 2x to make the units of
@@ -251,11 +207,7 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
               || (buffer == OB_USER_IN && execPlan.rootPlan->inArrayType == rocfft_array_type_real);
         if(outBufferIsReal)
         {
-            // special case for "inplace sbcc in real 3D Even"
-            if(node.scheme == CS_KERNEL_STOCKHAM_BLOCK_CC && node.parent
-               && node.parent->scheme == CS_REAL_3D_EVEN)
-                nodeLen[1] *= 2;
-            else if(!kernelOutputIsReal)
+            if(!kernelOutputIsReal)
                 nodeLen.front() *= 2;
         }
 
@@ -271,14 +223,6 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
                                       static_cast<size_t>(1),
                                       std::multiplies<size_t>());
         }
-
-        // NB:
-        //   TODO- Worth of thinking:
-        //   A conservative way is to disallow non-unit-stride CC output to A/B,
-        //   But if both A->B are non-uint-s (inS=2 ,outS=2), it's possible to do w/o TempBuf
-        //   Somehow I don't see this restriction is a must but still leave a comment here
-        // if(node.scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-        //     return false;
 
         // ensure that the node's dimensions fit exactly into the
         // buffer's dimensions.  e.g. if the node wants XxYxZ and the
@@ -327,17 +271,24 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
     // if output goes to a temp buffer, that will be dynamically sized
     // to be big enough so it's always ok but if output is in/out, we
     // have to fit into whatever the user gave us
-    else if(buffer == OB_USER_IN
-            && (!dataFits(node, buffer, execPlan.iLength)
-                || !EquivalentArrayType(execPlan.rootPlan->inArrayType, arrayType)))
+    else if(buffer == OB_USER_IN || buffer == OB_USER_OUT)
     {
-        test_result = false;
-    }
-    else if(buffer == OB_USER_OUT
-            && (!dataFits(node, buffer, execPlan.oLength)
-                || !EquivalentArrayType(execPlan.rootPlan->outArrayType, arrayType)))
-    {
-        test_result = false;
+        auto fitArrayType = buffer == OB_USER_IN ? execPlan.rootPlan->inArrayType
+                                                 : execPlan.rootPlan->outArrayType;
+        if(dataFits(node, buffer) && EquivalentArrayType(fitArrayType, arrayType))
+        {
+            test_result = true;
+        }
+        // if that didn't fit, and we're writing to OB_USER_OUT, and
+        // this is an in-place R2C/C2R transform, then we could also
+        // try fitting into the shape of the input.
+        else if(buffer == OB_USER_OUT && execPlan.rootPlan->placement == rocfft_placement_inplace
+                && (execPlan.rootPlan->inArrayType == rocfft_array_type_real
+                    || execPlan.rootPlan->outArrayType == rocfft_array_type_real))
+            test_result = dataFits(node, OB_USER_IN)
+                          && EquivalentArrayType(execPlan.rootPlan->inArrayType, arrayType);
+        else
+            test_result = false;
     }
 
     node_buf_test_cache[cacheMapKey] = test_result;

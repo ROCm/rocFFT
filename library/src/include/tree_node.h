@@ -311,6 +311,15 @@ public:
     // Length of the FFT in each dimension, internal value
     std::vector<size_t> length;
 
+    // Row-major output lengths, from fastest to slowest.  If empty,
+    // output length is assumed to be the same as input length.
+    //
+    // This is set for nodes that might do non-obvious things with
+    // strides (e.g. having fastest dimension not be first), so that
+    // buffer assignment can know whether a node's output will fit in
+    // a given buffer.
+    std::vector<size_t> outputLength;
+
     // Stride of the FFT in each dimension
     std::vector<size_t> inStride, outStride;
 
@@ -491,6 +500,18 @@ public:
     TreeNode* GetBluesteinComponentParent();
     bool      IsLastLeafNodeOfBluesteinComponent();
     bool      IsRootPlanC2CTransform();
+
+    // Set length of transpose kernel node, since those are easily
+    // knowable just by looking at the scheme and they're used in
+    // many plans.  Throws an exception if this is not a transpose
+    // node.
+    void SetTransposeOutputLength();
+
+    // Get row-major output length of this node.
+    std::vector<size_t> GetOutputLength() const
+    {
+        return outputLength.empty() ? length : outputLength;
+    }
 
     virtual bool KernelCheck()                                             = 0;
     virtual bool CreateDevKernelArgs()                                     = 0;

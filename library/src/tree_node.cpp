@@ -182,3 +182,34 @@ void TransposeNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 
     return;
 }
+
+void TreeNode::SetTransposeOutputLength()
+{
+    switch(scheme)
+    {
+    case CS_KERNEL_TRANSPOSE:
+    {
+        outputLength = length;
+        std::swap(outputLength[0], outputLength[1]);
+        break;
+    }
+    case CS_KERNEL_TRANSPOSE_XY_Z:
+    case CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z:
+    {
+        outputLength = length;
+        std::swap(outputLength[1], outputLength[2]);
+        std::swap(outputLength[0], outputLength[1]);
+        break;
+    }
+    case CS_KERNEL_TRANSPOSE_Z_XY:
+    case CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY:
+    {
+        outputLength = length;
+        std::swap(outputLength[0], outputLength[1]);
+        std::swap(outputLength[1], outputLength[2]);
+        break;
+    }
+    default:
+        throw std::runtime_error("can't set transpose output length on non-transpose node");
+    }
+}

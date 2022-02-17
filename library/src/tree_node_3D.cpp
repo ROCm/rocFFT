@@ -44,9 +44,10 @@ void RTRT3DNode::BuildTree_internal()
     xyPlan->RecursiveBuildTree();
 
     // first transpose
-    auto trans1Plan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
-    trans1Plan->length    = length;
-    trans1Plan->dimension = 2;
+    auto trans1Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
+    trans1Plan->length = length;
+    trans1Plan->SetTransposeOutputLength();
+    trans1Plan->dimension        = 2;
     trans1Plan->outputHasPadding = (padding > 0);
 
     // z fft
@@ -60,9 +61,10 @@ void RTRT3DNode::BuildTree_internal()
     zPlan->RecursiveBuildTree();
 
     // second transpose
-    auto trans2Plan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
-    trans2Plan->length    = zPlan->length;
-    trans2Plan->dimension = 2;
+    auto trans2Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
+    trans2Plan->length = zPlan->length;
+    trans2Plan->SetTransposeOutputLength();
+    trans2Plan->dimension        = 2;
     trans2Plan->outputHasPadding = this->outputHasPadding;
 
     // --------------------------------
@@ -157,8 +159,9 @@ void TRTRTR3DNode::BuildTree_internal()
     for(int i = 0; i < 6; i += 2)
     {
         // transpose Z_XY
-        auto trans_plan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
-        trans_plan->length    = cur_length;
+        auto trans_plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
+        trans_plan->length = cur_length;
+        trans_plan->SetTransposeOutputLength();
         trans_plan->dimension = 2;
 
         std::swap(cur_length[0], cur_length[1]);
@@ -401,6 +404,7 @@ void BLOCKRC3DNode::BuildTree_internal()
                                                : CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z;
             auto sbrc_node    = NodeFactory::CreateNodeFromScheme(sbrcScheme, this);
             sbrc_node->length = cur_length;
+            sbrc_node->SetTransposeOutputLength();
             childNodes.emplace_back(std::move(sbrc_node));
         }
         else
@@ -415,7 +419,8 @@ void BLOCKRC3DNode::BuildTree_internal()
             // transpose XY_Z
             auto transScheme = (use_ZXY_sbrc) ? CS_KERNEL_TRANSPOSE_Z_XY : CS_KERNEL_TRANSPOSE_XY_Z;
             auto trans_plan  = NodeFactory::CreateNodeFromScheme(transScheme, this);
-            trans_plan->length    = cur_length;
+            trans_plan->length = cur_length;
+            trans_plan->SetTransposeOutputLength();
             trans_plan->dimension = 2;
 
             // RT
@@ -580,6 +585,8 @@ void BLOCKCR3DNode::BuildTree_internal()
         auto node = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CR, this);
         node->length.push_back(cur_length[2]);
         node->length.push_back(cur_length[0] * cur_length[1]);
+        node->outputLength = node->length;
+        std::swap(node->outputLength[0], node->outputLength[1]);
         childNodes.emplace_back(std::move(node));
         std::swap(cur_length[1], cur_length[2]);
         std::swap(cur_length[1], cur_length[0]);

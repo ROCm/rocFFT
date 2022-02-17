@@ -233,11 +233,10 @@ std::unique_ptr<TreeNode> RTFuseShim::FuseKernels()
     if(!fused->KernelCheck())
         return nullptr;
 
-    fused->placement        = rocfft_placement_notinplace;
-    fused->outputHasPadding = transpose->outputHasPadding;
-    fused->outArrayType     = transpose->outArrayType;
-    fused->obOut            = transpose->obOut;
-    fused->oDist            = transpose->oDist;
+    fused->placement    = rocfft_placement_notinplace;
+    fused->outArrayType = transpose->outArrayType;
+    fused->obOut        = transpose->obOut;
+    fused->oDist        = transpose->oDist;
     fused->comments.push_back("RTFuseShim: fused " + PrintScheme(stockham->scheme)
                               + " and following " + PrintScheme(transpose->scheme));
 
@@ -305,14 +304,15 @@ std::unique_ptr<TreeNode> RT_ZXY_FuseShim::FuseKernels()
     if(!fused->KernelCheck())
         return nullptr;
 
-    fused->placement        = rocfft_placement_notinplace;
-    fused->outputHasPadding = transpose->outputHasPadding;
-    fused->outArrayType     = transpose->outArrayType;
-    fused->obOut            = transpose->obOut;
-    fused->oDist            = transpose->oDist;
-    fused->outStride        = transpose->outStride;
+    fused->placement    = rocfft_placement_notinplace;
+    fused->outArrayType = transpose->outArrayType;
+    fused->obOut        = transpose->obOut;
+    fused->oDist        = transpose->oDist;
+    fused->outStride    = transpose->outStride;
     fused->comments.push_back("RT_ZXY_FuseShim: fused " + PrintScheme(CS_KERNEL_STOCKHAM)
                               + " and following " + PrintScheme(CS_KERNEL_TRANSPOSE_Z_XY));
+    fused->outputLength = transpose->outputLength;
+
     return fused;
 }
 
@@ -363,12 +363,11 @@ std::unique_ptr<TreeNode> RT_XYZ_FuseShim::FuseKernels()
     if(!fused->KernelCheck())
         return nullptr;
 
-    fused->placement        = rocfft_placement_notinplace;
-    fused->outputHasPadding = transXYZ->outputHasPadding;
-    fused->outArrayType     = transXYZ->outArrayType;
-    fused->obOut            = transXYZ->obOut;
-    fused->oDist            = transXYZ->oDist;
-    fused->outStride        = transXYZ->outStride;
+    fused->placement    = rocfft_placement_notinplace;
+    fused->outArrayType = transXYZ->outArrayType;
+    fused->obOut        = transXYZ->obOut;
+    fused->oDist        = transXYZ->oDist;
+    fused->outStride    = transXYZ->outStride;
     fused->comments.push_back("RT_XYZ_FuseShim: fused " + PrintScheme(CS_KERNEL_STOCKHAM)
                               + " and following " + PrintScheme(CS_KERNEL_TRANSPOSE_XY_Z));
     return fused;
@@ -421,18 +420,6 @@ bool R2CTrans_FuseShim::PlacementFusable(OperatingBuffer iBuf,
     // allow inplace (out-of-place is allowed as well)
     if(allowInplace)
     {
-        if(iBuf == lastOBuf)
-        {
-            // in this case, we're going to modify the fused's output to firstOBuf inorder to make the fused node OP
-            // in this (r2c + tranpose) fusion, the transpose MIGHT HAVE PADDING. Thus we can't assign A/B as its
-            // new outBuffer if it has padding (since A/B won't fit the padding)
-            // an example is "length 336 18816 -t 2 ip"
-            auto transpose = nodes[1];
-            if(transpose->outputHasPadding && (firstOBuf == OB_USER_IN || firstOBuf == OB_USER_OUT))
-                return false;
-            else
-                return true;
-        }
         // if inBuf and outBuf is already op, then it is safe.
         return true;
     }
@@ -455,9 +442,8 @@ std::unique_ptr<TreeNode> R2CTrans_FuseShim::FuseKernels()
     auto fused = NodeFactory::CreateNodeFromScheme(CS_KERNEL_R_TO_CMPLX_TRANSPOSE, r2c->parent);
     fused->CopyNodeData(*r2c);
     // no need to check kernel exists, this scheme uses a built-in kernel
-    fused->placement        = rocfft_placement_notinplace;
-    fused->outputHasPadding = transpose->outputHasPadding;
-    fused->outArrayType     = transpose->outArrayType;
+    fused->placement    = rocfft_placement_notinplace;
+    fused->outArrayType = transpose->outArrayType;
     // fused->obOut            = transpose->obOut;
     fused->oDist     = transpose->oDist;
     fused->outStride = transpose->outStride;
@@ -479,6 +465,15 @@ std::unique_ptr<TreeNode> R2CTrans_FuseShim::FuseKernels()
         nextLeaf->placement = (nextLeaf->obIn == nextLeaf->obOut) ? rocfft_placement_inplace
                                                                   : rocfft_placement_notinplace;
     }
+    fused->outputLength = transpose->outputLength;
+
+    // This fusion is crossing sub-trees of the plan, so adjust the
+    // parent CS_REAL_TRANSFORM_EVEN to output what this fused kernel
+    // says it outputs.  Otherwise the plan won't make sense when
+    // other things look at it.
+    r2c->parent->outputLength = fused->outputLength;
+    r2c->parent->outStride    = fused->outStride;
+    r2c->parent->oDist        = fused->oDist;
 
     return fused;
 }
@@ -543,9 +538,8 @@ std::unique_ptr<TreeNode> TransC2R_FuseShim::FuseKernels()
         = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_CMPLX_TO_R, transpose->parent);
     fused->CopyNodeData(*transpose);
     // no need to check kernel exists, this scheme uses a built-in kernel
-    fused->placement        = rocfft_placement_notinplace;
-    fused->outputHasPadding = c2r->outputHasPadding;
-    fused->outArrayType     = c2r->outArrayType;
+    fused->placement    = rocfft_placement_notinplace;
+    fused->outArrayType = c2r->outArrayType;
     // fused->obOut            = c2r->obOut; // move to later with comment
     fused->oDist     = c2r->oDist;
     fused->outStride = c2r->outStride;
@@ -567,6 +561,15 @@ std::unique_ptr<TreeNode> TransC2R_FuseShim::FuseKernels()
         nextLeaf->placement = (nextLeaf->obIn == nextLeaf->obOut) ? rocfft_placement_inplace
                                                                   : rocfft_placement_notinplace;
     }
+    fused->outputLength = c2r->outputLength;
+
+    // This fusion is crossing sub-trees of the plan, so adjust the
+    // parent CS_REAL_TRANSFORM_EVEN to expect what this fused kernel
+    // says it outputs.  Otherwise the plan won't make sense when
+    // other things look at it.
+    c2r->parent->length   = fused->outputLength;
+    c2r->parent->inStride = fused->outStride;
+    c2r->parent->iDist    = fused->oDist;
 
     return fused;
 }
@@ -616,6 +619,7 @@ bool STK_R2CTrans_FuseShim::CheckSchemeFusable()
 std::unique_ptr<TreeNode> STK_R2CTrans_FuseShim::FuseKernels()
 {
     auto stockham  = nodes[0];
+    auto r2c       = nodes[1];
     auto transpose = nodes[2];
     // auto& r2c       = nodes[1];
 
@@ -626,15 +630,16 @@ std::unique_ptr<TreeNode> STK_R2CTrans_FuseShim::FuseKernels()
                                                    stockham->parent);
     fused->CopyNodeData(*stockham);
     // no need to check kernel exists, this scheme uses a built-in kernel
-    fused->placement        = rocfft_placement_notinplace;
-    fused->outputHasPadding = transpose->outputHasPadding;
-    fused->outArrayType     = transpose->outArrayType;
-    fused->obOut            = transpose->obOut;
-    fused->oDist            = transpose->oDist;
-    fused->outStride        = transpose->outStride;
+    fused->placement    = rocfft_placement_notinplace;
+    fused->outArrayType = transpose->outArrayType;
+    fused->obOut        = transpose->obOut;
+    fused->oDist        = transpose->oDist;
+    fused->outStride    = transpose->outStride;
     fused->comments.push_back("STK_R2CTrans_FuseShim: fused " + PrintScheme(CS_KERNEL_STOCKHAM)
                               + ", " + PrintScheme(CS_KERNEL_R_TO_CMPLX) + " and following "
                               + PrintScheme(transpose->scheme));
+
+    fused->outputLength = transpose->outputLength;
 
     // NB:
     //    The generated CS_KERNEL_R_TO_CMPLX_TRANSPOSE kernel is in 3D fashion.
@@ -642,9 +647,21 @@ std::unique_ptr<TreeNode> STK_R2CTrans_FuseShim::FuseKernels()
     if(fused->length.size() == 2)
     {
         fused->length.push_back(1);
+        fused->outputLength.push_back(1);
         fused->inStride.push_back(fused->inStride[1]);
         fused->outStride.push_back(fused->outStride[1]);
     }
+
+    // This fusion is crossing sub-trees of the plan, so adjust the
+    // parent CS_REAL_TRANSFORM_EVEN to expect what this fused kernel
+    // says it outputs.  Otherwise the plan won't make sense when
+    // other things look at it.
+    r2c->parent->outputLength = fused->outputLength;
+    r2c->parent->outStride    = fused->outStride;
+    r2c->parent->oDist        = fused->oDist;
+    // Adjust strides in case we're using a 3D kernel for a 2D case
+    r2c->parent->outStride.resize(r2c->parent->length.size());
+    r2c->parent->outputLength.resize(r2c->parent->length.size());
 
     return fused;
 }
