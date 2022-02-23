@@ -63,14 +63,14 @@ def write_tsv(path, records, meta={}, overwrite=False):
     """Write tab separated file."""
     path = Path(path)
     dat = []
-    if overwrite or not path.exists():
-        if meta is not None:
-            for k, v in meta.items():
-                dat.append(f'# {k}: {v}')
-    else:
-        dat = path.read_text().splitlines()
-    dat += [tjoin([str(x) for x in r]) for r in records]
-    path.write_text(njoin(dat))
+    with open(path, 'a') as f:
+        if overwrite:
+            f.truncate(0)
+            if meta is not None:
+                for k, v in meta.items():
+                    dat.append(f'# {k}: {v}')
+        dat += [tjoin([str(x) for x in r]) for r in records]
+        f.write(njoin(dat))
 
 
 #

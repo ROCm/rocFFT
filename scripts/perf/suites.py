@@ -244,8 +244,8 @@ def generated2d():
 def generated3d():
     """Explicitly generated 3D lengths."""
 
-    lengths2d  = list(filter(lambda x: x <= 512, lengths['generated']))
-    yield from default_length_params("generated2d", lengths2d, 1)
+    lengths3d  = list(filter(lambda x: x <= 512, lengths['generated']))
+    yield from default_length_params("generated3d", lengths3d, 1)
 
 def benchmarks():
     """Benchmarks: XXX"""
