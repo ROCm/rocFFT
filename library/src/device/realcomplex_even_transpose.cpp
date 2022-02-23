@@ -588,9 +588,10 @@ ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data_p, void*)
     //
     // grid Y dimension handles 2 tiles at a time, so allocate enough
     // blocks to go halfway across 'm'
-    //
+    auto gridY = std::max<size_t>((((m - 1) / 2) + (DIM_Y - 1)) / DIM_Y, 1);
+
     // grid Z counts number of batches
-    dim3 grid((n - 1) / DIM_X + 1, (m - 1) / DIM_Y / 2 + 1, count);
+    dim3 grid((n - 1) / DIM_X + 1, gridY, count);
     // one thread per element in a tile
     dim3 threads(DIM_X, DIM_Y, 1);
     // printf("GRID (%d,%d,%d) (%d,%d,%d), n=%zu m=%zu\n",

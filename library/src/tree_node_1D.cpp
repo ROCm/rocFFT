@@ -885,7 +885,7 @@ void Stockham1DNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 
 bool Stockham1DNode::CreateTwiddleTableResource()
 {
-    twd_attach_2N = (ebtype != EmbeddedType::NONE);
+    twd_attach_halfN = (ebtype != EmbeddedType::NONE);
     return LeafNode::CreateTwiddleTableResource();
 }
 
@@ -949,6 +949,6 @@ void SBCRNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 
 bool SBCRNode::CreateTwiddleTableResource()
 {
-    twd_attach_2N = (ebtype != EmbeddedType::NONE);
+    twd_attach_halfN = (ebtype != EmbeddedType::NONE);
     return LeafNode::CreateTwiddleTableResource();
 }

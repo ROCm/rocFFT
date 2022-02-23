@@ -636,8 +636,10 @@ inline void fft_vs_reference_impl(Tparams& params)
         const auto realdim = params.length.back();
         if(realdim % 2 == 0)
         {
-            const auto complex_size = params.precision == fft_precision_single ? 7 : 16;
-            raw_vram_footprint += (realdim / 2) * complex_size;
+            const auto complex_size = params.precision == fft_precision_single ? 8 : 16;
+            // even length twiddle size is 1/4 of the real size, but
+            // in complex elements
+            raw_vram_footprint += realdim * complex_size / 4;
         }
     }
     if(!vram_fits_problem(raw_vram_footprint))

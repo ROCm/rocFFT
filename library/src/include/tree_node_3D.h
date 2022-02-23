@@ -246,7 +246,7 @@ protected:
     RealCmplxTransZ_XYNode(TreeNode* p, ComputeScheme s)
         : SBRCTranspose3DNode(p, s)
     {
-        twd_attach_2N = true;
+        twd_attach_halfN = true;
     }
 
     void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;

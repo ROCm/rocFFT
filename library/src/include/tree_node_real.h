@@ -241,6 +241,7 @@ protected:
     }
 
     size_t GetTwiddleTableLength() override;
+    size_t GetTwiddleTableLengthLimit() override;
     void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 };
 

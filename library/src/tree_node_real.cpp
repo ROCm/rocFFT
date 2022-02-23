@@ -1768,6 +1768,12 @@ size_t PrePostKernelNode::GetTwiddleTableLength()
                              + PrintScheme(scheme));
 }
 
+size_t PrePostKernelNode::GetTwiddleTableLengthLimit()
+{
+    // The kernel only uses 1/4th of the real length twiddle table
+    return DivRoundingUp<size_t>(GetTwiddleTableLength(), 4);
+}
+
 void PrePostKernelNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
     fnPtr = FnCallMap.at(scheme);

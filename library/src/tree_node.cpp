@@ -59,7 +59,8 @@ bool LeafNode::CreateLargeTwdTable()
 {
     if(large1D != 0)
     {
-        twiddles_large = twiddles_create(large1D, precision, true, largeTwdBase, false, false, {});
+        twiddles_large
+            = twiddles_create(large1D, 0, precision, true, largeTwdBase, false, false, {});
     }
 
     return true;
@@ -124,11 +125,12 @@ bool LeafNode::CreateTwiddleTableResource()
             GetKernelFactors();
         size_t twd_len = GetTwiddleTableLength();
         twiddles       = twiddles_create(twd_len,
+                                   GetTwiddleTableLengthLimit(),
                                    precision,
                                    false,
                                    LTWD_BASE_DEFAULT,
                                    twd_no_radices,
-                                   twd_attach_2N,
+                                   twd_attach_halfN,
                                    kernelFactors);
     }
 

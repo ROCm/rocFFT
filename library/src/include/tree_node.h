@@ -588,14 +588,14 @@ protected:
         scheme   = s;
     }
 
-    bool                externalKernel = false;
-    bool                need_twd_table = false;
-    bool                twd_no_radices = false;
-    bool                twd_attach_2N  = false;
-    std::vector<size_t> kernelFactors  = {};
-    size_t              bwd            = 1; // bwd, wgs, lds are for grid param lds_bytes
-    size_t              wgs            = 0;
-    size_t              lds            = 0;
+    bool                externalKernel   = false;
+    bool                need_twd_table   = false;
+    bool                twd_no_radices   = false;
+    bool                twd_attach_halfN = false;
+    std::vector<size_t> kernelFactors    = {};
+    size_t              bwd              = 1; // bwd, wgs, lds are for grid param lds_bytes
+    size_t              wgs              = 0;
+    size_t              lds              = 0;
 
     void BuildTree_internal() final {} // nothing to do in leaf node
 #if !GENERIC_BUF_ASSIGMENT
@@ -607,7 +607,13 @@ protected:
     void           AssignParams_internal() final {} // nothing to do in leaf node
     bool           CreateLargeTwdTable();
     virtual size_t GetTwiddleTableLength();
-    virtual void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) = 0;
+    // Limit length of generated twiddle table.  Default limit is 0,
+    // which means to generate the full length of table.
+    virtual size_t GetTwiddleTableLengthLimit()
+    {
+        return 0;
+    }
+    virtual void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) = 0;
 
 public:
     bool KernelCheck() override;

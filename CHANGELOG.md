@@ -9,6 +9,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Improved (more RAII) test and benchmark infrastructure.
 - Enabled runtime compilation of length-2304 FFT kernel during plan creation.
 - Added tokenizer for test suite.
+- Reduce twiddle memory requirements for even-length real-complex transforms.
 
 ### Optimizations
 - Optimized more large 1D cases by using L1D_CC plan.
