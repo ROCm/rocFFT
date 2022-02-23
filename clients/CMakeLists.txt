@@ -85,7 +85,12 @@ if( BUILD_CLIENTS_TESTS  OR BUILD_CLIENTS_SELFTEST )
       ${CMAKE_CURRENT_BINARY_DIR}/src/gtest-build/lib/${CMAKE_STATIC_LIBRARY_PREFIX}gtest_main${CMAKE_STATIC_LIBRARY_SUFFIX}
       )
 
-    set(GTEST_SRC_URL https://github.com/google/googletest/archive/release-1.10.0.tar.gz CACHE STRING "Location of GTest source code")
+    if(DEFINED ENV{GTEST_SRC_URL})
+      set(GTEST_SRC_URL_INIT $ENV{GTEST_SRC_URL})
+    else()
+      set(GTEST_SRC_URL_INIT https://github.com/google/googletest/archive/release-1.10.0.tar.gz)
+    endif()
+    set(GTEST_SRC_URL ${GTEST_SRC_URL_INIT} CACHE STRING "Location of GTest source code")
     set(GTEST_SRC_SHA256 9dc9157a9a1551ec7a7e43daea9a694a0bb5fb8bec81235d8a1e6ef64c716dcb CACHE STRING "SHA256 hash of GTest source code")
 
     ExternalProject_Add( gtest
@@ -128,7 +133,12 @@ if( BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SAMPLES )
      -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
    )
 
-   set(FFTW_SRC_URL http://www.fftw.org/fftw-3.3.9.tar.gz CACHE STRING "Location of FFTW source code")
+   if(DEFINED ENV{FFTW_SRC_URL})
+     set(FFTW_SRC_URL_INIT $ENV{FFTW_SRC_URL})
+   else()
+     set(FFTW_SRC_URL_INIT http://www.fftw.org/fftw-3.3.9.tar.gz)
+   endif()
+   set(FFTW_SRC_URL ${FFTW_SRC_URL_INIT} CACHE STRING "Location of FFTW source code")
    set(FFTW_SRC_SHA256 bf2c7ce40b04ae811af714deb512510cc2c17b9ab9d6ddcf49fe4487eea7af3d CACHE STRING "SHA256 hash of FFTW source code")
 
    # build double-precision FFTW

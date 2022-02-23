@@ -146,30 +146,42 @@ set( rocfft_source
 # for cache serialization.  We also want to use a static SQLite,
 # and distro static libraries aren't typically built
 # position-independent.
-include( FetchContent )
+option( SQLITE_USE_SYSTEM_PACKAGE "Use SQLite3 from find_package" OFF )
+if( SQLITE_USE_SYSTEM_PACKAGE )
+  find_package(SQLite3 3.36 REQUIRED)
+  set(ROCFFT_SQLITE_LIB SQLite::SQLite3)
+else()
+  include( FetchContent )
 
-set(SQLITE_SRC_URL https://sqlite.org/2021/sqlite-amalgamation-3360000.zip CACHE STRING "Location of SQLite source code")
-set(SQLITE_SRC_SHA256 999826fe4c871f18919fdb8ed7ec9dd8217180854dd1fe21eea96aed36186729 CACHE STRING "SHA256 hash of SQLite source code")
+  if(DEFINED ENV{SQLITE_SRC_URL})
+    set(SQLITE_SRC_URL_INIT $ENV{SQLITE_SRC_URL})
+  else()
+    set(SQLITE_SRC_URL_INIT https://sqlite.org/2021/sqlite-amalgamation-3360000.zip)
+  endif()
+  set(SQLITE_SRC_URL ${SQLITE_SRC_URL_INIT} CACHE STRING "Location of SQLite source code")
+  set(SQLITE_SRC_SHA256 999826fe4c871f18919fdb8ed7ec9dd8217180854dd1fe21eea96aed36186729 CACHE STRING "SHA256 hash of SQLite source code")
 
-# embed SQLite
-FetchContent_Declare(sqlite_local
-  URL ${SQLITE_SRC_URL}
-  URL_HASH SHA256=${SQLITE_SRC_SHA256}
-)
-FetchContent_MakeAvailable(sqlite_local)
-add_library( sqlite3 OBJECT ${sqlite_local_SOURCE_DIR}/sqlite3.c )
-set_target_properties( sqlite3 PROPERTIES
-  C_VISIBILITY_PRESET "hidden"
-  VISIBILITY_INLINES_HIDDEN ON
-  POSITION_INDEPENDENT_CODE ON
+  # embed SQLite
+  FetchContent_Declare(sqlite_local
+    URL ${SQLITE_SRC_URL}
+    URL_HASH SHA256=${SQLITE_SRC_SHA256}
   )
+  FetchContent_MakeAvailable(sqlite_local)
+  add_library( sqlite3 OBJECT ${sqlite_local_SOURCE_DIR}/sqlite3.c )
+  set_target_properties( sqlite3 PROPERTIES
+    C_VISIBILITY_PRESET "hidden"
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON
+    )
 
-# we don't need extensions, and omitting them from SQLite removes the
-# need for dlopen/dlclose from within rocFFT
-target_compile_options(
-  sqlite3
-  PRIVATE -DSQLITE_OMIT_LOAD_EXTENSION
-)
+  # we don't need extensions, and omitting them from SQLite removes the
+  # need for dlopen/dlclose from within rocFFT
+  target_compile_options(
+    sqlite3
+    PRIVATE -DSQLITE_OMIT_LOAD_EXTENSION
+  )
+  set(ROCFFT_SQLITE_LIB sqlite3)
+endif()
 
 set_property(
   SOURCE rtc.cpp
@@ -181,9 +193,9 @@ prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 add_library( rocfft
   ${rocfft_source}
   ${relative_rocfft_headers_public}
-  $<TARGET_OBJECTS:sqlite3>
   )
 add_library( roc::rocfft ALIAS rocfft )
+target_link_libraries( rocfft PRIVATE ${ROCFFT_SQLITE_LIB} )
 
 if( NOT WIN32 )
   target_link_libraries( rocfft PRIVATE -lstdc++fs )
