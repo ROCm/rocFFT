@@ -18,7 +18,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
        git branch: "${reference}", url: 'https://github.com/ROCmSoftwarePlatform/rocFFT.git'
     }
 
-    String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON -DBUILD_FFTW=ON'
+    String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_SELFTEST=ON -DBUILD_CLIENTS_RIDER=ON -DBUILD_FFTW=OFF'
     String warningArgs = '-DWERROR=ON'
     String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DROCFFT_DEVICE_FORCE_RELEASE=ON' : '-DCMAKE_BUILD_TYPE=Release'
     String buildTypeDir = debug ? 'debug' : 'release'
