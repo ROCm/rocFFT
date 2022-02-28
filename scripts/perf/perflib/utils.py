@@ -66,11 +66,13 @@ def write_tsv(path, records, meta={}, overwrite=False):
     with open(path, 'a') as f:
         if overwrite:
             f.truncate(0)
+        if f.tell() == 0:
             if meta is not None:
                 for k, v in meta.items():
                     dat.append(f'# {k}: {v}')
         dat += [tjoin([str(x) for x in r]) for r in records]
         f.write(njoin(dat))
+        f.write('\n')
 
 
 #
