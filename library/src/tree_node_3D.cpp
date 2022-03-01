@@ -19,8 +19,10 @@
 // THE SOFTWARE.
 
 #include "tree_node_3D.h"
+#include "arithmetic.h"
 #include "function_pool.h"
 #include "node_factory.h"
+#include <numeric>
 
 /*****************************************************
  * 3D_RTRT  *

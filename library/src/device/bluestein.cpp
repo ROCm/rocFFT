@@ -73,21 +73,11 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_chirp(const void* data_p, void* back_p
     hipStream_t rocfft_stream = data->rocfft_stream;
 
     if(data->node->precision == rocfft_precision_single)
-        chirp_launch<float2>(N,
-                             M,
-                             (float2*)data->bufOut[0],
-                             data->node->twiddles_large.data(),
-                             twl,
-                             dir,
-                             rocfft_stream);
+        chirp_launch<float2>(
+            N, M, (float2*)data->bufOut[0], data->node->twiddles_large, twl, dir, rocfft_stream);
     else
-        chirp_launch<double2>(N,
-                              M,
-                              (double2*)data->bufOut[0],
-                              data->node->twiddles_large.data(),
-                              twl,
-                              dir,
-                              rocfft_stream);
+        chirp_launch<double2>(
+            N, M, (double2*)data->bufOut[0], data->node->twiddles_large, twl, dir, rocfft_stream);
 }
 
 ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)

@@ -21,6 +21,7 @@
 #include "assignment_policy.h"
 #include "./device/kernels/array_format.h"
 #include "logging.h"
+#include <numeric>
 #include <set>
 
 void PlacementTrace::Print(rocfft_ostream& os)

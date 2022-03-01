@@ -24,8 +24,7 @@
 #ifndef REPO_H
 #define REPO_H
 
-#include "plan.h"
-#include "tree_node.h"
+#include "../../../shared/gpubuf.h"
 #include <map>
 #include <mutex>
 
@@ -33,19 +32,91 @@ class Repo
 {
     Repo() {}
 
-    // keys to the maps are plan, deviceId.  plans must be per-device
-    // since we allocate twiddles in the plan's TreeNode
-    typedef std::pair<rocfft_plan_t, int> plan_unique_key_t;
-    typedef std::pair<rocfft_plan, int>   exec_lookup_key_t;
+    // key structure for 1D twiddles - these are the arguments to
+    // twiddle creation
+    struct repo_key_1D_t
+    {
+        // twiddle table length
+        size_t           length       = 0;
+        size_t           length_limit = 0;
+        rocfft_precision precision    = rocfft_precision_single;
+        // large twiddle base (0 for non-large twiddle)
+        size_t              large_twiddle_base = 0;
+        bool                attach_halfN       = false;
+        std::vector<size_t> radices;
+        // buffers are in device memory, so we need per-device
+        // twiddles
+        int deviceId = 0;
 
-    // planUnique has unique rocfft_plan_t and ExecPlan, and a reference counter
-    std::map<plan_unique_key_t, std::pair<ExecPlan, int>> planUnique;
-    std::map<exec_lookup_key_t, ExecPlan>                 execLookup;
-    static std::mutex                                     mtx;
+        bool operator<(const repo_key_1D_t& other) const
+        {
+            if(length != other.length)
+                return length < other.length;
+            if(length_limit != other.length_limit)
+                return length_limit < other.length_limit;
+            if(precision != other.precision)
+                return precision < other.precision;
+            if(large_twiddle_base != other.large_twiddle_base)
+                return large_twiddle_base < other.large_twiddle_base;
+            if(attach_halfN != other.attach_halfN)
+                return attach_halfN < other.attach_halfN;
+            if(radices != other.radices)
+                return radices < other.radices;
+            return deviceId < other.deviceId;
+        }
+    };
+    // key structure for 2D twiddles
+    struct repo_key_2D_t
+    {
+        size_t           length0   = 0;
+        size_t           length1   = 0;
+        rocfft_precision precision = rocfft_precision_single;
+        // buffers are in device memory, so we need per-device
+        // twiddles
+        int deviceId = 0;
+
+        bool operator<(const repo_key_2D_t& other) const
+        {
+            if(length0 != other.length0)
+                return length0 < other.length0;
+            if(length1 != other.length1)
+                return length1 < other.length1;
+            if(precision != other.precision)
+                return precision < other.precision;
+            return deviceId < other.deviceId;
+        }
+    };
+
+    // twiddle tables are buffers in device memory, along with a
+    // reference count
+    //
+    // NOTE: some buffers might be more shareable here (e.g. simple
+    // 1D might match half of a 2D twiddle, or a simple 1D might be
+    // shareable with a same-length attach_halfN buffer)
+    std::map<repo_key_1D_t, std::pair<gpubuf, unsigned int>> twiddles_1D;
+    std::map<repo_key_2D_t, std::pair<gpubuf, unsigned int>> twiddles_2D;
+    // reverse-map the device pointers back to the keys so users can
+    // free the pointer they were given
+    std::map<void*, repo_key_1D_t> twiddles_1D_reverse;
+    std::map<void*, repo_key_2D_t> twiddles_2D_reverse;
+    static std::mutex              mtx;
+
+    // internal helpers to get and free twiddles
+    template <typename KeyType>
+    static std::pair<void*, size_t>
+        GetTwiddlesInternal(KeyType,
+                            std::map<KeyType, std::pair<gpubuf, unsigned int>>&,
+                            std::map<void*, KeyType>&,
+                            std::function<gpubuf()>);
+    template <typename KeyType>
+    static void ReleaseTwiddlesInternal(void* ptr,
+                                        std::map<KeyType, std::pair<gpubuf, unsigned int>>&,
+                                        std::map<void*, KeyType>&);
 
 public:
-    Repo(const Repo&) = delete; // delete is a c++11 feature, prohibit copy constructor
-    Repo& operator=(const Repo&) = delete; // prohibit assignment operator
+    // repo is a singleton, so no copying or assignment
+    Repo(const Repo&) = delete;
+    Repo& operator=(const Repo&) = delete;
 
     static Repo& GetRepo()
     {
@@ -58,13 +129,17 @@ public:
         repoDestroyed = true;
     }
 
-    static void CreatePlan(rocfft_plan plan);
-    // may return nullptr if the plan is not known to the repo
-    static ExecPlan* GetPlan(rocfft_plan plan);
-    static void      DeletePlan(rocfft_plan plan);
-    static size_t    GetUniquePlanCount();
-    static size_t    GetTotalPlanCount();
-    // remove cached plans
+    static std::pair<void*, size_t> GetTwiddles1D(size_t                     length,
+                                                  size_t                     length_limit,
+                                                  rocfft_precision           precision,
+                                                  size_t                     largeTwdBase,
+                                                  bool                       attach_halfN,
+                                                  const std::vector<size_t>& radices);
+    static std::pair<void*, size_t>
+                GetTwiddles2D(size_t length0, size_t length1, rocfft_precision precision);
+    static void ReleaseTwiddle1D(void* ptr);
+    static void ReleaseTwiddle2D(void* ptr);
+    // remove cached twiddles
     static void Clear();
 
     // Repo is a singleton that should only be destroyed on static

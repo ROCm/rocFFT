@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "tree_node_real.h"
+#include "arithmetic.h"
 #include "function_pool.h"
 #include "node_factory.h"
 #include "real2complex.h"

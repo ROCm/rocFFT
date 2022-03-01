@@ -21,6 +21,25 @@
 #include "tree_node.h"
 #include "function_pool.h"
 #include "kernel_launch.h"
+#include "repo.h"
+#include "twiddles.h"
+
+TreeNode::~TreeNode()
+{
+    if(twiddles)
+    {
+        if(scheme == CS_KERNEL_2D_SINGLE)
+            Repo::ReleaseTwiddle2D(twiddles);
+        else
+            Repo::ReleaseTwiddle1D(twiddles);
+        twiddles = nullptr;
+    }
+    if(twiddles_large)
+    {
+        Repo::ReleaseTwiddle1D(twiddles_large);
+        twiddles_large = nullptr;
+    }
+}
 
 NodeMetaData::NodeMetaData(TreeNode* refNode)
 {
@@ -59,8 +78,8 @@ bool LeafNode::CreateLargeTwdTable()
 {
     if(large1D != 0)
     {
-        twiddles_large
-            = twiddles_create(large1D, 0, precision, true, largeTwdBase, false, false, {});
+        std::tie(twiddles_large, twiddles_large_size)
+            = Repo::GetTwiddles1D(large1D, 0, precision, largeTwdBase, false, {});
     }
 
     return true;
@@ -123,15 +142,9 @@ bool LeafNode::CreateTwiddleTableResource()
     {
         if(!twd_no_radices)
             GetKernelFactors();
-        size_t twd_len = GetTwiddleTableLength();
-        twiddles       = twiddles_create(twd_len,
-                                   GetTwiddleTableLengthLimit(),
-                                   precision,
-                                   false,
-                                   LTWD_BASE_DEFAULT,
-                                   twd_no_radices,
-                                   twd_attach_halfN,
-                                   kernelFactors);
+        size_t twd_len                    = GetTwiddleTableLength();
+        std::tie(twiddles, twiddles_size) = Repo::GetTwiddles1D(
+            twd_len, GetTwiddleTableLengthLimit(), precision, 0, twd_attach_halfN, kernelFactors);
     }
 
     return CreateLargeTwdTable();

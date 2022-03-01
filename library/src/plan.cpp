@@ -19,13 +19,12 @@
 // THE SOFTWARE.
 
 #include "plan.h"
+#include "arithmetic.h"
 #include "assignment_policy.h"
 #include "function_pool.h"
 #include "hip/hip_runtime_api.h"
 #include "logging.h"
 #include "node_factory.h"
-#include "private.h"
-#include "repo.h"
 #include "rocfft-version.h"
 #include "rocfft.h"
 #include "rocfft_ostream.hpp"
@@ -493,22 +492,86 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
 
     log_bench(rocfft_rider_command(p));
 
-    // size_t prodLength = 1;
-    // for(size_t i = 0; i < (p->rank); i++)
-    // {
-    //     prodLength *= lengths[i];
-    // }
-    // if(!SupportedLength(prodLength))
-    // {
-    //     printf("This size %zu is not supported in rocFFT, will return;\n",
-    //            prodLength);
-    //     return rocfft_status_invalid_dimensions;
-    // }
-
-    // add this plan into repo, incurs computation, see repo.cpp
+    // construct the plan
     try
     {
-        Repo::GetRepo().CreatePlan(p);
+        NodeMetaData rootPlanData(nullptr);
+
+        rootPlanData.dimension = plan->rank;
+        rootPlanData.batch     = plan->batch;
+        for(size_t i = 0; i < plan->rank; i++)
+        {
+            rootPlanData.length.push_back(plan->lengths[i]);
+
+            rootPlanData.inStride.push_back(plan->desc.inStrides[i]);
+            rootPlanData.outStride.push_back(plan->desc.outStrides[i]);
+        }
+        rootPlanData.iDist = plan->desc.inDist;
+        rootPlanData.oDist = plan->desc.outDist;
+
+        rootPlanData.placement = plan->placement;
+        rootPlanData.precision = plan->precision;
+        if((plan->transformType == rocfft_transform_type_complex_forward)
+           || (plan->transformType == rocfft_transform_type_real_forward))
+            rootPlanData.direction = -1;
+        else
+            rootPlanData.direction = 1;
+
+        rootPlanData.inArrayType  = plan->desc.inArrayType;
+        rootPlanData.outArrayType = plan->desc.outArrayType;
+        rootPlanData.rootIsC2C    = (rootPlanData.inArrayType != rocfft_array_type_real)
+                                 && (rootPlanData.outArrayType != rocfft_array_type_real);
+
+        ExecPlan& execPlan = plan->execPlan;
+        int       deviceId = 0;
+        if(hipGetDevice(&deviceId) != hipSuccess)
+        {
+            throw std::runtime_error("hipGetDevice failed.");
+        }
+        if(hipGetDeviceProperties(&(execPlan.deviceProp), deviceId) != hipSuccess)
+        {
+            throw std::runtime_error("hipGetDeviceProperties failed for deviceId "
+                                     + std::to_string(deviceId));
+        }
+        rootPlanData.deviceProp = execPlan.deviceProp;
+        execPlan.rootPlan       = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
+
+        std::copy(plan->lengths.begin(),
+                  plan->lengths.begin() + plan->rank,
+                  std::back_inserter(execPlan.iLength));
+        std::copy(plan->lengths.begin(),
+                  plan->lengths.begin() + plan->rank,
+                  std::back_inserter(execPlan.oLength));
+
+        if(plan->transformType == rocfft_transform_type_real_inverse)
+        {
+            execPlan.iLength.front() = execPlan.iLength.front() / 2 + 1;
+            if(plan->placement == rocfft_placement_inplace)
+                execPlan.oLength.front() = execPlan.iLength.front() * 2;
+        }
+        if(plan->transformType == rocfft_transform_type_real_forward)
+        {
+            execPlan.oLength.front() = execPlan.oLength.front() / 2 + 1;
+            if(plan->placement == rocfft_placement_inplace)
+                execPlan.iLength.front() = execPlan.oLength.front() * 2;
+        }
+
+        try
+        {
+            ProcessNode(execPlan); // TODO: more descriptions are needed
+        }
+        catch(std::exception&)
+        {
+            if(LOG_PLAN_ENABLED())
+                PrintNode(*LogSingleton::GetInstance().GetPlanOS(), execPlan);
+            throw;
+        }
+
+        if(!PlanPowX(execPlan)) // PlanPowX enqueues the GPU kernels by function
+        {
+
+            throw std::runtime_error("Unable to create execution plan.");
+        }
         return rocfft_status_success;
     }
     catch(std::exception& e)
@@ -576,26 +639,16 @@ rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
 
 rocfft_status rocfft_plan_destroy(rocfft_plan plan)
 {
-    log_trace(__func__, "plan", plan);
-    // Remove itself from Repo first, and then delete itself
-    Repo& repo = Repo::GetRepo();
-    repo.DeletePlan(plan);
-    if(plan != nullptr)
-    {
-        delete plan;
-        plan = nullptr;
-    }
+    delete plan;
     return rocfft_status_success;
 }
 
 rocfft_status rocfft_plan_get_work_buffer_size(const rocfft_plan plan, size_t* size_in_bytes)
 {
-    Repo&     repo     = Repo::GetRepo();
-    ExecPlan* execPlan = repo.GetPlan(plan);
-    if(!execPlan)
+    if(!plan)
         return rocfft_status_failure;
 
-    *size_in_bytes = execPlan->WorkBufBytes(plan->base_type_size);
+    *size_in_bytes = plan->execPlan.WorkBufBytes(plan->base_type_size);
     log_trace(__func__, "plan", plan, "size_in_bytes ptr", size_in_bytes, "val", *size_in_bytes);
     return rocfft_status_success;
 }
@@ -739,20 +792,6 @@ ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, const size_t le
     if(len < sizeof(v))
         return rocfft_status_invalid_arg_value;
     memcpy(buf, v, sizeof(v));
-    return rocfft_status_success;
-}
-
-ROCFFT_EXPORT rocfft_status rocfft_repo_get_unique_plan_count(size_t* count)
-{
-    Repo& repo = Repo::GetRepo();
-    *count     = repo.GetUniquePlanCount();
-    return rocfft_status_success;
-}
-
-ROCFFT_EXPORT rocfft_status rocfft_repo_get_total_plan_count(size_t* count)
-{
-    Repo& repo = Repo::GetRepo();
-    *count     = repo.GetTotalPlanCount();
     return rocfft_status_success;
 }
 
@@ -1513,13 +1552,13 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     {
         os << "\n"
            << indentStr.c_str()
-           << "twiddle table length: " << twiddles.size() / sizeof_precision(precision);
+           << "twiddle table length: " << twiddles_size / sizeof_precision(precision);
     }
     if(twiddles_large)
     {
         os << "\n"
            << indentStr.c_str()
-           << "large twiddle table length: " << twiddles_large.size() / sizeof_precision(precision);
+           << "large twiddle table length: " << twiddles_large_size / sizeof_precision(precision);
     }
     if(lengthBlue)
         os << "\n" << indentStr.c_str() << "lengthBlue: " << lengthBlue;

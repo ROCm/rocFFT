@@ -19,9 +19,11 @@
 // THE SOFTWARE.
 
 #include "tree_node_2D.h"
+#include "arithmetic.h"
 #include "function_pool.h"
 #include "fuse_shim.h"
 #include "node_factory.h"
+#include "repo.h"
 
 /*****************************************************
  * 2D_RTRT  *
@@ -272,7 +274,7 @@ void RC2DNode::AssignBuffers_internal(TraverseState&   state,
 bool Single2DNode::CreateTwiddleTableResource()
 {
     // create one set of twiddles for each dimension
-    twiddles = twiddles_create_2D(length[0], length[1], precision);
+    std::tie(twiddles, twiddles_size) = Repo::GetTwiddles2D(length[0], length[1], precision);
 
     return CreateLargeTwdTable();
 }

@@ -22,6 +22,7 @@
 
 #include <assert.h>
 #include <iostream>
+#include <numeric>
 #include <vector>
 
 #include "logging.h"
@@ -29,195 +30,121 @@
 #include "plan.h"
 #include "repo.h"
 #include "rocfft.h"
+#include "twiddles.h"
 
 // Implementation of Class Repo
 
 std::mutex        Repo::mtx;
 std::atomic<bool> Repo::repoDestroyed(false);
 
-void Repo::CreatePlan(rocfft_plan plan)
+template <typename KeyType>
+std::pair<void*, size_t>
+    Repo::GetTwiddlesInternal(KeyType                                             key,
+                              std::map<KeyType, std::pair<gpubuf, unsigned int>>& twiddles,
+                              std::map<void*, KeyType>&                           twiddles_reverse,
+                              std::function<gpubuf()>                             create_twiddle)
 {
-    if(plan == nullptr)
-    {
-        throw std::runtime_error("Plan passed to repo is null.");
-    }
-
-    std::lock_guard<std::mutex> lck(mtx);
     if(repoDestroyed)
     {
         throw std::runtime_error("Repo prematurely destroyed.");
     }
 
-    Repo& repo = Repo::GetRepo();
-
     // see if the repo has already stored the plan or not
-    int deviceId = 0;
-    if(hipGetDevice(&deviceId) != hipSuccess)
+    if(hipGetDevice(&key.deviceId) != hipSuccess)
     {
         throw std::runtime_error("hipGetDevice failed.");
     }
-    plan_unique_key_t uniqueKey{*plan, deviceId};
-    exec_lookup_key_t lookupKey{plan, deviceId};
 
-    auto it = repo.planUnique.find(uniqueKey);
-    if(it == repo.planUnique.end()) // if not found
+    auto it = twiddles.find(key);
+    if(it != twiddles.end())
     {
-        NodeMetaData rootPlanData(nullptr);
-
-        rootPlanData.dimension = plan->rank;
-        rootPlanData.batch     = plan->batch;
-        for(size_t i = 0; i < plan->rank; i++)
-        {
-            rootPlanData.length.push_back(plan->lengths[i]);
-
-            rootPlanData.inStride.push_back(plan->desc.inStrides[i]);
-            rootPlanData.outStride.push_back(plan->desc.outStrides[i]);
-        }
-        rootPlanData.iDist = plan->desc.inDist;
-        rootPlanData.oDist = plan->desc.outDist;
-
-        rootPlanData.placement = plan->placement;
-        rootPlanData.precision = plan->precision;
-        if((plan->transformType == rocfft_transform_type_complex_forward)
-           || (plan->transformType == rocfft_transform_type_real_forward))
-            rootPlanData.direction = -1;
-        else
-            rootPlanData.direction = 1;
-
-        rootPlanData.inArrayType  = plan->desc.inArrayType;
-        rootPlanData.outArrayType = plan->desc.outArrayType;
-        rootPlanData.rootIsC2C    = (rootPlanData.inArrayType != rocfft_array_type_real)
-                                 && (rootPlanData.outArrayType != rocfft_array_type_real);
-
-        ExecPlan execPlan;
-        if(hipGetDeviceProperties(&(execPlan.deviceProp), deviceId) != hipSuccess)
-        {
-            throw std::runtime_error("hipGetDeviceProperties failed for deviceId "
-                                     + std::to_string(deviceId));
-        }
-        rootPlanData.deviceProp = execPlan.deviceProp;
-        execPlan.rootPlan       = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
-
-        std::copy(plan->lengths.begin(),
-                  plan->lengths.begin() + plan->rank,
-                  std::back_inserter(execPlan.iLength));
-        std::copy(plan->lengths.begin(),
-                  plan->lengths.begin() + plan->rank,
-                  std::back_inserter(execPlan.oLength));
-
-        if(plan->transformType == rocfft_transform_type_real_inverse)
-        {
-            execPlan.iLength.front() = execPlan.iLength.front() / 2 + 1;
-            if(plan->placement == rocfft_placement_inplace)
-                execPlan.oLength.front() = execPlan.iLength.front() * 2;
-        }
-        if(plan->transformType == rocfft_transform_type_real_forward)
-        {
-            execPlan.oLength.front() = execPlan.oLength.front() / 2 + 1;
-            if(plan->placement == rocfft_placement_inplace)
-                execPlan.iLength.front() = execPlan.oLength.front() * 2;
-        }
-
-        try
-        {
-            ProcessNode(execPlan); // TODO: more descriptions are needed
-        }
-        catch(std::exception&)
-        {
-            if(LOG_PLAN_ENABLED())
-                PrintNode(*LogSingleton::GetInstance().GetPlanOS(), execPlan);
-            throw;
-        }
-
-        if(!PlanPowX(execPlan)) // PlanPowX enqueues the GPU kernels by function
-        {
-
-            throw std::runtime_error("Unable to find execution plan.");
-        }
-
-        // pointers but does not execute kernels
-
-        // add this plan into member planUnique (type of map)
-        repo.planUnique[{*plan, deviceId}] = std::make_pair(execPlan, 1);
-        // add this plan into member execLookup (type of map)
-        repo.execLookup[lookupKey] = execPlan;
+        // already had this length
+        it->second.second += 1;
+        return {it->second.first.data(), it->second.first.size()};
     }
-    else // find the stored plan
-    {
-        repo.execLookup[lookupKey]
-            = it->second.first; // retrieve this plan and put it into member execLookup
-        it->second.second++;
-    }
+
+    // otherwise, need to allocate
+    auto buf = create_twiddle();
+    // if allocation failed, don't update maps
+    if(buf.data() == nullptr)
+        return {nullptr, 0};
+    it = twiddles.insert({key, std::make_pair(std::move(buf), 1)}).first;
+    twiddles_reverse.insert({it->second.first.data(), key});
+    return {it->second.first.data(), it->second.first.size()};
 }
 
-// According to input plan, return the corresponding execPlan
-ExecPlan* Repo::GetPlan(rocfft_plan plan)
+template <typename KeyType>
+void Repo::ReleaseTwiddlesInternal(void*                                               ptr,
+                                   std::map<KeyType, std::pair<gpubuf, unsigned int>>& twiddles,
+                                   std::map<void*, KeyType>& twiddles_reverse)
 {
-    std::lock_guard<std::mutex> lck(mtx);
-    if(repoDestroyed || plan == nullptr)
-        return nullptr;
-
-    Repo& repo     = Repo::GetRepo();
-    int   deviceId = 0;
-    if(hipGetDevice(&deviceId) != hipSuccess)
-        return nullptr;
-    exec_lookup_key_t lookupKey{plan, deviceId};
-
-    auto it = repo.execLookup.find(lookupKey);
-    if(it != repo.execLookup.end())
-        return &it->second;
-    return nullptr;
-}
-
-// Remove the plan from Repo and release its ExecPlan resources if it is the last reference
-void Repo::DeletePlan(rocfft_plan plan)
-{
-    std::lock_guard<std::mutex> lck(mtx);
-    if(repoDestroyed || plan == nullptr)
-        return;
-
-    Repo& repo     = Repo::GetRepo();
-    int   deviceId = 0;
-    if(hipGetDevice(&deviceId) != hipSuccess)
-        return;
-    exec_lookup_key_t lookupKey{plan, deviceId};
-    plan_unique_key_t uniqueKey{*plan, deviceId};
-
-    auto it = repo.execLookup.find(lookupKey);
-    if(it != repo.execLookup.end())
-    {
-        repo.execLookup.erase(it);
-    }
-
-    auto it_u = repo.planUnique.find(uniqueKey);
-    if(it_u != repo.planUnique.end())
-    {
-        it_u->second.second--;
-        if(it_u->second.second <= 0)
-        {
-            repo.planUnique.erase(it_u);
-        }
-    }
-}
-
-size_t Repo::GetUniquePlanCount()
-{
-    std::lock_guard<std::mutex> lck(mtx);
     if(repoDestroyed)
-        return 0;
+    {
+        throw std::runtime_error("Repo prematurely destroyed.");
+    }
+
+    auto reverse_it = twiddles_reverse.find(ptr);
+    if(reverse_it == twiddles_reverse.end())
+        return;
+    auto forward_it = twiddles.find(reverse_it->second);
+    if(forward_it == twiddles.end())
+    {
+        // orphaned reverse entry?
+        twiddles_reverse.erase(reverse_it);
+        return;
+    }
+    forward_it->second.second -= 1;
+    if(forward_it->second.second == 0)
+    {
+        // remove from both maps
+        twiddles.erase(forward_it);
+        twiddles_reverse.erase(reverse_it);
+    }
+}
+
+std::pair<void*, size_t> Repo::GetTwiddles1D(size_t                     length,
+                                             size_t                     length_limit,
+                                             rocfft_precision           precision,
+                                             size_t                     largeTwdBase,
+                                             bool                       attach_halfN,
+                                             const std::vector<size_t>& radices)
+{
+    std::lock_guard<std::mutex> lck(mtx);
+    Repo&                       repo = Repo::GetRepo();
+
+    repo_key_1D_t key{length, length_limit, precision, largeTwdBase, attach_halfN, radices};
+    return GetTwiddlesInternal(key, repo.twiddles_1D, repo.twiddles_1D_reverse, [&]() {
+        return twiddles_create(
+            length, length_limit, precision, largeTwdBase, attach_halfN, radices);
+    });
+}
+
+std::pair<void*, size_t>
+    Repo::GetTwiddles2D(size_t length0, size_t length1, rocfft_precision precision)
+{
+    std::lock_guard<std::mutex> lck(mtx);
+    Repo&                       repo = Repo::GetRepo();
+
+    repo_key_2D_t key{length0, length1, precision};
+    return GetTwiddlesInternal(key, repo.twiddles_2D, repo.twiddles_2D_reverse, [&]() {
+        return twiddles_create_2D(length0, length1, precision);
+    });
+}
+
+void Repo::ReleaseTwiddle1D(void* ptr)
+{
+    std::lock_guard<std::mutex> lck(mtx);
 
     Repo& repo = Repo::GetRepo();
-    return repo.planUnique.size();
+    return ReleaseTwiddlesInternal(ptr, repo.twiddles_1D, repo.twiddles_1D_reverse);
 }
 
-size_t Repo::GetTotalPlanCount()
+void Repo::ReleaseTwiddle2D(void* ptr)
 {
     std::lock_guard<std::mutex> lck(mtx);
-    if(repoDestroyed)
-        return 0;
 
     Repo& repo = Repo::GetRepo();
-    return repo.execLookup.size();
+    return ReleaseTwiddlesInternal(ptr, repo.twiddles_2D, repo.twiddles_2D_reverse);
 }
 
 void Repo::Clear()
@@ -226,6 +153,6 @@ void Repo::Clear()
     if(repoDestroyed)
         return;
     Repo& repo = Repo::GetRepo();
-    repo.planUnique.clear();
-    repo.execLookup.clear();
+    repo.twiddles_1D.clear();
+    repo.twiddles_2D.clear();
 }

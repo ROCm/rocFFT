@@ -194,31 +194,24 @@ public:
 template <typename T>
 gpubuf twiddles_create_pr(size_t                     N,
                           size_t                     length_limit,
-                          size_t                     threshold,
-                          bool                       large,
                           size_t                     largeTwdBase,
-                          bool                       no_radices,
                           bool                       attach_halfN,
                           const std::vector<size_t>& radices)
 {
-    if(large && length_limit)
+    if(largeTwdBase && length_limit)
         throw std::runtime_error("length-limited large twiddles are not supported");
 
     gpubuf         twts; // device side
     std::vector<T> twtc; // host side
-    if((N <= threshold) && !large)
+    if((N <= LARGE_TWIDDLE_THRESHOLD) && largeTwdBase == 0)
     {
         TwiddleTable<T> twTable(N, length_limit);
-        if(no_radices)
+        if(radices.empty())
         {
             twtc = twTable.GenerateTwiddleTable();
         }
         else
         {
-            if(radices.empty())
-            {
-                throw std::runtime_error("Can't compute twiddle table: missing radices");
-            }
             twtc = twTable.GenerateTwiddleTable(radices); // calculate twiddles on host side
         }
 
@@ -241,7 +234,7 @@ gpubuf twiddles_create_pr(size_t                     N,
     {
         assert(!attach_halfN);
 
-        if(no_radices)
+        if(largeTwdBase == 0)
         {
             TwiddleTable<T> twTable(N, length_limit);
             twtc = twTable.GenerateTwiddleTable();
@@ -275,36 +268,14 @@ gpubuf twiddles_create_pr(size_t                     N,
 gpubuf twiddles_create(size_t                     N,
                        size_t                     length_limit,
                        rocfft_precision           precision,
-                       bool                       large,
                        size_t                     largeTwdBase,
-                       bool                       no_radices,
                        bool                       attach_halfN,
                        const std::vector<size_t>& radices)
 {
-    if(large)
-    {
-        if(!largeTwdBase)
-            throw std::runtime_error("missing largeTwdBase value for large twiddle");
-    }
-
     if(precision == rocfft_precision_single)
-        return twiddles_create_pr<float2>(N,
-                                          length_limit,
-                                          LARGE_TWIDDLE_THRESHOLD,
-                                          large,
-                                          largeTwdBase,
-                                          no_radices,
-                                          attach_halfN,
-                                          radices);
+        return twiddles_create_pr<float2>(N, length_limit, largeTwdBase, attach_halfN, radices);
     else if(precision == rocfft_precision_double)
-        return twiddles_create_pr<double2>(N,
-                                           length_limit,
-                                           LARGE_TWIDDLE_THRESHOLD,
-                                           large,
-                                           largeTwdBase,
-                                           no_radices,
-                                           attach_halfN,
-                                           radices);
+        return twiddles_create_pr<double2>(N, length_limit, largeTwdBase, attach_halfN, radices);
     else
     {
         assert(false);

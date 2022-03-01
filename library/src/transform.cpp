@@ -28,7 +28,6 @@
 #include "../../shared/array_predicate.h"
 #include "logging.h"
 #include "plan.h"
-#include "repo.h"
 #include "rocfft.h"
 #include "transform.h"
 
@@ -110,13 +109,12 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
     log_trace(
         __func__, "plan", plan, "in_buffer", in_buffer, "out_buffer", out_buffer, "info", info);
 
-    Repo&     repo     = Repo::GetRepo();
-    ExecPlan* execPlan = repo.GetPlan(plan);
-    if(!execPlan)
+    if(!plan)
         return rocfft_status_failure;
+    const ExecPlan& execPlan = plan->execPlan;
 
     if(LOG_PLAN_ENABLED())
-        PrintNode(*LogSingleton::GetInstance().GetPlanOS(), *execPlan);
+        PrintNode(*LogSingleton::GetInstance().GetPlanOS(), execPlan);
 
     // tolerate user not providing an execution_info
     rocfft_execution_info_t exec_info;
@@ -125,9 +123,9 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
 
     gpubuf autoAllocWorkBuf;
 
-    if(execPlan->workBufSize > 0)
+    if(execPlan.workBufSize > 0)
     {
-        auto requiredWorkBufBytes = execPlan->WorkBufBytes(plan->base_type_size);
+        auto requiredWorkBufBytes = execPlan.WorkBufBytes(plan->base_type_size);
         if(!exec_info.workBuffer)
         {
             // user didn't provide a buffer, alloc one now
@@ -142,14 +140,14 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
     }
 
     // Callbacks do not currently support planar format
-    if((array_type_is_planar(execPlan->rootPlan->inArrayType)
-        || array_type_is_planar(execPlan->rootPlan->outArrayType))
+    if((array_type_is_planar(execPlan.rootPlan->inArrayType)
+        || array_type_is_planar(execPlan.rootPlan->outArrayType))
        && (exec_info.callbacks.load_cb_fn || exec_info.callbacks.store_cb_fn))
         return rocfft_status_failure;
 
     try
     {
-        TransformPowX(*execPlan,
+        TransformPowX(execPlan,
                       in_buffer,
                       (plan->placement == rocfft_placement_inplace) ? in_buffer : out_buffer,
                       &exec_info);

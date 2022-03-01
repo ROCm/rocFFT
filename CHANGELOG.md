@@ -2,6 +2,11 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
+## (Unreleased) rocFFT 1.0.17
+
+### Changed
+- Improved reuse of twiddle memory between plans.
+
 ## (Unreleased) rocFFT 1.0.16
 
 ### Changed

@@ -357,10 +357,10 @@ void RTCKernel::launch(DeviceCallIn& data)
     std::vector<void*> kargs;
 
     // twiddles
-    kargs.push_back(data.node->twiddles.data());
+    kargs.push_back(data.node->twiddles);
     // large 1D twiddles
     if(data.node->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-        kargs.push_back(data.node->twiddles_large.data());
+        kargs.push_back(data.node->twiddles_large);
     // dim
     kargs.push_back(reinterpret_cast<void*>(data.node->length.size()));
     // lengths

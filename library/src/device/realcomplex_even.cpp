@@ -367,7 +367,7 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
                                idist,
                                bufOut0,
                                odist,
-                               data->node->twiddles.data(),
+                               data->node->twiddles,
                                data->callbacks.load_cb_fn,
                                data->callbacks.load_cb_data,
                                data->callbacks.load_cb_lds_bytes,
@@ -387,7 +387,7 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
                                bufOut0,
                                bufOut1,
                                odist,
-                               data->node->twiddles.data());
+                               data->node->twiddles);
         }
     }
     else
@@ -408,7 +408,7 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
                                idist,
                                bufOut0,
                                odist,
-                               data->node->twiddles.data());
+                               data->node->twiddles);
         }
         else
         {
@@ -425,7 +425,7 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
                                bufOut0,
                                bufOut1,
                                odist,
-                               data->node->twiddles.data());
+                               data->node->twiddles);
         }
     }
 }
@@ -681,7 +681,7 @@ ROCFFT_DEVICE_EXPORT void c2r_1d_pre(const void* data_p, void*)
                            idist,
                            bufOut0,
                            odist,
-                           data->node->twiddles.data(),
+                           data->node->twiddles,
                            data->callbacks.load_cb_fn,
                            data->callbacks.load_cb_data,
                            data->callbacks.load_cb_lds_bytes,
@@ -703,6 +703,6 @@ ROCFFT_DEVICE_EXPORT void c2r_1d_pre(const void* data_p, void*)
                            idist,
                            bufOut0,
                            odist,
-                           data->node->twiddles.data());
+                           data->node->twiddles);
     }
 }

@@ -24,7 +24,6 @@
 #include "../../shared/gpubuf.h"
 #include "hip/hip_runtime_api.h"
 #include "hip/hip_vector_types.h"
-#include "private.h"
 #include <boost/scope_exit.hpp>
 #include <condition_variable>
 #include <fstream>
@@ -96,135 +95,68 @@ TEST(rocfft_UnitTest, plan_description)
     ASSERT_TRUE(rocfft_status_success == rocfft_plan_destroy(plan));
 }
 
-// This test check duplicated plan creations will cache unique one only in repo.
-TEST(rocfft_UnitTest, cache_plans_in_repo)
+// check that twiddles are reused between distinct plans
+//
+// NOTE: since we're observing twiddle creation indirectly by
+// checking free device memory, this test can be unstable if other
+// stuff is using the GPU
+TEST(rocfft_UnitTest, repo_twiddle)
 {
-    size_t plan_unique_count = 0;
-    size_t plan_total_count  = 0;
-    size_t length            = 8;
+    rocfft_plan plan_forward = NULL;
+    rocfft_plan plan_inverse = NULL;
+    // 16M elements
+    const size_t length = 1 << 24;
 
-    rocfft_repo_get_unique_plan_count(&plan_unique_count);
-    EXPECT_TRUE(plan_unique_count == 0) << "plan_unique_count: " << plan_unique_count;
-    rocfft_repo_get_total_plan_count(&plan_total_count);
-    EXPECT_TRUE(plan_total_count == 0) << "plan_total_count: " << plan_total_count;
+    // assuming large twiddle base 8, the large twiddle table should
+    // be (1 << 8) * (24 / 8) elements
+    const auto LARGE_TWIDDLE_SIZE = (1 << 8) * (24 / 8) * sizeof(float) * 2;
 
-    // Create plan0
-    rocfft_plan plan0 = NULL;
+    // forward plan should need the same twiddles as an inverse
+    // plan of the same size
 
-    rocfft_plan_create(&plan0,
-                       rocfft_placement_inplace,
-                       rocfft_transform_type_complex_forward,
-                       rocfft_precision_single,
-                       1,
-                       &length,
-                       1,
-                       NULL);
+    // check device memory usage
+    size_t memFreeBefore = 0;
+    size_t memFreeTotal  = 0;
+    ASSERT_EQ(hipMemGetInfo(&memFreeBefore, &memFreeTotal), hipSuccess);
 
-    rocfft_repo_get_unique_plan_count(&plan_unique_count);
-    EXPECT_TRUE(plan_unique_count == 1) << "plan_unique_count: " << plan_unique_count;
-    rocfft_repo_get_total_plan_count(&plan_total_count);
-    EXPECT_TRUE(plan_total_count == 1) << "plan_total_count: " << plan_total_count;
+    // create forward plan
+    ASSERT_EQ(rocfft_plan_create(&plan_forward,
+                                 rocfft_placement_inplace,
+                                 rocfft_transform_type_complex_forward,
+                                 rocfft_precision_single,
+                                 1,
+                                 &length,
+                                 1,
+                                 nullptr),
+              rocfft_status_success);
 
-    // Create plan1 with the same params to plan0
-    rocfft_plan plan1 = NULL;
-    rocfft_plan_create(&plan1,
-                       rocfft_placement_inplace,
-                       rocfft_transform_type_complex_forward,
-                       rocfft_precision_single,
-                       1,
-                       &length,
-                       1,
-                       NULL);
+    // we'd expect at least a large twiddle's worth of memory to be used
+    size_t memFreeAfter1Plan = 0;
+    ASSERT_EQ(hipMemGetInfo(&memFreeAfter1Plan, &memFreeTotal), hipSuccess);
 
-    // Check we cached only 1 plan_t in repo
-    rocfft_repo_get_unique_plan_count(&plan_unique_count);
-    EXPECT_TRUE(plan_unique_count == 1);
-    rocfft_repo_get_total_plan_count(&plan_total_count);
-    EXPECT_TRUE(plan_total_count == 2);
+    ASSERT_LT(memFreeAfter1Plan, memFreeBefore);
+    ASSERT_GE(memFreeBefore - memFreeAfter1Plan, LARGE_TWIDDLE_SIZE);
 
-    rocfft_plan_destroy(plan0);
+    // create inverse plan
+    ASSERT_EQ(rocfft_plan_create(&plan_inverse,
+                                 rocfft_placement_inplace,
+                                 rocfft_transform_type_complex_inverse,
+                                 rocfft_precision_single,
+                                 1,
+                                 &length,
+                                 1,
+                                 nullptr),
+              rocfft_status_success);
+    size_t memFreeAfter2Plans = 0;
+    ASSERT_EQ(hipMemGetInfo(&memFreeAfter2Plans, &memFreeTotal), hipSuccess);
 
-    rocfft_repo_get_unique_plan_count(&plan_unique_count);
-    EXPECT_TRUE(plan_unique_count == 1);
-    rocfft_repo_get_total_plan_count(&plan_total_count);
-    EXPECT_TRUE(plan_total_count == 1);
+    // the second plan should allocate some smaller buffers (e.g. for
+    // kernel args) but definitely not the large twiddle table
+    ASSERT_LT(memFreeAfter2Plans, memFreeAfter1Plan);
+    ASSERT_LE(memFreeAfter1Plan - memFreeAfter2Plans, LARGE_TWIDDLE_SIZE);
 
-    rocfft_plan_destroy(plan1);
-
-    rocfft_repo_get_unique_plan_count(&plan_unique_count);
-    EXPECT_TRUE(plan_unique_count == 0);
-    rocfft_repo_get_total_plan_count(&plan_total_count);
-    EXPECT_TRUE(plan_total_count == 0);
-}
-
-std::mutex              test_mutex;
-std::condition_variable test_cv;
-int                     created          = 0;
-bool                    ready_to_destroy = false;
-
-void creation_test()
-{
-    rocfft_plan plan   = NULL;
-    size_t      length = 8;
-
-    {
-        std::lock_guard<std::mutex> lk(test_mutex);
-
-        rocfft_plan_create(&plan,
-                           rocfft_placement_inplace,
-                           rocfft_transform_type_complex_forward,
-                           rocfft_precision_single,
-                           1,
-                           &length,
-                           1,
-                           NULL);
-        created++;
-        //std::cout << "created " << created << std::endl;
-        test_cv.notify_all();
-    }
-
-    {
-        std::unique_lock<std::mutex> lk(test_mutex);
-        test_cv.wait(lk, [] { return ready_to_destroy; });
-    }
-    //std::cout << "will destroy\n";
-    rocfft_plan_destroy(plan);
-}
-
-// Multithreading check cache_plans_in_repo case
-TEST(rocfft_UnitTest, cache_plans_in_repo_multithreading)
-{
-    size_t plan_unique_count = 0;
-    size_t plan_total_count  = 0;
-
-    std::thread t0(creation_test);
-    std::thread t1(creation_test);
-
-    {
-        std::unique_lock<std::mutex> lk(test_mutex);
-        test_cv.wait(lk, [] { return created >= 2; });
-    }
-
-    //std::cout << "started to count\n";
-    rocfft_repo_get_unique_plan_count(&plan_unique_count);
-    EXPECT_TRUE(plan_unique_count == 1);
-    rocfft_repo_get_total_plan_count(&plan_total_count);
-    EXPECT_TRUE(plan_total_count == 2);
-
-    {
-        std::lock_guard<std::mutex> lk(test_mutex);
-        ready_to_destroy = true;
-        //std::cout << "count done, notify destroy\n";
-        test_cv.notify_all();
-    }
-
-    t0.join();
-    t1.join();
-
-    rocfft_repo_get_unique_plan_count(&plan_unique_count);
-    EXPECT_TRUE(plan_unique_count == 0);
-    rocfft_repo_get_total_plan_count(&plan_total_count);
-    EXPECT_TRUE(plan_total_count == 0);
+    rocfft_plan_destroy(plan_forward);
+    rocfft_plan_destroy(plan_inverse);
 }
 
 // RAII object to set an environment variable and restore it to its

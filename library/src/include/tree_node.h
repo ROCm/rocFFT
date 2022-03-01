@@ -36,7 +36,6 @@
 #include "../device/kernels/common.h"
 #include "kargs.h"
 #include "rtc.h"
-#include "twiddles.h"
 #include <hip/hip_runtime_api.h>
 
 enum OperatingBuffer
@@ -377,8 +376,11 @@ public:
     size_t lengthBlue = 0;
 
     // Device pointers:
-    gpubuf           twiddles;
-    gpubuf           twiddles_large;
+    // twiddle memory is owned by the repo
+    void*            twiddles            = nullptr;
+    size_t           twiddles_size       = 0;
+    void*            twiddles_large      = nullptr;
+    size_t           twiddles_large_size = 0;
     gpubuf_t<size_t> devKernArg;
 
     // callback parameters
@@ -411,7 +413,7 @@ public:
     TreeNode(const TreeNode&) = delete;
 
     // for the derived class
-    virtual ~TreeNode() = default;
+    virtual ~TreeNode();
 
     // Disallow assignment operator:
     TreeNode& operator=(const TreeNode&) = delete;

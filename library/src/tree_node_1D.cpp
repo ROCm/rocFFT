@@ -22,6 +22,7 @@
 #include "function_pool.h"
 #include "fuse_shim.h"
 #include "node_factory.h"
+#include <numeric>
 
 /*****************************************************
  * L1D_TRTRT  *
