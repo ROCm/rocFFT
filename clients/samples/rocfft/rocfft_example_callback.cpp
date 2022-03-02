@@ -113,12 +113,7 @@ int main()
     // get a properly-typed host pointer to the device function, as
     // rocfft_execution_info_set_load_callback expects void*.
     void* cbptr_host = nullptr;
-    // hipMemcpyFromSymbol does not currently work properly on nvidia backend
-#ifdef __HIP_PLATFORM_AMD__
-    hipMemcpyFromSymbol(&cbptr_host, load_callback_dev, sizeof(void*));
-#else
-    cudaMemcpyFromSymbol(&cbptr_host, load_callback_dev, sizeof(void*));
-#endif
+    hipMemcpyFromSymbol(&cbptr_host, HIP_SYMBOL(load_callback_dev), sizeof(void*));
 
     // set callback
     rocfft_execution_info_set_load_callback(info, &cbptr_host, &cbdata_dev, 0);
