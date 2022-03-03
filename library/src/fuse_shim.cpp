@@ -421,6 +421,18 @@ bool R2CTrans_FuseShim::PlacementFusable(OperatingBuffer iBuf,
     // allow inplace (out-of-place is allowed as well)
     if(allowInplace)
     {
+        if(iBuf == lastOBuf)
+        {
+            // in this case, we're going to modify the fused's output to firstOBuf inorder to make the fused node OP
+            // in this (r2c + tranpose) fusion, the transpose MIGHT HAVE PADDING. Thus we can't assign A/B as its
+            // new outBuffer if it has padding (since A/B won't fit the padding)
+            // an example is "length 336 18816 -t 2 ip"
+            auto transpose = nodes[1];
+            if(transpose->outputHasPadding && (firstOBuf == OB_USER_IN || firstOBuf == OB_USER_OUT))
+                return false;
+            else
+                return true;
+        }
         // if inBuf and outBuf is already op, then it is safe.
         return true;
     }
