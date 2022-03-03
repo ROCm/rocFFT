@@ -1011,7 +1011,7 @@ public:
     void print_obuffer(const std::vector<std::vector<char, Tallocator>>& buf,
                        Tstream&                                          stream = std::cout) const
     {
-        switch(itype)
+        switch(otype)
         {
         case fft_array_type_complex_interleaved:
         case fft_array_type_hermitian_interleaved:
