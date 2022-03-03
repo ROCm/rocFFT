@@ -3,6 +3,8 @@
 import re
 import socket
 import subprocess
+import os
+import shutil
 
 from dataclasses import dataclass
 from pathlib import Path as path
@@ -63,9 +65,19 @@ def get_machine_specs(devicenum):
     meminfo    = path('/proc/meminfo').read_text()
     version    = path('/proc/version').read_text()
     os_release = path('/etc/os-release').read_text()
-    rocm_info  = path('/opt/rocm/.info/version-utils').read_text()
-    rocm_smi   = run(['rocm-smi', '--showvbios', '--showid', '--showproductname', '--showperflevel', '--showclocks', '--showmeminfo', 'vram'])
-
+    if os.path.isfile('/opt/rocm/.info/version-utils'):
+        rocm_info  = path('/opt/rocm/.info/version-utils').read_text()
+    elif os.path.isfile('/opt/rocm/.info/version'):
+        rocm_info  = path('/opt/rocm/.info/version').read_text()
+    else:
+        rocm_info  = "rocm info not available"
+    
+    rocm_smi_found = shutil.which('rocm-smi') != None
+    if rocm_smi_found:
+        rocm_smi   = run(['rocm-smi', '--showvbios', '--showid', '--showproductname', '--showperflevel', '--showclocks', '--showmeminfo', 'vram'])
+    else:
+        rocm_smi = ""
+        
     device = rf'^GPU\[{devicenum}\]\s*: '
 
     hostname    = socket.gethostname()
@@ -74,13 +86,13 @@ def get_machine_specs(devicenum):
     ram         = search(r'MemTotal:\s*(\S*)', meminfo)
     distro      = search(r'PRETTY_NAME="(.*?)"', os_release)
     rocmversion = rocm_info.strip()
-    vbios       = search(device + r'VBIOS version: (.*?)$', rocm_smi)
-    gpuid       = search(device + r'GPU ID: (.*?)$', rocm_smi)
-    deviceinfo  = search(device + r'Card series:\s*(.*?)$', rocm_smi)
-    vram        = search(device + r'.... Total Memory .B.: (\d+)$', rocm_smi)
-    perflevel   = search(device + r'Performance Level: (.*?)$', rocm_smi)
-    mclk        = search(device + r'mclk.*\((.*?)\)$', rocm_smi)
-    sclk        = search(device + r'sclk.*\((.*?)\)$', rocm_smi)
+    vbios       = search(device + r'VBIOS version: (.*?)$', rocm_smi) if rocm_smi_found else "no rocm-smi"
+    gpuid       = search(device + r'GPU ID: (.*?)$', rocm_smi) if rocm_smi_found else "no rocm-smi"
+    deviceinfo  = search(device + r'Card series:\s*(.*?)$', rocm_smi) if rocm_smi_found else "no rocm-smi"
+    vram        = search(device + r'.... Total Memory .B.: (\d+)$', rocm_smi) if rocm_smi_found else 0
+    perflevel   = search(device + r'Performance Level: (.*?)$', rocm_smi) if rocm_smi_found else "no rocm-smi"
+    mclk        = search(device + r'mclk.*\((.*?)\)$', rocm_smi) if rocm_smi_found else 0
+    sclk        = search(device + r'sclk.*\((.*?)\)$', rocm_smi) if rocm_smi_found else 0
 
     ram = '{:.2f} GiB'.format(float(ram) / 1024**2)
     vram = '{:.2f} GiB'.format(float(vram) / 1024**3)
