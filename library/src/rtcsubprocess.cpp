@@ -29,6 +29,7 @@
 #include <fcntl.h>
 #include <link.h>
 #include <poll.h>
+#include <spawn.h>
 #include <stdio.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -309,36 +310,22 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
     file_handle_wrapper child_stdout_read(stdout_fds[0]);
     file_handle_wrapper child_stdout_write(stdout_fds[1]);
 
-    int pid = vfork();
-    if(pid == 0)
+    pid_t pid    = 0;
+    char* argv[] = {const_cast<char*>(rtc_helper_exe.c_str()), nullptr};
+    char* envp[] = {nullptr};
+
+    // set up child's stdin/stdout
+    posix_spawn_file_actions_t spawn_file_actions;
+    posix_spawn_file_actions_init(&spawn_file_actions);
+    posix_spawn_file_actions_adddup2(&spawn_file_actions, child_stdin_read, STDIN_FILENO);
+    posix_spawn_file_actions_adddup2(&spawn_file_actions, child_stdout_write, STDOUT_FILENO);
+
+    int spawn_result
+        = posix_spawn(&pid, rtc_helper_exe.c_str(), &spawn_file_actions, nullptr, argv, envp);
+    if(spawn_result != 0)
     {
-        // child
-
-        // on any error here, just exit since we couldn't set up the
-        // child properly
-
-        // dup input/output file descriptors
-        if(dup2(child_stdin_read, STDIN_FILENO) == -1)
-            exit(1);
-        if(dup2(child_stdout_write, STDOUT_FILENO) == -1)
-            exit(1);
-
-        // all the fd's we opened earlier are close-on-exec, so no
-        // need to close them
-
-        // exec helper
-        execl(rtc_helper_exe.c_str(), rtc_helper_exe.c_str(), 0);
-        // shouldn't get here since execl isn't supposed to return,
-        // but exit on error
-        exit(1);
+        throw std::runtime_error("failed to spawn child process");
     }
-    else if(pid == -1)
-    {
-        // error
-        throw std::runtime_error("failed to fork");
-    }
-
-    // if we're here, we're the parent
 
     // poll read and write fd's
     pollfd fds[2];
@@ -348,14 +335,8 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
     fds[1].events = POLLIN;
 
     ssize_t total_bytes_written = 0;
-    int     wait_status         = 0;
-    // unexpected death of the child might not be noticed by poll(),
-    // so check it in the poll loop
     while(poll(fds, 2, 1000) >= 0)
     {
-        if(waitpid(pid, &wait_status, WNOHANG) == pid)
-            break;
-
         // error conditions on fds, break
         if(fds[0].revents & POLLERR || fds[0].revents & POLLHUP || fds[1].revents & POLLERR
            || fds[1].revents & POLLHUP)
@@ -400,8 +381,8 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
     child_stdout_read.close();
 
     // wait for the child process
-
-    if(wait_status == 0 && waitpid(pid, &wait_status, 0) != pid)
+    int wait_status = 0;
+    if(waitpid(pid, &wait_status, 0) != pid)
         throw std::runtime_error("failed to wait for child process");
     subprocess_failed = WIFSIGNALED(wait_status) || WEXITSTATUS(wait_status) != 0;
 #endif
