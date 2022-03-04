@@ -100,6 +100,7 @@ import statistics
 import scipy
 import sys
 import os
+import pandas
 
 from pathlib import Path
 
@@ -160,6 +161,57 @@ def generate_mdat(dat):
     path = dat.path.with_suffix('.mdat')
     perflib.utils.write_tsv(path, confidence, meta=dat.meta, overwrite=True)
 
+def generate_pts_dat(dat):
+    """
+    For PTS system, extract data from raw dat and mdat.
+    """
+    mdat = dat.path.with_suffix('.mdat')
+    mdat_df = pandas.read_csv(mdat, delimiter='\t', comment='#')
+    
+    # The parsing rule subjects to changes in the future
+    ss = dat.tag
+    input_params = []
+    # placeness
+    input_params.append(ss[ss.rfind('_') + 1:])
+    ss = ss[:ss.rfind('_')]
+    # transform type
+    input_params.append(ss[ss.rfind('_',  0, ss.rfind('_')  - 1 ) + 1 :])
+    ss = ss[:ss.rfind('_',  0, ss.rfind('_')  - 1 )]
+    # precision
+    input_params.append(ss[ss.rfind('_') + 1:])
+    # suite
+    input_params.append(ss[:ss.rfind('_')])
+
+    input_params.reverse()
+
+    dimension = 1
+    rows = []
+    row_idx = 0
+    for _, _, sample in dat.sorted_samples():
+        new_row = []
+        new_row.extend(input_params)
+        dimension = len(sample.lengths) # assume all entries have the same dim in one dat file
+        new_row.append(dimension)
+        new_row.extend(sample.lengths)
+        new_row.append(sample.nbatch)
+        new_row.extend(mdat_df.loc[row_idx, ['median_sample', 'median_low', 'median_high']].to_numpy().tolist())
+        new_row.append(len(sample.times))
+        new_row.extend(sample.times)
+        rows.append(new_row)
+        row_idx += 1
+
+    header = ['suite', 'precision', 'transform type', 'placeness', 'dimension', 'xlength']
+    if dimension == 2:
+        header.append('ylength')
+    elif dimension == 3:
+        header.extend(['ylength', 'zlength'])
+    header.extend(['nbatch', 'median_sample', 'median_low', 'median_high', 'nsample', 'samples'])
+
+    content = [header]
+    content.extend(rows)
+
+    perflib.utils.write_pts_dat(dat.path.with_suffix('.ptsdat'), content, meta=dat.meta)
+
 def command_post(outdirs, docdir):
     """Post process results in directories listed in `outdirs`.
 
@@ -180,6 +232,7 @@ def command_post(outdirs, docdir):
     for run in all_runs:
         with Pool(None) as p:
             p.map(generate_mdat, run.dats.values())
+            p.map(generate_pts_dat, run.dats.values())
 
     # speedup and pvals
     if len(outdirs) > 1:

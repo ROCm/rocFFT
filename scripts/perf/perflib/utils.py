@@ -75,6 +75,19 @@ def write_tsv(path, records, meta={}, overwrite=False):
         f.write('\n')
 
 
+def write_csv(path, records, meta={}, overwrite=False):
+    """Write commas separated file."""
+    path = Path(path)
+    dat = []
+    with open(path, 'a') as f:
+        if overwrite:
+            f.truncate(0)
+            if meta is not None:
+                for k, v in meta.items():
+                    dat.append(f'# {k}: {v}')
+        dat += [cjoin([str(x) for x in r]) for r in records]
+        f.write(njoin(dat))
+
 #
 # DAT files
 #
@@ -112,6 +125,11 @@ class DAT:
         for key in keys:
             yield key, product(key), self.samples[key]
 
+    def print(self):
+        print("tag:", self.tag)
+        print("path:", self.path)
+        print("meta:", self.meta)
+        print("samples:", self.samples)
 
 @dataclass
 class Run:
@@ -217,3 +235,7 @@ def to_data_frames(primaries, secondaries):
         data_frames[i+1] = data_frames[i+1].merge(df, how='left', on='length', suffixes=('', '_y'))
 
     return data_frames
+
+def write_pts_dat(fname, records, meta={}):
+    """Write data to *.ptsdat"""
+    write_csv(fname, records, meta=meta, overwrite=True)
