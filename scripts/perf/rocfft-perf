@@ -386,12 +386,12 @@ def command_autodyna(workdir, reference_commit, reference_repository, reference_
     lib1 = build1 / 'lib' / 'librocfft.so'
     lib1.parent.mkdir(parents=True, exist_ok=True)
     if not lib1.exists():
-        build_rocfft(reference_commit, dest=build1, repo=reference_repository, ccache=True)
+        build_rocfft(reference_commit, dest=build1, repo=reference_repository)
 
     lib2 = build2 / 'lib' / 'librocfft.so'
     lib2.parent.mkdir(parents=True, exist_ok=True)
     if not lib2.exists():
-        build_rocfft(commit, dest=build2, repo=repository, ccache=True)
+        build_rocfft(commit, dest=build2, repo=repository)
 
     # run cases
     timer = perflib.timer.GroupedTimer()

@@ -28,7 +28,7 @@ def local_amdgpu_target():
     return ''
 
 
-def build_rocfft(commit, dest=None, repo='git@github.com:ROCmSoftwarePlatform/rocFFT-internal.git', ccache=False):
+def build_rocfft(commit, dest=None, repo='git@github.com:ROCmSoftwarePlatform/rocFFT-internal.git'):
     """Build public rocFFT (at specified git `commit`) and install into `dest`."""
 
     top = Path('.').resolve() / ('rocFFT-' + commit)
@@ -50,7 +50,7 @@ def build_rocfft(commit, dest=None, repo='git@github.com:ROCmSoftwarePlatform/ro
             '-DAMDGPU_TARGETS=' + local_amdgpu_target()]
     if dest:
         defs += [f'-DCMAKE_INSTALL_PREFIX={dest}']
-    if ccache:
+    if which('ccache') is not None:
         defs += ['-DCMAKE_CXX_COMPILER_LAUNCHER=ccache']
 
     use_ninja = which('ninja') is not None
