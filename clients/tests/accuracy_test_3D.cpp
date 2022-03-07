@@ -62,7 +62,6 @@ INSTANTIATE_TEST_SUITE_P(
                                         ioffset_range_zero,
                                         ooffset_range_zero,
                                         place_range,
-                                        true,
                                         true)),
     accuracy_test::TestName);
 
@@ -77,7 +76,6 @@ INSTANTIATE_TEST_SUITE_P(
                                         ioffset_range,
                                         ooffset_range,
                                         place_range,
-                                        true,
                                         true)),
     accuracy_test::TestName);
 
@@ -92,7 +90,6 @@ INSTANTIATE_TEST_SUITE_P(
                                         ioffset_range_zero,
                                         ooffset_range_zero,
                                         place_range,
-                                        true,
                                         true)),
     accuracy_test::TestName);
 INSTANTIATE_TEST_SUITE_P(
@@ -106,7 +103,6 @@ INSTANTIATE_TEST_SUITE_P(
                                         ioffset_range,
                                         ooffset_range,
                                         place_range,
-                                        true,
                                         true)),
     accuracy_test::TestName);
 
@@ -121,7 +117,6 @@ INSTANTIATE_TEST_SUITE_P(
                                         ioffset_range_zero,
                                         ooffset_range_zero,
                                         place_range,
-                                        true,
                                         true)),
     accuracy_test::TestName);
 INSTANTIATE_TEST_SUITE_P(
@@ -135,7 +130,6 @@ INSTANTIATE_TEST_SUITE_P(
                                         ioffset_range,
                                         ooffset_range,
                                         place_range,
-                                        true,
                                         true)),
     accuracy_test::TestName);
 
@@ -150,7 +144,6 @@ INSTANTIATE_TEST_SUITE_P(
                                         ioffset_range_zero,
                                         ooffset_range_zero,
                                         place_range,
-                                        true,
                                         true)),
     accuracy_test::TestName);
 INSTANTIATE_TEST_SUITE_P(
@@ -164,7 +157,6 @@ INSTANTIATE_TEST_SUITE_P(
                                         ioffset_range_zero,
                                         ooffset_range_zero,
                                         place_range,
-                                        true,
                                         true)),
     accuracy_test::TestName);
 
@@ -179,7 +171,6 @@ INSTANTIATE_TEST_SUITE_P(
                                         ioffset_range_zero,
                                         ooffset_range_zero,
                                         place_range,
-                                        true,
                                         true)),
     accuracy_test::TestName);
 INSTANTIATE_TEST_SUITE_P(
@@ -193,7 +184,6 @@ INSTANTIATE_TEST_SUITE_P(
                                         ioffset_range,
                                         ooffset_range,
                                         place_range,
-                                        true,
                                         true)),
     accuracy_test::TestName);
 
@@ -212,7 +202,6 @@ INSTANTIATE_TEST_SUITE_P(
                                         ioffset_range_zero,
                                         ooffset_range_zero,
                                         place_range,
-                                        true,
                                         true)),
     accuracy_test::TestName);
 
@@ -233,6 +222,5 @@ INSTANTIATE_TEST_SUITE_P(
         ioffset_range_zero,
         ooffset_range_zero,
         place_range,
-        true,
         true)),
     accuracy_test::TestName);

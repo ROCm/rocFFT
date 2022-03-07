@@ -412,7 +412,7 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&  v_lengths,
                             const std::vector<std::vector<size_t>>&  ooffset_range,
                             const std::vector<fft_result_placement>& place_range,
                             const bool                               planar,
-                            const bool                               callbacks)
+                            const bool                               run_callbacks = false)
 {
     return param_generator_base({fft_transform_type_complex_forward,
                                  fft_transform_type_complex_inverse,
@@ -428,7 +428,7 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&  v_lengths,
                                 ooffset_range,
                                 place_range,
                                 planar,
-                                callbacks);
+                                run_callbacks);
 }
 
 // Create an array of parameters to pass to gtest.  Only tests complex-type transforms
@@ -441,7 +441,7 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&  v_l
                                     const std::vector<std::vector<size_t>>&  ooffset_range,
                                     const std::vector<fft_result_placement>& place_range,
                                     const bool                               planar,
-                                    const bool                               run_callbacks)
+                                    const bool                               run_callbacks = false)
 {
     return param_generator_base(
         {fft_transform_type_complex_forward, fft_transform_type_complex_inverse},
@@ -468,7 +468,7 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&  v_leng
                                  const std::vector<std::vector<size_t>>&  ooffset_range,
                                  const std::vector<fft_result_placement>& place_range,
                                  const bool                               planar,
-                                 const bool                               run_callbacks)
+                                 const bool                               run_callbacks = false)
 {
     return param_generator_base({fft_transform_type_real_forward, fft_transform_type_real_inverse},
                                 v_lengths,

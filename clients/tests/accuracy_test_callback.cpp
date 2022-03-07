@@ -120,6 +120,7 @@ INSTANTIATE_TEST_SUITE_P(callback,
                                                                   ioffset_range_zero,
                                                                   ooffset_range_zero,
                                                                   place_range,
+                                                                  false,
                                                                   true)),
                          accuracy_test::TestName);
 
@@ -135,5 +136,6 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_callback,
                                                                   ioffset_range,
                                                                   ooffset_range,
                                                                   place_range,
+                                                                  false,
                                                                   true)),
                          accuracy_test::TestName);

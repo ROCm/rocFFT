@@ -52,7 +52,6 @@ INSTANTIATE_TEST_SUITE_P(adhoc,
                                                              ioffset_range_zero,
                                                              ooffset_range_zero,
                                                              place_range,
-                                                             true,
                                                              true)),
                          accuracy_test::TestName);
 
@@ -66,7 +65,6 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_adhoc,
                                                              ioffset_range,
                                                              ooffset_range,
                                                              place_range,
-                                                             true,
                                                              true)),
                          accuracy_test::TestName);
 
