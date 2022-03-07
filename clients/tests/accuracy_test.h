@@ -685,10 +685,7 @@ inline void fft_vs_reference_impl(Tparams& params)
         size_t     free   = 0;
         size_t     total  = 0;
         hipError_t retval = hipMemGetInfo(&free, &total);
-        if(retval != hipSuccess)
-        {
-            std::cerr << "hipMemGetInfo failed" << std::endl;
-        }
+        ASSERT_EQ(retval, hipSuccess) << "hipMemGetInfo failed with error " << retval;
         std::cout << "data footprint: " << vram_footprint << " (" << (double)vram_footprint
                   << ") workbuffer: " << params.workbuffersize << " ("
                   << (double)params.workbuffersize << ") free: " << free << " (" << (double)free
@@ -901,12 +898,9 @@ inline void fft_vs_reference_impl(Tparams& params)
         for(unsigned int i = 0; i < ibuffer.size(); ++i)
         {
             auto hip_status = ibuffer[i].alloc(ibuffer_sizes[i]);
-            if(hip_status != hipSuccess)
-            {
-                throw std::runtime_error("hipMalloc failure for input buffer " + std::to_string(i)
-                                         + " size " + std::to_string(ibuffer_sizes[i]) + " "
-                                         + params.str());
-            }
+            ASSERT_EQ(hip_status, hipSuccess)
+                << "hipMalloc failure for input buffer " << i << " size " << ibuffer_sizes[i] << " "
+                << params.str();
             pibuffer[i] = ibuffer[i].data();
         }
 
@@ -923,9 +917,11 @@ inline void fft_vs_reference_impl(Tparams& params)
                 auto hip_status = obuffer_data[i].alloc(obuffer_sizes[i]);
                 if(hip_status != hipSuccess)
                 {
+                    // Try and figure out why hip malloc failed.
                     size_t     free   = 0;
                     size_t     total  = 0;
                     hipError_t retval = hipMemGetInfo(&free, &total);
+                    EXPECT_EQ(retval, hipSuccess) << "hipMemGetInfo failed with error " << retval;
                     if(retval == hipSuccess)
                     {
                         std::cerr << "free vram: " << free << " (" << (double)free
@@ -937,16 +933,10 @@ inline void fft_vs_reference_impl(Tparams& params)
                                       << std::endl;
                         }
                     }
-                    else
-                    {
-                        std::cerr << "hipMemGetInfo also failed" << std::endl;
-                    }
-                    throw std::runtime_error("hipMalloc failure for output buffer "
-                                             + std::to_string(i) + " size "
-                                             + std::to_string(obuffer_sizes[i]) + " ("
-                                             + std::to_string(static_cast<double>(obuffer_sizes[i]))
-                                             + ") " + params.str());
                 }
+                ASSERT_EQ(hip_status, hipSuccess)
+                    << "hipMalloc failure for output buffer " << i << " size " << obuffer_sizes[i]
+                    << " (" << static_cast<double>(obuffer_sizes[i]) << ") " << params.str();
             }
         }
         pobuffer.resize(obuffer->size());
@@ -962,8 +952,7 @@ inline void fft_vs_reference_impl(Tparams& params)
                                         gpu_input->at(idx).data(),
                                         ibuffer_sizes[idx],
                                         hipMemcpyHostToDevice);
-            if(hip_status != hipSuccess)
-                throw std::runtime_error("hipMemcpy failure");
+            ASSERT_EQ(hip_status, hipSuccess) << "hipMemcpy failure with error " << hip_status;
         }
     }
 
