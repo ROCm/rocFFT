@@ -181,9 +181,11 @@ public:
         auto alignment_dimension = sbrc_3D_alignment_dimension();
         if(alignment_dimension == 0)
             return NONE;
-        // NB: from the benchmark results, diagonal transpose benefits only gfx906
+        // NB: from the benchmark results, diagonal transpose
+        // benefits only some architectures
         if(is_diagonal_sbrc_3D_length(length.front()) && is_cube_size(length)
-           && is_device_gcn_arch(deviceProp, "gfx906"))
+           && (is_device_gcn_arch(deviceProp, "gfx906")
+               || is_device_gcn_arch(deviceProp, "gfx1030")))
             return DIAGONAL;
         if(alignment_dimension % blockWidth == 0)
             return TILE_ALIGNED;
