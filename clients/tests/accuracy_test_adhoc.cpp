@@ -32,6 +32,10 @@ std::vector<std::vector<size_t>> adhoc_sizes = {
 
     // L1D_CC subplan of 3D_TRTRTR
     {4, 4, 8192},
+
+    // SBRC 192 with special param
+    {192, 192, 192},
+    {192, 84, 84},
 };
 
 const static std::vector<std::vector<size_t>> stride_range = {{1}};

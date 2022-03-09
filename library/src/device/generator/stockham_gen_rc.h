@@ -95,9 +95,6 @@ struct StockhamKernelRC : public StockhamKernel
             len_along_block,
             Ternary{Parens{sbrc_type == "SBRC_3D_FFT_TRANS_XY_Z"}, lengths[2], lengths[1]}};
         stmts += Declaration{
-            len_along_plane,
-            Ternary{Parens{sbrc_type == "SBRC_3D_FFT_TRANS_XY_Z"}, lengths[1], lengths[2]}};
-        stmts += Declaration{
             stride_load_in,
             Ternary{Parens{sbrc_type == "SBRC_3D_FFT_TRANS_XY_Z"}, stride_in[2], stride_in[1]}};
         stmts += Declaration{
@@ -105,18 +102,10 @@ struct StockhamKernelRC : public StockhamKernel
             Ternary{Parens{sbrc_type == "SBRC_3D_FFT_TRANS_XY_Z" || sbrc_type == "SBRC_2D"},
                     stride_out[1],
                     stride_out[2]}};
-        stmts += Declaration{
-            stride_plane_in,
-            Ternary{Parens{sbrc_type == "SBRC_3D_FFT_TRANS_XY_Z"}, stride_in[1], stride_in[2]}};
-        stmts += Declaration{
-            stride_plane_out,
-            Ternary{Parens{sbrc_type == "SBRC_3D_FFT_TRANS_XY_Z"}, stride_out[2], stride_out[1]}};
 
         stmts += LineBreak{};
         stmts += Declaration{num_of_tiles_in_batch};
         stmts += Declaration{tile_index_in_plane};
-        stmts += Declaration{plane_id};
-        stmts += Declaration{tile_serial_in_batch};
 
         stmts += LineBreak{};
         stmts
@@ -171,6 +160,18 @@ struct StockhamKernelRC : public StockhamKernel
         //                     " num_of_tiles_in_batch means the total number of tiles in this batch",
         //                     " tile_index_in_plane means index of the tile in that xy-plane",
         //                     " plane_id means the index of current xy-plane (inwards along Z-axis)"};
+
+        offset_3d += Declaration{
+            len_along_plane,
+            Ternary{Parens{sbrc_type == "SBRC_3D_FFT_TRANS_XY_Z"}, lengths[1], lengths[2]}};
+        offset_3d += Declaration{
+            stride_plane_in,
+            Ternary{Parens{sbrc_type == "SBRC_3D_FFT_TRANS_XY_Z"}, stride_in[1], stride_in[2]}};
+        offset_3d += Declaration{
+            stride_plane_out,
+            Ternary{Parens{sbrc_type == "SBRC_3D_FFT_TRANS_XY_Z"}, stride_out[2], stride_out[1]}};
+        stmts += Declaration{plane_id};
+        stmts += Declaration{tile_serial_in_batch};
 
         // offset_3d += Assign{num_of_tiles_in_plane, (len_along_block - 1) / transforms_per_block + 1};
         offset_3d += Assign{num_of_tiles_in_batch, num_of_tiles_in_plane * len_along_plane};
@@ -257,6 +258,8 @@ struct StockhamKernelRC : public StockhamKernel
         auto num_load_blocks = (length * transforms_per_block) / workgroup_size;
         // #-row for a load block (global mem) = each thread will across these rows
         auto tid0_inc_step = transforms_per_block / num_load_blocks;
+        // tpb/num_load_blocks, also = wgs/length, it's possible that they aren't divisible.
+        bool divisible = (transforms_per_block % num_load_blocks) == 0;
 
         stmts += If{transpose_type == "TILE_UNALIGNED",
                     {Assign{edge,
@@ -268,14 +271,30 @@ struct StockhamKernelRC : public StockhamKernel
         // [dim0, dim1] = [tid0, tid1] :
         // each thread reads position [tid0, tid1], [tid0+step_h*1, tid1] , [tid0+step_h*2, tid1]...
         // tid0 walks the columns; tid1 walks the rows
-        stmts += Assign{tid0, thread_id / length};
-        stmts += Assign{tid1, thread_id % length};
+        if(divisible)
+        {
+            stmts += Assign{tid0, thread_id / length};
+            stmts += Assign{tid1, thread_id % length};
+        }
 
+        // we need to take care about two diff cases for offset in buf and lds
+        //  divisible: each load leads to a perfect block: update offset much simpler
+        //  indivisible: need extra div and mod, otherwise each load will have some elements un-loaded:
         auto offset_tile_rbuf = [&](unsigned int i) {
-            return tid1 * stride0 + (tid0 + i * tid0_inc_step) * stride_load_in;
+            if(divisible)
+                return tid1 * stride0 + (tid0 + i * tid0_inc_step) * stride_load_in;
+
+            else
+                return ((thread_id + i * workgroup_size) % length) * stride0
+                       + ((thread_id + i * workgroup_size) / length) * stride_load_in;
         };
-        auto offset_tile_wlds
-            = [&](unsigned int i) { return tid1 * 1 + (tid0 + i * tid0_inc_step) * stride_lds; };
+        auto offset_tile_wlds = [&](unsigned int i) {
+            if(divisible)
+                return tid1 * 1 + (tid0 + i * tid0_inc_step) * stride_lds;
+            else
+                return ((thread_id + i * workgroup_size) % length) * 1
+                       + ((thread_id + i * workgroup_size) / length) * stride_lds;
+        };
 
         StatementList regular_load;
         for(unsigned int i = 0; i < num_load_blocks; ++i)
@@ -284,13 +303,30 @@ struct StockhamKernelRC : public StockhamKernel
 
         StatementList edge_load;
         Variable      t{"t", "unsigned int"};
-        edge_load += For{
-            t,
-            0,
-            Parens{(tile_index_in_plane * transforms_per_block + tid0 + t) < len_along_block},
-            tid0_inc_step,
-            {Assign{lds_complex[tid1 * 1 + (tid0 + t) * stride_lds],
+        if(divisible)
+        {
+            edge_load += For{
+                t,
+                0,
+                Parens{(tile_index_in_plane * transforms_per_block + tid0 + t) < len_along_block},
+                tid0_inc_step,
+                {Assign{
+                    lds_complex[tid1 * 1 + (tid0 + t) * stride_lds],
                     LoadGlobal{buf, offset_in + tid1 * stride0 + (tid0 + t) * stride_load_in}}}};
+        }
+        else
+        {
+            edge_load
+                += For{t,
+                       0,
+                       Parens{(thread_id + t) < (length * transforms_per_block)},
+                       workgroup_size,
+                       {Assign{lds_complex[((thread_id + t) % length) * 1
+                                           + ((thread_id + t) / length) * stride_lds],
+                               LoadGlobal{buf,
+                                          offset_in + ((thread_id + t) % length) * stride0
+                                              + ((thread_id + t) / length) * stride_load_in}}}};
+        }
 
         stmts += If{Or{transpose_type != "TILE_UNALIGNED", Not{edge}}, regular_load};
         stmts += Else{edge_load};
@@ -306,6 +342,10 @@ struct StockhamKernelRC : public StockhamKernel
         auto num_store_blocks = (length * transforms_per_block) / workgroup_size;
         // #-row for a store block (global mem) = each thread will across these rows
         auto tid0_inc_step = length / num_store_blocks;
+        // length / ((length * transforms_per_block) / workgroup_size) = wgs/tpb = blockwidth
+        // so divisible should always true. But still put the logic here, since it's a
+        // generator-wise if-else test, not inside the kernel code.
+        bool divisible = (length % num_store_blocks) == 0;
 
         StatementList stmts;
 
@@ -335,14 +375,29 @@ struct StockhamKernelRC : public StockhamKernel
         // [dim0, dim1] = [tid0, tid1]:
         // each thread write GLOBAL_POS [tid0, tid1], [tid0+step_h*1, tid1] , [tid0+step_h*2, tid1].
         // NB: This is a transpose from LDS to global, so the pos of lds_read should be remapped
-        stmts += Assign{tid0, thread_id / store_block_w};
-        stmts += Assign{tid1, thread_id % store_block_w};
+        if(divisible)
+        {
+            stmts += Assign{tid0, thread_id / store_block_w};
+            stmts += Assign{tid1, thread_id % store_block_w};
+        }
 
+        // we need to take care about two diff cases for offset in buf and lds
+        //  divisible: each store leads to a perfect block: update offset much simpler
+        //  indivisible: need extra div and mod, otherwise each store will have some elements un-set:
         auto offset_tile_wbuf = [&](unsigned int i) {
-            return tid1 * stride0 + (tid0 + i * tid0_inc_step) * stride_store_out;
+            if(divisible)
+                return tid1 * stride0 + (tid0 + i * tid0_inc_step) * stride_store_out;
+            else
+                return ((thread_id + i * workgroup_size) % store_block_w) * stride0
+                       + (tid0 + i * tid0_inc_step) * stride_store_out;
         };
-        auto offset_tile_rlds
-            = [&](unsigned int i) { return tid1 * stride_lds + (tid0 + i * tid0_inc_step) * 1; };
+        auto offset_tile_rlds = [&](unsigned int i) {
+            if(divisible)
+                return tid1 * stride_lds + (tid0 + i * tid0_inc_step) * 1;
+            else
+                return ((thread_id + i * workgroup_size) % store_block_w) * stride_lds
+                       + ((thread_id + i * workgroup_size) / store_block_w) * 1;
+        };
 
         StatementList regular_store;
         Expression    pred{tile_index_in_plane * transforms_per_block + tid1 < len_along_block};
