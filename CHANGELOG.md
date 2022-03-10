@@ -27,7 +27,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Removed
 - The hipFFT API (header) has been removed from after a long deprecation period.  Please use the [hipFFT](https://github.com/ROCmSoftwarePlatform/hipFFT) package/repository to obtain the hipFFT API.
 
-## rocFFT 1.0.15
+## rocFFT 1.0.15 for ROCm 5.0.0
 
 ### Changed
 - Enabled runtime compilation of single FFT kernels > length 1024.
@@ -44,7 +44,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Optimized twiddle-conjugation; complex-to-complex inverse transforms should have similar performance to foward transforms now.
 - Improved performance of single-kernel small 2D transforms.
 
-## rocFFT 1.0.14
+## rocFFT 1.0.14 for ROCm 4.5.0
 
 ### Optimizations
 - Optimized SBCC kernels of length 52, 60, 72, 80, 84, 96, 104, 108, 112, 160,
