@@ -6,6 +6,8 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Changed
 - Improved reuse of twiddle memory between plans.
+- Set a default load/store callback when only one callback 
+  type is set via the API for improved performance.
 
 ## (Unreleased) rocFFT 1.0.16
 

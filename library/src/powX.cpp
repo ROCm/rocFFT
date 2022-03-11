@@ -261,6 +261,53 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
     }
 }
 
+enum struct SetCallbackType
+{
+    LOAD,
+    STORE,
+};
+
+void SetDefaultCallback(const TreeNode* node, const SetCallbackType& type, void** cb)
+{
+    auto result = hipSuccess;
+
+    auto array_type = (type == SetCallbackType::LOAD) ? node->inArrayType : node->outArrayType;
+
+    // guaranteed to only have interleaved type by the caller (rocfft_execute)
+    auto is_complex = (array_type == rocfft_array_type_complex_interleaved
+                       || array_type == rocfft_array_type_hermitian_interleaved)
+                          ? true
+                          : false;
+
+    if(is_complex && type == SetCallbackType::LOAD)
+    {
+        result = (node->precision == rocfft_precision_single)
+                     ? hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_float2), sizeof(void*))
+                     : hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_double2), sizeof(void*));
+    }
+    else if(is_complex && type == SetCallbackType::STORE)
+    {
+        result = (node->precision == rocfft_precision_single)
+                     ? hipMemcpyFromSymbol(cb, HIP_SYMBOL(store_cb_default_float2), sizeof(void*))
+                     : hipMemcpyFromSymbol(cb, HIP_SYMBOL(store_cb_default_double2), sizeof(void*));
+    }
+    else if(!is_complex && type == SetCallbackType::LOAD)
+    {
+        result = (node->precision == rocfft_precision_single)
+                     ? hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_float), sizeof(void*))
+                     : hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_double), sizeof(void*));
+    }
+    else if(!is_complex && type == SetCallbackType::STORE)
+    {
+        result = (node->precision == rocfft_precision_single)
+                     ? hipMemcpyFromSymbol(cb, HIP_SYMBOL(store_cb_default_float), sizeof(void*))
+                     : hipMemcpyFromSymbol(cb, HIP_SYMBOL(store_cb_default_double), sizeof(void*));
+    }
+
+    if(result != hipSuccess)
+        throw std::runtime_error("hipMemcpyFromSymbol failure");
+}
+
 // Internal plan executor.
 // For in-place transforms, in_buffer == out_buffer.
 void TransformPowX(const ExecPlan&       execPlan,
@@ -422,6 +469,21 @@ void TransformPowX(const ExecPlan&       execPlan,
             break;
         default:
             assert(false);
+        }
+
+        // if callbacks are enabled, make sure load_cb_fn and store_cb_fn are not nullptrs
+        if((data.node->callbacks.load_cb_fn == nullptr
+            && data.node->callbacks.store_cb_fn != nullptr))
+        {
+            // set default load callback
+            SetDefaultCallback(data.node, SetCallbackType::LOAD, &data.node->callbacks.load_cb_fn);
+        }
+        else if((data.node->callbacks.load_cb_fn != nullptr
+                 && data.node->callbacks.store_cb_fn == nullptr))
+        {
+            // set default store callback
+            SetDefaultCallback(
+                data.node, SetCallbackType::STORE, &data.node->callbacks.store_cb_fn);
         }
 
         data.gridParam = execPlan.gridParam[i];
