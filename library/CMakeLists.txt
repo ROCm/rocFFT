@@ -69,47 +69,13 @@ set( rocfft_headers_public
   ${PROJECT_BINARY_DIR}/include/rocfft-version.h
 )
 
-source_group( "Header Files\\Public" FILES ${rocfft_headers_public} )
-
 include( GNUInstallDirs )
 
 set( BIN_INSTALL_DIR ${CMAKE_INSTALL_BINDIR} )
 set( LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR} )
 set( INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR} )
 
+source_group( "Header Files\\Public" FILES ${rocfft_headers_public} )
+
 # Build into subdirectories
 add_subdirectory( src )
-
-if(WIN32)
-  set(CPACK_SOURCE_GENERATOR "ZIP")
-  set(CPACK_GENERATOR "ZIP")
-  set(CMAKE_INSTALL_PREFIX "C:/hipSDK" CACHE PATH "Install path" FORCE)
-  set(INSTALL_PREFIX "C:/hipSDK")
-  set(CPACK_SET_DESTDIR OFF)
-  set(CPACK_PACKAGE_INSTALL_DIRECTORY "C:/hipSDK")
-  set(CPACK_PACKAGING_INSTALL_PREFIX "")
-  set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
-endif()
-
-# Package specific CPACK vars
-string( TOLOWER "${HIP_RUNTIME}" HIP_RUNTIME_LOWER )
-if( HIP_RUNTIME_LOWER STREQUAL "rocclr" )
-  set( CPACK_DEBIAN_PACKAGE_DEPENDS "hip-rocclr (>= 3.5.0)" )
-  set( CPACK_RPM_PACKAGE_REQUIRES "hip-rocclr >= 3.5.0" )
-endif( )
-set( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE.md" )
-set( CPACK_RPM_PACKAGE_LICENSE "MIT" )
-
-set( CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "\${CPACK_PACKAGING_INSTALL_PREFIX}" "\${CPACK_PACKAGING_INSTALL_PREFIX}/include" "\${CPACK_PACKAGING_INSTALL_PREFIX}/lib" "\${CPACK_PACKAGING_INSTALL_PREFIX}/lib/cmake" )
-
-set( ROCFFT_CONFIG_DIR "\${CPACK_PACKAGING_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}" CACHE PATH "Path placed into ldconfig file" )
-
-set( package_name rocfft )
-
-rocm_create_package(
-    NAME ${package_name}
-    DESCRIPTION "ROCm FFT library"
-    MAINTAINER "rocfft-maintainer@amd.com"
-    LDCONFIG
-    LDCONFIG_DIR ${ROCFFT_CONFIG_DIR}
-)

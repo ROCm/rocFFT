@@ -43,6 +43,7 @@ include( get-cli-arguments )
 # The following is a series of super-build projects; this cmake project will download and build
 
 if( BUILD_BOOST )
+  set(ext.BUILD_BOOST "static")
   include( external-boost )
 
   list( APPEND rocfft_dependencies boost )

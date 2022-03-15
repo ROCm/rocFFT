@@ -59,7 +59,7 @@ endif()
 # This finds the rocm-cmake project, and installs it if not found
 # rocm-cmake contains common cmake code for rocm projects to help setup and install
 set( PROJECT_EXTERN_DIR ${CMAKE_CURRENT_BINARY_DIR}/extern )
-find_package( ROCM 0.6 CONFIG QUIET PATHS ${ROCM_PATH} /opt/rocm )
+find_package( ROCM 0.7.3 CONFIG QUIET PATHS ${ROCM_PATH} /opt/rocm )
 if( NOT ROCM_FOUND )
   set( rocm_cmake_tag "master" CACHE STRING "rocm-cmake tag to download" )
   file( DOWNLOAD https://github.com/RadeonOpenCompute/rocm-cmake/archive/${rocm_cmake_tag}.zip
@@ -86,14 +86,15 @@ if( NOT ROCM_FOUND )
   execute_process( COMMAND ${CMAKE_COMMAND} --build rocm-cmake-${rocm_cmake_tag} --target install
     WORKING_DIRECTORY ${PROJECT_EXTERN_DIR})
 
-  find_package( ROCM 0.6 REQUIRED CONFIG PATHS ${PROJECT_EXTERN_DIR}/rocm-cmake )
+  find_package( ROCM 0.7.3 REQUIRED CONFIG PATHS ${PROJECT_EXTERN_DIR}/rocm-cmake )
 endif( )
 include( ROCMSetupVersion )
 include( ROCMCreatePackage )
 include( ROCMInstallTargets )
 include( ROCMPackageConfigHelpers )
 include( ROCMInstallSymlinks )
-include( ROCMCheckTargetIds OPTIONAL )
+include( ROCMCheckTargetIds )
+include( ROCMClients )
 
 # Using standardized versioning from rocm-cmake
 set ( VERSION_STRING "1.0.16" )
@@ -175,6 +176,51 @@ if( BUILD_CLIENTS_SAMPLES
     OR BUILD_CLIENTS_TESTS
     OR BUILD_CLIENTS_SELFTEST
     OR BUILD_CLIENTS_RIDER )
+  rocm_package_setup_component(clients)
+  rocm_package_setup_client_component(clients-common)
+  if(BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SELFTEST)
+    rocm_package_setup_client_component(tests DEPENDS COMPONENT clients-common)
+  endif()
+  if(BUILD_CLIENTS_RIDER)
+    rocm_package_setup_client_component(benchmarks DEPENDS COMPONENT clients-common)
+    rocm_install(
+      DIRECTORY scripts/perf
+      DESTINATION ${CMAKE_INSTALL_BINDIR}
+      COMPONENT benchmarks
+    )
+  endif()
   add_subdirectory( clients )
 endif( )
 
+if(WIN32)
+  set(CPACK_SOURCE_GENERATOR "ZIP")
+  set(CPACK_GENERATOR "ZIP")
+  set(CMAKE_INSTALL_PREFIX "C:/hipSDK" CACHE PATH "Install path" FORCE)
+  set(INSTALL_PREFIX "C:/hipSDK")
+  set(CPACK_SET_DESTDIR OFF)
+  set(CPACK_PACKAGE_INSTALL_DIRECTORY "C:/hipSDK")
+  set(CPACK_PACKAGING_INSTALL_PREFIX "")
+  set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
+endif()
+
+# Package specific CPACK vars
+string( TOLOWER "${HIP_RUNTIME}" HIP_RUNTIME_LOWER )
+if( HIP_RUNTIME_LOWER STREQUAL "rocclr" )
+  rocm_package_add_dependencies("hip-rocclr >= 3.5.0")
+endif( )
+set( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.md" )
+set( CPACK_RPM_PACKAGE_LICENSE "MIT" )
+
+set( CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "\${CPACK_PACKAGING_INSTALL_PREFIX}" "\${CPACK_PACKAGING_INSTALL_PREFIX}/include" "\${CPACK_PACKAGING_INSTALL_PREFIX}/lib" "\${CPACK_PACKAGING_INSTALL_PREFIX}/lib/cmake" )
+
+set( ROCFFT_CONFIG_DIR "\${CPACK_PACKAGING_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}" CACHE PATH "Path placed into ldconfig file" )
+
+set( package_name rocfft )
+
+rocm_create_package(
+    NAME ${package_name}
+    DESCRIPTION "ROCm FFT library"
+    MAINTAINER "rocfft-maintainer@amd.com"
+    LDCONFIG
+    LDCONFIG_DIR ${ROCFFT_CONFIG_DIR}
+)

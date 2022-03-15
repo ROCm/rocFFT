@@ -3,6 +3,8 @@
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
 ## (Unreleased) rocFFT 1.0.17
+### Added
+- Packages for test and benchmark executables on all supported OSes using CPack.
 
 ### Changed
 - Improved reuse of twiddle memory between plans.

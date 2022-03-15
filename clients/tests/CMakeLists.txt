@@ -142,6 +142,8 @@ set_target_properties( rtc_helper_crash
   PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging"
   )
 
+rocm_install(TARGETS rocfft-test rtc_helper_crash COMPONENT tests)
+
 if (WIN32)
 
   # Ensure tests run with HIP DLLs and not anything the driver owns

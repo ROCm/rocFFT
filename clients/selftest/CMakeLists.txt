@@ -92,3 +92,5 @@ set_target_properties( rocfft-selftest PROPERTIES RUNTIME_OUTPUT_DIRECTORY
 set( THREADS_PREFER_PTHREAD_FLAG ON )
 find_package( Threads REQUIRED )
 target_link_libraries( rocfft-selftest PRIVATE Threads::Threads )
+
+rocm_install(TARGETS rocfft-selftest COMPONENT tests)

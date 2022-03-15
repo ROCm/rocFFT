@@ -79,4 +79,5 @@ foreach( rider ${rider_list})
   set_target_properties( ${rider}
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
   
+  rocm_install(TARGETS ${rider} COMPONENT benchmarks)
 endforeach()
