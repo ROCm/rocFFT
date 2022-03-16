@@ -139,7 +139,7 @@ set(CMAKE_INSTALL_LIBDIR "lib" CACHE INTERNAL
 
 # Use target ID syntax if supported for AMDGPU_TARGETS
 rocm_check_target_ids(DEFAULT_AMDGPU_TARGETS
-  TARGETS "gfx803;gfx900:xnack-;gfx906:xnack-;gfx908:xnack-;gfx90a:xnack-;gfx90a:xnack+;gfx1011;gfx1030")
+  TARGETS "gfx803;gfx900:xnack-;gfx906:xnack-;gfx908:xnack-;gfx90a:xnack-;gfx90a:xnack+;gfx1030")
 set(AMDGPU_TARGETS "${DEFAULT_AMDGPU_TARGETS}" CACHE STRING "List of specific machine types for library to target")
 
 # HIP is required - library and clients use HIP to access the device
