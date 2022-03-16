@@ -9,7 +9,7 @@ General workflow:
 - run: runs a suite of FFTs to collect timing information
 - post: post processes timing information to compute various statistics
 - plot: generate pdf or html plots of the results
-- autodyna: clones, builds, dyna-runs, posts, and plots two rocFFT commits
+- autoperf: clones, builds, runs, posts, and plots two rocFFT commits
 
 Multiple runs can be compared at the post processing and plotting
 stages.  Multiple runs may:
@@ -360,7 +360,7 @@ def command_run(arguments):
     timer.run_cases(filtered(generator))
 
 
-def command_autodyna(workdir, reference_commit, reference_repository, reference_label, commit, repository, label, suite, format, **kwargs):
+def command_autoperf(workdir, reference_commit, reference_repository, reference_label, commit, repository, label, suite, format, static, **kwargs):
     """Compare performance of two builds automagically."""
 
     from perflib.build import build_rocfft
@@ -394,18 +394,36 @@ def command_autodyna(workdir, reference_commit, reference_repository, reference_
         build_rocfft(commit, dest=build2, repo=repository)
 
     # run cases
-    timer = perflib.timer.GroupedTimer()
-    timer.rider = build1 / 'dyna-rocfft-rider'
-    timer.lib = [lib1, lib2]
-    timer.out = [build1, build2]
+    if static:
+        # use more trials for static rider
+        timer1 = perflib.timer.GroupedTimer()
+        timer1.rider = build1 / 'rocfft-rider'
+        timer1.lib = None
+        timer1.out = [build1]
+        timer1.ntrial = 20
 
-    specs = perflib.specs.get_machine_specs(timer.device)
-    for out in timer.out:
-        specs_file = Path(out) / 'specs.txt'
-        specs_file.write_text(str(specs))
+        timer2 = perflib.timer.GroupedTimer()
+        timer2.rider = build2 / 'rocfft-rider'
+        timer2.lib = None
+        timer2.out = [build2]
+        timer2.ntrial = 20
+        timers = [timer1, timer2]
+    else:
+        timer = perflib.timer.GroupedTimer()
+        timer.rider = build1 / 'dyna-rocfft-rider'
+        timer.lib = [lib1, lib2]
+        timer.out = [build1, build2]
+        timers = [timer]
+
+    specs = perflib.specs.get_machine_specs(timers[0].device)
+    for t in timers:
+        for out in t.out:
+            specs_file = Path(out) / 'specs.txt'
+            specs_file.write_text(str(specs))
 
     generator = perflib.generators.SuiteProblemGenerator(suite)
-    timer.run_cases(generator)
+    for t in timers:
+        t.run_cases(generator)
 
     # post-process results
     command_post([build1, build2], output)
@@ -467,16 +485,17 @@ def main():
     run_parser.add_argument('-N', '--ntrial', type=int, help='number of trials')
     run_parser.add_argument('-f', '--precision', type=str, help='precision', action='append')
 
-    autodyna_parser = subparsers.add_parser('autodyna', help='clone, build, dyna-run, post, and plot two rocFFT commits')
-    autodyna_parser.add_argument('--workdir', type=str, help='Working directory', default='.')
-    autodyna_parser.add_argument('--reference_commit', type=str, help='Reference commit', required=True)
-    autodyna_parser.add_argument('--reference_repository', type=str, help='Reference repository (if different from repository)')
-    autodyna_parser.add_argument('--reference_label', type=str, help='Reference label (if different from reference commit)')
-    autodyna_parser.add_argument('--commit', type=str, help='Commit to test', required=True)
-    autodyna_parser.add_argument('--repository', type=str, help='Repository to test', required=True)
-    autodyna_parser.add_argument('--label', type=str, help='Test label (if different from test commit)')
-    autodyna_parser.add_argument('--suite', type=str, help='Test suite name (appendable)', action='append', required=True)
-    autodyna_parser.add_argument('--format', type=str, help='Output format (appendable)', action='append', default=['html'])
+    autoperf_parser = subparsers.add_parser('autoperf', help='clone, build, run, post, and plot two rocFFT commits')
+    autoperf_parser.add_argument('--workdir', type=str, help='Working directory', default='.')
+    autoperf_parser.add_argument('--reference_commit', type=str, help='Reference commit', required=True)
+    autoperf_parser.add_argument('--reference_repository', type=str, help='Reference repository (if different from repository)')
+    autoperf_parser.add_argument('--reference_label', type=str, help='Reference label (if different from reference commit)')
+    autoperf_parser.add_argument('--commit', type=str, help='Commit to test', required=True)
+    autoperf_parser.add_argument('--repository', type=str, help='Repository to test', required=True)
+    autoperf_parser.add_argument('--label', type=str, help='Test label (if different from test commit)')
+    autoperf_parser.add_argument('--suite', type=str, help='Test suite name (appendable)', action='append', required=True)
+    autoperf_parser.add_argument('--format', type=str, help='Output format (appendable)', action='append', default=['html'])
+    autoperf_parser.add_argument('--static', help='Use static rider instead of dyna', action='store_true', default=False)
 
     arguments = parser.parse_args()
 
@@ -510,8 +529,8 @@ def main():
     if arguments.command == 'docx':
         command_generate(type='docx', **vars(arguments))
 
-    if arguments.command == 'autodyna':
-        command_autodyna(**vars(arguments))
+    if arguments.command == 'autoperf':
+        command_autoperf(**vars(arguments))
 
 if __name__ == '__main__':
     logging.basicConfig(filename='rocfft-perf.log',
