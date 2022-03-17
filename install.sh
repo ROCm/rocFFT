@@ -46,6 +46,7 @@ function display_help()
     echo "    [--manual-small] Additional small sizes list to generate, ='A[,B,C,..]', default is empty "
     echo "    [--manual-large] Additional large sizes list to generate, ='A[,B,C,..]', default is empty "
     echo "    [--address-sanitizer] build with address sanitizer enabled"
+    echo "    [--rm-legacy-include-dir] Remove legacy include dir Packaging added for file/folder reorg backward compatibility."
 }
 
 # This function is helpful for dockerfiles that do not have sudo installed, but the
@@ -275,6 +276,7 @@ group_num=false
 manual_small_arg=false
 manual_large_arg=false
 build_address_sanitizer=false
+build_freorg_bkwdcomp=true
 
 # #################################################
 # Parameter parsing
@@ -283,7 +285,7 @@ build_address_sanitizer=false
 # check if we have a modern version of getopt that can handle whitespace and long parameters
 getopt -T
 if [[ $? -eq 4 ]]; then
-    GETOPT_PARSE=$(getopt --name "${0}" -o 'hidcgr' --long 'help,install,clients,dependencies,debug,hip-clang,prefix:,relocatable,gen-pattern:,gen-precision:,gen-group-num:,manual-small:,manual-large:,address-sanitizer' --options hicgdr -- "$@")
+    GETOPT_PARSE=$(getopt --name "${0}" -o 'hidcgr' --long 'help,install,clients,dependencies,debug,hip-clang,prefix:,relocatable,gen-pattern:,gen-precision:,gen-group-num:,manual-small:,manual-large:,address-sanitizer, rm-legacy-include-dir' --options hicgdr -- "$@")
 else
     echo "Need a new version of getopt"
     exit 1
@@ -322,6 +324,9 @@ while true; do
             shift ;;
         --address-sanitizer)
             build_address_sanitizer=true
+            shift ;;
+        --rm-legacy-include-dir)
+            build_freorg_bkwdcomp=false
             shift ;;
         --prefix)
             echo $2
@@ -426,6 +431,11 @@ if [[ "${build_address_sanitizer}" == true ]]; then
     cmake_common_options="$cmake_common_options -DBUILD_ADDRESS_SANITIZER=ON"
 fi
 
+if [[ "${build_freorg_bkwdcomp}" == true ]]; then
+  cmake_common_options="${cmake_common_options} -DBUILD_FILE_REORG_BACKWARD_COMPATIBILITY=ON"
+else
+  cmake_common_options+=('-DBUILD_FILE_REORG_BACKWARD_COMPATIBILITY=OFF')
+fi
 # generator
 if [[ "${pattern_arg}" != false ]]; then
     cmake_common_options="${cmake_common_options} -DGENERATOR_PATTERN=${pattern_arg}"

@@ -229,7 +229,7 @@ target_include_directories( rocfft
   $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
   ${sqlite_local_SOURCE_DIR}
   PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
-  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include/rocfft>
   $<INSTALL_INTERFACE:include>
   )
 
@@ -243,7 +243,15 @@ set_target_properties( rocfft PROPERTIES
 
 set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
 
-generate_export_header( rocfft EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft-export.h )
+generate_export_header( rocfft EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft/rocfft-export.h )
+
+if (BUILD_FILE_REORG_BACKWARD_COMPATIBILITY)
+  rocm_wrap_header_file(
+    rocfft-version.h rocfft-export.h
+    GUARDS SYMLINK WRAPPER
+    WRAPPER_LOCATIONS include rocfft/include
+  )
+endif( )
 
 # Following Boost conventions of prefixing 'lib' on static built libraries, across all platforms
 if( NOT BUILD_SHARED_LIBS )
@@ -258,15 +266,21 @@ rocm_install_targets(
   INCLUDE
   ${CMAKE_SOURCE_DIR}/library/include
   ${CMAKE_BINARY_DIR}/include
-  PREFIX rocfft
   )
+
 #         PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
 
 rocm_export_targets(
   TARGETS roc::rocfft
-  PREFIX rocfft
   DEPENDS PACKAGE hip
   NAMESPACE roc::
   )
 
-rocm_install_symlink_subdir( rocfft )
+if(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY)
+  rocm_install(
+    DIRECTORY
+       "${PROJECT_BINARY_DIR}/rocfft"
+        DESTINATION "." )
+  message( STATUS "Backward Compatible Sym Link Created for include directories" )
+endif()
+ 

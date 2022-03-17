@@ -238,8 +238,7 @@ foreach( sub RANGE 3 )
   rocm_install_targets(
     TARGETS
     rocfft-device-${sub}
-    PREFIX
-    rocfft )
+    )
 endforeach()
 
 # first lib has the function pool which depends on the remaining

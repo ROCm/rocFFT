@@ -5,6 +5,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ## (Unreleased) rocFFT 1.0.17
 ### Added
 - Packages for test and benchmark executables on all supported OSes using CPack.
+- Added File/Folder Reorg Changes with backward compatibility support using ROCM-CMAKE wrapper functions.
 
 ### Changed
 - Improved reuse of twiddle memory between plans.

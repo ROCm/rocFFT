@@ -95,6 +95,7 @@ include( ROCMPackageConfigHelpers )
 include( ROCMInstallSymlinks )
 include( ROCMCheckTargetIds )
 include( ROCMClients )
+include( ROCMHeaderWrapper )
 
 # Using standardized versioning from rocm-cmake
 set ( VERSION_STRING "1.0.16" )
@@ -125,6 +126,17 @@ if(BUILD_ADDRESS_SANITIZER)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -shared-libasan")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -shared-libasan")
   add_link_options(-fuse-ld=lld)
+endif()
+
+# FOR HANDLING ENABLE/DISABLE OPTIONAL BACKWARD COMPATIBILITY for FILE/FOLDER REORG
+option(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY "Build with file/folder reorg with backward compatibility enabled" ON)
+if(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY)
+  rocm_wrap_header_dir(
+    ${CMAKE_SOURCE_DIR}/library/include
+    PATTERNS "*.h"
+    GUARDS SYMLINK WRAPPER
+    WRAPPER_LOCATIONS include
+  )
 endif()
 
 
