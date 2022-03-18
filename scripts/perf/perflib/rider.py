@@ -4,11 +4,13 @@ import logging
 import pathlib
 import re
 import subprocess
+import tempfile
+import time
 
 
 def run(rider, length, direction=-1, real=False, inplace=True,
         precision='single', nbatch=1, ntrial=1, device=None,
-        libraries=None, verbose=False):
+        libraries=None, verbose=False, timeout=300):
     """Run rocFFT rider and return execution times."""
     cmd = [pathlib.Path(rider).resolve()]
 
@@ -48,17 +50,30 @@ def run(rider, length, direction=-1, real=False, inplace=True,
         print('running: ' + ' '.join(cmd))
     else:
         print('.', end='', flush=True)
-    p = subprocess.run(cmd,
-                       stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT,
-                       check=False,
-                       encoding='ascii')
+    fout = tempfile.TemporaryFile(mode="w+")
+    ferr = tempfile.TemporaryFile(mode="w+")
 
-    logging.debug(p.stdout)
+    time_start = time.time()
+    proc = subprocess.Popen(cmd,
+                            stdout=fout,
+                            stderr=ferr)
+    try:
+        proc.wait(timeout=None if timeout == 0 else timeout)
+    except subprocess.TimeoutExpired:
+        logging.info("killed")
+        proc.kill()
+    time_end = time.time()
+    logging.info("elapsed time in seconds: " + str(time_end - time_start))
+    
+    
+    cout = fout.read()
+    cerr = ferr.read()
+
+    logging.debug(cout)
 
     times = []
-    if p.returncode == 0:
-        for m in re.finditer('Execution gpu time: ([ 0-9.]*) ms', p.stdout, re.MULTILINE):
+    if proc.returncode == 0:
+        for m in re.finditer('Execution gpu time: ([ 0-9.]*) ms', cout, re.MULTILINE):
             times.append(list(map(float, m.group(1).split(' '))))
 
     return times

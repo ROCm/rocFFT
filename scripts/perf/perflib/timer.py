@@ -11,12 +11,13 @@ from typing import List
 
 @dataclass
 class Timer:
-    rider: str      = ""
+    rider: str     = ""
     lib: List[str] = field(default_factory=list)
     out: List[str] = field(default_factory=list)
     device: int    = 0
     ntrial: int    = 10
     verbose: bool  = False
+    timeout: float = 0
 
     def run_cases(self, generator):
 
@@ -34,7 +35,8 @@ class Timer:
                                         ntrial=self.ntrial,
                                         device=self.device,
                                         libraries=self.lib,
-                                        verbose=self.verbose)
+                                        verbose=self.verbose,
+                                        timeout=self.timeout)
 
             for idx, vals in enumerate(seconds):
                 out = path(self.out[idx])
@@ -52,6 +54,7 @@ class GroupedTimer:
     device: int    = 0
     ntrial: int    = 10
     verbose: bool  = False
+    timeout: float = 0
 
     def run_cases(self, generator):
         all_problems = collections.defaultdict(list)

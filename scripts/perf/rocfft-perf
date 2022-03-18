@@ -306,7 +306,7 @@ def command_run(arguments):
         generator = perflib.generators.SuiteProblemGenerator(arguments.suite)
     else:
         generator = perflib.generators.RadixProblemGenerator()
-        for attr in ['radix', 'xmin', 'xmax', 'ymin', 'ymax', 'zmin', 'zmax']:
+        for attr in ['radix', 'xmin', 'xmax', 'ymin', 'ymax', 'zmin', 'zmax', 'verbose', 'timeout']:
             update(attr, generator, arguments)
 
     for attr in ['nbatch']:
@@ -348,7 +348,7 @@ def command_run(arguments):
         arguments.out = ['out' + str(i) for i in range(nout)]
 
     timer = perflib.timer.GroupedTimer()
-    for attr in ['device', 'rider', 'lib', 'out', 'device', 'ntrial', 'verbose']:
+    for attr in ['device', 'rider', 'lib', 'out', 'device', 'ntrial', 'verbose', 'timeout']:
         update(attr, timer, arguments)
 
     specs = perflib.specs.get_machine_specs(timer.device)
@@ -440,6 +440,7 @@ def main():
     subparsers = parser.add_subparsers(dest='command')
     parser.add_argument('-v', '--verbose', action='store_true', default=False)
 
+
     subparsers.add_parser('overview', help='print a general usage overview')
     subparsers.add_parser('specs', help='print machine specs')
 
@@ -483,6 +484,7 @@ def main():
     run_parser.add_argument('-d', '--dimension', type=int, help='dimension of transform', action='append')
     run_parser.add_argument('-b', '--nbatch', type=int, help='number of batches')
     run_parser.add_argument('-N', '--ntrial', type=int, help='number of trials')
+    run_parser.add_argument('-T', '--timeout', type=int, help='test timeout in seconds (0 disables timeout)', default=600)
     run_parser.add_argument('-f', '--precision', type=str, help='precision', action='append')
 
     autoperf_parser = subparsers.add_parser('autoperf', help='clone, build, run, post, and plot two rocFFT commits')
@@ -498,7 +500,7 @@ def main():
     autoperf_parser.add_argument('--static', help='Use static rider instead of dyna', action='store_true', default=False)
 
     arguments = parser.parse_args()
-
+    
     if arguments.verbose:
         console.setLevel(logging.INFO)
 
