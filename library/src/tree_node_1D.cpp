@@ -35,17 +35,6 @@ void TRTRT1DNode::BuildTree_internal()
         throw std::runtime_error("L1D_TRTRT wrong factorization");
     length.pop_back();
 
-    // FIXME: Should need more consideration about the padding of large1D
-    //        Especially when its parent already added padding.
-#if 0
-    const size_t biggerDim  = std::max(lenFactor0, lenFactor1);
-    const size_t smallerDim = std::min(lenFactor0, lenFactor1);
-    const size_t padding
-        = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
-#else
-    const size_t padding = 0;
-#endif
-
     // first transpose
     auto trans1Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     trans1Plan->length.push_back(lenFactor0);
@@ -55,10 +44,6 @@ void TRTRT1DNode::BuildTree_internal()
     {
         trans1Plan->length.push_back(length[index]);
     }
-    // NOTE: padding is constant if logic for it is ifdef'ed out
-    //
-    // cppcheck-suppress knownConditionTrueFalse
-    trans1Plan->outputHasPadding = (padding > 0);
     trans1Plan->SetTransposeOutputLength();
 
     // first row fft
@@ -70,9 +55,8 @@ void TRTRT1DNode::BuildTree_internal()
     {
         row1PlanData.length.push_back(length[index]);
     }
-    auto row1Plan              = NodeFactory::CreateExplicitNode(row1PlanData, this);
-    row1Plan->large1D          = 0;
-    row1Plan->outputHasPadding = trans1Plan->outputHasPadding;
+    auto row1Plan     = NodeFactory::CreateExplicitNode(row1PlanData, this);
+    row1Plan->large1D = 0;
     row1Plan->RecursiveBuildTree();
 
     // second transpose
@@ -85,7 +69,6 @@ void TRTRT1DNode::BuildTree_internal()
     {
         trans2Plan->length.push_back(length[index]);
     }
-    trans2Plan->outputHasPadding = row1Plan->outputHasPadding;
     trans2Plan->SetTransposeOutputLength();
 
     // second row fft
@@ -97,7 +80,6 @@ void TRTRT1DNode::BuildTree_internal()
     {
         row2Plan->length.push_back(length[index]);
     }
-    row2Plan->outputHasPadding = trans2Plan->outputHasPadding;
 
     // third transpose
     auto trans3Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
@@ -108,7 +90,6 @@ void TRTRT1DNode::BuildTree_internal()
     {
         trans3Plan->length.push_back(length[index]);
     }
-    trans3Plan->outputHasPadding = this->outputHasPadding;
     trans3Plan->SetTransposeOutputLength();
 
     // --------------------------------
@@ -136,17 +117,6 @@ void TRTRT1DNode::BuildTree_internal()
 
 void TRTRT1DNode::AssignParams_internal()
 {
-    // FIXME: Should need more consideration about the padding of large1D
-    //        Especially when its parent already added padding.
-#if 0
-    const size_t biggerDim  = std::max(childNodes[0]->length[0], childNodes[0]->length[1]);
-    const size_t smallerDim = std::min(childNodes[0]->length[0], childNodes[0]->length[1]);
-    const size_t padding
-        = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
-#else
-    const size_t padding = 0;
-#endif
-
     auto& trans1Plan = childNodes[0];
     auto& row1Plan   = childNodes[1];
     auto& trans2Plan = childNodes[2];
@@ -162,7 +132,7 @@ void TRTRT1DNode::AssignParams_internal()
     if(trans1Plan->obOut == OB_TEMP)
     {
         trans1Plan->outStride.push_back(1);
-        trans1Plan->outStride.push_back(trans1Plan->length[1] + padding);
+        trans1Plan->outStride.push_back(trans1Plan->length[1]);
         trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
 
         for(size_t index = 1; index < length.size(); index++)
@@ -226,7 +196,7 @@ void TRTRT1DNode::AssignParams_internal()
     if(trans2Plan->obOut == OB_TEMP)
     {
         trans2Plan->outStride.push_back(1);
-        trans2Plan->outStride.push_back(trans2Plan->length[1] + padding);
+        trans2Plan->outStride.push_back(trans2Plan->length[1]);
         trans2Plan->oDist = trans2Plan->length[0] * trans2Plan->outStride[1];
 
         for(size_t index = 1; index < length.size(); index++)
@@ -273,7 +243,7 @@ void TRTRT1DNode::AssignParams_internal()
     else if(row2Plan->obOut == OB_TEMP)
     {
         row2Plan->outStride.push_back(1);
-        row2Plan->outStride.push_back(row2Plan->length[0] + padding);
+        row2Plan->outStride.push_back(row2Plan->length[0]);
         row2Plan->oDist = row2Plan->length[1] * row2Plan->outStride[1];
 
         for(size_t index = 1; index < length.size(); index++)
@@ -415,7 +385,6 @@ void CC1DNode::BuildTree_internal()
     {
         col2colPlan->length.push_back(length[index]);
     }
-    col2colPlan->outputHasPadding = false;
 
     // second plan, row-to-column
     auto row2colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_RC, this);
@@ -426,8 +395,7 @@ void CC1DNode::BuildTree_internal()
     {
         row2colPlan->length.push_back(length[index]);
     }
-    row2colPlan->outputHasPadding = this->outputHasPadding;
-    row2colPlan->outputLength     = row2colPlan->length;
+    row2colPlan->outputLength = row2colPlan->length;
     std::swap(row2colPlan->outputLength[0], row2colPlan->outputLength[1]);
 
     // CC , RC
@@ -625,7 +593,6 @@ void CRT1DNode::BuildTree_internal()
     {
         col2colPlan->length.push_back(length[index]);
     }
-    col2colPlan->outputHasPadding = false;
 
     // second plan, row-to-row
     auto row2rowPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM, this);
@@ -636,7 +603,6 @@ void CRT1DNode::BuildTree_internal()
     {
         row2rowPlan->length.push_back(length[index]);
     }
-    row2rowPlan->outputHasPadding = col2colPlan->outputHasPadding;
     // memo: A worth-noting try
     // row2rowPlan->allowOutofplace = false;
 
@@ -649,7 +615,7 @@ void CRT1DNode::BuildTree_internal()
     {
         transPlan->length.push_back(length[index]);
     }
-    transPlan->outputHasPadding = this->outputHasPadding;
+    transPlan->SetTransposeOutputLength();
 
     // --------------------------------
     // Fuse Shims

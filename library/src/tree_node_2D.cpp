@@ -30,14 +30,6 @@
  *****************************************************/
 void RTRT2DNode::BuildTree_internal()
 {
-    // We do the padding test in advance, for the "outputHasPadding" flag
-    // this flag is an important information for buffer-assignment
-    // Adding padding in 2D_RTRT is safe since it has no parent with padding.
-    const size_t biggerDim  = std::max(length[0], length[1]);
-    const size_t smallerDim = std::min(length[0], length[1]);
-    const size_t padding
-        = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
-
     // first row fft
     NodeMetaData row1PlanData(this);
     row1PlanData.length.push_back(length[0]);
@@ -47,8 +39,7 @@ void RTRT2DNode::BuildTree_internal()
     {
         row1PlanData.length.push_back(length[index]);
     }
-    auto row1Plan              = NodeFactory::CreateExplicitNode(row1PlanData, this);
-    row1Plan->outputHasPadding = false;
+    auto row1Plan = NodeFactory::CreateExplicitNode(row1PlanData, this);
     row1Plan->RecursiveBuildTree();
 
     // first transpose
@@ -60,7 +51,6 @@ void RTRT2DNode::BuildTree_internal()
     {
         trans1Plan->length.push_back(length[index]);
     }
-    trans1Plan->outputHasPadding = (padding > 0);
     trans1Plan->SetTransposeOutputLength();
 
     // second row fft
@@ -72,8 +62,7 @@ void RTRT2DNode::BuildTree_internal()
     {
         row2PlanData.length.push_back(length[index]);
     }
-    auto row2Plan              = NodeFactory::CreateExplicitNode(row2PlanData, this);
-    row2Plan->outputHasPadding = trans1Plan->outputHasPadding;
+    auto row2Plan = NodeFactory::CreateExplicitNode(row2PlanData, this);
     row2Plan->RecursiveBuildTree();
 
     // second transpose
@@ -85,7 +74,6 @@ void RTRT2DNode::BuildTree_internal()
     {
         trans2Plan->length.push_back(length[index]);
     }
-    trans2Plan->outputHasPadding = this->outputHasPadding;
     trans2Plan->SetTransposeOutputLength();
 
     // --------------------------------
@@ -112,11 +100,6 @@ void RTRT2DNode::BuildTree_internal()
 
 void RTRT2DNode::AssignParams_internal()
 {
-    const size_t biggerDim  = std::max(length[0], length[1]);
-    const size_t smallerDim = std::min(length[0], length[1]);
-    const size_t padding
-        = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
-
     auto& row1Plan      = childNodes[0];
     row1Plan->inStride  = inStride;
     row1Plan->iDist     = iDist;
@@ -128,7 +111,7 @@ void RTRT2DNode::AssignParams_internal()
     trans1Plan->inStride = row1Plan->outStride;
     trans1Plan->iDist    = row1Plan->oDist;
     trans1Plan->outStride.push_back(1);
-    trans1Plan->outStride.push_back(trans1Plan->length[1] + padding);
+    trans1Plan->outStride.push_back(trans1Plan->length[1]);
     trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
     for(size_t index = 2; index < length.size(); index++)
     {

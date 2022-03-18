@@ -421,18 +421,6 @@ bool R2CTrans_FuseShim::PlacementFusable(OperatingBuffer iBuf,
     // allow inplace (out-of-place is allowed as well)
     if(allowInplace)
     {
-        if(iBuf == lastOBuf)
-        {
-            // in this case, we're going to modify the fused's output to firstOBuf inorder to make the fused node OP
-            // in this (r2c + tranpose) fusion, the transpose MIGHT HAVE PADDING. Thus we can't assign A/B as its
-            // new outBuffer if it has padding (since A/B won't fit the padding)
-            // an example is "length 336 18816 -t 2 ip"
-            auto transpose = nodes[1];
-            if(transpose->outputHasPadding && (firstOBuf == OB_USER_IN || firstOBuf == OB_USER_OUT))
-                return false;
-            else
-                return true;
-        }
         // if inBuf and outBuf is already op, then it is safe.
         return true;
     }
@@ -653,17 +641,6 @@ std::unique_ptr<TreeNode> STK_R2CTrans_FuseShim::FuseKernels()
                               + PrintScheme(transpose->scheme));
 
     fused->outputLength = transpose->outputLength;
-
-    // NB:
-    //    The generated CS_KERNEL_R_TO_CMPLX_TRANSPOSE kernel is in 3D fashion.
-    //    We just need extend length and strides to make it work for 2D case.
-    if(fused->length.size() == 2)
-    {
-        fused->length.push_back(1);
-        fused->outputLength.push_back(1);
-        fused->inStride.push_back(fused->inStride[1]);
-        fused->outStride.push_back(fused->outStride[1]);
-    }
 
     // This fusion is crossing sub-trees of the plan, so adjust the
     // parent CS_REAL_TRANSFORM_EVEN to expect what this fused kernel

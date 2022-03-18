@@ -797,24 +797,23 @@ ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, const size_t le
 
 void TreeNode::CopyNodeData(const TreeNode& srcNode)
 {
-    dimension        = srcNode.dimension;
-    batch            = srcNode.batch;
-    length           = srcNode.length;
-    inStride         = srcNode.inStride;
-    outStride        = srcNode.outStride;
-    iDist            = srcNode.iDist;
-    oDist            = srcNode.oDist;
-    iOffset          = srcNode.iOffset;
-    oOffset          = srcNode.oOffset;
-    placement        = srcNode.placement;
-    precision        = srcNode.precision;
-    direction        = srcNode.direction;
-    inArrayType      = srcNode.inArrayType;
-    outArrayType     = srcNode.outArrayType;
-    allowInplace     = srcNode.allowInplace;
-    allowOutofplace  = srcNode.allowOutofplace;
-    outputHasPadding = srcNode.outputHasPadding;
-    deviceProp       = srcNode.deviceProp;
+    dimension       = srcNode.dimension;
+    batch           = srcNode.batch;
+    length          = srcNode.length;
+    inStride        = srcNode.inStride;
+    outStride       = srcNode.outStride;
+    iDist           = srcNode.iDist;
+    oDist           = srcNode.oDist;
+    iOffset         = srcNode.iOffset;
+    oOffset         = srcNode.oOffset;
+    placement       = srcNode.placement;
+    precision       = srcNode.precision;
+    direction       = srcNode.direction;
+    inArrayType     = srcNode.inArrayType;
+    outArrayType    = srcNode.outArrayType;
+    allowInplace    = srcNode.allowInplace;
+    allowOutofplace = srcNode.allowOutofplace;
+    deviceProp      = srcNode.deviceProp;
 
     // conditional
     large1D        = srcNode.large1D;
@@ -1481,12 +1480,6 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     os << "\n" << indentStr.c_str();
     os << "oDist: " << oDist;
 
-    if(outputHasPadding)
-    {
-        os << "\n" << indentStr.c_str();
-        os << "outputHasPadding: " << outputHasPadding;
-    }
-
     os << "\n" << indentStr.c_str();
     os << "direction: " << direction;
 
@@ -1786,6 +1779,9 @@ void ProcessNode(ExecPlan& execPlan)
     // So we also need to update the whole tree including internal nodes
     // NB: The order matters: assign param -> fusion -> refresh internal node param
     execPlan.rootPlan->RefreshTree();
+
+    // add padding if necessary
+    policy.PadPlan(execPlan);
 
     // Check the buffer, param and tree integrity, Note we do this after fusion
     execPlan.rootPlan->SanityCheck();

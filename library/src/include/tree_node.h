@@ -403,8 +403,6 @@ public:
     bool allowInplace    = true;
     bool allowOutofplace = true;
 
-    bool outputHasPadding = false;
-
     size_t                      allowedOutBuf;
     std::set<rocfft_array_type> allowedOutArrayTypes;
 
@@ -429,6 +427,16 @@ public:
     bool isOutArrayTypeAllowed(rocfft_array_type) const;
     bool isRootNode() const;
     bool isLeafNode() const;
+
+    // whether or not the input/output access pattern may benefit from padding
+    virtual bool PaddingBenefitsInput()
+    {
+        return false;
+    }
+    virtual bool PaddingBenefitsOutput()
+    {
+        return false;
+    }
 
     virtual void RecursiveBuildTree(); // Main tree builder: override by child
     virtual void SanityCheck();
@@ -618,12 +626,12 @@ protected:
     virtual void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) = 0;
 
 public:
-    bool KernelCheck() override;
-    void SanityCheck() override;
-    bool CreateDevKernelArgs() override;
-    bool CreateTwiddleTableResource() override;
-    void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) override;
-    void GetKernelFactors();
+    bool         KernelCheck() override;
+    void         SanityCheck() override;
+    virtual bool CreateDevKernelArgs() override;
+    bool         CreateTwiddleTableResource() override;
+    void         SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) override;
+    void         GetKernelFactors();
 };
 
 /*****************************************************
@@ -643,6 +651,21 @@ protected:
     }
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+
+public:
+    // Transpose tiles read more row-ish and write more column-ish.  So
+    // assume output benefits more from padding than input.
+    bool PaddingBenefitsOutput() override
+    {
+        // HACK: only assume we benefit if we have no large twiddle multiply.
+        //
+        // Since large twiddle multiply (i.e. middle T of L1D_TRTRT)
+        // cannot be fused with an FFT kernel, we should not try too
+        // hard to pad its output.  The other T nodes of that plan can
+        // keep their buffer assigments so that padding doesn't upset
+        // the current choice of which nodes we fuse.
+        return large1D == 0;
+    }
 };
 
 struct ExecPlan

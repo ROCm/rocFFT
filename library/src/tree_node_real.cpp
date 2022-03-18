@@ -588,12 +588,6 @@ void Real2DEvenNode::BuildTree_internal()
 {
     // Fastest moving dimension must be even:
     assert(length[0] % 2 == 0);
-
-    const size_t biggerDim  = std::max(length[0], length[1]);
-    const size_t smallerDim = std::min(length[0], length[1]);
-    const size_t padding
-        = (((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512)) ? 64 : 0;
-
     const std::vector<size_t>* realLength    = nullptr;
     const std::vector<size_t>* complexLength = nullptr;
     set_complex_length(*this, realLength, complexLength);
@@ -605,28 +599,24 @@ void Real2DEvenNode::BuildTree_internal()
         auto row1Plan       = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
         row1Plan->length    = *realLength;
         row1Plan->dimension = 1;
-        row1Plan->outputHasPadding = false;
         row1Plan->RecursiveBuildTree();
 
         // first transpose
         auto trans1Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
         trans1Plan->length = row1Plan->outputLength;
         trans1Plan->SetTransposeOutputLength();
-        trans1Plan->outputHasPadding = (padding > 0);
 
         // second row fft
         NodeMetaData row2PlanData(this);
-        row2PlanData.length        = trans1Plan->outputLength;
-        row2PlanData.dimension     = 1;
-        auto row2Plan              = NodeFactory::CreateExplicitNode(row2PlanData, this);
-        row2Plan->outputHasPadding = trans1Plan->outputHasPadding;
+        row2PlanData.length    = trans1Plan->outputLength;
+        row2PlanData.dimension = 1;
+        auto row2Plan          = NodeFactory::CreateExplicitNode(row2PlanData, this);
         row2Plan->RecursiveBuildTree();
 
         // second transpose
         auto trans2Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
         trans2Plan->length = trans1Plan->outputLength;
         trans2Plan->SetTransposeOutputLength();
-        trans2Plan->outputHasPadding = this->outputHasPadding;
 
         // --------------------------------
         // Fuse Shims:
@@ -670,15 +660,13 @@ void Real2DEvenNode::BuildTree_internal()
         auto trans1Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
         trans1Plan->length = *complexLength;
         trans1Plan->SetTransposeOutputLength();
-        trans1Plan->dimension        = 2;
-        trans1Plan->outputHasPadding = (padding > 0);
+        trans1Plan->dimension = 2;
 
         // c2c row transform
         NodeMetaData c2cPlanData(this);
-        c2cPlanData.dimension     = 1;
-        c2cPlanData.length        = trans1Plan->outputLength;
-        auto c2cPlan              = NodeFactory::CreateExplicitNode(c2cPlanData, this);
-        c2cPlan->outputHasPadding = trans1Plan->outputHasPadding;
+        c2cPlanData.dimension = 1;
+        c2cPlanData.length    = trans1Plan->outputLength;
+        auto c2cPlan          = NodeFactory::CreateExplicitNode(c2cPlanData, this);
         c2cPlan->RecursiveBuildTree();
 
         // second transpose
@@ -687,12 +675,10 @@ void Real2DEvenNode::BuildTree_internal()
         trans2plan->SetTransposeOutputLength();
         trans2plan->dimension = 2;
         // NOTE
-        trans2plan->outputHasPadding = false;
 
         // c2r row transform
-        auto c2rPlan              = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
-        c2rPlan->length           = outputLength;
-        c2rPlan->outputHasPadding = this->outputHasPadding;
+        auto c2rPlan    = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
+        c2rPlan->length = outputLength;
         c2rPlan->RecursiveBuildTree();
 
         // --------------------------------
@@ -723,11 +709,6 @@ void Real2DEvenNode::BuildTree_internal()
 
 void Real2DEvenNode::AssignParams_internal()
 {
-    const size_t biggerDim  = std::max(length[0], length[1]);
-    const size_t smallerDim = std::min(length[0], length[1]);
-    const size_t padding
-        = (((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512)) ? 64 : 0;
-
     const bool forward = inArrayType == rocfft_array_type_real;
     if(forward)
     {
@@ -750,7 +731,7 @@ void Real2DEvenNode::AssignParams_internal()
             trans1Plan->iDist    = row1Plan->oDist;
 
             trans1Plan->outStride.push_back(1);
-            trans1Plan->outStride.push_back(trans1Plan->length[1] + padding);
+            trans1Plan->outStride.push_back(trans1Plan->length[1]);
             trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
         }
 
@@ -784,7 +765,7 @@ void Real2DEvenNode::AssignParams_internal()
             trans1Plan->iDist    = iDist;
 
             trans1Plan->outStride.push_back(1);
-            trans1Plan->outStride.push_back(trans1Plan->length[1] + padding);
+            trans1Plan->outStride.push_back(trans1Plan->length[1]);
             trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
         }
         auto& c2cPlan = childNodes[1];

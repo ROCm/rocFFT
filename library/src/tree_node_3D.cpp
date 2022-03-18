@@ -29,28 +29,18 @@
  *****************************************************/
 void RTRT3DNode::BuildTree_internal()
 {
-    // We do the padding test in advance, for the "outputHasPadding" flag
-    // this flag is an important information for buffer-assignment
-    // Adding padding in 3D_RTRT is safe since it has no parent with padding.
-    const size_t biggerDim  = std::max(length[0] * length[1], length[2]);
-    const size_t smallerDim = std::min(length[0] * length[1], length[2]);
-    const size_t padding
-        = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
-
     // 2d fft
     NodeMetaData xyPlanData(this);
-    xyPlanData.length        = length;
-    xyPlanData.dimension     = 2;
-    auto xyPlan              = NodeFactory::CreateExplicitNode(xyPlanData, this);
-    xyPlan->outputHasPadding = false;
+    xyPlanData.length    = length;
+    xyPlanData.dimension = 2;
+    auto xyPlan          = NodeFactory::CreateExplicitNode(xyPlanData, this);
     xyPlan->RecursiveBuildTree();
 
     // first transpose
     auto trans1Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
     trans1Plan->length = length;
     trans1Plan->SetTransposeOutputLength();
-    trans1Plan->dimension        = 2;
-    trans1Plan->outputHasPadding = (padding > 0);
+    trans1Plan->dimension = 2;
 
     // z fft
     NodeMetaData zPlanData(this);
@@ -58,16 +48,14 @@ void RTRT3DNode::BuildTree_internal()
     zPlanData.length.push_back(length[2]);
     zPlanData.length.push_back(length[0]);
     zPlanData.length.push_back(length[1]);
-    auto zPlan              = NodeFactory::CreateExplicitNode(zPlanData, this);
-    zPlan->outputHasPadding = trans1Plan->outputHasPadding;
+    auto zPlan = NodeFactory::CreateExplicitNode(zPlanData, this);
     zPlan->RecursiveBuildTree();
 
     // second transpose
     auto trans2Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
     trans2Plan->length = zPlan->length;
     trans2Plan->SetTransposeOutputLength();
-    trans2Plan->dimension        = 2;
-    trans2Plan->outputHasPadding = this->outputHasPadding;
+    trans2Plan->dimension = 2;
 
     // --------------------------------
     // Fuse Shims
@@ -101,11 +89,6 @@ void RTRT3DNode::AssignParams_internal()
 {
     assert(childNodes.size() == 4);
 
-    const size_t biggerDim  = std::max(length[0] * length[1], length[2]);
-    const size_t smallerDim = std::min(length[0] * length[1], length[2]);
-    const size_t padding
-        = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512) ? 64 : 0;
-
     // B -> B
     auto& xyPlan     = childNodes[0];
     xyPlan->inStride = inStride;
@@ -122,7 +105,7 @@ void RTRT3DNode::AssignParams_internal()
     trans1Plan->iDist    = xyPlan->oDist;
 
     trans1Plan->outStride.push_back(1);
-    trans1Plan->outStride.push_back(trans1Plan->length[2] + padding);
+    trans1Plan->outStride.push_back(trans1Plan->length[2]);
     trans1Plan->outStride.push_back(trans1Plan->length[0] * trans1Plan->outStride[1]);
     trans1Plan->oDist = trans1Plan->length[1] * trans1Plan->outStride[2];
 
@@ -587,8 +570,6 @@ void BLOCKCR3DNode::BuildTree_internal()
         auto node = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CR, this);
         node->length.push_back(cur_length[2]);
         node->length.push_back(cur_length[0] * cur_length[1]);
-        node->outputLength = node->length;
-        std::swap(node->outputLength[0], node->outputLength[1]);
         childNodes.emplace_back(std::move(node));
         std::swap(cur_length[1], cur_length[2]);
         std::swap(cur_length[1], cur_length[0]);
@@ -816,4 +797,17 @@ void RealCmplxTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridPara
     fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
     gp.b_x        = DivRoundingUp(length[1], bwd) * length[2] * batch;
     gp.wgs_x      = kernel.workgroup_size;
+}
+
+bool RealCmplxTransZ_XYNode::CreateDevKernelArgs()
+{
+    // We have a case where this 3D kernel is shoehorned into a 2D plan.
+    // If so, add a third dimension when creating kernel args.
+    if(length.size() == 2)
+    {
+        length.push_back(1);
+        inStride.push_back(inStride.back());
+        outStride.push_back(outStride.back());
+    }
+    return SBRCTranspose3DNode::CreateDevKernelArgs();
 }

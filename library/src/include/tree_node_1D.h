@@ -129,6 +129,17 @@ protected:
     }
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+
+public:
+    // reads + writes are along columns so both may benefit from padding
+    bool PaddingBenefitsInput() override
+    {
+        return true;
+    }
+    bool PaddingBenefitsOutput() override
+    {
+        return true;
+    }
 };
 
 /*****************************************************
@@ -151,6 +162,12 @@ protected:
 
 public:
     SBRC_TRANSPOSE_TYPE sbrc_transpose_type(unsigned int blockWidth) const override;
+
+    // writes are along columns so they may benefit from padding
+    bool PaddingBenefitsOutput() override
+    {
+        return true;
+    }
 };
 
 /*****************************************************
@@ -173,6 +190,12 @@ protected:
 
 public:
     bool CreateTwiddleTableResource() override;
+
+    // reads are along columns so they may benefit from padding
+    bool PaddingBenefitsInput() override
+    {
+        return true;
+    }
 };
 
 #endif // TREE_NODE_1D_H

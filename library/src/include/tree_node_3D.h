@@ -257,6 +257,9 @@ protected:
         // return length[1] * length[2];
         return length[1];
     }
+
+public:
+    bool CreateDevKernelArgs() override;
 };
 
 #endif // TREE_NODE_3D_H

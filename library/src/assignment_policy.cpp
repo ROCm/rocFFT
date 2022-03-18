@@ -19,9 +19,12 @@
 // THE SOFTWARE.
 
 #include "assignment_policy.h"
+#include "../../shared/ptrdiff.h"
 #include "./device/kernels/array_format.h"
+#include "arithmetic.h"
 #include "logging.h"
 #include <numeric>
+#include <optional>
 #include <set>
 
 void PlacementTrace::Print(rocfft_ostream& os)
@@ -192,9 +195,6 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
     // the input side of an in-place R2C transform (which the plan
     // would normally call OB_USER_OUT).
     auto dataFits = [&execPlan](const TreeNode& node, OperatingBuffer buffer) {
-        if(node.outputHasPadding)
-            return false;
-
         auto nodeLen = node.GetOutputLength();
         auto bufLen  = buffer == OB_USER_OUT ? execPlan.rootPlan->GetOutputLength()
                                              : execPlan.rootPlan->length;
@@ -262,6 +262,11 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
     else if(node.scheme == CS_KERNEL_APPLY_CALLBACK)
     {
         test_result = true;
+    }
+    // bluestein nodes must write to temp bluestein buffer
+    else if(node.scheme == CS_KERNEL_CHIRP || node.scheme == CS_KERNEL_PAD_MUL)
+    {
+        test_result = (buffer == OB_TEMP_BLUESTEIN);
     }
     // More requirement for Bluestein: the 7 component-nodes need to output to bluestein buffer
     // except for the last RES_MUL
@@ -368,6 +373,15 @@ void AssignmentPolicy::UpdateWinnerFromValidPaths(ExecPlan& execPlan)
                 return true;
             if(lhs->NumUsedBuffers() > rhs->NumUsedBuffers())
                 return false;
+
+            // once we do have temp buffers, more temp ops that have
+            // better opportunities for padding are generally better,
+            // since we can avoid more bad memory access patterns
+            auto leftTempOps  = lhs->NumPaddableTempOps();
+            auto rightTempOps = rhs->NumPaddableTempOps();
+            if(leftTempOps != rightTempOps)
+                return leftTempOps > rightTempOps;
+
             // if tie, we still choose the one with more inplace
             if(lhs->numInplace > rhs->numInplace)
                 return true;
@@ -630,4 +644,531 @@ void AssignmentPolicy::Enumerate(PlacementTrace*   parent,
             } // end of testing each array type
         } // end of testing each out buffer
     } // end of out-of-place
+}
+
+// Lengths/strides on tree nodes are usually (but not always) fastest
+// dimension first.  Define a structure that can be sorted
+// fastest-to-slowest, without actually re-sorting the original
+// length/stride vectors on the tree node.
+template <typename Tint>
+struct LengthStrideSort
+{
+    LengthStrideSort(const Tint& length, Tint& stride)
+        : _length(&length)
+        , _stride(&stride)
+    {
+    }
+
+    // accessors
+    const Tint& length() const
+    {
+        return *_length;
+    }
+    const Tint& stride() const
+    {
+        return *_stride;
+    }
+    Tint& stride()
+    {
+        return *_stride;
+    }
+
+    // sort faster strides first
+    bool operator<(const LengthStrideSort<Tint>& other) const
+    {
+        if(this->stride() != other.stride())
+            return this->stride() < other.stride();
+        // tiebreak on length.  strides really ought to always be
+        // different for each dim, but in edge cases like if length
+        // of a dim is 1, you could have a stride value that doesn't
+        // matter and matches another dim.
+        return this->length() < other.length();
+    }
+
+private:
+    // store pointers to actual length/stride
+    const Tint* _length;
+    Tint*       _stride;
+};
+
+template <typename T>
+static bool StrideIsContiguous(const T& lengthStride)
+{
+    size_t start1d = 1;
+    for(const auto& i : lengthStride)
+    {
+        if(start1d != i.stride())
+            return false;
+        start1d *= i.length();
+    }
+    return true;
+}
+
+// Which dimension are we padding for a kernel?
+enum class PaddingDim
+{
+    // some kernels can only pad the highest dim or second highest dim
+    HIGHEST,
+    SECOND_HIGHEST,
+};
+
+// Function to pad strides on a buffer, if the strides would produce
+// a problematic access pattern.  Previous stride/dist/length are
+// provided in cases where a previous write must be compatible with a
+// read from the same buffer.
+//
+// padSecondHighestDim controls exactly which dimension gets the
+// padding - normally we'd try to pad the highest dimension.
+static void PadStride(std::vector<size_t>&       stride,
+                      size_t&                    dist,
+                      const std::vector<size_t>& length,
+                      size_t                     batch,
+                      const std::vector<size_t>& prevStride,
+                      const size_t&              prevDist,
+                      const std::vector<size_t>& prevLength,
+                      PaddingDim                 paddingDim)
+{
+    // only consider padding for 2D and higher
+    if(stride.size() < 2)
+        return;
+
+    // dist is effectively unused if batch == 1 and users are allowed
+    // to give us a number that doesn't make sense in that case.  but
+    // if so, assume it's contiguous so that all the math works out.
+    if(batch == 1)
+        dist = compute_ptrdiff(length, stride, 1, 1);
+
+    // sort lengths, treat batch dimension as another dim
+    std::vector<LengthStrideSort<size_t>> cur;
+    for(unsigned int i = 0; i < length.size(); ++i)
+    {
+        cur.emplace_back(length[i], stride[i]);
+    }
+    cur.emplace_back(batch, dist);
+    std::sort(cur.begin(), cur.end());
+
+    // if we have a previous stride, we need to respect its padding
+    if(!prevStride.empty())
+    {
+        // sort previous lengths too, again treating batch dimension as
+        // another dim
+        std::vector<LengthStrideSort<const size_t>> prev;
+        for(unsigned int i = 0; i < prevLength.size(); ++i)
+        {
+            prev.emplace_back(prevLength[i], prevStride[i]);
+        }
+        prev.emplace_back(batch, prevDist);
+        std::sort(prev.begin(), prev.end());
+
+        // If we have fewer previous lengths than current lengths,
+        // combine 2 fastest dims.
+        //
+        // This should only happen with a plan like:
+        //
+        // B -> T         <-- large 1D parent
+        //   B -> B       <-- decomposed child 1
+        //   B -> T       <-- decomposed child 2
+        //
+        // Child 2 starts the temp write, and is part of the 1D
+        // decomposition.  It will output more apparent dimensions
+        // than the parent.  But it might pad its outputs, so the
+        // parent's output needs to be adjusted accordingly.
+        if(cur.size() < prev.size())
+        {
+            if(prev.size() - cur.size() > 1)
+                throw std::runtime_error("padding: expected only one fewer cur dim");
+            if(prev[0].length() != prev[1].stride() || prev[0].stride() != 1)
+                throw std::runtime_error(
+                    "padding: expected unit stride for decomposition of fastest dim");
+            if(prev[0].length() * prev[1].length() != cur[0].length())
+                throw std::runtime_error(
+                    "padding: fastest two previous lengths don't combine into fastest cur length");
+            // pretend the decomposed length is actually the full large 1D length
+            prev.erase(prev.begin(), prev.begin() + 2);
+            prev.emplace(prev.begin(), cur[0].length(), cur[0].stride());
+        }
+
+        // walk down cur and prev lengths to decompose as we go
+        auto curIt  = cur.begin();
+        auto prevIt = prev.begin();
+        // track how much previous length remains, and how much
+        // stride we've accumulated if we've only partially
+        // decomposed a length
+        size_t remain        = 0;
+        size_t partialStride = 0;
+        while(curIt != cur.end() && prevIt != prev.end())
+        {
+            if(remain == 0)
+                remain = prevIt->length();
+            if(partialStride == 0)
+                partialStride = prevIt->stride();
+
+            if(remain % curIt->length() != 0)
+                throw std::runtime_error("padding: failed to decompose prev length");
+
+            remain /= curIt->length();
+            if(remain == 1)
+            {
+                // fully decomposed this prev length, assign stride
+                curIt->stride() = partialStride;
+                ++prevIt;
+                ++curIt;
+                remain        = 0;
+                partialStride = 0;
+            }
+            else
+            {
+                // partially decomposed
+                curIt->stride() = partialStride;
+                partialStride *= curIt->length();
+                ++curIt;
+            }
+        }
+        // should get to the end of both lists if the two actually match
+        if(curIt != cur.end())
+            throw std::runtime_error("padding: didn't get to end of cur");
+        if(prevIt != prev.end())
+            throw std::runtime_error("padding: didn't get to end of prev");
+    }
+
+    // otherwise we can just do the right padding for the stride we have
+    else
+    {
+        // don't pad if it already looks padded
+        if(!StrideIsContiguous(cur))
+            return;
+
+        // separate out batch dim from the rest
+        auto batchDim = cur.rbegin();
+        auto highDim  = std::next(batchDim);
+
+        // get highest dim length and lower dim length(s)
+        size_t highLength   = highDim->length();
+        size_t lowerLengths = 1;
+        for(auto i = highDim + 1; i != cur.rend(); ++i)
+            lowerLengths *= i->length();
+
+        const size_t biggerDim  = std::max(highLength, lowerLengths);
+        const size_t smallerDim = std::min(highLength, lowerLengths);
+        bool needsPadding = ((smallerDim % 64 == 0) || (biggerDim % 64 == 0)) && (biggerDim >= 512);
+
+        if(!needsPadding)
+            return;
+
+        static const size_t padding = 64;
+
+        // normal case - adjust highest dim
+        if(paddingDim == PaddingDim::HIGHEST)
+        {
+            highDim->stride() += padding;
+        }
+        // if the kernels involved don't allow padding the highest
+        // dim, pad the second highest one instead
+        else
+        {
+            auto nextHighestDim = std::next(highDim);
+            nextHighestDim->stride() += padding;
+            highDim->stride() += padding * nextHighestDim->length();
+        }
+        batchDim->stride() = highDim->stride() * highDim->length();
+    }
+}
+
+// Gather up the length and stride information of a temp buffer
+// operation (read or write) into a struct.  We want to be able to
+// collect all of the related operations on a buffer to confirm that
+// they're paddable, before we actually start changing any strides on
+// any nodes.
+struct TempBufOp
+{
+    enum Operation
+    {
+        BufRead,
+        BufWrite,
+    };
+    TempBufOp(const std::vector<size_t>& _length,
+              std::vector<size_t>&       _stride,
+              size_t&                    _dist,
+              Operation                  _op,
+              TreeNode&                  _node)
+        : length(_length)
+        , stride(_stride)
+        , dist(_dist)
+        , op(_op)
+        , node(_node)
+    {
+    }
+
+    const std::vector<size_t> length;
+    std::vector<size_t>&      stride;
+    size_t&                   dist;
+
+    Operation op;
+    TreeNode& node;
+
+    // Return the forced dimension for padding for this kernel and
+    // operation - if the kernel does not support padding on all
+    // dimensions.
+    std::optional<PaddingDim> GetForcedPaddingDim() const
+    {
+        // The current implementation of 3D transpose kernels
+        // (XY_Z and Z_XY) does not work correctly for
+        // arbitrary strides.  Normally we would want to pad
+        // the highest dimension.  But XY_Z can only pad the
+        // middle dimension on output and Z_XY can only pad
+        // the middle dimension on input.
+        if(node.scheme == CS_KERNEL_TRANSPOSE_XY_Z)
+            return op == TempBufOp::BufWrite ? PaddingDim::SECOND_HIGHEST : PaddingDim::HIGHEST;
+        if(node.scheme == CS_KERNEL_TRANSPOSE_Z_XY)
+            return op == TempBufOp::BufRead ? PaddingDim::SECOND_HIGHEST : PaddingDim::HIGHEST;
+        // other kernels would pad on highest
+        return {};
+    }
+};
+
+// Given a node and a temp buffer, collect the read/write operations
+// that continue in that buffer until the data leaves that buffer.
+//
+// startNode is true when we're starting collection, and false when
+// we're recursing into children and siblings.  It controls whether
+// we want to look at the given node's input - we would want to do
+// that when recursively chasing down subsequent operations on a
+// buffer after an initial write.  But we would not want to look at
+// input when starting from a parent like:
+//
+// T -> T         <-- parent node
+//   T -> B       <-- child 1
+//   B -> T       <-- child 2
+//
+// If parent is our starting node then the input to parent must have
+// already been considered by a previous collection, and stopped when
+// the data left T in child 1.  Therefore, what we're interested in
+// for this collection is parent writing to T, starting from child 2.
+void CollectTempBufOps(TreeNode&               node,
+                       OperatingBuffer         buf,
+                       std::vector<TempBufOp>& users,
+                       bool                    startNode = false)
+{
+    // helper to insert an op into the vector - checks to make sure
+    // we're not duplicating anything
+    auto insertOp = [&users](TempBufOp&& newOp) {
+        // ensure we're not adding a duplicate
+        for(auto& u : users)
+        {
+            if(u.op == newOp.op && &u.node == &newOp.node)
+                return;
+        }
+        users.emplace_back(newOp);
+    };
+
+    // If input is the buffer we're looking at
+    if(!startNode && node.obIn == buf)
+    {
+        // Store this read
+        insertOp({node.length, node.inStride, node.iDist, TempBufOp::BufRead, node});
+
+        // If this is a parent node, its children can also continue
+        // using the buffer
+        for(auto& child : node.childNodes)
+        {
+            // chirps don't connect to anything, so skip them
+            if(child->scheme == CS_KERNEL_CHIRP)
+                continue;
+
+            // Once a child stops using this temp buffer, stop
+            // looking at children and return so we don't consider
+            // this node's output either (since even if obOut is the
+            // same node, there's clearly stuff happening in the
+            // child nodes that means the data leaves the original
+            // obIn).
+            if(child->obIn != buf)
+                return;
+            CollectTempBufOps(*child, buf, users);
+            if(child->obOut != buf)
+                return;
+        }
+    }
+
+    // If output is the buffer we're looking at
+    if(node.obOut == buf)
+    {
+        // If this is a parent node, look backwards through the
+        // children to collect child nodes that write to the buffer
+        for(auto child = node.childNodes.rbegin(); child != node.childNodes.rend(); ++child)
+        {
+            // Once a child stops using this temp buffer, stop looking
+            // at children.
+            if(child->get()->obOut != buf)
+                break;
+            CollectTempBufOps(*(child->get()), buf, users);
+            if(child->get()->obIn != buf)
+                break;
+        }
+
+        // Store this write
+        insertOp({node.GetOutputLength(), node.outStride, node.oDist, TempBufOp::BufWrite, node});
+
+        // If we have a parent node, tail-recurse into our following sibling node.
+        //
+        // e.g.
+        // A -> B     <-- parent
+        //   A -> T   <-- child 1
+        //   T -> T   <-- child 2
+        //   T -> B   <-- child 3
+        //   B -> B   <-- child 4
+        //
+        // Child 1 is a new use of a temp buffer.  We want to collect
+        // children 2 and 3 also.
+        auto parent = node.parent;
+        if(parent)
+        {
+            auto self = std::find_if(
+                parent->childNodes.begin(),
+                parent->childNodes.end(),
+                [&node](std::unique_ptr<TreeNode>& child) { return child.get() == &node; });
+            auto nextSibling = std::next(self);
+            if(nextSibling != parent->childNodes.end())
+                CollectTempBufOps(*nextSibling->get(), buf, users);
+        }
+    }
+}
+
+static bool IsPaddableTempBuffer(OperatingBuffer buf)
+{
+    // Non-Bluestein temp buffers are candidates for padding.
+    // Skip Bluestein because it has non-obvious rules around
+    // what size of data is actually in the buffer, and it's a
+    // slow fallback path anyway.
+    return buf == OB_TEMP || buf == OB_TEMP_CMPLX_FOR_REAL;
+}
+
+void AssignmentPolicy::PadPlan(ExecPlan& execPlan)
+{
+    RecursiveTraverse(execPlan.rootPlan.get(), [&execPlan](TreeNode* n) {
+        // Look for nodes that begin writing to a new temp buffer
+        // (i.e. obOut is a paddable temp buffer, and obIn was a
+        // different buffer)
+        if(IsPaddableTempBuffer(n->obOut) && (n->obIn != n->obOut || !n->childNodes.empty()))
+        {
+            // collect up the input/output ops that use this temp
+            // buffer before the data leaves it
+            std::vector<TempBufOp> users;
+            CollectTempBufOps(*n, n->obOut, users, true);
+
+            // If the collected users doesn't end with a read, that
+            // should mean we got the last children of a parent node.
+            // An earlier point of this traversal should have
+            // collected these users already when we traversed the
+            // parent.
+            //
+            // e.g.
+            //
+            // A -> T     <-- parent
+            //   A -> B   <-- child 1
+            //   B -> T   <-- child 2
+            // T -> B     <-- node after parent
+            //
+            // We'll visit child 2 and think it's a new write to T.
+            // But when we traversed parent, we would already have
+            // looked at parent's last children because parent writes
+            // to T.
+            if(users.back().op == TempBufOp::BufWrite)
+                return;
+
+            // Ensure that we're not trying to pad a write to a
+            // sub-dimension.  e.g. if we're decomposing a large 1D
+            // size into smaller subdimensions, we can't pad in the
+            // middle of that.
+            for(const auto& u : users)
+            {
+                if(u.op == TempBufOp::BufWrite && u.length.size() == 1)
+                    return;
+            }
+
+            for(const auto& u : users)
+            {
+                // Padded Bluestein doesn't work in all cases
+                if(u.node.scheme == CS_BLUESTEIN)
+                    return;
+                // SBCR plans combine higher dimensions in ways that confuse padding
+                if(u.node.scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
+                    return;
+            }
+
+            // Ensure that if we're forced to pad along one dimension
+            // that this forced choice isn't illegal later on for
+            // this buffer.
+            std::optional<PaddingDim> prevPaddingDim;
+            for(const auto& u : users)
+            {
+                auto curPaddingDim = u.GetForcedPaddingDim();
+                if(prevPaddingDim.has_value() && curPaddingDim.has_value()
+                   && *prevPaddingDim != *curPaddingDim)
+                {
+                    // conflict - an earlier operation restricted us to
+                    // a dimension and a later operation is restricted
+                    // differently.
+                    return;
+                }
+
+                // if this is the first op, assume we padded on highest dim
+                if(!prevPaddingDim.has_value())
+                    prevPaddingDim = curPaddingDim.value_or(PaddingDim::HIGHEST);
+                // otherwise, remember any forced dim this op has
+                else if(curPaddingDim.has_value() && u.op == TempBufOp::BufWrite)
+                    prevPaddingDim = curPaddingDim;
+            }
+
+            // specific case for gfx906 - large double-precision pow2
+            // 2D strides are slower with padding
+            if(is_device_gcn_arch(execPlan.deviceProp, "gfx906"))
+            {
+                const auto& stride = users.front().stride;
+                if(stride.size() == 3 && IsPo2(stride[0]) && stride[0] > 2048 && IsPo2(stride[1])
+                   && stride[1] > 2048)
+                    return;
+            }
+
+            // pass previous write's strides to padding logic so it
+            // can know how the data was shaped
+            TempBufOp* previousWrite = nullptr;
+            for(auto& u : users)
+            {
+                if(previousWrite)
+                    PadStride(u.stride,
+                              u.dist,
+                              u.length,
+                              n->batch,
+                              previousWrite->stride,
+                              previousWrite->dist,
+                              previousWrite->length,
+                              u.GetForcedPaddingDim().value_or(PaddingDim::HIGHEST));
+                else
+                    PadStride(u.stride,
+                              u.dist,
+                              u.length,
+                              n->batch,
+                              {},
+                              0,
+                              {},
+                              u.GetForcedPaddingDim().value_or(PaddingDim::HIGHEST));
+                if(u.op == TempBufOp::BufWrite)
+                    previousWrite = &u;
+            }
+        }
+    });
+}
+
+size_t PlacementTrace::NumPaddableTempOps() const
+{
+    auto   trace       = this;
+    size_t tempOpCount = 0;
+    while(trace != nullptr && trace->curNode != nullptr)
+    {
+        tempOpCount += IsPaddableTempBuffer(trace->inBuf) && trace->curNode->PaddingBenefitsInput();
+        tempOpCount
+            += IsPaddableTempBuffer(trace->outBuf) && trace->curNode->PaddingBenefitsOutput();
+        trace = trace->parent;
+    }
+    return tempOpCount;
 }

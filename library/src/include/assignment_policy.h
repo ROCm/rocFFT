@@ -85,6 +85,9 @@ struct PlacementTrace
     // How many buffers are used in this assignment
     size_t NumUsedBuffers() const;
 
+    // How many beneficial padded temp operations are possible in this assignment
+    size_t NumPaddableTempOps() const;
+
     // Starting from the tail (leaf of each branch) back to the head (root),
     // Fill-in the assignment from the PlacemenTraces to the nodes
     void Backtracking(ExecPlan& execPlan, int execSeqID);
@@ -112,6 +115,9 @@ public:
     AssignmentPolicy() = default;
 
     bool AssignBuffers(ExecPlan& execPlan);
+
+    // pad temp buffers in a plan to avoid badly-performing strided accesses
+    void PadPlan(ExecPlan& execPlan);
 
 private:
     static std::vector<size_t> GetEffectiveNodeOutLen(ExecPlan& execPlan, const TreeNode& node);

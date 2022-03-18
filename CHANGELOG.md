@@ -25,6 +25,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Optimized more large 1D cases by using L1D_CC plan.
 - Optimized 3D 200^3 C2R case.
 - Optimized 1D 2^30 double precision on MI200.
+- Added padding to work buffer sizes to improve performance in many cases.
 
 ### Fixed
 - Fixed correctness of some R2C transforms with unusual strides.
