@@ -487,6 +487,7 @@ def list_large_kernels():
            'sp': 'true',  'dp': 'false'}),
         NS(length=80,  factors=[10, 8],      use_3steps_large_twd={
            'sp': 'false',  'dp': 'false'}),
+        # 9,9 isn't better by experiments
         NS(length=81,  factors=[3, 3, 3, 3], use_3steps_large_twd={
            'sp': 'true',  'dp': 'true'}),
         NS(length=84,  factors=[7, 2, 6],    use_3steps_large_twd={
@@ -521,7 +522,7 @@ def list_large_kernels():
            'sp': 'true', 'dp': 'false'}),
         NS(length=240, factors=[8, 5, 6],    use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'}),
-        # TODO- radix-9 and do a [9,9,3]
+        # 9,9,3 isn't better on all archs, some are much better, some get regressions
         NS(length=243, factors=[3, 3, 3, 3, 3],    use_3steps_large_twd={
            'sp': 'true', 'dp': 'false'}, workgroup_size=243),
         NS(length=256, factors=[8, 4, 8], use_3steps_large_twd={
@@ -551,6 +552,7 @@ def list_large_kernels():
         NS(length=50,  factors=[10, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=50, threads_per_transform=5), # block_width=10
         # SBRC64: wgs=256 poor in MI50
         NS(length=64,  factors=[4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=128, threads_per_transform=16), # block_width=8
+        # 9,9 not good by experiments
         NS(length=81,  factors=[3, 3, 3, 3], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=243, threads_per_transform=27), # block_width=9
         NS(length=100, factors=[5, 5, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=100, threads_per_transform=25), # block_width=4
         NS(length=112, factors=[4, 7, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=448, threads_per_transform=28), # block_width=16

@@ -31,6 +31,16 @@
 // butterfly radix-8 constants
 #define C8Q static_cast<real_type_t<T>>(0.70710678118654752440084436210485)
 
+// butterfly radix-9 constants
+#define C9QA static_cast<real_type_t<T>>(0.766044443118978)
+#define C9QB static_cast<real_type_t<T>>(0.6427876096865393)
+#define C9QC static_cast<real_type_t<T>>(0.1736481776669304)
+#define C9QD static_cast<real_type_t<T>>(0.984807753012208)
+#define C9QE static_cast<real_type_t<T>>(0.5000000000000000)
+#define C9QF static_cast<real_type_t<T>>(0.8660254037844387)
+#define C9QG static_cast<real_type_t<T>>(0.9396926207859083)
+#define C9QH static_cast<real_type_t<T>>(0.3420201433256689)
+
 //
 // For radix-11 and radix-13 the butterfly constants correspond to
 // the roots of unity for the radix; and are named according to:
