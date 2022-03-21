@@ -64,8 +64,9 @@ def run(rider, length, direction=-1, real=False, inplace=True,
         proc.kill()
     time_end = time.time()
     logging.info("elapsed time in seconds: " + str(time_end - time_start))
-    
-    
+
+    fout.seek(0)
+    ferr.seek(0)
     cout = fout.read()
     cerr = ferr.read()
 
