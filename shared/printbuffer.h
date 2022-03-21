@@ -82,7 +82,7 @@ public:
     {
         throw std::runtime_error("base class for buffer_printer print_buffer not implemented.");
     };
-    template <typename Tallocator>
+    template <typename Tallocator, typename Tstream = std::ostream>
     void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
                            const std::vector<size_t>&                        size,
                            const std::vector<size_t>&                        offset)
@@ -116,18 +116,19 @@ public:
                 (const float*)(vec.data()), length, stride, nbatch, dist, offset[0], stream);
         }
     };
-    template <typename Tallocator>
+    template <typename Tallocator, typename Tstream = std::ostream>
     static void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
                                   const std::vector<size_t>&                        size,
-                                  const std::vector<size_t>&                        offset)
+                                  const std::vector<size_t>&                        offset,
+                                  Tstream& stream = std::cout)
     {
         for(const auto& vec : buf)
         {
             auto data = reinterpret_cast<const float*>(vec.data());
-            std::cout << "idx " << 0;
+            stream << "idx " << 0;
             for(size_t i = 0; i < size[0]; ++i)
-                std::cout << " " << data[i];
-            std::cout << std::endl;
+                stream << " " << data[i];
+            stream << std::endl;
         }
     };
 };
@@ -156,18 +157,19 @@ public:
                 (const double*)(vec.data()), length, stride, nbatch, dist, offset[0], stream);
         }
     };
-    template <typename Tallocator>
+    template <typename Tallocator, typename Tstream = std::ostream>
     static void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
                                   const std::vector<size_t>&                        size,
-                                  const std::vector<size_t>&                        offset)
+                                  const std::vector<size_t>&                        offset,
+                                  Tstream& stream = std::cout)
     {
         for(const auto& vec : buf)
         {
             auto data = reinterpret_cast<const double*>(vec.data());
-            std::cout << "idx " << 0;
+            stream << "idx " << 0;
             for(size_t i = 0; i < size[0]; ++i)
-                std::cout << " " << data[i];
-            std::cout << std::endl;
+                stream << " " << data[i];
+            stream << std::endl;
         }
     };
 };
@@ -197,15 +199,16 @@ public:
                     offset[0],
                     stream);
     };
-    template <typename Tallocator>
+    template <typename Tallocator, typename Tstream = std::ostream>
     static void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
                                   const std::vector<size_t>&                        size,
-                                  const std::vector<size_t>&                        offset)
+                                  const std::vector<size_t>&                        offset,
+                                  Tstream& stream = std::cout)
     {
         auto data = reinterpret_cast<const std::complex<float>*>(buf[0].data());
         for(size_t i = 0; i < size[0]; ++i)
-            std::cout << " " << data[i];
-        std::cout << std::endl;
+            stream << " " << data[i];
+        stream << std::endl;
     };
 };
 
@@ -234,15 +237,16 @@ public:
                     offset[0],
                     stream);
     };
-    template <typename Tallocator>
+    template <typename Tallocator, typename Tstream = std::ostream>
     static void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
                                   const std::vector<size_t>&                        size,
-                                  const std::vector<size_t>&                        offset)
+                                  const std::vector<size_t>&                        offset,
+                                  Tstream& stream = std::cout)
     {
         auto data = reinterpret_cast<const std::complex<double>*>(buf[0].data());
         for(size_t i = 0; i < size[0]; ++i)
-            std::cout << " " << data[i];
-        std::cout << std::endl;
+            stream << " " << data[i];
+        stream << std::endl;
     };
 };
 
