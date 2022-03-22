@@ -94,6 +94,7 @@ struct FFTKernel
     std::array<int, 2> threads_per_transform = {0, 0};
     bool               use_3steps_large_twd  = false;
     bool               half_lds              = false;
+    bool               direct_to_reg         = false;
 
     FFTKernel() = delete;
 
@@ -106,7 +107,8 @@ struct FFTKernel
               int                   tpb,
               int                   wgs,
               std::array<int, 2>&&  tpt,
-              bool                  half_lds = false)
+              bool                  half_lds      = false,
+              bool                  direct_to_reg = false)
         : device_function(fn)
         , factors(factors)
         , transforms_per_block(tpb)
@@ -114,6 +116,7 @@ struct FFTKernel
         , threads_per_transform(tpt)
         , use_3steps_large_twd(use_3steps)
         , half_lds(half_lds)
+        , direct_to_reg(direct_to_reg)
     {
     }
 };

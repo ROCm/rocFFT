@@ -111,6 +111,7 @@ struct StockhamKernelFused2D : public StockhamKernelRR
         body += Declaration{plength, 1};
         body += Declaration{index_along_d};
         body += Declaration{lds_is_real, "false"};
+        body += Declaration{lds_linear, "true"};
         body += CallbackDeclaration{scalar_type.name, callback_type.name};
 
         body += LineBreak{};

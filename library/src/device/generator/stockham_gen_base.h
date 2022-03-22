@@ -70,9 +70,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             transforms_per_block = std::min(transforms_per_block, length2d);
 
         workgroup_size = threads_per_transform * transforms_per_block;
-
-        nregisters = compute_nregisters(length, factors, threads_per_transform);
-        R.size     = Expression{nregisters};
+        nregisters     = compute_nregisters(length, factors, threads_per_transform);
+        R.size         = Expression{nregisters};
     }
     virtual ~StockhamKernel(){};
 
@@ -80,7 +79,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     unsigned int transforms_per_block;
 
     // data that may be overridden by subclasses (different tiling types)
-    bool         load_from_lds  = true;
     unsigned int n_device_calls = 1;
     bool         writeGuard     = false;
 
@@ -136,6 +134,9 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
     // is LDS real-only?
     Variable lds_is_real = Variable{"lds_is_real", "const bool"};
+
+    // The LDS access pattern is linear both on R/W
+    Variable lds_linear = Variable{"lds_linear", "const bool"};
 
     //
     // locals
@@ -200,6 +201,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         tpls.append(scalar_type);
         tpls.append(lds_is_real);
         tpls.append(stride_type);
+        tpls.append(lds_linear);
         return tpls;
     }
 
@@ -287,6 +289,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         }
         return load;
     }
+
     StatementList store_lds_generator(unsigned int h,
                                       unsigned int hr,
                                       unsigned int width,
@@ -314,6 +317,64 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 break;
             case Component::NONE:
                 work += Assign(lds_complex[idx], R[hr * width + w]);
+                break;
+            }
+        }
+        return work;
+    }
+
+    // lds -> reg
+    StatementList load_lds_non_linear_generator(
+        unsigned int h, unsigned int hr, unsigned int width, unsigned int dt, Component component)
+    {
+        if(hr == 0)
+            hr = h;
+        StatementList load;
+        for(unsigned int w = 0; w < width; ++w)
+        {
+            const auto idx = thread_id + w * workgroup_size;
+            switch(component)
+            {
+            case Component::X:
+                //TODO
+                break;
+            case Component::Y:
+                //TODO
+                break;
+            case Component::NONE:
+                load += Assign(R[w], lds_complex[idx]);
+                break;
+            }
+        }
+        return load;
+    }
+
+    // reg -> lds
+    StatementList store_lds_non_linear_generator(unsigned int h,
+                                                 unsigned int hr,
+                                                 unsigned int width,
+                                                 unsigned int dt,
+                                                 Component    component,
+                                                 unsigned int cumheight)
+    {
+        if(hr == 0)
+            hr = h;
+        StatementList work;
+        for(unsigned int w = 0; w < width; ++w)
+        {
+            // sharedStride * (threadIdx.y + 8) + threadIdx.x
+            const auto idx = (thread * threads_per_transform + w) * transforms_per_block
+                             + thread_id % transforms_per_block;
+            switch(component)
+            {
+            case Component::X:
+                //TODO
+                break;
+            case Component::Y:
+                //TODO
+                break;
+            case Component::NONE:
+                work += Assign(lds_complex[idx], R[w]);
                 break;
             }
         }
@@ -412,7 +473,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         body += Declaration{
             lstride, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride_lds}}};
 
-        body += Assign{thread, thread_id % threads_per_transform};
+        body += If{lds_linear, {Assign{thread, thread_id % threads_per_transform}}};
+        body += Else{{Assign{thread, thread_id / transforms_per_block}}};
 
         for(unsigned int npass = 0; npass < factors.size(); ++npass)
         {
@@ -431,13 +493,22 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
             auto load_lds  = std::mem_fn(&StockhamKernel::load_lds_generator);
             auto store_lds = std::mem_fn(&StockhamKernel::store_lds_generator);
-            body += If{Not{lds_is_real},
-                       add_work(std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE),
-                                width,
-                                height)};
 
+            auto load_lds_non_linear = std::mem_fn(&StockhamKernel::load_lds_non_linear_generator);
+            auto store_lds_non_linear
+                = std::mem_fn(&StockhamKernel::store_lds_non_linear_generator);
+
+            body += If{lds_linear,
+                       {If{Not{lds_is_real},
+                           add_work(std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE),
+                                    width,
+                                    height)}}};
             if(npass > 0)
             {
+                body += Else{
+                    add_work(std::bind(load_lds_non_linear, this, _1, _2, _3, _4, Component::NONE),
+                             width,
+                             height)};
                 auto apply_twiddle = std::mem_fn(&StockhamKernel::apply_twiddle_generator);
                 body += add_work(
                     std::bind(apply_twiddle, this, _1, _2, _3, _4, cumheight), width, height);
@@ -482,8 +553,14 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                             height,
                             true);
 
-            body += If{Not{lds_is_real}, store_full};
-            body += Else{store_half};
+            body += If{lds_linear, {If{Not{lds_is_real}, store_full}, Else{store_half}}};
+            if(npass < factors.size() - 1)
+                body += Else{add_work(
+                    std::bind(
+                        store_lds_non_linear, this, _1, _2, _3, _4, Component::NONE, cumheight),
+                    width,
+                    height,
+                    true)};
         }
         return f;
     }
@@ -513,6 +590,9 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             body += Declaration{lds_is_real, embedded_type == "EmbeddedType::NONE"};
         else
             body += Declaration{lds_is_real, Literal{"false"}};
+
+        body += Declaration{lds_linear, Literal{"true"}};
+
         body += Declaration{
             stride0, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride[0]}}};
         body += CallbackDeclaration{scalar_type.name, callback_type.name};
@@ -537,13 +617,14 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             "handle even-length real to complex pre-process in lds before transform"};
         loadlds += real2cmplx_pre_post(length, ProcessingType::PRE);
 
-        if(load_from_lds)
+        if(!direct_to_reg)
             body += loadlds;
         else
         {
             StatementList loadr;
             loadr += CommentLines{"load global into registers"};
             loadr += load_from_global(true);
+
             body += If{Not{lds_is_real}, loadlds};
             body += Else{loadr};
         }
@@ -575,13 +656,14 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         storelds += SyncThreads{};
         storelds += store_to_global(false);
 
-        if(load_from_lds)
+        if(!direct_to_reg)
             body += storelds;
         else
         {
             StatementList storer;
             storer += CommentLines{"store registers into global"};
             storer += store_to_global(true);
+
             body += If{Not{lds_is_real}, storelds};
             body += Else{storer};
         }
@@ -604,7 +686,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
     virtual TemplateList device_call_templates()
     {
-        return {scalar_type, lds_is_real, stride_type};
+        return {scalar_type, lds_is_real, stride_type, lds_linear};
     }
 
     virtual std::vector<Expression> device_call_arguments(unsigned int call_iter)

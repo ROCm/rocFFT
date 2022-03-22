@@ -503,6 +503,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
             PrintScheme(node.scheme));
         specs->threads_per_transform = kernel.threads_per_transform[0];
         specs->half_lds              = kernel.half_lds;
+        specs->direct_to_reg         = kernel.direct_to_reg;
         break;
     }
     case CS_KERNEL_2D_SINGLE:

@@ -30,7 +30,8 @@ from collections import namedtuple
 LaunchParams = namedtuple('LaunchParams', ['transforms_per_block',
                                            'workgroup_size',
                                            'threads_per_transform',
-                                           'half_lds'])
+                                           'half_lds', # load real and imag part separately with half regular lds resouce to increase occupancy
+                                           'direct_to_reg']) # load from global mem to registers directly and store from registers to global mem.
 
 #
 # CMake helpers
@@ -100,11 +101,15 @@ class FFTKernel(BaseNode):
         if workgroup_size is not None:
             f += ', ' + str(workgroup_size)
         f += ', {' + ','.join([str(s) for s in self.function.meta.threads_per_transform]) + '}'
+        direct_to_reg = None
         half_lds = None
         if hasattr(self.function.meta, 'params'):
             half_lds = getattr(self.function.meta.params, 'half_lds', None)
+            direct_to_reg = getattr(self.function.meta.params, 'direct_to_reg', None)
         if half_lds is not None:
             f += ', ' + str(half_lds).lower()
+        if direct_to_reg is not None:
+            f += ', ' + str(direct_to_reg).lower()
         f += ')'
         return f
 
@@ -482,14 +487,14 @@ def list_large_kernels():
         NS(length=60,  factors=[6, 10],      use_3steps_large_twd={
            'sp': 'false',  'dp': 'false'}),
         NS(length=64,  factors=[8, 8],       use_3steps_large_twd={
-           'sp': 'true',  'dp': 'false'}),
+           'sp': 'true',  'dp': 'false'}, workgroup_size=256, direct_to_reg=True),
         NS(length=72,  factors=[8, 3, 3],    use_3steps_large_twd={
            'sp': 'true',  'dp': 'false'}),
         NS(length=80,  factors=[10, 8],      use_3steps_large_twd={
            'sp': 'false',  'dp': 'false'}),
-        # 9,9 isn't better by experiments
-        NS(length=81,  factors=[3, 3, 3, 3], use_3steps_large_twd={
-           'sp': 'true',  'dp': 'true'}),
+        # 9,9 is good when direct-to-reg
+        NS(length=81,  factors=[9, 9], use_3steps_large_twd={
+           'sp': 'true',  'dp': 'true'}, direct_to_reg=True),
         NS(length=84,  factors=[7, 2, 6],    use_3steps_large_twd={
            'sp': 'true',  'dp': 'true'}),
         NS(length=96,  factors=[8, 3, 4],    use_3steps_large_twd={
@@ -631,10 +636,13 @@ def generate_kernel(kernel, precisions, stockham_aot):
     # default half_lds to True only for CS_KERNEL_STOCKHAM
     half_lds = getattr(kernel, 'half_lds', kernel.scheme == 'CS_KERNEL_STOCKHAM')
 
+    direct_to_reg = getattr(kernel, 'direct_to_reg', False)
+
     filename = kernel_file_name(kernel)
 
     args.append(str(kernel.workgroup_size))
     args.append('1' if half_lds else '0')
+    args.append('1' if direct_to_reg else '0')
     args.append(kernel.scheme)
     args.append(filename)
 
@@ -656,6 +664,7 @@ def generate_kernel(kernel, precisions, stockham_aot):
         workgroup_size = launcher.workgroup_size
         threads_per_transform = workgroup_size // transforms_per_block
         half_lds = launcher.half_lds
+        direct_to_reg = launcher.direct_to_reg
         scheme = launcher.scheme
         sbrc_type = launcher.sbrc_type
         sbrc_transpose_type = launcher.sbrc_transpose_type
@@ -663,7 +672,7 @@ def generate_kernel(kernel, precisions, stockham_aot):
         runtime_compile = kernel.runtime_compile
         use_3steps_large_twd = getattr(kernel, 'use_3steps_large_twd', None)
 
-        params = LaunchParams(transforms_per_block, workgroup_size, threads_per_transform, half_lds)
+        params = LaunchParams(transforms_per_block, workgroup_size, threads_per_transform, half_lds, direct_to_reg)
 
         # make 2D list of threads_per_transform to populate FFTKernel
         tpt_list = kernel.threads_per_transform if scheme == 'CS_KERNEL_2D_SINGLE' else [threads_per_transform, 0]

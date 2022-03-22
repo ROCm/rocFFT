@@ -59,6 +59,7 @@ struct StockhamGeneratorSpecs
     unsigned int workgroup_size;
     unsigned int threads_per_transform = 0;
     bool         half_lds              = false;
+    bool         direct_to_reg         = false;
     std::string  scheme;
 };
 
