@@ -16,7 +16,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Introduced a new access pattern of lds (non-linear) and applied it on
   sbcc kernels len 64 and 81 to get performance improvement.
 
-## (Unreleased) rocFFT 1.0.16
+## rocFFT 1.0.16  for ROCm 5.1.0
 
 ### Changed
 - Supported unaligned tile dimension for SBRC_2D kernels.
