@@ -991,21 +991,36 @@ void Real3DEvenNode::BuildTree_internal_SBCC()
 {
     auto add_sbcc_children = [this](const std::vector<size_t>& remainingLength) {
         ComputeScheme scheme;
+
+        // Performance improvements for (192,192,192) with SBCC.
+        auto use_SBCC_192 = (remainingLength[2] == 192 && remainingLength[1] == 192)
+                            && (precision == rocfft_precision_single);
+
         // SBCC along Z dimension
-        bool haveSBCC_Z = function_pool::has_SBCC_kernel(remainingLength[2], precision);
-        scheme          = haveSBCC_Z ? CS_KERNEL_STOCKHAM_BLOCK_CC : CS_KERNEL_STOCKHAM;
-        auto sbccZ      = NodeFactory::CreateNodeFromScheme(scheme, this);
-        sbccZ->length   = remainingLength;
+        if(remainingLength[2] == 192)
+            scheme = use_SBCC_192 ? CS_KERNEL_STOCKHAM_BLOCK_CC : CS_KERNEL_STOCKHAM;
+        else
+        {
+            bool haveSBCC_Z = function_pool::has_SBCC_kernel(remainingLength[2], precision);
+            scheme          = haveSBCC_Z ? CS_KERNEL_STOCKHAM_BLOCK_CC : CS_KERNEL_STOCKHAM;
+        }
+        auto sbccZ    = NodeFactory::CreateNodeFromScheme(scheme, this);
+        sbccZ->length = remainingLength;
         std::swap(sbccZ->length[1], sbccZ->length[2]);
         std::swap(sbccZ->length[0], sbccZ->length[1]);
         sbccZ->outputLength = remainingLength;
         childNodes.emplace_back(std::move(sbccZ));
 
         // SBCC along Y dimension
-        bool haveSBCC_Y = function_pool::has_SBCC_kernel(remainingLength[1], precision);
-        scheme          = haveSBCC_Y ? CS_KERNEL_STOCKHAM_BLOCK_CC : CS_KERNEL_STOCKHAM;
-        auto sbccY      = NodeFactory::CreateNodeFromScheme(scheme, this);
-        sbccY->length   = remainingLength;
+        if(remainingLength[1] == 192)
+            scheme = use_SBCC_192 ? CS_KERNEL_STOCKHAM_BLOCK_CC : CS_KERNEL_STOCKHAM;
+        else
+        {
+            bool haveSBCC_Y = function_pool::has_SBCC_kernel(remainingLength[1], precision);
+            scheme          = haveSBCC_Y ? CS_KERNEL_STOCKHAM_BLOCK_CC : CS_KERNEL_STOCKHAM;
+        }
+        auto sbccY    = NodeFactory::CreateNodeFromScheme(scheme, this);
+        sbccY->length = remainingLength;
         std::swap(sbccY->length[0], sbccY->length[1]);
         sbccY->outputLength = remainingLength;
         childNodes.emplace_back(std::move(sbccY));

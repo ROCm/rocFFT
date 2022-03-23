@@ -515,8 +515,8 @@ def list_large_kernels():
            'sp': 'false', 'dp': 'false'}, flavour='wide'),
         NS(length=168, factors=[7, 6, 4],    use_3steps_large_twd={
            'sp': 'true', 'dp': 'false'}, workgroup_size=128),
-        # NS(length=192, factors=[6, 4, 4, 2], use_3steps_large_twd={
-        #    'sp': 'false', 'dp': 'false'}),
+        NS(length=192, factors=[8, 6, 4],    use_3steps_large_twd={
+           'sp': 'true', 'dp': 'true'}),
         NS(length=200, factors=[8, 5, 5],    use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'}),
         NS(length=208, factors=[13, 16],     use_3steps_large_twd={

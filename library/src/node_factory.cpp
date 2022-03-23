@@ -658,8 +658,13 @@ bool NodeFactory::use_CS_2D_SINGLE(NodeMetaData& nodeData)
 
 bool NodeFactory::use_CS_2D_RC(NodeMetaData& nodeData)
 {
-    if(function_pool::has_SBCC_kernel(nodeData.length[1], nodeData.precision))
+    // Do not allow SBCC for (192,y) problems, not the
+    // fastest compute scheme for this configuration.
+    if(nodeData.length[1] == 192)
+        return false;
+    else if(function_pool::has_SBCC_kernel(nodeData.length[1], nodeData.precision))
         return nodeData.length[0] >= 56;
+
     return false;
 }
 
