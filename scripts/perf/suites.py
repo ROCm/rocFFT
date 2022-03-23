@@ -247,6 +247,22 @@ def generated3d():
     lengths3d  = list(filter(lambda x: x <= 512, lengths['generated']))
     yield from default_length_params("generated3d", lengths3d, 1)
 
+def prime():
+    """Large selection of prime lengths."""
+
+    yield from default_length_params("prime", list(sympy.sieve.primerange(11, 1000)), 10000)
+
+
+def mixed1d():
+    """Mixed 1D lengths."""
+
+    yield from default_length_params("mixed", lengths['mixed'], 10000)
+
+def prime_limited():
+    """Limited selection of prime lengths for regular testing."""
+
+    yield from default_length_params("prime", [23, 521, 997], 10000)
+
 def benchmarks():
     """Benchmarks: XXX"""
 
@@ -269,22 +285,15 @@ def benchmarks():
 def all():
     """All suites run during regular testing."""
 
-    # pow 2, 5, 7
-    yield from default_length_params("pow2", [ 2**k for k in range(9,17) ], 10000)
+    yield from benchmarks()
+
+    # pow 5, 7 (benchmarks does pow 2, 3)
     yield from default_length_params("pow5", [ 5**k for k in range(4,8) ], 5000)
     yield from default_length_params("pow7", [ 7**k for k in range(3,7) ], 5000)
 
-    # prime
-    yield from default_length_params("prime", list(sympy.sieve.primerange(11, 1000)), 10000)
-
-    # mixed 1D
-    yield from default_length_params("mixed", lengths['mixed'], 10000)
-
     yield from md()
 
-    yield from generated1d()
-    yield from generated2d()
-    yield from generated3d()
+    yield from prime_limited()
 
     yield from large1d()
     yield from misc2d()
