@@ -20,6 +20,47 @@
 # THE SOFTWARE.
 # #############################################################################
 
+cmake_minimum_required( VERSION 3.16 )
+
+# This should appear before the project command, because it does not
+# use FORCE
+if( WIN32 )
+  set( CMAKE_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/package" CACHE PATH
+    "Install path prefix, prepended onto install directories" )
+else( )
+  set( CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH
+    "Install path prefix, prepended onto install directories" )
+endif( )
+
+
+
+# This has to be initialized before the project() command appears
+# Set the default of CMAKE_BUILD_TYPE to be release, unless user
+# specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
+if( NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT DEFINED CMAKE_BUILD_TYPE )
+  set( CMAKE_BUILD_TYPE Release CACHE STRING
+    "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
+endif()
+
+project( rocfft-clients-rider LANGUAGES CXX )
+
+list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
+
+if( NOT TARGET rocfft )
+  find_package( rocfft REQUIRED CONFIG PATHS )
+endif( )
+
+if( NOT HIP_FOUND )
+  find_package( HIP REQUIRED )
+endif()
+
+if( NOT ROCM_FOUND )
+  find_package( ROCM 0.7.3 REQUIRED )
+endif()
+
+include( ROCMInstallTargets )
+
+
 find_package( Boost COMPONENTS program_options REQUIRED)
 
 set( rider_list rocfft-rider dyna-rocfft-rider )
@@ -76,8 +117,20 @@ foreach( rider ${rider_list})
     CXX_STANDARD_REQUIRED ON
   )
 
-  set_target_properties( ${rider}
-    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+
+  if( ROCFFT_BUILD_SCOPE )
+    set( RIDER_OUT_DIR "/../staging" )
+  elseif( ROCFFT_CLIENTS_BUILD_SCOPE )
+    set( RIDER_OUT_DIR "/../bin" )
+  else()
+    set( RIDER_OUT_DIR "/bin")
+  endif()
+  string( CONCAT RIDER_OUT_DIR "${PROJECT_BINARY_DIR}" ${RIDER_OUT_DIR} )
+
+  set_target_properties(${rider} 
+                        PROPERTIES 
+                        RUNTIME_OUTPUT_DIRECTORY 
+                        ${RIDER_OUT_DIR} )
   
   rocm_install(TARGETS ${rider} COMPONENT benchmarks)
 endforeach()

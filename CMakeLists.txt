@@ -42,9 +42,9 @@ if( NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT DEFINED CMAKE_BUILD_TYPE )
     "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
 
+set( ROCFFT_BUILD_SCOPE ON )
 
 project( rocfft LANGUAGES CXX C )
-
 
 # Control hip-clang use:
 set( USE_HIP_CLANG OFF CACHE BOOL "Use hip-clang to build for amdgpu" )

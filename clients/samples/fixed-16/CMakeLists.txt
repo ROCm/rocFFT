@@ -20,14 +20,43 @@
 # THE SOFTWARE.
 # #############################################################################
 
+cmake_minimum_required( VERSION 3.16 )
+
+# This should appear before the project command, because it does not
+# use FORCE
+if( WIN32 )
+  set( CMAKE_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/package" CACHE PATH
+    "Install path prefix, prepended onto install directories" )
+else( )
+  set( CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH
+    "Install path prefix, prepended onto install directories" )
+endif( )
+
+# This has to be initialized before the project() command appears
+# Set the default of CMAKE_BUILD_TYPE to be release, unless user
+# specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
+if( NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT DEFINED CMAKE_BUILD_TYPE )
+  set( CMAKE_BUILD_TYPE Release CACHE STRING
+    "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
+endif()
+
+project( rocfft-clients-samples-fixed-16 LANGUAGES CXX )
+
+list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
+
+if( NOT TARGET rocfft )
+  find_package( rocfft REQUIRED CONFIG PATHS )
+endif( )
+
+if( NOT HIP_FOUND )
+  find_package( HIP REQUIRED )
+endif()
+
 set( sample_list fixed-16-float fixed-16-double )
 
 foreach( sample ${sample_list} )
 
   add_executable( ${sample} ${sample}.cpp )
-  if( BUILD_FFTW OR NOT FFTW_FOUND )
-    add_dependencies( ${sample} fftw_double fftw_single )
-  endif()
 
   target_include_directories( ${sample}
     PRIVATE $<BUILD_INTERFACE:${FFTW_INCLUDES}>
@@ -43,7 +72,22 @@ foreach( sample ${sample_list} )
     CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON
   )
-  set_target_properties( ${sample} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+
+  if( ROCFFT_BUILD_SCOPE )
+    set( FIXED_16_OUT_DIR "/../../staging" )
+  elseif( ROCFFT_CLIENTS_BUILD_SCOPE )
+    set( FIXED_16_OUT_DIR "/../../bin" )
+  elseif( ROCFFT_CLIENTS_SAMPLES_BUILD_SCOPE )
+    set( FIXED_16_OUT_DIR "/../bin" )
+  else()
+    set( FIXED_16_OUT_DIR "/bin" )
+  endif()
+  string( CONCAT FIXED_16_OUT_DIR "${PROJECT_BINARY_DIR}" ${FIXED_16_OUT_DIR} )
+
+  set_target_properties(${sample}
+                        PROPERTIES 
+                        RUNTIME_OUTPUT_DIRECTORY 
+                        ${FIXED_16_OUT_DIR})
 
   if( CUDA_FOUND )
     target_include_directories( ${sample}

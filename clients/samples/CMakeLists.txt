@@ -20,17 +20,36 @@
 # THE SOFTWARE.
 # #############################################################################
 
-function( get_subdir_list current_dir subdir_list )
-  file( GLOB files LIST_DIRECTORIES true RELATIVE ${current_dir} * )
-  foreach( file ${files} )
-    if( IS_DIRECTORY ${current_dir}/${file} )
-      list( APPEND temp_subdir_list ${file} )
-    endif( )
-  endforeach( )
-  set( ${subdir_list} ${temp_subdir_list} PARENT_SCOPE )
-endfunction( )
+cmake_minimum_required( VERSION 3.16 )
 
-get_subdir_list( ${CMAKE_CURRENT_SOURCE_DIR} samples_subdirs )
+# This should appear before the project command, because it does not
+# use FORCE
+if( WIN32 )
+  set( CMAKE_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/package" CACHE PATH
+    "Install path prefix, prepended onto install directories" )
+else( )
+  set( CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH
+    "Install path prefix, prepended onto install directories" )
+endif( )
+
+
+# This has to be initialized before the project() command appears
+# Set the default of CMAKE_BUILD_TYPE to be release, unless user
+# specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
+if( NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT DEFINED CMAKE_BUILD_TYPE )
+  set( CMAKE_BUILD_TYPE Release CACHE STRING
+    "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
+endif()
+
+set( ROCFFT_CLIENTS_SAMPLES_BUILD_SCOPE ON )
+
+project( rocfft-clients-samples LANGUAGES CXX )
+
+list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
+
+list( APPEND samples_subdirs "fixed-16" )
+list( APPEND samples_subdirs "fixed-large" )
+list( APPEND samples_subdirs "rocfft" )
 
 foreach( client ${samples_subdirs} )
   add_subdirectory( ${client} )

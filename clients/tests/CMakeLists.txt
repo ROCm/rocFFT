@@ -21,6 +21,46 @@
 # #############################################################################
 
 
+cmake_minimum_required( VERSION 3.16 )
+
+# This should appear before the project command, because it does not
+# use FORCE
+if( WIN32 )
+  set( CMAKE_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/package" CACHE PATH
+    "Install path prefix, prepended onto install directories" )
+else( )
+  set( CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH
+    "Install path prefix, prepended onto install directories" )
+endif( )
+
+
+
+# This has to be initialized before the project() command appears
+# Set the default of CMAKE_BUILD_TYPE to be release, unless user
+# specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
+if( NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT DEFINED CMAKE_BUILD_TYPE )
+  set( CMAKE_BUILD_TYPE Release CACHE STRING
+    "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
+endif()
+
+project( rocfft-clients-tests LANGUAGES CXX )
+
+list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
+
+if( NOT TARGET rocfft )
+  find_package( rocfft REQUIRED CONFIG PATHS )
+endif( )
+
+if( NOT HIP_FOUND )
+  find_package( HIP REQUIRED )
+endif()
+
+if( NOT ROCM_FOUND )
+  find_package( ROCM 0.7.3 REQUIRED )
+endif()
+
+include( ROCMInstallTargets )
+
 set( rocfft-test_source
   gtest_main.cpp
   rocfft_accuracy_test.cpp
@@ -52,10 +92,76 @@ set( Boost_USE_MULTITHREADED ON )
 set( Boost_DETAILED_FAILURE_MSG ON )
 set( Boost_USE_STATIC_LIBS OFF )
 
+option( BUILD_FFTW "Download and build FFTW" OFF )
+
+# look for installed FFTW if we weren't asked to build it
+if( NOT BUILD_FFTW )
+  find_package( FFTW 3.0 MODULE COMPONENTS FLOAT DOUBLE )
+endif()
+
+include( ExternalProject )
+
+# also try to build FFTW if FFTW isn't present
+if( BUILD_FFTW OR NOT FFTW_FOUND )
+  set(FFTW_LIBRARIES_DOUBLE
+      ${CMAKE_CURRENT_BINARY_DIR}/src/fftw_double-build/${CMAKE_SHARED_LIBRARY_PREFIX}fftw3_threads${CMAKE_SHARED_LIBRARY_SUFFIX}
+      ${CMAKE_CURRENT_BINARY_DIR}/src/fftw_double-build/${CMAKE_SHARED_LIBRARY_PREFIX}fftw3${CMAKE_SHARED_LIBRARY_SUFFIX})
+  set(FFTW_LIBRARIES_SINGLE
+      ${CMAKE_CURRENT_BINARY_DIR}/src/fftw_single-build/${CMAKE_SHARED_LIBRARY_PREFIX}fftw3f_threads${CMAKE_SHARED_LIBRARY_SUFFIX}
+      ${CMAKE_CURRENT_BINARY_DIR}/src/fftw_single-build/${CMAKE_SHARED_LIBRARY_PREFIX}fftw3f${CMAKE_SHARED_LIBRARY_SUFFIX})
+
+  set(FFTW_CMAKE_ARGS_COMMON
+      -DDISABLE_FORTRAN=ON
+      -DENABLE_AVX2=ON
+      -DENABLE_THREADS=ON
+      -DBUILD_SHARED_LIBS=ON
+      -DBUILD_TESTS=OFF
+      -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER})
+
+  set(FFTW_SRC_URL http://www.fftw.org/fftw-3.3.9.tar.gz CACHE STRING "Location of FFTW source code")
+  set(FFTW_SRC_SHA256 bf2c7ce40b04ae811af714deb512510cc2c17b9ab9d6ddcf49fe4487eea7af3d CACHE STRING "SHA256 hash of FFTW source code")
+
+  # build double-precision FFTW
+  ExternalProject_Add(fftw_double
+                      URL ${FFTW_SRC_URL}
+                      URL_HASH SHA256=${FFTW_SRC_SHA256}
+                      SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/src/fftw
+                      PREFIX ${CMAKE_CURRENT_BINARY_DIR}
+                      CMAKE_ARGS ${FFTW_CMAKE_ARGS_COMMON}
+                      INSTALL_COMMAND ""
+                      BUILD_BYPRODUCTS ${FFTW_LIBRARIES_DOUBLE})
+  ExternalProject_Get_Property( fftw_double source_dir binary_dir )
+
+  # also build single-precision fftw from the same source dir
+  ExternalProject_Add(fftw_single
+                      DOWNLOAD_COMMAND ""
+                      SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/src/fftw
+                      PREFIX ${CMAKE_CURRENT_BINARY_DIR}
+                      CMAKE_ARGS ${FFTW_CMAKE_ARGS_COMMON} -DENABLE_FLOAT=ON
+                      INSTALL_COMMAND ""
+                      BUILD_BYPRODUCTS ${FFTW_LIBRARIES_SINGLE}
+                      DEPENDS fftw_double)
+  ExternalProject_Get_Property( fftw_single source_dir binary_dir )
+
+  set(FFTW_INCLUDES
+      ${CMAKE_CURRENT_BINARY_DIR}/src/fftw/api)
+  set(FFTW_LIBRARIES
+      ${FFTW_LIBRARIES_DOUBLE}
+      ${FFTW_LIBRARIES_SINGLE})
+
+  # FFTW we build is always threaded
+  set( FFTW_MULTITHREAD TRUE )
+endif()
 
 if( BUILD_FFTW OR NOT FFTW_FOUND )
   add_dependencies( rocfft-test fftw_double fftw_single )
 endif()
+
+rocm_install(
+  FILES ${FFTW_LIBRARIES}
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/fftw
+  COMPONENT clients-common
+)
 
 set( rocfft-test_include_dirs
   $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
@@ -69,6 +175,27 @@ set( rocfft-test_link_libs
   ${FFTW_LIBRARIES}
   Boost::program_options
   )
+
+find_package( GTest 1.10.0 )
+if( NOT GTEST_FOUND)
+  set(GTEST_INCLUDE_DIRS
+      ${CMAKE_CURRENT_BINARY_DIR}/src/gtest/googletest/include)
+  set(GTEST_LIBRARIES
+      ${CMAKE_CURRENT_BINARY_DIR}/src/gtest-build/lib/${CMAKE_STATIC_LIBRARY_PREFIX}gtest${CMAKE_STATIC_LIBRARY_SUFFIX}
+      ${CMAKE_CURRENT_BINARY_DIR}/src/gtest-build/lib/${CMAKE_STATIC_LIBRARY_PREFIX}gtest_main${CMAKE_STATIC_LIBRARY_SUFFIX})
+  
+  set(GTEST_SRC_URL https://github.com/google/googletest/archive/release-1.10.0.tar.gz CACHE STRING "Location of GTest source code")
+  set(GTEST_SRC_SHA256 9dc9157a9a1551ec7a7e43daea9a694a0bb5fb8bec81235d8a1e6ef64c716dcb CACHE STRING "SHA256 hash of GTest source code")
+  
+  ExternalProject_Add(gtest
+                      URL ${GTEST_SRC_URL}
+                      URL_HASH SHA256=${GTEST_SRC_SHA256}
+                      PREFIX ${CMAKE_CURRENT_BINARY_DIR}
+                      CMAKE_ARGS -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
+                      INSTALL_COMMAND ""
+                      BUILD_BYPRODUCTS ${GTEST_LIBRARIES})
+  ExternalProject_Get_Property( gtest source_dir binary_dir )  
+endif()
 
 if( GTEST_FOUND)
   list( APPEND rocfft-test_include_dirs $<BUILD_INTERFACE:${GTEST_INCLUDE_DIRS}> )
@@ -135,12 +262,24 @@ set_target_properties( rocfft-test PROPERTIES
   CXX_STANDARD_REQUIRED ON
 )
 
-set_target_properties( rocfft-test
-  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging"
-  )
-set_target_properties( rtc_helper_crash
-  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging"
-  )
+if( ROCFFT_BUILD_SCOPE )
+  set( TESTS_OUT_DIR "/../staging" )
+elseif( ROCFFT_CLIENTS_BUILD_SCOPE )
+  set( TESTS_OUT_DIR "/../bin" )
+else()
+  set( TESTS_OUT_DIR "/bin" )
+endif()
+string( CONCAT TESTS_OUT_DIR "${PROJECT_BINARY_DIR}" ${TESTS_OUT_DIR} )
+
+set_target_properties(rocfft-test
+                      PROPERTIES 
+                      RUNTIME_OUTPUT_DIRECTORY 
+                      ${TESTS_OUT_DIR})
+set_target_properties(rtc_helper_crash
+                      PROPERTIES 
+                      RUNTIME_OUTPUT_DIRECTORY 
+                      ${TESTS_OUT_DIR})
+
 
 rocm_install(TARGETS rocfft-test rtc_helper_crash COMPONENT tests)
 

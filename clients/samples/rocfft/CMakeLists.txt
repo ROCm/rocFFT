@@ -20,13 +20,37 @@
 # THE SOFTWARE.
 # #############################################################################
 
-CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
+cmake_minimum_required( VERSION 3.16 )
 
-find_package(HIP REQUIRED)
+# This should appear before the project command, because it does not
+# use FORCE
+if( WIN32 )
+  set( CMAKE_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/package" CACHE PATH
+    "Install path prefix, prepended onto install directories" )
+else( )
+  set( CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH
+    "Install path prefix, prepended onto install directories" )
+endif( )
+
+# This has to be initialized before the project() command appears
+# Set the default of CMAKE_BUILD_TYPE to be release, unless user
+# specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
+if( NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT DEFINED CMAKE_BUILD_TYPE )
+  set( CMAKE_BUILD_TYPE Release CACHE STRING
+    "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
+endif()
+
+project( rocfft-clients-samples-rocfft LANGUAGES CXX )
+
+list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
 if( NOT TARGET rocfft )
-  find_package(rocfft)
+  find_package( rocfft REQUIRED CONFIG PATHS )
 endif( )
+
+if( NOT HIP_FOUND )
+  find_package( HIP REQUIRED )
+endif()
 
 find_package( Boost COMPONENTS program_options REQUIRED)
 set( Boost_DEBUG ON )
@@ -64,7 +88,22 @@ target_link_libraries(
     CXX_STANDARD 11
     CXX_STANDARD_REQUIRED ON
   )
-  set_target_properties( ${sample} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
+
+  if( ROCFFT_BUILD_SCOPE )
+    set( SAMPLES_ROCFFT_OUT_DIR "/../../staging" )
+  elseif( ROCFFT_CLIENTS_BUILD_SCOPE )
+    set( SAMPLES_ROCFFT_OUT_DIR "/../../bin" )
+  elseif( ROCFFT_CLIENTS_SAMPLES_BUILD_SCOPE )
+    set( SAMPLES_ROCFFT_OUT_DIR "/../bin" )
+  else()
+    set( SAMPLES_ROCFFT_OUT_DIR "/bin" )
+  endif()
+  string( CONCAT SAMPLES_ROCFFT_OUT_DIR "${PROJECT_BINARY_DIR}" ${SAMPLES_ROCFFT_OUT_DIR} )
+
+  set_target_properties(${sample}
+                        PROPERTIES 
+                        RUNTIME_OUTPUT_DIRECTORY 
+                        ${SAMPLES_ROCFFT_OUT_DIR})
 
   if( CUDA_FOUND )
     target_include_directories( ${sample}
