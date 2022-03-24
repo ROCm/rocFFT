@@ -706,7 +706,7 @@ def generate_kernels(kernels, precisions, stockham_aot):
 
     A list of CPU functions is returned.
     """
-    import threading
+    import concurrent.futures
     import queue
 
     # push all the work to a queue
@@ -734,13 +734,12 @@ def generate_kernels(kernels, precisions, stockham_aot):
     use_threads = True
 
     if use_threads:
-        threads = []
-        for i in range(os.cpu_count()):
-            threads.append(threading.Thread(target=threadfunc))
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            results = []
+            for i in range(os.cpu_count()):
+                results.append(executor.submit(threadfunc))
+            for result in results:
+                result.result()
     else:
         threadfunc()
 
