@@ -76,6 +76,8 @@ int main(int argc, char* argv[])
     // Output buffer
     std::vector<std::complex<float>> cy(Nx * Ny * Nzcomplex);
 
+    rocfft_setup();
+
     // Create HIP device objects:
     float* x = NULL;
     hipMalloc(&x, cx.size() * sizeof(decltype(cx)::value_type));

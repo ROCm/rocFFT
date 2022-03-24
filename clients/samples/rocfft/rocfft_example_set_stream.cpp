@@ -55,6 +55,7 @@ int main(int argc, char* argv[])
     fft_fixture_t ffts[2];
 
     /// preparation
+    rocfft_setup();
     for(auto& it : ffts)
     {
         // create cpu buffer
@@ -117,5 +118,6 @@ int main(int argc, char* argv[])
         delete[] it.cpu_buf;
     }
 
+    rocfft_cleanup();
     return 0;
 }

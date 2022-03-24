@@ -63,6 +63,7 @@ int main(int argc, char* argv[])
     }
 
     // Placeness for the transform
+    rocfft_setup();
     const rocfft_result_placement place
         = vm.count("outofplace") ? rocfft_placement_notinplace : rocfft_placement_inplace;
     const bool inplace = place == rocfft_placement_inplace;
@@ -231,5 +232,6 @@ int main(int argc, char* argv[])
     rocfft_plan_description_destroy(gpu_description);
     rocfft_plan_destroy(gpu_plan);
 
+    rocfft_cleanup();
     return 0;
 }
