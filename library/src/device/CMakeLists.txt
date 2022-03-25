@@ -97,6 +97,7 @@ execute_process(COMMAND ${PYTHON3_EXE} ${kgen}
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
   --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
+  --runtime-compile-default=${ROCFFT_RUNTIME_COMPILE_DEFAULT}
   list
   OUTPUT_VARIABLE gen_headers
   RESULT_VARIABLE STATUS)
@@ -111,6 +112,7 @@ add_custom_command(OUTPUT ${gen_headers}
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
   --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
+  --runtime-compile-default=${ROCFFT_RUNTIME_COMPILE_DEFAULT}
   generate $<TARGET_FILE:stockham_aot>
   DEPENDS stockham_aot ${kgendeps}
   COMMENT "Generator producing device kernels for rocfft-device"

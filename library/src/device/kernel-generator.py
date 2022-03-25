@@ -599,10 +599,10 @@ def list_large_kernels():
     return sbcc_kernels + sbcr_kernels + sbrc_kernels
 
 
-def default_runtime_compile(kernels):
+def default_runtime_compile(kernels, default_val):
     '''Returns a copy of input kernel list with a default value for runtime_compile.'''
 
-    return [k if hasattr(k, 'runtime_compile') else NS(**k.__dict__, runtime_compile=False) for k in kernels]
+    return [k if hasattr(k, 'runtime_compile') else NS(**k.__dict__, runtime_compile=default_val) for k in kernels]
 
 def generate_kernel(kernel, precisions, stockham_aot):
     """Generate a single kernel file for 'kernel'.
@@ -763,6 +763,7 @@ def cli():
     parser.add_argument('--manual-small', type=str, help='Small kernel sizes to generate.')
     parser.add_argument('--manual-large', type=str, help='Large kernel sizes to generate.')
     parser.add_argument('--runtime-compile', type=str, help='Allow runtime-compiled kernels.')
+    parser.add_argument('--runtime-compile-default', type=str, help='Compile kernels at runtime by default.')
 
     list_parser = subparsers.add_parser('list', help='List kernel files that will be generated.')
 
@@ -827,7 +828,7 @@ def cli():
     # set runtime compile
     #
 
-    kernels = default_runtime_compile(kernels)
+    kernels = default_runtime_compile(kernels, args.runtime_compile_default == 'ON')
     if args.runtime_compile != 'ON':
         for k in kernels:
             k.runtime_compile = False
