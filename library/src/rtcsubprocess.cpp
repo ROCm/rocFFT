@@ -327,6 +327,8 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
         throw std::runtime_error("failed to spawn child process");
     }
 
+    child_stdout_write.close();
+
     // poll read and write fd's
     pollfd fds[2];
     fds[0].fd     = child_stdin_write;
@@ -359,7 +361,6 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
                 // close child's stdin so it knows we're done writing
                 child_stdin_write.close();
                 child_stdin_read.close();
-                child_stdout_write.close();
                 fds[0].events = 0;
             }
         }

@@ -491,6 +491,8 @@ TEST(rocfft_UnitTest, rtc_helper_crash)
     // don't touch the cache, to force compilation
     EnvironmentSetTemp env_read("ROCFFT_RTC_CACHE_READ_DISABLE", "1");
     EnvironmentSetTemp env_write("ROCFFT_RTC_CACHE_WRITE_DISABLE", "1");
+    // force out-of-process compile
+    EnvironmentSetTemp env_process("ROCFFT_RTC_PROCESS", "2");
 
     rocfft_plan plan = nullptr;
     ASSERT_TRUE(rocfft_status_success

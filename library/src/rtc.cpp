@@ -437,7 +437,11 @@ static RTCProcessType get_rtc_process_type()
     // defined and equal to 1 means force out-process
     if(var == "1")
         return RTCProcessType::FORCE_OUT_PROCESS;
-    // otherwise, either it's undefined or some other value.  do the default.
+    // ideal default behaviour - try in-process first and use
+    // out-process if necessary
+    if(var == "2")
+        return RTCProcessType::DEFAULT;
+
     return RTCProcessType::DEFAULT;
 }
 
