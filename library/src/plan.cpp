@@ -1786,6 +1786,9 @@ void ProcessNode(ExecPlan& execPlan)
     // Check the buffer, param and tree integrity, Note we do this after fusion
     execPlan.rootPlan->SanityCheck();
 
+    // Collapse high dims on leaf nodes where possible
+    execPlan.rootPlan->CollapseContiguousDims();
+
     // get workBufSize..
     size_t tmpBufSize       = 0;
     size_t cmplxForRealSize = 0;

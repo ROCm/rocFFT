@@ -110,7 +110,8 @@ protected:
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 
 public:
-    bool CreateTwiddleTableResource() override;
+    bool                CreateTwiddleTableResource() override;
+    std::vector<size_t> CollapsibleDims() override;
 };
 
 /*****************************************************
@@ -140,6 +141,7 @@ public:
     {
         return true;
     }
+    std::vector<size_t> CollapsibleDims() override;
 };
 
 /*****************************************************
@@ -168,6 +170,7 @@ public:
     {
         return true;
     }
+    std::vector<size_t> CollapsibleDims() override;
 };
 
 /*****************************************************

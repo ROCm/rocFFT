@@ -440,6 +440,15 @@ public:
 
     virtual void RecursiveBuildTree(); // Main tree builder: override by child
     virtual void SanityCheck();
+    // If high dims are contiguous, we can collapse them to make offset
+    // calculation simpler
+    void CollapseContiguousDims();
+    // Leaf nodes can override this to say what dims can be collapsed.
+    // Return values are indexes into the length/stride arrays.
+    virtual std::vector<size_t> CollapsibleDims()
+    {
+        return {};
+    }
 
     // able to fuse CS_KERNEL_STOCKHAM and CS_KERNEL_TRANSPOSE_Z_XY ?
     bool fuse_CS_KERNEL_TRANSPOSE_Z_XY();

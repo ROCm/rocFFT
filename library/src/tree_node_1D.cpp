@@ -856,6 +856,14 @@ bool Stockham1DNode::CreateTwiddleTableResource()
     return LeafNode::CreateTwiddleTableResource();
 }
 
+std::vector<size_t> Stockham1DNode::CollapsibleDims()
+{
+    // fastest dim is FFT, the rest is collapsible
+    std::vector<size_t> ret(length.size() - 1);
+    std::iota(ret.begin(), ret.end(), 1);
+    return ret;
+}
+
 /*****************************************************
  * SBCC  *
  *****************************************************/
@@ -869,6 +877,14 @@ void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
     gp.b_x      = ((length[1]) - 1) / bwd + 1;
     gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
     gp.wgs_x = kernel.workgroup_size;
+}
+
+std::vector<size_t> SBCCNode::CollapsibleDims()
+{
+    // second-fastest dim is FFT, higher dims are collapsible
+    std::vector<size_t> ret(length.size() - 2);
+    std::iota(ret.begin(), ret.end(), 2);
+    return ret;
 }
 
 /*****************************************************
@@ -892,6 +908,14 @@ SBRC_TRANSPOSE_TYPE SBRCNode::sbrc_transpose_type(unsigned int blockWidth) const
     // NB: Since we need a NONE as default, so this NONE is actually TILE_ALIGNED
     auto alignment_dimension = length[1];
     return (alignment_dimension % blockWidth == 0) ? NONE : TILE_UNALIGNED;
+}
+
+std::vector<size_t> SBRCNode::CollapsibleDims()
+{
+    // transposes 2 fastest dims, higher dims are collapsible
+    std::vector<size_t> ret(length.size() - 2);
+    std::iota(ret.begin(), ret.end(), 2);
+    return ret;
 }
 
 /*****************************************************

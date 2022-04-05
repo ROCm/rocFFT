@@ -228,3 +228,78 @@ void TreeNode::SetTransposeOutputLength()
         throw std::runtime_error("can't set transpose output length on non-transpose node");
     }
 }
+
+void TreeNode::CollapseContiguousDims()
+{
+    // collapse children
+    for(auto& child : childNodes)
+        child->CollapseContiguousDims();
+
+    const auto collapsibleDims = CollapsibleDims();
+    if(collapsibleDims.empty())
+        return;
+
+    // utility function to collect the dims to collapse
+    auto collectCollapse = [&collapsibleDims](const size_t               dist,
+                                              size_t&                    newBatch,
+                                              const std::vector<size_t>& length,
+                                              const std::vector<size_t>& stride) {
+        std::vector<size_t> dimsToCollapse;
+        // start with batch dim and go backwards through collapsible dims
+        // so we can collapse them without invalidating remaining indexes
+        auto curStride = dist;
+        for(auto i = collapsibleDims.rbegin(); i != collapsibleDims.rend(); ++i)
+        {
+            if(curStride % stride[*i] != 0)
+                break;
+            if(curStride / stride[*i] != length[*i])
+                break;
+            dimsToCollapse.push_back(*i);
+            newBatch *= length[*i];
+            curStride = stride[*i];
+        }
+        return dimsToCollapse;
+    };
+
+    // utility function to actually do the collapsing -
+    // dimsToCollapse must be in reverse order so we erase dims from
+    // highest to lowest
+    auto doCollapse = [](size_t&                    dist,
+                         const std::vector<size_t>& dimsToCollapse,
+                         std::vector<size_t>&       lengthToCollapse,
+                         std::vector<size_t>&       strideToCollapse) {
+        for(auto i : dimsToCollapse)
+        {
+            dist /= lengthToCollapse[i];
+            lengthToCollapse.erase(lengthToCollapse.begin() + i);
+            strideToCollapse.erase(strideToCollapse.begin() + i);
+        }
+    };
+
+    size_t              newInputBatch = batch;
+    std::vector<size_t> inputDimsToCollapse
+        = collectCollapse(iDist, newInputBatch, length, inStride);
+    auto                outputLengthTemp = GetOutputLength();
+    size_t              newOutputBatch   = batch;
+    std::vector<size_t> outputDimsToCollapse
+        = collectCollapse(oDist, newOutputBatch, outputLengthTemp, outStride);
+    if(inputDimsToCollapse != outputDimsToCollapse || newInputBatch != newOutputBatch)
+        return;
+
+    if(!inputDimsToCollapse.empty())
+    {
+        std::stringstream msg;
+        msg << "collapsed contiguous high length(s)";
+        for(auto i = inputDimsToCollapse.rbegin(); i != inputDimsToCollapse.rend(); ++i)
+            msg << " " << length[*i];
+        msg << " into batch";
+        comments.push_back(msg.str());
+    }
+
+    doCollapse(iDist, inputDimsToCollapse, length, inStride);
+    doCollapse(oDist, outputDimsToCollapse, outputLengthTemp, outStride);
+    batch = newInputBatch;
+
+    if(!outputLength.empty())
+        outputLength = outputLengthTemp;
+}
