@@ -86,6 +86,10 @@ else()
   set( ROCFFT_CLIENTS_DEVICE_LINK_LIBS hip::device )
 endif()
 
+if (BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SELFTEST)
+  include( cmake/build-gtest.cmake )
+endif()
+
 if( BUILD_CLIENTS_SAMPLES )
   add_subdirectory( samples )
 endif( )
