@@ -50,6 +50,13 @@ struct interleaved
         : C(static_cast<PRECISION*>(in))
     {
     }
+    // also accept two pointers and ignore the second in case it's
+    // easier for callers to accept the same number of args for planar
+    // and interleaved
+    interleaved(void* in, void*)
+        : C(static_cast<PRECISION*>(in))
+    {
+    }
     interleaved(const interleaved<PRECISION>& p) = default;
     PRECISION*         C; // points to complex interleaved array
     typedef PRECISION* ptr_type;

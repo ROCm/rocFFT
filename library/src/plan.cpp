@@ -1796,6 +1796,46 @@ void ProcessNode(ExecPlan& execPlan)
     size_t chirpSize        = 0;
     execPlan.rootPlan->DetermineBufferMemory(tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
 
+    // Adjust strides given to the kernel so that it can just do a
+    // straight copy through LDS - strides will tell it exactly how
+    // to transpose.  Critical here is to always read/write along the
+    // fastest dimension (x), to coalesce memory accesses.
+    //
+    // The kernel is written to coalesce reads along fastest
+    // dimension, and writes along the second-fastest dimension.
+    for(auto& node : execPlan.execSeq)
+    {
+        auto& length  = node->length;
+        auto& istride = node->inStride;
+        auto& ostride = node->outStride;
+        if(node->scheme == CS_KERNEL_TRANSPOSE_XY_Z)
+        {
+            // x -> y
+            // y -> z
+            // z -> x
+            //
+            // we want to read xz, write yx
+            std::swap(length[1], length[2]);
+            std::swap(istride[1], istride[2]);
+            std::swap(ostride[0], ostride[1]);
+        }
+        else if(node->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
+        {
+            // x -> z
+            // y -> x
+            // z -> y
+            //
+            // we want to read xy, write xz
+            std::swap(ostride[1], ostride[2]);
+            std::swap(ostride[0], ostride[1]);
+        }
+        else if(node->scheme == CS_KERNEL_TRANSPOSE)
+        {
+            // 2D transform, just flip fastest dimensions for output
+            std::swap(ostride[0], ostride[1]);
+        }
+    }
+
     // compile kernels for applicable nodes
     RuntimeCompilePlan(execPlan);
 

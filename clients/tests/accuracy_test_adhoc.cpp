@@ -109,3 +109,77 @@ INSTANTIATE_TEST_SUITE_P(adhoc_dist,
                          accuracy_test,
                          ::testing::ValuesIn(param_permissive_iodist()),
                          accuracy_test::TestName);
+
+inline auto param_adhoc_stride()
+{
+    std::vector<std::vector<size_t>> lengths = adhoc_sizes;
+    lengths.push_back({4});
+
+    std::vector<fft_params> params;
+
+    for(const auto precision : precision_range)
+    {
+        for(const auto& types : generate_types(fft_transform_type_complex_forward,
+                                               {fft_placement_inplace, fft_placement_notinplace},
+                                               true))
+        {
+            // 2D with non-contiguous strides and dist
+            fft_params param;
+            param.length         = {2, 35};
+            param.precision      = precision;
+            param.idist          = 200;
+            param.odist          = 200;
+            param.transform_type = fft_transform_type_complex_forward;
+            param.nbatch         = 2;
+            param.placement      = std::get<1>(types);
+            param.itype          = std::get<2>(types);
+            param.otype          = std::get<3>(types);
+            param.istride        = {90, 2};
+            param.ostride        = {90, 2};
+            params.push_back(param);
+        }
+
+        // test C2R/R2C with non-contiguous higher strides and dist - we
+        // want unit stride for length0 so we do the even-length optimization
+        for(const auto trans_type :
+            {fft_transform_type_real_forward, fft_transform_type_real_inverse})
+        {
+            for(const auto& types : generate_types(trans_type, {fft_placement_notinplace}, true))
+            {
+                fft_params param;
+                param.length         = {4, 4, 4};
+                param.precision      = precision;
+                param.idist          = 0;
+                param.odist          = 0;
+                param.transform_type = trans_type;
+                param.nbatch         = 2;
+                param.placement      = std::get<1>(types);
+                param.itype          = std::get<2>(types);
+                param.otype          = std::get<3>(types);
+                param.istride        = {16, 4, 1};
+                param.ostride        = {16, 4, 1};
+                params.push_back(param);
+
+                param.length         = {2, 2, 2};
+                param.precision      = precision;
+                param.idist          = 0;
+                param.odist          = 0;
+                param.transform_type = trans_type;
+                param.nbatch         = 2;
+                param.placement      = std::get<1>(types);
+                param.itype          = std::get<2>(types);
+                param.otype          = std::get<3>(types);
+                param.istride        = {20, 6, 1};
+                param.ostride        = {20, 6, 1};
+                params.push_back(param);
+            }
+        }
+    }
+
+    return params;
+}
+
+INSTANTIATE_TEST_SUITE_P(adhoc_stride,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_adhoc_stride()),
+                         accuracy_test::TestName);

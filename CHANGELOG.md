@@ -16,6 +16,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Introduced a new access pattern of lds (non-linear) and applied it on
   sbcc kernels len 64 and 81 to get performance improvement.
 
+### Fixed
+- Fixed correctness of transpose kernels with unusual strides.
+
 ## rocFFT 1.0.16  for ROCm 5.1.0
 
 ### Changed
