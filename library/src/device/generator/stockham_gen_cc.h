@@ -100,8 +100,6 @@ struct StockhamKernelCC : public StockhamKernel
         else
             body += Declaration{lds_linear, Literal{"true"}};
 
-        body += Declaration{
-            stride0, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride[0]}}};
         body += CallbackDeclaration{scalar_type.name, callback_type.name};
 
         body += LineBreak{};
@@ -110,6 +108,7 @@ struct StockhamKernelCC : public StockhamKernel
 
         body += LineBreak{};
         body += CommentLines{"offsets"};
+        collect_length_stride(body);
         body += calculate_offsets();
 
         body += LineBreak{};

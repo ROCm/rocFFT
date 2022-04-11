@@ -69,6 +69,9 @@ std::string stockham_rtc_kernel_name(const TreeNode&     node,
     if(length2D)
         kernel_name += "x" + std::to_string(length2D);
 
+    kernel_name += "_dim";
+    kernel_name += std::to_string(node.length.size());
+
     auto array_type_name = [](rocfft_array_type type) {
         switch(type)
         {
@@ -361,8 +364,6 @@ void RTCKernel::launch(DeviceCallIn& data)
     // large 1D twiddles
     if(data.node->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
         kargs.push_back(data.node->twiddles_large);
-    // dim
-    kargs.push_back(reinterpret_cast<void*>(data.node->length.size()));
     // lengths
     kargs.push_back(kargs_lengths(data.node->devKernArg));
     // stride in/out
@@ -508,6 +509,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
         specs->threads_per_transform = kernel.threads_per_transform[0];
         specs->half_lds              = kernel.half_lds;
         specs->direct_to_reg         = kernel.direct_to_reg;
+        specs->static_dim            = node.length.size();
         break;
     }
     case CS_KERNEL_2D_SINGLE:
@@ -549,6 +551,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
             PrintScheme(node.scheme));
         specs->threads_per_transform = kernel.threads_per_transform[0];
         specs->half_lds              = kernel.half_lds;
+        specs->static_dim            = node.length.size();
 
         specs2d = std::make_unique<StockhamGeneratorSpecs>(
             factors2d,

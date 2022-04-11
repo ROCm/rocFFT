@@ -218,7 +218,9 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
     virtual ArgumentList global_arguments()
     {
-        ArgumentList arguments{twiddles, dim, lengths, stride, nbatch, lds_padding};
+        auto arguments = static_dim
+                             ? ArgumentList{twiddles, lengths, stride, nbatch, lds_padding}
+                             : ArgumentList{twiddles, dim, lengths, stride, nbatch, lds_padding};
         for(const auto& arg : get_callback_args().arguments)
             arguments.append(arg);
         arguments.append(buf);
@@ -565,6 +567,16 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return f;
     }
 
+    void collect_length_stride(StatementList& body)
+    {
+        if(static_dim)
+        {
+            body += Declaration{dim, static_dim};
+        }
+        body += Declaration{
+            stride0, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride[0]}}};
+    }
+
     virtual Function generate_global_function()
     {
         Function f("forward_length" + std::to_string(length) + "_" + tiling_name());
@@ -593,8 +605,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
         body += Declaration{lds_linear, Literal{"true"}};
 
-        body += Declaration{
-            stride0, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride[0]}}};
         body += CallbackDeclaration{scalar_type.name, callback_type.name};
 
         body += LineBreak{};
@@ -603,6 +613,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
         body += LineBreak{};
         body += CommentLines{"offsets"};
+        collect_length_stride(body);
         body += calculate_offsets();
 
         body += LineBreak{};
