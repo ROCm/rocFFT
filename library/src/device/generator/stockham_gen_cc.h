@@ -49,8 +49,8 @@ struct StockhamKernelCC : public StockhamKernel
     Variable tile_index{"tile_index", "size_t"};
     Variable num_of_tiles{"num_of_tiles", "size_t"};
     Variable edge{"edge", "bool"};
-    Variable tid1{"tid1", "size_t"};
-    Variable tid0{"tid0", "size_t"};
+    // Variable tid_ver{"tid_ver", "size_t"}; // id along column: replace by thread
+    Variable tid_hor{"tid_hor", "size_t"}; // id along row
 
     // large twiddle support
     Multiply ltwd_entries{Parens{ShiftLeft{1, large_twiddle_base}}, 3};
@@ -66,124 +66,60 @@ struct StockhamKernelCC : public StockhamKernel
         return "SBCC";
     }
 
-    // NB:
-    //   Minimize the impact of "direct_to_reg" in SBCC only for now.
-    //   We should merge all back to base class eventually.
-    Function generate_global_function() override
+    StatementList check_batch() override
     {
-        Function f("forward_length" + std::to_string(length) + "_" + tiling_name());
-        f.qualifier     = "__global__";
-        f.launch_bounds = workgroup_size;
+        return {};
+    }
 
-        StatementList& body = f.body;
-        body += CommentLines{
-            "this kernel:",
-            "  uses " + std::to_string(threads_per_transform) + " threads per transform",
-            "  does " + std::to_string(transforms_per_block) + " transforms per thread block",
-            "therefore it should be called with " + std::to_string(workgroup_size)
-                + " threads per thread block"};
-        body += Declaration{R};
-        body += LDSDeclaration{scalar_type.name};
-        body += Declaration{offset, 0};
-        body += Declaration{offset_lds};
-        body += Declaration{stride_lds};
-        body += Declaration{batch};
-        body += Declaration{transform};
-
-        if(half_lds)
-            body += Declaration{lds_is_real, embedded_type == "EmbeddedType::NONE"};
+    // TODO- need to avoid the involvement of half-lds/lds_is_real
+    StatementList set_direct_to_from_registers() override
+    {
+        if(direct_to_reg)
+            return {Declaration{direct_to_from_reg, embedded_type == "EmbeddedType::NONE"},
+                    Declaration{lds_linear, Not{direct_to_from_reg}}};
         else
-            body += Declaration{lds_is_real, Literal{"false"}};
+            return {Declaration{direct_to_from_reg, Literal{"false"}},
+                    Declaration{lds_linear, Literal{"true"}}};
+    }
 
-        if(direct_to_reg && !half_lds)
-            body += Declaration{lds_linear, Literal{"false"}};
-        else
-            body += Declaration{lds_linear, Literal{"true"}};
-
-        body += CallbackDeclaration{scalar_type.name, callback_type.name};
-
-        body += LineBreak{};
-        body += CommentLines{"large twiddles"};
-        body += large_twiddles_load();
-
-        body += LineBreak{};
-        body += CommentLines{"offsets"};
-        collect_length_stride(body);
-        body += calculate_offsets();
-
-        body += LineBreak{};
-        body += check_batch();
-        body += LineBreak{};
-
-        StatementList loadlds;
-        loadlds += CommentLines{"load global into lds"};
-        loadlds += load_from_global(false);
-        loadlds += LineBreak{};
-        loadlds += CommentLines{
-            "handle even-length real to complex pre-process in lds before transform"};
-        loadlds += real2cmplx_pre_post(length, ProcessingType::PRE);
-
-        if(!direct_to_reg)
-            body += loadlds;
-        else
+    StatementList load_global_generator(unsigned int h,
+                                        unsigned int hr,
+                                        unsigned int width,
+                                        unsigned int dt) const
+    {
+        if(hr == 0)
+            hr = h;
+        StatementList load;
+        for(unsigned int w = 0; w < width; ++w)
         {
-            StatementList loadr;
-            loadr += CommentLines{"load global into registers"};
-            loadr += load_from_global(true);
-            //FIXME: We should not control lds_linear directly. Instead, control direct_to_reg
-            //body += If{And{Not{lds_is_real}, Not{lds_linear}}}, loadlds};
-            if(direct_to_reg && !half_lds)
-                body += If{lds_linear, loadlds};
-            else
-                body += If{Not{lds_is_real}, loadlds};
-            body += Else{loadr};
+            auto tid = Parens{thread + dt + h * threads_per_transform};
+            auto idx = Parens{tid + w * length / width};
+            load += Assign{
+                R[hr * width + w],
+                LoadGlobal{buf, offset + tid_hor * stride[1] + Parens{Expression{idx}} * stride0}};
         }
+        return load;
+    }
 
-        body += LineBreak{};
-        body += CommentLines{"transform"};
-        for(unsigned int c = 0; c < n_device_calls; ++c)
+    StatementList store_global_generator(unsigned int h,
+                                         unsigned int hr,
+                                         unsigned int width,
+                                         unsigned int dt,
+                                         unsigned int cumheight)
+    {
+        if(hr == 0)
+            hr = h;
+        StatementList work;
+        for(unsigned int w = 0; w < width; ++w)
         {
-            auto templates = device_call_templates();
-            auto arguments = device_call_arguments(c);
-
-            templates.set_value(stride_type.name, "SB_UNIT");
-
-            body
-                += Call{"forward_length" + std::to_string(length) + "_" + tiling_name() + "_device",
-                        templates,
-                        arguments};
+            auto tid = Parens{thread + dt + h * threads_per_transform};
+            auto idx
+                = Parens{tid / cumheight} * (width * cumheight) + tid % cumheight + w * cumheight;
+            work += StoreGlobal{buf,
+                                offset + tid_hor * stride[1] + Parens{Expression{idx}} * stride0,
+                                R[hr * width + w]};
         }
-
-        StatementList storelds;
-        storelds += LineBreak{};
-        storelds += CommentLines{
-            "handle even-length complex to real post-process in lds after transform"};
-        storelds += real2cmplx_pre_post(length, ProcessingType::POST);
-
-        storelds += LineBreak{};
-
-        storelds += CommentLines{"store global"};
-        storelds += SyncThreads{};
-        storelds += store_to_global(false);
-
-        if(!direct_to_reg)
-            body += storelds;
-        else
-        {
-            StatementList storer;
-            storer += CommentLines{"store registers into global"};
-            storer += store_to_global(true);
-            //FIXME: We should not control lds_linear directly. Instead, control direct_to_reg
-            if(direct_to_reg && !half_lds)
-                body += If{lds_linear, storelds};
-            else
-                body += If{Not{lds_is_real}, storelds};
-            body += Else{storer};
-        }
-
-        f.templates = global_templates();
-        f.arguments = global_arguments();
-        return f;
+        return work;
     }
 
     StatementList calculate_offsets() override
@@ -235,52 +171,71 @@ struct StockhamKernelCC : public StockhamKernel
         }
         stmts += Assign{batch, block_id / plength};
         stmts += Assign{offset, offset + batch * stride[dim]};
-        stmts += Assign{stride_lds, (length + get_lds_padding())};
-        stmts += CommentLines{
-            "TODO- currently when lds_linear is false:",
-            "  offset_lds is not used in device_func, we still can sort-out the code to use it.",
-            "  But EmbeddedType Pre/Post haven't supported nonlinear yet, ",
-            "  so we avoid using them in the plan tree."};
-        stmts += Assign{offset_lds, stride_lds * (transform % transforms_per_block)};
+        if(!direct_to_reg)
+        {
+            stmts += Assign{stride_lds, (length + get_lds_padding())};
+            stmts += Assign{offset_lds, stride_lds * (transform % transforms_per_block)};
+        }
+        else
+        {
+            stmts += Assign{stride_lds,
+                            Ternary{lds_linear,
+                                    length + get_lds_padding(),
+                                    transforms_per_block + get_lds_padding()}};
+            stmts += Assign{offset_lds,
+                            Ternary{lds_linear,
+                                    stride_lds * (transform % transforms_per_block),
+                                    thread_id % transforms_per_block}};
+        }
 
         stmts += Declaration{edge};
-        stmts += Declaration{tid0};
-        stmts += Declaration{tid1};
+        stmts += Declaration{thread};
+        stmts += Declaration{tid_hor};
 
         stmts += Assign{
             edge,
             Ternary{Parens((tile_index + 1) * transforms_per_block > lengths[1]), "true", "false"}};
 
-        // [dim0, dim1] = [tid0, tid1] :
-        // each thread reads position [tid0, tid1], [tid0+step_h*1, tid1] , [tid0+step_h*2, tid1]...
-        // tid0 walks the columns; tid1 walks the rows
-        stmts += Assign{tid0, thread_id / transforms_per_block};
-        stmts += Assign{tid1, thread_id % transforms_per_block};
+        // [dim0, dim1] = [tid_ver, tid_hor] :
+        // each thread reads position [tid_ver, tid_hor], [tid_ver+step_height*1, tid_hor] , [tid_ver+step_height*2, tid_hor]...
+        // tid_ver walks the columns; tid_hor walks the rows
+        stmts += Assign{thread, thread_id / transforms_per_block};
+        stmts += Assign{tid_hor, thread_id % transforms_per_block};
 
         return stmts;
     }
 
     StatementList load_from_global(bool load_registers) override
     {
-        auto stripmine_w = transforms_per_block;
-        auto stripmine_h = workgroup_size / stripmine_w;
-
         StatementList stmts;
-
-        auto offset_tile_rbuf
-            = [&](unsigned int i) { return tid1 * stride[1] + (tid0 + i * stripmine_h) * stride0; };
-        auto offset_tile_wlds
-            = [&](unsigned int i) { return tid1 * stride_lds + (tid0 + i * stripmine_h) * 1; };
-
         StatementList tmp_stmts;
-        Expression    pred{tile_index * transforms_per_block + tid1 < lengths[1]};
+        Expression    pred{tile_index * transforms_per_block + tid_hor < lengths[1]};
+
         if(!load_registers)
+        {
+            auto stripmine_w = transforms_per_block;
+            auto stripmine_h = workgroup_size / stripmine_w;
+
+            auto offset_tile_rbuf = [&](unsigned int i) {
+                return tid_hor * stride[1] + (thread + i * stripmine_h) * stride0;
+            };
+            auto offset_tile_wlds = [&](unsigned int i) {
+                return tid_hor * stride_lds + (thread + i * stripmine_h) * 1;
+            };
+
             for(unsigned int i = 0; i < length / stripmine_h; ++i)
                 tmp_stmts += Assign{lds_complex[offset_tile_wlds(i)],
                                     LoadGlobal{buf, offset + offset_tile_rbuf(i)}};
+        }
         else
-            for(unsigned int i = 0; i < length / stripmine_h; ++i)
-                tmp_stmts += Assign{R[i], LoadGlobal{buf, offset + offset_tile_rbuf(i)}};
+        {
+            unsigned int width  = factors[0];
+            auto         height = static_cast<float>(length) / width / threads_per_transform;
+
+            auto load_global = std::mem_fn(&StockhamKernelCC::load_global_generator);
+            tmp_stmts += add_work(
+                std::bind(load_global, this, _1, _2, _3, _4), width, height, true, true);
+        }
 
         stmts += If{Not{edge}, tmp_stmts};
         stmts += If{edge, {If{pred, tmp_stmts}}};
@@ -289,25 +244,36 @@ struct StockhamKernelCC : public StockhamKernel
 
     StatementList store_to_global(bool store_registers) override
     {
-        auto stripmine_w = transforms_per_block;
-        auto stripmine_h = workgroup_size / stripmine_w;
-
         StatementList stmts;
-
-        auto offset_tile_wbuf
-            = [&](unsigned int i) { return tid1 * stride[1] + (tid0 + i * stripmine_h) * stride0; };
-        auto offset_tile_rlds
-            = [&](unsigned int i) { return tid1 * stride_lds + (tid0 + i * stripmine_h) * 1; };
         StatementList tmp_stmts;
-        Expression    pred{tile_index * transforms_per_block + tid1 < lengths[1]};
+        Expression    pred{tile_index * transforms_per_block + tid_hor < lengths[1]};
 
         if(!store_registers)
+        {
+            auto stripmine_w = transforms_per_block;
+            auto stripmine_h = workgroup_size / stripmine_w;
+
+            auto offset_tile_wbuf = [&](unsigned int i) {
+                return tid_hor * stride[1] + (thread + i * stripmine_h) * stride0;
+            };
+            auto offset_tile_rlds = [&](unsigned int i) {
+                return tid_hor * stride_lds + (thread + i * stripmine_h) * 1;
+            };
+
             for(unsigned int i = 0; i < length / stripmine_h; ++i)
                 tmp_stmts += StoreGlobal{
                     buf, offset + offset_tile_wbuf(i), lds_complex[offset_tile_rlds(i)]};
+        }
         else
-            for(unsigned int i = 0; i < length / stripmine_h; ++i)
-                tmp_stmts += StoreGlobal{buf, offset + offset_tile_wbuf(i), R[i]};
+        {
+            auto width     = factors.back();
+            auto cumheight = product(factors.begin(), factors.begin() + (factors.size() - 1));
+            auto height    = static_cast<float>(length) / width / threads_per_transform;
+
+            auto store_global = std::mem_fn(&StockhamKernelCC::store_global_generator);
+            tmp_stmts += add_work(
+                std::bind(store_global, this, _1, _2, _3, _4, cumheight), width, height, true);
+        }
 
         stmts += If{Not{edge}, tmp_stmts};
         stmts += If{edge, {If{pred, tmp_stmts}}};

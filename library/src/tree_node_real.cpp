@@ -82,7 +82,7 @@ static bool SBCC_dim_available(const std::vector<size_t>& length,
 
     // NB:
     //  we can remove this limitation if we are using sbcc instead of stockham 1d,
-    //  (especially for sbcc 64 with load-to-reg, the numTrans is increased)
+    //  (especially for sbcc with load-to-reg, the numTrans is increased)
     if(length[0] < numTrans && !have_sbcc)
         return false;
 
@@ -272,19 +272,7 @@ void RealTransEvenNode::BuildTree_internal()
     // fuse pre/post-processing into fft if it's single-kernel
     if(try_fuse_pre_post_processing)
     {
-        if(!cfftPlan->isLeafNode())
-            try_fuse_pre_post_processing = false;
-        // if the SBCC kernel is (direct_to_reg and !half_lds), then it hasn't supported Real2C_POST nor C2Real_PRE
-        // so we shouldn't do this fuse.
-        // TODO- eventually we need to support the funcationality and remove this guard block
-        else if(cfftPlan->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC
-                && function_pool::has_SBCC_kernel(cfftPlan->length[0], cfftPlan->precision))
-        {
-            auto kernel = function_pool::get_kernel(
-                fpkey(cfftPlan->length[0], cfftPlan->precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
-            if(kernel.direct_to_reg && !kernel.half_lds)
-                try_fuse_pre_post_processing = false;
-        }
+        try_fuse_pre_post_processing = cfftPlan->isLeafNode();
     }
 
     switch(direction)

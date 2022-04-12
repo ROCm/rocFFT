@@ -138,6 +138,10 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     // The LDS access pattern is linear both on R/W
     Variable lds_linear = Variable{"lds_linear", "const bool"};
 
+    // Enable directly load to registers and directly store from registers?
+    // This variable affects the lds_linear (internally)
+    Variable direct_to_from_reg = Variable{"direct_to_from_reg", "const bool"};
+
     //
     // locals
     //
@@ -225,6 +229,17 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             arguments.append(arg);
         arguments.append(buf);
         return arguments;
+    }
+
+    // TODO- need to avoid the involvement of half-lds/lds_is_real
+    virtual StatementList set_direct_to_from_registers()
+    {
+        if(direct_to_reg)
+            return {Declaration{direct_to_from_reg, lds_is_real},
+                    Declaration{lds_linear, Literal{"true"}}};
+        else
+            return {Declaration{direct_to_from_reg, Literal{"false"}},
+                    Declaration{lds_linear, Literal{"true"}}};
     }
 
     virtual StatementList large_twiddles_load()
@@ -325,64 +340,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return work;
     }
 
-    // lds -> reg
-    StatementList load_lds_non_linear_generator(
-        unsigned int h, unsigned int hr, unsigned int width, unsigned int dt, Component component)
-    {
-        if(hr == 0)
-            hr = h;
-        StatementList load;
-        for(unsigned int w = 0; w < width; ++w)
-        {
-            const auto idx = thread_id + w * workgroup_size;
-            switch(component)
-            {
-            case Component::X:
-                //TODO
-                break;
-            case Component::Y:
-                //TODO
-                break;
-            case Component::NONE:
-                load += Assign(R[w], lds_complex[idx]);
-                break;
-            }
-        }
-        return load;
-    }
-
-    // reg -> lds
-    StatementList store_lds_non_linear_generator(unsigned int h,
-                                                 unsigned int hr,
-                                                 unsigned int width,
-                                                 unsigned int dt,
-                                                 Component    component,
-                                                 unsigned int cumheight)
-    {
-        if(hr == 0)
-            hr = h;
-        StatementList work;
-        for(unsigned int w = 0; w < width; ++w)
-        {
-            // sharedStride * (threadIdx.y + 8) + threadIdx.x
-            const auto idx = (thread * threads_per_transform + w) * transforms_per_block
-                             + thread_id % transforms_per_block;
-            switch(component)
-            {
-            case Component::X:
-                //TODO
-                break;
-            case Component::Y:
-                //TODO
-                break;
-            case Component::NONE:
-                work += Assign(lds_complex[idx], R[w]);
-                break;
-            }
-        }
-        return work;
-    }
-
     StatementList apply_twiddle_generator(unsigned int h,
                                           unsigned int hr,
                                           unsigned int width,
@@ -475,14 +432,22 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         body += Declaration{
             lstride, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride_lds}}};
 
-        body += If{lds_linear, {Assign{thread, thread_id % threads_per_transform}}};
-        body += Else{{Assign{thread, thread_id / transforms_per_block}}};
+        body += Assign{thread,
+                       Ternary{lds_linear,
+                               thread_id % threads_per_transform,
+                               thread_id / transforms_per_block}};
 
         for(unsigned int npass = 0; npass < factors.size(); ++npass)
         {
-            unsigned int width     = factors[npass];
-            float        height    = static_cast<float>(length) / width / threads_per_transform;
-            unsigned int cumheight = product(factors.begin(), factors.begin() + npass);
+            // width is the butterfly width, Radix-n. Mostly is used as dt in add_work()
+            unsigned int width = factors[npass];
+            // height is how many butterflies per thread will do on average
+            float height = static_cast<float>(length) / width / threads_per_transform;
+
+            unsigned int cumheight
+                = product(factors.begin(),
+                          factors.begin() + npass); // cumheight is irrelevant to the above height,
+            // is used for twiddle multiplication and lds writing.
 
             body += LineBreak{};
             body += CommentLines{
@@ -491,78 +456,108 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                     + std::to_string(length / width) + " radix-" + std::to_string(width)
                     + " butterflies",
                 "therefore each thread will do " + std::to_string(height) + " butterflies"};
-            body += SyncThreads();
 
             auto load_lds  = std::mem_fn(&StockhamKernel::load_lds_generator);
             auto store_lds = std::mem_fn(&StockhamKernel::store_lds_generator);
 
-            auto load_lds_non_linear = std::mem_fn(&StockhamKernel::load_lds_non_linear_generator);
-            auto store_lds_non_linear
-                = std::mem_fn(&StockhamKernel::store_lds_non_linear_generator);
+            // first pass of linear variant load (full)
+            // TODO- move this "first pass" part out of device function.
+            if(npass == 0)
+            {
+                StatementList first_load_full;
+                first_load_full += SyncThreads();
+                first_load_full
+                    += add_work(std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE),
+                                width,
+                                height,
+                                false);
+                body += If{lds_linear, {If{Not{lds_is_real}, first_load_full}}};
+            }
 
-            body += If{lds_linear,
-                       {If{Not{lds_is_real},
-                           add_work(std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE),
-                                    width,
-                                    height)}}};
             if(npass > 0)
             {
-                body += Else{
-                    add_work(std::bind(load_lds_non_linear, this, _1, _2, _3, _4, Component::NONE),
-                             width,
-                             height)};
+                // internal full lds load (both linear/nonlinear variants)
+                StatementList internal_load_full;
+                internal_load_full += SyncThreads();
+                internal_load_full
+                    += add_work(std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE),
+                                width,
+                                height,
+                                false);
+                body += If{Not{lds_is_real}, internal_load_full};
+
                 auto apply_twiddle = std::mem_fn(&StockhamKernel::apply_twiddle_generator);
-                body += add_work(
-                    std::bind(apply_twiddle, this, _1, _2, _3, _4, cumheight), width, height);
+                body += add_work(std::bind(apply_twiddle, this, _1, _2, _3, _4, cumheight),
+                                 width,
+                                 height,
+                                 false);
             }
 
             auto butterfly = std::mem_fn(&StockhamKernel::butterfly_generator);
-            body += add_work(std::bind(butterfly, this, _1, _2, _3, _4), width, height);
+            body += add_work(std::bind(butterfly, this, _1, _2, _3, _4), width, height, false);
 
             if(npass == factors.size() - 1)
                 body += large_twiddles_multiply(width, cumheight);
 
+            // internal lds store (half-with-linear and full-with-linear/nonlinear)
+            StatementList store_full;
             StatementList store_half;
             if(npass < factors.size() - 1)
             {
+                // linear variant store (half) and load (half)
                 for(auto component : {Component::X, Component::Y})
                 {
-                    auto half_width = factors[npass];
+                    bool isFirstStore = (npass == 0) && (component == Component::X);
+                    auto half_width   = factors[npass];
                     auto half_height
                         = static_cast<float>(length) / half_width / threads_per_transform;
+                    // minimize sync as possible
+                    if(!isFirstStore)
+                        store_half += SyncThreads();
                     store_half += add_work(
                         std::bind(store_lds, this, _1, _2, _3, _4, component, cumheight),
                         half_width,
                         half_height,
                         true);
-                    store_half += SyncThreads();
 
                     half_width  = factors[npass + 1];
                     half_height = static_cast<float>(length) / half_width / threads_per_transform;
+                    store_half += SyncThreads();
                     store_half += add_work(std::bind(load_lds, this, _1, _2, _3, _4, component),
                                            half_width,
                                            half_height,
                                            true);
-                    store_half += SyncThreads();
                 }
-            }
 
-            StatementList store_full;
-            store_full += SyncThreads();
-            store_full
-                += add_work(std::bind(store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight),
-                            width,
-                            height,
-                            true);
-
-            body += If{lds_linear, {If{Not{lds_is_real}, store_full}, Else{store_half}}};
-            if(npass < factors.size() - 1)
-                body += Else{add_work(
-                    std::bind(
-                        store_lds_non_linear, this, _1, _2, _3, _4, Component::NONE, cumheight),
+                // internal full lds store (both linear/nonlinear variants)
+                if(npass == 0)
+                    store_full += If{lds_linear, {SyncThreads()}};
+                else
+                    store_full += SyncThreads();
+                store_full += add_work(
+                    std::bind(store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight),
                     width,
                     height,
-                    true)};
+                    true);
+
+                body += If{Not{lds_is_real}, store_full};
+                body += Else{store_half};
+            }
+
+            // last pass of linear variant store (full)
+            // TODO- move this "last pass" part out of device function.
+            if(npass == factors.size() - 1)
+            {
+                StatementList last_store_full;
+                last_store_full += SyncThreads();
+                last_store_full += add_work(
+                    std::bind(store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight),
+                    width,
+                    height,
+                    true);
+
+                body += If{lds_linear, {If{Not{lds_is_real}, last_store_full}}};
+            }
         }
         return f;
     }
@@ -603,7 +598,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         else
             body += Declaration{lds_is_real, Literal{"false"}};
 
-        body += Declaration{lds_linear, Literal{"true"}};
+        // TODO- don't override, unify them
+        body += set_direct_to_from_registers();
 
         body += CallbackDeclaration{scalar_type.name, callback_type.name};
 
@@ -636,8 +632,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             loadr += CommentLines{"load global into registers"};
             loadr += load_from_global(true);
 
-            body += If{Not{lds_is_real}, loadlds};
-            body += Else{loadr};
+            body += {If{direct_to_from_reg, loadr}, Else{loadlds}};
         }
 
         body += LineBreak{};
@@ -647,7 +642,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             auto templates = device_call_templates();
             auto arguments = device_call_arguments(c);
 
-            templates.set_value(stride_type.name, "SB_UNIT");
+            templates.set_value(stride_type.name, "lds_linear ? SB_UNIT : SB_NONUNIT");
 
             body
                 += Call{"forward_length" + std::to_string(length) + "_" + tiling_name() + "_device",
@@ -675,8 +670,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             storer += CommentLines{"store registers into global"};
             storer += store_to_global(true);
 
-            body += If{Not{lds_is_real}, storelds};
-            body += Else{storer};
+            body += {If{direct_to_from_reg, storer}, Else{storelds}};
         }
 
         f.templates = global_templates();
@@ -706,7 +700,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 lds_real,
                 lds_complex,
                 twiddles,
-                Literal{"1"},
+                stride_lds,
                 call_iter ? Expression{offset_lds + call_iter * stride_lds * transforms_per_block}
                           : Expression{offset_lds},
                 Literal{"true"}};
@@ -772,7 +766,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                      generator,
         unsigned int width,
         double       height,
-        bool         guard = false) const
+        bool         guard,
+        bool         trans_dir = false) const
     {
         StatementList stmts;
         unsigned int  iheight = std::floor(height);
@@ -785,9 +780,10 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
         if(guard)
         {
-            stmts += CommentLines{"more than enough threads, some do nothing"};
-            if(threads_per_transform != length / width)
+            if((!trans_dir && threads_per_transform != length / width)
+               || (trans_dir && workgroup_size / transforms_per_block > length / width))
             {
+                stmts += CommentLines{"more than enough threads, some do nothing"};
                 if(writeGuard)
                     stmts += If{write && (thread < length / width), work};
                 else
