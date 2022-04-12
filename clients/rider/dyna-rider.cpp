@@ -431,7 +431,7 @@ int main(int argc, char* argv[])
         catch(...)
         {
             std::cout << "Unable to parse token." << std::endl;
-            exit(1);
+            return 1;
         }
     }
     else
@@ -541,13 +541,13 @@ int main(int argc, char* argv[])
         {
             std::cout << "Failed to open " << libs[idx] << ", error: " << rocfft_lib_load_error()
                       << std::endl;
-            exit(1);
+            return 1;
         }
         if(rocfft_lib_device_loaded(libhandle))
         {
             std::cerr << "Error: Library " << libs[idx] << " depends on librocfft-device.\n";
             std::cerr << "All libraries need to be built with -DSINGLELIB=on.\n";
-            exit(1);
+            return 1;
         }
         handles.push_back(libhandle);
     }

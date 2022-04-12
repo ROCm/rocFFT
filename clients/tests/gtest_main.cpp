@@ -254,7 +254,7 @@ int main(int argc, char* argv[])
         catch(...)
         {
             std::cout << "Unable to parse token." << std::endl;
-            exit(1);
+            return 1;
         }
     }
     else
