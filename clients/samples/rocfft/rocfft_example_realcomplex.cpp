@@ -152,7 +152,10 @@ int main(int argc, char* argv[])
     // Create HIP device object and initialize data
     // Kernels are provided in examplekernels.h
     void*      gpu_in     = NULL;
-    hipError_t hip_status = hipMalloc(&gpu_in, ibytes);
+    hipError_t hip_status = hipMalloc(&gpu_in, inplace ? std::max(ibytes, obytes) : ibytes);
+    if(hip_status != hipSuccess)
+        throw std::runtime_error("device error");
+
     if(forward)
     {
         initreal(length, istride, gpu_in);
@@ -161,11 +164,8 @@ int main(int argc, char* argv[])
     {
         inithermitiancomplex(length, ilength, istride, gpu_in);
     }
-    hipDeviceSynchronize();
-    if(hip_status != hipSuccess)
-        throw std::runtime_error("device error");
 
-    // Print the output:
+    // Print the input:
     std::cout << "input:\n";
     if(forward)
     {
@@ -181,12 +181,15 @@ int main(int argc, char* argv[])
         check_symmetry(cdata, length, istride, 1, isize);
     }
 
+    // rocfft_status can be used to capture API status info
+    rocfft_status rc = rocfft_status_success;
+
     // Create the a descrition struct to set data layout:
     rocfft_plan_description gpu_description = NULL;
-    // rocfft_status can be used to capture API status info
-    rocfft_status rc = rocfft_plan_description_create(&gpu_description);
+    rc                                      = rocfft_plan_description_create(&gpu_description);
     if(rc != rocfft_status_success)
         throw std::runtime_error("failed to create plan description");
+
     rc = rocfft_plan_description_set_data_layout(
         gpu_description,
         // input data format:
@@ -203,6 +206,7 @@ int main(int argc, char* argv[])
         0); // ouptut batch distance
     if(rc != rocfft_status_success)
         throw std::runtime_error("failed to set data layout");
+
     // We can also pass "NULL" instead of a description; rocFFT will use reasonable
     // default parameters.  If the data isn't contiguous, we need to set strides, etc,
     // using the description.
@@ -225,6 +229,7 @@ int main(int argc, char* argv[])
     rc                             = rocfft_execution_info_create(&planinfo);
     if(rc != rocfft_status_success)
         throw std::runtime_error("failed to create execution info");
+
     size_t workbuffersize = 0;
     rc                    = rocfft_plan_get_work_buffer_size(gpu_plan, &workbuffersize);
     if(rc != rocfft_status_success)
@@ -237,6 +242,7 @@ int main(int argc, char* argv[])
         hip_status = hipMalloc(&wbuffer, workbuffersize);
         if(hip_status != hipSuccess)
             throw std::runtime_error("hipMalloc failed");
+
         rc = rocfft_execution_info_set_work_buffer(planinfo, wbuffer, workbuffersize);
         if(rc != rocfft_status_success)
             throw std::runtime_error("failed to set work buffer");
