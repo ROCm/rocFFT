@@ -409,7 +409,7 @@ void RTCKernel::launch(DeviceCallIn& data)
                              gp.wgs_y,
                              gp.wgs_z,
                              gp.lds_bytes,
-                             nullptr,
+                             data.rocfft_stream,
                              nullptr,
                              config)
        != hipSuccess)

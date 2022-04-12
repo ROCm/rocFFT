@@ -18,6 +18,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Fixed
 - Fixed correctness of transpose kernels with unusual strides.
+- Fixed incorrect handling of user-specified stream for runtime-compiled kernels.
 
 ## rocFFT 1.0.16  for ROCm 5.1.0
 
