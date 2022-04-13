@@ -60,24 +60,18 @@ static bool SBCC_dim_available(const std::vector<size_t>& length,
     size_t numTrans = 0;
     // do we have a purpose-built sbcc kernel
     bool have_sbcc = false;
-    try
+    auto sbcc_key  = fpkey(length[sbcc_dim], precision, CS_KERNEL_STOCKHAM_BLOCK_CC);
+    if(function_pool::has_function(sbcc_key))
     {
-        numTrans = function_pool::get_kernel(
-                       fpkey(length[sbcc_dim], precision, CS_KERNEL_STOCKHAM_BLOCK_CC))
-                       .transforms_per_block;
+        numTrans  = function_pool::get_kernel(sbcc_key).transforms_per_block;
         have_sbcc = true;
     }
-    catch(std::out_of_range&)
+    else
     {
-        try
-        {
-            numTrans = function_pool::get_kernel(fpkey(length[sbcc_dim], precision))
-                           .transforms_per_block;
-        }
-        catch(std::out_of_range&)
-        {
+        auto normal_key = fpkey(length[sbcc_dim], precision);
+        if(!function_pool::has_function(normal_key))
             return false;
-        }
+        numTrans = function_pool::get_kernel(normal_key).transforms_per_block;
     }
 
     // NB:

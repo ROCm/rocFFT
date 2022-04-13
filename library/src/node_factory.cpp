@@ -712,39 +712,35 @@ bool NodeFactory::use_CS_3D_RC(NodeMetaData& nodeData)
     if(childScheme == CS_KERNEL_2D_SINGLE)
         return true;
 
-    try
-    {
-        // Check the C part.
-        // The first R is built recursively with 2D_FFT, leave the check part to themselves
-        auto kernel = function_pool::get_kernel(
-            fpkey(nodeData.length[2], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
-
-        // hack for this special case
-        // this size is rejected by the following conservative threshold (#-elems)
-        // however it can use 3D_RC and get much better performance
-        std::vector<size_t> special_case{56, 336, 336};
-        if(nodeData.length == special_case && nodeData.precision == rocfft_precision_double)
-            return true;
-
-        // x-dim should be >= the blockwidth, or it might perform worse..
-        if(nodeData.length[0] < kernel.transforms_per_block)
-            return false;
-
-        // we don't want a too-large 3D block, sbcc along z-dim might be bad
-        if((nodeData.length[0] * nodeData.length[1] * nodeData.length[2]) >= (128 * 128 * 128))
-            return false;
-
-        if(childScheme == CS_2D_RTRT)
-            return false;
-
-        // if we are here, the 2D scheme must be 2D_RC (3 kernels total)
-        assert(childScheme == CS_2D_RC);
-        return true;
-    }
-    catch(...)
-    {
+    auto key = fpkey(nodeData.length[2], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_CC);
+    if(!function_pool::has_function(key))
         return false;
-    }
+
+    // Check the C part.
+    // The first R is built recursively with 2D_FFT, leave the check part to themselves
+    auto kernel = function_pool::get_kernel(key);
+
+    // hack for this special case
+    // this size is rejected by the following conservative threshold (#-elems)
+    // however it can use 3D_RC and get much better performance
+    std::vector<size_t> special_case{56, 336, 336};
+    if(nodeData.length == special_case && nodeData.precision == rocfft_precision_double)
+        return true;
+
+    // x-dim should be >= the blockwidth, or it might perform worse..
+    if(nodeData.length[0] < kernel.transforms_per_block)
+        return false;
+
+    // we don't want a too-large 3D block, sbcc along z-dim might be bad
+    if((nodeData.length[0] * nodeData.length[1] * nodeData.length[2]) >= (128 * 128 * 128))
+        return false;
+
+    if(childScheme == CS_2D_RTRT)
+        return false;
+
+    // if we are here, the 2D scheme must be 2D_RC (3 kernels total)
+    assert(childScheme == CS_2D_RC);
+    return true;
 
     return false;
 }
