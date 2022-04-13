@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from perflib.utils import sjoin, cjoin
 from typing import List
+import tempfile
 
 top = Path(__file__).resolve().parent.parent
 
@@ -52,10 +53,38 @@ class PDFFigure(BaseFigure):
         asycommand = self.asycmd()
         logging.info('ASY: ' + sjoin(asycommand))
 
-        p = subprocess.run(asycommand, cwd=top)
-        if p.returncode != 0:
+        fout = tempfile.TemporaryFile(mode="w+")
+        ferr = tempfile.TemporaryFile(mode="w+")
+        
+        
+        proc = subprocess.Popen(asycommand, cwd=top, stdout=fout, stderr=ferr)
+        
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            logging.info("Asy command killed: " + sjoin(asycommand))
+            proc.kill()
+            
+            fout.seek(0)
+            ferr.seek(0)
+            cout = fout.read()
+            cerr = ferr.read()
+
+            print(cout)
+            print(cerr)
+
+        
+        if proc.returncode != 0:
             logging.warn('ASY command failed: ' + sjoin(asycommand))
 
+            fout.seek(0)
+            ferr.seek(0)
+            cout = fout.read()
+            cerr = ferr.read()
+
+            print(cout)
+            print(cerr)
+            
 
 
 gflopstext = '''\

@@ -5,7 +5,7 @@ import os
 from .pdf import BaseFigure
 from .utils import to_data_frames
 
-from plotly import graph_objs as go
+
 
 
 def speedup_saturation(speedup):
@@ -44,30 +44,74 @@ def title_to_html_anchor(title):
     return title.replace(' ', '_')
 
 
+def token_to_length(tokens):
+    length = []
+    for token in tokens:
+        words = token.split("_")
+        for idx in range(len(words)):
+            if(words[idx] == "len"):
+                lenidx = idx + 1
+                thislength = []
+                while lenidx < len(words) and words[lenidx].isnumeric():
+                    thislength.append(int(words[lenidx]))
+                    lenidx += 1
+                length.append(thislength)
+    return length
+
+
+def token_to_batch(tokens):
+    batch = []
+    for token in tokens:
+        words = token.split("_")
+        for idx in range(len(words)):
+            if(words[idx] == "batch"):
+                batchidx = idx + 1
+                thisbatch = []
+                while batchidx < len(words) and words[batchidx].isnumeric():
+                    thisbatch.append(int(words[batchidx]))
+                    batchidx += 1
+                batch.append(thisbatch)
+    return batch
+
+
+def token_to_elements(tokens):
+    length = token_to_length(tokens)
+    batch = token_to_batch(tokens)
+    elements = []
+    for i in range(len(length)):
+        n = int(1)
+        for j in range(len(length[i])):
+            n *= int(length[i][j])
+        for j in range(len(batch[i])):
+            n *= int(batch[i][j])
+        elements.append(n)
+    return elements
+
 class HTMLFigure(BaseFigure):
 
     def make(self):
+        from plotly import graph_objs as go
         data_frames = to_data_frames(self.primary, self.secondary)
         logscale = False
 
         traces = []
 
         traces.append(go.Scatter(
-            x=data_frames[0].elements,
+            x=token_to_elements(data_frames[0].token),
             y=data_frames[0].median_sample,
-            hovertext=data_frames[0].length,
+            hovertext=token_to_length(data_frames[0].token),
             name=self.labels[0]
         ))
 
         for i in range(1,len(data_frames)):
             traces.append(go.Scatter(
-                x=data_frames[i].elements,
+                x= token_to_elements(data_frames[i].token),
                 y=data_frames[i].median_sample,
-                hovertext=data_frames[i].length,
+                hovertext=data_frames[i].token,
                 name=self.labels[i]
             ))
             traces.append(go.Scatter(
-                x=data_frames[i].elements,
+                x= token_to_elements(data_frames[i].token),
                 y=data_frames[i].speedup,
                 name='Speedup {} over {}'.format(self.labels[i], self.labels[0]),
                 yaxis='y2',
@@ -117,12 +161,13 @@ class HTMLFigure(BaseFigure):
         )
 
         fig = go.Figure(data=traces, layout=layout)
-        # add speedup=1 reference line
+
+        # Add speedup=1 reference line
         fig.add_shape(
             type='line',
-            x0=data_frames[0].elements.min(),
+            x0=min(token_to_elements(data_frames[0].token)),
             y0=1,
-            x1=data_frames[0].elements.max(),
+            x1=max(token_to_elements(data_frames[0].token)),
             y1=1,
             line=dict(color='grey', dash='dash'),
             yref='y2'
@@ -131,8 +176,8 @@ class HTMLFigure(BaseFigure):
         nrows = len(data_frames[0].index)
         headers = ['Problem size', 'Elements']
         values = [
-            data_frames[0].length,
-            data_frames[0].elements
+            token_to_length(data_frames[0].token),
+            token_to_elements(data_frames[0].token)
         ]
         fill_colors = [
             ['white'] * nrows,

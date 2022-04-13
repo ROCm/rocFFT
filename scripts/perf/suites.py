@@ -2,7 +2,7 @@
 from itertools import product
 from perflib.generators import Problem
 from perflib.generators import RadixProblemGenerator
-import sympy
+
 
 all_precisions = ['single', 'double']
 all_directions = [-1, 1]

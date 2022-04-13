@@ -1,45 +1,7 @@
 import graph;
 import utils;
 
-struct bardata {
-  string label;
-  real y;
-  real ylow;
-  real yhigh;
-}
-
-void readbarfiles(string[] filelist, bardata[][] data)
-{
-    for(int n = 0; n < filelist.length; ++n)
-    {
-      data.push(new bardata[]);
-      
-      string filename = filelist[n];
-//      write(filename);
-      
-      file fin = input(filename).line().word();
-      string[] hdr = fin;
-
-      while(!eof(fin)) {
-        real elements;
-      
-	bardata dat;
-	dat.label = fin;
-        elements = fin;
-	dat.y = (real)fin;
-	dat.ylow = (real)fin;
-	dat.yhigh = (real)fin;
-	
-//	write(dat.label, dat.y, dat.ylow, dat.yhigh);
-
-	data[n].push(dat);
-
-      }
-    }
-//    write("done reading");
-}
-
-void drawbargraph(bardata[][] data, string[] legs, string[] otherlegs) {
+void drawbargraph(datapoint[][] data, string[] legs, string[] otherlegs) {
   // Let's go to the bar, eh?
 
   // Assumption: same number of data points.
@@ -109,8 +71,8 @@ void drawbargraph(bardata[][] data, string[] legs, string[] otherlegs) {
     if(n == nbars - 1) {
       for(int i = 0; i <  data[n].length; ++i) {
 	pair p = (0.5 * nbars * width + i * (skip + nbars * width), 0);
-	// 	//label(rotate(90) * Label(xleg[i]), align=S, p);
-	label(Label(data[n][i].label), align=S, p);
+	//label(rotate(90) * Label(xleg[i]), align=S, p);
+	label(rotate(90) * Label(data[n][i].label), align=S, p);
       }
     }
     
@@ -119,7 +81,7 @@ void drawbargraph(bardata[][] data, string[] legs, string[] otherlegs) {
 
 texpreamble("\usepackage{bm}");
 
-size(400, 300, IgnoreAspect);
+size(600, 400, IgnoreAspect);
 
 // Input data:
 string filenames = "";
@@ -162,9 +124,14 @@ pair[][] xyval = new real[testlist.length][];
 pair[][] ylowhigh = new real[testlist.length][];
 
 
-bardata[][] data;
 
-readbarfiles(testlist, data);
+
+// Data containers:
+datapoint[][] datapoints = new datapoint[testlist.length][];
+readfiles(testlist, datapoints);
+
+
+//readbarfiles(testlist, data);
 
 // for(int n = 0; n < data.length; ++n) {
 //   for(int i = 0; i < data[n].length; ++i) {
@@ -182,7 +149,7 @@ for(int i = 0; i < xyval[0].length; ++i) {
   legs.push(string(xyval[0][i].x));
 }
 
-drawbargraph(data, legs, legends);
+drawbargraph(datapoints, legs, legends);
 
 xaxis(BottomTop);
 yaxis("Time (s)", LeftRight, RightTicks);

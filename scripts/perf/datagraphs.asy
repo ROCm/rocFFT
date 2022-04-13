@@ -41,14 +41,18 @@ for (int i = 0; i < legends.length; ++i) {
 string[] testlist = listfromcsv(filenames);
 
 // Data containers:
+datapoint[][] datapoints = new datapoint[testlist.length][];
+
+readfiles(testlist, datapoints);
+
 pair[][] xyval = new real[testlist.length][];
 pair[][] ylowhigh = new real[testlist.length][];
+for(int n = 0; n < datapoints.length; ++n) {
+    datapoints_to_xyvallowhigh(datapoints[n], xyval[n], ylowhigh[n]);
+}
 
-
-readfiles(testlist, xyval, ylowhigh, false);
-
-//write(xyval);
-//write(ylowhigh);
+write(xyval);
+write(ylowhigh);
 
 // Find the bounds on the data to determine if the scales should be
 // logarithmic.
@@ -93,26 +97,34 @@ xaxis(xlabel, BottomTop, LeftTicks);
 yaxis(ylabel, (secondary_filenames != "") ? Left : LeftRight,RightTicks);
 
 // attach(legend(),point(plain.E),(((secondary_filenames != ""))
-//                                 ? 60*plain.E + 40 *plain.N
+//                                ? 60*plain.E + 40 *plain.N
 //                                 : 20*plain.E)  );
 //attach(legend(),point(plain.S), N);
 attach(legend(), point(S), 50*S);
 
 if(secondary_filenames != "")
 {
-    string[] second_list = listfromcsv(secondary_filenames);
+  write("secondary_filenames: ", secondary_filenames);
+  string[] second_list = listfromcsv(secondary_filenames);
     
+    datapoint[][] datapoints = new datapoint[second_list.length][];
+    
+    readfiles(second_list, datapoints);
+
     pair[][] xyval = new real[second_list.length][];
     pair[][] ylowhigh = new real[second_list.length][];
-
+    for(int n = 0; n < datapoints.length; ++n) {
+      datapoints_to_xyvallowhigh(datapoints[n], xyval[n], ylowhigh[n]);
+    }
+    
     bool interval = true;
     
-    // FIXME: speedup has error bounds, so we should read it, but
-    // p-vals does not.
-    readfiles(second_list, xyval, ylowhigh, true);
+    // // FIXME: speedup has error bounds, so we should read it, but
+    // // p-vals does not.
+    // readfiles(second_list, xyval, ylowhigh, true);
 
     picture secondarypic = secondaryY(new void(picture pic) {
-            int penidx = testlist.length;
+	int penidx = testlist.length; // initialize to end of previous pen.
 
             scale(pic, xlog ? Log : Linear, Linear);
             
@@ -136,15 +148,21 @@ if(secondary_filenames != "")
                         dp.push((0, xyval[n][i].y - ylowhigh[n][i].x));
                         dm.push((0, xyval[n][i].y - ylowhigh[n][i].y));
                     }
-                    
+
                     errorbars(pic, xyval[n], dp, dm, graphpen);
+		    
                 }
                 draw(pic,graph(pic, xyval[n]), graphpen, legends[n] + " vs " + legends[n+1],mark);
+		write(xyval[n]);
+		
+		yequals(pic, 1.0, lightgrey);
+		
             }
 
+	    
             yaxis(pic, secondaryaxis, Right, black, LeftTicks);
-//            attach(legend(pic), point(plain.E), 60*plain.E - 40 *plain.N  );
-            attach(legend(pic), point(plain.S), 120*S);
+	    attach(legend(pic), point(plain.E), 60*plain.E - 40 *plain.N  );
+            //attach(legend(pic), point(plain.S), 120*S);
         });
     add(secondarypic);
 }

@@ -97,10 +97,9 @@ pdf report:
 import argparse
 import logging
 import statistics
-import scipy
 import sys
 import os
-import pandas
+
 
 from pathlib import Path
 
@@ -153,21 +152,23 @@ def command_moods(runs, percent, moods):
 
 
 def generate_mdat(dat):
-    confidence = [['length', 'elements', 'median_sample', 'median_low', 'median_high']]
-    for _, elements, sample in dat.sorted_samples():
+    confidence = [['token', 'median_sample', 'median_low', 'median_high']]
+    for token, sample in dat.get_samples():
         median = statistics.median(sample.times)
         low, high = perflib.analysis.confidence_interval(sample.times)
-        confidence.append([sample.label, elements, median, low, high])
+        confidence.append([sample.label, median, low, high])
     path = dat.path.with_suffix('.mdat')
     perflib.utils.write_tsv(path, confidence, meta=dat.meta, overwrite=True)
 
+    
 def generate_pts_dat(dat):
     """
     For PTS system, extract data from raw dat and mdat.
     """
+    import pandas
     mdat = dat.path.with_suffix('.mdat')
     mdat_df = pandas.read_csv(mdat, delimiter='\t', comment='#')
-    
+
     # The parsing rule subjects to changes in the future
     ss = dat.tag
     input_params = []
@@ -184,22 +185,39 @@ def generate_pts_dat(dat):
 
     input_params.reverse()
 
-    dimension = 1
+    dimensions = set()
+    
     rows = []
-    row_idx = 0
-    for _, _, sample in dat.sorted_samples():
+    for row_idx, sample in enumerate(dat.get_samples()):
         new_row = []
-        new_row.extend(input_params)
-        dimension = len(sample.lengths) # assume all entries have the same dim in one dat file
-        new_row.append(dimension)
-        new_row.extend(sample.lengths)
-        new_row.append(sample.nbatch)
-        new_row.extend(mdat_df.loc[row_idx, ['median_sample', 'median_low', 'median_high']].to_numpy().tolist())
-        new_row.append(len(sample.times))
-        new_row.extend(sample.times)
-        rows.append(new_row)
-        row_idx += 1
+        token = sample[0]
+        transform_type, placeness, length, batch, precision = perflib.utils.parse_token(token)
 
+        new_row.extend(input_params)
+        dimensions.add(len(length))
+        new_row.append(len(length))
+        new_row.extend(length)
+        if len(batch) == 1:
+            new_row.append(batch[0])
+        else:
+            print("multi-batch data format; exiting abnormally")
+            sys.exit(1)
+        new_row.extend(mdat_df.loc[row_idx, ['median_sample', 'median_low', 'median_high']].to_numpy().tolist())
+        times = sample[1].times
+        new_row.append(len(times))
+        new_row.extend(times)
+        rows.append(new_row)
+        
+    if len(set(dimensions)) > 1:
+        print("mixed dimensions in the set; exiting abnormally")
+        sys.exit(1)
+
+    if len(set(dimensions)) == 0:
+        print("PTS data set empty")
+        return
+        
+    dimension = list(dimensions)[0]
+    
     header = ['suite', 'precision', 'transform type', 'placeness', 'dimension', 'xlength']
     if dimension == 2:
         header.append('ylength')
@@ -211,8 +229,9 @@ def generate_pts_dat(dat):
     content.extend(rows)
 
     perflib.utils.write_pts_dat(dat.path.with_suffix('.ptsdat'), content, meta=dat.meta)
-
-def command_post(outdirs, docdir):
+ 
+    
+def command_post(arguments):
     """Post process results in directories listed in `outdirs`.
 
     Median confidence intervals for each run are written in 'mdat'
@@ -222,12 +241,14 @@ def command_post(outdirs, docdir):
 
     """
 
+    outdirs = arguments.runs
+    docdir = arguments.output
+    verbose = arguments.verbose
+        
     outdirs = [Path(x) for x in outdirs]
-    docdir = Path(docdir)
-    docdir.mkdir(parents=True, exist_ok=True)
 
-    all_runs = perflib.utils.read_runs(outdirs)
-
+    all_runs = perflib.utils.read_runs(outdirs, verbose)
+       
     # median confidence intervals
     for run in all_runs:
         with Pool(None) as p:
@@ -236,22 +257,27 @@ def command_post(outdirs, docdir):
 
     # speedup and pvals
     if len(outdirs) > 1:
+        docdir = Path(docdir)
+        docdir.mkdir(parents=True, exist_ok=True)
+
+        import scipy.stats
+        
         runs = perflib.utils.by_dat(all_runs)
         refdir, *otherdirs = outdirs
         for dat_name, dat_runs in runs.items():
             refdat = dat_runs[refdir]
             for otherdat in [dat_runs[otherdir] for otherdir in otherdirs if otherdir in dat_runs]:
-                speedups = [['length', 'elements', 'speedup', 'speedup_low', 'speedup_high', 'speedup_pval']]
-                for length, _, _ in refdat.sorted_samples():
-                    if length not in otherdat.samples:
+                speedups = [['token', 'speedup', 'speedup_low', 'speedup_high', 'speedup_pval']]
+                for token, sample in refdat.get_samples():
+                    if token not in otherdat.samples:
                         continue
-                    sample = refdat.samples[length]
-                    Avals = refdat.samples[length].times
-                    Bvals = otherdat.samples[length].times
+                    sample = refdat.samples[token]
+                    Avals = refdat.samples[token].times
+                    Bvals = otherdat.samples[token].times
                     speedup = statistics.median(Avals) / statistics.median(Bvals)
                     low, high = perflib.analysis.ratio_confidence_interval(Avals, Bvals)
                     _, pval, _, _ = scipy.stats.median_test(Avals, Bvals)
-                    speedups.append([sample.label, perflib.utils.product(length), speedup, low, high, pval])
+                    speedups.append([sample.token, speedup, low, high, pval])
                 path = docdir / (str(otherdat.path.parent.name) + '-over-' + str(refdat.path.parent.name) + '-' + dat_name + '.sdat')
                 perflib.utils.write_tsv(path, speedups, meta=refdat.meta, overwrite=True)
 
@@ -277,7 +303,7 @@ def command_generate(runs=None, label=None, output=None, type='pdf', **kwargs):
     reference = perflib.utils.read_run(outdirs[0])
 
     figures = []
-    for datname in perflib.utils.list_run(outdirs[0]):
+    for datname in perflib.utils.list_runs(outdirs[0]):
         tag = datname.stem
         title = reference.dats[datname.stem].meta.get('title', tag)
         caption = reference.dats[datname.stem].meta.get('caption', title).replace('_', ' ')
@@ -354,15 +380,34 @@ def command_run(arguments):
     specs = perflib.specs.get_machine_specs(timer.device)
     for out in timer.out:
         specs_file = Path(out) / 'specs.txt'
-        specs_file.parent.mkdir(exist_ok=True)
+        specs_file.parent.mkdir(parents=True, exist_ok=True)
         specs_file.write_text(str(specs))
 
     timer.run_cases(filtered(generator))
 
 
-def command_autoperf(workdir, reference_commit, reference_repository, reference_label, commit, repository, label, suite, format, static, **kwargs):
+def command_autoperf(arguments):
     """Compare performance of two builds automagically."""
 
+    workdir = arguments.workdir
+    reference_commit = arguments.reference_commit
+    reference_repository = arguments.reference_repository
+    reference_label = arguments.reference_label
+    commit = arguments.commit
+    repository = arguments.repository
+    label = arguments.label
+    suite = arguments.suite
+    format = arguments.format
+    static = arguments.static
+
+
+    # Use the short version of the hashes (default length: 7)
+    if commit != None:
+        commit = commit[0:6]
+    if reference_commit != None:
+        reference_commit = reference_commit[0:6]        
+                         
+    
     from perflib.build import build_rocfft
 
     if reference_repository is None:
@@ -426,11 +471,14 @@ def command_autoperf(workdir, reference_commit, reference_repository, reference_
         t.run_cases(generator)
 
     # post-process results
-    command_post([build1, build2], output)
+    arguments.runs = [build1, build2]
+    arguments.output = output
+    command_post(arguments)
 
     # generate report
     for report_type in format:
         command_generate(runs=[build1, build2], label=[reference_label, label], output=output, type=report_type)
+        
 #
 # Main
 #
@@ -520,7 +568,7 @@ def main():
         command_moods(arguments.runs, arguments.significance, arguments.percent)
 
     if arguments.command == 'post':
-        command_post(arguments.runs, arguments.output)
+        command_post(arguments)
 
     if arguments.command == 'pdf':
         command_generate(type='pdf', **vars(arguments))
@@ -532,7 +580,7 @@ def main():
         command_generate(type='docx', **vars(arguments))
 
     if arguments.command == 'autoperf':
-        command_autoperf(**vars(arguments))
+        command_autoperf(arguments)
 
 if __name__ == '__main__':
     logging.basicConfig(filename='rocfft-perf.log',

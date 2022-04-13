@@ -26,7 +26,7 @@ class Timer:
             raise RuntimeError(f"Unable to find (dyna-)rider: {self.rider}")
 
         for prob in generator.generate_problems():
-            seconds = perflib.rider.run(self.rider, prob.length,
+            token, seconds = perflib.rider.run(self.rider, prob.length,
                                         direction=prob.direction,
                                         real=prob.real,
                                         inplace=prob.inplace,
@@ -43,7 +43,7 @@ class Timer:
                 logging.info("output: " + str(out))
                 meta = {'title': prob.tag}
                 meta.update(prob.meta)
-                perflib.utils.write_dat(out, prob.length, prob.nbatch, seconds[idx], meta)
+                perflib.utils.write_dat(out, token, seconds[idx], meta)
 
 
 @dataclass

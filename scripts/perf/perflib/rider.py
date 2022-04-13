@@ -72,9 +72,15 @@ def run(rider, length, direction=-1, real=False, inplace=True,
 
     logging.debug(cout)
 
+    tokentoken = "Token: "
+    token = ""
     times = []
+    
     if proc.returncode == 0:
+        for line in cout.splitlines():
+            if line.startswith(tokentoken):
+                token = line[len(tokentoken):]
         for m in re.finditer('Execution gpu time: ([ 0-9.]*) ms', cout, re.MULTILINE):
             times.append(list(map(float, m.group(1).split(' '))))
 
-    return times
+    return token, times

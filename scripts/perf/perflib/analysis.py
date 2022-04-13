@@ -3,7 +3,6 @@
 import random
 
 import numpy as np
-import scipy.stats
 import statistics
 
 from perflib.utils import Run
@@ -44,6 +43,7 @@ class MoodsResult:
 
 def moods(reference: Run, others: List[Run]):
     """Perform Moods analysis..."""
+    import scipy.stats
     pvals = {}
     for rname, rdat in reference.dats.items():
         for other in others:

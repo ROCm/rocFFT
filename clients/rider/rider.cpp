@@ -214,11 +214,10 @@ int main(int argc, char* argv[])
         throw std::runtime_error("Invalid parameters, add --verbose=1 for detail");
     }
 
+    std::cout << "Token: " << params.token() << std::endl;
     if(verbose)
     {
         std::cout << params.str(" ") << std::endl;
-        if(verbose > 1)
-            std::cout << "Token: " << params.token() << std::endl;
     }
 
     auto ret = params.create_plan();
