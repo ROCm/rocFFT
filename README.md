@@ -75,7 +75,7 @@ To install the client dependencies on Ubuntu, run:
 sudo apt install libgtest-dev libfftw3-dev libboost-program-options-dev`
 ```
 
-We use version 1.10 of Google Test (gtest).
+We use version 1.11 of Google Test (gtest).
 
 `install.sh` is a bash script that will install dependencies on certain Linux
 distributions, such as Ubuntu, CentOS, RHEL, Fedora, and SLES and invoke cmake.

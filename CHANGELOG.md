@@ -11,6 +11,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Improved reuse of twiddle memory between plans.
 - Set a default load/store callback when only one callback
   type is set via the API for improved performance.
+- Updated googletest dependency to version 1.11.
 
 ### Optimizations
 - Introduced a new access pattern of lds (non-linear) and applied it on
