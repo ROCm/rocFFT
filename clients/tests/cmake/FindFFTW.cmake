@@ -103,6 +103,12 @@ include( FindPackageHandleStandardArgs )
 FIND_PACKAGE_HANDLE_STANDARD_ARGS( FFTW
     REQUIRED_VARS FFTW_INCLUDE_DIRS FFTW_LIBRARIES )
 
+# assume the threads feature is always enabled on Windows, since it's
+# not a separate library there
+if( FFTW_FOUND AND WIN32 )
+  set( FFTW_MULTITHREAD TRUE )
+endif()
+
 if( NOT FFTW_FOUND )
     message( STATUS "FindFFTW could not find all of the following fftw libraries" )
     message( STATUS "${FFTW_FIND_COMPONENTS}" )
