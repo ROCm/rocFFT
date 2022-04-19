@@ -785,7 +785,7 @@ rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
 
 ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, const size_t len)
 {
-    log_trace(__func__, "buf", buf, "len", len);
+    log_trace(__func__, "buf", static_cast<void*>(buf), "len", len);
     static constexpr char v[] = ROCFFT_VERSION_STRING;
     if(!buf)
         return rocfft_status_failure;
