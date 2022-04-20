@@ -23,6 +23,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
                 ${auxiliary.gfxTargetParser()}
                 ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ${staticArg} ${amdgpuTargets} ../..
                 make -j\$(nproc)
+                sudo make install
             """
     platform.runCommand(this, command)
 }
@@ -48,14 +49,7 @@ def runCompileClientCommand(platform, project, jobName, boolean debug=false)
 
     def command = """#!/usr/bin/env bash
                 set -x
-
-                cd ${project.paths.project_build_prefix}
-                mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
-                ${auxiliary.gfxTargetParser()}
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ${amdgpuTargets} ../..
-                make -j\$(nproc)
-                sudo make install
-                cd ../../clients
+                cd ${project.paths.project_build_prefix}/clients
                 mkdir -p build && cd build
                 ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArgClients} ${hipClangArgs} ${cmakePrefixPathArg} ../
                 make -j\$(nproc)
