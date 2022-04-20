@@ -137,6 +137,30 @@ lengths = {
                    2250, 2304, 2400, 2430, 2500, 2560, 2592, 2700, 2880, 2916,
                    3000, 3072, 3125, 3200, 3240, 3375, 3456, 3600, 3645, 3750,
                    3840, 3888, 4000, 4050, 4096],
+
+    'qa1d10b': [
+        16777216,
+        14348907,
+        9765625,
+    ],
+
+    'qa2d10b': [
+        (4096, 4096),
+        (6561, 6561),
+        (3125, 3125),
+    ],
+
+    'qa3d10b': [
+        (256, 256, 256),
+        (243, 243, 243),
+        (125, 125, 125),
+    ],
+
+    'qaReal3d10b': [
+        (100, 100, 100),
+        (200, 200, 200),
+        (192, 192, 192),
+    ],
 }
 
 
@@ -191,7 +215,7 @@ def qa():
                   real=False,
                   precision='double')
 
-    yield Problem([(336,336,56)],
+    yield Problem((336,336,56),
                   tag=mktag('qa3', 3, 'double', -1, False, False),
                   nbatch=1,
                   direction=-1,
@@ -204,6 +228,43 @@ def qa():
             yield Problem(length3,
                           tag=mktag('qa3md', 3, 'single', direction, False, True),
                           nbatch=1,
+                          direction=direction,
+                          inplace=False,
+                          real=True,
+                          precision='single')
+
+    for length in lengths['qa1d10b']:
+        yield Problem([length],
+                      tag=mktag("qa1d10b", 1, 'single', -1, True, False),
+                      nbatch=10,
+                      direction=-1,
+                      inplace=True,
+                      real=False,
+                      precision='single')
+
+    for length2 in lengths['qa2d10b']:
+        yield Problem(length2,
+                      tag=mktag("qa2d10b", 2, 'single', -1, True, False),
+                      nbatch=10,
+                      direction=-1,
+                      inplace=True,
+                      real=False,
+                      precision='single')
+
+    for length3 in lengths['qa3d10b']:
+        yield Problem(length3,
+                      tag=mktag("qa3d10b", 3, 'single', -1, True, False),
+                      nbatch=10,
+                      direction=-1,
+                      inplace=True,
+                      real=False,
+                      precision='single')
+
+    for length3 in lengths['qaReal3d10b']:
+        for direction in [-1, 1]:
+            yield Problem(length3,
+                          tag=mktag("qaReal3d10b", 3, 'single', direction, False, True),
+                          nbatch=10,
                           direction=direction,
                           inplace=False,
                           real=True,
