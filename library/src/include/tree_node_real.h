@@ -71,6 +71,11 @@ protected:
 public:
     // 3D Even can possibly set this
     bool try_fuse_pre_post_processing = false;
+
+    bool UseOutputLengthForPadding() override
+    {
+        return true;
+    }
 };
 
 /*****************************************************
@@ -192,6 +197,12 @@ protected:
     }
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+
+public:
+    bool UseOutputLengthForPadding() override
+    {
+        return true;
+    }
 };
 
 /*****************************************************
@@ -243,6 +254,12 @@ protected:
     size_t GetTwiddleTableLength() override;
     size_t GetTwiddleTableLengthLimit() override;
     void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+
+public:
+    bool UseOutputLengthForPadding() override
+    {
+        return true;
+    }
 };
 
 #endif // TREE_NODE_REAL_H

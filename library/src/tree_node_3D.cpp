@@ -673,6 +673,7 @@ void RC3DNode::BuildTree_internal()
     {
         zPlanData.length.push_back(length[index]);
     }
+    zPlanData.outputLength = length;
 
     // use explicit SBCC kernel if available
     std::unique_ptr<TreeNode> zPlan;

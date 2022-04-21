@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "plan.h"
+#include "../../shared/ptrdiff.h"
 #include "arithmetic.h"
 #include "assignment_policy.h"
 #include "function_pool.h"
@@ -1411,17 +1412,20 @@ void TreeNode::DetermineBufferMemory(size_t& tmpBufSize,
 {
     if(nodeType == NT_LEAF)
     {
+        auto outputPtrDiff = compute_ptrdiff(
+            UseOutputLengthForPadding() ? GetOutputLength() : length, outStride, batch, oDist);
+
         if(scheme == CS_KERNEL_CHIRP)
             chirpSize = std::max(2 * lengthBlue, chirpSize);
 
         if(obOut == OB_TEMP_BLUESTEIN)
-            blueSize = std::max(oDist * batch, blueSize);
+            blueSize = std::max(outputPtrDiff, blueSize);
 
         if(obOut == OB_TEMP_CMPLX_FOR_REAL)
-            cmplxForRealSize = std::max(oDist * batch, cmplxForRealSize);
+            cmplxForRealSize = std::max(outputPtrDiff, cmplxForRealSize);
 
         if(obOut == OB_TEMP)
-            tmpBufSize = std::max(oDist * batch, tmpBufSize);
+            tmpBufSize = std::max(outputPtrDiff, tmpBufSize);
     }
 
     for(auto& child : childNodes)
@@ -1780,22 +1784,6 @@ void ProcessNode(ExecPlan& execPlan)
     // NB: The order matters: assign param -> fusion -> refresh internal node param
     execPlan.rootPlan->RefreshTree();
 
-    // add padding if necessary
-    policy.PadPlan(execPlan);
-
-    // Check the buffer, param and tree integrity, Note we do this after fusion
-    execPlan.rootPlan->SanityCheck();
-
-    // Collapse high dims on leaf nodes where possible
-    execPlan.rootPlan->CollapseContiguousDims();
-
-    // get workBufSize..
-    size_t tmpBufSize       = 0;
-    size_t cmplxForRealSize = 0;
-    size_t blueSize         = 0;
-    size_t chirpSize        = 0;
-    execPlan.rootPlan->DetermineBufferMemory(tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
-
     // Adjust strides given to the kernel so that it can just do a
     // straight copy through LDS - strides will tell it exactly how
     // to transpose.  Critical here is to always read/write along the
@@ -1803,6 +1791,11 @@ void ProcessNode(ExecPlan& execPlan)
     //
     // The kernel is written to coalesce reads along fastest
     // dimension, and writes along the second-fastest dimension.
+    //
+    // This adjustment is necessary at the moment because all plans
+    // are built assuming transpose kernels take row-major output
+    // strides, when the kernel implementation now manipulates
+    // strides on a tiled copy to do the transpose.
     for(auto& node : execPlan.execSeq)
     {
         auto& length  = node->length;
@@ -1835,6 +1828,22 @@ void ProcessNode(ExecPlan& execPlan)
             std::swap(ostride[0], ostride[1]);
         }
     }
+
+    // add padding if necessary
+    policy.PadPlan(execPlan);
+
+    // Check the buffer, param and tree integrity, Note we do this after fusion
+    execPlan.rootPlan->SanityCheck();
+
+    // Collapse high dims on leaf nodes where possible
+    execPlan.rootPlan->CollapseContiguousDims();
+
+    // get workBufSize..
+    size_t tmpBufSize       = 0;
+    size_t cmplxForRealSize = 0;
+    size_t blueSize         = 0;
+    size_t chirpSize        = 0;
+    execPlan.rootPlan->DetermineBufferMemory(tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
 
     // compile kernels for applicable nodes
     RuntimeCompilePlan(execPlan);

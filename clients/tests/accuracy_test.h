@@ -484,6 +484,19 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&  v_leng
                                 run_callbacks);
 }
 
+template <class Tcontainer>
+auto param_generator_token(const Tcontainer& tokens)
+{
+    std::vector<fft_params> params;
+    params.reserve(tokens.size());
+    for(auto t : tokens)
+    {
+        params.push_back({});
+        params.back().from_token(t);
+    }
+    return params;
+}
+
 struct callback_test_data
 {
     // scalar to modify the input/output with

@@ -18,7 +18,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
   sbcc kernels len 64 and 81 to get performance improvement.
 
 ### Fixed
-- Fixed correctness of transpose kernels with unusual strides.
+- Fixed correctness of certain transforms with unusual strides.
 - Fixed incorrect handling of user-specified stream for runtime-compiled kernels.
 - Fixed incorrect buffer allocation in rocfft-test on in-place transforms with different input and output sizes.
 

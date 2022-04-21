@@ -183,3 +183,13 @@ INSTANTIATE_TEST_SUITE_P(adhoc_stride,
                          accuracy_test,
                          ::testing::ValuesIn(param_adhoc_stride()),
                          accuracy_test::TestName);
+
+auto adhoc_tokens = {
+    "complex_forward_len_512_64_single_ip_batch_3_istride_192_3_CI_ostride_192_3_CI_idist_1_odist_"
+    "1_ioffset_0_0_ooffset_0_0",
+};
+
+INSTANTIATE_TEST_SUITE_P(adhoc_token,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator_token(adhoc_tokens)),
+                         accuracy_test::TestName);

@@ -897,6 +897,12 @@ struct TempBufOp
         , op(_op)
         , node(_node)
     {
+        // HACK: 1D stockham with fused C2R pre-processing will read
+        // one extra element.  Padding needs to see this because
+        // previous operations would count that extra element.
+        if(node.scheme == CS_KERNEL_STOCKHAM && node.ebtype == EmbeddedType::C2Real_PRE
+           && op == BufRead)
+            const_cast<std::vector<size_t>&>(length).front()++;
     }
 
     const std::vector<size_t> length;
@@ -1006,7 +1012,11 @@ void CollectTempBufOps(TreeNode&               node,
         }
 
         // Store this write
-        insertOp({node.GetOutputLength(), node.outStride, node.oDist, TempBufOp::BufWrite, node});
+        insertOp({node.UseOutputLengthForPadding() ? node.GetOutputLength() : node.length,
+                  node.outStride,
+                  node.oDist,
+                  TempBufOp::BufWrite,
+                  node});
 
         // If we have a parent node, tail-recurse into our following sibling node.
         //

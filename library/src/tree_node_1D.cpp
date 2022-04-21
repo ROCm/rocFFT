@@ -385,6 +385,8 @@ void CC1DNode::BuildTree_internal()
     {
         col2colPlan->length.push_back(length[index]);
     }
+    col2colPlan->outputLength = col2colPlan->length;
+    std::swap(col2colPlan->outputLength[0], col2colPlan->outputLength[1]);
 
     // second plan, row-to-column
     auto row2colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_RC, this);
@@ -593,6 +595,8 @@ void CRT1DNode::BuildTree_internal()
     {
         col2colPlan->length.push_back(length[index]);
     }
+    col2colPlan->outputLength = col2colPlan->length;
+    std::swap(col2colPlan->outputLength[0], col2colPlan->outputLength[1]);
 
     // second plan, row-to-row
     auto row2rowPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM, this);

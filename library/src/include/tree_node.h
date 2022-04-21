@@ -195,6 +195,7 @@ struct NodeMetaData
     size_t                  batch     = 1;
     size_t                  dimension = 1;
     std::vector<size_t>     length;
+    std::vector<size_t>     outputLength;
     std::vector<size_t>     inStride, outStride;
     size_t                  iDist = 0, oDist = 0;
     size_t                  iOffset = 0, oOffset = 0;
@@ -530,6 +531,13 @@ public:
     std::vector<size_t> GetOutputLength() const
     {
         return outputLength.empty() ? length : outputLength;
+    }
+    // Padding needs matching stride + length to make its decisions.
+    // For most nodes, outStride + length can be used together.  For
+    // some nodes, outputLength is what matches outStride.
+    virtual bool UseOutputLengthForPadding()
+    {
+        return false;
     }
 
     virtual bool KernelCheck()                                             = 0;

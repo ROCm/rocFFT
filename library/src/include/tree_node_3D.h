@@ -212,6 +212,12 @@ protected:
     {
         return length[2];
     }
+
+public:
+    bool UseOutputLengthForPadding() override
+    {
+        return true;
+    }
 };
 
 /*****************************************************
@@ -233,6 +239,12 @@ protected:
     {
         // return length[1] * length[2];
         return length[1];
+    }
+
+public:
+    bool UseOutputLengthForPadding() override
+    {
+        return true;
     }
 };
 
@@ -260,6 +272,10 @@ protected:
 
 public:
     bool CreateDevKernelArgs() override;
+    bool UseOutputLengthForPadding() override
+    {
+        return true;
+    }
 };
 
 #endif // TREE_NODE_3D_H

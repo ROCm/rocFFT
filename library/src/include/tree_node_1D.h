@@ -112,6 +112,12 @@ protected:
 public:
     bool                CreateTwiddleTableResource() override;
     std::vector<size_t> CollapsibleDims() override;
+    bool                UseOutputLengthForPadding() override
+    {
+        // with embedded r2c, stockham nodes will change length, so the
+        // output length is different from the input length.
+        return ebtype != EmbeddedType::NONE;
+    }
 };
 
 /*****************************************************
@@ -171,6 +177,10 @@ public:
         return true;
     }
     std::vector<size_t> CollapsibleDims() override;
+    bool                UseOutputLengthForPadding() override
+    {
+        return true;
+    }
 };
 
 /*****************************************************

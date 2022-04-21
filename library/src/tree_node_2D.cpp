@@ -200,6 +200,8 @@ void RC2DNode::BuildTree_internal()
     {
         colPlan->length.push_back(length[index]);
     }
+    colPlan->outputLength = colPlan->length;
+    std::swap(colPlan->outputLength[0], colPlan->outputLength[1]);
 
     // RC
     childNodes.emplace_back(std::move(rowPlan));
