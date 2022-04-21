@@ -87,31 +87,45 @@ def token_to_elements(tokens):
         elements.append(n)
     return elements
 
+def token_to_size_description(tokens):
+    length = token_to_length(tokens)
+    batch = token_to_batch(tokens)
+    descriptions = []
+    for cur_len, cur_batch in zip(length, batch):
+        def join_ints(ints):
+            return 'x'.join([str(val) for val in ints])
+        desc = join_ints(cur_len) + 'b' + join_ints(cur_batch)
+        descriptions.append(desc)
+    return descriptions
+
 class HTMLFigure(BaseFigure):
 
     def make(self):
         from plotly import graph_objs as go
         data_frames = to_data_frames(self.primary, self.secondary)
+        for df in data_frames:
+            df['elements'] = token_to_elements(df.token)
+            df.sort_values(by='elements', inplace=True)
         logscale = False
 
         traces = []
 
         traces.append(go.Scatter(
-            x=token_to_elements(data_frames[0].token),
+            x=data_frames[0].elements,
             y=data_frames[0].median_sample,
-            hovertext=token_to_length(data_frames[0].token),
+            hovertext=token_to_size_description(data_frames[0].token),
             name=self.labels[0]
         ))
 
         for i in range(1,len(data_frames)):
             traces.append(go.Scatter(
-                x= token_to_elements(data_frames[i].token),
+                x=data_frames[i].elements,
                 y=data_frames[i].median_sample,
                 hovertext=data_frames[i].token,
                 name=self.labels[i]
             ))
             traces.append(go.Scatter(
-                x= token_to_elements(data_frames[i].token),
+                x=data_frames[i].elements,
                 y=data_frames[i].speedup,
                 name='Speedup {} over {}'.format(self.labels[i], self.labels[0]),
                 yaxis='y2',
@@ -165,9 +179,9 @@ class HTMLFigure(BaseFigure):
         # Add speedup=1 reference line
         fig.add_shape(
             type='line',
-            x0=min(token_to_elements(data_frames[0].token)),
+            x0=min(data_frames[0].elements),
             y0=1,
-            x1=max(token_to_elements(data_frames[0].token)),
+            x1=max(data_frames[0].elements),
             y1=1,
             line=dict(color='grey', dash='dash'),
             yref='y2'
@@ -176,8 +190,8 @@ class HTMLFigure(BaseFigure):
         nrows = len(data_frames[0].index)
         headers = ['Problem size', 'Elements']
         values = [
-            token_to_length(data_frames[0].token),
-            token_to_elements(data_frames[0].token)
+            token_to_size_description(data_frames[0].token),
+            data_frames[0].elements
         ]
         fill_colors = [
             ['white'] * nrows,
