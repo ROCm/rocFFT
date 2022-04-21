@@ -876,7 +876,7 @@ inline void fft_vs_reference_impl(Tparams& params)
            || params.idist != contiguous_params.idist || params.isize != contiguous_params.isize)
         {
             temp_gpu_input = allocate_host_buffer<fftwAllocator<char>>(
-                params.precision, params.itype, params.isize);
+                params.precision, params.itype, ibuffer_sizes);
             copy_buffers(cpu_input,
                          temp_gpu_input,
                          params.ilength(),
