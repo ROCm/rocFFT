@@ -120,6 +120,10 @@ struct StockhamKernelFused2D : public StockhamKernelRR
         body += Assign{remaining, transform};
         body += CommentLines{"compute 2D slab offset (start from length/stride index 2)"};
 
+        if(static_dim)
+        {
+            body += Declaration{dim, static_dim};
+        }
         body += For{d,
                     2,
                     d < dim,

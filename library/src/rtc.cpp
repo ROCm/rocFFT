@@ -162,7 +162,10 @@ std::string stockham_rtc_kernel_name(const TreeNode&     node,
     }
 
     if(node.large1D > 0)
+    {
         kernel_name += "_twdbase" + std::to_string(node.largeTwdBase);
+        kernel_name += "_" + std::to_string(node.ltwdSteps) + "step";
+    }
 
     switch(node.ebtype)
     {
@@ -460,11 +463,18 @@ std::shared_future<std::unique_ptr<RTCKernel>>
     // SBRC variants look in the function pool for plain BLOCK_RC to
     // learn the block width, then decide on the transpose type once
     // that's known.
-    auto pool_scheme = node.scheme;
+    auto         pool_scheme = node.scheme;
+    unsigned int static_dim  = node.length.size();
     if(pool_scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z
        || pool_scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY
        || pool_scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
+    {
         pool_scheme = CS_KERNEL_STOCKHAM_BLOCK_RC;
+        // These are all 3D kernels, but are sometimes shoehorned
+        // into 2D plans.  Make sure they get at least 3 dims.
+        if(static_dim == 2)
+            static_dim = 3;
+    }
 
     // find function pool entry so we can construct specs for the generator
     FMKey key;
@@ -489,7 +499,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
 
         // for SBRC variants, get the "real" kernel using the block
         // width and correct transpose type
-        if(node.scheme != pool_scheme)
+        if(pool_scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
         {
             transpose_type = node.sbrc_transpose_type(kernel.transforms_per_block);
             key            = fpkey(node.length[0], node.precision, node.scheme, transpose_type);
@@ -509,7 +519,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
         specs->threads_per_transform = kernel.threads_per_transform[0];
         specs->half_lds              = kernel.half_lds;
         specs->direct_to_reg         = kernel.direct_to_reg;
-        specs->static_dim            = node.length.size();
+        specs->static_dim            = static_dim;
         break;
     }
     case CS_KERNEL_2D_SINGLE:
@@ -551,7 +561,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
             PrintScheme(node.scheme));
         specs->threads_per_transform = kernel.threads_per_transform[0];
         specs->half_lds              = kernel.half_lds;
-        specs->static_dim            = node.length.size();
+        specs->static_dim            = static_dim;
 
         specs2d = std::make_unique<StockhamGeneratorSpecs>(
             factors2d,
