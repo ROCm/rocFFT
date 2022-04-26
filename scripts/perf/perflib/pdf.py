@@ -3,11 +3,16 @@
 import logging
 import subprocess
 
+import pandas
+
 from dataclasses import dataclass
 from pathlib import Path
 from perflib.utils import sjoin, cjoin
 from typing import List
 import tempfile
+import numpy as np
+
+import perflib.utils
 
 top = Path(__file__).resolve().parent.parent
 
@@ -29,9 +34,14 @@ class PDFFigure(BaseFigure):
     def asycmd(self):
         asycmd = ['asy', '-f', 'pdf']
 
-        if self.figtype == "linegraph":
+        ndata = 0
+        for filename in self.primary:
+            df = pandas.read_csv(filename, sep="\t", comment='#')
+            ndata = max(ndata, len(df.index))
+        
+        if ndata > 1 and self.figtype == "linegraph":
             asycmd.append(top / "datagraphs.asy")
-        elif self.figtype == "bargraph":
+        elif ndata == 1 or self.figtype == "bargraph":
             asycmd.append(top / "bargraph.asy")
 
         primary = [x.resolve() for x in self.primary]
@@ -107,6 +117,7 @@ for the device.'''
 def make_tex(figs, docdir, outdirs, secondtype=None):
     """Generate PDF containing performance figures."""
 
+   
     docdir = Path(docdir)
 
     header = '''\
@@ -115,6 +126,7 @@ def make_tex(figs, docdir, outdirs, secondtype=None):
 \\usepackage{graphicx}
 \\usepackage{url}
 \\usepackage{hyperref}
+\\usepackage{float}
 \\begin{document}
 \\hypersetup{
   pdfborder={0,0,0},
@@ -163,13 +175,68 @@ def make_tex(figs, docdir, outdirs, secondtype=None):
     for idx, fig in enumerate(figs):
         tex += '''
 \\centering
-\\begin{figure}[h]
+\\begin{figure}[H]
    \\includegraphics[width=\\textwidth]{'''
         tex += str(fig.filename.name)
         tex += '''}
    \\caption{''' + fig.caption + '''}
 \\end{figure}
 '''
+        for p in fig.secondary:
+            
+            df = pandas.read_csv(p, sep="\t", comment='#')
+            
+            # Significant results:
+            df_sig = df.loc[df['speedup_pval'] < 0.5]
+
+            # Significant results that are good or bad:
+            df_good = df_sig.loc[df_sig['speedup'] > 1]
+            df_bad = df_sig.loc[df_sig['speedup'] < 1]
+
+            if not df_good.empty:
+                tex += "\\begin{table}[H]\n"
+                tex += "\\centering\n"
+                tex += "\\begin{tabular}{l|l|l|}\n"
+                tex += "transform & speedup & significance\\\\ \n"
+                tex += "\\hline\n"
+                for row in df_good.itertuples(index=False):
+                    #tex += str(row.token).replace("_", "\\_")
+                    #tex += "token"
+                    transform_type, placeness, length, batch, precision = perflib.utils.parse_token(row.token)
+                    tex += "$" + "\\times{}".join(str(x) for x in length) + "$"
+
+                    
+                    speedup = '{0:.3f}'.format(row.speedup - 1)
+                    pval = '{0:.3f}'.format(row.speedup_pval)
+                    tex += " & " + str(speedup)+ " & " + str(pval) +  "\\\\"
+                tex += "\\hline\n"
+                tex += "\\end{tabular}\n"
+                tex += "\\caption{Improvements for " + fig.caption + "}\n"
+                tex += "\\end{table}\n"
+            
+            if not df_bad.empty:
+                tex += "\\begin{table}[H]\n"
+                tex += "\\centering\n"
+                tex += "\\begin{tabular}{l|l|l|}\n"
+                tex += "transform & slowdown & significance\\\\ \n"
+                tex += "\\hline\n"
+                for row in df_bad.itertuples(index=False):
+                    #tex += str(row.token).replace("_", "\\_")
+                    #tex += "token"
+                    transform_type, placeness, length, batch, precision = perflib.utils.parse_token(row.token)
+                    tex += "$" + "\\times{}".join(str(x) for x in length) + "$"
+
+                    if np.prod(batch) > 1:
+                        tex += " by $" + "\\times{}".join(str(x) for x in batch) + "$"
+                    
+                    speedup = '{0:.3f}'.format(1 - row.speedup)
+                    pval = '{0:.3f}'.format(row.speedup_pval)
+                    tex += " & " + str(speedup)+ " & " + str(pval) +  "\\\\"
+                tex += "\\hline\n"
+                tex += "\\end{tabular}\n"
+                tex += "\\caption{Regressions for " + fig.caption + "}\n"
+                tex += "\\end{table}\n"
+            
         tex += "\\clearpage\n"
 
     tex += "\n\\end{document}\n"
