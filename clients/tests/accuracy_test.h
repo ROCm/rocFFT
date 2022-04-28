@@ -640,21 +640,11 @@ inline void fft_vs_reference_impl(Tparams& params)
     auto ibuffer_sizes = params.ibuffer_sizes();
     auto obuffer_sizes = params.obuffer_sizes();
 
-    auto raw_vram_footprint = params.fft_params_vram_footprint();
+    // First try a quick estimation of vram footprint, to speed up skipping tests
+    // that are too large to fit in the gpu (no plan created with the rocFFT backend)
+    const auto raw_vram_footprint
+        = params.fft_params_vram_footprint() + twiddle_table_vram_footprint(params);
 
-    // Add vram footprint from real/complex even twiddle buffer size.
-    if(params.transform_type == fft_transform_type_real_forward
-       || params.transform_type == fft_transform_type_real_inverse)
-    {
-        const auto realdim = params.length.back();
-        if(realdim % 2 == 0)
-        {
-            const auto complex_size = params.precision == fft_precision_single ? 8 : 16;
-            // even length twiddle size is 1/4 of the real size, but
-            // in complex elements
-            raw_vram_footprint += realdim * complex_size / 4;
-        }
-    }
     if(!vram_fits_problem(raw_vram_footprint))
     {
         GTEST_SKIP() << "Raw problem size (" << raw_vram_footprint
@@ -666,10 +656,10 @@ inline void fft_vs_reference_impl(Tparams& params)
         std::cout << "Raw problem size: " << raw_vram_footprint << std::endl;
     }
 
-    // Initial check of raw data footprint, not including any work
-    // buffers - if that doesn't fit don't even bother going further.
+    // If it passed the quick estimation test, go for the more
+    // accurate calculation that actually creates the plan and
+    // take into account the work buffer size
     const auto vram_footprint = params.vram_footprint();
-
     if(!vram_fits_problem(vram_footprint))
     {
         if(verbose)

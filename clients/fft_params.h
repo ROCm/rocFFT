@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <complex>
+#include <hip/hip_runtime.h>
 #include <iostream>
 #include <mutex>
 #include <numeric>
@@ -2833,6 +2834,53 @@ inline void compute_input(const fft_params&                          params,
             break;
         }
     }
+}
+
+// Check if the required buffers fit in the device vram.
+inline bool vram_fits_problem(const size_t prob_size, int deviceId = 0)
+{
+    // We keep a small margin of error for fitting the problem into vram:
+    const size_t extra = 1 << 20;
+
+    // Check free and total available memory:
+    size_t free   = 0;
+    size_t total  = 0;
+    auto   retval = hipMemGetInfo(&free, &total);
+
+    if(retval != hipSuccess)
+        throw std::runtime_error("Failure in hipMemGetInfo");
+
+    if(total < prob_size + extra)
+        return false;
+
+    if(free < prob_size + extra)
+        return false;
+
+    return true;
+}
+
+// Computes the twiddle table VRAM footprint for r2c/c2r transforms.
+// This function will return 0 for the other transform types, since
+// the VRAM footprint in rocFFT is negligible for the other cases.
+inline size_t twiddle_table_vram_footprint(const fft_params& params)
+{
+    size_t vram_footprint = 0;
+
+    // Add vram footprint from real/complex even twiddle buffer size.
+    if(params.transform_type == fft_transform_type_real_forward
+       || params.transform_type == fft_transform_type_real_inverse)
+    {
+        const auto realdim = params.length.back();
+        if(realdim % 2 == 0)
+        {
+            const auto complex_size = params.precision == fft_precision_single ? 8 : 16;
+            // even length twiddle size is 1/4 of the real size, but
+            // in complex elements
+            vram_footprint += realdim * complex_size / 4;
+        }
+    }
+
+    return vram_footprint;
 }
 
 #endif

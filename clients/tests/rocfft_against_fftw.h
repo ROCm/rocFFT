@@ -28,7 +28,6 @@
 #include <vector>
 
 #include "fftw_transform.h"
-#include <hip/hip_runtime.h>
 
 // Return the precision enum for rocFFT based upon the type.
 template <typename Tfloat>
@@ -42,36 +41,6 @@ template <>
 inline fft_precision precision_selector<double>()
 {
     return fft_precision_double;
-}
-
-// Check if the required buffers fit in the device vram.
-inline bool vram_fits_problem(const size_t prob_size, int deviceId = 0)
-{
-    // We keep a small margin of error for fitting the problem into vram:
-    const size_t extra = 1 << 20;
-
-    // Check free and total available memory:
-    size_t free   = 0;
-    size_t total  = 0;
-    auto   retval = hipMemGetInfo(&free, &total);
-
-    if(retval != hipSuccess)
-    {
-        std::cerr << "Failure in hipMemGetInfo" << std::endl;
-        return false;
-    }
-
-    if(total < prob_size + extra)
-    {
-        return false;
-    }
-
-    if(free < prob_size + extra)
-    {
-        return false;
-    }
-
-    return true;
 }
 
 extern bool use_fftw_wisdom;

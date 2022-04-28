@@ -99,7 +99,7 @@ int main(int argc, char* argv[])
     if(vm.count("help"))
     {
         std::cout << opdesc << std::endl;
-        return 0;
+        return EXIT_SUCCESS;
     }
 
     if(vm.count("version"))
@@ -107,7 +107,7 @@ int main(int argc, char* argv[])
         char v[256];
         rocfft_get_version_string(v, 256);
         std::cout << "version " << v << std::endl;
-        return 0;
+        return EXIT_SUCCESS;
     }
 
     if(vm.count("ntrial"))
@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
         {
             std::cout << "Please specify transform length!" << std::endl;
             std::cout << opdesc << std::endl;
-            return 0;
+            return EXIT_SUCCESS;
         }
 
         params.placement
@@ -220,9 +220,22 @@ int main(int argc, char* argv[])
         std::cout << params.str(" ") << std::endl;
     }
 
+    const auto raw_vram_footprint
+        = params.fft_params_vram_footprint() + twiddle_table_vram_footprint(params);
+    if(!vram_fits_problem(raw_vram_footprint))
+        LIB_V_THROW(rocfft_status_failure,
+                    "Problem size (" + std::to_string(raw_vram_footprint)
+                        + ") raw data too large for device");
+
+    const auto vram_footprint = params.vram_footprint();
+    if(!vram_fits_problem(vram_footprint))
+        LIB_V_THROW(rocfft_status_failure,
+                    "Problem size (" + std::to_string(vram_footprint)
+                        + ") raw data too large for device");
+
     auto ret = params.create_plan();
     if(ret != fft_status_success)
-        throw std::runtime_error("Plan creation failed");
+        LIB_V_THROW(rocfft_status_failure, "Plan creation failed");
 
     // Input data:
     auto gpu_input = allocate_host_buffer(params.precision, params.itype, params.isize);
