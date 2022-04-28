@@ -888,8 +888,13 @@ inline void fft_vs_reference_impl(Tparams& params)
         if(params.itype != contiguous_params.itype || params.istride != contiguous_params.istride
            || params.idist != contiguous_params.idist || params.isize != contiguous_params.isize)
         {
+            // allocation counts in elements, ibuffer_sizes is in bytes
+            auto ibuffer_sizes_elems = ibuffer_sizes;
+            for(auto& buf : ibuffer_sizes_elems)
+                buf /= var_size<size_t>(params.precision, params.itype);
+
             temp_gpu_input = allocate_host_buffer<fftwAllocator<char>>(
-                params.precision, params.itype, ibuffer_sizes);
+                params.precision, params.itype, ibuffer_sizes_elems);
             copy_buffers(cpu_input,
                          temp_gpu_input,
                          params.ilength(),
