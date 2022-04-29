@@ -135,6 +135,7 @@ std::string PrintScheme(ComputeScheme cs);
 std::string PrintOperatingBuffer(const OperatingBuffer ob);
 std::string PrintOperatingBufferCode(const OperatingBuffer ob);
 std::string PrintSBRCTransposeType(const SBRC_TRANSPOSE_TYPE ty);
+std::string PrintDirectToFromRegMode(const DirectRegType ty);
 
 typedef void (*DevFnCall)(const void*, void*);
 
@@ -356,6 +357,9 @@ public:
 
     // embedded C2R/R2C pre/post processing
     EmbeddedType ebtype = EmbeddedType::NONE;
+
+    // if the kernel supports/use/not-use dir-to-from-reg
+    DirectRegType dir2regMode = DirectRegType::FORCE_OFF_OR_NOT_SUPPORT;
 
     // sbrc transpose type
     SBRC_TRANSPOSE_TYPE sbrcTranstype = SBRC_TRANSPOSE_TYPE::NONE;

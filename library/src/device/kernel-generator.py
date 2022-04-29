@@ -492,8 +492,8 @@ def list_large_kernels():
            'sp': 'true',  'dp': 'false'}, direct_to_reg=True),
         NS(length=80,  factors=[10, 8],      use_3steps_large_twd={
            'sp': 'false',  'dp': 'false'}, direct_to_reg=True),
-        # 9,9 is good when direct-to-reg
-        NS(length=81,  factors=[9, 9], use_3steps_large_twd={
+        # 9,9 is good when direct-to-reg, but bad for Navi, so still uses radix-3
+        NS(length=81,  factors=[3, 3, 3, 3], use_3steps_large_twd={
            'sp': 'true',  'dp': 'true'}, direct_to_reg=True),
         NS(length=84,  factors=[7, 2, 6],    use_3steps_large_twd={
            'sp': 'true',  'dp': 'true'}, direct_to_reg=True),

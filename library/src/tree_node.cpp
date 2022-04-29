@@ -118,6 +118,10 @@ bool LeafNode::KernelCheck()
         return false;
     }
 
+    dir2regMode = (function_pool::get_kernel(key).direct_to_reg)
+                      ? DirectRegType::TRY_ENABLE_IF_SUPPORT
+                      : DirectRegType::FORCE_OFF_OR_NOT_SUPPORT;
+
     GetKernelFactors();
     return true;
 }

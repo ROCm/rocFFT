@@ -150,6 +150,13 @@ std::string PrintSBRCTransposeType(const SBRC_TRANSPOSE_TYPE ty)
     return TypetoString.at(ty);
 }
 
+std::string PrintDirectToFromRegMode(const DirectRegType ty)
+{
+    const std::map<DirectRegType, const char*> TypetoString
+        = {{ENUMSTR(FORCE_OFF_OR_NOT_SUPPORT)}, {ENUMSTR(TRY_ENABLE_IF_SUPPORT)}};
+    return TypetoString.at(ty);
+}
+
 rocfft_status rocfft_plan_description_set_scale_float(rocfft_plan_description description,
                                                       const float             scale)
 {
@@ -1573,6 +1580,10 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     }
 
     os << indentStr.c_str() << "SBRC_Trans_Type: " << PrintSBRCTransposeType(sbrcTranstype).c_str();
+    os << "\n";
+
+    os << indentStr.c_str()
+       << "Direct_to_from_Reg: " << PrintDirectToFromRegMode(dir2regMode).c_str();
     os << "\n";
 
     os << indentStr << PrintOperatingBuffer(obIn) << " -> " << PrintOperatingBuffer(obOut) << "\n";

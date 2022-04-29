@@ -334,6 +334,16 @@ std::string stockham_rtc(StockhamGeneratorSpecs& specs,
     else
         src += "static const CallbackType cbtype = CallbackType::NONE;\n";
 
+    switch(node.dir2regMode)
+    {
+    case DirectRegType::FORCE_OFF_OR_NOT_SUPPORT:
+        src += "static const DirectRegType drtype = DirectRegType::FORCE_OFF_OR_NOT_SUPPORT;\n";
+        break;
+    case DirectRegType::TRY_ENABLE_IF_SUPPORT:
+        src += "static const DirectRegType drtype = DirectRegType::TRY_ENABLE_IF_SUPPORT;\n";
+        break;
+    }
+
     src += "static const bool apply_large_twiddle = ";
     if(node.large1D > 0)
         src += "true;\n";

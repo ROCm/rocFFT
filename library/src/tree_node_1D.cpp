@@ -871,6 +871,20 @@ std::vector<size_t> Stockham1DNode::CollapsibleDims()
 /*****************************************************
  * SBCC  *
  *****************************************************/
+bool SBCCNode::KernelCheck()
+{
+    bool res = LeafNode::KernelCheck();
+
+    // for Navi, these 3 are better. Haven't tested others.
+    if(is_device_gcn_arch(deviceProp, "gfx1030"))
+    {
+        if((length[0] != 64) && (length[0] != 81) && (length[0] != 200))
+            dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+    }
+
+    return res;
+}
+
 void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
     auto kernel = function_pool::get_kernel(fpkey(length[0], precision, scheme));

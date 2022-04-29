@@ -138,6 +138,9 @@ protected:
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 
 public:
+    // we can put codes here to switch-on/off some features at arch-wise
+    bool KernelCheck() override;
+
     // reads + writes are along columns so both may benefit from padding
     bool PaddingBenefitsInput() override
     {

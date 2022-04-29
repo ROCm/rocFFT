@@ -103,6 +103,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     Variable callback_type{"cbtype", "CallbackType"};
     Variable stride_type{"sb", "StrideBin"};
     Variable embedded_type{"ebtype", "EmbeddedType"};
+    Variable directReg_type{"drtype", "DirectRegType"};
 
     //
     // arguments
@@ -211,7 +212,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
     virtual TemplateList global_templates()
     {
-        return {scalar_type, stride_type, embedded_type, callback_type};
+        return {scalar_type, stride_type, embedded_type, callback_type, directReg_type};
     }
 
     virtual ArgumentList device_arguments()

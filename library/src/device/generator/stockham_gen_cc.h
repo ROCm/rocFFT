@@ -75,7 +75,9 @@ struct StockhamKernelCC : public StockhamKernel
     StatementList set_direct_to_from_registers() override
     {
         if(direct_to_reg)
-            return {Declaration{direct_to_from_reg, embedded_type == "EmbeddedType::NONE"},
+            return {Declaration{direct_to_from_reg,
+                                And{directReg_type == "DirectRegType::TRY_ENABLE_IF_SUPPORT",
+                                    embedded_type == "EmbeddedType::NONE"}},
                     Declaration{lds_linear, Not{direct_to_from_reg}}};
         else
             return {Declaration{direct_to_from_reg, Literal{"false"}},

@@ -127,6 +127,14 @@ enum SBRC_TRANSPOSE_TYPE
     TILE_UNALIGNED,
 };
 
+enum DirectRegType
+{
+    // the direct-to-from-reg codes are not even generated from generator
+    // or is generated but we don't want to use it in some arch
+    FORCE_OFF_OR_NOT_SUPPORT,
+    TRY_ENABLE_IF_SUPPORT, // Use the direct-to-from-reg function
+};
+
 template <class T>
 struct real_type;
 
