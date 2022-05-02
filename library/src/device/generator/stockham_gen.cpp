@@ -24,6 +24,7 @@ using namespace std::placeholders;
 #include "generator.h"
 #include "stockham_gen.h"
 #include <array>
+#include <fstream>
 #include <iostream>
 #include <optional>
 
@@ -249,7 +250,9 @@ std::string make_variants(const Function&                device,
     return output;
 }
 
-std::string stockham_variants(StockhamGeneratorSpecs& specs, StockhamGeneratorSpecs& specs2d)
+std::string stockham_variants(const std::string&      filename,
+                              StockhamGeneratorSpecs& specs,
+                              StockhamGeneratorSpecs& specs2d)
 {
     std::vector<GeneratedLauncher> launchers;
     std::string                    output;
@@ -384,13 +387,19 @@ std::string stockham_variants(StockhamGeneratorSpecs& specs, StockhamGeneratorSp
     // kernel-generator can generate the function pool
     const char* LIST_DELIM = "";
     const char* COMMA      = ",";
-    std::cout << "[";
+
+    std::ofstream metadata_file((filename + ".json").c_str());
+
+    if(!metadata_file)
+        throw std::runtime_error("could not create kernel metadata file");
+
+    metadata_file << "[";
     for(auto& launcher : launchers)
     {
-        std::cout << LIST_DELIM;
-        std::cout << launcher.to_string() << "\n";
+        metadata_file << LIST_DELIM;
+        metadata_file << launcher.to_string() << "\n";
         LIST_DELIM = COMMA;
     }
-    std::cout << "]" << std::endl;
+    metadata_file << "]" << std::endl;
     return output;
 }

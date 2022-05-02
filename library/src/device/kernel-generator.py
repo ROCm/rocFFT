@@ -14,6 +14,8 @@ import itertools
 import subprocess
 import sys
 import os
+import os.path
+import json
 
 from copy import deepcopy
 from pathlib import Path
@@ -646,11 +648,16 @@ def generate_kernel(kernel, precisions, stockham_aot):
     args.append(kernel.scheme)
     args.append(filename)
 
-    proc = subprocess.run(args=args, stdout=subprocess.PIPE, check=True)
-    clang_format_file(filename)
+    proc = subprocess.Popen(args=args, stderr=subprocess.PIPE)    
+    ret_code = proc.wait()
+    if (ret_code != 0):
+        print(proc.stderr.read().decode('ascii'))
+        sys.exit(f"Error executing " + stockham_aot)
+    
+    kernel_metadata_file = open(kernel_file_name(kernel) + '.json', 'r')
+    launchers = json.load(kernel_metadata_file)
 
-    import json
-    launchers = json.loads(proc.stdout.decode('ascii'))
+    clang_format_file(filename)    
 
     cpu_functions = []
     data = Variable('data_p', 'const void *')

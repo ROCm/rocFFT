@@ -20,6 +20,7 @@
 
 #include "stockham_gen.h"
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -109,7 +110,16 @@ int main(int argc, char** _argv)
     if(!threads_per_transform.empty())
         specs2d.threads_per_transform = threads_per_transform.back();
 
-    std::ofstream output_file(output_filename.c_str());
-    output_file << stockham_variants(specs, specs2d);
-    return 0;
+    try
+    {
+        std::ofstream output_file(output_filename.c_str());
+        output_file << stockham_variants(output_filename, specs, specs2d);
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
 }

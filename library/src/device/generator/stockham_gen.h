@@ -68,4 +68,6 @@ struct StockhamGeneratorSpecs
 };
 
 // generate default stockham variants for ahead-of-time compilation
-std::string stockham_variants(StockhamGeneratorSpecs& specs, StockhamGeneratorSpecs& specs2d);
+std::string stockham_variants(const std::string&      filename,
+                              StockhamGeneratorSpecs& specs,
+                              StockhamGeneratorSpecs& specs2d);
