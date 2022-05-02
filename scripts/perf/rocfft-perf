@@ -374,7 +374,7 @@ def command_run(arguments):
         arguments.out = ['out' + str(i) for i in range(nout)]
 
     timer = perflib.timer.GroupedTimer()
-    for attr in ['device', 'rider', 'lib', 'out', 'device', 'ntrial', 'verbose', 'timeout']:
+    for attr in ['device', 'rider', 'accutest', 'lib', 'out', 'device', 'ntrial', 'verbose', 'timeout']:
         update(attr, timer, arguments)
 
     specs = perflib.specs.get_machine_specs(timer.device)
@@ -534,6 +534,7 @@ def main():
     run_parser.add_argument('-N', '--ntrial', type=int, help='number of trials')
     run_parser.add_argument('-T', '--timeout', type=int, help='test timeout in seconds (0 disables timeout)', default=600)
     run_parser.add_argument('-f', '--precision', type=str, help='precision', action='append')
+    run_parser.add_argument('-t', '--accutest', type=str, help='accuracy test executable path')
 
     autoperf_parser = subparsers.add_parser('autoperf', help='clone, build, run, post, and plot two rocFFT commits')
     autoperf_parser.add_argument('--workdir', type=str, help='Working directory', default='.')
