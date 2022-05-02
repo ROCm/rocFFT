@@ -314,7 +314,7 @@ def command_generate(runs=None, label=None, output=None, type='pdf', **kwargs):
         figures.append(figure)
 
     if type == 'pdf':
-        perflib.pdf.make_tex(figures, docdir, outdirs)
+        perflib.pdf.make_tex(figures, docdir, outdirs, label)
     if type == 'html':
         title = f"Performance report: {perflib.utils.cjoin(outdirs)}"
         perflib.html.make_html(figures, title, docdir, outdirs)

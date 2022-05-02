@@ -114,10 +114,10 @@ the efficiency is measured against the theoretical maximum bandwidth \
 for the device.'''
 
 
-def make_tex(figs, docdir, outdirs, secondtype=None):
+def make_tex(figs, docdir, outdirs, label, secondtype=None):
     """Generate PDF containing performance figures."""
 
-   
+    
     docdir = Path(docdir)
 
     header = '''\
@@ -148,7 +148,7 @@ def make_tex(figs, docdir, outdirs, secondtype=None):
 
     tex += "\n\\section{Device Specification}\n"
     for idx in range(len(outdirs)):
-        tex += "\n\\subsection{" + str(outdirs[idx])  + "}\n"
+        tex += "\n\\subsection{" + str(label[idx])  + "}\n"
         path = Path(outdirs[idx]) / "specs.txt"
         if path.is_file():
             specs = path.read_text()
@@ -279,6 +279,13 @@ def make_tex(figs, docdir, outdirs, secondtype=None):
     log = docdir / 'tex.log'
     with log.open('w') as f:
         latexcmd = ['latexmk', '-pdf', fname.name]
-        texproc = subprocess.run(latexcmd, cwd=fname.parent, stdout=f, stderr=f)
+        texproc = subprocess.Popen(latexcmd, cwd=fname.parent, stdout=f, stderr=f)
+        try:
+            texproc.wait(timeout=60)
+        except subprocess.TimeoutExpired:
+            logging.info("tex command killed: " + sjoin(latexcmd))
+            texproc.kill()
+            
+            
         if texproc.returncode != 0:
             print("****tex fail****")
