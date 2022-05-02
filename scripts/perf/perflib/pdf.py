@@ -172,73 +172,105 @@ def make_tex(figs, docdir, outdirs, secondtype=None):
     tex += "\\listoffigures\n"
     tex += "\\clearpage\n"
 
+    ncompare = 0
+    nspeedup = 0
+    nslowdown = 0
+
+
+    figtex = ""
+    
     for idx, fig in enumerate(figs):
-        tex += '''
+        figtex += '''
 \\centering
 \\begin{figure}[H]
    \\includegraphics[width=\\textwidth]{'''
-        tex += str(fig.filename.name)
-        tex += '''}
+        figtex += str(fig.filename.name)
+        figtex += '''}
    \\caption{''' + fig.caption + '''}
 \\end{figure}
 '''
         for p in fig.secondary:
             
             df = pandas.read_csv(p, sep="\t", comment='#')
+
+            ncompare += len(df.index)
             
             # Significant results:
-            df_sig = df.loc[df['speedup_pval'] < 0.5]
+            df_sig = df.loc[df['speedup_pval'] < 0.05]
 
             # Significant results that are good or bad:
             df_good = df_sig.loc[df_sig['speedup'] > 1]
             df_bad = df_sig.loc[df_sig['speedup'] < 1]
 
             if not df_good.empty:
-                tex += "\\begin{table}[H]\n"
-                tex += "\\centering\n"
-                tex += "\\begin{tabular}{l|l|l|}\n"
-                tex += "transform & speedup & significance\\\\ \n"
-                tex += "\\hline\n"
+                nspeedup += len(df_good.index)
+                
+                figtex += "\\begin{table}[H]\n"
+                figtex += "\\centering\n"
+                figtex += "\\begin{tabular}{l|l|l|}\n"
+                figtex += "transform & speedup \% & significance\\\\ \n"
+                figtex += "\\hline\n"
                 for row in df_good.itertuples(index=False):
-                    #tex += str(row.token).replace("_", "\\_")
-                    #tex += "token"
+                    #figtex += str(row.token).replace("_", "\\_")
+                    #figtex += "token"
                     transform_type, placeness, length, batch, precision = perflib.utils.parse_token(row.token)
-                    tex += "$" + "\\times{}".join(str(x) for x in length) + "$"
+                    figtex += "$" + "\\times{}".join(str(x) for x in length) + "$"
 
                     
-                    speedup = '{0:.3f}'.format(row.speedup - 1)
+                    speedup = '{0:.3f}'.format((row.speedup - 1) * 100)
                     pval = '{0:.3f}'.format(row.speedup_pval)
-                    tex += " & " + str(speedup)+ " & " + str(pval) +  "\\\\"
-                tex += "\\hline\n"
-                tex += "\\end{tabular}\n"
-                tex += "\\caption{Improvements for " + fig.caption + "}\n"
-                tex += "\\end{table}\n"
+                    figtex += " & " + str(speedup)+ " & " + str(pval) +  "\\\\"
+                figtex += "\\hline\n"
+                figtex += "\\end{tabular}\n"
+                figtex += "\\caption{Improvements for " + fig.caption + "}\n"
+                figtex += "\\end{table}\n"
             
             if not df_bad.empty:
-                tex += "\\begin{table}[H]\n"
-                tex += "\\centering\n"
-                tex += "\\begin{tabular}{l|l|l|}\n"
-                tex += "transform & slowdown & significance\\\\ \n"
-                tex += "\\hline\n"
+                nslowdown += len(df_bad.index)
+                
+                figtex += "\\begin{table}[H]\n"
+                figtex += "\\centering\n"
+                figtex += "\\begin{tabular}{l|l|l|}\n"
+                figtex += "transform & slowdown \% & significance\\\\ \n"
+                figtex += "\\hline\n"
                 for row in df_bad.itertuples(index=False):
-                    #tex += str(row.token).replace("_", "\\_")
-                    #tex += "token"
+                    #figtex += str(row.token).replace("_", "\\_")
+                    #figtex += "token"
                     transform_type, placeness, length, batch, precision = perflib.utils.parse_token(row.token)
-                    tex += "$" + "\\times{}".join(str(x) for x in length) + "$"
+                    figtex += "$" + "\\times{}".join(str(x) for x in length) + "$"
 
                     if np.prod(batch) > 1:
-                        tex += " by $" + "\\times{}".join(str(x) for x in batch) + "$"
+                        figtex += " by $" + "\\times{}".join(str(x) for x in batch) + "$"
                     
-                    speedup = '{0:.3f}'.format(1 - row.speedup)
+                    speedup = '{0:.3f}'.format((1 - row.speedup) * 100)
                     pval = '{0:.3f}'.format(row.speedup_pval)
-                    tex += " & " + str(speedup)+ " & " + str(pval) +  "\\\\"
-                tex += "\\hline\n"
-                tex += "\\end{tabular}\n"
-                tex += "\\caption{Regressions for " + fig.caption + "}\n"
-                tex += "\\end{table}\n"
+                    figtex += " & " + str(speedup)+ " & " + str(pval) +  "\\\\"
+                figtex += "\\hline\n"
+                figtex += "\\end{tabular}\n"
+                figtex += "\\caption{Regressions for " + fig.caption + "}\n"
+                figtex += "\\end{table}\n"
             
-        tex += "\\clearpage\n"
+        figtex += "\\clearpage\n"
 
+    print("ncompare:", ncompare)
+    print("nspeedup:", nspeedup)
+    print("nslowdown:", nslowdown)
+    
+    tex += "\\begin{table}[H]\n"
+    tex += "\\centering\n"
+    tex += "\\begin{tabular}{l|l|l|}\n"
+    tex += "ncompare & nspeedup & nslowdown\\\\ \n"
+    tex += "\\hline\n"
+    tex += str(ncompare) + "&" + str(nspeedup) + "&" + str(nslowdown) + "\\\\\n"
+    tex += "100\\%" + "&" + '{0:.3f}'.format(100 * nspeedup / ncompare) + "\\% "+ "&" +  '{0:.3f}'.format(100 * nslowdown / ncompare) + "\\% "+ "\\\\\n"
+    tex += "\\hline\n"
+    tex += "\\end{tabular}\n"
+    tex += "\\caption{Overall Performance Changes}\n"
+    tex += "\\end{table}\n"
+    tex += "\\clearpage\n"
+
+    tex += figtex
+    
     tex += "\n\\end{document}\n"
 
     fname = docdir / 'figs.tex'
