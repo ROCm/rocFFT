@@ -152,7 +152,7 @@ for(int i = 0; i < xyval[0].length; ++i) {
 drawbargraph(datapoints, legs, legends);
 
 xaxis(BottomTop);
-yaxis("Time (s)", LeftRight, RightTicks);
+yaxis("Time (ms)", LeftRight, RightTicks);
 
 attach(legend(),point(plain.E),  20*plain.E);
 

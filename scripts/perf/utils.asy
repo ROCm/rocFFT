@@ -65,7 +65,6 @@ struct datapoint
         this.y = y;
         this.ylow = ylow;
         this.yhigh = yhigh;
-        // FIXME: implement
         this.label = "$" + (string)length[0];
         for(int i = 1; i < length.length; ++i) {
             this.label += "\times{}" + (string)length[i];
@@ -99,7 +98,7 @@ void readfiles(string[] filelist, datapoint[][] datapoints, bool pval = false)
           // Separate the token from the data:
 	  int pos = find(line, '\t', 0);
 	  string token = substr(line, 0, pos);
-	  //write("token: ", token);
+	  write("token: ", token);
 	  string vals = substr(line, pos + 1, -1);
 	  //write("vals: ", vals);
 
@@ -131,9 +130,8 @@ void readfiles(string[] filelist, datapoint[][] datapoints, bool pval = false)
               ++lenidx;
           }
 
-	  //write("length: ", length);
+	  write("length: ", length);
 
-          
           // Get the data:
 	  lastpos = 0;
 	  pos = find(vals, '\t', lastpos);
@@ -142,7 +140,6 @@ void readfiles(string[] filelist, datapoint[][] datapoints, bool pval = false)
 	  lastpos = pos > 0 ? pos + 1 : -1;
 
           string slow, shigh;
-          
           
           pos = find(vals, '\t', lastpos);
           slow = substr(vals, lastpos, pos - lastpos);
@@ -155,8 +152,6 @@ void readfiles(string[] filelist, datapoint[][] datapoints, bool pval = false)
           lastpos = pos > 0 ? pos + 1 : -1;
 
                     
-          length.push(length[0]);
-
           datapoint d = datapoint(length, (real)smedian, (real)slow, (real)shigh);
 
           pos = find(vals, '\t', lastpos);
