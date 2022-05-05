@@ -25,7 +25,6 @@ struct StockhamKernelRR : public StockhamKernel
     explicit StockhamKernelRR(StockhamGeneratorSpecs& specs)
         : StockhamKernel(specs)
     {
-        direct_to_reg = true;
     }
 
     std::string tiling_name() override

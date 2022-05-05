@@ -150,19 +150,19 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
 #define GET_KERNEL_FUNC(FWD, BACK, PRECISION, BASE_ARGS, ...)         \
     void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr; \
     GET_KERNEL_FUNC_CBTYPE(                                           \
-        FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
+        FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::TRY_ENABLE_IF_SUPPORT)
 
-#define GET_KERNEL_FUNC_CB(FWD, BACK, PRECISION, BASE_ARGS, ...)                               \
-    void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr;                          \
-    if(data->get_callback_type() == CallbackType::NONE)                                        \
-        GET_KERNEL_FUNC_CBTYPE(                                                                \
-            FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::FORCE_OFF_OR_NOT_SUPPORT) \
-    else                                                                                       \
-        GET_KERNEL_FUNC_CBTYPE(FWD,                                                            \
-                               BACK,                                                           \
-                               PRECISION,                                                      \
-                               CallbackType::USER_LOAD_STORE,                                  \
-                               DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
+#define GET_KERNEL_FUNC_CB(FWD, BACK, PRECISION, BASE_ARGS, ...)                            \
+    void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr;                       \
+    if(data->get_callback_type() == CallbackType::NONE)                                     \
+        GET_KERNEL_FUNC_CBTYPE(                                                             \
+            FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::TRY_ENABLE_IF_SUPPORT) \
+    else                                                                                    \
+        GET_KERNEL_FUNC_CBTYPE(FWD,                                                         \
+                               BACK,                                                        \
+                               PRECISION,                                                   \
+                               CallbackType::USER_LOAD_STORE,                               \
+                               DirectRegType::TRY_ENABLE_IF_SUPPORT)
 
 // SBCC adds large twiddles
 #define KERNEL_BASE_ARGS_IP_SBCC(PRECISION) \
@@ -530,22 +530,41 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                 DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
 
 // SBCR is always out-of-place
-#define GET_KERNEL_FUNC_SBCR_CB(FWD, BACK, PRECISION, BASE_ARGS, ...)                          \
-    void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr;                          \
-    if(data->get_callback_type() == CallbackType::NONE)                                        \
-        GET_KERNEL_FUNC_CBTYPE(                                                                \
-            FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::FORCE_OFF_OR_NOT_SUPPORT) \
-    else                                                                                       \
-        GET_KERNEL_FUNC_CBTYPE(FWD,                                                            \
-                               BACK,                                                           \
-                               PRECISION,                                                      \
-                               CallbackType::USER_LOAD_STORE,                                  \
-                               DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
+#define GET_KERNEL_FUNC_SBCR_CB(FWD, BACK, PRECISION, BASE_ARGS, ...)                              \
+    void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr;                              \
+    if(data->get_callback_type() == CallbackType::NONE)                                            \
+    {                                                                                              \
+        if(data->node->dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT)                        \
+            GET_KERNEL_FUNC_CBTYPE(                                                                \
+                FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::TRY_ENABLE_IF_SUPPORT)    \
+        else                                                                                       \
+            GET_KERNEL_FUNC_CBTYPE(                                                                \
+                FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::FORCE_OFF_OR_NOT_SUPPORT) \
+    }                                                                                              \
+    else                                                                                           \
+    {                                                                                              \
+        if(data->node->dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT)                        \
+            GET_KERNEL_FUNC_CBTYPE(FWD,                                                            \
+                                   BACK,                                                           \
+                                   PRECISION,                                                      \
+                                   CallbackType::USER_LOAD_STORE,                                  \
+                                   DirectRegType::TRY_ENABLE_IF_SUPPORT)                           \
+        else                                                                                       \
+            GET_KERNEL_FUNC_CBTYPE(FWD,                                                            \
+                                   BACK,                                                           \
+                                   PRECISION,                                                      \
+                                   CallbackType::USER_LOAD_STORE,                                  \
+                                   DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)                        \
+    }
 
-#define GET_KERNEL_FUNC_SBCR(FWD, BACK, PRECISION, BASE_ARGS, ...)    \
-    void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr; \
-    GET_KERNEL_FUNC_CBTYPE(                                           \
-        FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
+#define GET_KERNEL_FUNC_SBCR(FWD, BACK, PRECISION, BASE_ARGS, ...)                          \
+    void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr;                       \
+    if(data->node->dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT)                     \
+        GET_KERNEL_FUNC_CBTYPE(                                                             \
+            FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::TRY_ENABLE_IF_SUPPORT) \
+    else                                                                                    \
+        GET_KERNEL_FUNC_CBTYPE(                                                             \
+            FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
 
 #define POWX_SMALL_GENERATOR(FUNCTION_NAME,                                   \
                              IP_FWD_KERN_NAME,                                \

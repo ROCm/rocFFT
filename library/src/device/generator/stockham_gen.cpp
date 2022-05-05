@@ -90,7 +90,7 @@ struct GeneratedLauncher
         , transforms_per_block(kernel.transforms_per_block)
         , workgroup_size(kernel.workgroup_size)
         , half_lds(kernel.half_lds)
-        , direct_to_reg(kernel.direct_to_reg)
+        , direct_to_from_reg(kernel.direct_to_from_reg)
         , sbrc_type(sbrc_type)
         , sbrc_transpose_type(sbrc_transpose_type)
         , double_precision(double_precision)
@@ -105,7 +105,7 @@ struct GeneratedLauncher
     unsigned int transforms_per_block;
     unsigned int workgroup_size;
     bool         half_lds;
-    bool         direct_to_reg;
+    bool         direct_to_from_reg;
 
     // SBRC transpose type
     std::string sbrc_type;
@@ -147,7 +147,7 @@ struct GeneratedLauncher
         add_member("transforms_per_block", std::to_string(transforms_per_block));
         add_member("workgroup_size", std::to_string(workgroup_size));
         add_member("half_lds", half_lds ? "true" : "false");
-        add_member("direct_to_reg", direct_to_reg ? "true" : "false");
+        add_member("direct_to_from_reg", direct_to_from_reg ? "true" : "false");
         add_member("sbrc_type", quote_str(sbrc_type));
         add_member("sbrc_transpose_type", quote_str(sbrc_transpose_type));
         add_member("double_precision", double_precision ? "true" : "false");

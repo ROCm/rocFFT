@@ -939,6 +939,39 @@ std::vector<size_t> SBRCNode::CollapsibleDims()
 /*****************************************************
  * SBCR  *
  *****************************************************/
+bool SBCRNode::KernelCheck()
+{
+    bool res = LeafNode::KernelCheck();
+
+    // switch on/off according to the arch
+    // tweaking the setting based on the benchmark results. (Tested on ROCm 5.2.)
+
+    // TODO-
+    // SBCR-56 (all bad) and 336 with dir2reg can be much better if tested on 5.0.
+    // We can check the assembly to see what was better in 5.0.
+    if(is_device_gcn_arch(deviceProp, "gfx908"))
+    {
+        // {100,dp}, {200,sp}, {336,dp} are bad
+        if((length[0] == 100 && precision == rocfft_precision_double)
+           || (length[0] == 200 && precision == rocfft_precision_single)
+           || (length[0] == 336 && precision == rocfft_precision_double))
+            dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+    }
+    else if(is_device_gcn_arch(deviceProp, "gfx90a"))
+    {
+        // {200,sp} is bad
+        if(length[0] == 200 && precision == rocfft_precision_single)
+            dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+    }
+    // we don't enable the features for Navi and MI50 now
+    else
+    {
+        dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+    }
+
+    return res;
+}
+
 void SBCRNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
     auto kernel = function_pool::get_kernel(fpkey(length[0], precision, scheme));

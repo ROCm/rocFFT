@@ -39,6 +39,8 @@ struct StockhamKernelFused2D : public StockhamKernelRR
         // 2D kernels use kernel0 and kernel1 device functions,
         // so this writeGuard value is not used and irrelevant
         writeGuard = true;
+        // // 2D_SINGLEs haven't implemented this (global function)
+        // direct_to_from_reg = false;
     }
 
     StockhamKernelRR kernel0;
@@ -112,6 +114,8 @@ struct StockhamKernelFused2D : public StockhamKernelRR
         body += Declaration{index_along_d};
         body += Declaration{lds_is_real, "false"};
         body += Declaration{lds_linear, "true"};
+        body += Declaration{direct_load_to_reg, "false"};
+        body += Declaration{direct_store_from_reg, "false"};
         body += CallbackDeclaration{scalar_type.name, callback_type.name};
 
         body += LineBreak{};

@@ -74,13 +74,16 @@ struct StockhamKernelCC : public StockhamKernel
     // TODO- need to avoid the involvement of half-lds/lds_is_real
     StatementList set_direct_to_from_registers() override
     {
-        if(direct_to_reg)
-            return {Declaration{direct_to_from_reg,
+        // CC: "direct-to-reg" and non-linear, also "direct-from-reg" at the same time
+        if(direct_to_from_reg)
+            return {Declaration{direct_load_to_reg,
                                 And{directReg_type == "DirectRegType::TRY_ENABLE_IF_SUPPORT",
                                     embedded_type == "EmbeddedType::NONE"}},
-                    Declaration{lds_linear, Not{direct_to_from_reg}}};
+                    Declaration{direct_store_from_reg, direct_load_to_reg},
+                    Declaration{lds_linear, Not{direct_load_to_reg}}};
         else
-            return {Declaration{direct_to_from_reg, Literal{"false"}},
+            return {Declaration{direct_load_to_reg, Literal{"false"}},
+                    Declaration{direct_store_from_reg, Literal{"false"}},
                     Declaration{lds_linear, Literal{"true"}}};
     }
 
@@ -158,10 +161,15 @@ struct StockhamKernelCC : public StockhamKernel
                       Assign{offset, offset + index_along_d * stride[d]}}};
 
         stmts += LineBreak{};
-        if(!direct_to_reg)
+
+        stmts += Assign{batch, block_id / plength};
+        stmts += Assign{offset, offset + batch * stride[dim]};
+        if(!direct_to_from_reg)
         {
             stmts += Assign{transform,
                             tile_index * transforms_per_block + thread_id / threads_per_transform};
+            stmts += Assign{stride_lds, (length + get_lds_padding())};
+            stmts += Assign{offset_lds, stride_lds * (transform % transforms_per_block)};
         }
         else
         {
@@ -170,16 +178,6 @@ struct StockhamKernelCC : public StockhamKernel
                 Ternary{lds_linear,
                         tile_index * transforms_per_block + thread_id / threads_per_transform,
                         tile_index * transforms_per_block + thread_id % transforms_per_block}};
-        }
-        stmts += Assign{batch, block_id / plength};
-        stmts += Assign{offset, offset + batch * stride[dim]};
-        if(!direct_to_reg)
-        {
-            stmts += Assign{stride_lds, (length + get_lds_padding())};
-            stmts += Assign{offset_lds, stride_lds * (transform % transforms_per_block)};
-        }
-        else
-        {
             stmts += Assign{stride_lds,
                             Ternary{lds_linear,
                                     length + get_lds_padding(),
@@ -241,6 +239,7 @@ struct StockhamKernelCC : public StockhamKernel
 
         stmts += If{Not{edge}, tmp_stmts};
         stmts += If{edge, {If{pred, tmp_stmts}}};
+        // stmts += Else{{If{pred, tmp_stmts}}}; // FIXME: Need to check with compiler team.
         return stmts;
     }
 
@@ -279,6 +278,7 @@ struct StockhamKernelCC : public StockhamKernel
 
         stmts += If{Not{edge}, tmp_stmts};
         stmts += If{edge, {If{pred, tmp_stmts}}};
+        // stmts += Else{{If{pred, tmp_stmts}}}; // FIXME: Need to check with compiler team.
         return stmts;
     }
 

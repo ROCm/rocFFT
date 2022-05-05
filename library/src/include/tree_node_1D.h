@@ -205,6 +205,9 @@ protected:
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 
 public:
+    // we can put codes here to switch-on/off some features at arch-wise
+    bool KernelCheck() override;
+
     bool CreateTwiddleTableResource() override;
 
     // reads are along columns so they may benefit from padding

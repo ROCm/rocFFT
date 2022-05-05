@@ -55,7 +55,7 @@ int main(int argc, char** _argv)
     }
 
     // expected args:
-    // factors1d <factors2d> precisions threads_per_transform workgroup_size half_lds direct_to_reg scheme output_filename
+    // factors1d <factors2d> precisions threads_per_transform workgroup_size half_lds direct_to_from_reg scheme output_filename
     //
     // factors1d, factors2d, precisions and threads_per_transform are
     // comma-separated values, factors2d is only present for
@@ -72,7 +72,7 @@ int main(int argc, char** _argv)
     std::string scheme = *arg;
 
     ++arg;
-    bool direct_to_reg = *arg == "1";
+    bool direct_to_from_reg = *arg == "1";
 
     ++arg;
     bool half_lds = *arg == "1";
@@ -100,8 +100,8 @@ int main(int argc, char** _argv)
     factors = parse_uints_csv(*arg);
 
     StockhamGeneratorSpecs specs(factors, factors2d, precisions, workgroup_size, scheme);
-    specs.half_lds      = half_lds;
-    specs.direct_to_reg = direct_to_reg;
+    specs.half_lds           = half_lds;
+    specs.direct_to_from_reg = direct_to_from_reg;
 
     specs.threads_per_transform = threads_per_transform.front();
 

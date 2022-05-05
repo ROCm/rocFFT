@@ -141,7 +141,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
     // Enable directly load to registers and directly store from registers?
     // This variable affects the lds_linear (internally)
-    Variable direct_to_from_reg = Variable{"direct_to_from_reg", "const bool"};
+    Variable direct_load_to_reg    = Variable{"direct_load_to_reg", "const bool"};
+    Variable direct_store_from_reg = Variable{"direct_store_from_reg", "const bool"};
 
     //
     // locals
@@ -207,6 +208,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         tpls.append(lds_is_real);
         tpls.append(stride_type);
         tpls.append(lds_linear);
+        tpls.append(direct_load_to_reg);
+        tpls.append(direct_store_from_reg);
         return tpls;
     }
 
@@ -235,11 +238,16 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     // TODO- need to avoid the involvement of half-lds/lds_is_real
     virtual StatementList set_direct_to_from_registers()
     {
-        if(direct_to_reg)
-            return {Declaration{direct_to_from_reg, lds_is_real},
+        // by default (RR): "direct-to-reg" and "direct-from-reg" at the same time
+        if(direct_to_from_reg)
+            return {Declaration{direct_load_to_reg,
+                                And{directReg_type == "DirectRegType::TRY_ENABLE_IF_SUPPORT",
+                                    embedded_type == "EmbeddedType::NONE"}},
+                    Declaration{direct_store_from_reg, direct_load_to_reg},
                     Declaration{lds_linear, Literal{"true"}}};
         else
-            return {Declaration{direct_to_from_reg, Literal{"false"}},
+            return {Declaration{direct_load_to_reg, Literal{"false"}},
+                    Declaration{direct_store_from_reg, Literal{"false"}},
                     Declaration{lds_linear, Literal{"true"}}};
     }
 
@@ -472,7 +480,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                                 width,
                                 height,
                                 false);
-                body += If{lds_linear, {If{Not{lds_is_real}, first_load_full}}};
+                body += If{And{!lds_is_real, !direct_load_to_reg}, first_load_full};
             }
 
             if(npass > 0)
@@ -532,7 +540,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
                 // internal full lds store (both linear/nonlinear variants)
                 if(npass == 0)
-                    store_full += If{lds_linear, {SyncThreads()}};
+                    store_full += If{!direct_load_to_reg, {SyncThreads()}};
                 else
                     store_full += SyncThreads();
                 store_full += add_work(
@@ -556,8 +564,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                     width,
                     height,
                     true);
-
-                body += If{lds_linear, {If{Not{lds_is_real}, last_store_full}}};
+                body += If{And{!lds_is_real, !direct_store_from_reg}, last_store_full};
             }
         }
         return f;
@@ -625,7 +632,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             "handle even-length real to complex pre-process in lds before transform"};
         loadlds += real2cmplx_pre_post(length, ProcessingType::PRE);
 
-        if(!direct_to_reg)
+        if(!direct_to_from_reg)
             body += loadlds;
         else
         {
@@ -633,7 +640,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             loadr += CommentLines{"load global into registers"};
             loadr += load_from_global(true);
 
-            body += {If{direct_to_from_reg, loadr}, Else{loadlds}};
+            body += If{direct_load_to_reg, loadr};
+            body += Else{loadlds};
         }
 
         body += LineBreak{};
@@ -649,6 +657,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 += Call{"forward_length" + std::to_string(length) + "_" + tiling_name() + "_device",
                         templates,
                         arguments};
+            body += LineBreak{};
         }
 
         StatementList storelds;
@@ -663,7 +672,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         storelds += SyncThreads{};
         storelds += store_to_global(false);
 
-        if(!direct_to_reg)
+        if(!direct_to_from_reg)
             body += storelds;
         else
         {
@@ -671,7 +680,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             storer += CommentLines{"store registers into global"};
             storer += store_to_global(true);
 
-            body += {If{direct_to_from_reg, storer}, Else{storelds}};
+            body += If{direct_store_from_reg, storer};
+            body += Else{storelds};
         }
 
         f.templates = global_templates();
@@ -692,7 +702,12 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
     virtual TemplateList device_call_templates()
     {
-        return {scalar_type, lds_is_real, stride_type, lds_linear};
+        return {scalar_type,
+                lds_is_real,
+                stride_type,
+                lds_linear,
+                direct_load_to_reg,
+                direct_store_from_reg};
     }
 
     virtual std::vector<Expression> device_call_arguments(unsigned int call_iter)

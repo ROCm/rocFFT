@@ -118,7 +118,7 @@ bool LeafNode::KernelCheck()
         return false;
     }
 
-    dir2regMode = (function_pool::get_kernel(key).direct_to_reg)
+    dir2regMode = (function_pool::get_kernel(key).direct_to_from_reg)
                       ? DirectRegType::TRY_ENABLE_IF_SUPPORT
                       : DirectRegType::FORCE_OFF_OR_NOT_SUPPORT;
 

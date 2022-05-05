@@ -16,6 +16,8 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Optimizations
 - Introduced a new access pattern of lds (non-linear) and applied it on
   sbcc kernels len 64 and 81 to get performance improvement.
+- Applied lds-non-linear and direct-load-to-register on sbcr kernels to
+  get performance improvement.
 
 ### Fixed
 - Fixed correctness of certain transforms with unusual strides.
@@ -30,7 +32,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Enabled runtime compilation of length-2304 FFT kernel during plan creation.
 - Added tokenizer for test suite.
 - Reduce twiddle memory requirements for even-length real-complex transforms.
-- Clients can now be built separately from the main library.  
+- Clients can now be built separately from the main library.
 
 ### Optimizations
 - Optimized more large 1D cases by using L1D_CC plan.
