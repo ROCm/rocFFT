@@ -27,8 +27,7 @@ AMD is a trademark of Advanced Micro Devices, Inc.  Other product
 names used in this publication are for identification purposes only
 and may be trademarks of their respective companies.
 
-Copyright (c) 2021 - present Advanced Micro Devices, Inc. All rights
-reserved.
+Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
 
 
 Proposal

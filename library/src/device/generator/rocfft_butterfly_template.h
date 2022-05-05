@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2016 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2016-2022 Advanced Micro Devices, Inc. All rights reserved.
  ******************************************************************************/
 
 #pragma once
