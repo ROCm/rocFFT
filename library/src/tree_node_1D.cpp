@@ -928,14 +928,6 @@ SBRC_TRANSPOSE_TYPE SBRCNode::sbrc_transpose_type(unsigned int blockWidth) const
     return (alignment_dimension % blockWidth == 0) ? NONE : TILE_UNALIGNED;
 }
 
-std::vector<size_t> SBRCNode::CollapsibleDims()
-{
-    // transposes 2 fastest dims, higher dims are collapsible
-    std::vector<size_t> ret(length.size() - 2);
-    std::iota(ret.begin(), ret.end(), 2);
-    return ret;
-}
-
 /*****************************************************
  * SBCR  *
  *****************************************************/

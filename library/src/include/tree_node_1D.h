@@ -179,8 +179,7 @@ public:
     {
         return true;
     }
-    std::vector<size_t> CollapsibleDims() override;
-    bool                UseOutputLengthForPadding() override
+    bool UseOutputLengthForPadding() override
     {
         return true;
     }
