@@ -250,6 +250,7 @@ if (BUILD_FILE_REORG_BACKWARD_COMPATIBILITY)
     rocfft-version.h rocfft-export.h
     GUARDS SYMLINK WRAPPER
     WRAPPER_LOCATIONS include rocfft/include
+    ORIGINAL_FILES ${PROJECT_BINARY_DIR}/include/rocfft/rocfft-version.h
   )
 endif( )
 
