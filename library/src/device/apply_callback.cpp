@@ -33,7 +33,7 @@ __global__ void __launch_bounds__(APPLY_REAL_CALLBACK_THREADS)
                                void* __restrict__ store_cb_fn,
                                void* __restrict__ store_cb_data)
 {
-    const size_t tid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+    const size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
     if(tid < input_size)
     {
         auto load_cb  = get_load_cb<Treal, CallbackType::USER_LOAD_STORE>(load_cb_fn);

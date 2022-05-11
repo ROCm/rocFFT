@@ -38,7 +38,7 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
                  const int    twl,
                  const int    dir)
 {
-    size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+    size_t tx = threadIdx.x + blockIdx.x * blockDim.x;
 
     T val = lib_make_vector2<T>(0, 0);
 
@@ -97,7 +97,7 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
                    void* __restrict__ store_cb_fn,
                    void* __restrict__ store_cb_data)
 {
-    size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+    size_t tx = threadIdx.x + blockIdx.x * blockDim.x;
 
     if(tx >= totalWI)
         return;
@@ -202,7 +202,7 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
                    const int             dir,
                    const int             scheme)
 {
-    size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+    size_t tx = threadIdx.x + blockIdx.x * blockDim.x;
 
     if(tx >= totalWI)
         return;
@@ -294,7 +294,7 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
                    const int       dir,
                    const int       scheme)
 {
-    size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+    size_t tx = threadIdx.x + blockIdx.x * blockDim.x;
 
     if(tx >= totalWI)
         return;
@@ -389,7 +389,7 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
                    const int             dir,
                    const int             scheme)
 {
-    size_t tx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+    size_t tx = threadIdx.x + blockIdx.x * blockDim.x;
 
     if(tx >= totalWI)
         return;
