@@ -18,15 +18,19 @@ def runCompileCommand(platform, project, jobName, boolean debug=false)
             ${project.paths.project_build_prefix}/docs/run_doc.sh
             """
 
-    try
-    {
-        platform.runCommand(this, command)
-    }
-    catch(e)
-    {
-        throw e
-    }
+    platform.runCommand(this, command)
 
+    def yapfCommand = """#!/usr/bin/env bash
+                         set -x
+                         cd ${project.paths.project_build_prefix}
+                         yapf --version
+                         find . -iname '*.py' \
+                         | grep -v 'build/'  \
+                         | xargs -n 1 -P 1 -I{} -t sh -c 'yapf --style pep8 {} | diff - {}'
+                      """
+
+    platform.runCommand(this, yapfCommand)
+    
     publishHTML([allowMissing: false,
                 alwaysLinkToLastBuild: false,
                 keepAll: false,
@@ -97,6 +101,6 @@ ci: {
 
     properties(auxiliary.addCommonProperties([pipelineTriggers([cron('0 1 * * 6')])]))
     stage(urlJobName) {
-        runCI([ubuntu18:['any']], urlJobName)
+        runCI([ubuntu20:['any']], urlJobName)
     }
 }

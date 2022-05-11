@@ -19,8 +19,6 @@
 # THE SOFTWARE.
 """A few small utilities."""
 
-
-
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
@@ -29,10 +27,10 @@ from functools import reduce
 
 import sys
 
-
 #
 # Join shortcuts
 #
+
 
 def join(sep, s):
     """Return 's' joined with 'sep'.  Coerces to str."""
@@ -62,6 +60,7 @@ def tjoin(s):
 #
 # Misc
 #
+
 
 def shape(n, nbatch):
     """Return NumPy shape."""
@@ -109,9 +108,12 @@ def write_csv(path, records, meta={}, overwrite=False):
         dat += [cjoin([str(x) for x in r]) for r in records]
         f.write(njoin(dat))
         f.write('\n')
+
+
 #
 # DAT files
 #
+
 
 @dataclass
 class Sample:
@@ -151,6 +153,7 @@ class DAT:
         print("meta:", self.meta)
         print("samples:", self.samples)
 
+
 @dataclass
 class Run:
     """Dyna-rider/rider runs.
@@ -168,7 +171,7 @@ def write_dat(fname, token, seconds, meta={}):
     record = [token, len(seconds)] + seconds
     write_tsv(fname, [record], meta=meta, overwrite=False)
 
-    
+
 def parse_token(token):
     words = token.split("_")
 
@@ -184,8 +187,9 @@ def parse_token(token):
     if words[1] not in {"forward", "inverse"}:
         print("Error parsing token:", token)
         sys.exit(1)
-    transform_type = ("forward" if words[1] == "forward" else "backward") + "_" + words[0]
-        
+    transform_type = ("forward" if words[1] == "forward" else
+                      "backward") + "_" + words[0]
+
     lendidx = -1
     for idx in range(len(words)):
         if words[idx] == "len":
@@ -197,9 +201,10 @@ def parse_token(token):
         else:
             # Now we have the precision and placeness
             precision = words[idx]
-            placeness = "out-of-place" if words[idx+1] == "op" else "in-place"
+            placeness = "out-of-place" if words[idx +
+                                                1] == "op" else "in-place"
             break
-        
+
     batchidx = -1
     for idx in range(len(words)):
         if words[idx] == "batch":
@@ -211,10 +216,10 @@ def parse_token(token):
             batch.append(int(words[idx]))
         else:
             break
-        
+
     return transform_type, placeness, length, batch, precision
 
-        
+
 def read_dat(fname):
     """Read dyna-rider/rider .dat file."""
     path = Path(fname)
@@ -224,9 +229,9 @@ def read_dat(fname):
             k, v = [x.strip() for x in line[2:].split(':', 1)]
             meta[k] = v
             continue
-        words   = line.split("\t")
-        token   = words[0]
-        times   = list(map(float, words[2:]))
+        words = line.split("\t")
+        token = words[0]
+        times = list(map(float, words[2:]))
         records[token] = Sample(token, times)
     tag = meta['title'].replace(' ', '_')
     return DAT(tag, path, records, meta)
@@ -270,7 +275,8 @@ def get_post_processed(dname, docdir, outdirs):
 
     secondary = []
     for outdir in outdirs[1:]:
-        path = (docdir / (str(outdir.name) + "-over-" + str(outdirs[0].name) + "-" + dname)).with_suffix('.sdat')
+        path = (docdir / (str(outdir.name) + "-over-" + str(outdirs[0].name) +
+                          "-" + dname)).with_suffix('.sdat')
         if path.exists():
             secondary.append(path)
 
@@ -282,7 +288,8 @@ def by_dat(runs):
     for dat in runs[0].dats.values():
         dstem = dat.path.stem
         r[dstem] = {
-            run.path: run.dats[dstem] for run in runs if dstem in run.dats
+            run.path: run.dats[dstem]
+            for run in runs if dstem in run.dats
         }
     return r
 
@@ -296,9 +303,13 @@ def to_data_frames(primaries, secondaries):
 
     for i, secondary in enumerate(secondaries):
         df = pandas.read_csv(secondary, delimiter='\t', comment='#')
-        data_frames[i+1] = data_frames[i+1].merge(df, how='left', on='token', suffixes=('', '_y'))
+        data_frames[i + 1] = data_frames[i + 1].merge(df,
+                                                      how='left',
+                                                      on='token',
+                                                      suffixes=('', '_y'))
 
     return data_frames
+
 
 def write_pts_dat(fname, records, meta={}):
     """Write data to *.ptsdat"""

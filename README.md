@@ -89,9 +89,16 @@ Please refer to the [library documentation][4] for current documentation.
 
 Examples may be found in the [clients/samples][5] subdirectory.
 
-
 [1]: https://github.com/RadeonOpenCompute
 [2]: https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html
 [3]: https://github.com/ROCm-Developer-Tools/HIP/blob/master/INSTALL.md#hip-clang
 [4]: https://rocfft.readthedocs.io/
 [5]: clients/samples
+
+## Contribution Rules
+
+### Source code formatting
+
+* C++ source code must be formatted with clang-format with .clang-format
+
+* Python source code must be formatted with yapf --style pep8

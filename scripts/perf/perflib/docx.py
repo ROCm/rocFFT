@@ -27,7 +27,8 @@ import perflib.docx_emf_patch
 
 def pdf2emf(path: pathlib.Path):
     """Convert PDF to EMF."""
-    pdf, svg, emf = str(path), str(path.with_suffix(".svg")), str(path.with_suffix(".emf"))
+    pdf, svg, emf = str(path), str(path.with_suffix(".svg")), str(
+        path.with_suffix(".emf"))
     subprocess.check_call(["pdf2svg", pdf, svg])
     # Older versions of inkscape use -M.
     #subprocess.check_call(["inkscape", svg, "-M", emf])

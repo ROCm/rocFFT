@@ -24,18 +24,32 @@ import argparse
 import hashlib
 import re
 
+
 def filename_to_cpp_ident(filename):
     base = os.path.basename(filename)
     return base.replace('-', '_').replace('.', '_')
 
+
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="Write embedded C++ generator file")
-    parser.add_argument('--embed', metavar='file', type=str, nargs='+', required=True,
+    parser = argparse.ArgumentParser(
+        description="Write embedded C++ generator file")
+    parser.add_argument('--embed',
+                        metavar='file',
+                        type=str,
+                        nargs='+',
+                        required=True,
                         help='files to embed into the header')
-    parser.add_argument('--logic', metavar='file', type=str, nargs='+', required=True,
+    parser.add_argument('--logic',
+                        metavar='file',
+                        type=str,
+                        nargs='+',
+                        required=True,
                         help='additional files that make up generator logic')
-    parser.add_argument('--output', metavar='file', type=str, required=True,
+    parser.add_argument('--output',
+                        metavar='file',
+                        type=str,
+                        required=True,
                         help='output file')
     args = parser.parse_args()
 
@@ -70,4 +84,5 @@ if __name__ == '__main__':
     for b in h.digest():
         outfile.write('\\x{:02x}'.format(b))
     outfile.write('";\n')
-    outfile.write('static const size_t generator_sum_bytes = {};\n'.format(h.digest_size))
+    outfile.write('static const size_t generator_sum_bytes = {};\n'.format(
+        h.digest_size))

@@ -1,4 +1,3 @@
-
 import perflib.analysis
 import perflib.generators
 import perflib.html

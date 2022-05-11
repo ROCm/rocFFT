@@ -25,8 +25,6 @@ from .pdf import BaseFigure
 from .utils import to_data_frames
 
 
-
-
 def speedup_saturation(speedup):
     diff = abs(1.0 - speedup)
     # scale up a 20% difference into maximum 50% saturation - lower
@@ -68,7 +66,7 @@ def token_to_length(tokens):
     for token in tokens:
         words = token.split("_")
         for idx in range(len(words)):
-            if(words[idx] == "len"):
+            if (words[idx] == "len"):
                 lenidx = idx + 1
                 thislength = []
                 while lenidx < len(words) and words[lenidx].isnumeric():
@@ -83,7 +81,7 @@ def token_to_batch(tokens):
     for token in tokens:
         words = token.split("_")
         for idx in range(len(words)):
-            if(words[idx] == "batch"):
+            if (words[idx] == "batch"):
                 batchidx = idx + 1
                 thisbatch = []
                 while batchidx < len(words) and words[batchidx].isnumeric():
@@ -106,16 +104,20 @@ def token_to_elements(tokens):
         elements.append(n)
     return elements
 
+
 def token_to_size_description(tokens):
     length = token_to_length(tokens)
     batch = token_to_batch(tokens)
     descriptions = []
     for cur_len, cur_batch in zip(length, batch):
+
         def join_ints(ints):
             return 'x'.join([str(val) for val in ints])
+
         desc = join_ints(cur_len) + 'b' + join_ints(cur_batch)
         descriptions.append(desc)
     return descriptions
+
 
 class HTMLFigure(BaseFigure):
 
@@ -129,32 +131,33 @@ class HTMLFigure(BaseFigure):
 
         traces = []
 
-        traces.append(go.Scatter(
-            x=data_frames[0].elements,
-            y=data_frames[0].median_sample,
-            hovertext=token_to_size_description(data_frames[0].token),
-            name=self.labels[0]
-        ))
+        traces.append(
+            go.Scatter(x=data_frames[0].elements,
+                       y=data_frames[0].median_sample,
+                       hovertext=token_to_size_description(
+                           data_frames[0].token),
+                       name=self.labels[0]))
 
-        for i in range(1,len(data_frames)):
-            traces.append(go.Scatter(
-                x=data_frames[i].elements,
-                y=data_frames[i].median_sample,
-                hovertext=data_frames[i].token,
-                name=self.labels[i]
-            ))
-            traces.append(go.Scatter(
-                x=data_frames[i].elements,
-                y=data_frames[i].speedup,
-                name='Speedup {} over {}'.format(self.labels[i], self.labels[0]),
-                yaxis='y2',
-                error_y = dict(
-                    type='data',
-                    symmetric=False,
-                    array=data_frames[i].speedup_high - data_frames[i].speedup,
-                    arrayminus=data_frames[i].speedup - data_frames[i].speedup_low,
-                )
-            ))
+        for i in range(1, len(data_frames)):
+            traces.append(
+                go.Scatter(x=data_frames[i].elements,
+                           y=data_frames[i].median_sample,
+                           hovertext=data_frames[i].token,
+                           name=self.labels[i]))
+            traces.append(
+                go.Scatter(x=data_frames[i].elements,
+                           y=data_frames[i].speedup,
+                           name='Speedup {} over {}'.format(
+                               self.labels[i], self.labels[0]),
+                           yaxis='y2',
+                           error_y=dict(
+                               type='data',
+                               symmetric=False,
+                               array=data_frames[i].speedup_high -
+                               data_frames[i].speedup,
+                               arrayminus=data_frames[i].speedup -
+                               data_frames[i].speedup_low,
+                           )))
 
         if logscale:
             x_title = 'Problem size (elements, logarithmic)'
@@ -165,46 +168,34 @@ class HTMLFigure(BaseFigure):
             axis_type = 'linear'
             y_title = 'Time (ms)'
 
-        layout = go.Layout(
-            title=self.title,
-            xaxis=dict(
-                title=x_title,
-                type=axis_type,
-            ),
-            yaxis=dict(
-                title=y_title,
-                type=axis_type,
-                rangemode='tozero'
-            ),
-            yaxis2=dict(
-                title='Speedup',
-                overlaying='y',
-                side='right',
-                type='linear',
-                rangemode='tozero'
-            ),
-            hovermode = 'x unified',
-            width = 900,
-            height = 600,
-            legend = dict(
-                yanchor="top",
-                xanchor="right",
-                x=1.2
-            )
-        )
+        layout = go.Layout(title=self.title,
+                           xaxis=dict(
+                               title=x_title,
+                               type=axis_type,
+                           ),
+                           yaxis=dict(title=y_title,
+                                      type=axis_type,
+                                      rangemode='tozero'),
+                           yaxis2=dict(title='Speedup',
+                                       overlaying='y',
+                                       side='right',
+                                       type='linear',
+                                       rangemode='tozero'),
+                           hovermode='x unified',
+                           width=900,
+                           height=600,
+                           legend=dict(yanchor="top", xanchor="right", x=1.2))
 
         fig = go.Figure(data=traces, layout=layout)
 
         # Add speedup=1 reference line
-        fig.add_shape(
-            type='line',
-            x0=min(data_frames[0].elements),
-            y0=1,
-            x1=max(data_frames[0].elements),
-            y1=1,
-            line=dict(color='grey', dash='dash'),
-            yref='y2'
-        )
+        fig.add_shape(type='line',
+                      x0=min(data_frames[0].elements),
+                      y0=1,
+                      x1=max(data_frames[0].elements),
+                      y1=1,
+                      line=dict(color='grey', dash='dash'),
+                      yref='y2')
 
         nrows = len(data_frames[0].index)
         headers = ['Problem size', 'Elements']
@@ -218,28 +209,31 @@ class HTMLFigure(BaseFigure):
         ]
         for i in range(len(data_frames)):
             headers.append(self.labels[i] + ' (median)')
-            values.append(["{:.4f}".format(x) for x in data_frames[i].median_sample])
+            values.append(
+                ["{:.4f}".format(x) for x in data_frames[i].median_sample])
             fill_colors.append(['white'] * nrows)
 
             if i > 0:
-                headers.append('Speedup {} over {}'.format(self.labels[i], self.labels[0]))
-                values.append(["{:.4f}".format(x) for x in data_frames[i].speedup])
+                headers.append('Speedup {} over {}'.format(
+                    self.labels[i], self.labels[0]))
+                values.append(
+                    ["{:.4f}".format(x) for x in data_frames[i].speedup])
                 fill_colors.append(speedup_colors(data_frames[i].speedup))
 
-                headers.append('Significance of {} over {}'.format(self.labels[i], self.labels[0]))
-                values.append(["{:.4f}".format(x) for x in data_frames[i].speedup_pval])
-                fill_colors.append(significance_colors(data_frames[i].speedup_pval))
+                headers.append('Significance of {} over {}'.format(
+                    self.labels[i], self.labels[0]))
+                values.append(
+                    ["{:.4f}".format(x) for x in data_frames[i].speedup_pval])
+                fill_colors.append(
+                    significance_colors(data_frames[i].speedup_pval))
 
-        table = go.Figure(
-            data = [
-                go.Table(header=dict(values=headers),
-                         cells=dict(values=values, fill_color=fill_colors),
-                         ),
-            ],
-            layout = go.Layout(
-                title=self.title,
-            )
-        )
+        table = go.Figure(data=[
+            go.Table(
+                header=dict(values=headers),
+                cells=dict(values=values, fill_color=fill_colors),
+            ),
+        ],
+                          layout=go.Layout(title=self.title, ))
         # 900 seems to be enough for 2 dirs
         # widen table by 200px per extra dir
         table_width = 900
@@ -277,19 +271,19 @@ def make_html(figures, title, docdir, outdirs):
         plot, table = figure.plot, figure.table
         fig_title = plot.layout.title.text
         anchor = title_to_html_anchor(fig_title)
-        outfile.write('''<a href="#{}">{}</a><br/>'''.format(anchor, fig_title))
+        outfile.write('''<a href="#{}">{}</a><br/>'''.format(
+            anchor, fig_title))
 
     # include specs in the report
     outfile.write('''<table><tr>''')
     for d in outdirs:
         outfile.write('''<td><b>{} specs:</b><br/><pre>'''.format(
-            os.path.basename(os.path.normpath(d)))
-        )
+            os.path.basename(os.path.normpath(d))))
         specs_path = os.path.join(d, 'specs.txt')
         try:
             with open(specs_path) as specs:
-              for line in specs:
-                  outfile.write(line)
+                for line in specs:
+                    outfile.write(line)
         except FileNotFoundError:
             outfile.write("N/A")
 
@@ -304,7 +298,8 @@ def make_html(figures, title, docdir, outdirs):
         anchor = title_to_html_anchor(fig_title)
         outfile.write('''<tr><td id="{}">'''.format(anchor))
 
-        outfile.write(plot.to_html(full_html=False, include_plotlyjs=include_js))
+        outfile.write(
+            plot.to_html(full_html=False, include_plotlyjs=include_js))
         include_js = False
         outfile.write('''</td><td>''')
         outfile.write(table.to_html(full_html=False, include_plotlyjs=False))

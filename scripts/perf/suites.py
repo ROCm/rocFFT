@@ -1,4 +1,3 @@
-
 # Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,12 +21,12 @@ from itertools import product
 from perflib.generators import Problem
 from perflib.generators import RadixProblemGenerator
 
-
 all_precisions = ['single', 'double']
 all_directions = [-1, 1]
-all_inplaces   = [True,False]
-all_reals      = [True,False]
+all_inplaces = [True, False]
+all_reals = [True, False]
 
+# yapf: disable
 lengths = {
 
     'md': [
@@ -181,15 +180,23 @@ lengths = {
         (192, 192, 192),
     ],
 }
+# yapf: enable
 
 
 def mktag(tag, dimension, precision, direction, inplace, real):
-    t = [tag,
-         str(dimension) + 'D',
-         precision,
-         {-1: 'forward', 1: 'backward'}[direction],
-         {True: 'real', False: 'complex'}[real],
-         {True: 'in-place', False: 'out-of-place'}[inplace]]
+    t = [
+        tag,
+        str(dimension) + 'D', precision, {
+            -1: 'forward',
+            1: 'backward'
+        }[direction], {
+            True: 'real',
+            False: 'complex'
+        }[real], {
+            True: 'in-place',
+            False: 'out-of-place'
+        }[inplace]
+    ]
     return "_".join(t)
 
 
@@ -197,29 +204,36 @@ def mktag(tag, dimension, precision, direction, inplace, real):
 def default_length_params(tag, lengths, nbatch, precisions=all_precisions, \
     directions=all_directions, inplaces=all_inplaces, reals=all_reals):
 
-    for precision, direction, inplace, real in product(precisions, directions, inplaces, reals):
+    for precision, direction, inplace, real in product(precisions, directions,
+                                                       inplaces, reals):
         for length in lengths:
-            length = (length,) if isinstance(length,int) else length
+            length = (length, ) if isinstance(length, int) else length
             yield Problem(length,
-                          tag=mktag(tag, len(length), precision, direction, inplace, real),
+                          tag=mktag(tag, len(length), precision, direction,
+                                    inplace, real),
                           nbatch=nbatch,
                           direction=direction,
                           inplace=inplace,
                           real=real,
                           precision=precision)
 
+
 def md():
     """Molecular dynamics suite."""
 
     yield from default_length_params("md", lengths['md'], 10)
 
+
 def qa():
     """AMD QA suite."""
 
-    for length1 in [8192, 10752, 18816, 21504, 32256, 43008, 16384, 19683, 15625, 16807]:
+    for length1 in [
+            8192, 10752, 18816, 21504, 32256, 43008, 16384, 19683, 15625, 16807
+    ]:
         for direction in [-1, 1]:
             yield Problem([length1],
-                          tag=mktag("qa1", 1, 'double', direction, False, False),
+                          tag=mktag("qa1", 1, 'double', direction, False,
+                                    False),
                           nbatch=10000,
                           direction=direction,
                           inplace=False,
@@ -234,7 +248,7 @@ def qa():
                   real=False,
                   precision='double')
 
-    yield Problem((336,336,56),
+    yield Problem((336, 336, 56),
                   tag=mktag('qa3', 3, 'double', -1, False, False),
                   nbatch=1,
                   direction=-1,
@@ -245,7 +259,8 @@ def qa():
     for length3 in lengths['md']:
         for direction in [-1, 1]:
             yield Problem(length3,
-                          tag=mktag('qa3md', 3, 'single', direction, False, True),
+                          tag=mktag('qa3md', 3, 'single', direction, False,
+                                    True),
                           nbatch=1,
                           direction=direction,
                           inplace=False,
@@ -282,27 +297,35 @@ def qa():
     for length3 in lengths['qaReal3d10b']:
         for direction in [-1, 1]:
             yield Problem(length3,
-                          tag=mktag("qaReal3d10b", 3, 'single', direction, False, True),
+                          tag=mktag("qaReal3d10b", 3, 'single', direction,
+                                    False, True),
                           nbatch=10,
                           direction=direction,
                           inplace=False,
                           real=True,
                           precision='single')
 
+
 def misc2d():
     """Miscellaneous 2D sizes."""
 
     yield from default_length_params("misc2d", lengths['misc2d'], 1)
+
 
 def misc3d():
     """Miscellaneous 3D sizes."""
 
     yield from default_length_params("misc3d", lengths['misc3d'], 1)
 
+
 def simpleL1D():
     """Basic C2C Large 1D sizes."""
 
-    yield from default_length_params("C2C_L1D", lengths['simpleL1D'], 8000, reals=[False])
+    yield from default_length_params("C2C_L1D",
+                                     lengths['simpleL1D'],
+                                     8000,
+                                     reals=[False])
+
 
 def large1d():
     """Large 1D sizes."""
@@ -315,22 +338,27 @@ def generated1d():
 
     yield from default_length_params("generated1d", lengths['generated'], 1000)
 
+
 def generated2d():
     """Explicitly generated 2D lengths."""
 
-    lengths2d  = list(filter(lambda x: x <= 1024, lengths['generated']))
+    lengths2d = list(filter(lambda x: x <= 1024, lengths['generated']))
     yield from default_length_params("generated2d", lengths2d, 100)
+
 
 def generated3d():
     """Explicitly generated 3D lengths."""
 
-    lengths3d  = list(filter(lambda x: x <= 512, lengths['generated']))
+    lengths3d = list(filter(lambda x: x <= 512, lengths['generated']))
     yield from default_length_params("generated3d", lengths3d, 1)
+
 
 def prime():
     """Large selection of prime lengths."""
 
-    yield from default_length_params("prime", list(sympy.sieve.primerange(11, 1000)), 10000)
+    yield from default_length_params("prime",
+                                     list(sympy.sieve.primerange(11, 1000)),
+                                     10000)
 
 
 def mixed1d():
@@ -338,10 +366,12 @@ def mixed1d():
 
     yield from default_length_params("mixed", lengths['mixed'], 10000)
 
+
 def prime_limited():
     """Limited selection of prime lengths for regular testing."""
 
     yield from default_length_params("prime", [23, 521, 997], 10000)
+
 
 def benchmarks():
     """Benchmarks: XXX"""
@@ -354,13 +384,15 @@ def benchmarks():
         3: (16, 1024),
     }
 
-    all_lengths    = sorted(pow2 + pow3)
+    all_lengths = sorted(pow2 + pow3)
     dimensions = [1, 2, 3]
 
     for dimension in dimensions:
         min1, max1 = minmax[dimension]
-        lengths = [(3*[length])[:dimension] for length in all_lengths if min1 <= length <= max1]
+        lengths = [(3 * [length])[:dimension] for length in all_lengths
+                   if min1 <= length <= max1]
         yield from default_length_params('benchmark', lengths, 1)
+
 
 def all():
     """All suites run during regular testing."""
@@ -368,8 +400,8 @@ def all():
     yield from benchmarks()
 
     # pow 5, 7 (benchmarks does pow 2, 3)
-    yield from default_length_params("pow5", [ 5**k for k in range(4,8) ], 5000)
-    yield from default_length_params("pow7", [ 7**k for k in range(3,7) ], 5000)
+    yield from default_length_params("pow5", [5**k for k in range(4, 8)], 5000)
+    yield from default_length_params("pow7", [7**k for k in range(3, 7)], 5000)
 
     yield from md()
 

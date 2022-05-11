@@ -41,22 +41,27 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 from operator import mul
 
-from generator import (ArgumentList, BaseNode, Call, CommentBlock, Function, Include,
-                       LineBreak, Map, StatementList, Variable, name_args, write,
-                       clang_format_file)
-
+from generator import (ArgumentList, BaseNode, Call, CommentBlock, Function,
+                       Include, LineBreak, Map, StatementList, Variable,
+                       name_args, write, clang_format_file)
 
 from collections import namedtuple
 
-LaunchParams = namedtuple('LaunchParams', ['transforms_per_block',
-                                           'workgroup_size',
-                                           'threads_per_transform',
-                                           'half_lds', # load real and imag part separately with half regular lds resouce to increase occupancy
-                                           'direct_to_from_reg']) # load from global mem to registers directly and store from registers to global mem.
+LaunchParams = namedtuple(
+    'LaunchParams',
+    [
+        'transforms_per_block',
+        'workgroup_size',
+        'threads_per_transform',
+        'half_lds',  # load real and imag part separately with half regular lds resouce to increase occupancy
+        'direct_to_from_reg'
+    ]
+)  # load from global mem to registers directly and store from registers to global mem.
 
 #
 # CMake helpers
 #
+
 
 def scjoin(xs):
     """Join 'xs' with semi-colons."""
@@ -77,6 +82,7 @@ def cjoin(xs):
 # Helpers
 #
 
+
 def flatten(lst):
     """Flatten a list of lists to a list."""
     return sum(lst, [])
@@ -87,7 +93,7 @@ def unique(kernels):
     r, s = list(), set()
     for kernel in kernels:
         if isinstance(kernel.length, list):
-            key = tuple(kernel.length) + (kernel.scheme,)
+            key = tuple(kernel.length) + (kernel.scheme, )
         else:
             key = (kernel.length, kernel.scheme)
         if key not in s:
@@ -95,19 +101,23 @@ def unique(kernels):
             r.append(kernel)
     return r
 
+
 #
 # Prototype generators
 #
 
+
 @name_args(['function'])
 class FFTKernel(BaseNode):
+
     def __str__(self):
         f = 'FFTKernel('
         if self.function.meta.runtime_compile:
             f += 'nullptr'
         else:
             f += str(self.function.address())
-        use_3steps_large_twd = getattr(self.function.meta, 'use_3steps_large_twd', None)
+        use_3steps_large_twd = getattr(self.function.meta,
+                                       'use_3steps_large_twd', None)
         if use_3steps_large_twd is not None:
             f += ', ' + str(use_3steps_large_twd[self.function.meta.precision])
         else:
@@ -115,18 +125,21 @@ class FFTKernel(BaseNode):
         factors = getattr(self.function.meta, 'factors', None)
         if factors is not None:
             f += ', {' + cjoin(factors) + '}'
-        transforms_per_block = getattr(self.function.meta, 'transforms_per_block', None)
+        transforms_per_block = getattr(self.function.meta,
+                                       'transforms_per_block', None)
         if transforms_per_block is not None:
             f += ', ' + str(transforms_per_block)
         workgroup_size = getattr(self.function.meta, 'workgroup_size', None)
         if workgroup_size is not None:
             f += ', ' + str(workgroup_size)
-        f += ', {' + ','.join([str(s) for s in self.function.meta.threads_per_transform]) + '}'
+        f += ', {' + ','.join(
+            [str(s) for s in self.function.meta.threads_per_transform]) + '}'
         direct_to_from_reg = None
         half_lds = None
         if hasattr(self.function.meta, 'params'):
             half_lds = getattr(self.function.meta.params, 'half_lds', None)
-            direct_to_from_reg = getattr(self.function.meta.params, 'direct_to_from_reg', None)
+            direct_to_from_reg = getattr(self.function.meta.params,
+                                         'direct_to_from_reg', None)
         if half_lds is not None:
             f += ', ' + str(half_lds).lower()
         if direct_to_from_reg is not None:
@@ -139,8 +152,10 @@ def generate_cpu_function_pool(functions):
     """Generate function to populate the kernel function pool."""
 
     function_map = Map('function_map')
-    precisions = { 'sp': 'rocfft_precision_single',
-                   'dp': 'rocfft_precision_double' }
+    precisions = {
+        'sp': 'rocfft_precision_single',
+        'dp': 'rocfft_precision_double'
+    }
 
     populate = StatementList()
     for f in functions:
@@ -148,15 +163,14 @@ def generate_cpu_function_pool(functions):
         if isinstance(length, (int, str)):
             length = [length, 0]
         key = Call(name='std::make_tuple',
-                   arguments=ArgumentList('std::array<size_t, 2>({' + cjoin(length) + '})',
-                                          precisions[precision],
-                                          scheme,
-                                          transpose or 'NONE')).inline()
+                   arguments=ArgumentList(
+                       'std::array<size_t, 2>({' + cjoin(length) + '})',
+                       precisions[precision], scheme, transpose
+                       or 'NONE')).inline()
         populate += function_map.assert_emplace(key, FFTKernel(f))
 
     return StatementList(
-        Include('<iostream>'),
-        Include('"../include/function_pool.h"'),
+        Include('<iostream>'), Include('"../include/function_pool.h"'),
         StatementList(*[f.prototype() for f in functions]),
         Function(name='function_pool::function_pool',
                  value=False,
@@ -172,6 +186,7 @@ def list_generated_kernels(kernels):
 #
 # Main!
 #
+
 
 def kernel_file_name(ns):
     """Given kernel info namespace, return reasonable file name."""
@@ -193,6 +208,7 @@ def kernel_file_name(ns):
     return f'rocfft_len{length}{postfix}.cpp'
 
 
+# yapf: disable
 def list_small_kernels():
     """Return list of small kernels to generate."""
 
@@ -622,12 +638,18 @@ def list_large_kernels():
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
 
     return sbcc_kernels + sbcr_kernels + sbrc_kernels
+# yapf: enable
 
 
 def default_runtime_compile(kernels, default_val):
     '''Returns a copy of input kernel list with a default value for runtime_compile.'''
 
-    return [k if hasattr(k, 'runtime_compile') else NS(**k.__dict__, runtime_compile=default_val) for k in kernels]
+    return [
+        k if hasattr(k, 'runtime_compile') else NS(**k.__dict__,
+                                                   runtime_compile=default_val)
+        for k in kernels
+    ]
+
 
 def generate_kernel(kernel, precisions, stockham_aot):
     """Generate a single kernel file for 'kernel'.
@@ -639,7 +661,7 @@ def generate_kernel(kernel, precisions, stockham_aot):
     """
 
     args = [stockham_aot]
-    pre_enum = { 'sp': 0, 'dp': 1 }
+    pre_enum = {'sp': 0, 'dp': 1}
     # 2D single kernels always specify threads per transform
     if isinstance(kernel.length, list):
         args.append(','.join([str(f) for f in kernel.factors[0]]))
@@ -650,18 +672,22 @@ def generate_kernel(kernel, precisions, stockham_aot):
         args.append(','.join([str(f) for f in kernel.factors]))
         args.append(','.join([str(pre_enum[pre]) for pre in precisions]))
         # 1D kernels might not, and need to default to 'uwide'
-        threads_per_transform = getattr(kernel,'threads_per_transform', {
-            'uwide': kernel.length // min(kernel.factors),
-            'wide': kernel.length // max(kernel.factors),
-            'tall': 0,
-            'consolidated': 0
-            }[getattr(kernel,'flavour', 'uwide')])
+        threads_per_transform = getattr(
+            kernel, 'threads_per_transform', {
+                'uwide': kernel.length // min(kernel.factors),
+                'wide': kernel.length // max(kernel.factors),
+                'tall': 0,
+                'consolidated': 0
+            }[getattr(kernel, 'flavour', 'uwide')])
         args.append(str(threads_per_transform))
 
     # default half_lds to True only for CS_KERNEL_STOCKHAM
-    half_lds = getattr(kernel, 'half_lds', kernel.scheme == 'CS_KERNEL_STOCKHAM')
+    half_lds = getattr(kernel, 'half_lds',
+                       kernel.scheme == 'CS_KERNEL_STOCKHAM')
     # for unspecified direct_to_from_reg, default is True only for CS_KERNEL_STOCKHAM and SBCC
-    direct_to_from_reg = getattr(kernel, 'direct_to_from_reg', kernel.scheme == 'CS_KERNEL_STOCKHAM' or kernel.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC')
+    direct_to_from_reg = getattr(
+        kernel, 'direct_to_from_reg', kernel.scheme == 'CS_KERNEL_STOCKHAM'
+        or kernel.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC')
 
     filename = kernel_file_name(kernel)
 
@@ -689,7 +715,9 @@ def generate_kernel(kernel, precisions, stockham_aot):
         launcher = NS(**launcher_dict)
 
         factors = launcher.factors
-        length = launcher.lengths[0] if len(launcher.lengths) == 1 else (launcher.lengths[0], launcher.lengths[1])
+        length = launcher.lengths[0] if len(
+            launcher.lengths) == 1 else (launcher.lengths[0],
+                                         launcher.lengths[1])
         transforms_per_block = launcher.transforms_per_block
         workgroup_size = launcher.workgroup_size
         threads_per_transform = workgroup_size // transforms_per_block
@@ -702,10 +730,14 @@ def generate_kernel(kernel, precisions, stockham_aot):
         runtime_compile = kernel.runtime_compile
         use_3steps_large_twd = getattr(kernel, 'use_3steps_large_twd', None)
 
-        params = LaunchParams(transforms_per_block, workgroup_size, threads_per_transform, half_lds, direct_to_from_reg)
+        params = LaunchParams(transforms_per_block, workgroup_size,
+                              threads_per_transform, half_lds,
+                              direct_to_from_reg)
 
         # make 2D list of threads_per_transform to populate FFTKernel
-        tpt_list = kernel.threads_per_transform if scheme == 'CS_KERNEL_2D_SINGLE' else [threads_per_transform, 0]
+        tpt_list = kernel.threads_per_transform if scheme == 'CS_KERNEL_2D_SINGLE' else [
+            threads_per_transform, 0
+        ]
 
         f = Function(name=launcher.name,
                      arguments=ArgumentList(data, back),
@@ -721,7 +753,7 @@ def generate_kernel(kernel, precisions, stockham_aot):
                          threads_per_transform=tpt_list,
                          transpose=sbrc_transpose_type,
                          use_3steps_large_twd=use_3steps_large_twd,
-                         ))
+                     ))
 
         cpu_functions.append(f)
 
@@ -788,17 +820,35 @@ def cli():
     """Command line interface..."""
     parser = argparse.ArgumentParser(prog='kernel-generator')
     subparsers = parser.add_subparsers(dest='command')
-    parser.add_argument('--pattern', type=str, help='Kernel pattern to generate.', default='all')
-    parser.add_argument('--precision', type=str, help='Precision to generate.', default='all')
-    parser.add_argument('--manual-small', type=str, help='Small kernel sizes to generate.')
-    parser.add_argument('--manual-large', type=str, help='Large kernel sizes to generate.')
-    parser.add_argument('--runtime-compile', type=str, help='Allow runtime-compiled kernels.')
-    parser.add_argument('--runtime-compile-default', type=str, help='Compile kernels at runtime by default.')
+    parser.add_argument('--pattern',
+                        type=str,
+                        help='Kernel pattern to generate.',
+                        default='all')
+    parser.add_argument('--precision',
+                        type=str,
+                        help='Precision to generate.',
+                        default='all')
+    parser.add_argument('--manual-small',
+                        type=str,
+                        help='Small kernel sizes to generate.')
+    parser.add_argument('--manual-large',
+                        type=str,
+                        help='Large kernel sizes to generate.')
+    parser.add_argument('--runtime-compile',
+                        type=str,
+                        help='Allow runtime-compiled kernels.')
+    parser.add_argument('--runtime-compile-default',
+                        type=str,
+                        help='Compile kernels at runtime by default.')
 
-    list_parser = subparsers.add_parser('list', help='List kernel files that will be generated.')
+    list_parser = subparsers.add_parser(
+        'list', help='List kernel files that will be generated.')
 
-    generate_parser = subparsers.add_parser('generate', help='Generate kernels.')
-    generate_parser.add_argument('stockham_aot', type=str, help='Stockham AOT executable.')
+    generate_parser = subparsers.add_parser('generate',
+                                            help='Generate kernels.')
+    generate_parser.add_argument('stockham_aot',
+                                 type=str,
+                                 help='Stockham AOT executable.')
 
     args = parser.parse_args()
 
@@ -806,7 +856,10 @@ def cli():
     precisions = args.precision.split(',')
     if 'all' in precisions:
         precisions = ['dp', 'sp']
-    precisions = [{'single': 'sp', 'double': 'dp'}.get(p, p) for p in precisions]
+    precisions = [{
+        'single': 'sp',
+        'double': 'dp'
+    }.get(p, p) for p in precisions]
 
     #
     # kernel list
@@ -841,16 +894,28 @@ def cli():
         schemes = ['CS_KERNEL_STOCKHAM']
         kernels += [k for k in all_kernels if k.scheme in schemes]
     if 'large' in patterns:
-        schemes = ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC', 'CS_KERNEL_STOCKHAM_BLOCK_CR']
+        schemes = [
+            'CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC',
+            'CS_KERNEL_STOCKHAM_BLOCK_CR'
+        ]
         kernels += [k for k in all_kernels if k.scheme in schemes]
     if '2D' in patterns:
         kernels += kernels_2d
     if manual_small:
         schemes = ['CS_KERNEL_STOCKHAM']
-        kernels += [k for k in all_kernels if k.length in manual_small and k.scheme in schemes]
+        kernels += [
+            k for k in all_kernels
+            if k.length in manual_small and k.scheme in schemes
+        ]
     if manual_large:
-        schemes = ['CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC', 'CS_KERNEL_STOCKHAM_BLOCK_CR']
-        kernels += [k for k in all_kernels if k.length in manual_large and k.scheme in schemes]
+        schemes = [
+            'CS_KERNEL_STOCKHAM_BLOCK_CC', 'CS_KERNEL_STOCKHAM_BLOCK_RC',
+            'CS_KERNEL_STOCKHAM_BLOCK_CR'
+        ]
+        kernels += [
+            k for k in all_kernels
+            if k.length in manual_large and k.scheme in schemes
+        ]
 
     kernels = unique(kernels)
 
@@ -858,7 +923,8 @@ def cli():
     # set runtime compile
     #
 
-    kernels = default_runtime_compile(kernels, args.runtime_compile_default == 'ON')
+    kernels = default_runtime_compile(kernels,
+                                      args.runtime_compile_default == 'ON')
     if args.runtime_compile != 'ON':
         for k in kernels:
             k.runtime_compile = False
@@ -871,10 +937,12 @@ def cli():
         scprint(set(['function_pool.cpp'] + list_generated_kernels(kernels)))
 
     if args.command == 'generate':
-        cpu_functions = generate_kernels(kernels, precisions, args.stockham_aot)
-        write('function_pool.cpp', generate_cpu_function_pool(cpu_functions), format=True)
+        cpu_functions = generate_kernels(kernels, precisions,
+                                         args.stockham_aot)
+        write('function_pool.cpp',
+              generate_cpu_function_pool(cpu_functions),
+              format=True)
 
 
 if __name__ == '__main__':
     cli()
-

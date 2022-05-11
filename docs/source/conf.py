@@ -39,7 +39,7 @@ if read_the_docs_build:
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = ['sphinx.ext.mathjax', 'breathe']
-breathe_projects = { "rocFFT": "../docBin/xml" }
+breathe_projects = {"rocFFT": "../docBin/xml"}
 breathe_default_project = "rocFFT"
 
 # Add any paths that contain templates here, relative to this directory.
@@ -86,7 +86,6 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
 
-
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -124,12 +123,10 @@ else:
 #     ]
 # }
 
-
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'rocFFTdoc'
-
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -159,16 +156,11 @@ latex_documents = [
      u'Advanced Micro Devices', 'manual'),
 ]
 
-
 # -- Options for manual page output ---------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    (master_doc, 'rocfft', u'rocFFT Documentation',
-     [author], 1)
-]
-
+man_pages = [(master_doc, 'rocfft', u'rocFFT Documentation', [author], 1)]
 
 # -- Options for Texinfo output -------------------------------------------
 
@@ -176,10 +168,6 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'rocFFT', u'rocFFT Documentation',
-     author, 'rocFFT', 'One line description of project.',
-     'Miscellaneous'),
+    (master_doc, 'rocFFT', u'rocFFT Documentation', author, 'rocFFT',
+     'One line description of project.', 'Miscellaneous'),
 ]
-
-
-

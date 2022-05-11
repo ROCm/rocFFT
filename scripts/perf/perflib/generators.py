@@ -39,30 +39,38 @@ top = path(__file__).resolve().parent.parent
 
 
 def mktag(tag, dimension, precision, direction, inplace, real):
-    t = [tag,
-         str(dimension) + 'D',
-         precision,
-         {-1: 'forward', 1: 'backward'}[direction],
-         {True: 'real', False: 'complex'}[real],
-         {True: 'in-place', False: 'out-of-place'}[inplace]]
+    t = [
+        tag,
+        str(dimension) + 'D', precision, {
+            -1: 'forward',
+            1: 'backward'
+        }[direction], {
+            True: 'real',
+            False: 'complex'
+        }[real], {
+            True: 'in-place',
+            False: 'out-of-place'
+        }[inplace]
+    ]
     return "_".join(t)
 
 
 @dataclass
 class Problem:
     length: List[int]
-    nbatch: int          = 1
-    direction: int       = -1
-    inplace: bool        = False
-    real: bool           = False
-    precision: str       = "single"
-    tag: str             = None
+    nbatch: int = 1
+    direction: int = -1
+    inplace: bool = False
+    real: bool = False
+    precision: str = "single"
+    tag: str = None
     meta: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
 class VerbatimGenerator:
     problems: List[Problem]
+
     def generate_problems(self):
         for p in self.problems:
             yield p
@@ -72,8 +80,8 @@ class VerbatimGenerator:
 class FilteredProblemGenerator:
     dimension: List[int] = field(default_factory=lambda: [1, 2, 3])
     direction: List[int] = field(default_factory=lambda: [-1, 1])
-    inplace: List[bool]  = field(default_factory=lambda: [True, False])
-    real: List[bool]     = field(default_factory=lambda: [True, False])
+    inplace: List[bool] = field(default_factory=lambda: [True, False])
+    real: List[bool] = field(default_factory=lambda: [True, False])
     precision: List[str] = field(default_factory=lambda: ["single", "double"])
 
     def __call__(self, generator):
@@ -93,21 +101,22 @@ class FilteredProblemGenerator:
 @dataclass
 class RadixProblemGenerator:
     direction: List[int] = field(default_factory=lambda: [-1, 1])
-    inplace: List[bool]  = field(default_factory=lambda: [True, False])
-    real: List[bool]     = field(default_factory=lambda: [True, False])
+    inplace: List[bool] = field(default_factory=lambda: [True, False])
+    real: List[bool] = field(default_factory=lambda: [True, False])
     precision: List[str] = field(default_factory=lambda: ["single", "double"])
-    dimension: int       = 1
-    xmin: int            = 2
-    xmax: int            = 1024
-    ymin: int            = 2
-    ymax: int            = 1024
-    zmin: int            = 2
-    zmax: int            = 1024
-    radix: int           = 2
-    nbatch: int          = 1
+    dimension: int = 1
+    xmin: int = 2
+    xmax: int = 1024
+    ymin: int = 2
+    ymax: int = 1024
+    zmin: int = 2
+    zmax: int = 1024
+    radix: int = 2
+    nbatch: int = 1
 
     def generate_problems(self):
-        for direction, precision, real, inplace in itertools.product(self.direction, self.precision, self.real, self.inplace):
+        for direction, precision, real, inplace in itertools.product(
+                self.direction, self.precision, self.real, self.inplace):
             xval, yval, zval = self.xmin, self.ymin, self.zmin
             while xval <= self.xmax and yval <= self.ymax and zval <= self.zmax:
                 length = [xval]
@@ -122,7 +131,9 @@ class RadixProblemGenerator:
                               inplace=inplace,
                               real=real,
                               precision=precision,
-                              tag=mktag('radix' + str(self.radix), self.dimension, precision, direction, inplace, real))
+                              tag=mktag('radix' + str(self.radix),
+                                        self.dimension, precision, direction,
+                                        inplace, real))
 
                 xval *= self.radix
                 if self.dimension > 1:
@@ -135,8 +146,8 @@ class RadixProblemGenerator:
 class FileProblemGenerator:
     problem_file: str
 
-    inplace: List[bool]  = field(default_factory=lambda: [False])
-    real: List[bool]     = field(default_factory=lambda: [False])
+    inplace: List[bool] = field(default_factory=lambda: [False])
+    real: List[bool] = field(default_factory=lambda: [False])
     precision: List[str] = field(default_factory=lambda: ["float"])
 
     def __post_init__(self):
@@ -146,7 +157,7 @@ class FileProblemGenerator:
                 if line.startswith('#') or line.isspace():
                     continue
                 nbatch = 1
-                lengthBatch = line.replace(' ','').split(',nbatch=')
+                lengthBatch = line.replace(' ', '').split(',nbatch=')
                 if len(lengthBatch) > 1:
                     nbatch = int(lengthBatch[1])
                 line = lengthBatch[0]
@@ -156,7 +167,8 @@ class FileProblemGenerator:
 
     def generate_problems(self):
         for length, nbatch in self.table:
-            for precision, real, inplace in itertools.product(self.precision, self.real, self.inplace):
+            for precision, real, inplace in itertools.product(
+                    self.precision, self.real, self.inplace):
                 yield Problem(length,
                               nbatch=nbatch,
                               direction=-1,
@@ -168,13 +180,14 @@ class FileProblemGenerator:
 @dataclass
 class TableProblemGenerator:
     table: None
-    inplace: List[bool]  = field(default_factory=lambda: [False])
-    real: List[bool]     = field(default_factory=lambda: [False])
+    inplace: List[bool] = field(default_factory=lambda: [False])
+    real: List[bool] = field(default_factory=lambda: [False])
     precision: List[str] = field(default_factory=lambda: ["float"])
 
     def generate_problems(self):
         for length, nbatch in self.table:
-            for precision, real, inplace in itertools.product(self.precision, self.real, self.inplace):
+            for precision, real, inplace in itertools.product(
+                    self.precision, self.real, self.inplace):
                 yield Problem(length,
                               nbatch=nbatch,
                               direction=-1,
@@ -213,7 +226,8 @@ def load_suite(suite, fname=None):
 @dataclass
 class SuiteProblemGenerator:
     suite_names: List[str]
-    suites: Mapping[str, Generator[Problem, None, None]] = field(default_factory=dict)
+    suites: Mapping[str, Generator[Problem, None,
+                                   None]] = field(default_factory=dict)
 
     def __post_init__(self):
         for name in self.suite_names:

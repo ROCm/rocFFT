@@ -27,9 +27,18 @@ import tempfile
 import time
 
 
-def run(rider, length, direction=-1, real=False, inplace=True,
-        precision='single', nbatch=1, ntrial=1, device=None,
-        libraries=None, verbose=False, timeout=300):
+def run(rider,
+        length,
+        direction=-1,
+        real=False,
+        inplace=True,
+        precision='single',
+        nbatch=1,
+        ntrial=1,
+        device=None,
+        libraries=None,
+        verbose=False,
+        timeout=300):
     """Run rocFFT rider and return execution times."""
     cmd = [pathlib.Path(rider).resolve()]
 
@@ -73,9 +82,7 @@ def run(rider, length, direction=-1, real=False, inplace=True,
     ferr = tempfile.TemporaryFile(mode="w+")
 
     time_start = time.time()
-    proc = subprocess.Popen(cmd,
-                            stdout=fout,
-                            stderr=ferr)
+    proc = subprocess.Popen(cmd, stdout=fout, stderr=ferr)
     try:
         proc.wait(timeout=None if timeout == 0 else timeout)
     except subprocess.TimeoutExpired:
@@ -94,12 +101,13 @@ def run(rider, length, direction=-1, real=False, inplace=True,
     tokentoken = "Token: "
     token = ""
     times = []
-    
+
     if proc.returncode == 0:
         for line in cout.splitlines():
             if line.startswith(tokentoken):
                 token = line[len(tokentoken):]
-        for m in re.finditer('Execution gpu time: ([ 0-9.]*) ms', cout, re.MULTILINE):
+        for m in re.finditer('Execution gpu time: ([ 0-9.]*) ms', cout,
+                             re.MULTILINE):
             times.append(list(map(float, m.group(1).split(' '))))
 
     return token, times

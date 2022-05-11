@@ -26,6 +26,7 @@ from pathlib import Path
 from .utils import sjoin
 from shutil import which
 
+
 def local(cmd, echo=True, **kwargs):
     """Run `cmd` using the shell.
 
@@ -39,7 +40,8 @@ def local(cmd, echo=True, **kwargs):
 
 def local_amdgpu_target():
     try:
-        for line in subprocess.Popen(args=["rocminfo"], stdout=subprocess.PIPE).stdout.readlines():
+        for line in subprocess.Popen(
+                args=["rocminfo"], stdout=subprocess.PIPE).stdout.readlines():
             if b'amdgcn-amd-amdhsa--' in line:
                 return line.split(b'--')[1].strip().decode('utf-8')
     except:
@@ -47,7 +49,10 @@ def local_amdgpu_target():
     return ''
 
 
-def build_rocfft(commit, dest=None, repo='git@github.com:ROCmSoftwarePlatform/rocFFT-internal.git'):
+def build_rocfft(
+        commit,
+        dest=None,
+        repo='git@github.com:ROCmSoftwarePlatform/rocFFT-internal.git'):
     """Build public rocFFT (at specified git `commit`) and install into `dest`."""
 
     top = Path('.').resolve() / ('rocFFT-' + commit)
@@ -62,11 +67,11 @@ def build_rocfft(commit, dest=None, repo='git@github.com:ROCmSoftwarePlatform/ro
 
     build = top / 'build'
     build.mkdir(exist_ok=True)
-    defs = ['-DCMAKE_CXX_COMPILER=hipcc',
-            '-DBUILD_CLIENTS_RIDER=ON',
-            '-DROCFFT_CALLBACKS_ENABLED=OFF',
-            '-DSINGLELIB=ON',
-            '-DAMDGPU_TARGETS=' + local_amdgpu_target()]
+    defs = [
+        '-DCMAKE_CXX_COMPILER=hipcc', '-DBUILD_CLIENTS_RIDER=ON',
+        '-DROCFFT_CALLBACKS_ENABLED=OFF', '-DSINGLELIB=ON',
+        '-DAMDGPU_TARGETS=' + local_amdgpu_target()
+    ]
     if dest:
         defs += [f'-DCMAKE_INSTALL_PREFIX={dest}']
     if which('ccache') is not None:

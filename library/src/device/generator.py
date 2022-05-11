@@ -27,10 +27,10 @@ import types
 from pathlib import Path as path
 from typing import List, Any
 
-
 #
 # Helpers
 #
+
 
 def get_file_and_line(up=2):
     """Get file and file number of frame 'up'-steps up in the stack."""
@@ -80,6 +80,7 @@ def clang_format(code):
         pass
     return str(code)
 
+
 def clang_format_file(filename):
     """Format a file using clang-format.  Ignores errors so the file
        remains unformatted if clang-format isn't runnable."""
@@ -89,6 +90,7 @@ def clang_format_file(filename):
         # code formatting doesn't affect functionality, so just assume
         # default ROCm path and ignore errors if it's not there.
         pass
+
 
 def write(fname, code, format=False):
     """Format code and write to `fname`.
@@ -124,11 +126,11 @@ def sanity_check(y):
     for x in y:
         if isinstance(x, list) and len(x) > 1:
             failed = True
-            print(f'Sanity check: '
-                    f'list object found in nodes won\'t be traversed and can lead to undesirable effects.\n'
-                    f'Node type = {type(x)}' + '\n' +
-                    f'Node contents:\n' +
-                    f'{njoin(x)}')
+            print(
+                f'Sanity check: '
+                f'list object found in nodes won\'t be traversed and can lead to undesirable effects.\n'
+                f'Node type = {type(x)}' + '\n' + f'Node contents:\n' +
+                f'{njoin(x)}')
         # elif:
         #     add some other checks
     if failed:
@@ -156,12 +158,16 @@ def copy(x):
 # Code generator base classes
 #
 
+
 def make_raw(s):
     """Make a simple AST node whose string representation is `s`."""
+
     def decorator(target):
         target.__str__ = lambda self: s
         return target
+
     return decorator
+
 
 # XXX there is some redundancy between name_args and the constructor
 #     for BaseNode
@@ -174,9 +180,12 @@ def name_args(names):
 
         # attach setters & getters for each name
         for i, name in enumerate(names):
+
             def fset(self, val, idx=i):
                 self.args[idx] = val
-            setattr(target, name, property(lambda self, idx=i: self.args[idx], fset))
+
+            setattr(target, name,
+                    property(lambda self, idx=i: self.args[idx], fset))
 
         # define a new init that takes args and kwargs using names
         def new_init(self, *args, **kwargs):
@@ -354,6 +363,7 @@ class StatementList(BaseNode):
 
 @name_args(['name', 'type', 'value'])
 class InlineDeclaration(BaseNode):
+
     def __str__(self):
         s = f'{self.type} {self.name}'
         if self.value is not None:
@@ -361,8 +371,10 @@ class InlineDeclaration(BaseNode):
         return s
 
 
-@name_args(['name', 'type', 'size', 'value', 'shared', 'pointer', 'post_qualifier'])
+@name_args(
+    ['name', 'type', 'size', 'value', 'shared', 'pointer', 'post_qualifier'])
 class Declaration(BaseNode):
+
     def __str__(self):
         s = ''
         if self.size == 'dynamic':
@@ -389,44 +401,54 @@ class Declaration(BaseNode):
         s += ';'
         return s
 
+
 def Declarations(*args):
-    return [ x.declaration() for x in args ]
+    return [x.declaration() for x in args]
+
 
 class CallbackDeclaration(BaseNode):
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.args.append(Variable('scalar_type', 'typename'))
         self.args.append(Variable('cbtype', 'CallbackType'))
+
     def __str__(self):
         ret = f'auto load_cb = get_load_cb<{str(self.args[0])},{str(self.args[1])}>(load_cb_fn);'
         ret += f'auto store_cb = get_store_cb<{str(self.args[0])},{str(self.args[1])}>(store_cb_fn);'
         return ret
+
 
 class TemplateList(ArgumentList):
     pass
 
 
 class CommentBlock(BaseNode):
+
     def __str__(self):
         return njoin(['/*'] + [' * ' + str(a) for a in self.args] + [' */'])
 
 
 class CommentLines(BaseNode):
+
     def __str__(self):
         return njoin(' // ' + str(a) for a in self.args)
 
 
 class Pragma(BaseNode):
+
     def __str__(self):
         return '#pragma ' + sjoin(self.args)
 
 
 class Include(BaseNode):
+
     def __str__(self):
         return '#include ' + sjoin(self.args)
 
 
 class ExternC(BaseNode):
+
     def __str__(self):
         return 'extern "C" { ' + njoin(self.args) + ' }'
 
@@ -455,17 +477,22 @@ class SyncThreads(BaseNode):
 # Operators
 #
 
+
 def make_unary(prefix):
+
     def decorator(target):
         target.__str__ = lambda self: prefix + str(self.args[0])
         return target
+
     return decorator
 
 
 def make_binary(separator):
+
     def decorator(target):
         target.sep = separator
         return target
+
     return decorator
 
 
@@ -496,6 +523,7 @@ class Decrement(BaseNode):
 
 @name_args(['lhs', 'rhs', 'sep'])
 class BaseAssign(BaseNode):
+
     def __str__(self):
         return str(self.args[0]) + str(self.sep) + str(self.args[1]) + ';' \
             + self.provenance()
@@ -509,30 +537,37 @@ class Assign(BaseAssign):
 
 @name_args(['lhs', 'cond', 'true_rhs', 'false_rhs'])
 class ConditionalAssign(BaseNode):
+
     def __str__(self):
         return (str(self.lhs) + ' = (' + str(self.cond) + ') ? ' +
-                str(self.true_rhs) + ' : ' + str(self.false_rhs) + ';' + self.provenance())
+                str(self.true_rhs) + ' : ' + str(self.false_rhs) + ';' +
+                self.provenance())
 
 
 @name_args(['cond', 'true_rhs', 'false_rhs'])
 class Ternary(BaseNode):
+
     def __str__(self):
         return f'({str(self.cond)}) ? ({str(self.true_rhs)}) : ({str(self.false_rhs)})'
 
 
 @name_args(['lhs', 'rhs'])
 class InlineAssign(BaseNode):
+
     def __str__(self):
         return str(self.args[0]) + ' = ' + str(self.args[1])
 
 
 @name_args(['buf', 'offset'])
 class LoadGlobal(BaseNode):
+
     def __str__(self):
         return f'load_cb({self.args[0]}, {self.args[1]}, load_cb_data, nullptr)'
 
+
 @name_args(['buf', 'offset', 'element'])
 class StoreGlobal(BaseNode):
+
     def __str__(self):
         return f'store_cb({self.args[0]}, {self.args[1]}, {self.args[2]}, store_cb_data, nullptr);'
 
@@ -576,14 +611,16 @@ class TwiddleMultiply(BaseNode):
     # complex a * b
     def __str__(self):
         a, b = self.args
-        return str(ComplexLiteral(a.x * b.x - a.y * b.y, a.y * b.x + a.x * b.y))
+        return str(ComplexLiteral(a.x * b.x - a.y * b.y,
+                                  a.y * b.x + a.x * b.y))
 
 
 class TwiddleMultiplyConjugate(BaseNode):
     # complex a * conj(b)
     def __str__(self):
         a, b = self.args
-        return str(ComplexLiteral(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y))
+        return str(ComplexLiteral(a.x * b.x + a.y * b.y,
+                                  a.y * b.x - a.x * b.y))
 
 
 @make_binary(' % ')
@@ -660,9 +697,11 @@ class ShiftLeft(BaseNodeOps):
 class ShiftRight(BaseNodeOps):
     pass
 
+
 #
 # Variables
 #
+
 
 @name_args(['variable', 'index'])
 class ArrayElement(BaseNodeOps):
@@ -682,7 +721,10 @@ class ArrayElement(BaseNodeOps):
         return str(self.variable) + '[' + str(self.index) + ']'
 
 
-@name_args(['name', 'type', 'size', 'array', 'restrict', 'value', 'post_qualifier', 'shared', 'pointer'])
+@name_args([
+    'name', 'type', 'size', 'array', 'restrict', 'value', 'post_qualifier',
+    'shared', 'pointer'
+])
 class Variable(BaseNodeOps):
 
     @property
@@ -698,8 +740,19 @@ class Variable(BaseNodeOps):
 
     def declaration(self):
         if self.size is not None:
-            return Declaration(self.name, self.type, size=self.size, value=self.value, shared=self.shared, pointer=self.pointer, post_qualifier=self.post_qualifier)
-        return Declaration(self.name, self.type, value=self.value, shared=self.shared, pointer=self.pointer, post_qualifier=self.post_qualifier)
+            return Declaration(self.name,
+                               self.type,
+                               size=self.size,
+                               value=self.value,
+                               shared=self.shared,
+                               pointer=self.pointer,
+                               post_qualifier=self.post_qualifier)
+        return Declaration(self.name,
+                           self.type,
+                           value=self.value,
+                           shared=self.shared,
+                           pointer=self.pointer,
+                           post_qualifier=self.post_qualifier)
 
     def inline(self, value):
         return InlineDeclaration(self.name, self.type, value)
@@ -737,12 +790,13 @@ class Map(BaseNodeOps):
         return str(self.name)
 
     def emplace(self, key, value):
-        return Call(self.name + '.emplace',
-                    arguments=ArgumentList(key, value))
+        return Call(self.name + '.emplace', arguments=ArgumentList(key, value))
 
     def assert_emplace(self, key, value):
-        emplace = Call(self.name + '.emplace', arguments=ArgumentList(key, value)).inline()
-        status = Call(name='std::get<1>', arguments=ArgumentList(emplace)).inline()
+        emplace = Call(self.name + '.emplace',
+                       arguments=ArgumentList(key, value)).inline()
+        status = Call(name='std::get<1>',
+                      arguments=ArgumentList(emplace)).inline()
         throw = StatementList(Throw('std::runtime_error("' + str(key) + '")'))
         return If(Equal(status, "false"), throw)
 
@@ -750,13 +804,14 @@ class Map(BaseNodeOps):
     #     return ArrayElement(self.name, idx)
 
 
-
 class ComplexLiteral(BaseNodeOps):
+
     def __str__(self):
         return '{' + str(self.args[0]) + ', ' + str(self.args[1]) + '}'
 
 
 class Group(BaseNodeOps):
+
     def __str__(self):
         return '(' + str(self.args[0]) + ')'
 
@@ -767,52 +822,66 @@ B = Group
 # Control flow
 #
 
+
 @name_args(['value'])
 class Throw(BaseNode):
+
     def __str__(self):
         return 'throw ' + str(self.value) + ';'
 
 
 class Block(BaseNode):
+
     def __str__(self):
         return '{' + njoin(self.args) + '}'
 
 
 @name_args(['condition', 'body'])
 class If(BaseNode):
+
     def __str__(self):
         return 'if(' + str(self.condition) + ') {' + njoin(self.body) + '}'
 
+
 @name_args(['condition', 'bodyif', 'bodyelse'])
 class IfElse(BaseNode):
+
     def __str__(self):
-        return 'if(' + str(self.condition) + ') {' + njoin(self.bodyif) + '} else {' + njoin(self.bodyelse) + '}'
+        return 'if(' + str(self.condition) + ') {' + njoin(
+            self.bodyif) + '} else {' + njoin(self.bodyelse) + '}'
 
 
 @name_args(['condition', 'body'])
 class While(BaseNode):
+
     def __str__(self):
         return 'while(' + str(self.condition) + ') {' + njoin(self.body) + '}'
 
 
 @name_args(['initial', 'condition', 'iteration', 'body'])
 class For(BaseNode):
+
     def __str__(self):
-        return 'for(' + join('; ', [self.initial, self.condition, self.iteration]) + ') {' + njoin(self.body) + '}'
+        return 'for(' + join('; ',
+                             [self.initial, self.condition, self.iteration
+                              ]) + ') {' + njoin(self.body) + '}'
 
 
 #
 # Functions
 #
 
+
 @name_args(['name', 'spec'])
 class Using(BaseNode):
+
     def __str__(self):
         return f'using {self.name} = {self.spec};'
 
 
 @name_args(['name', 'arguments', 'templates', 'qualifier'])
 class Prototype(BaseNode):
+
     def __str__(self) -> str:
         f = ''
         if self.templates:
@@ -824,8 +893,10 @@ class Prototype(BaseNode):
         return f
 
 
-@name_args(['name', 'value', 'arguments', 'templates', 'qualifier',
-            'launch_bounds', 'body', 'meta'])
+@name_args([
+    'name', 'value', 'arguments', 'templates', 'qualifier', 'launch_bounds',
+    'body', 'meta'
+])
 class Function(BaseNode):
 
     def __str__(self) -> str:
@@ -875,8 +946,10 @@ class Call(BaseNode):
     def inline(self):
         return InlineCall(*self.args)
 
+
 @name_args(['name', 'arguments', 'templates', 'launch_params'])
 class InlineCall(BaseNodeOps):
+
     def __str__(self) -> str:
         f = self.name
         if self.templates:
@@ -888,6 +961,7 @@ class InlineCall(BaseNodeOps):
 #
 # Re-writing helpers
 #
+
 
 def make_planar(kernel, varname):
     """Rewrite 'kernel' to use planar i/o instead of interleaved i/o.
@@ -935,18 +1009,20 @@ def make_planar(kernel, varname):
             if isinstance(rhs, ArrayElement):
                 name, index = rhs.args
                 if name == varname:
-                    return Assign(lhs,
-                                  ComplexLiteral(ArrayElement(rname, index),
-                                                 ArrayElement(iname, index)))
+                    return Assign(
+                        lhs,
+                        ComplexLiteral(ArrayElement(rname, index),
+                                       ArrayElement(iname, index)))
 
             # on lhs
             if isinstance(lhs, ArrayElement):
                 name, index = lhs.args
                 if name == varname:
-                    return StatementList(Assign(ArrayElement(rname, index),
-                                                Component(rhs, 'x')),
-                                         Assign(ArrayElement(iname, index),
-                                                Component(rhs, 'y')))
+                    return StatementList(
+                        Assign(ArrayElement(rname, index), Component(rhs,
+                                                                     'x')),
+                        Assign(ArrayElement(iname, index), Component(rhs,
+                                                                     'y')))
 
         if isinstance(x, ArgumentList):
             args = []
@@ -954,8 +1030,16 @@ def make_planar(kernel, varname):
                 if isinstance(arg, Variable):
                     if arg.name == varname:
                         real_type = f'real_type_t<{arg.type}>'
-                        args.append(Variable(rname, type=real_type, array=True, restrict=True))
-                        args.append(Variable(iname, type=real_type, array=True, restrict=True))
+                        args.append(
+                            Variable(rname,
+                                     type=real_type,
+                                     array=True,
+                                     restrict=True))
+                        args.append(
+                            Variable(iname,
+                                     type=real_type,
+                                     array=True,
+                                     restrict=True))
                     else:
                         args.append(arg)
                 else:
@@ -966,14 +1050,15 @@ def make_planar(kernel, varname):
         # instead just direct memory accesses
         if isinstance(x, LoadGlobal):
             if x.args[0].name == varname:
-                return ArrayElement(x.args[0],x.args[1])
+                return ArrayElement(x.args[0], x.args[1])
 
         if isinstance(x, StoreGlobal):
             if x.args[0].name == varname:
-                return StatementList(Assign(ArrayElement(rname, x.args[1]),
-                                            Component(x.args[2], 'x')),
-                                     Assign(ArrayElement(iname, x.args[1]),
-                                            Component(x.args[2], 'y')))
+                return StatementList(
+                    Assign(ArrayElement(rname, x.args[1]),
+                           Component(x.args[2], 'x')),
+                    Assign(ArrayElement(iname, x.args[1]),
+                           Component(x.args[2], 'y')))
 
         return x
 
@@ -1057,8 +1142,10 @@ def make_out_of_place(kernel, names):
             if isinstance(lhs, Variable):
                 if lhs.name in names:
                     return StatementList(
-                        Assign(input_visitor(lhs), depth_first(rhs, input_visitor)),
-                        Assign(output_visitor(lhs), depth_first(rhs, output_visitor)))
+                        Assign(input_visitor(lhs),
+                               depth_first(rhs, input_visitor)),
+                        Assign(output_visitor(lhs),
+                               depth_first(rhs, output_visitor)))
 
             # traverse rhs
             if isinstance(rhs, ArrayElement):
@@ -1117,7 +1204,8 @@ def make_inverse(kernel):
     and instances of TwiddleMultiply are changed to TwiddleMultiplyConjugate.
     """
 
-    kernel = rename_functions(kernel, lambda x: x.replace('forward', 'inverse'))
+    kernel = rename_functions(kernel,
+                              lambda x: x.replace('forward', 'inverse'))
     kernel = rename_functions(kernel, lambda x: x.replace('FwdRad', 'InvRad'))
 
     def visitor(x):
@@ -1128,7 +1216,6 @@ def make_inverse(kernel):
         return x
 
     return depth_first(kernel, visitor)
-
 
 
 def rename_functions(kernel, sub):
@@ -1143,6 +1230,7 @@ def rename_functions(kernel, sub):
 
     return depth_first(kernel, visitor)
 
+
 def make_rtc(kernel, specs):
     """Turn a global function into a runtime-compile-able function.
     """
@@ -1155,6 +1243,7 @@ def make_rtc(kernel, specs):
     cbtype = specs['cbtype']
 
     complex_type = real_type + '2'
+
     def visitor(x):
         if isinstance(x, Function):
             y = copy(x)
