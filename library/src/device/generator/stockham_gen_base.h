@@ -349,11 +349,17 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return work;
     }
 
+    // The "stacked" twiddle table starts at the second factor, since
+    // the first factor's values are not actually needed for
+    // anything.  It still counts towards cumulative height, but we
+    // subtract it from the twiddle table offset when computing an
+    // index.
     StatementList apply_twiddle_generator(unsigned int h,
                                           unsigned int hr,
                                           unsigned int width,
                                           unsigned int dt,
-                                          unsigned int cumheight)
+                                          unsigned int cumheight,
+                                          unsigned int firstFactor)
     {
         if(hr == 0)
             hr = h;
@@ -361,7 +367,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         for(unsigned int w = 1; w < width; ++w)
         {
             auto tid  = thread + dt + h * threads_per_transform;
-            auto tidx = cumheight - 1 + w - 1 + (width - 1) * (tid % cumheight);
+            auto tidx = cumheight - firstFactor + w - 1 + (width - 1) * (tid % cumheight);
             auto ridx = hr * width + w;
             work += Assign(W, twiddles[tidx]);
             work += Assign(t, TwiddleMultiply(R[ridx], W));
@@ -496,10 +502,11 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 body += If{Not{lds_is_real}, internal_load_full};
 
                 auto apply_twiddle = std::mem_fn(&StockhamKernel::apply_twiddle_generator);
-                body += add_work(std::bind(apply_twiddle, this, _1, _2, _3, _4, cumheight),
-                                 width,
-                                 height,
-                                 false);
+                body += add_work(
+                    std::bind(apply_twiddle, this, _1, _2, _3, _4, cumheight, factors.front()),
+                    width,
+                    height,
+                    false);
             }
 
             auto butterfly = std::mem_fn(&StockhamKernel::butterfly_generator);
@@ -763,7 +770,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 quarter_N,
                 lds_complex + offset_lds,
                 0,
-                twiddles + half_N};
+                twiddles + (half_N - factors.front())};
             stmts += Call{function_name, tpls, args};
         }
         if(type == ProcessingType::PRE)

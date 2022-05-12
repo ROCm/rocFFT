@@ -53,18 +53,18 @@ public:
                                   std::multiplies<>()));
 
         // Generate the table
-        size_t L  = 1;
+        size_t L  = radices.front();
         size_t nt = 0;
-        for(auto radix : radices)
+        for(auto radix = radices.begin() + 1; radix != radices.end(); ++radix)
         {
-            L *= radix;
+            L *= *radix;
 
             // Twiddle factors
-            for(size_t k = 0; k < (L / radix) && nt < length_limit; k++)
+            for(size_t k = 0; k < (L / *radix) && nt < length_limit; k++)
             {
                 double theta = TWO_PI * (k) / (L);
 
-                for(size_t j = 1; j < radix && nt < length_limit; j++)
+                for(size_t j = 1; j < *radix && nt < length_limit; j++)
                 {
                     double c = cos((j)*theta);
                     double s = sin((j)*theta);
@@ -78,6 +78,7 @@ public:
                 }
             }
         } // end of for radices
+        wc.resize(nt);
 
         return wc;
     }
@@ -112,14 +113,14 @@ public:
     void AttachHalfNTable(const std::vector<T>& twtc, gpubuf& twts)
     {
         size_t         half_N       = (N + 1) / 2;
-        size_t         total_length = N + half_N;
+        size_t         total_length = twtc.size() + half_N;
         std::vector<T> twc_all(total_length);
         std::copy(twtc.begin(), twtc.end(), twc_all.begin());
 
         const double TWO_PI = -6.283185307179586476925286766559;
 
         // Generate the table
-        size_t nt = N;
+        size_t nt = twtc.size();
         for(size_t i = 0; i < half_N; i++)
         {
             double c = cos(TWO_PI * i / (2 * N));
@@ -315,7 +316,7 @@ gpubuf twiddles_create_2D_pr(size_t N1, size_t N2, rocfft_precision precision)
     // glue those two twiddle tables together in one malloc that we
     // give to the kernel
     gpubuf twts;
-    if(twts.alloc((N1 + N2) * sizeof(T)) != hipSuccess)
+    if(twts.alloc((twtc1.size() + twtc2.size()) * sizeof(T)) != hipSuccess)
         return twts;
     auto twts_ptr = static_cast<T*>(twts.data());
     if(hipMemcpy(twts_ptr, twtc1.data(), twtc1.size() * sizeof(T), hipMemcpyHostToDevice)

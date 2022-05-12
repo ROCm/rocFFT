@@ -362,7 +362,7 @@ struct StockhamKernelRC : public StockhamKernel
                           length / 2,
                           lds_complex + (h * stride_lds),
                           0,
-                          twiddles + length,
+                          twiddles + length - factors.front(),
                           null,
                           null,
                           0,

@@ -210,7 +210,7 @@ struct StockhamKernelFused2D : public StockhamKernelRR
         templates2.set_value(stride_type.name, "SB_NONUNIT");
         auto arguments2 = device_call_arguments(0);
         if(factors != kernel1.factors)
-            arguments2[3] = twiddles + length0;
+            arguments2[3] = twiddles + length0 - factors.front();
         body += Assign{stride_lds, length0_padded};
         body += Call{
             "forward_length" + std::to_string(length1) + "_SBRR_device", templates2, arguments2};
