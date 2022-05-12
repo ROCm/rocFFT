@@ -54,7 +54,7 @@ NodeFactory::Map1DLength const NodeFactory::map1DLengthSingle
        {18816, 168}, //         CC (168cc + 112rc)
        {21504, 168}, //         CC (168cc + 128rc)
        {32256, 168}, //         CC (168cc + 192rc)
-       {43008, 224}}; //        CC (224cc + 192rc) // or {43008, 168}}; CC (168cc + 256rc)
+       {43008, 224}}; //        CC (224cc + 192rc)
 
 NodeFactory::Map1DLength const NodeFactory::map1DLengthDouble = {
     {4096, 64}, // pow of 2: CC (64cc + 64rc)
@@ -75,7 +75,7 @@ NodeFactory::Map1DLength const NodeFactory::map1DLengthDouble = {
     {18816, 168}, //         CC (168cc + 112rc)
     {21504, 168}, //         CC (168cc + 128rc)
     {32256, 168}, //         CC (168cc + 192rc)
-    {43008, 224}, //        CC (168cc + 256rc) // or {43008, 168}}; CC (168cc + 256rc)
+    {43008, 224}, //         CC (224cc + 192rc) // gfx908: CC (168cc + 256rc)
 };
 
 //
