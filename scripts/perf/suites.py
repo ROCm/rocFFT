@@ -333,10 +333,11 @@ def large1d():
     yield from default_length_params("large1d", lengths['large1d'], 10000)
 
 
-def generated1d():
+def generated1d(skip=1):
     """Explicitly generated 1D lengths."""
 
-    yield from default_length_params("generated1d", lengths['generated'], 1000)
+    yield from default_length_params("generated1d",
+                                     lengths['generated'][::skip], 1000)
 
 
 def generated2d():
@@ -361,16 +362,71 @@ def prime():
                                      10000)
 
 
-def mixed1d():
+def mixed1d(skip=1):
     """Mixed 1D lengths."""
 
-    yield from default_length_params("mixed", lengths['mixed'], 10000)
+    yield from default_length_params("mixed", lengths['mixed'][::skip], 10000)
 
 
 def prime_limited():
     """Limited selection of prime lengths for regular testing."""
 
     yield from default_length_params("prime", [23, 521, 997], 10000)
+
+
+def unbatched_1d():
+    """All tested single-batch 1D transforms."""
+
+    yield from simpleL1D()
+    yield from large1d()
+    yield from generated1d(2)
+    yield from mixed1d(2)
+    yield from prime_limited()
+
+
+def batched_1d():
+    for subtag in ['simpleL1D', 'large1d']:  #, 'generated', 'mixed']:
+        for precision, direction, inplace, real in product(
+                all_precisions, all_directions, all_inplaces, all_reals):
+            subcaption = precision
+            subcaption += " forward " if direction == -1 else " backward "
+            subcaption += " real" if real else " complex"
+            subcaption += " in-place " if inplace else " out-of-place "
+            subcaption += " length $N$ batch size $N$."
+
+            for length in lengths[subtag]:
+                yield Problem([length],
+                              tag=mktag('batched_1d_contiguous_' + subtag, 1,
+                                        precision, direction, inplace, real),
+                              nbatch=length,
+                              inplace=inplace,
+                              precision=precision,
+                              real=real,
+                              meta={'caption': 'Batched 1D ' + subcaption})
+                ncomplex = length // 2 + 1
+                istride = length
+                ostride = length
+                if real:
+                    if direction == -1:
+                        istride = 2 * ncomplex if inplace else length
+                        ostride = ncomplex
+                    else:
+                        istride = ncomplex
+                        ostride = 2 * ncomplex if inplace else length
+
+                yield Problem(
+                    [length],
+                    tag=mktag('batched_1d_strided_' + subtag, 1, precision,
+                              direction, inplace, real),
+                    nbatch=length,
+                    istride=istride,
+                    ostride=ostride,
+                    idist=1,
+                    odist=1,
+                    inplace=inplace,
+                    precision=precision,
+                    real=real,
+                    meta={'caption': 'Batched strided 1D ' + subcaption})
 
 
 def benchmarks():

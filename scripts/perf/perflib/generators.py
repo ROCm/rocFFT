@@ -58,7 +58,11 @@ def mktag(tag, dimension, precision, direction, inplace, real):
 @dataclass
 class Problem:
     length: List[int]
+    istride: List[int] = None
+    ostride: List[int] = None
     nbatch: int = 1
+    idist: int = 0
+    odist: int = 0
     direction: int = -1
     inplace: bool = False
     real: bool = False
