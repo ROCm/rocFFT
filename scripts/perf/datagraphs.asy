@@ -31,7 +31,7 @@ string secondary_filenames = "";
 string legendlist = "";
 
 // Graph formatting
-string xlabel = "Problem size N";
+string xlabel = "Problem size $N$";
 string ylabel = "Time (ms)";
 
 string primaryaxis = "time";
