@@ -503,31 +503,62 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
 #define GET_KERNEL_FUNC_SBRC_CB(FWD, BACK, PRECISION, COL_DIM, TRANSPOSE_TYPE, BASE_ARGS, ...) \
     void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr;                          \
     if(data->get_callback_type() == CallbackType::NONE)                                        \
-        GET_KERNEL_FUNC_CBTYPE_SBRC(FWD,                                                       \
-                                    BACK,                                                      \
-                                    PRECISION,                                                 \
-                                    COL_DIM,                                                   \
-                                    TRANSPOSE_TYPE,                                            \
-                                    CallbackType::NONE,                                        \
-                                    DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)                   \
+    {                                                                                          \
+        if(data->node->dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT)                    \
+            GET_KERNEL_FUNC_CBTYPE_SBRC(FWD,                                                   \
+                                        BACK,                                                  \
+                                        PRECISION,                                             \
+                                        COL_DIM,                                               \
+                                        TRANSPOSE_TYPE,                                        \
+                                        CallbackType::NONE,                                    \
+                                        DirectRegType::TRY_ENABLE_IF_SUPPORT)                  \
+        else                                                                                   \
+            GET_KERNEL_FUNC_CBTYPE_SBRC(FWD,                                                   \
+                                        BACK,                                                  \
+                                        PRECISION,                                             \
+                                        COL_DIM,                                               \
+                                        TRANSPOSE_TYPE,                                        \
+                                        CallbackType::NONE,                                    \
+                                        DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)               \
+    }                                                                                          \
     else                                                                                       \
-        GET_KERNEL_FUNC_CBTYPE_SBRC(FWD,                                                       \
-                                    BACK,                                                      \
-                                    PRECISION,                                                 \
-                                    COL_DIM,                                                   \
-                                    TRANSPOSE_TYPE,                                            \
-                                    CallbackType::USER_LOAD_STORE,                             \
-                                    DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
+    {                                                                                          \
+        if(data->node->dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT)                    \
+            GET_KERNEL_FUNC_CBTYPE_SBRC(FWD,                                                   \
+                                        BACK,                                                  \
+                                        PRECISION,                                             \
+                                        COL_DIM,                                               \
+                                        TRANSPOSE_TYPE,                                        \
+                                        CallbackType::USER_LOAD_STORE,                         \
+                                        DirectRegType::TRY_ENABLE_IF_SUPPORT)                  \
+        else                                                                                   \
+            GET_KERNEL_FUNC_CBTYPE_SBRC(FWD,                                                   \
+                                        BACK,                                                  \
+                                        PRECISION,                                             \
+                                        COL_DIM,                                               \
+                                        TRANSPOSE_TYPE,                                        \
+                                        CallbackType::USER_LOAD_STORE,                         \
+                                        DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)               \
+    }
 
 #define GET_KERNEL_FUNC_SBRC(FWD, BACK, PRECISION, COL_DIM, TRANSPOSE_TYPE, BASE_ARGS, ...) \
     void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr;                       \
-    GET_KERNEL_FUNC_CBTYPE_SBRC(FWD,                                                        \
-                                BACK,                                                       \
-                                PRECISION,                                                  \
-                                COL_DIM,                                                    \
-                                TRANSPOSE_TYPE,                                             \
-                                CallbackType::NONE,                                         \
-                                DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
+    if(data->node->dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT)                     \
+        GET_KERNEL_FUNC_CBTYPE_SBRC(FWD,                                                    \
+                                    BACK,                                                   \
+                                    PRECISION,                                              \
+                                    COL_DIM,                                                \
+                                    TRANSPOSE_TYPE,                                         \
+                                    CallbackType::NONE,                                     \
+                                    DirectRegType::TRY_ENABLE_IF_SUPPORT)                   \
+    else                                                                                    \
+        GET_KERNEL_FUNC_CBTYPE_SBRC(FWD,                                                    \
+                                    BACK,                                                   \
+                                    PRECISION,                                              \
+                                    COL_DIM,                                                \
+                                    TRANSPOSE_TYPE,                                         \
+                                    CallbackType::NONE,                                     \
+                                    DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
 
 // SBCR is always out-of-place
 #define GET_KERNEL_FUNC_SBCR_CB(FWD, BACK, PRECISION, BASE_ARGS, ...)                              \

@@ -174,6 +174,9 @@ protected:
 public:
     SBRC_TRANSPOSE_TYPE sbrc_transpose_type(unsigned int blockWidth) const override;
 
+    // we can put codes here to switch-on/off some features at arch-wise
+    bool KernelCheck() override;
+
     // writes are along columns so they may benefit from padding
     bool PaddingBenefitsOutput() override
     {

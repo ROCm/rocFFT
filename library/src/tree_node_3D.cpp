@@ -749,6 +749,44 @@ bool SBRCTranspose3DNode::KernelCheck()
                       ? DirectRegType::TRY_ENABLE_IF_SUPPORT
                       : DirectRegType::FORCE_OFF_OR_NOT_SUPPORT;
 
+    if(is_device_gcn_arch(deviceProp, "gfx906"))
+    {
+        // bad results from benchmark:
+        //     {49,sp}, {128,sp},
+        //     {64,dp}, {81,dp}, {100,dp} are bad
+        std::map<rocfft_precision, std::set<size_t>> exceptions
+            = {{rocfft_precision_single, {49, 128}}, {rocfft_precision_double, {64, 81, 100}}};
+        if(exceptions.at(precision).count(length[0]))
+            dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+    }
+    else if(is_device_gcn_arch(deviceProp, "gfx908"))
+    {
+        // bad results from benchmark:
+        //     {81,sp}, {100,sp}, {128,sp}, {192,sp}, {200,sp}, {512,sp},
+        //     {81,dp}, {512,dp} are bad
+        std::map<rocfft_precision, std::set<size_t>> exceptions
+            = {{rocfft_precision_single, {81, 100, 128, 192, 200, 512}},
+               {rocfft_precision_double, {81, 512}}};
+        if(exceptions.at(precision).count(length[0]))
+            dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+    }
+    else if(is_device_gcn_arch(deviceProp, "gfx90a"))
+    {
+        // bad results from benchmark:
+        //     {49,sp}, {64,sp}, {81,sp}, {125,sp}, {128,sp}, {192,sp}, {200,sp}, {512,sp},
+        //     {64,dp}, {81,dp}, {100,dp}, {125,dp} are bad
+        std::map<rocfft_precision, std::set<size_t>> exceptions
+            = {{rocfft_precision_single, {49, 64, 81, 125, 128, 192, 200, 512}},
+               {rocfft_precision_double, {64, 81, 100, 125}}};
+        if(exceptions.at(precision).count(length[0]))
+            dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+    }
+    // we don't enable the features for others
+    else
+    {
+        dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+    }
+
     return true;
 }
 

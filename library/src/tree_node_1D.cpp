@@ -930,6 +930,51 @@ std::vector<size_t> SBCCNode::CollapsibleDims()
 /*****************************************************
  * SBRC  *
  *****************************************************/
+bool SBRCNode::KernelCheck()
+{
+    bool res = LeafNode::KernelCheck();
+
+    if(is_device_gcn_arch(deviceProp, "gfx906"))
+    {
+        // bad results from benchmark:
+        //     {49,sp}, {128,sp},
+        //     {64,dp}, {81,dp}, {100,dp} are bad
+        std::map<rocfft_precision, std::set<size_t>> exceptions
+            = {{rocfft_precision_single, {49, 128}}, {rocfft_precision_double, {64, 81, 100}}};
+        if(exceptions.at(precision).count(length[0]))
+            dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+    }
+    else if(is_device_gcn_arch(deviceProp, "gfx908"))
+    {
+        // bad results from benchmark:
+        //     {81,sp}, {100,sp}, {128,sp}, {192,sp}, {200,sp}, {512,sp},
+        //     {125,dp}, {128,dp} are bad
+        std::map<rocfft_precision, std::set<size_t>> exceptions
+            = {{rocfft_precision_single, {81, 100, 128, 192, 200, 512}},
+               {rocfft_precision_double, {125, 128}}};
+        if(exceptions.at(precision).count(length[0]))
+            dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+    }
+    else if(is_device_gcn_arch(deviceProp, "gfx90a"))
+    {
+        // bad results from benchmark:
+        //     {49,sp}, {81,sp}, {100,sp}, {125,sp}, {200,sp}, {512,sp},
+        //     {64,dp}, {81,dp}, {100,dp}, {125,dp} are bad
+        std::map<rocfft_precision, std::set<size_t>> exceptions
+            = {{rocfft_precision_single, {49, 81, 100, 125, 200, 512}},
+               {rocfft_precision_double, {64, 81, 100, 125}}};
+        if(exceptions.at(precision).count(length[0]))
+            dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+    }
+    // we don't enable the features for others
+    else
+    {
+        dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+    }
+
+    return res;
+}
+
 void SBRCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
     auto kernel   = function_pool::get_kernel(fpkey(length[0], precision, scheme));

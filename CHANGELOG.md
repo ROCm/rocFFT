@@ -18,6 +18,8 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
   sbcc kernels len 64 and 81 to get performance improvement.
 - Applied lds-non-linear and direct-load-to-register on sbcr kernels to
   get performance improvement.
+- Applied lds-non-linear and direct-store-from-register on sbrc kernels to
+  get performance improvement.
 
 ### Fixed
 - Fixed correctness of certain transforms with unusual strides.

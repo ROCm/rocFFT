@@ -595,7 +595,7 @@ def list_large_kernels():
     # SBRC
     sbrc_kernels = [
         NS(length=49,  factors=[7, 7], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=196, threads_per_transform=7), # block_width=28
-        NS(length=50,  factors=[10, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=50, threads_per_transform=5), # block_width=10
+        NS(length=50,  factors=[10, 5], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=50, threads_per_transform=5, direct_to_from_reg=False), # block_width=10
         # SBRC64: wgs=256 poor in MI50
         NS(length=64,  factors=[4, 4, 4], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=128, threads_per_transform=16), # block_width=8
         # 9,9 not good by experiments
@@ -622,10 +622,10 @@ def list_large_kernels():
     # TODO- tune on ROCm 5.2, SBCR 56 shows no improvement while it has on ROCm 5.0
     #       Need to be aware of any compiler optimization / regression
     sbcr_kernels = [
-        NS(length=56,  factors=[7, 8]),
-        NS(length=100, factors=[10, 10], direct_to_from_reg=True, workgroup_size=100),
-        NS(length=200, factors=[8, 5, 5], direct_to_from_reg=True),
-        NS(length=336, factors=[6, 7, 8], direct_to_from_reg=True)
+        NS(length=56,  factors=[7, 8], direct_to_from_reg=False),
+        NS(length=100, factors=[10, 10], workgroup_size=100),
+        NS(length=200, factors=[8, 5, 5]),
+        NS(length=336, factors=[6, 7, 8])
     ]
 
     block_width = 16
@@ -685,9 +685,7 @@ def generate_kernel(kernel, precisions, stockham_aot):
     half_lds = getattr(kernel, 'half_lds',
                        kernel.scheme == 'CS_KERNEL_STOCKHAM')
     # for unspecified direct_to_from_reg, default is True only for CS_KERNEL_STOCKHAM and SBCC
-    direct_to_from_reg = getattr(
-        kernel, 'direct_to_from_reg', kernel.scheme == 'CS_KERNEL_STOCKHAM'
-        or kernel.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC')
+    direct_to_from_reg = getattr(kernel, 'direct_to_from_reg', True)
 
     filename = kernel_file_name(kernel)
 
