@@ -24,7 +24,7 @@
 #include "rocfft.h"
 #include <functional>
 #include <gtest/gtest.h>
-#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
 #include <memory>
 #include <random>
 #include <thread>

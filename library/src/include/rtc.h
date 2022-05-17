@@ -22,7 +22,7 @@
 #define ROCFFT_RTC_H
 
 #include "rocfft.h"
-#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
 #include <hip/hiprtc.h>
 
 #include <future>

@@ -23,7 +23,7 @@
 
 #include <algorithm>
 #include <complex>
-#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
 #include <iostream>
 #include <mutex>
 #include <numeric>

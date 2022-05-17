@@ -22,6 +22,7 @@
 
 #include "kargs.h"
 #include "rocfft_hip.h"
+#include <cassert>
 
 // malloc device buffer; copy host buffer to device buffer
 gpubuf_t<size_t> kargs_create(std::vector<size_t> length,

@@ -21,6 +21,8 @@
 #ifndef __EXAMPLEKERNELS_H__
 #define __EXAMPLEKERNELS_H__
 
+#include <hip/hip_runtime.h>
+
 // Kernel for initializing 1D real input data on the GPU.
 __global__ void initrdata1(double* x, const size_t Nx, const size_t xstride)
 {

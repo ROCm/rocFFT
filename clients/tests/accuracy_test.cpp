@@ -21,6 +21,7 @@
 #include "accuracy_test.h"
 
 #include <hip/hip_complex.h>
+#include <hip/hip_runtime.h>
 
 __host__ __device__ float multiply_by_scalar(float a, double b)
 {
