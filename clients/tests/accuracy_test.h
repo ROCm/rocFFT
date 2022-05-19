@@ -620,6 +620,132 @@ inline void execute_gpu_fft(Tparams&            params,
     }
 }
 
+template <typename Tfloat>
+static void assert_init_value(const fftw_data_t& output, const size_t idx, const Tfloat orig_value);
+
+template <>
+void assert_init_value(const fftw_data_t& output, const size_t idx, const float orig_value)
+{
+    float actual_value = reinterpret_cast<const float*>(output.front().data())[idx];
+    ASSERT_EQ(actual_value, orig_value) << "index " << idx;
+}
+
+template <>
+void assert_init_value(const fftw_data_t& output, const size_t idx, const double orig_value)
+{
+    double actual_value = reinterpret_cast<const double*>(output.front().data())[idx];
+    ASSERT_EQ(actual_value, orig_value) << "index " << idx;
+}
+
+template <>
+void assert_init_value(const fftw_data_t& output, const size_t idx, const float2 orig_value)
+{
+    // if this is interleaved, check directly
+    if(output.size() == 1)
+    {
+        float2 actual_value = reinterpret_cast<const float2*>(output.front().data())[idx];
+        ASSERT_EQ(actual_value, orig_value) << "index " << idx;
+    }
+    else
+    {
+        // planar
+        float2 actual_value{reinterpret_cast<const float*>(output.front().data())[idx],
+                            reinterpret_cast<const float*>(output.back().data())[idx]};
+        ASSERT_EQ(actual_value, orig_value) << "index " << idx;
+    }
+}
+
+template <>
+void assert_init_value(const fftw_data_t& output, const size_t idx, const double2 orig_value)
+{
+    // if this is interleaved, check directly
+    if(output.size() == 1)
+    {
+        double2 actual_value = reinterpret_cast<const double2*>(output.front().data())[idx];
+        ASSERT_EQ(actual_value, orig_value) << "index " << idx;
+    }
+    else
+    {
+        // planar
+        double2 actual_value{reinterpret_cast<const double*>(output.front().data())[idx],
+                             reinterpret_cast<const double*>(output.back().data())[idx]};
+        ASSERT_EQ(actual_value, orig_value) << "index " << idx;
+    }
+}
+
+static const int OUTPUT_INIT_PATTERN = 0xcd;
+template <class Tfloat>
+void check_single_output_stride(const fftw_data_t&         output,
+                                const size_t               offset,
+                                const std::vector<size_t>& length,
+                                const std::vector<size_t>& stride,
+                                const size_t               i)
+{
+    Tfloat orig;
+    memset(&orig, OUTPUT_INIT_PATTERN, sizeof(Tfloat));
+
+    size_t curLength         = length[i];
+    size_t curStride         = stride[i];
+    size_t nextSmallerLength = i == length.size() - 1 ? 0 : length[i + 1];
+    size_t nextSmallerStride = i == stride.size() - 1 ? 0 : stride[i + 1];
+
+    if(nextSmallerLength == 0)
+    {
+        // this is the fastest dim, indexes that are not multiples of
+        // the stride should be the initial value
+        for(size_t idx = 0; idx < (curLength - 1) * curStride; ++idx)
+        {
+            if(idx % curStride != 0)
+                assert_init_value<Tfloat>(output, idx, orig);
+        }
+    }
+    else
+    {
+        for(size_t lengthIdx = 0; lengthIdx < curLength; ++lengthIdx)
+        {
+            // check that the space after the next smaller dim and the
+            // end of this dim is initial value
+            for(size_t idx = nextSmallerLength * nextSmallerStride; idx < curStride; ++idx)
+                assert_init_value<Tfloat>(output, idx, orig);
+
+            check_single_output_stride<Tfloat>(
+                output, offset + lengthIdx * curStride, length, stride, i + 1);
+        }
+    }
+}
+
+template <class Tparams>
+void check_output_strides(const fftw_data_t& output, Tparams& params)
+{
+    // treat batch+dist like highest length+stride, if batch > 1
+    std::vector<size_t> length;
+    std::vector<size_t> stride;
+    if(params.nbatch > 1)
+    {
+        length.push_back(params.nbatch);
+        stride.push_back(params.odist);
+    }
+
+    auto olength = params.olength();
+    std::copy(olength.begin(), olength.end(), std::back_inserter(length));
+    std::copy(params.ostride.begin(), params.ostride.end(), std::back_inserter(stride));
+
+    if(params.precision == fft_precision_single)
+    {
+        if(params.otype == fft_array_type_real)
+            check_single_output_stride<float>(output, 0, length, stride, 0);
+        else
+            check_single_output_stride<float2>(output, 0, length, stride, 0);
+    }
+    else
+    {
+        if(params.otype == fft_array_type_real)
+            check_single_output_stride<double>(output, 0, length, stride, 0);
+        else
+            check_single_output_stride<double2>(output, 0, length, stride, 0);
+    }
+}
+
 // run CPU + rocFFT transform with the given params and compare
 template <class Tfloat, class Tparams>
 inline void fft_vs_reference_impl(Tparams& params)
@@ -945,6 +1071,17 @@ inline void fft_vs_reference_impl(Tparams& params)
                 ASSERT_EQ(hip_status, hipSuccess)
                     << "hipMalloc failure for output buffer " << i << " size " << obuffer_sizes[i]
                     << " (" << static_cast<double>(obuffer_sizes[i]) << ") " << params.str();
+
+                // If we're validating output strides, init the
+                // output buffer to a known pattern and we can check
+                // that the pattern is untouched in places that
+                // shouldn't have been touched.
+                if(params.check_output_strides)
+                {
+                    hip_status
+                        = hipMemset(obuffer_data[i].data(), OUTPUT_INIT_PATTERN, obuffer_sizes[i]);
+                    ASSERT_EQ(hip_status, hipSuccess) << "hipMemset failure";
+                }
             }
         }
         pobuffer.resize(obuffer->size());
@@ -1008,6 +1145,11 @@ inline void fft_vs_reference_impl(Tparams& params)
     // limited scope for local variables
     fftw_data_t gpu_output;
     execute_gpu_fft(params, pibuffer, pobuffer, gpu_output);
+
+    if(params.check_output_strides)
+    {
+        check_output_strides<Tparams>(gpu_output, params);
+    }
 
     // compute GPU output norm
     std::shared_future<VectorNorms> gpu_norm = std::async(std::launch::async, [&]() {

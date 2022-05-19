@@ -133,6 +133,16 @@ public:
     static constexpr double load_cb_scalar  = 0.457813941;
     static constexpr double store_cb_scalar = 0.391504938;
 
+    // Check that data outside of output strides is not overwritten.
+    // This is only set explicitly on some tests where there's space
+    // between dimensions, but the dimensions are still in-order.
+    // We're not trying to generically find holes in arbitrary data
+    // layouts.
+    //
+    // NOTE: this flag is not included in tokens, since it doesn't
+    // affect how the FFT library behaves.
+    bool check_output_strides = false;
+
     fft_params(){};
     virtual ~fft_params(){};
 
@@ -459,8 +469,11 @@ public:
 
         ooffset = vector_parser(vals, "ooffset", pos);
 
-        if(pos < vals.size())
-            run_callbacks = vals[pos] == "CB";
+        if(pos < vals.size() && vals[pos] == "CB")
+        {
+            run_callbacks = true;
+            ++pos;
+        }
     }
 
     // Stream output operator (for gtest, etc).
@@ -918,6 +931,12 @@ public:
         }
 
         if(!check_iotypes())
+            return false;
+
+        // we can only check output strides on out-of-place
+        // transforms, since we need to initialize output to a known
+        // pattern
+        if(placement == fft_placement_inplace && check_output_strides)
             return false;
 
         // The parameters are valid.

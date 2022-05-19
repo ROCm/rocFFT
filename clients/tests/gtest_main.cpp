@@ -130,6 +130,7 @@ int main(int argc, char* argv[])
          "forward\n3) real inverse")
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
         ("callback", "Inject load/store callbacks")
+        ("checkstride", "Check that data is not written outside of output strides")
         ("double", "Double precision transform (default: single)")
         ( "itype", po::value<fft_array_type>(&manual_params.itype)
           ->default_value(fft_array_type_unset),
@@ -272,6 +273,11 @@ int main(int argc, char* argv[])
         if(vm.count("callback"))
         {
             manual_params.run_callbacks = true;
+        }
+
+        if(vm.count("checkstride"))
+        {
+            manual_params.check_output_strides = true;
         }
 
         if(manual_params.istride.empty())

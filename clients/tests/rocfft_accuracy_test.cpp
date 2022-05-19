@@ -57,7 +57,7 @@ TEST_P(accuracy_test, vs_fftw)
     fft_params tokentest;
     tokentest.from_token(token);
     auto token1 = tokentest.token();
-    EXPECT_TRUE(token == token1);
+    EXPECT_EQ(token, token1);
 
     if(!params.valid(verbose))
     {
