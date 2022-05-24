@@ -85,6 +85,12 @@ class Real2DEvenNode : public InternalNode
 {
     friend class NodeFactory;
 
+    enum Solution
+    {
+        INPLACE_SBCC, // SBCC + SBRR with pre/post processing
+        TR_PAIR // TRTR Real2C, or RTRT for C2Real
+    };
+
 protected:
     explicit Real2DEvenNode(TreeNode* p)
         : InternalNode(p)
@@ -97,8 +103,15 @@ protected:
                                 OperatingBuffer& flipOut,
                                 OperatingBuffer& obOutBuf) override;
 #endif
-    void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void     AssignParams_internal() override;
+    void     BuildTree_internal() override;
+    Solution solution = TR_PAIR;
+
+    void BuildTree_internal_SBCC();
+    void BuildTree_internal_TR_pair();
+
+    void AssignParams_internal_SBCC();
+    void AssignParams_internal_TR_pair();
 };
 
 /*****************************************************

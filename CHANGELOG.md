@@ -2,6 +2,11 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
+## (Unreleased) rocFFT 1.0.18
+
+### Optimizations
+- Optimized 2D R2C/C2R to use 2-kernel plans where possible.
+
 ## (Unreleased) rocFFT 1.0.17
 ### Added
 - Packages for test and benchmark executables on all supported OSes using CPack.

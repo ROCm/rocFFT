@@ -589,12 +589,71 @@ void Real2DEvenNode::BuildTree_internal()
     const std::vector<size_t>* complexLength = nullptr;
     set_complex_length(*this, realLength, complexLength);
 
+    // if we have SBCC for the higher dimension, use that and avoid transpose
+    solution = SBCC_dim_available(length, 1, precision) ? INPLACE_SBCC : TR_PAIR;
+
+    switch(solution)
+    {
+    case INPLACE_SBCC:
+        BuildTree_internal_SBCC();
+        break;
+    case TR_PAIR:
+        BuildTree_internal_TR_pair();
+        break;
+    }
+}
+
+void Real2DEvenNode::BuildTree_internal_SBCC()
+{
+    bool haveSBCC   = function_pool::has_SBCC_kernel(length[1], precision);
+    auto sbccScheme = haveSBCC ? CS_KERNEL_STOCKHAM_BLOCK_CC : CS_KERNEL_STOCKHAM;
+
+    if(inArrayType == rocfft_array_type_real) //forward
+    {
+        // first row fft + postproc is mandatory for fastest dimension
+        auto rcplan = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
+        // for length > 2048, don't try pre/post because LDS usage is too high
+        static_cast<RealTransEvenNode*>(rcplan.get())->try_fuse_pre_post_processing
+            = length[0] <= 2048;
+
+        rcplan->length    = length;
+        rcplan->dimension = 1;
+        rcplan->RecursiveBuildTree();
+        childNodes.emplace_back(std::move(rcplan));
+
+        auto sbccY    = NodeFactory::CreateNodeFromScheme(sbccScheme, this);
+        sbccY->length = childNodes.back()->outputLength;
+        std::swap(sbccY->length[0], sbccY->length[1]);
+        childNodes.emplace_back(std::move(sbccY));
+    }
+    else
+    {
+        auto sbccY    = NodeFactory::CreateNodeFromScheme(sbccScheme, this);
+        sbccY->length = length;
+        std::swap(sbccY->length[0], sbccY->length[1]);
+        childNodes.emplace_back(std::move(sbccY));
+
+        // c2r
+        auto crplan = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
+        // for length > 2048, don't try pre/post because LDS usage is too high
+        static_cast<RealTransEvenNode*>(crplan.get())->try_fuse_pre_post_processing
+            = length[0] <= 2048;
+
+        crplan->length    = outputLength;
+        crplan->dimension = 1;
+        crplan->RecursiveBuildTree();
+        childNodes.emplace_back(std::move(crplan));
+    }
+}
+
+void Real2DEvenNode::BuildTree_internal_TR_pair()
+{
     if(inArrayType == rocfft_array_type_real) //forward
     {
         // RTRT
         // first row fft
         auto row1Plan       = NodeFactory::CreateNodeFromScheme(CS_REAL_TRANSFORM_EVEN, this);
-        row1Plan->length    = *realLength;
+        row1Plan->length    = length;
         row1Plan->dimension = 1;
         row1Plan->RecursiveBuildTree();
 
@@ -655,7 +714,7 @@ void Real2DEvenNode::BuildTree_internal()
         // TRTR
         // first transpose
         auto trans1Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
-        trans1Plan->length = *complexLength;
+        trans1Plan->length = length;
         trans1Plan->SetTransposeOutputLength();
         trans1Plan->dimension = 2;
 
@@ -705,6 +764,68 @@ void Real2DEvenNode::BuildTree_internal()
 }
 
 void Real2DEvenNode::AssignParams_internal()
+{
+    switch(solution)
+    {
+    case INPLACE_SBCC:
+        AssignParams_internal_SBCC();
+        break;
+    case TR_PAIR:
+        AssignParams_internal_TR_pair();
+        break;
+    }
+}
+
+void Real2DEvenNode::AssignParams_internal_SBCC()
+{
+    const bool forward = inArrayType == rocfft_array_type_real;
+    if(forward)
+    {
+        auto& rowPlan = childNodes[0];
+
+        rowPlan->inStride = inStride;
+        rowPlan->iDist    = iDist;
+
+        rowPlan->outStride = outStride;
+        rowPlan->oDist     = oDist;
+
+        rowPlan->AssignParams();
+
+        auto& sbccY     = childNodes[1];
+        sbccY->inStride = rowPlan->outStride;
+        std::swap(sbccY->inStride[0], sbccY->inStride[1]);
+        sbccY->iDist = rowPlan->oDist;
+
+        sbccY->outStride = sbccY->inStride;
+        sbccY->oDist     = sbccY->iDist;
+    }
+    else
+    {
+        // input strides for last c2r node
+        std::vector<size_t> c2r_inStride = inStride;
+        size_t              c2r_iDist    = iDist;
+        auto&               sbccY        = childNodes[0];
+        sbccY->inStride                  = inStride;
+        // SBCC along Y dim
+        std::swap(sbccY->inStride[0], sbccY->inStride[1]);
+        sbccY->iDist     = iDist;
+        sbccY->outStride = sbccY->inStride;
+        sbccY->oDist     = iDist;
+        sbccY->AssignParams();
+
+        auto& crplan = childNodes.back();
+        {
+            crplan->inStride  = c2r_inStride;
+            crplan->iDist     = c2r_iDist;
+            crplan->outStride = outStride;
+            crplan->oDist     = oDist;
+            crplan->dimension = 1;
+            crplan->AssignParams();
+        }
+    }
+}
+
+void Real2DEvenNode::AssignParams_internal_TR_pair()
 {
     const bool forward = inArrayType == rocfft_array_type_real;
     if(forward)
