@@ -26,10 +26,8 @@
 std::vector<std::vector<size_t>> adhoc_sizes = {
     // sizes that exercise L1D_TRTRT subplan of 2D_RTRT or 3D_TRTRTR
     {1, 35},
-    // currently broken - padding is not correctly handling length-1 in all cases
-    // {1, 70},
-    // currently fails for some transforms
-    // {81, 63, 36},
+    {1, 70},
+    {81, 63, 36},
 
     // L1D_CC subplan of 3D_TRTRTR
     {4, 4, 8192},

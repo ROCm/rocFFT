@@ -1000,16 +1000,22 @@ void CollectTempBufOps(TreeNode&               node,
     {
         // If this is a parent node, look backwards through the
         // children to collect child nodes that write to the buffer
+        //
+        // We're collecting the children in backward order so we can
+        // add the operations in forward order after.
+        std::vector<TreeNode*> backwardChildren;
         for(auto child = node.childNodes.rbegin(); child != node.childNodes.rend(); ++child)
         {
             // Once a child stops using this temp buffer, stop looking
             // at children.
             if(child->get()->obOut != buf)
                 break;
-            CollectTempBufOps(*(child->get()), buf, users);
+            backwardChildren.push_back(child->get());
             if(child->get()->obIn != buf)
                 break;
         }
+        for(auto child = backwardChildren.rbegin(); child != backwardChildren.rend(); ++child)
+            CollectTempBufOps(**child, buf, users);
 
         // Store this write
         insertOp({node.UseOutputLengthForPadding() ? node.GetOutputLength() : node.length,
@@ -1138,6 +1144,15 @@ void AssignmentPolicy::PadPlan(ExecPlan& execPlan)
                    && stride[1] > 2048)
                     return;
             }
+
+            // R2C/C2R changes length, which confuses padding logic
+            // if it's in-place.  So just ignore those cases.
+            if(std::any_of(users.begin(), users.end(), [](TempBufOp& op) {
+                   return (op.node.scheme == CS_KERNEL_R_TO_CMPLX
+                           || op.node.scheme == CS_KERNEL_CMPLX_TO_R)
+                          && op.node.obIn == op.node.obOut;
+               }))
+                return;
 
             // pass previous write's strides to padding logic so it
             // can know how the data was shaped
