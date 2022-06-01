@@ -621,15 +621,17 @@ void Real2DEvenNode::BuildTree_internal_SBCC()
         rcplan->RecursiveBuildTree();
         childNodes.emplace_back(std::move(rcplan));
 
-        auto sbccY    = NodeFactory::CreateNodeFromScheme(sbccScheme, this);
-        sbccY->length = childNodes.back()->outputLength;
+        auto sbccY          = NodeFactory::CreateNodeFromScheme(sbccScheme, this);
+        sbccY->length       = childNodes.back()->outputLength;
+        sbccY->outputLength = sbccY->length;
         std::swap(sbccY->length[0], sbccY->length[1]);
         childNodes.emplace_back(std::move(sbccY));
     }
     else
     {
-        auto sbccY    = NodeFactory::CreateNodeFromScheme(sbccScheme, this);
-        sbccY->length = length;
+        auto sbccY          = NodeFactory::CreateNodeFromScheme(sbccScheme, this);
+        sbccY->outputLength = length;
+        sbccY->length       = length;
         std::swap(sbccY->length[0], sbccY->length[1]);
         childNodes.emplace_back(std::move(sbccY));
 
