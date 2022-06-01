@@ -50,8 +50,8 @@ inline auto param_checkstride()
         {{64, 64, 64}, {8400, 130, 2}, 2, 540000},
         // 3D_RTRTRT
         {{2, 3, 4}, {40, 10, 2}, 2, 100},
-        // bigger 3D_RTRTRT, currently broken for callback cases
-        // {{30, 40, 50}, {3000, 60, 1}, 2, 100000},
+        // bigger 3D_RTRTRT
+        {{30, 40, 50}, {3000, 60, 1}, 2, 100000},
     };
 
     std::vector<fft_params> params;

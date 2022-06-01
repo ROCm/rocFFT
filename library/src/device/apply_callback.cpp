@@ -23,28 +23,50 @@
 static const size_t APPLY_REAL_CALLBACK_THREADS = 64;
 template <typename Treal>
 __global__ void __launch_bounds__(APPLY_REAL_CALLBACK_THREADS)
-    apply_real_callback_kernel(const size_t input_size,
-                               const size_t dist1D,
-                               Treal* __restrict__ input0,
-                               const size_t dist,
+    apply_real_callback_kernel(unsigned int dim,
+                               unsigned int lengths0,
+                               unsigned int lengths1,
+                               unsigned int lengths2,
+                               unsigned int stride_in0,
+                               unsigned int stride_in1,
+                               unsigned int stride_in2,
+                               unsigned int stride_in3,
+                               Treal* __restrict__ input,
                                void* __restrict__ load_cb_fn,
                                void* __restrict__ load_cb_data,
                                uint32_t load_cb_lds_bytes,
                                void* __restrict__ store_cb_fn,
                                void* __restrict__ store_cb_data)
 {
-    const size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if(tid < input_size)
+    const size_t idx_0 = blockIdx.x * blockDim.x + threadIdx.x;
+
+    const unsigned int lengths[3]   = {lengths0, lengths1, lengths2};
+    const unsigned int stride_in[4] = {stride_in0, stride_in1, stride_in2, stride_in3};
+
+    // offsets
+    size_t offset_in = 0;
+    size_t remaining;
+    size_t index_along_d;
+    remaining = blockIdx.y;
+    for(int d = 1; d < dim; ++d)
+    {
+        index_along_d = remaining % lengths[d];
+        remaining     = remaining / lengths[d];
+        offset_in     = offset_in + index_along_d * stride_in[d];
+    }
+    // remaining should be 1 at this point, since batch goes into blockIdx.z
+    size_t batch = blockIdx.z;
+    offset_in    = offset_in + batch * stride_in[dim];
+
+    if(idx_0 < lengths[0])
     {
         auto load_cb  = get_load_cb<Treal, CallbackType::USER_LOAD_STORE>(load_cb_fn);
         auto store_cb = get_store_cb<Treal, CallbackType::USER_LOAD_STORE>(store_cb_fn);
 
-        // blockIdx.y gives the multi-dimensional offset
-        // blockIdx.z gives the batch offset
-        const auto idx = blockIdx.y * dist1D + blockIdx.z * dist;
+        const auto inputIdx = offset_in + idx_0 * stride_in[0];
 
-        auto elem = load_cb(input0, idx + tid, load_cb_data, nullptr);
-        store_cb(input0, idx + tid, elem, store_cb_data, nullptr);
+        auto elem = load_cb(input, inputIdx, load_cb_data, nullptr);
+        store_cb(input, inputIdx, elem, store_cb_data, nullptr);
     }
 }
 
@@ -52,24 +74,19 @@ ROCFFT_DEVICE_EXPORT void apply_real_callback(const void* data_p, void* back)
 {
     auto data = static_cast<const DeviceCallIn*>(data_p);
 
-    size_t input_size = data->node->length[0];
-
-    size_t input_distance = data->node->iDist;
-
-    size_t input_stride
-        = (data->node->length.size() > 1) ? data->node->inStride[1] : input_distance;
+    size_t input_size = data->node->length[0]; // input_size is the innermost dimension
 
     void* input_buffer = data->bufIn[0];
 
     size_t batch          = data->node->batch;
     size_t high_dimension = 1;
-    if(data->node->length.size() > 1)
+    size_t dim            = data->node->length.size();
+
+    for(int i = 1; i < dim; i++)
     {
-        for(int i = 1; i < data->node->length.size(); i++)
-        {
-            high_dimension *= data->node->length[i];
-        }
+        high_dimension *= data->node->length[i];
     }
+
     rocfft_precision precision = data->node->precision;
 
     size_t blocks = (input_size - 1) / APPLY_REAL_CALLBACK_THREADS + 1;
@@ -77,39 +94,58 @@ ROCFFT_DEVICE_EXPORT void apply_real_callback(const void* data_p, void* back)
     dim3 grid(blocks, high_dimension, batch);
     dim3 threads(APPLY_REAL_CALLBACK_THREADS, 1, 1);
 
-    switch(precision)
+    hipStream_t rocfft_stream = data->rocfft_stream;
+
+    // explode lengths/strides out to pass to the kernel
+    std::array<size_t, 3> kern_lengths{1, 1, 1};
+    std::array<size_t, 4> kern_stride_in{1, 1, 1, 1};
+
+    std::copy(data->node->length.begin(), data->node->length.end(), kern_lengths.begin());
+    std::copy(data->node->inStride.begin(), data->node->inStride.end(), kern_stride_in.begin());
+    kern_stride_in[dim] = data->node->iDist;
+
+    if(precision == rocfft_precision_single)
     {
-    case rocfft_precision_single:
         hipLaunchKernelGGL(HIP_KERNEL_NAME(apply_real_callback_kernel<float>),
                            grid,
                            threads,
                            0,
-                           data->rocfft_stream,
-                           input_size,
-                           input_stride,
+                           rocfft_stream,
+                           dim,
+                           kern_lengths[0],
+                           kern_lengths[1],
+                           kern_lengths[2],
+                           kern_stride_in[0],
+                           kern_stride_in[1],
+                           kern_stride_in[2],
+                           kern_stride_in[3],
                            static_cast<float*>(input_buffer),
-                           input_distance,
                            data->callbacks.load_cb_fn,
                            data->callbacks.load_cb_data,
                            data->callbacks.load_cb_lds_bytes,
                            data->callbacks.store_cb_fn,
                            data->callbacks.store_cb_data);
-        break;
-    case rocfft_precision_double:
+    }
+    else
+    {
         hipLaunchKernelGGL(HIP_KERNEL_NAME(apply_real_callback_kernel<double>),
                            grid,
                            threads,
                            0,
-                           data->rocfft_stream,
-                           input_size,
-                           input_stride,
+                           rocfft_stream,
+                           dim,
+                           kern_lengths[0],
+                           kern_lengths[1],
+                           kern_lengths[2],
+                           kern_stride_in[0],
+                           kern_stride_in[1],
+                           kern_stride_in[2],
+                           kern_stride_in[3],
                            static_cast<double*>(input_buffer),
-                           input_distance,
                            data->callbacks.load_cb_fn,
                            data->callbacks.load_cb_data,
                            data->callbacks.load_cb_lds_bytes,
                            data->callbacks.store_cb_fn,
                            data->callbacks.store_cb_data);
-        break;
     }
 }
