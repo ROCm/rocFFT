@@ -367,45 +367,93 @@ RTCKernel::RTCKernel(const std::string& kernel_name, const std::vector<char>& co
         throw std::runtime_error("failed to get function");
 }
 
-void RTCKernel::launch(DeviceCallIn& data)
+// Helper class that handles alignment of kernel arguments
+class RTCKernelArgs
 {
-    // arguments get pushed in an array of 64-bit values
-    std::vector<void*> kargs;
-
-    // twiddles
-    kargs.push_back(data.node->twiddles);
-    // large 1D twiddles
-    if(data.node->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-        kargs.push_back(data.node->twiddles_large);
-    // lengths
-    kargs.push_back(kargs_lengths(data.node->devKernArg));
-    // stride in/out
-    kargs.push_back(kargs_stride_in(data.node->devKernArg));
-    if(data.node->placement == rocfft_placement_notinplace)
-        kargs.push_back(kargs_stride_out(data.node->devKernArg));
-    // nbatch
-    kargs.push_back(reinterpret_cast<void*>(data.node->batch));
-    // lds padding
-    kargs.push_back(reinterpret_cast<void*>(data.node->lds_padding));
-    // callback params
-    kargs.push_back(data.callbacks.load_cb_fn);
-    kargs.push_back(data.callbacks.load_cb_data);
-    kargs.push_back(reinterpret_cast<void*>(data.callbacks.load_cb_lds_bytes));
-    kargs.push_back(data.callbacks.store_cb_fn);
-    kargs.push_back(data.callbacks.store_cb_data);
-
-    // buffer pointers
-    kargs.push_back(data.bufIn[0]);
-    if(array_type_is_planar(data.node->inArrayType))
-        kargs.push_back(data.bufIn[1]);
-    if(data.node->placement == rocfft_placement_notinplace)
+public:
+    RTCKernelArgs() = default;
+    void append_ptr(void* ptr)
     {
-        kargs.push_back(data.bufOut[0]);
-        if(array_type_is_planar(data.node->outArrayType))
-            kargs.push_back(data.bufOut[1]);
+        append(&ptr, sizeof(void*));
+    }
+    void append_size_t(size_t s)
+    {
+        append(&s, sizeof(size_t));
+    }
+    void append_unsigned_int(unsigned int i)
+    {
+        append(&i, sizeof(unsigned int));
+    }
+    void append_double(double d)
+    {
+        append(&d, sizeof(double));
+    }
+    void append_float(float f)
+    {
+        append(&f, sizeof(float));
     }
 
-    auto  size     = sizeof(kargs.size() * sizeof(void*));
+    size_t size_bytes() const
+    {
+        return buf.size();
+    }
+    void* data()
+    {
+        return buf.data();
+    }
+
+private:
+    void append(void* src, size_t nbytes)
+    {
+        // values need to be aligned to their width (i.e. 8-byte values
+        // need 8-byte alignment, 4-byte needs 4-byte alignment)
+        size_t oldsize = buf.size();
+        size_t padding = oldsize % nbytes ? nbytes - (oldsize % nbytes) : 0;
+        buf.resize(oldsize + padding + nbytes);
+        std::copy_n(static_cast<const char*>(src), nbytes, buf.begin() + oldsize + padding);
+    }
+    std::vector<char> buf;
+};
+
+void RTCKernel::launch(DeviceCallIn& data)
+{
+    // construct arguments to pass to the kernel
+    RTCKernelArgs kargs;
+
+    // twiddles
+    kargs.append_ptr(data.node->twiddles);
+    // large 1D twiddles
+    if(data.node->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
+        kargs.append_ptr(data.node->twiddles_large);
+    // lengths
+    kargs.append_ptr(kargs_lengths(data.node->devKernArg));
+    // stride in/out
+    kargs.append_ptr(kargs_stride_in(data.node->devKernArg));
+    if(data.node->placement == rocfft_placement_notinplace)
+        kargs.append_ptr(kargs_stride_out(data.node->devKernArg));
+    // nbatch
+    kargs.append_size_t(data.node->batch);
+    // lds padding
+    kargs.append_unsigned_int(data.node->lds_padding);
+    // callback params
+    kargs.append_ptr(data.callbacks.load_cb_fn);
+    kargs.append_ptr(data.callbacks.load_cb_data);
+    kargs.append_unsigned_int(data.callbacks.load_cb_lds_bytes);
+    kargs.append_ptr(data.callbacks.store_cb_fn);
+    kargs.append_ptr(data.callbacks.store_cb_data);
+
+    // buffer pointers
+    kargs.append_ptr(data.bufIn[0]);
+    if(array_type_is_planar(data.node->inArrayType))
+        kargs.append_ptr(data.bufIn[1]);
+    if(data.node->placement == rocfft_placement_notinplace)
+    {
+        kargs.append_ptr(data.bufOut[0]);
+        if(array_type_is_planar(data.node->outArrayType))
+            kargs.append_ptr(data.bufOut[1]);
+    }
+
+    auto  size     = kargs.size_bytes();
     void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER,
                       kargs.data(),
                       HIP_LAUNCH_PARAM_BUFFER_SIZE,
