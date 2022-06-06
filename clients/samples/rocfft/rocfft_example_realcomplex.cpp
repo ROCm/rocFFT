@@ -158,11 +158,11 @@ int main(int argc, char* argv[])
 
     if(forward)
     {
-        initreal(length, istride, gpu_in);
+        initreal_cm(length, istride, gpu_in);
     }
     else
     {
-        inithermitiancomplex(length, ilength, istride, gpu_in);
+        init_hermitiancomplex_cm(length, ilength, istride, gpu_in);
     }
 
     // Print the input:
@@ -170,15 +170,15 @@ int main(int argc, char* argv[])
     if(forward)
     {
         hipMemcpy(rdata.data(), gpu_in, ibytes, hipMemcpyDeviceToHost);
-        printbuffer(rdata, ilength, istride, 1, isize);
+        printbuffer_cm(rdata, ilength, istride, 1, isize);
     }
     else
     {
         hipMemcpy(cdata.data(), gpu_in, ibytes, hipMemcpyDeviceToHost);
-        printbuffer(cdata, ilength, istride, 1, isize);
+        printbuffer_cm(cdata, ilength, istride, 1, isize);
 
         // Check that the buffer is Hermitian symmetric:
-        check_symmetry(cdata, length, istride, 1, isize);
+        check_symmetry_cm(cdata, length, istride, 1, isize);
     }
 
     // rocfft_status can be used to capture API status info
@@ -270,12 +270,12 @@ int main(int argc, char* argv[])
     if(forward)
     {
         hipMemcpy(cdata.data(), gpu_out, obytes, hipMemcpyDeviceToHost);
-        printbuffer(cdata, olength, ostride, 1, osize);
+        printbuffer_cm(cdata, olength, ostride, 1, osize);
     }
     else
     {
         hipMemcpy(rdata.data(), gpu_out, obytes, hipMemcpyDeviceToHost);
-        printbuffer(rdata, olength, ostride, 1, osize);
+        printbuffer_cm(rdata, olength, ostride, 1, osize);
     }
 
     // Clean up: free GPU memory:

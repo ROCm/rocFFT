@@ -962,6 +962,18 @@ public:
         std::reverse(std::begin(length_cm), std::end(length_cm));
         return length_cm;
     }
+    std::vector<size_t> ilength_cm() const
+    {
+        auto ilength_cm = ilength();
+        std::reverse(std::begin(ilength_cm), std::end(ilength_cm));
+        return ilength_cm;
+    }
+    std::vector<size_t> olength_cm() const
+    {
+        auto olength_cm = olength();
+        std::reverse(std::begin(olength_cm), std::end(olength_cm));
+        return olength_cm;
+    }
     std::vector<size_t> istride_cm() const
     {
         auto istride_cm = istride;

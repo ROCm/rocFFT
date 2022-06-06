@@ -22,6 +22,7 @@
 #define __EXAMPLEKERNELS_H__
 
 #include <hip/hip_runtime.h>
+#include <iostream>
 
 // Kernel for initializing 1D real input data on the GPU.
 __global__ void initrdata1(double* x, const size_t Nx, const size_t xstride)
@@ -62,7 +63,7 @@ __global__ void initrdata3(double*      x,
     if(idx < Nx && idy < Ny && idz < Nz)
     {
         const auto pos = idx * xstride + idy * ystride + idz * zstride;
-        x[pos]         = idx + idy + idz;
+        x[pos]         = cos(cos(idx + 2)) * sin(idy * idy + 1) / (idz + 1);
     }
 }
 
@@ -128,17 +129,14 @@ __global__ void
     impose_hermitian_symmetry1(double2* x, const size_t Nx, const size_t xstride, const bool Nxeven)
 {
     // The DC mode must be real-valued.
-    auto val = x[0];
-    val.y    = 0.0;
-    x[0]     = val;
+    x[0].y = 0.0;
+    ;
 
     if(Nxeven)
     {
         // Nyquist mode
-        auto pos = (Nx - 1) * xstride;
-        val      = x[pos];
-        val.y    = 0.0;
-        x[pos]   = val;
+        auto pos = (Nx / 2) * xstride;
+        x[pos].y = 0.0;
     }
 }
 
@@ -151,12 +149,13 @@ __global__ void impose_hermitian_symmetry2(double2*     x,
                                            const bool   Nxeven,
                                            const bool   Nyeven)
 {
-    const size_t idy = blockIdx.x * blockDim.x + threadIdx.x;
-    if(idy <= Ny / 2)
+    const auto idy = blockIdx.x * blockDim.x + threadIdx.x;
+    if(idy < Ny / 2 + 1)
     {
-        const auto pos  = idy * ystride;
-        const auto cpos = ((Ny - idy) % Ny) * ystride;
-        auto       val  = x[pos];
+        auto pos  = idy * ystride;
+        auto cpos = ((Ny - idy) % Ny) * ystride;
+
+        auto val = x[pos];
 
         // DC mode:
         if(idy == 0)
@@ -180,11 +179,12 @@ __global__ void impose_hermitian_symmetry2(double2*     x,
 
         if(Nxeven)
         {
-            const auto pos_even  = (Nx - 1) * xstride + idy * ystride;
-            const auto cpos_even = (Nx - 1) * xstride + ((Ny - idy) % Ny) * ystride;
-            val                  = x[pos_even];
+            pos += (Nx / 2) * xstride;
+            cpos += (Nx / 2) * xstride;
 
-            // x-Nyquist
+            val = x[pos];
+
+            // DC mode:
             if(idy == 0)
             {
                 val.y = 0.0;
@@ -196,13 +196,13 @@ __global__ void impose_hermitian_symmetry2(double2*     x,
                 val.y = -val.y;
             }
 
-            // xy-Nyquist
+            // y-Nyquist
             if(Nyeven && idy == Ny / 2)
             {
                 val.y = 0.0;
             }
 
-            x[cpos_even] = val;
+            x[cpos] = val;
         }
     }
 }
@@ -221,124 +221,128 @@ __global__ void impose_hermitian_symmetry3(double2*     x,
 {
     const auto idy = blockIdx.x * blockDim.x + threadIdx.x;
     const auto idz = blockIdx.y * blockDim.y + threadIdx.y;
-    if(idy <= Ny / 2 && idz <= Nz / 2)
-    {
-        const auto pos  = idy * ystride + idz * zstride;
-        const auto cpos = ((Ny - idy) % Ny) * ystride + ((Nz - idz) % Nz) * zstride;
 
-        auto val = x[pos];
+    if(idy < Ny && idz < Nz)
+    {
+        auto pos  = idy * ystride + idz * zstride;
+        auto cpos = ((Ny - idy) % Ny) * ystride + ((Nz - idz) % Nz) * zstride;
 
         // Origin
         if(idy == 0 && idz == 0)
         {
-            val.y = 0.0;
+            x[pos].y = 0;
+        }
+
+        // y-Nyquist
+        if(Nyeven && idy == Ny / 2 && idz == 0)
+        {
+            x[pos].y = 0;
+        }
+
+        // z-Nyquist
+        if(Nzeven && idz == Nz / 2 && idy == 0)
+        {
+            x[pos].y = 0;
+        }
+
+        // yz-Nyquist
+        if(Nyeven && Nzeven && idy == Ny / 2 && idz == Nz / 2)
+        {
+            x[pos].y = 0;
         }
 
         // z-axis
         if(idy == 0 && idz > 0 && idz < (Nz + 1) / 2)
         {
-            val.y = -val.y;
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
+        }
+        // y-Nyquist axis
+        if(Nyeven && idy == Ny / 2 && idz > 0 && idz < (Nz + 1) / 2)
+        {
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
         }
 
         // y-axis
         if(idy > 0 && idy < (Ny + 1) / 2 && idz == 0)
         {
-            val.y = -val.y;
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
         }
-
-        // z-y plane
-        if(idy > 0 && idy < (Ny + 1) / 2 && idz > 0 && idz < (Nz + 1) / 2)
-        {
-            val.y = -val.y;
-        }
-
-        // y-Nyquist axis
-        if(Nyeven && idy == Ny / 2 && idz > 0)
-        {
-            val.y = -val.y;
-        }
-
         // z-Nyquist axis
-        if(Nzeven && idz == Nz / 2 && idy > 0)
+        if(Nzeven && idz == Nz / 2 && idy > 0 && idy < (Ny + 1) / 2)
         {
-            val.y = -val.y;
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
         }
 
-        // y-Nyquist
-        if(Nyeven && idz == 0 && idy == (Ny + 1) / 2)
+        // yz plane
+        if(idy > 0 && idy < (Ny + 1) / 2 && idz > 0 && idz < Nz)
         {
-            val.y = 0;
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
         }
-        // z-Nyquist
-        if(Nzeven && idy == 0 && idz == (Nz + 1) / 2)
-        {
-            val.y = 0;
-        }
-        // yz-Nyquist
-        if(Nyeven && Nzeven && idy == (Ny + 1) / 2 && idz == (Nz + 1) / 2)
-        {
-            val.y = 0;
-        }
-
-        x[cpos] = val;
-
         if(Nxeven)
         {
-            const auto pos_even = (Nx - 1) * xstride + idy * ystride + idz * zstride;
-            const auto cpos_even
-                = (Nx - 1) * xstride + ((Ny - idy) % Ny) * ystride + ((Nz - idz) % Nz) * zstride;
-            val = x[pos_even];
-
-            // x-Nyquist
+            pos += (Nx / 2) * xstride;
+            cpos += (Nx / 2) * xstride;
+            // Origin
             if(idy == 0 && idz == 0)
             {
-                val.y = 0;
+                x[pos].y = 0;
             }
 
-            // y-axis at x-Nyquist
-            if(idy == 0 && idz > 0 && idz < (Nz + 1) / 2)
+            // y-Nyquist
+            if(Nyeven && idy == Ny / 2 && idz == 0)
             {
-                val.y = -val.y;
-            }
-            // z-axis at x-Nyquist
-            if(idy > 0 && idy < (Ny + 1) / 2 && idz == 0)
-            {
-                val.y = -val.y;
-            }
-            // yz-axis at x-Nyquist
-            if(idy > 0 && idy < (Ny + 1) / 2 && idz > 0 && idz < (Nz + 1) / 2)
-            {
-                val.y = -val.y;
+                x[pos].y = 0;
             }
 
-            // y-Nyquist axis at x-Nyquist
-            if(Nyeven && idy == Ny / 2 && idz > 0)
+            // z-Nyquist
+            if(Nzeven && idz == Nz / 2 && idy == 0)
             {
-                val.y = -val.y;
-            }
-            // z-Nyquist axis at x-Nyquist
-            if(Nzeven && idz == Nz / 2 && idy > 0)
-            {
-                val.y = -val.y;
+                x[pos].y = 0;
             }
 
-            // xy-Nyquist
-            if(Nyeven && idz == 0 && idy == Ny / 2)
-            {
-                val.y = 0;
-            }
-            // xz-Nyquist
-            if(Nzeven && idy == 0 && idz == Nz / 2)
-            {
-                val.y = 0;
-            }
-            // xyz-Nyquist
+            // yz-Nyquist
             if(Nyeven && Nzeven && idy == Ny / 2 && idz == Nz / 2)
             {
-                val.y = 0;
+                x[pos].y = 0;
             }
 
-            x[cpos_even] = val;
+            // z-axis
+            if(idy == 0 && idz > 0 && idz < (Nz + 1) / 2)
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
+            // y-Nyquist axis
+            if(Nyeven && idy == Ny / 2 && idz > 0 && idz < (Nz + 1) / 2)
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
+
+            // y-axis
+            if(idy > 0 && idy < (Ny + 1) / 2 && idz == 0)
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
+            // z-Nyquist axis
+            if(Nzeven && idz == Nz / 2 && idy > 0 && idy < (Ny + 1) / 2)
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
+
+            // yz plane
+            if(idy > 0 && idy < (Ny + 1) / 2 && idz > 0 && idz < Nz)
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
         }
     }
 }
@@ -352,52 +356,54 @@ Tint1 ceildiv(const Tint1 nominator, const Tint2 denominator)
 
 // The following functions call the above kernels to initalize the input data for the transform.
 
-void initcomplex(const std::vector<size_t>& length, const std::vector<size_t>& stride, void* gpu_in)
+void initcomplex_cm(const std::vector<size_t>& length_cm,
+                    const std::vector<size_t>& stride_cm,
+                    void*                      gpu_in)
 {
-    switch(length.size())
+    switch(length_cm.size())
     {
     case 1:
     {
         const dim3 blockdim(256);
-        const dim3 griddim(ceildiv(length[0], blockdim.x));
+        const dim3 griddim(ceildiv(length_cm[0], blockdim.x));
         hipLaunchKernelGGL(
-            initcdata1, blockdim, griddim, 0, 0, (double2*)gpu_in, length[0], stride[0]);
+            initcdata1, blockdim, griddim, 0, 0, (double2*)gpu_in, length_cm[0], stride_cm[0]);
         break;
     }
     case 2:
     {
         const dim3 blockdim(64, 64);
-        const dim3 griddim(ceildiv(length[0], blockdim.x), ceildiv(length[1], blockdim.y));
+        const dim3 griddim(ceildiv(length_cm[0], blockdim.x), ceildiv(length_cm[1], blockdim.y));
         hipLaunchKernelGGL(initcdata2,
                            blockdim,
                            griddim,
                            0,
                            0,
                            (double2*)gpu_in,
-                           length[0],
-                           length[1],
-                           stride[0],
-                           stride[1]);
+                           length_cm[0],
+                           length_cm[1],
+                           stride_cm[0],
+                           stride_cm[1]);
         break;
     }
     case 3:
     {
         const dim3 blockdim(32, 32, 32);
-        const dim3 griddim(ceildiv(length[0], blockdim.x),
-                           ceildiv(length[1], blockdim.y),
-                           ceildiv(length[2], blockdim.z));
+        const dim3 griddim(ceildiv(length_cm[0], blockdim.x),
+                           ceildiv(length_cm[1], blockdim.y),
+                           ceildiv(length_cm[2], blockdim.z));
         hipLaunchKernelGGL(initcdata3,
                            blockdim,
                            griddim,
                            0,
                            0,
                            (double2*)gpu_in,
-                           length[0],
-                           length[1],
-                           length[2],
-                           stride[0],
-                           stride[1],
-                           stride[2]);
+                           length_cm[0],
+                           length_cm[1],
+                           length_cm[2],
+                           stride_cm[0],
+                           stride_cm[1],
+                           stride_cm[2]);
         break;
     }
     default:
@@ -408,52 +414,54 @@ void initcomplex(const std::vector<size_t>& length, const std::vector<size_t>& s
 
 // Initialize the real input buffer where the data has lengths given in length and stride given in
 // stride.  The device buffer is assumed to have been allocated.
-void initreal(const std::vector<size_t>& length, const std::vector<size_t>& stride, void* gpu_in)
+void initreal_cm(const std::vector<size_t>& length_cm,
+                 const std::vector<size_t>& stride_cm,
+                 void*                      gpu_in)
 {
-    switch(length.size())
+    switch(length_cm.size())
     {
     case 1:
     {
         const dim3 blockdim(256);
-        const dim3 griddim(ceildiv(length[0], blockdim.x));
+        const dim3 griddim(ceildiv(length_cm[0], blockdim.x));
         hipLaunchKernelGGL(
-            initrdata1, blockdim, griddim, 0, 0, (double*)gpu_in, length[0], stride[0]);
+            initrdata1, blockdim, griddim, 0, 0, (double*)gpu_in, length_cm[0], stride_cm[0]);
         break;
     }
     case 2:
     {
         const dim3 blockdim(64, 64);
-        const dim3 griddim(ceildiv(length[0], blockdim.x), ceildiv(length[1], blockdim.y));
+        const dim3 griddim(ceildiv(length_cm[0], blockdim.x), ceildiv(length_cm[1], blockdim.y));
         hipLaunchKernelGGL(initrdata2,
                            blockdim,
                            griddim,
                            0,
                            0,
                            (double*)gpu_in,
-                           length[0],
-                           length[1],
-                           stride[0],
-                           stride[1]);
+                           length_cm[0],
+                           length_cm[1],
+                           stride_cm[0],
+                           stride_cm[1]);
         break;
     }
     case 3:
     {
         const dim3 blockdim(32, 32, 32);
-        const dim3 griddim(ceildiv(length[0], blockdim.x),
-                           ceildiv(length[1], blockdim.y),
-                           ceildiv(length[2], blockdim.z));
+        const dim3 griddim(ceildiv(length_cm[0], blockdim.x),
+                           ceildiv(length_cm[1], blockdim.y),
+                           ceildiv(length_cm[2], blockdim.z));
         hipLaunchKernelGGL(initrdata3,
                            blockdim,
                            griddim,
                            0,
                            0,
                            (double*)gpu_in,
-                           length[0],
-                           length[1],
-                           length[2],
-                           stride[0],
-                           stride[1],
-                           stride[2]);
+                           length_cm[0],
+                           length_cm[1],
+                           length_cm[2],
+                           stride_cm[0],
+                           stride_cm[1],
+                           stride_cm[2]);
         break;
     }
     default:
@@ -462,13 +470,73 @@ void initreal(const std::vector<size_t>& length, const std::vector<size_t>& stri
     }
 }
 
+void impose_hermitian_symmetry_cm(const std::vector<size_t>& length,
+                                  const std::vector<size_t>& ilength,
+                                  const std::vector<size_t>& stride,
+                                  void*                      gpu_in)
+{
+    switch(length.size())
+    {
+    case 1:
+    {
+        hipLaunchKernelGGL(impose_hermitian_symmetry1,
+                           dim3(1),
+                           dim3(1),
+                           0,
+                           0,
+                           (double2*)gpu_in,
+                           length[0],
+                           stride[0],
+                           length[0] % 2 == 0);
+        break;
+    }
+    case 2:
+    {
+        hipLaunchKernelGGL(impose_hermitian_symmetry2,
+                           dim3(256),
+                           dim3(ceildiv(ceildiv(ilength[1], 2), 256)),
+                           0,
+                           0,
+                           (double2*)gpu_in,
+                           length[0],
+                           length[1],
+                           stride[0],
+                           stride[1],
+                           length[0] % 2 == 0,
+                           length[1] % 2 == 0);
+        break;
+    }
+    case 3:
+    {
+        hipLaunchKernelGGL(impose_hermitian_symmetry3,
+                           dim3(64, 64),
+                           dim3(ceildiv(ilength[1], 64), ceildiv(ceildiv(ilength[2], 2), 64)),
+                           0,
+                           0,
+                           (double2*)gpu_in,
+                           length[0],
+                           length[1],
+                           length[2],
+                           stride[0],
+                           stride[1],
+                           stride[2],
+                           length[0] % 2 == 0,
+                           length[1] % 2 == 0,
+                           length[2] % 2 == 0);
+        break;
+    }
+    default:
+        throw std::runtime_error("Invalid dimension");
+    }
+}
+
 // Initialize the real input buffer where the data has lengths given in length, the transform has
 // lengths given in length and stride given in stride.  The device buffer is assumed to have been
 // allocated.
-void inithermitiancomplex(const std::vector<size_t>& length,
-                          const std::vector<size_t>& ilength,
-                          const std::vector<size_t>& stride,
-                          void*                      gpu_in)
+void init_hermitiancomplex_cm(const std::vector<size_t>& length,
+                              const std::vector<size_t>& ilength,
+                              const std::vector<size_t>& stride,
+                              void*                      gpu_in)
 {
     switch(length.size())
     {
@@ -484,7 +552,7 @@ void inithermitiancomplex(const std::vector<size_t>& length,
                            0,
                            0,
                            (double2*)gpu_in,
-                           ilength[0],
+                           length[0],
                            stride[0],
                            length[0] % 2 == 0);
         break;
@@ -505,12 +573,12 @@ void inithermitiancomplex(const std::vector<size_t>& length,
                            stride[1]);
         hipLaunchKernelGGL(impose_hermitian_symmetry2,
                            dim3(256),
-                           dim3(ceildiv(ilength[1] / 2 + 1, 256)),
+                           dim3(ceildiv(ceildiv(ilength[1], 2), 256)),
                            0,
                            0,
                            (double2*)gpu_in,
-                           ilength[0],
-                           ilength[1],
+                           length[0],
+                           length[1],
                            stride[0],
                            stride[1],
                            length[0] % 2 == 0,
@@ -523,6 +591,7 @@ void inithermitiancomplex(const std::vector<size_t>& length,
         const dim3 griddim(ceildiv(ilength[0], blockdim.x),
                            ceildiv(ilength[1], blockdim.y),
                            ceildiv(ilength[2], blockdim.z));
+
         hipLaunchKernelGGL(initcdata3,
                            blockdim,
                            griddim,
@@ -535,15 +604,16 @@ void inithermitiancomplex(const std::vector<size_t>& length,
                            stride[0],
                            stride[1],
                            stride[2]);
+
         hipLaunchKernelGGL(impose_hermitian_symmetry3,
                            dim3(64, 64),
-                           dim3(ceildiv(ilength[1] / 2 + 1, 64), ceildiv(ilength[2] / 2 + 1, 64)),
+                           dim3(ceildiv(ilength[1], 64), ceildiv(ceildiv(ilength[2], 2), 64)),
                            0,
                            0,
                            (double2*)gpu_in,
-                           ilength[0],
-                           ilength[1],
-                           ilength[2],
+                           length[0],
+                           length[1],
+                           length[2],
                            stride[0],
                            stride[1],
                            stride[2],
@@ -553,9 +623,10 @@ void inithermitiancomplex(const std::vector<size_t>& length,
         break;
     }
     default:
-        std::cout << "invalid dimension!\n";
-        exit(1);
+        throw std::runtime_error("Invalid dimension");
     }
+
+    impose_hermitian_symmetry_cm(length, ilength, stride, gpu_in);
 }
 
 #endif

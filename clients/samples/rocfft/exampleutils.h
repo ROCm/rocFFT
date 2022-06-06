@@ -24,7 +24,7 @@
 // Increment the index (column-major) for looping over arbitrary dimensional loops with
 // dimensions length.
 template <class T1, class T2>
-bool increment_colmajor(std::vector<T1>& index, const std::vector<T2>& length)
+bool increment_cm(std::vector<T1>& index, const std::vector<T2>& length)
 {
     for(int idim = 0; idim < length.size(); ++idim)
     {
@@ -43,13 +43,13 @@ bool increment_colmajor(std::vector<T1>& index, const std::vector<T2>& length)
 }
 
 // Output a formatted general-dimensional array with given length and stride in batches
-// separated by dist.
+// separated by dist, in column-major order.
 template <class Tdata, class Tint1, class Tint2>
-void printbuffer(const std::vector<Tdata>& data,
-                 const std::vector<Tint1>& length,
-                 const std::vector<Tint2>& stride,
-                 const size_t              nbatch,
-                 const size_t              dist)
+void printbuffer_cm(const std::vector<Tdata>& data,
+                    const std::vector<Tint1>& length,
+                    const std::vector<Tint2>& stride,
+                    const size_t              nbatch,
+                    const size_t              dist)
 {
     for(size_t b = 0; b < nbatch; b++)
     {
@@ -72,24 +72,26 @@ void printbuffer(const std::vector<Tdata>& data,
                     break;
                 }
             }
-        } while(increment_colmajor(index, length));
+        } while(increment_cm(index, length));
         std::cout << std::endl;
     }
 }
 
 // Check that an multi-dimensional array of complex values with dimensions length
 // and straide stride, with nbatch copies separated by dist is Hermitian-symmetric.
+// Column-major version.
 template <class Tfloat, class Tint1, class Tint2>
-bool check_symmetry(const std::vector<std::complex<Tfloat>>& data,
-                    const std::vector<Tint1>&                length,
-                    const std::vector<Tint2>&                stride,
-                    const size_t                             nbatch,
-                    const size_t                             dist)
+bool check_symmetry_cm(const std::vector<std::complex<Tfloat>>& data,
+                       const std::vector<Tint1>&                length_cm,
+                       const std::vector<Tint2>&                stride_cm,
+                       const size_t                             nbatch,
+                       const size_t                             dist,
+                       const bool                               verbose = true)
 {
     bool issymmetric = true;
     for(size_t b = 0; b < nbatch; b++)
     {
-        std::vector<size_t> index(length.size());
+        std::vector<size_t> index(length_cm.size());
         std::fill(index.begin(), index.end(), 0);
         do
         {
@@ -98,14 +100,14 @@ bool check_symmetry(const std::vector<std::complex<Tfloat>>& data,
             std::vector<size_t> negindex(index.size());
             for(size_t idx = 0; idx < index.size(); ++idx)
             {
-                if(index[idx] >= length[idx] / 2 + 1)
+                if(index[0] > length_cm[0] / 2)
                 {
                     skip = true;
                     break;
                 }
-                negindex[idx] = (length[idx] - index[idx]) % length[idx];
+                negindex[idx] = (length_cm[idx] - index[idx]) % length_cm[idx];
             }
-            if(negindex[0] >= length[0] / 2 + 1)
+            if(negindex[0] > length_cm[0] / 2)
             {
                 skip = true;
             }
@@ -113,36 +115,39 @@ bool check_symmetry(const std::vector<std::complex<Tfloat>>& data,
             if(!skip)
             {
                 const auto i
-                    = std::inner_product(index.begin(), index.end(), stride.begin(), b * dist);
+                    = std::inner_product(index.begin(), index.end(), stride_cm.begin(), b * dist);
                 const auto j = std::inner_product(
-                    negindex.begin(), negindex.end(), stride.begin(), b * dist);
+                    negindex.begin(), negindex.end(), stride_cm.begin(), b * dist);
                 if(data[i] != std::conj(data[j]))
                 {
-                    std::cout << "(";
-                    std::string separator;
-                    for(auto val : index)
+                    if(verbose)
                     {
-                        std::cout << separator << val;
-                        separator = ",";
+                        std::cout << "(";
+                        std::string separator;
+                        for(auto val : index)
+                        {
+                            std::cout << separator << val;
+                            separator = ",";
+                        }
+                        std::cout << ")->";
+                        std::cout << i << "\t";
+                        std::cout << "(";
+                        separator = "";
+                        for(auto val : negindex)
+                        {
+                            std::cout << separator << val;
+                            separator = ",";
+                        }
+                        std::cout << ")->";
+                        std::cout << j << ":\t";
+                        std::cout << data[i] << " " << data[j];
+                        std::cout << "\tnot conjugate!" << std::endl;
                     }
-                    std::cout << ")->";
-                    std::cout << i << "\t";
-                    std::cout << "(";
-                    separator = "";
-                    for(auto val : negindex)
-                    {
-                        std::cout << separator << val;
-                        separator = ",";
-                    }
-                    std::cout << ")->";
-                    std::cout << j << ":\t";
-                    std::cout << data[i] << " " << data[j];
-                    std::cout << "\tnot conjugate!" << std::endl;
                     issymmetric = false;
                 }
             }
 
-        } while(increment_colmajor(index, length));
+        } while(increment_cm(index, length_cm));
     }
     return issymmetric;
 }

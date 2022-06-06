@@ -20,6 +20,8 @@
 
 #include "../../shared/gpubuf.h"
 #include "../rocfft_params.h"
+#include "../samples/rocfft/examplekernels.h"
+#include "../samples/rocfft/exampleutils.h"
 #include "accuracy_test.h"
 #include "rocfft.h"
 #include <functional>
@@ -158,4 +160,157 @@ TEST(rocfft_UnitTest, 1D_hermitian)
         std::cout << maxerr << std::endl;
 
     EXPECT_TRUE(maxerr == 0.0);
+}
+
+template <typename T>
+std::string str(T begin, T end)
+{
+    std::stringstream ss;
+    bool              first = true;
+    for(; begin != end; begin++)
+    {
+        if(!first)
+            ss << ", ";
+        ss << *begin;
+        first = false;
+    }
+    return ss.str();
+}
+
+// Test that the GPU Hermitian symmetrizer code produces the correct results.
+TEST(rocfft_UnitTest, rtc_gpu_symmetrizer)
+{
+    std::vector<std::vector<size_t>> lengths = {{4, 4, 3},
+                                                {5},
+                                                {8},
+                                                {5, 5},
+                                                {5, 8},
+                                                {8, 5},
+                                                {8, 8},
+                                                {5, 5, 5},
+                                                {8, 5, 5},
+                                                {5, 8, 5},
+                                                {5, 5, 8},
+                                                {5, 8, 8},
+                                                {8, 5, 8},
+                                                {8, 8, 5},
+                                                {8, 8, 8}};
+
+    for(const auto& length : lengths)
+    {
+        // Symmetrize complex data and ensure that the checker sees that it's symmetric.
+
+        // Use the params class to set up strides and lengths:
+        rocfft_params p;
+        p.length         = length;
+        p.precision      = fft_precision_double;
+        p.transform_type = fft_transform_type_real_inverse;
+        p.placement      = fft_placement_notinplace;
+        p.validate();
+        if(verbose)
+        {
+            std::cout << "\t" << p.str("\n\t") << std::endl;
+        }
+        ASSERT_TRUE(p.valid(verbose));
+
+        // Data buffers:
+        gpubuf buf;
+        ASSERT_TRUE(buf.alloc(sizeof(std::complex<double>) * p.isize[0]) == hipSuccess);
+        std::vector<std::complex<double>> hbuf(p.isize[0]);
+
+        // Initialize a Hermitian-symmetric array; it should be symmetric.
+        init_hermitiancomplex_cm(p.length_cm(), p.ilength_cm(), p.istride_cm(), buf.data());
+        ASSERT_TRUE(hipMemcpy(hbuf.data(), buf.data(), buf.size(), hipMemcpyDeviceToHost)
+                    == hipSuccess);
+        if(verbose > 1)
+        {
+            printbuffer_cm(hbuf, p.ilength_cm(), p.istride_cm(), p.nbatch, p.idist);
+        }
+        EXPECT_TRUE(
+            check_symmetry_cm(hbuf, p.length_cm(), p.istride_cm(), p.nbatch, p.idist, verbose > 0))
+            << "length: " << str(length.begin(), length.end());
+
+        // This should not be symmetric:
+        std::mt19937_64 rng;
+        std::seed_seq   ss{uint32_t(10)};
+        rng.seed(ss);
+        std::uniform_real_distribution<double> unif(0, 1);
+        for(auto& v : hbuf)
+        {
+            v = std::complex<double>(unif(rng), unif(rng));
+        }
+        if(verbose > 2)
+        {
+            printbuffer_cm(hbuf, p.ilength_cm(), p.istride_cm(), p.nbatch, p.idist);
+        }
+        EXPECT_TRUE(
+            !check_symmetry_cm(hbuf, p.length_cm(), p.istride_cm(), p.nbatch, p.idist, false))
+            << "length: " << str(length.begin(), length.end());
+    }
+
+    for(const auto& length : lengths)
+    {
+        // Generate Hermitian-symmetric data and ensure that applying the symmetrizer has no effect.
+
+        rocfft_params p;
+        p.length         = length;
+        p.precision      = fft_precision_double;
+        p.transform_type = fft_transform_type_real_forward;
+        p.placement      = fft_placement_notinplace;
+        p.validate();
+        if(verbose)
+        {
+            std::cout << "\t" << p.str("\n\t") << std::endl;
+        }
+        ASSERT_TRUE(p.valid(verbose));
+        ASSERT_TRUE(p.create_plan() == fft_status_success);
+
+        gpubuf ibuf, obuf;
+        ASSERT_TRUE(ibuf.alloc(p.ibuffer_sizes()[0]) == hipSuccess);
+        ASSERT_TRUE(obuf.alloc(p.obuffer_sizes()[0]) == hipSuccess);
+
+        initreal_cm(p.length_cm(), p.istride_cm(), ibuf.data());
+
+        std::vector<void*> pibuf = {ibuf.data()};
+        std::vector<void*> pobuf = {obuf.data()};
+
+        ASSERT_TRUE(p.execute(pibuf.data(), pobuf.data()) == fft_status_success);
+
+        std::vector<std::complex<double>> h_output(p.osize[0]);
+        std::fill(h_output.begin(), h_output.end(), 0.0);
+        ASSERT_TRUE(
+            hipMemcpy(h_output.data(), obuf.data(), p.obuffer_sizes()[0], hipMemcpyDeviceToHost)
+            == hipSuccess);
+
+        impose_hermitian_symmetry_cm(p.length_cm(), p.olength_cm(), p.ostride_cm(), obuf.data());
+        std::vector<std::complex<double>> h_output_resym(p.osize[0]);
+        std::fill(h_output_resym.begin(), h_output_resym.end(), 0.0);
+        ASSERT_TRUE(
+            hipMemcpy(
+                h_output_resym.data(), obuf.data(), p.obuffer_sizes()[0], hipMemcpyDeviceToHost)
+            == hipSuccess);
+
+        double maxdiff = 0;
+        for(int i = 0; i < h_output.size(); ++i)
+        {
+            auto rdiff = std::abs(h_output[i].real() - h_output_resym[i].real());
+            auto idiff = std::abs(h_output[i].imag() - h_output_resym[i].imag());
+            maxdiff    = std::max({maxdiff, rdiff, idiff});
+        }
+
+        if(verbose)
+        {
+            std::cout << "maxdiff: " << maxdiff << std::endl;
+        }
+
+        if(verbose > 2)
+        {
+            std::cout << "before symmetrization:\n";
+            printbuffer_cm(h_output, p.olength_cm(), p.ostride_cm(), p.nbatch, p.odist);
+            std::cout << "after symmetrization:\n";
+            printbuffer_cm(h_output_resym, p.olength_cm(), p.ostride_cm(), p.nbatch, p.odist);
+        }
+
+        EXPECT_TRUE(maxdiff < 1e-13) << maxdiff << "\n" << p.str() << "\n";
+    }
 }

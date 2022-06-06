@@ -538,4 +538,5 @@ TEST(rocfft_UnitTest, rtc_helper_crash)
     rocfft_plan_destroy(plan);
     plan = nullptr;
 }
+
 #endif

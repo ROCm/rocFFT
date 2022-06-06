@@ -124,7 +124,7 @@ int main(int argc, char* argv[])
     hipMalloc(&gpu_in, isize * sizeof(std::complex<double>));
 
     // Inititalize the data on the device
-    initcomplex(length, istride, gpu_in);
+    initcomplex_cm(length, istride, gpu_in);
     hipDeviceSynchronize();
     hipError_t hip_status = hipGetLastError();
     if(hip_status != hipSuccess)
@@ -133,7 +133,7 @@ int main(int argc, char* argv[])
     std::cout << "input:\n";
     std::vector<std::complex<double>> idata(isize);
     hipMemcpy(idata.data(), gpu_in, isize * sizeof(std::complex<double>), hipMemcpyDefault);
-    printbuffer(idata, length, istride, 1, isize);
+    printbuffer_cm(idata, length, istride, 1, isize);
 
     // Create the a descrition struct to set data layout:
     rocfft_plan_description gpu_description = NULL;
@@ -214,7 +214,7 @@ int main(int argc, char* argv[])
     std::cout << "output:\n";
     std::vector<std::complex<double>> odata(osize);
     hipMemcpy(odata.data(), gpu_out, osize * sizeof(std::complex<double>), hipMemcpyDeviceToHost);
-    printbuffer(odata, length, istride, 1, isize);
+    printbuffer_cm(odata, length, istride, 1, isize);
 
     // Clean up: free GPU memory:
     hipFree(gpu_in);
