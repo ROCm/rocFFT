@@ -473,13 +473,6 @@ void BLOCKRC3DNode::AssignParams_internal()
             node->oDist = node->outStride[2] * node->length[0];
             break;
         }
-        case CS_KERNEL_STOCKHAM:
-        {
-            node->outStride = node->inStride;
-            node->oDist     = node->iDist;
-            node->AssignParams();
-            break;
-        }
         case CS_KERNEL_TRANSPOSE_XY_Z:
         {
             node->outStride.push_back(1);
@@ -497,8 +490,12 @@ void BLOCKRC3DNode::AssignParams_internal()
             break;
         }
         default:
-            // build_CS_3D_BLOCK_RC should not have created any other node types
-            throw std::runtime_error("Scheme Assertion Failed, unexpected node scheme.");
+        {
+            node->outStride = node->inStride;
+            node->oDist     = node->iDist;
+            node->AssignParams();
+            break;
+        }
         }
         prev_outStride = node->outStride;
         prev_oDist     = node->oDist;

@@ -35,6 +35,9 @@ std::vector<std::vector<size_t>> adhoc_sizes = {
     // SBRC 192 with special param
     {192, 192, 192},
     {192, 84, 84},
+
+    // Failure with build_CS_3D_BLOCK_RC
+    {680, 128, 128},
 };
 
 const static std::vector<std::vector<size_t>> stride_range = {{1}};
