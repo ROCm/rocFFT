@@ -254,23 +254,21 @@ Decision Function and Output Lengths
 Much of the remaining complexity lies in the ValidOutBuffer()
 decision function mentioned above.
 
-Output lengths are not always trivially knowable from input lengths in
-some cases:
+Output lengths often differ from input lengths on a node.  For
+example, R2C/C2R transforms change the data length from the input,
+and transpose kernels swap dimension lengths between input and
+output.
 
-* Padding introduced in some plans such as L1D_TRTRT, 2D_RTRT, or
-  REAL_2D_EVEN.  This is partially alleviated by setting a
-  "outputHasPadding" flag before the buffer assignment process.
+Tree nodes need to store their output length explicitly so that the
+decision function does not need to guess at what lengths any node
+will output.  This information is also helpful to log, so humans
+reading the plan don't need to guess either.
 
-* R2C/C2R handling of Hermitian redundancy.  Without explicit output
-  length information, it's not possible to make a decision on buffers.
-  In order to handle this, we calculate the real buffer length of the
-  root plan itself, depending on if it's R2C or C2R, IP or OP, which
-  gives us the explicit length of in/out buffer size.
-
-Since the exhaustive search is a depth-first-search, so when we go back
-to the upper nodes and proceed to another branch, the node-vs-buffer-test
-in the deeper nodes could be repeated, so we can put the test results in
-a cache to make a slight optimization.
+As the exhaustive search proceeds, it likely needs to call the
+decision function multiple times with identical inputs.  This is
+because it might need to decide validity of two plans that might only
+have tiny buffer assignment differences. The results of the function
+are cached to reduce extra work during the search.
 
 Fusions
 ^^^^^^^
@@ -290,6 +288,121 @@ During the buffer assignment process, we can use the test function to
 get the final number of the achievable kernel fusions.  This number
 plays the most important role when making the final decision: we
 always pick the one which can fuse the most kernels.
+
+Padding
+^^^^^^^
+
+We have cases where reading/writing along certain strides is bad for
+performance (e.g. power-of-2).  While we are unable to adjust strides
+for user-provided input and output buffers, we can potentially pad
+temp buffers to avoid bad strides.
+
+Once a plan candidate is constructed and buffers are assigned
+(including any kernel fusion), a padding pass can adjust the output
+strides of any node that writes to a temp buffer with bad strides.
+
+The padding pass must also consider the input lengths and strides of
+subsequent nodes that continue to use the same temp buffer, and
+adjust them accordingly.  The writing and reading nodes might also
+decompose the problem differently, so the logic needs to be aware
+that a change to one dimension's stride on the write side may affect
+multiple dimensions' strides on the reading side, and vice-versa.
+
+Padding example
+&&&&&&&&&&&&&&&
+
+For example, consider this excerpt of a large plan:
+
+.. code-block::
+
+    scheme: CS_KERNEL_TRANSPOSE
+    length: 4096 262144
+    outputLength: 262144 4096
+    iStrides: 1 4096
+    oStrides: 1 262144
+    OB_USER_OUT -> OB_TEMP
+
+    scheme: CS_KERNEL_STOCKHAM_BLOCK_CC
+    length: 512 512 4096
+    outputLength: 512 512 4096
+    iStrides: 512 1 262144
+    oStrides: 512 1 262144
+    OB_TEMP -> OB_TEMP
+
+    scheme: CS_KERNEL_STOCKHAM_BLOCK_RC
+    length: 512 512 4096
+    outputLength: 512 512 4096
+    iStrides: 1 512 262144
+    oStrides: 1 512 262144
+    OB_TEMP -> OB_USER_OUT
+
+
+The first kernel writes 262144 elements on the fastest dimension, and
+the higher dimension of 4096 elements is written along large
+power-of-2 strides, making it a good candidate for padding.  The
+following two kernels decompose the 262144 length to 512x512 along
+their fastest dimensions.
+
+Padded output of the first kernel needs to modify the following
+strides using the same buffer, until the data leaves that temp
+buffer:
+
+.. code-block::
+
+    scheme: CS_KERNEL_TRANSPOSE
+    length: 4096 262144
+    outputLength: 262144 4096
+    iStrides: 1 4096
+    oStrides: 1 262208
+    OB_USER_OUT -> OB_TEMP
+
+    scheme: CS_KERNEL_STOCKHAM_BLOCK_CC
+    length: 512 512 4096
+    outputLength: 512 512 4096
+    iStrides: 512 1 262208
+    oStrides: 512 1 262208
+    OB_TEMP -> OB_TEMP
+
+    scheme: CS_KERNEL_STOCKHAM_BLOCK_RC
+    length: 512 512 4096
+    outputLength: 512 512 4096
+    iStrides: 1 512 262208
+    oStrides: 1 512 262144
+    OB_TEMP -> OB_USER_OUT
+
+The second kernel is in-place, and would need iStrides == oStrides.
+The padding pass would need to continue through the execution plan to
+keep the third kernel's input strides consistent with the second's
+output.  The output of the third kernel is a user buffer, so we
+cannot change its padding.
+
+When to pad
+&&&&&&&&&&&
+
+The exact criteria for when to add padding to a temp buffer (and how
+much) are an implementation detail, but ad-hoc planning we've done in
+the past has padded strides if higher dimension data longer than a
+threshold is written along sufficiently large powers of two.
+
+The decision logic around padding is centralized in one place in this
+design, making it more feasible to have per-architecture decisions
+around padding, should they become necessary.
+
+Choosing a winner
+^^^^^^^^^^^^^^^^^
+
+The exhaustive search is a depth-first-search that produces a list of
+valid plans, each of which would produce correct results.  The list
+is sorted to decide which option is best, and the best plan is
+ultimately given to the user for execution.
+
+The sort criteria are:
+
+1. Number of fused kernels (more is better, to minimize kernel launches and global memory reads/writes)
+2. Number of buffers used (fewer is better, to minimize temporary memory usage)
+3. Number of padded reads/writes (more is better, to maximize use of padding once we've accepted the memory cost)
+4. Number of in-place operations (more is better)
+5. Number of type changes (e.g. planar -> interleaved, or vice-versa) in the plan (fewer is better, as a tiebreaker)
 
 Future Work
 -----------
