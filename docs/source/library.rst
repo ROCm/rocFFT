@@ -396,3 +396,27 @@ specified.
 
 Currently, callbacks functions are only supported for transforms that
 do not use planar format for input or output.
+
+Runtime compilation
+-------------------
+
+rocFFT includes many kernels for common FFT problems.  Some plans may
+require additional kernels aside from what is built in to the
+library.  In these cases, rocFFT will compile optimized kernels for
+the plan when the plan is created.
+
+Compiled kernels are cached to persistent storage where possible, so
+that they are available to subsequent plans that require the same
+kernels.
+
+The default cache path is ``.cache/rocFFT/rocfft_kernel_cache.db`` in
+the current user's home directory.  If the home directory cannot be
+determined, or if that location is not writable, the cache file is
+written to a temporary directory as chosen by the operating system.
+If that location is also not writable, kernels are only cached in
+memory for the lifetime of the current process.
+
+The cache path may be overridden by setting the
+``ROCFFT_RTC_CACHE_PATH`` environment variable.  rocFFT will create
+the cache file with the name specified in the environment variable, if
+it is set.
