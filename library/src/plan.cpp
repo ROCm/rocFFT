@@ -157,19 +157,17 @@ std::string PrintDirectToFromRegMode(const DirectRegType ty)
     return TypetoString.at(ty);
 }
 
-rocfft_status rocfft_plan_description_set_scale_float(rocfft_plan_description description,
-                                                      const float             scale)
+#ifdef ROCFFT_SCALE_FACTOR
+rocfft_status rocfft_plan_description_set_scale_factor(rocfft_plan_description description,
+                                                       const double            scale_factor)
 {
-    description->scale = scale;
+    log_trace(__func__, "description", description, "scale", scale_factor);
+    if(!std::isfinite(scale_factor))
+        return rocfft_status_invalid_arg_value;
+    description->scale_factor = scale_factor;
     return rocfft_status_success;
 }
-
-rocfft_status rocfft_plan_description_set_scale_double(rocfft_plan_description description,
-                                                       const double            scale)
-{
-    description->scale = scale;
-    return rocfft_status_success;
-}
+#endif
 
 static size_t offset_count(rocfft_array_type type)
 {
@@ -564,6 +562,9 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
                 execPlan.iLength.front() = execPlan.oLength.front() * 2;
         }
 
+        // set scaling on the root plan
+        execPlan.rootPlan->scale_factor = p->desc.scale_factor;
+
         try
         {
             ProcessNode(execPlan); // TODO: more descriptions are needed
@@ -785,7 +786,8 @@ rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
     rocfft_cout << "output distance: " << plan->desc.outDist << std::endl;
     rocfft_cout << std::endl;
 
-    rocfft_cout << "scale: " << plan->desc.scale << std::endl;
+    if(plan->desc.scale_factor != 1.0)
+        rocfft_cout << "scale factor: " << plan->desc.scale_factor << std::endl;
     rocfft_cout << std::endl;
 
     return rocfft_status_success;
@@ -1585,6 +1587,8 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     os << indentStr.c_str()
        << "Direct_to_from_Reg: " << PrintDirectToFromRegMode(dir2regMode).c_str();
     os << "\n";
+    if(IsScalingEnabled())
+        os << indentStr << "scale factor: " << scale_factor << "\n";
 
     os << indentStr << PrintOperatingBuffer(obIn) << " -> " << PrintOperatingBuffer(obOut) << "\n";
     os << indentStr << PrintOperatingBufferCode(obIn) << " -> " << PrintOperatingBufferCode(obOut)
@@ -1855,6 +1859,17 @@ void ProcessNode(ExecPlan& execPlan)
     size_t blueSize         = 0;
     size_t chirpSize        = 0;
     execPlan.rootPlan->DetermineBufferMemory(tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
+
+    // Set scale factor on final leaf node prior to RTC, since we
+    // force RTC on Stockham kernels that need scaling
+    //
+    // But scaling happens before callback (if you want both), so we
+    // need to get the last one that's not APPLY_CALLBACK
+    auto scale_node
+        = std::find_if(execPlan.execSeq.rbegin(), execPlan.execSeq.rend(), [](TreeNode* node) {
+              return node->scheme != CS_KERNEL_APPLY_CALLBACK;
+          });
+    (*scale_node)->scale_factor = execPlan.rootPlan->scale_factor;
 
     // compile kernels for applicable nodes
     RuntimeCompilePlan(execPlan);

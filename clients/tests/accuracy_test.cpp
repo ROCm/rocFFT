@@ -192,7 +192,7 @@ void* get_store_callback_host(fft_array_type otype, fft_precision precision)
 // Apply store callback if necessary
 void apply_store_callback(const fft_params& params, fftw_data_t& output)
 {
-    if(!params.run_callbacks)
+    if(!params.run_callbacks && params.scale_factor == 1.0)
         return;
 
     // we're applying callbacks to FFTW input/output which we can
@@ -216,7 +216,13 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
 
             auto output_begin = reinterpret_cast<float2*>(output.front().data());
             for(size_t i = 0; i < num_elems; ++i)
-                store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
+            {
+                auto& element = output_begin[i];
+                if(params.scale_factor != 1.0)
+                    element = element * params.scale_factor;
+                if(params.run_callbacks)
+                    store_callback(output_begin, i, element, &cbdata, nullptr);
+            }
             break;
         }
         case fft_precision_double:
@@ -226,7 +232,13 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
 
             auto output_begin = reinterpret_cast<double2*>(output.front().data());
             for(size_t i = 0; i < num_elems; ++i)
-                store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
+            {
+                auto& element = output_begin[i];
+                if(params.scale_factor != 1.0)
+                    element = element * params.scale_factor;
+                if(params.run_callbacks)
+                    store_callback(output_begin, i, element, &cbdata, nullptr);
+            }
             break;
         }
         }
@@ -243,7 +255,13 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
 
             auto output_begin = reinterpret_cast<float*>(output.front().data());
             for(size_t i = 0; i < num_elems; ++i)
-                store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
+            {
+                auto& element = output_begin[i];
+                if(params.scale_factor != 1.0)
+                    element = element * params.scale_factor;
+                if(params.run_callbacks)
+                    store_callback(output_begin, i, element, &cbdata, nullptr);
+            }
             break;
         }
         case fft_precision_double:
@@ -253,7 +271,13 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
 
             auto output_begin = reinterpret_cast<double*>(output.front().data());
             for(size_t i = 0; i < num_elems; ++i)
-                store_callback(output_begin, i, output_begin[i], &cbdata, nullptr);
+            {
+                auto& element = output_begin[i];
+                if(params.scale_factor != 1.0)
+                    element = element * params.scale_factor;
+                if(params.run_callbacks)
+                    store_callback(output_begin, i, element, &cbdata, nullptr);
+            }
             break;
         }
         }

@@ -166,6 +166,7 @@ int main(int argc, char* argv[])
         ("wisdomfile,W",
          po::value<std::string>(&fftw_wisdom_filename)->default_value("wisdom3.txt"),
          "FFTW3 wisdom filename")
+        ("scalefactor", po::value<double>(&manual_params.scale_factor), "Scale factor to apply to output.")
         ("token", po::value<std::string>(&test_token)->default_value(""), "Test token name for manual test");
     // clang-format on
 

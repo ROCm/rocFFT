@@ -89,6 +89,7 @@ int main(int argc, char* argv[])
          "Logical size of output buffer.")
         ("ioffset", po::value<std::vector<size_t>>(&params.ioffset)->multitoken(), "Input offsets.")
         ("ooffset", po::value<std::vector<size_t>>(&params.ooffset)->multitoken(), "Output offsets.")
+        ("scalefactor", po::value<double>(&params.scale_factor), "Scale factor to apply to output.")
         ("token", po::value<std::string>(&token));
     // clang-format on
 

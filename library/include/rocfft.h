@@ -209,20 +209,17 @@ ROCFFT_EXPORT rocfft_status rocfft_execute(const rocfft_plan     plan,
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_plan_destroy(rocfft_plan plan);
 
-#if 0
-/*! @brief Set scaling factor in single precision
- *  @details This is one of plan description functions to specify optional additional plan properties using the description handle. This API specifies scaling factor.
+#ifdef ROCFFT_SCALE_FACTOR
+/*! @brief Set scaling factor.
+ *  @details rocFFT multiplies each element of the result by the given factor at the end of the transform.
+ *
+ *  The supplied factor must be a finite number.  That is, it must neither be infinity nor NaN.
+ * 
  *  @param[in] description description handle
  *  @param[in] scale scaling factor
  *  */
-ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_float( rocfft_plan_description description, const float scale );
-
-/*! @brief Set scaling factor in double precision
- *  @details This is one of plan description functions to specify optional additional plan properties using the description handle. This API specifies scaling factor.
- *  @param[in] description description handle
- *  @param[in] scale scaling factor
- *  */
-ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_double( rocfft_plan_description description, const double scale );
+ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_factor(
+    rocfft_plan_description description, const double scale_factor);
 #endif
 
 /*!

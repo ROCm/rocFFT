@@ -62,7 +62,7 @@ struct rocfft_plan_description_t
     std::array<size_t, 2> inOffset  = {0, 0};
     std::array<size_t, 2> outOffset = {0, 0};
 
-    double scale = 1.0;
+    double scale_factor = 1.0;
 
     rocfft_plan_description_t() = default;
 };

@@ -139,3 +139,29 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_callback,
                                                                   false,
                                                                   true)),
                          accuracy_test::TestName);
+
+#ifdef ROCFFT_SCALE_FACTOR
+// one of the obvious use cases for callbacks is to implement result
+// scaling manually, so use the same sizes to test rocFFT's own
+// result scaling feature.
+inline auto param_generator_scaling(const std::vector<std::vector<size_t>>& v_lengths)
+{
+    auto params = param_generator(callback_sizes,
+                                  precision_range,
+                                  batch_range,
+                                  stride_range,
+                                  stride_range,
+                                  ioffset_range_zero,
+                                  ooffset_range_zero,
+                                  place_range,
+                                  false);
+    for(auto& param : params)
+        param.scale_factor = 7.23;
+    return params;
+}
+
+INSTANTIATE_TEST_SUITE_P(scaling,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator_scaling(callback_sizes)),
+                         accuracy_test::TestName);
+#endif

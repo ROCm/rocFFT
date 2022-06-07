@@ -123,6 +123,11 @@ option(BUILD_ADDRESS_SANITIZER "Build with address sanitizer enabled" OFF)
 option(ROCFFT_RUNTIME_COMPILE "Enable runtime compilation of kernels" ON)
 option(ROCFFT_RUNTIME_COMPILE_DEFAULT "Compile kernels at runtime by default" OFF)
 
+option(ROCFFT_SCALE_FACTOR "Enable scale factor API" OFF)
+if(ROCFFT_SCALE_FACTOR)
+  add_definitions(-DROCFFT_SCALE_FACTOR)
+endif()
+
 if(BUILD_ADDRESS_SANITIZER)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -shared-libasan")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -shared-libasan")

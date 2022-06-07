@@ -143,6 +143,10 @@ public:
     // affect how the FFT library behaves.
     bool check_output_strides = false;
 
+    // scaling factor - we do a pointwise multiplication of outputs by
+    // this factor
+    double scale_factor = 1.0;
+
     fft_params(){};
     virtual ~fft_params(){};
 
@@ -252,6 +256,9 @@ public:
         for(const auto i : obuffer_sizes())
             ss << " " << i;
         ss << separator;
+
+        if(scale_factor != 1.0)
+            ss << "scale factor: " << scale_factor << separator;
 
         return ss.str();
     }
@@ -365,6 +372,9 @@ public:
         if(run_callbacks)
             ret += "_CB";
 
+        if(scale_factor != 1.0)
+            ret += "_scale";
+
         return ret;
     }
 
@@ -472,6 +482,13 @@ public:
         if(pos < vals.size() && vals[pos] == "CB")
         {
             run_callbacks = true;
+            ++pos;
+        }
+
+        if(pos < vals.size() && vals[pos] == "scale")
+        {
+            // just pick some factor that's not zero or one
+            scale_factor = 0.1239;
             ++pos;
         }
     }
