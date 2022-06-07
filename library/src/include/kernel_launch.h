@@ -35,6 +35,31 @@
 #include "tree_node.h"
 #include <iostream>
 
+using log_func_t = void (*)(const char* msg);
+
+// Shim for logging occupancy when launch the kernel
+//
+// NB: to avoid link to logging.h in device lib, we need to pass log_func as a function ptr
+#define hipLaunchKernelGGL_shim(                                                                   \
+    log_func, kernelName, numBlocks, numThreads, memPerBlock, streamId, ...)                       \
+    hipLaunchKernelGGL(                                                                            \
+        (kernelName), (numBlocks), (numThreads), (memPerBlock), (streamId), __VA_ARGS__);          \
+    if(log_func != nullptr)                                                                        \
+    {                                                                                              \
+        int         max_blocks_per_sm;                                                             \
+        hipError_t  ret = hipOccupancyMaxActiveBlocksPerMultiprocessor(&max_blocks_per_sm,         \
+                                                                      kernelName,                 \
+                                                                      numThreads.x * numThreads.y \
+                                                                          * numThreads.z,         \
+                                                                      memPerBlock);               \
+        std::string s;                                                                             \
+        if(ret == hipSuccess)                                                                      \
+            s = "Kernel occupancy: " + std::to_string(max_blocks_per_sm) + "\n";                   \
+        else                                                                                       \
+            s = "Can not retrieve occupancy info.\n";                                              \
+        log_func(s.c_str());                                                                       \
+    }
+
 // FIXME: documentation
 struct DeviceCallIn
 {
@@ -55,6 +80,8 @@ struct DeviceCallIn
         else
             return CallbackType::NONE;
     }
+
+    log_func_t log_func;
 };
 
 // FIXME: documentation
@@ -597,406 +624,418 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
         GET_KERNEL_FUNC_CBTYPE(                                                             \
             FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
 
-#define POWX_SMALL_GENERATOR(FUNCTION_NAME,                                   \
-                             IP_FWD_KERN_NAME,                                \
-                             IP_BACK_KERN_NAME,                               \
-                             OP_FWD_KERN_NAME,                                \
-                             OP_BACK_KERN_NAME,                               \
-                             PRECISION)                                       \
-    ROCFFT_DEVICE_EXPORT void FUNCTION_NAME(const void* data_p, void* back_p) \
-    {                                                                         \
-        DeviceCallIn* data          = (DeviceCallIn*)data_p;                  \
-        hipStream_t   rocfft_stream = data->rocfft_stream;                    \
-                                                                              \
-        if(data->node->placement == rocfft_placement_inplace)                 \
-        {                                                                     \
-            if(array_type_is_interleaved(data->node->inArrayType)             \
-               && array_type_is_interleaved(data->node->outArrayType))        \
-            {                                                                 \
-                GET_KERNEL_FUNC_CB(IP_FWD_KERN_NAME,                          \
-                                   IP_BACK_KERN_NAME,                         \
-                                   PRECISION,                                 \
-                                   KERNEL_BASE_ARGS_IP,                       \
-                                   PRECISION* __restrict__);                  \
-                hipLaunchKernelGGL(kernel_func,                               \
-                                   dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.wgs_x),               \
-                                   data->gridParam.lds_bytes,                 \
-                                   rocfft_stream,                             \
-                                   (PRECISION*)data->node->twiddles,          \
-                                   data->node->length.size(),                 \
-                                   kargs_lengths(data->node->devKernArg),     \
-                                   kargs_stride_in(data->node->devKernArg),   \
-                                   data->node->batch,                         \
-                                   data->node->lds_padding,                   \
-                                   data->callbacks.load_cb_fn,                \
-                                   data->callbacks.load_cb_data,              \
-                                   data->callbacks.load_cb_lds_bytes,         \
-                                   data->callbacks.store_cb_fn,               \
-                                   data->callbacks.store_cb_data,             \
-                                   (PRECISION*)data->bufIn[0]);               \
-            }                                                                 \
-            else if(array_type_is_planar(data->node->inArrayType)             \
-                    && array_type_is_planar(data->node->outArrayType))        \
-            {                                                                 \
-                GET_KERNEL_FUNC(IP_FWD_KERN_NAME,                             \
-                                IP_BACK_KERN_NAME,                            \
-                                PRECISION,                                    \
-                                KERNEL_BASE_ARGS_IP,                          \
-                                real_type_t<PRECISION>* __restrict__,         \
-                                real_type_t<PRECISION>* __restrict__);        \
-                hipLaunchKernelGGL(kernel_func,                               \
-                                   dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.wgs_x),               \
-                                   data->gridParam.lds_bytes,                 \
-                                   rocfft_stream,                             \
-                                   (PRECISION*)data->node->twiddles,          \
-                                   data->node->length.size(),                 \
-                                   kargs_lengths(data->node->devKernArg),     \
-                                   kargs_stride_in(data->node->devKernArg),   \
-                                   data->node->batch,                         \
-                                   data->node->lds_padding,                   \
-                                   data->callbacks.load_cb_fn,                \
-                                   data->callbacks.load_cb_data,              \
-                                   data->callbacks.load_cb_lds_bytes,         \
-                                   data->callbacks.store_cb_fn,               \
-                                   data->callbacks.store_cb_data,             \
-                                   (real_type_t<PRECISION>*)data->bufIn[0],   \
-                                   (real_type_t<PRECISION>*)data->bufIn[1]);  \
-            }                                                                 \
-        }                                                                     \
-        else /* out of place */                                               \
-        {                                                                     \
-            if(array_type_is_interleaved(data->node->inArrayType)             \
-               && array_type_is_interleaved(data->node->outArrayType))        \
-            {                                                                 \
-                GET_KERNEL_FUNC_CB(OP_FWD_KERN_NAME,                          \
-                                   OP_BACK_KERN_NAME,                         \
-                                   PRECISION,                                 \
-                                   KERNEL_BASE_ARGS_OP,                       \
-                                   PRECISION* __restrict__,                   \
-                                   PRECISION* __restrict__);                  \
-                hipLaunchKernelGGL(kernel_func,                               \
-                                   dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.wgs_x),               \
-                                   data->gridParam.lds_bytes,                 \
-                                   rocfft_stream,                             \
-                                   (PRECISION*)data->node->twiddles,          \
-                                   data->node->length.size(),                 \
-                                   kargs_lengths(data->node->devKernArg),     \
-                                   kargs_stride_in(data->node->devKernArg),   \
-                                   kargs_stride_out(data->node->devKernArg),  \
-                                   data->node->batch,                         \
-                                   data->node->lds_padding,                   \
-                                   data->callbacks.load_cb_fn,                \
-                                   data->callbacks.load_cb_data,              \
-                                   data->callbacks.load_cb_lds_bytes,         \
-                                   data->callbacks.store_cb_fn,               \
-                                   data->callbacks.store_cb_data,             \
-                                   (PRECISION*)data->bufIn[0],                \
-                                   (PRECISION*)data->bufOut[0]);              \
-            }                                                                 \
-            else if(array_type_is_interleaved(data->node->inArrayType)        \
-                    && array_type_is_planar(data->node->outArrayType))        \
-            {                                                                 \
-                GET_KERNEL_FUNC(OP_FWD_KERN_NAME,                             \
-                                OP_BACK_KERN_NAME,                            \
-                                PRECISION,                                    \
-                                KERNEL_BASE_ARGS_OP,                          \
-                                PRECISION* __restrict__,                      \
-                                real_type_t<PRECISION>* __restrict__,         \
-                                real_type_t<PRECISION>* __restrict__);        \
-                hipLaunchKernelGGL(kernel_func,                               \
-                                   dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.wgs_x),               \
-                                   data->gridParam.lds_bytes,                 \
-                                   rocfft_stream,                             \
-                                   (PRECISION*)data->node->twiddles,          \
-                                   data->node->length.size(),                 \
-                                   kargs_lengths(data->node->devKernArg),     \
-                                   kargs_stride_in(data->node->devKernArg),   \
-                                   kargs_stride_out(data->node->devKernArg),  \
-                                   data->node->batch,                         \
-                                   data->node->lds_padding,                   \
-                                   data->callbacks.load_cb_fn,                \
-                                   data->callbacks.load_cb_data,              \
-                                   data->callbacks.load_cb_lds_bytes,         \
-                                   data->callbacks.store_cb_fn,               \
-                                   data->callbacks.store_cb_data,             \
-                                   (PRECISION*)data->bufIn[0],                \
-                                   (real_type_t<PRECISION>*)data->bufOut[0],  \
-                                   (real_type_t<PRECISION>*)data->bufOut[1]); \
-            }                                                                 \
-            else if(array_type_is_planar(data->node->inArrayType)             \
-                    && array_type_is_interleaved(data->node->outArrayType))   \
-            {                                                                 \
-                GET_KERNEL_FUNC(OP_FWD_KERN_NAME,                             \
-                                OP_BACK_KERN_NAME,                            \
-                                PRECISION,                                    \
-                                KERNEL_BASE_ARGS_OP,                          \
-                                real_type_t<PRECISION>* __restrict__,         \
-                                real_type_t<PRECISION>* __restrict__,         \
-                                PRECISION* __restrict__);                     \
-                hipLaunchKernelGGL(kernel_func,                               \
-                                   dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.wgs_x),               \
-                                   data->gridParam.lds_bytes,                 \
-                                   rocfft_stream,                             \
-                                   (PRECISION*)data->node->twiddles,          \
-                                   data->node->length.size(),                 \
-                                   kargs_lengths(data->node->devKernArg),     \
-                                   kargs_stride_in(data->node->devKernArg),   \
-                                   kargs_stride_out(data->node->devKernArg),  \
-                                   data->node->batch,                         \
-                                   data->node->lds_padding,                   \
-                                   data->callbacks.load_cb_fn,                \
-                                   data->callbacks.load_cb_data,              \
-                                   data->callbacks.load_cb_lds_bytes,         \
-                                   data->callbacks.store_cb_fn,               \
-                                   data->callbacks.store_cb_data,             \
-                                   (real_type_t<PRECISION>*)data->bufIn[0],   \
-                                   (real_type_t<PRECISION>*)data->bufIn[1],   \
-                                   (PRECISION*)data->bufOut[0]);              \
-            }                                                                 \
-            else if(array_type_is_planar(data->node->inArrayType)             \
-                    && array_type_is_planar(data->node->outArrayType))        \
-            {                                                                 \
-                GET_KERNEL_FUNC(OP_FWD_KERN_NAME,                             \
-                                OP_BACK_KERN_NAME,                            \
-                                PRECISION,                                    \
-                                KERNEL_BASE_ARGS_OP,                          \
-                                real_type_t<PRECISION>* __restrict__,         \
-                                real_type_t<PRECISION>* __restrict__,         \
-                                real_type_t<PRECISION>* __restrict__,         \
-                                real_type_t<PRECISION>* __restrict__);        \
-                hipLaunchKernelGGL(kernel_func,                               \
-                                   dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.wgs_x),               \
-                                   data->gridParam.lds_bytes,                 \
-                                   rocfft_stream,                             \
-                                   (PRECISION*)data->node->twiddles,          \
-                                   data->node->length.size(),                 \
-                                   kargs_lengths(data->node->devKernArg),     \
-                                   kargs_stride_in(data->node->devKernArg),   \
-                                   kargs_stride_out(data->node->devKernArg),  \
-                                   data->node->batch,                         \
-                                   data->node->lds_padding,                   \
-                                   data->callbacks.load_cb_fn,                \
-                                   data->callbacks.load_cb_data,              \
-                                   data->callbacks.load_cb_lds_bytes,         \
-                                   data->callbacks.store_cb_fn,               \
-                                   data->callbacks.store_cb_data,             \
-                                   (real_type_t<PRECISION>*)data->bufIn[0],   \
-                                   (real_type_t<PRECISION>*)data->bufIn[1],   \
-                                   (real_type_t<PRECISION>*)data->bufOut[0],  \
-                                   (real_type_t<PRECISION>*)data->bufOut[1]); \
-            }                                                                 \
-        }                                                                     \
+#define POWX_SMALL_GENERATOR(FUNCTION_NAME,                                        \
+                             IP_FWD_KERN_NAME,                                     \
+                             IP_BACK_KERN_NAME,                                    \
+                             OP_FWD_KERN_NAME,                                     \
+                             OP_BACK_KERN_NAME,                                    \
+                             PRECISION)                                            \
+    ROCFFT_DEVICE_EXPORT void FUNCTION_NAME(const void* data_p, void* back_p)      \
+    {                                                                              \
+        DeviceCallIn* data          = (DeviceCallIn*)data_p;                       \
+        hipStream_t   rocfft_stream = data->rocfft_stream;                         \
+                                                                                   \
+        if(data->node->placement == rocfft_placement_inplace)                      \
+        {                                                                          \
+            if(array_type_is_interleaved(data->node->inArrayType)                  \
+               && array_type_is_interleaved(data->node->outArrayType))             \
+            {                                                                      \
+                GET_KERNEL_FUNC_CB(IP_FWD_KERN_NAME,                               \
+                                   IP_BACK_KERN_NAME,                              \
+                                   PRECISION,                                      \
+                                   KERNEL_BASE_ARGS_IP,                            \
+                                   PRECISION* __restrict__);                       \
+                hipLaunchKernelGGL_shim(data->log_func,                            \
+                                        kernel_func,                               \
+                                        dim3(data->gridParam.b_x),                 \
+                                        dim3(data->gridParam.wgs_x),               \
+                                        data->gridParam.lds_bytes,                 \
+                                        rocfft_stream,                             \
+                                        (PRECISION*)data->node->twiddles,          \
+                                        data->node->length.size(),                 \
+                                        kargs_lengths(data->node->devKernArg),     \
+                                        kargs_stride_in(data->node->devKernArg),   \
+                                        data->node->batch,                         \
+                                        data->node->lds_padding,                   \
+                                        data->callbacks.load_cb_fn,                \
+                                        data->callbacks.load_cb_data,              \
+                                        data->callbacks.load_cb_lds_bytes,         \
+                                        data->callbacks.store_cb_fn,               \
+                                        data->callbacks.store_cb_data,             \
+                                        (PRECISION*)data->bufIn[0]);               \
+            }                                                                      \
+            else if(array_type_is_planar(data->node->inArrayType)                  \
+                    && array_type_is_planar(data->node->outArrayType))             \
+            {                                                                      \
+                GET_KERNEL_FUNC(IP_FWD_KERN_NAME,                                  \
+                                IP_BACK_KERN_NAME,                                 \
+                                PRECISION,                                         \
+                                KERNEL_BASE_ARGS_IP,                               \
+                                real_type_t<PRECISION>* __restrict__,              \
+                                real_type_t<PRECISION>* __restrict__);             \
+                hipLaunchKernelGGL_shim(data->log_func,                            \
+                                        kernel_func,                               \
+                                        dim3(data->gridParam.b_x),                 \
+                                        dim3(data->gridParam.wgs_x),               \
+                                        data->gridParam.lds_bytes,                 \
+                                        rocfft_stream,                             \
+                                        (PRECISION*)data->node->twiddles,          \
+                                        data->node->length.size(),                 \
+                                        kargs_lengths(data->node->devKernArg),     \
+                                        kargs_stride_in(data->node->devKernArg),   \
+                                        data->node->batch,                         \
+                                        data->node->lds_padding,                   \
+                                        data->callbacks.load_cb_fn,                \
+                                        data->callbacks.load_cb_data,              \
+                                        data->callbacks.load_cb_lds_bytes,         \
+                                        data->callbacks.store_cb_fn,               \
+                                        data->callbacks.store_cb_data,             \
+                                        (real_type_t<PRECISION>*)data->bufIn[0],   \
+                                        (real_type_t<PRECISION>*)data->bufIn[1]);  \
+            }                                                                      \
+        }                                                                          \
+        else /* out of place */                                                    \
+        {                                                                          \
+            if(array_type_is_interleaved(data->node->inArrayType)                  \
+               && array_type_is_interleaved(data->node->outArrayType))             \
+            {                                                                      \
+                GET_KERNEL_FUNC_CB(OP_FWD_KERN_NAME,                               \
+                                   OP_BACK_KERN_NAME,                              \
+                                   PRECISION,                                      \
+                                   KERNEL_BASE_ARGS_OP,                            \
+                                   PRECISION* __restrict__,                        \
+                                   PRECISION* __restrict__);                       \
+                hipLaunchKernelGGL_shim(data->log_func,                            \
+                                        kernel_func,                               \
+                                        dim3(data->gridParam.b_x),                 \
+                                        dim3(data->gridParam.wgs_x),               \
+                                        data->gridParam.lds_bytes,                 \
+                                        rocfft_stream,                             \
+                                        (PRECISION*)data->node->twiddles,          \
+                                        data->node->length.size(),                 \
+                                        kargs_lengths(data->node->devKernArg),     \
+                                        kargs_stride_in(data->node->devKernArg),   \
+                                        kargs_stride_out(data->node->devKernArg),  \
+                                        data->node->batch,                         \
+                                        data->node->lds_padding,                   \
+                                        data->callbacks.load_cb_fn,                \
+                                        data->callbacks.load_cb_data,              \
+                                        data->callbacks.load_cb_lds_bytes,         \
+                                        data->callbacks.store_cb_fn,               \
+                                        data->callbacks.store_cb_data,             \
+                                        (PRECISION*)data->bufIn[0],                \
+                                        (PRECISION*)data->bufOut[0]);              \
+            }                                                                      \
+            else if(array_type_is_interleaved(data->node->inArrayType)             \
+                    && array_type_is_planar(data->node->outArrayType))             \
+            {                                                                      \
+                GET_KERNEL_FUNC(OP_FWD_KERN_NAME,                                  \
+                                OP_BACK_KERN_NAME,                                 \
+                                PRECISION,                                         \
+                                KERNEL_BASE_ARGS_OP,                               \
+                                PRECISION* __restrict__,                           \
+                                real_type_t<PRECISION>* __restrict__,              \
+                                real_type_t<PRECISION>* __restrict__);             \
+                hipLaunchKernelGGL_shim(data->log_func,                            \
+                                        kernel_func,                               \
+                                        dim3(data->gridParam.b_x),                 \
+                                        dim3(data->gridParam.wgs_x),               \
+                                        data->gridParam.lds_bytes,                 \
+                                        rocfft_stream,                             \
+                                        (PRECISION*)data->node->twiddles,          \
+                                        data->node->length.size(),                 \
+                                        kargs_lengths(data->node->devKernArg),     \
+                                        kargs_stride_in(data->node->devKernArg),   \
+                                        kargs_stride_out(data->node->devKernArg),  \
+                                        data->node->batch,                         \
+                                        data->node->lds_padding,                   \
+                                        data->callbacks.load_cb_fn,                \
+                                        data->callbacks.load_cb_data,              \
+                                        data->callbacks.load_cb_lds_bytes,         \
+                                        data->callbacks.store_cb_fn,               \
+                                        data->callbacks.store_cb_data,             \
+                                        (PRECISION*)data->bufIn[0],                \
+                                        (real_type_t<PRECISION>*)data->bufOut[0],  \
+                                        (real_type_t<PRECISION>*)data->bufOut[1]); \
+            }                                                                      \
+            else if(array_type_is_planar(data->node->inArrayType)                  \
+                    && array_type_is_interleaved(data->node->outArrayType))        \
+            {                                                                      \
+                GET_KERNEL_FUNC(OP_FWD_KERN_NAME,                                  \
+                                OP_BACK_KERN_NAME,                                 \
+                                PRECISION,                                         \
+                                KERNEL_BASE_ARGS_OP,                               \
+                                real_type_t<PRECISION>* __restrict__,              \
+                                real_type_t<PRECISION>* __restrict__,              \
+                                PRECISION* __restrict__);                          \
+                hipLaunchKernelGGL_shim(data->log_func,                            \
+                                        kernel_func,                               \
+                                        dim3(data->gridParam.b_x),                 \
+                                        dim3(data->gridParam.wgs_x),               \
+                                        data->gridParam.lds_bytes,                 \
+                                        rocfft_stream,                             \
+                                        (PRECISION*)data->node->twiddles,          \
+                                        data->node->length.size(),                 \
+                                        kargs_lengths(data->node->devKernArg),     \
+                                        kargs_stride_in(data->node->devKernArg),   \
+                                        kargs_stride_out(data->node->devKernArg),  \
+                                        data->node->batch,                         \
+                                        data->node->lds_padding,                   \
+                                        data->callbacks.load_cb_fn,                \
+                                        data->callbacks.load_cb_data,              \
+                                        data->callbacks.load_cb_lds_bytes,         \
+                                        data->callbacks.store_cb_fn,               \
+                                        data->callbacks.store_cb_data,             \
+                                        (real_type_t<PRECISION>*)data->bufIn[0],   \
+                                        (real_type_t<PRECISION>*)data->bufIn[1],   \
+                                        (PRECISION*)data->bufOut[0]);              \
+            }                                                                      \
+            else if(array_type_is_planar(data->node->inArrayType)                  \
+                    && array_type_is_planar(data->node->outArrayType))             \
+            {                                                                      \
+                GET_KERNEL_FUNC(OP_FWD_KERN_NAME,                                  \
+                                OP_BACK_KERN_NAME,                                 \
+                                PRECISION,                                         \
+                                KERNEL_BASE_ARGS_OP,                               \
+                                real_type_t<PRECISION>* __restrict__,              \
+                                real_type_t<PRECISION>* __restrict__,              \
+                                real_type_t<PRECISION>* __restrict__,              \
+                                real_type_t<PRECISION>* __restrict__);             \
+                hipLaunchKernelGGL_shim(data->log_func,                            \
+                                        kernel_func,                               \
+                                        dim3(data->gridParam.b_x),                 \
+                                        dim3(data->gridParam.wgs_x),               \
+                                        data->gridParam.lds_bytes,                 \
+                                        rocfft_stream,                             \
+                                        (PRECISION*)data->node->twiddles,          \
+                                        data->node->length.size(),                 \
+                                        kargs_lengths(data->node->devKernArg),     \
+                                        kargs_stride_in(data->node->devKernArg),   \
+                                        kargs_stride_out(data->node->devKernArg),  \
+                                        data->node->batch,                         \
+                                        data->node->lds_padding,                   \
+                                        data->callbacks.load_cb_fn,                \
+                                        data->callbacks.load_cb_data,              \
+                                        data->callbacks.load_cb_lds_bytes,         \
+                                        data->callbacks.store_cb_fn,               \
+                                        data->callbacks.store_cb_data,             \
+                                        (real_type_t<PRECISION>*)data->bufIn[0],   \
+                                        (real_type_t<PRECISION>*)data->bufIn[1],   \
+                                        (real_type_t<PRECISION>*)data->bufOut[0],  \
+                                        (real_type_t<PRECISION>*)data->bufOut[1]); \
+            }                                                                      \
+        }                                                                          \
     }
 
-#define POWX_LARGE_SBCC_GENERATOR(FUNCTION_NAME,                              \
-                                  IP_FWD_KERN_NAME,                           \
-                                  IP_BACK_KERN_NAME,                          \
-                                  OP_FWD_KERN_NAME,                           \
-                                  OP_BACK_KERN_NAME,                          \
-                                  PRECISION)                                  \
-    ROCFFT_DEVICE_EXPORT void FUNCTION_NAME(const void* data_p, void* back_p) \
-    {                                                                         \
-        DeviceCallIn* data          = (DeviceCallIn*)data_p;                  \
-        hipStream_t   rocfft_stream = data->rocfft_stream;                    \
-                                                                              \
-        const size_t batch = data->node->batch;                               \
-                                                                              \
-        if(data->node->placement == rocfft_placement_inplace)                 \
-        {                                                                     \
-            if(array_type_is_interleaved(data->node->inArrayType)             \
-               && array_type_is_interleaved(data->node->outArrayType))        \
-            {                                                                 \
-                GET_KERNEL_FUNC_SBCC_CB(IP_FWD_KERN_NAME,                     \
-                                        IP_BACK_KERN_NAME,                    \
-                                        PRECISION,                            \
-                                        KERNEL_BASE_ARGS_IP_SBCC,             \
-                                        PRECISION* __restrict__);             \
-                hipLaunchKernelGGL(kernel_func,                               \
-                                   dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.wgs_x),               \
-                                   data->gridParam.lds_bytes,                 \
-                                   rocfft_stream,                             \
-                                   (PRECISION*)data->node->twiddles,          \
-                                   (PRECISION*)data->node->twiddles_large,    \
-                                   data->node->length.size(),                 \
-                                   kargs_lengths(data->node->devKernArg),     \
-                                   kargs_stride_in(data->node->devKernArg),   \
-                                   batch,                                     \
-                                   data->node->lds_padding,                   \
-                                   data->callbacks.load_cb_fn,                \
-                                   data->callbacks.load_cb_data,              \
-                                   data->callbacks.load_cb_lds_bytes,         \
-                                   data->callbacks.store_cb_fn,               \
-                                   data->callbacks.store_cb_data,             \
-                                   (PRECISION*)data->bufIn[0]);               \
-            }                                                                 \
-            else if(array_type_is_planar(data->node->inArrayType)             \
-                    && array_type_is_planar(data->node->outArrayType))        \
-            {                                                                 \
-                GET_KERNEL_FUNC_SBCC(IP_FWD_KERN_NAME,                        \
-                                     IP_BACK_KERN_NAME,                       \
-                                     PRECISION,                               \
-                                     KERNEL_BASE_ARGS_IP_SBCC,                \
-                                     real_type_t<PRECISION>* __restrict__,    \
-                                     real_type_t<PRECISION>* __restrict__);   \
-                hipLaunchKernelGGL(kernel_func,                               \
-                                   dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.wgs_x),               \
-                                   data->gridParam.lds_bytes,                 \
-                                   rocfft_stream,                             \
-                                   (PRECISION*)data->node->twiddles,          \
-                                   (PRECISION*)data->node->twiddles_large,    \
-                                   data->node->length.size(),                 \
-                                   kargs_lengths(data->node->devKernArg),     \
-                                   kargs_stride_in(data->node->devKernArg),   \
-                                   batch,                                     \
-                                   data->node->lds_padding,                   \
-                                   data->callbacks.load_cb_fn,                \
-                                   data->callbacks.load_cb_data,              \
-                                   data->callbacks.load_cb_lds_bytes,         \
-                                   data->callbacks.store_cb_fn,               \
-                                   data->callbacks.store_cb_data,             \
-                                   (real_type_t<PRECISION>*)data->bufIn[0],   \
-                                   (real_type_t<PRECISION>*)data->bufIn[1]);  \
-            }                                                                 \
-        }                                                                     \
-        else                                                                  \
-        {                                                                     \
-            if(array_type_is_interleaved(data->node->inArrayType)             \
-               && array_type_is_interleaved(data->node->outArrayType))        \
-            {                                                                 \
-                GET_KERNEL_FUNC_SBCC_CB(OP_FWD_KERN_NAME,                     \
-                                        OP_BACK_KERN_NAME,                    \
-                                        PRECISION,                            \
-                                        KERNEL_BASE_ARGS_OP_SBCC,             \
-                                        PRECISION* __restrict__,              \
-                                        PRECISION* __restrict__);             \
-                hipLaunchKernelGGL(kernel_func,                               \
-                                   dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.wgs_x),               \
-                                   data->gridParam.lds_bytes,                 \
-                                   rocfft_stream,                             \
-                                   (PRECISION*)data->node->twiddles,          \
-                                   (PRECISION*)data->node->twiddles_large,    \
-                                   data->node->length.size(),                 \
-                                   kargs_lengths(data->node->devKernArg),     \
-                                   kargs_stride_in(data->node->devKernArg),   \
-                                   kargs_stride_out(data->node->devKernArg),  \
-                                   batch,                                     \
-                                   data->node->lds_padding,                   \
-                                   data->callbacks.load_cb_fn,                \
-                                   data->callbacks.load_cb_data,              \
-                                   data->callbacks.load_cb_lds_bytes,         \
-                                   data->callbacks.store_cb_fn,               \
-                                   data->callbacks.store_cb_data,             \
-                                   (PRECISION*)data->bufIn[0],                \
-                                   (PRECISION*)data->bufOut[0]);              \
-            }                                                                 \
-            else if(array_type_is_interleaved(data->node->inArrayType)        \
-                    && array_type_is_planar(data->node->outArrayType))        \
-            {                                                                 \
-                GET_KERNEL_FUNC_SBCC(OP_FWD_KERN_NAME,                        \
-                                     OP_BACK_KERN_NAME,                       \
-                                     PRECISION,                               \
-                                     KERNEL_BASE_ARGS_OP_SBCC,                \
-                                     PRECISION* __restrict__,                 \
-                                     real_type_t<PRECISION>* __restrict__,    \
-                                     real_type_t<PRECISION>* __restrict__);   \
-                hipLaunchKernelGGL(kernel_func,                               \
-                                   dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.wgs_x),               \
-                                   data->gridParam.lds_bytes,                 \
-                                   rocfft_stream,                             \
-                                   (PRECISION*)data->node->twiddles,          \
-                                   (PRECISION*)data->node->twiddles_large,    \
-                                   data->node->length.size(),                 \
-                                   kargs_lengths(data->node->devKernArg),     \
-                                   kargs_stride_in(data->node->devKernArg),   \
-                                   kargs_stride_out(data->node->devKernArg),  \
-                                   batch,                                     \
-                                   data->node->lds_padding,                   \
-                                   data->callbacks.load_cb_fn,                \
-                                   data->callbacks.load_cb_data,              \
-                                   data->callbacks.load_cb_lds_bytes,         \
-                                   data->callbacks.store_cb_fn,               \
-                                   data->callbacks.store_cb_data,             \
-                                   (PRECISION*)data->bufIn[0],                \
-                                   (real_type_t<PRECISION>*)data->bufOut[0],  \
-                                   (real_type_t<PRECISION>*)data->bufOut[1]); \
-            }                                                                 \
-            else if(array_type_is_planar(data->node->inArrayType)             \
-                    && array_type_is_interleaved(data->node->outArrayType))   \
-            {                                                                 \
-                GET_KERNEL_FUNC_SBCC(OP_FWD_KERN_NAME,                        \
-                                     OP_BACK_KERN_NAME,                       \
-                                     PRECISION,                               \
-                                     KERNEL_BASE_ARGS_OP_SBCC,                \
-                                     real_type_t<PRECISION>* __restrict__,    \
-                                     real_type_t<PRECISION>* __restrict__,    \
-                                     PRECISION* __restrict__);                \
-                hipLaunchKernelGGL(kernel_func,                               \
-                                   dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.wgs_x),               \
-                                   data->gridParam.lds_bytes,                 \
-                                   rocfft_stream,                             \
-                                   (PRECISION*)data->node->twiddles,          \
-                                   (PRECISION*)data->node->twiddles_large,    \
-                                   data->node->length.size(),                 \
-                                   kargs_lengths(data->node->devKernArg),     \
-                                   kargs_stride_in(data->node->devKernArg),   \
-                                   kargs_stride_out(data->node->devKernArg),  \
-                                   batch,                                     \
-                                   data->node->lds_padding,                   \
-                                   data->callbacks.load_cb_fn,                \
-                                   data->callbacks.load_cb_data,              \
-                                   data->callbacks.load_cb_lds_bytes,         \
-                                   data->callbacks.store_cb_fn,               \
-                                   data->callbacks.store_cb_data,             \
-                                   (real_type_t<PRECISION>*)data->bufIn[0],   \
-                                   (real_type_t<PRECISION>*)data->bufIn[1],   \
-                                   (PRECISION*)data->bufOut[0]);              \
-            }                                                                 \
-            else if(array_type_is_planar(data->node->inArrayType)             \
-                    && array_type_is_planar(data->node->outArrayType))        \
-            {                                                                 \
-                GET_KERNEL_FUNC_SBCC(OP_FWD_KERN_NAME,                        \
-                                     OP_BACK_KERN_NAME,                       \
-                                     PRECISION,                               \
-                                     KERNEL_BASE_ARGS_OP_SBCC,                \
-                                     real_type_t<PRECISION>* __restrict__,    \
-                                     real_type_t<PRECISION>* __restrict__,    \
-                                     real_type_t<PRECISION>* __restrict__,    \
-                                     real_type_t<PRECISION>* __restrict__);   \
-                hipLaunchKernelGGL(kernel_func,                               \
-                                   dim3(data->gridParam.b_x),                 \
-                                   dim3(data->gridParam.wgs_x),               \
-                                   data->gridParam.lds_bytes,                 \
-                                   rocfft_stream,                             \
-                                   (PRECISION*)data->node->twiddles,          \
-                                   (PRECISION*)data->node->twiddles_large,    \
-                                   data->node->length.size(),                 \
-                                   kargs_lengths(data->node->devKernArg),     \
-                                   kargs_stride_in(data->node->devKernArg),   \
-                                   kargs_stride_out(data->node->devKernArg),  \
-                                   batch,                                     \
-                                   data->node->lds_padding,                   \
-                                   data->callbacks.load_cb_fn,                \
-                                   data->callbacks.load_cb_data,              \
-                                   data->callbacks.load_cb_lds_bytes,         \
-                                   data->callbacks.store_cb_fn,               \
-                                   data->callbacks.store_cb_data,             \
-                                   (real_type_t<PRECISION>*)data->bufIn[0],   \
-                                   (real_type_t<PRECISION>*)data->bufIn[1],   \
-                                   (real_type_t<PRECISION>*)data->bufOut[0],  \
-                                   (real_type_t<PRECISION>*)data->bufOut[1]); \
-            }                                                                 \
-        }                                                                     \
+#define POWX_LARGE_SBCC_GENERATOR(FUNCTION_NAME,                                   \
+                                  IP_FWD_KERN_NAME,                                \
+                                  IP_BACK_KERN_NAME,                               \
+                                  OP_FWD_KERN_NAME,                                \
+                                  OP_BACK_KERN_NAME,                               \
+                                  PRECISION)                                       \
+    ROCFFT_DEVICE_EXPORT void FUNCTION_NAME(const void* data_p, void* back_p)      \
+    {                                                                              \
+        DeviceCallIn* data          = (DeviceCallIn*)data_p;                       \
+        hipStream_t   rocfft_stream = data->rocfft_stream;                         \
+                                                                                   \
+        const size_t batch = data->node->batch;                                    \
+                                                                                   \
+        if(data->node->placement == rocfft_placement_inplace)                      \
+        {                                                                          \
+            if(array_type_is_interleaved(data->node->inArrayType)                  \
+               && array_type_is_interleaved(data->node->outArrayType))             \
+            {                                                                      \
+                GET_KERNEL_FUNC_SBCC_CB(IP_FWD_KERN_NAME,                          \
+                                        IP_BACK_KERN_NAME,                         \
+                                        PRECISION,                                 \
+                                        KERNEL_BASE_ARGS_IP_SBCC,                  \
+                                        PRECISION* __restrict__);                  \
+                hipLaunchKernelGGL_shim(data->log_func,                            \
+                                        kernel_func,                               \
+                                        dim3(data->gridParam.b_x),                 \
+                                        dim3(data->gridParam.wgs_x),               \
+                                        data->gridParam.lds_bytes,                 \
+                                        rocfft_stream,                             \
+                                        (PRECISION*)data->node->twiddles,          \
+                                        (PRECISION*)data->node->twiddles_large,    \
+                                        data->node->length.size(),                 \
+                                        kargs_lengths(data->node->devKernArg),     \
+                                        kargs_stride_in(data->node->devKernArg),   \
+                                        batch,                                     \
+                                        data->node->lds_padding,                   \
+                                        data->callbacks.load_cb_fn,                \
+                                        data->callbacks.load_cb_data,              \
+                                        data->callbacks.load_cb_lds_bytes,         \
+                                        data->callbacks.store_cb_fn,               \
+                                        data->callbacks.store_cb_data,             \
+                                        (PRECISION*)data->bufIn[0]);               \
+            }                                                                      \
+            else if(array_type_is_planar(data->node->inArrayType)                  \
+                    && array_type_is_planar(data->node->outArrayType))             \
+            {                                                                      \
+                GET_KERNEL_FUNC_SBCC(IP_FWD_KERN_NAME,                             \
+                                     IP_BACK_KERN_NAME,                            \
+                                     PRECISION,                                    \
+                                     KERNEL_BASE_ARGS_IP_SBCC,                     \
+                                     real_type_t<PRECISION>* __restrict__,         \
+                                     real_type_t<PRECISION>* __restrict__);        \
+                hipLaunchKernelGGL_shim(data->log_func,                            \
+                                        kernel_func,                               \
+                                        dim3(data->gridParam.b_x),                 \
+                                        dim3(data->gridParam.wgs_x),               \
+                                        data->gridParam.lds_bytes,                 \
+                                        rocfft_stream,                             \
+                                        (PRECISION*)data->node->twiddles,          \
+                                        (PRECISION*)data->node->twiddles_large,    \
+                                        data->node->length.size(),                 \
+                                        kargs_lengths(data->node->devKernArg),     \
+                                        kargs_stride_in(data->node->devKernArg),   \
+                                        batch,                                     \
+                                        data->node->lds_padding,                   \
+                                        data->callbacks.load_cb_fn,                \
+                                        data->callbacks.load_cb_data,              \
+                                        data->callbacks.load_cb_lds_bytes,         \
+                                        data->callbacks.store_cb_fn,               \
+                                        data->callbacks.store_cb_data,             \
+                                        (real_type_t<PRECISION>*)data->bufIn[0],   \
+                                        (real_type_t<PRECISION>*)data->bufIn[1]);  \
+            }                                                                      \
+        }                                                                          \
+        else                                                                       \
+        {                                                                          \
+            if(array_type_is_interleaved(data->node->inArrayType)                  \
+               && array_type_is_interleaved(data->node->outArrayType))             \
+            {                                                                      \
+                GET_KERNEL_FUNC_SBCC_CB(OP_FWD_KERN_NAME,                          \
+                                        OP_BACK_KERN_NAME,                         \
+                                        PRECISION,                                 \
+                                        KERNEL_BASE_ARGS_OP_SBCC,                  \
+                                        PRECISION* __restrict__,                   \
+                                        PRECISION* __restrict__);                  \
+                hipLaunchKernelGGL_shim(data->log_func,                            \
+                                        kernel_func,                               \
+                                        dim3(data->gridParam.b_x),                 \
+                                        dim3(data->gridParam.wgs_x),               \
+                                        data->gridParam.lds_bytes,                 \
+                                        rocfft_stream,                             \
+                                        (PRECISION*)data->node->twiddles,          \
+                                        (PRECISION*)data->node->twiddles_large,    \
+                                        data->node->length.size(),                 \
+                                        kargs_lengths(data->node->devKernArg),     \
+                                        kargs_stride_in(data->node->devKernArg),   \
+                                        kargs_stride_out(data->node->devKernArg),  \
+                                        batch,                                     \
+                                        data->node->lds_padding,                   \
+                                        data->callbacks.load_cb_fn,                \
+                                        data->callbacks.load_cb_data,              \
+                                        data->callbacks.load_cb_lds_bytes,         \
+                                        data->callbacks.store_cb_fn,               \
+                                        data->callbacks.store_cb_data,             \
+                                        (PRECISION*)data->bufIn[0],                \
+                                        (PRECISION*)data->bufOut[0]);              \
+            }                                                                      \
+            else if(array_type_is_interleaved(data->node->inArrayType)             \
+                    && array_type_is_planar(data->node->outArrayType))             \
+            {                                                                      \
+                GET_KERNEL_FUNC_SBCC(OP_FWD_KERN_NAME,                             \
+                                     OP_BACK_KERN_NAME,                            \
+                                     PRECISION,                                    \
+                                     KERNEL_BASE_ARGS_OP_SBCC,                     \
+                                     PRECISION* __restrict__,                      \
+                                     real_type_t<PRECISION>* __restrict__,         \
+                                     real_type_t<PRECISION>* __restrict__);        \
+                hipLaunchKernelGGL_shim(data->log_func,                            \
+                                        kernel_func,                               \
+                                        dim3(data->gridParam.b_x),                 \
+                                        dim3(data->gridParam.wgs_x),               \
+                                        data->gridParam.lds_bytes,                 \
+                                        rocfft_stream,                             \
+                                        (PRECISION*)data->node->twiddles,          \
+                                        (PRECISION*)data->node->twiddles_large,    \
+                                        data->node->length.size(),                 \
+                                        kargs_lengths(data->node->devKernArg),     \
+                                        kargs_stride_in(data->node->devKernArg),   \
+                                        kargs_stride_out(data->node->devKernArg),  \
+                                        batch,                                     \
+                                        data->node->lds_padding,                   \
+                                        data->callbacks.load_cb_fn,                \
+                                        data->callbacks.load_cb_data,              \
+                                        data->callbacks.load_cb_lds_bytes,         \
+                                        data->callbacks.store_cb_fn,               \
+                                        data->callbacks.store_cb_data,             \
+                                        (PRECISION*)data->bufIn[0],                \
+                                        (real_type_t<PRECISION>*)data->bufOut[0],  \
+                                        (real_type_t<PRECISION>*)data->bufOut[1]); \
+            }                                                                      \
+            else if(array_type_is_planar(data->node->inArrayType)                  \
+                    && array_type_is_interleaved(data->node->outArrayType))        \
+            {                                                                      \
+                GET_KERNEL_FUNC_SBCC(OP_FWD_KERN_NAME,                             \
+                                     OP_BACK_KERN_NAME,                            \
+                                     PRECISION,                                    \
+                                     KERNEL_BASE_ARGS_OP_SBCC,                     \
+                                     real_type_t<PRECISION>* __restrict__,         \
+                                     real_type_t<PRECISION>* __restrict__,         \
+                                     PRECISION* __restrict__);                     \
+                hipLaunchKernelGGL_shim(data->log_func,                            \
+                                        kernel_func,                               \
+                                        dim3(data->gridParam.b_x),                 \
+                                        dim3(data->gridParam.wgs_x),               \
+                                        data->gridParam.lds_bytes,                 \
+                                        rocfft_stream,                             \
+                                        (PRECISION*)data->node->twiddles,          \
+                                        (PRECISION*)data->node->twiddles_large,    \
+                                        data->node->length.size(),                 \
+                                        kargs_lengths(data->node->devKernArg),     \
+                                        kargs_stride_in(data->node->devKernArg),   \
+                                        kargs_stride_out(data->node->devKernArg),  \
+                                        batch,                                     \
+                                        data->node->lds_padding,                   \
+                                        data->callbacks.load_cb_fn,                \
+                                        data->callbacks.load_cb_data,              \
+                                        data->callbacks.load_cb_lds_bytes,         \
+                                        data->callbacks.store_cb_fn,               \
+                                        data->callbacks.store_cb_data,             \
+                                        (real_type_t<PRECISION>*)data->bufIn[0],   \
+                                        (real_type_t<PRECISION>*)data->bufIn[1],   \
+                                        (PRECISION*)data->bufOut[0]);              \
+            }                                                                      \
+            else if(array_type_is_planar(data->node->inArrayType)                  \
+                    && array_type_is_planar(data->node->outArrayType))             \
+            {                                                                      \
+                GET_KERNEL_FUNC_SBCC(OP_FWD_KERN_NAME,                             \
+                                     OP_BACK_KERN_NAME,                            \
+                                     PRECISION,                                    \
+                                     KERNEL_BASE_ARGS_OP_SBCC,                     \
+                                     real_type_t<PRECISION>* __restrict__,         \
+                                     real_type_t<PRECISION>* __restrict__,         \
+                                     real_type_t<PRECISION>* __restrict__,         \
+                                     real_type_t<PRECISION>* __restrict__);        \
+                hipLaunchKernelGGL_shim(data->log_func,                            \
+                                        kernel_func,                               \
+                                        dim3(data->gridParam.b_x),                 \
+                                        dim3(data->gridParam.wgs_x),               \
+                                        data->gridParam.lds_bytes,                 \
+                                        rocfft_stream,                             \
+                                        (PRECISION*)data->node->twiddles,          \
+                                        (PRECISION*)data->node->twiddles_large,    \
+                                        data->node->length.size(),                 \
+                                        kargs_lengths(data->node->devKernArg),     \
+                                        kargs_stride_in(data->node->devKernArg),   \
+                                        kargs_stride_out(data->node->devKernArg),  \
+                                        batch,                                     \
+                                        data->node->lds_padding,                   \
+                                        data->callbacks.load_cb_fn,                \
+                                        data->callbacks.load_cb_data,              \
+                                        data->callbacks.load_cb_lds_bytes,         \
+                                        data->callbacks.store_cb_fn,               \
+                                        data->callbacks.store_cb_data,             \
+                                        (real_type_t<PRECISION>*)data->bufIn[0],   \
+                                        (real_type_t<PRECISION>*)data->bufIn[1],   \
+                                        (real_type_t<PRECISION>*)data->bufOut[0],  \
+                                        (real_type_t<PRECISION>*)data->bufOut[1]); \
+            }                                                                      \
+        }                                                                          \
     }
 
 #define POWX_LARGE_SBRC_GENERATOR(                                                    \
@@ -1019,25 +1058,26 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                     KERNEL_BASE_ARGS_OP,                              \
                                     PRECISION* __restrict__,                          \
                                     PRECISION* __restrict__);                         \
-            hipLaunchKernelGGL(kernel_func,                                           \
-                               dim3(data->gridParam.b_x),                             \
-                               dim3(data->gridParam.wgs_x),                           \
-                               data->gridParam.lds_bytes,                             \
-                               rocfft_stream,                                         \
-                               (PRECISION*)data->node->twiddles,                      \
-                               data->node->length.size(),                             \
-                               kargs_lengths(data->node->devKernArg),                 \
-                               kargs_stride_in(data->node->devKernArg),               \
-                               kargs_stride_out(data->node->devKernArg),              \
-                               batch,                                                 \
-                               data->node->lds_padding,                               \
-                               data->callbacks.load_cb_fn,                            \
-                               data->callbacks.load_cb_data,                          \
-                               data->callbacks.load_cb_lds_bytes,                     \
-                               data->callbacks.store_cb_fn,                           \
-                               data->callbacks.store_cb_data,                         \
-                               (PRECISION*)data->bufIn[0],                            \
-                               (PRECISION*)data->bufOut[0]);                          \
+            hipLaunchKernelGGL_shim(data->log_func,                                   \
+                                    kernel_func,                                      \
+                                    dim3(data->gridParam.b_x),                        \
+                                    dim3(data->gridParam.wgs_x),                      \
+                                    data->gridParam.lds_bytes,                        \
+                                    rocfft_stream,                                    \
+                                    (PRECISION*)data->node->twiddles,                 \
+                                    data->node->length.size(),                        \
+                                    kargs_lengths(data->node->devKernArg),            \
+                                    kargs_stride_in(data->node->devKernArg),          \
+                                    kargs_stride_out(data->node->devKernArg),         \
+                                    batch,                                            \
+                                    data->node->lds_padding,                          \
+                                    data->callbacks.load_cb_fn,                       \
+                                    data->callbacks.load_cb_data,                     \
+                                    data->callbacks.load_cb_lds_bytes,                \
+                                    data->callbacks.store_cb_fn,                      \
+                                    data->callbacks.store_cb_data,                    \
+                                    (PRECISION*)data->bufIn[0],                       \
+                                    (PRECISION*)data->bufOut[0]);                     \
         }                                                                             \
         else if(array_type_is_interleaved(data->node->inArrayType)                    \
                 && array_type_is_planar(data->node->outArrayType))                    \
@@ -1051,26 +1091,27 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                  PRECISION* __restrict__,                             \
                                  real_type_t<PRECISION>* __restrict__,                \
                                  real_type_t<PRECISION>* __restrict__);               \
-            hipLaunchKernelGGL(kernel_func,                                           \
-                               dim3(data->gridParam.b_x),                             \
-                               dim3(data->gridParam.wgs_x),                           \
-                               data->gridParam.lds_bytes,                             \
-                               rocfft_stream,                                         \
-                               (PRECISION*)data->node->twiddles,                      \
-                               data->node->length.size(),                             \
-                               kargs_lengths(data->node->devKernArg),                 \
-                               kargs_stride_in(data->node->devKernArg),               \
-                               kargs_stride_out(data->node->devKernArg),              \
-                               batch,                                                 \
-                               data->node->lds_padding,                               \
-                               data->callbacks.load_cb_fn,                            \
-                               data->callbacks.load_cb_data,                          \
-                               data->callbacks.load_cb_lds_bytes,                     \
-                               data->callbacks.store_cb_fn,                           \
-                               data->callbacks.store_cb_data,                         \
-                               (PRECISION*)data->bufIn[0],                            \
-                               (real_type_t<PRECISION>*)data->bufOut[0],              \
-                               (real_type_t<PRECISION>*)data->bufOut[1]);             \
+            hipLaunchKernelGGL_shim(data->log_func,                                   \
+                                    kernel_func,                                      \
+                                    dim3(data->gridParam.b_x),                        \
+                                    dim3(data->gridParam.wgs_x),                      \
+                                    data->gridParam.lds_bytes,                        \
+                                    rocfft_stream,                                    \
+                                    (PRECISION*)data->node->twiddles,                 \
+                                    data->node->length.size(),                        \
+                                    kargs_lengths(data->node->devKernArg),            \
+                                    kargs_stride_in(data->node->devKernArg),          \
+                                    kargs_stride_out(data->node->devKernArg),         \
+                                    batch,                                            \
+                                    data->node->lds_padding,                          \
+                                    data->callbacks.load_cb_fn,                       \
+                                    data->callbacks.load_cb_data,                     \
+                                    data->callbacks.load_cb_lds_bytes,                \
+                                    data->callbacks.store_cb_fn,                      \
+                                    data->callbacks.store_cb_data,                    \
+                                    (PRECISION*)data->bufIn[0],                       \
+                                    (real_type_t<PRECISION>*)data->bufOut[0],         \
+                                    (real_type_t<PRECISION>*)data->bufOut[1]);        \
         }                                                                             \
         else if(array_type_is_planar(data->node->inArrayType)                         \
                 && array_type_is_interleaved(data->node->outArrayType))               \
@@ -1084,26 +1125,27 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                  real_type_t<PRECISION>* __restrict__,                \
                                  real_type_t<PRECISION>* __restrict__,                \
                                  PRECISION* __restrict__);                            \
-            hipLaunchKernelGGL(kernel_func,                                           \
-                               dim3(data->gridParam.b_x),                             \
-                               dim3(data->gridParam.wgs_x),                           \
-                               data->gridParam.lds_bytes,                             \
-                               rocfft_stream,                                         \
-                               (PRECISION*)data->node->twiddles,                      \
-                               data->node->length.size(),                             \
-                               kargs_lengths(data->node->devKernArg),                 \
-                               kargs_stride_in(data->node->devKernArg),               \
-                               kargs_stride_out(data->node->devKernArg),              \
-                               batch,                                                 \
-                               data->node->lds_padding,                               \
-                               data->callbacks.load_cb_fn,                            \
-                               data->callbacks.load_cb_data,                          \
-                               data->callbacks.load_cb_lds_bytes,                     \
-                               data->callbacks.store_cb_fn,                           \
-                               data->callbacks.store_cb_data,                         \
-                               (real_type_t<PRECISION>*)data->bufIn[0],               \
-                               (real_type_t<PRECISION>*)data->bufIn[1],               \
-                               (PRECISION*)data->bufOut[0]);                          \
+            hipLaunchKernelGGL_shim(data->log_func,                                   \
+                                    kernel_func,                                      \
+                                    dim3(data->gridParam.b_x),                        \
+                                    dim3(data->gridParam.wgs_x),                      \
+                                    data->gridParam.lds_bytes,                        \
+                                    rocfft_stream,                                    \
+                                    (PRECISION*)data->node->twiddles,                 \
+                                    data->node->length.size(),                        \
+                                    kargs_lengths(data->node->devKernArg),            \
+                                    kargs_stride_in(data->node->devKernArg),          \
+                                    kargs_stride_out(data->node->devKernArg),         \
+                                    batch,                                            \
+                                    data->node->lds_padding,                          \
+                                    data->callbacks.load_cb_fn,                       \
+                                    data->callbacks.load_cb_data,                     \
+                                    data->callbacks.load_cb_lds_bytes,                \
+                                    data->callbacks.store_cb_fn,                      \
+                                    data->callbacks.store_cb_data,                    \
+                                    (real_type_t<PRECISION>*)data->bufIn[0],          \
+                                    (real_type_t<PRECISION>*)data->bufIn[1],          \
+                                    (PRECISION*)data->bufOut[0]);                     \
         }                                                                             \
         else if(array_type_is_planar(data->node->inArrayType)                         \
                 && array_type_is_planar(data->node->outArrayType))                    \
@@ -1118,27 +1160,28 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                  real_type_t<PRECISION>* __restrict__,                \
                                  real_type_t<PRECISION>* __restrict__,                \
                                  real_type_t<PRECISION>* __restrict__);               \
-            hipLaunchKernelGGL(kernel_func,                                           \
-                               dim3(data->gridParam.b_x),                             \
-                               dim3(data->gridParam.wgs_x),                           \
-                               data->gridParam.lds_bytes,                             \
-                               rocfft_stream,                                         \
-                               (PRECISION*)data->node->twiddles,                      \
-                               data->node->length.size(),                             \
-                               kargs_lengths(data->node->devKernArg),                 \
-                               kargs_stride_in(data->node->devKernArg),               \
-                               kargs_stride_out(data->node->devKernArg),              \
-                               batch,                                                 \
-                               data->node->lds_padding,                               \
-                               data->callbacks.load_cb_fn,                            \
-                               data->callbacks.load_cb_data,                          \
-                               data->callbacks.load_cb_lds_bytes,                     \
-                               data->callbacks.store_cb_fn,                           \
-                               data->callbacks.store_cb_data,                         \
-                               (real_type_t<PRECISION>*)data->bufIn[0],               \
-                               (real_type_t<PRECISION>*)data->bufIn[1],               \
-                               (real_type_t<PRECISION>*)data->bufOut[0],              \
-                               (real_type_t<PRECISION>*)data->bufOut[1]);             \
+            hipLaunchKernelGGL_shim(data->log_func,                                   \
+                                    kernel_func,                                      \
+                                    dim3(data->gridParam.b_x),                        \
+                                    dim3(data->gridParam.wgs_x),                      \
+                                    data->gridParam.lds_bytes,                        \
+                                    rocfft_stream,                                    \
+                                    (PRECISION*)data->node->twiddles,                 \
+                                    data->node->length.size(),                        \
+                                    kargs_lengths(data->node->devKernArg),            \
+                                    kargs_stride_in(data->node->devKernArg),          \
+                                    kargs_stride_out(data->node->devKernArg),         \
+                                    batch,                                            \
+                                    data->node->lds_padding,                          \
+                                    data->callbacks.load_cb_fn,                       \
+                                    data->callbacks.load_cb_data,                     \
+                                    data->callbacks.load_cb_lds_bytes,                \
+                                    data->callbacks.store_cb_fn,                      \
+                                    data->callbacks.store_cb_data,                    \
+                                    (real_type_t<PRECISION>*)data->bufIn[0],          \
+                                    (real_type_t<PRECISION>*)data->bufIn[1],          \
+                                    (real_type_t<PRECISION>*)data->bufOut[0],         \
+                                    (real_type_t<PRECISION>*)data->bufOut[1]);        \
         }                                                                             \
     }
 
@@ -1159,25 +1202,26 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                     KERNEL_BASE_ARGS_OP,                                   \
                                     PRECISION* __restrict__,                               \
                                     PRECISION* __restrict__);                              \
-            hipLaunchKernelGGL(kernel_func,                                                \
-                               dim3(data->gridParam.b_x),                                  \
-                               dim3(data->gridParam.wgs_x),                                \
-                               data->gridParam.lds_bytes,                                  \
-                               rocfft_stream,                                              \
-                               (PRECISION*)data->node->twiddles,                           \
-                               data->node->length.size(),                                  \
-                               kargs_lengths(data->node->devKernArg),                      \
-                               kargs_stride_in(data->node->devKernArg),                    \
-                               kargs_stride_out(data->node->devKernArg),                   \
-                               batch,                                                      \
-                               data->node->lds_padding,                                    \
-                               data->callbacks.load_cb_fn,                                 \
-                               data->callbacks.load_cb_data,                               \
-                               data->callbacks.load_cb_lds_bytes,                          \
-                               data->callbacks.store_cb_fn,                                \
-                               data->callbacks.store_cb_data,                              \
-                               (PRECISION*)data->bufIn[0],                                 \
-                               (PRECISION*)data->bufOut[0]);                               \
+            hipLaunchKernelGGL_shim(data->log_func,                                        \
+                                    kernel_func,                                           \
+                                    dim3(data->gridParam.b_x),                             \
+                                    dim3(data->gridParam.wgs_x),                           \
+                                    data->gridParam.lds_bytes,                             \
+                                    rocfft_stream,                                         \
+                                    (PRECISION*)data->node->twiddles,                      \
+                                    data->node->length.size(),                             \
+                                    kargs_lengths(data->node->devKernArg),                 \
+                                    kargs_stride_in(data->node->devKernArg),               \
+                                    kargs_stride_out(data->node->devKernArg),              \
+                                    batch,                                                 \
+                                    data->node->lds_padding,                               \
+                                    data->callbacks.load_cb_fn,                            \
+                                    data->callbacks.load_cb_data,                          \
+                                    data->callbacks.load_cb_lds_bytes,                     \
+                                    data->callbacks.store_cb_fn,                           \
+                                    data->callbacks.store_cb_data,                         \
+                                    (PRECISION*)data->bufIn[0],                            \
+                                    (PRECISION*)data->bufOut[0]);                          \
         }                                                                                  \
         else if(array_type_is_interleaved(data->node->inArrayType)                         \
                 && array_type_is_planar(data->node->outArrayType))                         \
@@ -1189,26 +1233,27 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                  PRECISION* __restrict__,                                  \
                                  real_type_t<PRECISION>* __restrict__,                     \
                                  real_type_t<PRECISION>* __restrict__);                    \
-            hipLaunchKernelGGL(kernel_func,                                                \
-                               dim3(data->gridParam.b_x),                                  \
-                               dim3(data->gridParam.wgs_x),                                \
-                               data->gridParam.lds_bytes,                                  \
-                               rocfft_stream,                                              \
-                               (PRECISION*)data->node->twiddles,                           \
-                               data->node->length.size(),                                  \
-                               kargs_lengths(data->node->devKernArg),                      \
-                               kargs_stride_in(data->node->devKernArg),                    \
-                               kargs_stride_out(data->node->devKernArg),                   \
-                               batch,                                                      \
-                               data->node->lds_padding,                                    \
-                               data->callbacks.load_cb_fn,                                 \
-                               data->callbacks.load_cb_data,                               \
-                               data->callbacks.load_cb_lds_bytes,                          \
-                               data->callbacks.store_cb_fn,                                \
-                               data->callbacks.store_cb_data,                              \
-                               (PRECISION*)data->bufIn[0],                                 \
-                               (real_type_t<PRECISION>*)data->bufOut[0],                   \
-                               (real_type_t<PRECISION>*)data->bufOut[1]);                  \
+            hipLaunchKernelGGL_shim(data->log_func,                                        \
+                                    kernel_func,                                           \
+                                    dim3(data->gridParam.b_x),                             \
+                                    dim3(data->gridParam.wgs_x),                           \
+                                    data->gridParam.lds_bytes,                             \
+                                    rocfft_stream,                                         \
+                                    (PRECISION*)data->node->twiddles,                      \
+                                    data->node->length.size(),                             \
+                                    kargs_lengths(data->node->devKernArg),                 \
+                                    kargs_stride_in(data->node->devKernArg),               \
+                                    kargs_stride_out(data->node->devKernArg),              \
+                                    batch,                                                 \
+                                    data->node->lds_padding,                               \
+                                    data->callbacks.load_cb_fn,                            \
+                                    data->callbacks.load_cb_data,                          \
+                                    data->callbacks.load_cb_lds_bytes,                     \
+                                    data->callbacks.store_cb_fn,                           \
+                                    data->callbacks.store_cb_data,                         \
+                                    (PRECISION*)data->bufIn[0],                            \
+                                    (real_type_t<PRECISION>*)data->bufOut[0],              \
+                                    (real_type_t<PRECISION>*)data->bufOut[1]);             \
         }                                                                                  \
         else if(array_type_is_planar(data->node->inArrayType)                              \
                 && array_type_is_interleaved(data->node->outArrayType))                    \
@@ -1220,26 +1265,27 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                  real_type_t<PRECISION>* __restrict__,                     \
                                  real_type_t<PRECISION>* __restrict__,                     \
                                  PRECISION* __restrict__);                                 \
-            hipLaunchKernelGGL(kernel_func,                                                \
-                               dim3(data->gridParam.b_x),                                  \
-                               dim3(data->gridParam.wgs_x),                                \
-                               data->gridParam.lds_bytes,                                  \
-                               rocfft_stream,                                              \
-                               (PRECISION*)data->node->twiddles,                           \
-                               data->node->length.size(),                                  \
-                               kargs_lengths(data->node->devKernArg),                      \
-                               kargs_stride_in(data->node->devKernArg),                    \
-                               kargs_stride_out(data->node->devKernArg),                   \
-                               batch,                                                      \
-                               data->node->lds_padding,                                    \
-                               data->callbacks.load_cb_fn,                                 \
-                               data->callbacks.load_cb_data,                               \
-                               data->callbacks.load_cb_lds_bytes,                          \
-                               data->callbacks.store_cb_fn,                                \
-                               data->callbacks.store_cb_data,                              \
-                               (real_type_t<PRECISION>*)data->bufIn[0],                    \
-                               (real_type_t<PRECISION>*)data->bufIn[1],                    \
-                               (PRECISION*)data->bufOut[0]);                               \
+            hipLaunchKernelGGL_shim(data->log_func,                                        \
+                                    kernel_func,                                           \
+                                    dim3(data->gridParam.b_x),                             \
+                                    dim3(data->gridParam.wgs_x),                           \
+                                    data->gridParam.lds_bytes,                             \
+                                    rocfft_stream,                                         \
+                                    (PRECISION*)data->node->twiddles,                      \
+                                    data->node->length.size(),                             \
+                                    kargs_lengths(data->node->devKernArg),                 \
+                                    kargs_stride_in(data->node->devKernArg),               \
+                                    kargs_stride_out(data->node->devKernArg),              \
+                                    batch,                                                 \
+                                    data->node->lds_padding,                               \
+                                    data->callbacks.load_cb_fn,                            \
+                                    data->callbacks.load_cb_data,                          \
+                                    data->callbacks.load_cb_lds_bytes,                     \
+                                    data->callbacks.store_cb_fn,                           \
+                                    data->callbacks.store_cb_data,                         \
+                                    (real_type_t<PRECISION>*)data->bufIn[0],               \
+                                    (real_type_t<PRECISION>*)data->bufIn[1],               \
+                                    (PRECISION*)data->bufOut[0]);                          \
         }                                                                                  \
         else if(array_type_is_planar(data->node->inArrayType)                              \
                 && array_type_is_planar(data->node->outArrayType))                         \
@@ -1252,27 +1298,28 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                  real_type_t<PRECISION>* __restrict__,                     \
                                  real_type_t<PRECISION>* __restrict__,                     \
                                  real_type_t<PRECISION>* __restrict__);                    \
-            hipLaunchKernelGGL(kernel_func,                                                \
-                               dim3(data->gridParam.b_x),                                  \
-                               dim3(data->gridParam.wgs_x),                                \
-                               data->gridParam.lds_bytes,                                  \
-                               rocfft_stream,                                              \
-                               (PRECISION*)data->node->twiddles,                           \
-                               data->node->length.size(),                                  \
-                               kargs_lengths(data->node->devKernArg),                      \
-                               kargs_stride_in(data->node->devKernArg),                    \
-                               kargs_stride_out(data->node->devKernArg),                   \
-                               batch,                                                      \
-                               data->node->lds_padding,                                    \
-                               data->callbacks.load_cb_fn,                                 \
-                               data->callbacks.load_cb_data,                               \
-                               data->callbacks.load_cb_lds_bytes,                          \
-                               data->callbacks.store_cb_fn,                                \
-                               data->callbacks.store_cb_data,                              \
-                               (real_type_t<PRECISION>*)data->bufIn[0],                    \
-                               (real_type_t<PRECISION>*)data->bufIn[1],                    \
-                               (real_type_t<PRECISION>*)data->bufOut[0],                   \
-                               (real_type_t<PRECISION>*)data->bufOut[1]);                  \
+            hipLaunchKernelGGL_shim(data->log_func,                                        \
+                                    kernel_func,                                           \
+                                    dim3(data->gridParam.b_x),                             \
+                                    dim3(data->gridParam.wgs_x),                           \
+                                    data->gridParam.lds_bytes,                             \
+                                    rocfft_stream,                                         \
+                                    (PRECISION*)data->node->twiddles,                      \
+                                    data->node->length.size(),                             \
+                                    kargs_lengths(data->node->devKernArg),                 \
+                                    kargs_stride_in(data->node->devKernArg),               \
+                                    kargs_stride_out(data->node->devKernArg),              \
+                                    batch,                                                 \
+                                    data->node->lds_padding,                               \
+                                    data->callbacks.load_cb_fn,                            \
+                                    data->callbacks.load_cb_data,                          \
+                                    data->callbacks.load_cb_lds_bytes,                     \
+                                    data->callbacks.store_cb_fn,                           \
+                                    data->callbacks.store_cb_data,                         \
+                                    (real_type_t<PRECISION>*)data->bufIn[0],               \
+                                    (real_type_t<PRECISION>*)data->bufIn[1],               \
+                                    (real_type_t<PRECISION>*)data->bufOut[0],              \
+                                    (real_type_t<PRECISION>*)data->bufOut[1]);             \
         }                                                                                  \
     }
 

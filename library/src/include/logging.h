@@ -271,4 +271,10 @@ inline void log_bench(Ts&&... xs)
         log_arguments(*LogSingleton::GetInstance().GetBenchOS(), " ", std::forward<Ts>(xs)...);
 }
 
+static void log_plan(const char* msg)
+{
+    rocfft_ostream* kernelplan_stream = LogSingleton::GetInstance().GetPlanOS();
+    *kernelplan_stream << msg;
+}
+
 #endif

@@ -462,6 +462,18 @@ void RTCKernel::launch(DeviceCallIn& data)
 
     const auto& gp = data.gridParam;
 
+    if(LOG_PLAN_ENABLED())
+    {
+        int        max_blocks_per_sm;
+        hipError_t ret = hipModuleOccupancyMaxActiveBlocksPerMultiprocessor(
+            &max_blocks_per_sm, kernel, gp.wgs_x * gp.wgs_y * gp.wgs_z, gp.lds_bytes);
+        rocfft_ostream* kernelplan_stream = LogSingleton::GetInstance().GetPlanOS();
+        if(ret == hipSuccess)
+            *kernelplan_stream << "Kernel occupancy: " << max_blocks_per_sm << std::endl;
+        else
+            *kernelplan_stream << "Can not retrieve occupancy info." << std::endl;
+    }
+
     if(hipModuleLaunchKernel(kernel,
                              gp.b_x,
                              gp.b_y,

@@ -207,104 +207,106 @@ static const unsigned int TILE_Y_DOUBLE = 32;
 
 // declare a function pointer for the specified precision, then
 // invoke macros above to assign it and launch the kernel
-#define LAUNCH_TRANSPOSE_KERNEL(T_I, T_O)                                               \
-    if(data->node->precision == rocfft_precision_single)                                \
-    {                                                                                   \
-        decltype(&transpose_kernel<TILE_X_SINGLE,                                       \
-                                   TILE_Y_SINGLE,                                       \
-                                   T_I<float2>,                                         \
-                                   T_O<float2>,                                         \
-                                   TransposeDim2,                                       \
-                                   4,                                                   \
-                                   -1,                                                  \
-                                   false,                                               \
-                                   false,                                               \
-                                   CallbackType::NONE>) kernel_func                     \
-            = nullptr;                                                                  \
-                                                                                        \
-        grid    = {DivRoundingUp<unsigned int>(length[0], TILE_X_SINGLE),               \
-                DivRoundingUp<unsigned int>(gridYrows, TILE_X_SINGLE),               \
-                gridZ};                                                              \
-        threads = {TILE_X_SINGLE, TILE_Y_SINGLE};                                       \
-        TRANSPOSE_KERNEL_DIAG(T_I<float2>, T_O<float2>, TILE_X_SINGLE, TILE_Y_SINGLE)   \
-                                                                                        \
-        hipLaunchKernelGGL(kernel_func,                                                 \
-                           grid,                                                        \
-                           threads,                                                     \
-                           0,                                                           \
-                           data->rocfft_stream,                                         \
-                           {data->bufIn[0], data->bufIn[1]},                            \
-                           {data->bufOut[0], data->bufOut[1]},                          \
-                           static_cast<const float2*>(data->node->twiddles_large),      \
-                           length.size(),                                               \
-                           length[0],                                                   \
-                           length[1],                                                   \
-                           length.size() > 2 ? length[2] : 1,                           \
-                           kargs_lengths(data->node->devKernArg),                       \
-                           istride[0],                                                  \
-                           istride[1],                                                  \
-                           istride.size() > 2 ? istride[2] : 0,                         \
-                           kargs_stride_in(data->node->devKernArg),                     \
-                           data->node->iDist,                                           \
-                           ostride[0],                                                  \
-                           ostride[1],                                                  \
-                           ostride.size() > 2 ? ostride[2] : 0,                         \
-                           kargs_stride_out(data->node->devKernArg),                    \
-                           data->node->oDist,                                           \
-                           data->callbacks.load_cb_fn,                                  \
-                           data->callbacks.load_cb_data,                                \
-                           data->callbacks.load_cb_lds_bytes,                           \
-                           data->callbacks.store_cb_fn,                                 \
-                           data->callbacks.store_cb_data);                              \
-    }                                                                                   \
-    else                                                                                \
-    {                                                                                   \
-        decltype(&transpose_kernel<TILE_X_DOUBLE,                                       \
-                                   TILE_Y_DOUBLE,                                       \
-                                   T_I<double2>,                                        \
-                                   T_O<double2>,                                        \
-                                   TransposeDim2,                                       \
-                                   4,                                                   \
-                                   -1,                                                  \
-                                   false,                                               \
-                                   false,                                               \
-                                   CallbackType::NONE>) kernel_func                     \
-            = nullptr;                                                                  \
-                                                                                        \
-        grid    = {DivRoundingUp<unsigned int>(length[0], TILE_X_DOUBLE),               \
-                DivRoundingUp<unsigned int>(gridYrows, TILE_X_DOUBLE),               \
-                gridZ};                                                              \
-        threads = {TILE_X_DOUBLE, TILE_Y_DOUBLE};                                       \
-        TRANSPOSE_KERNEL_DIAG(T_I<double2>, T_O<double2>, TILE_X_DOUBLE, TILE_Y_DOUBLE) \
-                                                                                        \
-        hipLaunchKernelGGL(kernel_func,                                                 \
-                           grid,                                                        \
-                           threads,                                                     \
-                           0,                                                           \
-                           data->rocfft_stream,                                         \
-                           {data->bufIn[0], data->bufIn[1]},                            \
-                           {data->bufOut[0], data->bufOut[1]},                          \
-                           static_cast<const double2*>(data->node->twiddles_large),     \
-                           length.size(),                                               \
-                           length[0],                                                   \
-                           length[1],                                                   \
-                           length.size() > 2 ? length[2] : 1,                           \
-                           kargs_lengths(data->node->devKernArg),                       \
-                           istride[0],                                                  \
-                           istride[1],                                                  \
-                           istride.size() > 2 ? istride[2] : 0,                         \
-                           kargs_stride_in(data->node->devKernArg),                     \
-                           data->node->iDist,                                           \
-                           ostride[0],                                                  \
-                           ostride[1],                                                  \
-                           ostride.size() > 2 ? ostride[2] : 0,                         \
-                           kargs_stride_out(data->node->devKernArg),                    \
-                           data->node->oDist,                                           \
-                           data->callbacks.load_cb_fn,                                  \
-                           data->callbacks.load_cb_data,                                \
-                           data->callbacks.load_cb_lds_bytes,                           \
-                           data->callbacks.store_cb_fn,                                 \
-                           data->callbacks.store_cb_data);                              \
+#define LAUNCH_TRANSPOSE_KERNEL(T_I, T_O)                                                \
+    if(data->node->precision == rocfft_precision_single)                                 \
+    {                                                                                    \
+        decltype(&transpose_kernel<TILE_X_SINGLE,                                        \
+                                   TILE_Y_SINGLE,                                        \
+                                   T_I<float2>,                                          \
+                                   T_O<float2>,                                          \
+                                   TransposeDim2,                                        \
+                                   4,                                                    \
+                                   -1,                                                   \
+                                   false,                                                \
+                                   false,                                                \
+                                   CallbackType::NONE>) kernel_func                      \
+            = nullptr;                                                                   \
+                                                                                         \
+        grid    = {DivRoundingUp<unsigned int>(length[0], TILE_X_SINGLE),                \
+                DivRoundingUp<unsigned int>(gridYrows, TILE_X_SINGLE),                \
+                gridZ};                                                               \
+        threads = {TILE_X_SINGLE, TILE_Y_SINGLE};                                        \
+        TRANSPOSE_KERNEL_DIAG(T_I<float2>, T_O<float2>, TILE_X_SINGLE, TILE_Y_SINGLE)    \
+                                                                                         \
+        hipLaunchKernelGGL_shim(data->log_func,                                          \
+                                kernel_func,                                             \
+                                grid,                                                    \
+                                threads,                                                 \
+                                0,                                                       \
+                                data->rocfft_stream,                                     \
+                                {data->bufIn[0], data->bufIn[1]},                        \
+                                {data->bufOut[0], data->bufOut[1]},                      \
+                                static_cast<const float2*>(data->node->twiddles_large),  \
+                                length.size(),                                           \
+                                length[0],                                               \
+                                length[1],                                               \
+                                length.size() > 2 ? length[2] : 1,                       \
+                                kargs_lengths(data->node->devKernArg),                   \
+                                istride[0],                                              \
+                                istride[1],                                              \
+                                istride.size() > 2 ? istride[2] : 0,                     \
+                                kargs_stride_in(data->node->devKernArg),                 \
+                                data->node->iDist,                                       \
+                                ostride[0],                                              \
+                                ostride[1],                                              \
+                                ostride.size() > 2 ? ostride[2] : 0,                     \
+                                kargs_stride_out(data->node->devKernArg),                \
+                                data->node->oDist,                                       \
+                                data->callbacks.load_cb_fn,                              \
+                                data->callbacks.load_cb_data,                            \
+                                data->callbacks.load_cb_lds_bytes,                       \
+                                data->callbacks.store_cb_fn,                             \
+                                data->callbacks.store_cb_data);                          \
+    }                                                                                    \
+    else                                                                                 \
+    {                                                                                    \
+        decltype(&transpose_kernel<TILE_X_DOUBLE,                                        \
+                                   TILE_Y_DOUBLE,                                        \
+                                   T_I<double2>,                                         \
+                                   T_O<double2>,                                         \
+                                   TransposeDim2,                                        \
+                                   4,                                                    \
+                                   -1,                                                   \
+                                   false,                                                \
+                                   false,                                                \
+                                   CallbackType::NONE>) kernel_func                      \
+            = nullptr;                                                                   \
+                                                                                         \
+        grid    = {DivRoundingUp<unsigned int>(length[0], TILE_X_DOUBLE),                \
+                DivRoundingUp<unsigned int>(gridYrows, TILE_X_DOUBLE),                \
+                gridZ};                                                               \
+        threads = {TILE_X_DOUBLE, TILE_Y_DOUBLE};                                        \
+        TRANSPOSE_KERNEL_DIAG(T_I<double2>, T_O<double2>, TILE_X_DOUBLE, TILE_Y_DOUBLE)  \
+                                                                                         \
+        hipLaunchKernelGGL_shim(data->log_func,                                          \
+                                kernel_func,                                             \
+                                grid,                                                    \
+                                threads,                                                 \
+                                0,                                                       \
+                                data->rocfft_stream,                                     \
+                                {data->bufIn[0], data->bufIn[1]},                        \
+                                {data->bufOut[0], data->bufOut[1]},                      \
+                                static_cast<const double2*>(data->node->twiddles_large), \
+                                length.size(),                                           \
+                                length[0],                                               \
+                                length[1],                                               \
+                                length.size() > 2 ? length[2] : 1,                       \
+                                kargs_lengths(data->node->devKernArg),                   \
+                                istride[0],                                              \
+                                istride[1],                                              \
+                                istride.size() > 2 ? istride[2] : 0,                     \
+                                kargs_stride_in(data->node->devKernArg),                 \
+                                data->node->iDist,                                       \
+                                ostride[0],                                              \
+                                ostride[1],                                              \
+                                ostride.size() > 2 ? ostride[2] : 0,                     \
+                                kargs_stride_out(data->node->devKernArg),                \
+                                data->node->oDist,                                       \
+                                data->callbacks.load_cb_fn,                              \
+                                data->callbacks.load_cb_data,                            \
+                                data->callbacks.load_cb_lds_bytes,                       \
+                                data->callbacks.store_cb_fn,                             \
+                                data->callbacks.store_cb_data);                          \
     }
 
 template <unsigned int TILE_X,

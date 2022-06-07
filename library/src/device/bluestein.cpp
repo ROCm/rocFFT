@@ -24,23 +24,30 @@
 #include <iostream>
 
 template <typename T>
-rocfft_status chirp_launch(
-    size_t N, size_t M, T* B, void* twiddles_large, int twl, int dir, hipStream_t rocfft_stream)
+rocfft_status chirp_launch(size_t      N,
+                           size_t      M,
+                           T*          B,
+                           void*       twiddles_large,
+                           int         twl,
+                           int         dir,
+                           hipStream_t rocfft_stream,
+                           log_func_t  log_func)
 {
     dim3 grid((M - N) / LAUNCH_BOUNDS_BLUESTEIN_KERNEL + 1);
     dim3 threads(LAUNCH_BOUNDS_BLUESTEIN_KERNEL);
 
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(chirp_device<T>),
-                       dim3(grid),
-                       dim3(threads),
-                       0,
-                       rocfft_stream,
-                       N,
-                       M,
-                       B,
-                       (T*)twiddles_large,
-                       twl,
-                       dir);
+    hipLaunchKernelGGL_shim(log_func,
+                            chirp_device<T>,
+                            dim3(grid),
+                            dim3(threads),
+                            0,
+                            rocfft_stream,
+                            N,
+                            M,
+                            B,
+                            (T*)twiddles_large,
+                            twl,
+                            dir);
 
     return rocfft_status_success;
 }
@@ -71,11 +78,23 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_chirp(const void* data_p, void* back_p
     hipStream_t rocfft_stream = data->rocfft_stream;
 
     if(data->node->precision == rocfft_precision_single)
-        chirp_launch<float2>(
-            N, M, (float2*)data->bufOut[0], data->node->twiddles_large, twl, dir, rocfft_stream);
+        chirp_launch<float2>(N,
+                             M,
+                             (float2*)data->bufOut[0],
+                             data->node->twiddles_large,
+                             twl,
+                             dir,
+                             rocfft_stream,
+                             data->log_func);
     else
-        chirp_launch<double2>(
-            N, M, (double2*)data->bufOut[0], data->node->twiddles_large, twl, dir, rocfft_stream);
+        chirp_launch<double2>(N,
+                              M,
+                              (double2*)data->bufOut[0],
+                              data->node->twiddles_large,
+                              twl,
+                              dir,
+                              rocfft_stream,
+                              data->log_func);
 }
 
 ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
@@ -157,7 +176,8 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
     {
         if(data->node->precision == rocfft_precision_single)
         {
-            hipLaunchKernelGGL(
+            hipLaunchKernelGGL_shim(
+                data->log_func,
                 cbtype == CallbackType::USER_LOAD_STORE
                     ? HIP_KERNEL_NAME(mul_device_I_I<float2, CallbackType::USER_LOAD_STORE>)
                     : HIP_KERNEL_NAME(mul_device_I_I<float2, CallbackType::NONE>),
@@ -185,7 +205,8 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
         }
         else
         {
-            hipLaunchKernelGGL(
+            hipLaunchKernelGGL_shim(
+                data->log_func,
                 cbtype == CallbackType::USER_LOAD_STORE
                     ? HIP_KERNEL_NAME(mul_device_I_I<double2, CallbackType::USER_LOAD_STORE>)
                     : HIP_KERNEL_NAME(mul_device_I_I<double2, CallbackType::NONE>),
@@ -222,45 +243,47 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
 
         if(data->node->precision == rocfft_precision_single)
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device_P_I<float2>),
-                               dim3(grid),
-                               dim3(threads),
-                               0,
-                               rocfft_stream,
-                               numof,
-                               count,
-                               N,
-                               M,
-                               (const real_type_t<float2>*)bufIn0,
-                               (const real_type_t<float2>*)bufIn1,
-                               (float2*)bufOut0,
-                               data->node->length.size(),
-                               kargs_lengths(data->node->devKernArg),
-                               kargs_stride_in(data->node->devKernArg),
-                               kargs_stride_out(data->node->devKernArg),
-                               dir,
-                               scheme);
+            hipLaunchKernelGGL_shim(data->log_func,
+                                    mul_device_P_I<float2>,
+                                    dim3(grid),
+                                    dim3(threads),
+                                    0,
+                                    rocfft_stream,
+                                    numof,
+                                    count,
+                                    N,
+                                    M,
+                                    (const real_type_t<float2>*)bufIn0,
+                                    (const real_type_t<float2>*)bufIn1,
+                                    (float2*)bufOut0,
+                                    data->node->length.size(),
+                                    kargs_lengths(data->node->devKernArg),
+                                    kargs_stride_in(data->node->devKernArg),
+                                    kargs_stride_out(data->node->devKernArg),
+                                    dir,
+                                    scheme);
         }
         else
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device_P_I<double2>),
-                               dim3(grid),
-                               dim3(threads),
-                               0,
-                               rocfft_stream,
-                               numof,
-                               count,
-                               N,
-                               M,
-                               (const real_type_t<double2>*)bufIn0,
-                               (const real_type_t<double2>*)bufIn1,
-                               (double2*)bufOut0,
-                               data->node->length.size(),
-                               kargs_lengths(data->node->devKernArg),
-                               kargs_stride_in(data->node->devKernArg),
-                               kargs_stride_out(data->node->devKernArg),
-                               dir,
-                               scheme);
+            hipLaunchKernelGGL_shim(data->log_func,
+                                    mul_device_P_I<double2>,
+                                    dim3(grid),
+                                    dim3(threads),
+                                    0,
+                                    rocfft_stream,
+                                    numof,
+                                    count,
+                                    N,
+                                    M,
+                                    (const real_type_t<double2>*)bufIn0,
+                                    (const real_type_t<double2>*)bufIn1,
+                                    (double2*)bufOut0,
+                                    data->node->length.size(),
+                                    kargs_lengths(data->node->devKernArg),
+                                    kargs_stride_in(data->node->devKernArg),
+                                    kargs_stride_out(data->node->devKernArg),
+                                    dir,
+                                    scheme);
         }
     }
     else if((data->node->inArrayType == rocfft_array_type_complex_interleaved
@@ -273,45 +296,47 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
 
         if(data->node->precision == rocfft_precision_single)
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device_I_P<float2>),
-                               dim3(grid),
-                               dim3(threads),
-                               0,
-                               rocfft_stream,
-                               numof,
-                               count,
-                               N,
-                               M,
-                               (const float2*)bufIn0,
-                               (real_type_t<float2>*)bufOut0,
-                               (real_type_t<float2>*)bufOut1,
-                               data->node->length.size(),
-                               kargs_lengths(data->node->devKernArg),
-                               kargs_stride_in(data->node->devKernArg),
-                               kargs_stride_out(data->node->devKernArg),
-                               dir,
-                               scheme);
+            hipLaunchKernelGGL_shim(data->log_func,
+                                    mul_device_I_P<float2>,
+                                    dim3(grid),
+                                    dim3(threads),
+                                    0,
+                                    rocfft_stream,
+                                    numof,
+                                    count,
+                                    N,
+                                    M,
+                                    (const float2*)bufIn0,
+                                    (real_type_t<float2>*)bufOut0,
+                                    (real_type_t<float2>*)bufOut1,
+                                    data->node->length.size(),
+                                    kargs_lengths(data->node->devKernArg),
+                                    kargs_stride_in(data->node->devKernArg),
+                                    kargs_stride_out(data->node->devKernArg),
+                                    dir,
+                                    scheme);
         }
         else
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device_I_P<double2>),
-                               dim3(grid),
-                               dim3(threads),
-                               0,
-                               rocfft_stream,
-                               numof,
-                               count,
-                               N,
-                               M,
-                               (const double2*)bufIn0,
-                               (real_type_t<double2>*)bufOut0,
-                               (real_type_t<double2>*)bufOut1,
-                               data->node->length.size(),
-                               kargs_lengths(data->node->devKernArg),
-                               kargs_stride_in(data->node->devKernArg),
-                               kargs_stride_out(data->node->devKernArg),
-                               dir,
-                               scheme);
+            hipLaunchKernelGGL_shim(data->log_func,
+                                    mul_device_I_P<double2>,
+                                    dim3(grid),
+                                    dim3(threads),
+                                    0,
+                                    rocfft_stream,
+                                    numof,
+                                    count,
+                                    N,
+                                    M,
+                                    (const double2*)bufIn0,
+                                    (real_type_t<double2>*)bufOut0,
+                                    (real_type_t<double2>*)bufOut1,
+                                    data->node->length.size(),
+                                    kargs_lengths(data->node->devKernArg),
+                                    kargs_stride_in(data->node->devKernArg),
+                                    kargs_stride_out(data->node->devKernArg),
+                                    dir,
+                                    scheme);
         }
     }
     else if((data->node->inArrayType == rocfft_array_type_complex_planar
@@ -325,47 +350,49 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
 
         if(data->node->precision == rocfft_precision_single)
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device_P_P<float2>),
-                               dim3(grid),
-                               dim3(threads),
-                               0,
-                               rocfft_stream,
-                               numof,
-                               count,
-                               N,
-                               M,
-                               (const real_type_t<float2>*)bufIn0,
-                               (const real_type_t<float2>*)bufIn1,
-                               (real_type_t<float2>*)bufOut0,
-                               (real_type_t<float2>*)bufOut1,
-                               data->node->length.size(),
-                               kargs_lengths(data->node->devKernArg),
-                               kargs_stride_in(data->node->devKernArg),
-                               kargs_stride_out(data->node->devKernArg),
-                               dir,
-                               scheme);
+            hipLaunchKernelGGL_shim(data->log_func,
+                                    mul_device_P_P<float2>,
+                                    dim3(grid),
+                                    dim3(threads),
+                                    0,
+                                    rocfft_stream,
+                                    numof,
+                                    count,
+                                    N,
+                                    M,
+                                    (const real_type_t<float2>*)bufIn0,
+                                    (const real_type_t<float2>*)bufIn1,
+                                    (real_type_t<float2>*)bufOut0,
+                                    (real_type_t<float2>*)bufOut1,
+                                    data->node->length.size(),
+                                    kargs_lengths(data->node->devKernArg),
+                                    kargs_stride_in(data->node->devKernArg),
+                                    kargs_stride_out(data->node->devKernArg),
+                                    dir,
+                                    scheme);
         }
         else
         {
-            hipLaunchKernelGGL(HIP_KERNEL_NAME(mul_device_P_P<double2>),
-                               dim3(grid),
-                               dim3(threads),
-                               0,
-                               rocfft_stream,
-                               numof,
-                               count,
-                               N,
-                               M,
-                               (const real_type_t<double2>*)bufIn0,
-                               (const real_type_t<double2>*)bufIn1,
-                               (real_type_t<double2>*)bufOut0,
-                               (real_type_t<double2>*)bufOut1,
-                               data->node->length.size(),
-                               kargs_lengths(data->node->devKernArg),
-                               kargs_stride_in(data->node->devKernArg),
-                               kargs_stride_out(data->node->devKernArg),
-                               dir,
-                               scheme);
+            hipLaunchKernelGGL_shim(data->log_func,
+                                    mul_device_P_P<double2>,
+                                    dim3(grid),
+                                    dim3(threads),
+                                    0,
+                                    rocfft_stream,
+                                    numof,
+                                    count,
+                                    N,
+                                    M,
+                                    (const real_type_t<double2>*)bufIn0,
+                                    (const real_type_t<double2>*)bufIn1,
+                                    (real_type_t<double2>*)bufOut0,
+                                    (real_type_t<double2>*)bufOut1,
+                                    data->node->length.size(),
+                                    kargs_lengths(data->node->devKernArg),
+                                    kargs_stride_in(data->node->devKernArg),
+                                    kargs_stride_out(data->node->devKernArg),
+                                    dir,
+                                    scheme);
         }
     }
     else
