@@ -245,7 +245,7 @@ set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILI
 
 generate_export_header( rocfft EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocfft/rocfft-export.h )
 
-if (BUILD_FILE_REORG_BACKWARD_COMPATIBILITY)
+if (BUILD_FILE_REORG_BACKWARD_COMPATIBILITY AND NOT WIN32)
   rocm_wrap_header_file(
     rocfft-version.h rocfft-export.h
     GUARDS SYMLINK WRAPPER
@@ -277,7 +277,7 @@ rocm_export_targets(
   NAMESPACE roc::
   )
 
-if(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY)
+if(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY AND NOT WIN32)
   rocm_install(
     DIRECTORY
        "${PROJECT_BINARY_DIR}/rocfft"
