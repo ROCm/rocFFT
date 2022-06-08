@@ -517,7 +517,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                     += add_work(std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE),
                                 width,
                                 height,
-                                false);
+                                true);
                 body += If{Not{lds_is_real}, internal_load_full};
 
                 auto apply_twiddle = std::mem_fn(&StockhamKernel::apply_twiddle_generator);
