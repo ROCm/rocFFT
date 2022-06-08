@@ -77,14 +77,18 @@ struct StockhamKernelCC : public StockhamKernel
         // CC: "direct-to-reg" and non-linear, also "direct-from-reg" at the same time
         if(direct_to_from_reg)
             return {Declaration{direct_load_to_reg,
-                                And{directReg_type == "DirectRegType::TRY_ENABLE_IF_SUPPORT",
-                                    embedded_type == "EmbeddedType::NONE"}},
+                                directReg_type == "DirectRegType::TRY_ENABLE_IF_SUPPORT"},
                     Declaration{direct_store_from_reg, direct_load_to_reg},
                     Declaration{lds_linear, Not{direct_load_to_reg}}};
         else
             return {Declaration{direct_load_to_reg, Literal{"false"}},
                     Declaration{direct_store_from_reg, Literal{"false"}},
                     Declaration{lds_linear, Literal{"true"}}};
+    }
+
+    StatementList set_lds_is_real() override
+    {
+        return {Declaration{lds_is_real, Literal{half_lds ? "true" : "false"}}};
     }
 
     StatementList load_global_generator(unsigned int h,

@@ -442,88 +442,52 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
         GET_KERNEL_FUNC_CBTYPE_SBCC(                                                        \
             FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
 
-// SBRC has COL_DIM, TRANSPOSE_TYPE template args and is always out-of-place
+// SBRC has COL_DIM, TRANSPOSE_TYPE template args and is always out-of-place, and ebtype NONE
 #define GET_KERNEL_FUNC_CBTYPE_SBRC(FWD, BACK, PRECISION, COL_DIM, TRANSPOSE_TYPE, CBTYPE, DRTYPE) \
     if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1)                              \
     {                                                                                              \
         if(data->node->direction == -1)                                                            \
         {                                                                                          \
-            if(data->node->ebtype == EmbeddedType::Real2C_POST)                                    \
-                kernel_func = FWD<PRECISION,                                                       \
-                                  SB_UNIT,                                                         \
-                                  COL_DIM,                                                         \
-                                  TRANSPOSE_TYPE,                                                  \
-                                  EmbeddedType::Real2C_POST,                                       \
-                                  CBTYPE,                                                          \
-                                  DRTYPE>;                                                         \
-            else                                                                                   \
-                kernel_func = FWD<PRECISION,                                                       \
-                                  SB_UNIT,                                                         \
-                                  COL_DIM,                                                         \
-                                  TRANSPOSE_TYPE,                                                  \
-                                  EmbeddedType::NONE,                                              \
-                                  CBTYPE,                                                          \
-                                  DRTYPE>;                                                         \
+            kernel_func = FWD<PRECISION,                                                           \
+                              SB_UNIT,                                                             \
+                              COL_DIM,                                                             \
+                              TRANSPOSE_TYPE,                                                      \
+                              EmbeddedType::NONE,                                                  \
+                              CBTYPE,                                                              \
+                              DRTYPE>;                                                             \
         }                                                                                          \
         else                                                                                       \
         {                                                                                          \
-            if(data->node->ebtype == EmbeddedType::C2Real_PRE)                                     \
-                kernel_func = BACK<PRECISION,                                                      \
-                                   SB_UNIT,                                                        \
-                                   COL_DIM,                                                        \
-                                   TRANSPOSE_TYPE,                                                 \
-                                   EmbeddedType::C2Real_PRE,                                       \
-                                   CBTYPE,                                                         \
-                                   DRTYPE>;                                                        \
-            else                                                                                   \
-                kernel_func = BACK<PRECISION,                                                      \
-                                   SB_UNIT,                                                        \
-                                   COL_DIM,                                                        \
-                                   TRANSPOSE_TYPE,                                                 \
-                                   EmbeddedType::NONE,                                             \
-                                   CBTYPE,                                                         \
-                                   DRTYPE>;                                                        \
+            kernel_func = BACK<PRECISION,                                                          \
+                               SB_UNIT,                                                            \
+                               COL_DIM,                                                            \
+                               TRANSPOSE_TYPE,                                                     \
+                               EmbeddedType::NONE,                                                 \
+                               CBTYPE,                                                             \
+                               DRTYPE>;                                                            \
         }                                                                                          \
     }                                                                                              \
     else                                                                                           \
     {                                                                                              \
         if(data->node->direction == -1)                                                            \
         {                                                                                          \
-            if(data->node->ebtype == EmbeddedType::Real2C_POST)                                    \
-                kernel_func = FWD<PRECISION,                                                       \
-                                  SB_NONUNIT,                                                      \
-                                  COL_DIM,                                                         \
-                                  TRANSPOSE_TYPE,                                                  \
-                                  EmbeddedType::Real2C_POST,                                       \
-                                  CBTYPE,                                                          \
-                                  DRTYPE>;                                                         \
-            else                                                                                   \
-                kernel_func = FWD<PRECISION,                                                       \
-                                  SB_NONUNIT,                                                      \
-                                  COL_DIM,                                                         \
-                                  TRANSPOSE_TYPE,                                                  \
-                                  EmbeddedType::NONE,                                              \
-                                  CBTYPE,                                                          \
-                                  DRTYPE>;                                                         \
+            kernel_func = FWD<PRECISION,                                                           \
+                              SB_NONUNIT,                                                          \
+                              COL_DIM,                                                             \
+                              TRANSPOSE_TYPE,                                                      \
+                              EmbeddedType::NONE,                                                  \
+                              CBTYPE,                                                              \
+                              DRTYPE>;                                                             \
         }                                                                                          \
         else                                                                                       \
         {                                                                                          \
-            if(data->node->ebtype == EmbeddedType::C2Real_PRE)                                     \
-                kernel_func = BACK<PRECISION,                                                      \
-                                   SB_NONUNIT,                                                     \
-                                   COL_DIM,                                                        \
-                                   TRANSPOSE_TYPE,                                                 \
-                                   EmbeddedType::C2Real_PRE,                                       \
-                                   CBTYPE,                                                         \
-                                   DRTYPE>;                                                        \
-            else                                                                                   \
-                kernel_func = BACK<PRECISION,                                                      \
-                                   SB_NONUNIT,                                                     \
-                                   COL_DIM,                                                        \
-                                   TRANSPOSE_TYPE,                                                 \
-                                   EmbeddedType::NONE,                                             \
-                                   CBTYPE,                                                         \
-                                   DRTYPE>;                                                        \
+            kernel_func = BACK<PRECISION,                                                          \
+                               SB_NONUNIT,                                                         \
+                               COL_DIM,                                                            \
+                               TRANSPOSE_TYPE,                                                     \
+                               EmbeddedType::NONE,                                                 \
+                               CBTYPE,                                                             \
+                               DRTYPE>;                                                            \
         }                                                                                          \
     }
 
@@ -587,41 +551,73 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, voi
                                     CallbackType::NONE,                                     \
                                     DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
 
+// SBCR has C2Real_PRE but no Real2C_POST
+#define GET_KERNEL_FUNC_CBTYPE_SBCR(FWD, BACK, PRECISION, CBTYPE, DRTYPE)                         \
+    if(data->node->inStride[0] == 1 && data->node->outStride[0] == 1)                             \
+    {                                                                                             \
+        if(data->node->direction == -1)                                                           \
+        {                                                                                         \
+            kernel_func = FWD<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, DRTYPE>;            \
+        }                                                                                         \
+        else                                                                                      \
+        {                                                                                         \
+            if(data->node->ebtype == EmbeddedType::C2Real_PRE)                                    \
+                kernel_func = BACK<PRECISION, SB_UNIT, EmbeddedType::C2Real_PRE, CBTYPE, DRTYPE>; \
+            else                                                                                  \
+                kernel_func = BACK<PRECISION, SB_UNIT, EmbeddedType::NONE, CBTYPE, DRTYPE>;       \
+        }                                                                                         \
+    }                                                                                             \
+    else                                                                                          \
+    {                                                                                             \
+        if(data->node->direction == -1)                                                           \
+        {                                                                                         \
+            kernel_func = FWD<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, DRTYPE>;         \
+        }                                                                                         \
+        else                                                                                      \
+        {                                                                                         \
+            if(data->node->ebtype == EmbeddedType::C2Real_PRE)                                    \
+                kernel_func                                                                       \
+                    = BACK<PRECISION, SB_NONUNIT, EmbeddedType::C2Real_PRE, CBTYPE, DRTYPE>;      \
+            else                                                                                  \
+                kernel_func = BACK<PRECISION, SB_NONUNIT, EmbeddedType::NONE, CBTYPE, DRTYPE>;    \
+        }                                                                                         \
+    }
+
 // SBCR is always out-of-place
 #define GET_KERNEL_FUNC_SBCR_CB(FWD, BACK, PRECISION, BASE_ARGS, ...)                              \
     void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr;                              \
     if(data->get_callback_type() == CallbackType::NONE)                                            \
     {                                                                                              \
         if(data->node->dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT)                        \
-            GET_KERNEL_FUNC_CBTYPE(                                                                \
+            GET_KERNEL_FUNC_CBTYPE_SBCR(                                                           \
                 FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::TRY_ENABLE_IF_SUPPORT)    \
         else                                                                                       \
-            GET_KERNEL_FUNC_CBTYPE(                                                                \
+            GET_KERNEL_FUNC_CBTYPE_SBCR(                                                           \
                 FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::FORCE_OFF_OR_NOT_SUPPORT) \
     }                                                                                              \
     else                                                                                           \
     {                                                                                              \
         if(data->node->dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT)                        \
-            GET_KERNEL_FUNC_CBTYPE(FWD,                                                            \
-                                   BACK,                                                           \
-                                   PRECISION,                                                      \
-                                   CallbackType::USER_LOAD_STORE,                                  \
-                                   DirectRegType::TRY_ENABLE_IF_SUPPORT)                           \
+            GET_KERNEL_FUNC_CBTYPE_SBCR(FWD,                                                       \
+                                        BACK,                                                      \
+                                        PRECISION,                                                 \
+                                        CallbackType::USER_LOAD_STORE,                             \
+                                        DirectRegType::TRY_ENABLE_IF_SUPPORT)                      \
         else                                                                                       \
-            GET_KERNEL_FUNC_CBTYPE(FWD,                                                            \
-                                   BACK,                                                           \
-                                   PRECISION,                                                      \
-                                   CallbackType::USER_LOAD_STORE,                                  \
-                                   DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)                        \
+            GET_KERNEL_FUNC_CBTYPE_SBCR(FWD,                                                       \
+                                        BACK,                                                      \
+                                        PRECISION,                                                 \
+                                        CallbackType::USER_LOAD_STORE,                             \
+                                        DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)                   \
     }
 
 #define GET_KERNEL_FUNC_SBCR(FWD, BACK, PRECISION, BASE_ARGS, ...)                          \
     void (*kernel_func)(BASE_ARGS(PRECISION), __VA_ARGS__) = nullptr;                       \
     if(data->node->dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT)                     \
-        GET_KERNEL_FUNC_CBTYPE(                                                             \
+        GET_KERNEL_FUNC_CBTYPE_SBCR(                                                        \
             FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::TRY_ENABLE_IF_SUPPORT) \
     else                                                                                    \
-        GET_KERNEL_FUNC_CBTYPE(                                                             \
+        GET_KERNEL_FUNC_CBTYPE_SBCR(                                                        \
             FWD, BACK, PRECISION, CallbackType::NONE, DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
 
 #define POWX_SMALL_GENERATOR(FUNCTION_NAME,                                        \

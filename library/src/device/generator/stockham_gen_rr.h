@@ -140,4 +140,14 @@ struct StockhamKernelRR : public StockhamKernel
 
         return stmts;
     }
+
+    StatementList real_trans_pre_post(ProcessingType type) override
+    {
+        std::string   pre_post = (type == ProcessingType::PRE) ? " before " : " after ";
+        StatementList stmts;
+        stmts += CommentLines{"handle even-length real to complex pre-process in lds" + pre_post
+                              + "transform"};
+        stmts += real2cmplx_pre_post(length, type);
+        return stmts;
+    }
 };

@@ -82,17 +82,20 @@ struct StockhamKernelRC : public StockhamKernel
     {
         // RC: we never do "direct-to-reg", but do "direct-from-reg" and "non-linear"
         if(direct_to_from_reg)
-            return {
-                Declaration{direct_load_to_reg, Literal{"false"}},
-                Declaration{direct_store_from_reg,
-                            And{Parens{And{directReg_type == "DirectRegType::TRY_ENABLE_IF_SUPPORT",
-                                           embedded_type == "EmbeddedType::NONE"}},
-                                Parens{sbrc_type != "SBRC_3D_FFT_ERC_TRANS_Z_XY"}}},
-                Declaration{lds_linear, Not{direct_store_from_reg}}};
+            return {Declaration{direct_load_to_reg, Literal{"false"}},
+                    Declaration{direct_store_from_reg,
+                                And{directReg_type == "DirectRegType::TRY_ENABLE_IF_SUPPORT",
+                                    sbrc_type != "SBRC_3D_FFT_ERC_TRANS_Z_XY"}},
+                    Declaration{lds_linear, Not{direct_store_from_reg}}};
         else
             return {Declaration{direct_load_to_reg, Literal{"false"}},
                     Declaration{direct_store_from_reg, Literal{"false"}},
                     Declaration{lds_linear, Literal{"true"}}};
+    }
+
+    StatementList set_lds_is_real() override
+    {
+        return {Declaration{lds_is_real, Literal{half_lds ? "true" : "false"}}};
     }
 
     StatementList store_global_generator(unsigned int h,
@@ -450,30 +453,6 @@ struct StockhamKernelRC : public StockhamKernel
             // generator-wise if-else test, not inside the kernel code.
             bool divisible = (length % num_store_blocks) == 0;
 
-            // POSTPROCESSING SBRC_3D_FFT_ERC_TRANS_Z_XY
-            StatementList post;
-            Variable      null{"nullptr", "nullptr_t"};
-            for(unsigned int h = 0; h < transforms_per_block; ++h)
-            {
-                post
-                    += Call{"post_process_interleaved_inplace",
-                            {scalar_type, Variable{"true", ""}, Variable{"CallbackType::NONE", ""}},
-                            {thread_id,
-                             length - thread_id,
-                             length,
-                             length / 2,
-                             lds_complex + (h * stride_lds),
-                             0,
-                             twiddles + length - factors.front(),
-                             null,
-                             null,
-                             0,
-                             null,
-                             null}};
-            }
-            post += SyncThreads{};
-            stmts += If{sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY", post};
-
             // [dim0, dim1] = [tid_ver, tid_hor]:
             // each thread write GLOBAL_POS [tid_ver, tid_hor], [tid_ver+step_h*1, tid_hor] , [tid_ver+step_h*2, tid_hor].
             // NB: This is a transpose from LDS to global, so the pos of lds_read should be remapped
@@ -506,10 +485,13 @@ struct StockhamKernelRC : public StockhamKernel
                     buf, offset + offset_tile_wbuf(i), lds_complex[offset_tile_rlds(i)]};
 
             // ERC_Z_XY
-            auto i = num_store_blocks;
-            regular_store += If{
-                sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY" && thread_id < transforms_per_block,
+            auto          i = num_store_blocks;
+            StatementList stmts_erc_post;
+            stmts_erc_post += If{
+                thread_id < transforms_per_block,
                 {StoreGlobal{buf, offset + offset_tile_wbuf(i), lds_complex[offset_tile_rlds(i)]}}};
+            regular_store += CommentLines{"extra global write for SBRC_3D_FFT_ERC_TRANS_Z_XY"};
+            regular_store += If{sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY", stmts_erc_post};
         }
         else
         {
@@ -556,5 +538,47 @@ struct StockhamKernelRC : public StockhamKernel
         tpls.arguments.insert(tpls.arguments.begin() + 2, sbrc_type);
         tpls.arguments.insert(tpls.arguments.begin() + 3, transpose_type);
         return tpls;
+    }
+
+    // POSTPROCESSING SBRC_3D_FFT_ERC_TRANS_Z_XY
+    StatementList sbrc_erc_post_process()
+    {
+        StatementList stmts;
+        Variable      null{"nullptr", "nullptr_t"};
+
+        // Todo: We might not have to sync here which depends on the access pattern
+        stmts += SyncThreads{};
+        stmts += LineBreak{};
+        for(unsigned int h = 0; h < transforms_per_block; ++h)
+        {
+            stmts += Call{"post_process_interleaved_inplace",
+                          {scalar_type, Variable{"true", ""}, Variable{"CallbackType::NONE", ""}},
+                          {thread_id,
+                           length - thread_id,
+                           length,
+                           length / 2,
+                           lds_complex + (h * stride_lds),
+                           0,
+                           twiddles + length - factors.front(),
+                           null,
+                           null,
+                           0,
+                           null,
+                           null}};
+        }
+        return {If{sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY", stmts}};
+    }
+
+    StatementList real_trans_pre_post(ProcessingType type) override
+    {
+        if(type == ProcessingType::PRE)
+            return {};
+
+        // POST is implemented when sbrc_typs is SBRC_3D_FFT_ERC_TRANS_Z_XY
+        StatementList stmts;
+        stmts += CommentLines{
+            "handle post_procession SBRC_3D_FFT_ERC_TRANS_Z_XY in lds after transform"};
+        stmts += sbrc_erc_post_process();
+        return stmts;
     }
 };

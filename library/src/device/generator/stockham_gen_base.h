@@ -251,6 +251,14 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                     Declaration{lds_linear, Literal{"true"}}};
     }
 
+    virtual StatementList set_lds_is_real()
+    {
+        if(half_lds)
+            return {Declaration{lds_is_real, embedded_type == "EmbeddedType::NONE"}};
+        else
+            return {Declaration{lds_is_real, Literal{"false"}}};
+    }
+
     virtual StatementList large_twiddles_load()
     {
         return {CommentLines{"- no large twiddles"}};
@@ -264,6 +272,17 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     virtual StatementList check_batch()
     {
         return {If{batch >= nbatch, {Return{}}}};
+    }
+
+    enum class ProcessingType
+    {
+        PRE,
+        POST,
+    };
+
+    virtual StatementList real_trans_pre_post(ProcessingType type)
+    {
+        return {};
     }
 
     static ArgumentList get_callback_args()
@@ -608,10 +627,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         body += Declaration{batch};
         body += Declaration{transform};
 
-        if(half_lds)
-            body += Declaration{lds_is_real, embedded_type == "EmbeddedType::NONE"};
-        else
-            body += Declaration{lds_is_real, Literal{"false"}};
+        // half-lds
+        body += set_lds_is_real();
 
         // TODO- don't override, unify them
         body += set_direct_to_from_registers();
@@ -635,9 +652,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         loadlds += CommentLines{"load global into lds"};
         loadlds += load_from_global(false);
         loadlds += LineBreak{};
-        loadlds += CommentLines{
-            "handle even-length real to complex pre-process in lds before transform"};
-        loadlds += real2cmplx_pre_post(length, ProcessingType::PRE);
+        // handle even-length real to complex pre-process in lds before transform
+        loadlds += real_trans_pre_post(ProcessingType::PRE);
 
         if(!direct_to_from_reg)
             body += loadlds;
@@ -669,10 +685,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
         StatementList storelds;
         storelds += LineBreak{};
-        storelds += CommentLines{
-            "handle even-length complex to real post-process in lds after transform"};
-        storelds += real2cmplx_pre_post(length, ProcessingType::POST);
-
+        // handle even-length complex to real post-process in lds after transform
+        storelds += real_trans_pre_post(ProcessingType::POST);
         storelds += LineBreak{};
 
         storelds += CommentLines{"store global"};
@@ -729,11 +743,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 Literal{"true"}};
     }
 
-    enum class ProcessingType
-    {
-        PRE,
-        POST,
-    };
     StatementList real2cmplx_pre_post(unsigned int half_N, ProcessingType type)
     {
         std::string function_name = type == ProcessingType::PRE
