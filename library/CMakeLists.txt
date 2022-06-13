@@ -71,12 +71,6 @@ set( rocfft_headers_public
   ${PROJECT_BINARY_DIR}/include/rocfft/rocfft-version.h
 )
 
-include( GNUInstallDirs )
-
-set( BIN_INSTALL_DIR ${CMAKE_INSTALL_BINDIR} )
-set( LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR} )
-set( INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR} )
-
 source_group( "Header Files\\Public" FILES ${rocfft_headers_public} )
 
 # Build into subdirectories

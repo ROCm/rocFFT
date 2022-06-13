@@ -230,7 +230,7 @@ target_include_directories( rocfft
   ${sqlite_local_SOURCE_DIR}
   PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
   $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include/rocfft>
-  $<INSTALL_INTERFACE:include>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   )
 
 rocm_set_soversion( rocfft ${rocfft_SOVERSION} )
@@ -249,7 +249,7 @@ if (BUILD_FILE_REORG_BACKWARD_COMPATIBILITY AND NOT WIN32)
   rocm_wrap_header_file(
     rocfft-version.h rocfft-export.h
     GUARDS SYMLINK WRAPPER
-    WRAPPER_LOCATIONS include rocfft/include
+    WRAPPER_LOCATIONS ${CMAKE_INSTALL_INCLUDEDIR} rocfft/${CMAKE_INSTALL_INCLUDEDIR}
     ORIGINAL_FILES ${PROJECT_BINARY_DIR}/include/rocfft/rocfft-version.h
   )
 endif( )
