@@ -42,10 +42,28 @@ static std::vector<fs::path> rtccache_db_paths()
     {
         static const char* default_cache_filename = "rocfft_kernel_cache.db";
 
-        // come up with other candidate locations
+        // try standard cache dirs
+#ifdef WIN32
+        auto localappdata = rocfft_getenv("LOCALAPPDATA");
+        if(!localappdata.empty())
+        {
+            auto dir = fs::path(localappdata) / "rocFFT";
+            fs::create_directories(dir);
+            paths.push_back(dir / default_cache_filename);
+        }
+#else
+        auto xdg_cache_home = rocfft_getenv("XDG_CACHE_HOME");
+        if(!xdg_cache_home.empty())
+        {
+            auto dir = fs::path(xdg_cache_home) / "rocFFT";
+            fs::create_directories(dir);
+            paths.push_back(dir / default_cache_filename);
+        }
+#endif
+
         auto home_path = rocfft_getenv("HOME");
-        // try persistent home directory location
-        if(!home_path.empty())
+        // try persistent home directory location if no cache dir
+        if(paths.empty() && !home_path.empty())
         {
             auto dir = fs::path(home_path) / ".cache" / "rocFFT";
             fs::create_directories(dir);

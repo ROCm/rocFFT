@@ -4,6 +4,10 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## (Unreleased) rocFFT 1.0.18
 
+### Changed
+- Runtime compilation cache now looks for environment variables XDG_CACHE_HOME (on Linux) and LOCALAPPDATA (on 
+  Windows) before falling back to HOME.
+
 ### Optimizations
 - Optimized 2D R2C/C2R to use 2-kernel plans where possible.
 

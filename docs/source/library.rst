@@ -409,14 +409,23 @@ Compiled kernels are cached to persistent storage where possible, so
 that they are available to subsequent plans that require the same
 kernels.
 
-The default cache path is ``.cache/rocFFT/rocfft_kernel_cache.db`` in
-the current user's home directory.  If the home directory cannot be
-determined, or if that location is not writable, the cache file is
-written to a temporary directory as chosen by the operating system.
-If that location is also not writable, kernels are only cached in
-memory for the lifetime of the current process.
-
-The cache path may be overridden by setting the
+The cache file path may be overridden by the
 ``ROCFFT_RTC_CACHE_PATH`` environment variable.  rocFFT will create
-the cache file with the name specified in the environment variable, if
-it is set.
+the cache file with the name specified in the environment variable,
+if it is set.
+
+Otherwise, rocFFT will create a cache file in a ``rocFFT``
+subdirectory of the cache directory.  The cache directory is
+specified by the ``XDG_CACHE_HOME`` environment variable on Linux,
+and by the ``LOCALAPPDATA`` environment variable on Windows.
+
+If no cache directory is set in the environment, rocFFT will look for
+the ``HOME`` environment variable for the current user's home
+directory.  If set, the cache will be created in ``.cache/rocFFT``
+the current user's home directory.
+
+If a cache file cannot be written to any of the above directories,
+the cache file is written to a temporary directory as chosen by the
+operating system.  If that location is also not writable, kernels are
+only cached in memory for the lifetime of the current process.
+
