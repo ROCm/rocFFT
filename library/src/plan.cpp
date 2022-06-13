@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "plan.h"
+#include "../../shared/array_predicate.h"
 #include "../../shared/ptrdiff.h"
 #include "arithmetic.h"
 #include "assignment_policy.h"
@@ -1729,9 +1730,16 @@ void RuntimeCompilePlan(ExecPlan& execPlan)
     TreeNode* load_node             = nullptr;
     TreeNode* store_node            = nullptr;
     std::tie(load_node, store_node) = execPlan.get_load_store_nodes();
-    load_node->compiledKernelWithCallbacks
-        = RTCKernel::runtime_compile(*load_node, execPlan.deviceProp.gcnArchName, true);
-    if(store_node != load_node)
+    // we don't need callbacks if the kernel is all planar
+    if(!array_type_is_planar(load_node->inArrayType)
+       || !array_type_is_planar(load_node->outArrayType))
+    {
+        load_node->compiledKernelWithCallbacks
+            = RTCKernel::runtime_compile(*load_node, execPlan.deviceProp.gcnArchName, true);
+    }
+    if(store_node != load_node
+       && (!array_type_is_planar(store_node->inArrayType)
+           || !array_type_is_planar(store_node->outArrayType)))
     {
         store_node->compiledKernelWithCallbacks
             = RTCKernel::runtime_compile(*store_node, execPlan.deviceProp.gcnArchName, true);

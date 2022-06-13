@@ -887,6 +887,7 @@ class If;
 class ElseIf;
 class Else;
 class StoreGlobal;
+class StoreGlobalPlanar;
 class StatementList;
 class Butterfly;
 
@@ -955,6 +956,7 @@ using Statement = std::variant<Assign,
                                ElseIf,
                                Else,
                                StoreGlobal,
+                               StoreGlobalPlanar,
                                LineBreak,
                                Return,
                                Break,
@@ -1160,13 +1162,52 @@ public:
     }
     std::string render() const
     {
-        return "store_cb(" + vrender(ptr) + "," + vrender(index) + "," + vrender(value)
+        return "store_cb(" + vrender(ptr) + "," + vrender(index) + ","
+               + vrender(scale_factor ? (value * scale_factor.value()) : value)
                + ", store_cb_data, nullptr);";
     }
 
-    Expression ptr;
-    Expression index;
-    Expression value;
+    Expression                ptr;
+    Expression                index;
+    Expression                value;
+    std::optional<Expression> scale_factor;
+};
+
+// Planar version of StoreGlobal, so we remember the scale factor
+// after a conversion to planar kernel
+class StoreGlobalPlanar
+{
+public:
+    StoreGlobalPlanar(const Variable&                  realPtr,
+                      const Variable&                  imagPtr,
+                      const Expression&                index,
+                      const Variable&                  value,
+                      const std::optional<Expression>& scale_factor)
+        : realPtr{realPtr}
+        , imagPtr{imagPtr}
+        , index{index}
+        , value{value}
+        , scale_factor{scale_factor}
+    {
+    }
+    std::string render() const
+    {
+        // Output two assignments
+        return Assign{realPtr[index],
+                      scale_factor ? Expression{value.x * scale_factor.value()}
+                                   : Expression{value.x}}
+                   .render()
+               + Assign{imagPtr[index],
+                        scale_factor ? Expression{value.y * scale_factor.value()}
+                                     : Expression{value.y}}
+                     .render();
+    }
+
+    Variable                  realPtr;
+    Variable                  imagPtr;
+    Expression                index;
+    Variable                  value;
+    std::optional<Expression> scale_factor;
 };
 
 class Butterfly
@@ -1409,6 +1450,7 @@ struct BaseVisitor
     MAKE_VISITOR_OPERATOR(StatementList, ElseIf);
     MAKE_VISITOR_OPERATOR(StatementList, Else);
     MAKE_VISITOR_OPERATOR(StatementList, StoreGlobal);
+    MAKE_VISITOR_OPERATOR(StatementList, StoreGlobalPlanar);
     MAKE_VISITOR_OPERATOR(StatementList, LineBreak);
     MAKE_VISITOR_OPERATOR(StatementList, Return);
     MAKE_VISITOR_OPERATOR(StatementList, Break);
@@ -1611,6 +1653,18 @@ struct BaseVisitor
         return StatementList{StoreGlobal(ptr, index, value)};
     }
 
+    virtual StatementList visit_StoreGlobalPlanar(const StoreGlobalPlanar& x)
+    {
+        auto                      realPtr = std::get<Variable>(visit_Variable(x.realPtr));
+        auto                      imagPtr = std::get<Variable>(visit_Variable(x.imagPtr));
+        auto                      index   = std::visit(*this, x.index);
+        auto                      value   = std::get<Variable>(visit_Variable(x.value));
+        std::optional<Expression> scale_factor;
+        if(x.scale_factor)
+            scale_factor = std::visit(*this, x.scale_factor.value());
+        return StatementList{StoreGlobalPlanar(realPtr, imagPtr, index, value, scale_factor)};
+    }
+
     virtual Function visit_Function(const Function& x)
     {
         auto y          = Function(x.name);
@@ -1720,8 +1774,7 @@ struct MakePlanarVisitor : public BaseVisitor
     {
         // callbacks don't support planar, so stores are just direct
         // memory accesses
-        auto var   = std::get<Variable>(x.ptr);
-        auto value = std::get<Variable>(x.value);
+        auto var = std::get<Variable>(x.ptr);
 
         if(var.name == varname)
         {
@@ -1730,10 +1783,8 @@ struct MakePlanarVisitor : public BaseVisitor
             auto im = var;
             im.name = imname;
 
-            StatementList stmts;
-            stmts += Assign(re[x.index], value.x);
-            stmts += Assign(im[x.index], value.y);
-            return stmts;
+            auto value = std::get<Variable>(x.value);
+            return {StoreGlobalPlanar{re, im, x.index, value, x.scale_factor}};
         }
         return StatementList{x};
     }
@@ -1962,8 +2013,10 @@ Function make_inverse(const Function& f)
 
 struct MakeRTCVisitor : public BaseVisitor
 {
-    MakeRTCVisitor(const std::string& kernel_name)
+    MakeRTCVisitor(const std::string& kernel_name, bool enable_scaling)
         : kernel_name(kernel_name)
+        , enable_scaling(enable_scaling)
+        , scale_factor("scale_factor", "const real_type_t<scalar_type>")
     {
     }
     Function visit_Function(const Function& x) override
@@ -1979,14 +2032,39 @@ struct MakeRTCVisitor : public BaseVisitor
         // assume some global-scope typedefs + consts have removed
         // the need for template args.
         y.templates.arguments.clear();
+
+        // scaling requires an extra argument with the scale factor
+        if(enable_scaling)
+            y.arguments.append(scale_factor);
+
         return BaseVisitor::visit_Function(y);
     }
 
+    StatementList visit_StoreGlobal(const StoreGlobal& x) override
+    {
+        StoreGlobal y{x};
+        // multiply by scale factor when storing to global, if requested
+        if(enable_scaling)
+            y.scale_factor = scale_factor;
+        return StatementList{y};
+    }
+
+    StatementList visit_StoreGlobalPlanar(const StoreGlobalPlanar& x) override
+    {
+        StoreGlobalPlanar y{x};
+        // multiply by scale factor when storing to global, if requested
+        if(enable_scaling)
+            y.scale_factor = scale_factor;
+        return StatementList{y};
+    }
+
     std::string kernel_name;
+    bool        enable_scaling;
+    Variable    scale_factor;
 };
 
-Function make_rtc(const Function& f, const std::string& kernel_name)
+Function make_rtc(const Function& f, const std::string& kernel_name, bool enable_scaling)
 {
-    auto visitor = MakeRTCVisitor(kernel_name);
+    auto visitor = MakeRTCVisitor(kernel_name, enable_scaling);
     return visitor(f);
 }

@@ -180,6 +180,8 @@ std::string stockham_rtc_kernel_name(const TreeNode&     node,
     }
     if(enable_callbacks)
         kernel_name += "_CB";
+    if(node.IsScalingEnabled())
+        kernel_name += "_scale";
     return kernel_name;
 }
 
@@ -353,7 +355,7 @@ std::string stockham_rtc(StockhamGeneratorSpecs& specs,
     src += "static const size_t large_twiddle_base = " + std::to_string(node.largeTwdBase) + ";\n";
     src += "static const size_t large_twiddle_steps = " + std::to_string(node.ltwdSteps) + ";\n";
 
-    src += make_rtc(*global, kernel_name).render();
+    src += make_rtc(*global, kernel_name, node.IsScalingEnabled()).render();
     src += "// ROCFFT_RTC_END " + kernel_name + "\n";
     return src;
 }
@@ -453,6 +455,22 @@ void RTCKernel::launch(DeviceCallIn& data)
             kargs.append_ptr(data.bufOut[1]);
     }
 
+    // scale factor, if necessary
+    if(data.node->IsScalingEnabled())
+    {
+        // scale factor is always double on the node, but needs to be
+        // the right type for the kernel
+        switch(data.node->precision)
+        {
+        case rocfft_precision_double:
+            kargs.append_double(data.node->scale_factor);
+            break;
+        case rocfft_precision_single:
+            kargs.append_float(data.node->scale_factor);
+            break;
+        }
+    }
+
     auto  size     = kargs.size_bytes();
     void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER,
                       kargs.data(),
@@ -528,6 +546,9 @@ std::shared_future<std::unique_ptr<RTCKernel>>
     std::unique_ptr<StockhamGeneratorSpecs> specs;
     std::unique_ptr<StockhamGeneratorSpecs> specs2d;
 
+    // if scale factor is enabled, we force RTC for this kernel
+    bool enable_scaling = node.IsScalingEnabled();
+
     SBRC_TRANSPOSE_TYPE transpose_type = NONE;
 
     // SBRC variants look in the function pool for plain BLOCK_RC to
@@ -560,7 +581,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
         key              = fpkey(node.length[0], node.precision, pool_scheme);
         FFTKernel kernel = pool.get_kernel(key);
         // already precompiled?
-        if(kernel.device_function)
+        if(kernel.device_function && !enable_scaling)
         {
             std::promise<std::unique_ptr<RTCKernel>> p;
             p.set_value(nullptr);
@@ -597,7 +618,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
         key              = fpkey(node.length[0], node.length[1], node.precision, node.scheme);
         FFTKernel kernel = pool.get_kernel(key);
         // already precompiled?
-        if(kernel.device_function)
+        if(kernel.device_function && !enable_scaling)
         {
             std::promise<std::unique_ptr<RTCKernel>> p;
             p.set_value(nullptr);

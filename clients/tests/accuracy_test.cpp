@@ -195,9 +195,6 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
     if(!params.run_callbacks && params.scale_factor == 1.0)
         return;
 
-    // we're applying callbacks to FFTW input/output which we can
-    // assume is contiguous and non-planar
-
     callback_test_data cbdata;
     cbdata.scalar = params.store_cb_scalar;
     cbdata.base   = output.front().data();
@@ -211,7 +208,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
         {
         case fft_precision_single:
         {
-            const size_t elem_size = 2 * sizeof(float);
+            const size_t elem_size = sizeof(std::complex<float>);
             const size_t num_elems = output.front().size() / elem_size;
 
             auto output_begin = reinterpret_cast<float2*>(output.front().data());
@@ -227,7 +224,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
         }
         case fft_precision_double:
         {
-            const size_t elem_size = 2 * sizeof(double);
+            const size_t elem_size = sizeof(std::complex<double>);
             const size_t num_elems = output.front().size() / elem_size;
 
             auto output_begin = reinterpret_cast<double2*>(output.front().data());
@@ -238,6 +235,49 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
                     element = element * params.scale_factor;
                 if(params.run_callbacks)
                     store_callback(output_begin, i, element, &cbdata, nullptr);
+            }
+            break;
+        }
+        }
+    }
+    break;
+    case fft_array_type_complex_planar:
+    case fft_array_type_hermitian_planar:
+    {
+        // planar wouldn't run callbacks, but we could still want scaling
+        switch(params.precision)
+        {
+        case fft_precision_single:
+        {
+            const size_t elem_size = sizeof(std::complex<float>);
+            for(auto& buf : output)
+            {
+                const size_t num_elems = buf.size() / elem_size;
+
+                auto output_begin = reinterpret_cast<float2*>(buf.data());
+                for(size_t i = 0; i < num_elems; ++i)
+                {
+                    auto& element = output_begin[i];
+                    if(params.scale_factor != 1.0)
+                        element = element * params.scale_factor;
+                }
+            }
+            break;
+        }
+        case fft_precision_double:
+        {
+            const size_t elem_size = sizeof(std::complex<double>);
+            for(auto& buf : output)
+            {
+                const size_t num_elems = buf.size() / elem_size;
+
+                auto output_begin = reinterpret_cast<double2*>(buf.data());
+                for(size_t i = 0; i < num_elems; ++i)
+                {
+                    auto& element = output_begin[i];
+                    if(params.scale_factor != 1.0)
+                        element = element * params.scale_factor;
+                }
             }
             break;
         }
@@ -310,7 +350,7 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
         {
         case fft_precision_single:
         {
-            const size_t elem_size = 2 * sizeof(float);
+            const size_t elem_size = sizeof(std::complex<float>);
             const size_t num_elems = input.front().size() / elem_size;
 
             auto input_begin = reinterpret_cast<float2*>(input.front().data());
@@ -322,7 +362,7 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
         }
         case fft_precision_double:
         {
-            const size_t elem_size = 2 * sizeof(double);
+            const size_t elem_size = sizeof(std::complex<double>);
             const size_t num_elems = input.front().size() / elem_size;
 
             auto input_begin = reinterpret_cast<double2*>(input.front().data());

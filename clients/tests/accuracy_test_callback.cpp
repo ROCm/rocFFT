@@ -154,7 +154,7 @@ inline auto param_generator_scaling(const std::vector<std::vector<size_t>>& v_le
                                   ioffset_range_zero,
                                   ooffset_range_zero,
                                   place_range,
-                                  false);
+                                  true);
     for(auto& param : params)
         param.scale_factor = 7.23;
     return params;
