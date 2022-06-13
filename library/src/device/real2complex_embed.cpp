@@ -59,7 +59,7 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     size_t remaining;
     size_t index_along_d;
     remaining = blockIdx.y;
-    for(int d = 1; d < dim; ++d)
+    for(unsigned int d = 1; d < dim; ++d)
     {
         index_along_d = remaining % lengths[d];
         remaining     = remaining / lengths[d];
@@ -152,7 +152,7 @@ ROCFFT_DEVICE_EXPORT void real2complex(const void* data_p, void* back_p)
     size_t dim            = data->node->length.size();
     if(dim > 1)
     {
-        for(int i = 1; i < dim; i++)
+        for(unsigned int i = 1; i < dim; i++)
         {
             high_dimension *= data->node->length[i];
         }
@@ -240,7 +240,7 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     size_t remaining;
     size_t index_along_d;
     remaining = blockIdx.y;
-    for(int d = 1; d < dim; ++d)
+    for(unsigned int d = 1; d < dim; ++d)
     {
         index_along_d = remaining % lengths[d];
         remaining     = remaining / lengths[d];
@@ -298,7 +298,7 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     size_t remaining;
     size_t index_along_d;
     remaining = blockIdx.y;
-    for(int d = 1; d < dim; ++d)
+    for(unsigned int d = 1; d < dim; ++d)
     {
         index_along_d = remaining % lengths[d];
         remaining     = remaining / lengths[d];
@@ -428,7 +428,7 @@ ROCFFT_DEVICE_EXPORT void complex2hermitian(const void* data_p, void* back_p)
     size_t dim            = data->node->length.size();
     if(dim > 1)
     {
-        for(int i = 1; i < dim; i++)
+        for(unsigned int i = 1; i < dim; i++)
         {
             high_dimension *= data->node->length[i];
         }

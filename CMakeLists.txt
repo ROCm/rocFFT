@@ -145,8 +145,7 @@ if(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY AND NOT WIN32)
   )
 endif()
 
-
-set( WARNING_FLAGS -Wall -Wno-unused-function -Wimplicit-fallthrough -Wunreachable-code )
+set( WARNING_FLAGS -Wall -Wno-unused-function -Wimplicit-fallthrough -Wunreachable-code -Wsign-compare )
 if( WERROR )
   set( WARNING_FLAGS ${WARNING_FLAGS} -Werror )
 endif( )

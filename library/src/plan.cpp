@@ -936,7 +936,7 @@ void TreeNode::SanityCheck()
     if(length.size() < dimension)
         throw std::runtime_error("not enough length[] for dimension");
 
-    for(int i = 0; i < childNodes.size(); ++i)
+    for(unsigned int i = 0; i < childNodes.size(); ++i)
     {
         // 1. Recursively check child
         childNodes[i]->SanityCheck();

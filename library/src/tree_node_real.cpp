@@ -371,13 +371,13 @@ void RealTransEvenNode::AssignParams_internal()
 
         auto& fftPlan     = childNodes[1];
         fftPlan->inStride = inStride;
-        for(int i = 1; i < fftPlan->inStride.size(); ++i)
+        for(unsigned int i = 1; i < fftPlan->inStride.size(); ++i)
         {
             fftPlan->inStride[i] /= 2;
         }
         fftPlan->iDist     = iDist / 2;
         fftPlan->outStride = inStride;
-        for(int i = 1; i < fftPlan->outStride.size(); ++i)
+        for(unsigned int i = 1; i < fftPlan->outStride.size(); ++i)
         {
             fftPlan->outStride[i] /= 2;
         }
@@ -392,7 +392,7 @@ void RealTransEvenNode::AssignParams_internal()
             assert(postPlan->scheme == CS_KERNEL_R_TO_CMPLX
                    || postPlan->scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE);
             postPlan->inStride = inStride;
-            for(int i = 1; i < postPlan->inStride.size(); ++i)
+            for(unsigned int i = 1; i < postPlan->inStride.size(); ++i)
             {
                 postPlan->inStride[i] /= 2;
             }
@@ -430,7 +430,7 @@ void RealTransEvenNode::AssignParams_internal()
             prePlan->inStride  = inStride;
             prePlan->outStride = outStride;
             // Strides are in complex types
-            for(int i = 1; i < prePlan->outStride.size(); ++i)
+            for(unsigned int i = 1; i < prePlan->outStride.size(); ++i)
             {
                 prePlan->outStride[i] /= 2;
             }
@@ -446,7 +446,7 @@ void RealTransEvenNode::AssignParams_internal()
         fftPlan->outStride = outStride;
         fftPlan->oDist     = oDist / 2;
         // The strides must be translated from real to complex.
-        for(int i = 1; i < fftPlan->inStride.size(); ++i)
+        for(unsigned int i = 1; i < fftPlan->inStride.size(); ++i)
         {
             if(!fusedPreProcessing)
                 fftPlan->inStride[i] /= 2;

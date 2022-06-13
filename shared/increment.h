@@ -83,7 +83,7 @@ bool increment_rowmajor(std::vector<T1>& index, const std::vector<T2>& length)
     {
         if(index[idim] < length[idim])
         {
-            if(++index[idim] == length[idim])
+            if((++index[idim]) == length[idim])
             {
                 index[idim] = 0;
                 continue;

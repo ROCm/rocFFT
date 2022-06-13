@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
 
     // Set up the strides and buffer size for the real values:
     std::vector<size_t> rstride = {1};
-    for(int i = 1; i < length.size(); ++i)
+    for(unsigned int i = 1; i < length.size(); ++i)
     {
         // In-place transforms need space for two extra real values in the contiguous
         // direction.
@@ -92,7 +92,7 @@ int main(int argc, char* argv[])
     std::vector<size_t> clength = length;
     clength[0]                  = clength[0] / 2 + 1;
     std::vector<size_t> cstride = {1};
-    for(int i = 1; i < clength.size(); ++i)
+    for(unsigned int i = 1; i < clength.size(); ++i)
     {
         cstride.push_back(clength[i - 1] * cstride[i - 1]);
     }

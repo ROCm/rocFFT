@@ -75,7 +75,7 @@ int main(int argc, char* argv[])
 
     // Set up the strides and buffer size for the input:
     std::vector<size_t> istride = {1};
-    for(int i = 1; i < length.size(); ++i)
+    for(unsigned int i = 1; i < length.size(); ++i)
     {
         istride.push_back(length[i - 1] * istride[i - 1]);
     }
@@ -83,7 +83,7 @@ int main(int argc, char* argv[])
 
     // Set up the strides and buffer size for the output:
     std::vector<size_t> ostride = {1};
-    for(int i = 1; i < length.size(); ++i)
+    for(unsigned int i = 1; i < length.size(); ++i)
     {
         ostride.push_back(length[i - 1] * ostride[i - 1]);
     }

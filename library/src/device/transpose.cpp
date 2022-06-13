@@ -379,7 +379,7 @@ __global__ __launch_bounds__(TILE_X* TILE_Y) void transpose_kernel(
     // use template-specified dim to avoid loops if possible
     if(DIM == TransposeDim4Plus)
     {
-        for(int d = 3; d < dim; ++d)
+        for(unsigned int d = 3; d < dim; ++d)
         {
             auto index_along_d = remaining % lengths[d];
             remaining          = remaining / lengths[d];

@@ -47,6 +47,8 @@ inline fft_status fft_status_from_rocfftparams(const rocfft_status val)
         return fft_status_invalid_offset;
     case rocfft_status_invalid_work_buffer:
         return fft_status_invalid_work_buffer;
+    default:
+        throw std::runtime_error("Invalid status");
     }
 }
 
@@ -80,6 +82,7 @@ inline rocfft_array_type rocfft_array_type_from_fftparams(const fft_array_type v
     case fft_array_type_unset:
         return rocfft_array_type_unset;
     }
+    return rocfft_array_type_unset;
 }
 
 inline rocfft_transform_type rocfft_transform_type_from_fftparams(const fft_transform_type val)
@@ -94,6 +97,8 @@ inline rocfft_transform_type rocfft_transform_type_from_fftparams(const fft_tran
         return rocfft_transform_type_real_forward;
     case fft_transform_type_real_inverse:
         return rocfft_transform_type_real_inverse;
+    default:
+        throw std::runtime_error("Invalid transform type");
     }
 }
 
@@ -106,6 +111,8 @@ inline rocfft_result_placement
         return rocfft_placement_inplace;
     case fft_placement_notinplace:
         return rocfft_placement_notinplace;
+    default:
+        throw std::runtime_error("Invalid result placement");
     }
 }
 

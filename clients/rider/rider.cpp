@@ -280,7 +280,7 @@ int main(int argc, char* argv[])
     }
 
     // Warm up once:
-    for(int idx = 0; idx < gpu_input.size(); ++idx)
+    for(unsigned int idx = 0; idx < gpu_input.size(); ++idx)
     {
         HIP_V_THROW(
             hipMemcpy(
@@ -296,10 +296,10 @@ int main(int argc, char* argv[])
     hipEvent_t start, stop;
     HIP_V_THROW(hipEventCreate(&start), "hipEventCreate failed");
     HIP_V_THROW(hipEventCreate(&stop), "hipEventCreate failed");
-    for(int itrial = 0; itrial < gpu_time.size(); ++itrial)
+    for(unsigned int itrial = 0; itrial < gpu_time.size(); ++itrial)
     {
         // Copy the input data to the GPU:
-        for(int idx = 0; idx < gpu_input.size(); ++idx)
+        for(unsigned int idx = 0; idx < gpu_input.size(); ++idx)
         {
             HIP_V_THROW(hipMemcpy(pibuffer[idx],
                                   gpu_input[idx].data(),
@@ -322,7 +322,7 @@ int main(int argc, char* argv[])
         if(verbose > 2)
         {
             auto output = allocate_host_buffer(params.precision, params.otype, params.osize);
-            for(int idx = 0; idx < output.size(); ++idx)
+            for(unsigned int idx = 0; idx < output.size(); ++idx)
             {
                 hipMemcpy(
                     output[idx].data(), pobuffer[idx], output[idx].size(), hipMemcpyDeviceToHost);

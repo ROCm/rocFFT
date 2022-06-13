@@ -123,7 +123,7 @@ TEST(rocfft_UnitTest, 1D_hermitian)
     }
 
     double maxdiff = 0.0;
-    for(int i = 0; i < h_input.size(); ++i)
+    for(unsigned int i = 0; i < h_input.size(); ++i)
     {
         auto val = std::abs(h_input[i] - h_input1[i]);
         if(val > maxdiff)
@@ -149,7 +149,7 @@ TEST(rocfft_UnitTest, 1D_hermitian)
     }
 
     double maxerr = 0;
-    for(int i = 0; i < h_output.size(); ++i)
+    for(unsigned int i = 0; i < h_output.size(); ++i)
     {
         auto val = std::abs(h_output[i] - h_output1[i]);
         if(val > maxerr)
@@ -291,7 +291,7 @@ TEST(rocfft_UnitTest, rtc_gpu_symmetrizer)
             == hipSuccess);
 
         double maxdiff = 0;
-        for(int i = 0; i < h_output.size(); ++i)
+        for(unsigned int i = 0; i < h_output.size(); ++i)
         {
             auto rdiff = std::abs(h_output[i].real() - h_output_resym[i].real());
             auto idiff = std::abs(h_output[i].imag() - h_output_resym[i].imag());

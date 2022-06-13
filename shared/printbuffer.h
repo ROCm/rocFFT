@@ -37,9 +37,9 @@ inline void printbuffer(const Toutput*         output,
                         Tstream&               stream)
 {
     auto i_base = 0;
-    for(auto b = 0; b < nbatch; b++, i_base += dist)
+    for(unsigned int b = 0; b < nbatch; b++, i_base += dist)
     {
-        std::vector<int> index(length.size());
+        std::vector<size_t> index(length.size());
         std::fill(index.begin(), index.end(), 0);
         do
         {

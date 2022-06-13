@@ -146,7 +146,7 @@ void ErrorCheckReal(size_t N, T* ref, T* tst, size_t size)
     ref_complex = (CT*)malloc(size * sizeof(CT));
     out_complex = (CT*)malloc(size * sizeof(CT));
 
-    for(int i = 0; i < size; i++)
+    for(unsigned int i = 0; i < size; i++)
     {
         ref_complex[i][0] = ref[i];
         ref_complex[i][1] = 0;

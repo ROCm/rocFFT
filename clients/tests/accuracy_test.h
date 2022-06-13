@@ -142,17 +142,17 @@ inline std::vector<std::vector<size_t>>
     }
     const size_t        dim = inlengths.size();
     std::vector<size_t> looplength(dim);
-    for(int i = 0; i < dim; ++i)
+    for(unsigned int i = 0; i < dim; ++i)
     {
         looplength[i] = inlengths[i].size();
     }
-    for(int idx = 0; idx < inlengths.size(); ++idx)
+    for(unsigned int idx = 0; idx < inlengths.size(); ++idx)
     {
         std::vector<size_t> index(dim);
         do
         {
             std::vector<size_t> length(dim);
-            for(int i = 0; i < dim; ++i)
+            for(unsigned int i = 0; i < dim; ++i)
             {
                 length[i] = inlengths[i][index[i]];
             }
@@ -599,7 +599,7 @@ inline void execute_gpu_fft(Tparams&            params,
     gpu_output
         = allocate_host_buffer<fftwAllocator<char>>(params.precision, params.otype, params.osize);
     ASSERT_TRUE(!gpu_output.empty()) << "no output buffers";
-    for(int idx = 0; idx < gpu_output.size(); ++idx)
+    for(unsigned int idx = 0; idx < gpu_output.size(); ++idx)
     {
         ASSERT_TRUE(!gpu_output[idx].empty()) << "output buffer index " << idx << " is empty";
         auto hip_status = hipMemcpy(gpu_output[idx].data(),
@@ -1091,7 +1091,7 @@ inline void fft_vs_reference_impl(Tparams& params)
         }
 
         // Copy input to GPU
-        for(int idx = 0; idx < gpu_input->size(); ++idx)
+        for(unsigned int idx = 0; idx < gpu_input->size(); ++idx)
         {
             auto hip_status = hipMemcpy(ibuffer[idx].data(),
                                         gpu_input->at(idx).data(),

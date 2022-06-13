@@ -161,7 +161,7 @@ struct GridParam
 static bool is_device_gcn_arch(const hipDeviceProp_t& prop, const std::string& cmpTarget)
 {
     std::string archName(prop.gcnArchName);
-    return archName.find(cmpTarget) != -1;
+    return archName.find(cmpTarget) != std::string::npos;
 }
 
 static bool is_diagonal_sbrc_3D_length(size_t len)

@@ -356,7 +356,7 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
                 break;
             total_bytes_written += bytes_written;
 
-            if(total_bytes_written >= kernel_src.size())
+            if(total_bytes_written >= static_cast<ssize_t>(kernel_src.size()))
             {
                 // close child's stdin so it knows we're done writing
                 child_stdin_write.close();

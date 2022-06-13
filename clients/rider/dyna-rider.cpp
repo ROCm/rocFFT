@@ -547,7 +547,7 @@ int main(int argc, char* argv[])
 
     // Set up shared object handles
     std::vector<ROCFFT_LIB> handles;
-    for(int idx = 0; idx < libs.size(); ++idx)
+    for(unsigned int idx = 0; idx < libs.size(); ++idx)
     {
         auto libhandle = rocfft_lib_load(libs[idx]);
         if(libhandle == NULL)
@@ -566,7 +566,7 @@ int main(int argc, char* argv[])
     }
 
     // Set up plans:
-    for(int idx = 0; idx < libs.size(); ++idx)
+    for(unsigned int idx = 0; idx < libs.size(); ++idx)
     {
         std::cout << idx << ": " << libs[idx] << std::endl;
         plan.push_back(make_plan(handles[idx],
@@ -598,7 +598,7 @@ int main(int argc, char* argv[])
 
     // Associate the work buffer to the invidual libraries:
     std::vector<rocfft_execution_info> info;
-    for(int idx = 0; idx < libs.size(); ++idx)
+    for(unsigned int idx = 0; idx < libs.size(); ++idx)
     {
         info.push_back(make_execinfo(handles[idx], wbuffer_size, wbuffer.data()));
     }
@@ -649,7 +649,7 @@ int main(int argc, char* argv[])
         // Run a kernel once to load the instructions on the GPU:
 
         // Copy the input data to the GPU:
-        for(int idx = 0; idx < input.size(); ++idx)
+        for(unsigned int idx = 0; idx < input.size(); ++idx)
         {
             HIP_V_THROW(
                 hipMemcpy(
@@ -657,7 +657,7 @@ int main(int argc, char* argv[])
                 "hipMemcpy failed");
         }
         // Run the plan using its associated rocFFT library:
-        for(int idx = 0; idx < handles.size(); ++idx)
+        for(unsigned int idx = 0; idx < handles.size(); ++idx)
         {
             run_plan(handles[idx], plan[idx], info[idx], pibuffer.data(), pobuffer.data());
         }
@@ -683,7 +683,7 @@ int main(int argc, char* argv[])
         //     continue;
 
         // Copy the input data to the GPU:
-        for(int bidx = 0; bidx < input.size(); ++bidx)
+        for(unsigned int bidx = 0; bidx < input.size(); ++bidx)
         {
             HIP_V_THROW(
                 hipMemcpy(
@@ -698,7 +698,7 @@ int main(int argc, char* argv[])
         if(verbose > 2)
         {
             auto output = allocate_host_buffer(params.precision, params.otype, params.osize);
-            for(int iout = 0; iout < output.size(); ++iout)
+            for(unsigned int iout = 0; iout < output.size(); ++iout)
             {
                 hipMemcpy(output[iout].data(),
                           pobuffer[iout],
@@ -711,7 +711,7 @@ int main(int argc, char* argv[])
     }
 
     std::cout << "Execution times in ms:\n";
-    for(int idx = 0; idx < time.size(); ++idx)
+    for(unsigned int idx = 0; idx < time.size(); ++idx)
     {
         std::cout << "\nExecution gpu time:";
         for(auto& i : time[idx])
@@ -722,7 +722,7 @@ int main(int argc, char* argv[])
     }
 
     // Clean up:
-    for(int idx = 0; idx < handles.size(); ++idx)
+    for(unsigned int idx = 0; idx < handles.size(); ++idx)
     {
         destroy_info(handles[idx], info[idx]);
         destroy_plan(handles[idx], plan[idx]);

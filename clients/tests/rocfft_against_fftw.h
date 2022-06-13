@@ -100,6 +100,8 @@ static typename fftw_trait<Tfloat>::fftw_plan_type
                                             reinterpret_cast<fftw_complex_type*>(cpu_in),
                                             reinterpret_cast<Tfloat*>(cpu_out),
                                             use_fftw_wisdom ? FFTW_MEASURE : FFTW_ESTIMATE);
+    default:
+        throw std::runtime_error("Invalid transform type");
     }
 }
 
@@ -119,7 +121,7 @@ static typename fftw_trait<Tfloat>::fftw_plan_type
 {
     // Dimension configuration:
     std::vector<fftw_iodim64> dims(length.size());
-    for(int idx = 0; idx < length.size(); ++idx)
+    for(unsigned int idx = 0; idx < length.size(); ++idx)
     {
         dims[idx].n  = length[idx];
         dims[idx].is = istride[idx];

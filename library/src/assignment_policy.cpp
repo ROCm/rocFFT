@@ -310,8 +310,8 @@ static void RecursiveTraverse(TreeNode* node, const std::function<void(TreeNode*
 
 bool AssignmentPolicy::CheckAssignmentValid(ExecPlan& execPlan)
 {
-    int sizeBufIn  = 0;
-    int sizeBufOut = 0;
+    size_t sizeBufIn  = 0;
+    size_t sizeBufOut = 0;
     if(execPlan.rootPlan->placement == rocfft_placement_notinplace)
     {
         sizeBufIn  = execPlan.rootPlan->iDist;

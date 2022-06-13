@@ -30,7 +30,7 @@ static size_t compute_ptrdiff(const std::vector<size_t>& length,
     if(!length.empty())
     {
         val = 1;
-        for(int i = 0; i < length.size(); ++i)
+        for(unsigned int i = 0; i < length.size(); ++i)
         {
             val += (length[i] - 1) * stride[i];
         }

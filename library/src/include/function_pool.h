@@ -85,7 +85,7 @@ struct FFTKernel
     // NB:
     //    Some abbrevs for namings that we can follow (tpb/wgs/tpt)
     // number of transforms performed by one threadblock (tpb)
-    int transforms_per_block = 0;
+    unsigned int transforms_per_block = 0;
     // workgroup size： number of threads per block (wgs) = tpt * tpb
     int workgroup_size = 0;
     // number of threads to perform single transform (tpt)

@@ -183,6 +183,8 @@ public:
             return "fft_transform_type_real_forward";
         case fft_transform_type_real_inverse:
             return "fft_transform_type_real_inverse";
+        default:
+            throw std::runtime_error("Invalid transform type");
         }
     }
 
@@ -396,7 +398,7 @@ public:
         }
 
         auto vector_parser
-            = [](const std::vector<std::string>& vals, const std::string token, int& pos) {
+            = [](const std::vector<std::string>& vals, const std::string token, size_t& pos) {
                   if(vals[pos++] != token)
                       throw std::runtime_error("Unable to parse token");
                   std::vector<size_t> vec;
@@ -429,7 +431,7 @@ public:
             return fft_array_type_unset;
         };
 
-        int pos = 0;
+        size_t pos = 0;
 
         bool complex = vals[pos++] == "complex";
         bool forward = vals[pos++] == "forward";
@@ -536,6 +538,7 @@ public:
         case fft_array_type_unset:
             return 0;
         }
+        return 0;
     }
 
     // Number of input buffers
@@ -718,7 +721,7 @@ public:
         auto   il  = ilength();
         size_t val = compute_ptrdiff(il, istride, nbatch, idist);
         isize.resize(nibuffer());
-        for(int i = 0; i < isize.size(); ++i)
+        for(unsigned int i = 0; i < isize.size(); ++i)
         {
             isize[i] = val + ioffset[i];
         }
@@ -729,7 +732,7 @@ public:
         auto   ol  = olength();
         size_t val = compute_ptrdiff(ol, ostride, nbatch, odist);
         osize.resize(nobuffer());
-        for(int i = 0; i < osize.size(); ++i)
+        for(unsigned int i = 0; i < osize.size(); ++i)
         {
             osize[i] = val + ooffset[i];
         }
@@ -812,7 +815,7 @@ public:
         idist = (transform_type == fft_transform_type_real_inverse)
                     ? (length[dim() - 1] / 2 + 1) * istride[dim() - 1]
                     : length[dim() - 1] * istride[dim() - 1];
-        for(int i = 0; i < dim() - 1; ++i)
+        for(unsigned int i = 0; i < dim() - 1; ++i)
         {
             idist = std::max(length[i] * istride[i], idist);
         }
@@ -842,7 +845,7 @@ public:
         odist = (transform_type == fft_transform_type_real_forward)
                     ? (length[dim() - 1] / 2 + 1) * ostride[dim() - 1]
                     : length[dim() - 1] * ostride[dim() - 1];
-        for(int i = 0; i < dim() - 1; ++i)
+        for(unsigned int i = 0; i < dim() - 1; ++i)
         {
             odist = std::max(length[i] * ostride[i], odist);
         }
@@ -859,7 +862,7 @@ public:
         {
             const auto stridesize = std::min(istride.size(), ostride.size());
             bool       samestride = true;
-            for(int i = 0; i < stridesize; ++i)
+            for(unsigned int i = 0; i < stridesize; ++i)
             {
                 if(istride[i] != ostride[i])
                     samestride = false;
@@ -930,7 +933,7 @@ public:
             {
             case fft_transform_type_complex_forward:
             case fft_transform_type_complex_inverse:
-                for(int i = 0; i < nibuffer(); ++i)
+                for(unsigned int i = 0; i < nibuffer(); ++i)
                 {
                     if(ioffset[i] != ooffset[i])
                         return false;
@@ -1625,7 +1628,7 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
         case fft_array_type_real:
         case fft_array_type_complex_planar:
         case fft_array_type_hermitian_planar:
-            for(int idx = 0; idx < input.size(); ++idx)
+            for(unsigned int idx = 0; idx < input.size(); ++idx)
             {
                 switch(precision)
                 {
@@ -2082,7 +2085,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
         case fft_array_type_real:
         case fft_array_type_complex_planar:
         case fft_array_type_hermitian_planar:
-            for(int idx = 0; idx < input.size(); ++idx)
+            for(unsigned int idx = 0; idx < input.size(); ++idx)
             {
                 VectorNorms d;
                 switch(precision)
@@ -2412,7 +2415,7 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
     case fft_array_type_real:
     case fft_array_type_complex_planar:
     case fft_array_type_hermitian_planar:
-        for(int idx = 0; idx < input.size(); ++idx)
+        for(unsigned int idx = 0; idx < input.size(); ++idx)
         {
             VectorNorms n;
             switch(precision)
@@ -2499,7 +2502,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
     case 1:
     {
         // Complex interleaved data
-        for(auto ibatch = 0; ibatch < nbatch; ++ibatch)
+        for(unsigned int ibatch = 0; ibatch < nbatch; ++ibatch)
         {
             auto data = ((std::complex<Tfloat>*)vals[0].data()) + ibatch * idist;
             switch(length.size())
@@ -2529,7 +2532,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 }
 
                 // y-axis:
-                for(auto j = 1; j < (length[1] + 1) / 2; ++j)
+                for(unsigned int j = 1; j < (length[1] + 1) / 2; ++j)
                 {
                     data[istride[1] * (length[1] - j)] = std::conj(data[istride[1] * j]);
                 }
@@ -2537,7 +2540,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 if(length[0] % 2 == 0)
                 {
                     // y-axis at x-nyquist
-                    for(auto j = 1; j < (length[1] + 1) / 2; ++j)
+                    for(unsigned int j = 1; j < (length[1] + 1) / 2; ++j)
                     {
                         // clang format off
                         data[istride[0] * (length[0] / 2) + istride[1] * (length[1] - j)]
@@ -2547,7 +2550,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 }
 
                 // x-axis:
-                for(auto i = 1; i < (length[0] + 1) / 2; ++i)
+                for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
                 {
                     data[istride[0] * (length[0] - i)] = std::conj(data[istride[0] * i]);
                 }
@@ -2555,7 +2558,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 if(length[1] % 2 == 0)
                 {
                     // x-axis at y-nyquist
-                    for(auto i = 1; i < (length[0] + 1) / 2; ++i)
+                    for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
                     {
                         // clang format off
                         data[istride[0] * (length[0] - i) + istride[1] * (length[1] / 2)]
@@ -2565,9 +2568,9 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 }
 
                 // x-y plane:
-                for(auto i = 1; i < (length[0] + 1) / 2; ++i)
+                for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
                 {
-                    for(auto j = 1; j < length[1]; ++j)
+                    for(unsigned int j = 1; j < length[1]; ++j)
                     {
                         // clang format off
                         data[istride[0] * (length[0] - i) + istride[1] * (length[1] - j)]
@@ -2579,7 +2582,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                 if(length[2] % 2 == 0)
                 {
                     // x-axis at z-nyquist
-                    for(auto i = 1; i < (length[0] + 1) / 2; ++i)
+                    for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
                     {
                         data[istride[0] * (length[0] - i) + istride[2] * (length[2] / 2)]
                             = std::conj(data[istride[0] * i + istride[2] * (length[2] / 2)]);
@@ -2587,7 +2590,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                     if(length[1] % 2 == 0)
                     {
                         // x-axis at yz-nyquist
-                        for(auto i = 1; i < (length[0] + 1) / 2; ++i)
+                        for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
                         {
                             data[istride[0] * (length[0] - i) + istride[2] * (length[2] / 2)]
                                 = std::conj(data[istride[0] * i + istride[2] * (length[2] / 2)]);
@@ -2595,7 +2598,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                     }
 
                     // y-axis: at z-nyquist
-                    for(auto j = 1; j < (length[1] + 1) / 2; ++j)
+                    for(unsigned int j = 1; j < (length[1] + 1) / 2; ++j)
                     {
                         data[istride[1] * (length[1] - j) + istride[2] * (length[2] / 2)]
                             = std::conj(data[istride[1] * j + istride[2] * (length[2] / 2)]);
@@ -2604,7 +2607,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                     if(length[0] % 2 == 0)
                     {
                         // y-axis: at xz-nyquist
-                        for(auto j = 1; j < (length[1] + 1) / 2; ++j)
+                        for(unsigned int j = 1; j < (length[1] + 1) / 2; ++j)
                         {
                             // clang format off
                             data[istride[0] * (length[0] / 2) + istride[1] * (length[1] - j)
@@ -2616,9 +2619,9 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                     }
 
                     // x-y plane: at z-nyquist
-                    for(auto i = 1; i < (length[0] + 1) / 2; ++i)
+                    for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
                     {
-                        for(auto j = 1; j < length[1]; ++j)
+                        for(unsigned int j = 1; j < length[1]; ++j)
                         {
                             // clang format off
                             data[istride[0] * (length[0] - i) + istride[1] * (length[1] - j)
@@ -2642,14 +2645,14 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
                     data[istride[0] * (length[0] / 2) + istride[1] * (length[1] / 2)].imag(0.0);
                 }
 
-                for(auto i = 1; i < (length[0] + 1) / 2; ++i)
+                for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
                 {
                     data[istride[0] * (length[0] - i)] = std::conj(data[istride[0] * i]);
                 }
 
                 if(length[1] % 2 == 0)
                 {
-                    for(auto i = 1; i < (length[0] + 1) / 2; ++i)
+                    for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
                     {
                         data[istride[0] * (length[0] - i) + istride[1] * (length[1] / 2)]
                             = std::conj(data[istride[0] * i + istride[1] * (length[1] / 2)]);
@@ -2675,7 +2678,7 @@ inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>
     case 2:
     {
         // Complex planar data
-        for(auto ibatch = 0; ibatch < nbatch; ++ibatch)
+        for(unsigned int ibatch = 0; ibatch < nbatch; ++ibatch)
         {
             auto idata = ((Tfloat*)vals[1].data()) + ibatch * idist;
             switch(length.size())
@@ -2724,7 +2727,7 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
         auto   idata      = (std::complex<Tfloat>*)input[0].data();
         size_t i_base     = 0;
         auto   partitions = partition_rowmajor(whole_length);
-        for(auto b = 0; b < nbatch; b++, i_base += idist)
+        for(unsigned int b = 0; b < nbatch; b++, i_base += idist)
         {
 #pragma omp parallel for num_threads(partitions.size())
             for(size_t part = 0; part < partitions.size(); ++part)
@@ -2751,7 +2754,7 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
         auto   iimag      = (Tfloat*)input[1].data();
         size_t i_base     = 0;
         auto   partitions = partition_rowmajor(whole_length);
-        for(auto b = 0; b < nbatch; b++, i_base += idist)
+        for(unsigned int b = 0; b < nbatch; b++, i_base += idist)
         {
 #pragma omp parallel for num_threads(partitions.size())
             for(size_t part = 0; part < partitions.size(); ++part)
@@ -2776,7 +2779,7 @@ inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
         auto   idata      = (Tfloat*)input[0].data();
         size_t i_base     = 0;
         auto   partitions = partition_rowmajor(whole_length);
-        for(auto b = 0; b < nbatch; b++, i_base += idist)
+        for(unsigned int b = 0; b < nbatch; b++, i_base += idist)
         {
 #pragma omp parallel for num_threads(partitions.size())
             for(size_t part = 0; part < partitions.size(); ++part)
@@ -2841,7 +2844,7 @@ inline std::vector<std::vector<char, Allocator>> allocate_host_buffer(
     const fft_precision precision, const fft_array_type type, const std::vector<size_t>& size)
 {
     std::vector<std::vector<char, Allocator>> buffers(size.size());
-    for(int i = 0; i < size.size(); ++i)
+    for(unsigned int i = 0; i < size.size(); ++i)
     {
         buffers[i].resize(size[i] * var_size<size_t>(precision, type));
     }

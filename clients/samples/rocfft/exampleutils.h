@@ -26,7 +26,7 @@
 template <class T1, class T2>
 bool increment_cm(std::vector<T1>& index, const std::vector<T2>& length)
 {
-    for(int idim = 0; idim < length.size(); ++idim)
+    for(unsigned int idim = 0; idim < length.size(); ++idim)
     {
         if(index[idim] < length[idim])
         {

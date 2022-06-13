@@ -379,7 +379,7 @@ ComputeScheme NodeFactory::Decide1DScheme(NodeMetaData& nodeData)
     if(IsPo2(nodeData.length[0])) // multiple kernels involving transpose
     {
         // TODO: wrap the below into a function and check with LDS size
-        auto block_threshold = 262144;
+        size_t block_threshold = 262144;
         if(nodeData.length[0] <= block_threshold)
         {
             // Enable block compute under these conditions

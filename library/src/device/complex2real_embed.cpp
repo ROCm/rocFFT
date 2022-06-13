@@ -55,7 +55,7 @@ __global__ static void complex2real_kernel(unsigned int           lengths0,
     size_t offset_out = 0;
     size_t remaining;
     remaining = blockIdx.y;
-    for(int d = 1; d < dim; ++d)
+    for(unsigned int d = 1; d < dim; ++d)
     {
         auto index_along_d = remaining % lengths[d];
         remaining          = remaining / lengths[d];
@@ -147,7 +147,7 @@ ROCFFT_DEVICE_EXPORT void complex2real(const void* data_p, void* back_p)
     size_t dim            = data->node->length.size();
     if(dim > 1)
     {
-        for(int i = 1; i < dim; i++)
+        for(unsigned int i = 1; i < dim; i++)
         {
             high_dimension *= data->node->length[i];
         }
@@ -452,7 +452,7 @@ ROCFFT_DEVICE_EXPORT void hermitian2complex(const void* data_p, void* back_p)
     size_t dim            = data->node->length.size();
     if(dim > 1)
     {
-        for(int i = 1; i < dim; i++)
+        for(unsigned int i = 1; i < dim; i++)
         {
             high_dimension *= data->node->length[i];
         }

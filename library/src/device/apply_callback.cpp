@@ -48,7 +48,7 @@ __global__ void __launch_bounds__(APPLY_REAL_CALLBACK_THREADS)
     size_t remaining;
     size_t index_along_d;
     remaining = blockIdx.y;
-    for(int d = 1; d < dim; ++d)
+    for(unsigned int d = 1; d < dim; ++d)
     {
         index_along_d = remaining % lengths[d];
         remaining     = remaining / lengths[d];
@@ -82,7 +82,7 @@ ROCFFT_DEVICE_EXPORT void apply_real_callback(const void* data_p, void* back)
     size_t high_dimension = 1;
     size_t dim            = data->node->length.size();
 
-    for(int i = 1; i < dim; i++)
+    for(unsigned int i = 1; i < dim; i++)
     {
         high_dimension *= data->node->length[i];
     }
