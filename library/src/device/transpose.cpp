@@ -36,8 +36,24 @@ enum TransposeDim
 
 // chain of macros to iterate over transpose kernel template parameters, to
 // set a function pointer 'kernel_func'
+#define TRANSPOSE_KERNEL_SCALE(                                          \
+    T_I, T_O, TILE_X, TILE_Y, DIM, TWL, DIR, DIAG, ALIGN, CBTYPE, SCALE) \
+    kernel_func                                                          \
+        = transpose_kernel<TILE_X, TILE_Y, T_I, T_O, DIM, TWL, DIR, DIAG, ALIGN, CBTYPE, SCALE>;
+
 #define TRANSPOSE_KERNEL_CBTYPE(T_I, T_O, TILE_X, TILE_Y, DIM, TWL, DIR, DIAG, ALIGN, CBTYPE) \
-    kernel_func = transpose_kernel<TILE_X, TILE_Y, T_I, T_O, DIM, TWL, DIR, DIAG, ALIGN, CBTYPE>;
+    {                                                                                         \
+        if(data->node->IsScalingEnabled())                                                    \
+        {                                                                                     \
+            TRANSPOSE_KERNEL_SCALE(                                                           \
+                T_I, T_O, TILE_X, TILE_Y, DIM, TWL, DIR, DIAG, ALIGN, CBTYPE, true);          \
+        }                                                                                     \
+        else                                                                                  \
+        {                                                                                     \
+            TRANSPOSE_KERNEL_SCALE(                                                           \
+                T_I, T_O, TILE_X, TILE_Y, DIM, TWL, DIR, DIAG, ALIGN, CBTYPE, false);         \
+        }                                                                                     \
+    }
 
 #define TRANSPOSE_KERNEL_DIR(T_I, T_O, TILE_X, TILE_Y, DIM, TWL, DIR, DIAG, ALIGN)        \
     {                                                                                     \
@@ -219,7 +235,8 @@ static const unsigned int TILE_Y_DOUBLE = 32;
                                    -1,                                                   \
                                    false,                                                \
                                    false,                                                \
-                                   CallbackType::NONE>) kernel_func                      \
+                                   CallbackType::NONE,                                   \
+                                   false>) kernel_func                                   \
             = nullptr;                                                                   \
                                                                                          \
         grid    = {DivRoundingUp<unsigned int>(length[0], TILE_X_SINGLE),                \
@@ -256,7 +273,8 @@ static const unsigned int TILE_Y_DOUBLE = 32;
                                 data->callbacks.load_cb_data,                            \
                                 data->callbacks.load_cb_lds_bytes,                       \
                                 data->callbacks.store_cb_fn,                             \
-                                data->callbacks.store_cb_data);                          \
+                                data->callbacks.store_cb_data,                           \
+                                data->node->scale_factor);                               \
     }                                                                                    \
     else                                                                                 \
     {                                                                                    \
@@ -269,7 +287,8 @@ static const unsigned int TILE_Y_DOUBLE = 32;
                                    -1,                                                   \
                                    false,                                                \
                                    false,                                                \
-                                   CallbackType::NONE>) kernel_func                      \
+                                   CallbackType::NONE,                                   \
+                                   false>) kernel_func                                   \
             = nullptr;                                                                   \
                                                                                          \
         grid    = {DivRoundingUp<unsigned int>(length[0], TILE_X_DOUBLE),                \
@@ -306,7 +325,8 @@ static const unsigned int TILE_Y_DOUBLE = 32;
                                 data->callbacks.load_cb_data,                            \
                                 data->callbacks.load_cb_lds_bytes,                       \
                                 data->callbacks.store_cb_fn,                             \
-                                data->callbacks.store_cb_data);                          \
+                                data->callbacks.store_cb_data,                           \
+                                data->node->scale_factor);                               \
     }
 
 template <unsigned int TILE_X,
@@ -318,7 +338,8 @@ template <unsigned int TILE_X,
           int          TWL_DIR,
           bool         DIAGONAL,
           bool         TILE_ALIGNED,
-          CallbackType cbtype>
+          CallbackType cbtype,
+          bool         SCALE>
 __global__ __launch_bounds__(TILE_X* TILE_Y) void transpose_kernel(
     const T_I input,
     const T_O output,
@@ -342,7 +363,8 @@ __global__ __launch_bounds__(TILE_X* TILE_Y) void transpose_kernel(
     void* __restrict__ load_cb_data,
     uint32_t load_cb_lds_bytes,
     void* __restrict__ store_cb_fn,
-    void* __restrict__ store_cb_data)
+    void* __restrict__ store_cb_data,
+    const real_type_t<typename T_O::complex_type> scale_factor)
 {
     typedef typename T_I::complex_type T;
 
@@ -491,7 +513,11 @@ __global__ __launch_bounds__(TILE_X* TILE_Y) void transpose_kernel(
 
         auto global_write_idx
             = idx0 * stride_out0 + idx1 * stride_out1 + idx2 * stride_out2 + offset_out;
-        Handler<T_O, cbtype>::write(output, global_write_idx, val[i], store_cb_fn, store_cb_data);
+        Handler<T_O, cbtype>::write(output,
+                                    global_write_idx,
+                                    SCALE ? (val[i] * scale_factor) : val[i],
+                                    store_cb_fn,
+                                    store_cb_data);
     }
 }
 
