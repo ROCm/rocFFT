@@ -299,13 +299,13 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
     subprocess_failed = exit_code != 0;
 #else
     int stdin_fds[2] = {-1, -1};
-    if(pipe2(stdin_fds, O_CLOEXEC | O_NONBLOCK) != 0)
+    if(pipe2(stdin_fds, O_CLOEXEC) != 0)
         throw std::runtime_error("failed to create stdin pipe");
     file_handle_wrapper child_stdin_read(stdin_fds[0]);
     file_handle_wrapper child_stdin_write(stdin_fds[1]);
 
     int stdout_fds[2] = {-1, -1};
-    if(pipe2(stdout_fds, O_CLOEXEC | O_NONBLOCK) != 0)
+    if(pipe2(stdout_fds, O_CLOEXEC) != 0)
         throw std::runtime_error("failed to create stdout pipe");
     file_handle_wrapper child_stdout_read(stdout_fds[0]);
     file_handle_wrapper child_stdout_write(stdout_fds[1]);
@@ -327,6 +327,7 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
         throw std::runtime_error("failed to spawn child process");
     }
 
+    child_stdin_read.close();
     child_stdout_write.close();
 
     // poll read and write fd's
@@ -340,8 +341,7 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
     while(poll(fds, 2, 1000) >= 0)
     {
         // error conditions on fds, break
-        if(fds[0].revents & POLLERR || fds[0].revents & POLLHUP || fds[1].revents & POLLERR
-           || fds[1].revents & POLLHUP)
+        if(fds[0].revents & POLLERR || fds[1].revents & POLLERR)
             break;
 
         // write kernel source to child
@@ -360,7 +360,6 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
             {
                 // close child's stdin so it knows we're done writing
                 child_stdin_write.close();
-                child_stdin_read.close();
                 fds[0].events = 0;
             }
         }
@@ -374,8 +373,21 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
                 = read(child_stdout_read, code.data() + code_written_bytes, READ_CHUNK_SIZE);
             // resize code to number of bytes actually written
             code.resize(code_written_bytes + (bytes_read > 0 ? bytes_read : 0));
-            if(bytes_read <= 0)
+            if(bytes_read == -1)
+            {
+                // read error, data is probably not correct
+                throw std::runtime_error("failed read data from child process");
+            }
+            if(bytes_read == 0)
+            {
+                // end of file
                 break;
+            }
+        }
+        else if(fds[1].revents & POLLHUP)
+        {
+            // no data to read, other side hung up
+            break;
         }
     }
 

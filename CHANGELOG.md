@@ -11,6 +11,10 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Optimizations
 - Optimized 2D R2C/C2R to use 2-kernel plans where possible.
 
+### Fixed
+- Fixed occasional failures to parallelize runtime compilation of kernels.
+  Failures would be retried serially and ultimately succeed, but this would take extra time.
+
 ## (Unreleased) rocFFT 1.0.17
 ### Added
 - Packages for test and benchmark executables on all supported OSes using CPack.
