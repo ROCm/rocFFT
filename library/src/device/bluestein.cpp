@@ -97,6 +97,35 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_chirp(const void* data_p, void* back_p
                               data->log_func);
 }
 
+// find the right "mul" kernel, checking callback type and/or scale factor
+template <typename T>
+auto get_mul_kernel_I_I(CallbackType cbtype, TreeNode* node)
+{
+    if(cbtype == CallbackType::USER_LOAD_STORE)
+    {
+        if(node->IsScalingEnabled())
+            return mul_device_I_I<T, CallbackType::USER_LOAD_STORE, true>;
+        else
+            return mul_device_I_I<T, CallbackType::USER_LOAD_STORE, false>;
+    }
+    else
+    {
+        if(node->IsScalingEnabled())
+            return mul_device_I_I<T, CallbackType::NONE, true>;
+        else
+            return mul_device_I_I<T, CallbackType::NONE, false>;
+    }
+}
+
+template <typename T>
+auto get_mul_kernel_I_P(TreeNode* node)
+{
+    if(node->IsScalingEnabled())
+        return mul_device_I_P<T, true>;
+    else
+        return mul_device_I_P<T, false>;
+}
+
 ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
 {
     auto data = static_cast<const DeviceCallIn*>(data_p);
@@ -176,61 +205,57 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
     {
         if(data->node->precision == rocfft_precision_single)
         {
-            hipLaunchKernelGGL_shim(
-                data->log_func,
-                cbtype == CallbackType::USER_LOAD_STORE
-                    ? HIP_KERNEL_NAME(mul_device_I_I<float2, CallbackType::USER_LOAD_STORE>)
-                    : HIP_KERNEL_NAME(mul_device_I_I<float2, CallbackType::NONE>),
-                dim3(grid),
-                dim3(threads),
-                0,
-                rocfft_stream,
-                numof,
-                count,
-                N,
-                M,
-                (const float2*)bufIn0,
-                (float2*)bufOut0,
-                data->node->length.size(),
-                kargs_lengths(data->node->devKernArg),
-                kargs_stride_in(data->node->devKernArg),
-                kargs_stride_out(data->node->devKernArg),
-                dir,
-                scheme,
-                data->callbacks.load_cb_fn,
-                data->callbacks.load_cb_data,
-                data->callbacks.load_cb_lds_bytes,
-                data->callbacks.store_cb_fn,
-                data->callbacks.store_cb_data);
+            hipLaunchKernelGGL_shim(data->log_func,
+                                    get_mul_kernel_I_I<float2>(cbtype, data->node),
+                                    dim3(grid),
+                                    dim3(threads),
+                                    0,
+                                    rocfft_stream,
+                                    numof,
+                                    count,
+                                    N,
+                                    M,
+                                    (const float2*)bufIn0,
+                                    (float2*)bufOut0,
+                                    data->node->length.size(),
+                                    kargs_lengths(data->node->devKernArg),
+                                    kargs_stride_in(data->node->devKernArg),
+                                    kargs_stride_out(data->node->devKernArg),
+                                    dir,
+                                    scheme,
+                                    data->callbacks.load_cb_fn,
+                                    data->callbacks.load_cb_data,
+                                    data->callbacks.load_cb_lds_bytes,
+                                    data->callbacks.store_cb_fn,
+                                    data->callbacks.store_cb_data,
+                                    data->node->scale_factor);
         }
         else
         {
-            hipLaunchKernelGGL_shim(
-                data->log_func,
-                cbtype == CallbackType::USER_LOAD_STORE
-                    ? HIP_KERNEL_NAME(mul_device_I_I<double2, CallbackType::USER_LOAD_STORE>)
-                    : HIP_KERNEL_NAME(mul_device_I_I<double2, CallbackType::NONE>),
-                dim3(grid),
-                dim3(threads),
-                0,
-                rocfft_stream,
-                numof,
-                count,
-                N,
-                M,
-                (const double2*)bufIn0,
-                (double2*)bufOut0,
-                data->node->length.size(),
-                kargs_lengths(data->node->devKernArg),
-                kargs_stride_in(data->node->devKernArg),
-                kargs_stride_out(data->node->devKernArg),
-                dir,
-                scheme,
-                data->callbacks.load_cb_fn,
-                data->callbacks.load_cb_data,
-                data->callbacks.load_cb_lds_bytes,
-                data->callbacks.store_cb_fn,
-                data->callbacks.store_cb_data);
+            hipLaunchKernelGGL_shim(data->log_func,
+                                    get_mul_kernel_I_I<double2>(cbtype, data->node),
+                                    dim3(grid),
+                                    dim3(threads),
+                                    0,
+                                    rocfft_stream,
+                                    numof,
+                                    count,
+                                    N,
+                                    M,
+                                    (const double2*)bufIn0,
+                                    (double2*)bufOut0,
+                                    data->node->length.size(),
+                                    kargs_lengths(data->node->devKernArg),
+                                    kargs_stride_in(data->node->devKernArg),
+                                    kargs_stride_out(data->node->devKernArg),
+                                    dir,
+                                    scheme,
+                                    data->callbacks.load_cb_fn,
+                                    data->callbacks.load_cb_data,
+                                    data->callbacks.load_cb_lds_bytes,
+                                    data->callbacks.store_cb_fn,
+                                    data->callbacks.store_cb_data,
+                                    data->node->scale_factor);
         }
     }
     else if((data->node->inArrayType == rocfft_array_type_complex_planar
@@ -261,7 +286,8 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                                     kargs_stride_in(data->node->devKernArg),
                                     kargs_stride_out(data->node->devKernArg),
                                     dir,
-                                    scheme);
+                                    scheme,
+                                    data->node->scale_factor);
         }
         else
         {
@@ -283,7 +309,8 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                                     kargs_stride_in(data->node->devKernArg),
                                     kargs_stride_out(data->node->devKernArg),
                                     dir,
-                                    scheme);
+                                    scheme,
+                                    data->node->scale_factor);
         }
     }
     else if((data->node->inArrayType == rocfft_array_type_complex_interleaved
@@ -297,7 +324,7 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
         if(data->node->precision == rocfft_precision_single)
         {
             hipLaunchKernelGGL_shim(data->log_func,
-                                    mul_device_I_P<float2>,
+                                    get_mul_kernel_I_P<float2>(data->node),
                                     dim3(grid),
                                     dim3(threads),
                                     0,
@@ -314,12 +341,13 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                                     kargs_stride_in(data->node->devKernArg),
                                     kargs_stride_out(data->node->devKernArg),
                                     dir,
-                                    scheme);
+                                    scheme,
+                                    data->node->scale_factor);
         }
         else
         {
             hipLaunchKernelGGL_shim(data->log_func,
-                                    mul_device_I_P<double2>,
+                                    get_mul_kernel_I_P<double2>(data->node),
                                     dim3(grid),
                                     dim3(threads),
                                     0,
@@ -336,7 +364,8 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                                     kargs_stride_in(data->node->devKernArg),
                                     kargs_stride_out(data->node->devKernArg),
                                     dir,
-                                    scheme);
+                                    scheme,
+                                    data->node->scale_factor);
         }
     }
     else if((data->node->inArrayType == rocfft_array_type_complex_planar
@@ -369,7 +398,8 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                                     kargs_stride_in(data->node->devKernArg),
                                     kargs_stride_out(data->node->devKernArg),
                                     dir,
-                                    scheme);
+                                    scheme,
+                                    data->node->scale_factor);
         }
         else
         {
@@ -392,7 +422,8 @@ ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p)
                                     kargs_stride_in(data->node->devKernArg),
                                     kargs_stride_out(data->node->devKernArg),
                                     dir,
-                                    scheme);
+                                    scheme,
+                                    data->node->scale_factor);
         }
     }
     else

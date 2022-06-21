@@ -77,7 +77,7 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
 // are 3 steps in Bluestein algorithm. And In the below, we have
 // 4 similar functions to support interleaved and planar format.
 
-template <typename T, CallbackType cbtype>
+template <typename T, CallbackType cbtype, bool SCALE = false>
 __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
     mul_device_I_I(const size_t  numof,
                    const size_t  totalWI,
@@ -95,7 +95,8 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
                    void* __restrict__ load_cb_data,
                    uint32_t load_cb_lds_bytes,
                    void* __restrict__ store_cb_fn,
-                   void* __restrict__ store_cb_data)
+                   void* __restrict__ store_cb_data,
+                   const real_type_t<T> scale_factor)
 {
     size_t tx = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -182,11 +183,12 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
 
         out_elem.x = MI * (input[iIdx].x * chirp[tx].x + input[iIdx].y * chirp[tx].y);
         out_elem.y = MI * (-input[iIdx].x * chirp[tx].y + input[iIdx].y * chirp[tx].x);
-        store_cb(output, oIdx, out_elem, store_cb_data, nullptr);
+        store_cb(
+            output, oIdx, SCALE ? (out_elem * scale_factor) : out_elem, store_cb_data, nullptr);
     }
 }
 
-template <typename T>
+template <typename T, bool SCALE = false>
 __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
     mul_device_P_I(const size_t          numof,
                    const size_t          totalWI,
@@ -200,7 +202,8 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
                    const size_t*         stride_in,
                    const size_t*         stride_out,
                    const int             dir,
-                   const int             scheme)
+                   const int             scheme,
+                   const real_type_t<T>  scale_factor)
 {
     size_t tx = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -275,24 +278,27 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
         real_type_t<T> MI = 1.0 / (real_type_t<T>)M;
         output[oIdx].x    = MI * (inputRe[iIdx] * chirpRe[tx] + inputIm[iIdx] * chirpIm[tx]);
         output[oIdx].y    = MI * (-inputRe[iIdx] * chirpIm[tx] + inputIm[iIdx] * chirpRe[tx]);
+        if(SCALE)
+            output[oIdx] *= scale_factor;
     }
 }
 
-template <typename T>
+template <typename T, bool SCALE = false>
 __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
-    mul_device_I_P(const size_t    numof,
-                   const size_t    totalWI,
-                   const size_t    N,
-                   const size_t    M,
-                   const T*        input,
-                   real_type_t<T>* outputRe,
-                   real_type_t<T>* outputIm,
-                   const size_t    dim,
-                   const size_t*   lengths,
-                   const size_t*   stride_in,
-                   const size_t*   stride_out,
-                   const int       dir,
-                   const int       scheme)
+    mul_device_I_P(const size_t         numof,
+                   const size_t         totalWI,
+                   const size_t         N,
+                   const size_t         M,
+                   const T*             input,
+                   real_type_t<T>*      outputRe,
+                   real_type_t<T>*      outputIm,
+                   const size_t         dim,
+                   const size_t*        lengths,
+                   const size_t*        stride_in,
+                   const size_t*        stride_out,
+                   const int            dir,
+                   const int            scheme,
+                   const real_type_t<T> scale_factor)
 {
     size_t tx = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -368,11 +374,15 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
 
         real_type_t<T> MI = 1.0 / (real_type_t<T>)M;
         outputRe[oIdx]    = MI * (input[iIdx].x * chirp[tx].x + input[iIdx].y * chirp[tx].y);
-        outputIm[oIdx]    = MI * (-input[iIdx].x * chirp[tx].y + input[iIdx].y * chirp[tx].x);
+        if(SCALE)
+            outputRe[oIdx] *= scale_factor;
+        outputIm[oIdx] = MI * (-input[iIdx].x * chirp[tx].y + input[iIdx].y * chirp[tx].x);
+        if(SCALE)
+            outputIm[oIdx] *= scale_factor;
     }
 }
 
-template <typename T>
+template <typename T, bool SCALE = false>
 __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
     mul_device_P_P(const size_t          numof,
                    const size_t          totalWI,
@@ -387,7 +397,8 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
                    const size_t*         stride_in,
                    const size_t*         stride_out,
                    const int             dir,
-                   const int             scheme)
+                   const int             scheme,
+                   const real_type_t<T>  scale_factor)
 {
     size_t tx = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -468,7 +479,11 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_BLUESTEIN_KERNEL)
 
         real_type_t<T> MI = 1.0 / (real_type_t<T>)M;
         outputRe[oIdx]    = MI * (inputRe[iIdx] * chirpRe[tx] + inputIm[iIdx] * chirpIm[tx]);
-        outputIm[oIdx]    = MI * (-inputRe[iIdx] * chirpIm[tx] + inputIm[iIdx] * chirpRe[tx]);
+        if(SCALE)
+            outputRe[oIdx] *= scale_factor;
+        outputIm[oIdx] = MI * (-inputRe[iIdx] * chirpIm[tx] + inputIm[iIdx] * chirpRe[tx]);
+        if(SCALE)
+            outputIm[oIdx] *= scale_factor;
     }
 }
 
