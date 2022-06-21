@@ -70,26 +70,25 @@ std::vector<std::vector<size_t>> callback_sizes = {
     {23, 4},
 
     // 3D_TRTRTR, with complicated children
-    // non-callback case is also broken
-    // {63, 5, 6},
+    {63, 5, 6},
     {6, 5, 63},
     {23, 5, 6},
     {6, 5, 23},
-    // non-callback case is also broken
-    // {70, 5, 6},
+    {70, 5, 6},
     {6, 5, 70},
-    // non-callback case is also broken
-    // {8192, 5, 6},
+    {8192, 5, 6},
     {6, 5, 8192},
 
     // 3D_RTRT, with complicated children
     {23, 4, 4},
     {4, 4, 23},
-    // non-callback case is also broken
-    // {70, 4, 4},
+    {70, 4, 4},
     {4, 4, 70},
     {8192, 4, 4},
     {4, 4, 8192},
+
+    // 3D odd lengths
+    {27, 27, 27},
 
     // 3D_BLOCK_RC
     {64, 64, 64},
