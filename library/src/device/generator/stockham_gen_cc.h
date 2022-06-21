@@ -49,8 +49,8 @@ struct StockhamKernelCC : public StockhamKernel
     Variable tile_index{"tile_index", "size_t"};
     Variable num_of_tiles{"num_of_tiles", "size_t"};
     Variable edge{"edge", "bool"};
-    // Variable tid_ver{"tid_ver", "size_t"}; // id along column: replace by thread
-    Variable tid_hor{"tid_hor", "size_t"}; // id along row
+    Variable thread{"thread", "unsigned int"}; // replacing tid_ver
+    Variable tid_hor{"tid_hor", "unsigned int"}; // id along row
 
     // large twiddle support
     Multiply ltwd_entries{Parens{ShiftLeft{1, large_twiddle_base}}, 3};

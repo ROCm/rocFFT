@@ -192,16 +192,25 @@ std::string stockham_rtc(StockhamGeneratorSpecs& specs,
                          SBRC_TRANSPOSE_TYPE     transpose_type,
                          bool                    enable_callbacks)
 {
-    std::unique_ptr<Function> device;
-    std::unique_ptr<Function> device1;
+    std::unique_ptr<Function> lds2reg, reg2lds, device;
+    std::unique_ptr<Function> lds2reg1, reg2lds1, device1;
     std::unique_ptr<Function> global;
 
     if(node.scheme == CS_KERNEL_2D_SINGLE)
     {
         StockhamKernelFused2D kernel(specs, specs2d);
+        lds2reg = std::make_unique<Function>(kernel.kernel0.generate_lds_to_reg_input_function());
+        reg2lds
+            = std::make_unique<Function>(kernel.kernel0.generate_lds_from_reg_output_function());
         device = std::make_unique<Function>(kernel.kernel0.generate_device_function());
         if(kernel.kernel0.length != kernel.kernel1.length)
+        {
+            lds2reg1
+                = std::make_unique<Function>(kernel.kernel1.generate_lds_to_reg_input_function());
+            reg2lds1 = std::make_unique<Function>(
+                kernel.kernel1.generate_lds_from_reg_output_function());
             device1 = std::make_unique<Function>(kernel.kernel1.generate_device_function());
+        }
         global = std::make_unique<Function>(kernel.generate_global_function());
     }
     else
@@ -225,8 +234,10 @@ std::string stockham_rtc(StockhamGeneratorSpecs& specs,
             kernel = std::make_unique<StockhamKernelRC>(specs);
         else
             throw std::runtime_error("unhandled scheme");
-        device = std::make_unique<Function>(kernel->generate_device_function());
-        global = std::make_unique<Function>(kernel->generate_global_function());
+        lds2reg = std::make_unique<Function>(kernel->generate_lds_to_reg_input_function());
+        reg2lds = std::make_unique<Function>(kernel->generate_lds_from_reg_output_function());
+        device  = std::make_unique<Function>(kernel->generate_device_function());
+        global  = std::make_unique<Function>(kernel->generate_global_function());
     }
 
     // generated functions default to forward in-place interleaved.
@@ -240,9 +251,6 @@ std::string stockham_rtc(StockhamGeneratorSpecs& specs,
     }
     if(node.placement == rocfft_placement_notinplace)
     {
-        *device = make_outofplace(*device);
-        if(device1)
-            *device1 = make_outofplace(*device1);
         *global = make_outofplace(*global);
         if(array_type_is_planar(node.inArrayType))
             *global = make_planar(*global, "buf_in");
@@ -267,7 +275,13 @@ std::string stockham_rtc(StockhamGeneratorSpecs& specs,
     src += real2complex_device_h;
     src += rtc_workarounds_h;
 
+    src += lds2reg->render();
+    src += reg2lds->render();
     src += device->render();
+    if(lds2reg1)
+        src += lds2reg1->render();
+    if(reg2lds1)
+        src += reg2lds1->render();
     if(device1)
         src += device1->render();
 

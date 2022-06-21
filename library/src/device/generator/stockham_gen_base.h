@@ -159,7 +159,14 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     Variable thread_id{"threadIdx.x", "unsigned int"};
 
     // thread within transform
-    Variable thread{"thread", "size_t"};
+    // Variable thread{"thread", "size_t"};
+    Variable thread{"thread", "unsigned int"};
+
+    // The "pre-cal" thread that we're passing into device function,
+    // Since it is calculated either mod or div (depends on linear/nonlinear)
+    // So we'd like to do that expensive mod or div once and for all
+    // Variable thread_in_device{"thread_in_device", "size_t"};
+    Variable thread_in_device{"thread_in_device", "unsigned int"};
 
     // global input/output buffer offset to current transform
     Variable offset{"offset", "size_t"};
@@ -177,11 +184,13 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     Variable stride0{"stride0", "const size_t"};
 
     // stride between consecutive indexes in lds
-    Variable stride_lds{"stride_lds", "size_t"};
+    // Variable stride_lds{"stride_lds", "size_t"};
+    Variable stride_lds{"stride_lds", "unsigned int"};
 
     // usually in device: const size_t lstride = (sb == SB_UNIT) ? 1 : stride_lds;
     // with this definition, the compiler knows that "index * lstride" is trivial under SB_UNIT
-    Variable lstride{"lstride", "const size_t"};
+    // Variable lstride{"lstride", "const size_t"};
+    Variable lstride{"lstride", "const unsigned int"};
 
     // twiddle value during twiddle application
     Variable W{"W", "scalar_type"};
@@ -201,6 +210,14 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return factors;
     }
 
+    virtual TemplateList device_lds_reg_inout_templates()
+    {
+        TemplateList tpls;
+        tpls.append(scalar_type);
+        tpls.append(stride_type);
+        return tpls;
+    }
+
     virtual TemplateList device_templates()
     {
         TemplateList tpls;
@@ -209,7 +226,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         tpls.append(stride_type);
         tpls.append(lds_linear);
         tpls.append(direct_load_to_reg);
-        tpls.append(direct_store_from_reg);
         return tpls;
     }
 
@@ -218,9 +234,16 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return {scalar_type, stride_type, embedded_type, callback_type, directReg_type};
     }
 
+    virtual ArgumentList device_lds_reg_inout_arguments()
+    {
+        ArgumentList args{R, lds_complex, stride_lds, offset_lds, thread, write};
+        return args;
+    }
+
     virtual ArgumentList device_arguments()
     {
-        ArgumentList args{R, lds_real, lds_complex, twiddles, stride_lds, offset_lds, write};
+        ArgumentList args{
+            R, lds_real, lds_complex, twiddles, stride_lds, offset_lds, thread, write};
         return args;
     }
 
@@ -445,6 +468,57 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return work;
     }
 
+    Function generate_lds_to_reg_input_function()
+    {
+        std::string function_name = "lds_to_reg_input_length" + std::to_string(length) + "_device";
+
+        Function f{function_name};
+        f.templates = device_lds_reg_inout_templates();
+        f.arguments = device_lds_reg_inout_arguments();
+        f.qualifier = "__device__";
+
+        StatementList& body = f.body;
+        body += Declaration{
+            lstride, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride_lds}}};
+
+        auto load_lds = std::mem_fn(&StockhamKernel::load_lds_generator);
+        // first pass of load (full)
+        unsigned int width  = factors[0];
+        float        height = static_cast<float>(length) / width / threads_per_transform;
+        body += SyncThreads();
+        body += add_work(
+            std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE), width, height, false);
+
+        return f;
+    }
+
+    Function generate_lds_from_reg_output_function()
+    {
+        std::string function_name
+            = "lds_from_reg_output_length" + std::to_string(length) + "_device";
+
+        Function f{function_name};
+        f.templates = device_lds_reg_inout_templates();
+        f.arguments = device_lds_reg_inout_arguments();
+        f.qualifier = "__device__";
+
+        StatementList& body = f.body;
+        body += Declaration{
+            lstride, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride_lds}}};
+
+        auto store_lds = std::mem_fn(&StockhamKernel::store_lds_generator);
+        // last pass of store (full)
+        unsigned int width     = factors.back();
+        float        height    = static_cast<float>(length) / width / threads_per_transform;
+        unsigned int cumheight = product(factors.begin(), factors.end() - 1);
+        body += SyncThreads();
+        body += add_work(std::bind(store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight),
+                         width,
+                         height,
+                         true);
+        return f;
+    }
+
     Function generate_device_function()
     {
         std::string function_name
@@ -460,16 +534,10 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         }
 
         StatementList& body = f.body;
-        body += Declaration{thread};
         body += Declaration{W};
         body += Declaration{t};
         body += Declaration{
             lstride, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride_lds}}};
-
-        body += Assign{thread,
-                       Ternary{lds_linear,
-                               thread_id % threads_per_transform,
-                               thread_id / transforms_per_block}};
 
         for(unsigned int npass = 0; npass < factors.size(); ++npass)
         {
@@ -494,31 +562,16 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             auto load_lds  = std::mem_fn(&StockhamKernel::load_lds_generator);
             auto store_lds = std::mem_fn(&StockhamKernel::store_lds_generator);
 
-            // first pass of linear variant load (full)
-            // TODO- move this "first pass" part out of device function.
-            if(npass == 0)
-            {
-                StatementList first_load_full;
-                first_load_full += SyncThreads();
-                first_load_full
-                    += add_work(std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE),
-                                width,
-                                height,
-                                false);
-                body += If{And{!lds_is_real, !direct_load_to_reg}, first_load_full};
-            }
-
             if(npass > 0)
             {
-                // internal full lds load (both linear/nonlinear variants)
-                StatementList internal_load_full;
-                internal_load_full += SyncThreads();
-                internal_load_full
-                    += add_work(std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE),
-                                width,
-                                height,
-                                true);
-                body += If{Not{lds_is_real}, internal_load_full};
+                // internal full lds2reg (both linear/nonlinear variants)
+                StatementList lds2reg_full;
+                lds2reg_full += SyncThreads();
+                lds2reg_full += add_work(std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE),
+                                         width,
+                                         height,
+                                         true);
+                body += If{Not{lds_is_real}, lds2reg_full};
 
                 auto apply_twiddle = std::mem_fn(&StockhamKernel::apply_twiddle_generator);
                 body += add_work(
@@ -535,8 +588,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 body += large_twiddles_multiply(width, cumheight);
 
             // internal lds store (half-with-linear and full-with-linear/nonlinear)
-            StatementList store_full;
-            StatementList store_half;
+            StatementList reg2lds_full;
+            StatementList reg2lds_half;
             if(npass < factors.size() - 1)
             {
                 // linear variant store (half) and load (half)
@@ -548,8 +601,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                         = static_cast<float>(length) / half_width / threads_per_transform;
                     // minimize sync as possible
                     if(!isFirstStore)
-                        store_half += SyncThreads();
-                    store_half += add_work(
+                        reg2lds_half += SyncThreads();
+                    reg2lds_half += add_work(
                         std::bind(store_lds, this, _1, _2, _3, _4, component, cumheight),
                         half_width,
                         half_height,
@@ -557,40 +610,26 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
                     half_width  = factors[npass + 1];
                     half_height = static_cast<float>(length) / half_width / threads_per_transform;
-                    store_half += SyncThreads();
-                    store_half += add_work(std::bind(load_lds, this, _1, _2, _3, _4, component),
-                                           half_width,
-                                           half_height,
-                                           true);
+                    reg2lds_half += SyncThreads();
+                    reg2lds_half += add_work(std::bind(load_lds, this, _1, _2, _3, _4, component),
+                                             half_width,
+                                             half_height,
+                                             true);
                 }
 
                 // internal full lds store (both linear/nonlinear variants)
                 if(npass == 0)
-                    store_full += If{!direct_load_to_reg, {SyncThreads()}};
+                    reg2lds_full += If{!direct_load_to_reg, {SyncThreads()}};
                 else
-                    store_full += SyncThreads();
-                store_full += add_work(
+                    reg2lds_full += SyncThreads();
+                reg2lds_full += add_work(
                     std::bind(store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight),
                     width,
                     height,
                     true);
 
-                body += If{Not{lds_is_real}, store_full};
-                body += Else{store_half};
-            }
-
-            // last pass of linear variant store (full)
-            // TODO- move this "last pass" part out of device function.
-            if(npass == factors.size() - 1)
-            {
-                StatementList last_store_full;
-                last_store_full += SyncThreads();
-                last_store_full += add_work(
-                    std::bind(store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight),
-                    width,
-                    height,
-                    true);
-                body += If{And{!lds_is_real, !direct_store_from_reg}, last_store_full};
+                body += If{Not{lds_is_real}, reg2lds_full};
+                body += Else{reg2lds_half};
             }
         }
         return f;
@@ -656,7 +695,9 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         loadlds += real_trans_pre_post(ProcessingType::PRE);
 
         if(!direct_to_from_reg)
+        {
             body += loadlds;
+        }
         else
         {
             StatementList loadr;
@@ -666,6 +707,30 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             body += If{direct_load_to_reg, loadr};
             body += Else{loadlds};
         }
+
+        body += LineBreak{};
+        body += CommentLines{"calc the thread_in_device value once and for all device funcs"};
+        body += Declaration{thread_in_device,
+                            Ternary{lds_linear,
+                                    thread_id % threads_per_transform,
+                                    thread_id / transforms_per_block}};
+
+        // before starting the transform job (core device function)
+        // we call a re-load lds-to-reg function here, but it's not always doing things.
+        // If we're doing direct-to-reg, this function simply returns.
+        body += LineBreak{};
+        body += CommentLines{"call a pre-load from lds to registers (if necessary)"};
+        auto pre_post_lds_tmpl = device_lds_reg_inout_device_call_templates();
+        auto pre_post_lds_args = device_lds_reg_inout_device_call_arguments();
+        pre_post_lds_tmpl.set_value(stride_type.name, "lds_linear ? SB_UNIT : SB_NONUNIT");
+        StatementList preLoad;
+        preLoad += Call{"lds_to_reg_input_length" + std::to_string(length) + "_device",
+                        pre_post_lds_tmpl,
+                        pre_post_lds_args};
+        if(!direct_to_from_reg)
+            body += preLoad;
+        else
+            body += If{!direct_load_to_reg, preLoad};
 
         body += LineBreak{};
         body += CommentLines{"transform"};
@@ -683,18 +748,34 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             body += LineBreak{};
         }
 
+        // after finishing the transform job (core device function)
+        // we call a post-store reg-to-lds function here, but it's not always doing things.
+        // If we're doing direct-from-reg, this function simply returns.
+        body += LineBreak{};
+        body += CommentLines{"call a post-store from registers to lds (if necessary)"};
+        StatementList postStore;
+        postStore += Call{"lds_from_reg_output_length" + std::to_string(length) + "_device",
+                          pre_post_lds_tmpl,
+                          pre_post_lds_args};
+        if(!direct_to_from_reg)
+            body += postStore;
+        else
+            body += If{!direct_store_from_reg, postStore};
+
+        body += LineBreak{};
         StatementList storelds;
         storelds += LineBreak{};
         // handle even-length complex to real post-process in lds after transform
         storelds += real_trans_pre_post(ProcessingType::POST);
         storelds += LineBreak{};
-
         storelds += CommentLines{"store global"};
         storelds += SyncThreads{};
         storelds += store_to_global(false);
 
         if(!direct_to_from_reg)
+        {
             body += storelds;
+        }
         else
         {
             StatementList storer;
@@ -721,14 +802,19 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
     virtual StatementList store_to_global(bool store_registers) = 0;
 
+    virtual TemplateList device_lds_reg_inout_device_call_templates()
+    {
+        return {scalar_type, stride_type};
+    }
+
+    virtual std::vector<Expression> device_lds_reg_inout_device_call_arguments()
+    {
+        return {R, lds_complex, stride_lds, offset_lds, thread_in_device, Literal{"true"}};
+    }
+
     virtual TemplateList device_call_templates()
     {
-        return {scalar_type,
-                lds_is_real,
-                stride_type,
-                lds_linear,
-                direct_load_to_reg,
-                direct_store_from_reg};
+        return {scalar_type, lds_is_real, stride_type, lds_linear, direct_load_to_reg};
     }
 
     virtual std::vector<Expression> device_call_arguments(unsigned int call_iter)
@@ -740,6 +826,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 stride_lds,
                 call_iter ? Expression{offset_lds + call_iter * stride_lds * transforms_per_block}
                           : Expression{offset_lds},
+                thread_in_device,
                 Literal{"true"}};
     }
 

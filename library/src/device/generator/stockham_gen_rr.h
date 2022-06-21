@@ -27,6 +27,9 @@ struct StockhamKernelRR : public StockhamKernel
     {
     }
 
+    // TODO- check if using uint in device is also better
+    Variable thread{"thread", "unsigned int"}; // use type uint in global
+
     std::string tiling_name() override
     {
         return "SBRR";

@@ -58,6 +58,11 @@ struct StockhamKernelFused2D : public StockhamKernelRR
         return ret;
     }
 
+    std::vector<Expression> device_lds_reg_inout_device_call_arguments() override
+    {
+        return {R, lds_complex, stride_lds, offset_lds, thread_in_device, write};
+    }
+
     std::vector<Expression> device_call_arguments(unsigned int call_iter) override
     {
         return {R,
@@ -67,6 +72,7 @@ struct StockhamKernelFused2D : public StockhamKernelRR
                 stride_lds,
                 call_iter ? Expression{offset_lds + call_iter * stride_lds * transforms_per_block}
                           : Expression{offset_lds},
+                thread_in_device,
                 write};
     }
 
@@ -102,7 +108,6 @@ struct StockhamKernelFused2D : public StockhamKernelRR
 
         body += LDSDeclaration{scalar_type.name};
         body += Declaration{R};
-        body += Declaration{thread};
         body += Declaration{transform};
         body += Declaration{offset, 0};
         body += Declaration{offset_lds};
@@ -157,6 +162,9 @@ struct StockhamKernelFused2D : public StockhamKernelRR
                 LoadGlobal{buf, offset + col_offset * stride[0] + row_offset * stride[1]}};
         }
 
+        // -------------
+        // length0 part
+        // -------------
         body += LineBreak{};
         body += CommentLines{"", "length: " + std::to_string(length0), ""};
 
@@ -174,19 +182,43 @@ struct StockhamKernelFused2D : public StockhamKernelRR
             body += Assign{write, 1};
         else
             body += Assign{write, thread_id < active_threads_rows};
-        body += Assign{thread, thread_id % height};
+        // body += Assign{thread, thread_id % height};
         body += Assign{offset_lds, length0_padded * (thread_id / height)};
+        body += Assign{stride_lds, 1};
+        body += CommentLines{"calc the thread_in_device value once and for all device funcs"};
+        body += Declaration{thread_in_device,
+                            Ternary{lds_linear,
+                                    thread_id % kernel0.threads_per_transform,
+                                    thread_id / kernel0.transforms_per_block}};
+
+        body += LineBreak{};
+        body += CommentLines{"call a pre-load from lds to registers (if necessary)"};
+        auto pre_post_lds_tmpl0 = device_lds_reg_inout_device_call_templates();
+        auto pre_post_lds_args0 = device_lds_reg_inout_device_call_arguments();
+        pre_post_lds_tmpl0.set_value(stride_type.name, "SB_UNIT");
+        body += Call{"lds_to_reg_input_length" + std::to_string(length0) + "_device",
+                     pre_post_lds_tmpl0,
+                     pre_post_lds_args0};
+        body += LineBreak{};
 
         auto templates = device_call_templates();
         templates.set_value(stride_type.name, "SB_UNIT");
-        body += Assign{stride_lds, 1};
         body += Call{"forward_length" + std::to_string(length0) + "_SBRR_device",
                      templates,
                      device_call_arguments(0)};
+        body += LineBreak{};
+
+        body += CommentLines{"call a post-store from registers to lds (if necessary)"};
+        body += Call{"lds_from_reg_output_length" + std::to_string(length0) + "_device",
+                     pre_post_lds_tmpl0,
+                     pre_post_lds_args0};
+        body += LineBreak{};
 
         // note there is a syncthreads at the start of the next call
+        // -------------
+        // length1 part
+        // -------------
 
-        body += LineBreak{};
         body += CommentLines{"", "length: " + std::to_string(length1), ""};
         body += LineBreak{};
 
@@ -203,8 +235,24 @@ struct StockhamKernelFused2D : public StockhamKernelRR
             body += Assign{write, 1};
         else
             body += Assign{write, thread_id < active_threads_cols};
-        body += Assign{thread, thread_id % height};
+        // body += Assign{thread, thread_id % height};
         body += Assign{offset_lds, thread_id / height};
+        body += Assign{stride_lds, length0_padded};
+        body += CommentLines{"calc the thread_in_device value once and for all device funcs"};
+        body += Assign{thread_in_device,
+                       Ternary{lds_linear,
+                               thread_id % kernel1.threads_per_transform,
+                               thread_id / kernel1.transforms_per_block}};
+
+        body += LineBreak{};
+        body += CommentLines{"call a pre-load from lds to registers (if necessary)"};
+        auto pre_post_lds_tmpl1 = device_lds_reg_inout_device_call_templates();
+        auto pre_post_lds_args1 = device_lds_reg_inout_device_call_arguments();
+        pre_post_lds_tmpl1.set_value(stride_type.name, "SB_NONUNIT");
+        body += Call{"lds_to_reg_input_length" + std::to_string(length1) + "_device",
+                     pre_post_lds_tmpl1,
+                     pre_post_lds_args1};
+        body += LineBreak{};
 
         auto templates2 = device_call_templates();
         templates2.set_value(stride_type.name, "SB_NONUNIT");
@@ -214,10 +262,16 @@ struct StockhamKernelFused2D : public StockhamKernelRR
         body += Assign{stride_lds, length0_padded};
         body += Call{
             "forward_length" + std::to_string(length1) + "_SBRR_device", templates2, arguments2};
+        body += LineBreak{};
+
+        body += CommentLines{"call a post-store from registers to lds (if necessary)"};
+        body += Call{"lds_from_reg_output_length" + std::to_string(length1) + "_device",
+                     pre_post_lds_tmpl1,
+                     pre_post_lds_args1};
+        body += LineBreak{};
 
         // store
         body += SyncThreads{};
-        body += LineBreak{};
         body += CommentLines{"store length-" + std::to_string(length0) + " rows using all threads.",
                              "need " + std::to_string(rw_iters) + " iterations to store all "
                                  + std::to_string(length1) + " rows in the slab"};

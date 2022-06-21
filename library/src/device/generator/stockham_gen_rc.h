@@ -63,9 +63,8 @@ struct StockhamKernelRC : public StockhamKernel
     Variable tile_index_in_plane{"tile_index_in_plane", "unsigned int"};
 
     Variable edge{"edge", "bool"};
+    Variable thread{"thread", "unsigned int"}; // replacing tid_ver
     Variable tid_hor{"tid_hor", "unsigned int"};
-    // Variable tid_ver{"tid_ver", "size_t"};
-    Variable thread{"thread", "unsigned int"};
 
     std::string tiling_name() override
     {

@@ -41,24 +41,24 @@ std::string make_place_format_variants(const Function&                device,
                                        bool                           allow_inplace = true)
 {
     std::string output;
+
+    // device functions have no difference between ip/op
+    output += device.render();
+    if(device1)
+        output += (*device1).render();
+
     // inplace, interleaved
     if(allow_inplace)
     {
-        output += make_inplace(device).render();
-        if(device1)
-            output += make_inplace(*device1).render();
         output += make_inplace(global).render();
 
         // in-place, planar
         output += make_inplace(make_planar(global, "buf")).render();
     }
 
+    // out-of-place, interleaved -> interleaved
     auto global_outplace = make_outofplace(global);
 
-    // out-of-place, interleaved -> interleaved
-    output += make_outofplace(device).render();
-    if(device1)
-        output += make_outofplace(*device1).render();
     output += global_outplace.render();
 
     // out-of-place, interleaved -> planar
@@ -223,10 +223,7 @@ std::string make_launcher(unsigned int                     length,
     return output;
 }
 
-std::string make_variants(const Function&                device,
-                          const std::optional<Function>& device1,
-                          const Function&                global,
-                          bool                           allow_inplace)
+std::string append_headers()
 {
     std::string output;
 
@@ -237,6 +234,35 @@ std::string make_variants(const Function&                device,
     output += "#include \"real2complex_device.h\"\n";
     output += "#include \"rocfft_butterfly_template.h\"\n";
     output += "#include <hip/hip_runtime.h>\n\n";
+
+    return output;
+}
+
+std::string append_common_functions(const Function&                device_load_lds,
+                                    const Function&                device_store_lds,
+                                    const std::optional<Function>& device_load_lds1,
+                                    const std::optional<Function>& device_store_lds1)
+{
+    std::string output;
+
+    output += device_load_lds.render();
+    output += device_store_lds.render();
+
+    if(device_load_lds1)
+        output += (*device_load_lds1).render();
+
+    if(device_store_lds1)
+        output += (*device_store_lds1).render();
+
+    return output;
+}
+
+std::string make_variants(const Function&                device,
+                          const std::optional<Function>& device1,
+                          const Function&                global,
+                          bool                           allow_inplace)
+{
+    std::string output;
 
     // forward kernels
     output += make_place_format_variants(device, device1, global, allow_inplace);
@@ -256,10 +282,15 @@ std::string stockham_variants(const std::string&      filename,
 {
     std::vector<GeneratedLauncher> launchers;
     std::string                    output;
+    output += append_headers();
     if(specs.scheme == "CS_KERNEL_STOCKHAM")
     {
         StockhamKernelRR kernel(specs);
-        output = make_variants(
+        output += append_common_functions(kernel.generate_lds_to_reg_input_function(),
+                                          kernel.generate_lds_from_reg_output_function(),
+                                          {},
+                                          {});
+        output += make_variants(
             kernel.generate_device_function(), {}, kernel.generate_global_function(), true);
         output += make_launcher(specs.length,
                                 true,
@@ -273,7 +304,11 @@ std::string stockham_variants(const std::string&      filename,
     else if(specs.scheme == "CS_KERNEL_STOCKHAM_BLOCK_CC")
     {
         StockhamKernelCC kernel(specs);
-        output = make_variants(
+        output += append_common_functions(kernel.generate_lds_to_reg_input_function(),
+                                          kernel.generate_lds_from_reg_output_function(),
+                                          {},
+                                          {});
+        output += make_variants(
             kernel.generate_device_function(), {}, kernel.generate_global_function(), true);
         output += make_launcher(specs.length,
                                 true,
@@ -287,7 +322,11 @@ std::string stockham_variants(const std::string&      filename,
     else if(specs.scheme == "CS_KERNEL_STOCKHAM_BLOCK_RC")
     {
         StockhamKernelRC kernel(specs);
-        output = make_variants(
+        output += append_common_functions(kernel.generate_lds_to_reg_input_function(),
+                                          kernel.generate_lds_from_reg_output_function(),
+                                          {},
+                                          {});
+        output += make_variants(
             kernel.generate_device_function(), {}, kernel.generate_global_function(), false);
 
         std::vector<LaunchSuffix> suffixes;
@@ -335,7 +374,11 @@ std::string stockham_variants(const std::string&      filename,
     else if(specs.scheme == "CS_KERNEL_STOCKHAM_BLOCK_CR")
     {
         StockhamKernelCR kernel(specs);
-        output = make_variants(
+        output += append_common_functions(kernel.generate_lds_to_reg_input_function(),
+                                          kernel.generate_lds_from_reg_output_function(),
+                                          {},
+                                          {});
+        output += make_variants(
             kernel.generate_device_function(), {}, kernel.generate_global_function(), false);
 
         output += make_launcher(specs.length,
@@ -351,13 +394,23 @@ std::string stockham_variants(const std::string&      filename,
     {
         StockhamKernelFused2D fused2d(specs, specs2d);
 
-        auto                    device0 = fused2d.kernel0.generate_device_function();
+        auto                    device0  = fused2d.kernel0.generate_device_function();
+        auto                    lds2reg0 = fused2d.kernel0.generate_lds_to_reg_input_function();
+        auto                    reg2lds0 = fused2d.kernel0.generate_lds_from_reg_output_function();
         std::optional<Function> device1;
+        std::optional<Function> lds2reg1;
+        std::optional<Function> reg2lds1;
         if(specs.length != specs2d.length)
-            device1 = fused2d.kernel1.generate_device_function();
+        {
+            device1  = fused2d.kernel1.generate_device_function();
+            lds2reg1 = fused2d.kernel1.generate_lds_to_reg_input_function();
+            reg2lds1 = fused2d.kernel1.generate_lds_from_reg_output_function();
+        }
         auto global = fused2d.generate_global_function();
 
-        output = make_variants(device0, device1, global, true);
+        output += append_common_functions(lds2reg0, reg2lds0, lds2reg1, reg2lds1);
+
+        output += make_variants(device0, device1, global, true);
 
         // output 2D launchers
         std::string length_fn

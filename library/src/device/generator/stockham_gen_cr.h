@@ -34,8 +34,8 @@ struct StockhamKernelCR : public StockhamKernel
     Variable tile_index{"tile_index", "size_t"};
     Variable tile_length{"tile_length", "size_t"};
     Variable edge{"edge", "bool"};
-    Variable tid_hor{"tid_hor", "size_t"};
-    // Variable tid0{"tid0", "size_t"};
+    Variable thread{"thread", "unsigned int"}; // replacing tid_ver
+    Variable tid_hor{"tid_hor", "unsigned int"};
 
     std::string tiling_name() override
     {

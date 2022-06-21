@@ -1910,16 +1910,6 @@ struct MakeOutOfPlaceVisitor : public BaseVisitor
         y.name = "op_" + y.name;
         return BaseVisitor::visit_Function(y);
     }
-
-    Expression visit_CallExpr(const CallExpr& x) override
-    {
-        // only change the FFT device function, not other calls like
-        // pre/post proc or FwdRad*
-        auto y = CallExpr(x);
-        if(y.name.find("_length") != std::string::npos)
-            y.name = "op_" + y.name;
-        return y;
-    }
 };
 
 Function make_outofplace(const Function& f)
@@ -1940,16 +1930,6 @@ struct MakeInPlaceVisitor : public BaseVisitor
         Function y{x};
         y.name = "ip_" + y.name;
         return BaseVisitor::visit_Function(y);
-    }
-
-    Expression visit_CallExpr(const CallExpr& x) override
-    {
-        // only change the FFT device function, not other calls like
-        // pre/post proc or FwdRad*
-        auto y = CallExpr(x);
-        if(y.name.find("_length") != std::string::npos)
-            y.name = "ip_" + y.name;
-        return y;
     }
 };
 
