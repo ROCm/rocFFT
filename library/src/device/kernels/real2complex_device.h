@@ -22,7 +22,7 @@
 #define REAL_TO_COMPLEX_DEVICE_H
 
 // The even-length real to complex post process device kernel
-template <typename Tcomplex, bool Ndiv4, CallbackType cbtype>
+template <typename Tcomplex, bool Ndiv4, CallbackType cbtype, bool SCALE = false>
 __device__ inline void post_process_interleaved(const size_t    idx_p,
                                                 const size_t    idx_q,
                                                 const size_t    half_N,
@@ -35,7 +35,8 @@ __device__ inline void post_process_interleaved(const size_t    idx_p,
                                                 void* __restrict__ load_cb_data,
                                                 uint32_t load_cb_lds_bytes,
                                                 void* __restrict__ store_cb_fn,
-                                                void* __restrict__ store_cb_data)
+                                                void* __restrict__ store_cb_data,
+                                                const real_type_t<Tcomplex> scale_factor = 0.0)
 {
     // post process can't be the first kernel, so don't bother
     // going through the load cb to read global memory
@@ -47,18 +48,30 @@ __device__ inline void post_process_interleaved(const size_t    idx_p,
     {
         outval.x = input[0].x - input[0].y;
         outval.y = 0;
-        store_cb(output, output_base + half_N, outval, store_cb_data, nullptr);
+        store_cb(output,
+                 output_base + half_N,
+                 SCALE ? (outval * scale_factor) : outval,
+                 store_cb_data,
+                 nullptr);
 
         outval.x = input[0].x + input[0].y;
         outval.y = 0;
-        store_cb(output, output_base + 0, outval, store_cb_data, nullptr);
+        store_cb(output,
+                 output_base + 0,
+                 SCALE ? (outval * scale_factor) : outval,
+                 store_cb_data,
+                 nullptr);
 
         if(Ndiv4)
         {
             outval.x = input[quarter_N].x;
             outval.y = -input[quarter_N].y;
 
-            store_cb(output, output_base + quarter_N, outval, store_cb_data, nullptr);
+            store_cb(output,
+                     output_base + quarter_N,
+                     SCALE ? (outval * scale_factor) : outval,
+                     store_cb_data,
+                     nullptr);
         }
     }
     else
@@ -73,11 +86,19 @@ __device__ inline void post_process_interleaved(const size_t    idx_p,
 
         outval.x = u.x + v.x * twd_p.y + u.y * twd_p.x;
         outval.y = v.y + u.y * twd_p.y - v.x * twd_p.x;
-        store_cb(output, output_base + idx_p, outval, store_cb_data, nullptr);
+        store_cb(output,
+                 output_base + idx_p,
+                 SCALE ? (outval * scale_factor) : outval,
+                 store_cb_data,
+                 nullptr);
 
         outval.x = u.x - v.x * twd_p.y - u.y * twd_p.x;
         outval.y = -v.y + u.y * twd_p.y - v.x * twd_p.x;
-        store_cb(output, output_base + idx_q, outval, store_cb_data, nullptr);
+        store_cb(output,
+                 output_base + idx_q,
+                 SCALE ? (outval * scale_factor) : outval,
+                 store_cb_data,
+                 nullptr);
     }
 }
 

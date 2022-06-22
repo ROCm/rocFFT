@@ -95,29 +95,30 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
         kernel_func = real2complex_kernel<TFLOAT, CallbackType::USER_LOAD_STORE, DIM>; \
     else                                                                               \
         kernel_func = real2complex_kernel<TFLOAT, CallbackType::NONE, DIM>;            \
-    hipLaunchKernelGGL(kernel_func,                                                    \
-                       grid,                                                           \
-                       threads,                                                        \
-                       0,                                                              \
-                       rocfft_stream,                                                  \
-                       kern_lengths[0],                                                \
-                       kern_lengths[1],                                                \
-                       kern_lengths[2],                                                \
-                       kern_stride_in[0],                                              \
-                       kern_stride_in[1],                                              \
-                       kern_stride_in[2],                                              \
-                       kern_stride_in[3],                                              \
-                       kern_stride_out[0],                                             \
-                       kern_stride_out[1],                                             \
-                       kern_stride_out[2],                                             \
-                       kern_stride_out[3],                                             \
-                       static_cast<real_type_t<TFLOAT>*>(input_buffer),                \
-                       static_cast<TFLOAT*>(output_buffer),                            \
-                       data->callbacks.load_cb_fn,                                     \
-                       data->callbacks.load_cb_data,                                   \
-                       data->callbacks.load_cb_lds_bytes,                              \
-                       data->callbacks.store_cb_fn,                                    \
-                       data->callbacks.store_cb_data);
+    hipLaunchKernelGGL_shim(data->log_func,                                            \
+                            kernel_func,                                               \
+                            grid,                                                      \
+                            threads,                                                   \
+                            0,                                                         \
+                            rocfft_stream,                                             \
+                            kern_lengths[0],                                           \
+                            kern_lengths[1],                                           \
+                            kern_lengths[2],                                           \
+                            kern_stride_in[0],                                         \
+                            kern_stride_in[1],                                         \
+                            kern_stride_in[2],                                         \
+                            kern_stride_in[3],                                         \
+                            kern_stride_out[0],                                        \
+                            kern_stride_out[1],                                        \
+                            kern_stride_out[2],                                        \
+                            kern_stride_out[3],                                        \
+                            static_cast<real_type_t<TFLOAT>*>(input_buffer),           \
+                            static_cast<TFLOAT*>(output_buffer),                       \
+                            data->callbacks.load_cb_fn,                                \
+                            data->callbacks.load_cb_data,                              \
+                            data->callbacks.load_cb_lds_bytes,                         \
+                            data->callbacks.store_cb_fn,                               \
+                            data->callbacks.store_cb_data);
 
 // assign real2complex function pointer given a float type
 #define REAL2COMPLEX_KERNEL_LAUNCH(TFLOAT)         \
@@ -207,7 +208,7 @@ ROCFFT_DEVICE_EXPORT void real2complex(const void* data_p, void* back_p)
 }
 
 // The complex to hermitian simple copy kernel for interleaved format
-template <typename Tcomplex, CallbackType cbtype, unsigned int dim>
+template <typename Tcomplex, CallbackType cbtype, unsigned int dim, bool SCALE>
 __global__ void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     complex2hermitian_kernel(unsigned int lengths0,
                              unsigned int lengths1,
@@ -226,7 +227,8 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
                              void* __restrict__ load_cb_data,
                              uint32_t load_cb_lds_bytes,
                              void* __restrict__ store_cb_fn,
-                             void* __restrict__ store_cb_data)
+                             void* __restrict__ store_cb_data,
+                             const real_type_t<Tcomplex> scale_factor)
 {
     size_t idx_0 = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -264,12 +266,16 @@ __global__ void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
         const auto outputIdx = offset_out + idx_0 * stride_out[0];
 
         auto store_cb = get_store_cb<Tcomplex, cbtype>(store_cb_fn);
-        store_cb(output, outputIdx, input[inputIdx], store_cb_data, nullptr);
+        store_cb(output,
+                 outputIdx,
+                 SCALE ? (input[inputIdx] * scale_factor) : input[inputIdx],
+                 store_cb_data,
+                 nullptr);
     }
 }
 
 // The planar overload function of the above interleaved one
-template <typename Tcomplex, unsigned int dim>
+template <typename Tcomplex, unsigned int dim, bool SCALE>
 __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     complex2hermitian_planar_kernel(unsigned int lengths0,
                                     unsigned int lengths1,
@@ -284,7 +290,8 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
                                     unsigned int stride_out3,
                                     const Tcomplex* __restrict__ input,
                                     real_type_t<Tcomplex>* __restrict__ outputRe,
-                                    real_type_t<Tcomplex>* __restrict__ outputIm)
+                                    real_type_t<Tcomplex>* __restrict__ outputIm,
+                                    const real_type_t<Tcomplex> scale_factor)
 {
     size_t idx_0 = blockIdx.x * LAUNCH_BOUNDS_R2C_C2R_KERNEL + threadIdx.x;
 
@@ -316,40 +323,52 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
         const auto inputIdx  = offset_in + idx_0 * stride_in[0];
         const auto outputIdx = offset_out + idx_0 * stride_out[0];
 
-        outputRe[outputIdx] = input[inputIdx].x;
-        outputIm[outputIdx] = input[inputIdx].y;
+        outputRe[outputIdx] = SCALE ? (input[inputIdx].x * scale_factor) : input[inputIdx].x;
+        outputIm[outputIdx] = SCALE ? (input[inputIdx].y * scale_factor) : input[inputIdx].y;
     }
 }
 
-#define COMPLEX2HERM_KERNEL_LAUNCH_DIM(TFLOAT, DIM)                                         \
-    decltype(&complex2hermitian_kernel<TFLOAT, CallbackType::NONE, DIM>) kernel_func;       \
-    if(data->get_callback_type() == CallbackType::USER_LOAD_STORE)                          \
-        kernel_func = complex2hermitian_kernel<TFLOAT, CallbackType::USER_LOAD_STORE, DIM>; \
-    else                                                                                    \
-        kernel_func = complex2hermitian_kernel<TFLOAT, CallbackType::NONE, DIM>;            \
-    hipLaunchKernelGGL(kernel_func,                                                         \
-                       grid,                                                                \
-                       threads,                                                             \
-                       0,                                                                   \
-                       rocfft_stream,                                                       \
-                       kern_lengths[0],                                                     \
-                       kern_lengths[1],                                                     \
-                       kern_lengths[2],                                                     \
-                       kern_stride_in[0],                                                   \
-                       kern_stride_in[1],                                                   \
-                       kern_stride_in[2],                                                   \
-                       kern_stride_in[3],                                                   \
-                       kern_stride_out[0],                                                  \
-                       kern_stride_out[1],                                                  \
-                       kern_stride_out[2],                                                  \
-                       kern_stride_out[3],                                                  \
-                       static_cast<TFLOAT*>(input_buffer),                                  \
-                       static_cast<TFLOAT*>(output_buffer),                                 \
-                       data->callbacks.load_cb_fn,                                          \
-                       data->callbacks.load_cb_data,                                        \
-                       data->callbacks.load_cb_lds_bytes,                                   \
-                       data->callbacks.store_cb_fn,                                         \
-                       data->callbacks.store_cb_data);
+#define COMPLEX2HERM_KERNEL_LAUNCH_SCALE(TFLOAT, DIM, CBTYPE)                    \
+    decltype(&complex2hermitian_kernel<TFLOAT, CBTYPE, DIM, false>) kernel_func; \
+    if(data->node->IsScalingEnabled())                                           \
+        kernel_func = complex2hermitian_kernel<TFLOAT, CBTYPE, DIM, true>;       \
+    else                                                                         \
+        kernel_func = complex2hermitian_kernel<TFLOAT, CBTYPE, DIM, false>;      \
+    hipLaunchKernelGGL_shim(data->log_func,                                      \
+                            kernel_func,                                         \
+                            grid,                                                \
+                            threads,                                             \
+                            0,                                                   \
+                            rocfft_stream,                                       \
+                            kern_lengths[0],                                     \
+                            kern_lengths[1],                                     \
+                            kern_lengths[2],                                     \
+                            kern_stride_in[0],                                   \
+                            kern_stride_in[1],                                   \
+                            kern_stride_in[2],                                   \
+                            kern_stride_in[3],                                   \
+                            kern_stride_out[0],                                  \
+                            kern_stride_out[1],                                  \
+                            kern_stride_out[2],                                  \
+                            kern_stride_out[3],                                  \
+                            static_cast<TFLOAT*>(input_buffer),                  \
+                            static_cast<TFLOAT*>(output_buffer),                 \
+                            data->callbacks.load_cb_fn,                          \
+                            data->callbacks.load_cb_data,                        \
+                            data->callbacks.load_cb_lds_bytes,                   \
+                            data->callbacks.store_cb_fn,                         \
+                            data->callbacks.store_cb_data,                       \
+                            data->node->scale_factor);
+
+#define COMPLEX2HERM_KERNEL_LAUNCH_DIM(TFLOAT, DIM)                                   \
+    if(data->get_callback_type() == CallbackType::USER_LOAD_STORE)                    \
+    {                                                                                 \
+        COMPLEX2HERM_KERNEL_LAUNCH_SCALE(TFLOAT, DIM, CallbackType::USER_LOAD_STORE); \
+    }                                                                                 \
+    else                                                                              \
+    {                                                                                 \
+        COMPLEX2HERM_KERNEL_LAUNCH_SCALE(TFLOAT, DIM, CallbackType::NONE);            \
+    }
 
 // assign complex2hermitian function pointer given a float type
 #define COMPLEX2HERM_KERNEL_LAUNCH(TFLOAT)         \
@@ -368,31 +387,33 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     else                                           \
         throw std::runtime_error("invalid dimension in complex2hermitian");
 
-#define COMPLEX2HERM_PLANAR_KERNEL_LAUNCH_DIM(TFLOAT, DIM)                 \
-    decltype(&complex2hermitian_planar_kernel<TFLOAT, DIM>) kernel_func;   \
-    if(data->get_callback_type() == CallbackType::USER_LOAD_STORE)         \
-        kernel_func = complex2hermitian_planar_kernel<TFLOAT, DIM>;        \
-    else                                                                   \
-        kernel_func = complex2hermitian_planar_kernel<TFLOAT, DIM>;        \
-    hipLaunchKernelGGL(kernel_func,                                        \
-                       grid,                                               \
-                       threads,                                            \
-                       0,                                                  \
-                       rocfft_stream,                                      \
-                       kern_lengths[0],                                    \
-                       kern_lengths[1],                                    \
-                       kern_lengths[2],                                    \
-                       kern_stride_in[0],                                  \
-                       kern_stride_in[1],                                  \
-                       kern_stride_in[2],                                  \
-                       kern_stride_in[3],                                  \
-                       kern_stride_out[0],                                 \
-                       kern_stride_out[1],                                 \
-                       kern_stride_out[2],                                 \
-                       kern_stride_out[3],                                 \
-                       static_cast<TFLOAT*>(input_buffer),                 \
-                       static_cast<real_type_t<TFLOAT>*>(data->bufOut[0]), \
-                       static_cast<real_type_t<TFLOAT>*>(data->bufOut[1]));
+#define COMPLEX2HERM_PLANAR_KERNEL_LAUNCH_DIM(TFLOAT, DIM)                      \
+    decltype(&complex2hermitian_planar_kernel<TFLOAT, DIM, false>) kernel_func; \
+    if(data->node->IsScalingEnabled())                                          \
+        kernel_func = complex2hermitian_planar_kernel<TFLOAT, DIM, true>;       \
+    else                                                                        \
+        kernel_func = complex2hermitian_planar_kernel<TFLOAT, DIM, false>;      \
+    hipLaunchKernelGGL_shim(data->log_func,                                     \
+                            kernel_func,                                        \
+                            grid,                                               \
+                            threads,                                            \
+                            0,                                                  \
+                            rocfft_stream,                                      \
+                            kern_lengths[0],                                    \
+                            kern_lengths[1],                                    \
+                            kern_lengths[2],                                    \
+                            kern_stride_in[0],                                  \
+                            kern_stride_in[1],                                  \
+                            kern_stride_in[2],                                  \
+                            kern_stride_in[3],                                  \
+                            kern_stride_out[0],                                 \
+                            kern_stride_out[1],                                 \
+                            kern_stride_out[2],                                 \
+                            kern_stride_out[3],                                 \
+                            static_cast<TFLOAT*>(input_buffer),                 \
+                            static_cast<real_type_t<TFLOAT>*>(data->bufOut[0]), \
+                            static_cast<real_type_t<TFLOAT>*>(data->bufOut[1]), \
+                            data->node->scale_factor);
 
 // assign complex2hermitian_planar function pointer given a float type
 #define COMPLEX2HERM_PLANAR_KERNEL_LAUNCH(TFLOAT)         \

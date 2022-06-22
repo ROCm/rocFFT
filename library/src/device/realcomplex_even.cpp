@@ -37,7 +37,7 @@
 // Tcomplex is memory allocation type, could be float2 or double2.
 // Each thread handles 2 points.
 // When N is divisible by 4, one value is handled separately; this is controlled by Ndiv4.
-template <typename Tcomplex, bool Ndiv4, CallbackType cbtype>
+template <typename Tcomplex, bool Ndiv4, CallbackType cbtype, bool SCALE>
 __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     real_post_process_kernel_interleaved_1D(const size_t half_N,
                                             const void*  input0,
@@ -49,7 +49,8 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
                                             void* __restrict__ load_cb_data,
                                             uint32_t load_cb_lds_bytes,
                                             void* __restrict__ store_cb_fn,
-                                            void* __restrict__ store_cb_data)
+                                            void* __restrict__ store_cb_data,
+                                            const double scale_factor)
 {
     // blockIdx.y gives the multi-dimensional offset
     // blockIdx.z gives the batch offset
@@ -66,19 +67,20 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
         const auto input         = (Tcomplex*)(input0) + blockIdx.z * idist;
         auto       output_offset = blockIdx.z * odist;
 
-        post_process_interleaved<Tcomplex, Ndiv4, cbtype>(idx_p,
-                                                          idx_q,
-                                                          half_N,
-                                                          quarter_N,
-                                                          input,
-                                                          static_cast<Tcomplex*>(output0),
-                                                          output_offset,
-                                                          twiddles,
-                                                          load_cb_fn,
-                                                          load_cb_data,
-                                                          load_cb_lds_bytes,
-                                                          store_cb_fn,
-                                                          store_cb_data);
+        post_process_interleaved<Tcomplex, Ndiv4, cbtype, SCALE>(idx_p,
+                                                                 idx_q,
+                                                                 half_N,
+                                                                 quarter_N,
+                                                                 input,
+                                                                 static_cast<Tcomplex*>(output0),
+                                                                 output_offset,
+                                                                 twiddles,
+                                                                 load_cb_fn,
+                                                                 load_cb_data,
+                                                                 load_cb_lds_bytes,
+                                                                 store_cb_fn,
+                                                                 store_cb_data,
+                                                                 scale_factor);
     }
 }
 
@@ -131,27 +133,47 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     }
 }
 
-template <typename Tcomplex, bool Ndiv4>
-__device__ inline void post_process_planar(const size_t           idx_p,
-                                           const size_t           idx_q,
-                                           const size_t           half_N,
-                                           const size_t           quarter_N,
-                                           const Tcomplex*        input,
-                                           real_type_t<Tcomplex>* outputRe,
-                                           real_type_t<Tcomplex>* outputIm,
-                                           const Tcomplex*        twiddles)
+template <typename Tcomplex, bool Ndiv4, bool SCALE = false>
+__device__ inline void post_process_planar(const size_t idx_p,
+                                           const size_t idx_q,
+                                           const size_t half_N,
+                                           const size_t quarter_N,
+                                           const Tcomplex* __restrict__ input,
+                                           real_type_t<Tcomplex>* __restrict__ outputRe,
+                                           real_type_t<Tcomplex>* __restrict__ outputIm,
+                                           const Tcomplex* __restrict__ twiddles,
+                                           const real_type_t<Tcomplex> scale_factor = 1.0)
 {
+    real_type_t<Tcomplex> tmp;
     if(idx_p == 0)
     {
-        outputRe[half_N] = input[0].x - input[0].y;
+        tmp = input[0].x - input[0].y;
+        if(SCALE)
+            tmp *= scale_factor;
+
+        outputRe[half_N] = tmp;
         outputIm[half_N] = 0;
-        outputRe[0]      = input[0].x + input[0].y;
-        outputIm[0]      = 0;
+
+        tmp = input[0].x + input[0].y;
+        if(SCALE)
+            tmp *= scale_factor;
+
+        outputRe[0] = tmp;
+        outputIm[0] = 0;
 
         if(Ndiv4)
         {
-            outputRe[quarter_N] = input[quarter_N].x;
-            outputIm[quarter_N] = -input[quarter_N].y;
+            tmp = input[quarter_N].x;
+            if(SCALE)
+                tmp *= scale_factor;
+
+            outputRe[quarter_N] = tmp;
+
+            tmp = -input[quarter_N].y;
+            if(SCALE)
+                tmp *= scale_factor;
+
+            outputIm[quarter_N] = tmp;
         }
     }
     else
@@ -164,16 +186,34 @@ __device__ inline void post_process_planar(const size_t           idx_p,
         const Tcomplex twd_p = twiddles[idx_p];
         // NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y);
 
-        outputRe[idx_p] = u.x + v.x * twd_p.y + u.y * twd_p.x;
-        outputIm[idx_p] = v.y + u.y * twd_p.y - v.x * twd_p.x;
+        tmp = u.x + v.x * twd_p.y + u.y * twd_p.x;
+        if(SCALE)
+            tmp *= scale_factor;
 
-        outputRe[idx_q] = u.x - v.x * twd_p.y - u.y * twd_p.x;
-        outputIm[idx_q] = -v.y + u.y * twd_p.y - v.x * twd_p.x;
+        outputRe[idx_p] = tmp;
+
+        tmp = v.y + u.y * twd_p.y - v.x * twd_p.x;
+        if(SCALE)
+            tmp *= scale_factor;
+
+        outputIm[idx_p] = tmp;
+
+        tmp = u.x - v.x * twd_p.y - u.y * twd_p.x;
+        if(SCALE)
+            tmp *= scale_factor;
+
+        outputRe[idx_q] = tmp;
+
+        tmp = -v.y + u.y * twd_p.y - v.x * twd_p.x;
+        if(SCALE)
+            tmp *= scale_factor;
+
+        outputIm[idx_q] = tmp;
     }
 }
 
 // Planar version of r2c post-process kernel, 1D
-template <typename Tcomplex, bool Ndiv4>
+template <typename Tcomplex, bool Ndiv4, bool SCALE>
 __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
     real_post_process_kernel_planar_1D(const size_t half_N,
                                        const void*  input0,
@@ -181,7 +221,8 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
                                        void*        output0,
                                        void*        output1,
                                        const size_t odist,
-                                       const void*  twiddles0)
+                                       const void*  twiddles0,
+                                       const double scale_factor)
 {
     // blockIdx.y gives the multi-dimensional offset
     // blockIdx.z gives the batch offset
@@ -202,8 +243,8 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
         auto       outputIm = (real_type_t<Tcomplex>*)(output1) + blockIdx.z * odist;
         // clang format on
 
-        post_process_planar<Tcomplex, Ndiv4>(
-            idx_p, idx_q, half_N, quarter_N, input, outputRe, outputIm, twiddles);
+        post_process_planar<Tcomplex, Ndiv4, SCALE>(
+            idx_p, idx_q, half_N, quarter_N, input, outputRe, outputIm, twiddles, scale_factor);
     }
 }
 
@@ -250,71 +291,128 @@ __global__ static void __launch_bounds__(LAUNCH_BOUNDS_R2C_C2R_KERNEL)
 ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
 {
     // Map to 1D interleaved kernels:
-    std::map<std::tuple<rocfft_precision, bool, CallbackType>,
-             decltype(&real_post_process_kernel_interleaved_1D<float2, true, CallbackType::NONE>)>
+    std::map<
+        std::tuple<rocfft_precision, bool, CallbackType, bool>,
+        decltype(&real_post_process_kernel_interleaved_1D<float2, true, CallbackType::NONE, false>)>
         kernelmap_interleaved_1D;
     kernelmap_interleaved_1D.emplace(
-        std::make_tuple(rocfft_precision_single, true, CallbackType::NONE),
-        &(real_post_process_kernel_interleaved_1D<float2, true, CallbackType::NONE>));
+        std::make_tuple(rocfft_precision_single, true, CallbackType::NONE, false),
+        &(real_post_process_kernel_interleaved_1D<float2, true, CallbackType::NONE, false>));
     kernelmap_interleaved_1D.emplace(
-        std::make_tuple(rocfft_precision_single, false, CallbackType::NONE),
-        &(real_post_process_kernel_interleaved_1D<float2, false, CallbackType::NONE>));
+        std::make_tuple(rocfft_precision_single, false, CallbackType::NONE, false),
+        &(real_post_process_kernel_interleaved_1D<float2, false, CallbackType::NONE, false>));
     kernelmap_interleaved_1D.emplace(
-        std::make_tuple(rocfft_precision_double, true, CallbackType::NONE),
-        &(real_post_process_kernel_interleaved_1D<double2, true, CallbackType::NONE>));
+        std::make_tuple(rocfft_precision_double, true, CallbackType::NONE, false),
+        &(real_post_process_kernel_interleaved_1D<double2, true, CallbackType::NONE, false>));
     kernelmap_interleaved_1D.emplace(
-        std::make_tuple(rocfft_precision_double, false, CallbackType::NONE),
-        &(real_post_process_kernel_interleaved_1D<double2, false, CallbackType::NONE>));
+        std::make_tuple(rocfft_precision_double, false, CallbackType::NONE, false),
+        &(real_post_process_kernel_interleaved_1D<double2, false, CallbackType::NONE, false>));
     kernelmap_interleaved_1D.emplace(
-        std::make_tuple(rocfft_precision_single, true, CallbackType::USER_LOAD_STORE),
-        &(real_post_process_kernel_interleaved_1D<float2, true, CallbackType::USER_LOAD_STORE>));
+        std::make_tuple(rocfft_precision_single, true, CallbackType::USER_LOAD_STORE, false),
+        &(real_post_process_kernel_interleaved_1D<float2,
+                                                  true,
+                                                  CallbackType::USER_LOAD_STORE,
+                                                  false>));
     kernelmap_interleaved_1D.emplace(
-        std::make_tuple(rocfft_precision_single, false, CallbackType::USER_LOAD_STORE),
-        &(real_post_process_kernel_interleaved_1D<float2, false, CallbackType::USER_LOAD_STORE>));
+        std::make_tuple(rocfft_precision_single, false, CallbackType::USER_LOAD_STORE, false),
+        &(real_post_process_kernel_interleaved_1D<float2,
+                                                  false,
+                                                  CallbackType::USER_LOAD_STORE,
+                                                  false>));
     kernelmap_interleaved_1D.emplace(
-        std::make_tuple(rocfft_precision_double, true, CallbackType::USER_LOAD_STORE),
-        &(real_post_process_kernel_interleaved_1D<double2, true, CallbackType::USER_LOAD_STORE>));
+        std::make_tuple(rocfft_precision_double, true, CallbackType::USER_LOAD_STORE, false),
+        &(real_post_process_kernel_interleaved_1D<double2,
+                                                  true,
+                                                  CallbackType::USER_LOAD_STORE,
+                                                  false>));
     kernelmap_interleaved_1D.emplace(
-        std::make_tuple(rocfft_precision_double, false, CallbackType::USER_LOAD_STORE),
-        &(real_post_process_kernel_interleaved_1D<double2, false, CallbackType::USER_LOAD_STORE>));
+        std::make_tuple(rocfft_precision_double, false, CallbackType::USER_LOAD_STORE, false),
+        &(real_post_process_kernel_interleaved_1D<double2,
+                                                  false,
+                                                  CallbackType::USER_LOAD_STORE,
+                                                  false>));
+    kernelmap_interleaved_1D.emplace(
+        std::make_tuple(rocfft_precision_single, true, CallbackType::NONE, true),
+        &(real_post_process_kernel_interleaved_1D<float2, true, CallbackType::NONE, true>));
+    kernelmap_interleaved_1D.emplace(
+        std::make_tuple(rocfft_precision_single, false, CallbackType::NONE, true),
+        &(real_post_process_kernel_interleaved_1D<float2, false, CallbackType::NONE, true>));
+    kernelmap_interleaved_1D.emplace(
+        std::make_tuple(rocfft_precision_double, true, CallbackType::NONE, true),
+        &(real_post_process_kernel_interleaved_1D<double2, true, CallbackType::NONE, true>));
+    kernelmap_interleaved_1D.emplace(
+        std::make_tuple(rocfft_precision_double, false, CallbackType::NONE, true),
+        &(real_post_process_kernel_interleaved_1D<double2, false, CallbackType::NONE, true>));
+    kernelmap_interleaved_1D.emplace(
+        std::make_tuple(rocfft_precision_single, true, CallbackType::USER_LOAD_STORE, true),
+        &(real_post_process_kernel_interleaved_1D<float2,
+                                                  true,
+                                                  CallbackType::USER_LOAD_STORE,
+                                                  true>));
+    kernelmap_interleaved_1D.emplace(
+        std::make_tuple(rocfft_precision_single, false, CallbackType::USER_LOAD_STORE, true),
+        &(real_post_process_kernel_interleaved_1D<float2,
+                                                  false,
+                                                  CallbackType::USER_LOAD_STORE,
+                                                  true>));
+    kernelmap_interleaved_1D.emplace(
+        std::make_tuple(rocfft_precision_double, true, CallbackType::USER_LOAD_STORE, true),
+        &(real_post_process_kernel_interleaved_1D<double2,
+                                                  true,
+                                                  CallbackType::USER_LOAD_STORE,
+                                                  true>));
+    kernelmap_interleaved_1D.emplace(
+        std::make_tuple(rocfft_precision_double, false, CallbackType::USER_LOAD_STORE, true),
+        &(real_post_process_kernel_interleaved_1D<double2,
+                                                  false,
+                                                  CallbackType::USER_LOAD_STORE,
+                                                  true>));
 
     // Map to interleaved kernels:
-    std::map<std::tuple<rocfft_precision, bool>,
+    std::map<std::tuple<rocfft_precision, bool, bool>,
              decltype(&real_post_process_kernel_interleaved<float2, true>)>
         kernelmap_interleaved;
-    kernelmap_interleaved.emplace(std::make_tuple(rocfft_precision_single, true),
+    kernelmap_interleaved.emplace(std::make_tuple(rocfft_precision_single, true, false),
                                   &(real_post_process_kernel_interleaved<float2, true>));
-    kernelmap_interleaved.emplace(std::make_tuple(rocfft_precision_single, false),
+    kernelmap_interleaved.emplace(std::make_tuple(rocfft_precision_single, false, false),
                                   &(real_post_process_kernel_interleaved<float2, false>));
-    kernelmap_interleaved.emplace(std::make_tuple(rocfft_precision_double, true),
+    kernelmap_interleaved.emplace(std::make_tuple(rocfft_precision_double, true, false),
                                   &(real_post_process_kernel_interleaved<double2, true>));
-    kernelmap_interleaved.emplace(std::make_tuple(rocfft_precision_double, false),
+    kernelmap_interleaved.emplace(std::make_tuple(rocfft_precision_double, false, false),
                                   &(real_post_process_kernel_interleaved<double2, false>));
 
     // Map to planar 1D kernels:
-    std::map<std::tuple<rocfft_precision, bool>,
-             decltype(&real_post_process_kernel_planar_1D<float2, true>)>
+    std::map<std::tuple<rocfft_precision, bool, bool>,
+             decltype(&real_post_process_kernel_planar_1D<float2, true, false>)>
         kernelmap_planar_1D;
-    kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_single, true),
-                                &(real_post_process_kernel_planar_1D<float2, true>));
-    kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_single, false),
-                                &(real_post_process_kernel_planar_1D<float2, false>));
-    kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_double, true),
-                                &(real_post_process_kernel_planar_1D<double2, true>));
-    kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_double, false),
-                                &(real_post_process_kernel_planar_1D<double2, false>));
+    kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_single, true, false),
+                                &(real_post_process_kernel_planar_1D<float2, true, false>));
+    kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_single, false, false),
+                                &(real_post_process_kernel_planar_1D<float2, false, false>));
+    kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_double, true, false),
+                                &(real_post_process_kernel_planar_1D<double2, true, false>));
+    kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_double, false, false),
+                                &(real_post_process_kernel_planar_1D<double2, false, false>));
+    kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_single, true, true),
+                                &(real_post_process_kernel_planar_1D<float2, true, true>));
+    kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_single, false, true),
+                                &(real_post_process_kernel_planar_1D<float2, false, true>));
+    kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_double, true, true),
+                                &(real_post_process_kernel_planar_1D<double2, true, true>));
+    kernelmap_planar_1D.emplace(std::make_tuple(rocfft_precision_double, false, true),
+                                &(real_post_process_kernel_planar_1D<double2, false, true>));
 
     // Map to planar kernels:
-    std::map<std::tuple<rocfft_precision, bool>,
+    std::map<std::tuple<rocfft_precision, bool, bool>,
              decltype(&real_post_process_kernel_planar<float2, true>)>
         kernelmap_planar;
-    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_single, true),
+    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_single, true, false),
                              &(real_post_process_kernel_planar<float2, true>));
-    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_single, false),
+    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_single, false, false),
                              &(real_post_process_kernel_planar<float2, false>));
-    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_double, true),
+    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_double, true, false),
                              &(real_post_process_kernel_planar<double2, true>));
-    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_double, false),
+    kernelmap_planar.emplace(std::make_tuple(rocfft_precision_double, false, false),
                              &(real_post_process_kernel_planar<double2, false>));
 
     auto data = static_cast<const DeviceCallIn*>(data_p);
@@ -342,9 +440,10 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
     const bool Ndiv4  = half_N % 2 == 0;
     auto       cbtype = data->get_callback_type();
 
-    const std::tuple<rocfft_precision, bool, CallbackType> params_cb
-        = std::make_tuple(data->node->precision, Ndiv4, cbtype);
-    const std::tuple<rocfft_precision, bool> params = std::make_tuple(data->node->precision, Ndiv4);
+    const std::tuple<rocfft_precision, bool, CallbackType, bool> params_cb
+        = std::make_tuple(data->node->precision, Ndiv4, cbtype, data->node->IsScalingEnabled());
+    const std::tuple<rocfft_precision, bool, bool> params
+        = std::make_tuple(data->node->precision, Ndiv4, data->node->IsScalingEnabled());
 
     const size_t block_size = LAUNCH_BOUNDS_R2C_C2R_KERNEL;
     const size_t blocks     = ((half_N + 1) / 2 + block_size - 1) / block_size;
@@ -357,37 +456,41 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
     {
         if(is_complex_interleaved(data->node->outArrayType))
         {
-            hipLaunchKernelGGL(kernelmap_interleaved_1D.at(params_cb),
-                               grid,
-                               threads,
-                               0,
-                               data->rocfft_stream,
-                               half_N,
-                               bufIn0,
-                               idist,
-                               bufOut0,
-                               odist,
-                               data->node->twiddles,
-                               data->callbacks.load_cb_fn,
-                               data->callbacks.load_cb_data,
-                               data->callbacks.load_cb_lds_bytes,
-                               data->callbacks.store_cb_fn,
-                               data->callbacks.store_cb_data);
+            hipLaunchKernelGGL_shim(data->log_func,
+                                    kernelmap_interleaved_1D.at(params_cb),
+                                    grid,
+                                    threads,
+                                    0,
+                                    data->rocfft_stream,
+                                    half_N,
+                                    bufIn0,
+                                    idist,
+                                    bufOut0,
+                                    odist,
+                                    data->node->twiddles,
+                                    data->callbacks.load_cb_fn,
+                                    data->callbacks.load_cb_data,
+                                    data->callbacks.load_cb_lds_bytes,
+                                    data->callbacks.store_cb_fn,
+                                    data->callbacks.store_cb_data,
+                                    data->node->scale_factor);
         }
         else
         {
-            hipLaunchKernelGGL(kernelmap_planar_1D.at(params),
-                               grid,
-                               threads,
-                               0,
-                               data->rocfft_stream,
-                               half_N,
-                               bufIn0,
-                               idist,
-                               bufOut0,
-                               bufOut1,
-                               odist,
-                               data->node->twiddles);
+            hipLaunchKernelGGL_shim(data->log_func,
+                                    kernelmap_planar_1D.at(params),
+                                    grid,
+                                    threads,
+                                    0,
+                                    data->rocfft_stream,
+                                    half_N,
+                                    bufIn0,
+                                    idist,
+                                    bufOut0,
+                                    bufOut1,
+                                    odist,
+                                    data->node->twiddles,
+                                    data->node->scale_factor);
         }
     }
     else
@@ -396,36 +499,38 @@ ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*)
         const size_t odist1D = data->node->outStride[1];
         if(is_complex_interleaved(data->node->outArrayType))
         {
-            hipLaunchKernelGGL(kernelmap_interleaved.at(params),
-                               grid,
-                               threads,
-                               0,
-                               data->rocfft_stream,
-                               half_N,
-                               idist1D,
-                               odist1D,
-                               bufIn0,
-                               idist,
-                               bufOut0,
-                               odist,
-                               data->node->twiddles);
+            hipLaunchKernelGGL_shim(data->log_func,
+                                    kernelmap_interleaved.at(params),
+                                    grid,
+                                    threads,
+                                    0,
+                                    data->rocfft_stream,
+                                    half_N,
+                                    idist1D,
+                                    odist1D,
+                                    bufIn0,
+                                    idist,
+                                    bufOut0,
+                                    odist,
+                                    data->node->twiddles);
         }
         else
         {
-            hipLaunchKernelGGL(kernelmap_planar.at(params),
-                               grid,
-                               threads,
-                               0,
-                               data->rocfft_stream,
-                               half_N,
-                               idist1D,
-                               odist1D,
-                               bufIn0,
-                               idist,
-                               bufOut0,
-                               bufOut1,
-                               odist,
-                               data->node->twiddles);
+            hipLaunchKernelGGL_shim(data->log_func,
+                                    kernelmap_planar.at(params),
+                                    grid,
+                                    threads,
+                                    0,
+                                    data->rocfft_stream,
+                                    half_N,
+                                    idist1D,
+                                    odist1D,
+                                    bufIn0,
+                                    idist,
+                                    bufOut0,
+                                    bufOut1,
+                                    odist,
+                                    data->node->twiddles);
         }
     }
 }
@@ -669,40 +774,42 @@ ROCFFT_DEVICE_EXPORT void c2r_1d_pre(const void* data_p, void*)
 
     if(is_complex_interleaved(data->node->inArrayType))
     {
-        hipLaunchKernelGGL(kernelmap_interleaved.at(params_interleaved),
-                           grid,
-                           threads,
-                           0,
-                           data->rocfft_stream,
-                           half_N,
-                           idist1D,
-                           odist1D,
-                           bufIn0,
-                           idist,
-                           bufOut0,
-                           odist,
-                           data->node->twiddles,
-                           data->callbacks.load_cb_fn,
-                           data->callbacks.load_cb_data,
-                           data->callbacks.load_cb_lds_bytes,
-                           data->callbacks.store_cb_fn,
-                           data->callbacks.store_cb_data);
+        hipLaunchKernelGGL_shim(data->log_func,
+                                kernelmap_interleaved.at(params_interleaved),
+                                grid,
+                                threads,
+                                0,
+                                data->rocfft_stream,
+                                half_N,
+                                idist1D,
+                                odist1D,
+                                bufIn0,
+                                idist,
+                                bufOut0,
+                                odist,
+                                data->node->twiddles,
+                                data->callbacks.load_cb_fn,
+                                data->callbacks.load_cb_data,
+                                data->callbacks.load_cb_lds_bytes,
+                                data->callbacks.store_cb_fn,
+                                data->callbacks.store_cb_data);
     }
     else
     {
-        hipLaunchKernelGGL(kernelmap_planar.at(params_planar),
-                           grid,
-                           threads,
-                           0,
-                           data->rocfft_stream,
-                           half_N,
-                           idist1D,
-                           odist1D,
-                           bufIn0,
-                           bufIn1,
-                           idist,
-                           bufOut0,
-                           odist,
-                           data->node->twiddles);
+        hipLaunchKernelGGL_shim(data->log_func,
+                                kernelmap_planar.at(params_planar),
+                                grid,
+                                threads,
+                                0,
+                                data->rocfft_stream,
+                                half_N,
+                                idist1D,
+                                odist1D,
+                                bufIn0,
+                                bufIn1,
+                                idist,
+                                bufOut0,
+                                odist,
+                                data->node->twiddles);
     }
 }
