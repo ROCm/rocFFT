@@ -10,6 +10,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Optimizations
 - Optimized 2D R2C/C2R to use 2-kernel plans where possible.
+- Improved performance of the Bluestein algorithm.
 
 ### Fixed
 - Fixed occasional failures to parallelize runtime compilation of kernels.

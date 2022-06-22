@@ -1006,12 +1006,10 @@ void TreeNode::set_large_twd_base_steps(size_t largeTWDLength)
                        : 8;
 
     // but we still want to know the exact steps we will loop
-    ltwdSteps = 0;
-    while(largeTWDLength > 1)
-    {
+    ltwdSteps              = 0;
+    size_t lenLargeTwdBase = pow(2, largeTwdBase);
+    while(pow(lenLargeTwdBase, ltwdSteps) < largeTWDLength)
         ltwdSteps++;
-        largeTWDLength >>= largeTwdBase;
-    }
 
     if(largeTwdBase == 8 && ltwdSteps > 3)
         throw std::runtime_error(

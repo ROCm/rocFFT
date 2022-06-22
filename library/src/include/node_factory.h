@@ -32,11 +32,15 @@ private:
     static const Map1DLength         map1DLengthSingle;
     static const Map1DLength         map1DLengthDouble;
 
+    static bool Large1DLengthsValid(const Map1DLength& map1DLength, rocfft_precision precision);
+
 public:
     // Create node (user level) using this function
     static std::unique_ptr<TreeNode> CreateNodeFromScheme(ComputeScheme s,
                                                           TreeNode*     parent = nullptr);
     static std::unique_ptr<TreeNode> CreateExplicitNode(NodeMetaData& nodeData, TreeNode* parent);
+
+    static bool NonPow2LengthSupported(rocfft_precision precision, size_t len);
 
     // Decide scheme from the node meta node
     static ComputeScheme DecideNodeScheme(NodeMetaData& nodeData, TreeNode* parent);

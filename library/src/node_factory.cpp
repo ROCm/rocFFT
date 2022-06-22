@@ -32,50 +32,177 @@
 
 #include <functional>
 #include <set>
+#include <vector>
 
 // TODO:
 //   - better data structure, and more elements for non pow of 2
 //   - validate corresponding functions existing in function pool or not
 //   - SBRC should support un-aligned dim with BWD such as 10752 = 84 x 128(bwd=8)
-NodeFactory::Map1DLength const NodeFactory::map1DLengthSingle
-    = {{8192, 64}, // pow of 2: CC (64cc + 128rc)
-       {16384, 64}, //          CC (64cc + 256rc) // 128x128 no faster
-       {32768, 128}, //         CC (128cc + 256rc)
-       {65536, 256}, //         CC (256cc + 256rc)
-       {131072, 256}, //         CC (256cc + 512rc)
-       {262144, 512}, //         CC (512cc + 512rc)
-       {6561, 81}, // pow of 3: CC (81cc + 81rc)
-       {10000, 100}, // mixed:  CC (100cc + 100rc)
-       {40000, 200}, //         CC (200cc + 200rc)
-       {10752, 96}, //          CC (96cc + 112rc)
-       {15625, 125}, //         CC (125cc + 125rc)
-       {19683, 243}, //         CC (243cc + 81rc)
-       {16807, 343}, //         CC (343cc + 49rc)
-       {18816, 168}, //         CC (168cc + 112rc)
-       {21504, 168}, //         CC (168cc + 128rc)
-       {32256, 168}, //         CC (168cc + 192rc)
-       {43008, 224}}; //        CC (224cc + 192rc)
+NodeFactory::Map1DLength const NodeFactory::map1DLengthSingle = {
+    // ----------------------------------------------------------
+    // pow2 lengths
+    // ----------------------------------------------------------
+    {8192, 64}, //              CC (64cc + 128rc)
+    {16384, 64}, //             CC (64cc + 256rc) // 128x128 no faster
+    {32768, 128}, //            CC (128cc + 256rc)
+    {65536, 256}, //            CC (256cc + 256rc)
+    {131072, 256}, //           CC (256cc + 512rc)
+    {262144, 512}, //           CC (512cc + 512rc)
+
+    // ----------------------------------------------------------
+    // non-pow2 lengths in (4096, 8192)
+    // ----------------------------------------------------------
+    {4704, 96}, //              CC (96cc + 49rc)
+    {4913, 289}, //             CC (289cc + 17rc)
+    {5488, 112}, //             CC (112cc + 49rc)
+    {6144, 96}, //              CC (96cc + 64rc)
+    {6561, 81}, //              CC (81cc + 81rc)
+
+    // ----------------------------------------------------------
+    // non-pow2 lengths in (8192, 16384)
+    // ----------------------------------------------------------
+    {9216, 72}, //              CC (72cc + 128rc)
+    {10000, 100}, //            CC (100cc + 100rc)
+    //{10240, 160}, //            CC (160cc + 64rc)
+    {10752, 96}, //             CC (96cc + 112rc)
+    {11200, 224}, //            CC (224cc + 50rc)
+    {12288, 192}, //            CC (192cc + 64rc)
+    {15625, 125}, //            CC (125cc + 125rc)
+
+    // ----------------------------------------------------------
+    // non-pow2 lengths in (16384, 32768)
+    // ----------------------------------------------------------
+    {16807, 343}, //            CC (343cc + 49rc)
+    {17576, 104}, //            CC (104cc + 169rc)
+    {18816, 168}, //            CC (168cc + 112rc)
+    {19200, 192}, //            CC (192cc + 100rc)
+    {19683, 243}, //            CC (243cc + 81rc)
+    //{20480, 160}, //            CC (160cc + 128rc)
+    {21504, 168}, //            CC (168cc + 128rc)
+    {21952, 343}, //            CC (343cc + 64rc)
+    {23232, 192}, //            CC (192cc + 121rc)
+    {24576, 192}, //            CC (192cc + 128rc)
+    {26000, 208}, //            CC (208cc + 125rc)
+    {28672, 256}, //            CC (256cc + 112rc)
+    {32256, 168}, //            CC (168cc + 192rc)
+
+    // ----------------------------------------------------------
+    // non-pow2 lengths in (32768, 65536)
+    // ----------------------------------------------------------
+    {34969, 289}, //            CC (289cc + 121rc)
+    {36864, 192}, //            CC (192cc + 192rc)
+    //{38880, 160}, //            CC (160cc + 243rc)
+    {40000, 200}, //            CC (200cc + 200rc)
+    //{40960, 160}, //            CC (160cc + 256rc)
+    {43008, 224}, //            CC (224cc + 192rc) // or {43008, 168}}; CC (168cc + 256rc)
+    {46080, 240}, //            CC (240cc + 192rc)
+    {48000, 240}, //            CC (240cc + 200rc)
+    {49152, 256}, //            CC (256cc + 192rc)
+    {51200, 512}, //            CC (512cc + 100rc)
+    {53248, 208}, //            CC (208cc + 256rc)
+    {57344, 512}, //            CC (512cc + 112rc)
+
+    // ----------------------------------------------------------
+    // non-pow2 lengths in (65536, 131072)
+    // ----------------------------------------------------------
+    {68600, 343}, //            CC (343cc + 200rc)
+    {71344, 208}, //            CC (208cc + 343rc)
+    {73984, 289}, //            CC (289cc + 256rc)
+    {76832, 224}, //            CC (224cc + 343rc)
+    {79860, 60}, //             CC (60cc + 1331rc)
+    //{81920, 160}, //            CC (160cc + 512rc)
+    {83521, 289}, //            CC (289cc + 289rc)
+    {87808, 343}, //            CC (343cc + 256rc)
+    {95832, 72}, //             CC (72cc + 1331rc)
+    {98304, 512}, //            CC (512cc + 192rc)
+    {102400, 512}, //           CC (512cc + 200rc)
+    {106496, 208}, //           CC (208cc + 512rc)
+    {110592, 216}, //           CC (216cc + 512rc)
+    {114688, 224}, //           CC (224cc + 512rc)
+};
 
 NodeFactory::Map1DLength const NodeFactory::map1DLengthDouble = {
-    {4096, 64}, // pow of 2: CC (64cc + 64rc)
-    {8192, 64}, //           CC (64cc + 128rc)
-    {16384, 64}, //          CC (64cc + 256rc) // 128x128 ?
-    {32768, 128}, //         CC (128cc + 256rc)
-    {65536, 256}, //         CC (256cc + 256rc) // {65536, 64}
-    {131072, 256}, //         CC (256cc + 512rc)
-    {262144, 512}, //         CC (512cc + 512rc)
-    {6561, 81}, // pow of 3: CC (81cc + 81rc)
-    {2500, 50}, // mixed:    CC (50cc + 50rc)
-    {10000, 100}, //         CC (100cc + 100rc)
-    {40000, 200}, //         CC (200cc + 200rc)
-    {10752, 96}, //          CC (96cc + 112rc)
-    {15625, 125}, //         CC (125cc + 125rc)
-    {19683, 243}, //         CC (243cc + 81rc)
-    {16807, 343}, //         CC (343cc + 49rc)
-    {18816, 168}, //         CC (168cc + 112rc)
-    {21504, 168}, //         CC (168cc + 128rc)
-    {32256, 168}, //         CC (168cc + 192rc)
-    {43008, 224}, //         CC (224cc + 192rc) // gfx908: CC (168cc + 256rc)
+    // ----------------------------------------------------------
+    // pow2 lengths
+    // ----------------------------------------------------------
+    {4096, 64}, //              CC (64cc + 64rc)
+    {8192, 64}, //              CC (64cc + 128rc)
+    {16384, 64}, //             CC (64cc + 256rc) // 128x128 ?
+    {32768, 128}, //            CC (128cc + 256rc)
+    {65536, 256}, //            CC (256cc + 256rc) // {65536, 64}
+    {131072, 256}, //           CC (256cc + 512rc)
+    {262144, 512}, //           CC (512cc + 512rc)
+
+    // ----------------------------------------------------------
+    // non-pow2 lengths in (4096, 8192)
+    // ----------------------------------------------------------
+    {4704, 96}, //              CC (96cc + 49rc)
+    {4913, 289}, //             CC (289cc + 17rc)
+    {5488, 112}, //             CC (112cc + 49rc)
+    {6144, 96}, //              CC (96cc + 64rc)
+    {6561, 81}, //              CC (81cc + 81rc)
+
+    // ----------------------------------------------------------
+    // non-pow2 lengths in (8192, 16384)
+    // ----------------------------------------------------------
+    {9216, 72}, //              CC (72cc + 128rc)
+    {10000, 100}, //            CC (100cc + 100rc)
+    //{10240, 160}, //            CC (160cc + 64rc)
+    {10752, 96}, //             CC (96cc + 112rc)
+    {11200, 224}, //            CC (224cc + 50rc)
+    {12288, 192}, //            CC (192cc + 64rc)
+    {15625, 125}, //            CC (125cc + 125rc)
+
+    // ----------------------------------------------------------
+    // non-pow2 lengths in (16384, 32768)
+    // ----------------------------------------------------------
+    {16807, 343}, //            CC (343cc + 49rc)
+    {17576, 104}, //            CC (104cc + 169rc)
+    {18816, 168}, //            CC (168cc + 112rc)
+    {19200, 192}, //            CC (192cc + 100rc)
+    {19683, 243}, //            CC (243cc + 81rc)
+    //{20480, 160}, //            CC (160cc + 128rc)
+    {21504, 168}, //            CC (168cc + 128rc)
+    {21952, 343}, //            CC (343cc + 64rc)
+    {23232, 192}, //            CC (192cc + 121rc)
+    {24576, 192}, //            CC (192cc + 128rc)
+    {26000, 208}, //            CC (208cc + 125rc)
+    {28672, 256}, //            CC (256cc + 112rc)
+    {32256, 168}, //            CC (168cc + 192rc)
+
+    // ----------------------------------------------------------
+    // non-pow2 lengths in (32768, 65536)
+    // ----------------------------------------------------------
+    {34969, 289}, //            CC (289cc + 121rc)
+    {36864, 192}, //            CC (192cc + 192rc)
+    //{38880, 160}, //            CC (160cc + 243rc)
+    {40000, 200}, //            CC (200cc + 200rc)
+    //{40960, 160}, //            CC (160cc + 256rc)
+    {43008, 224}, //            CC (168cc + 256rc) // or {43008, 168}}; CC (168cc + 256rc)
+    {46080, 240}, //            CC (240cc + 192rc)
+    {48000, 240}, //            CC (240cc + 200rc)
+    {49152, 256}, //            CC (256cc + 192rc)
+    {51200, 512}, //            CC (512cc + 100rc)
+    {53248, 208}, //            CC (208cc + 256rc)
+    {57344, 512}, //            CC (512cc + 112rc)
+
+    // ----------------------------------------------------------
+    // non-pow2 lengths in (65536, 131072)
+    // ----------------------------------------------------------
+    {68600, 343}, //            CC (343cc + 200rc)
+    {71344, 208}, //            CC (208cc + 343rc)
+    {76832, 224}, //            CC (224cc + 343rc)
+    {78125, 125}, //            CC (125cc + 625rc)
+    {79860, 60}, //             CC (60cc + 1331rc)
+    //{81920, 160}, //            CC (160cc + 512rc)
+    {83521, 289}, //            CC (289cc + 289rc)
+    {87808, 343}, //            CC (343cc + 256rc)
+    {95832, 72}, //             CC (72cc + 1331rc)
+    {98304, 512}, //            CC (512cc + 192rc)
+    {102400, 512}, //           CC (512cc + 200rc)
+    {106496, 208}, //           CC (208cc + 512rc)
+    {110592, 216}, //           CC (216cc + 512rc)
+    {114688, 224}, //           CC (224cc + 512rc)
 };
 
 //
@@ -141,6 +268,56 @@ inline size_t get_largest_supported_factor(rocfft_precision precision, size_t le
         return is_factor;
     };
     return search_pool(precision, length, supported_factor);
+}
+
+bool NodeFactory::Large1DLengthsValid(const NodeFactory::Map1DLength& map1DLength,
+                                      rocfft_precision                precision)
+{
+    for(const auto& pair : map1DLength)
+    {
+        if(pair.first % pair.second != 0)
+            return false;
+
+        if(!function_pool::has_SBCC_kernel(pair.second, precision))
+            return false;
+
+        if(!function_pool::has_SBRC_kernel(pair.first / pair.second, precision))
+            return false;
+    }
+
+    return true;
+}
+
+// Checks whether the non-pow2 length input is supported for a Bluestein compute scheme
+bool NodeFactory::NonPow2LengthSupported(rocfft_precision precision, size_t length)
+{
+    // Exceptions which have been found to perform poorly when compared to the next pow2 length
+    std::map<rocfft_precision, std::set<size_t>> length_exceptions
+        = {{rocfft_precision_single,
+            {224, 2160, 2430, 2880, 3456, 21504, 21952, 23232, 79860, 95832, 110592}},
+           {rocfft_precision_double,
+            {104,  108,  180,  224,  225,  432,  450,  810,  2401,  2430,  2700,  2880,   3125,
+             3200, 3240, 3375, 3456, 3600, 3645, 4913, 6561, 11200, 53248, 57344, 106496, 114688}}};
+
+    if(length_exceptions.at(precision).count(length))
+        return false;
+
+    // Look for regular Stockham kernels support
+    if(function_pool::has_function(fpkey(length, precision)))
+        return true;
+
+    assert(Large1DLengthsValid(map1DLengthSingle, precision));
+    assert(Large1DLengthsValid(map1DLengthDouble, precision));
+
+    // and for supported block CC + RC Stockham decompositions
+    if(precision == rocfft_precision_single
+       && (map1DLengthSingle.find(length) != map1DLengthSingle.end()))
+        return true;
+    if(precision == rocfft_precision_double
+       && (map1DLengthDouble.find(length) != map1DLengthDouble.end()))
+        return true;
+
+    return false;
 }
 
 inline bool SupportedLength(rocfft_precision precision, size_t len)

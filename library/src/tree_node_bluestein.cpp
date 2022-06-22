@@ -22,12 +22,32 @@
 #include "kernel_launch.h"
 #include "node_factory.h"
 
-inline size_t FindBlue(size_t len)
+inline size_t FindBlue(size_t len, rocfft_precision precision)
 {
-    size_t p = 1;
-    while(p < len)
-        p <<= 1;
-    return 2 * p;
+    size_t lenPow2 = 1;
+    while(lenPow2 < len)
+        lenPow2 <<= 1;
+
+    size_t minLenBlue  = 2 * len - 1;
+    size_t length      = minLenBlue;
+    size_t lenPow2Blue = 2 * lenPow2;
+
+    // We don't want to choose a non-pow2 length that is too close to lenPow2Blue,
+    // otherwise using a non-pow2 length may end up being slower than using lenPow2Blue.
+    // This ratio has been experimentally verified to yield a non-pow2 length that is at
+    // least as fast as its corresponding pow2 length.
+    double lenCutOffRatio = .9;
+
+    for(length = minLenBlue; length < lenPow2Blue; ++length)
+    {
+        auto lenSupported = NodeFactory::NonPow2LengthSupported(precision, length);
+        auto lenRatio     = static_cast<double>(length) / static_cast<double>(lenPow2Blue);
+
+        if(lenSupported && lenRatio < lenCutOffRatio)
+            break;
+    }
+
+    return length;
 }
 
 /*****************************************************
@@ -38,7 +58,7 @@ void BluesteinNode::BuildTree_internal()
     // Build a node for a 1D stage using the Bluestein algorithm for
     // general transform lengths.
 
-    lengthBlue = FindBlue(length[0]);
+    lengthBlue = FindBlue(length[0], precision);
 
     auto chirpPlan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_CHIRP, this);
     chirpPlan->dimension = 1;

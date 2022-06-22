@@ -377,7 +377,9 @@ public:
     ComputeScheme   scheme = CS_NONE;
     OperatingBuffer obIn = OB_UNINIT, obOut = OB_UNINIT;
 
-    // FIXME: document
+    // Length of the FFT for computing zero-padded linear convolutions
+    // in Bluestein's algorithm. If Bluestein is required to compute an
+    // FFT of length N, then lengthBlue >= 2N - 1.
     size_t lengthBlue = 0;
 
     // Device pointers:
