@@ -899,7 +899,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
         if(guard)
         {
-            if((!trans_dir && threads_per_transform != length / width)
+            // using ">" : no need to emit the "if(thread < XXX)"" if it is always true
+            if((!trans_dir && threads_per_transform > length / width)
                || (trans_dir && workgroup_size / transforms_per_block > length / width))
             {
                 stmts += CommentLines{"more than enough threads, some do nothing"};
