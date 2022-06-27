@@ -19,8 +19,8 @@
 // THE SOFTWARE.
 
 #pragma once
+#include "../../device/kernels/common.h"
 #include "stockham_gen.h"
-
 #include <cmath>
 
 // Base class for stockham kernels.  Subclasses are responsible for
@@ -192,6 +192,9 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     // Variable lstride{"lstride", "const size_t"};
     Variable lstride{"lstride", "const unsigned int"};
 
+    // local temp variable in device function
+    Variable l_offset{"l_offset", "unsigned int"};
+
     // twiddle value during twiddle application
     Variable W{"W", "scalar_type"};
 
@@ -332,30 +335,41 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         X,
         Y,
     };
-    StatementList load_lds_generator(
-        unsigned int h, unsigned int hr, unsigned int width, unsigned int dt, Component component)
+    StatementList load_lds_generator(unsigned int h,
+                                     unsigned int hr,
+                                     unsigned int width,
+                                     unsigned int dt,
+                                     Component    component,
+                                     bool         bank_shift)
     {
         if(hr == 0)
             hr = h;
-        StatementList load;
+        StatementList work;
+
         for(unsigned int w = 0; w < width; ++w)
         {
             const auto tid = Parens{thread + dt + h * threads_per_transform};
             const auto idx = offset_lds + (tid + w * length / width) * lstride;
+            work += Assign(l_offset, idx);
+
+            if(bank_shift)
+                work += Assign(l_offset, l_offset + l_offset / LDS_BANK_SHIFT);
+
             switch(component)
             {
             case Component::X:
-                load += Assign(R[hr * width + w].x, lds_real[idx]);
+                work += Assign(R[hr * width + w].x, lds_real[l_offset]);
                 break;
             case Component::Y:
-                load += Assign(R[hr * width + w].y, lds_real[idx]);
+                work += Assign(R[hr * width + w].y, lds_real[l_offset]);
                 break;
             case Component::NONE:
-                load += Assign(R[hr * width + w], lds_complex[idx]);
+                work += Assign(R[hr * width + w], lds_complex[l_offset]);
                 break;
             }
         }
-        return load;
+
+        return work;
     }
 
     StatementList store_lds_generator(unsigned int h,
@@ -363,11 +377,13 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                                       unsigned int width,
                                       unsigned int dt,
                                       Component    component,
-                                      unsigned int cumheight)
+                                      unsigned int cumheight,
+                                      bool         bank_shift)
     {
         if(hr == 0)
             hr = h;
         StatementList work;
+
         for(unsigned int w = 0; w < width; ++w)
         {
             const auto tid = thread + dt + h * threads_per_transform;
@@ -375,19 +391,25 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                              + (Parens{tid / cumheight} * (width * cumheight) + tid % cumheight
                                 + w * cumheight)
                                    * lstride;
+            work += Assign(l_offset, idx);
+
+            if(bank_shift)
+                work += Assign(l_offset, l_offset + l_offset / LDS_BANK_SHIFT);
+
             switch(component)
             {
             case Component::X:
-                work += Assign(lds_real[idx], R[hr * width + w].x);
+                work += Assign(lds_real[l_offset], R[hr * width + w].x);
                 break;
             case Component::Y:
-                work += Assign(lds_real[idx], R[hr * width + w].y);
+                work += Assign(lds_real[l_offset], R[hr * width + w].y);
                 break;
             case Component::NONE:
-                work += Assign(lds_complex[idx], R[hr * width + w]);
+                work += Assign(lds_complex[l_offset], R[hr * width + w]);
                 break;
             }
         }
+
         return work;
     }
 
@@ -481,13 +503,17 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         body += Declaration{
             lstride, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride_lds}}};
 
+        body += Declaration{l_offset};
+
         auto load_lds = std::mem_fn(&StockhamKernel::load_lds_generator);
         // first pass of load (full)
         unsigned int width  = factors[0];
         float        height = static_cast<float>(length) / width / threads_per_transform;
         body += SyncThreads();
-        body += add_work(
-            std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE), width, height, false);
+        body += add_work(std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE, false),
+                         width,
+                         height,
+                         false);
 
         return f;
     }
@@ -506,16 +532,19 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         body += Declaration{
             lstride, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride_lds}}};
 
+        body += Declaration{l_offset};
+
         auto store_lds = std::mem_fn(&StockhamKernel::store_lds_generator);
         // last pass of store (full)
         unsigned int width     = factors.back();
         float        height    = static_cast<float>(length) / width / threads_per_transform;
         unsigned int cumheight = product(factors.begin(), factors.end() - 1);
         body += SyncThreads();
-        body += add_work(std::bind(store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight),
-                         width,
-                         height,
-                         true);
+        body += add_work(
+            std::bind(store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight, false),
+            width,
+            height,
+            true);
         return f;
     }
 
@@ -538,10 +567,11 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         body += Declaration{t};
         body += Declaration{
             lstride, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride_lds}}};
+        body += Declaration{l_offset};
 
         for(unsigned int npass = 0; npass < factors.size(); ++npass)
         {
-            // width is the butterfly width, Radix-n. Mostly is used as dt in add_work()
+            // width is the butterfly width, Radix-n.
             unsigned int width = factors[npass];
             // height is how many butterflies per thread will do on average
             float height = static_cast<float>(length) / width / threads_per_transform;
@@ -567,10 +597,12 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 // internal full lds2reg (both linear/nonlinear variants)
                 StatementList lds2reg_full;
                 lds2reg_full += SyncThreads();
-                lds2reg_full += add_work(std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE),
-                                         width,
-                                         height,
-                                         true);
+                lds2reg_full
+                    += add_work(std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE, false),
+                                width,
+                                height,
+                                true,
+                                true);
                 body += If{Not{lds_is_real}, lds2reg_full};
 
                 auto apply_twiddle = std::mem_fn(&StockhamKernel::apply_twiddle_generator);
@@ -603,7 +635,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                     if(!isFirstStore)
                         reg2lds_half += SyncThreads();
                     reg2lds_half += add_work(
-                        std::bind(store_lds, this, _1, _2, _3, _4, component, cumheight),
+                        std::bind(store_lds, this, _1, _2, _3, _4, component, cumheight, false),
                         half_width,
                         half_height,
                         true);
@@ -611,10 +643,11 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                     half_width  = factors[npass + 1];
                     half_height = static_cast<float>(length) / half_width / threads_per_transform;
                     reg2lds_half += SyncThreads();
-                    reg2lds_half += add_work(std::bind(load_lds, this, _1, _2, _3, _4, component),
-                                             half_width,
-                                             half_height,
-                                             true);
+                    reg2lds_half
+                        += add_work(std::bind(load_lds, this, _1, _2, _3, _4, component, false),
+                                    half_width,
+                                    half_height,
+                                    true);
                 }
 
                 // internal full lds store (both linear/nonlinear variants)
@@ -623,7 +656,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 else
                     reg2lds_full += SyncThreads();
                 reg2lds_full += add_work(
-                    std::bind(store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight),
+                    std::bind(store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight, false),
                     width,
                     height,
                     true);

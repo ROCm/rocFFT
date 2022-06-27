@@ -290,8 +290,10 @@ std::string stockham_variants(const std::string&      filename,
                                           kernel.generate_lds_from_reg_output_function(),
                                           {},
                                           {});
-        output += make_variants(
-            kernel.generate_device_function(), {}, kernel.generate_global_function(), true);
+        output += make_variants(kernel.generate_device_function_with_bank_shift(),
+                                {},
+                                kernel.generate_global_function(),
+                                true);
         output += make_launcher(specs.length,
                                 true,
                                 specs.precisions,

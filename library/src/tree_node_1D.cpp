@@ -851,7 +851,20 @@ void Stockham1DNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
        && kernel.factors.size() == 1)
         lds = 0;
     else
-        lds = (length[0] + lds_padding) * bwd;
+    {
+        // NB:
+        //   When lds conflict becomes significant enough, we can apply lds bank shift to reduce it.
+        //   One of the costs is extra lds allocation. We enable it for small pow of 2 cases on all
+        //   supported archs for now.
+        if(length[0] == 64)
+        {
+            lds = (length[0] + lds_padding) * bwd + length[0] * bwd / LDS_BANK_SHIFT;
+        }
+        else
+        {
+            lds = (length[0] + lds_padding) * bwd;
+        }
+    }
 }
 
 bool Stockham1DNode::CreateTwiddleTableResource()

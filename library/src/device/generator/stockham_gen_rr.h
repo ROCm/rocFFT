@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include "arithmetic.h"
 #include "stockham_gen_base.h"
 
 struct StockhamKernelRR : public StockhamKernel
@@ -152,5 +153,178 @@ struct StockhamKernelRR : public StockhamKernel
                               + "transform"};
         stmts += real2cmplx_pre_post(length, type);
         return stmts;
+    }
+
+    Function generate_device_function_with_bank_shift()
+    {
+        std::string function_name
+            = "forward_length" + std::to_string(length) + "_" + tiling_name() + "_device";
+
+        Function f{function_name};
+        f.arguments = device_arguments();
+        f.templates = device_templates();
+        f.qualifier = "__device__";
+        if(length == 1)
+        {
+            return f;
+        }
+
+        StatementList& body = f.body;
+        body += Declaration{W};
+        body += Declaration{t};
+        body += Declaration{
+            lstride, Ternary{Parens{stride_type == "SB_UNIT"}, Parens{1}, Parens{stride_lds}}};
+
+        body += Declaration{l_offset};
+
+        for(unsigned int npass = 0; npass < factors.size(); ++npass)
+        {
+            // width is the butterfly width, Radix-n. Mostly is used as dt in add_work()
+            unsigned int width = factors[npass];
+            // height is how many butterflies per thread will do on average
+            float height = static_cast<float>(length) / width / threads_per_transform;
+
+            unsigned int cumheight
+                = product(factors.begin(),
+                          factors.begin() + npass); // cumheight is irrelevant to the above height,
+            // is used for twiddle multiplication and lds writing.
+
+            body += LineBreak{};
+            body += CommentLines{
+                "pass " + std::to_string(npass) + ", width " + std::to_string(width),
+                "using " + std::to_string(threads_per_transform) + " threads we need to do "
+                    + std::to_string(length / width) + " radix-" + std::to_string(width)
+                    + " butterflies",
+                "therefore each thread will do " + std::to_string(height) + " butterflies"};
+
+            auto load_lds  = std::mem_fn(&StockhamKernel::load_lds_generator);
+            auto store_lds = std::mem_fn(&StockhamKernel::store_lds_generator);
+
+            if(npass > 0)
+            {
+                // internal full lds2reg (both linear/nonlinear variants)
+                StatementList lds2reg_full;
+                lds2reg_full += SyncThreads();
+
+                // NB:
+                //   When lds conflict becomes significant enough, we can apply lds bank shift to reduce it.
+                //   We enable it for small pow of 2 cases on all supported archs for now.
+                if(length == 64)
+                {
+                    lds2reg_full += add_work(
+                        std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE, true),
+                        width,
+                        height,
+                        false);
+                }
+                else
+                {
+                    lds2reg_full += add_work(
+                        std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE, false),
+                        width,
+                        height,
+                        true);
+                }
+                body += If{Not{lds_is_real}, lds2reg_full};
+
+                auto apply_twiddle = std::mem_fn(&StockhamKernel::apply_twiddle_generator);
+                body += add_work(
+                    std::bind(apply_twiddle, this, _1, _2, _3, _4, cumheight, factors.front()),
+                    width,
+                    height,
+                    false);
+            }
+
+            auto butterfly = std::mem_fn(&StockhamKernel::butterfly_generator);
+            body += add_work(std::bind(butterfly, this, _1, _2, _3, _4), width, height, false);
+
+            if(npass == factors.size() - 1)
+                body += large_twiddles_multiply(width, cumheight);
+
+            // internal lds store (half-with-linear and full-with-linear/nonlinear)
+            StatementList reg2lds_full;
+            StatementList reg2lds_half;
+            if(npass < factors.size() - 1)
+            {
+                // linear variant store (half) and load (half)
+                for(auto component : {Component::X, Component::Y})
+                {
+                    bool isFirstStore = (npass == 0) && (component == Component::X);
+                    auto half_width   = factors[npass];
+                    auto half_height
+                        = static_cast<float>(length) / half_width / threads_per_transform;
+                    // minimize sync as possible
+                    if(!isFirstStore)
+                        reg2lds_half += SyncThreads();
+
+                    if(length == 64)
+                    {
+                        reg2lds_half += add_work(
+                            std::bind(store_lds, this, _1, _2, _3, _4, component, cumheight, true),
+                            half_width,
+                            half_height,
+                            true);
+                    }
+                    else
+                    {
+                        reg2lds_half += add_work(
+                            std::bind(store_lds, this, _1, _2, _3, _4, component, cumheight, false),
+                            half_width,
+                            half_height,
+                            true);
+                    }
+
+                    half_width  = factors[npass + 1];
+                    half_height = static_cast<float>(length) / half_width / threads_per_transform;
+                    reg2lds_half += SyncThreads();
+                    if(length == 64)
+                    {
+                        reg2lds_half
+                            += add_work(std::bind(load_lds, this, _1, _2, _3, _4, component, true),
+                                        half_width,
+                                        half_height,
+                                        true);
+                    }
+                    else
+                    {
+                        reg2lds_half
+                            += add_work(std::bind(load_lds, this, _1, _2, _3, _4, component, false),
+                                        half_width,
+                                        half_height,
+                                        true);
+                    }
+                }
+
+                // internal full lds store (both linear/nonlinear variants)
+                if(npass == 0)
+                    reg2lds_full += If{!direct_load_to_reg, {SyncThreads()}};
+                else
+                    reg2lds_full += SyncThreads();
+
+                if(length == 64)
+                {
+                    reg2lds_full += add_work(
+                        std::bind(
+                            store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight, true),
+                        width,
+                        height,
+                        true);
+                }
+                else
+                {
+                    reg2lds_full += add_work(
+                        std::bind(
+                            store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight, false),
+                        width,
+                        height,
+                        true);
+                }
+
+                body += If{Not{lds_is_real}, reg2lds_full};
+                body += Else{reg2lds_half};
+            }
+        }
+
+        return f;
     }
 };
