@@ -16,7 +16,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Fixed occasional failures to parallelize runtime compilation of kernels.
   Failures would be retried serially and ultimately succeed, but this would take extra time.
 
-## (Unreleased) rocFFT 1.0.17
+## rocFFT 1.0.17 for ROCm 5.2.0
 ### Added
 - Packages for test and benchmark executables on all supported OSes using CPack.
 - Added File/Folder Reorg Changes with backward compatibility support using ROCM-CMAKE wrapper functions.
@@ -40,7 +40,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Fixed incorrect handling of user-specified stream for runtime-compiled kernels.
 - Fixed incorrect buffer allocation in rocfft-test on in-place transforms with different input and output sizes.
 
-## rocFFT 1.0.16  for ROCm 5.1.0
+## rocFFT 1.0.16 for ROCm 5.1.0
 
 ### Changed
 - Supported unaligned tile dimension for SBRC_2D kernels.
