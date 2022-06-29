@@ -150,28 +150,41 @@ def update(attr, dst, src):
 #
 
 
-def command_moods(runs, percent, moods):
+def command_moods(arguments):
     """Find significant (Moods) regressions."""
+    
+    path = Path(arguments.output)
 
-    reference, *others = perflib.utils.read_runs(runs)
-    results = perflib.analysis.moods(reference, others)
+    sig = arguments.significance
 
-    regressions = []
-    for sample, result in results.items():
-        _, dname, length = sample
-        m1, m2 = result.medians
-        if m1 < m2 and abs(m1 - m2) / m1 > percent / 100.0:
-            p = result.pval
-            if p < moods:
-                diff = 100 * abs(m1 - m2) / m1
-                print(
-                    f"REGRESSION: length {str(length)}; median times {m1:.4f} vs {m2:.4f} ({diff:4.1f}%); Mood's p-value {p:.6f}; from {dname}."
-                )
-                regressions.append(length)
+    import pandas
 
-    print("Regressions found in lengths:")
-    for length in sorted(set(regressions), key=perflib.utils.product):
-        print("--length " + perflib.utils.sjoin(length))
+    ncompare = 0
+    df_failures = pandas.DataFrame()
+    
+    sdats = sorted(list(path.glob('*.sdat')))
+    for sdat in sdats:
+        df = pandas.read_csv(sdat, delimiter='\t', comment='#')
+        ncompare += len(df.index)
+        if df_failures.empty:
+            df_failures = pandas.DataFrame(columns = df.columns)
+        df_failures = pandas.concat([df_failures, df.loc[(df['speedup_pval'] < sig)
+                                                         & (df['speedup'] < 1)]],
+                                    ignore_index = True, axis = 0 )
+
+    if len(df_failures.index) > 0:
+        print("Regressions:")
+        print("token\tspeedup\tsignificance")
+    for index, row in df_failures.iterrows():
+        print(row['token'],
+              '\t', '{0:.4e}'.format(1-row['speedup']),
+              '\t', '{0:.3f}'.format(row['speedup_pval']))
+
+    print()
+    print(len(df_failures.index), "regressions in", ncompare, "tests using significance",
+          arguments.significance)
+        
+    return 0 if df_failures.empty else 1
 
 
 def generate_mdat(dat):
@@ -280,6 +293,10 @@ def command_post(arguments):
     docdir = arguments.output
     verbose = arguments.verbose
 
+    if verbose:
+        print("docdir:", docdir)
+        print("outdirs:", outdirs)
+    
     outdirs = [Path(x) for x in outdirs]
 
     all_runs = perflib.utils.read_runs(outdirs, verbose)
@@ -330,7 +347,7 @@ def command_post(arguments):
                                         overwrite=True)
 
 
-def command_generate(runs=None, label=None, output=None, type='pdf', **kwargs):
+def command_generate(runs=None, label=None, output=None, significance=None, type='pdf', **kwargs):
     """Generate PDF/HTML/DOCX from run results."""
 
     import perflib.pdf
@@ -366,7 +383,7 @@ def command_generate(runs=None, label=None, output=None, type='pdf', **kwargs):
         figures.append(figure)
 
     if type == 'pdf':
-        perflib.pdf.make_tex(figures, docdir, outdirs, label)
+        perflib.pdf.make_tex(figures, docdir, outdirs, label, significance)
     if type == 'html':
         title = f"Performance report: {perflib.utils.cjoin(outdirs)}"
         perflib.html.make_html(figures, title, docdir, outdirs)
@@ -550,41 +567,39 @@ def main():
     parser = argparse.ArgumentParser(
         prog='rocfft-perf',
         epilog="For a detailed usage overview, run: %(prog)s overview")
-    subparsers = parser.add_subparsers(dest='command')
     parser.add_argument('-v', '--verbose', action='store_true', default=False)
+    
+    subparsers = parser.add_subparsers(dest='command')
 
     subparsers.add_parser('overview', help='print a general usage overview')
     subparsers.add_parser('specs', help='print machine specs')
 
+    run_parser   = subparsers.add_parser('run', help='run!')
+    post_parser  = subparsers.add_parser('post', help='post processing')
+    pdf_parser   = subparsers.add_parser('pdf', help='generate pdf plots')
+    html_parser  = subparsers.add_parser('html', help='generate html plots')
+    docx_parser  = subparsers.add_parser('docx', help='generate docx plots')
     moods_parser = subparsers.add_parser('moods', help='perform moods test')
-    moods_parser.add_argument('--significance',
-                              type=float,
-                              help='moods significance threshold',
-                              default=0.001)
-    moods_parser.add_argument('--percent',
-                              type=float,
-                              help='percent difference',
-                              default=5.0)
-    moods_parser.add_argument('runs', type=str, nargs='+')
 
-    post_parser = subparsers.add_parser('post', help='post processing')
-    post_parser.add_argument('output', type=str)
-    post_parser.add_argument('runs', type=str, nargs='+')
-
-    pdf_parser = subparsers.add_parser('pdf', help='generate pdf plots')
-    html_parser = subparsers.add_parser('html', help='generate html plots')
-    docx_parser = subparsers.add_parser('docx', help='generate docx plots')
-
-    for p in [pdf_parser, html_parser, docx_parser]:
+    
+    for p in [post_parser, pdf_parser, html_parser, docx_parser, moods_parser]:
         p.add_argument('output', type=str)
+    for p in [post_parser, pdf_parser, html_parser, docx_parser]:
         p.add_argument('runs', type=str, nargs='+')
+        
+    for p in [pdf_parser, html_parser, docx_parser, moods_parser]:
+        p.add_argument('--significance',
+                       type=float,
+                       help='moods significance threshold',
+                       default=0.001)
+        
+    for p in [pdf_parser, html_parser, docx_parser]:
         p.add_argument('-l',
                        '--label',
                        type=str,
                        help='label (appendable)',
                        action='append')
 
-    run_parser = subparsers.add_parser('run', help='run!')
     run_parser.add_argument('-g', '--device', type=int, help='device number')
     run_parser.add_argument('-l',
                             '--list',
@@ -671,7 +686,8 @@ def main():
     run_parser.add_argument('-N',
                             '--ntrial',
                             type=int,
-                            help='number of trials')
+                            help='number of trials',
+                            default=10)
     run_parser.add_argument(
         '-T',
         '--timeout',
@@ -746,15 +762,11 @@ def main():
     if arguments.command == 'run':
         command_run(arguments)
 
-    if arguments.command == 'moods':
-        if len(arguments.runs) < 2:
-            print('Need more than one output directory')
-            return
-        command_moods(arguments.runs, arguments.significance,
-                      arguments.percent)
-
     if arguments.command == 'post':
         command_post(arguments)
+        
+    if arguments.command == 'moods':
+        sys.exit(command_moods(arguments))
 
     if arguments.command == 'pdf':
         command_generate(type='pdf', **vars(arguments))
@@ -767,6 +779,8 @@ def main():
 
     if arguments.command == 'autoperf':
         command_autoperf(arguments)
+
+    sys.exit(0)
 
 
 if __name__ == '__main__':

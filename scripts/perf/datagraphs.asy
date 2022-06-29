@@ -71,8 +71,8 @@ for(int n = 0; n < datapoints.length; ++n) {
     datapoints_to_xyvallowhigh(datapoints[n], xyval[n], ylowhigh[n]);
 }
 
-write(xyval);
-write(ylowhigh);
+//write(xyval);
+//write(ylowhigh);
 
 // Find the bounds on the data to determine if the scales should be
 // logarithmic.
@@ -173,7 +173,7 @@ if(secondary_filenames != "")
 		    
                 }
                 draw(pic,graph(pic, xyval[n]), graphpen, legends[n] + " vs " + legends[n+1],mark);
-		write(xyval[n]);
+		//write(xyval[n]);
 		
 		yequals(pic, 1.0, lightgrey);
 		

@@ -181,7 +181,7 @@ void readfiles(string[] filelist, datapoint[][] datapoints, bool pval = false)
           
           d.x = length[0];
 
-          write(d.x);
+          //write(d.x);
           datapoints[n].push(d);
           
 	  if(eof(fin)) {
