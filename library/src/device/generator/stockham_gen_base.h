@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 
 #pragma once
-#include "../../device/kernels/common.h"
+#include "../../device/kernels/bank_shift.h"
 #include "stockham_gen.h"
 #include <cmath>
 

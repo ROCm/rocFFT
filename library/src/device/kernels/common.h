@@ -97,8 +97,6 @@ __device__ inline double2 operator-(const double2& a)
 
 #endif
 
-#define LDS_BANK_SHIFT 32
-
 enum StrideBin
 {
     SB_UNIT,

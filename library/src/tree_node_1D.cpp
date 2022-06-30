@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "tree_node_1D.h"
+#include "../device/kernels/bank_shift.h"
 #include "function_pool.h"
 #include "fuse_shim.h"
 #include "node_factory.h"
