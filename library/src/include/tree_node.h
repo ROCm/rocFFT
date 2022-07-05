@@ -34,6 +34,7 @@
 #include "../../../shared/gpubuf.h"
 #include "../device/kernels/callback.h"
 #include "../device/kernels/common.h"
+#include "compute_scheme.h"
 #include "kargs.h"
 #include "rtc.h"
 #include <hip/hip_runtime_api.h>
@@ -46,62 +47,6 @@ enum OperatingBuffer
     OB_TEMP                = 0b00100,
     OB_TEMP_CMPLX_FOR_REAL = 0b01000,
     OB_TEMP_BLUESTEIN      = 0b10000,
-};
-
-enum ComputeScheme
-{
-    CS_NONE,
-    CS_KERNEL_STOCKHAM,
-    CS_KERNEL_STOCKHAM_BLOCK_CC,
-    CS_KERNEL_STOCKHAM_BLOCK_RC,
-    CS_KERNEL_STOCKHAM_BLOCK_CR,
-    CS_KERNEL_TRANSPOSE,
-    CS_KERNEL_TRANSPOSE_XY_Z,
-    CS_KERNEL_TRANSPOSE_Z_XY,
-
-    CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z,
-    CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY,
-    CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY,
-
-    CS_REAL_TRANSFORM_USING_CMPLX,
-    CS_KERNEL_COPY_R_TO_CMPLX,
-    CS_KERNEL_COPY_CMPLX_TO_HERM,
-    CS_KERNEL_COPY_HERM_TO_CMPLX,
-    CS_KERNEL_COPY_CMPLX_TO_R,
-
-    CS_REAL_TRANSFORM_EVEN,
-    CS_KERNEL_R_TO_CMPLX,
-    CS_KERNEL_R_TO_CMPLX_TRANSPOSE,
-    CS_KERNEL_CMPLX_TO_R,
-    CS_KERNEL_TRANSPOSE_CMPLX_TO_R,
-    CS_REAL_2D_EVEN,
-    CS_REAL_3D_EVEN,
-    CS_KERNEL_APPLY_CALLBACK,
-
-    CS_BLUESTEIN,
-    CS_KERNEL_CHIRP,
-    CS_KERNEL_PAD_MUL,
-    CS_KERNEL_FFT_MUL,
-    CS_KERNEL_RES_MUL,
-
-    CS_L1D_TRTRT,
-    CS_L1D_CC,
-    CS_L1D_CRT,
-
-    CS_2D_STRAIGHT, // not implemented yet
-    CS_2D_RTRT,
-    CS_2D_RC,
-    CS_KERNEL_2D_STOCKHAM_BLOCK_CC, // not implemented yet
-    CS_KERNEL_2D_SINGLE,
-
-    CS_3D_STRAIGHT, // not implemented yet
-    CS_3D_TRTRTR,
-    CS_3D_RTRT,
-    CS_3D_BLOCK_RC,
-    CS_3D_BLOCK_CR,
-    CS_3D_RC,
-    CS_KERNEL_3D_STOCKHAM_BLOCK_CC, // not implemented yet
-    CS_KERNEL_3D_SINGLE // not implemented yet
 };
 
 enum NodeType
@@ -131,7 +76,6 @@ enum rocfft_optimize_strategy
     rocfft_optimize_max_fusion, // maximize number of fusions, possibly more buffers
 };
 
-std::string PrintScheme(ComputeScheme cs);
 std::string PrintOperatingBuffer(const OperatingBuffer ob);
 std::string PrintOperatingBufferCode(const OperatingBuffer ob);
 std::string PrintSBRCTransposeType(const SBRC_TRANSPOSE_TYPE ty);

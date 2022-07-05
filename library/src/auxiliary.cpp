@@ -26,7 +26,7 @@
 #include "rocfft.h"
 #include "rocfft_hip.h"
 #include "rocfft_ostream.hpp"
-#include "rtccache.h"
+#include "rtc_cache.h"
 #include <fcntl.h>
 #include <memory>
 

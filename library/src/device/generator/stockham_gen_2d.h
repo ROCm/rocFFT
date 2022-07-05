@@ -23,7 +23,8 @@
 // since they have distinct specs
 struct StockhamKernelFused2D : public StockhamKernelRR
 {
-    StockhamKernelFused2D(StockhamGeneratorSpecs& specs0, StockhamGeneratorSpecs& specs1)
+    StockhamKernelFused2D(const StockhamGeneratorSpecs& specs0,
+                          const StockhamGeneratorSpecs& specs1)
         : StockhamKernelRR(specs0)
         , kernel0(specs0)
         , kernel1(specs1)

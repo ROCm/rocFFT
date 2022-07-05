@@ -34,16 +34,67 @@
 struct DeviceCallIn;
 class TreeNode;
 
+// Helper class that handles alignment of kernel arguments
+class RTCKernelArgs
+{
+public:
+    RTCKernelArgs() = default;
+    void append_ptr(void* ptr)
+    {
+        append(&ptr, sizeof(void*));
+    }
+    void append_size_t(size_t s)
+    {
+        append(&s, sizeof(size_t));
+    }
+    void append_unsigned_int(unsigned int i)
+    {
+        append(&i, sizeof(unsigned int));
+    }
+    void append_double(double d)
+    {
+        append(&d, sizeof(double));
+    }
+    void append_float(float f)
+    {
+        append(&f, sizeof(float));
+    }
+
+    size_t size_bytes() const
+    {
+        return buf.size();
+    }
+    void* data()
+    {
+        return buf.data();
+    }
+
+private:
+    void append(void* src, size_t nbytes)
+    {
+        // values need to be aligned to their width (i.e. 8-byte values
+        // need 8-byte alignment, 4-byte needs 4-byte alignment)
+        size_t oldsize = buf.size();
+        size_t padding = oldsize % nbytes ? nbytes - (oldsize % nbytes) : 0;
+        buf.resize(oldsize + padding + nbytes);
+        std::copy_n(static_cast<const char*>(src), nbytes, buf.begin() + oldsize + padding);
+    }
+    std::vector<char> buf;
+};
+
+// Base class for a runtime compiled kernel.  Subclassed for
+// different kernel types that each have their own details about how
+// to be launched.
 struct RTCKernel
 {
     // try to compile kernel for node, and attach compiled kernel to
     // node if successful.  returns nullptr if there is no matching
     // supported scheme + problem size.  throws runtime_error on
     // error.
-    static std::shared_future<std::unique_ptr<RTCKernel>>
-        runtime_compile(TreeNode& node, const std::string& gpu_arch, bool enable_callbacks = false);
+    static std::shared_future<std::unique_ptr<RTCKernel>> runtime_compile(
+        const TreeNode& node, const std::string& gpu_arch, bool enable_callbacks = false);
 
-    ~RTCKernel()
+    virtual ~RTCKernel()
     {
         kernel = nullptr;
         (void)hipModuleUnload(module);
@@ -57,15 +108,56 @@ struct RTCKernel
 
     void launch(DeviceCallIn& data);
 
-    // compile source to a code object
-    static std::vector<char> compile(const std::string& kernel_src);
+    // Subclasses implement this - each kernel type has different
+    // parameters
+    virtual RTCKernelArgs get_launch_args(DeviceCallIn& data) = 0;
 
-private:
-    // private ctor, use "runtime_compile" to build kernel for a node
+    // runtime_compile dispatches to subclasses, those subclasses
+    // return callables to do the code generation, so that the
+    // compilation and caching can live in the cached_compile method.
+    //
+    // function to generate the name of a kernel
+    using kernel_name_gen_t = std::function<std::string()>;
+    // function to generate the source code of a kernel, given the kernel name
+    using kernel_src_gen_t = std::function<std::string(const std::string&)>;
+    // function to construct the correct RTCKernel object, given a kernel name and its compiled code
+    using rtckernel_construct_t
+        = std::function<std::unique_ptr<RTCKernel>(const std::string&, const std::vector<char>&)>;
+
+    // Get compiled code object for a kernel.  Checks the cache to
+    // see if the kernel has already been compiled and returns the
+    // cached kernel if present.
+    //
+    // Otherwise, calls "generate_src" to generate the source, compiles
+    // the source, and updates the cache before returning the compiled
+    // kernel.  Tries in-process compile
+    // first and falls back to subprocess if necessary.
+    static std::vector<char> cached_compile(const std::string& kernel_name,
+                                            const std::string& gpu_arch,
+                                            kernel_src_gen_t   generate_src);
+
+    // compile source to a code object, in the current process.
+    static std::vector<char> compile_inprocess(const std::string& kernel_src);
+
+protected:
+    // protected ctor, use "runtime_compile" to build kernel for a node
     RTCKernel(const std::string& kernel_name, const std::vector<char>& code);
+
+    struct RTCGenerator
+    {
+        kernel_name_gen_t     generate_name;
+        kernel_src_gen_t      generate_src;
+        rtckernel_construct_t construct_rtckernel;
+        bool                  valid() const
+        {
+            return generate_name && generate_src && construct_rtckernel;
+        }
+    };
+
     hipModule_t   module = nullptr;
     hipFunction_t kernel = nullptr;
 
+private:
     // Lock for in-process compilation - due to limits in ROCclr, we
     // can do at most one compilation in a process before we have to
     // delegate to a subprocess.  But we should at least do one

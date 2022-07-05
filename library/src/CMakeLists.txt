@@ -34,7 +34,7 @@ function( prepend_path prefix source_list_of_files return_list_of_files )
   set( ${return_list_of_files} ${new_list} PARENT_SCOPE )
 endfunction( )
 
-add_executable( rocfft_rtc_helper rocfft_rtc_helper.cpp rtccompile.cpp )
+add_executable( rocfft_rtc_helper rocfft_rtc_helper.cpp rtc_compile.cpp )
 
 # each backend requires different libraries for host and device code
 if( USE_CUDA )
@@ -120,6 +120,7 @@ add_custom_command(
 # The following is a list of implementation files defining the library
 set( rocfft_source
   auxiliary.cpp
+  compute_scheme.cpp
   plan.cpp
   transform.cpp
   repo.cpp
@@ -137,9 +138,10 @@ set( rocfft_source
   assignment_policy.cpp
   node_factory.cpp
   rtc.cpp
-  rtccache.cpp
-  rtccompile.cpp
-  rtcsubprocess.cpp
+  rtc_cache.cpp
+  rtc_compile.cpp
+  rtc_subprocess.cpp
+  rtc_stockham.cpp
   )
 
 # SQLite 3.36.0 enabled the backup API by default, which we need

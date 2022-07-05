@@ -21,8 +21,13 @@
 #include "../../shared/environment.h"
 
 #include "logging.h"
-#include "rtccache.h"
+#include "rtc.h"
+#include "rtc_cache.h"
 #include "sqlite3.h"
+
+#include "device/kernel-generator-embed.h"
+
+#include <chrono>
 
 namespace fs = std::filesystem;
 
@@ -313,4 +318,170 @@ rocfft_status RTCCache::deserialize(const void* buffer, size_t buffer_len_bytes)
     sqlite3_exec(db.get(), "DETACH DATABASE deserialized", nullptr, nullptr, nullptr);
 
     return ret;
+}
+
+// allow user control of whether RTC is done in-process or out-of-process
+enum class RTCProcessType
+{
+    // allow one in-process compile, fallback to out-of-process if
+    // one is already in progress.  fall back further to waiting for
+    // the lock if subprocess failed.
+    DEFAULT,
+    // only try in-process, waiting for lock if necessary
+    FORCE_IN_PROCESS,
+    // only try out-of-process, never needs lock
+    FORCE_OUT_PROCESS,
+};
+
+static RTCProcessType get_rtc_process_type()
+{
+    auto var = rocfft_getenv("ROCFFT_RTC_PROCESS");
+    // defined and equal to 0 means force in-process
+    if(var == "0")
+        return RTCProcessType::FORCE_IN_PROCESS;
+    // defined and equal to 1 means force out-process
+    if(var == "1")
+        return RTCProcessType::FORCE_OUT_PROCESS;
+    // ideal default behaviour - try in-process first and use
+    // out-process if necessary
+    if(var == "2")
+        return RTCProcessType::DEFAULT;
+
+    return RTCProcessType::DEFAULT;
+}
+
+std::vector<char> RTCKernel::cached_compile(const std::string& kernel_name,
+                                            const std::string& gpu_arch,
+                                            kernel_src_gen_t   generate_src)
+{
+    static int hip_version = 0;
+    if(hip_version == 0 && hipRuntimeGetVersion(&hip_version) != hipSuccess)
+        return {};
+
+    static const std::vector<char> generator_sum_vec(generator_sum,
+                                                     generator_sum + generator_sum_bytes);
+
+    // check cache first
+    std::vector<char> code;
+    if(RTCCache::single)
+    {
+        code = RTCCache::single->get_code_object(
+            kernel_name, gpu_arch, hip_version, generator_sum_vec);
+    }
+
+    if(!code.empty())
+    {
+        // cache hit
+        try
+        {
+            if(LOG_RTC_ENABLED())
+            {
+                (*LogSingleton::GetInstance().GetRTCOS())
+                    << "// cache hit for " << kernel_name << std::endl;
+            }
+            return code;
+        }
+        catch(std::exception&)
+        {
+            // if for some reason the cached object was not
+            // usable, fall through to generating the source and
+            // recompiling
+            if(LOG_RTC_ENABLED())
+            {
+                (*LogSingleton::GetInstance().GetRTCOS())
+                    << "// cache unusable for " << kernel_name << std::endl;
+            }
+        }
+    }
+
+    auto generate_begin = std::chrono::steady_clock::now();
+    auto kernel_src     = generate_src(kernel_name);
+    auto generate_end   = std::chrono::steady_clock::now();
+
+    if(LOG_RTC_ENABLED())
+    {
+        std::chrono::duration<float, std::milli> generate_ms = generate_end - generate_begin;
+
+        (*LogSingleton::GetInstance().GetRTCOS())
+            << kernel_src << "// " << kernel_name
+            << " generate duration: " << static_cast<int>(generate_ms.count()) << " ms"
+            << std::endl;
+    }
+
+    // try to set compile_begin time right when we're really
+    // about to compile (i.e. after acquiring any locks)
+    std::chrono::time_point<std::chrono::steady_clock> compile_begin;
+
+    RTCProcessType process_type = get_rtc_process_type();
+    switch(process_type)
+    {
+    case RTCProcessType::FORCE_OUT_PROCESS:
+    {
+        compile_begin = std::chrono::steady_clock::now();
+        try
+        {
+            code = compile_subprocess(kernel_src);
+            break;
+        }
+        catch(std::exception&)
+        {
+            // if subprocess had a problem, ignore it and
+            // fall through to forced-in-process compile
+        }
+    }
+    case RTCProcessType::FORCE_IN_PROCESS:
+    {
+        std::lock_guard<std::mutex> lck(compile_lock);
+        compile_begin = std::chrono::steady_clock::now();
+        code          = compile_inprocess(kernel_src);
+        break;
+    }
+    default:
+    {
+        // do it in-process if possible
+        std::unique_lock<std::mutex> lock(compile_lock, std::try_to_lock);
+        if(lock.owns_lock())
+        {
+            compile_begin = std::chrono::steady_clock::now();
+            code          = compile_inprocess(kernel_src);
+            lock.unlock();
+        }
+        else
+        {
+            // couldn't acquire lock, so try instead in a subprocess
+            try
+            {
+                compile_begin = std::chrono::steady_clock::now();
+                code          = compile_subprocess(kernel_src);
+            }
+            catch(std::exception&)
+            {
+                // subprocess still didn't work, re-acquire lock
+                // and fall back to in-process if something went
+                // wrong
+                std::lock_guard<std::mutex> lck(compile_lock);
+                compile_begin = std::chrono::steady_clock::now();
+                code          = compile_inprocess(kernel_src);
+            }
+        }
+    }
+    }
+    auto compile_end = std::chrono::steady_clock::now();
+
+    if(LOG_RTC_ENABLED())
+    {
+        std::chrono::duration<float, std::milli> compile_ms = compile_end - compile_begin;
+
+        (*LogSingleton::GetInstance().GetRTCOS())
+            << "// " << kernel_name << " compile duration: " << static_cast<int>(compile_ms.count())
+            << " ms\n"
+            << std::endl;
+    }
+
+    if(RTCCache::single)
+    {
+        RTCCache::single->store_code_object(
+            kernel_name, gpu_arch, hip_version, generator_sum_vec, code);
+    }
+    return code;
 }

@@ -38,7 +38,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     // input parameter or be made changeable by derived classes.
     static const unsigned int LDS_BYTE_LIMIT    = 32 * 1024;
     static const unsigned int BYTES_PER_ELEMENT = 16;
-    StockhamKernel(StockhamGeneratorSpecs& specs)
+    StockhamKernel(const StockhamGeneratorSpecs& specs)
         : StockhamGeneratorSpecs(specs)
     {
         auto bytes_per_batch = length * BYTES_PER_ELEMENT;

@@ -22,7 +22,7 @@
 
 std::mutex RTCKernel::compile_lock;
 
-std::vector<char> RTCKernel::compile(const std::string& kernel_src)
+std::vector<char> RTCKernel::compile_inprocess(const std::string& kernel_src)
 {
     hiprtcProgram prog;
     // give it a .cu extension so it'll be compiled as HIP code
