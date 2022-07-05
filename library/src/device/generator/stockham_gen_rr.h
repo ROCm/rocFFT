@@ -239,7 +239,7 @@ struct StockhamKernelRR : public StockhamKernel
             body += add_work(std::bind(butterfly, this, _1, _2, _3, _4), width, height, false);
 
             if(npass == factors.size() - 1)
-                body += large_twiddles_multiply(width, cumheight);
+                body += large_twiddles_multiply(width, height, cumheight);
 
             // internal lds store (half-with-linear and full-with-linear/nonlinear)
             StatementList reg2lds_full;

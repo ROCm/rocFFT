@@ -355,10 +355,16 @@ struct StockhamKernelCC : public StockhamKernel
         return stmts;
     }
 
-    StatementList large_twiddles_multiply(unsigned int width, unsigned int cumheight) override
+    StatementList large_twiddles_multiply_generator(unsigned int h,
+                                                    unsigned int hr,
+                                                    unsigned int width,
+                                                    unsigned int dt,
+                                                    unsigned int cumheight)
     {
-        StatementList stmts;
-        stmts += CommentLines{"large twiddle multiplication"};
+        if(hr == 0)
+            hr = h;
+        StatementList work;
+
         for(unsigned int w = 0; w < width; ++w)
         {
             // FIXME- using a .cast('type') would be graceful!
@@ -367,17 +373,31 @@ struct StockhamKernelCC : public StockhamKernel
             //        reduce a few vgprs (we don't know why since its behind the compiler)
             //        and avoid the drop of occuapancy (espcially for sbcc_len64_inverse)
             // idx = Parens(Parens(thread % cumheight) + w * cumheight) * trans_local
-            auto idx = std::string("(((int)") + thread.render() + " % " + std::to_string(cumheight)
-                       + ") + " + std::to_string(w) + " * " + std::to_string(cumheight) + ") * "
-                       + trans_local.render();
-            stmts += Assign{
+            auto idx = std::string("(((int)(") + thread.render() + " + " + std::to_string(dt)
+                       + " + " + std::to_string(h * threads_per_transform) + ") % "
+                       + std::to_string(cumheight) + ") + " + std::to_string(w) + " * "
+                       + std::to_string(cumheight) + ") * " + trans_local.render();
+            work += Assign{
                 W,
                 CallExpr{"TW_NSteps",
                          TemplateList{scalar_type, large_twiddle_base, large_twiddle_steps},
                          {large_twiddles, idx}}};
-            stmts += Assign{t, TwiddleMultiply{R[w], W}};
-            stmts += Assign{R[w], t};
+            work += Assign{t, TwiddleMultiply{R[hr * width + w], W}};
+            work += Assign{R[hr * width + w], t};
         }
+        return work;
+    }
+
+    StatementList
+        large_twiddles_multiply(unsigned int width, double height, unsigned int cumheight) override
+    {
+        StatementList stmts;
+
+        stmts += CommentLines{"large twiddle multiplication"};
+
+        auto mf = std::mem_fn(&StockhamKernelCC::large_twiddles_multiply_generator);
+        stmts += add_work(std::bind(mf, this, _1, _2, _3, _4, cumheight), width, height, false);
+
         return {If{apply_large_twiddle, stmts}};
     }
 };

@@ -290,7 +290,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return {CommentLines{"- no large twiddles"}};
     }
 
-    virtual StatementList large_twiddles_multiply(unsigned int width, unsigned int cumheight)
+    virtual StatementList
+        large_twiddles_multiply(unsigned int width, double height, unsigned int cumheight)
     {
         return {};
     }
@@ -617,7 +618,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             body += add_work(std::bind(butterfly, this, _1, _2, _3, _4), width, height, false);
 
             if(npass == factors.size() - 1)
-                body += large_twiddles_multiply(width, cumheight);
+                body += large_twiddles_multiply(width, height, cumheight);
 
             // internal lds store (half-with-linear and full-with-linear/nonlinear)
             StatementList reg2lds_full;
@@ -925,7 +926,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         unsigned int  iheight = std::floor(height);
         if(height > iheight && threads_per_transform > length / width)
             iheight += 1;
-
         StatementList work;
         for(unsigned int h = 0; h < iheight; ++h)
             work += generator(h, 0, width, 0);
