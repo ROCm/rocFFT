@@ -25,6 +25,7 @@
 #include <hip/hip_runtime_api.h>
 #include <hip/hiprtc.h>
 
+#include <algorithm>
 #include <future>
 #include <memory>
 #include <mutex>
