@@ -57,6 +57,7 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
                                      size_t                  largeTwdBase,
                                      size_t                  largeTwdSteps,
                                      EmbeddedType            ebtype,
+                                     DirectRegType           dir2regMode,
                                      SBRC_TRANSPOSE_TYPE     transpose_type,
                                      bool                    enable_callbacks,
                                      bool                    enable_scaling)
@@ -185,6 +186,8 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
         kernel_name += "_R2C";
         break;
     }
+    if(dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT)
+        kernel_name += "_dirReg";
     if(enable_callbacks)
         kernel_name += "_CB";
     if(enable_scaling)
@@ -537,6 +540,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                                         node.largeTwdBase,
                                         node.ltwdSteps,
                                         node.ebtype,
+                                        node.dir2regMode,
                                         transpose_type,
                                         enable_callbacks,
                                         node.IsScalingEnabled());

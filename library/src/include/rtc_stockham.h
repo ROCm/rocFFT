@@ -44,6 +44,7 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
                                      size_t                  largeTwdBase,
                                      size_t                  largeTwdSteps,
                                      EmbeddedType            ebtype,
+                                     DirectRegType           dir2regMode,
                                      SBRC_TRANSPOSE_TYPE     transpose_type,
                                      bool                    enable_callbacks,
                                      bool                    enable_scaling);
