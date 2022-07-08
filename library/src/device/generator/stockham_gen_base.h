@@ -261,7 +261,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return arguments;
     }
 
-    // TODO- need to avoid the involvement of half-lds/lds_is_real
+    // TODO- support embedded Pre/Post
     virtual StatementList set_direct_to_from_registers()
     {
         // by default (RR): "direct-to-reg" and "direct-from-reg" at the same time
@@ -700,11 +700,11 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         body += Declaration{batch};
         body += Declaration{transform};
 
-        // half-lds
-        body += set_lds_is_real();
-
         // TODO- don't override, unify them
         body += set_direct_to_from_registers();
+
+        // half-lds
+        body += set_lds_is_real();
 
         body += CallbackDeclaration{scalar_type.name, callback_type.name};
 

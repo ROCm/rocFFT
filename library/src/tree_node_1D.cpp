@@ -889,31 +889,34 @@ bool SBCCNode::KernelCheck()
 {
     bool res = LeafNode::KernelCheck();
 
-    // for Navi, these 3 are better. Haven't tested others.
+    // for Navi, Haven't tested all.
     if(is_device_gcn_arch(deviceProp, "gfx1030"))
     {
-        if((length[0] != 64) && (length[0] != 81) && (length[0] != 200))
+        if((length[0] != 64) && (length[0] != 81) && (length[0] != 200) && (length[0] != 100)
+           && (length[0] != 168))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
     else if(is_device_gcn_arch(deviceProp, "gfx908"))
     {
         // bad results from benchmark:
-        //     {100,sp}, {125,sp}, {168,dp}, {192,sp},
+        //     {125,sp}, {192,sp},
         //     {224,sp/dp}, {240,sp}, {243,sp}, {343,dp} are bad
+        // 100 and 168 can be better if enable half-lds
         std::map<rocfft_precision, std::set<size_t>> exceptions
-            = {{rocfft_precision_single, {100, 125, 192, 224, 240, 243}},
-               {rocfft_precision_double, {168, 224, 343}}};
+            = {{rocfft_precision_single, {125, 192, 224, 240, 243}},
+               {rocfft_precision_double, {224, 343}}};
         if(exceptions.at(precision).count(length[0]))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
     else if(is_device_gcn_arch(deviceProp, "gfx90a"))
     {
         // bad results from benchmark:
-        //     {100,sp}, {125,sp/dp}, {168,dp}, {192,sp}, {200,sp},
+        //     {125,sp/dp}, {192,sp}, {200,sp},
         //     {224,sp/dp}, {240,sp}, {243,dp} are bad
+        // 100 and 168 can be better if enable half-lds
         std::map<rocfft_precision, std::set<size_t>> exceptions
-            = {{rocfft_precision_single, {100, 125, 192, 200, 224, 240}},
-               {rocfft_precision_double, {125, 168, 224, 243}}};
+            = {{rocfft_precision_single, {125, 192, 200, 224, 240}},
+               {rocfft_precision_double, {125, 224, 243}}};
         if(exceptions.at(precision).count(length[0]))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }

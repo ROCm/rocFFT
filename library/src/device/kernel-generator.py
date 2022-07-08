@@ -545,7 +545,7 @@ def list_large_kernels():
         NS(length=96,  factors=[8, 3, 4],    use_3steps_large_twd={
            'sp': 'false',  'dp': 'false'}, workgroup_size=256),
         NS(length=100, factors=[5, 5, 4],    use_3steps_large_twd={
-           'sp': 'true',  'dp': 'false'}, workgroup_size=100),
+           'sp': 'true',  'dp': 'false'}, workgroup_size=100, half_lds=True),
         NS(length=104, factors=[13, 8],      use_3steps_large_twd={
            'sp': 'true',  'dp': 'false'}),
         NS(length=108, factors=[6, 6, 3],    use_3steps_large_twd={
@@ -561,7 +561,7 @@ def list_large_kernels():
         NS(length=160, factors=[4, 10, 4],   use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'}, flavour='wide'),
         NS(length=168, factors=[7, 6, 4],    use_3steps_large_twd={
-           'sp': 'true', 'dp': 'false'}, workgroup_size=128),
+           'sp': 'true', 'dp': 'false'}, workgroup_size=128, half_lds=True),
         NS(length=169, factors=[13, 13],    use_3steps_large_twd={
            'sp': 'true', 'dp': 'false'}, workgroup_size=256, runtime_compile=True),
         NS(length=192, factors=[8, 6, 4],    use_3steps_large_twd={
@@ -599,6 +599,8 @@ def list_large_kernels():
         if not hasattr(k, 'workgroup_size'):
             k.workgroup_size = block_width * \
                 functools.reduce(mul, k.factors, 1) // min(k.factors)
+        if hasattr(k, 'half_lds') and k.half_lds is True:
+            k.workgroup_size = min(1024, k.workgroup_size * 2)
         if not hasattr(k, 'length'):
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
 
@@ -652,6 +654,8 @@ def list_large_kernels():
         if not hasattr(k, 'workgroup_size'):
             k.workgroup_size = block_width * \
                 functools.reduce(mul, k.factors, 1) // min(k.factors)
+        if hasattr(k, 'half_lds') and k.half_lds is True:
+            k.workgroup_size = min(1024, k.workgroup_size * 2)
         if not hasattr(k, 'length'):
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
 

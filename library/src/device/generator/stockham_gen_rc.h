@@ -76,7 +76,7 @@ struct StockhamKernelRC : public StockhamKernel
         return {};
     }
 
-    // TODO- need to avoid the involvement of half-lds/lds_is_real
+    // TODO- support embedded Pre/Post
     StatementList set_direct_to_from_registers() override
     {
         // RC: we never do "direct-to-reg", but do "direct-from-reg" and "non-linear"

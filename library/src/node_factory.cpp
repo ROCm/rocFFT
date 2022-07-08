@@ -94,7 +94,7 @@ NodeFactory::Map1DLength const NodeFactory::map1DLengthSingle = {
     {38880, 160}, //            CC (160cc + 243rc)
     {40000, 200}, //            CC (200cc + 200rc)
     {40960, 160}, //            CC (160cc + 256rc)
-    {43008, 224}, //            CC (224cc + 192rc) // or {43008, 168}}; CC (168cc + 256rc)
+    {43008, 168}, //            CC (168cc + 256rc) // CC (224cc + 192rc)
     {46080, 240}, //            CC (240cc + 192rc)
     {48000, 240}, //            CC (240cc + 200rc)
     {49152, 256}, //            CC (256cc + 192rc)
@@ -178,7 +178,7 @@ NodeFactory::Map1DLength const NodeFactory::map1DLengthDouble = {
     {38880, 160}, //            CC (160cc + 243rc)
     {40000, 200}, //            CC (200cc + 200rc)
     {40960, 160}, //            CC (160cc + 256rc)
-    {43008, 224}, //            CC (168cc + 256rc) // or {43008, 168}}; CC (168cc + 256rc)
+    {43008, 168}, //            CC (168cc + 256rc) // or (224cc + 192rc)
     {46080, 240}, //            CC (240cc + 192rc)
     {48000, 240}, //            CC (240cc + 200rc)
     {49152, 256}, //            CC (256cc + 192rc)
@@ -643,15 +643,10 @@ ComputeScheme NodeFactory::Decide1DScheme(NodeMetaData& nodeData)
                 divLength1 = map1DLengthDouble.at(nodeData.length[0]);
                 scheme     = CS_L1D_CC;
 
-                // hack for special case of 43008, could be 168cc+256rc or 224cc+192rc
-                //    in 906, L1D_CC is not good neither by 168 nor 224.
-                //    in 908, 168cc is better than 224cc. (For others, 224 is better)
-                if(nodeData.length[0] == 43008)
+                // hack for special case of 43008. On gfx90a, 224 is better
+                if(nodeData.length[0] == 43008 && is_device_gcn_arch(nodeData.deviceProp, "gfx90a"))
                 {
-                    if(is_device_gcn_arch(nodeData.deviceProp, "gfx906"))
-                        failed = true;
-                    else if(is_device_gcn_arch(nodeData.deviceProp, "gfx908"))
-                        divLength1 = 168;
+                    divLength1 = 224;
                 }
             }
             else

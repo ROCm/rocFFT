@@ -185,6 +185,17 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
                 gp.lds_bytes /= 2;
         }
     }
+    if((scheme == CS_KERNEL_STOCKHAM_BLOCK_CC || scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
+       && (dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT) && (ebtype == EmbeddedType::NONE))
+    {
+        auto key = fpkey(length[0], precision, scheme);
+        if(function_pool::has_function(key))
+        {
+            auto kernel = function_pool::get_kernel(key);
+            if(kernel.half_lds)
+                gp.lds_bytes /= 2;
+        }
+    }
     return;
 }
 
