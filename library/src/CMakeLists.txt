@@ -36,6 +36,10 @@ endfunction( )
 
 add_executable( rocfft_rtc_helper rocfft_rtc_helper.cpp rtc_compile.cpp )
 
+if( WIN32 )
+  set( ROCFFT_HIPRTC_LIB "${HIP_PATH}/lib/hiprtc.lib" )
+endif()
+
 # each backend requires different libraries for host and device code
 if( USE_CUDA )
   set( ROCFFT_HOST_LINK_LIBS -lnvrtc -lnvrtc-builtins -lnvptxcompiler_static -lcuda )
@@ -49,7 +53,7 @@ target_include_directories( rocfft_rtc_helper
   PRIVATE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
 )
-target_link_libraries( rocfft_rtc_helper PRIVATE ${ROCFFT_HOST_LINK_LIBS} )
+target_link_libraries( rocfft_rtc_helper PRIVATE ${ROCFFT_HOST_LINK_LIBS} ${ROCFFT_HIPRTC_LIB} )
 set_target_properties( rocfft_rtc_helper PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON )
 
 # Package that helps me set visibility for function names exported
@@ -199,7 +203,9 @@ add_library( rocfft
 add_library( roc::rocfft ALIAS rocfft )
 target_link_libraries( rocfft PRIVATE ${ROCFFT_SQLITE_LIB} )
 
-if( NOT WIN32 )
+if( WIN32 )
+  target_link_libraries( rocfft PRIVATE ${ROCFFT_HIPRTC_LIB} )
+else()
   target_link_libraries( rocfft PRIVATE -lstdc++fs )
 endif()
 if( ROCFFT_RUNTIME_COMPILE )
