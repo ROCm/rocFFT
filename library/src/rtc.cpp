@@ -131,33 +131,3 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
     p.set_value(nullptr);
     return p.get_future();
 }
-
-rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes)
-{
-    if(!buffer || !buffer_len_bytes)
-        return rocfft_status_invalid_arg_value;
-
-    if(!RTCCache::single)
-        return rocfft_status_failure;
-
-    return RTCCache::single->serialize(buffer, buffer_len_bytes);
-}
-
-rocfft_status rocfft_cache_buffer_free(void* buffer)
-{
-    if(!RTCCache::single)
-        return rocfft_status_failure;
-    RTCCache::single->serialize_free(buffer);
-    return rocfft_status_success;
-}
-
-rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_bytes)
-{
-    if(!buffer || !buffer_len_bytes)
-        return rocfft_status_invalid_arg_value;
-
-    if(!RTCCache::single)
-        return rocfft_status_failure;
-
-    return RTCCache::single->deserialize(buffer, buffer_len_bytes);
-}

@@ -124,14 +124,12 @@ add_custom_command(
 # The following is a list of implementation files defining the library
 set( rocfft_source
   auxiliary.cpp
-  compute_scheme.cpp
   plan.cpp
   transform.cpp
   repo.cpp
   powX.cpp
   twiddles.cpp
   kargs.cpp
-  rocfft_ostream.cpp
   tree_node.cpp
   tree_node_1D.cpp
   tree_node_2D.cpp
@@ -141,11 +139,7 @@ set( rocfft_source
   fuse_shim.cpp
   assignment_policy.cpp
   node_factory.cpp
-  rtc.cpp
-  rtc_cache.cpp
-  rtc_compile.cpp
-  rtc_subprocess.cpp
-  rtc_stockham.cpp
+  rtc_exports.cpp
   )
 
 # SQLite 3.36.0 enabled the backup API by default, which we need
@@ -189,10 +183,38 @@ else()
   set(ROCFFT_SQLITE_LIB sqlite3)
 endif()
 
-set_property(
-  SOURCE rtc.cpp
-  PROPERTY OBJECT_DEPENDS ${kgen_embed_h}
+# files that depend on kernel-generator-embed.h
+foreach( file rtc.cpp rtc_stockham.cpp )
+  set_property(
+    SOURCE ${file}
+    PROPERTY OBJECT_DEPENDS ${kgen_embed_h}
+  )
+endforeach()
+
+# RTC stuff that's used by both core library and helpers
+add_library( rocfft-rtc-common OBJECT
+  compute_scheme.cpp
+  rocfft_ostream.cpp
+  rtc.cpp
+  rtc_cache.cpp
+  rtc_compile.cpp
+  rtc_subprocess.cpp
+  rtc_stockham.cpp
 )
+target_include_directories( rocfft-rtc-common
+  PRIVATE
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+  ${sqlite_local_SOURCE_DIR}
+)
+set_target_properties( rocfft-rtc-common PROPERTIES
+  CXX_VISIBILITY_PRESET "hidden"
+  VISIBILITY_INLINES_HIDDEN ON
+  CXX_STANDARD 17
+  CXX_STANDARD_REQUIRED ON
+  POSITION_INDEPENDENT_CODE ON
+)
+target_link_libraries( rocfft-rtc-common PRIVATE ${ROCFFT_HOST_LINK_LIBS} ${ROCFFT_HIPRTC_LIB} )
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 
@@ -210,6 +232,7 @@ else()
 endif()
 if( ROCFFT_RUNTIME_COMPILE )
   target_compile_options( rocfft PRIVATE -DROCFFT_RUNTIME_COMPILE )
+  target_compile_options( rocfft-rtc-common PRIVATE -DROCFFT_RUNTIME_COMPILE )
 endif()
 
 target_compile_options( rocfft PRIVATE ${WARNING_FLAGS} )
@@ -223,6 +246,7 @@ endif()
 
 target_link_libraries( rocfft PRIVATE ${ROCFFT_DEVICE_LINK_LIBS} )
 
+target_link_libraries( rocfft PRIVATE rocfft-rtc-common )
 target_link_libraries( rocfft PRIVATE rocfft-device-0 )
 target_link_libraries( rocfft PRIVATE rocfft-device-1 )
 target_link_libraries( rocfft PRIVATE rocfft-device-2 )

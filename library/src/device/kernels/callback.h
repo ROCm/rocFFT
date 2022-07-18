@@ -59,8 +59,8 @@ struct callback_type<float>
     typedef void (*store)(float* data, size_t offset, float element, void* cbdata, void* sharedMem);
 };
 
-__device__ auto load_cb_default_float  = load_cb_default<float>;
-__device__ auto store_cb_default_float = store_cb_default<float>;
+static __device__ auto load_cb_default_float  = load_cb_default<float>;
+static __device__ auto store_cb_default_float = store_cb_default<float>;
 
 template <>
 struct callback_type<float2>
@@ -70,8 +70,8 @@ struct callback_type<float2>
         float2* data, size_t offset, float2 element, void* cbdata, void* sharedMem);
 };
 
-__device__ auto load_cb_default_float2  = load_cb_default<float2>;
-__device__ auto store_cb_default_float2 = store_cb_default<float2>;
+static __device__ auto load_cb_default_float2  = load_cb_default<float2>;
+static __device__ auto store_cb_default_float2 = store_cb_default<float2>;
 
 template <>
 struct callback_type<double>
@@ -81,8 +81,8 @@ struct callback_type<double>
         double* data, size_t offset, double element, void* cbdata, void* sharedMem);
 };
 
-__device__ auto load_cb_default_double  = load_cb_default<double>;
-__device__ auto store_cb_default_double = store_cb_default<double>;
+static __device__ auto load_cb_default_double  = load_cb_default<double>;
+static __device__ auto store_cb_default_double = store_cb_default<double>;
 
 template <>
 struct callback_type<double2>
@@ -92,8 +92,8 @@ struct callback_type<double2>
         double2* data, size_t offset, double2 element, void* cbdata, void* sharedMem);
 };
 
-__device__ auto load_cb_default_double2  = load_cb_default<double2>;
-__device__ auto store_cb_default_double2 = store_cb_default<double2>;
+static __device__ auto load_cb_default_double2  = load_cb_default<double2>;
+static __device__ auto store_cb_default_double2 = store_cb_default<double2>;
 
 enum struct CallbackType
 {
