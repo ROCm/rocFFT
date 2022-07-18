@@ -420,7 +420,7 @@ std::vector<char> RTCKernel::cached_compile(const std::string& kernel_name,
         compile_begin = std::chrono::steady_clock::now();
         try
         {
-            code = compile_subprocess(kernel_src);
+            code = compile_subprocess(kernel_src, gpu_arch);
             break;
         }
         catch(std::exception&)
@@ -433,7 +433,7 @@ std::vector<char> RTCKernel::cached_compile(const std::string& kernel_name,
     {
         std::lock_guard<std::mutex> lck(compile_lock);
         compile_begin = std::chrono::steady_clock::now();
-        code          = compile_inprocess(kernel_src);
+        code          = compile_inprocess(kernel_src, gpu_arch);
         break;
     }
     default:
@@ -443,7 +443,7 @@ std::vector<char> RTCKernel::cached_compile(const std::string& kernel_name,
         if(lock.owns_lock())
         {
             compile_begin = std::chrono::steady_clock::now();
-            code          = compile_inprocess(kernel_src);
+            code          = compile_inprocess(kernel_src, gpu_arch);
             lock.unlock();
         }
         else
@@ -452,7 +452,7 @@ std::vector<char> RTCKernel::cached_compile(const std::string& kernel_name,
             try
             {
                 compile_begin = std::chrono::steady_clock::now();
-                code          = compile_subprocess(kernel_src);
+                code          = compile_subprocess(kernel_src, gpu_arch);
             }
             catch(std::exception&)
             {
@@ -461,7 +461,7 @@ std::vector<char> RTCKernel::cached_compile(const std::string& kernel_name,
                 // wrong
                 std::lock_guard<std::mutex> lck(compile_lock);
                 compile_begin = std::chrono::steady_clock::now();
-                code          = compile_inprocess(kernel_src);
+                code          = compile_inprocess(kernel_src, gpu_arch);
             }
         }
     }

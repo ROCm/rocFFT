@@ -152,7 +152,8 @@ struct file_handle_wrapper
     file_handle_type fd = FILE_HANDLE_INVALID;
 };
 
-std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
+std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src,
+                                                const std::string& gpu_arch)
 {
     static std::string  rtc_helper_exe = find_rtc_helper().string();
     std::vector<char>   code;
@@ -171,10 +172,15 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
         // addresses - these pipes are closed by the wrapper once
         // parent scope exits so this should be unique enough
         char        buf[200];
-        std::string pipe_name = "rocfft_rtc_subprocess_";
+        std::string pipe_name = "\\\\.\\pipe\\rocfft_rtc_subprocess_";
         snprintf(
             buf, 200, "%lx_%lx_%p_%p", GetCurrentProcessId(), GetCurrentThreadId(), &read, &write);
         pipe_name += buf;
+
+        SECURITY_ATTRIBUTES sa;
+        sa.nLength              = sizeof(SECURITY_ATTRIBUTES);
+        sa.bInheritHandle       = TRUE;
+        sa.lpSecurityDescriptor = NULL;
 
         static const DWORD pipe_size = 4096;
         // create read end of pipe
@@ -185,21 +191,37 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
                                 pipe_size,
                                 pipe_size,
                                 0,
-                                nullptr);
+                                &sa);
+        if(read == INVALID_HANDLE_VALUE)
+        {
+            throw std::runtime_error(std::string("failed to create read pipe: ")
+                                     + std::to_string(GetLastError()));
+        }
+
         // create write end of pipe
         write = CreateFileA(pipe_name.c_str(),
                             GENERIC_WRITE,
                             0,
-                            nullptr,
+                            &sa,
                             OPEN_EXISTING,
                             FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
                             nullptr);
-        if(!read || !write)
-            throw std::runtime_error("failed to create pipes");
+
+        if(write == INVALID_HANDLE_VALUE)
+        {
+            throw std::runtime_error(std::string("failed to create write pipe: ")
+                                     + std::to_string(GetLastError()));
+        }
     };
 
     make_overlapped_pipe(child_stdin_read.fd, child_stdin_write.fd);
     make_overlapped_pipe(child_stdout_read.fd, child_stdout_write.fd);
+
+    // uninherit pipe ends the child does not need
+    if(!SetHandleInformation(child_stdout_read, HANDLE_FLAG_INHERIT, 0))
+        throw std::runtime_error("cannot uninherit stdout read");
+    if(!SetHandleInformation(child_stdin_write, HANDLE_FLAG_INHERIT, 0))
+        throw std::runtime_error("cannot uninherit stdin write");
 
     STARTUPINFO si = {0};
     si.cb          = sizeof(STARTUPINFO);
@@ -207,65 +229,62 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
     si.hStdInput   = child_stdin_read;
     si.hStdOutput  = child_stdout_write;
 
+    std::string cmdline = rtc_helper_exe + " " + gpu_arch;
+
     PROCESS_INFORMATION pi;
-    if(!CreateProcessA(
-           rtc_helper_exe.c_str(), nullptr, nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi))
+    if(!CreateProcessA(rtc_helper_exe.c_str(),
+                       const_cast<char*>(cmdline.c_str()),
+                       nullptr,
+                       nullptr,
+                       TRUE,
+                       0,
+                       nullptr,
+                       nullptr,
+                       &si,
+                       &pi))
         throw std::runtime_error("failed to create process");
+
     file_handle_wrapper hProcess(pi.hProcess);
     file_handle_wrapper hThread(pi.hThread);
 
     // overlapped I/O handles and structs
-    file_handle_wrapper stdin_write_event{CreateEventA(NULL, TRUE, TRUE, NULL)};
-    file_handle_wrapper stdout_read_event{CreateEventA(NULL, TRUE, TRUE, NULL)};
+    file_handle_wrapper stdin_write_event{CreateEventA(NULL, TRUE, FALSE, NULL)};
+    file_handle_wrapper stdout_read_event{CreateEventA(NULL, TRUE, FALSE, NULL)};
     OVERLAPPED          stdin_write_ovl = {0};
     stdin_write_ovl.hEvent              = stdin_write_event;
     OVERLAPPED stdout_read_ovl          = {0};
     stdout_read_ovl.hEvent              = stdout_read_event;
 
     HANDLE handles[3];
-    handles[0] = pi.hProcess;
-    handles[1] = stdin_write_event;
-    handles[2] = stdout_read_event;
+    handles[0] = hProcess;
+    handles[1] = stdout_read_event;
+    handles[2] = stdin_write_event;
 
     size_t total_bytes_written = 0;
     size_t total_bytes_read    = 0;
+
+    // do initial async read + write to child
+    if(!WriteFile(child_stdin_write, kernel_src.data(), kernel_src.size(), NULL, &stdin_write_ovl)
+       && GetLastError() != ERROR_IO_PENDING)
+    {
+        throw std::runtime_error("failed to write initial input to child");
+    }
+
+    code.resize(READ_CHUNK_SIZE);
+    if(!ReadFile(child_stdout_read, code.data(), READ_CHUNK_SIZE, nullptr, &stdout_read_ovl)
+       && GetLastError() != ERROR_IO_PENDING)
+        throw std::runtime_error("failed to read initial data from child");
+
+    DWORD wait_handle_count = 3;
     for(;;)
     {
-        auto wait_result = WaitForMultipleObjects(3, handles, FALSE, INFINITE);
-
+        auto wait_result = WaitForMultipleObjects(wait_handle_count, handles, FALSE, INFINITE);
         if(wait_result == WAIT_OBJECT_0)
         {
             // process died unexpectedly - we should be able to finish I/O first
             break;
         }
         else if(wait_result == WAIT_OBJECT_0 + 1)
-        {
-            // write handle is ready
-            DWORD bytes_written = 0;
-            if(GetOverlappedResult(child_stdin_write, &stdin_write_ovl, &bytes_written, FALSE))
-            {
-                total_bytes_written += bytes_written;
-            }
-
-            if(total_bytes_written >= kernel_src.size())
-            {
-                // close child's stdin so it knows we're done writing
-                child_stdin_write.close();
-                child_stdin_read.close();
-                child_stdout_write.close();
-            }
-            else
-            {
-                // write remaining data to child
-                if(!WriteFile(child_stdin_write,
-                              kernel_src.data() + total_bytes_written,
-                              kernel_src.size() - total_bytes_written,
-                              NULL,
-                              &stdin_write_ovl))
-                    throw std::runtime_error("failed to write input to child");
-            }
-        }
-        else if(wait_result == WAIT_OBJECT_0 + 2)
         {
             // read handle is ready
             DWORD bytes_read = 0;
@@ -284,7 +303,51 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
                          READ_CHUNK_SIZE,
                          nullptr,
                          &stdout_read_ovl))
-                throw std::runtime_error("failed to read data from child");
+            {
+                auto err = GetLastError();
+                // end of file
+                if(err == ERROR_BROKEN_PIPE)
+                {
+                    code.resize(total_bytes_read);
+                    break;
+                }
+                // normally expect ERROR_IO_PENDING for any async read
+                else if(err != ERROR_IO_PENDING)
+                    throw std::runtime_error(std::string("failed to read data from child: ")
+                                             + std::to_string(GetLastError()));
+            }
+        }
+        else if(wait_result == WAIT_OBJECT_0 + 2)
+        {
+            // write handle is ready
+            DWORD bytes_written = 0;
+            if(GetOverlappedResult(child_stdin_write, &stdin_write_ovl, &bytes_written, FALSE))
+            {
+                total_bytes_written += bytes_written;
+            }
+
+            if(total_bytes_written >= kernel_src.size())
+            {
+                // done writing, don't add write handle to wait anymore
+                --wait_handle_count;
+                // close child's stdin so it knows we're done writing
+                child_stdin_write.close();
+                child_stdin_read.close();
+                child_stdout_write.close();
+            }
+            else
+            {
+                // write remaining data to child
+                if(!WriteFile(child_stdin_write,
+                              kernel_src.data() + total_bytes_written,
+                              kernel_src.size() - total_bytes_written,
+                              NULL,
+                              &stdin_write_ovl)
+                   && GetLastError() != ERROR_IO_PENDING)
+                {
+                    throw std::runtime_error("failed to write input to child");
+                }
+            }
         }
     }
     child_stdout_read.close();
@@ -310,8 +373,9 @@ std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src)
     file_handle_wrapper child_stdout_read(stdout_fds[0]);
     file_handle_wrapper child_stdout_write(stdout_fds[1]);
 
-    pid_t pid    = 0;
-    char* argv[] = {const_cast<char*>(rtc_helper_exe.c_str()), nullptr};
+    pid_t pid = 0;
+    char* argv[]
+        = {const_cast<char*>(rtc_helper_exe.c_str()), const_cast<char*>(gpu_arch.c_str()), 0};
     char* envp[] = {nullptr};
 
     // set up child's stdin/stdout

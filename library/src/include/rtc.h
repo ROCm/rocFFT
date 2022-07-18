@@ -138,7 +138,8 @@ struct RTCKernel
                                             kernel_src_gen_t   generate_src);
 
     // compile source to a code object, in the current process.
-    static std::vector<char> compile_inprocess(const std::string& kernel_src);
+    static std::vector<char> compile_inprocess(const std::string& kernel_src,
+                                               const std::string& gpu_arch);
 
 protected:
     // protected ctor, use "runtime_compile" to build kernel for a node
@@ -164,7 +165,8 @@ private:
     // delegate to a subprocess.  But we should at least do one
     // in-process instead of making everything go to subprocess.
     static std::mutex        compile_lock;
-    static std::vector<char> compile_subprocess(const std::string& kernel_src);
+    static std::vector<char> compile_subprocess(const std::string& kernel_src,
+                                                const std::string& gpu_arch);
 };
 
 #endif

@@ -53,7 +53,6 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
                                      rocfft_array_type       inArrayType,
                                      rocfft_array_type       outArrayType,
                                      bool                    unitstride,
-                                     size_t                  large1D,
                                      size_t                  largeTwdBase,
                                      size_t                  largeTwdSteps,
                                      EmbeddedType            ebtype,
@@ -169,7 +168,7 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
         break;
     }
 
-    if(large1D > 0)
+    if(largeTwdBase > 0 && largeTwdSteps > 0)
     {
         kernel_name += "_twdbase" + std::to_string(largeTwdBase);
         kernel_name += "_" + std::to_string(largeTwdSteps) + "step";
@@ -205,7 +204,6 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          rocfft_array_type             inArrayType,
                          rocfft_array_type             outArrayType,
                          bool                          unit_stride,
-                         size_t                        large1D,
                          size_t                        largeTwdBase,
                          size_t                        largeTwdSteps,
                          EmbeddedType                  ebtype,
@@ -383,7 +381,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     }
 
     src += "static const bool apply_large_twiddle = ";
-    if(large1D > 0)
+    if(largeTwdBase > 0 && largeTwdSteps > 0)
         src += "true;\n";
     else
         src += "false;\n";
@@ -536,7 +534,6 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                                         node.inArrayType,
                                         node.outArrayType,
                                         unit_stride,
-                                        node.large1D,
                                         node.largeTwdBase,
                                         node.ltwdSteps,
                                         node.ebtype,
@@ -557,7 +554,6 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                             node.inArrayType,
                             node.outArrayType,
                             unit_stride,
-                            node.large1D,
                             node.largeTwdBase,
                             node.ltwdSteps,
                             node.ebtype,

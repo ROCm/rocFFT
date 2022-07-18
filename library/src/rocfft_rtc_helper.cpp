@@ -22,10 +22,29 @@
 #include <iostream>
 #include <iterator>
 
+#ifdef WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
+
 int main(int argc, const char* const* argv)
 {
+#ifdef WIN32
+    // stdout on Windows defaults to text mode and will mangle our code objects
+    _setmode(_fileno(stdout), _O_BINARY);
+#endif
+
     try
     {
+        if(argc != 2)
+        {
+            // GPU architecture is passed as a command line argument
+            std::cerr << "usage: rocfft_rtc_helper gfxNNN\n";
+            throw std::runtime_error("rocfft_rtc_helper: invalid command line");
+        }
+
+        std::string gpu_arch = argv[1];
+
         // collect stdin as kernel source
         std::string kernel_src;
         std::noskipws(std::cin);
@@ -34,7 +53,7 @@ int main(int argc, const char* const* argv)
                   std::back_inserter(kernel_src));
 
         // compile and write code object to stdout
-        auto code = RTCKernel::compile_inprocess(kernel_src);
+        auto code = RTCKernel::compile_inprocess(kernel_src, gpu_arch);
         std::cout.write(code.data(), code.size());
         return 0;
     }

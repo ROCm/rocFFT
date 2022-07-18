@@ -22,7 +22,8 @@
 
 std::mutex RTCKernel::compile_lock;
 
-std::vector<char> RTCKernel::compile_inprocess(const std::string& kernel_src)
+std::vector<char> RTCKernel::compile_inprocess(const std::string& kernel_src,
+                                               const std::string& gpu_arch)
 {
     hiprtcProgram prog;
     // give it a .cu extension so it'll be compiled as HIP code
@@ -32,9 +33,12 @@ std::vector<char> RTCKernel::compile_inprocess(const std::string& kernel_src)
         throw std::runtime_error("unable to create program");
     }
 
+    std::string gpu_arch_arg = "--gpu-architecture=" + gpu_arch;
+
     std::vector<const char*> options;
     options.push_back("-O3");
     options.push_back("-std=c++14");
+    options.push_back(gpu_arch_arg.c_str());
 
     auto compileResult = hiprtcCompileProgram(prog, options.size(), options.data());
     if(compileResult != HIPRTC_SUCCESS)

@@ -109,6 +109,8 @@ set( kgen_logic_files
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_cr.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_rc.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_rr.h
+     ${CMAKE_SOURCE_DIR}/library/src/rtc_compile.cpp
+     ${CMAKE_SOURCE_DIR}/library/src/rtc_stockham.cpp
 
      # c++ code that does rtc-specific adjustments
      ${CMAKE_SOURCE_DIR}/library/src/rtc.cpp
