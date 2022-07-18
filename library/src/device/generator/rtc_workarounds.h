@@ -20,6 +20,9 @@
 
 // complex number operators that are not present in hipRTC
 
+#ifndef ROCFFT_RTC_WORKAROUND_H
+#define ROCFFT_RTC_WORKAROUND_H
+
 __device__ float2& operator*=(float2& f2, const float f)
 {
     return f2 *= float2{f};
@@ -39,3 +42,5 @@ __device__ double2 operator-(double2 f2)
 {
     return double2{-f2.x, -f2.y};
 }
+
+#endif // ROCFFT_RTC_WORKAROUND_H

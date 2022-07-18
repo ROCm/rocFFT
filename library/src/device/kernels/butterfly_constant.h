@@ -2,8 +2,6 @@
  * Copyright (C) 2016-2022 Advanced Micro Devices, Inc. All rights reserved.
  ******************************************************************************/
 
-#pragma once
-
 #ifndef BUTTERFLY_CONSTANT_H
 #define BUTTERFLY_CONSTANT_H
 

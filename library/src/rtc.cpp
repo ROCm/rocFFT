@@ -106,12 +106,23 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
     {
         std::string kernel_name = generator.generate_name();
 
-        // compile to code object
-        return std::async(std::launch::async, [=]() {
-            std::vector<char> code = cached_compile(kernel_name, gpu_arch, generator.generate_src);
+        auto compile = [=]() {
+            try
+            {
+                std::vector<char> code
+                    = cached_compile(kernel_name, gpu_arch, generator.generate_src);
+                return generator.construct_rtckernel(kernel_name, code);
+            }
+            catch(std::exception& e)
+            {
+                if(LOG_RTC_ENABLED())
+                    (*LogSingleton::GetInstance().GetRTCOS()) << e.what() << std::endl;
+                throw e;
+            }
+        };
 
-            return generator.construct_rtckernel(kernel_name, code);
-        });
+        // compile to code object
+        return std::async(std::launch::async, compile);
     }
 #endif
     // runtime compilation is not enabled or no kernel found, return

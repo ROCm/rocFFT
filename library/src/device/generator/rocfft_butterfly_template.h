@@ -2,8 +2,6 @@
  * Copyright (C) 2016-2022 Advanced Micro Devices, Inc. All rights reserved.
  ******************************************************************************/
 
-#pragma once
-
 #ifndef ROCFFT_BUTTERFLY_TEMPLATE_H
 #define ROCFFT_BUTTERFLY_TEMPLATE_H
 
