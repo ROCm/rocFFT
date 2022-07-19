@@ -83,17 +83,22 @@ struct RTCCache
     static std::unique_ptr<RTCCache> single;
 
 private:
-    sqlite3_ptr connect_db(const std::filesystem::path& path);
+    sqlite3_ptr connect_db(const std::filesystem::path& path, bool readonly);
 
-    // database handle
-    sqlite3_ptr db;
+    // database handles to system- and user-level caches.  either or
+    // both may be a null pointer, if that particular cache could not
+    // be located.
+    sqlite3_ptr db_sys;
+    sqlite3_ptr db_user;
 
     // query handles, with mutexes to prevent concurrent queries that
     // might stomp on one another's bound values
-    sqlite3_stmt_ptr get_stmt;
-    std::mutex       get_mutex;
-    sqlite3_stmt_ptr store_stmt;
-    std::mutex       store_mutex;
+    sqlite3_stmt_ptr get_stmt_sys;
+    std::mutex       get_mutex_sys;
+    sqlite3_stmt_ptr get_stmt_user;
+    std::mutex       get_mutex_user;
+    sqlite3_stmt_ptr store_stmt_user;
+    std::mutex       store_mutex_user;
 
     // lock around deserialization, since that attaches a fixed-name
     // schema to the db and we don't want a collision

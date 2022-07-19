@@ -459,6 +459,29 @@ TEST(rocfft_UnitTest, rtc_cache)
     build_plan();
     rocfft_cleanup();
     ASSERT_FALSE(kernel_was_compiled());
+
+    // use the cache as a system cache and make the user one an empty
+    // in-memory cache.  kernel should still not be recompiled.
+    EnvironmentSetTemp cache_sys_env("ROCFFT_RTC_SYS_CACHE_PATH", rtc_cache_path.c_str());
+    EnvironmentSetTemp cache_empty_env("ROCFFT_RTC_CACHE_PATH", ":memory:");
+    rocfft_setup();
+    build_plan();
+    rocfft_cleanup();
+    ASSERT_FALSE(kernel_was_compiled());
+
+    // check that the system cache is not written to, even if it's
+    // writable by the current user.  after removing the cache, the
+    // kernel should always be recompiled since rocFFT has no durable
+    // place to write it to.
+    remove(rtc_cache_path.c_str());
+    rocfft_setup();
+    build_plan();
+    rocfft_cleanup();
+    ASSERT_TRUE(kernel_was_compiled());
+    rocfft_setup();
+    build_plan();
+    rocfft_cleanup();
+    ASSERT_TRUE(kernel_was_compiled());
 }
 
 // make sure cache API functions tolerate null pointers without crashing

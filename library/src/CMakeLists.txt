@@ -244,6 +244,7 @@ endif()
 
 if( NOT BUILD_SHARED_LIBS )
   target_link_libraries( rocfft INTERFACE ${ROCFFT_HOST_LINK_LIBS} )
+  target_compile_options( rocfft PRIVATE -DROCFFT_STATIC_LIB )
 endif()
 
 target_link_libraries( rocfft PRIVATE ${ROCFFT_DEVICE_LINK_LIBS} )

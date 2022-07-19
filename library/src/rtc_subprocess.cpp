@@ -19,15 +19,14 @@
 // THE SOFTWARE.
 
 #include "../../shared/environment.h"
+#include "library_path.h"
 #include "rtc.h"
 
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
-#include <dlfcn.h>
 #include <fcntl.h>
-#include <link.h>
 #include <poll.h>
 #include <spawn.h>
 #include <stdio.h>
@@ -54,33 +53,6 @@ static const char* HELPER_EXE = "rocfft_rtc_helper";
 typedef int        file_handle_type;
 #endif
 
-static fs::path get_library_path()
-{
-#ifdef WIN32
-    // get module handle for rocfft lib
-    HMODULE module = GetModuleHandleA("rocfft.dll");
-    if(!module)
-        throw std::runtime_error("unable to find rocfft.dll handle");
-
-    char library_path[MAX_PATH];
-    if(GetModuleFileNameA(module, library_path, MAX_PATH) == MAX_PATH)
-        throw std::runtime_error("unable to get path to dll");
-
-    return library_path;
-#else
-
-    // get address of rocfft lib by looking for a symbol in it
-    Dl_info   info;
-    link_map* map = nullptr;
-    if(!dladdr1(reinterpret_cast<const void*>(rocfft_plan_create),
-                &info,
-                reinterpret_cast<void**>(&map),
-                RTLD_DL_LINKMAP))
-        throw std::runtime_error("dladdr failed");
-    return map->l_name;
-#endif
-}
-
 static fs::path find_rtc_helper()
 {
     // candidate directories for the helper
@@ -91,20 +63,23 @@ static fs::path find_rtc_helper()
         return var;
 
     fs::path library_path = get_library_path();
-    // try same dir as library
-    fs::path library_parent_path = library_path.parent_path();
-    helper_dirs.push_back(library_parent_path);
-
-    // try bin dir, one dir up from library
-    fs::path bin_path = library_parent_path.parent_path() / "bin";
-    helper_dirs.push_back(bin_path);
-
-    // look for helper in the candidate directories
-    for(const auto& dir : helper_dirs)
+    if(!library_path.empty())
     {
-        auto helper_path = dir / HELPER_EXE;
-        if(fs::exists(helper_path))
-            return helper_path;
+        // try same dir as library
+        fs::path library_parent_path = library_path.parent_path();
+        helper_dirs.push_back(library_parent_path);
+
+        // try bin dir, one dir up from library
+        fs::path bin_path = library_parent_path.parent_path() / "bin";
+        helper_dirs.push_back(bin_path);
+
+        // look for helper in the candidate directories
+        for(const auto& dir : helper_dirs)
+        {
+            auto helper_path = dir / HELPER_EXE;
+            if(fs::exists(helper_path))
+                return helper_path;
+        }
     }
     throw std::runtime_error("unable to find rtc helper");
 }
