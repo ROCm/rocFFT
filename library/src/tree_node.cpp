@@ -21,6 +21,7 @@
 #include "tree_node.h"
 #include "function_pool.h"
 #include "kernel_launch.h"
+#include "logging.h"
 #include "repo.h"
 #include "twiddles.h"
 
@@ -114,7 +115,9 @@ bool LeafNode::KernelCheck()
                                  : fpkey(length[0], length[1], precision, scheme);
     if(!function_pool::has_function(key))
     {
-        PrintMissingKernelInfo(key);
+        if(LOG_TRACE_ENABLED())
+            (*LogSingleton::GetInstance().GetTraceOS()) << PrintMissingKernelInfo(key);
+
         return false;
     }
 

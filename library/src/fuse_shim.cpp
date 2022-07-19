@@ -630,7 +630,10 @@ std::unique_ptr<TreeNode> STK_R2CTrans_FuseShim::FuseKernels()
     auto fused = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY,
                                                    stockham->parent);
     fused->CopyNodeData(*stockham);
-    // no need to check kernel exists, this scheme uses a built-in kernel
+    // check if kernel exists, since the fused kernel uses different scheme other than stockham
+    if(!fused->KernelCheck())
+        return nullptr;
+
     fused->placement    = rocfft_placement_notinplace;
     fused->outArrayType = transpose->outArrayType;
     fused->obOut        = transpose->obOut;

@@ -48,7 +48,7 @@ static inline FMKey fpkey(size_t              length1,
     return {{length1, length2}, precision, scheme, transpose};
 }
 
-inline void PrintMissingKernelInfo(const FMKey& key)
+inline std::string PrintMissingKernelInfo(const FMKey& key)
 {
     const auto&               lengthVec = std::get<0>(key);
     const rocfft_precision    precision = std::get<1>(key);
@@ -60,7 +60,8 @@ inline void PrintMissingKernelInfo(const FMKey& key)
         << "\tprecision: " << precision << "\n"
         << "\tscheme: " << PrintScheme(scheme) << "\n"
         << "\tSBRC Transpose type: " << PrintSBRCTransposeType(trans) << std::endl;
-    throw std::runtime_error(msg.str());
+
+    return msg.str();
 }
 
 struct SimpleHash

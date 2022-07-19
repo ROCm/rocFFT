@@ -38,6 +38,9 @@ std::vector<std::vector<size_t>> adhoc_sizes = {
 
     // Failure with build_CS_3D_BLOCK_RC
     {680, 128, 128},
+
+    // TILE_UNALIGNED type of SBRC 3D ERC
+    {98, 98, 98},
 };
 
 const static std::vector<std::vector<size_t>> stride_range = {{1}};
@@ -77,6 +80,11 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_adhoc,
 inline auto param_permissive_iodist()
 {
     std::vector<std::vector<size_t>> lengths = adhoc_sizes;
+    // TODO- for these permissive iodist tests,
+    // some 98^3 sizes take too long for the exhaustive search buffer assignments
+    // about millions of assignments, thus the program is hung there.
+    // So we take this length out from iodist test for now.
+    lengths.erase(std::find(lengths.begin(), lengths.end(), std::vector<size_t>{98, 98, 98}));
     lengths.push_back({4});
 
     std::vector<fft_params> params;

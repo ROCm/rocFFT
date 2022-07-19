@@ -16,6 +16,8 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Fixed
 - Fixed occasional failures to parallelize runtime compilation of kernels.
   Failures would be retried serially and ultimately succeed, but this would take extra time.
+- Fixed failures of some R2C 3D transforms that use the unsupported TILE_UNALGNED SBRC kernels.
+  An example is 98^3 R2C out-of-place.
 
 ## rocFFT 1.0.17 for ROCm 5.2.0
 ### Added

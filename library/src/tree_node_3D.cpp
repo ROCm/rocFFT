@@ -21,6 +21,7 @@
 #include "tree_node_3D.h"
 #include "arithmetic.h"
 #include "function_pool.h"
+#include "logging.h"
 #include "node_factory.h"
 #include <numeric>
 
@@ -723,23 +724,26 @@ void RC3DNode::AssignParams_internal()
  *****************************************************/
 bool SBRCTranspose3DNode::KernelCheck()
 {
-    // check we have the kernel
-    // TODO: TILE_UNALIGNED if we have it
+    // check we have the kernel,
+    // we always have aligned, get the kernel and the bwd
     FMKey key = fpkey(length[0], precision, scheme, TILE_ALIGNED);
     if(!function_pool::has_function(key))
     {
-        PrintMissingKernelInfo(key);
+        if(LOG_TRACE_ENABLED())
+            (*LogSingleton::GetInstance().GetTraceOS()) << PrintMissingKernelInfo(key);
         return false;
     }
 
-    if(is_diagonal_sbrc_3D_length(length[0]) && is_cube_size(length))
+    auto bwd = function_pool::get_kernel(key).transforms_per_block;
+
+    // check if we have the sbrc_type that we are actually applying
+    sbrcTranstype = sbrc_transpose_type(bwd);
+    if(!function_pool::has_function(fpkey(length[0], precision, scheme, sbrcTranstype)))
     {
-        key = fpkey(length[0], precision, scheme, DIAGONAL);
-        if(!function_pool::has_function(key))
-        {
-            PrintMissingKernelInfo(key);
-            return false;
-        }
+        if(LOG_TRACE_ENABLED())
+            (*LogSingleton::GetInstance().GetTraceOS())
+                << PrintMissingKernelInfo(fpkey(length[0], precision, scheme, sbrcTranstype));
+        return false;
     }
 
     dir2regMode = (function_pool::get_kernel(key).direct_to_from_reg)
