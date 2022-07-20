@@ -435,8 +435,8 @@ struct StockhamKernelRC : public StockhamKernel
     StatementList store_to_global(bool store_registers) override
     {
         StatementList stmts;
-        StatementList regular_store;
-        StatementList edge_store;
+        StatementList non_edge_stmts;
+        StatementList edge_stmts;
         Expression    pred{tile_index_in_plane * transforms_per_block + tid_hor < len_along_block};
 
         if(!store_registers)
@@ -460,6 +460,8 @@ struct StockhamKernelRC : public StockhamKernel
                 stmts += Assign{thread, thread_id / store_block_w};
                 stmts += Assign{tid_hor, thread_id % store_block_w};
             }
+
+            StatementList regular_store;
 
             // we need to take care about two diff cases for offset in buf and lds
             //  divisible: each store leads to a perfect block: update offset much simpler
@@ -485,12 +487,24 @@ struct StockhamKernelRC : public StockhamKernel
 
             // ERC_Z_XY
             auto          i = num_store_blocks;
-            StatementList stmts_erc_post;
-            stmts_erc_post += If{
+            StatementList stmts_erc_post_no_edge;
+            stmts_erc_post_no_edge
+                += CommentLines{"extra global write for SBRC_3D_FFT_ERC_TRANS_Z_XY"};
+            stmts_erc_post_no_edge += If{
                 thread_id < transforms_per_block,
                 {StoreGlobal{buf, offset + offset_tile_wbuf(i), lds_complex[offset_tile_rlds(i)]}}};
-            regular_store += CommentLines{"extra global write for SBRC_3D_FFT_ERC_TRANS_Z_XY"};
-            regular_store += If{sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY", stmts_erc_post};
+            non_edge_stmts += regular_store;
+            non_edge_stmts += If{sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY", stmts_erc_post_no_edge};
+
+            StatementList stmts_erc_post_edge;
+            stmts_erc_post_edge
+                += CommentLines{"extra global write for SBRC_3D_FFT_ERC_TRANS_Z_XY"};
+            stmts_erc_post_edge += If{thread_id < Parens{len_along_block % transforms_per_block},
+                                      {StoreGlobal{buf,
+                                                   offset + offset_tile_wbuf(i),
+                                                   lds_complex[tid_hor * stride_lds + length]}}};
+            edge_stmts += regular_store;
+            edge_stmts += If{sbrc_type == "SBRC_3D_FFT_ERC_TRANS_Z_XY", stmts_erc_post_edge};
         }
         else
         {
@@ -503,14 +517,14 @@ struct StockhamKernelRC : public StockhamKernel
             auto height    = static_cast<float>(length) / width / threads_per_transform;
 
             auto store_global = std::mem_fn(&StockhamKernelRC::store_global_generator);
-            regular_store += add_work(
+            non_edge_stmts += add_work(
                 std::bind(store_global, this, _1, _2, _3, _4, cumheight), width, height, true);
+
+            edge_stmts = non_edge_stmts;
         }
 
-        edge_store += If{pred, regular_store};
-
-        stmts += If{Or{transpose_type != "TILE_UNALIGNED", Not{edge}}, regular_store};
-        stmts += Else{edge_store};
+        stmts += If{Or{transpose_type != "TILE_UNALIGNED", Not{edge}}, non_edge_stmts};
+        stmts += Else{{If{pred, edge_stmts}}};
 
         return stmts;
     }
@@ -548,17 +562,21 @@ struct StockhamKernelRC : public StockhamKernel
         // Todo: We might not have to sync here which depends on the access pattern
         stmts += SyncThreads{};
         stmts += LineBreak{};
+
+        // length is Half_N, remember quarter_N should be is (Half_N + 1) / 2
+        // And need to set the Ndiv4 template argument
+        Variable Ndiv4{length % 2 == 0 ? "true" : "false", "bool"};
         for(unsigned int h = 0; h < transforms_per_block; ++h)
         {
             stmts += Call{"post_process_interleaved_inplace",
-                          {scalar_type, Variable{"true", ""}, Variable{"CallbackType::NONE", ""}},
+                          {scalar_type, Ndiv4, Variable{"CallbackType::NONE", ""}},
                           {thread_id,
                            length - thread_id,
                            length,
-                           length / 2,
+                           (length + 1) / 2,
                            lds_complex + (h * stride_lds),
                            0,
-                           twiddles + length - factors.front(),
+                           twiddles + (length - factors.front()),
                            null,
                            null,
                            0,

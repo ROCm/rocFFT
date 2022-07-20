@@ -363,6 +363,10 @@ std::string stockham_variants(const std::string&      filename,
                             "CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY",
                             "SBRC_3D_FFT_ERC_TRANS_Z_XY",
                             "TILE_ALIGNED"});
+        suffixes.push_back({"sbrc3d_fft_erc_trans_z_xy_tile_unaligned",
+                            "CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY",
+                            "SBRC_3D_FFT_ERC_TRANS_Z_XY",
+                            "TILE_UNALIGNED"});
 
         output += make_launcher(specs.length,
                                 false,
