@@ -133,46 +133,6 @@ void RTRT2DNode::AssignParams_internal()
     trans2Plan->oDist     = oDist;
 }
 
-#if !GENERIC_BUF_ASSIGMENT
-// 3D RTRT calls this as well
-void RTRT2DNode::AssignBuffers_internal(TraverseState&   state,
-                                        OperatingBuffer& flipIn,
-                                        OperatingBuffer& flipOut,
-                                        OperatingBuffer& obOutBuf)
-{
-    if(parent == nullptr)
-    {
-        obOut = OB_USER_OUT;
-    }
-
-    // Copy the flip buffers, which are swapped by recursive calls.
-    auto flipIn0  = flipIn;
-    auto flipOut0 = flipOut;
-
-    // Transform:
-    childNodes[0]->SetInputBuffer(state);
-    childNodes[0]->obOut = flipIn;
-    childNodes[0]->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-
-    // Transpose:
-    childNodes[1]->SetInputBuffer(state);
-    childNodes[1]->obOut = flipOut0;
-
-    // Stockham:
-    childNodes[2]->SetInputBuffer(state);
-    childNodes[2]->obOut = flipOut0;
-    childNodes[2]->AssignBuffers(state, flipOut0, flipIn0, obOutBuf);
-
-    // Transpose:
-    childNodes[3]->SetInputBuffer(state);
-    childNodes[3]->obOut = obOut;
-
-    // Transposes must be out-of-place:
-    assert(childNodes[1]->obIn != childNodes[1]->obOut);
-    assert(childNodes[3]->obIn != childNodes[3]->obOut);
-}
-#endif
-
 /*****************************************************
  * 2D_RC  *
  *****************************************************/
@@ -231,26 +191,6 @@ void RC2DNode::AssignParams_internal()
     std::swap(colPlan->outStride[0], colPlan->outStride[1]);
     colPlan->oDist = oDist;
 }
-
-#if !GENERIC_BUF_ASSIGMENT
-// 3D RC calls this as well...
-void RC2DNode::AssignBuffers_internal(TraverseState&   state,
-                                      OperatingBuffer& flipIn,
-                                      OperatingBuffer& flipOut,
-                                      OperatingBuffer& obOutBuf)
-{
-    childNodes[0]->SetInputBuffer(state);
-    childNodes[0]->obOut = flipOut;
-    childNodes[0]->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-
-    childNodes[1]->SetInputBuffer(state);
-    childNodes[1]->obOut = obOutBuf;
-    childNodes[1]->AssignBuffers(state, flipOut, flipIn, obOutBuf);
-
-    obIn  = childNodes[0]->obIn;
-    obOut = childNodes[1]->obOut;
-}
-#endif
 
 // Leaf Node..
 /*****************************************************

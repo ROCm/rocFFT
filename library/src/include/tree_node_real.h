@@ -36,12 +36,6 @@ protected:
     {
         scheme = CS_REAL_TRANSFORM_USING_CMPLX;
     }
-#if !GENERIC_BUF_ASSIGMENT
-    void AssignBuffers_internal(TraverseState&   state,
-                                OperatingBuffer& flipIn,
-                                OperatingBuffer& flipOut,
-                                OperatingBuffer& obOutBuf) override;
-#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 };
@@ -59,12 +53,6 @@ protected:
     {
         scheme = CS_REAL_TRANSFORM_EVEN;
     }
-#if !GENERIC_BUF_ASSIGMENT
-    void AssignBuffers_internal(TraverseState&   state,
-                                OperatingBuffer& flipIn,
-                                OperatingBuffer& flipOut,
-                                OperatingBuffer& obOutBuf) override;
-#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 
@@ -97,12 +85,6 @@ protected:
     {
         scheme = CS_REAL_2D_EVEN;
     }
-#if !GENERIC_BUF_ASSIGMENT
-    void AssignBuffers_internal(TraverseState&   state,
-                                OperatingBuffer& flipIn,
-                                OperatingBuffer& flipOut,
-                                OperatingBuffer& obOutBuf) override;
-#endif
     void     AssignParams_internal() override;
     void     BuildTree_internal() override;
     Solution solution = TR_PAIR;
@@ -135,12 +117,6 @@ protected:
     {
         scheme = CS_REAL_3D_EVEN;
     }
-#if !GENERIC_BUF_ASSIGMENT
-    void AssignBuffers_internal(TraverseState&   state,
-                                OperatingBuffer& flipIn,
-                                OperatingBuffer& flipOut,
-                                OperatingBuffer& obOutBuf) override;
-#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 

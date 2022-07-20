@@ -253,56 +253,6 @@ void TRTRTR3DNode::AssignParams_internal()
     }
 }
 
-#if !GENERIC_BUF_ASSIGMENT
-void TRTRTR3DNode::AssignBuffers_internal(TraverseState&   state,
-                                          OperatingBuffer& flipIn,
-                                          OperatingBuffer& flipOut,
-                                          OperatingBuffer& obOutBuf)
-{
-    assert(childNodes.size() == 6);
-
-    auto& T0 = childNodes[0];
-    auto& R0 = childNodes[1];
-    auto& T1 = childNodes[2];
-    auto& R1 = childNodes[3];
-    auto& T2 = childNodes[4];
-    auto& R2 = childNodes[5];
-
-    T0->SetInputBuffer(state);
-    T0->obOut        = flipOut;
-    T0->inArrayType  = inArrayType;
-    T0->outArrayType = T0->obOut == OB_TEMP ? rocfft_array_type_complex_interleaved : outArrayType;
-
-    R0->SetInputBuffer(state);
-    R0->inArrayType  = T0->outArrayType;
-    R0->obOut        = flipOut;
-    R0->outArrayType = R0->obOut == OB_TEMP ? rocfft_array_type_complex_interleaved : outArrayType;
-    R0->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-
-    T1->SetInputBuffer(state);
-    T1->inArrayType  = R0->outArrayType;
-    T1->obOut        = flipIn;
-    T1->outArrayType = T1->obOut == OB_TEMP ? rocfft_array_type_complex_interleaved : outArrayType;
-
-    R1->SetInputBuffer(state);
-    R1->inArrayType  = T1->outArrayType;
-    R1->obOut        = flipIn;
-    R1->outArrayType = R1->obOut == OB_TEMP ? rocfft_array_type_complex_interleaved : outArrayType;
-    R1->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-
-    T2->SetInputBuffer(state);
-    T2->inArrayType  = R1->outArrayType;
-    T2->obOut        = flipOut;
-    T2->outArrayType = T2->obOut == OB_TEMP ? rocfft_array_type_complex_interleaved : outArrayType;
-
-    R2->SetInputBuffer(state);
-    R2->inArrayType  = T2->outArrayType;
-    R2->obOut        = obOut;
-    R2->outArrayType = outArrayType;
-    R2->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-}
-#endif
-
 /*****************************************************
  * CS_3D_BLOCK_RC  *
  *****************************************************/
@@ -505,55 +455,6 @@ void BLOCKRC3DNode::AssignParams_internal()
     childNodes.back()->oDist     = oDist;
 }
 
-#if !GENERIC_BUF_ASSIGMENT
-void BLOCKRC3DNode::AssignBuffers_internal(TraverseState&   state,
-                                           OperatingBuffer& flipIn,
-                                           OperatingBuffer& flipOut,
-                                           OperatingBuffer& obOutBuf)
-{
-    auto& RT0 = childNodes[0];
-    auto& R1  = childNodes[1];
-    auto& RT2 = childNodes[2];
-    auto& RT3 = childNodes[3];
-
-    RT0->SetInputBuffer(state);
-    RT0->obOut = flipOut;
-    RT0->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-
-    R1->SetInputBuffer(state);
-    R1->obOut = obOut == flipIn ? flipIn : flipOut;
-    R1->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-
-    RT2->SetInputBuffer(state);
-    RT2->obOut = RT2->obIn == flipIn ? flipOut : flipIn;
-    RT2->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-
-    RT3->SetInputBuffer(state);
-    RT3->obOut = obOut;
-    RT3->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-
-    for(size_t i = 0; i < childNodes.size(); ++i)
-    {
-        auto& node = childNodes[i];
-        // temp is interleaved, out might not be
-        switch(node->obOut)
-        {
-        case OB_USER_OUT:
-            node->outArrayType = outArrayType;
-            break;
-        case OB_TEMP:
-        case OB_TEMP_CMPLX_FOR_REAL:
-        case OB_TEMP_BLUESTEIN:
-
-            node->outArrayType = rocfft_array_type_complex_interleaved;
-            break;
-        default:
-            throw std::runtime_error("Invalid buffer in BLOCKRC3DNode");
-        }
-    }
-}
-#endif
-
 /*****************************************************
  * CS_3D_BLOCK_CR  *
  *****************************************************/
@@ -605,43 +506,6 @@ void BLOCKCR3DNode::AssignParams_internal()
     childNodes[2]->outStride.push_back(outStride[1]);
     childNodes[2]->oDist = oDist;
 }
-
-#if !GENERIC_BUF_ASSIGMENT
-void BLOCKCR3DNode::AssignBuffers_internal(TraverseState&   state,
-                                           OperatingBuffer& flipIn,
-                                           OperatingBuffer& flipOut,
-                                           OperatingBuffer& obOutBuf)
-{
-    for(size_t i = 0; i < childNodes.size(); ++i)
-    {
-        auto& node = childNodes[i];
-        node->SetInputBuffer(state);
-        node->inArrayType = (i == 0) ? inArrayType : childNodes[i - 1]->outArrayType;
-        node->obOut       = flipOut == OB_USER_OUT && placement == rocfft_placement_notinplace
-                                ? OB_USER_IN
-                                : flipOut;
-
-        // temp is interleaved, in/out might not be
-        switch(node->obOut)
-        {
-        case OB_USER_IN:
-            node->outArrayType = inArrayType;
-            break;
-        case OB_USER_OUT:
-            node->outArrayType = outArrayType;
-            break;
-        default:
-            node->outArrayType = rocfft_array_type_complex_interleaved;
-        }
-
-        node->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-    }
-
-    obOut                           = obOutBuf;
-    childNodes.back()->obOut        = obOut;
-    childNodes.back()->outArrayType = outArrayType;
-}
-#endif
 
 /*****************************************************
  * CS_3D_RC  *

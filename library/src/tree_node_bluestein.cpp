@@ -189,61 +189,6 @@ void BluesteinNode::AssignParams_internal()
     resmulPlan->oDist     = oDist;
 }
 
-#if !GENERIC_BUF_ASSIGMENT
-void BluesteinNode::AssignBuffers_internal(TraverseState&   state,
-                                           OperatingBuffer& flipIn,
-                                           OperatingBuffer& flipOut,
-                                           OperatingBuffer& obOutBuf)
-{
-    assert(childNodes.size() == 7);
-
-    OperatingBuffer savFlipIn  = flipIn;
-    OperatingBuffer savFlipOut = flipOut;
-    OperatingBuffer savOutBuf  = obOutBuf;
-
-    flipIn   = OB_TEMP_BLUESTEIN;
-    flipOut  = OB_TEMP;
-    obOutBuf = OB_TEMP_BLUESTEIN;
-
-    // CS_KERNEL_CHIRP effectively takes no inputs and does not
-    // connect to the previous kernel in the chain, so don't assign
-    // obIn using SetInputBuffer.
-    assert(childNodes[0]->scheme == CS_KERNEL_CHIRP);
-    childNodes[0]->obIn  = OB_TEMP_BLUESTEIN;
-    childNodes[0]->obOut = OB_TEMP_BLUESTEIN;
-
-    assert(childNodes[1]->scheme == CS_KERNEL_PAD_MUL);
-    childNodes[1]->SetInputBuffer(state);
-    childNodes[1]->obOut = OB_TEMP_BLUESTEIN;
-
-    childNodes[2]->SetInputBuffer(state);
-    childNodes[2]->obOut = OB_TEMP_BLUESTEIN;
-    childNodes[2]->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-
-    childNodes[3]->SetInputBuffer(state);
-    childNodes[3]->obOut = OB_TEMP_BLUESTEIN;
-    childNodes[3]->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-
-    assert(childNodes[4]->scheme == CS_KERNEL_FFT_MUL);
-    childNodes[4]->SetInputBuffer(state);
-    childNodes[4]->obOut = OB_TEMP_BLUESTEIN;
-
-    childNodes[5]->SetInputBuffer(state);
-    childNodes[5]->obOut = OB_TEMP_BLUESTEIN;
-    childNodes[5]->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-
-    assert(childNodes[6]->scheme == CS_KERNEL_RES_MUL);
-    childNodes[6]->SetInputBuffer(state);
-    childNodes[6]->obOut = (parent == nullptr) ? OB_USER_OUT : obOut;
-
-    obOut = childNodes[6]->obOut;
-
-    flipIn   = savFlipIn;
-    flipOut  = savFlipOut;
-    obOutBuf = savOutBuf;
-}
-#endif
-
 /*****************************************************
  * Component of Bluestein
  * Chirp, XXXMul

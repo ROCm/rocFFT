@@ -291,70 +291,6 @@ void TRTRT1DNode::AssignParams_internal()
         trans3Plan->outStride.push_back(outStride[index]);
 }
 
-#if !GENERIC_BUF_ASSIGMENT
-void TRTRT1DNode::AssignBuffers_internal(TraverseState&   state,
-                                         OperatingBuffer& flipIn,
-                                         OperatingBuffer& flipOut,
-                                         OperatingBuffer& obOutBuf)
-{
-    if(parent == nullptr)
-    {
-        obOutBuf = OB_USER_OUT;
-
-        // T
-        childNodes[0]->SetInputBuffer(state);
-        childNodes[0]->obOut = flipOut;
-
-        // R
-        childNodes[1]->SetInputBuffer(state);
-        childNodes[1]->obOut = obOut == flipIn ? flipOut : flipIn;
-        if(childNodes[1]->childNodes.size())
-        {
-            childNodes[1]->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-        }
-
-        // T
-        childNodes[2]->SetInputBuffer(state);
-        childNodes[2]->obOut = obOut == flipIn ? flipIn : flipOut;
-
-        // R
-        childNodes[3]->SetInputBuffer(state);
-        childNodes[3]->obOut = obOut == flipIn ? flipOut : flipIn;
-
-        // T
-        childNodes[4]->SetInputBuffer(state);
-        childNodes[4]->obOut = obOutBuf;
-    }
-    else
-    {
-
-        // T
-        childNodes[0]->SetInputBuffer(state);
-        childNodes[0]->obOut = childNodes[0]->obIn == flipIn ? flipOut : flipIn;
-
-        // R
-        childNodes[1]->SetInputBuffer(state);
-        childNodes[1]->obOut = obOut == flipIn ? flipOut : flipIn;
-        if(childNodes[1]->childNodes.size())
-        {
-            childNodes[1]->AssignBuffers(state, flipIn, flipOut, obOutBuf);
-        }
-
-        // T
-        childNodes[2]->SetInputBuffer(state);
-        childNodes[2]->obOut = obOut == flipIn ? flipIn : flipOut;
-
-        // R
-        childNodes[3]->SetInputBuffer(state);
-        childNodes[3]->obOut = obOut == flipIn ? flipOut : flipIn;
-
-        // T
-        childNodes[4]->SetInputBuffer(state);
-        childNodes[4]->obOut = obOut;
-    }
-}
-#endif
-
 /*****************************************************
  * L1D_CC  *
  *****************************************************/
@@ -524,46 +460,6 @@ void CC1DNode::AssignParams_internal()
             row2colPlan->outStride.push_back(outStride[index]);
     }
 }
-
-#if !GENERIC_BUF_ASSIGMENT
-void CC1DNode::AssignBuffers_internal(TraverseState&   state,
-                                      OperatingBuffer& flipIn,
-                                      OperatingBuffer& flipOut,
-                                      OperatingBuffer& obOutBuf)
-{
-    if(obOut == OB_UNINIT)
-    {
-        if(parent == nullptr)
-        {
-            childNodes[0]->SetInputBuffer(state);
-            childNodes[0]->obOut = OB_TEMP;
-
-            childNodes[1]->SetInputBuffer(state);
-            childNodes[1]->obOut = obOutBuf;
-        }
-        else
-        {
-
-            childNodes[0]->SetInputBuffer(state);
-            childNodes[0]->obOut = flipOut;
-
-            childNodes[1]->SetInputBuffer(state);
-            childNodes[1]->obOut = flipIn;
-        }
-
-        obOut = childNodes[1]->obOut;
-    }
-    else
-    {
-        childNodes[0]->SetInputBuffer(state);
-        // childNodes[1] must be out-of-place:
-        childNodes[0]->obOut = flipOut == obOut ? flipIn : flipOut;
-
-        childNodes[1]->SetInputBuffer(state);
-        childNodes[1]->obOut = obOut;
-    }
-}
-#endif
 
 /*****************************************************
  * L1D_CRT  *
@@ -775,54 +671,6 @@ void CRT1DNode::AssignParams_internal()
             transPlan->outStride.push_back(outStride[index]);
     }
 }
-
-#if !GENERIC_BUF_ASSIGMENT
-void CRT1DNode::AssignBuffers_internal(TraverseState&   state,
-                                       OperatingBuffer& flipIn,
-                                       OperatingBuffer& flipOut,
-                                       OperatingBuffer& obOutBuf)
-{
-    if(obOut == OB_UNINIT)
-    {
-        if(parent == nullptr)
-        {
-            childNodes[0]->SetInputBuffer(state);
-            childNodes[0]->obOut = OB_TEMP;
-
-            childNodes[1]->SetInputBuffer(state);
-            childNodes[1]->obOut = OB_TEMP;
-
-            childNodes[2]->SetInputBuffer(state);
-            childNodes[2]->obOut = obOutBuf;
-        }
-        else
-        {
-            childNodes[0]->SetInputBuffer(state);
-            childNodes[0]->obOut = flipOut;
-
-            childNodes[1]->SetInputBuffer(state);
-            childNodes[1]->obOut = flipOut;
-
-            childNodes[2]->SetInputBuffer(state);
-            childNodes[2]->obOut = flipIn;
-        }
-
-        obOut = childNodes[2]->obOut;
-    }
-    else
-    {
-        childNodes[0]->SetInputBuffer(state);
-        childNodes[0]->obOut = flipOut;
-
-        childNodes[1]->SetInputBuffer(state);
-        childNodes[1]->obOut = obOut == flipIn ? flipOut : flipIn;
-
-        // Last node is a transpose and must be out-of-place:
-        childNodes[2]->SetInputBuffer(state);
-        childNodes[2]->obOut = obOut;
-    }
-}
-#endif
 
 // Leaf Node..
 /*****************************************************

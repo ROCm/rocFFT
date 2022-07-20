@@ -54,27 +54,6 @@ NodeMetaData::NodeMetaData(TreeNode* refNode)
     }
 }
 
-#if !GENERIC_BUF_ASSIGMENT
-void LeafNode::AssignBuffers_internal(TraverseState&   state,
-                                      OperatingBuffer& flipIn,
-                                      OperatingBuffer& flipOut,
-                                      OperatingBuffer& obOutBuf)
-{
-    if(isRootNode())
-    {
-        obOut = obOutBuf;
-    }
-    else
-    {
-        assert(obIn != OB_UNINIT && obOut != OB_UNINIT);
-        if(obIn != obOut)
-        {
-            std::swap(flipIn, flipOut);
-        }
-    }
-}
-#endif
-
 bool LeafNode::CreateLargeTwdTable()
 {
     if(large1D != 0)

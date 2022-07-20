@@ -36,12 +36,6 @@ protected:
     {
         scheme = CS_BLUESTEIN;
     }
-#if !GENERIC_BUF_ASSIGMENT
-    void AssignBuffers_internal(TraverseState&   state,
-                                OperatingBuffer& flipIn,
-                                OperatingBuffer& flipOut,
-                                OperatingBuffer& obOutBuf) override;
-#endif
     void AssignParams_internal() override;
     void BuildTree_internal() override;
 };

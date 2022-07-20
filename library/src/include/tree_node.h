@@ -21,8 +21,6 @@
 #ifndef TREE_NODE_H
 #define TREE_NODE_H
 
-#define GENERIC_BUF_ASSIGMENT 1
-
 #include <cstring>
 #include <functional>
 #include <iostream>
@@ -418,35 +416,6 @@ public:
 
     void ApplyFusion();
 
-#if !GENERIC_BUF_ASSIGMENT
-    // State maintained while traversing the tree.
-    //
-    // Preparation and execution of the tree basically involves a
-    // depth-first traversal.  At each step, the logic working on a
-    // node could want to know details of:
-    //
-    // 1. the node itself (i.e. this)
-    // 2. the node's parent (i.e. this->parent), if present
-    // 3. the most recently traversed leaf node, which may be:
-    //    - not present, or
-    //    - an earlier sibling of this node, or
-    //    - the last leaf visited from some other parent
-    // 4. the root node's input/output parameters
-    //
-    // The TraverseState struct stores 3 and 4.
-    struct TraverseState;
-    // Assign the input buffer for this kernel
-    void SetInputBuffer(TraverseState& state);
-
-    // Buffer assignment:
-    virtual void AssignBuffers(TraverseState&   state,
-                               OperatingBuffer& flipIn,
-                               OperatingBuffer& flipOut,
-                               OperatingBuffer& obOutBuf);
-    // Set placement variable and in/out array types
-    virtual void TraverseTreeAssignPlacementsLogicA(rocfft_array_type rootIn,
-                                                    rocfft_array_type rootOut);
-#endif
     void RefreshTree();
 
     // Set strides and distances:
@@ -515,14 +484,7 @@ public:
     void set_large_twd_base_steps(size_t largeTWDLength);
 
 protected:
-    virtual void BuildTree_internal() = 0;
-#if !GENERIC_BUF_ASSIGMENT
-    virtual void AssignBuffers_internal(TraverseState&   state,
-                                        OperatingBuffer& flipIn,
-                                        OperatingBuffer& flipOut,
-                                        OperatingBuffer& obOutBuf)
-        = 0;
-#endif
+    virtual void BuildTree_internal()    = 0;
     virtual void AssignParams_internal() = 0;
 };
 
@@ -582,13 +544,7 @@ protected:
     size_t              wgs              = 0;
     size_t              lds              = 0;
 
-    void BuildTree_internal() final {} // nothing to do in leaf node
-#if !GENERIC_BUF_ASSIGMENT
-    void AssignBuffers_internal(TraverseState&   state,
-                                OperatingBuffer& flipIn,
-                                OperatingBuffer& flipOut,
-                                OperatingBuffer& obOutBuf) override;
-#endif
+    void           BuildTree_internal() final {} // nothing to do in leaf node
     void           AssignParams_internal() final {} // nothing to do in leaf node
     bool           CreateLargeTwdTable();
     virtual size_t GetTwiddleTableLength();
