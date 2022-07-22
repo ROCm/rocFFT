@@ -581,6 +581,8 @@ def list_large_kernels():
            'sp': 'true', 'dp': 'false'}, workgroup_size=243),
         NS(length=256, factors=[8, 4, 8], use_3steps_large_twd={
            'sp': 'true',  'dp': 'false'}, flavour='wide'),
+        NS(length=280, factors=[8, 5, 7], use_3steps_large_twd={
+           'sp': 'false',  'dp': 'false'}, runtime_compile=True),
         NS(length=289, factors=[17, 17],    use_3steps_large_twd={
            'sp': 'true', 'dp': 'true'}, runtime_compile=True),
         NS(length=336, factors=[6, 7, 8],    use_3steps_large_twd={
