@@ -28,7 +28,7 @@ commands will build a shared library for supported AMD GPUs:
 
 ```
 mkdir build && cd build
-cmake -DCMAKE_CXX_COMPILER=hipcc .. 
+cmake -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc .. 
 make -j
 ```
 
@@ -65,7 +65,7 @@ rocFFT-src/clients folder:
 
 ```
 mkdir build && cd build
-cmake -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_PREFIX_PATH=/path/to/rocFFT-lib ..
+cmake -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc -DCMAKE_PREFIX_PATH=/path/to/rocFFT-lib ..
 make -j
 ```
 

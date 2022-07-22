@@ -31,13 +31,13 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
                 cd ${project.paths.project_build_prefix}
                 mkdir -p build/${buildTypeDir} && pushd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DAMDGPU_TARGETS=\$gfx_arch -DSINGLELIB=on ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ../..
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc -DAMDGPU_TARGETS=\$gfx_arch -DSINGLELIB=on ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ../..
                 make -j\$(nproc)
                 popd 
                 cd ref-repo
                 mkdir -p build/${buildTypeDir} && pushd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DAMDGPU_TARGETS=\$gfx_arch -DSINGLELIB=on ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ../..
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc -DAMDGPU_TARGETS=\$gfx_arch -DSINGLELIB=on ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ../..
                 make -j\$(nproc)
             """
     platform.runCommand(this, command)
