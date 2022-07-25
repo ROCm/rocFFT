@@ -31,6 +31,11 @@ struct StockhamKernelCR : public StockhamKernel
     //
     // locals
     //
+    Variable offset_in{"offset_in", "unsigned int"};
+    Variable offset_out{"offset_out", "unsigned int"};
+    Variable stride0_in{"stride0_in", "const size_t"};
+    Variable stride_out{"stride_out", "const size_t", true};
+
     Variable tile_index{"tile_index", "size_t"};
     Variable tile_length{"tile_length", "size_t"};
     Variable edge{"edge", "bool"};
@@ -77,7 +82,7 @@ struct StockhamKernelCR : public StockhamKernel
             auto idx = Parens{tid + w * length / width};
             load += Assign{
                 R[hr * width + w],
-                LoadGlobal{buf, offset + tid_hor * stride[1] + Parens{Expression{idx}} * stride0}};
+                LoadGlobal{buf, offset + tid_hor * stride0 + Parens{Expression{idx}} * stride[1]}};
         }
         return load;
     }
@@ -105,7 +110,8 @@ struct StockhamKernelCR : public StockhamKernel
         stmts += Assign{plength, tile_length};
         stmts += Assign{tile_index, block_id % tile_length};
         stmts += Assign{remaining, block_id / tile_length};
-        stmts += Assign{offset, tile_index * transforms_per_block * stride[1]};
+        stmts += Assign{offset_in, tile_index * transforms_per_block * stride0_in};
+        stmts += Assign{offset_out, tile_index * transforms_per_block * stride_out[1]};
 
         stmts += For{d,
                      2,
@@ -173,7 +179,7 @@ struct StockhamKernelCR : public StockhamKernel
             auto stripmine_h = workgroup_size / stripmine_w;
 
             auto offset_tile_rbuf = [&](unsigned int i) {
-                return tid_hor * stride[1] + (thread + i * stripmine_h) * stride0;
+                return tid_hor * stride0 + (thread + i * stripmine_h) * stride[1];
             };
             auto offset_tile_wlds = [&](unsigned int i) {
                 return tid_hor * stride_lds + (thread + i * stripmine_h) * 1;

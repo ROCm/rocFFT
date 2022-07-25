@@ -482,24 +482,24 @@ void BLOCKCR3DNode::AssignParams_internal()
 
     assert(scheme == CS_3D_BLOCK_CR);
 
-    childNodes[0]->inStride.push_back(inStride[2]);
     childNodes[0]->inStride.push_back(inStride[0]);
+    childNodes[0]->inStride.push_back(inStride[2]);
     childNodes[0]->iDist = iDist;
 
     childNodes[0]->outStride.push_back(1);
     childNodes[0]->outStride.push_back(childNodes[0]->length[0]);
     childNodes[0]->oDist = childNodes[0]->outStride[1] * childNodes[0]->length[1];
 
-    childNodes[1]->inStride.push_back(childNodes[1]->length[1]);
     childNodes[1]->inStride.push_back(1);
+    childNodes[1]->inStride.push_back(childNodes[1]->length[1]);
     childNodes[1]->iDist = childNodes[0]->oDist;
 
     childNodes[1]->outStride.push_back(1);
     childNodes[1]->outStride.push_back(childNodes[1]->length[0]);
     childNodes[1]->oDist = childNodes[1]->outStride[1] * childNodes[1]->length[1];
 
-    childNodes[2]->inStride.push_back(childNodes[2]->length[1]);
     childNodes[2]->inStride.push_back(1);
+    childNodes[2]->inStride.push_back(childNodes[2]->length[1]);
     childNodes[2]->iDist = childNodes[1]->oDist;
 
     childNodes[2]->outStride.push_back(outStride[0]);
