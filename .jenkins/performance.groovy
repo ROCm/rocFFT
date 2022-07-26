@@ -61,6 +61,7 @@ def runTestCommand (platform, project, boolean debug=false)
                     ls ${dataType}_ref
                     mkdir ${dataType}_results
                     ./scripts/perf/rocfft-perf post ./${dataType}_results ./${dataType}_ref ./${dataType}_change
+                    ls ${dataType}_change/*.mdat
                     ./scripts/perf/rocfft-perf html ./${dataType}_results ./${dataType}_ref ./${dataType}_change
                     mv ${dataType}_results/figs.html ${dataType}_results/figs_${platform.gpu}.html
                 """
