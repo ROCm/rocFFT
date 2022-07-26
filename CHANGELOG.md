@@ -13,6 +13,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Improved performance of the Bluestein algorithm.
 - Optimized sbcc-168 and 100 by using half-lds.
 - Optimized length-280 2D/3D transforms.
+- Added kernels for factorizable 1D lengths < 128
 
 ### Fixed
 - Fixed occasional failures to parallelize runtime compilation of kernels.

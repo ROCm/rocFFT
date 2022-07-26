@@ -30,8 +30,8 @@ std::vector<std::vector<size_t>> callback_sizes = {
     {100},
 
     // L1D_TRTRT sizes
-    {70},
-    {77},
+    {220},
+    {330},
     {1344},
 
     // L1D_CC sizes
@@ -62,8 +62,8 @@ std::vector<std::vector<size_t>> callback_sizes = {
     {128, 256},
 
     // more complicated children of 2D_RTRT (L1D_TRTRT, L1D_CC, prime)
-    {4, 63},
-    {63, 4},
+    {4, 220},
+    {220, 4},
     {4, 8192},
     {8192, 4},
     {4, 23},
