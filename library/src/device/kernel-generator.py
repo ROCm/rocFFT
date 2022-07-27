@@ -102,6 +102,10 @@ def unique(kernels):
     return r
 
 
+def is_aot_rtc(meta):
+    return meta.scheme == 'CS_KERNEL_STOCKHAM_BLOCK_CC' and not meta.runtime_compile
+
+
 #
 # Prototype generators
 #
@@ -111,6 +115,7 @@ def unique(kernels):
 class FFTKernel(BaseNode):
 
     def __str__(self):
+        aot_rtc = is_aot_rtc(self.function.meta)
         f = 'FFTKernel('
         if self.function.meta.runtime_compile:
             f += 'nullptr'
@@ -144,6 +149,11 @@ class FFTKernel(BaseNode):
             f += ', ' + str(half_lds).lower()
         if direct_to_from_reg is not None:
             f += ', ' + str(direct_to_from_reg).lower()
+        f += ', '
+        if aot_rtc:
+            f += 'true'
+        else:
+            f += 'false'
         f += ')'
         return f
 

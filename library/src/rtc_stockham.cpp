@@ -425,6 +425,8 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
             static_dim = 3;
     }
 
+    std::optional<FFTKernel> kernel;
+
     // find function pool entry so we can construct specs for the generator
     FMKey key;
     switch(pool_scheme)
@@ -436,10 +438,10 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
     {
         // these go into the function pool normally and are passed to
         // the generator as-is
-        key              = fpkey(node.length[0], node.precision, pool_scheme);
-        FFTKernel kernel = pool.get_kernel(key);
+        key    = fpkey(node.length[0], node.precision, pool_scheme);
+        kernel = pool.get_kernel(key);
         // already precompiled?
-        if(kernel.device_function && !enable_scaling)
+        if(kernel->device_function && !enable_scaling)
         {
             return generator;
         }
@@ -448,32 +450,31 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
         // width and correct transpose type
         if(pool_scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
         {
-            transpose_type = node.sbrc_transpose_type(kernel.transforms_per_block);
+            transpose_type = node.sbrc_transpose_type(kernel->transforms_per_block);
             key            = fpkey(node.length[0], node.precision, node.scheme, transpose_type);
             kernel         = pool.get_kernel(key);
         }
 
         std::vector<unsigned int> factors;
-        std::copy(kernel.factors.begin(), kernel.factors.end(), std::back_inserter(factors));
+        std::copy(kernel->factors.begin(), kernel->factors.end(), std::back_inserter(factors));
         std::vector<unsigned int> precisions = {static_cast<unsigned int>(node.precision)};
 
         specs.emplace(factors,
                       std::vector<unsigned int>(),
                       precisions,
-                      static_cast<unsigned int>(kernel.workgroup_size),
+                      static_cast<unsigned int>(kernel->workgroup_size),
                       PrintScheme(node.scheme));
-        specs->threads_per_transform = kernel.threads_per_transform[0];
-        specs->half_lds              = kernel.half_lds;
-        specs->direct_to_from_reg    = kernel.direct_to_from_reg;
-        specs->static_dim            = static_dim;
+        specs->threads_per_transform = kernel->threads_per_transform[0];
+        specs->half_lds              = kernel->half_lds;
+        specs->direct_to_from_reg    = kernel->direct_to_from_reg;
         break;
     }
     case CS_KERNEL_2D_SINGLE:
     {
-        key              = fpkey(node.length[0], node.length[1], node.precision, node.scheme);
-        FFTKernel kernel = pool.get_kernel(key);
+        key    = fpkey(node.length[0], node.length[1], node.precision, node.scheme);
+        kernel = pool.get_kernel(key);
         // already precompiled?
-        if(kernel.device_function && !enable_scaling)
+        if(kernel->device_function && !enable_scaling)
         {
             return generator;
         }
@@ -484,7 +485,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
 
         // need to break down factors into first dim and second dim
         size_t len0_remain = node.length[0];
-        for(auto& f : kernel.factors)
+        for(auto& f : kernel->factors)
         {
             len0_remain /= f;
             if(len0_remain > 0)
@@ -500,19 +501,18 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
         specs.emplace(factors1d,
                       factors2d,
                       precisions,
-                      static_cast<unsigned int>(kernel.workgroup_size),
+                      static_cast<unsigned int>(kernel->workgroup_size),
                       PrintScheme(node.scheme));
-        specs->threads_per_transform = kernel.threads_per_transform[0];
-        specs->half_lds              = kernel.half_lds;
-        specs->static_dim            = static_dim;
+        specs->threads_per_transform = kernel->threads_per_transform[0];
+        specs->half_lds              = kernel->half_lds;
 
         specs2d.emplace(factors2d,
                         factors1d,
                         precisions,
-                        static_cast<unsigned int>(kernel.workgroup_size),
+                        static_cast<unsigned int>(kernel->workgroup_size),
                         PrintScheme(node.scheme));
-        specs2d->threads_per_transform = kernel.threads_per_transform[1];
-        specs2d->half_lds              = kernel.half_lds;
+        specs2d->threads_per_transform = kernel->threads_per_transform[1];
+        specs2d->half_lds              = kernel->half_lds;
         break;
     }
     default:
@@ -520,6 +520,15 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
         return generator;
     }
     }
+
+    // static_dim has what the plan requires, and RTC kernels are
+    // built for exactly that dimension.  But kernels that are
+    // compiled ahead of time are general across all dims and take
+    // 'dim' as an argument.  So set static_dim to 0 to communicate
+    // this to the generator and launch machinery.
+    if(kernel && kernel->aot_rtc)
+        static_dim = 0;
+    specs->static_dim = static_dim;
 
     bool unit_stride = node.inStride.front() == 1 && node.outStride.front() == 1;
 
@@ -580,6 +589,8 @@ RTCKernelArgs RTCKernelStockham::get_launch_args(DeviceCallIn& data)
     // large 1D twiddles
     if(data.node->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
         kargs.append_ptr(data.node->twiddles_large);
+    if(!hardcoded_dim)
+        kargs.append_size_t(data.node->length.size());
     // lengths
     kargs.append_ptr(kargs_lengths(data.node->devKernArg));
     // stride in/out

@@ -216,7 +216,15 @@ set_target_properties( rocfft-rtc-common PROPERTIES
   CXX_STANDARD_REQUIRED ON
   POSITION_INDEPENDENT_CODE ON
 )
-target_link_libraries( rocfft-rtc-common PRIVATE ${ROCFFT_HOST_LINK_LIBS} ${ROCFFT_HIPRTC_LIB} )
+target_compile_options( rocfft-rtc-common PRIVATE ${WARNING_FLAGS} )
+if( ${CMAKE_BUILD_TYPE} STREQUAL Debug )
+  target_compile_options(rocfft-rtc-common PRIVATE -Og)
+endif()
+target_link_libraries( rocfft-rtc-common PUBLIC ${ROCFFT_HOST_LINK_LIBS} ${ROCFFT_HIPRTC_LIB} )
+
+add_executable( rocfft_aot_helper
+  rocfft_aot_helper.cpp
+)
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 
@@ -225,21 +233,10 @@ add_library( rocfft
   ${relative_rocfft_headers_public}
   )
 add_library( roc::rocfft ALIAS rocfft )
-target_link_libraries( rocfft PRIVATE ${ROCFFT_SQLITE_LIB} )
 
-if( WIN32 )
-  target_link_libraries( rocfft PRIVATE ${ROCFFT_HIPRTC_LIB} )
-else()
-  target_link_libraries( rocfft PRIVATE -lstdc++fs )
-endif()
 if( ROCFFT_RUNTIME_COMPILE )
   target_compile_options( rocfft PRIVATE -DROCFFT_RUNTIME_COMPILE )
   target_compile_options( rocfft-rtc-common PRIVATE -DROCFFT_RUNTIME_COMPILE )
-endif()
-
-target_compile_options( rocfft PRIVATE ${WARNING_FLAGS} )
-if( ${CMAKE_BUILD_TYPE} STREQUAL Debug )
-  target_compile_options(rocfft PRIVATE -Og)
 endif()
 
 if( NOT BUILD_SHARED_LIBS )
@@ -249,32 +246,44 @@ endif()
 
 target_link_libraries( rocfft PRIVATE ${ROCFFT_DEVICE_LINK_LIBS} )
 
-target_link_libraries( rocfft PRIVATE rocfft-rtc-common )
-target_link_libraries( rocfft PRIVATE rocfft-device-0 )
 target_link_libraries( rocfft PRIVATE rocfft-device-1 )
 target_link_libraries( rocfft PRIVATE rocfft-device-2 )
 target_link_libraries( rocfft PRIVATE rocfft-device-3 )
-# rocfft uses dladdr to find the RTC helper program
-if( NOT WIN32 )
-  target_link_libraries( rocfft PUBLIC -ldl pthread )
-endif()
+foreach( target rocfft rocfft_aot_helper )
+  # RTC uses dladdr to find the RTC helper program
+  if( NOT WIN32 )
+    target_link_libraries( ${target} PUBLIC -ldl pthread )
+  endif()
 
-target_include_directories( rocfft
-  PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
-  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
-  ${sqlite_local_SOURCE_DIR}
-  PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
-  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include/rocfft>
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  target_include_directories( ${target}
+    PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
+    $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/library/src/device>
+    ${sqlite_local_SOURCE_DIR}
+    PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+    $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include/rocfft>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    )
+  set_target_properties( ${target} PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
   )
+  target_link_libraries( ${target} PRIVATE ${ROCFFT_SQLITE_LIB} rocfft-device-0 rocfft-rtc-common )
+
+  if( WIN32 )
+    target_link_libraries( ${target} PRIVATE ${ROCFFT_HIPRTC_LIB} )
+  else()
+    target_link_libraries( ${target} PRIVATE -lstdc++fs )
+  endif()
+
+  target_compile_options( ${target} PRIVATE ${WARNING_FLAGS} )
+  if( ${CMAKE_BUILD_TYPE} STREQUAL Debug )
+    target_compile_options(${target} PRIVATE -Og)
+  endif()
+endforeach()
 
 rocm_set_soversion( rocfft ${rocfft_SOVERSION} )
 set_target_properties( rocfft PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
 set_target_properties( rocfft PROPERTIES DEBUG_POSTFIX "-d" )
-set_target_properties( rocfft PROPERTIES
-  CXX_STANDARD 17
-  CXX_STANDARD_REQUIRED ON
-)
 
 set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
 

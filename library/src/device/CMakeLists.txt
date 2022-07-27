@@ -149,18 +149,19 @@ option(ROCFFT_CALLBACKS_ENABLED "Enable user-defined callbacks for load/stores f
 # warning flags so that they apply only to manually-maintained files
 list( APPEND rocfft_device_source ${gen_headers} )
 
-# function pool is a generated file, but force it to be the first
-# item in the list, so we can easily make it depend on the other
-# libraries
-list( FILTER rocfft_device_source EXCLUDE REGEX function_pool.cpp )
-list( INSERT rocfft_device_source 0 function_pool.cpp )
-
 # split device lib into 4 so that no single library gets too large to
 # link
 #
 # sort the list to keep the split library contents relatively stable
 # over time
 list( SORT rocfft_device_source )
+
+# function pool is a generated file, but force it to be the first
+# item in the list, so we can easily make it depend on the other
+# libraries
+list( FILTER rocfft_device_source EXCLUDE REGEX function_pool.cpp )
+list( INSERT rocfft_device_source 0 function_pool.cpp )
+
 list( LENGTH rocfft_device_source rocfft_device_source_len )
 math(EXPR split_len "${rocfft_device_source_len} / 4")
 math(EXPR split_idx_2 "${rocfft_device_source_len} / 4 * 2")

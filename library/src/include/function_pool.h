@@ -81,6 +81,8 @@ struct SimpleHash
 struct FFTKernel
 {
 
+    // generated launch function, which will be nullptr if the kernel
+    // is built using runtime compilation
     DevFnCall           device_function = nullptr;
     std::vector<size_t> factors;
     // NB:
@@ -96,6 +98,9 @@ struct FFTKernel
     bool               use_3steps_large_twd  = false;
     bool               half_lds              = false;
     bool               direct_to_from_reg    = false;
+    // true if this kernel is compiled ahead of time (i.e. at library
+    // build time), using runtime compilation.
+    bool aot_rtc = false;
 
     FFTKernel() = delete;
 
@@ -109,7 +114,8 @@ struct FFTKernel
               int                   wgs,
               std::array<int, 2>&&  tpt,
               bool                  half_lds           = false,
-              bool                  direct_to_from_reg = false)
+              bool                  direct_to_from_reg = false,
+              bool                  aot_rtc            = false)
         : device_function(fn)
         , factors(factors)
         , transforms_per_block(tpb)
@@ -118,6 +124,7 @@ struct FFTKernel
         , use_3steps_large_twd(use_3steps)
         , half_lds(half_lds)
         , direct_to_from_reg(direct_to_from_reg)
+        , aot_rtc(aot_rtc)
     {
     }
 };
@@ -197,6 +204,11 @@ public:
     static bool has_SBCR_kernel(size_t length, rocfft_precision precision)
     {
         return has_function(fpkey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_CR));
+    }
+
+    const auto& get_map() const
+    {
+        return function_map;
     }
 };
 

@@ -71,6 +71,7 @@ struct RTCKernelStockham : public RTCKernel
 {
     RTCKernelStockham(const std::string& kernel_name, const std::vector<char>& code)
         : RTCKernel(kernel_name, code)
+        , hardcoded_dim(kernel_name.find("_dim") != std::string::npos)
     {
     }
 
@@ -79,6 +80,12 @@ struct RTCKernelStockham : public RTCKernel
                                                       bool               enable_callbacks);
 
     virtual RTCKernelArgs get_launch_args(DeviceCallIn& data) override;
+
+private:
+    // true if the kernel is hardcoded for a number of dimensions.
+    // kernels generated at runtime will be, but ahead-of-time
+    // compiled kernels won't.
+    bool hardcoded_dim;
 };
 
 #endif
