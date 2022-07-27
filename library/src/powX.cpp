@@ -610,7 +610,9 @@ void TransformPowX(const ExecPlan&       execPlan,
                             "max_mem_GB_s",
                             max_memory_bw,
                             "bw_efficiency_pct",
-                            efficiency_pct);
+                            efficiency_pct,
+                            "kernel_index",
+                            i);
             }
 
 #ifdef REF_DEBUG

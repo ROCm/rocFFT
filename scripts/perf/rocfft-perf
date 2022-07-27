@@ -119,6 +119,9 @@ import logging
 import statistics
 import sys
 import os
+import tempfile
+import re
+import collections
 
 from pathlib import Path
 
@@ -558,6 +561,129 @@ def command_autoperf(arguments):
                          type=report_type)
 
 
+def command_bweff(arguments):
+    """Collect bandwidth efficiency information."""
+
+    # build generator from suite
+    generator = perflib.generators.SuiteProblemGenerator(arguments.suite)
+
+    Path(arguments.out).mkdir(parents=True, exist_ok=True)
+
+    all_problems = collections.defaultdict(list)
+    for problem in generator.generate_problems():
+        all_problems[problem.tag].append(problem)
+
+    # create temporary file
+    fp = tempfile.NamedTemporaryFile()
+
+    # set environment variables
+    os.environ['ROCFFT_LAYER'] = '4'
+    os.environ['ROCFFT_LOG_PROFILE_PATH'] = fp.name
+
+    data = []
+    for i, (tag, problems) in enumerate(all_problems.items()):
+        print(
+            f'\n{tag} (group {i} of {len(all_problems)}): {len(problems)} problems'
+        )
+
+        rider = Path(arguments.rider)
+        if not rider.is_file():
+            raise RuntimeError(f"Unable to find rider: {arguments.rider}")
+
+        dat_paths = [Path(arguments.out) / (tag + '.dat')]
+        generator = perflib.generators.VerbatimGenerator(problems)
+
+        for prob in generator.generate_problems():
+
+            # determine appropriate batch size
+            elem_size_bytes = 8 if prob.precision == "single" else 16
+
+            for length in prob.length:
+                elem_size_bytes *= length
+
+            nbatch = (arguments.target_size << 30) // elem_size_bytes
+
+            # run rider
+            token = perflib.rider.run(arguments.rider,
+                                      prob.length,
+                                      direction=prob.direction,
+                                      real=prob.real,
+                                      inplace=prob.inplace,
+                                      precision=prob.precision,
+                                      nbatch=nbatch,
+                                      ntrial=arguments.ntrial)[0]
+
+            fp.seek(0)
+
+            # parse profile log
+            profile_log = []
+            for line in fp:
+
+                line = line.decode('UTF-8').strip('\n')
+
+                perf_info = {}
+                items = re.split(r',(?![^\[]*[\]])', line)
+
+                for i in range(1, len(items), 2):
+                    perf_info.update({items[i]: items[i + 1]})
+
+                profile_log.append(perf_info)
+
+            fp.truncate(0)
+
+            # collect data in tab-separated .dat files
+            for path in dat_paths:
+                out = Path(path)
+                logging.info("output: " + str(out))
+                meta = {'title': prob.tag}
+                meta.update(prob.meta)
+                for row in profile_log:
+                    records = [
+                        token,  # testcase token
+                        row['scheme'],  # scheme
+                        row['duration_ms'],  # kernel duration in milliseconds
+                        row['bw_efficiency_pct'],  # estimated efficiency
+                        row['kernel_index']  # index number of this kernel in the execution plan
+                    ]
+                    data.append(records)
+                    perflib.utils.write_tsv(out, [records], meta=meta)
+
+    # close temporary file
+    fp.close()
+
+    # unset environment variables
+    if 'ROCFFT_LAYER' in os.environ:
+        del os.environ['ROCFFT_LAYER']
+        del os.environ['ROCFFT_LOG_PROFILE_PATH']
+
+    # determine median duration and efficiency by token and index
+    medians = collections.defaultdict(list)
+
+    for entry in data:
+        token = entry[0]
+        scheme = entry[1]
+        duration = float(entry[2])
+        efficiency = float(entry[3])
+        index = int(entry[4])
+
+        medians[(token, index, scheme)].append((duration, efficiency))
+
+    # collect median data in tab-separated .dat files
+    out = Path(arguments.out) / ("median_values.dat")
+    logging.info("output: " + str(out))
+    meta = {'title': "median values"}
+    perflib.utils.write_tsv(out, [records])
+    for key in medians:
+        records = [
+            key[0],  # token
+            key[1],  # index
+            key[2],  # scheme
+            statistics.median(medians[key][0]),  # duration_ms
+            statistics.median(medians[key][1])  # bw_efficiency_pct
+        ]
+        perflib.utils.write_tsv(out, [records])
+
+
 #
 # Main
 #
@@ -748,6 +874,39 @@ def main():
                                  action='store_true',
                                  default=False)
 
+    bweff_parser = subparsers.add_parser(
+        'bweff', help='bandwidth efficiency collection')
+    # suite of tests to run
+    bweff_parser.add_argument('-S',
+                              '--suite',
+                              type=str,
+                              help='test suite name (appendable)',
+                              action='append',
+                              required=True)
+    # path to rider executable
+    bweff_parser.add_argument('-w',
+                              '--rider',
+                              type=str,
+                              help='test executable path',
+                              required=True)
+    # output directory for results
+    bweff_parser.add_argument('-o',
+                              '--out',
+                              type=str,
+                              help='output',
+                              default='out')
+    # number of trials to run per test case
+    bweff_parser.add_argument('-N',
+                              '--ntrial',
+                              type=int,
+                              help='number of trials',
+                              default=10)
+    # target transform size
+    bweff_parser.add_argument('--target_size',
+                              type=int,
+                              help='target transform size in GiB',
+                              default=5)
+
     arguments = parser.parse_args()
 
     if arguments.verbose:
@@ -779,6 +938,9 @@ def main():
 
     if arguments.command == 'autoperf':
         command_autoperf(arguments)
+
+    if arguments.command == 'bweff':
+        command_bweff(arguments)
 
     sys.exit(0)
 
