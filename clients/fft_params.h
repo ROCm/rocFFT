@@ -508,7 +508,7 @@ public:
         return length.size();
     }
 
-    std::vector<size_t> ilength() const
+    virtual std::vector<size_t> ilength() const
     {
         auto ilength = length;
         if(transform_type == fft_transform_type_real_inverse)
@@ -516,7 +516,7 @@ public:
         return ilength;
     }
 
-    std::vector<size_t> olength() const
+    virtual std::vector<size_t> olength() const
     {
         auto olength = length;
         if(transform_type == fft_transform_type_real_forward)
@@ -716,7 +716,7 @@ public:
                                      && transform_type == fft_transform_type_real_inverse);
     }
 
-    void compute_isize()
+    virtual void compute_isize()
     {
         auto   il  = ilength();
         size_t val = compute_ptrdiff(il, istride, nbatch, idist);
@@ -727,7 +727,7 @@ public:
         }
     }
 
-    void compute_osize()
+    virtual void compute_osize()
     {
         auto   ol  = olength();
         size_t val = compute_ptrdiff(ol, ostride, nbatch, odist);
@@ -768,7 +768,7 @@ public:
         return ibuffer_sizes;
     }
 
-    std::vector<size_t> obuffer_sizes() const
+    virtual std::vector<size_t> obuffer_sizes() const
     {
         std::vector<size_t> obuffer_sizes;
 
