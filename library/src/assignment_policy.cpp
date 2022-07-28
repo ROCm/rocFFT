@@ -120,10 +120,25 @@ void PlacementTrace::Backtracking(ExecPlan& execPlan, int execSeqID)
     }
 
     // for nodes that uses bluestein buffer
-    if(node->obIn == OB_TEMP_BLUESTEIN && node->parent && node->parent->iOffset)
-        node->iOffset = node->parent->iOffset;
-    if(node->obOut == OB_TEMP_BLUESTEIN && node->parent && node->parent->oOffset)
-        node->oOffset = node->parent->oOffset;
+    auto setBluesteinOffset = [node](size_t& offset) {
+        for(auto p = node->parent; p != nullptr; p = p->parent)
+        {
+            if(p->iOffset)
+            {
+                offset = p->iOffset;
+                break;
+            }
+            else if(p->oOffset)
+            {
+                offset = p->oOffset;
+                break;
+            }
+        }
+    };
+    if(node->obIn == OB_TEMP_BLUESTEIN)
+        setBluesteinOffset(node->iOffset);
+    if(node->obOut == OB_TEMP_BLUESTEIN)
+        setBluesteinOffset(node->oOffset);
 
     if(execSeqID > 0)
     {

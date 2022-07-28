@@ -407,7 +407,7 @@ public:
                   {
                       if(std::all_of(vals[pos].begin(), vals[pos].end(), ::isdigit))
                       {
-                          vec.push_back(std::stoi(vals[pos++]));
+                          vec.push_back(std::stoull(vals[pos++]));
                       }
                       else
                       {
@@ -457,7 +457,7 @@ public:
 
         if(vals[pos++] != "batch")
             throw std::runtime_error("Unable to parse token");
-        nbatch = std::stoi(vals[pos++]);
+        nbatch = std::stoull(vals[pos++]);
 
         istride = vector_parser(vals, "istride", pos);
 
@@ -471,11 +471,11 @@ public:
 
         if(vals[pos++] != "idist")
             throw std::runtime_error("Unable to parse token");
-        idist = std::stoi(vals[pos++]);
+        idist = std::stoull(vals[pos++]);
 
         if(vals[pos++] != "odist")
             throw std::runtime_error("Unable to parse token");
-        odist = std::stoi(vals[pos++]);
+        odist = std::stoull(vals[pos++]);
 
         ioffset = vector_parser(vals, "ioffset", pos);
 
