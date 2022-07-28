@@ -644,14 +644,16 @@ void assert_init_value(const fftw_data_t& output, const size_t idx, const float2
     if(output.size() == 1)
     {
         float2 actual_value = reinterpret_cast<const float2*>(output.front().data())[idx];
-        ASSERT_EQ(actual_value, orig_value) << "index " << idx;
+        ASSERT_EQ(actual_value.x, orig_value.x) << "x index " << idx;
+        ASSERT_EQ(actual_value.y, orig_value.y) << "y index " << idx;
     }
     else
     {
         // planar
         float2 actual_value{reinterpret_cast<const float*>(output.front().data())[idx],
                             reinterpret_cast<const float*>(output.back().data())[idx]};
-        ASSERT_EQ(actual_value, orig_value) << "index " << idx;
+        ASSERT_EQ(actual_value.x, orig_value.x) << "x index " << idx;
+        ASSERT_EQ(actual_value.y, orig_value.y) << "y index " << idx;
     }
 }
 
@@ -662,14 +664,16 @@ void assert_init_value(const fftw_data_t& output, const size_t idx, const double
     if(output.size() == 1)
     {
         double2 actual_value = reinterpret_cast<const double2*>(output.front().data())[idx];
-        ASSERT_EQ(actual_value, orig_value) << "index " << idx;
+        ASSERT_EQ(actual_value.x, orig_value.x) << "x index " << idx;
+        ASSERT_EQ(actual_value.y, orig_value.y) << "y index " << idx;
     }
     else
     {
         // planar
         double2 actual_value{reinterpret_cast<const double*>(output.front().data())[idx],
                              reinterpret_cast<const double*>(output.back().data())[idx]};
-        ASSERT_EQ(actual_value, orig_value) << "index " << idx;
+        ASSERT_EQ(actual_value.x, orig_value.x) << "x index " << idx;
+        ASSERT_EQ(actual_value.y, orig_value.y) << "y index " << idx;
     }
 }
 
