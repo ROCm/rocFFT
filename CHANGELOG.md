@@ -7,6 +7,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Changed
 - Runtime compilation cache now looks for environment variables XDG_CACHE_HOME (on Linux) and LOCALAPPDATA (on
   Windows) before falling back to HOME.
+- Moved computation of the twiddle table from host to the device.  
 
 ### Optimizations
 - Optimized 2D R2C/C2R to use 2-kernel plans where possible.

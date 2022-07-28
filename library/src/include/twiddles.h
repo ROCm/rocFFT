@@ -22,14 +22,7 @@
 #define TWIDDLES_H
 
 #include "../../../shared/gpubuf.h"
-#include "arithmetic.h"
 #include "rocfft.h"
-#include <cassert>
-#include <math.h>
-#include <numeric>
-#include <stdexcept>
-#include <string>
-#include <tuple>
 #include <vector>
 
 static const size_t LTWD_BASE_DEFAULT       = 8;
