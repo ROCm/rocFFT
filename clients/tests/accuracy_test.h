@@ -686,7 +686,7 @@ void check_single_output_stride(const fftw_data_t&         output,
                                 const size_t               i)
 {
     Tfloat orig;
-    memset(&orig, OUTPUT_INIT_PATTERN, sizeof(Tfloat));
+    memset(static_cast<void*>(&orig), OUTPUT_INIT_PATTERN, sizeof(Tfloat));
 
     size_t curLength         = length[i];
     size_t curStride         = stride[i];
