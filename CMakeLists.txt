@@ -154,6 +154,17 @@ endif( )
 rocm_check_target_ids(DEFAULT_AMDGPU_TARGETS
   TARGETS "gfx803;gfx900:xnack-;gfx906:xnack-;gfx908:xnack-;gfx90a:xnack-;gfx90a:xnack+;gfx1030")
 set(AMDGPU_TARGETS "${DEFAULT_AMDGPU_TARGETS}" CACHE STRING "List of specific machine types for library to target")
+list(LENGTH AMDGPU_TARGETS AMDGPU_TARGETS_LENGTH)
+
+if(SINGLELIB AND ${AMDGPU_TARGETS_LENGTH} GREATER 1 )
+  message(
+    FATAL_ERROR
+    "SINGLELIB build requires a single architecture in AMDGPU_TARGETS.  "
+    "A multi-arch SINGLELIB library may exceed size limits and fail to build.  "
+    "SINGLELIB builds are only for benchmarking and should be built for exactly "
+    "the architecture being benchmarked."
+  )
+endif()
 
 # HIP is required - library and clients use HIP to access the device
 find_package( HIP REQUIRED )
