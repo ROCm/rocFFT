@@ -590,7 +590,7 @@ def command_bweff(arguments):
         if not rider.is_file():
             raise RuntimeError(f"Unable to find rider: {arguments.rider}")
 
-        dat_paths = [Path(arguments.out) / (tag + '.dat')]
+        effdat_paths = [Path(arguments.out) / (tag + '.effdat')]
         generator = perflib.generators.VerbatimGenerator(problems)
 
         for prob in generator.generate_problems():
@@ -631,8 +631,8 @@ def command_bweff(arguments):
 
             fp.truncate(0)
 
-            # collect data in tab-separated .dat files
-            for path in dat_paths:
+            # collect data in tab-separated .effdat files
+            for path in effdat_paths:
                 out = Path(path)
                 logging.info("output: " + str(out))
                 meta = {'title': prob.tag}
@@ -668,11 +668,10 @@ def command_bweff(arguments):
 
         medians[(token, index, scheme)].append((duration, efficiency))
 
-    # collect median data in tab-separated .dat files
-    out = Path(arguments.out) / ("median_values.dat")
+    # collect median data in tab-separated .effdat files
+    out = Path(arguments.out) / ("median_values.effdat")
     logging.info("output: " + str(out))
     meta = {'title': "median values"}
-    perflib.utils.write_tsv(out, [records])
     for key in medians:
         records = [
             key[0],  # token
@@ -681,7 +680,7 @@ def command_bweff(arguments):
             statistics.median(medians[key][0]),  # duration_ms
             statistics.median(medians[key][1])  # bw_efficiency_pct
         ]
-        perflib.utils.write_tsv(out, [records])
+        perflib.utils.write_tsv(out, [records], meta=meta)
 
 
 #
