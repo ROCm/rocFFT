@@ -434,7 +434,7 @@ fi
 if [[ "${build_freorg_bkwdcomp}" == true ]]; then
   cmake_common_options="${cmake_common_options} -DBUILD_FILE_REORG_BACKWARD_COMPATIBILITY=ON"
 else
-  cmake_common_options+=('-DBUILD_FILE_REORG_BACKWARD_COMPATIBILITY=OFF')
+  cmake_common_options="${cmake_common_options} -DBUILD_FILE_REORG_BACKWARD_COMPATIBILITY=OFF"
 fi
 # generator
 if [[ "${pattern_arg}" != false ]]; then
