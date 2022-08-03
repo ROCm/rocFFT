@@ -134,29 +134,6 @@ inline std::complex<double>* fftw_alloc_type<std::complex<double>>(size_t n)
     return (std::complex<double>*)fftw_alloc_complex_type<double>(n);
 }
 
-// Allocator / deallocator for FFTW arrays.
-template <typename fftw_type>
-class fftw_allocator : public std::allocator<fftw_type>
-{
-public:
-    template <typename U>
-    struct rebind
-    {
-        typedef fftw_allocator<fftw_type> other;
-    };
-    fftw_type* allocate(size_t n)
-    {
-        return fftw_alloc_type<fftw_type>(n);
-    }
-    void deallocate(fftw_type* data, std::size_t size)
-    {
-        fftw_free(data);
-    }
-};
-
-template <typename fftw_type>
-using fftw_vector = std::vector<fftw_type, fftw_allocator<fftw_type>>;
-
 // Template wrappers for FFTW plan executors:
 template <typename Tfloat>
 inline void fftw_execute_type(typename fftw_trait<Tfloat>::fftw_plan_type plan);
@@ -357,22 +334,36 @@ inline void fftw_plan_execute_c2r<double>(typename fftw_trait<double>::fftw_plan
 
 // Allocator / deallocator for FFTW arrays.
 template <typename Tdata>
-class fftwAllocator : public std::allocator<Tdata>
+struct fftwAllocator
 {
-public:
-    template <typename U>
-    struct rebind
+    using value_type = Tdata;
+
+    fftwAllocator() = default;
+    template <class U>
+    fftwAllocator(const fftwAllocator<U>&)
     {
-        typedef fftwAllocator other;
-    };
+    }
+
     Tdata* allocate(size_t n)
     {
         return (Tdata*)fftw_malloc(sizeof(Tdata) * n);
     }
-    void deallocate(Tdata* data, std::size_t size)
+    void deallocate(Tdata* data, size_t n)
     {
         fftw_free(data);
     }
 };
+
+template <typename Tdata1, typename Tdata2>
+inline bool operator==(const fftwAllocator<Tdata1>&, const fftwAllocator<Tdata2>&)
+{
+    return true;
+}
+
+template <typename Tdata1, typename Tdata2>
+inline bool operator!=(const fftwAllocator<Tdata1>& a, const fftwAllocator<Tdata2>& b)
+{
+    return !(a == b);
+}
 
 #endif

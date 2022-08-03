@@ -36,6 +36,13 @@ endfunction( )
 
 option(ROCFFT_DEVICE_FORCE_RELEASE "Force the rocfft-device library to Release build type" OFF)
 if(ROCFFT_DEVICE_FORCE_RELEASE)
+  if(WIN32)
+    message(
+      FATAL_ERROR
+      "ROCFFT_DEVICE_FORCE_RELEASE cannot be used on Windows, as the debug and normal runtimes "
+      "are ABI-incompatible.  The core rocFFT lib and device libs must both use the same runtime."
+    )
+  endif()
   set (CMAKE_BUILD_TYPE Release)
 endif()
 

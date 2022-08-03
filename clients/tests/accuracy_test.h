@@ -867,7 +867,6 @@ inline void fft_vs_reference_impl(Tparams& params)
             std::copy(readPtr, readEnd, writePtr);
             arr.resize(arr.size() / 2);
         }
-        return data;
     };
 
     // Check cache first - nbatch is a >= comparison because we compute
