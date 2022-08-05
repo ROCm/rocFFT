@@ -1100,7 +1100,7 @@ void TreeNode::DetermineBufferMemory(size_t& tmpBufSize,
             UseOutputLengthForPadding() ? GetOutputLength() : length, outStride, batch, oDist);
 
         if(scheme == CS_KERNEL_CHIRP)
-            chirpSize = std::max(2 * lengthBlue, chirpSize);
+            chirpSize = std::max(lengthBlue, chirpSize);
 
         if(obOut == OB_TEMP_BLUESTEIN)
             blueSize = std::max(outputPtrDiff, blueSize);

@@ -21,6 +21,7 @@
 #include "tree_node_bluestein.h"
 #include "kernel_launch.h"
 #include "node_factory.h"
+#include <numeric>
 
 inline size_t FindBlue(size_t len, rocfft_precision precision)
 {
@@ -73,26 +74,16 @@ void BluesteinNode::BuildTree_internal()
     padmulPlan->length     = length;
     padmulPlan->lengthBlue = lengthBlue;
 
-    NodeMetaData fftiPlanData(this);
-    fftiPlanData.dimension = 1;
-    fftiPlanData.length.push_back(lengthBlue);
-    for(size_t index = 1; index < length.size(); index++)
-    {
-        fftiPlanData.length.push_back(length[index]);
-    }
-    fftiPlanData.iOffset = 2 * lengthBlue;
-    fftiPlanData.oOffset = 2 * lengthBlue;
-    auto fftiPlan        = NodeFactory::CreateExplicitNode(fftiPlanData, this);
-    fftiPlan->RecursiveBuildTree();
-
-    NodeMetaData fftcPlanData(this);
-    fftcPlanData.dimension = 1;
-    fftcPlanData.length.push_back(lengthBlue);
-    fftcPlanData.batch   = 1;
-    fftcPlanData.iOffset = lengthBlue;
-    fftcPlanData.oOffset = lengthBlue;
-    auto fftcPlan        = NodeFactory::CreateExplicitNode(fftcPlanData, this);
-    fftcPlan->RecursiveBuildTree();
+    NodeMetaData ffticPlanData(this);
+    ffticPlanData.dimension = 1;
+    ffticPlanData.length.push_back(lengthBlue);
+    ffticPlanData.batch
+        *= std::accumulate(length.begin() + 1, length.end(), 1, std::multiplies<size_t>());
+    ffticPlanData.batch++;
+    ffticPlanData.iOffset = lengthBlue;
+    ffticPlanData.oOffset = lengthBlue;
+    auto ffticPlan        = NodeFactory::CreateExplicitNode(ffticPlanData, this);
+    ffticPlan->RecursiveBuildTree();
 
     auto fftmulPlan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_FFT_MUL, this);
     fftmulPlan->dimension = 1;
@@ -121,11 +112,10 @@ void BluesteinNode::BuildTree_internal()
     resmulPlan->length     = length;
     resmulPlan->lengthBlue = lengthBlue;
 
-    // 7 node of bluestein
+    // 6 node of bluestein
     childNodes.emplace_back(std::move(chirpPlan));
     childNodes.emplace_back(std::move(padmulPlan));
-    childNodes.emplace_back(std::move(fftiPlan));
-    childNodes.emplace_back(std::move(fftcPlan));
+    childNodes.emplace_back(std::move(ffticPlan));
     childNodes.emplace_back(std::move(fftmulPlan));
     childNodes.emplace_back(std::move(fftrPlan));
     childNodes.emplace_back(std::move(resmulPlan));
@@ -135,11 +125,10 @@ void BluesteinNode::AssignParams_internal()
 {
     auto& chirpPlan  = childNodes[0];
     auto& padmulPlan = childNodes[1];
-    auto& fftiPlan   = childNodes[2];
-    auto& fftcPlan   = childNodes[3];
-    auto& fftmulPlan = childNodes[4];
-    auto& fftrPlan   = childNodes[5];
-    auto& resmulPlan = childNodes[6];
+    auto& ffticPlan  = childNodes[2];
+    auto& fftmulPlan = childNodes[3];
+    auto& fftrPlan   = childNodes[4];
+    auto& resmulPlan = childNodes[5];
 
     chirpPlan->inStride.push_back(1);
     chirpPlan->iDist = chirpPlan->lengthBlue;
@@ -157,22 +146,15 @@ void BluesteinNode::AssignParams_internal()
         padmulPlan->oDist *= length[index];
     }
 
-    fftiPlan->inStride  = padmulPlan->outStride;
-    fftiPlan->iDist     = padmulPlan->oDist;
-    fftiPlan->outStride = fftiPlan->inStride;
-    fftiPlan->oDist     = fftiPlan->iDist;
+    ffticPlan->inStride  = chirpPlan->outStride;
+    ffticPlan->iDist     = chirpPlan->oDist;
+    ffticPlan->outStride = ffticPlan->inStride;
+    ffticPlan->oDist     = ffticPlan->iDist;
 
-    fftiPlan->AssignParams();
+    ffticPlan->AssignParams();
 
-    fftcPlan->inStride  = chirpPlan->outStride;
-    fftcPlan->iDist     = chirpPlan->oDist;
-    fftcPlan->outStride = fftcPlan->inStride;
-    fftcPlan->oDist     = fftcPlan->iDist;
-
-    fftcPlan->AssignParams();
-
-    fftmulPlan->inStride  = fftiPlan->outStride;
-    fftmulPlan->iDist     = fftiPlan->oDist;
+    fftmulPlan->inStride  = padmulPlan->outStride;
+    fftmulPlan->iDist     = padmulPlan->oDist;
     fftmulPlan->outStride = fftmulPlan->inStride;
     fftmulPlan->oDist     = fftmulPlan->iDist;
 
