@@ -196,6 +196,7 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
 
 std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          const StockhamGeneratorSpecs& specs2d,
+                         unsigned int*                 transforms_per_block,
                          const std::string&            kernel_name,
                          ComputeScheme                 scheme,
                          int                           direction,
@@ -219,6 +220,8 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     if(scheme == CS_KERNEL_2D_SINGLE)
     {
         StockhamKernelFused2D kernel(specs, specs2d);
+        if(transforms_per_block)
+            *transforms_per_block = kernel.transforms_per_block;
         lds2reg = std::make_unique<Function>(kernel.kernel0.generate_lds_to_reg_input_function());
         reg2lds
             = std::make_unique<Function>(kernel.kernel0.generate_lds_from_reg_output_function());
@@ -254,6 +257,8 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
             kernel = std::make_unique<StockhamKernelRC>(specs);
         else
             throw std::runtime_error("unhandled scheme");
+        if(transforms_per_block)
+            *transforms_per_block = kernel->transforms_per_block;
         lds2reg = std::make_unique<Function>(kernel->generate_lds_to_reg_input_function());
         reg2lds = std::make_unique<Function>(kernel->generate_lds_from_reg_output_function());
         device  = std::make_unique<Function>(kernel->generate_device_function());
@@ -555,6 +560,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
     generator.generate_src = [=, &node](const std::string& kernel_name) {
         return stockham_rtc(*specs,
                             specs2d ? *specs2d : *specs,
+                            nullptr,
                             kernel_name,
                             node.scheme,
                             node.direction,

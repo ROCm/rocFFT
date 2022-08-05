@@ -48,9 +48,12 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
                                      bool                    enable_callbacks,
                                      bool                    enable_scaling);
 
-// generate source for RTC stockham kernel
+// generate source for RTC stockham kernel.  transforms_per_block may
+// be nullptr, but if non-null, stockham_rtc stores the number of
+// transforms each threadblock will do
 std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          const StockhamGeneratorSpecs& specs2d,
+                         unsigned int*                 transforms_per_block,
                          const std::string&            kernel_name,
                          ComputeScheme                 scheme,
                          int                           direction,

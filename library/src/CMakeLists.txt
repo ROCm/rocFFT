@@ -224,6 +224,12 @@ target_link_libraries( rocfft-rtc-common PUBLIC ${ROCFFT_HOST_LINK_LIBS} ${ROCFF
 
 add_executable( rocfft_aot_helper
   rocfft_aot_helper.cpp
+  rocfft_stub.cpp
+)
+
+add_executable( rocfft_config_search
+  rocfft_config_search.cpp
+  rocfft_stub.cpp
 )
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
@@ -249,7 +255,7 @@ target_link_libraries( rocfft PRIVATE ${ROCFFT_DEVICE_LINK_LIBS} )
 target_link_libraries( rocfft PRIVATE rocfft-device-1 )
 target_link_libraries( rocfft PRIVATE rocfft-device-2 )
 target_link_libraries( rocfft PRIVATE rocfft-device-3 )
-foreach( target rocfft rocfft_aot_helper )
+foreach( target rocfft rocfft_aot_helper rocfft_config_search )
   # RTC uses dladdr to find the RTC helper program
   if( NOT WIN32 )
     target_link_libraries( ${target} PUBLIC -ldl pthread )

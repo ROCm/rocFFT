@@ -107,7 +107,14 @@ struct RTCKernel
     RTCKernel(RTCKernel&&)      = delete;
     void operator=(const RTCKernel&) = delete;
 
+    // normal launch from within rocFFT execution plan
     void launch(DeviceCallIn& data);
+    // direct launch with kernel args
+    void launch(RTCKernelArgs& kargs,
+                dim3           gridDim,
+                dim3           blockDim,
+                unsigned int   lds_bytes,
+                hipStream_t    stream = nullptr);
 
     // Subclasses implement this - each kernel type has different
     // parameters

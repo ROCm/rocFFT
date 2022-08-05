@@ -59,6 +59,18 @@ void RTCKernel::launch(DeviceCallIn& data)
         }
     }
 
+    const auto& gp = data.gridParam;
+
+    launch(kargs,
+           {gp.b_x, gp.b_y, gp.b_z},
+           {gp.wgs_x, gp.wgs_y, gp.wgs_z},
+           gp.lds_bytes,
+           data.rocfft_stream);
+}
+
+void RTCKernel::launch(
+    RTCKernelArgs& kargs, dim3 gridDim, dim3 blockDim, unsigned int lds_bytes, hipStream_t stream)
+{
     auto  size     = kargs.size_bytes();
     void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER,
                       kargs.data(),
@@ -66,13 +78,11 @@ void RTCKernel::launch(DeviceCallIn& data)
                       &size,
                       HIP_LAUNCH_PARAM_END};
 
-    const auto& gp = data.gridParam;
-
     if(LOG_PLAN_ENABLED())
     {
         int        max_blocks_per_sm;
         hipError_t ret = hipModuleOccupancyMaxActiveBlocksPerMultiprocessor(
-            &max_blocks_per_sm, kernel, gp.wgs_x * gp.wgs_y * gp.wgs_z, gp.lds_bytes);
+            &max_blocks_per_sm, kernel, blockDim.x * blockDim.y * blockDim.z, lds_bytes);
         rocfft_ostream* kernelplan_stream = LogSingleton::GetInstance().GetPlanOS();
         if(ret == hipSuccess)
             *kernelplan_stream << "Kernel occupancy: " << max_blocks_per_sm << std::endl;
@@ -81,14 +91,14 @@ void RTCKernel::launch(DeviceCallIn& data)
     }
 
     if(hipModuleLaunchKernel(kernel,
-                             gp.b_x,
-                             gp.b_y,
-                             gp.b_z,
-                             gp.wgs_x,
-                             gp.wgs_y,
-                             gp.wgs_z,
-                             gp.lds_bytes,
-                             data.rocfft_stream,
+                             gridDim.x,
+                             gridDim.y,
+                             gridDim.z,
+                             blockDim.x,
+                             blockDim.y,
+                             blockDim.z,
+                             lds_bytes,
+                             stream,
                              nullptr,
                              config)
        != hipSuccess)

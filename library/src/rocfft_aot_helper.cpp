@@ -20,27 +20,6 @@ namespace std
 #endif
 namespace fs = std::filesystem;
 
-// declare things that RTC needs to link a standalone executable
-// without the rest of rocFFT
-int log_trace_fd    = -1;
-int log_bench_fd    = -1;
-int log_profile_fd  = -1;
-int log_plan_fd     = -1;
-int log_kernelio_fd = -1;
-int log_rtc_fd      = -1;
-
-extern "C" rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
-                                            rocfft_result_placement       placement,
-                                            rocfft_transform_type         transform_type,
-                                            rocfft_precision              precision,
-                                            size_t                        dimensions,
-                                            const size_t*                 lengths,
-                                            size_t                        number_of_transforms,
-                                            const rocfft_plan_description description)
-{
-    return rocfft_status_failure;
-}
-
 #include <condition_variable>
 #include <mutex>
 #include <queue>
@@ -181,6 +160,7 @@ void build_stockham_function_pool(CompileQueue& queue)
                         specs.half_lds              = i.second.half_lds;
                         return stockham_rtc(specs,
                                             specs,
+                                            nullptr,
                                             kernel_name,
                                             scheme,
                                             direction,
