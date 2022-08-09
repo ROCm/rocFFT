@@ -217,13 +217,13 @@ RTCCache::RTCCache()
     }
 }
 
-static std::vector<char> get_code_object_impl(const std::string&       kernel_name,
-                                              const std::string&       gpu_arch,
-                                              int                      hip_version,
-                                              const std::vector<char>& generator_sum,
-                                              sqlite3_ptr&             db,
-                                              sqlite3_stmt_ptr&        get_stmt,
-                                              std::mutex&              get_mutex)
+static std::vector<char> get_code_object_impl(const std::string&          kernel_name,
+                                              const std::string&          gpu_arch,
+                                              int                         hip_version,
+                                              const std::array<char, 32>& generator_sum,
+                                              sqlite3_ptr&                db,
+                                              sqlite3_stmt_ptr&           get_stmt,
+                                              std::mutex&                 get_mutex)
 {
     std::vector<char> code;
 
@@ -257,10 +257,10 @@ static std::vector<char> get_code_object_impl(const std::string&       kernel_na
     return code;
 }
 
-std::vector<char> RTCCache::get_code_object(const std::string&       kernel_name,
-                                            const std::string&       gpu_arch,
-                                            int                      hip_version,
-                                            const std::vector<char>& generator_sum)
+std::vector<char> RTCCache::get_code_object(const std::string&          kernel_name,
+                                            const std::string&          gpu_arch,
+                                            int                         hip_version,
+                                            const std::array<char, 32>& generator_sum)
 {
     std::vector<char> code;
     // try user cache first
@@ -279,11 +279,11 @@ std::vector<char> RTCCache::get_code_object(const std::string&       kernel_name
     return code;
 }
 
-void RTCCache::store_code_object(const std::string&       kernel_name,
-                                 const std::string&       gpu_arch,
-                                 int                      hip_version,
-                                 const std::vector<char>& generator_sum,
-                                 const std::vector<char>& code)
+void RTCCache::store_code_object(const std::string&          kernel_name,
+                                 const std::string&          gpu_arch,
+                                 int                         hip_version,
+                                 const std::array<char, 32>& generator_sum,
+                                 const std::vector<char>&    code)
 {
     // allow env variable to disable writes
     if(!rocfft_getenv("ROCFFT_RTC_CACHE_WRITE_DISABLE").empty())
@@ -427,15 +427,12 @@ std::vector<char> RTCKernel::cached_compile(const std::string& kernel_name,
     if(hip_version == 0 && hipRuntimeGetVersion(&hip_version) != hipSuccess)
         return {};
 
-    static const std::vector<char> generator_sum_vec(generator_sum,
-                                                     generator_sum + generator_sum_bytes);
-
     // check cache first
     std::vector<char> code;
     if(RTCCache::single)
     {
         code = RTCCache::single->get_code_object(
-            kernel_name, gpu_arch, hip_version, generator_sum_vec);
+            kernel_name, gpu_arch, hip_version, generator_sum());
     }
 
     if(!code.empty())
@@ -550,7 +547,7 @@ std::vector<char> RTCKernel::cached_compile(const std::string& kernel_name,
     if(RTCCache::single)
     {
         RTCCache::single->store_code_object(
-            kernel_name, gpu_arch, hip_version, generator_sum_vec, code);
+            kernel_name, gpu_arch, hip_version, generator_sum(), code);
     }
     return code;
 }

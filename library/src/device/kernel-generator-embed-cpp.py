@@ -63,10 +63,10 @@ if __name__ == '__main__':
     include_regex = re.compile('''^\s*#include''')
 
     # embed files as strings
-    outfile.write("#pragma once\n")
+    outfile.write("#include <array>\n")
     for input in args.embed:
         ident = filename_to_cpp_ident(input)
-        outfile.write(f"static constexpr auto {ident} {{\n")
+        outfile.write(f"const char* {ident} {{\n")
         outfile.write('R"_PY_EMBED_(\n')
         with open(input, 'r') as f:
             for line in f:
@@ -80,9 +80,7 @@ if __name__ == '__main__':
     for input in args.embed + args.logic:
         with open(input, 'rb') as f:
             h.update(f.read())
-    outfile.write('static const char* generator_sum = "')
+    outfile.write('const std::array<char,32> generator_sum() { return {')
     for b in h.digest():
-        outfile.write('\\x{:02x}'.format(b))
-    outfile.write('";\n')
-    outfile.write('static const size_t generator_sum_bytes = {};\n'.format(
-        h.digest_size))
+        outfile.write("'\\x{:02x}', ".format(b))
+    outfile.write('};}\n')

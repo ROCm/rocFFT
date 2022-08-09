@@ -73,8 +73,8 @@ add_subdirectory( device )
 # script that produces an include file
 set( kgen_embed_command ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed-cpp.py )
 
-# location of the include file
-set( kgen_embed_h ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed.h )
+# location of the generated source file
+set( kgen_embed_cpp ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed.cpp )
 
 # files that need to be embedded into the library, to be able to generate code
 set( kgen_embed_files
@@ -117,9 +117,9 @@ set( kgen_logic_files
    )
 
 add_custom_command(
-  OUTPUT ${kgen_embed_h}
+  OUTPUT ${kgen_embed_cpp}
   COMMAND ${PYTHON3_EXE} ${kgen_embed_command}
-  --embed ${kgen_embed_files} --logic ${kgen_logic_files} --output ${kgen_embed_h}
+  --embed ${kgen_embed_files} --logic ${kgen_logic_files} --output ${kgen_embed_cpp}
   DEPENDS ${kgen_embed_command} ${kgen_embed_files} ${kgen_logic_files}
 )
 
@@ -185,16 +185,9 @@ else()
   set(ROCFFT_SQLITE_LIB sqlite3)
 endif()
 
-# files that depend on kernel-generator-embed.h
-foreach( file rtc.cpp rtc_stockham.cpp )
-  set_property(
-    SOURCE ${file}
-    PROPERTY OBJECT_DEPENDS ${kgen_embed_h}
-  )
-endforeach()
-
 # RTC stuff that's used by both core library and helpers
 add_library( rocfft-rtc-common OBJECT
+  ${kgen_embed_cpp}
   compute_scheme.cpp
   rocfft_ostream.cpp
   rtc.cpp
