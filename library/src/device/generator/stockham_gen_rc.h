@@ -101,6 +101,7 @@ struct StockhamKernelRC : public StockhamKernel
                                          unsigned int hr,
                                          unsigned int width,
                                          unsigned int dt,
+                                         Expression   guard,
                                          unsigned int cumheight)
     {
         if(hr == 0)
@@ -517,8 +518,10 @@ struct StockhamKernelRC : public StockhamKernel
             auto height    = static_cast<float>(length) / width / threads_per_transform;
 
             auto store_global = std::mem_fn(&StockhamKernelRC::store_global_generator);
-            non_edge_stmts += add_work(
-                std::bind(store_global, this, _1, _2, _3, _4, cumheight), width, height, true);
+            non_edge_stmts += add_work(std::bind(store_global, this, _1, _2, _3, _4, _5, cumheight),
+                                       width,
+                                       height,
+                                       ThreadGuardMode::GUARD_BY_IF);
 
             edge_stmts = non_edge_stmts;
         }

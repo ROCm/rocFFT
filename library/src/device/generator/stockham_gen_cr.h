@@ -29,16 +29,16 @@ struct StockhamKernelCR : public StockhamKernel
     }
 
     //
+    // templates
+    //
+    Variable intrinsic_mode{"intrinsic_mode", "IntrinsicAccessType"};
+
+    //
     // locals
     //
-    Variable offset_in{"offset_in", "unsigned int"};
-    Variable offset_out{"offset_out", "unsigned int"};
-    Variable stride0_in{"stride0_in", "const size_t"};
-    Variable stride_out{"stride_out", "const size_t", true};
-
     Variable tile_index{"tile_index", "size_t"};
     Variable tile_length{"tile_length", "size_t"};
-    Variable edge{"edge", "bool"};
+    Variable in_bound{"in_bound", "bool"};
     Variable thread{"thread", "unsigned int"}; // replacing tid_ver
     Variable tid_hor{"tid_hor", "unsigned int"};
 
@@ -71,7 +71,10 @@ struct StockhamKernelCR : public StockhamKernel
     StatementList load_global_generator(unsigned int h,
                                         unsigned int hr,
                                         unsigned int width,
-                                        unsigned int dt) const
+                                        unsigned int dt,
+                                        Expression   guard,
+                                        bool         intrinsic,
+                                        Expression   pred) const
     {
         if(hr == 0)
             hr = h;
@@ -80,9 +83,24 @@ struct StockhamKernelCR : public StockhamKernel
         {
             auto tid = Parens{thread + dt + h * threads_per_transform};
             auto idx = Parens{tid + w * length / width};
-            load += Assign{
-                R[hr * width + w],
-                LoadGlobal{buf, offset + tid_hor * stride0 + Parens{Expression{idx}} * stride[1]}};
+            if(intrinsic)
+            {
+                // no need to and with trivial "true"
+                load += Assign{
+                    R[hr * width + w],
+                    IntrinsicLoad{
+                        {buf,
+                         tid_hor * stride[1] + Parens{Expression{idx}} * stride0,
+                         offset,
+                         std::holds_alternative<Literal>(guard) ? pred : (guard && pred)}}};
+            }
+            else
+            {
+                load += Assign{
+                    R[hr * width + w],
+                    LoadGlobal{buf,
+                               offset + tid_hor * stride[1] + Parens{Expression{idx}} * stride0}};
+            }
         }
         return load;
     }
@@ -110,8 +128,7 @@ struct StockhamKernelCR : public StockhamKernel
         stmts += Assign{plength, tile_length};
         stmts += Assign{tile_index, block_id % tile_length};
         stmts += Assign{remaining, block_id / tile_length};
-        stmts += Assign{offset_in, tile_index * transforms_per_block * stride0_in};
-        stmts += Assign{offset_out, tile_index * transforms_per_block * stride_out[1]};
+        stmts += Assign{offset, tile_index * transforms_per_block * stride[1]};
 
         stmts += For{d,
                      2,
@@ -150,14 +167,12 @@ struct StockhamKernelCR : public StockhamKernel
                                     thread_id % transforms_per_block}};
         }
 
-        stmts += Declaration{edge};
+        stmts += Declaration{in_bound};
         stmts += Declaration{thread};
         stmts += Declaration{tid_hor};
         stmts += Assign{
-            edge,
-            Ternary{Parens{Greater{Parens{tile_index + 1} * transforms_per_block, lengths[1]}},
-                    "true",
-                    "false"}};
+            in_bound,
+            Ternary{Parens((tile_index + 1) * transforms_per_block > lengths[1]), "false", "true"}};
 
         // thread walks the columns; tid_hor walks the rows
         stmts += Assign{thread, thread_id / transforms_per_block};
@@ -179,7 +194,7 @@ struct StockhamKernelCR : public StockhamKernel
             auto stripmine_h = workgroup_size / stripmine_w;
 
             auto offset_tile_rbuf = [&](unsigned int i) {
-                return tid_hor * stride0 + (thread + i * stripmine_h) * stride[1];
+                return tid_hor * stride[1] + (thread + i * stripmine_h) * stride0;
             };
             auto offset_tile_wlds = [&](unsigned int i) {
                 return tid_hor * stride_lds + (thread + i * stripmine_h) * 1;
@@ -220,22 +235,48 @@ struct StockhamKernelCR : public StockhamKernel
                             LoadGlobal{buf, offset + offset_tile_rbuf(length / stripmine_h)}}}}}};
 
             edge_stmts += stmts_c2real_pre_edge;
+
+            stmts += If{in_bound, non_edge_stmts};
+            stmts += If{Not{in_bound}, {If{pred, edge_stmts}}};
         }
         else
         {
+            StatementList intrinsic_stmts;
+            StatementList non_intrinsic_stmts;
+
             unsigned int width  = factors[0];
             auto         height = static_cast<float>(length) / width / threads_per_transform;
 
             auto load_global = std::mem_fn(&StockhamKernelCR::load_global_generator);
+            intrinsic_stmts += CommentLines{"use intrinsic load"};
+            intrinsic_stmts += CommentLines{"evaluate all flags as one rw argument"};
+            intrinsic_stmts += add_work(std::bind(load_global,
+                                                  this,
+                                                  _1,
+                                                  _2,
+                                                  _3,
+                                                  _4,
+                                                  _5,
+                                                  true,
+                                                  Expression{Parens(in_bound || pred)}),
+                                        width,
+                                        height,
+                                        ThreadGuardMode::GURAD_BY_FUNC_ARG,
+                                        true);
+
             non_edge_stmts += add_work(
-                std::bind(load_global, this, _1, _2, _3, _4), width, height, true, true);
+                std::bind(load_global, this, _1, _2, _3, _4, _5, false, Expression{in_bound}),
+                width,
+                height,
+                ThreadGuardMode::GUARD_BY_IF,
+                true);
+            non_intrinsic_stmts += CommentLines{"can't use intrinsic load"};
+            non_intrinsic_stmts += If{in_bound, non_edge_stmts};
+            non_intrinsic_stmts += If{!in_bound, {If{pred, non_edge_stmts}}};
 
-            edge_stmts = non_edge_stmts;
+            stmts += If{intrinsic_mode != "IntrinsicAccessType::DISABLE_BOTH", intrinsic_stmts};
+            stmts += Else{non_intrinsic_stmts};
         }
-
-        stmts += If{Not{edge}, non_edge_stmts};
-        stmts += If{edge, {If{pred, edge_stmts}}};
-        // stmts += Else{{If{pred, edge_stmts}}};  // FIXME: Need to check with compiler team.
 
         return stmts;
     }
@@ -288,17 +329,17 @@ struct StockhamKernelCR : public StockhamKernel
                            + ((thread_id + i * workgroup_size) / length) * 1;
             };
 
-            StatementList regular_load;
+            StatementList regular_store;
             for(unsigned int i = 0; i < num_store_blocks; ++i)
             {
                 Expression buf_idx = offset_tile_wbuf(i);
                 Expression lds_idx = offset_tile_rlds(i);
                 if(direct_to_from_reg)
                     lds_idx = Ternary{lds_linear, offset_tile_rlds(i), offset_tile_rlds_trans(i)};
-                regular_load += StoreGlobal{buf, offset + buf_idx, lds_complex[lds_idx]};
+                regular_store += StoreGlobal{buf, offset + buf_idx, lds_complex[lds_idx]};
             }
 
-            StatementList edge_load;
+            StatementList edge_store;
             Variable      t{"t", "unsigned int"};
             if(divisible)
             {
@@ -309,11 +350,11 @@ struct StockhamKernelCR : public StockhamKernel
                     lds_idx = Ternary{lds_linear,
                                       tid_hor * 1 + (thread + t) * stride_lds,
                                       tid_hor * stride_lds + (thread + t) * 1};
-                edge_load += For{t,
-                                 0,
-                                 pred,
-                                 tid0_inc_step,
-                                 {StoreGlobal{buf, offset + buf_idx, lds_complex[lds_idx]}}};
+                edge_store += For{t,
+                                  0,
+                                  pred,
+                                  tid0_inc_step,
+                                  {StoreGlobal{buf, offset + buf_idx, lds_complex[lds_idx]}}};
             }
             else
             {
@@ -327,16 +368,16 @@ struct StockhamKernelCR : public StockhamKernel
                         lds_linear,
                         ((thread_id + t) % length) * 1 + ((thread_id + t) / length) * stride_lds,
                         ((thread_id + t) % length) * stride_lds + ((thread_id + t) / length) * 1};
-                edge_load += For{t,
-                                 0,
-                                 pred,
-                                 workgroup_size,
-                                 {StoreGlobal{buf, offset + buf_idx, lds_complex[lds_idx]}}};
+                edge_store += For{t,
+                                  0,
+                                  pred,
+                                  workgroup_size,
+                                  {StoreGlobal{buf, offset + buf_idx, lds_complex[lds_idx]}}};
             }
 
-            stmts += If{Not{edge}, regular_load};
-            stmts += If{edge, edge_load};
-            // stmts += Else{edge_load};  // FIXME: Need to check with compiler team.
+            stmts += If{in_bound, regular_store};
+            stmts += If{Not{in_bound}, edge_store};
+            // stmts += Else{edge_store};  // FIXME: Need to check with compiler team.
         }
         else
         {
@@ -345,6 +386,13 @@ struct StockhamKernelCR : public StockhamKernel
         }
 
         return stmts;
+    }
+
+    TemplateList global_templates() override
+    {
+        TemplateList tpls = StockhamKernel::global_templates();
+        tpls.append(intrinsic_mode);
+        return tpls;
     }
 
     StatementList real_trans_pre_post(ProcessingType type) override

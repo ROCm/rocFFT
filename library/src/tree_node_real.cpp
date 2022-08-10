@@ -1244,7 +1244,7 @@ void Real3DEvenNode::AssignParams_internal_SBCR()
         throw std::runtime_error("Require SBCR childNodes.size() == 4");
 
     auto& sbcrZ      = childNodes[0];
-    sbcrZ->inStride  = {inStride[0], inStride[2]};
+    sbcrZ->inStride  = {inStride[2], inStride[0]};
     sbcrZ->iDist     = iDist;
     sbcrZ->outStride = {1, sbcrZ->length[0]};
     sbcrZ->oDist     = iDist;
@@ -1252,7 +1252,7 @@ void Real3DEvenNode::AssignParams_internal_SBCR()
     sbcrZ->AssignParams();
 
     auto& sbcrY      = childNodes[1];
-    sbcrY->inStride  = {1, sbcrY->length[1]};
+    sbcrY->inStride  = {sbcrY->length[1], 1};
     sbcrY->iDist     = sbcrY->length[0] * sbcrY->length[1];
     sbcrY->outStride = {1, sbcrY->length[0]};
     sbcrY->oDist     = sbcrY->iDist;
@@ -1261,7 +1261,7 @@ void Real3DEvenNode::AssignParams_internal_SBCR()
     auto& sbcrX         = childNodes[2];
     sbcrX->ebtype       = EmbeddedType::C2Real_PRE;
     sbcrX->outArrayType = rocfft_array_type_complex_interleaved;
-    sbcrX->inStride     = {1, sbcrX->length[1]};
+    sbcrX->inStride     = {sbcrX->length[1], 1};
     sbcrX->iDist        = (sbcrX->length[0] + 1) * sbcrX->length[1];
     sbcrX->outStride    = {1, sbcrX->length[0]};
     sbcrX->oDist = sbcrX->length[0] * sbcrX->length[1]; // TODO: refactor for non-unit strides

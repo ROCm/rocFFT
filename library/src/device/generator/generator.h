@@ -84,6 +84,7 @@ class Modulus;
 class ShiftLeft;
 class ShiftRight;
 class And;
+class BitAnd;
 class Or;
 class Less;
 class LessEqual;
@@ -108,6 +109,8 @@ class Parens;
 
 class CallExpr;
 
+class IntrinsicLoad;
+
 using Expression = std::variant<ScalarVariable,
                                 Variable,
                                 Literal,
@@ -120,6 +123,7 @@ using Expression = std::variant<ScalarVariable,
                                 ShiftLeft,
                                 ShiftRight,
                                 And,
+                                BitAnd,
                                 Or,
                                 Less,
                                 LessEqual,
@@ -136,7 +140,8 @@ using Expression = std::variant<ScalarVariable,
                                 TwiddleMultiply,
                                 TwiddleMultiplyConjugate,
                                 Parens,
-                                CallExpr>;
+                                CallExpr,
+                                IntrinsicLoad>;
 
 class OptionalExpression
 {
@@ -372,6 +377,17 @@ public:
     std::string             render() const;
 };
 
+class IntrinsicLoad
+{
+public:
+    static const unsigned int precedence = 18;
+    explicit IntrinsicLoad(const std::vector<Expression>& args);
+
+    // data, voffset, soffset, rw
+    std::vector<Expression> args;
+    std::string             render() const;
+};
+
 #define MAKE_OPER(NAME, OPER, PRECEDENCE)                           \
     class NAME                                                      \
     {                                                               \
@@ -436,6 +452,7 @@ MAKE_OPER(NotEqual, " != ", 10);
 MAKE_OPER(ShiftLeft, " << ", 7);
 MAKE_OPER(ShiftRight, " >> ", 7);
 MAKE_OPER(And, " && ", 14);
+MAKE_OPER(BitAnd, " & ", 14);
 MAKE_OPER(Or, " || ", 15);
 
 MAKE_OPER(UnaryMinus, " -", 3);
@@ -462,6 +479,7 @@ CONSTRUCT_OPER(NotEqual);
 CONSTRUCT_OPER(ShiftLeft);
 CONSTRUCT_OPER(ShiftRight);
 CONSTRUCT_OPER(And);
+CONSTRUCT_OPER(BitAnd);
 CONSTRUCT_OPER(Or);
 
 CONSTRUCT_OPER(UnaryMinus);
@@ -513,6 +531,7 @@ MAKE_BINARY_METHODS(NotEqual);
 MAKE_BINARY_METHODS(ShiftLeft);
 MAKE_BINARY_METHODS(ShiftRight);
 MAKE_BINARY_METHODS(And);
+MAKE_BINARY_METHODS(BitAnd);
 MAKE_BINARY_METHODS(Or);
 
 MAKE_UNARY_PREFIX_METHODS(UnaryMinus);
@@ -741,6 +760,11 @@ And operator&&(const Expression& a, const Expression& b)
     return And{a, b};
 }
 
+BitAnd operator&(const Expression& a, const Expression& b)
+{
+    return BitAnd{a, b};
+}
+
 Or operator||(const Expression& a, const Expression& b)
 {
     return Or{a, b};
@@ -869,6 +893,18 @@ std::string CallExpr::render() const
     return f;
 }
 
+IntrinsicLoad::IntrinsicLoad(const std::vector<Expression>& args)
+    : args(args)
+{
+}
+
+std::string IntrinsicLoad::render() const
+{
+    // intrinsic_load(const T* data, unsigned int voffset, unsigned int soffset, bool rw)
+    return "intrinsic_load(" + vrender(args[0]) + "," + vrender(args[1]) + "," + vrender(args[2])
+           + "," + vrender(args[3]) + ")";
+}
+
 //
 // Statements
 //
@@ -890,6 +926,8 @@ class StoreGlobal;
 class StoreGlobalPlanar;
 class StatementList;
 class Butterfly;
+class IntrinsicStore;
+class IntrinsicLoadToDest;
 
 struct LineBreak
 {
@@ -961,7 +999,9 @@ using Statement = std::variant<Assign,
                                Return,
                                Break,
                                SyncThreads,
-                               Butterfly>;
+                               Butterfly,
+                               IntrinsicStore,
+                               IntrinsicLoadToDest>;
 
 class Assign
 {
@@ -1224,6 +1264,64 @@ public:
     std::string             render() const;
 };
 
+class IntrinsicStore
+{
+public:
+    IntrinsicStore(const Expression& ptr,
+                   const Expression& voffset,
+                   const Expression& soffset,
+                   const Expression& value,
+                   const Expression& rw_flag)
+        : ptr{ptr}
+        , voffset{voffset}
+        , soffset{soffset}
+        , value{value}
+        , rw_flag{rw_flag}
+    {
+    }
+    std::string render() const
+    {
+        return "store_intrinsic(" + vrender(ptr) + "," + vrender(voffset) + "," + vrender(soffset)
+               + "," + vrender(scale_factor ? (value * scale_factor.value()) : value) + ","
+               + vrender(rw_flag) + ");";
+    }
+
+    Expression                ptr;
+    Expression                voffset;
+    Expression                soffset;
+    Expression                value;
+    Expression                rw_flag;
+    std::optional<Expression> scale_factor;
+};
+
+class IntrinsicLoadToDest
+{
+public:
+    IntrinsicLoadToDest(const Expression& dest,
+                        const Expression& data,
+                        const Expression& voffset,
+                        const Expression& soffset,
+                        const Expression& rw_flag)
+        : dest{dest}
+        , data{data}
+        , voffset{voffset}
+        , soffset{soffset}
+        , rw_flag{rw_flag}
+    {
+    }
+    std::string render() const
+    {
+        return "intrinsic_load_to_dest(" + vrender(dest) + "," + vrender(data) + ","
+               + vrender(voffset) + "," + vrender(soffset) + "," + vrender(rw_flag) + ");";
+    }
+
+    Expression dest;
+    Expression data;
+    Expression voffset;
+    Expression soffset;
+    Expression rw_flag;
+};
+
 // end of Statement class declarations
 
 std::string Butterfly::render() const
@@ -1420,6 +1518,7 @@ struct BaseVisitor
     MAKE_VISITOR_OPERATOR(Expression, ShiftLeft);
     MAKE_VISITOR_OPERATOR(Expression, ShiftRight);
     MAKE_VISITOR_OPERATOR(Expression, And);
+    MAKE_VISITOR_OPERATOR(Expression, BitAnd);
     MAKE_VISITOR_OPERATOR(Expression, Or);
     MAKE_VISITOR_OPERATOR(Expression, Less);
     MAKE_VISITOR_OPERATOR(Expression, LessEqual);
@@ -1437,6 +1536,7 @@ struct BaseVisitor
     MAKE_VISITOR_OPERATOR(Expression, TwiddleMultiplyConjugate);
     MAKE_VISITOR_OPERATOR(Expression, Parens);
     MAKE_VISITOR_OPERATOR(Expression, CallExpr);
+    MAKE_VISITOR_OPERATOR(Expression, IntrinsicLoad);
 
     MAKE_VISITOR_OPERATOR(StatementList, Assign);
     MAKE_VISITOR_OPERATOR(StatementList, Call);
@@ -1456,6 +1556,8 @@ struct BaseVisitor
     MAKE_VISITOR_OPERATOR(StatementList, Break);
     MAKE_VISITOR_OPERATOR(StatementList, SyncThreads);
     MAKE_VISITOR_OPERATOR(StatementList, Butterfly);
+    MAKE_VISITOR_OPERATOR(StatementList, IntrinsicStore);
+    MAKE_VISITOR_OPERATOR(StatementList, IntrinsicLoadToDest);
 
     MAKE_VISITOR_OPERATOR(ArgumentList, ArgumentList);
 
@@ -1512,6 +1614,7 @@ struct BaseVisitor
 
     MAKE_EXPR_VISIT(Add);
     MAKE_EXPR_VISIT(And);
+    MAKE_EXPR_VISIT(BitAnd);
     MAKE_EXPR_VISIT(Divide);
     MAKE_EXPR_VISIT(Equal);
     MAKE_EXPR_VISIT(Greater);
@@ -1535,6 +1638,8 @@ struct BaseVisitor
 
     MAKE_TRIVIAL_VISIT(Expression, TwiddleMultiply);
     MAKE_TRIVIAL_VISIT(Expression, TwiddleMultiplyConjugate);
+
+    MAKE_EXPR_VISIT(IntrinsicLoad);
     MAKE_EXPR_VISIT(Parens);
 
     MAKE_EXPR_VISIT(Ternary);
@@ -1551,6 +1656,7 @@ struct BaseVisitor
     MAKE_TRIVIAL_STATEMENT_VISIT(Break)
     MAKE_TRIVIAL_STATEMENT_VISIT(SyncThreads)
     MAKE_TRIVIAL_STATEMENT_VISIT(Butterfly);
+    MAKE_TRIVIAL_STATEMENT_VISIT(IntrinsicLoadToDest);
 
     MAKE_TRIVIAL_VISIT(Expression, Variable)
 
@@ -1653,6 +1759,16 @@ struct BaseVisitor
         return StatementList{StoreGlobal(ptr, index, value)};
     }
 
+    virtual StatementList visit_IntrinsicStore(const IntrinsicStore& x)
+    {
+        auto ptr     = std::visit(*this, x.ptr);
+        auto voffset = std::visit(*this, x.voffset);
+        auto soffset = std::visit(*this, x.soffset);
+        auto value   = std::visit(*this, x.value);
+        auto rw_flag = std::visit(*this, x.rw_flag);
+        return StatementList{IntrinsicStore(ptr, voffset, soffset, value, rw_flag)};
+    }
+
     virtual StatementList visit_StoreGlobalPlanar(const StoreGlobalPlanar& x)
     {
         auto                      realPtr = std::get<Variable>(visit_Variable(x.realPtr));
@@ -1730,8 +1846,11 @@ struct MakePlanarVisitor : public BaseVisitor
             auto im = Variable(x.lhs);
             im.name = imname;
 
-            stmts += Assign(re, rhs.x, x.oper);
-            stmts += Assign(im, rhs.y, x.oper);
+            // FIXME- Not every rhs is complex
+            // stmts += Assign(re, rhs.x, x.oper);
+            // stmts += Assign(im, rhs.y, x.oper);
+            stmts += Assign(re, rhs, x.oper);
+            stmts += Assign(im, rhs, x.oper);
             return stmts;
         }
         else if(std::holds_alternative<Variable>(x.rhs)
@@ -1766,6 +1885,29 @@ struct MakePlanarVisitor : public BaseVisitor
                 return stmts;
             }
         }
+        // callbacks don't support planar
+        else if(std::holds_alternative<IntrinsicLoad>(x.rhs))
+        {
+            auto load = std::get<IntrinsicLoad>(x.rhs);
+            auto ptr  = std::get<Variable>(load.args[0]);
+            if(ptr.name == varname)
+            {
+                auto& voffset = load.args[1];
+                auto& soffset = load.args[2];
+                auto& rw_flag = load.args[3];
+
+                auto re = ptr;
+                re.name = rename;
+                auto im = ptr;
+                im.name = imname;
+
+                stmts += Assign{x.lhs,
+                                ComplexLiteral{IntrinsicLoad({re, voffset, soffset, rw_flag}),
+                                               IntrinsicLoad({im, voffset, soffset, rw_flag})},
+                                x.oper};
+                return stmts;
+            }
+        }
 
         return StatementList{x};
     }
@@ -1785,6 +1927,42 @@ struct MakePlanarVisitor : public BaseVisitor
 
             auto value = std::get<Variable>(x.value);
             return {StoreGlobalPlanar{re, im, x.index, value, x.scale_factor}};
+        }
+        return StatementList{x};
+    }
+
+    StatementList visit_IntrinsicStore(const IntrinsicStore& x) override
+    {
+        // callbacks don't support planar
+        auto var = std::get<Variable>(x.ptr);
+
+        if(var.name == varname)
+        {
+            auto re = var;
+            re.name = rename;
+            auto im = var;
+            im.name = imname;
+
+            StatementList stmts;
+            stmts += Call{
+                "store_intrinsic",
+                {re,
+                 x.voffset,
+                 x.soffset,
+                 Literal{"real_type_t<scalar_type>("
+                         + vrender(x.scale_factor ? (x.scale_factor.value() * x.value) : x.value)
+                         + ".x)"},
+                 x.rw_flag}};
+            stmts += Call{
+                "store_intrinsic",
+                {im,
+                 x.voffset,
+                 x.soffset,
+                 Literal{"real_type_t<scalar_type>("
+                         + vrender(x.scale_factor ? (x.scale_factor.value() * x.value) : x.value)
+                         + ".y)"},
+                 x.rw_flag}};
+            return stmts;
         }
         return StatementList{x};
     }
@@ -1827,6 +2005,14 @@ struct MakeOutOfPlaceVisitor : public BaseVisitor
             args.push_back(std::visit(*this, arg));
         return LoadGlobal{args};
     }
+    Expression visit_IntrinsicLoad(const IntrinsicLoad& x) override
+    {
+        mode = ExpressionVisitMode::INPUT;
+        std::vector<Expression> args;
+        for(const auto& arg : x.args)
+            args.push_back(std::visit(*this, arg));
+        return IntrinsicLoad{args};
+    }
     StatementList visit_StoreGlobal(const StoreGlobal& x) override
     {
         StatementList stmts;
@@ -1835,6 +2021,18 @@ struct MakeOutOfPlaceVisitor : public BaseVisitor
         auto index = std::visit(*this, x.index);
         auto value = std::visit(*this, x.value);
         stmts += StoreGlobal{ptr, index, value};
+        return stmts;
+    }
+    StatementList visit_IntrinsicStore(const IntrinsicStore& x) override
+    {
+        StatementList stmts;
+        mode         = ExpressionVisitMode::OUTPUT;
+        auto ptr     = std::visit(*this, x.ptr);
+        auto voffset = std::visit(*this, x.voffset);
+        auto soffset = std::visit(*this, x.soffset);
+        auto value   = std::visit(*this, x.value);
+        auto rw_flag = std::visit(*this, x.rw_flag);
+        stmts += IntrinsicStore{ptr, voffset, soffset, value, rw_flag};
         return stmts;
     }
 
@@ -2032,6 +2230,15 @@ struct MakeRTCVisitor : public BaseVisitor
     StatementList visit_StoreGlobalPlanar(const StoreGlobalPlanar& x) override
     {
         StoreGlobalPlanar y{x};
+        // multiply by scale factor when storing to global, if requested
+        if(enable_scaling)
+            y.scale_factor = scale_factor;
+        return StatementList{y};
+    }
+
+    StatementList visit_IntrinsicStore(const IntrinsicStore& x) override
+    {
+        IntrinsicStore y{x};
         // multiply by scale factor when storing to global, if requested
         if(enable_scaling)
             y.scale_factor = scale_factor;

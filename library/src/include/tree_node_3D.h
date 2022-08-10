@@ -155,6 +155,8 @@ protected:
         return 0;
     }
 
+    void SetDirectRegType();
+
 public:
     bool KernelCheck() override;
 

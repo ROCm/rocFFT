@@ -23,6 +23,8 @@
 
 #include <hip/hip_vector_types.h>
 
+#include "memory_gfx.h"
+
 // user-provided data saying what callbacks to run
 struct UserCallbacks
 {
@@ -94,6 +96,51 @@ struct callback_type<double2>
 
 static __device__ auto load_cb_default_double2  = load_cb_default<double2>;
 static __device__ auto store_cb_default_double2 = store_cb_default<double2>;
+
+// intrinsic
+template <typename T>
+__device__ void intrinsic_load_to_dest(
+    T& target, const T* data, unsigned int voffset, unsigned int soffset, bool rw)
+{
+#ifdef USE_GFX_BUFFER_INTRINSIC
+    buffer_load<T, sizeof(T)>(target,
+                              reinterpret_cast<void*>(const_cast<T*>(data)),
+                              (uint32_t)(voffset * sizeof(T)),
+                              (uint32_t)(soffset * sizeof(T)),
+                              rw);
+#else
+    target = data[soffset + voffset];
+#endif
+}
+
+template <typename T>
+__device__ T intrinsic_load(const T* data, unsigned int voffset, unsigned int soffset, bool rw)
+{
+#ifdef USE_GFX_BUFFER_INTRINSIC
+    return buffer_load<T, sizeof(T)>().load(reinterpret_cast<void*>(const_cast<T*>(data)),
+                                            (uint32_t)(voffset * sizeof(T)),
+                                            (uint32_t)(soffset * sizeof(T)),
+                                            rw);
+#else
+    return data[soffset + voffset];
+#endif
+}
+
+template <typename T>
+__device__ void
+    store_intrinsic(T* data, unsigned int voffset, unsigned int soffset, T element, bool rw)
+{
+#ifdef USE_GFX_BUFFER_INTRINSIC
+    buffer_store<T, sizeof(T)>(element,
+                               reinterpret_cast<void*>(const_cast<T*>(data)),
+                               (uint32_t)(voffset * sizeof(T)),
+                               (uint32_t)(soffset * sizeof(T)),
+                               rw);
+#else
+    if(rw)
+        data[soffset + voffset] = element;
+#endif
+}
 
 enum struct CallbackType
 {

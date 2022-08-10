@@ -99,7 +99,10 @@ struct StockhamKernelRR : public StockhamKernel
             auto         height = static_cast<float>(length) / width / threads_per_transform;
 
             auto load_global = std::mem_fn(&StockhamKernel::load_global_generator);
-            stmts += add_work(std::bind(load_global, this, _1, _2, _3, _4), width, height, true);
+            stmts += add_work(std::bind(load_global, this, _1, _2, _3, _4, _5),
+                              width,
+                              height,
+                              ThreadGuardMode::GUARD_BY_IF);
         }
 
         return stmts;
@@ -138,8 +141,10 @@ struct StockhamKernelRR : public StockhamKernel
             auto height    = static_cast<float>(length) / width / threads_per_transform;
 
             auto store_global = std::mem_fn(&StockhamKernel::store_global_generator);
-            stmts += add_work(
-                std::bind(store_global, this, _1, _2, _3, _4, cumheight), width, height, true);
+            stmts += add_work(std::bind(store_global, this, _1, _2, _3, _4, _5, cumheight),
+                              width,
+                              height,
+                              ThreadGuardMode::GUARD_BY_IF);
         }
 
         return stmts;
@@ -212,31 +217,34 @@ struct StockhamKernelRR : public StockhamKernel
                 if(length == 64)
                 {
                     lds2reg_full += add_work(
-                        std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE, true),
+                        std::bind(load_lds, this, _1, _2, _3, _4, _5, Component::NONE, true),
                         width,
                         height,
-                        false);
+                        ThreadGuardMode::NO_GUARD);
                 }
                 else
                 {
                     lds2reg_full += add_work(
-                        std::bind(load_lds, this, _1, _2, _3, _4, Component::NONE, false),
+                        std::bind(load_lds, this, _1, _2, _3, _4, _5, Component::NONE, false),
                         width,
                         height,
-                        true);
+                        ThreadGuardMode::GUARD_BY_IF);
                 }
                 body += If{Not{lds_is_real}, lds2reg_full};
 
                 auto apply_twiddle = std::mem_fn(&StockhamKernel::apply_twiddle_generator);
                 body += add_work(
-                    std::bind(apply_twiddle, this, _1, _2, _3, _4, cumheight, factors.front()),
+                    std::bind(apply_twiddle, this, _1, _2, _3, _4, _5, cumheight, factors.front()),
                     width,
                     height,
-                    false);
+                    ThreadGuardMode::NO_GUARD);
             }
 
             auto butterfly = std::mem_fn(&StockhamKernel::butterfly_generator);
-            body += add_work(std::bind(butterfly, this, _1, _2, _3, _4), width, height, false);
+            body += add_work(std::bind(butterfly, this, _1, _2, _3, _4, _5),
+                             width,
+                             height,
+                             ThreadGuardMode::NO_GUARD);
 
             if(npass == factors.size() - 1)
                 body += large_twiddles_multiply(width, height, cumheight);
@@ -260,18 +268,20 @@ struct StockhamKernelRR : public StockhamKernel
                     if(length == 64)
                     {
                         reg2lds_half += add_work(
-                            std::bind(store_lds, this, _1, _2, _3, _4, component, cumheight, true),
+                            std::bind(
+                                store_lds, this, _1, _2, _3, _4, _5, component, cumheight, true),
                             half_width,
                             half_height,
-                            true);
+                            ThreadGuardMode::GUARD_BY_IF);
                     }
                     else
                     {
                         reg2lds_half += add_work(
-                            std::bind(store_lds, this, _1, _2, _3, _4, component, cumheight, false),
+                            std::bind(
+                                store_lds, this, _1, _2, _3, _4, _5, component, cumheight, false),
                             half_width,
                             half_height,
-                            true);
+                            ThreadGuardMode::GUARD_BY_IF);
                     }
 
                     half_width  = factors[npass + 1];
@@ -279,19 +289,19 @@ struct StockhamKernelRR : public StockhamKernel
                     reg2lds_half += SyncThreads();
                     if(length == 64)
                     {
-                        reg2lds_half
-                            += add_work(std::bind(load_lds, this, _1, _2, _3, _4, component, true),
-                                        half_width,
-                                        half_height,
-                                        true);
+                        reg2lds_half += add_work(
+                            std::bind(load_lds, this, _1, _2, _3, _4, _5, component, true),
+                            half_width,
+                            half_height,
+                            ThreadGuardMode::GUARD_BY_IF);
                     }
                     else
                     {
-                        reg2lds_half
-                            += add_work(std::bind(load_lds, this, _1, _2, _3, _4, component, false),
-                                        half_width,
-                                        half_height,
-                                        true);
+                        reg2lds_half += add_work(
+                            std::bind(load_lds, this, _1, _2, _3, _4, _5, component, false),
+                            half_width,
+                            half_height,
+                            ThreadGuardMode::GUARD_BY_IF);
                     }
                 }
 
@@ -305,19 +315,19 @@ struct StockhamKernelRR : public StockhamKernel
                 {
                     reg2lds_full += add_work(
                         std::bind(
-                            store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight, true),
+                            store_lds, this, _1, _2, _3, _4, _5, Component::NONE, cumheight, true),
                         width,
                         height,
-                        true);
+                        ThreadGuardMode::GUARD_BY_IF);
                 }
                 else
                 {
                     reg2lds_full += add_work(
                         std::bind(
-                            store_lds, this, _1, _2, _3, _4, Component::NONE, cumheight, false),
+                            store_lds, this, _1, _2, _3, _4, _5, Component::NONE, cumheight, false),
                         width,
                         height,
-                        true);
+                        ThreadGuardMode::GUARD_BY_IF);
                 }
 
                 body += If{Not{lds_is_real}, reg2lds_full};

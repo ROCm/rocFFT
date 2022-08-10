@@ -604,7 +604,7 @@ def list_large_kernels():
         NS(length=208, factors=[13, 16],     use_3steps_large_twd={
            'sp': 'false', 'dp': 'false'}),
         NS(length=216, factors=(6, 6, 6), use_3steps_large_twd={
-           'sp': 'false', 'dp': 'false'}, threads_per_transform=36, direct_to_from_reg=False),
+           'sp': 'false', 'dp': 'false'}, threads_per_transform=36),
         NS(length=224, factors=[8, 7, 4],    use_3steps_large_twd={
            'sp': 'true', 'dp': 'false'}),
         NS(length=240, factors=[8, 5, 6],    use_3steps_large_twd={

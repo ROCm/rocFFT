@@ -79,6 +79,7 @@ set( kgen_embed_cpp ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embe
 # files that need to be embedded into the library, to be able to generate code
 set( kgen_embed_files
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/common.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/kernels/memory_gfx.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/callback.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/butterfly_constant.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/real2complex_device.h
@@ -327,4 +328,4 @@ if(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY AND NOT WIN32)
         DESTINATION "." )
   message( STATUS "Backward Compatible Sym Link Created for include directories" )
 endif()
- 
+

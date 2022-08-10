@@ -151,6 +151,13 @@ enum DirectRegType
     TRY_ENABLE_IF_SUPPORT, // Use the direct-to-from-reg function
 };
 
+enum IntrinsicAccessType
+{
+    DISABLE_BOTH, // turn-off intrinsic buffer load/store
+    ENABLE_LOAD_ONLY, // turn-on intrinsic buffer load only
+    ENABLE_BOTH, // turn-on both intrinsic buffer load/store
+};
+
 template <class T>
 struct real_type;
 

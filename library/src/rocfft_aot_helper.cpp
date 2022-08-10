@@ -122,6 +122,13 @@ void build_stockham_function_pool(CompileQueue& queue)
                 if(unitstride)
                     return;
 
+                std::vector<IntrinsicAccessType> intrinsic_modes = {DISABLE_BOTH};
+                if(i.second.direct_to_from_reg)
+                {
+                    intrinsic_modes.push_back(ENABLE_BOTH);
+                    intrinsic_modes.push_back(ENABLE_LOAD_ONLY);
+                }
+
                 // SBCC can be used with or without large twd.  Large
                 // twd may be base 4, 5, 6, 8.  Base 8 can
                 // be 2 or 3 steps; other bases are always 3 step.
@@ -129,56 +136,62 @@ void build_stockham_function_pool(CompileQueue& queue)
                     = {{0, 0}, {4, 3}, {5, 3}, {6, 3}, {8, 2}, {8, 3}};
                 for(auto base_step : base_steps)
                 {
-                    auto kernel_name = stockham_rtc_kernel_name(scheme,
-                                                                length1D,
-                                                                0,
-                                                                0,
-                                                                direction,
-                                                                precision,
-                                                                placement,
-                                                                inArrayType,
-                                                                outArrayType,
-                                                                unitstride,
-                                                                base_step[0],
-                                                                base_step[1],
-                                                                EmbeddedType::NONE,
-                                                                i.second.direct_to_from_reg
-                                                                    ? TRY_ENABLE_IF_SUPPORT
-                                                                    : FORCE_OFF_OR_NOT_SUPPORT,
-                                                                NONE,
-                                                                callbacks,
-                                                                enable_scaling);
-                    std::function<std::string(const std::string&)> generate_src
-                        = [=](const std::string& kernel_name) -> std::string {
-                        StockhamGeneratorSpecs specs{
-                            factors,
-                            {},
-                            {static_cast<unsigned int>(precision)},
-                            static_cast<unsigned int>(i.second.workgroup_size),
-                            PrintScheme(scheme)};
-                        specs.threads_per_transform = i.second.threads_per_transform[0];
-                        specs.half_lds              = i.second.half_lds;
-                        return stockham_rtc(specs,
-                                            specs,
-                                            nullptr,
-                                            kernel_name,
-                                            scheme,
-                                            direction,
-                                            precision,
-                                            placement,
-                                            inArrayType,
-                                            outArrayType,
-                                            unitstride,
-                                            base_step[0],
-                                            base_step[1],
-                                            EmbeddedType::NONE,
-                                            i.second.direct_to_from_reg ? TRY_ENABLE_IF_SUPPORT
+                    for(auto intrinsic : intrinsic_modes)
+                    {
+                        auto kernel_name = stockham_rtc_kernel_name(scheme,
+                                                                    length1D,
+                                                                    0,
+                                                                    0,
+                                                                    direction,
+                                                                    precision,
+                                                                    placement,
+                                                                    inArrayType,
+                                                                    outArrayType,
+                                                                    unitstride,
+                                                                    base_step[0],
+                                                                    base_step[1],
+                                                                    EmbeddedType::NONE,
+                                                                    i.second.direct_to_from_reg
+                                                                        ? TRY_ENABLE_IF_SUPPORT
                                                                         : FORCE_OFF_OR_NOT_SUPPORT,
-                                            NONE,
-                                            callbacks,
-                                            enable_scaling);
-                    };
-                    queue.push({kernel_name, generate_src});
+                                                                    intrinsic,
+                                                                    NONE,
+                                                                    callbacks,
+                                                                    enable_scaling);
+                        std::function<std::string(const std::string&)> generate_src
+                            = [=](const std::string& kernel_name) -> std::string {
+                            StockhamGeneratorSpecs specs{
+                                factors,
+                                {},
+                                {static_cast<unsigned int>(precision)},
+                                static_cast<unsigned int>(i.second.workgroup_size),
+                                PrintScheme(scheme)};
+                            specs.threads_per_transform = i.second.threads_per_transform[0];
+                            specs.half_lds              = i.second.half_lds;
+                            return stockham_rtc(specs,
+                                                specs,
+                                                nullptr,
+                                                kernel_name,
+                                                scheme,
+                                                direction,
+                                                precision,
+                                                placement,
+                                                inArrayType,
+                                                outArrayType,
+                                                unitstride,
+                                                base_step[0],
+                                                base_step[1],
+                                                EmbeddedType::NONE,
+                                                i.second.direct_to_from_reg
+                                                    ? TRY_ENABLE_IF_SUPPORT
+                                                    : FORCE_OFF_OR_NOT_SUPPORT,
+                                                intrinsic,
+                                                NONE,
+                                                callbacks,
+                                                enable_scaling);
+                        };
+                        queue.push({kernel_name, generate_src});
+                    }
                 }
             });
         }

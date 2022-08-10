@@ -33,6 +33,7 @@ struct StockhamKernelCC : public StockhamKernel
     //
     // templates
     //
+    Variable intrinsic_mode{"intrinsic_mode", "IntrinsicAccessType"};
     Variable apply_large_twiddle{"apply_large_twiddle", "bool"};
     Variable large_twiddle_steps{"large_twiddle_steps", "size_t"};
     Variable large_twiddle_base{"large_twiddle_base", "size_t"};
@@ -48,7 +49,7 @@ struct StockhamKernelCC : public StockhamKernel
     //
     Variable tile_index{"tile_index", "size_t"};
     Variable num_of_tiles{"num_of_tiles", "size_t"};
-    Variable edge{"edge", "bool"};
+    Variable in_bound{"in_bound", "bool"};
     Variable thread{"thread", "unsigned int"}; // replacing tid_ver
     Variable tid_hor{"tid_hor", "unsigned int"}; // id along row
 
@@ -94,7 +95,10 @@ struct StockhamKernelCC : public StockhamKernel
     StatementList load_global_generator(unsigned int h,
                                         unsigned int hr,
                                         unsigned int width,
-                                        unsigned int dt) const
+                                        unsigned int dt,
+                                        Expression   guard,
+                                        bool         intrinsic,
+                                        Expression   pred) const
     {
         if(hr == 0)
             hr = h;
@@ -103,9 +107,24 @@ struct StockhamKernelCC : public StockhamKernel
         {
             auto tid = Parens{thread + dt + h * threads_per_transform};
             auto idx = Parens{tid + w * length / width};
-            load += Assign{
-                R[hr * width + w],
-                LoadGlobal{buf, offset + tid_hor * stride[1] + Parens{Expression{idx}} * stride0}};
+            if(intrinsic)
+            {
+                // no need to and with trivial "true"
+                load += Assign{
+                    R[hr * width + w],
+                    IntrinsicLoad{
+                        {buf,
+                         tid_hor * stride[1] + Parens{Expression{idx}} * stride0,
+                         offset,
+                         std::holds_alternative<Literal>(guard) ? pred : (guard && pred)}}};
+            }
+            else
+            {
+                load += Assign{
+                    R[hr * width + w],
+                    LoadGlobal{buf,
+                               offset + tid_hor * stride[1] + Parens{Expression{idx}} * stride0}};
+            }
         }
         return load;
     }
@@ -114,7 +133,10 @@ struct StockhamKernelCC : public StockhamKernel
                                          unsigned int hr,
                                          unsigned int width,
                                          unsigned int dt,
-                                         unsigned int cumheight)
+                                         Expression   guard,
+                                         unsigned int cumheight,
+                                         bool         intrinsic,
+                                         Expression   pred)
     {
         if(hr == 0)
             hr = h;
@@ -124,9 +146,24 @@ struct StockhamKernelCC : public StockhamKernel
             auto tid = Parens{thread + dt + h * threads_per_transform};
             auto idx
                 = Parens{tid / cumheight} * (width * cumheight) + tid % cumheight + w * cumheight;
-            work += StoreGlobal{buf,
-                                offset + tid_hor * stride[1] + Parens{Expression{idx}} * stride0,
-                                R[hr * width + w]};
+
+            if(intrinsic)
+            {
+                // no need to and with trivial "true"
+                work += IntrinsicStore{buf,
+                                       tid_hor * stride[1] + Parens{Expression{idx}} * stride0,
+                                       offset,
+                                       R[hr * width + w],
+                                       std::holds_alternative<Literal>(guard) ? pred
+                                                                              : (guard && pred)};
+            }
+            else
+            {
+                work
+                    += StoreGlobal{buf,
+                                   offset + tid_hor * stride[1] + Parens{Expression{idx}} * stride0,
+                                   R[hr * width + w]};
+            }
         }
         return work;
     }
@@ -192,19 +229,15 @@ struct StockhamKernelCC : public StockhamKernel
                                     thread_id % transforms_per_block}};
         }
 
-        stmts += Declaration{edge};
-        stmts += Declaration{thread};
-        stmts += Declaration{tid_hor};
-
-        stmts += Assign{
-            edge,
-            Ternary{Parens((tile_index + 1) * transforms_per_block > lengths[1]), "true", "false"}};
+        stmts += Declaration{
+            in_bound,
+            Ternary{Parens((tile_index + 1) * transforms_per_block > lengths[1]), "false", "true"}};
 
         // [dim0, dim1] = [tid_ver, tid_hor] :
         // each thread reads position [tid_ver, tid_hor], [tid_ver+step_height*1, tid_hor] , [tid_ver+step_height*2, tid_hor]...
         // tid_ver walks the columns; tid_hor walks the rows
-        stmts += Assign{thread, thread_id / transforms_per_block};
-        stmts += Assign{tid_hor, thread_id % transforms_per_block};
+        stmts += Declaration{thread, thread_id / transforms_per_block};
+        stmts += Declaration{tid_hor, thread_id % transforms_per_block};
 
         return stmts;
     }
@@ -230,20 +263,53 @@ struct StockhamKernelCC : public StockhamKernel
             for(unsigned int i = 0; i < length / stripmine_h; ++i)
                 tmp_stmts += Assign{lds_complex[offset_tile_wlds(i)],
                                     LoadGlobal{buf, offset + offset_tile_rbuf(i)}};
+
+            stmts += CommentLines{
+                "no intrinsic when load to lds. FIXME- check why use nested branch is better"};
+            stmts += If{in_bound, tmp_stmts};
+            stmts += If{Not{in_bound}, {If{pred, tmp_stmts}}};
+            // stmts += Else{{If{pred, tmp_stmts}}}; // FIXME: Need to check with compiler team.
         }
         else
         {
+            StatementList intrinsic_stmts;
+            StatementList non_intrinsic_stmts;
+
             unsigned int width  = factors[0];
             auto         height = static_cast<float>(length) / width / threads_per_transform;
 
             auto load_global = std::mem_fn(&StockhamKernelCC::load_global_generator);
+            intrinsic_stmts += CommentLines{"use intrinsic load"};
+            intrinsic_stmts += CommentLines{"evaluate all flags as one rw argument"};
+            intrinsic_stmts += add_work(std::bind(load_global,
+                                                  this,
+                                                  _1,
+                                                  _2,
+                                                  _3,
+                                                  _4,
+                                                  _5,
+                                                  true,
+                                                  Expression{Parens(in_bound || pred)}),
+                                        width,
+                                        height,
+                                        ThreadGuardMode::GURAD_BY_FUNC_ARG,
+                                        true);
+
             tmp_stmts += add_work(
-                std::bind(load_global, this, _1, _2, _3, _4), width, height, true, true);
+                std::bind(load_global, this, _1, _2, _3, _4, _5, false, Expression{in_bound}),
+                width,
+                height,
+                ThreadGuardMode::GUARD_BY_IF,
+                true);
+            non_intrinsic_stmts += CommentLines{"can't use intrinsic load"};
+            non_intrinsic_stmts += If{in_bound, tmp_stmts};
+            non_intrinsic_stmts += If{!in_bound, {If{pred, tmp_stmts}}};
+
+            stmts += If{intrinsic_mode != "IntrinsicAccessType::DISABLE_BOTH", intrinsic_stmts};
+            stmts += Else{non_intrinsic_stmts};
+            // stmts += Else{{If{in_bound, tmp_stmts}}};
         }
 
-        stmts += If{Not{edge}, tmp_stmts};
-        stmts += If{edge, {If{pred, tmp_stmts}}};
-        // stmts += Else{{If{pred, tmp_stmts}}}; // FIXME: Need to check with compiler team.
         return stmts;
     }
 
@@ -268,21 +334,53 @@ struct StockhamKernelCC : public StockhamKernel
             for(unsigned int i = 0; i < length / stripmine_h; ++i)
                 tmp_stmts += StoreGlobal{
                     buf, offset + offset_tile_wbuf(i), lds_complex[offset_tile_rlds(i)]};
+
+            stmts += CommentLines{
+                "no intrinsic when store from lds. FIXME- check why use nested branch is better"};
+            stmts += If{in_bound, tmp_stmts};
+            stmts += If{Not{in_bound}, {If{pred, tmp_stmts}}};
+            // stmts += Else{{If{pred, tmp_stmts}}}; // FIXME: Need to check with compiler team.
         }
         else
         {
+            StatementList intrinsic_stmts;
+            StatementList non_intrinsic_stmts;
+
             auto width     = factors.back();
             auto cumheight = product(factors.begin(), factors.begin() + (factors.size() - 1));
             auto height    = static_cast<float>(length) / width / threads_per_transform;
 
             auto store_global = std::mem_fn(&StockhamKernelCC::store_global_generator);
+            intrinsic_stmts += CommentLines{"use intrinsic store"};
+            intrinsic_stmts += add_work(std::bind(store_global,
+                                                  this,
+                                                  _1,
+                                                  _2,
+                                                  _3,
+                                                  _4,
+                                                  _5,
+                                                  cumheight,
+                                                  true,
+                                                  Expression{Parens(in_bound || pred)}),
+                                        width,
+                                        height,
+                                        ThreadGuardMode::GURAD_BY_FUNC_ARG);
+
             tmp_stmts += add_work(
-                std::bind(store_global, this, _1, _2, _3, _4, cumheight), width, height, true);
+                std::bind(
+                    store_global, this, _1, _2, _3, _4, _5, cumheight, false, Expression{in_bound}),
+                width,
+                height,
+                ThreadGuardMode::GUARD_BY_IF);
+            non_intrinsic_stmts += CommentLines{"can't use intrinsic store"};
+            non_intrinsic_stmts += If{in_bound, tmp_stmts};
+            non_intrinsic_stmts += If{!in_bound, {If{pred, tmp_stmts}}};
+
+            stmts += If{intrinsic_mode == "IntrinsicAccessType::ENABLE_BOTH", intrinsic_stmts};
+            stmts += Else{non_intrinsic_stmts};
+            // stmts += Else{{If{in_bound, {If{pred, tmp_stmts}}}}};
         }
 
-        stmts += If{Not{edge}, tmp_stmts};
-        stmts += If{edge, {If{pred, tmp_stmts}}};
-        // stmts += Else{{If{pred, tmp_stmts}}}; // FIXME: Need to check with compiler team.
         return stmts;
     }
 
@@ -306,6 +404,7 @@ struct StockhamKernelCC : public StockhamKernel
     TemplateList global_templates() override
     {
         TemplateList tpls = StockhamKernel::global_templates();
+        tpls.append(intrinsic_mode);
         tpls.append(apply_large_twiddle);
         tpls.append(large_twiddle_steps);
         tpls.append(large_twiddle_base);
@@ -359,6 +458,7 @@ struct StockhamKernelCC : public StockhamKernel
                                                     unsigned int hr,
                                                     unsigned int width,
                                                     unsigned int dt,
+                                                    Expression   guard,
                                                     unsigned int cumheight)
     {
         if(hr == 0)
@@ -396,7 +496,10 @@ struct StockhamKernelCC : public StockhamKernel
         stmts += CommentLines{"large twiddle multiplication"};
 
         auto mf = std::mem_fn(&StockhamKernelCC::large_twiddles_multiply_generator);
-        stmts += add_work(std::bind(mf, this, _1, _2, _3, _4, cumheight), width, height, false);
+        stmts += add_work(std::bind(mf, this, _1, _2, _3, _4, _5, cumheight),
+                          width,
+                          height,
+                          ThreadGuardMode::NO_GUARD);
 
         return {If{apply_large_twiddle, stmts}};
     }

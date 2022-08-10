@@ -57,6 +57,7 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
                                      size_t                  largeTwdSteps,
                                      EmbeddedType            ebtype,
                                      DirectRegType           dir2regMode,
+                                     IntrinsicAccessType     intrinsicMode,
                                      SBRC_TRANSPOSE_TYPE     transpose_type,
                                      bool                    enable_callbacks,
                                      bool                    enable_scaling)
@@ -185,8 +186,22 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
         kernel_name += "_R2C";
         break;
     }
+
     if(dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT)
         kernel_name += "_dirReg";
+
+    switch(intrinsicMode)
+    {
+    case IntrinsicAccessType::DISABLE_BOTH:
+        break;
+    case IntrinsicAccessType::ENABLE_BOTH:
+        kernel_name += "_intrinsicReadWrite";
+        break;
+    case IntrinsicAccessType::ENABLE_LOAD_ONLY:
+        kernel_name += "_intrinsicRead";
+        break;
+    }
+
     if(enable_callbacks)
         kernel_name += "_CB";
     if(enable_scaling)
@@ -209,6 +224,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          size_t                        largeTwdSteps,
                          EmbeddedType                  ebtype,
                          DirectRegType                 dir2regMode,
+                         IntrinsicAccessType           intrinsicMode,
                          SBRC_TRANSPOSE_TYPE           transpose_type,
                          bool                          enable_callbacks,
                          bool                          enable_scaling)
@@ -294,6 +310,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     // checking the enable_callbacks variable later
     src += "#define ROCFFT_CALLBACKS_ENABLED\n";
     src += common_h;
+    src += memory_gfx_h;
     src += callback_h;
     src += butterfly_constant_h;
     src += rocfft_butterfly_template_h;
@@ -386,10 +403,23 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     }
 
     src += "static const bool apply_large_twiddle = ";
-    if(largeTwdBase > 0 && largeTwdSteps > 0)
-        src += "true;\n";
-    else
-        src += "false;\n";
+    src += (largeTwdBase > 0 && largeTwdSteps > 0) ? "true;\n" : "false;\n";
+
+    switch(intrinsicMode)
+    {
+    case IntrinsicAccessType::DISABLE_BOTH:
+        src += "static const IntrinsicAccessType intrinsic_mode = "
+               "IntrinsicAccessType::DISABLE_BOTH;\n";
+        break;
+    case IntrinsicAccessType::ENABLE_BOTH:
+        src += "static const IntrinsicAccessType intrinsic_mode = "
+               "IntrinsicAccessType::ENABLE_BOTH;\n";
+        break;
+    case IntrinsicAccessType::ENABLE_LOAD_ONLY:
+        src += "static const IntrinsicAccessType intrinsic_mode = "
+               "IntrinsicAccessType::ENABLE_LOAD_ONLY;\n";
+        break;
+    }
 
     src += "static const size_t large_twiddle_base = " + std::to_string(largeTwdBase) + ";\n";
     src += "static const size_t large_twiddle_steps = " + std::to_string(largeTwdSteps) + ";\n";
@@ -552,6 +582,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                                         node.ltwdSteps,
                                         node.ebtype,
                                         node.dir2regMode,
+                                        node.intrinsicMode,
                                         transpose_type,
                                         enable_callbacks,
                                         node.IsScalingEnabled());
@@ -573,6 +604,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                             node.ltwdSteps,
                             node.ebtype,
                             node.dir2regMode,
+                            node.intrinsicMode,
                             transpose_type,
                             enable_callbacks,
                             node.IsScalingEnabled());

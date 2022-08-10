@@ -162,6 +162,7 @@ std::string test_kernel_src(const std::string&               kernel_name,
                         EmbeddedType::NONE,
                         direct_to_from_reg ? DirectRegType::TRY_ENABLE_IF_SUPPORT
                                            : DirectRegType::FORCE_OFF_OR_NOT_SUPPORT,
+                        IntrinsicAccessType::DISABLE_BOTH,
                         SBRC_TRANSPOSE_TYPE::NONE,
                         false,
                         false);

@@ -24,6 +24,7 @@
 #include <array>
 
 extern const char* common_h;
+extern const char* memory_gfx_h;
 extern const char* callback_h;
 extern const char* butterfly_constant_h;
 extern const char* real2complex_device_h;

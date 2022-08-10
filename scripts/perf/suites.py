@@ -294,10 +294,10 @@ lengths = {
 
      'newLarge1D': [
          4704, 4913, 5488, 6144, 9216, 10240, 11200, 12288, 17576, 19200, 20480,
-         21952, 23232, 24576, 26000, 28672, 34969, 36864, 38880, 40960, 43008,
-         46080, 48000, 49152, 51200, 53248, 57344, 68600, 71344, 73984, 76832,
-         78125, 79860, 81920, 83521, 87808, 95832, 98304, 102400, 106496,
-         110592, 114688, 117649,
+         21952, 23232, 24576, 26000, 28672, 34969, 36864, 38880, 40960, 46080,
+         48000, 49152, 51200, 53248, 57344, 68600, 71344, 73984, 76832, 78125,
+         79860, 81920, 83521, 87808, 95832, 98304, 102400, 106496, 110592,
+         114688, 117649,
      ],
 }
 # yapf: enable
@@ -450,7 +450,10 @@ def simpleL1D():
 def large1d():
     """Large 1D sizes."""
 
-    yield from default_length_params("large1d", lengths['large1d'], 10000)
+    yield from default_length_params("large1d",
+                                     lengths['large1d'],
+                                     10000,
+                                     reals=[False])
 
 
 def generated1d(skip=1):
@@ -536,8 +539,10 @@ def non_supported_lengths_1D():
 def new_large_1d():
     """New large 1D lengths."""
 
-    yield from default_length_params("new_large_1d", lengths['newLarge1D'],
-                                     1000)
+    yield from default_length_params("new_large_1d",
+                                     lengths['newLarge1D'],
+                                     1000,
+                                     reals=[False])
 
 
 def unbatched_1d():

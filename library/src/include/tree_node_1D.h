@@ -119,6 +119,10 @@ protected:
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 
+    void SetDirectRegType();
+
+    void SetIntrinsicMode();
+
 public:
     // we can put codes here to switch-on/off some features at arch-wise
     bool KernelCheck() override;
@@ -152,6 +156,8 @@ protected:
     }
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+
+    void SetDirectRegType();
 
 public:
     SBRC_TRANSPOSE_TYPE sbrc_transpose_type(unsigned int blockWidth) const override;
@@ -187,6 +193,10 @@ protected:
     }
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+
+    void SetDirectRegType();
+
+    void SetIntrinsicMode();
 
 public:
     // we can put codes here to switch-on/off some features at arch-wise

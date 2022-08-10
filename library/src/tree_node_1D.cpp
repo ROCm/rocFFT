@@ -737,6 +737,17 @@ bool SBCCNode::KernelCheck()
 {
     bool res = LeafNode::KernelCheck();
 
+    // set according to benchmark
+    SetDirectRegType();
+
+    // set according to benchmark
+    SetIntrinsicMode();
+
+    return res;
+}
+
+void SBCCNode::SetDirectRegType()
+{
     // for Navi, Haven't tested all.
     if(is_device_gcn_arch(deviceProp, "gfx1030"))
     {
@@ -747,11 +758,10 @@ bool SBCCNode::KernelCheck()
     else if(is_device_gcn_arch(deviceProp, "gfx908"))
     {
         // bad results from benchmark:
-        //     {125,sp}, {192,sp},
-        //     {224,sp/dp}, {240,sp}, {243,sp}, {343,dp} are bad
+        // {125,sp}, {192,sp}, {216,sp}, {224,sp/dp}, {240,sp}, {243,sp}, {343,dp}
         // 100 and 168 can be better if enable half-lds
         std::map<rocfft_precision, std::set<size_t>> exceptions
-            = {{rocfft_precision_single, {125, 192, 224, 240, 243}},
+            = {{rocfft_precision_single, {125, 192, 216, 224, 240, 243}},
                {rocfft_precision_double, {224, 343}}};
         if(exceptions.at(precision).count(length[0]))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
@@ -759,17 +769,58 @@ bool SBCCNode::KernelCheck()
     else if(is_device_gcn_arch(deviceProp, "gfx90a"))
     {
         // bad results from benchmark:
-        //     {125,sp/dp}, {192,sp}, {200,sp},
-        //     {224,sp/dp}, {240,sp}, {243,dp} are bad
+        // {125,sp/dp}, {192,sp}, {200,sp}, {216,sp}, {224,sp/dp}, {240,sp}, {243,dp}
         // 100 and 168 can be better if enable half-lds
         std::map<rocfft_precision, std::set<size_t>> exceptions
-            = {{rocfft_precision_single, {125, 192, 200, 224, 240}},
+            = {{rocfft_precision_single, {125, 192, 216, 200, 224, 240}},
                {rocfft_precision_double, {125, 224, 243}}};
         if(exceptions.at(precision).count(length[0]))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
+}
 
-    return res;
+void SBCCNode::SetIntrinsicMode()
+{
+    // NB: remember set this value at this point instead of SetupGPAndFnPtr_internal()
+    //     since we might need to pass this value to RTC generator
+    intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
+
+    // TODO- To test on gfx90a
+    if((is_device_gcn_arch(deviceProp, "gfx906") || is_device_gcn_arch(deviceProp, "gfx908")
+        || is_device_gcn_arch(deviceProp, "gfx1030"))
+       && (dir2regMode == TRY_ENABLE_IF_SUPPORT))
+    {
+        // General rejections: cases we can't use buffer load
+        if(((uint64_t)iDist * batch * sizeof_precision(precision) < 0xFFFFFFFF)
+           && ((uint64_t)oDist * batch * sizeof_precision(precision) < 0xFFFFFFFF))
+        {
+            if(placement == rocfft_placement_inplace)
+                intrinsicMode = IntrinsicAccessType::ENABLE_LOAD_ONLY;
+            else
+                intrinsicMode = IntrinsicAccessType::ENABLE_BOTH;
+        }
+
+        // Based on benchmark results
+        if(is_device_gcn_arch(deviceProp, "gfx906"))
+        {
+            // bad results from benchmark:
+            // {96,sp}, {125,sp}, {192,sp/dp}, {240,dp}, {256,sp/dp}, {343,sp/dp}
+            std::map<rocfft_precision, std::set<size_t>> exceptions
+                = {{rocfft_precision_single, {96, 125, 192, 256, 343}},
+                   {rocfft_precision_double, {192, 240, 256, 343}}};
+            if(exceptions.at(precision).count(length[0]))
+                intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
+        }
+        else if(is_device_gcn_arch(deviceProp, "gfx908"))
+        {
+            // bad results from benchmark:
+            // {104,sp/dp}, {192,dp}, {240,dp}, {289,sp}
+            std::map<rocfft_precision, std::set<size_t>> exceptions = {
+                {rocfft_precision_single, {104, 289}}, {rocfft_precision_double, {104, 192, 240}}};
+            if(exceptions.at(precision).count(length[0]))
+                intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
+        }
+    }
 }
 
 void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
@@ -799,11 +850,18 @@ bool SBRCNode::KernelCheck()
 {
     bool res = LeafNode::KernelCheck();
 
+    // set according to benchmark
+    SetDirectRegType();
+
+    return res;
+}
+
+void SBRCNode::SetDirectRegType()
+{
     if(is_device_gcn_arch(deviceProp, "gfx906"))
     {
         // bad results from benchmark:
-        //     {49,sp}, {128,sp},
-        //     {64,dp}, {81,dp}, {100,dp} are bad
+        // {49,sp}, {128,sp}, {64,dp}, {81,dp}, {100,dp}
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {49, 128}}, {rocfft_precision_double, {64, 81, 100}}};
         if(exceptions.at(precision).count(length[0]))
@@ -812,8 +870,7 @@ bool SBRCNode::KernelCheck()
     else if(is_device_gcn_arch(deviceProp, "gfx908"))
     {
         // bad results from benchmark:
-        //     {81,sp}, {100,sp}, {128,sp}, {192,sp}, {200,sp}, {512,sp},
-        //     {125,dp}, {128,dp} are bad
+        // {81,sp}, {100,sp}, {128,sp/dp}, {192,sp}, {200,sp}, {512,sp}, {125,dp}
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {81, 100, 128, 192, 200, 512}},
                {rocfft_precision_double, {125, 128}}};
@@ -823,8 +880,7 @@ bool SBRCNode::KernelCheck()
     else if(is_device_gcn_arch(deviceProp, "gfx90a"))
     {
         // bad results from benchmark:
-        //     {49,sp}, {81,sp}, {100,sp}, {125,sp}, {200,sp}, {512,sp},
-        //     {64,dp}, {81,dp}, {100,dp}, {125,dp} are bad
+        // {49,sp}, {81,sp/dp}, {100,sp/dp}, {125,sp/dp}, {200,sp}, {512,sp}, {64,dp}
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {49, 81, 100, 125, 200, 512}},
                {rocfft_precision_double, {64, 81, 100, 125}}};
@@ -836,8 +892,6 @@ bool SBRCNode::KernelCheck()
     {
         dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
-
-    return res;
 }
 
 void SBRCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
@@ -867,33 +921,49 @@ bool SBCRNode::KernelCheck()
 {
     bool res = LeafNode::KernelCheck();
 
-    // switch on/off according to the arch
-    // tweaking the setting based on the benchmark results. (Tested on ROCm 5.2.)
+    // set according to benchmark
+    SetDirectRegType();
 
-    // TODO-
-    // SBCR-56 (all bad) and 336 with dir2reg can be much better if tested on 5.0.
-    // We can check the assembly to see what was better in 5.0.
-    if(is_device_gcn_arch(deviceProp, "gfx908"))
+    // set according to benchmark
+    SetIntrinsicMode();
+
+    return res;
+}
+
+void SBCRNode::SetDirectRegType()
+{
+    // switch on/off according to the arch
+    // tweaking the setting based on the benchmark results.
+
+    // so far, we've only tested on gfx908, 90a. Navi and MI50 even don't use SBCR
+    if(!is_device_gcn_arch(deviceProp, "gfx908") && !is_device_gcn_arch(deviceProp, "gfx90a"))
     {
-        // {100,dp}, {200,sp}, {336,dp} are bad
-        if((length[0] == 100 && precision == rocfft_precision_double)
-           || (length[0] == 200 && precision == rocfft_precision_single)
-           || (length[0] == 336 && precision == rocfft_precision_double))
-            dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+        dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
-    else if(is_device_gcn_arch(deviceProp, "gfx90a"))
+    // 90a has a exception, 908 seems good
+    if(is_device_gcn_arch(deviceProp, "gfx90a"))
     {
         // {200,sp} is bad
         if(length[0] == 200 && precision == rocfft_precision_single)
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
-    // we don't enable the features for Navi and MI50 now
-    else
-    {
-        dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
-    }
+}
 
-    return res;
+void SBCRNode::SetIntrinsicMode()
+{
+    // NB: remember set this value at this point instead of SetupGPAndFnPtr_internal()
+    //     since we might need to pass this value to RTC generator
+    intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
+
+    // TODO- To test on gfx90a
+    if(is_device_gcn_arch(deviceProp, "gfx908") && (dir2regMode == TRY_ENABLE_IF_SUPPORT))
+    {
+        if(((uint64_t)iDist * batch * sizeof_precision(precision) < 0xFFFFFFFF)
+           && ((uint64_t)oDist * batch * sizeof_precision(precision) < 0xFFFFFFFF))
+        {
+            intrinsicMode = IntrinsicAccessType::ENABLE_BOTH;
+        }
+    }
 }
 
 void SBCRNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)

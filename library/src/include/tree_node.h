@@ -352,6 +352,11 @@ public:
     bool allowInplace    = true;
     bool allowOutofplace = true;
 
+    // if soffset < 2^32 then we can't use it. Check soffset by buffer size
+    // separate load and store,
+    // in inplace kernels, enabling both is not always a good choice
+    IntrinsicAccessType intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
+
     size_t                      allowedOutBuf;
     std::set<rocfft_array_type> allowedOutArrayTypes;
 

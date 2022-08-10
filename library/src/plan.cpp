@@ -1259,6 +1259,18 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     os << indentStr.c_str() << "SBRC_Trans_Type: " << PrintSBRCTransposeType(sbrcTranstype).c_str();
     os << "\n";
 
+    switch(intrinsicMode)
+    {
+    case IntrinsicAccessType::DISABLE_BOTH:
+        break;
+    case IntrinsicAccessType::ENABLE_LOAD_ONLY:
+        os << indentStr.c_str() << "Intrinsic Mode: LOAD_ONLY\n";
+        break;
+    case IntrinsicAccessType::ENABLE_BOTH:
+        os << indentStr.c_str() << "Intrinsic Mode: LOAD_AND_STORE\n";
+        break;
+    }
+
     os << indentStr.c_str()
        << "Direct_to_from_Reg: " << PrintDirectToFromRegMode(dir2regMode).c_str();
     os << "\n";
@@ -1518,11 +1530,11 @@ void ProcessNode(ExecPlan& execPlan)
     // add padding if necessary
     policy.PadPlan(execPlan);
 
-    // Check the buffer, param and tree integrity, Note we do this after fusion
-    execPlan.rootPlan->SanityCheck();
-
     // Collapse high dims on leaf nodes where possible
     execPlan.rootPlan->CollapseContiguousDims();
+
+    // Check the buffer, param and tree integrity, Note we do this after fusion
+    execPlan.rootPlan->SanityCheck();
 
     // get workBufSize..
     size_t tmpBufSize       = 0;
