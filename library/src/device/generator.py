@@ -889,7 +889,7 @@ class Prototype(BaseNode):
         if self.qualifier is not None:
             f += self.qualifier + ' '
         f += ' void ' + self.name
-        f += '(' + str(self.arguments) + ');'
+        f += '(' + str(self.arguments) + ') FUNCTION_POOL_STANDALONE_BODY ;'
         return f
 
 

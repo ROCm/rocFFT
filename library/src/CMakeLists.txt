@@ -280,6 +280,15 @@ foreach( target rocfft rocfft_aot_helper rocfft_config_search )
     target_compile_options(${target} PRIVATE -Og)
   endif()
 endforeach()
+target_link_libraries( rocfft PRIVATE
+  rocfft-function-pool
+  )
+target_link_libraries( rocfft_config_search PRIVATE
+  rocfft-function-pool-standalone
+  )
+target_link_libraries( rocfft_aot_helper PRIVATE
+  rocfft-function-pool-standalone
+  )
 
 rocm_set_soversion( rocfft ${rocfft_SOVERSION} )
 set_target_properties( rocfft PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )

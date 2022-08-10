@@ -180,7 +180,7 @@ def generate_cpu_function_pool(functions):
         populate += function_map.assert_emplace(key, FFTKernel(f))
 
     return StatementList(
-        Include('<iostream>'), Include('"../include/function_pool.h"'),
+        Include('"../include/function_pool.h"'),
         StatementList(*[f.prototype() for f in functions]),
         Function(name='function_pool::function_pool',
                  value=False,

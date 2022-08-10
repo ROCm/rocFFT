@@ -23,6 +23,7 @@
 #include "device/generator/stockham_gen.h"
 #include "rtc_stockham.h"
 
+#include <iterator>
 #include <random>
 #include <set>
 

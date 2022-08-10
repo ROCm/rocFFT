@@ -183,6 +183,16 @@ if( USE_CUDA )
   add_link_options(-L${CUDA_PREFIX}/lib64 -pthread)
 endif( )
 
+# hipcc automatically provides HIP include dirs and HIP platform,
+# but plain clang needs to be told
+if( NOT CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
+  include_directories( ${HIP_INCLUDE_DIRS} )
+  if( USE_CUDA )
+    add_compile_definitions( __HIP_PLATFORM_NVIDIA__ )
+  else()
+    add_compile_definitions( __HIP_PLATFORM_AMD__ )
+  endif()
+endif()
 
 add_subdirectory( library )
 
