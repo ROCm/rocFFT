@@ -190,6 +190,7 @@ foreach( pool rocfft-function-pool rocfft-function-pool-standalone )
     CXX_STANDARD_REQUIRED ON
     POSITION_INDEPENDENT_CODE ON
   )
+  add_dependencies(${pool} gen_headers_target)
 endforeach()
 
 list( LENGTH rocfft_device_source rocfft_device_source_len )
