@@ -29,6 +29,7 @@
 #include "device/kernel-generator-embed.h"
 
 #include <chrono>
+#include <hip/hip_version.h>
 
 namespace fs = std::filesystem;
 
@@ -219,7 +220,6 @@ RTCCache::RTCCache()
 
 static std::vector<char> get_code_object_impl(const std::string&          kernel_name,
                                               const std::string&          gpu_arch,
-                                              int                         hip_version,
                                               const std::array<char, 32>& generator_sum,
                                               sqlite3_ptr&                db,
                                               sqlite3_stmt_ptr&           get_stmt,
@@ -240,7 +240,7 @@ static std::vector<char> get_code_object_impl(const std::string&          kernel
     if(sqlite3_bind_text(s, 1, kernel_name.c_str(), kernel_name.size(), SQLITE_TRANSIENT)
            != SQLITE_OK
        || sqlite3_bind_text(s, 2, gpu_arch.c_str(), gpu_arch.size(), SQLITE_TRANSIENT) != SQLITE_OK
-       || sqlite3_bind_int(s, 3, hip_version) != SQLITE_OK
+       || sqlite3_bind_int64(s, 3, HIP_VERSION) != SQLITE_OK
        || sqlite3_bind_blob(s, 4, generator_sum.data(), generator_sum.size(), SQLITE_TRANSIENT)
               != SQLITE_OK)
     {
@@ -259,29 +259,22 @@ static std::vector<char> get_code_object_impl(const std::string&          kernel
 
 std::vector<char> RTCCache::get_code_object(const std::string&          kernel_name,
                                             const std::string&          gpu_arch,
-                                            int                         hip_version,
                                             const std::array<char, 32>& generator_sum)
 {
     std::vector<char> code;
     // try user cache first
     if(get_stmt_user)
-        code = get_code_object_impl(kernel_name,
-                                    gpu_arch,
-                                    hip_version,
-                                    generator_sum,
-                                    db_user,
-                                    get_stmt_user,
-                                    get_mutex_user);
+        code = get_code_object_impl(
+            kernel_name, gpu_arch, generator_sum, db_user, get_stmt_user, get_mutex_user);
     // fall back to system cache
     if(code.empty() && get_stmt_sys)
         code = get_code_object_impl(
-            kernel_name, gpu_arch, hip_version, generator_sum, db_sys, get_stmt_sys, get_mutex_sys);
+            kernel_name, gpu_arch, generator_sum, db_sys, get_stmt_sys, get_mutex_sys);
     return code;
 }
 
 void RTCCache::store_code_object(const std::string&          kernel_name,
                                  const std::string&          gpu_arch,
-                                 int                         hip_version,
                                  const std::array<char, 32>& generator_sum,
                                  const std::vector<char>&    code)
 {
@@ -298,7 +291,7 @@ void RTCCache::store_code_object(const std::string&          kernel_name,
     if(sqlite3_bind_text(s, 1, kernel_name.c_str(), kernel_name.size(), SQLITE_TRANSIENT)
            != SQLITE_OK
        || sqlite3_bind_text(s, 2, gpu_arch.c_str(), gpu_arch.size(), SQLITE_TRANSIENT) != SQLITE_OK
-       || sqlite3_bind_int(s, 3, hip_version) != SQLITE_OK
+       || sqlite3_bind_int64(s, 3, HIP_VERSION) != SQLITE_OK
        || sqlite3_bind_blob(s, 4, generator_sum.data(), generator_sum.size(), SQLITE_TRANSIENT)
               != SQLITE_OK
        || sqlite3_bind_blob(s, 5, code.data(), code.size(), SQLITE_TRANSIENT))
@@ -423,16 +416,11 @@ std::vector<char> RTCKernel::cached_compile(const std::string& kernel_name,
                                             const std::string& gpu_arch,
                                             kernel_src_gen_t   generate_src)
 {
-    static int hip_version = 0;
-    if(hip_version == 0 && hipRuntimeGetVersion(&hip_version) != hipSuccess)
-        return {};
-
     // check cache first
     std::vector<char> code;
     if(RTCCache::single)
     {
-        code = RTCCache::single->get_code_object(
-            kernel_name, gpu_arch, hip_version, generator_sum());
+        code = RTCCache::single->get_code_object(kernel_name, gpu_arch, generator_sum());
     }
 
     if(!code.empty())
@@ -546,8 +534,7 @@ std::vector<char> RTCKernel::cached_compile(const std::string& kernel_name,
 
     if(RTCCache::single)
     {
-        RTCCache::single->store_code_object(
-            kernel_name, gpu_arch, hip_version, generator_sum(), code);
+        RTCCache::single->store_code_object(kernel_name, gpu_arch, generator_sum(), code);
     }
     return code;
 }

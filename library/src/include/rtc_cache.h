@@ -64,13 +64,11 @@ struct RTCCache
     // returns empty vector if a matching kernel was not found.
     std::vector<char> get_code_object(const std::string&          kernel_name,
                                       const std::string&          gpu_arch,
-                                      int                         hip_version,
                                       const std::array<char, 32>& generator_sum);
 
     // store the code object into the cache.
     void store_code_object(const std::string&          kernel_name,
                            const std::string&          gpu_arch,
-                           int                         hip_version,
                            const std::array<char, 32>& generator_sum,
                            const std::vector<char>&    code);
 
