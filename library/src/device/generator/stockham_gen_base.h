@@ -296,11 +296,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return {};
     }
 
-    virtual StatementList check_batch()
-    {
-        return {If{batch >= nbatch, {Return{}}}};
-    }
-
     enum class ProcessingType
     {
         PRE,
@@ -735,9 +730,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         body += CommentLines{"offsets"};
         collect_length_stride(body);
         body += calculate_offsets();
-
-        body += LineBreak{};
-        body += check_batch();
         body += LineBreak{};
 
         StatementList loadlds;

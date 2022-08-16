@@ -71,11 +71,6 @@ struct StockhamKernelRC : public StockhamKernel
         return "SBRC";
     }
 
-    StatementList check_batch() override
-    {
-        return {};
-    }
-
     // TODO- support embedded Pre/Post
     StatementList set_direct_to_from_registers() override
     {

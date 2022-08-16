@@ -30,6 +30,7 @@ struct StockhamKernelRR : public StockhamKernel
 
     // TODO- check if using uint in device is also better
     Variable thread{"thread", "unsigned int"}; // use type uint in global
+    Variable inbound{"inbound", "bool"};
 
     std::string tiling_name() override
     {
@@ -62,6 +63,9 @@ struct StockhamKernelRR : public StockhamKernel
         stmts += Assign{offset, offset + batch * stride[dim]};
         stmts += Assign{stride_lds, (length + get_lds_padding())};
         stmts += Assign{offset_lds, stride_lds * Parens{transform % transforms_per_block}};
+
+        stmts += Declaration{inbound, batch < nbatch};
+
         return stmts;
     }
 
@@ -105,7 +109,7 @@ struct StockhamKernelRR : public StockhamKernel
                               ThreadGuardMode::GUARD_BY_IF);
         }
 
-        return stmts;
+        return {If{inbound, stmts}};
     }
 
     StatementList store_to_global(bool store_registers) override
@@ -147,7 +151,7 @@ struct StockhamKernelRR : public StockhamKernel
                               ThreadGuardMode::GUARD_BY_IF);
         }
 
-        return stmts;
+        return {If{inbound, stmts}};
     }
 
     StatementList real_trans_pre_post(ProcessingType type) override

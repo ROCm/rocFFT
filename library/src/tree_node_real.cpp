@@ -855,6 +855,15 @@ void Real3DEvenNode::BuildTree_internal_SBCC()
         auto use_SBCC_192 = (remainingLength[2] == 192 && remainingLength[1] == 192)
                             && (precision == rocfft_precision_single);
 
+        // A special case (192,200,XX), (168,192,XX) on gfx908, we eventually need to remove these
+        if(is_device_gcn_arch(deviceProp, "gfx908"))
+        {
+            if(((remainingLength[2] == 192 && remainingLength[1] == 200)
+                || (remainingLength[2] == 168 && remainingLength[1] == 192))
+               && (precision == rocfft_precision_single))
+                use_SBCC_192 = true;
+        }
+
         // SBCC along Z dimension
         if(remainingLength[2] == 192)
             scheme = use_SBCC_192 ? CS_KERNEL_STOCKHAM_BLOCK_CC : CS_KERNEL_STOCKHAM;
