@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "rtc.h"
+#include "rtc_kernel.h"
 #include "../../shared/array_predicate.h"
 #include "device/generator/stockham_gen.h"
 
@@ -27,7 +27,7 @@
 #include "logging.h"
 #include "plan.h"
 #include "rtc_cache.h"
-#include "rtc_stockham.h"
+#include "rtc_stockham_kernel.h"
 #include "tree_node.h"
 
 RTCKernel::RTCKernel(const std::string& kernel_name, const std::vector<char>& code)
@@ -108,6 +108,7 @@ void RTCKernel::launch(
 std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
     const TreeNode& node, const std::string& gpu_arch, bool enable_callbacks)
 {
+
 #ifdef ROCFFT_RUNTIME_COMPILE
     RTCGenerator generator;
     // try each type of generator until one is valid
@@ -119,8 +120,8 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
         auto compile = [=]() {
             try
             {
-                std::vector<char> code
-                    = cached_compile(kernel_name, gpu_arch, generator.generate_src);
+                std::vector<char> code = cached_compile(
+                    kernel_name, gpu_arch, generator.generate_src, generator_sum());
                 return generator.construct_rtckernel(kernel_name, code);
             }
             catch(std::exception& e)

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "rtc.h"
+#include "rtc_compile.h"
 #include <iostream>
 #include <iterator>
 
@@ -53,7 +53,7 @@ int main(int argc, const char* const* argv)
                   std::back_inserter(kernel_src));
 
         // compile and write code object to stdout
-        auto code = RTCKernel::compile_inprocess(kernel_src, gpu_arch);
+        auto code = compile_inprocess(kernel_src, gpu_arch);
         std::cout.write(code.data(), code.size());
         return 0;
     }

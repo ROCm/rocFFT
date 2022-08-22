@@ -22,20 +22,27 @@
 
 #include "library_path.h"
 #include "logging.h"
-#include "rtc.h"
 #include "rtc_cache.h"
+#include "rtc_compile.h"
+#include "rtc_subprocess.h"
 #include "sqlite3.h"
-
-#include "device/kernel-generator-embed.h"
 
 #include <chrono>
 #include <hip/hip_version.h>
+#include <hip/hiprtc.h>
+#include <mutex>
 
 namespace fs = std::filesystem;
 
 std::unique_ptr<RTCCache> RTCCache::single;
 
 static const char* default_cache_filename = "rocfft_kernel_cache.db";
+
+// Lock for in-process compilation - due to limits in ROCclr, we
+// can do at most one compilation in a process before we have to
+// delegate to a subprocess.  But we should at least do one
+// in-process instead of making everything go to subprocess.
+static std::mutex compile_lock;
 
 // Get path to system RTC cache - returns empty if no suitable path
 // can be found
@@ -412,15 +419,16 @@ static RTCProcessType get_rtc_process_type()
     return RTCProcessType::DEFAULT;
 }
 
-std::vector<char> RTCKernel::cached_compile(const std::string& kernel_name,
-                                            const std::string& gpu_arch,
-                                            kernel_src_gen_t   generate_src)
+std::vector<char> cached_compile(const std::string&          kernel_name,
+                                 const std::string&          gpu_arch,
+                                 kernel_src_gen_t            generate_src,
+                                 const std::array<char, 32>& generator_sum)
 {
     // check cache first
     std::vector<char> code;
     if(RTCCache::single)
     {
-        code = RTCCache::single->get_code_object(kernel_name, gpu_arch, generator_sum());
+        code = RTCCache::single->get_code_object(kernel_name, gpu_arch, generator_sum);
     }
 
     if(!code.empty())
@@ -534,7 +542,7 @@ std::vector<char> RTCKernel::cached_compile(const std::string& kernel_name,
 
     if(RTCCache::single)
     {
-        RTCCache::single->store_code_object(kernel_name, gpu_arch, generator_sum(), code);
+        RTCCache::single->store_code_object(kernel_name, gpu_arch, generator_sum, code);
     }
     return code;
 }

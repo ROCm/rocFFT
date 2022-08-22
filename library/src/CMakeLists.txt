@@ -34,18 +34,20 @@ function( prepend_path prefix source_list_of_files return_list_of_files )
   set( ${return_list_of_files} ${new_list} PARENT_SCOPE )
 endfunction( )
 
-add_executable( rocfft_rtc_helper rocfft_rtc_helper.cpp rtc_compile.cpp )
-
-if( WIN32 )
-  set( ROCFFT_HIPRTC_LIB "${HIP_PATH}/lib/hiprtc.lib" )
-endif()
+add_executable( rocfft_rtc_helper rocfft_rtc_helper.cpp )
 
 # each backend requires different libraries for host and device code
 if( USE_CUDA )
-  set( ROCFFT_HOST_LINK_LIBS -lnvrtc -lnvrtc-builtins -lnvptxcompiler_static -lcuda )
+  set( ROCFFT_HOST_LINK_LIBS -lcuda )
+  set( ROCFFT_RTC_LINK_LIBS -lnvrtc -lnvrtc-builtins -lnvptxcompiler_static )
 else()
   set( ROCFFT_HOST_LINK_LIBS hip::host )
   set( ROCFFT_DEVICE_LINK_LIBS hip::device )
+  if( WIN32 )
+    set( ROCFFT_RTC_LINK_LIBS "${HIP_PATH}/lib/hiprtc.lib" )
+  else()
+    set( ROCFFT_RTC_LINK_LIBS -L${ROCM_PATH}/lib -lhiprtc -ldl )
+  endif()
 endif()
 
 set( package_targets rocfft rocfft_rtc_helper )
@@ -53,7 +55,7 @@ target_include_directories( rocfft_rtc_helper
   PRIVATE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
 )
-target_link_libraries( rocfft_rtc_helper PRIVATE ${ROCFFT_HOST_LINK_LIBS} ${ROCFFT_HIPRTC_LIB} )
+target_link_libraries( rocfft_rtc_helper PRIVATE rocfft-rtc-compile )
 set_target_properties( rocfft_rtc_helper PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON )
 
 # Package that helps me set visibility for function names exported
@@ -111,10 +113,8 @@ set( kgen_logic_files
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_rc.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_rr.h
      ${CMAKE_SOURCE_DIR}/library/src/rtc_compile.cpp
-     ${CMAKE_SOURCE_DIR}/library/src/rtc_stockham.cpp
-
-     # c++ code that does rtc-specific adjustments
-     ${CMAKE_SOURCE_DIR}/library/src/rtc.cpp
+     ${CMAKE_SOURCE_DIR}/library/src/include/rtc_stockham_gen.h
+     ${CMAKE_SOURCE_DIR}/library/src/rtc_stockham_gen.cpp
    )
 
 add_custom_command(
@@ -186,35 +186,69 @@ else()
   set(ROCFFT_SQLITE_LIB sqlite3)
 endif()
 
-# RTC stuff that's used by both core library and helpers
+# RTC stuff is used by both core library and helpers, so create
+# separate libraries
+#
+# common things like embedded generator strings, schemes, logging
 add_library( rocfft-rtc-common OBJECT
   ${kgen_embed_cpp}
   compute_scheme.cpp
   rocfft_ostream.cpp
-  rtc.cpp
-  rtc_cache.cpp
+)
+# compilation of rtc kernels (in-process)
+add_library( rocfft-rtc-compile OBJECT
   rtc_compile.cpp
+)
+# compilation of rtc kernels (sub-process)
+add_library( rocfft-rtc-subprocess OBJECT
   rtc_subprocess.cpp
-  rtc_stockham.cpp
 )
-target_include_directories( rocfft-rtc-common
-  PRIVATE
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
-  ${sqlite_local_SOURCE_DIR}
+# generation of kernel source
+add_library( rocfft-rtc-gen OBJECT
+  rtc_stockham_gen.cpp
 )
-set_target_properties( rocfft-rtc-common PROPERTIES
-  CXX_VISIBILITY_PRESET "hidden"
-  VISIBILITY_INLINES_HIDDEN ON
-  CXX_STANDARD 17
-  CXX_STANDARD_REQUIRED ON
-  POSITION_INDEPENDENT_CODE ON
+# caching of generation/compilation
+add_library( rocfft-rtc-cache OBJECT
+  rtc_cache.cpp
 )
-target_compile_options( rocfft-rtc-common PRIVATE ${WARNING_FLAGS} )
-if( ${CMAKE_BUILD_TYPE} STREQUAL Debug )
-  target_compile_options(rocfft-rtc-common PRIVATE -Og)
-endif()
-target_link_libraries( rocfft-rtc-common PUBLIC ${ROCFFT_HOST_LINK_LIBS} ${ROCFFT_HIPRTC_LIB} )
+# generating kernels from TreeNodes and launching them
+add_library( rocfft-rtc-launch OBJECT
+  rtc_kernel.cpp
+  rtc_stockham_kernel.cpp
+)
+
+foreach( target
+  rocfft-rtc-common
+  rocfft-rtc-compile
+  rocfft-rtc-subprocess
+  rocfft-rtc-gen
+  rocfft-rtc-cache
+  rocfft-rtc-launch
+  )
+  target_include_directories( ${target}
+    PRIVATE
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+    ${sqlite_local_SOURCE_DIR}
+  )
+  set_target_properties( ${target} PROPERTIES
+    CXX_VISIBILITY_PRESET "hidden"
+    VISIBILITY_INLINES_HIDDEN ON
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
+  )
+  target_compile_options( ${target} PRIVATE ${WARNING_FLAGS} )
+  if( ${CMAKE_BUILD_TYPE} STREQUAL Debug )
+    target_compile_options( ${target} PRIVATE -Og )
+  endif()
+  target_link_libraries( ${target} PUBLIC ${ROCFFT_RTC_LINK_LIBS} )
+
+  if( ROCFFT_RUNTIME_COMPILE )
+    target_compile_options( ${target} PRIVATE -DROCFFT_RUNTIME_COMPILE )
+  endif()
+
+endforeach()
 
 add_executable( rocfft_aot_helper
   rocfft_aot_helper.cpp
@@ -236,7 +270,6 @@ add_library( roc::rocfft ALIAS rocfft )
 
 if( ROCFFT_RUNTIME_COMPILE )
   target_compile_options( rocfft PRIVATE -DROCFFT_RUNTIME_COMPILE )
-  target_compile_options( rocfft-rtc-common PRIVATE -DROCFFT_RUNTIME_COMPILE )
 endif()
 
 if( NOT BUILD_SHARED_LIBS )
@@ -246,6 +279,7 @@ endif()
 
 target_link_libraries( rocfft PRIVATE ${ROCFFT_DEVICE_LINK_LIBS} )
 
+target_link_libraries( rocfft PRIVATE rocfft-device-0 )
 target_link_libraries( rocfft PRIVATE rocfft-device-1 )
 target_link_libraries( rocfft PRIVATE rocfft-device-2 )
 target_link_libraries( rocfft PRIVATE rocfft-device-3 )
@@ -267,11 +301,16 @@ foreach( target rocfft rocfft_aot_helper rocfft_config_search )
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
   )
-  target_link_libraries( ${target} PRIVATE ${ROCFFT_SQLITE_LIB} rocfft-device-0 rocfft-rtc-common )
+  target_link_libraries( ${target} PRIVATE
+    rocfft-rtc-cache
+    ${ROCFFT_SQLITE_LIB}
+    rocfft-rtc-gen
+    rocfft-rtc-compile
+    rocfft-rtc-subprocess
+    rocfft-rtc-common
+    )
 
-  if( WIN32 )
-    target_link_libraries( ${target} PRIVATE ${ROCFFT_HIPRTC_LIB} )
-  else()
+  if( NOT WIN32 )
     target_link_libraries( ${target} PRIVATE -lstdc++fs )
   endif()
 
@@ -282,8 +321,11 @@ foreach( target rocfft rocfft_aot_helper rocfft_config_search )
 endforeach()
 target_link_libraries( rocfft PRIVATE
   rocfft-function-pool
+  rocfft-rtc-launch
   )
 target_link_libraries( rocfft_config_search PRIVATE
+  ${ROCFFT_HOST_LINK_LIBS}
+  rocfft-rtc-launch
   rocfft-function-pool-standalone
   )
 target_link_libraries( rocfft_aot_helper PRIVATE

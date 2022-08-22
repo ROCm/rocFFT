@@ -18,12 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "rtc.h"
+#include "rtc_compile.h"
 
-std::mutex RTCKernel::compile_lock;
+#include <hip/hiprtc.h>
+#include <stdexcept>
 
-std::vector<char> RTCKernel::compile_inprocess(const std::string& kernel_src,
-                                               const std::string& gpu_arch)
+std::vector<char> compile_inprocess(const std::string& kernel_src, const std::string& gpu_arch)
 {
     hiprtcProgram prog;
     // give it a .cu extension so it'll be compiled as HIP code

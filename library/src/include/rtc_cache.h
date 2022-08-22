@@ -18,8 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#ifndef ROCFFT_RTC_CACHE_H
+#define ROCFFT_RTC_CACHE_H
+
 #include "rocfft.h"
+#include "rtc_generator.h"
 #include "sqlite3.h"
+#include <array>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -102,3 +107,18 @@ private:
     // schema to the db and we don't want a collision
     std::mutex deserialize_mutex;
 };
+
+// Get compiled code object for a kernel.  Checks the cache to
+// see if the kernel has already been compiled and returns the
+// cached kernel if present.
+//
+// Otherwise, calls "generate_src" to generate the source, compiles
+// the source, and updates the cache before returning the compiled
+// kernel.  Tries in-process compile
+// first and falls back to subprocess if necessary.
+std::vector<char> cached_compile(const std::string&          kernel_name,
+                                 const std::string&          gpu_arch,
+                                 kernel_src_gen_t            generate_src,
+                                 const std::array<char, 32>& generator_sum);
+
+#endif

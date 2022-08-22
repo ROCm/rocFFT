@@ -18,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include "rtc_subprocess.h"
 #include "../../shared/environment.h"
 #include "library_path.h"
-#include "rtc.h"
 
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -127,8 +127,7 @@ struct file_handle_wrapper
     file_handle_type fd = FILE_HANDLE_INVALID;
 };
 
-std::vector<char> RTCKernel::compile_subprocess(const std::string& kernel_src,
-                                                const std::string& gpu_arch)
+std::vector<char> compile_subprocess(const std::string& kernel_src, const std::string& gpu_arch)
 {
     static std::string  rtc_helper_exe = find_rtc_helper().string();
     std::vector<char>   code;

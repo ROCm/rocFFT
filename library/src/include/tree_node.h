@@ -34,7 +34,7 @@
 #include "../device/kernels/common.h"
 #include "compute_scheme.h"
 #include "kargs.h"
-#include "rtc.h"
+#include "rtc_kernel.h"
 #include <hip/hip_runtime_api.h>
 
 enum OperatingBuffer

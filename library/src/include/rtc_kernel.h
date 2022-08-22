@@ -23,14 +23,14 @@
 
 #include "rocfft.h"
 #include <hip/hip_runtime_api.h>
-#include <hip/hiprtc.h>
 
 #include <algorithm>
 #include <future>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <vector>
+
+#include "rtc_generator.h"
 
 struct DeviceCallIn;
 class TreeNode;
@@ -120,67 +120,9 @@ struct RTCKernel
     // parameters
     virtual RTCKernelArgs get_launch_args(DeviceCallIn& data) = 0;
 
-    // runtime_compile dispatches to subclasses, those subclasses
-    // return callables to do the code generation, so that the
-    // compilation and caching can live in the cached_compile method.
-    //
-    // function to generate the name of a kernel, given no arguments
-    using kernel_name_gen_t = std::function<std::string()>;
-    // functor to generate the source code of a kernel, given the
-    // kernel name.  but remember the source in case we're asked to
-    // generate it again.
-    struct kernel_src_gen_t
-    {
-        using generator_func = std::function<std::string(const std::string&)>;
-
-        // allow default ctor + assign, plus ctor + assign from function
-        kernel_src_gen_t() = default;
-        kernel_src_gen_t(generator_func f)
-            : f(f)
-        {
-        }
-        kernel_src_gen_t& operator=(const kernel_src_gen_t&) = default;
-        kernel_src_gen_t& operator                           =(generator_func f)
-        {
-            this->f = f;
-            kernel_src.clear();
-            return *this;
-        }
-        // forward a call to the function, if we don't already have the source
-        std::string operator()(const std::string& kernel_name)
-        {
-            if(kernel_src.empty())
-                kernel_src = f(kernel_name);
-            return kernel_src;
-        }
-        operator bool() const
-        {
-            return static_cast<bool>(f);
-        }
-
-    private:
-        generator_func f;
-        std::string    kernel_src;
-    };
     // function to construct the correct RTCKernel object, given a kernel name and its compiled code
     using rtckernel_construct_t
         = std::function<std::unique_ptr<RTCKernel>(const std::string&, const std::vector<char>&)>;
-
-    // Get compiled code object for a kernel.  Checks the cache to
-    // see if the kernel has already been compiled and returns the
-    // cached kernel if present.
-    //
-    // Otherwise, calls "generate_src" to generate the source, compiles
-    // the source, and updates the cache before returning the compiled
-    // kernel.  Tries in-process compile
-    // first and falls back to subprocess if necessary.
-    static std::vector<char> cached_compile(const std::string& kernel_name,
-                                            const std::string& gpu_arch,
-                                            kernel_src_gen_t   generate_src);
-
-    // compile source to a code object, in the current process.
-    static std::vector<char> compile_inprocess(const std::string& kernel_src,
-                                               const std::string& gpu_arch);
 
 protected:
     // protected ctor, use "runtime_compile" to build kernel for a node
@@ -201,13 +143,6 @@ protected:
     hipFunction_t kernel = nullptr;
 
 private:
-    // Lock for in-process compilation - due to limits in ROCclr, we
-    // can do at most one compilation in a process before we have to
-    // delegate to a subprocess.  But we should at least do one
-    // in-process instead of making everything go to subprocess.
-    static std::mutex        compile_lock;
-    static std::vector<char> compile_subprocess(const std::string& kernel_src,
-                                                const std::string& gpu_arch);
 };
 
 #endif

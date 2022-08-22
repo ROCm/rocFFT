@@ -27,7 +27,7 @@
 #include "../device/kernels/common.h"
 #include "compute_scheme.h"
 #include "rocfft.h"
-#include "rtc.h"
+#include "rtc_kernel.h"
 
 // generate name for RTC stockham kernel
 std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
@@ -71,26 +71,5 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          SBRC_TRANSPOSE_TYPE           transpose_type,
                          bool                          enable_callbacks,
                          bool                          enable_scaling);
-
-struct RTCKernelStockham : public RTCKernel
-{
-    RTCKernelStockham(const std::string& kernel_name, const std::vector<char>& code)
-        : RTCKernel(kernel_name, code)
-        , hardcoded_dim(kernel_name.find("_dim") != std::string::npos)
-    {
-    }
-
-    static RTCKernel::RTCGenerator generate_from_node(const TreeNode&    node,
-                                                      const std::string& gpu_arch,
-                                                      bool               enable_callbacks);
-
-    virtual RTCKernelArgs get_launch_args(DeviceCallIn& data) override;
-
-private:
-    // true if the kernel is hardcoded for a number of dimensions.
-    // kernels generated at runtime will be, but ahead-of-time
-    // compiled kernels won't.
-    bool hardcoded_dim;
-};
 
 #endif

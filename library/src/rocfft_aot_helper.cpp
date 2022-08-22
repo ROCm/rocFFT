@@ -5,9 +5,10 @@ using namespace std::placeholders;
 
 #include "../../shared/environment.h"
 #include "function_pool.h"
-#include "rtc.h"
 #include "rtc_cache.h"
-#include "rtc_stockham.h"
+#include "rtc_stockham_gen.h"
+
+#include "device/kernel-generator-embed.h"
 
 #if __has_include(<filesystem>)
 #include <filesystem>
@@ -27,8 +28,8 @@ struct CompileQueue
 {
     struct WorkItem
     {
-        std::string                 kernel_name;
-        RTCKernel::kernel_src_gen_t generate_src;
+        std::string      kernel_name;
+        kernel_src_gen_t generate_src;
     };
     void push(WorkItem&& i)
     {
@@ -222,11 +223,6 @@ int main(int argc, char** argv)
     // tell RTC where the compile helper is
     rocfft_setenv("ROCFFT_RTC_PROCESS_HELPER", rtc_helper.c_str());
 
-    // init HIP explicitly since a pile of threads might confuse HIP
-    // if they all try to init at once
-    if(hipInit(0) != hipSuccess)
-        throw std::runtime_error("hipInit failure");
-
     RTCCache::single = std::make_unique<RTCCache>();
 
     CompileQueue queue;
@@ -243,7 +239,7 @@ int main(int argc, char** argv)
                 if(item.kernel_name.empty())
                     break;
                 for(const auto& gpu_arch : gpu_archs)
-                    RTCKernel::cached_compile(item.kernel_name, gpu_arch, item.generate_src);
+                    cached_compile(item.kernel_name, gpu_arch, item.generate_src, generator_sum());
             }
         });
     }

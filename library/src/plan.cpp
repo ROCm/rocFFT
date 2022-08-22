@@ -30,7 +30,7 @@
 #include "rocfft-version.h"
 #include "rocfft.h"
 #include "rocfft_ostream.hpp"
-#include "rtc.h"
+#include "rtc_kernel.h"
 
 #include <algorithm>
 #include <assert.h>

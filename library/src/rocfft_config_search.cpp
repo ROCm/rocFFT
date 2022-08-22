@@ -21,7 +21,9 @@
 #include "../../shared/gpubuf.h"
 #include "arithmetic.h"
 #include "device/generator/stockham_gen.h"
-#include "rtc_stockham.h"
+#include "rtc_compile.h"
+#include "rtc_stockham_gen.h"
+#include "rtc_stockham_kernel.h"
 
 #include <iterator>
 #include <random>
@@ -393,8 +395,7 @@ int main(int argc, char** argv)
                                                                   half_lds,
                                                                   direct_to_from_reg);
 
-                                auto              code = RTCKernel::compile_inprocess(kernel_src,
-                                                                         device_prop.gcnArchName);
+                                auto code = compile_inprocess(kernel_src, device_prop.gcnArchName);
                                 RTCKernelStockham kernel(kernel_name, code);
 
                                 float time = launch_kernel(

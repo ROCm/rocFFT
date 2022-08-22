@@ -31,7 +31,7 @@
 
 #include "logging.h"
 #include "plan.h"
-#include "rtc.h"
+#include "rtc_kernel.h"
 #include "transform.h"
 
 #include "kernel_launch.h"
