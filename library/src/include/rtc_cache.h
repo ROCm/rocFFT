@@ -82,6 +82,12 @@ struct RTCCache
     static void   serialize_free(void* buffer);
     rocfft_status deserialize(const void* buffer, size_t buffer_len_bytes);
 
+    // write out kernels in the current cache to the output path.
+    // this copies the kernels in a consistent order and clears out
+    // the timestamp fields so that the resulting file is a
+    // reproducible build artifact, suitable for use as an AOT cache.
+    void write_aot_cache(const std::string& output_path);
+
     // singleton allocated in rocfft_setup and freed in rocfft_cleanup
     static std::unique_ptr<RTCCache> single;
 

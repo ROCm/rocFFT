@@ -213,8 +213,11 @@ int main(int argc, char** argv)
     for(int i = 3; i < argc; ++i)
         gpu_archs.push_back(argv[i]);
 
-    // force RTC to use the specified cache file
-    rocfft_setenv("ROCFFT_RTC_CACHE_PATH", cache_file.c_str());
+    // force RTC to use a clean temporary cache file
+    auto temp_cache_file = fs::temp_directory_path() / "rocfft_temp_cache.db";
+    if(fs::exists(temp_cache_file))
+        fs::remove(temp_cache_file);
+    rocfft_setenv("ROCFFT_RTC_CACHE_PATH", temp_cache_file.string().c_str());
 
     // disable system cache since we want to compile everything - use
     // an in-memory DB which will always be empty
@@ -252,7 +255,14 @@ int main(int argc, char** argv)
     for(size_t i = 0; i < NUM_THREADS; ++i)
         threads[i].join();
 
+    // write the output file using what we collected in the temporary
+    // cache
+    RTCCache::single->write_aot_cache(cache_file);
+
     RTCCache::single.reset();
+
+    // clean up the temp file
+    fs::remove(temp_cache_file);
 
     return 0;
 }

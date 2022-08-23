@@ -546,3 +546,46 @@ std::vector<char> cached_compile(const std::string&          kernel_name,
     }
     return code;
 }
+
+void RTCCache::write_aot_cache(const std::string& output_path)
+{
+    // remove the path if it already exists, since we want to output a
+    // cleanly created file
+    if(fs::exists(output_path))
+        fs::remove(output_path);
+
+    // connect to the output path but discard the returned pointer -
+    // this will create the cache tables but close the connection so
+    // we can reopen it from inside our existing db handle.
+    connect_db(output_path, false);
+
+    auto attach_stmt = prepare_stmt(db_user, "ATTACH DATABASE :db AS out_db");
+    sqlite3_reset(attach_stmt.get());
+    if(sqlite3_bind_text(
+           attach_stmt.get(), 1, output_path.c_str(), output_path.size(), SQLITE_TRANSIENT)
+       != SQLITE_OK)
+        throw std::runtime_error(std::string("write_aot_cache attach bind: ")
+                                 + sqlite3_errmsg(db_user.get()));
+    if(sqlite3_step(attach_stmt.get()) != SQLITE_DONE)
+        throw std::runtime_error(std::string("write_aot_cache attach step: ")
+                                 + sqlite3_errmsg(db_user.get()));
+    sqlite3_reset(attach_stmt.get());
+
+    // copy the kernels over in a consistent order and zero out the timestamps
+    auto copy_stmt = prepare_stmt(db_user,
+                                  "INSERT INTO out_db.cache_v1 ("
+                                  "    kernel_name,"
+                                  "    arch,"
+                                  "    hip_version,"
+                                  "    generator_sum,"
+                                  "    code,"
+                                  "    timestamp"
+                                  ")"
+                                  "SELECT kernel_name, arch, hip_version, generator_sum, code, 0 "
+                                  "FROM cache_v1 "
+                                  "ORDER BY kernel_name, arch, hip_version, generator_sum");
+    if(sqlite3_step(copy_stmt.get()) != SQLITE_DONE)
+        throw std::runtime_error(std::string("write_aot_cache copy step: ")
+                                 + sqlite3_errmsg(db_user.get()));
+    sqlite3_reset(copy_stmt.get());
+}
