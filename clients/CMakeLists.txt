@@ -58,14 +58,12 @@ list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 # used with clang tooling or vim.
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 
-if(NOT ROCFFT_BUILD_SCOPE AND
-   NOT BUILD_CLIENTS_SAMPLES AND
-   NOT BUILD_CLIENTS_TESTS AND
-   NOT BUILD_CLIENTS_SELFTEST AND
+if(NOT ROCFFT_BUILD_SCOPE AND 
+   NOT BUILD_CLIENTS_SAMPLES AND 
+   NOT BUILD_CLIENTS_TESTS AND 
    NOT BUILD_CLIENTS_RIDER)
   set( BUILD_CLIENTS_SAMPLES ON )
   set( BUILD_CLIENTS_TESTS ON )
-  set( BUILD_CLIENTS_SELFTEST ON )
   set( BUILD_CLIENTS_RIDER ON )
 endif()
 
@@ -86,20 +84,12 @@ else()
   set( ROCFFT_CLIENTS_DEVICE_LINK_LIBS hip::device )
 endif()
 
-if (BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SELFTEST)
-  include( cmake/build-gtest.cmake )
-endif()
-
 if( BUILD_CLIENTS_SAMPLES )
   add_subdirectory( samples )
 endif( )
 
 if( BUILD_CLIENTS_TESTS )
   add_subdirectory( tests )
-endif( )
-
-if( BUILD_CLIENTS_SELFTEST )
-  add_subdirectory( selftest )
 endif( )
 
 if( BUILD_CLIENTS_RIDER )

@@ -43,9 +43,8 @@ compilers, though callbacks will not work correctly in this configuration.
 
 There are several clients included with rocFFT:
 1. rocfft-rider runs general transforms and is useful for performance analysis;
-2. rocfft-test runs various regression tests;
-3. rocfft-selftest runs various unit tests; and
-4. various small samples are included.
+2. rocfft-test runs various regression tests; and
+3. various small samples are included.
 
 Clients are not built by default.  To build them:
 
@@ -53,7 +52,6 @@ Clients are not built by default.  To build them:
 |-----------------|-------------------------------|------------------------------------------|
 | rocfft-rider    | `-DBUILD_CLIENTS_RIDER=on`    | Boost program options                    |
 | rocfft-test     | `-DBUILD_CLIENTS_TESTS=on`    | Boost program options, FFTW, Google Test |
-| rocfft-selftest | `-DBUILD_CLIENTS_SELFTEST=on` | Google Test                              |
 | samples         | `-DBUILD_CLIENTS_SAMPLES=on`  | Boost program options, FFTW              |
 
 To build all of the above clients, use `-DBUILD_CLIENTS=on`. The build process will 

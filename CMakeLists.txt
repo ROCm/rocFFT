@@ -202,13 +202,11 @@ include( clients/cmake/build-options.cmake )
 if( BUILD_CLIENTS )
   set( BUILD_CLIENTS_RIDER ON )
   set( BUILD_CLIENTS_SAMPLES ON )
-  set( BUILD_CLIENTS_SELFTEST ON )
   set( BUILD_CLIENTS_TESTS ON )
 endif( )
 
 if( BUILD_CLIENTS_SAMPLES
     OR BUILD_CLIENTS_TESTS
-    OR BUILD_CLIENTS_SELFTEST
     OR BUILD_CLIENTS_RIDER )
   if(BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SELFTEST OR BUILD_CLIENTS_RIDER)
     find_package( Boost COMPONENTS program_options REQUIRED)
@@ -231,7 +229,7 @@ if( BUILD_CLIENTS_SAMPLES
   endif()
   rocm_package_setup_component(clients)
   rocm_package_setup_client_component(clients-common)
-  if(BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SELFTEST)
+  if(BUILD_CLIENTS_TESTS)
     rocm_package_setup_client_component(
       tests
       DEPENDS

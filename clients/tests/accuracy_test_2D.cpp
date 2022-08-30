@@ -36,7 +36,7 @@ using ::testing::ValuesIn;
 const static std::vector<size_t> pow2_range
     = {2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192};
 
-const static std::vector<size_t> pow3_range = {3, 27, 81, 243, 729, 2187, 6561};
+const static std::vector<size_t> pow3_range = {3, 9, 27, 81, 243, 729, 2187, 6561};
 
 const static std::vector<size_t> pow5_range = {5, 25, 125, 625, 3125, 15625};
 
