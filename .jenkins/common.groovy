@@ -74,7 +74,7 @@ def runTestCommand (platform, project, boolean debug=false)
 def runPackageCommand(platform, project, jobName, boolean debug=false)
 {
     String directory = debug ? 'debug' : 'release'
-    def packageHelper = platform.makePackage(platform.jenkinsLabel,"${project.paths.project_build_prefix}/build/${directory}",true)
+    def packageHelper = platform.makePackage(platform.jenkinsLabel,"${project.paths.project_build_prefix}/build/${directory}",false)
     platform.runCommand(this, packageHelper[0])
     platform.archiveArtifacts(this, packageHelper[1])
 }

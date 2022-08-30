@@ -210,13 +210,44 @@ if( BUILD_CLIENTS_SAMPLES
     OR BUILD_CLIENTS_TESTS
     OR BUILD_CLIENTS_SELFTEST
     OR BUILD_CLIENTS_RIDER )
+  if(BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SELFTEST OR BUILD_CLIENTS_RIDER)
+    find_package( Boost COMPONENTS program_options REQUIRED)
+    set(BOOST_DEB "libboost${Boost_VERSION_MAJOR}.${Boost_VERSION_MINOR}-program-options-dev")
+    set(BOOST_RPM "boost-devel = ${Boost_VERSION}")
+  endif()
+  if( NOT CLIENTS_OS )
+    rocm_set_os_id( CLIENTS_OS )
+  endif()
+  if(BUILD_CLIENTS_TESTS AND (NOT DEFINED BUILD_CLIENTS_TESTS_OPENMP OR BUILD_CLIENTS_TESTS_OPENMP))
+    set(OPENMP_DEB "libomp-dev")
+    if(CLIENTS_OS STREQUAL "sles")
+      set(OPENMP_RPM "libgomp1")
+    else()
+      set(OPENMP_RPM "libgomp")
+    endif()
+  endif()
+  if(CLIENTS_OS STREQUAL "sles")
+    set(BOOST_RPM RPM "libboost_program_options${Boost_VERSION_MAJOR}_${Boost_VERSION_MINOR}_${Boost_VERSION_PATCH}-devel")
+  endif()
   rocm_package_setup_component(clients)
   rocm_package_setup_client_component(clients-common)
   if(BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SELFTEST)
-    rocm_package_setup_client_component(tests DEPENDS COMPONENT clients-common)
+    rocm_package_setup_client_component(
+      tests
+      DEPENDS
+        COMPONENT clients-common
+        DEB ${BOOST_DEB} ${OPENMP_DEB}
+        RPM ${BOOST_RPM} ${OPENMP_RPM}
+    )
   endif()
   if(BUILD_CLIENTS_RIDER)
-    rocm_package_setup_client_component(benchmarks DEPENDS COMPONENT clients-common)
+    rocm_package_setup_client_component(
+      benchmarks
+      DEPENDS
+        COMPONENT clients-common
+        DEB ${BOOST_DEB}
+        RPM ${BOOST_RPM}
+    )
     rocm_install(
       DIRECTORY scripts/perf
       DESTINATION ${CMAKE_INSTALL_BINDIR}

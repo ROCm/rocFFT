@@ -58,10 +58,10 @@ list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 # used with clang tooling or vim.
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 
-if(NOT ROCFFT_BUILD_SCOPE AND 
-   NOT BUILD_CLIENTS_SAMPLES AND 
-   NOT BUILD_CLIENTS_TESTS AND 
-   NOT BUILD_CLIENTS_SELFTEST AND 
+if(NOT ROCFFT_BUILD_SCOPE AND
+   NOT BUILD_CLIENTS_SAMPLES AND
+   NOT BUILD_CLIENTS_TESTS AND
+   NOT BUILD_CLIENTS_SELFTEST AND
    NOT BUILD_CLIENTS_RIDER)
   set( BUILD_CLIENTS_SAMPLES ON )
   set( BUILD_CLIENTS_TESTS ON )
@@ -105,59 +105,3 @@ endif( )
 if( BUILD_CLIENTS_RIDER )
   add_subdirectory( rider )
 endif( )
-
-# This is a simple and temporary way to package all clients with dpkg
-# on ubuntu.
-# We need a better solution to share with other projects in rocm-cmake.
-include(CMakeParseArguments)
-
-function(rocm_create_package_clients)
-  set(options)
-  set(oneValueArgs LIB_NAME DESCRIPTION SECTION MAINTAINER VERSION)
-  set(multiValueArgs DEPENDS)
-
-  cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}"
-    "${multiValueArgs}" ${ARGN})
-
-  string(CONCAT PACKAGE_NAME ${PARSE_LIB_NAME} "-clients-" ${PARSE_VERSION}
-    "-Linux.deb")
-  string(CONCAT DEB_CONTROL_FILE_CONTENT
-    "Package: " ${PARSE_LIB_NAME} "-clients"
-    "\nVersion: " ${PARSE_VERSION}
-    "\nSection: " ${PARSE_SECTION}
-    "\nPriority: optional"
-    "\nArchitecture: amd64"
-    "\nMaintainer: " ${PARSE_MAINTAINER}
-    "\nDescription: " ${PARSE_DESCRIPTION}
-    "\nDepends: " ${PARSE_LIB_NAME} "(>=" ${PARSE_VERSION} ")\n\n")
-
-  if(EXISTS "${PROJECT_BINARY_DIR}/package")
-    file(REMOVE_RECURSE "${PROJECT_BINARY_DIR}/package")
-  endif()
-  file(MAKE_DIRECTORY
-    "${PROJECT_BINARY_DIR}/package/${CPACK_PACKAGING_INSTALL_PREFIX}/share/${PARSE_LIB_NAME}/clients")
-  file(WRITE
-    "${PROJECT_BINARY_DIR}/package/DEBIAN/control"
-    ${DEB_CONTROL_FILE_CONTENT})
-
-  add_custom_target(package_clients
-    COMMAND ${CMAKE_COMMAND} -E remove
-    -f "${PROJECT_BINARY_DIR}/package/${CPACK_PACKAGING_INSTALL_PREFIX}/share/${PARSE_LIB_NAME}/clients/*"
-    COMMAND ${CMAKE_COMMAND} -E copy
-    "${PROJECT_BINARY_DIR}/staging/*"
-    "${PROJECT_BINARY_DIR}/package/${CPACK_PACKAGING_INSTALL_PREFIX}/share/${PARSE_LIB_NAME}/clients"
-    COMMAND dpkg -b "${PROJECT_BINARY_DIR}/package/"  ${PACKAGE_NAME})
-endfunction(rocm_create_package_clients)
-
-
-if ( (BUILD_CLIENTS_SAMPLES OR
-      BUILD_CLIENTS_TESTS OR
-      BUILD_CLIENTS_SELFTEST OR
-      BUILD_CLIENTS_RIDER) 
-      AND ROCFFT_BUILD_SCOPE )
-  rocm_create_package_clients(LIB_NAME rocfft
-    DESCRIPTION "ROCm FFT library client programs"
-    MAINTAINER "rocfft-maintainer@amd.com"
-    SECTION "dev"
-    VERSION ${rocfft_VERSION})
-endif()
