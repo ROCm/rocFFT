@@ -99,7 +99,6 @@ std::string PrintDirectToFromRegMode(const DirectRegType ty)
     return TypetoString.at(ty);
 }
 
-#ifdef ROCFFT_SCALE_FACTOR
 rocfft_status rocfft_plan_description_set_scale_factor(rocfft_plan_description description,
                                                        const double            scale_factor)
 {
@@ -109,7 +108,6 @@ rocfft_status rocfft_plan_description_set_scale_factor(rocfft_plan_description d
     description->scale_factor = scale_factor;
     return rocfft_status_success;
 }
-#endif
 
 static size_t offset_count(rocfft_array_type type)
 {

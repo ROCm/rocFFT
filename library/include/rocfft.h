@@ -209,7 +209,6 @@ ROCFFT_EXPORT rocfft_status rocfft_execute(const rocfft_plan     plan,
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_plan_destroy(rocfft_plan plan);
 
-#ifdef ROCFFT_SCALE_FACTOR
 /*! @brief Set scaling factor.
  *  @details rocFFT multiplies each element of the result by the given factor at the end of the transform.
  *
@@ -220,7 +219,6 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_destroy(rocfft_plan plan);
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_factor(
     rocfft_plan_description description, const double scale_factor);
-#endif
 
 /*!
  *  @brief Set advanced data layout parameters on a plan description

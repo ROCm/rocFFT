@@ -2,6 +2,11 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
+## (Unreleased) rocFFT 1.0.19
+
+### Added
+- Added rocfft_plan_description_set_scale_factor API to efficiently multiply each output element of a FFT by a given scaling factor.
+
 ## (Unreleased) rocFFT 1.0.18
 
 ### Changed

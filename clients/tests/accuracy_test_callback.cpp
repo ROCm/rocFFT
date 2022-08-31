@@ -139,7 +139,6 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_callback,
                                                                   true)),
                          accuracy_test::TestName);
 
-#ifdef ROCFFT_SCALE_FACTOR
 // one of the obvious use cases for callbacks is to implement result
 // scaling manually, so use the same sizes to test rocFFT's own
 // result scaling feature.
@@ -163,4 +162,3 @@ INSTANTIATE_TEST_SUITE_P(scaling,
                          accuracy_test,
                          ::testing::ValuesIn(param_generator_scaling(callback_sizes)),
                          accuracy_test::TestName);
-#endif

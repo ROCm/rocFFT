@@ -199,7 +199,6 @@ public:
                 throw std::runtime_error("rocfft_plan_description_set_data_layout failed");
             }
 
-#ifdef ROCFFT_SCALE_FACTOR
             if(scale_factor != 1.0)
             {
                 fft_status = rocfft_plan_description_set_scale_factor(desc, scale_factor);
@@ -208,7 +207,6 @@ public:
                     throw std::runtime_error("rocfft_plan_description_set_scale_factor failed");
                 }
             }
-#endif
         }
 
         if(plan == nullptr)

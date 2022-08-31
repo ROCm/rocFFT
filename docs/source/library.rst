@@ -205,6 +205,7 @@ following information:
 * In-place or not in-place transform
 * Format (array type) of the input/output buffer
 * Layout of data in the input/output buffer 
+* Scaling factor to apply to the output of the transform
 
 The rocFFT plan does not include the following parameters:
 
@@ -324,6 +325,18 @@ Transforms of real data
    :maxdepth: 2
 
    real
+
+Result Scaling
+--------------
+
+The output of a forward or backward FFT often needs to be multiplied
+by a scaling factor before the data can be passed to the next step of
+a computation.  While users of rocFFT can launch a separate GPU
+kernel to do this work, rocFFT provides a
+:cpp:func:`rocfft_plan_description_set_scale_factor` function to more
+efficiently combine this scaling multiplication with the FFT work.
+
+The scaling factor is set on the plan description prior to plan creation.
 
 Load and Store Callbacks
 ------------------------

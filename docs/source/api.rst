@@ -60,9 +60,7 @@ to the :cpp:func:`rocfft_plan_create` function.
 
 .. doxygenfunction:: rocfft_plan_description_destroy
 
-.. comment  doxygenfunction:: rocfft_plan_description_set_scale_float
-
-.. comment doxygenfunction:: rocfft_plan_description_set_scale_double
+.. doxygenfunction:: rocfft_plan_description_set_scale_factor
 
 .. doxygenfunction:: rocfft_plan_description_set_data_layout
 
