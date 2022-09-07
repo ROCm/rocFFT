@@ -1480,51 +1480,6 @@ void ProcessNode(ExecPlan& execPlan)
     // NB: The order matters: assign param -> fusion -> refresh internal node param
     execPlan.rootPlan->RefreshTree();
 
-    // Adjust strides given to the kernel so that it can just do a
-    // straight copy through LDS - strides will tell it exactly how
-    // to transpose.  Critical here is to always read/write along the
-    // fastest dimension (x), to coalesce memory accesses.
-    //
-    // The kernel is written to coalesce reads along fastest
-    // dimension, and writes along the second-fastest dimension.
-    //
-    // This adjustment is necessary at the moment because all plans
-    // are built assuming transpose kernels take row-major output
-    // strides, when the kernel implementation now manipulates
-    // strides on a tiled copy to do the transpose.
-    for(auto& node : execPlan.execSeq)
-    {
-        auto& length  = node->length;
-        auto& istride = node->inStride;
-        auto& ostride = node->outStride;
-        if(node->scheme == CS_KERNEL_TRANSPOSE_XY_Z)
-        {
-            // x -> y
-            // y -> z
-            // z -> x
-            //
-            // we want to read xz, write yx
-            std::swap(length[1], length[2]);
-            std::swap(istride[1], istride[2]);
-            std::swap(ostride[0], ostride[1]);
-        }
-        else if(node->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
-        {
-            // x -> z
-            // y -> x
-            // z -> y
-            //
-            // we want to read xy, write xz
-            std::swap(ostride[1], ostride[2]);
-            std::swap(ostride[0], ostride[1]);
-        }
-        else if(node->scheme == CS_KERNEL_TRANSPOSE)
-        {
-            // 2D transform, just flip fastest dimensions for output
-            std::swap(ostride[0], ostride[1]);
-        }
-    }
-
     // add padding if necessary
     policy.PadPlan(execPlan);
 

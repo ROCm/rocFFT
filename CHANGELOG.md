@@ -4,6 +4,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## (Unreleased) rocFFT 1.0.19
 
+### Optimizations
+- Optimized some strided large 1D plans.
+
 ### Added
 - Added rocfft_plan_description_set_scale_factor API to efficiently multiply each output element of a FFT by a given scaling factor.
 

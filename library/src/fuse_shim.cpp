@@ -241,17 +241,9 @@ std::unique_ptr<TreeNode> RTFuseShim::FuseKernels()
     fused->comments.push_back("RTFuseShim: fused " + PrintScheme(stockham->scheme)
                               + " and following " + PrintScheme(transpose->scheme));
 
-    if(transpose->scheme == CS_KERNEL_TRANSPOSE)
+    if(transpose->scheme == CS_KERNEL_TRANSPOSE || transpose->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
     {
         fused->outStride = transpose->outStride;
-        std::swap(fused->outStride[0], fused->outStride[1]);
-    }
-    else if(transpose->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
-    {
-        // make stockham write Z_XY-transposed outputs
-        fused->outStride[0] = transpose->outStride[2];
-        fused->outStride[1] = transpose->outStride[0];
-        fused->outStride[2] = transpose->outStride[1];
     }
     else
     {
@@ -310,6 +302,8 @@ std::unique_ptr<TreeNode> RT_ZXY_FuseShim::FuseKernels()
     fused->obOut        = transpose->obOut;
     fused->oDist        = transpose->oDist;
     fused->outStride    = transpose->outStride;
+    std::swap(fused->outStride[0], fused->outStride[1]);
+    std::swap(fused->outStride[1], fused->outStride[2]);
     fused->comments.push_back("RT_ZXY_FuseShim: fused " + PrintScheme(CS_KERNEL_STOCKHAM)
                               + " and following " + PrintScheme(CS_KERNEL_TRANSPOSE_Z_XY));
     fused->outputLength = transpose->outputLength;
@@ -448,6 +442,13 @@ std::unique_ptr<TreeNode> R2CTrans_FuseShim::FuseKernels()
     // fused->obOut            = transpose->obOut;
     fused->oDist     = transpose->oDist;
     fused->outStride = transpose->outStride;
+    if(transpose->scheme == CS_KERNEL_TRANSPOSE)
+        std::swap(fused->outStride[0], fused->outStride[1]);
+    else if(transpose->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
+    {
+        std::swap(fused->outStride[0], fused->outStride[1]);
+        std::swap(fused->outStride[1], fused->outStride[2]);
+    }
     fused->comments.push_back("R2CTrans_FuseShim: fused " + PrintScheme(CS_KERNEL_R_TO_CMPLX)
                               + " and following " + PrintScheme(transpose->scheme));
 
@@ -538,6 +539,11 @@ std::unique_ptr<TreeNode> TransC2R_FuseShim::FuseKernels()
     auto fused
         = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_CMPLX_TO_R, transpose->parent);
     fused->CopyNodeData(*transpose);
+    if(transpose->scheme == CS_KERNEL_TRANSPOSE_XY_Z)
+    {
+        std::swap(fused->inStride[1], fused->inStride[2]);
+        std::swap(fused->length[1], fused->length[2]);
+    }
     // no need to check kernel exists, this scheme uses a built-in kernel
     fused->placement    = rocfft_placement_notinplace;
     fused->outArrayType = c2r->outArrayType;
@@ -639,6 +645,7 @@ std::unique_ptr<TreeNode> STK_R2CTrans_FuseShim::FuseKernels()
     fused->obOut        = transpose->obOut;
     fused->oDist        = transpose->oDist;
     fused->outStride    = transpose->outStride;
+    std::swap(fused->outStride[0], fused->outStride[1]);
     fused->comments.push_back("STK_R2CTrans_FuseShim: fused " + PrintScheme(CS_KERNEL_STOCKHAM)
                               + ", " + PrintScheme(CS_KERNEL_R_TO_CMPLX) + " and following "
                               + PrintScheme(transpose->scheme));

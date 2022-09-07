@@ -74,8 +74,10 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
         // the generator as-is
         key    = fpkey(node.length[0], node.precision, pool_scheme);
         kernel = pool.get_kernel(key);
-        // already precompiled?
-        if(kernel->device_function && !enable_scaling)
+        // if a kernel is already precompiled, just use that.  but
+        // changing largeTwdBatch transform count requires RTC, so we
+        // can't use a precompiled kernel in that case.
+        if(kernel->device_function && !enable_scaling && !node.largeTwdBatchIsTransformCount)
         {
             return generator;
         }
@@ -179,6 +181,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                                         unit_stride,
                                         node.largeTwdBase,
                                         node.ltwdSteps,
+                                        node.largeTwdBatchIsTransformCount,
                                         node.ebtype,
                                         node.dir2regMode,
                                         node.intrinsicMode,
@@ -201,6 +204,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                             unit_stride,
                             node.largeTwdBase,
                             node.ltwdSteps,
+                            node.largeTwdBatchIsTransformCount,
                             node.ebtype,
                             node.dir2regMode,
                             node.intrinsicMode,

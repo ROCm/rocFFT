@@ -41,6 +41,7 @@ void RTRT3DNode::BuildTree_internal()
     auto trans1Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
     trans1Plan->length = length;
     trans1Plan->SetTransposeOutputLength();
+    std::swap(trans1Plan->length[1], trans1Plan->length[2]);
     trans1Plan->dimension = 2;
 
     // z fft
@@ -103,12 +104,13 @@ void RTRT3DNode::AssignParams_internal()
     // B -> T
     auto& trans1Plan     = childNodes[1];
     trans1Plan->inStride = xyPlan->outStride;
-    trans1Plan->iDist    = xyPlan->oDist;
+    std::swap(trans1Plan->inStride[1], trans1Plan->inStride[2]);
+    trans1Plan->iDist = xyPlan->oDist;
 
+    trans1Plan->outStride.push_back(trans1Plan->length[1]);
     trans1Plan->outStride.push_back(1);
-    trans1Plan->outStride.push_back(trans1Plan->length[2]);
-    trans1Plan->outStride.push_back(trans1Plan->length[0] * trans1Plan->outStride[1]);
-    trans1Plan->oDist = trans1Plan->length[1] * trans1Plan->outStride[2];
+    trans1Plan->outStride.push_back(trans1Plan->length[0] * trans1Plan->outStride[0]);
+    trans1Plan->oDist = trans1Plan->length[2] * trans1Plan->outStride[2];
 
     for(size_t index = 3; index < length.size(); index++)
     {
@@ -119,7 +121,8 @@ void RTRT3DNode::AssignParams_internal()
     // T -> T
     auto& zPlan     = childNodes[2];
     zPlan->inStride = trans1Plan->outStride;
-    zPlan->iDist    = trans1Plan->oDist;
+    std::swap(zPlan->inStride[0], zPlan->inStride[1]);
+    zPlan->iDist = trans1Plan->oDist;
 
     zPlan->outStride = zPlan->inStride;
     zPlan->oDist     = zPlan->iDist;
@@ -132,7 +135,9 @@ void RTRT3DNode::AssignParams_internal()
     trans2Plan->iDist    = zPlan->oDist;
 
     trans2Plan->outStride = outStride;
-    trans2Plan->oDist     = oDist;
+    std::swap(trans2Plan->outStride[1], trans2Plan->outStride[2]);
+    std::swap(trans2Plan->outStride[0], trans2Plan->outStride[1]);
+    trans2Plan->oDist = oDist;
 }
 
 /*****************************************************
@@ -236,6 +241,9 @@ void TRTRTR3DNode::AssignParams_internal()
         auto& row_plan     = childNodes[i + 1];
         row_plan->inStride = trans_plan->outStride;
         row_plan->iDist    = trans_plan->oDist;
+
+        std::swap(trans_plan->outStride[1], trans_plan->outStride[2]);
+        std::swap(trans_plan->outStride[0], trans_plan->outStride[1]);
 
         if(i == 4)
         {
@@ -357,6 +365,8 @@ void BLOCKRC3DNode::BuildTree_internal()
             auto trans_plan  = NodeFactory::CreateNodeFromScheme(transScheme, this);
             trans_plan->length = cur_length;
             trans_plan->SetTransposeOutputLength();
+            if(!use_ZXY_sbrc)
+                std::swap(trans_plan->length[1], trans_plan->length[2]);
             trans_plan->dimension = 2;
 
             // RT
@@ -426,17 +436,18 @@ void BLOCKRC3DNode::AssignParams_internal()
         }
         case CS_KERNEL_TRANSPOSE_XY_Z:
         {
+            std::swap(node->inStride[1], node->inStride[2]);
+            node->outStride.push_back(node->length[1]);
             node->outStride.push_back(1);
-            node->outStride.push_back(node->outStride[0] * node->length[2]);
-            node->outStride.push_back(node->outStride[1] * node->length[0]);
+            node->outStride.push_back(node->outStride[0] * node->length[0]);
             node->oDist = node->iDist;
             break;
         }
         case CS_KERNEL_TRANSPOSE_Z_XY:
         {
+            node->outStride.push_back(node->length[1] * node->length[2]);
             node->outStride.push_back(1);
-            node->outStride.push_back(node->outStride[0] * node->length[1]);
-            node->outStride.push_back(node->outStride[1] * node->length[2]);
+            node->outStride.push_back(node->length[1]);
             node->oDist = node->iDist;
             break;
         }
@@ -450,9 +461,14 @@ void BLOCKRC3DNode::AssignParams_internal()
         }
         prev_outStride = node->outStride;
         prev_oDist     = node->oDist;
+        if(node->scheme == CS_KERNEL_TRANSPOSE_XY_Z)
+            std::swap(prev_outStride[0], prev_outStride[1]);
+        else if(node->scheme == CS_KERNEL_TRANSPOSE_Z_XY)
+        {
+            std::swap(prev_outStride[0], prev_outStride[1]);
+            std::swap(prev_outStride[1], prev_outStride[2]);
+        }
     }
-    childNodes.back()->outStride = outStride;
-    childNodes.back()->oDist     = oDist;
 }
 
 /*****************************************************

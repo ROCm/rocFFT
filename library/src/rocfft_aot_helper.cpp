@@ -151,6 +151,7 @@ void build_stockham_function_pool(CompileQueue& queue)
                                                                     unitstride,
                                                                     base_step[0],
                                                                     base_step[1],
+                                                                    false,
                                                                     EmbeddedType::NONE,
                                                                     i.second.direct_to_from_reg
                                                                         ? TRY_ENABLE_IF_SUPPORT
@@ -182,6 +183,7 @@ void build_stockham_function_pool(CompileQueue& queue)
                                                 unitstride,
                                                 base_step[0],
                                                 base_step[1],
+                                                false,
                                                 EmbeddedType::NONE,
                                                 i.second.direct_to_from_reg
                                                     ? TRY_ENABLE_IF_SUPPORT

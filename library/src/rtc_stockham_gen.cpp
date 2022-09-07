@@ -51,6 +51,7 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
                                      bool                    unitstride,
                                      size_t                  largeTwdBase,
                                      size_t                  largeTwdSteps,
+                                     bool                    largeTwdBatchIsTransformCount,
                                      EmbeddedType            ebtype,
                                      DirectRegType           dir2regMode,
                                      IntrinsicAccessType     intrinsicMode,
@@ -169,6 +170,8 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
     {
         kernel_name += "_twdbase" + std::to_string(largeTwdBase);
         kernel_name += "_" + std::to_string(largeTwdSteps) + "step";
+        if(largeTwdBatchIsTransformCount)
+            kernel_name += "_batchcount";
     }
 
     switch(ebtype)
@@ -218,6 +221,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          bool                          unit_stride,
                          size_t                        largeTwdBase,
                          size_t                        largeTwdSteps,
+                         bool                          largeTwdBatchIsTransformCount,
                          EmbeddedType                  ebtype,
                          DirectRegType                 dir2regMode,
                          IntrinsicAccessType           intrinsicMode,
@@ -254,7 +258,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
         if(scheme == CS_KERNEL_STOCKHAM)
             kernel = std::make_unique<StockhamKernelRR>(specs);
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-            kernel = std::make_unique<StockhamKernelCC>(specs);
+            kernel = std::make_unique<StockhamKernelCC>(specs, largeTwdBatchIsTransformCount);
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
             kernel = std::make_unique<StockhamKernelCR>(specs);
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)

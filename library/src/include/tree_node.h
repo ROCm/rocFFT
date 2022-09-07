@@ -296,6 +296,10 @@ public:
     // if we pass this as a template arg in kernel, should avoid dynamic while-loop
     // We will update this in set_large_twd_base_steps()
     size_t ltwdSteps = 0;
+    // true if large twd multiply uses batch as transform count - this
+    // is done on strided large 1D FFTs where the batch dimension moves
+    // faster than the large 1D subdimension
+    bool largeTwdBatchIsTransformCount = false;
 
     // embedded C2R/R2C pre/post processing
     EmbeddedType ebtype = EmbeddedType::NONE;

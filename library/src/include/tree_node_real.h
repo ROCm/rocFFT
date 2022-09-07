@@ -38,6 +38,12 @@ protected:
     }
     void AssignParams_internal() override;
     void BuildTree_internal() override;
+
+public:
+    bool UseOutputLengthForPadding() override
+    {
+        return true;
+    }
 };
 
 /*****************************************************
@@ -79,6 +85,11 @@ class Real2DEvenNode : public InternalNode
         TR_PAIR // TRTR Real2C, or RTRT for C2Real
     };
 
+    bool UseOutputLengthForPadding() override
+    {
+        return true;
+    }
+
 protected:
     explicit Real2DEvenNode(TreeNode* p)
         : InternalNode(p)
@@ -110,6 +121,11 @@ class Real3DEvenNode : public InternalNode
         SBRC, // SBRC + SBRC + SBRC with post-processing for Real2C only
         TR_PAIRS // TRTRTR Real2C, or RTRTRT for C2Real
     };
+
+    bool UseOutputLengthForPadding() override
+    {
+        return true;
+    }
 
 protected:
     explicit Real3DEvenNode(TreeNode* p)

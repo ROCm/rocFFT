@@ -690,16 +690,17 @@ void Real2DEvenNode::AssignParams_internal_TR_pair()
             trans1Plan->inStride = row1Plan->outStride;
             trans1Plan->iDist    = row1Plan->oDist;
 
-            trans1Plan->outStride.push_back(1);
             trans1Plan->outStride.push_back(trans1Plan->length[1]);
-            trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
+            trans1Plan->outStride.push_back(1);
+            trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[0];
         }
 
         auto& row2Plan = childNodes[2];
         {
             // T -> T
             row2Plan->inStride = trans1Plan->outStride;
-            row2Plan->iDist    = trans1Plan->oDist;
+            std::swap(row2Plan->inStride[0], row2Plan->inStride[1]);
+            row2Plan->iDist = trans1Plan->oDist;
 
             row2Plan->outStride = row2Plan->inStride;
             row2Plan->oDist     = row2Plan->iDist;
@@ -714,7 +715,8 @@ void Real2DEvenNode::AssignParams_internal_TR_pair()
             trans2Plan->iDist    = row2Plan->oDist;
 
             trans2Plan->outStride = outStride;
-            trans2Plan->oDist     = oDist;
+            std::swap(trans2Plan->outStride[0], trans2Plan->outStride[1]);
+            trans2Plan->oDist = oDist;
         }
     }
     else
@@ -724,14 +726,15 @@ void Real2DEvenNode::AssignParams_internal_TR_pair()
             trans1Plan->inStride = inStride;
             trans1Plan->iDist    = iDist;
 
-            trans1Plan->outStride.push_back(1);
             trans1Plan->outStride.push_back(trans1Plan->length[1]);
-            trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
+            trans1Plan->outStride.push_back(1);
+            trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[0];
         }
         auto& c2cPlan = childNodes[1];
         {
             c2cPlan->inStride = trans1Plan->outStride;
-            c2cPlan->iDist    = trans1Plan->oDist;
+            std::swap(c2cPlan->inStride[0], c2cPlan->inStride[1]);
+            c2cPlan->iDist = trans1Plan->oDist;
 
             c2cPlan->outStride = c2cPlan->inStride;
             c2cPlan->oDist     = c2cPlan->iDist;
@@ -741,15 +744,18 @@ void Real2DEvenNode::AssignParams_internal_TR_pair()
         auto& trans2Plan = childNodes[2];
         {
             trans2Plan->inStride = trans1Plan->outStride;
-            trans2Plan->iDist    = trans1Plan->oDist;
+            std::swap(trans2Plan->inStride[0], trans2Plan->inStride[1]);
+            trans2Plan->iDist = trans1Plan->oDist;
 
             trans2Plan->outStride = trans1Plan->inStride;
-            trans2Plan->oDist     = trans2Plan->length[0] * trans2Plan->outStride[1];
+            std::swap(trans2Plan->outStride[0], trans2Plan->outStride[1]);
+            trans2Plan->oDist = trans2Plan->length[0] * trans2Plan->outStride[0];
         }
         auto& c2rPlan = childNodes[3];
         {
             c2rPlan->inStride = trans2Plan->outStride;
-            c2rPlan->iDist    = trans2Plan->oDist;
+            std::swap(c2rPlan->inStride[0], c2rPlan->inStride[1]);
+            c2rPlan->iDist = trans2Plan->oDist;
 
             c2rPlan->outStride = outStride;
             c2rPlan->oDist     = oDist;
@@ -1077,6 +1083,7 @@ void Real3DEvenNode::BuildTree_internal_TR_pairs()
         auto trans3    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
         trans3->length = length;
         trans3->SetTransposeOutputLength();
+        std::swap(trans3->length[1], trans3->length[2]);
         trans3->dimension = 2;
 
         // column
@@ -1091,6 +1098,7 @@ void Real3DEvenNode::BuildTree_internal_TR_pairs()
         auto trans2    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
         trans2->length = trans3->outputLength;
         trans2->SetTransposeOutputLength();
+        std::swap(trans2->length[1], trans2->length[2]);
         trans2->dimension = 2;
 
         // column
@@ -1105,6 +1113,7 @@ void Real3DEvenNode::BuildTree_internal_TR_pairs()
         auto trans1    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
         trans1->length = trans2->outputLength;
         trans1->SetTransposeOutputLength();
+        std::swap(trans1->length[1], trans1->length[2]);
         trans1->dimension = 2;
 
         // --------------------------------
@@ -1309,15 +1318,17 @@ void Real3DEvenNode::AssignParams_internal_TR_pairs()
         {
             trans1->inStride = rcplan->outStride;
             trans1->iDist    = rcplan->oDist;
+            trans1->outStride.push_back(trans1->length[2] * trans1->length[1]);
             trans1->outStride.push_back(1);
             trans1->outStride.push_back(trans1->length[1]);
-            trans1->outStride.push_back(trans1->length[2] * trans1->outStride[1]);
             trans1->oDist = trans1->iDist;
         }
 
         auto& c1plan = childNodes[2];
         {
-            c1plan->inStride  = trans1->outStride;
+            c1plan->inStride = trans1->outStride;
+            std::swap(c1plan->inStride[0], c1plan->inStride[1]);
+            std::swap(c1plan->inStride[1], c1plan->inStride[2]);
             c1plan->iDist     = trans1->oDist;
             c1plan->outStride = c1plan->inStride;
             c1plan->oDist     = c1plan->iDist;
@@ -1329,15 +1340,17 @@ void Real3DEvenNode::AssignParams_internal_TR_pairs()
         {
             trans2->inStride = c1plan->outStride;
             trans2->iDist    = c1plan->oDist;
+            trans2->outStride.push_back(trans2->length[2] * trans2->length[1]);
             trans2->outStride.push_back(1);
             trans2->outStride.push_back(trans2->length[1]);
-            trans2->outStride.push_back(trans2->length[2] * trans2->outStride[1]);
             trans2->oDist = trans2->iDist;
         }
 
         auto& c2plan = childNodes[4];
         {
-            c2plan->inStride  = trans2->outStride;
+            c2plan->inStride = trans2->outStride;
+            std::swap(c2plan->inStride[0], c2plan->inStride[1]);
+            std::swap(c2plan->inStride[1], c2plan->inStride[2]);
             c2plan->iDist     = trans2->oDist;
             c2plan->outStride = c2plan->inStride;
             c2plan->oDist     = c2plan->iDist;
@@ -1350,7 +1363,9 @@ void Real3DEvenNode::AssignParams_internal_TR_pairs()
             trans3->inStride  = c2plan->outStride;
             trans3->iDist     = c2plan->oDist;
             trans3->outStride = outStride;
-            trans3->oDist     = oDist;
+            std::swap(trans3->outStride[1], trans3->outStride[2]);
+            std::swap(trans3->outStride[0], trans3->outStride[1]);
+            trans3->oDist = oDist;
         }
     }
     else
@@ -1362,16 +1377,19 @@ void Real3DEvenNode::AssignParams_internal_TR_pairs()
         {
             auto& trans3     = childNodes[0];
             trans3->inStride = inStride;
-            trans3->iDist    = iDist;
+            std::swap(trans3->inStride[1], trans3->inStride[2]);
+            trans3->iDist = iDist;
+            trans3->outStride.push_back(trans3->length[1]);
             trans3->outStride.push_back(1);
-            trans3->outStride.push_back(trans3->outStride[0] * trans3->length[2]);
-            trans3->outStride.push_back(trans3->outStride[1] * trans3->length[0]);
+            trans3->outStride.push_back(trans3->outStride[0] * trans3->length[0]);
             trans3->oDist = trans3->iDist;
         }
 
         {
             auto& ccplan      = childNodes[1];
-            ccplan->inStride  = childNodes[0]->outStride;
+            ccplan->inStride  = {childNodes[0]->outStride[1],
+                                childNodes[0]->outStride[0],
+                                childNodes[0]->outStride[2]};
             ccplan->iDist     = childNodes[0]->oDist;
             ccplan->outStride = ccplan->inStride;
             ccplan->oDist     = ccplan->iDist;
@@ -1382,16 +1400,19 @@ void Real3DEvenNode::AssignParams_internal_TR_pairs()
         {
             auto& trans2     = childNodes[2];
             trans2->inStride = childNodes[1]->outStride;
-            trans2->iDist    = childNodes[1]->oDist;
+            std::swap(trans2->inStride[1], trans2->inStride[2]);
+            trans2->iDist = childNodes[1]->oDist;
+            trans2->outStride.push_back(trans2->length[1]);
             trans2->outStride.push_back(1);
-            trans2->outStride.push_back(trans2->outStride[0] * trans2->length[2]);
-            trans2->outStride.push_back(trans2->outStride[1] * trans2->length[0]);
+            trans2->outStride.push_back(trans2->outStride[0] * trans2->length[0]);
             trans2->oDist = trans2->iDist;
         }
 
         {
             auto& ccplan      = childNodes[3];
-            ccplan->inStride  = childNodes[2]->outStride;
+            ccplan->inStride  = {childNodes[2]->outStride[1],
+                                childNodes[2]->outStride[0],
+                                childNodes[2]->outStride[2]};
             ccplan->iDist     = childNodes[2]->oDist;
             ccplan->outStride = ccplan->inStride;
             ccplan->oDist     = ccplan->iDist;
@@ -1402,12 +1423,13 @@ void Real3DEvenNode::AssignParams_internal_TR_pairs()
         {
             auto& trans1     = childNodes[4];
             trans1->inStride = childNodes[3]->outStride;
-            trans1->iDist    = childNodes[3]->oDist;
+            std::swap(trans1->inStride[1], trans1->inStride[2]);
+            trans1->iDist = childNodes[3]->oDist;
+            trans1->outStride.push_back(trans1->length[1]);
             trans1->outStride.push_back(1);
-            trans1->outStride.push_back(trans1->outStride[0] * trans1->length[2]);
-            trans1->outStride.push_back(trans1->outStride[1] * trans1->length[0]);
+            trans1->outStride.push_back(trans1->outStride[0] * trans1->length[0]);
             trans1->oDist = trans1->iDist;
-            c2r_inStride  = trans1->outStride;
+            c2r_inStride  = {trans1->outStride[1], trans1->outStride[0], trans1->outStride[2]};
             c2r_iDist     = trans1->oDist;
         }
 

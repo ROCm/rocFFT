@@ -162,6 +162,7 @@ std::string test_kernel_src(const std::string&               kernel_name,
                         true,
                         0,
                         0,
+                        false,
                         EmbeddedType::NONE,
                         direct_to_from_reg ? DirectRegType::TRY_ENABLE_IF_SUPPORT
                                            : DirectRegType::FORCE_OFF_OR_NOT_SUPPORT,

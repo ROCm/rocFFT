@@ -132,9 +132,9 @@ void TRTRT1DNode::AssignParams_internal()
 
     if(trans1Plan->obOut == OB_TEMP)
     {
-        trans1Plan->outStride.push_back(1);
         trans1Plan->outStride.push_back(trans1Plan->length[1]);
-        trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[1];
+        trans1Plan->outStride.push_back(1);
+        trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[0];
 
         for(size_t index = 1; index < length.size(); index++)
         {
@@ -146,8 +146,8 @@ void TRTRT1DNode::AssignParams_internal()
     {
         if((parent == NULL) || (parent->scheme == CS_L1D_TRTRT))
         {
-            trans1Plan->outStride.push_back(outStride[0]);
             trans1Plan->outStride.push_back(outStride[0] * (trans1Plan->length[1]));
+            trans1Plan->outStride.push_back(outStride[0]);
             trans1Plan->oDist = oDist;
 
             for(size_t index = 1; index < length.size(); index++)
@@ -159,8 +159,8 @@ void TRTRT1DNode::AssignParams_internal()
             // from 2D/3D
             // assert((parent->obOut == OB_USER_OUT) || (parent->obOut == OB_TEMP_CMPLX_FOR_REAL));
 
-            trans1Plan->outStride.push_back(1);
             trans1Plan->outStride.push_back(trans1Plan->length[1]);
+            trans1Plan->outStride.push_back(1);
             trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->length[1];
 
             for(size_t index = 1; index < length.size(); index++)
@@ -172,7 +172,8 @@ void TRTRT1DNode::AssignParams_internal()
     }
 
     row1Plan->inStride = trans1Plan->outStride;
-    row1Plan->iDist    = trans1Plan->oDist;
+    std::swap(row1Plan->inStride[0], row1Plan->inStride[1]);
+    row1Plan->iDist = trans1Plan->oDist;
 
     if(row1Plan->placement == rocfft_placement_inplace)
     {
@@ -196,9 +197,9 @@ void TRTRT1DNode::AssignParams_internal()
 
     if(trans2Plan->obOut == OB_TEMP)
     {
-        trans2Plan->outStride.push_back(1);
         trans2Plan->outStride.push_back(trans2Plan->length[1]);
-        trans2Plan->oDist = trans2Plan->length[0] * trans2Plan->outStride[1];
+        trans2Plan->outStride.push_back(1);
+        trans2Plan->oDist = trans2Plan->length[0] * trans2Plan->outStride[0];
 
         for(size_t index = 1; index < length.size(); index++)
         {
@@ -210,8 +211,8 @@ void TRTRT1DNode::AssignParams_internal()
     {
         if((parent == NULL) || (parent && (parent->scheme == CS_L1D_TRTRT)))
         {
-            trans2Plan->outStride.push_back(outStride[0]);
             trans2Plan->outStride.push_back(outStride[0] * (trans2Plan->length[1]));
+            trans2Plan->outStride.push_back(outStride[0]);
             trans2Plan->oDist = oDist;
 
             for(size_t index = 1; index < length.size(); index++)
@@ -221,8 +222,8 @@ void TRTRT1DNode::AssignParams_internal()
         {
             // we dont have B info here, need to assume packed data and descended
             // from 2D/3D
-            trans2Plan->outStride.push_back(1);
             trans2Plan->outStride.push_back(trans2Plan->length[1]);
+            trans2Plan->outStride.push_back(1);
             trans2Plan->oDist = trans2Plan->length[0] * trans2Plan->length[1];
 
             for(size_t index = 1; index < length.size(); index++)
@@ -234,7 +235,8 @@ void TRTRT1DNode::AssignParams_internal()
     }
 
     row2Plan->inStride = trans2Plan->outStride;
-    row2Plan->iDist    = trans2Plan->oDist;
+    std::swap(row2Plan->inStride[0], row2Plan->inStride[1]);
+    row2Plan->iDist = trans2Plan->oDist;
 
     if(row2Plan->obIn == row2Plan->obOut)
     {
@@ -283,8 +285,8 @@ void TRTRT1DNode::AssignParams_internal()
     trans3Plan->inStride = row2Plan->outStride;
     trans3Plan->iDist    = row2Plan->oDist;
 
-    trans3Plan->outStride.push_back(outStride[0]);
     trans3Plan->outStride.push_back(outStride[0] * (trans3Plan->length[1]));
+    trans3Plan->outStride.push_back(outStride[0]);
     trans3Plan->oDist = oDist;
 
     for(size_t index = 1; index < length.size(); index++)
@@ -459,6 +461,37 @@ void CC1DNode::AssignParams_internal()
         for(size_t index = 1; index < length.size(); index++)
             row2colPlan->outStride.push_back(outStride[index]);
     }
+
+    // special case for strided large 1D FFT with dist 1
+    //
+    // L1D_CC assumes consecutive sub-dimensional column-FFTs are
+    // adjacent in memory, which makes column accesses efficient.
+    // Strided L1D transforms break that assumption and have bad
+    // performance.  But if dist is 1 then we can reorganize the
+    // dimensions so the kernels use the batch dimension as the
+    // adjacent one.
+    if(iDist == 1 && oDist == 1 && col2colPlan->obOut == OB_TEMP)
+    {
+        // hack the plan to put batch as second dimension since it moves
+        // faster than the actual second dimension
+        std::swap(col2colPlan->length.back(), col2colPlan->batch);
+        col2colPlan->outputLength = {col2colPlan->length.back(), col2colPlan->length.front()};
+        col2colPlan->inStride     = {col2colPlan->length.back() * col2colPlan->batch, 1};
+        col2colPlan->iDist        = col2colPlan->length.back();
+        // make output the same shape as input (even though it's going to
+        // a temp buffer), so both read+write are coalesced the same
+        col2colPlan->outStride                     = col2colPlan->inStride;
+        col2colPlan->oDist                         = col2colPlan->iDist;
+        col2colPlan->largeTwdBatchIsTransformCount = true;
+
+        // again, make batch the second dimension
+        std::swap(row2colPlan->length.back(), row2colPlan->batch);
+        row2colPlan->outputLength = {row2colPlan->length.back(), row2colPlan->length.front()};
+        row2colPlan->inStride     = {row2colPlan->length.back(), 1};
+        row2colPlan->iDist        = row2colPlan->length.front() * row2colPlan->length.back();
+        row2colPlan->outStride    = {1, row2colPlan->batch * row2colPlan->length.back()};
+        row2colPlan->oDist        = row2colPlan->length.back();
+    }
 }
 
 /*****************************************************
@@ -576,8 +609,8 @@ void CRT1DNode::AssignParams_internal()
         transPlan->inStride = row2rowPlan->outStride;
         transPlan->iDist    = row2rowPlan->oDist;
 
-        transPlan->outStride.push_back(outStride[0]);
         transPlan->outStride.push_back(outStride[0] * (transPlan->length[1]));
+        transPlan->outStride.push_back(outStride[0]);
         transPlan->oDist = oDist;
 
         for(size_t index = 1; index < length.size(); index++)
@@ -663,8 +696,8 @@ void CRT1DNode::AssignParams_internal()
         transPlan->inStride = row2rowPlan->outStride;
         transPlan->iDist    = row2rowPlan->oDist;
 
-        transPlan->outStride.push_back(outStride[0]);
         transPlan->outStride.push_back(outStride[0] * transPlan->length[1]);
+        transPlan->outStride.push_back(outStride[0]);
         transPlan->oDist = oDist;
 
         for(size_t index = 1; index < length.size(); index++)

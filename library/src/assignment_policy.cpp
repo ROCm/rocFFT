@@ -325,20 +325,35 @@ static void RecursiveTraverse(TreeNode* node, const std::function<void(TreeNode*
 
 bool AssignmentPolicy::CheckAssignmentValid(ExecPlan& execPlan)
 {
+    auto getBufSize = [](TreeNode* node, bool input) {
+        if(input)
+            return compute_ptrdiff(node->length, node->inStride, node->batch, node->iDist);
+        else
+        {
+            return compute_ptrdiff(node->UseOutputLengthForPadding() ? node->GetOutputLength()
+                                                                     : node->length,
+                                   node->outStride,
+                                   node->batch,
+                                   node->oDist);
+        }
+    };
+
     size_t sizeBufIn  = 0;
     size_t sizeBufOut = 0;
     if(execPlan.rootPlan->placement == rocfft_placement_notinplace)
     {
-        sizeBufIn  = execPlan.rootPlan->iDist;
-        sizeBufOut = execPlan.rootPlan->oDist;
+        sizeBufIn  = getBufSize(execPlan.rootPlan.get(), true);
+        sizeBufOut = getBufSize(execPlan.rootPlan.get(), false);
     }
     else
-        sizeBufOut = std::max(execPlan.rootPlan->iDist, execPlan.rootPlan->oDist);
+        sizeBufOut = std::max(getBufSize(execPlan.rootPlan.get(), true),
+                              getBufSize(execPlan.rootPlan.get(), false));
 
     for(auto& curr : execPlan.execSeq)
     {
-        if((curr->obOut == OB_USER_IN && curr->oDist > sizeBufIn)
-           || (curr->obOut == OB_USER_OUT && curr->oDist > sizeBufOut))
+        auto currSizeBufOut = getBufSize(curr, false);
+        if((curr->obOut == OB_USER_IN && currSizeBufOut > sizeBufIn)
+           || (curr->obOut == OB_USER_OUT && currSizeBufOut > sizeBufOut))
         {
             // std::cout << "buffer access violation, re-assign" << std::endl;
             return false;
@@ -348,11 +363,6 @@ bool AssignmentPolicy::CheckAssignmentValid(ExecPlan& execPlan)
         {
             const int infact  = curr->inArrayType == rocfft_array_type_real ? 1 : 2;
             const int outfact = curr->outArrayType == rocfft_array_type_real ? 1 : 2;
-            if((curr->batch > 1) && (outfact * curr->iDist != infact * curr->oDist))
-            {
-                // std::cout << "error in dist assignments, re-assign" << std::endl;
-                return false;
-            }
             for(size_t i = 0; i < curr->inStride.size(); i++)
             {
                 if(outfact * curr->inStride[i] != infact * curr->outStride[i])
@@ -1075,6 +1085,11 @@ static bool IsPaddableTempBuffer(OperatingBuffer buf)
 
 void AssignmentPolicy::PadPlan(ExecPlan& execPlan)
 {
+    // for strided FFTs with dist 1, we mess around with dimensions
+    // in ways that confuse padding.  don't try.
+    if(execPlan.rootPlan->iDist == 1 || execPlan.rootPlan->oDist == 1)
+        return;
+
     RecursiveTraverse(execPlan.rootPlan.get(), [&execPlan](TreeNode* n) {
         // Look for nodes that begin writing to a new temp buffer
         // (i.e. obOut is a paddable temp buffer, and obIn was a
