@@ -9,6 +9,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Added
 - Added rocfft_plan_description_set_scale_factor API to efficiently multiply each output element of a FFT by a given scaling factor.
+- Created a rocfft_kernel_cache.db file next to the installed library.  SBCC kernels are moved to this file when built with the library, and are runtime-compiled for new GPU architectures.
 
 ## (Unreleased) rocFFT 1.0.18
 

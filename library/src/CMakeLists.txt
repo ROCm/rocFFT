@@ -332,6 +332,26 @@ target_link_libraries( rocfft_aot_helper PRIVATE
   rocfft-function-pool-standalone
   )
 
+# compile kernels into the cache file we ship
+#
+# cache file should go next to the shared object - on Windows this
+# would be the DLL, not the import library.
+if( WIN32 )
+  set( ROCFFT_KERNEL_CACHE_PATH ${CMAKE_BINARY_DIR}/staging/rocfft_kernel_cache.db )
+else()
+  set( ROCFFT_KERNEL_CACHE_PATH ${CMAKE_BINARY_DIR}/library/src/rocfft_kernel_cache.db )
+endif()
+add_custom_command(
+  OUTPUT rocfft_kernel_cache.db
+  COMMAND rocfft_aot_helper ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${AMDGPU_TARGETS}
+  DEPENDS rocfft_aot_helper rocfft_rtc_helper
+  COMMENT "Compile kernels into shipped cache file"
+)
+add_custom_target( rocfft_kernel_cache_target ALL
+  DEPENDS rocfft_kernel_cache.db
+  VERBATIM
+)
+
 rocm_set_soversion( rocfft ${rocfft_SOVERSION} )
 set_target_properties( rocfft PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
 set_target_properties( rocfft PROPERTIES DEBUG_POSTFIX "-d" )
@@ -363,6 +383,18 @@ rocm_install_targets(
   ${CMAKE_SOURCE_DIR}/library/include
   ${CMAKE_BINARY_DIR}/include
   )
+
+# kernel cache needs to go next to the library - Linux puts shared
+# objects in lib, Windows puts DLLs in bin
+if(WIN32)
+  set(ROCFFT_KERNEL_CACHE_INSTALL_DIR ${CMAKE_INSTALL_BINDIR})
+else()
+  set(ROCFFT_KERNEL_CACHE_INSTALL_DIR ${ROCM_INSTALL_LIBDIR})
+endif()
+rocm_install(FILES ${ROCFFT_KERNEL_CACHE_PATH}
+  DESTINATION "${ROCFFT_KERNEL_CACHE_INSTALL_DIR}"
+  COMPONENT runtime
+)
 
 #         PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
 

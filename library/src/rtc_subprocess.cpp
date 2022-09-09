@@ -203,7 +203,12 @@ std::vector<char> compile_subprocess(const std::string& kernel_src, const std::s
     si.hStdInput   = child_stdin_read;
     si.hStdOutput  = child_stdout_write;
 
-    std::string cmdline = rtc_helper_exe + " " + gpu_arch;
+    std::string cmdline = "\"";
+    // HACK: on Windows, rtc_helper_exe seems to have an embedded NUL
+    // byte at the end.  Append c_str() to hide this.
+    cmdline += rtc_helper_exe.c_str();
+    cmdline += "\" ";
+    cmdline += gpu_arch;
 
     PROCESS_INFORMATION pi;
     if(!CreateProcessA(rtc_helper_exe.c_str(),

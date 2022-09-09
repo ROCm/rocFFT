@@ -124,7 +124,8 @@ void build_stockham_function_pool(CompileQueue& queue)
                     return;
 
                 std::vector<IntrinsicAccessType> intrinsic_modes = {DISABLE_BOTH};
-                if(i.second.direct_to_from_reg)
+                // can't enable intrinsic_modes for callback
+                if(i.second.direct_to_from_reg && !callbacks)
                 {
                     intrinsic_modes.push_back(ENABLE_BOTH);
                     intrinsic_modes.push_back(ENABLE_LOAD_ONLY);
@@ -170,6 +171,7 @@ void build_stockham_function_pool(CompileQueue& queue)
                                 PrintScheme(scheme)};
                             specs.threads_per_transform = i.second.threads_per_transform[0];
                             specs.half_lds              = i.second.half_lds;
+                            specs.direct_to_from_reg    = i.second.direct_to_from_reg;
                             return stockham_rtc(specs,
                                                 specs,
                                                 nullptr,

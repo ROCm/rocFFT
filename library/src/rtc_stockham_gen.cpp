@@ -189,6 +189,10 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
     if(dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT)
         kernel_name += "_dirReg";
 
+    // callback kernels need to disable buffer load/store
+    if(enable_callbacks || dir2regMode == DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
+        intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
+
     switch(intrinsicMode)
     {
     case IntrinsicAccessType::DISABLE_BOTH:
@@ -404,6 +408,10 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
 
     src += "static const bool apply_large_twiddle = ";
     src += (largeTwdBase > 0 && largeTwdSteps > 0) ? "true;\n" : "false;\n";
+
+    // callback kernels need to disable buffer load/store
+    if(enable_callbacks || dir2regMode == DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
+        intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
 
     switch(intrinsicMode)
     {

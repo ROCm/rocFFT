@@ -117,7 +117,7 @@ class FFTKernel(BaseNode):
     def __str__(self):
         aot_rtc = is_aot_rtc(self.function.meta)
         f = 'FFTKernel('
-        if self.function.meta.runtime_compile:
+        if self.function.meta.runtime_compile or aot_rtc:
             f += 'nullptr'
         else:
             f += str(self.function.address())
@@ -190,7 +190,10 @@ def generate_cpu_function_pool(functions):
 
 def list_generated_kernels(kernels):
     """Return list of kernel filenames."""
-    return [kernel_file_name(x) for x in kernels if not x.runtime_compile]
+    return [
+        kernel_file_name(x) for x in kernels
+        if not x.runtime_compile and not is_aot_rtc(x)
+    ]
 
 
 #
