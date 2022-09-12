@@ -42,7 +42,7 @@ std::pair<void*, size_t>
     Repo::GetTwiddlesInternal(KeyType                                             key,
                               std::map<KeyType, std::pair<gpubuf, unsigned int>>& twiddles,
                               std::map<void*, KeyType>&                           twiddles_reverse,
-                              std::function<gpubuf()>                             create_twiddle)
+                              std::function<gpubuf(unsigned int)>                 create_twiddle)
 {
     if(repoDestroyed)
     {
@@ -64,7 +64,7 @@ std::pair<void*, size_t>
     }
 
     // otherwise, need to allocate
-    auto buf = create_twiddle();
+    auto buf = create_twiddle(key.deviceId);
     // if allocation failed, don't update maps
     if(buf.data() == nullptr)
         return {nullptr, 0};
@@ -113,10 +113,11 @@ std::pair<void*, size_t> Repo::GetTwiddles1D(size_t                     length,
     Repo&                       repo = Repo::GetRepo();
 
     repo_key_1D_t key{length, length_limit, precision, largeTwdBase, attach_halfN, radices};
-    return GetTwiddlesInternal(key, repo.twiddles_1D, repo.twiddles_1D_reverse, [&]() {
-        return twiddles_create(
-            length, length_limit, precision, largeTwdBase, attach_halfN, radices);
-    });
+    return GetTwiddlesInternal(
+        key, repo.twiddles_1D, repo.twiddles_1D_reverse, [&](unsigned int deviceId) {
+            return twiddles_create(
+                length, length_limit, precision, largeTwdBase, attach_halfN, radices, deviceId);
+        });
 }
 
 std::pair<void*, size_t>
@@ -126,9 +127,10 @@ std::pair<void*, size_t>
     Repo&                       repo = Repo::GetRepo();
 
     repo_key_2D_t key{length0, length1, precision};
-    return GetTwiddlesInternal(key, repo.twiddles_2D, repo.twiddles_2D_reverse, [&]() {
-        return twiddles_create_2D(length0, length1, precision);
-    });
+    return GetTwiddlesInternal(
+        key, repo.twiddles_2D, repo.twiddles_2D_reverse, [&](unsigned int deviceId) {
+            return twiddles_create_2D(length0, length1, precision, deviceId);
+        });
 }
 
 void Repo::ReleaseTwiddle1D(void* ptr)
@@ -155,4 +157,5 @@ void Repo::Clear()
     Repo& repo = Repo::GetRepo();
     repo.twiddles_1D.clear();
     repo.twiddles_2D.clear();
+    twiddle_streams_cleanup();
 }

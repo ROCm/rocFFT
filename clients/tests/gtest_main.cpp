@@ -196,7 +196,9 @@ int main(int argc, char* argv[])
 
 #ifdef FFTW_MULTITHREAD
     fftw_init_threads();
+    fftwf_init_threads();
     fftw_plan_with_nthreads(std::thread::hardware_concurrency());
+    fftwf_plan_with_nthreads(std::thread::hardware_concurrency());
 #endif
 
     if(use_fftw_wisdom)

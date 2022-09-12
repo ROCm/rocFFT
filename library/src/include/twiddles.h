@@ -33,7 +33,10 @@ gpubuf twiddles_create(size_t                     N,
                        rocfft_precision           precision,
                        size_t                     largeTwdBase,
                        bool                       attach_halfN,
-                       const std::vector<size_t>& radices);
-gpubuf twiddles_create_2D(size_t N1, size_t N2, rocfft_precision precision);
+                       const std::vector<size_t>& radices,
+                       unsigned int               deviceId);
+gpubuf twiddles_create_2D(size_t N1, size_t N2, rocfft_precision precision, unsigned int deviceId);
+
+void twiddle_streams_cleanup();
 
 #endif // defined( TWIDDLES_H )

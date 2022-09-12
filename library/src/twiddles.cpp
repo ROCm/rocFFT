@@ -32,6 +32,43 @@
 #include <string>
 #include <tuple>
 
+// RAII wrapper around hipStream_t
+struct hipStream_wrapper_t
+{
+    hipStream_wrapper_t()
+        : stream(nullptr)
+    {
+    }
+    void alloc()
+    {
+        if(stream == nullptr && hipStreamCreate(&stream) != hipSuccess)
+            throw std::runtime_error("hipStreamCreate failure");
+    }
+    operator hipStream_t()
+    {
+        return stream;
+    }
+    ~hipStream_wrapper_t()
+    {
+        if(stream)
+            (void)hipStreamDestroy(stream);
+    }
+
+private:
+    hipStream_t stream;
+};
+
+// this vector stores streams for each device id.  index in the
+// vector is device id.  note that this vector needs to be protected
+// against concurrent access, but twiddles are always accessed
+// through the Repo which guarantees exclusive access.
+static std::vector<hipStream_wrapper_t> twiddle_streams;
+
+void twiddle_streams_cleanup()
+{
+    twiddle_streams.clear();
+}
+
 // Twiddle factors table
 template <typename T>
 class TwiddleTable
@@ -49,16 +86,12 @@ protected:
     bool attach_halfN;
 
     void GetKernelParams(const std::vector<size_t>& radices,
-                         gpubuf_t<size_t>&          radices_device,
-                         gpubuf_t<size_t>&          radices_prod_device,
-                         gpubuf_t<size_t>&          radices_sum_prod_device,
+                         std::vector<size_t>&       radices_prod,
+                         std::vector<size_t>&       radices_sum_prod,
                          size_t&                    max_radix_prod,
                          size_t&                    min_radix,
                          size_t&                    table_sz)
     {
-        std::vector<size_t> radices_sum_prod;
-        std::vector<size_t> radices_prod;
-
         radices_sum_prod = {0};
         radices_prod     = {};
 
@@ -90,43 +123,17 @@ protected:
                            + ((radices_prod.at(M - 1) / last_radix) - 1) * (last_radix - 1)
                            + (last_radix - 1)
                             : radices_sum_prod.at(0);
-
-        auto radices_bytes          = radices.size() * sizeof(size_t);
-        auto radices_prod_bytes     = radices_prod.size() * sizeof(size_t);
-        auto radices_sum_prod_bytes = radices_sum_prod.size() * sizeof(size_t);
-
-        if(radices_device.alloc(radices_bytes) != hipSuccess
-           || radices_prod_device.alloc(radices_prod_bytes) != hipSuccess
-           || radices_sum_prod_device.alloc(radices_sum_prod_bytes) != hipSuccess)
-            throw std::runtime_error("unable to allocate twiddle table kernel params");
-
-        if(hipMemcpy(radices_device.data(), radices.data(), radices_bytes, hipMemcpyHostToDevice)
-               != hipSuccess
-           || hipMemcpy(radices_prod_device.data(),
-                        radices_prod.data(),
-                        radices_prod_bytes,
-                        hipMemcpyHostToDevice)
-                  != hipSuccess
-           || hipMemcpy(radices_sum_prod_device.data(),
-                        radices_sum_prod.data(),
-                        radices_sum_prod_bytes,
-                        hipMemcpyHostToDevice)
-                  != hipSuccess)
-            throw std::runtime_error("unable to copy twiddle table kernel params");
     }
 
     void GenerateTable(const std::vector<size_t>& radices, hipStream_t& stream, gpubuf& output)
     {
-        size_t           table_sz, maxElem, minElem;
-        gpubuf_t<size_t> radices_device, radices_prod_device, radices_sum_prod_device;
+        if(radices.size() > TWIDDLES_MAX_RADICES)
+            throw std::runtime_error("maximum twiddle radices exceeded");
 
-        GetKernelParams(radices,
-                        radices_device,
-                        radices_prod_device,
-                        radices_sum_prod_device,
-                        maxElem,
-                        minElem,
-                        table_sz);
+        size_t              table_sz, maxElem, minElem;
+        std::vector<size_t> radices_prod, radices_sum_prod;
+
+        GetKernelParams(radices, radices_prod, radices_sum_prod, maxElem, minElem, table_sz);
 
         table_sz          = std::min(table_sz, length_limit);
         auto total_length = attach_halfN ? table_sz + half_N : table_sz;
@@ -147,6 +154,13 @@ protected:
 
         auto device_data_ptr = static_cast<T*>(output.data());
 
+        radices_t radices_device;
+        radices_t radices_prod_device;
+        radices_t radices_sum_prod_device;
+        std::copy(radices.begin(), radices.end(), radices_device.data);
+        std::copy(radices_prod.begin(), radices_prod.end(), radices_prod_device.data);
+        std::copy(radices_sum_prod.begin(), radices_sum_prod.end(), radices_sum_prod_device.data);
+
         hipLaunchKernelGGL(GenerateTwiddleTableKernel<T>,
                            dim3(numBlocksX, numBlocksY),
                            dim3(blockSize, blockSize),
@@ -154,9 +168,9 @@ protected:
                            stream,
                            length_limit,
                            num_radices,
-                           radices_device.data(),
-                           radices_prod_device.data(),
-                           radices_sum_prod_device.data(),
+                           radices_device,
+                           radices_prod_device,
+                           radices_sum_prod_device,
                            device_data_ptr);
 
         if(attach_halfN)
@@ -257,28 +271,18 @@ public:
 
         auto blockSize = TWIDDLES_THREADS;
 
-        size_t           table_sz_1, maxElem_1, minElem_1;
-        gpubuf_t<size_t> radices_device_1, radices_prod_device_1, radices_sum_prod_device_1;
+        size_t              table_sz_1, maxElem_1, minElem_1;
+        std::vector<size_t> radices_prod_1, radices_sum_prod_1;
 
-        TwiddleTable<T>::GetKernelParams(radices1,
-                                         radices_device_1,
-                                         radices_prod_device_1,
-                                         radices_sum_prod_device_1,
-                                         maxElem_1,
-                                         minElem_1,
-                                         table_sz_1);
+        TwiddleTable<T>::GetKernelParams(
+            radices1, radices_prod_1, radices_sum_prod_1, maxElem_1, minElem_1, table_sz_1);
 
-        size_t           table_sz_2, maxElem_2, minElem_2;
-        gpubuf_t<size_t> radices_device_2, radices_prod_device_2, radices_sum_prod_device_2;
+        size_t              table_sz_2, maxElem_2, minElem_2;
+        std::vector<size_t> radices_prod_2, radices_sum_prod_2;
 
         if(N2)
-            TwiddleTable<T>::GetKernelParams(radices2,
-                                             radices_device_2,
-                                             radices_prod_device_2,
-                                             radices_sum_prod_device_2,
-                                             maxElem_2,
-                                             minElem_2,
-                                             table_sz_2);
+            TwiddleTable<T>::GetKernelParams(
+                radices2, radices_prod_2, radices_sum_prod_2, maxElem_2, minElem_2, table_sz_2);
         else
             table_sz_2 = N2;
 
@@ -295,6 +299,14 @@ public:
         auto numBlocksX_1 = DivRoundingUp<size_t>(num_radices_1, blockSize);
         auto numBlocksY_1 = DivRoundingUp<size_t>(maxElem_1 / minElem_1, blockSize);
 
+        radices_t radices1_device;
+        radices_t radices_prod_device_1;
+        radices_t radices_sum_prod_device_1;
+        std::copy(radices1.begin(), radices1.end(), radices1_device.data);
+        std::copy(radices_prod_1.begin(), radices_prod_1.end(), radices_prod_device_1.data);
+        std::copy(
+            radices_sum_prod_1.begin(), radices_sum_prod_1.end(), radices_sum_prod_device_1.data);
+
         hipLaunchKernelGGL(GenerateTwiddleTableKernel<T>,
                            dim3(numBlocksX_1, numBlocksY_1),
                            dim3(blockSize, blockSize),
@@ -302,9 +314,9 @@ public:
                            stream,
                            N1,
                            num_radices_1,
-                           radices_device_1.data(),
-                           radices_prod_device_1.data(),
-                           radices_sum_prod_device_1.data(),
+                           radices1_device,
+                           radices_prod_device_1,
+                           radices_sum_prod_device_1,
                            device_data_ptr);
 
         if(N2)
@@ -314,6 +326,15 @@ public:
             auto numBlocksX_2 = DivRoundingUp<size_t>(num_radices_2, blockSize);
             auto numBlocksY_2 = DivRoundingUp<size_t>(maxElem_2 / minElem_2, blockSize);
 
+            radices_t radices2_device;
+            radices_t radices_prod_device_2;
+            radices_t radices_sum_prod_device_2;
+            std::copy(radices2.begin(), radices2.end(), radices2_device.data);
+            std::copy(radices_prod_2.begin(), radices_prod_2.end(), radices_prod_device_2.data);
+            std::copy(radices_sum_prod_2.begin(),
+                      radices_sum_prod_2.end(),
+                      radices_sum_prod_device_2.data);
+
             hipLaunchKernelGGL(GenerateTwiddleTableKernel<T>,
                                dim3(numBlocksX_2, numBlocksY_2),
                                dim3(blockSize, blockSize),
@@ -321,9 +342,9 @@ public:
                                stream,
                                N2,
                                num_radices_2,
-                               radices_device_2.data(),
-                               radices_prod_device_2.data(),
-                               radices_sum_prod_device_2.data(),
+                               radices2_device,
+                               radices_prod_device_2,
+                               radices_sum_prod_device_2,
                                device_data_ptr + table_sz_1);
         }
     }
@@ -385,16 +406,24 @@ gpubuf twiddles_create_pr(size_t                     N,
                           size_t                     length_limit,
                           size_t                     largeTwdBase,
                           bool                       attach_halfN,
-                          const std::vector<size_t>& radices)
+                          const std::vector<size_t>& radices,
+                          unsigned int               deviceId)
 {
     if(largeTwdBase && length_limit)
         throw std::runtime_error("length-limited large twiddles are not supported");
 
-    gpubuf      twts;
-    hipStream_t stream;
+    gpubuf twts;
+    if(deviceId >= twiddle_streams.size())
+        twiddle_streams.resize(deviceId + 1);
+    if(twiddle_streams[deviceId] == nullptr)
+        twiddle_streams[deviceId].alloc();
+    hipStream_t stream = twiddle_streams[deviceId];
 
-    if(hipStreamCreate(&stream) != hipSuccess)
-        throw std::runtime_error("hipStreamCreate failure");
+    if(stream == nullptr)
+    {
+        if(hipStreamCreate(&stream) != hipSuccess)
+            throw std::runtime_error("hipStreamCreate failure");
+    }
 
     if((N <= LARGE_TWIDDLE_THRESHOLD) && largeTwdBase == 0)
     {
@@ -417,7 +446,7 @@ gpubuf twiddles_create_pr(size_t                     N,
         }
     }
 
-    if(hipStreamSynchronize(stream) != hipSuccess || hipStreamDestroy(stream) != hipSuccess)
+    if(hipStreamSynchronize(stream) != hipSuccess)
         throw std::runtime_error("hipStream failure");
 
     return twts;
@@ -428,12 +457,15 @@ gpubuf twiddles_create(size_t                     N,
                        rocfft_precision           precision,
                        size_t                     largeTwdBase,
                        bool                       attach_halfN,
-                       const std::vector<size_t>& radices)
+                       const std::vector<size_t>& radices,
+                       unsigned int               deviceId)
 {
     if(precision == rocfft_precision_single)
-        return twiddles_create_pr<float2>(N, length_limit, largeTwdBase, attach_halfN, radices);
+        return twiddles_create_pr<float2>(
+            N, length_limit, largeTwdBase, attach_halfN, radices, deviceId);
     else if(precision == rocfft_precision_double)
-        return twiddles_create_pr<double2>(N, length_limit, largeTwdBase, attach_halfN, radices);
+        return twiddles_create_pr<double2>(
+            N, length_limit, largeTwdBase, attach_halfN, radices, deviceId);
     else
     {
         assert(false);
@@ -442,7 +474,8 @@ gpubuf twiddles_create(size_t                     N,
 }
 
 template <typename T>
-gpubuf twiddles_create_2D_pr(size_t N1, size_t N2, rocfft_precision precision)
+gpubuf
+    twiddles_create_2D_pr(size_t N1, size_t N2, rocfft_precision precision, unsigned int deviceId)
 {
     auto                kernel = function_pool::get_kernel(fpkey(N1, N2, precision));
     std::vector<size_t> radices1, radices2;
@@ -456,27 +489,34 @@ gpubuf twiddles_create_2D_pr(size_t N1, size_t N2, rocfft_precision precision)
     radices1.insert(radices1.cbegin(), kernel.factors.cbegin(), kernel.factors.cbegin() + count);
     radices2.insert(radices2.cbegin(), kernel.factors.cbegin() + count, kernel.factors.cend());
 
-    gpubuf      twts;
-    hipStream_t stream;
+    gpubuf twts;
+    if(deviceId >= twiddle_streams.size())
+        twiddle_streams.resize(deviceId + 1);
+    if(twiddle_streams[deviceId] == nullptr)
+        twiddle_streams[deviceId].alloc();
+    hipStream_t stream = twiddle_streams[deviceId];
 
-    if(hipStreamCreate(&stream) != hipSuccess)
-        throw std::runtime_error("hipStreamCreate failure");
+    if(stream == nullptr)
+    {
+        if(hipStreamCreate(&stream) != hipSuccess)
+            throw std::runtime_error("hipStreamCreate failure");
+    }
 
     TwiddleTable2D<T> twTable(N1, N2);
     twTable.GenerateTwiddleTable(radices1, radices2, stream, twts);
 
-    if(hipStreamSynchronize(stream) != hipSuccess || hipStreamDestroy(stream) != hipSuccess)
+    if(hipStreamSynchronize(stream) != hipSuccess)
         throw std::runtime_error("hipStream failure");
 
     return twts;
 }
 
-gpubuf twiddles_create_2D(size_t N1, size_t N2, rocfft_precision precision)
+gpubuf twiddles_create_2D(size_t N1, size_t N2, rocfft_precision precision, unsigned int deviceId)
 {
     if(precision == rocfft_precision_single)
-        return twiddles_create_2D_pr<float2>(N1, N2, precision);
+        return twiddles_create_2D_pr<float2>(N1, N2, precision, deviceId);
     else if(precision == rocfft_precision_double)
-        return twiddles_create_2D_pr<double2>(N1, N2, precision);
+        return twiddles_create_2D_pr<double2>(N1, N2, precision, deviceId);
     else
     {
         assert(false);

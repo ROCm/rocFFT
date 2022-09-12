@@ -23,30 +23,38 @@
 
 #include "common.h"
 
-static const unsigned int TWIDDLES_THREADS = 32;
-static constexpr double   TWO_PI           = -6.283185307179586476925286766559;
+static const unsigned int TWIDDLES_THREADS     = 32;
+static const unsigned int TWIDDLES_MAX_RADICES = 8;
+static constexpr double   TWO_PI               = -6.283185307179586476925286766559;
+
+// structure to pass fixed-length array of radices by value in
+// kernargs instead of by reference in global memory
+struct radices_t
+{
+    size_t data[TWIDDLES_MAX_RADICES];
+};
 
 template <typename T>
 __global__ void __launch_bounds__(TWIDDLES_THREADS* TWIDDLES_THREADS)
-    GenerateTwiddleTableKernel(size_t        length_limit,
-                               size_t        num_radices,
-                               const size_t* radices,
-                               const size_t* radices_prod,
-                               const size_t* radices_sum_prod,
-                               T*            output)
+    GenerateTwiddleTableKernel(size_t    length_limit,
+                               size_t    num_radices,
+                               radices_t radices,
+                               radices_t radices_prod,
+                               radices_t radices_sum_prod,
+                               T*        output)
 {
     auto i = threadIdx.x + blockIdx.x * blockDim.x;
 
     if(i < num_radices - 1)
     {
-        auto L     = radices_prod[i];
-        auto radix = radices[i + 1];
+        auto L     = radices_prod.data[i];
+        auto radix = radices.data[i + 1];
         auto k     = threadIdx.y + blockIdx.y * blockDim.y;
 
         if(k < L / radix)
         {
             double theta = TWO_PI * (k) / (L);
-            auto   index = radices_sum_prod[i] + k * (radices[i + 1] - 1);
+            auto   index = radices_sum_prod.data[i] + k * (radices.data[i + 1] - 1);
 
             for(size_t j = 1; j < radix && index < length_limit; ++j)
             {

@@ -105,7 +105,7 @@ class Repo
         GetTwiddlesInternal(KeyType,
                             std::map<KeyType, std::pair<gpubuf, unsigned int>>&,
                             std::map<void*, KeyType>&,
-                            std::function<gpubuf()>);
+                            std::function<gpubuf(unsigned int)>);
     template <typename KeyType>
     static void ReleaseTwiddlesInternal(void* ptr,
                                         std::map<KeyType, std::pair<gpubuf, unsigned int>>&,
