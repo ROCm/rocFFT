@@ -72,6 +72,7 @@ set( rocfft-test_source
   accuracy_test_checkstride.cpp
   multithread_test.cpp
   hermitian_test.cpp
+  hipGraph_test.cpp
   default_callbacks_test.cpp
   unit_test.cpp
   misc/source/test_exception.cpp
