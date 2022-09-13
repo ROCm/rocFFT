@@ -231,18 +231,62 @@ Even if rocFFT is prepared to runtime-compile any FFT kernel, we can
 still pre-compile kernels by populating a cache at library build time
 and shipping the cache with the library.
 
+Cache location
+~~~~~~~~~~~~~~
+
 The main challenge here is installing this pre-built cache in a place
 that the library will be able to find.
 
 The easiest solution here, as employed by `other math libraries` is
-to look for this the cache file next to the shared library itself.
+to look for this the cache file relative to the shared library itself.
 
 .. _other math libraries: https://github.com/ROCmSoftwarePlatform/rocBLAS/blob/d8e00e169ccc7ca21211705643e85545e98e455a/library/src/tensile_host.cpp#L521
 
-Arbitrary criteria can be used to decide whether to pre-build
-kernels, but for example the most common architectures, array
-formats, and problem sizes might be pre-built.  Less common choices
-could be runtime-compiled.
+Environment variables can override the locations of caches used by
+rocFFT.  During normal operation, we would expect one read-only cache
+shipped with the library and one modifiable cache updated as the user
+runs transforms that use new kernels.
+
+We support two environment variables for these two locations:
+
+* ROCFFT_RTC_SYS_CACHE_PATH - the read-only system-level cache.
+* ROCFFT_RTC_CACHE_PATH - the read-write user-level cache.
+
+Note that if the library is linked statically, we will not be able to
+find any files relative to the library.  The
+ROCFFT_RTC_SYS_CACHE_PATH environment variable will then be required
+for rocFFT to find the system-level cache, but rocFFT will still
+update the user-level cache and have correct behaviour without a
+system-level cache.
+
+Populating the cache
+~~~~~~~~~~~~~~~~~~~~
+
+Populating this shipped cache is done via a helper executable that is
+built and run during the rocFFT build.  A separate helper executable
+(which is not itself shipped with rocFFT) is necessary so that it can
+share rocFFT's generator and RTC code, without requiring rocFFT to
+expose extra symbols just for this task.
+
+This helper should work at the kernel level, e.g. build Stockham
+kernels for all desired combinations of:
+
+* supported architectures (gfx908, gfx90a, gfx1030, etc.)
+* precisions
+* problem sizes
+* array formats
+* etc.
+
+The criteria for which kernels to pre-build can be arbitrary.  Less
+common choices will be runtime-compiled, and runtime compilation is
+still a fallback in case a pre-built kernel is not available for
+whatever reason.
+
+An inferior option would be for the helper to work at the plan level
+(i.e. use rocFFT to build a set of plans and save the resulting RTC
+kernels).  However, creating plans involves doing a lot of other
+unnecessary work, like generating twiddle tables and deciding on
+buffer assignment.
 
 Impact on tests
 :::::::::::::::
@@ -286,6 +330,68 @@ helper would need to be shipped with the library, in a location
 that's knowable by the library.  If we fail to find or spawn that
 helper, compilation must fall back to compiling in-process.
 
+Code organization
+-----------------
+
+The whole of rocFFT runtime compilation can be broken down into
+separate subsystems:
+
+1. Generating source to be compiled, further subdivided into
+   generators for each type of kernel (Stockham, transpose,
+   Bluestein, etc).  Input specifications of the desired kernel
+   include problem size, precision, result placement, and so on.
+
+   Files to implement this are named:
+
+   * rtc_stockham_gen.cpp
+   * rtc_transpose_gen.cpp
+   * etc.
+
+2. Compiling source code into object code, which can be further subdivided:
+
+   a. Compiling code in the current process
+   b. Compiling code in a subprocess
+
+   The files to implement these are named:
+
+   rtc_compile.cpp
+   rtc_subprocess.cpp
+
+3. Reading/writing the cache of compiled object code.
+
+   The file to implement this is named:
+
+   rtc_cache.cpp
+
+4. Compiling and launching the correct kernel for a TreeNode in an
+   FFT plan.  This subsystem would need to derive the correct input
+   specifications for the generator, given the data in the TreeNode.
+   It would also need to derive the correct launch arguments to pass
+   to the kernel.
+
+   Files to implement this are named:
+
+   * rtc_stockham_kernel.cpp
+   * rtc_transpose_kernel.cpp
+   * etc.
+
+   These files are named rtc_*_kernel.cpp because they implement
+   subclasses of the generic RTCKernel type.
+
+In this list, 1 and 2 are independent.  2b depends on 2a.  3 depends
+on 1 and 2.  4 depends on 3.  2a requires the hipRTC library, 3
+requires the SQLite library, and 4 requires the full HIP runtime
+library (amdhip64).
+
+Build-time processes that populate a cache to ship with the library
+depend on 3.  The helper process to support parallel compilation
+depends on 2a.
+
+It's important to avoid using the full HIP runtime at build time -
+Windows build environments in particular may not have the sufficient
+libraries or infrastructure to successfully load the full runtime,
+but they are able to load hipRTC.
+
 Future work
 -----------
 
@@ -297,16 +403,3 @@ runtime compilation for all FFT sizes, not just those that are chosen
 ahead of time.  The generator is already able to auto-factorize
 arbitrary sizes, though we haven't yet tested the limits of this
 ability.
-
-Non-Stockham kernels
-^^^^^^^^^^^^^^^^^^^^
-
-Aside from the Stockham kernels included in this proposal, rocFFT
-includes other kernels:
-
-* Bluestein
-* transpose
-* C2R/R2C pre/post processing
-
-They could also be compiled at runtime.
-
