@@ -45,6 +45,7 @@ def runCI =
     nodeDetails, jobName->
 
     def prj  = new rocProject('rocFFT-internal', 'StaticAnalysis')
+    prj.libraryDependencies = ['rocRAND']
 
     // Define test architectures, optional rocm version argument is available
     def nodes = new dockerNodes(nodeDetails, jobName, prj)

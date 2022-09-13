@@ -81,7 +81,7 @@ target_link_libraries(
   ${Boost_LIBRARIES}
   )
 
-  target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} )
+  target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} -Wno-cpp )
 
   set_target_properties( ${sample} PROPERTIES
     DEBUG_POSTFIX "-d"
