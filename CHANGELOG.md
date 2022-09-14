@@ -9,10 +9,10 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Added
 - Added rocfft_plan_description_set_scale_factor API to efficiently multiply each output element of a FFT by a given scaling factor.
-- Created a rocfft_kernel_cache.db file next to the installed library.  SBCC kernels are moved to this file when built with the library, and are runtime-compiled for new GPU architectures.
-- Added gfx1100 and gfx1102 to default AMDGPU_TARGETS
+- Created a rocfft_kernel_cache.db file next to the installed library. SBCC kernels are moved to this file when built with the library, and are runtime-compiled for new GPU architectures.
+- Added gfx1100 and gfx1102 to default AMDGPU_TARGETS.
 
-## (Unreleased) rocFFT 1.0.18
+## rocFFT 1.0.18 for ROCm 5.3.0
 
 ### Changed
 - Runtime compilation cache now looks for environment variables XDG_CACHE_HOME (on Linux) and LOCALAPPDATA (on
