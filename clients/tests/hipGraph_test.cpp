@@ -31,12 +31,6 @@
 
 static const unsigned int KERNEL_THREADS = 64;
 
-template <typename T>
-static inline T DivRoundingUp(T a, T b)
-{
-    return (a + (b - 1)) / b;
-}
-
 __global__ void scale_data_kernel(float2* data, size_t length, float scale)
 {
     const auto idx = blockIdx.x * blockDim.x + threadIdx.x;
