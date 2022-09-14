@@ -52,6 +52,10 @@ if( NOT HIP_FOUND )
   find_package( HIP REQUIRED )
 endif()
 
+if( NOT ROCRAND_FOUND )
+  find_package( ROCRAND REQUIRED )
+endif()
+
 find_package( Boost COMPONENTS program_options REQUIRED)
 set( Boost_DEBUG ON )
 set( Boost_USE_MULTITHREADED ON )
@@ -78,6 +82,7 @@ foreach( sample ${sample_list} )
 target_link_libraries(
   ${sample}
   PRIVATE roc::rocfft
+  roc::rocrand
   ${Boost_LIBRARIES}
   )
 
