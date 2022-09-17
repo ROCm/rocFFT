@@ -646,6 +646,10 @@ std::unique_ptr<TreeNode> STK_R2CTrans_FuseShim::FuseKernels()
     fused->oDist        = transpose->oDist;
     fused->outStride    = transpose->outStride;
     std::swap(fused->outStride[0], fused->outStride[1]);
+    // it's possible that we're using a 3D SBRC kernel in here.  only
+    // adjust for the third dimension if we're inside a 3D plan.
+    if(transpose->parent->length.size() > 2)
+        std::swap(fused->outStride[1], fused->outStride[2]);
     fused->comments.push_back("STK_R2CTrans_FuseShim: fused " + PrintScheme(CS_KERNEL_STOCKHAM)
                               + ", " + PrintScheme(CS_KERNEL_R_TO_CMPLX) + " and following "
                               + PrintScheme(transpose->scheme));
