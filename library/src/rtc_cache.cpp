@@ -416,7 +416,8 @@ static RTCProcessType get_rtc_process_type()
     if(var == "2")
         return RTCProcessType::DEFAULT;
 
-    return RTCProcessType::DEFAULT;
+    // to work around asserts in newer versions of hipRTC
+    return RTCProcessType::FORCE_OUT_PROCESS;
 }
 
 std::vector<char> cached_compile(const std::string&          kernel_name,

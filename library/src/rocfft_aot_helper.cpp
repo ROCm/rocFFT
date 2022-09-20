@@ -318,9 +318,6 @@ int main(int argc, char** argv)
     // tell RTC where the compile helper is
     rocfft_setenv("ROCFFT_RTC_PROCESS_HELPER", rtc_helper.c_str());
 
-    // force RTC to use subprocess, to work around asserts when combining multithreading + hipRTC
-    rocfft_setenv("ROCFFT_RTC_PROCESS", "1");
-
     RTCCache::single = std::make_unique<RTCCache>();
 
     CompileQueue queue;
