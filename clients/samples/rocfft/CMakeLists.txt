@@ -52,8 +52,8 @@ if( NOT HIP_FOUND )
   find_package( HIP REQUIRED )
 endif()
 
-if( NOT ROCRAND_FOUND )
-  find_package( ROCRAND REQUIRED )
+if( NOT rocrand_FOUND )
+  find_package( rocrand REQUIRED )
 endif()
 
 find_package( Boost COMPONENTS program_options REQUIRED)
