@@ -76,7 +76,7 @@ add_subdirectory( device )
 set( kgen_embed_command ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed-cpp.py )
 
 # location of the generated source file
-set( kgen_embed_cpp ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed.cpp )
+set( kgen_embed_cpp ${CMAKE_BINARY_DIR}/library/src/device/kernel-generator-embed.cpp )
 
 # files that need to be embedded into the library, to be able to generate code
 set( kgen_embed_files
