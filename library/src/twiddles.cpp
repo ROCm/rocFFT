@@ -21,7 +21,7 @@
 *******************************************************************************/
 
 #include "twiddles.h"
-#include "arithmetic.h"
+#include "../../shared/arithmetic.h"
 #include "device/kernels/twiddle_factors.h"
 #include "function_pool.h"
 #include "rocfft_hip.h"

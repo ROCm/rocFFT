@@ -19,9 +19,9 @@
 // THE SOFTWARE.
 
 #include "assignment_policy.h"
+#include "../../shared/arithmetic.h"
 #include "../../shared/ptrdiff.h"
 #include "./device/kernels/array_format.h"
-#include "arithmetic.h"
 #include "logging.h"
 #include <numeric>
 #include <optional>

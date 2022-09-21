@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 
 #include "node_factory.h"
-#include "arithmetic.h"
+#include "../../shared/arithmetic.h"
 #include "function_pool.h"
 #include "fuse_shim.h"
 #include "hip/hip_runtime_api.h"

@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 
 #include "fuse_shim.h"
-#include "arithmetic.h"
+#include "../../shared/arithmetic.h"
 #include "function_pool.h"
 #include "node_factory.h"
 

@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include "../../shared/arithmetic.h"
 #include "../../shared/gpubuf.h"
 #include "../rocfft_params.h"
 #include "accuracy_test.h"

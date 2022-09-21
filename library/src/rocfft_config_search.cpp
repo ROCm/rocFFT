@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include "../../shared/arithmetic.h"
 #include "../../shared/gpubuf.h"
-#include "arithmetic.h"
 #include "device/generator/stockham_gen.h"
 #include "rtc_compile.h"
 #include "rtc_stockham_gen.h"

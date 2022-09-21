@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 
 #include "tree_node_2D.h"
-#include "arithmetic.h"
+#include "../../shared/arithmetic.h"
 #include "function_pool.h"
 #include "fuse_shim.h"
 #include "node_factory.h"

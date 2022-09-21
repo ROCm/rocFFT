@@ -21,6 +21,7 @@
 #ifndef DATA_GEN_H
 #define DATA_GEN_H
 
+#include "../shared/arithmetic.h"
 #include "../shared/gpubuf.h"
 #include "../shared/increment.h"
 #include <hip/hip_fp16.h>
@@ -34,12 +35,6 @@
 #include <vector>
 
 static const unsigned int DATA_GEN_THREADS = 32;
-
-template <typename T>
-static inline T DivRoundingUp(T a, T b)
-{
-    return (a + (b - 1)) / b;
-}
 
 // count the number of total iterations for 1-, 2-, and 3-D dimensions
 template <typename T1>

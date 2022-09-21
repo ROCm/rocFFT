@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "arithmetic.h"
+#include "../../../../shared/arithmetic.h"
 #include "stockham_gen_base.h"
 
 struct StockhamKernelRR : public StockhamKernel

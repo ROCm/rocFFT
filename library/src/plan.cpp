@@ -19,9 +19,9 @@
 // THE SOFTWARE.
 
 #include "plan.h"
+#include "../../shared/arithmetic.h"
 #include "../../shared/array_predicate.h"
 #include "../../shared/ptrdiff.h"
-#include "arithmetic.h"
 #include "assignment_policy.h"
 #include "function_pool.h"
 #include "hip/hip_runtime_api.h"

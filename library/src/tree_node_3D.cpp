@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 
 #include "tree_node_3D.h"
-#include "arithmetic.h"
+#include "../../shared/arithmetic.h"
 #include "function_pool.h"
 #include "logging.h"
 #include "node_factory.h"
