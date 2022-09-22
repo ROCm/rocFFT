@@ -71,40 +71,6 @@ static std::vector<fs::path> rtccache_db_user_paths()
 
     if(!env_path.empty())
         paths.push_back(env_path);
-    else
-    {
-        // try standard cache dirs
-#ifdef WIN32
-        auto localappdata = rocfft_getenv("LOCALAPPDATA");
-        if(!localappdata.empty())
-        {
-            auto dir = fs::path(localappdata) / "rocFFT";
-            fs::create_directories(dir);
-            paths.push_back(dir / default_cache_filename);
-        }
-#else
-        auto xdg_cache_home = rocfft_getenv("XDG_CACHE_HOME");
-        if(!xdg_cache_home.empty())
-        {
-            auto dir = fs::path(xdg_cache_home) / "rocFFT";
-            fs::create_directories(dir);
-            paths.push_back(dir / default_cache_filename);
-        }
-#endif
-
-        auto home_path = rocfft_getenv("HOME");
-        // try persistent home directory location if no cache dir
-        if(paths.empty() && !home_path.empty())
-        {
-            auto dir = fs::path(home_path) / ".cache" / "rocFFT";
-            fs::create_directories(dir);
-            paths.push_back(dir / default_cache_filename);
-        }
-
-        // otherwise, temp directory, which you'd expect to be less
-        // persistent but still usable
-        paths.push_back(fs::temp_directory_path() / default_cache_filename);
-    }
 
     // finally, fall back to in-memory db if all else fails
     paths.push_back({});

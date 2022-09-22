@@ -418,27 +418,11 @@ require additional kernels aside from what is built in to the
 library.  In these cases, rocFFT will compile optimized kernels for
 the plan when the plan is created.
 
-Compiled kernels are cached to persistent storage where possible, so
-that they are available to subsequent plans that require the same
-kernels.
+Compiled kernels are stored in memory by default and will be reused
+if they are required again for plans in the same process.
 
-The cache file path may be overridden by the
-``ROCFFT_RTC_CACHE_PATH`` environment variable.  rocFFT will create
-the cache file with the name specified in the environment variable,
-if it is set.
-
-Otherwise, rocFFT will create a cache file in a ``rocFFT``
-subdirectory of the cache directory.  The cache directory is
-specified by the ``XDG_CACHE_HOME`` environment variable on Linux,
-and by the ``LOCALAPPDATA`` environment variable on Windows.
-
-If no cache directory is set in the environment, rocFFT will look for
-the ``HOME`` environment variable for the current user's home
-directory.  If set, the cache will be created in ``.cache/rocFFT``
-the current user's home directory.
-
-If a cache file cannot be written to any of the above directories,
-the cache file is written to a temporary directory as chosen by the
-operating system.  If that location is also not writable, kernels are
-only cached in memory for the lifetime of the current process.
-
+If the ``ROCFFT_RTC_CACHE_PATH`` environment variable is set to a
+writable file location, rocFFT will write compiled kernels to this
+location.  rocFFT will read kernels from this location for plans in
+other processes that need runtime-compiled kernels.  rocFFT will
+create the specified file if it does not already exist.

@@ -121,16 +121,28 @@ If the kernels are available on the ``TreeNode``, we will have less
 overhead at execution time, since we don't need to do any work to
 find the right kernel to run.
 
-Caching kernels
-^^^^^^^^^^^^^^^
+Caching kernels at runtime
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If a process needs to create multiple plans that would compile the
 same FFT kernel variant, it's nice to reuse kernels we've already
 compiled.  Reusing an already-compiled kernel would save compilation
 time on subsequent runs.
 
-Compiled kernels can be persisted to disk for maximal reuse.  The
-cache keys need to be chosen carefully to ensure that an obsolete
+Compiled kernels may be persisted to disk for maximal reuse.
+However, rocFFT may be used in distributed systems where the
+filesystem is shared among multiple compute nodes, and having
+multiple nodes all contend for the same shared file is problematic
+for performance.
+
+By default, kernels are only cached in memory, to prevent this
+contention.  The cache location may still be overridden at runtime
+using mechanisms described below.
+
+Cache keys
+::::::::::
+
+The cache keys need to be chosen carefully to ensure that an obsolete
 kernel is not reused when a new version really **should** be
 recompiled.
 
@@ -210,8 +222,9 @@ each work node.
 Backing store implementation
 ::::::::::::::::::::::::::::
 
-The cache needs to be written to disk, and be robust in the face of
-concurrent access, crashes during library operation, and so on.
+The cache may be written to disk, and if so it must be robust in the
+face of concurrent access, crashes during library operation, and so
+on.
 
 We really would like the cache to have ACID properties of database
 systems.
@@ -249,7 +262,7 @@ runs transforms that use new kernels.
 
 We support two environment variables for these two locations:
 
-* ROCFFT_RTC_SYS_CACHE_PATH - the read-only system-level cache.
+* ROCFFT_RTC_SYS_CACHE_PATH - the pre-built read-only system-level cache.
 * ROCFFT_RTC_CACHE_PATH - the read-write user-level cache.
 
 Note that if the library is linked statically, we will not be able to
