@@ -66,6 +66,13 @@ unsigned int get_precedence(const T& x)
 //     (including constructors)
 // - after all classes are declared, implement all remaining class methods
 
+enum class Component
+{
+    REAL,
+    IMAG,
+    BOTH,
+};
+
 //
 // Expressions
 //
@@ -78,6 +85,7 @@ class ComplexLiteral;
 class Add;
 class Subtract;
 class Multiply;
+class ComplexMultiply;
 class Divide;
 class Modulus;
 
@@ -100,6 +108,8 @@ class PreDecrement;
 
 class Ternary;
 
+// FFT expressions
+
 class LoadGlobal;
 
 class TwiddleMultiply;
@@ -118,6 +128,7 @@ using Expression = std::variant<ScalarVariable,
                                 Add,
                                 Subtract,
                                 Multiply,
+                                ComplexMultiply,
                                 Divide,
                                 Modulus,
                                 ShiftLeft,
@@ -191,9 +202,14 @@ struct ScalarVariable
 {
     static const unsigned int precedence = 0;
     std::string               name, type;
-    ScalarVariable(const std::string& name, const std::string& type)
+    Component                 component;
+    OptionalExpression        index;
+
+    ScalarVariable(std::string name, std::string type, Component component = Component::BOTH)
         : name(name)
-        , type(type){};
+        , type(type)
+        , component(component){};
+
     std::string render() const;
 };
 
@@ -204,6 +220,7 @@ public:
     std::string               name, type;
     bool                      pointer = false, restrict = false;
     ScalarVariable            x, y;
+    Component                 component;
     OptionalExpression        index;
     OptionalExpression        size;
     // default value for argument and template declarations
@@ -228,9 +245,9 @@ public:
         , y(v.name + ".y", v.type){};
 
     Variable(const Variable& v);
-    Variable& operator=(const Variable&) = default;
     Variable(const Variable& v, const Expression& _index);
 
+    Variable&      operator=(const Variable&) = default;
     Variable       operator[](const Expression& index) const;
     ScalarVariable address() const;
 
@@ -313,6 +330,20 @@ public:
              const std::vector<Expression>& arguments);
 
     std::string render() const;
+};
+
+class ComplexMultiply
+{
+public:
+    static const unsigned int precedence = 5;
+    explicit ComplexMultiply(const std::vector<Expression>& args)
+        : args(args)
+    {
+    }
+
+    std::string render() const;
+
+    std::vector<Expression> args;
 };
 
 class Ternary
@@ -607,9 +638,9 @@ Variable::Variable(const std::string& _name,
     , type(_type)
     , pointer(pointer)
     , restrict(restrict)
-    , x(_name + ".x", _type)
-    , y(_name + ".y", _type)
-
+    , x(_name, _type, Component::REAL)
+    , y(_name, _type, Component::IMAG)
+    , component(Component::BOTH)
 {
     if(size > 0)
         this->size = Expression{size};
@@ -624,8 +655,9 @@ Variable::Variable(const std::string& _name,
     , type(_type)
     , pointer(pointer)
     , restrict(restrict)
-    , x(_name + ".x", _type)
-    , y(_name + ".y", _type)
+    , x(_name, _type, Component::REAL)
+    , y(_name, _type, Component::IMAG)
+    , component(Component::BOTH)
     , size(_size)
 {
 }
@@ -639,8 +671,9 @@ Variable::Variable(const Variable& v)
     , type(v.type)
     , pointer(v.pointer)
     , restrict(v.restrict)
-    , x(v.name + ".x", v.type)
-    , y(v.name + ".y", v.type)
+    , x(v.name + ".x", v.type, Component::REAL)
+    , y(v.name + ".y", v.type, Component::IMAG)
+    , component(v.component)
     , index(v.index)
     , size(v.size)
     , decl_default(v.decl_default)
@@ -657,8 +690,9 @@ Variable::Variable(const Variable& v, const Expression& _index)
     , type(v.type)
     , pointer(v.pointer)
     , restrict(v.restrict)
-    , x(v.name, v.type)
-    , y(v.name, v.type)
+    , x(v.name, v.type, Component::REAL)
+    , y(v.name, v.type, Component::IMAG)
+    , component(v.component)
     , index(_index)
 {
     size         = v.size;
@@ -823,6 +857,14 @@ std::string ComplexLiteral::render() const
     }
     ret += "}";
     return ret;
+}
+
+std::string ComplexMultiply::render() const
+{
+    auto a = std::get<Variable>(args[0]);
+    auto b = std::get<Variable>(args[1]);
+    auto r = ComplexLiteral{a.x * b.x - a.y * b.y, a.y * b.x + a.x * b.y};
+    return r.render();
 }
 
 std::string TwiddleMultiply::render() const
@@ -1532,6 +1574,7 @@ struct BaseVisitor
     MAKE_VISITOR_OPERATOR(Expression, PreDecrement);
     MAKE_VISITOR_OPERATOR(Expression, Ternary);
     MAKE_VISITOR_OPERATOR(Expression, LoadGlobal);
+    MAKE_VISITOR_OPERATOR(Expression, ComplexMultiply);
     MAKE_VISITOR_OPERATOR(Expression, TwiddleMultiply);
     MAKE_VISITOR_OPERATOR(Expression, TwiddleMultiplyConjugate);
     MAKE_VISITOR_OPERATOR(Expression, Parens);
@@ -1636,6 +1679,7 @@ struct BaseVisitor
 
     MAKE_EXPR_VISIT(LoadGlobal);
 
+    MAKE_TRIVIAL_VISIT(Expression, ComplexMultiply);
     MAKE_TRIVIAL_VISIT(Expression, TwiddleMultiply);
     MAKE_TRIVIAL_VISIT(Expression, TwiddleMultiplyConjugate);
 

@@ -221,7 +221,7 @@ struct StockhamKernelRR : public StockhamKernel
                 if(length == 64)
                 {
                     lds2reg_full += add_work(
-                        std::bind(load_lds, this, _1, _2, _3, _4, _5, Component::NONE, true),
+                        std::bind(load_lds, this, _1, _2, _3, _4, _5, Component::BOTH, true),
                         width,
                         height,
                         ThreadGuardMode::NO_GUARD);
@@ -229,7 +229,7 @@ struct StockhamKernelRR : public StockhamKernel
                 else
                 {
                     lds2reg_full += add_work(
-                        std::bind(load_lds, this, _1, _2, _3, _4, _5, Component::NONE, false),
+                        std::bind(load_lds, this, _1, _2, _3, _4, _5, Component::BOTH, false),
                         width,
                         height,
                         ThreadGuardMode::GUARD_BY_IF);
@@ -259,9 +259,9 @@ struct StockhamKernelRR : public StockhamKernel
             if(npass < factors.size() - 1)
             {
                 // linear variant store (half) and load (half)
-                for(auto component : {Component::X, Component::Y})
+                for(auto component : {Component::REAL, Component::IMAG})
                 {
-                    bool isFirstStore = (npass == 0) && (component == Component::X);
+                    bool isFirstStore = (npass == 0) && (component == Component::REAL);
                     auto half_width   = factors[npass];
                     auto half_height
                         = static_cast<float>(length) / half_width / threads_per_transform;
@@ -319,7 +319,7 @@ struct StockhamKernelRR : public StockhamKernel
                 {
                     reg2lds_full += add_work(
                         std::bind(
-                            store_lds, this, _1, _2, _3, _4, _5, Component::NONE, cumheight, true),
+                            store_lds, this, _1, _2, _3, _4, _5, Component::BOTH, cumheight, true),
                         width,
                         height,
                         ThreadGuardMode::GUARD_BY_IF);
@@ -328,7 +328,7 @@ struct StockhamKernelRR : public StockhamKernel
                 {
                     reg2lds_full += add_work(
                         std::bind(
-                            store_lds, this, _1, _2, _3, _4, _5, Component::NONE, cumheight, false),
+                            store_lds, this, _1, _2, _3, _4, _5, Component::BOTH, cumheight, false),
                         width,
                         height,
                         ThreadGuardMode::GUARD_BY_IF);

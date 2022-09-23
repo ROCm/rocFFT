@@ -20,6 +20,7 @@
 
 #pragma once
 #include "../../device/kernels/bank_shift.h"
+#include "fftgenerator.h"
 #include "stockham_gen.h"
 #include <cmath>
 
@@ -261,6 +262,9 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return arguments;
     }
 
+    // virtual functions implemented by different tiling implementations
+    virtual std::string tiling_name() = 0;
+
     // TODO- support embedded Pre/Post
     virtual StatementList set_direct_to_from_registers()
     {
@@ -318,7 +322,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     {
         return {Variable{"load_cb_fn", "void", true, true},
                 Variable{"load_cb_data", "void", true, true},
-                Variable{"load_cb_lds_bytes", "uint32_t"},
+                Variable{"load_cb_lds_bytes", "unsigned int"},
                 Variable{"store_cb_fn", "void", true, true},
                 Variable{"store_cb_data", "void", true, true}};
     }
@@ -331,13 +335,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return Ternary{embedded_type == "EmbeddedType::NONE", 0, lds_padding};
     }
 
-    // load registers R from lds_complex
-    enum class Component
-    {
-        NONE,
-        X,
-        Y,
-    };
     StatementList load_lds_generator(unsigned int h,
                                      unsigned int hr,
                                      unsigned int width,
@@ -361,13 +358,13 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
             switch(component)
             {
-            case Component::X:
+            case Component::REAL:
                 work += Assign(R[hr * width + w].x, lds_real[l_offset]);
                 break;
-            case Component::Y:
+            case Component::IMAG:
                 work += Assign(R[hr * width + w].y, lds_real[l_offset]);
                 break;
-            case Component::NONE:
+            case Component::BOTH:
                 work += Assign(R[hr * width + w], lds_complex[l_offset]);
                 break;
             }
@@ -403,13 +400,13 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
             switch(component)
             {
-            case Component::X:
+            case Component::REAL:
                 work += Assign(lds_real[l_offset], R[hr * width + w].x);
                 break;
-            case Component::Y:
+            case Component::IMAG:
                 work += Assign(lds_real[l_offset], R[hr * width + w].y);
                 break;
-            case Component::NONE:
+            case Component::BOTH:
                 work += Assign(lds_complex[l_offset], R[hr * width + w]);
                 break;
             }
@@ -501,6 +498,80 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return work;
     }
 
+    // Call generator as many times as needed.
+    // generator accepts h, hr, width, dt, guard_pred parameters
+    StatementList
+        add_work(std::function<StatementList(
+                     unsigned int, unsigned int, unsigned int, unsigned int, Expression)> generator,
+                 unsigned int                                                             width,
+                 double                                                                   height,
+                 ThreadGuardMode                                                          guard,
+                 bool trans_dir = false) const
+    {
+        StatementList stmts;
+        unsigned int  iheight = std::floor(height);
+        if(height > iheight && threads_per_transform > length / width)
+            iheight += 1;
+
+        Expression guard_expr = Expression{Literal{"true"}};
+
+        // do thread gurad when guard_by_if or guard_by_arg
+        if(guard != ThreadGuardMode::NO_GUARD)
+        {
+            // using ">" : no need to test "if(thread < XXX)"" if it is always true
+            if((!trans_dir && threads_per_transform > length / width)
+               || (trans_dir && workgroup_size / transforms_per_block > length / width))
+            {
+                if(writeGuard)
+                    guard_expr = Expression{write && (thread < length / width)};
+                else
+                    guard_expr = Expression{thread < length / width};
+            }
+            else
+            {
+                if(writeGuard)
+                    guard_expr = Expression{write};
+            }
+        }
+
+        StatementList work;
+        for(unsigned int h = 0; h < iheight; ++h)
+            work += generator(h, 0, width, 0, guard_expr);
+
+        // guard_expr is not a trivial value "true"
+        if(guard == ThreadGuardMode::GUARD_BY_IF && !std::holds_alternative<Literal>(guard_expr))
+        {
+            stmts += CommentLines{"more than enough threads, some do nothing"};
+            stmts += If{guard_expr, work};
+        }
+        else
+        {
+            stmts += work;
+        }
+
+        if(height > iheight && threads_per_transform < length / width)
+        {
+            stmts += CommentLines{"not enough threads, some threads do extra work"};
+            unsigned int dt = iheight * threads_per_transform;
+
+            // always do thread gurad
+            if(writeGuard)
+                guard_expr = Expression{write && (thread + dt < length / width)};
+            else
+                guard_expr = Expression{thread + dt < length / width};
+
+            work = generator(0, iheight, width, dt, guard_expr);
+
+            // put in if only if guard_by_if
+            if(guard == ThreadGuardMode::GUARD_BY_IF)
+                stmts += If{guard_expr, work};
+            else
+                stmts += work;
+        }
+
+        return stmts;
+    }
+
     Function generate_lds_to_reg_input_function()
     {
         std::string function_name = "lds_to_reg_input_length" + std::to_string(length) + "_device";
@@ -521,7 +592,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         unsigned int width  = factors[0];
         float        height = static_cast<float>(length) / width / threads_per_transform;
         body += SyncThreads();
-        body += add_work(std::bind(load_lds, this, _1, _2, _3, _4, _5, Component::NONE, false),
+        body += add_work(std::bind(load_lds, this, _1, _2, _3, _4, _5, Component::BOTH, false),
                          width,
                          height,
                          ThreadGuardMode::NO_GUARD);
@@ -552,7 +623,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         unsigned int cumheight = product(factors.begin(), factors.end() - 1);
         body += SyncThreads();
         body += add_work(
-            std::bind(store_lds, this, _1, _2, _3, _4, _5, Component::NONE, cumheight, false),
+            std::bind(store_lds, this, _1, _2, _3, _4, _5, Component::BOTH, cumheight, false),
             width,
             height,
             ThreadGuardMode::GUARD_BY_IF);
@@ -609,7 +680,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 StatementList lds2reg_full;
                 lds2reg_full += SyncThreads();
                 lds2reg_full += add_work(
-                    std::bind(load_lds, this, _1, _2, _3, _4, _5, Component::NONE, false),
+                    std::bind(load_lds, this, _1, _2, _3, _4, _5, Component::BOTH, false),
                     width,
                     height,
                     ThreadGuardMode::GUARD_BY_IF,
@@ -639,9 +710,9 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             if(npass < factors.size() - 1)
             {
                 // linear variant store (half) and load (half)
-                for(auto component : {Component::X, Component::Y})
+                for(auto component : {Component::REAL, Component::IMAG})
                 {
-                    bool isFirstStore = (npass == 0) && (component == Component::X);
+                    bool isFirstStore = (npass == 0) && (component == Component::REAL);
                     auto half_width   = factors[npass];
                     auto half_height
                         = static_cast<float>(length) / half_width / threads_per_transform;
@@ -671,7 +742,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                     reg2lds_full += SyncThreads();
                 reg2lds_full += add_work(
                     std::bind(
-                        store_lds, this, _1, _2, _3, _4, _5, Component::NONE, cumheight, false),
+                        store_lds, this, _1, _2, _3, _4, _5, Component::BOTH, cumheight, false),
                     width,
                     height,
                     ThreadGuardMode::GUARD_BY_IF);
@@ -836,9 +907,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return f;
     }
 
-    // virtual functions implemented by different tiling implementations
-    virtual std::string tiling_name() = 0;
-
     // void update_kernel_settings();
 
     virtual StatementList calculate_offsets() = 0;
@@ -921,79 +989,5 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         }
 
         return {If{Equal{embedded_type, template_type}, stmts}};
-    }
-
-    // Call generator as many times as needed.
-    // generator accepts h, hr, width, dt, guard_pred parameters
-    StatementList
-        add_work(std::function<StatementList(
-                     unsigned int, unsigned int, unsigned int, unsigned int, Expression)> generator,
-                 unsigned int                                                             width,
-                 double                                                                   height,
-                 ThreadGuardMode                                                          guard,
-                 bool trans_dir = false) const
-    {
-        StatementList stmts;
-        unsigned int  iheight = std::floor(height);
-        if(height > iheight && threads_per_transform > length / width)
-            iheight += 1;
-
-        Expression guard_expr = Expression{Literal{"true"}};
-
-        // do thread gurad when guard_by_if or guard_by_arg
-        if(guard != ThreadGuardMode::NO_GUARD)
-        {
-            // using ">" : no need to test "if(thread < XXX)"" if it is always true
-            if((!trans_dir && threads_per_transform > length / width)
-               || (trans_dir && workgroup_size / transforms_per_block > length / width))
-            {
-                if(writeGuard)
-                    guard_expr = Expression{write && (thread < length / width)};
-                else
-                    guard_expr = Expression{thread < length / width};
-            }
-            else
-            {
-                if(writeGuard)
-                    guard_expr = Expression{write};
-            }
-        }
-
-        StatementList work;
-        for(unsigned int h = 0; h < iheight; ++h)
-            work += generator(h, 0, width, 0, guard_expr);
-
-        // guard_expr is not a trivial value "true"
-        if(guard == ThreadGuardMode::GUARD_BY_IF && !std::holds_alternative<Literal>(guard_expr))
-        {
-            stmts += CommentLines{"more than enough threads, some do nothing"};
-            stmts += If{guard_expr, work};
-        }
-        else
-        {
-            stmts += work;
-        }
-
-        if(height > iheight && threads_per_transform < length / width)
-        {
-            stmts += CommentLines{"not enough threads, some threads do extra work"};
-            unsigned int dt = iheight * threads_per_transform;
-
-            // always do thread gurad
-            if(writeGuard)
-                guard_expr = Expression{write && (thread + dt < length / width)};
-            else
-                guard_expr = Expression{thread + dt < length / width};
-
-            work = generator(0, iheight, width, dt, guard_expr);
-
-            // put in if only if guard_by_if
-            if(guard == ThreadGuardMode::GUARD_BY_IF)
-                stmts += If{guard_expr, work};
-            else
-                stmts += work;
-        }
-
-        return stmts;
     }
 };
