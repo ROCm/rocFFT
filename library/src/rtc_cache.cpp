@@ -274,11 +274,13 @@ void RTCCache::store_code_object(const std::string&          kernel_name,
     }
     if(sqlite3_step(s) != SQLITE_DONE)
     {
-        std::cerr << "Error: failed to store code object for " << kernel_name << std::endl;
+        std::cerr << "Error: failed to store code object for " << kernel_name << ": "
+                  << sqlite3_errmsg(db_user.get()) << std::endl;
         // some kind of problem storing the row?  log it
         if(LOG_RTC_ENABLED())
             (*LogSingleton::GetInstance().GetRTCOS())
-                << "Error: failed to store code object for " << kernel_name << std::flush;
+                << "Error: failed to store code object for " << kernel_name << ": "
+                << sqlite3_errmsg(db_user.get()) << std::flush;
     }
     sqlite3_reset(s);
 }
@@ -514,7 +516,22 @@ std::vector<char> cached_compile(const std::string&          kernel_name,
     return code;
 }
 
-void RTCCache::write_aot_cache(const std::string& output_path)
+void RTCCache::enable_write_mostly()
+{
+    // increase sqlite timeout as many processes may be contending over
+    // this database
+    sqlite3_busy_timeout(db_user.get(), 30000);
+
+    // set the cache file to WAL mode, which allows for faster writes
+    // that don't block with reads
+    auto wal_stmt = prepare_stmt(db_user, "PRAGMA journal_mode=WAL");
+    // ignore error here - WAL is helpful, but we can still proceed
+    // even if enabling it fails
+    sqlite3_step(wal_stmt.get());
+}
+
+void RTCCache::write_aot_cache(const std::string&          output_path,
+                               const std::array<char, 32>& generator_sum)
 {
     // remove the path if it already exists, since we want to output a
     // cleanly created file
@@ -550,9 +567,74 @@ void RTCCache::write_aot_cache(const std::string& output_path)
                                   ")"
                                   "SELECT kernel_name, arch, hip_version, generator_sum, code, 0 "
                                   "FROM cache_v1 "
-                                  "ORDER BY kernel_name, arch, hip_version, generator_sum");
+                                  "WHERE generator_sum = :generator_sum "
+                                  "ORDER BY kernel_name, arch, hip_version");
+    if(sqlite3_bind_blob(
+           copy_stmt.get(), 1, generator_sum.data(), generator_sum.size(), SQLITE_TRANSIENT)
+       != SQLITE_OK)
+        throw std::runtime_error(std::string("write_aot_cache copy bind: ")
+                                 + sqlite3_errmsg(db_user.get()));
+
     if(sqlite3_step(copy_stmt.get()) != SQLITE_DONE)
         throw std::runtime_error(std::string("write_aot_cache copy step: ")
                                  + sqlite3_errmsg(db_user.get()));
     sqlite3_reset(copy_stmt.get());
+}
+
+void RTCCache::cleanup_cache(sqlite3_int64 target_size_bytes)
+{
+    // delete any kernels that are older than the newest
+    // target-size-worth of kernels
+    auto delete_stmt = prepare_stmt(db_user,
+                                    "DELETE "
+                                    "FROM cache_v1 "
+                                    "WHERE "
+                                    "  ROWID NOT IN ( "
+                                    "    SELECT "
+                                    "      rid "
+                                    "    FROM "
+                                    "      ( "
+                                    "      SELECT "
+                                    "        ROWID AS rid, "
+                                    "        kernel_name "
+                                    "        timestamp, "
+                                    "        SUM(LENGTH(code) + LENGTH(kernel_name)) "
+                                    "          OVER "
+                                    "          ( "
+                                    "          ORDER BY "
+                                    "            timestamp DESC, "
+                                    "            kernel_name "
+                                    "          ) AS total_code_length "
+                                    "      FROM cache_v1 "
+                                    "      ) totals "
+                                    "    WHERE total_code_length < :target_size_bytes "
+                                    "    ) ");
+    if(sqlite3_bind_int64(delete_stmt.get(), 1, target_size_bytes) != SQLITE_OK)
+        throw std::runtime_error(std::string("cleanup_cache delete bind: ")
+                                 + sqlite3_errmsg(db_user.get()));
+    if(sqlite3_step(delete_stmt.get()) != SQLITE_DONE)
+        throw std::runtime_error(std::string("cleanup_cache delete step: ")
+                                 + sqlite3_errmsg(db_user.get()));
+    delete_stmt.reset();
+
+    // check if we can reclaim 20% or more of the file's space by vacuuming
+    auto          page_count_stmt = prepare_stmt(db_user, "PRAGMA page_count");
+    sqlite3_int64 page_count      = 0;
+    if(sqlite3_step(page_count_stmt.get()) == SQLITE_ROW)
+        page_count = sqlite3_column_int64(page_count_stmt.get(), 0);
+    page_count_stmt.reset();
+
+    auto          freelist_count_stmt = prepare_stmt(db_user, "PRAGMA freelist_count");
+    sqlite3_int64 freelist_count      = 0;
+    if(sqlite3_step(freelist_count_stmt.get()) == SQLITE_ROW)
+        freelist_count = sqlite3_column_int64(freelist_count_stmt.get(), 0);
+    freelist_count_stmt.reset();
+
+    if(freelist_count >= page_count * 0.2)
+    {
+        auto vacuum_stmt = prepare_stmt(db_user, "VACUUM");
+        if(sqlite3_step(vacuum_stmt.get()) != SQLITE_DONE)
+            throw std::runtime_error(std::string("cleanup_cache vacuum step: ")
+                                     + sqlite3_errmsg(db_user.get()));
+    }
 }

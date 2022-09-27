@@ -346,9 +346,14 @@ if( WIN32 )
 else()
   set( ROCFFT_KERNEL_CACHE_PATH ${CMAKE_BINARY_DIR}/library/src/rocfft_kernel_cache.db )
 endif()
+
+# ROCFFT_BUILD_KERNEL_CACHE_PATH may be specified as a temporary file
+# to collect compiled kernels before writing them out as part of the
+# build.  any kernels that already exist in this file will be reused
+# between builds.
 add_custom_command(
   OUTPUT rocfft_kernel_cache.db
-  COMMAND rocfft_aot_helper ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${AMDGPU_TARGETS}
+  COMMAND rocfft_aot_helper \"${ROCFFT_BUILD_KERNEL_CACHE_PATH}\" ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${AMDGPU_TARGETS}
   DEPENDS rocfft_aot_helper rocfft_rtc_helper
   COMMENT "Compile kernels into shipped cache file"
 )

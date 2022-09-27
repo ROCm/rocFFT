@@ -1,4 +1,5 @@
 #include <functional>
+#include <iostream>
 #include <thread>
 
 using namespace std::placeholders;
@@ -293,23 +294,27 @@ void build_stockham_function_pool(CompileQueue& queue)
 
 int main(int argc, char** argv)
 {
-    if(argc < 4)
+    if(argc < 5)
     {
-        puts("Usage: rocfft_aot_helper cachefile.db path/to/rocfft_rtc_helper gfx000 gfx001 ...");
+        puts("Usage: rocfft_aot_helper temp_cachefile.db output_cachefile.db "
+             "path/to/rocfft_rtc_helper gfx000 gfx001 ...");
         return 1;
     }
 
-    std::string              cache_file = argv[1];
-    std::string              rtc_helper = argv[2];
+    std::string              temp_cache_file   = argv[1];
+    std::string              output_cache_file = argv[2];
+    std::string              rtc_helper        = argv[3];
     std::vector<std::string> gpu_archs;
-    for(int i = 3; i < argc; ++i)
+    for(int i = 4; i < argc; ++i)
         gpu_archs.push_back(argv[i]);
 
-    // force RTC to use a clean temporary cache file
-    auto temp_cache_file = fs::temp_directory_path() / "rocfft_temp_cache.db";
-    if(fs::exists(temp_cache_file))
-        fs::remove(temp_cache_file);
-    rocfft_setenv("ROCFFT_RTC_CACHE_PATH", temp_cache_file.string().c_str());
+    // default to using a persistent file in the temp dir if no cache
+    // file was given
+    if(temp_cache_file.empty())
+        temp_cache_file = (fs::temp_directory_path() / "rocfft_temp_cache.db").string();
+
+    // force RTC to use the temporary cache file
+    rocfft_setenv("ROCFFT_RTC_CACHE_PATH", temp_cache_file.c_str());
 
     // disable system cache since we want to compile everything - use
     // an in-memory DB which will always be empty
@@ -319,6 +324,8 @@ int main(int argc, char** argv)
     rocfft_setenv("ROCFFT_RTC_PROCESS_HELPER", rtc_helper.c_str());
 
     RTCCache::single = std::make_unique<RTCCache>();
+
+    RTCCache::single->enable_write_mostly();
 
     CompileQueue queue;
 
@@ -349,12 +356,20 @@ int main(int argc, char** argv)
 
     // write the output file using what we collected in the temporary
     // cache
-    RTCCache::single->write_aot_cache(cache_file);
+    RTCCache::single->write_aot_cache(output_cache_file, generator_sum());
+
+    // try to shrink the temp cache file to 10 GiB
+    try
+    {
+        RTCCache::single->cleanup_cache(static_cast<sqlite3_int64>(10) * 1024 * 1024 * 1024);
+    }
+    // the build should still succeed even if we fail to shrink the temp cache
+    catch(std::exception&)
+    {
+        std::cerr << "warning: failed to shrink temp cache" << std::endl;
+    }
 
     RTCCache::single.reset();
-
-    // clean up the temp file
-    fs::remove(temp_cache_file);
 
     return 0;
 }
