@@ -48,33 +48,40 @@ class Timer:
         if not rider.is_file():
             raise RuntimeError(f"Unable to find (dyna-)rider: {self.rider}")
 
+        failed_tokens = []
+
         total_prob_count = 0
         no_accutest_prob_count = 0
         for prob in generator.generate_problems():
             total_prob_count += 1
-            token, seconds = perflib.rider.run(self.rider,
-                                               prob.length,
-                                               direction=prob.direction,
-                                               real=prob.real,
-                                               inplace=prob.inplace,
-                                               precision=prob.precision,
-                                               nbatch=prob.nbatch,
-                                               ntrial=self.ntrial,
-                                               device=self.device,
-                                               libraries=self.lib,
-                                               verbose=self.verbose,
-                                               timeout=self.timeout)
+            token, seconds, success = perflib.rider.run(
+                self.rider,
+                prob.length,
+                direction=prob.direction,
+                real=prob.real,
+                inplace=prob.inplace,
+                precision=prob.precision,
+                nbatch=prob.nbatch,
+                ntrial=self.ntrial,
+                device=self.device,
+                libraries=self.lib,
+                verbose=self.verbose,
+                timeout=self.timeout)
 
-            for idx, vals in enumerate(seconds):
-                out = path(self.out[idx])
-                logging.info("output: " + str(out))
-                meta = {'title': prob.tag}
-                meta.update(prob.meta)
-                perflib.utils.write_dat(out, token, seconds[idx], meta)
-                if self.active_tests_tokens and token.encode(
-                ) not in self.active_tests_tokens:
-                    no_accutest_prob_count += 1
-                    logging.info(f'No accuracy test coverage for: ' + token)
+            if success:
+                for idx, vals in enumerate(seconds):
+                    out = path(self.out[idx])
+                    logging.info("output: " + str(out))
+                    meta = {'title': prob.tag}
+                    meta.update(prob.meta)
+                    perflib.utils.write_dat(out, token, seconds[idx], meta)
+            else:
+                failed_tokens.append(token)
+
+            if self.active_tests_tokens and token.encode(
+            ) not in self.active_tests_tokens:
+                no_accutest_prob_count += 1
+                logging.info(f'No accuracy test coverage for: ' + token)
 
         if no_accutest_prob_count > 0:
             print('\t')
@@ -83,6 +90,8 @@ class Timer:
                 str(total_prob_count) +
                 f' problems do not have accuracy coverage.' +
                 f' Refer to rocfft-perf.log for details.')
+
+        return failed_tokens
 
 
 @dataclass
@@ -98,6 +107,7 @@ class GroupedTimer:
     timeout: float = 0
 
     def run_cases(self, generator):
+        failed_tokens = []
         all_problems = collections.defaultdict(list)
         for problem in generator.generate_problems():
             all_problems[problem.tag].append(problem)
@@ -120,4 +130,6 @@ class GroupedTimer:
             )
             timer = Timer(**self.__dict__)
             timer.out = [path(x) / (tag + '.dat') for x in self.out]
-            timer.run_cases(perflib.generators.VerbatimGenerator(problems))
+            failed_tokens += timer.run_cases(
+                perflib.generators.VerbatimGenerator(problems))
+        return failed_tokens

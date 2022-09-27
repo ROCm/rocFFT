@@ -76,8 +76,6 @@ def run(rider,
     logging.info('running: ' + ' '.join(cmd))
     if verbose:
         print('running: ' + ' '.join(cmd))
-    else:
-        print('.', end='', flush=True)
     fout = tempfile.TemporaryFile(mode="w+")
     ferr = tempfile.TemporaryFile(mode="w+")
 
@@ -97,17 +95,35 @@ def run(rider,
     cerr = ferr.read()
 
     logging.debug(cout)
+    logging.debug(cerr)
 
     tokentoken = "Token: "
     token = ""
     times = []
 
+    for line in cout.splitlines():
+        if line.startswith(tokentoken):
+            token = line[len(tokentoken):]
+
     if proc.returncode == 0:
-        for line in cout.splitlines():
-            if line.startswith(tokentoken):
-                token = line[len(tokentoken):]
         for m in re.finditer('Execution gpu time: ([ 0-9.]*) ms', cout,
                              re.MULTILINE):
             times.append(list(map(float, m.group(1).split(' '))))
+    else:
+        logging.info("PROCESS FAILED with return code " + str(proc.returncode))
 
-    return token, times
+    if verbose:
+        print('finished: ' + ' '.join(cmd))
+
+    if proc.returncode == 0:
+        if "SKIPPED" in cout:
+            print('s', end='', flush=True)
+        else:
+            print('.', end='', flush=True)
+
+    else:
+        print('x', end='', flush=True)
+
+    success = proc.returncode == 0
+
+    return token, times, success

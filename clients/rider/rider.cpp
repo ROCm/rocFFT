@@ -224,15 +224,19 @@ int main(int argc, char* argv[])
     const auto raw_vram_footprint
         = params.fft_params_vram_footprint() + twiddle_table_vram_footprint(params);
     if(!vram_fits_problem(raw_vram_footprint))
-        LIB_V_THROW(rocfft_status_failure,
-                    "Problem size (" + std::to_string(raw_vram_footprint)
-                        + ") raw data too large for device");
+    {
+        std::cout << "SKIPPED: Problem size (" << raw_vram_footprint
+                  << ") raw data too large for device.\n";
+        return EXIT_SUCCESS;
+    }
 
     const auto vram_footprint = params.vram_footprint();
     if(!vram_fits_problem(vram_footprint))
-        LIB_V_THROW(rocfft_status_failure,
-                    "Problem size (" + std::to_string(vram_footprint)
-                        + ") raw data too large for device");
+    {
+        std::cout << "SKIPPED: Problem size (" << vram_footprint
+                  << ") raw data too large for device.\n";
+        return EXIT_SUCCESS;
+    }
 
     auto ret = params.create_plan();
     if(ret != fft_status_success)

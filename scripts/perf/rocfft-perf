@@ -463,8 +463,12 @@ def command_run(arguments):
         specs_file.parent.mkdir(parents=True, exist_ok=True)
         specs_file.write_text(str(specs))
 
-    timer.run_cases(filtered(generator))
+    failed_tokens = timer.run_cases(filtered(generator))
 
+    print()
+    
+    logging.info("failed tokens: " + "\n".join(failed_tokens))
+    print("failed tokens:\n" + "\n".join(failed_tokens))
 
 def command_autoperf(arguments):
     """Compare performance of two builds automagically."""
@@ -693,7 +697,7 @@ def main():
         prog='rocfft-perf',
         epilog="For a detailed usage overview, run: %(prog)s overview")
     parser.add_argument('-v', '--verbose', action='store_true', default=False)
-    
+   
     subparsers = parser.add_subparsers(dest='command')
 
     subparsers.add_parser('overview', help='print a general usage overview')
@@ -919,7 +923,7 @@ def main():
 
     if arguments.command == 'run':
         command_run(arguments)
-
+        
     if arguments.command == 'post':
         command_post(arguments)
         

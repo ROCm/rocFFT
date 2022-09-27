@@ -288,16 +288,22 @@ def make_tex(figs, docdir, outdirs, label, secondtype=None):
     nslowdown = len(df_all_bad.index)
 
     print("ncompare:", ncompare)
-    print("nspeedup:", nspeedup)
-    print("nslowdown:", nslowdown)
+    print(
+        "nspeedup  (" + label[1] + " is faster): " +
+        " " * max(len(label[0]) - len(label[1]), 0), nspeedup)
+    print(
+        "nslowdown (" + label[0] + " is faster): " +
+        " " * max(len(label[1]) - len(label[0]), 0), nslowdown)
 
     if ncompare > 0:
         geometric_mean = scipy.stats.mstats.gmean(speedups)
         print("geometric mean:", geometric_mean)
         tex += "\\begin{table}[H]\n"
         tex += "\\centering\n"
-        tex += "\\begin{tabular}{l|l|l|l|}\n"
-        tex += "ncompare & nspeedup & nslowdown & gmean\\\\ \n"
+        tex += "\\begin{tabular}{l|p{5cm}|p{5cm}|l|}\n"
+        tex += "ncompare & nspeedup " + "(" + label[
+            1] + " faster)" + " & nslowdown (" + label[
+                0] + " faster)" + " & gmean\\\\ \n"
         tex += "\\hline\n"
         tex += str(ncompare) + "&" + str(nspeedup) + "&" + str(
             nslowdown) + "&" + '{0:.3f}'.format(geometric_mean) + "\\\\\n"

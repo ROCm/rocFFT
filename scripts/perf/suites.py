@@ -637,3 +637,12 @@ def all():
     yield from large1d()
     yield from misc2d()
     yield from misc3d()
+
+
+def short_test():
+    """A few small sizes for script testing."""
+
+    yield from default_length_params("short_test", [(8), (16), (32),
+                                                    (4294967296)],
+                                     1,
+                                     reals=[False])
