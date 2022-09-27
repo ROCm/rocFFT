@@ -103,6 +103,7 @@ set( kgen_logic_files
 
      # stockham generator code
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/generator.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/generator.cpp
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/fftgenerator.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_aot.cpp
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen.cpp
@@ -321,15 +322,18 @@ foreach( target rocfft rocfft_aot_helper rocfft_config_search )
   endif()
 endforeach()
 target_link_libraries( rocfft PRIVATE
+  generator
   rocfft-function-pool
   rocfft-rtc-launch
   )
 target_link_libraries( rocfft_config_search PRIVATE
   ${ROCFFT_HOST_LINK_LIBS}
+  generator
   rocfft-rtc-launch
   rocfft-function-pool-standalone
   )
 target_link_libraries( rocfft_aot_helper PRIVATE
+  generator
   rocfft-function-pool-standalone
   )
 

@@ -20,12 +20,14 @@
 # THE SOFTWARE.
 # #############################################################################
 
+add_library( generator OBJECT generator.cpp )
+
 add_library( stockham_gen OBJECT stockham_gen.cpp )
 
 add_executable( stockham_aot stockham_aot.cpp )
-target_link_libraries( stockham_aot PRIVATE stockham_gen )
+target_link_libraries( stockham_aot PRIVATE stockham_gen generator )
 
-foreach( target stockham_gen stockham_aot )
+foreach( target stockham_gen stockham_aot generator )
   set_target_properties( ${target} PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON

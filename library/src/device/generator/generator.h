@@ -276,45 +276,6 @@ public:
 
 using TemplateList = ArgumentList;
 
-std::string ArgumentList::render() const
-{
-    std::string f;
-    if(!arguments.empty())
-    {
-        f = arguments[0].render();
-        for(unsigned int i = 1; i < arguments.size(); ++i)
-        {
-            f += ",";
-            f += arguments[i].render();
-        }
-    }
-    return f;
-}
-
-ArgumentList::operator bool() const
-{
-    return !arguments.empty();
-}
-
-void ArgumentList::append(Variable v)
-{
-    arguments.push_back(v);
-}
-
-void ArgumentList::set_value(const std::string& name, const std::string& value)
-{
-    for(auto& arg : arguments)
-    {
-        if(arg.name == name)
-        {
-            arg.name = value;
-            return;
-        }
-    }
-    // didn't find the argument - that should be a programmer error
-    throw std::runtime_error("ArgumentList::set_value failed to find " + name);
-}
-
 class CallExpr
 {
 public:
@@ -432,42 +393,6 @@ public:
         std::string render() const;                                 \
     };
 
-#define CONSTRUCT_OPER(NAME)                                \
-    NAME::NAME(const std::initializer_list<Expression>& il) \
-        : args(il){};                                       \
-    NAME::NAME(const std::vector<Expression>& il)           \
-        : args(il){};
-
-#define MAKE_BINARY_METHODS(NAME)                                  \
-    std::string NAME::render() const                               \
-    {                                                              \
-        std::string s;                                             \
-        if(get_precedence(args[0]) > precedence)                   \
-            s += "(" + vrender(args[0]) + ")";                     \
-        else                                                       \
-            s += vrender(args[0]);                                 \
-        for(auto arg = args.begin() + 1; arg != args.end(); ++arg) \
-        {                                                          \
-            s += oper;                                             \
-            if(get_precedence(*arg) >= precedence)                 \
-                s += "(" + vrender(*arg) + ")";                    \
-            else                                                   \
-                s += vrender(*arg);                                \
-        }                                                          \
-        return s;                                                  \
-    }
-
-#define MAKE_UNARY_PREFIX_METHODS(NAME)               \
-    std::string NAME::render() const                  \
-    {                                                 \
-        std::string s = oper;                         \
-        if(get_precedence(args.front()) > precedence) \
-            s += "(" + vrender(args.front()) + ")";   \
-        else                                          \
-            s += vrender(args.front());               \
-        return s;                                     \
-    }
-
 MAKE_OPER(Add, " + ", 6);
 MAKE_OPER(Subtract, " - ", 6);
 MAKE_OPER(Multiply, " * ", 5);
@@ -495,456 +420,104 @@ MAKE_OPER(ComplexLiteral, ",", 17);
 
 // end of Expression class declarations
 
-CONSTRUCT_OPER(Add);
-CONSTRUCT_OPER(Subtract);
-CONSTRUCT_OPER(Multiply);
-CONSTRUCT_OPER(Divide);
-CONSTRUCT_OPER(Modulus);
-
-CONSTRUCT_OPER(Less);
-CONSTRUCT_OPER(LessEqual);
-CONSTRUCT_OPER(Greater);
-CONSTRUCT_OPER(GreaterEqual);
-CONSTRUCT_OPER(Equal);
-CONSTRUCT_OPER(NotEqual);
-CONSTRUCT_OPER(ShiftLeft);
-CONSTRUCT_OPER(ShiftRight);
-CONSTRUCT_OPER(And);
-CONSTRUCT_OPER(BitAnd);
-CONSTRUCT_OPER(Or);
-
-CONSTRUCT_OPER(UnaryMinus);
-CONSTRUCT_OPER(Not);
-CONSTRUCT_OPER(PreIncrement);
-CONSTRUCT_OPER(PreDecrement);
-
-CONSTRUCT_OPER(ComplexLiteral);
-
-// TODO: use the standard binary method for Add when we no longer
-// need to generate identical source to the python generator.
-//
-//MAKE_BINARY_METHODS(Add);
-std::string Add::render() const
-{
-    std::string s;
-    const char* render_oper = "";
-    if(std::holds_alternative<Variable>(args[0]))
-    {
-        auto& var = std::get<Variable>(args[0]);
-        // render compatibly with python generator if we're just
-        // doing pointer math (i.e. &foo[bar] instead of foo + bar)
-        if(!var.index && (var.pointer || var.size))
-            return "&" + vrender(args[0]) + "[" + vrender(args[1]) + "]";
-    }
-    for(auto& arg : args)
-    {
-        s += render_oper;
-        if(get_precedence(arg) > precedence)
-            s += "(" + vrender(arg) + ")";
-        else
-            s += vrender(arg);
-        render_oper = oper.c_str();
-    }
-    return s;
-}
-
-MAKE_BINARY_METHODS(Subtract);
-MAKE_BINARY_METHODS(Multiply);
-MAKE_BINARY_METHODS(Divide);
-MAKE_BINARY_METHODS(Modulus);
-
-MAKE_BINARY_METHODS(Less);
-MAKE_BINARY_METHODS(LessEqual);
-MAKE_BINARY_METHODS(Greater);
-MAKE_BINARY_METHODS(GreaterEqual);
-MAKE_BINARY_METHODS(Equal);
-MAKE_BINARY_METHODS(NotEqual);
-MAKE_BINARY_METHODS(ShiftLeft);
-MAKE_BINARY_METHODS(ShiftRight);
-MAKE_BINARY_METHODS(And);
-MAKE_BINARY_METHODS(BitAnd);
-MAKE_BINARY_METHODS(Or);
-
-MAKE_UNARY_PREFIX_METHODS(UnaryMinus);
-MAKE_UNARY_PREFIX_METHODS(Not);
-MAKE_UNARY_PREFIX_METHODS(PreIncrement);
-MAKE_UNARY_PREFIX_METHODS(PreDecrement);
-
-Ternary::Ternary(const Expression& cond,
-                 const Expression& true_result,
-                 const Expression& false_result)
-    : args{cond, true_result, false_result}
-{
-}
-
-Ternary::Ternary(const std::vector<Expression>& args)
-    : args(args)
-{
-}
-
-std::string Ternary::render() const
-{
-    return vrender(args[0]) + " ? " + vrender(args[1]) + " : " + vrender(args[2]);
-}
-
-LoadGlobal::LoadGlobal(const Expression& ptr, const Expression& index)
-    : args{ptr, index}
-{
-}
-
-LoadGlobal::LoadGlobal(const std::vector<Expression>& args)
-    : args(args)
-{
-}
-
-std::string LoadGlobal::render() const
-{
-    return "load_cb(" + vrender(args[0]) + "," + vrender(args[1]) + ", load_cb_data, nullptr)";
-}
-
-std::string ScalarVariable::render() const
-{
-    return name;
-}
-
-std::string ArgumentList::render_decl() const
-{
-    std::string f;
-    const char* separator = "";
-    const char* comma     = ",";
-    for(const auto& arg : arguments)
-    {
-        f += separator;
-        f += arg.type;
-        // arrays (i.e. where size != 0) are passed as pointers
-        if(arg.pointer || arg.size)
-            f += "*";
-        if(arg.restrict)
-            f += " __restrict__";
-        f += " " + arg.name;
-        if(arg.decl_default)
-            f += " = " + vrender(*arg.decl_default);
-        separator = comma;
-    }
-    return f;
-}
-
-Variable::Variable(const std::string& _name,
-                   const std::string& _type,
-                   bool               pointer,
-                   bool restrict,
-                   unsigned int size)
-    : name(_name)
-    , type(_type)
-    , pointer(pointer)
-    , restrict(restrict)
-    , x(_name, _type, Component::REAL)
-    , y(_name, _type, Component::IMAG)
-    , component(Component::BOTH)
-{
-    if(size > 0)
-        this->size = Expression{size};
-}
-
-Variable::Variable(const std::string& _name,
-                   const std::string& _type,
-                   bool               pointer,
-                   bool restrict,
-                   const Expression& _size)
-    : name(_name)
-    , type(_type)
-    , pointer(pointer)
-    , restrict(restrict)
-    , x(_name, _type, Component::REAL)
-    , y(_name, _type, Component::IMAG)
-    , component(Component::BOTH)
-    , size(_size)
-{
-}
-
-// NOTE: cppcheck doesn't realize all of the members are actually
-// initialized here
-//
-// cppcheck-suppress uninitMemberVar
-Variable::Variable(const Variable& v)
-    : name(v.name)
-    , type(v.type)
-    , pointer(v.pointer)
-    , restrict(v.restrict)
-    , x(v.name + ".x", v.type, Component::REAL)
-    , y(v.name + ".y", v.type, Component::IMAG)
-    , component(v.component)
-    , index(v.index)
-    , size(v.size)
-    , decl_default(v.decl_default)
-{
-    if(index)
-    {
-        x.name = v.name + "[" + vrender(*index) + "].x";
-        y.name = v.name + "[" + vrender(*index) + "].y";
-    }
-}
-
-Variable::Variable(const Variable& v, const Expression& _index)
-    : name(v.name)
-    , type(v.type)
-    , pointer(v.pointer)
-    , restrict(v.restrict)
-    , x(v.name, v.type, Component::REAL)
-    , y(v.name, v.type, Component::IMAG)
-    , component(v.component)
-    , index(_index)
-{
-    size         = v.size;
-    decl_default = v.decl_default;
-    x.name       = v.name + "[" + vrender(*index) + "].x";
-    y.name       = v.name + "[" + vrender(*index) + "].y";
-}
-
-ScalarVariable Variable::address() const
-{
-    if(index)
-    {
-        return ScalarVariable("&" + name + "[" + vrender(*index) + "]", type + "*");
-    }
-    return ScalarVariable("&" + name, type + "*");
-}
-
-std::string Variable::render() const
-{
-    if(index)
-    {
-        return name + "[" + vrender(*index) + "]";
-    }
-    return name;
-}
-
-Variable Variable::operator[](const Expression& index) const
-{
-    return Variable(*this, index);
-}
-
-Add operator+(const Expression& a, const Expression& b)
+static Add operator+(const Expression& a, const Expression& b)
 {
     return Add{a, b};
 }
 
-Subtract operator-(const Expression& a, const Expression& b)
+static Subtract operator-(const Expression& a, const Expression& b)
 {
     return Subtract{a, b};
 }
 
-Multiply operator*(const Expression& a, const Expression& b)
+static Multiply operator*(const Expression& a, const Expression& b)
 {
     return Multiply{a, b};
 }
 
-Divide operator/(const Expression& a, const Expression& b)
+static Divide operator/(const Expression& a, const Expression& b)
 {
     return Divide{a, b};
 }
 
-Modulus operator%(const Expression& a, const Expression& b)
+static Modulus operator%(const Expression& a, const Expression& b)
 {
     return Modulus{a, b};
 }
 
-Less operator<(const Expression& a, const Expression& b)
+static Less operator<(const Expression& a, const Expression& b)
 {
     return Less{a, b};
 }
 
-LessEqual operator<=(const Expression& a, const Expression& b)
+static LessEqual operator<=(const Expression& a, const Expression& b)
 {
     return LessEqual{a, b};
 }
 
-Greater operator>(const Expression& a, const Expression& b)
+static Greater operator>(const Expression& a, const Expression& b)
 {
     return Greater{a, b};
 }
 
-GreaterEqual operator>=(const Expression& a, const Expression& b)
+static GreaterEqual operator>=(const Expression& a, const Expression& b)
 {
     return GreaterEqual{a, b};
 }
 
-Equal operator==(const Expression& a, const Expression& b)
+static Equal operator==(const Expression& a, const Expression& b)
 {
     return Equal{a, b};
 }
 
-NotEqual operator!=(const Expression& a, const Expression& b)
+static NotEqual operator!=(const Expression& a, const Expression& b)
 {
     return NotEqual{a, b};
 }
 
-ShiftLeft operator<<(const Expression& a, const Expression& b)
+static ShiftLeft operator<<(const Expression& a, const Expression& b)
 {
     return ShiftLeft{a, b};
 }
 
-ShiftRight operator>>(const Expression& a, const Expression& b)
+static ShiftRight operator>>(const Expression& a, const Expression& b)
 {
     return ShiftRight{a, b};
 }
 
-And operator&&(const Expression& a, const Expression& b)
+static And operator&&(const Expression& a, const Expression& b)
 {
     return And{a, b};
 }
 
-BitAnd operator&(const Expression& a, const Expression& b)
+static BitAnd operator&(const Expression& a, const Expression& b)
 {
     return BitAnd{a, b};
 }
 
-Or operator||(const Expression& a, const Expression& b)
+static Or operator||(const Expression& a, const Expression& b)
 {
     return Or{a, b};
 }
 
-UnaryMinus operator-(const Expression& a)
+static UnaryMinus operator-(const Expression& a)
 {
     return UnaryMinus{a};
 }
 
-Not operator!(const Expression& a)
+static Not operator!(const Expression& a)
 {
     return Not{a};
 }
 
-PreIncrement operator++(const Expression& a)
+static PreIncrement operator++(const Expression& a)
 {
     return PreIncrement{a};
 }
 
-PreDecrement operator--(const Expression& a)
+static PreDecrement operator--(const Expression& a)
 {
     return PreDecrement{a};
-}
-
-OptionalExpression::operator bool() const
-{
-    return expr.has_value();
-}
-
-Expression OptionalExpression::operator*() const
-{
-    return std::any_cast<Expression>(expr);
-}
-
-OptionalExpression::OptionalExpression(const Expression& expr)
-{
-    this->expr = expr;
-}
-OptionalExpression& OptionalExpression::operator=(const Expression& in_expr)
-{
-    this->expr = in_expr;
-    return *this;
-}
-
-std::string ComplexLiteral::render() const
-{
-    std::string ret       = "{";
-    const char* separator = nullptr;
-    for(const auto& arg : args)
-    {
-        if(separator)
-            ret += separator;
-        ret += vrender(arg);
-        separator = oper.c_str();
-    }
-    ret += "}";
-    return ret;
-}
-
-std::string ComplexMultiply::render() const
-{
-    auto a = std::get<Variable>(args[0]);
-    auto b = std::get<Variable>(args[1]);
-    auto r = ComplexLiteral{a.x * b.x - a.y * b.y, a.y * b.x + a.x * b.y};
-    return r.render();
-}
-
-std::string TwiddleMultiply::render() const
-{
-    return ComplexLiteral{a.x * b.x - a.y * b.y, a.y * b.x + a.x * b.y}.render();
-}
-
-std::string TwiddleMultiplyConjugate::render() const
-{
-    return ComplexLiteral{a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y}.render();
-}
-
-Parens::Parens(const Expression& inside)
-    : args{inside}
-{
-}
-
-Parens::Parens(const std::vector<Expression>& args)
-    : args{args}
-{
-}
-
-std::string Parens::render() const
-{
-    return "(" + vrender(args.front()) + ")";
-}
-
-CallExpr::CallExpr(const std::string& name, const std::vector<Expression>& arguments)
-    : name(name)
-    , arguments(arguments){};
-
-CallExpr::CallExpr(const std::string&             name,
-                   const TemplateList&            templates,
-                   const std::vector<Expression>& arguments)
-    : name(name)
-    , templates(templates)
-    , arguments(arguments){};
-
-std::string CallExpr::render() const
-{
-    std::string f;
-    f += name;
-    const char* separator = nullptr;
-    const char* comma     = ",";
-    if(!templates.arguments.empty())
-    {
-        f += "<";
-        // template args just have the names, not types
-        for(const auto& arg : templates.arguments)
-        {
-            if(separator)
-                f += separator;
-            f += arg.name;
-            separator = comma;
-        }
-        f += ">";
-    }
-    f += "(";
-    separator = nullptr;
-    for(const auto& arg : arguments)
-    {
-        if(separator)
-            f += separator;
-        f += vrender(arg);
-        separator = comma;
-    }
-    f += ")";
-    return f;
-}
-
-IntrinsicLoad::IntrinsicLoad(const std::vector<Expression>& args)
-    : args(args)
-{
-}
-
-std::string IntrinsicLoad::render() const
-{
-    // intrinsic_load(const T* data, unsigned int voffset, unsigned int soffset, bool rw)
-    return "intrinsic_load(" + vrender(args[0]) + "," + vrender(args[1]) + "," + vrender(args[2])
-           + "," + vrender(args[3]) + ")";
 }
 
 //
@@ -1064,11 +637,11 @@ public:
 };
 
 // +=, *= operators are just Assign with another operator
-Assign AddAssign(const Variable& lhs, const Expression& rhs)
+static Assign AddAssign(const Variable& lhs, const Expression& rhs)
 {
     return Assign(lhs, rhs, "+=");
 }
-Assign MultiplyAssign(const Variable& lhs, const Expression& rhs)
+static Assign MultiplyAssign(const Variable& lhs, const Expression& rhs)
 {
     return Assign(lhs, rhs, "*=");
 }
@@ -1089,21 +662,6 @@ public:
         , value(val){};
     std::string render() const;
 };
-
-std::string Declaration::render() const
-{
-    std::string s;
-    s = var.type;
-    if(var.pointer)
-        s += "*";
-    s += " " + var.name;
-    if(var.size)
-        s += "[" + vrender(*var.size) + "]";
-    if(value)
-        s += " = " + vrender(*value);
-    s += ";";
-    return s;
-}
 
 class LDSDeclaration
 {
@@ -1366,128 +924,18 @@ public:
 
 // end of Statement class declarations
 
-std::string Butterfly::render() const
-{
-    std::string func;
-    if(forward)
-    {
-        func += "FwdRad" + std::to_string(args.size()) + "B1";
-    }
-    else
-    {
-        func += "InvRad" + std::to_string(args.size()) + "B1";
-    }
-    return Call{func, args}.render();
-}
-
-StatementList::StatementList() {}
-StatementList::StatementList(const std::initializer_list<Statement>& il)
-    : statements(il){};
-std::string StatementList::render() const
-{
-    std::string r;
-    for(auto s : statements)
-        r += vrender(s) + "\n";
-    return r;
-}
-
-void operator+=(StatementList& stmts, const Statement& s)
+static void operator+=(StatementList& stmts, const Statement& s)
 {
     stmts.statements.push_back(s);
 }
 
-void operator+=(StatementList& stmts, const StatementList& s)
+static void operator+=(StatementList& stmts, const StatementList& s)
 {
     //    stmts.statements.insert(stmts.statements.end(), s.statements.cbegin(), s.statements.cend());
     for(auto x : s.statements)
     {
         stmts += x;
     }
-}
-
-For::For(const Variable&      var,
-         const Expression&    initial,
-         const Expression&    condition,
-         const Expression&    increment,
-         const StatementList& body)
-    : var(var)
-    , initial(initial)
-    , condition(condition)
-    , increment(increment)
-    , body(body){};
-
-std::string For::render() const
-{
-    std::string s;
-    s += "for(";
-    s += var.type + " " + var.name + " = ";
-    s += vrender(initial) + "; ";
-    s += vrender(condition) + "; ";
-
-    // ++ and -- are nicer to read, so render those as a special case
-    if(std::holds_alternative<Literal>(increment) && std::get<Literal>(increment).value == "1")
-        s += "++" + var.name;
-    else if(std::holds_alternative<Literal>(increment)
-            && std::get<Literal>(increment).value == "-1")
-        s += "--" + var.name;
-    else
-        s += var.name + " += " + vrender(increment);
-    s += ") {\n ";
-    s += body.render();
-    s += "\n}";
-    return s;
-}
-
-While::While(const Expression& condition, const StatementList& body)
-    : condition(condition)
-    , body(body){};
-std::string While::render() const
-{
-    std::string s;
-    s += "while(";
-    s += vrender(condition) + ") {\n";
-    s += body.render();
-    s += "\n}";
-    return s;
-}
-
-If::If(const Expression& condition, const StatementList& body)
-    : condition(condition)
-    , body(body){};
-std::string If::render() const
-{
-    std::string s;
-    s += "if(";
-    s += vrender(condition);
-    s += ") {\n";
-    s += body.render();
-    s += "\n}\n";
-    return s;
-}
-
-ElseIf::ElseIf(const Expression& condition, const StatementList& body)
-    : condition(condition)
-    , body(body){};
-std::string ElseIf::render() const
-{
-    std::string s;
-    s += "else if(";
-    s += vrender(condition);
-    s += ") {\n";
-    s += body.render();
-    s += "\n}\n";
-    return s;
-}
-
-Else::Else(const StatementList& body)
-    : body(body){};
-std::string Else::render() const
-{
-    std::string s;
-    s += "else {\n";
-    s += body.render();
-    s += "\n}\n";
-    return s;
 }
 
 //
@@ -1509,23 +957,6 @@ public:
 
     std::string render() const;
 };
-
-std::string Function::render() const
-{
-    std::string f;
-    if(templates)
-    {
-        f += "template<" + templates.render_decl() + ">";
-    }
-    f += qualifier + " ";
-    if(launch_bounds)
-        f += "__launch_bounds__(" + std::to_string(launch_bounds) + ") ";
-    f += "void " + name;
-    f += "(" + arguments.render_decl() + ") {\n";
-    f += body.render();
-    f += "}\n";
-    return f;
-}
 
 //
 // Re-write helpers
@@ -2012,7 +1443,7 @@ struct MakePlanarVisitor : public BaseVisitor
     }
 };
 
-Function make_planar(const Function& f, const std::string& varname)
+static Function make_planar(const Function& f, const std::string& varname)
 {
     auto visitor = MakePlanarVisitor(varname);
     return visitor(f);
@@ -2154,7 +1585,7 @@ struct MakeOutOfPlaceVisitor : public BaseVisitor
     }
 };
 
-Function make_outofplace(const Function& f)
+static Function make_outofplace(const Function& f)
 {
     auto visitor = MakeOutOfPlaceVisitor({"buf", "stride", "stride0", "offset"});
     return visitor(f);
@@ -2175,7 +1606,7 @@ struct MakeInPlaceVisitor : public BaseVisitor
     }
 };
 
-Function make_inplace(const Function& f)
+static Function make_inplace(const Function& f)
 {
     auto visitor = MakeInPlaceVisitor();
     return visitor(f);
@@ -2223,7 +1654,7 @@ struct MakeInverseVisitor : public BaseVisitor
     }
 };
 
-Function make_inverse(const Function& f)
+static Function make_inverse(const Function& f)
 {
     auto visitor = MakeInverseVisitor();
     return visitor(f);
@@ -2294,7 +1725,7 @@ struct MakeRTCVisitor : public BaseVisitor
     Variable    scale_factor;
 };
 
-Function make_rtc(const Function& f, const std::string& kernel_name, bool enable_scaling)
+static Function make_rtc(const Function& f, const std::string& kernel_name, bool enable_scaling)
 {
     auto visitor = MakeRTCVisitor(kernel_name, enable_scaling);
     return visitor(f);
