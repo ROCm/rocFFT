@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include <stddef.h>
+
 // arithmetic helper functions
 
 static inline bool IsPo2(size_t u)

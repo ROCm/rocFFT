@@ -31,6 +31,7 @@
 #pragma once
 #include "generator.h"
 
+#include <cmath>
 #include <map>
 #include <memory>
 #include <set>
@@ -225,7 +226,7 @@ struct FFTGPUWork
 
 StatementList FFTGPUWork::lower() const
 {
-    unsigned int iheight = floor(params.height);
+    unsigned int iheight = std::floor(params.height);
 
     if(params.height > iheight && params.threads_per_transform > params.length / params.width)
         iheight += 1;
@@ -1315,7 +1316,7 @@ unsigned int compute_nregisters(const unsigned int               length,
     unsigned int max_registers = 0;
     for(auto width : factors)
     {
-        unsigned int n = ceil(double(length) / width / threads_per_transform) * width;
+        unsigned int n = std::ceil(double(length) / width / threads_per_transform) * width;
         if(n > max_registers)
             max_registers = n;
     }
