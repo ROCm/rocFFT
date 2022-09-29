@@ -88,37 +88,40 @@ def runTestCommand (platform, project, boolean debug=false)
                     reportTitles: "${dataType}-precision-${platform.gpu}"])
     }
 
-    withCredentials([gitUsernamePassword(credentialsId: 'ab8d4444-4620-4189-a9ce-c16035c854dd', gitToolName: 'git-tool')])
+    if (platform.gpu != 'gfx90a')
     {
-        platform.runCommand(
-            this,
-            """
-            cd ${project.paths.build_prefix}
-            git clone https://github.com/ROCmSoftwarePlatform/rocPTS.git -b release/rocpts-rel-1.0
-            cd rocPTS
-            python3 -m pip install build
-            python3 -m build
-            python3 -m pip install .
-            """
-        )
-    }
-    writeFile(
-        file: project.paths.project_build_prefix + "/record_pts.py",
-        text: libraryResource("com/amd/scripts/record_pts.py"))
-    def setupBranch = env.CHANGE_ID ? "git branch \$BRANCH_NAME" : ""
-    def command = """#!/usr/bin/env bash
-    cd ${project.paths.project_build_prefix}
-    ${setupBranch}
-    git checkout \$BRANCH_NAME
-    benchmark_folder=rocFFT_Benchmark_Dataset_\$(date +%Y%m%d)
-    mkdir -p \${benchmark_folder}/all_change \${benchmark_folder}/all_ref
-    cp -f ./*_change/* \${benchmark_folder}/all_change
-    cp -f ./*_ref/* \${benchmark_folder}/all_ref
-    python3 ./record_pts.py --dataset-path \$PWD/\${benchmark_folder} --reference-dataset all_ref --new-dataset all_change -v 5.3 -l pts_rocfft_benchmark_data
-    """
-    withCredentials([usernamePassword(credentialsId: 'PTS_API_ID_KEY_PROD', usernameVariable: 'PTS_API_ID', passwordVariable: 'PTS_API_KEY')])
-    {
-        platform.runCommand(this, command)
+        withCredentials([gitUsernamePassword(credentialsId: 'GitHub-ROCmMathLibrariesBot-Token', gitToolName: 'git-tool')])
+        {
+            platform.runCommand(
+                this,
+                """
+                cd ${project.paths.build_prefix}
+                git clone https://github.com/ROCmSoftwarePlatform/rocPTS.git -b release/rocpts-rel-1.0
+                cd rocPTS
+                python3 -m pip install build
+                python3 -m build
+                python3 -m pip install .
+                """
+            )
+        }
+        writeFile(
+            file: project.paths.project_build_prefix + "/record_pts.py",
+            text: libraryResource("com/amd/scripts/record_pts.py"))
+        def setupBranch = env.CHANGE_ID ? "git branch \$BRANCH_NAME" : ""
+        def command = """#!/usr/bin/env bash
+        cd ${project.paths.project_build_prefix}
+        ${setupBranch}
+        git checkout \$BRANCH_NAME
+        benchmark_folder=rocFFT_Benchmark_Dataset_\$(date +%Y%m%d)
+        mkdir -p \${benchmark_folder}/all_change \${benchmark_folder}/all_ref
+        cp -f ./*_change/* \${benchmark_folder}/all_change
+        cp -f ./*_ref/* \${benchmark_folder}/all_ref
+        python3 ./record_pts.py --dataset-path \$PWD/\${benchmark_folder} --reference-dataset all_ref --new-dataset all_change -v 5.3 -l pts_rocfft_benchmark_data
+        """
+        withCredentials([usernamePassword(credentialsId: 'PTS_API_ID_KEY_PROD', usernameVariable: 'PTS_API_ID', passwordVariable: 'PTS_API_KEY')])
+        {
+            platform.runCommand(this, command)
+        }
     }
 }
 
