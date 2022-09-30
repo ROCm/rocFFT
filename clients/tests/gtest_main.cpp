@@ -28,6 +28,7 @@
 #include <streambuf>
 #include <string>
 
+#include "../../shared/concurrency.h"
 #include "../rocfft_params.h"
 #include "rocfft.h"
 #include "rocfft_accuracy_test.h"
@@ -197,8 +198,8 @@ int main(int argc, char* argv[])
 #ifdef FFTW_MULTITHREAD
     fftw_init_threads();
     fftwf_init_threads();
-    fftw_plan_with_nthreads(std::thread::hardware_concurrency());
-    fftwf_plan_with_nthreads(std::thread::hardware_concurrency());
+    fftw_plan_with_nthreads(rocfft_concurrency());
+    fftwf_plan_with_nthreads(rocfft_concurrency());
 #endif
 
     if(use_fftw_wisdom)

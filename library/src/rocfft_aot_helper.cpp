@@ -4,6 +4,7 @@
 
 using namespace std::placeholders;
 
+#include "../../shared/concurrency.h"
 #include "../../shared/environment.h"
 #include "function_pool.h"
 #include "rtc_cache.h"
@@ -71,29 +72,33 @@ void stockham_combo(ComputeScheme             scheme,
                                        bool,
                                        bool)> func)
 {
-    std::vector<bool>                    unitstride_range = {false};
+    // unit stride is the common case, default to that
+    std::vector<bool>                    unitstride_range = {true};
     std::vector<rocfft_result_placement> placements       = {rocfft_placement_notinplace};
     std::vector<EmbeddedType>            ebtypes          = {EmbeddedType::NONE};
     std::vector<SBRC_TRANSPOSE_TYPE>     sbrc_trans_types = {SBRC_TRANSPOSE_TYPE::NONE};
     std::vector<DirectRegType>           dir_reg_types    = {FORCE_OFF_OR_NOT_SUPPORT};
     std::vector<IntrinsicAccessType>     intrinsic_modes  = {DISABLE_BOTH};
-    std::vector<std::array<size_t, 2>>   base_steps
-        = {{0, 0}, {4, 3}, {5, 3}, {6, 3}, {8, 2}, {8, 3}};
+    // SBCC can be used with or without large twd.  Large twd may be
+    // base 4, 5, 6, 8.  Base 4 is unused since it's only useful up
+    // to 4k lengths, which we already have single kernels for.  Base
+    // 8 can be 2 or 3 steps; other bases are always 3 step.
+    std::vector<std::array<size_t, 2>> base_steps = {{0, 0}, {5, 3}, {6, 3}, {8, 2}, {8, 3}};
 
     switch(scheme)
     {
     case CS_KERNEL_STOCKHAM_BLOCK_CC:
     {
-        // SBCC can be used with or without large twd.  Large
-        // twd may be base 4, 5, 6, 8.  Base 8 can
-        // be 2 or 3 steps; other bases are always 3 step.
         placements.push_back(rocfft_placement_inplace);
+        // SBCC is never unit stride
+        unitstride_range = {false};
         break;
     }
     case CS_KERNEL_STOCKHAM_BLOCK_CR:
     {
         base_steps.resize(1);
-        unitstride_range.push_back(true);
+        // SBCR is never unit stride
+        unitstride_range = {false};
         ebtypes.push_back(EmbeddedType::C2Real_PRE);
         break;
     }
@@ -103,7 +108,6 @@ void stockham_combo(ComputeScheme             scheme,
     case CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY:
     {
         base_steps.resize(1);
-        unitstride_range.push_back(true);
         // All SBRCs have TILE_UNALIGNED
         sbrc_trans_types.push_back(SBRC_TRANSPOSE_TYPE::TILE_UNALIGNED);
         // Finish SBRC-2D
@@ -329,7 +333,7 @@ int main(int argc, char** argv)
 
     CompileQueue queue;
 
-    static const size_t      NUM_THREADS = std::thread::hardware_concurrency();
+    static const size_t      NUM_THREADS = rocfft_concurrency();
     std::vector<std::thread> threads;
     threads.reserve(NUM_THREADS);
     for(size_t i = 0; i < NUM_THREADS; ++i)
