@@ -248,7 +248,9 @@ Variable::Variable(const Variable& v)
     , y(v.name + ".y", v.type, Component::IMAG)
     , component(v.component)
     , index(v.index)
+    , index2D(v.index2D)
     , size(v.size)
+    , size2D(v.size2D)
     , decl_default(v.decl_default)
 {
     if(index)
@@ -269,9 +271,16 @@ Variable::Variable(const Variable& v, const Expression& _index)
     , index(_index)
 {
     size         = v.size;
+    size2D       = v.size2D;
     decl_default = v.decl_default;
     x.name       = v.name + "[" + vrender(*index) + "].x";
     y.name       = v.name + "[" + vrender(*index) + "].y";
+}
+
+Variable::Variable(const Variable& v, const Expression& _index, const Expression& _index2D)
+    : Variable(v, _index)
+{
+    index2D = _index2D;
 }
 
 ScalarVariable Variable::address() const
@@ -287,7 +296,10 @@ std::string Variable::render() const
 {
     if(index)
     {
-        return name + "[" + vrender(*index) + "]";
+        std::string output = name + "[" + vrender(*index) + "]";
+        if(index2D)
+            output += "[" + vrender(*index2D) + "]";
+        return output;
     }
     return name;
 }
@@ -295,6 +307,11 @@ std::string Variable::render() const
 Variable Variable::operator[](const Expression& index) const
 {
     return Variable(*this, index);
+}
+
+Variable Variable::at(const Expression& index, const Expression& index2D) const
+{
+    return Variable(*this, index, index2D);
 }
 
 OptionalExpression::operator bool() const
@@ -429,6 +446,8 @@ std::string Declaration::render() const
     s += " " + var.name;
     if(var.size)
         s += "[" + vrender(*var.size) + "]";
+    if(var.size2D)
+        s += "[" + vrender(*var.size2D) + "]";
     if(value)
         s += " = " + vrender(*value);
     s += ";";
@@ -464,16 +483,20 @@ For::For(const Variable&      var,
          const Expression&    initial,
          const Expression&    condition,
          const Expression&    increment,
-         const StatementList& body)
+         const StatementList& body,
+         bool                 pragma_unroll)
     : var(var)
     , initial(initial)
     , condition(condition)
     , increment(increment)
-    , body(body){};
+    , body(body)
+    , pragma_unroll(pragma_unroll){};
 
 std::string For::render() const
 {
     std::string s;
+    if(pragma_unroll)
+        s += "#pragma unroll\n";
     s += "for(";
     s += var.type + " " + var.name + " = ";
     s += vrender(initial) + "; ";

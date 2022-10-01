@@ -221,8 +221,11 @@ public:
     bool                      pointer = false, restrict = false;
     ScalarVariable            x, y;
     Component                 component;
-    OptionalExpression        index;
-    OptionalExpression        size;
+    // index2d + size2d are set if this is a 2D array variable
+    OptionalExpression index;
+    OptionalExpression index2D;
+    OptionalExpression size;
+    OptionalExpression size2D;
     // default value for argument and template declarations
     OptionalExpression decl_default;
 
@@ -246,9 +249,12 @@ public:
 
     Variable(const Variable& v);
     Variable(const Variable& v, const Expression& _index);
+    Variable(const Variable& v, const Expression& _index, const Expression& _index2D);
 
-    Variable&      operator=(const Variable&) = default;
-    Variable       operator[](const Expression& index) const;
+    Variable& operator=(const Variable&) = default;
+    Variable  operator[](const Expression& index) const;
+    // do a 2D array access
+    Variable       at(const Expression& index, const Expression& index2D) const;
     ScalarVariable address() const;
 
     std::string render() const;
@@ -273,6 +279,15 @@ public:
     // supplied value
     void set_value(const std::string& name, const std::string& value);
 };
+
+static ArgumentList get_callback_args()
+{
+    return {Variable{"load_cb_fn", "void", true, true},
+            Variable{"load_cb_data", "void", true, true},
+            Variable{"load_cb_lds_bytes", "unsigned int"},
+            Variable{"store_cb_fn", "void", true, true},
+            Variable{"store_cb_data", "void", true, true}};
+}
 
 using TemplateList = ArgumentList;
 
@@ -645,6 +660,10 @@ static Assign MultiplyAssign(const Variable& lhs, const Expression& rhs)
 {
     return Assign(lhs, rhs, "*=");
 }
+static Assign ModulusAssign(const Variable& lhs, const Expression& rhs)
+{
+    return Assign(lhs, rhs, "%=");
+}
 
 //
 // Declarations
@@ -748,11 +767,13 @@ public:
     Expression    condition;
     Expression    increment;
     StatementList body;
+    bool          pragma_unroll;
     For(const Variable&      var,
         const Expression&    initial,
         const Expression&    condition,
         const Expression&    increment,
-        const StatementList& body = {});
+        const StatementList& body          = {},
+        bool                 pragma_unroll = false);
     std::string render() const;
 };
 
@@ -1196,7 +1217,7 @@ struct BaseVisitor
         auto condition = std::visit(*this, x.condition);
         auto increment = std::visit(*this, x.increment);
         auto body      = visit_StatementList(x.body);
-        return StatementList{For(var, initial, condition, increment, body)};
+        return StatementList{For(var, initial, condition, increment, body, x.pragma_unroll)};
     }
 
     virtual StatementList visit_While(const While& x)

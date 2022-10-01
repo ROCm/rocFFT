@@ -186,14 +186,9 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
  * CS_KERNEL_TRANSPOSE_XY_Z
  * CS_KERNEL_TRANSPOSE_Z_XY
  *****************************************************/
-void TransposeNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
-{
-    fnPtr    = &FN_PRFX(transpose_var2);
-    gp.wgs_x = (precision == rocfft_precision_single) ? 32 : 64;
-    gp.wgs_y = (precision == rocfft_precision_single) ? 32 : 16;
 
-    return;
-}
+// grid params are set up by RTC
+void TransposeNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) {}
 
 void TreeNode::SetTransposeOutputLength()
 {

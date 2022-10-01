@@ -77,36 +77,18 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
         kernel_name += std::to_string(static_dim);
     }
 
-    auto array_type_name = [](rocfft_array_type type) {
-        switch(type)
-        {
-        case rocfft_array_type_complex_interleaved:
-            return "_CI";
-        case rocfft_array_type_complex_planar:
-            return "_CP";
-        case rocfft_array_type_real:
-            return "_R";
-        case rocfft_array_type_hermitian_interleaved:
-            return "_HI";
-        case rocfft_array_type_hermitian_planar:
-            return "_HP";
-        default:
-            return "_UN";
-        }
-    };
-
-    kernel_name += precision == rocfft_precision_single ? "_sp" : "_dp";
+    kernel_name += rtc_precision_name(precision);
 
     if(placement == rocfft_placement_inplace)
     {
         kernel_name += "_ip";
-        kernel_name += array_type_name(inArrayType);
+        kernel_name += rtc_array_type_name(inArrayType);
     }
     else
     {
         kernel_name += "_op";
-        kernel_name += array_type_name(inArrayType);
-        kernel_name += array_type_name(outArrayType);
+        kernel_name += rtc_array_type_name(inArrayType);
+        kernel_name += rtc_array_type_name(outArrayType);
     }
 
     if(unitstride)
@@ -309,10 +291,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     }
 
     // start off with includes
-    std::string src = "// ROCFFT_RTC_BEGIN " + kernel_name + "\n";
-    // callbacks are always potentially enabled, and activated by
-    // checking the enable_callbacks variable later
-    src += "#define ROCFFT_CALLBACKS_ENABLED\n";
+    std::string src;
     src += common_h;
     src += memory_gfx_h;
     src += callback_h;
@@ -333,15 +312,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
 
     // make_rtc removes templates from global function - add typedefs
     // and constants to replace them
-    switch(precision)
-    {
-    case rocfft_precision_single:
-        src += "typedef float2 scalar_type;\n";
-        break;
-    case rocfft_precision_double:
-        src += "typedef double2 scalar_type;\n";
-        break;
-    }
+    src += rtc_precision_type_decl(precision);
     if(unit_stride)
         src += "static const StrideBin sb = SB_UNIT;\n";
     else
@@ -391,10 +362,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
         break;
     }
 
-    if(enable_callbacks)
-        src += "static const CallbackType cbtype = CallbackType::USER_LOAD_STORE;\n";
-    else
-        src += "static const CallbackType cbtype = CallbackType::NONE;\n";
+    src += rtc_const_cbtype_decl(enable_callbacks);
 
     switch(dir2regMode)
     {
@@ -433,6 +401,5 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     src += "static const size_t large_twiddle_steps = " + std::to_string(largeTwdSteps) + ";\n";
 
     src += make_rtc(*global, kernel_name, enable_scaling).render();
-    src += "// ROCFFT_RTC_END " + kernel_name + "\n";
     return src;
 }

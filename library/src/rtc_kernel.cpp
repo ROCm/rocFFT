@@ -28,15 +28,21 @@
 #include "plan.h"
 #include "rtc_cache.h"
 #include "rtc_stockham_kernel.h"
+#include "rtc_transpose_kernel.h"
 #include "tree_node.h"
 
-RTCKernel::RTCKernel(const std::string& kernel_name, const std::vector<char>& code)
+RTCKernel::RTCKernel(const std::string&       kernel_name,
+                     const std::vector<char>& code,
+                     dim3                     gridDim,
+                     dim3                     blockDim)
+    : gridDim(gridDim)
+    , blockDim(blockDim)
 {
     if(hipModuleLoadData(&module, code.data()) != hipSuccess)
-        throw std::runtime_error("failed to load module");
+        throw std::runtime_error("failed to load module for " + kernel_name);
 
     if(hipModuleGetFunction(&kernel, module, kernel_name.c_str()) != hipSuccess)
-        throw std::runtime_error("failed to get function");
+        throw std::runtime_error("failed to get function " + kernel_name);
 }
 
 void RTCKernel::launch(DeviceCallIn& data)
@@ -113,6 +119,8 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
     RTCGenerator generator;
     // try each type of generator until one is valid
     generator = RTCKernelStockham::generate_from_node(node, gpu_arch, enable_callbacks);
+    if(!generator.valid())
+        generator = RTCKernelTranspose::generate_from_node(node, gpu_arch, enable_callbacks);
     if(generator.valid())
     {
         std::string kernel_name = generator.generate_name();
@@ -122,7 +130,8 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
             {
                 std::vector<char> code = cached_compile(
                     kernel_name, gpu_arch, generator.generate_src, generator_sum());
-                return generator.construct_rtckernel(kernel_name, code);
+                return generator.construct_rtckernel(
+                    kernel_name, code, generator.gridDim, generator.blockDim);
             }
             catch(std::exception& e)
             {

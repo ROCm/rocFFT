@@ -65,6 +65,20 @@ bool PlanPowX(ExecPlan& execPlan)
         DevFnCall ptr = nullptr;
         GridParam gp;
 
+        // if this kernel is runtime compiled, use the grid params
+        // from compilation as a default.  the node is free to
+        // override this default in its SetupGPAndFnPtr_internal
+        // method.
+        auto& rtcKernel = node->compiledKernel.get();
+        if(rtcKernel)
+        {
+            gp.b_x   = rtcKernel->gridDim.x;
+            gp.b_y   = rtcKernel->gridDim.y;
+            gp.b_z   = rtcKernel->gridDim.z;
+            gp.wgs_x = rtcKernel->blockDim.x;
+            gp.wgs_y = rtcKernel->blockDim.y;
+            gp.wgs_z = rtcKernel->blockDim.z;
+        }
         node->SetupGridParamAndFuncPtr(ptr, gp);
 
         execPlan.devFnCall.push_back(ptr);

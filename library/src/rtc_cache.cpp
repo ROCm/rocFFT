@@ -425,16 +425,21 @@ std::vector<char> cached_compile(const std::string&          kernel_name,
         }
     }
 
+    // callbacks are always potentially enabled, and activated by
+    // checking the enable_callbacks variable later
+    std::string kernel_src{"#define ROCFFT_CALLBACKS_ENABLED\n"};
+
     auto generate_begin = std::chrono::steady_clock::now();
-    auto kernel_src     = generate_src(kernel_name);
-    auto generate_end   = std::chrono::steady_clock::now();
+    kernel_src += generate_src(kernel_name);
+    auto generate_end = std::chrono::steady_clock::now();
 
     if(LOG_RTC_ENABLED())
     {
         std::chrono::duration<float, std::milli> generate_ms = generate_end - generate_begin;
 
         (*LogSingleton::GetInstance().GetRTCOS())
-            << kernel_src << "// " << kernel_name
+            << "// ROCFFT_RTC_BEGIN " << kernel_name << "\n"
+            << kernel_src << "\n// ROCFFT_RTC_END " << kernel_name << "\n// " << kernel_name
             << " generate duration: " << static_cast<int>(generate_ms.count()) << " ms"
             << std::endl;
     }

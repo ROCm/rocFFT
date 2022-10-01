@@ -34,6 +34,7 @@
 
 struct DeviceCallIn;
 class TreeNode;
+struct GridParam;
 
 // Helper class that handles alignment of kernel arguments
 class RTCKernelArgs
@@ -121,12 +122,22 @@ struct RTCKernel
     virtual RTCKernelArgs get_launch_args(DeviceCallIn& data) = 0;
 
     // function to construct the correct RTCKernel object, given a kernel name and its compiled code
-    using rtckernel_construct_t
-        = std::function<std::unique_ptr<RTCKernel>(const std::string&, const std::vector<char>&)>;
+    using rtckernel_construct_t = std::function<std::unique_ptr<RTCKernel>(
+        const std::string&, const std::vector<char>&, dim3, dim3)>;
+
+    // grid parameters for this kernel.  may be set by runtime
+    // compilation, if compilation of this kernel type knows how to.
+    // Otherwise, TreeNode::SetupGPAndFnPtr_internal will do it
+    // later.
+    dim3 gridDim;
+    dim3 blockDim;
 
 protected:
     // protected ctor, use "runtime_compile" to build kernel for a node
-    RTCKernel(const std::string& kernel_name, const std::vector<char>& code);
+    RTCKernel(const std::string&       kernel_name,
+              const std::vector<char>& code,
+              dim3                     gridDim  = {},
+              dim3                     blockDim = {});
 
     struct RTCGenerator
     {
@@ -137,6 +148,10 @@ protected:
         {
             return generate_name && generate_src && construct_rtckernel;
         }
+        // if known at compile time, the grid parameters of the kernel
+        // to launch with
+        dim3 gridDim;
+        dim3 blockDim;
     };
 
     hipModule_t   module = nullptr;
@@ -144,5 +159,49 @@ protected:
 
 private:
 };
+
+// helper functions to construct pieces of RTC kernel names
+static const char* rtc_array_type_name(rocfft_array_type type)
+{
+    switch(type)
+    {
+    case rocfft_array_type_complex_interleaved:
+        return "_CI";
+    case rocfft_array_type_complex_planar:
+        return "_CP";
+    case rocfft_array_type_real:
+        return "_R";
+    case rocfft_array_type_hermitian_interleaved:
+        return "_HI";
+    case rocfft_array_type_hermitian_planar:
+        return "_HP";
+    default:
+        return "_UN";
+    }
+}
+
+static const char* rtc_precision_name(rocfft_precision precision)
+{
+    return precision == rocfft_precision_single ? "_sp" : "_dp";
+}
+
+static const char* rtc_precision_type_decl(rocfft_precision precision)
+{
+    switch(precision)
+    {
+    case rocfft_precision_single:
+        return "typedef float2 scalar_type;\n";
+    case rocfft_precision_double:
+        return "typedef double2 scalar_type;\n";
+    }
+}
+
+static const std::string rtc_const_cbtype_decl(bool enable_callbacks)
+{
+    if(enable_callbacks)
+        return "static const CallbackType cbtype = CallbackType::USER_LOAD_STORE;\n";
+    else
+        return "static const CallbackType cbtype = CallbackType::NONE;\n";
+}
 
 #endif

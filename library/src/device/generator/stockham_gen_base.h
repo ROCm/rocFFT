@@ -318,15 +318,6 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return {};
     }
 
-    static ArgumentList get_callback_args()
-    {
-        return {Variable{"load_cb_fn", "void", true, true},
-                Variable{"load_cb_data", "void", true, true},
-                Variable{"load_cb_lds_bytes", "unsigned int"},
-                Variable{"store_cb_fn", "void", true, true},
-                Variable{"store_cb_data", "void", true, true}};
-    }
-
     // we currently only use LDS padding for embedded R2C/C2R, so
     // there's no reason to look at the lds_padding parameter
     // otherwise.

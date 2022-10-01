@@ -117,6 +117,10 @@ set( kgen_logic_files
      ${CMAKE_SOURCE_DIR}/library/src/rtc_compile.cpp
      ${CMAKE_SOURCE_DIR}/library/src/include/rtc_stockham_gen.h
      ${CMAKE_SOURCE_DIR}/library/src/rtc_stockham_gen.cpp
+
+     # transpose generator code
+     ${CMAKE_SOURCE_DIR}/library/src/include/rtc_transpose_gen.h
+     ${CMAKE_SOURCE_DIR}/library/src/rtc_transpose_gen.cpp
    )
 
 add_custom_command(
@@ -208,6 +212,7 @@ add_library( rocfft-rtc-subprocess OBJECT
 # generation of kernel source
 add_library( rocfft-rtc-gen OBJECT
   rtc_stockham_gen.cpp
+  rtc_transpose_gen.cpp
 )
 # caching of generation/compilation
 add_library( rocfft-rtc-cache OBJECT
@@ -217,6 +222,7 @@ add_library( rocfft-rtc-cache OBJECT
 add_library( rocfft-rtc-launch OBJECT
   rtc_kernel.cpp
   rtc_stockham_kernel.cpp
+  rtc_transpose_kernel.cpp
 )
 
 foreach( target
