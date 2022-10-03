@@ -29,6 +29,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
     }
 
     String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_RIDER=ON -DBUILD_FFTW=OFF'
+    String noclientArgs = '-DBUILD_CLIENTS_SAMPLES=OFF -DBUILD_CLIENTS_TESTS=OFF -DBUILD_CLIENTS_RIDER=OFF -DBUILD_FFTW=OFF'
     String warningArgs = '-DWERROR=ON'
     String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DROCFFT_DEVICE_FORCE_RELEASE=ON' : '-DCMAKE_BUILD_TYPE=Release'
     String buildTypeDir = debug ? 'debug' : 'release'
@@ -48,7 +49,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
                 cd ref-repo
                 mkdir -p build/${buildTypeDir} && pushd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc -DAMDGPU_TARGETS=\$gfx_arch -DSINGLELIB=on ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ${rtcBuildCache} ../..
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc -DAMDGPU_TARGETS=\$gfx_arch -DSINGLELIB=on ${buildTypeArg} ${noclientArgs} ${warningArgs} ${hipClangArgs} ${rtcBuildCache} ../..
                 make -j\$(nproc)
             """
     platform.runCommand(this, command)
