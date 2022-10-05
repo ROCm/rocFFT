@@ -58,10 +58,6 @@ if( NOT ROCM_FOUND )
   find_package( ROCM 0.7.3 REQUIRED )
 endif()
 
-if( NOT rocrand_FOUND )
-  find_package( rocrand REQUIRED )
-endif()
-
 include( ROCMInstallTargets )
 
 set( rocfft-test_source
@@ -192,7 +188,7 @@ else()
   list( APPEND rocfft-test_link_libs ${GTEST_LIBRARIES} )
 endif()
 
-target_compile_options( rocfft-test PRIVATE ${WARNING_FLAGS} -Wno-cpp )
+target_compile_options( rocfft-test PRIVATE ${WARNING_FLAGS} )
 
 if( ROCFFT_RUNTIME_COMPILE )
   target_compile_options( rocfft-test PRIVATE -DROCFFT_RUNTIME_COMPILE )
@@ -209,9 +205,7 @@ endif()
 
 target_link_libraries( rocfft-test
   PRIVATE
-  hip::device
   roc::rocfft
-  roc::rocrand
   ${rocfft-test_link_libs}
   )
 

@@ -52,10 +52,6 @@ if( NOT HIP_FOUND )
   find_package( HIP REQUIRED )
 endif()
 
-if( NOT rocrand_FOUND )
-  find_package( rocrand REQUIRED )
-endif()
-
 find_package( Boost COMPONENTS program_options REQUIRED)
 set( Boost_DEBUG ON )
 set( Boost_USE_MULTITHREADED ON )
@@ -82,11 +78,10 @@ foreach( sample ${sample_list} )
 target_link_libraries(
   ${sample}
   PRIVATE roc::rocfft
-  roc::rocrand
   ${Boost_LIBRARIES}
   )
 
-  target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} -Wno-cpp )
+  target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} )
 
   set_target_properties( ${sample} PROPERTIES
     DEBUG_POSTFIX "-d"

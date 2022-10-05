@@ -607,7 +607,17 @@ int main(int argc, char* argv[])
         info.push_back(make_execinfo(handles[idx], wbuffer_size, wbuffer.data()));
     }
 
-    // GPU input buffer:
+    // Input data:
+    auto input = allocate_host_buffer(params.precision, params.itype, params.isize);
+    compute_input(params, input);
+
+    if(verbose > 1)
+    {
+        std::cout << "GPU input:\n";
+        params.print_ibuffer(input);
+    }
+
+    // GPU input and output buffers:
     auto                ibuffer_sizes = params.ibuffer_sizes();
     std::vector<gpubuf> ibuffer(ibuffer_sizes.size());
     std::vector<void*>  pibuffer(ibuffer_sizes.size());
@@ -617,27 +627,6 @@ int main(int argc, char* argv[])
         pibuffer[i] = ibuffer[i].data();
     }
 
-    // Input data:
-    compute_input(params, ibuffer);
-
-    if(verbose > 1)
-    {
-        // Copy input to CPU
-        auto cpu_input = allocate_host_buffer(params.precision, params.itype, params.isize);
-        for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
-        {
-            HIP_V_THROW(hipMemcpy(cpu_input.at(idx).data(),
-                                  ibuffer[idx].data(),
-                                  ibuffer_sizes[idx],
-                                  hipMemcpyDeviceToHost),
-                        "hipMemcpy failed");
-        }
-
-        std::cout << "GPU input:\n";
-        params.print_ibuffer(cpu_input);
-    }
-
-    // GPU output buffer:
     std::vector<gpubuf>  obuffer_data;
     std::vector<gpubuf>* obuffer = &obuffer_data;
     if(params.placement == fft_placement_inplace)
@@ -661,6 +650,16 @@ int main(int argc, char* argv[])
 
     if(handles.size())
     {
+        // Run a kernel once to load the instructions on the GPU:
+
+        // Copy the input data to the GPU:
+        for(unsigned int idx = 0; idx < input.size(); ++idx)
+        {
+            HIP_V_THROW(
+                hipMemcpy(
+                    pibuffer[idx], input[idx].data(), input[idx].size(), hipMemcpyHostToDevice),
+                "hipMemcpy failed");
+        }
         // Run the plan using its associated rocFFT library:
         for(unsigned int idx = 0; idx < handles.size(); ++idx)
         {
@@ -686,6 +685,15 @@ int main(int argc, char* argv[])
         // iid to just let things run:
         // if(ndone[idx] > ntrial)
         //     continue;
+
+        // Copy the input data to the GPU:
+        for(unsigned int bidx = 0; bidx < input.size(); ++bidx)
+        {
+            HIP_V_THROW(
+                hipMemcpy(
+                    pibuffer[bidx], input[bidx].data(), input[bidx].size(), hipMemcpyHostToDevice),
+                "hipMemcpy failed");
+        }
 
         // Run the plan using its associated rocFFT library:
         time[idx].push_back(

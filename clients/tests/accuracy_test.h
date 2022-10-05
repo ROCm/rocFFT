@@ -869,21 +869,6 @@ inline void fft_vs_reference_impl(Tparams& params)
         }
     };
 
-    std::vector<gpubuf> ibuffer(ibuffer_sizes.size());
-    std::vector<void*>  pibuffer(ibuffer_sizes.size());
-    for(unsigned int i = 0; i < ibuffer.size(); ++i)
-    {
-        auto hip_status = ibuffer[i].alloc(ibuffer_sizes[i]);
-        ASSERT_EQ(hip_status, hipSuccess) << "hipMalloc failure for input buffer " << i << " size "
-                                          << ibuffer_sizes[i] << " " << params.str();
-        pibuffer[i] = ibuffer[i].data();
-    }
-
-    // allocation counts in elements, ibuffer_sizes is in bytes
-    auto ibuffer_sizes_elems = ibuffer_sizes;
-    for(auto& buf : ibuffer_sizes_elems)
-        buf /= var_size<size_t>(params.precision, params.itype);
-
     // Check cache first - nbatch is a >= comparison because we compute
     // the largest batch size and cache it.  Smaller batch runs can
     // compare against the larger data.
@@ -968,103 +953,15 @@ inline void fft_vs_reference_impl(Tparams& params)
                                                 cpu_output);
     }
 
-    // allocate and populate the input buffer (cpu/gpu)
+    // generate input
     if(run_fftw)
     {
-        //generate the input directly on the gpu
-        compute_input(params, ibuffer);
-
-        // Copy the input to CPU
-        if(params.itype != contiguous_params.itype || params.istride != contiguous_params.istride
-           || params.idist != contiguous_params.idist || params.isize != contiguous_params.isize)
+        compute_input(contiguous_params, cpu_input);
+        if(verbose > 3)
         {
-            auto tmp_cpu_input = allocate_host_buffer<fftwAllocator<char>>(
-                params.precision, params.itype, ibuffer_sizes_elems);
-
-            // Copy input to CPU
-            for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
-            {
-                auto hip_status = hipMemcpy(tmp_cpu_input.at(idx).data(),
-                                            ibuffer[idx].data(),
-                                            ibuffer_sizes[idx],
-                                            hipMemcpyDeviceToHost);
-                ASSERT_EQ(hip_status, hipSuccess) << "hipMemcpy failure with error " << hip_status;
-            }
-
-            copy_buffers(tmp_cpu_input,
-                         cpu_input,
-                         params.ilength(),
-                         params.nbatch,
-                         params.precision,
-                         params.itype,
-                         params.istride,
-                         params.idist,
-                         contiguous_params.itype,
-                         contiguous_params.istride,
-                         contiguous_params.idist,
-                         params.ioffset,
-                         contiguous_params.ioffset);
+            std::cout << "CPU input:\n";
+            contiguous_params.print_ibuffer(cpu_input);
         }
-        else
-        {
-            // Copy input to CPU
-            for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
-            {
-                auto hip_status = hipMemcpy(cpu_input.at(idx).data(),
-                                            ibuffer[idx].data(),
-                                            ibuffer_sizes[idx],
-                                            hipMemcpyDeviceToHost);
-                ASSERT_EQ(hip_status, hipSuccess) << "hipMemcpy failure with error " << hip_status;
-            }
-        }
-    }
-    else
-    {
-        // In case the cached cpu input needed conversion, wait for it
-        if(convert_cpu_input_precision.valid())
-            convert_cpu_input_precision.get();
-
-        // gets a pre-computed gpu input buffer from the cpu cache
-        fftw_data_t  temp_gpu_input;
-        fftw_data_t* gpu_input = &cpu_input;
-
-        if(params.itype != contiguous_params.itype || params.istride != contiguous_params.istride
-           || params.idist != contiguous_params.idist || params.isize != contiguous_params.isize)
-        {
-            temp_gpu_input = allocate_host_buffer<fftwAllocator<char>>(
-                params.precision, params.itype, ibuffer_sizes_elems);
-
-            copy_buffers(cpu_input,
-                         temp_gpu_input,
-                         params.ilength(),
-                         params.nbatch,
-                         params.precision,
-                         contiguous_params.itype,
-                         contiguous_params.istride,
-                         contiguous_params.idist,
-                         params.itype,
-                         params.istride,
-                         params.idist,
-                         {0},
-                         params.ioffset);
-            gpu_input = &temp_gpu_input;
-        }
-
-        // Copy input to GPU
-        for(unsigned int idx = 0; idx < gpu_input->size(); ++idx)
-        {
-            auto hip_status = hipMemcpy(ibuffer[idx].data(),
-                                        gpu_input->at(idx).data(),
-                                        ibuffer_sizes[idx],
-                                        hipMemcpyHostToDevice);
-            ASSERT_EQ(hip_status, hipSuccess) << "hipMemcpy failure with error " << hip_status;
-        }
-    }
-
-    if(verbose > 3)
-    {
-        std::cout << "CPU input:\n";
-        contiguous_params.print_ibuffer(cpu_input);
     }
 
     // compute input norm
@@ -1089,67 +986,131 @@ inline void fft_vs_reference_impl(Tparams& params)
         return input_norm;
     });
 
+    std::vector<gpubuf>  ibuffer(ibuffer_sizes.size());
+    std::vector<void*>   pibuffer(ibuffer_sizes.size());
     std::vector<gpubuf>  obuffer_data;
     std::vector<gpubuf>* obuffer = &obuffer_data;
     std::vector<void*>   pobuffer;
 
-    // allocate the output buffer
+    // Copy input to GPU
+    //
+    // Limited scope for local variables
+    {
+        // In case the cached cpu input needed conversion, wait for it
+        if(convert_cpu_input_precision.valid())
+            convert_cpu_input_precision.get();
 
-    if(params.placement == fft_placement_inplace)
-    {
-        obuffer = &ibuffer;
-    }
-    else
-    {
-        auto obuffer_sizes = params.obuffer_sizes();
-        obuffer_data.resize(obuffer_sizes.size());
-        for(unsigned int i = 0; i < obuffer_data.size(); ++i)
+        // If GPU data layout differs from CPU layout, allocate temp host
+        // buffer with desired layout and copy
+        fftw_data_t* gpu_input = &cpu_input;
+        fftw_data_t  temp_gpu_input;
+        if(params.itype != contiguous_params.itype || params.istride != contiguous_params.istride
+           || params.idist != contiguous_params.idist || params.isize != contiguous_params.isize)
         {
-            auto hip_status = obuffer_data[i].alloc(obuffer_sizes[i]);
-            if(hip_status != hipSuccess)
+            // allocation counts in elements, ibuffer_sizes is in bytes
+            auto ibuffer_sizes_elems = ibuffer_sizes;
+            for(auto& buf : ibuffer_sizes_elems)
+                buf /= var_size<size_t>(params.precision, params.itype);
+
+            temp_gpu_input = allocate_host_buffer<fftwAllocator<char>>(
+                params.precision, params.itype, ibuffer_sizes_elems);
+            copy_buffers(cpu_input,
+                         temp_gpu_input,
+                         params.ilength(),
+                         params.nbatch,
+                         params.precision,
+                         contiguous_params.itype,
+                         contiguous_params.istride,
+                         contiguous_params.idist,
+                         params.itype,
+                         params.istride,
+                         params.idist,
+                         {0},
+                         params.ioffset);
+            gpu_input = &temp_gpu_input;
+        }
+
+        // Allocate GPU input
+        // GPU input and output buffers:
+        for(unsigned int i = 0; i < ibuffer.size(); ++i)
+        {
+            auto hip_status = ibuffer[i].alloc(ibuffer_sizes[i]);
+            ASSERT_EQ(hip_status, hipSuccess)
+                << "hipMalloc failure for input buffer " << i << " size " << ibuffer_sizes[i] << " "
+                << params.str();
+            pibuffer[i] = ibuffer[i].data();
+        }
+
+        if(params.placement == fft_placement_inplace)
+        {
+            obuffer = &ibuffer;
+        }
+        else
+        {
+            auto obuffer_sizes = params.obuffer_sizes();
+            obuffer_data.resize(obuffer_sizes.size());
+            for(unsigned int i = 0; i < obuffer_data.size(); ++i)
             {
-                // Try and figure out why hip malloc failed.
-                size_t     free   = 0;
-                size_t     total  = 0;
-                hipError_t retval = hipMemGetInfo(&free, &total);
-                EXPECT_EQ(retval, hipSuccess) << "hipMemGetInfo failed with error " << retval;
-                if(retval == hipSuccess)
+                auto hip_status = obuffer_data[i].alloc(obuffer_sizes[i]);
+                if(hip_status != hipSuccess)
                 {
-                    std::cerr << "free vram: " << free << " (" << (double)free
-                              << ") total vram: " << total << " (" << (double)total << ")"
-                              << std::endl;
-                    if(free > obuffer_sizes[i])
+                    // Try and figure out why hip malloc failed.
+                    size_t     free   = 0;
+                    size_t     total  = 0;
+                    hipError_t retval = hipMemGetInfo(&free, &total);
+                    EXPECT_EQ(retval, hipSuccess) << "hipMemGetInfo failed with error " << retval;
+                    if(retval == hipSuccess)
                     {
-                        std::cerr << "The system reports that there is enough space." << std::endl;
+                        std::cerr << "free vram: " << free << " (" << (double)free
+                                  << ") total vram: " << total << " (" << (double)total << ")"
+                                  << std::endl;
+                        if(free > obuffer_sizes[i])
+                        {
+                            std::cerr << "The system reports that there is enough space."
+                                      << std::endl;
+                        }
                     }
                 }
-            }
-            ASSERT_EQ(hip_status, hipSuccess)
-                << "hipMalloc failure for output buffer " << i << " size " << obuffer_sizes[i]
-                << " (" << static_cast<double>(obuffer_sizes[i]) << ") " << params.str();
+                ASSERT_EQ(hip_status, hipSuccess)
+                    << "hipMalloc failure for output buffer " << i << " size " << obuffer_sizes[i]
+                    << " (" << static_cast<double>(obuffer_sizes[i]) << ") " << params.str();
 
-            // If we're validating output strides, init the
-            // output buffer to a known pattern and we can check
-            // that the pattern is untouched in places that
-            // shouldn't have been touched.
-            if(params.check_output_strides)
-            {
-                hip_status
-                    = hipMemset(obuffer_data[i].data(), OUTPUT_INIT_PATTERN, obuffer_sizes[i]);
-                ASSERT_EQ(hip_status, hipSuccess) << "hipMemset failure";
+                // If we're validating output strides, init the
+                // output buffer to a known pattern and we can check
+                // that the pattern is untouched in places that
+                // shouldn't have been touched.
+                if(params.check_output_strides)
+                {
+                    hip_status
+                        = hipMemset(obuffer_data[i].data(), OUTPUT_INIT_PATTERN, obuffer_sizes[i]);
+                    ASSERT_EQ(hip_status, hipSuccess) << "hipMemset failure";
+                }
             }
         }
-    }
-    pobuffer.resize(obuffer->size());
-    for(unsigned int i = 0; i < obuffer->size(); ++i)
-    {
-        pobuffer[i] = obuffer->at(i).data();
+        pobuffer.resize(obuffer->size());
+        for(unsigned int i = 0; i < obuffer->size(); ++i)
+        {
+            pobuffer[i] = obuffer->at(i).data();
+        }
+
+        // Copy input to GPU
+        for(unsigned int idx = 0; idx < gpu_input->size(); ++idx)
+        {
+            auto hip_status = hipMemcpy(ibuffer[idx].data(),
+                                        gpu_input->at(idx).data(),
+                                        ibuffer_sizes[idx],
+                                        hipMemcpyHostToDevice);
+            ASSERT_EQ(hip_status, hipSuccess) << "hipMemcpy failure with error " << hip_status;
+        }
     }
 
-    // Run CPU transform
+    // Run CPU transform, allocating output buffer
     //
     // NOTE: This must happen after input is copied to GPU and input
     // norm is computed, since the CPU FFT may overwrite the input.
+    // We also want to make sure any temp buffer we created for
+    // copying GPU input is gone before we allocate CPU output
+    // buffer.
     VectorNorms              cpu_output_norm;
     std::shared_future<void> cpu_fft = std::async(std::launch::async, [&]() {
         // wait for input norm to finish, since we might overwrite input

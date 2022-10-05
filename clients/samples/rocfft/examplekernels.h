@@ -21,7 +21,6 @@
 #ifndef __EXAMPLEKERNELS_H__
 #define __EXAMPLEKERNELS_H__
 
-#include "../../data_gen.h"
 #include <hip/hip_runtime.h>
 #include <iostream>
 
@@ -69,42 +68,39 @@ __global__ void initrdata3(double*      x,
 }
 
 // Kernel for initializing 1D complex data on the GPU.
-__global__ void initcdata1(std::complex<double>* x, const size_t Nx, const size_t xstride)
+__global__ void initcdata1(double2* x, const size_t Nx, const size_t xstride)
 {
     const size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
     if(idx < Nx)
     {
         const auto pos = idx * xstride;
-        x[pos].real(1 + idx);
-        x[pos].imag(1 + idx);
+        x[pos].x       = 1 + idx;
+        x[pos].y       = 1 + idx;
     }
 }
 
 // Kernel for initializing 2D complex input data on the GPU.
-__global__ void initcdata2(std::complex<double>* x,
-                           const size_t          Nx,
-                           const size_t          Ny,
-                           const size_t          xstride,
-                           const size_t          ystride)
+__global__ void initcdata2(
+    double2* x, const size_t Nx, const size_t Ny, const size_t xstride, const size_t ystride)
 {
     const auto idx = blockIdx.x * blockDim.x + threadIdx.x;
     const auto idy = blockIdx.y * blockDim.y + threadIdx.y;
     if(idx < Nx && idy < Ny)
     {
         const auto pos = idx * xstride + idy * ystride;
-        x[pos].real(idx + 1);
-        x[pos].imag(idy + 1);
+        x[pos].x       = idx + 1;
+        x[pos].y       = idy + 1;
     }
 }
 
 // Kernel for initializing 3D complex input data on the GPU.
-__global__ void initcdata3(std::complex<double>* x,
-                           const size_t          Nx,
-                           const size_t          Ny,
-                           const size_t          Nz,
-                           const size_t          xstride,
-                           const size_t          ystride,
-                           const size_t          zstride)
+__global__ void initcdata3(double2*     x,
+                           const size_t Nx,
+                           const size_t Ny,
+                           const size_t Nz,
+                           const size_t xstride,
+                           const size_t ystride,
+                           const size_t zstride)
 {
     const size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
     const size_t idy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -112,8 +108,242 @@ __global__ void initcdata3(std::complex<double>* x,
     if(idx < Nx && idy < Ny && idz < Nz)
     {
         const auto pos = idx * xstride + idy * ystride + idz * zstride;
-        x[pos].real(idx + 10.0 * idz + 1);
-        x[pos].imag(idy + 10);
+        x[pos].x       = idx + 10.0 * idz + 1;
+        x[pos].y       = idy + 10;
+    }
+}
+
+// For complex-to-real transforms, the input data must be Hermitiam-symmetric.
+// That is, u_k is the complex conjugate of u_{-k}, where k is the wavevector in Fourier
+// space.  For multi-dimensional data, this means that we only need to store a bit more
+// than half of the complex values; the rest are redundant.  However, there are still
+// some restrictions:
+// * the origin and Nyquist value(s) must be real-valued
+// * some of the remaining values are still redundant, and you might get different results
+//   than you expect if the values don't agree.
+// Below are some example kernels which impose Hermitian symmetry on a complex array
+// of the given dimensions.
+
+// Kernel for imposing Hermitian symmetry on 1D complex data on the GPU.
+__global__ void
+    impose_hermitian_symmetry1(double2* x, const size_t Nx, const size_t xstride, const bool Nxeven)
+{
+    // The DC mode must be real-valued.
+    x[0].y = 0.0;
+    ;
+
+    if(Nxeven)
+    {
+        // Nyquist mode
+        auto pos = (Nx / 2) * xstride;
+        x[pos].y = 0.0;
+    }
+}
+
+// Kernel for imposing Hermitian symmetry on 2D complex data on the GPU.
+__global__ void impose_hermitian_symmetry2(double2*     x,
+                                           const size_t Nx,
+                                           const size_t Ny,
+                                           const size_t xstride,
+                                           const size_t ystride,
+                                           const bool   Nxeven,
+                                           const bool   Nyeven)
+{
+    const auto idy = blockIdx.x * blockDim.x + threadIdx.x;
+    if(idy < Ny / 2 + 1)
+    {
+        auto pos  = idy * ystride;
+        auto cpos = ((Ny - idy) % Ny) * ystride;
+
+        auto val = x[pos];
+
+        // DC mode:
+        if(idy == 0)
+        {
+            val.y = 0.0;
+        }
+
+        // Axes need to be symmetrized:
+        if(idy > 0 && idy < (Ny + 1) / 2)
+        {
+            val.y = -val.y;
+        }
+
+        // y-Nyquist
+        if(Nyeven && idy == Ny / 2)
+        {
+            val.y = 0.0;
+        }
+
+        x[cpos] = val;
+
+        if(Nxeven)
+        {
+            pos += (Nx / 2) * xstride;
+            cpos += (Nx / 2) * xstride;
+
+            val = x[pos];
+
+            // DC mode:
+            if(idy == 0)
+            {
+                val.y = 0.0;
+            }
+
+            // Axes need to be symmetrized:
+            if(idy > 0 && idy < (Ny + 1) / 2)
+            {
+                val.y = -val.y;
+            }
+
+            // y-Nyquist
+            if(Nyeven && idy == Ny / 2)
+            {
+                val.y = 0.0;
+            }
+
+            x[cpos] = val;
+        }
+    }
+}
+
+// Kernel for imposing Hermitian symmetry on 3D complex data on the GPU.
+__global__ void impose_hermitian_symmetry3(double2*     x,
+                                           const size_t Nx,
+                                           const size_t Ny,
+                                           const size_t Nz,
+                                           const size_t xstride,
+                                           const size_t ystride,
+                                           const size_t zstride,
+                                           const bool   Nxeven,
+                                           const bool   Nyeven,
+                                           const bool   Nzeven)
+{
+    const auto idy = blockIdx.x * blockDim.x + threadIdx.x;
+    const auto idz = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if(idy < Ny && idz < Nz)
+    {
+        auto pos  = idy * ystride + idz * zstride;
+        auto cpos = ((Ny - idy) % Ny) * ystride + ((Nz - idz) % Nz) * zstride;
+
+        // Origin
+        if(idy == 0 && idz == 0)
+        {
+            x[pos].y = 0;
+        }
+
+        // y-Nyquist
+        if(Nyeven && idy == Ny / 2 && idz == 0)
+        {
+            x[pos].y = 0;
+        }
+
+        // z-Nyquist
+        if(Nzeven && idz == Nz / 2 && idy == 0)
+        {
+            x[pos].y = 0;
+        }
+
+        // yz-Nyquist
+        if(Nyeven && Nzeven && idy == Ny / 2 && idz == Nz / 2)
+        {
+            x[pos].y = 0;
+        }
+
+        // z-axis
+        if(idy == 0 && idz > 0 && idz < (Nz + 1) / 2)
+        {
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
+        }
+        // y-Nyquist axis
+        if(Nyeven && idy == Ny / 2 && idz > 0 && idz < (Nz + 1) / 2)
+        {
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
+        }
+
+        // y-axis
+        if(idy > 0 && idy < (Ny + 1) / 2 && idz == 0)
+        {
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
+        }
+        // z-Nyquist axis
+        if(Nzeven && idz == Nz / 2 && idy > 0 && idy < (Ny + 1) / 2)
+        {
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
+        }
+
+        // yz plane
+        if(idy > 0 && idy < (Ny + 1) / 2 && idz > 0 && idz < Nz)
+        {
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
+        }
+        if(Nxeven)
+        {
+            pos += (Nx / 2) * xstride;
+            cpos += (Nx / 2) * xstride;
+            // Origin
+            if(idy == 0 && idz == 0)
+            {
+                x[pos].y = 0;
+            }
+
+            // y-Nyquist
+            if(Nyeven && idy == Ny / 2 && idz == 0)
+            {
+                x[pos].y = 0;
+            }
+
+            // z-Nyquist
+            if(Nzeven && idz == Nz / 2 && idy == 0)
+            {
+                x[pos].y = 0;
+            }
+
+            // yz-Nyquist
+            if(Nyeven && Nzeven && idy == Ny / 2 && idz == Nz / 2)
+            {
+                x[pos].y = 0;
+            }
+
+            // z-axis
+            if(idy == 0 && idz > 0 && idz < (Nz + 1) / 2)
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
+            // y-Nyquist axis
+            if(Nyeven && idy == Ny / 2 && idz > 0 && idz < (Nz + 1) / 2)
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
+
+            // y-axis
+            if(idy > 0 && idy < (Ny + 1) / 2 && idz == 0)
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
+            // z-Nyquist axis
+            if(Nzeven && idz == Nz / 2 && idy > 0 && idy < (Ny + 1) / 2)
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
+
+            // yz plane
+            if(idy > 0 && idy < (Ny + 1) / 2 && idz > 0 && idz < Nz)
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
+        }
     }
 }
 
@@ -136,14 +366,8 @@ void initcomplex_cm(const std::vector<size_t>& length_cm,
     {
         const dim3 blockdim(256);
         const dim3 griddim(ceildiv(length_cm[0], blockdim.x));
-        hipLaunchKernelGGL(initcdata1,
-                           blockdim,
-                           griddim,
-                           0,
-                           0,
-                           (std::complex<double>*)gpu_in,
-                           length_cm[0],
-                           stride_cm[0]);
+        hipLaunchKernelGGL(
+            initcdata1, blockdim, griddim, 0, 0, (double2*)gpu_in, length_cm[0], stride_cm[0]);
         break;
     }
     case 2:
@@ -155,7 +379,7 @@ void initcomplex_cm(const std::vector<size_t>& length_cm,
                            griddim,
                            0,
                            0,
-                           (std::complex<double>*)gpu_in,
+                           (double2*)gpu_in,
                            length_cm[0],
                            length_cm[1],
                            stride_cm[0],
@@ -173,7 +397,7 @@ void initcomplex_cm(const std::vector<size_t>& length_cm,
                            griddim,
                            0,
                            0,
-                           (std::complex<double>*)gpu_in,
+                           (double2*)gpu_in,
                            length_cm[0],
                            length_cm[1],
                            length_cm[2],
@@ -255,53 +479,47 @@ void impose_hermitian_symmetry_cm(const std::vector<size_t>& length,
     {
     case 1:
     {
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1<double>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry1,
                            dim3(1),
                            dim3(1),
                            0,
                            0,
-                           (std::complex<double>*)gpu_in,
+                           (double2*)gpu_in,
                            length[0],
                            stride[0],
-                           1,
-                           1,
                            length[0] % 2 == 0);
         break;
     }
     case 2:
     {
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2<double>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry2,
                            dim3(256),
                            dim3(ceildiv(ceildiv(ilength[1], 2), 256)),
                            0,
                            0,
-                           (std::complex<double>*)gpu_in,
+                           (double2*)gpu_in,
                            length[0],
                            length[1],
                            stride[0],
                            stride[1],
-                           1,
-                           1,
                            length[0] % 2 == 0,
                            length[1] % 2 == 0);
         break;
     }
     case 3:
     {
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3<double>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry3,
                            dim3(64, 64),
                            dim3(ceildiv(ilength[1], 64), ceildiv(ceildiv(ilength[2], 2), 64)),
                            0,
                            0,
-                           (std::complex<double>*)gpu_in,
+                           (double2*)gpu_in,
                            length[0],
                            length[1],
                            length[2],
                            stride[0],
                            stride[1],
                            stride[2],
-                           1,
-                           1,
                            length[0] % 2 == 0,
                            length[1] % 2 == 0,
                            length[2] % 2 == 0);
@@ -326,24 +544,16 @@ void init_hermitiancomplex_cm(const std::vector<size_t>& length,
     {
         const dim3 blockdim(256);
         const dim3 griddim(ceildiv(ilength[0], blockdim.x));
-        hipLaunchKernelGGL(initcdata1,
-                           blockdim,
-                           griddim,
-                           0,
-                           0,
-                           (std::complex<double>*)gpu_in,
-                           ilength[0],
-                           stride[0]);
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1<double>,
+        hipLaunchKernelGGL(
+            initcdata1, blockdim, griddim, 0, 0, (double2*)gpu_in, ilength[0], stride[0]);
+        hipLaunchKernelGGL(impose_hermitian_symmetry1,
                            dim3(1),
                            dim3(1),
                            0,
                            0,
-                           (std::complex<double>*)gpu_in,
+                           (double2*)gpu_in,
                            length[0],
                            stride[0],
-                           1,
-                           1,
                            length[0] % 2 == 0);
         break;
     }
@@ -356,23 +566,21 @@ void init_hermitiancomplex_cm(const std::vector<size_t>& length,
                            griddim,
                            0,
                            0,
-                           (std::complex<double>*)gpu_in,
+                           (double2*)gpu_in,
                            ilength[0],
                            ilength[1],
                            stride[0],
                            stride[1]);
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2<double>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry2,
                            dim3(256),
                            dim3(ceildiv(ceildiv(ilength[1], 2), 256)),
                            0,
                            0,
-                           (std::complex<double>*)gpu_in,
+                           (double2*)gpu_in,
                            length[0],
                            length[1],
                            stride[0],
                            stride[1],
-                           1,
-                           1,
                            length[0] % 2 == 0,
                            length[1] % 2 == 0);
         break;
@@ -389,7 +597,7 @@ void init_hermitiancomplex_cm(const std::vector<size_t>& length,
                            griddim,
                            0,
                            0,
-                           (std::complex<double>*)gpu_in,
+                           (double2*)gpu_in,
                            ilength[0],
                            ilength[1],
                            ilength[2],
@@ -397,20 +605,18 @@ void init_hermitiancomplex_cm(const std::vector<size_t>& length,
                            stride[1],
                            stride[2]);
 
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3<double>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry3,
                            dim3(64, 64),
                            dim3(ceildiv(ilength[1], 64), ceildiv(ceildiv(ilength[2], 2), 64)),
                            0,
                            0,
-                           (std::complex<double>*)gpu_in,
+                           (double2*)gpu_in,
                            length[0],
                            length[1],
                            length[2],
                            stride[0],
                            stride[1],
                            stride[2],
-                           1,
-                           1,
                            length[0] % 2 == 0,
                            length[1] % 2 == 0,
                            length[2] % 2 == 0);

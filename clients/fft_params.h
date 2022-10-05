@@ -21,10 +21,9 @@
 #ifndef FFT_PARAMS_H
 #define FFT_PARAMS_H
 
-#include "data_gen.h"
 #include <algorithm>
 #include <complex>
-#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
 #include <iostream>
 #include <mutex>
 #include <numeric>
@@ -1279,6 +1278,185 @@ std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits
     return stream;
 }
 
+// count the number of total iterations for 1-, 2-, and 3-D dimensions
+template <typename T1>
+size_t count_iters(const T1& i)
+{
+    return i;
+}
+
+template <typename T1>
+size_t count_iters(const std::tuple<T1, T1>& i)
+{
+    return std::get<0>(i) * std::get<1>(i);
+}
+
+template <typename T1>
+size_t count_iters(const std::tuple<T1, T1, T1>& i)
+{
+    return std::get<0>(i) * std::get<1>(i) * std::get<2>(i);
+}
+
+// Work out how many partitions to break our iteration problem into
+template <typename T1>
+static size_t compute_partition_count(T1 length)
+{
+#ifdef BUILD_CLIENTS_TESTS_OPENMP
+    // we seem to get contention from too many threads, which slows
+    // things down.  particularly noticeable with mix_3D tests
+    static const size_t MAX_PARTITIONS = 8;
+    size_t              iters          = count_iters(length);
+    size_t hw_threads = std::min(MAX_PARTITIONS, static_cast<size_t>(omp_get_num_procs()));
+    if(!hw_threads)
+        return 1;
+
+    // don't bother threading problem sizes that are too small. pick
+    // an arbitrary number of iterations and ensure that each thread
+    // has at least that many iterations to process
+    static const size_t MIN_ITERS_PER_THREAD = 2048;
+
+    // either use the whole CPU, or use ceil(iters/iters_per_thread)
+    return std::min(hw_threads, (iters + MIN_ITERS_PER_THREAD + 1) / MIN_ITERS_PER_THREAD);
+#else
+    return 1;
+#endif
+}
+
+// Break a scalar length into some number of pieces, returning
+// [(start0, end0), (start1, end1), ...]
+template <typename T1>
+std::vector<std::pair<T1, T1>> partition_base(const T1& length, size_t num_parts)
+{
+    static_assert(std::is_integral<T1>::value, "Integral required.");
+
+    // make sure we don't exceed the length
+    num_parts = std::min(length, num_parts);
+
+    std::vector<std::pair<T1, T1>> ret(num_parts);
+    auto                           partition_size = length / num_parts;
+    T1                             cur_partition  = 0;
+    for(size_t i = 0; i < num_parts; ++i, cur_partition += partition_size)
+    {
+        ret[i].first  = cur_partition;
+        ret[i].second = cur_partition + partition_size;
+    }
+    // last partition might not divide evenly, fix it up
+    ret.back().second = length;
+    return ret;
+}
+
+// Returns pairs of startindex, endindex, for 1D, 2D, 3D lengths
+template <typename T1>
+std::vector<std::pair<T1, T1>> partition_rowmajor(const T1& length)
+{
+    return partition_base(length, compute_partition_count(length));
+}
+
+// Partition on the leftmost part of the tuple, for row-major indexing
+template <typename T1>
+std::vector<std::pair<std::tuple<T1, T1>, std::tuple<T1, T1>>>
+    partition_rowmajor(const std::tuple<T1, T1>& length)
+{
+    auto partitions = partition_base(std::get<0>(length), compute_partition_count(length));
+    std::vector<std::pair<std::tuple<T1, T1>, std::tuple<T1, T1>>> ret(partitions.size());
+    for(size_t i = 0; i < partitions.size(); ++i)
+    {
+        std::get<0>(ret[i].first)  = partitions[i].first;
+        std::get<1>(ret[i].first)  = 0;
+        std::get<0>(ret[i].second) = partitions[i].second;
+        std::get<1>(ret[i].second) = std::get<1>(length);
+    }
+    return ret;
+}
+template <typename T1>
+std::vector<std::pair<std::tuple<T1, T1, T1>, std::tuple<T1, T1, T1>>>
+    partition_rowmajor(const std::tuple<T1, T1, T1>& length)
+{
+    auto partitions = partition_base(std::get<0>(length), compute_partition_count(length));
+    std::vector<std::pair<std::tuple<T1, T1, T1>, std::tuple<T1, T1, T1>>> ret(partitions.size());
+    for(size_t i = 0; i < partitions.size(); ++i)
+    {
+        std::get<0>(ret[i].first)  = partitions[i].first;
+        std::get<1>(ret[i].first)  = 0;
+        std::get<2>(ret[i].first)  = 0;
+        std::get<0>(ret[i].second) = partitions[i].second;
+        std::get<1>(ret[i].second) = std::get<1>(length);
+        std::get<2>(ret[i].second) = std::get<2>(length);
+    }
+    return ret;
+}
+
+// Returns pairs of startindex, endindex, for 1D, 2D, 3D lengths
+template <typename T1>
+std::vector<std::pair<T1, T1>> partition_colmajor(const T1& length)
+{
+    return partition_base(length, compute_partition_count(length));
+}
+
+// Partition on the rightmost part of the tuple, for col-major indexing
+template <typename T1>
+std::vector<std::pair<std::tuple<T1, T1>, std::tuple<T1, T1>>>
+    partition_colmajor(const std::tuple<T1, T1>& length)
+{
+    auto partitions = partition_base(std::get<1>(length), compute_partition_count(length));
+    std::vector<std::pair<std::tuple<T1, T1>, std::tuple<T1, T1>>> ret(partitions.size());
+    for(size_t i = 0; i < partitions.size(); ++i)
+    {
+        std::get<1>(ret[i].first)  = partitions[i].first;
+        std::get<0>(ret[i].first)  = 0;
+        std::get<1>(ret[i].second) = partitions[i].second;
+        std::get<0>(ret[i].second) = std::get<0>(length);
+    }
+    return ret;
+}
+template <typename T1>
+std::vector<std::pair<std::tuple<T1, T1, T1>, std::tuple<T1, T1, T1>>>
+    partition_colmajor(const std::tuple<T1, T1, T1>& length)
+{
+    auto partitions = partition_base(std::get<2>(length), compute_partition_count(length));
+    std::vector<std::pair<std::tuple<T1, T1, T1>, std::tuple<T1, T1, T1>>> ret(partitions.size());
+    for(size_t i = 0; i < partitions.size(); ++i)
+    {
+        std::get<2>(ret[i].first)  = partitions[i].first;
+        std::get<1>(ret[i].first)  = 0;
+        std::get<0>(ret[i].first)  = 0;
+        std::get<2>(ret[i].second) = partitions[i].second;
+        std::get<1>(ret[i].second) = std::get<1>(length);
+        std::get<0>(ret[i].second) = std::get<0>(length);
+    }
+    return ret;
+}
+
+// Specialized computation of index given 1-, 2-, 3- dimension length + stride
+template <typename T1, typename T2>
+size_t compute_index(T1 length, T2 stride, size_t base)
+{
+    static_assert(std::is_integral<T1>::value, "Integral required.");
+    static_assert(std::is_integral<T2>::value, "Integral required.");
+    return (length * stride) + base;
+}
+
+template <typename T1, typename T2>
+size_t
+    compute_index(const std::tuple<T1, T1>& length, const std::tuple<T2, T2>& stride, size_t base)
+{
+    static_assert(std::is_integral<T1>::value, "Integral required.");
+    static_assert(std::is_integral<T2>::value, "Integral required.");
+    return (std::get<0>(length) * std::get<0>(stride)) + (std::get<1>(length) * std::get<1>(stride))
+           + base;
+}
+
+template <typename T1, typename T2>
+size_t compute_index(const std::tuple<T1, T1, T1>& length,
+                     const std::tuple<T2, T2, T2>& stride,
+                     size_t                        base)
+{
+    static_assert(std::is_integral<T1>::value, "Integral required.");
+    static_assert(std::is_integral<T2>::value, "Integral required.");
+    return (std::get<0>(length) * std::get<0>(stride)) + (std::get<1>(length) * std::get<1>(stride))
+           + (std::get<2>(length) * std::get<2>(stride)) + base;
+}
+
 // Copy data of dimensions length with strides istride and length idist between batches to
 // a buffer with strides ostride and length odist between batches.  The input and output
 // types are identical.
@@ -2309,72 +2487,314 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
     }
 }
 
-// Given an array type and transform length, strides, etc, load random floats in [0,1]
-// into the input array of floats/doubles or complex floats/doubles gpu buffers.
-template <typename Tfloat, typename Tint1>
-inline void set_input(std::vector<gpubuf>&       input,
-                      const fft_array_type       itype,
-                      const std::vector<size_t>& length,
-                      const std::vector<size_t>& ilength,
-                      const std::vector<size_t>& stride,
-                      const Tint1&               whole_length,
-                      const Tint1&               istride,
-                      const size_t               idist,
-                      const size_t               nbatch)
+// Given a buffer of complex values stored in a vector of chars (or two vectors in the
+// case of planar format), impose Hermitian symmetry.
+// NB: length is the dimensions of the FFT, not the data layout dimensions.
+template <typename Tfloat, typename Tallocator, typename Tsize>
+inline void impose_hermitian_symmetry(std::vector<std::vector<char, Tallocator>>& vals,
+                                      const std::vector<Tsize>&                   length,
+                                      const std::vector<Tsize>&                   istride,
+                                      const Tsize                                 idist,
+                                      const Tsize                                 nbatch)
 {
-    size_t num_seeds;
+    switch(vals.size())
+    {
+    case 1:
+    {
+        // Complex interleaved data
+        for(unsigned int ibatch = 0; ibatch < nbatch; ++ibatch)
+        {
+            auto data = ((std::complex<Tfloat>*)vals[0].data()) + ibatch * idist;
+            switch(length.size())
+            {
+            case 3:
+                if(length[2] % 2 == 0)
+                {
+                    data[istride[2] * (length[2] / 2)].imag(0.0);
+                }
 
+                if(length[0] % 2 == 0 && length[2] % 2 == 0)
+                {
+                    data[istride[0] * (length[0] / 2) + istride[2] * (length[2] / 2)].imag(0.0);
+                }
+                if(length[1] % 2 == 0 && length[2] % 2 == 0)
+                {
+                    data[istride[1] * (length[1] / 2) + istride[2] * (length[2] / 2)].imag(0.0);
+                }
+
+                if(length[0] % 2 == 0 && length[1] % 2 == 0 && length[2] % 2 == 0)
+                {
+                    // clang format off
+                    data[istride[0] * (length[0] / 2) + istride[1] * (length[1] / 2)
+                         + istride[2] * (length[2] / 2)]
+                        .imag(0.0);
+                    // clang format off
+                }
+
+                // y-axis:
+                for(unsigned int j = 1; j < (length[1] + 1) / 2; ++j)
+                {
+                    data[istride[1] * (length[1] - j)] = std::conj(data[istride[1] * j]);
+                }
+
+                if(length[0] % 2 == 0)
+                {
+                    // y-axis at x-nyquist
+                    for(unsigned int j = 1; j < (length[1] + 1) / 2; ++j)
+                    {
+                        // clang format off
+                        data[istride[0] * (length[0] / 2) + istride[1] * (length[1] - j)]
+                            = std::conj(data[istride[0] * (length[0] / 2) + istride[1] * j]);
+                        // clang format on
+                    }
+                }
+
+                // x-axis:
+                for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
+                {
+                    data[istride[0] * (length[0] - i)] = std::conj(data[istride[0] * i]);
+                }
+
+                if(length[1] % 2 == 0)
+                {
+                    // x-axis at y-nyquist
+                    for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
+                    {
+                        // clang format off
+                        data[istride[0] * (length[0] - i) + istride[1] * (length[1] / 2)]
+                            = std::conj(data[istride[0] * i + istride[1] * (length[1] / 2)]);
+                        // clang format on
+                    }
+                }
+
+                // x-y plane:
+                for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
+                {
+                    for(unsigned int j = 1; j < length[1]; ++j)
+                    {
+                        // clang format off
+                        data[istride[0] * (length[0] - i) + istride[1] * (length[1] - j)]
+                            = std::conj(data[istride[0] * i + istride[1] * j]);
+                        // clang format on
+                    }
+                }
+
+                if(length[2] % 2 == 0)
+                {
+                    // x-axis at z-nyquist
+                    for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
+                    {
+                        data[istride[0] * (length[0] - i) + istride[2] * (length[2] / 2)]
+                            = std::conj(data[istride[0] * i + istride[2] * (length[2] / 2)]);
+                    }
+                    if(length[1] % 2 == 0)
+                    {
+                        // x-axis at yz-nyquist
+                        for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
+                        {
+                            data[istride[0] * (length[0] - i) + istride[2] * (length[2] / 2)]
+                                = std::conj(data[istride[0] * i + istride[2] * (length[2] / 2)]);
+                        }
+                    }
+
+                    // y-axis: at z-nyquist
+                    for(unsigned int j = 1; j < (length[1] + 1) / 2; ++j)
+                    {
+                        data[istride[1] * (length[1] - j) + istride[2] * (length[2] / 2)]
+                            = std::conj(data[istride[1] * j + istride[2] * (length[2] / 2)]);
+                    }
+
+                    if(length[0] % 2 == 0)
+                    {
+                        // y-axis: at xz-nyquist
+                        for(unsigned int j = 1; j < (length[1] + 1) / 2; ++j)
+                        {
+                            // clang format off
+                            data[istride[0] * (length[0] / 2) + istride[1] * (length[1] - j)
+                                 + istride[2] * (length[2] / 2)]
+                                = std::conj(data[istride[0] * (length[0] / 2) + istride[1] * j
+                                                 + istride[2] * (length[2] / 2)]);
+                            // clang format on
+                        }
+                    }
+
+                    // x-y plane: at z-nyquist
+                    for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
+                    {
+                        for(unsigned int j = 1; j < length[1]; ++j)
+                        {
+                            // clang format off
+                            data[istride[0] * (length[0] - i) + istride[1] * (length[1] - j)
+                                 + istride[2] * (length[2] / 2)]
+                                = std::conj(data[istride[0] * i + istride[1] * j
+                                                 + istride[2] * (length[2] / 2)]);
+                            // clang format on
+                        }
+                    }
+                }
+
+                [[fallthrough]];
+            case 2:
+                if(length[1] % 2 == 0)
+                {
+                    data[istride[1] * (length[1] / 2)].imag(0.0);
+                }
+
+                if(length[0] % 2 == 0 && length[1] % 2 == 0)
+                {
+                    data[istride[0] * (length[0] / 2) + istride[1] * (length[1] / 2)].imag(0.0);
+                }
+
+                for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
+                {
+                    data[istride[0] * (length[0] - i)] = std::conj(data[istride[0] * i]);
+                }
+
+                if(length[1] % 2 == 0)
+                {
+                    for(unsigned int i = 1; i < (length[0] + 1) / 2; ++i)
+                    {
+                        data[istride[0] * (length[0] - i) + istride[1] * (length[1] / 2)]
+                            = std::conj(data[istride[0] * i + istride[1] * (length[1] / 2)]);
+                    }
+                }
+
+                [[fallthrough]];
+            case 1:
+                data[0].imag(0.0);
+
+                if(length[0] % 2 == 0)
+                {
+                    data[istride[0] * (length[0] / 2)].imag(0.0);
+                }
+                break;
+
+            default:
+                throw std::runtime_error("Invalid dimension for imposeHermitianSymmetry");
+            }
+        }
+        break;
+    }
+    case 2:
+    {
+        // Complex planar data
+        for(unsigned int ibatch = 0; ibatch < nbatch; ++ibatch)
+        {
+            auto idata = ((Tfloat*)vals[1].data()) + ibatch * idist;
+            switch(length.size())
+            {
+            case 3:
+                throw std::runtime_error("Not implemented");
+                // TODO: implement
+            case 2:
+                throw std::runtime_error("Not implemented");
+                // TODO: implement
+            case 1:
+                idata[0] = 0.0;
+                if(length[0] % 2 == 0)
+                {
+                    idata[istride[0] * (length[0] / 2)] = 0.0;
+                }
+                break;
+            default:
+                throw std::runtime_error("Invalid dimension for imposeHermitianSymmetry");
+            }
+        }
+        break;
+    }
+    default:
+        throw std::runtime_error("Invalid data type");
+    }
+}
+
+// Given an array type and transform length, strides, etc, load random floats in [0,1]
+// into the input array of floats/doubles or complex floats/doubles, which is stored in a
+// vector of chars (or two vectors in the case of planar format).
+// lengths are the memory lengths (ie not the transform parameters)
+template <typename Tfloat, typename Tallocator, typename Tint1>
+inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
+                      const fft_array_type                        itype,
+                      const Tint1&                                whole_length,
+                      const Tint1&                                istride,
+                      const size_t                                idist,
+                      const size_t                                nbatch)
+{
     switch(itype)
     {
     case fft_array_type_complex_interleaved:
     case fft_array_type_hermitian_interleaved:
     {
-        auto isize = input[0].size() / sizeof(std::complex<Tfloat>);
-
-        std::vector<std::complex<Tfloat>> rand_gen_seeds;
-        compute_rand_generator_input(
-            isize, idist, nbatch, whole_length, istride, num_seeds, rand_gen_seeds);
-
-        auto ibuffer = (std::complex<Tfloat>*)input[0].data();
-        generate_interleaved_data<Tfloat>(rand_gen_seeds, num_seeds, ibuffer);
-
-        if(itype == fft_array_type_hermitian_interleaved)
-            impose_hermitian_symmetry_interleaved(
-                length, ilength, stride, idist, nbatch, isize, ibuffer);
-
+        auto   idata      = (std::complex<Tfloat>*)input[0].data();
+        size_t i_base     = 0;
+        auto   partitions = partition_rowmajor(whole_length);
+        for(unsigned int b = 0; b < nbatch; b++, i_base += idist)
+        {
+#pragma omp parallel for num_threads(partitions.size())
+            for(size_t part = 0; part < partitions.size(); ++part)
+            {
+                auto         index  = partitions[part].first;
+                const auto   length = partitions[part].second;
+                std::mt19937 gen(compute_index(index, istride, i_base));
+                do
+                {
+                    const auto                 i = compute_index(index, istride, i_base);
+                    const Tfloat               x = (Tfloat)gen() / (Tfloat)gen.max();
+                    const Tfloat               y = (Tfloat)gen() / (Tfloat)gen.max();
+                    const std::complex<Tfloat> val(x, y);
+                    idata[i] = val;
+                } while(increment_rowmajor(index, length));
+            }
+        }
         break;
     }
     case fft_array_type_complex_planar:
     case fft_array_type_hermitian_planar:
     {
-        auto isize = input[0].size() / sizeof(Tfloat);
-
-        std::vector<Tfloat> rand_gen_seeds;
-        compute_rand_generator_input(
-            isize, idist, nbatch, whole_length, istride, num_seeds, rand_gen_seeds);
-
-        auto ibuffer_real = (Tfloat*)input[0].data();
-        auto ibuffer_imag = (Tfloat*)input[1].data();
-
-        generate_planar_data<Tfloat>(rand_gen_seeds, num_seeds, ibuffer_real, ibuffer_imag);
-
-        if(itype == fft_array_type_hermitian_planar)
-            impose_hermitian_symmetry_planar(
-                length, ilength, stride, idist, nbatch, ibuffer_real, ibuffer_imag);
-
+        auto   ireal      = (Tfloat*)input[0].data();
+        auto   iimag      = (Tfloat*)input[1].data();
+        size_t i_base     = 0;
+        auto   partitions = partition_rowmajor(whole_length);
+        for(unsigned int b = 0; b < nbatch; b++, i_base += idist)
+        {
+#pragma omp parallel for num_threads(partitions.size())
+            for(size_t part = 0; part < partitions.size(); ++part)
+            {
+                auto         index  = partitions[part].first;
+                const auto   length = partitions[part].second;
+                std::mt19937 gen(compute_index(index, istride, i_base));
+                do
+                {
+                    const auto                 i = compute_index(index, istride, i_base);
+                    const std::complex<Tfloat> val((Tfloat)gen() / (Tfloat)gen.max(),
+                                                   (Tfloat)gen() / (Tfloat)gen.max());
+                    ireal[i] = val.real();
+                    iimag[i] = val.imag();
+                } while(increment_rowmajor(index, length));
+            }
+        }
         break;
     }
     case fft_array_type_real:
     {
-        auto isize = input[0].size() / sizeof(Tfloat);
-
-        std::vector<Tfloat> rand_gen_seeds;
-        compute_rand_generator_input(
-            isize, idist, nbatch, whole_length, istride, num_seeds, rand_gen_seeds);
-
-        auto ibuffer = (Tfloat*)input[0].data();
-        generate_real_data<Tfloat>(rand_gen_seeds, num_seeds, ibuffer);
-
+        auto   idata      = (Tfloat*)input[0].data();
+        size_t i_base     = 0;
+        auto   partitions = partition_rowmajor(whole_length);
+        for(unsigned int b = 0; b < nbatch; b++, i_base += idist)
+        {
+#pragma omp parallel for num_threads(partitions.size())
+            for(size_t part = 0; part < partitions.size(); ++part)
+            {
+                auto         index  = partitions[part].first;
+                const auto   length = partitions[part].second;
+                std::mt19937 gen(compute_index(index, istride, i_base));
+                do
+                {
+                    const auto   i   = compute_index(index, istride, i_base);
+                    const Tfloat val = (Tfloat)gen() / (Tfloat)gen.max();
+                    idata[i]         = val;
+                } while(increment_rowmajor(index, length));
+            }
+        }
         break;
     }
     default:
@@ -2383,28 +2803,23 @@ inline void set_input(std::vector<gpubuf>&       input,
 }
 
 // unroll set_input for dimension 1, 2, 3
-template <typename Tfloat>
-inline void set_input(std::vector<gpubuf>&       input,
-                      const fft_array_type       itype,
-                      const std::vector<size_t>& length,
-                      const std::vector<size_t>& ilength,
-                      const std::vector<size_t>& istride,
-                      const size_t               idist,
-                      const size_t               nbatch)
+template <typename Tfloat, typename Tallocator>
+inline void set_input(std::vector<std::vector<char, Tallocator>>& input,
+                      const fft_array_type                        itype,
+                      const std::vector<size_t>&                  length,
+                      const std::vector<size_t>&                  istride,
+                      const size_t                                idist,
+                      const size_t                                nbatch)
 {
     switch(length.size())
     {
     case 1:
-        set_input<Tfloat>(
-            input, itype, length, ilength, istride, ilength[0], istride[0], idist, nbatch);
+        set_input<Tfloat>(input, itype, length[0], istride[0], idist, nbatch);
         break;
     case 2:
         set_input<Tfloat>(input,
                           itype,
-                          length,
-                          ilength,
-                          istride,
-                          std::make_tuple(ilength[0], ilength[1]),
+                          std::make_tuple(length[0], length[1]),
                           std::make_tuple(istride[0], istride[1]),
                           idist,
                           nbatch);
@@ -2412,10 +2827,7 @@ inline void set_input(std::vector<gpubuf>&       input,
     case 3:
         set_input<Tfloat>(input,
                           itype,
-                          length,
-                          ilength,
-                          istride,
-                          std::make_tuple(ilength[0], ilength[1], ilength[2]),
+                          std::make_tuple(length[0], length[1], length[2]),
                           std::make_tuple(istride[0], istride[1], istride[2]),
                           idist,
                           nbatch);
@@ -2441,28 +2853,37 @@ inline std::vector<std::vector<char, Allocator>> allocate_host_buffer(
 
 // Given a data type and dimensions, fill the buffer, imposing Hermitian symmetry if
 // necessary.
-inline void compute_input(const fft_params& params, std::vector<gpubuf>& input)
+// NB: length is the logical size of the FFT, and not necessarily the data dimensions
+template <typename Allocator = std::allocator<char>>
+inline void compute_input(const fft_params&                          params,
+                          std::vector<std::vector<char, Allocator>>& input)
 {
     switch(params.precision)
     {
     case fft_precision_double:
-        set_input<double>(input,
-                          params.itype,
-                          params.length,
-                          params.ilength(),
-                          params.istride,
-                          params.idist,
-                          params.nbatch);
+        set_input<double>(
+            input, params.itype, params.ilength(), params.istride, params.idist, params.nbatch);
         break;
     case fft_precision_single:
-        set_input<float>(input,
-                         params.itype,
-                         params.length,
-                         params.ilength(),
-                         params.istride,
-                         params.idist,
-                         params.nbatch);
+        set_input<float>(
+            input, params.itype, params.ilength(), params.istride, params.idist, params.nbatch);
         break;
+    }
+
+    if(params.itype == fft_array_type_hermitian_interleaved
+       || params.itype == fft_array_type_hermitian_planar)
+    {
+        switch(params.precision)
+        {
+        case fft_precision_double:
+            impose_hermitian_symmetry<double>(
+                input, params.length, params.istride, params.idist, params.nbatch);
+            break;
+        case fft_precision_single:
+            impose_hermitian_symmetry<float>(
+                input, params.length, params.istride, params.idist, params.nbatch);
+            break;
+        }
     }
 }
 

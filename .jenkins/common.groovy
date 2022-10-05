@@ -5,15 +5,6 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
 {
     project.paths.construct_build_prefix()
 
-    def getDependenciesCommand = ""
-    if (project.installLibraryDependenciesFromCI)
-    {
-        project.libraryDependencies.each
-        { libraryName ->
-            getDependenciesCommand += auxiliary.getLibrary(libraryName, platform.jenkinsLabel, null, false)
-        }
-    }            
-
     String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_RIDER=ON -DBUILD_FFTW=ON'
     String warningArgs = '-DWERROR=ON'
     String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DROCFFT_DEVICE_FORCE_RELEASE=ON' : '-DCMAKE_BUILD_TYPE=Release'
@@ -27,8 +18,8 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
 
     def command = """#!/usr/bin/env bash
                 set -x
+
                 cd ${project.paths.project_build_prefix}
-                ${getDependenciesCommand}
                 mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
                 ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..

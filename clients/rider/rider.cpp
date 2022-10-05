@@ -242,7 +242,17 @@ int main(int argc, char* argv[])
     if(ret != fft_status_success)
         LIB_V_THROW(rocfft_status_failure, "Plan creation failed");
 
-    // GPU input buffer:
+    // Input data:
+    auto gpu_input = allocate_host_buffer(params.precision, params.itype, params.isize);
+    compute_input(params, gpu_input);
+
+    if(verbose > 1)
+    {
+        std::cout << "GPU input:\n";
+        params.print_ibuffer(gpu_input);
+    }
+
+    // GPU input and output buffers:
     auto                ibuffer_sizes = params.ibuffer_sizes();
     std::vector<gpubuf> ibuffer(ibuffer_sizes.size());
     std::vector<void*>  pibuffer(ibuffer_sizes.size());
@@ -252,27 +262,6 @@ int main(int argc, char* argv[])
         pibuffer[i] = ibuffer[i].data();
     }
 
-    // Input data:
-    compute_input(params, ibuffer);
-
-    if(verbose > 1)
-    {
-        // Copy input to CPU
-        auto cpu_input = allocate_host_buffer(params.precision, params.itype, params.isize);
-        for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
-        {
-            HIP_V_THROW(hipMemcpy(cpu_input.at(idx).data(),
-                                  ibuffer[idx].data(),
-                                  ibuffer_sizes[idx],
-                                  hipMemcpyDeviceToHost),
-                        "hipMemcpy failed");
-        }
-
-        std::cout << "GPU input:\n";
-        params.print_ibuffer(cpu_input);
-    }
-
-    // GPU output buffer:
     std::vector<gpubuf>  obuffer_data;
     std::vector<gpubuf>* obuffer = &obuffer_data;
     if(params.placement == fft_placement_inplace)
@@ -294,6 +283,15 @@ int main(int argc, char* argv[])
         pobuffer[i] = obuffer->at(i).data();
     }
 
+    // Warm up once:
+    for(unsigned int idx = 0; idx < gpu_input.size(); ++idx)
+    {
+        HIP_V_THROW(
+            hipMemcpy(
+                pibuffer[idx], gpu_input[idx].data(), gpu_input[idx].size(), hipMemcpyHostToDevice),
+            "hipMemcpy failed");
+    }
+
     params.execute(pibuffer.data(), pobuffer.data());
 
     // Run the transform several times and record the execution time:
@@ -304,6 +302,16 @@ int main(int argc, char* argv[])
     HIP_V_THROW(hipEventCreate(&stop), "hipEventCreate failed");
     for(unsigned int itrial = 0; itrial < gpu_time.size(); ++itrial)
     {
+        // Copy the input data to the GPU:
+        for(unsigned int idx = 0; idx < gpu_input.size(); ++idx)
+        {
+            HIP_V_THROW(hipMemcpy(pibuffer[idx],
+                                  gpu_input[idx].data(),
+                                  gpu_input[idx].size(),
+                                  hipMemcpyHostToDevice),
+                        "hipMemcpy failed");
+        }
+
         HIP_V_THROW(hipEventRecord(start), "hipEventRecord failed");
 
         params.execute(pibuffer.data(), pobuffer.data());
