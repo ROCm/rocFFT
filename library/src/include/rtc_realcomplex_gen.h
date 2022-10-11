@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,14 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef REAL_TO_COMPLEX_H
-#define REAL_TO_COMPLEX_H
+#ifndef RTC_REAL2COMPLEX_EMBED_GEN
+#define RTC_REAL2COMPLEX_EMBED_GEN
 
-ROCFFT_DEVICE_EXPORT void r2c_1d_post(const void* data_p, void*);
-ROCFFT_DEVICE_EXPORT void r2c_1d_post_transpose(const void* data, void* back);
-ROCFFT_DEVICE_EXPORT void c2r_1d_pre(const void* data_p, void*);
-ROCFFT_DEVICE_EXPORT void transpose_c2r_1d_pre(const void* data, void* back);
+#include "../device/kernels/common.h"
+#include "compute_scheme.h"
+#include "rocfft.h"
+#include "rtc_kernel.h"
 
-ROCFFT_DEVICE_EXPORT void apply_real_callback(const void* data, void* back);
+#include <vector>
 
-#endif // REAL_TO_COMPLEX_H
+struct RealComplexSpecs
+{
+    ComputeScheme     scheme;
+    size_t            dim;
+    rocfft_precision  precision;
+    rocfft_array_type inArrayType;
+    rocfft_array_type outArrayType;
+    bool              enable_callbacks;
+    bool              enable_scaling;
+};
+
+// generate name for RTC realcomplex kernel
+std::string realcomplex_rtc_kernel_name(const RealComplexSpecs& specs);
+
+// generate source for RTC realcomplex kernel.
+std::string realcomplex_rtc(const std::string& kernel_name, const RealComplexSpecs& specs);
+
+#endif

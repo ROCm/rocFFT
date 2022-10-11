@@ -1454,14 +1454,15 @@ void Real3DEvenNode::AssignParams_internal_TR_pairs()
  * NOTE- Temp Complex Buffer implements interleaved only
  *****************************************************/
 RealTransDataCopyNode::SchemeFnCall const RealTransDataCopyNode::FnCallMap
-    = {{CS_KERNEL_APPLY_CALLBACK, &apply_real_callback},
-       {CS_KERNEL_COPY_R_TO_CMPLX, &real2complex},
-       {CS_KERNEL_COPY_CMPLX_TO_R, &complex2real},
-       {CS_KERNEL_COPY_HERM_TO_CMPLX, &hermitian2complex},
-       {CS_KERNEL_COPY_CMPLX_TO_HERM, &complex2hermitian}};
+    = {{CS_KERNEL_APPLY_CALLBACK, &apply_real_callback}};
 
 void RealTransDataCopyNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
+    // RTC already sets everything up for supported schemes
+    if(scheme == CS_KERNEL_COPY_R_TO_CMPLX || scheme == CS_KERNEL_COPY_CMPLX_TO_HERM
+       || scheme == CS_KERNEL_COPY_HERM_TO_CMPLX || scheme == CS_KERNEL_COPY_CMPLX_TO_R)
+        return;
+
     fnPtr = FnCallMap.at(scheme);
 
     if(scheme == CS_KERNEL_APPLY_CALLBACK)

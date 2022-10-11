@@ -27,6 +27,7 @@
 #include "logging.h"
 #include "plan.h"
 #include "rtc_cache.h"
+#include "rtc_realcomplex_kernel.h"
 #include "rtc_stockham_kernel.h"
 #include "rtc_transpose_kernel.h"
 #include "tree_node.h"
@@ -121,6 +122,8 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
     generator = RTCKernelStockham::generate_from_node(node, gpu_arch, enable_callbacks);
     if(!generator.valid())
         generator = RTCKernelTranspose::generate_from_node(node, gpu_arch, enable_callbacks);
+    if(!generator.valid())
+        generator = RTCKernelRealComplex::generate_from_node(node, gpu_arch, enable_callbacks);
     if(generator.valid())
     {
         std::string kernel_name = generator.generate_name();
@@ -137,7 +140,7 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
             {
                 if(LOG_RTC_ENABLED())
                     (*LogSingleton::GetInstance().GetRTCOS()) << e.what() << std::endl;
-                throw e;
+                throw;
             }
         };
 
