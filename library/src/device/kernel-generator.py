@@ -105,11 +105,11 @@ def unique(kernels):
 def is_aot_rtc(meta):
     aot_rtc_type = [
         'CS_KERNEL_STOCKHAM_BLOCK_CC',
-        'CS_KERNEL_STOCKHAM_BLOCK_CR',
-        'CS_KERNEL_STOCKHAM_BLOCK_RC',
-        'CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z',
-        'CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY',
-        'CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY',
+        # 'CS_KERNEL_STOCKHAM_BLOCK_CR',
+        # 'CS_KERNEL_STOCKHAM_BLOCK_RC',
+        # 'CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z',
+        # 'CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY',
+        # 'CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY',
     ]
     return meta.scheme in aot_rtc_type and not meta.runtime_compile
 

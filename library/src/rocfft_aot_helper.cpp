@@ -67,8 +67,8 @@ void stockham_combo(ComputeScheme             scheme,
                                        SBRC_TRANSPOSE_TYPE,
                                        DirectRegType,
                                        IntrinsicAccessType,
-                                       size_t,
-                                       size_t,
+                                       int,
+                                       int,
                                        bool,
                                        bool)> func)
 {
@@ -83,7 +83,7 @@ void stockham_combo(ComputeScheme             scheme,
     // base 4, 5, 6, 8.  Base 4 is unused since it's only useful up
     // to 4k lengths, which we already have single kernels for.  Base
     // 8 can be 2 or 3 steps; other bases are always 3 step.
-    std::vector<std::array<size_t, 2>> base_steps = {{0, 0}, {5, 3}, {6, 3}, {8, 2}, {8, 3}};
+    std::vector<std::array<int, 2>> base_steps = {{0, 0}, {5, 3}, {6, 3}, {8, 2}, {8, 3}};
 
     switch(scheme)
     {
@@ -124,7 +124,10 @@ void stockham_combo(ComputeScheme             scheme,
         break;
     }
     default:
-        throw std::runtime_error("unsupported scheme in stockham_combo aot_rtc");
+        // throw std::runtime_error("unsupported scheme in stockham_combo aot_rtc");
+        // since it is not possible that we are here,
+        // so directly return is fine which means do nothing
+        return;
     }
 
     // if no dir-to-reg support, then we don't have intrinsic buffer RW,
@@ -230,8 +233,8 @@ void build_stockham_function_pool(CompileQueue& queue)
                                        SBRC_TRANSPOSE_TYPE     sbrc_trans_type,
                                        DirectRegType           dir_reg_type,
                                        IntrinsicAccessType     intrinsic,
-                                       size_t                  ltwd_base,
-                                       size_t                  ltwd_step,
+                                       int                     ltwd_base,
+                                       int                     ltwd_step,
                                        bool                    unitstride,
                                        bool                    callbacks) {
                                // intrinsic mode require non-callback and enable dir_reg
