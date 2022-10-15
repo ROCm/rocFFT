@@ -1414,19 +1414,21 @@ void RuntimeCompilePlan(ExecPlan& execPlan)
     TreeNode* load_node             = nullptr;
     TreeNode* store_node            = nullptr;
     std::tie(load_node, store_node) = execPlan.get_load_store_nodes();
-    // we don't need callbacks if the kernel is all planar
-    if(!array_type_is_planar(load_node->inArrayType)
-       || !array_type_is_planar(load_node->outArrayType))
+
+    // callbacks are only possible on plans that don't use planar format for input or output
+    bool need_callbacks = !array_type_is_planar(load_node->inArrayType)
+                          && !array_type_is_planar(store_node->outArrayType);
+
+    if(need_callbacks)
     {
         load_node->compiledKernelWithCallbacks
             = RTCKernel::runtime_compile(*load_node, execPlan.deviceProp.gcnArchName, true);
-    }
-    if(store_node != load_node
-       && (!array_type_is_planar(store_node->inArrayType)
-           || !array_type_is_planar(store_node->outArrayType)))
-    {
-        store_node->compiledKernelWithCallbacks
-            = RTCKernel::runtime_compile(*store_node, execPlan.deviceProp.gcnArchName, true);
+
+        if(store_node != load_node)
+        {
+            store_node->compiledKernelWithCallbacks
+                = RTCKernel::runtime_compile(*store_node, execPlan.deviceProp.gcnArchName, true);
+        }
     }
 
     // All of the compilations are started in parallel (via futures),

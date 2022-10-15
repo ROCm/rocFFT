@@ -132,3 +132,100 @@ RTCKernelArgs RTCKernelRealComplex::get_launch_args(DeviceCallIn& data)
 
     return kargs;
 }
+
+RTCKernel::RTCGenerator RTCKernelRealComplexEven::generate_from_node(const TreeNode&    node,
+                                                                     const std::string& gpu_arch,
+                                                                     bool enable_callbacks)
+{
+    RTCGenerator generator;
+
+    if(node.scheme != CS_KERNEL_R_TO_CMPLX && node.scheme != CS_KERNEL_CMPLX_TO_R)
+    {
+        return generator;
+    }
+
+    // Input_size is the innermost dimension
+    size_t half_N;
+    if(node.scheme == CS_KERNEL_R_TO_CMPLX)
+    {
+        // The upper level provides always N/2, that is regular complex fft size
+        half_N = node.length[0];
+    }
+    else
+    {
+        // Length on the node is complex fft size.  Compute half_N as
+        // half of the real size.
+        half_N = node.length[0] - 1;
+    }
+    const bool Ndiv4 = half_N % 2 == 0;
+
+    const unsigned int batch = node.batch;
+
+    const unsigned int high_dimension = std::accumulate(
+        node.length.begin() + 1, node.length.end(), 1, std::multiplies<unsigned int>());
+
+    const unsigned int block_size = LAUNCH_BOUNDS_R2C_C2R_KERNEL;
+    const unsigned int blocks     = ((half_N + 1) / 2 + block_size - 1) / block_size;
+
+    generator.gridDim  = {blocks, high_dimension, batch};
+    generator.blockDim = {block_size, 1, 1};
+
+    RealComplexEvenSpecs specs{{node.scheme,
+                                node.length.size(),
+                                node.precision,
+                                node.inArrayType,
+                                node.outArrayType,
+                                enable_callbacks,
+                                node.IsScalingEnabled()},
+                               Ndiv4};
+
+    generator.generate_name = [=]() { return realcomplex_even_rtc_kernel_name(specs); };
+
+    generator.generate_src
+        = [=](const std::string& kernel_name) { return realcomplex_even_rtc(kernel_name, specs); };
+
+    generator.construct_rtckernel = [=](const std::string&       kernel_name,
+                                        const std::vector<char>& code,
+                                        dim3                     gridDim,
+                                        dim3                     blockDim) {
+        return std::unique_ptr<RTCKernel>(
+            new RTCKernelRealComplexEven(kernel_name, half_N, code, gridDim, blockDim));
+    };
+    return generator;
+}
+
+RTCKernelArgs RTCKernelRealComplexEven::get_launch_args(DeviceCallIn& data)
+{
+    RTCKernelArgs kargs;
+
+    kargs.append_unsigned_int(half_N);
+    if(data.node->length.size() > 1)
+    {
+        kargs.append_unsigned_int(data.node->inStride[1]);
+        kargs.append_unsigned_int(data.node->outStride[1]);
+    }
+    kargs.append_ptr(data.bufIn[0]);
+    if(array_type_is_planar(data.node->inArrayType))
+        kargs.append_ptr(data.bufIn[1]);
+    kargs.append_unsigned_int(data.node->iDist);
+    kargs.append_ptr(data.bufOut[0]);
+    if(array_type_is_planar(data.node->outArrayType))
+        kargs.append_ptr(data.bufOut[1]);
+    kargs.append_unsigned_int(data.node->oDist);
+    kargs.append_ptr(data.node->twiddles);
+    // callback params
+    kargs.append_ptr(data.callbacks.load_cb_fn);
+    kargs.append_ptr(data.callbacks.load_cb_data);
+    kargs.append_unsigned_int(data.callbacks.load_cb_lds_bytes);
+    kargs.append_ptr(data.callbacks.store_cb_fn);
+    kargs.append_ptr(data.callbacks.store_cb_data);
+    if(data.node->IsScalingEnabled())
+    {
+        if(data.node->precision == rocfft_precision_single)
+            kargs.append_float(data.node->scale_factor);
+        else
+            kargs.append_double(data.node->scale_factor);
+    }
+
+    return kargs;
+}

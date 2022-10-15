@@ -311,3 +311,253 @@ std::string realcomplex_rtc(const std::string& kernel_name, const RealComplexSpe
         throw std::runtime_error("invalid realcomplex rtc scheme");
     }
 }
+
+std::string realcomplex_even_rtc_kernel_name(const RealComplexEvenSpecs& specs)
+{
+    std::string kernel_name;
+
+    switch(specs.scheme)
+    {
+    case CS_KERNEL_R_TO_CMPLX:
+        kernel_name += "r2c_even_post";
+        break;
+    case CS_KERNEL_CMPLX_TO_R:
+        kernel_name += "c2r_even_pre";
+        break;
+    default:
+        throw std::runtime_error("invalid realcomplex even rtc scheme");
+    }
+
+    if(specs.Ndiv4)
+    {
+        kernel_name += "_Ndiv4";
+    }
+
+    kernel_name += "_dim" + std::to_string(specs.dim);
+
+    kernel_name += rtc_precision_name(specs.precision);
+    kernel_name += rtc_array_type_name(specs.inArrayType);
+    kernel_name += rtc_array_type_name(specs.outArrayType);
+
+    if(specs.enable_callbacks)
+        kernel_name += "_CB";
+    if(specs.enable_scaling)
+        kernel_name += "_scale";
+
+    return kernel_name;
+}
+
+std::string realcomplex_even_rtc(const std::string& kernel_name, const RealComplexEvenSpecs& specs)
+{
+    std::string src;
+    // includes and declarations
+    src += common_h;
+    src += callback_h;
+
+    src += rtc_precision_type_decl(specs.precision);
+
+    src += rtc_const_cbtype_decl(specs.enable_callbacks);
+
+    src += "static const unsigned int dim = " + std::to_string(specs.dim) + ";\n";
+
+    if(specs.Ndiv4)
+        src += "static const bool Ndiv4 = true;\n";
+    else
+        src += "static const bool Ndiv4 = false;\n";
+
+    src += "// Each thread handles 2 points.\n";
+    src += "// When N is divisible by 4, one value is handled separately; this is controlled by "
+           "Ndiv4.\n";
+
+    Variable half_N{"half_N", "const unsigned int"};
+    Variable idist1D{"idist1D", "const unsigned int"};
+    Variable odist1D{"odist1D", "const unsigned int"};
+    Variable input{"input", "scalar_type", true, true};
+    Variable idist{"idist", "const unsigned int"};
+    Variable output{"output", "scalar_type", true, true};
+    Variable odist{"odist", "const unsigned int"};
+    Variable twiddles{"twiddles", "const scalar_type", true, true};
+    Variable scale_factor{"scale_factor", "const real_type_t<scalar_type>"};
+
+    Function func{kernel_name};
+    func.launch_bounds = LAUNCH_BOUNDS_R2C_C2R_KERNEL;
+    func.qualifier     = "extern \"C\" __global__";
+    func.arguments.append(half_N);
+    if(specs.dim > 1)
+    {
+        func.arguments.append(idist1D);
+        func.arguments.append(odist1D);
+    }
+    func.arguments.append(input);
+    func.arguments.append(idist);
+    func.arguments.append(output);
+    func.arguments.append(odist);
+    func.arguments.append(twiddles);
+    for(const auto& arg : get_callback_args().arguments)
+        func.arguments.append(arg);
+    if(specs.enable_scaling)
+        func.arguments.append(scale_factor);
+
+    func.body += CommentLines{"blockIdx.y gives the multi-dimensional offset",
+                              "blockIdx.z gives the batch offset"};
+
+    Variable idx_p{"idx_p", "const auto"};
+    Variable idx_q{"idx_q", "const auto"};
+    func.body += Declaration{idx_p, "blockIdx.x * blockDim.x + threadIdx.x"};
+    func.body += Declaration{idx_q, half_N - idx_p};
+
+    Variable quarter_N{"quarter_N", "const auto"};
+    func.body += Declaration{quarter_N, Parens{half_N + 1} / 2};
+
+    If guard{idx_p < quarter_N, {}};
+
+    Variable input_offset{"input_offset", "auto"};
+    Variable output_offset{"output_offset", "auto"};
+    guard.body += CommentLines{"blockIdx.z gives the batch offset"};
+    guard.body += Declaration(input_offset, Literal{"blockIdx.z"} * idist);
+    guard.body += Declaration{output_offset, Literal{"blockIdx.z"} * odist};
+
+    if(specs.dim > 1)
+    {
+        guard.body += CommentLines{
+            "blockIdx.y gives the multi-dimensional offset, stride is [i/o]dist1D."};
+        guard.body += AddAssign(input_offset, Literal{"blockIdx.y"} * idist1D);
+        guard.body += AddAssign(output_offset, Literal{"blockIdx.y"} * odist1D);
+    }
+
+    if(specs.scheme == CS_KERNEL_R_TO_CMPLX)
+    {
+        guard.body += CommentLines{"post process can't be the first kernel, so don't bother",
+                                   "going through the load cb to read global memory"};
+    }
+    else
+    {
+        guard.body += CommentLines{"we would do real_pre_process at the beginning of a C2R",
+                                   "transform, so it would never be the last kernel to write",
+                                   "to global memory.  don't bother going through store",
+                                   "callback to write global memory."};
+    }
+    guard.body += CallbackDeclaration("scalar_type", "cbtype");
+
+    Variable outval{"outval", "scalar_type"};
+    guard.body += Declaration{outval};
+
+    // p and q can get values from LoadGlobal, which needs to be part
+    // of an Assign node for make_planar to work properly.  So p and
+    // q can't be const.
+    Variable p{"p", "scalar_type"};
+    Variable q{"q", "scalar_type"};
+    Variable u{"u", "const scalar_type"};
+    Variable v{"v", "const scalar_type"};
+    Variable twd_p{"twd_p", "const scalar_type"};
+
+    If if_idx_p_zero{idx_p == 0, {}};
+    if(specs.scheme == CS_KERNEL_R_TO_CMPLX)
+    {
+        if_idx_p_zero.body
+            += Assign{outval.x, input[input_offset + 0].x - input[input_offset + 0].y};
+        if_idx_p_zero.body += Assign{outval.y, 0};
+        if(specs.enable_scaling)
+            if_idx_p_zero.body += MultiplyAssign(outval, scale_factor);
+        if_idx_p_zero.body += StoreGlobal{output, output_offset + half_N, outval};
+
+        if_idx_p_zero.body
+            += Assign{outval.x, input[input_offset + 0].x + input[input_offset + 0].y};
+        if_idx_p_zero.body += Assign{outval.y, 0};
+        if(specs.enable_scaling)
+            if_idx_p_zero.body += MultiplyAssign(outval, scale_factor);
+        if_idx_p_zero.body += StoreGlobal{output, output_offset + 0, outval};
+    }
+    else
+    {
+        if_idx_p_zero.body += Declaration{p};
+        if_idx_p_zero.body += Assign{p, LoadGlobal{input, input_offset + idx_p}};
+        if_idx_p_zero.body += Declaration{q};
+        if_idx_p_zero.body += Assign{q, LoadGlobal{input, input_offset + idx_q}};
+        if_idx_p_zero.body += Assign{output[output_offset + idx_p].x, p.x + q.x};
+        if_idx_p_zero.body += Assign{output[output_offset + idx_p].y, p.x - q.x};
+    }
+
+    If if_Ndiv4{"Ndiv4", {}};
+    if(specs.scheme == CS_KERNEL_R_TO_CMPLX)
+    {
+        if_Ndiv4.body += Assign{outval.x, input[input_offset + quarter_N].x};
+        if_Ndiv4.body += Assign{outval.y, -input[input_offset + quarter_N].y};
+        if(specs.enable_scaling)
+            if_Ndiv4.body += MultiplyAssign(outval, scale_factor);
+        if_Ndiv4.body += StoreGlobal{output, output_offset + quarter_N, outval};
+    }
+    else
+    {
+        Variable quarter_elem{"quarter_elem", "scalar_type"};
+        if_Ndiv4.body += Declaration{quarter_elem};
+        if_Ndiv4.body += Assign{quarter_elem, LoadGlobal{input, input_offset + quarter_N}};
+        if_Ndiv4.body
+            += Assign{output[output_offset + quarter_N].x, Literal{"2.0"} * quarter_elem.x};
+        if_Ndiv4.body
+            += Assign{output[output_offset + quarter_N].y, Literal{"-2.0"} * quarter_elem.y};
+    }
+
+    if_idx_p_zero.body += if_Ndiv4;
+
+    guard.body += if_idx_p_zero;
+
+    Else else_idx_p_nonzero{{}};
+
+    if(specs.scheme == CS_KERNEL_R_TO_CMPLX)
+    {
+        else_idx_p_nonzero.body += Declaration{p, input[input_offset + idx_p]};
+        else_idx_p_nonzero.body += Declaration{q, input[input_offset + idx_q]};
+        else_idx_p_nonzero.body += Declaration{u, Literal{"0.5"} * (p + q)};
+        else_idx_p_nonzero.body += Declaration{v, Literal{"0.5"} * (p - q)};
+
+        else_idx_p_nonzero.body += Declaration{twd_p, twiddles[idx_p]};
+        else_idx_p_nonzero.body += CommentLines{"NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y);"};
+
+        else_idx_p_nonzero.body += Assign{outval.x, u.x + v.x * twd_p.y + u.y * twd_p.x};
+        else_idx_p_nonzero.body += Assign{outval.y, v.y + u.y * twd_p.y - v.x * twd_p.x};
+        if(specs.enable_scaling)
+            else_idx_p_nonzero.body += MultiplyAssign(outval, scale_factor);
+        else_idx_p_nonzero.body += StoreGlobal{output, output_offset + idx_p, outval};
+
+        else_idx_p_nonzero.body += Assign{outval.x, u.x - v.x * twd_p.y - u.y * twd_p.x};
+        else_idx_p_nonzero.body += Assign{outval.y, -v.y + u.y * twd_p.y - v.x * twd_p.x};
+        if(specs.enable_scaling)
+            else_idx_p_nonzero.body += MultiplyAssign(outval, scale_factor);
+        else_idx_p_nonzero.body += StoreGlobal{output, output_offset + idx_q, outval};
+    }
+    else
+    {
+        else_idx_p_nonzero.body += Declaration{p};
+        else_idx_p_nonzero.body += Assign{p, LoadGlobal{input, input_offset + idx_p}};
+        else_idx_p_nonzero.body += Declaration{q};
+        else_idx_p_nonzero.body += Assign{q, LoadGlobal{input, input_offset + idx_q}};
+        else_idx_p_nonzero.body += Declaration{u, p + q};
+        else_idx_p_nonzero.body += Declaration{v, p - q};
+
+        else_idx_p_nonzero.body += Declaration{twd_p, twiddles[idx_p]};
+        else_idx_p_nonzero.body += CommentLines{"NB: twd_q = -conj(twd_p);"};
+
+        else_idx_p_nonzero.body
+            += Assign{output[output_offset + idx_p].x, u.x + v.x * twd_p.y - u.y * twd_p.x};
+        else_idx_p_nonzero.body
+            += Assign{output[output_offset + idx_p].y, v.y + u.y * twd_p.y + v.x * twd_p.x};
+
+        else_idx_p_nonzero.body
+            += Assign{output[output_offset + idx_q].x, u.x - v.x * twd_p.y + u.y * twd_p.x};
+        else_idx_p_nonzero.body
+            += Assign{output[output_offset + idx_q].y, -v.y + u.y * twd_p.y + v.x * twd_p.x};
+    }
+
+    guard.body += else_idx_p_nonzero;
+
+    func.body += guard;
+
+    if(array_type_is_planar(specs.inArrayType))
+        func = make_planar(func, "input");
+    if(array_type_is_planar(specs.outArrayType))
+        func = make_planar(func, "output");
+
+    src += func.render();
+    return src;
+}

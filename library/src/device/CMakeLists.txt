@@ -135,7 +135,6 @@ add_custom_target(gen_headers_target
 set( rocfft_device_source
   apply_callback.cpp
   bluestein.cpp
-  realcomplex_even.cpp
   realcomplex_even_transpose.cpp
 )
 
@@ -202,6 +201,9 @@ list( SUBLIST rocfft_device_source ${split_idx_3} -1 rocfft_device_source_3 )
 
 foreach( sub RANGE 3 )
   set( rocfft_device_source_var rocfft_device_source_${sub} )
+  if( NOT ${rocfft_device_source_var} )
+    continue()
+  endif()
   if(NOT SINGLELIB)
     add_library( rocfft-device-${sub}
       ${${rocfft_device_source_var}} )

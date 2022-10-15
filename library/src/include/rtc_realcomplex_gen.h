@@ -39,10 +39,22 @@ struct RealComplexSpecs
     bool              enable_scaling;
 };
 
+struct RealComplexEvenSpecs : public RealComplexSpecs
+{
+    RealComplexEvenSpecs(RealComplexSpecs&& baseSpecs, bool Ndiv4)
+        : RealComplexSpecs(baseSpecs)
+        , Ndiv4(Ndiv4)
+    {
+    }
+    bool Ndiv4;
+};
+
 // generate name for RTC realcomplex kernel
 std::string realcomplex_rtc_kernel_name(const RealComplexSpecs& specs);
+std::string realcomplex_even_rtc_kernel_name(const RealComplexEvenSpecs& specs);
 
 // generate source for RTC realcomplex kernel.
 std::string realcomplex_rtc(const std::string& kernel_name, const RealComplexSpecs& specs);
+std::string realcomplex_even_rtc(const std::string& kernel_name, const RealComplexEvenSpecs& specs);
 
 #endif

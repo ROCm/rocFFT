@@ -163,18 +163,18 @@ private:
 // helper functions to construct pieces of RTC kernel names
 static const char* rtc_array_type_name(rocfft_array_type type)
 {
+    // hermitian is the same as complex in terms of generated code,
+    // so give them the same names in kernels
     switch(type)
     {
     case rocfft_array_type_complex_interleaved:
+    case rocfft_array_type_hermitian_interleaved:
         return "_CI";
     case rocfft_array_type_complex_planar:
+    case rocfft_array_type_hermitian_planar:
         return "_CP";
     case rocfft_array_type_real:
         return "_R";
-    case rocfft_array_type_hermitian_interleaved:
-        return "_HI";
-    case rocfft_array_type_hermitian_planar:
-        return "_HP";
     default:
         return "_UN";
     }
