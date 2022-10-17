@@ -58,6 +58,10 @@ if( NOT ROCM_FOUND )
   find_package( ROCM 0.7.3 REQUIRED )
 endif()
 
+if( NOT rocrand_FOUND )
+  find_package( rocrand REQUIRED )
+endif()
+
 include( ROCMInstallTargets )
 
 
@@ -72,7 +76,7 @@ foreach( rider ${rider_list})
     add_executable( ${rider} dyna-rider.cpp rider.h )
   endif()
 
-  target_compile_options( ${rider} PRIVATE ${WARNING_FLAGS} )
+  target_compile_options( ${rider} PRIVATE ${WARNING_FLAGS} -Wno-cpp )
 
   # NB: hip-clang includes omp.h, so we need to specify the location
   # of ROCM_CLANG_ROOT at cmake config time if we are using clang++.
@@ -88,14 +92,18 @@ foreach( rider ${rider_list})
   if(${rider} STREQUAL "rocfft-rider")
     target_link_libraries( ${rider}
       PRIVATE
+      hip::device
       roc::rocfft
+      roc::rocrand
       Boost::program_options
       )
   else()
     target_link_libraries( ${rider} 
       PRIVATE
       ${CMAKE_DL_LIBS}
-      ${Boost_LIBRARIES}
+      hip::device
+      roc::rocrand
+      ${Boost_LIBRARIES}      
       )
 
     # We need to include both rocfft.h and rocfft-export.h

@@ -14,6 +14,16 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
     def reference = (env.BRANCH_NAME ==~ /PR-\d+/) ? 'develop' : 'master'
 
     project.paths.construct_build_prefix()
+
+    def getDependenciesCommand = ""
+    if (project.installLibraryDependenciesFromCI)
+    {
+        project.libraryDependencies.each
+        { libraryName ->
+            getDependenciesCommand += auxiliary.getLibrary(libraryName, platform.jenkinsLabel, null, false)
+        }
+    }
+
     dir("${project.paths.project_build_prefix}/ref-repo") {
        git branch: "${reference}", url: 'https://github.com/ROCmSoftwarePlatform/rocFFT.git'
     }
@@ -29,8 +39,8 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
 
     def command = """#!/usr/bin/env bash
                 set -x
-
                 cd ${project.paths.project_build_prefix}
+                ${getDependenciesCommand}
                 mkdir -p build/${buildTypeDir} && pushd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
                 ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc -DAMDGPU_TARGETS=\$gfx_arch -DSINGLELIB=on ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ${rtcBuildCache} ../..
@@ -125,7 +135,7 @@ def runCI =
     prj.defaults.ccache = true
     prj.timeout.compile = 600
     prj.timeout.test = 600
-    prj.libraryDependencies = ['rocFFT-internal']
+    prj.libraryDependencies = ['rocFFT-internal', 'rocRAND']
 
     // Define test architectures, optional rocm version argument is available
     def nodes = new dockerNodes(nodeDetails, jobName, prj)

@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <tuple>
+#include <vector>
 
 // Helper functions to iterate over a buffer in row-major order.
 // Indexes may be given as either a tuple or vector of sizes.  They
