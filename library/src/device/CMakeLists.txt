@@ -135,7 +135,6 @@ add_custom_target(gen_headers_target
 set( rocfft_device_source
   apply_callback.cpp
   bluestein.cpp
-  realcomplex_even_transpose.cpp
 )
 
 set_property(

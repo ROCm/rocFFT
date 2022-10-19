@@ -220,10 +220,6 @@ class PrePostKernelNode : public LeafNode
 {
     friend class NodeFactory;
 
-private:
-    typedef std::map<ComputeScheme, DevFnCall> SchemeFnCall;
-    static const SchemeFnCall                  FnCallMap;
-
 protected:
     PrePostKernelNode(TreeNode* p, ComputeScheme s)
         : LeafNode(p, s)
@@ -258,7 +254,7 @@ protected:
 
     size_t GetTwiddleTableLength() override;
     size_t GetTwiddleTableLengthLimit() override;
-    void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+    void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override{};
 
 public:
     bool UseOutputLengthForPadding() override

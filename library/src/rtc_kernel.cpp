@@ -126,6 +126,9 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
         generator = RTCKernelRealComplex::generate_from_node(node, gpu_arch, enable_callbacks);
     if(!generator.valid())
         generator = RTCKernelRealComplexEven::generate_from_node(node, gpu_arch, enable_callbacks);
+    if(!generator.valid())
+        generator = RTCKernelRealComplexEvenTranspose::generate_from_node(
+            node, gpu_arch, enable_callbacks);
     if(generator.valid())
     {
         std::string kernel_name = generator.generate_name();

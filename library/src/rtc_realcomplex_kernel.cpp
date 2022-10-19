@@ -229,3 +229,108 @@ RTCKernelArgs RTCKernelRealComplexEven::get_launch_args(DeviceCallIn& data)
 
     return kargs;
 }
+
+RTCKernel::RTCGenerator RTCKernelRealComplexEvenTranspose::generate_from_node(
+    const TreeNode& node, const std::string& gpu_arch, bool enable_callbacks)
+{
+    RTCGenerator generator;
+    if(node.scheme != CS_KERNEL_R_TO_CMPLX_TRANSPOSE
+       && node.scheme != CS_KERNEL_TRANSPOSE_CMPLX_TO_R)
+        return generator;
+
+    const unsigned int tileX = RealComplexEvenTransposeSpecs::TileX(node.scheme);
+    const unsigned int tileY = RealComplexEvenTransposeSpecs::TileY();
+
+    unsigned int count = node.batch;
+    unsigned int m     = node.length[1];
+    unsigned int n     = node.length[0];
+    unsigned int dim   = node.length.size();
+
+    if(node.scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE)
+    {
+        // grid X dimension handles 2 tiles at a time, so allocate enough
+        // blocks to go halfway across 'n'
+        //
+        // grid Y dimension needs enough blocks to handle the second
+        // dimension - multiply by the third dimension to get enough
+        // blocks, if we're doing 3D
+        //
+        // grid Z counts number of batches
+        generator.gridDim
+            = {(n - 1) / tileX / 2 + 1,
+               ((m - 1) / tileY + 1) * (dim > 2 ? static_cast<unsigned int>(node.length[2]) : 1),
+               count};
+        // one thread per element in a tile
+        generator.blockDim = {tileX, tileY, 1};
+    }
+    else
+    {
+        // grid X dimension needs enough blocks to handle the first
+        // dimension - multiply by the second dimension to get enough
+        // blocks, if we're doing 3D
+        if(dim > 2)
+        {
+            n *= node.length[1];
+            m = node.length[2];
+        }
+
+        // grid Y dimension handles 2 tiles at a time, so allocate enough
+        // blocks to go halfway across 'm'
+        auto gridY = std::max<unsigned int>((((m - 1) / 2) + (tileY - 1)) / tileY, 1);
+
+        // grid Z counts number of batches
+        generator.gridDim = {(n - 1) / tileX + 1, gridY, count};
+        // one thread per element in a tile
+        generator.blockDim = {tileX, tileY, 1};
+    }
+
+    RealComplexEvenTransposeSpecs specs{{node.scheme,
+                                         node.length.size(),
+                                         node.precision,
+                                         node.inArrayType,
+                                         node.outArrayType,
+                                         enable_callbacks,
+                                         node.IsScalingEnabled()}};
+
+    generator.generate_name = [=]() { return realcomplex_even_transpose_rtc_kernel_name(specs); };
+
+    generator.generate_src = [=](const std::string& kernel_name) {
+        return realcomplex_even_transpose_rtc(kernel_name, specs);
+    };
+
+    generator.construct_rtckernel = [=](const std::string&       kernel_name,
+                                        const std::vector<char>& code,
+                                        dim3                     gridDim,
+                                        dim3                     blockDim) {
+        return std::unique_ptr<RTCKernel>(
+            new RTCKernelRealComplexEvenTranspose(kernel_name, code, gridDim, blockDim));
+    };
+    return generator;
+}
+
+RTCKernelArgs RTCKernelRealComplexEvenTranspose::get_launch_args(DeviceCallIn& data)
+{
+    RTCKernelArgs kargs;
+
+    kargs.append_size_t(data.node->length.size());
+    kargs.append_ptr(data.bufIn[0]);
+    if(array_type_is_planar(data.node->inArrayType))
+        kargs.append_ptr(data.bufIn[1]);
+    kargs.append_size_t(data.node->iDist);
+    kargs.append_ptr(data.bufOut[0]);
+    if(array_type_is_planar(data.node->outArrayType))
+        kargs.append_ptr(data.bufOut[1]);
+    kargs.append_size_t(data.node->oDist);
+    kargs.append_ptr(data.node->twiddles);
+    kargs.append_ptr(kargs_lengths(data.node->devKernArg));
+    kargs.append_ptr(kargs_stride_in(data.node->devKernArg));
+    kargs.append_ptr(kargs_stride_out(data.node->devKernArg));
+    // callback params
+    kargs.append_ptr(data.callbacks.load_cb_fn);
+    kargs.append_ptr(data.callbacks.load_cb_data);
+    kargs.append_unsigned_int(data.callbacks.load_cb_lds_bytes);
+    kargs.append_ptr(data.callbacks.store_cb_fn);
+    kargs.append_ptr(data.callbacks.store_cb_data);
+
+    return kargs;
+}

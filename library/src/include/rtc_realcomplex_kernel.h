@@ -60,4 +60,21 @@ struct RTCKernelRealComplexEven : public RTCKernel
     size_t                half_N;
 };
 
+struct RTCKernelRealComplexEvenTranspose : public RTCKernel
+{
+    RTCKernelRealComplexEvenTranspose(const std::string&       kernel_name,
+                                      const std::vector<char>& code,
+                                      dim3                     gridDim,
+                                      dim3                     blockDim)
+        : RTCKernel(kernel_name, code, gridDim, blockDim)
+    {
+    }
+
+    static RTCKernel::RTCGenerator generate_from_node(const TreeNode&    node,
+                                                      const std::string& gpu_arch,
+                                                      bool               enable_callbacks);
+
+    virtual RTCKernelArgs get_launch_args(DeviceCallIn& data) override;
+};
+
 #endif

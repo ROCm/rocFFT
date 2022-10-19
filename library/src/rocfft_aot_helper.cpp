@@ -8,6 +8,7 @@ using namespace std::placeholders;
 #include "../../shared/environment.h"
 #include "function_pool.h"
 #include "rtc_cache.h"
+#include "rtc_realcomplex_gen.h"
 #include "rtc_stockham_gen.h"
 
 #include "device/kernel-generator-embed.h"
@@ -299,6 +300,67 @@ void build_stockham_function_pool(CompileQueue& queue)
     }
 }
 
+void build_realcomplex(CompileQueue& queue)
+{
+    for(auto precision : {rocfft_precision_single, rocfft_precision_double})
+    {
+        for(bool planar : {true, false})
+        {
+            // build even-length kernels, as they're commonly used
+            for(auto scheme : {CS_KERNEL_R_TO_CMPLX, CS_KERNEL_CMPLX_TO_R})
+            {
+                for(size_t dim : {1, 2, 3})
+                {
+                    for(bool Ndiv4 : {true, false})
+                    {
+                        // r2c may have planar output, c2r may have planar input
+                        auto inArrayType  = (scheme == CS_KERNEL_CMPLX_TO_R && planar)
+                                                ? rocfft_array_type_complex_planar
+                                                : rocfft_array_type_complex_interleaved;
+                        auto outArrayType = (scheme == CS_KERNEL_R_TO_CMPLX && planar)
+                                                ? rocfft_array_type_complex_planar
+                                                : rocfft_array_type_complex_interleaved;
+
+                        RealComplexEvenSpecs specs{
+                            {scheme, dim, precision, inArrayType, outArrayType, false, false},
+                            Ndiv4};
+                        auto kernel_name = realcomplex_even_rtc_kernel_name(specs);
+                        std::function<std::string(const std::string&)> generate_src
+                            = [=](const std::string& kernel_name) -> std::string {
+                            return realcomplex_even_rtc(kernel_name, specs);
+                        };
+                        queue.push({kernel_name, generate_src});
+                    }
+                }
+            }
+            for(auto scheme : {CS_KERNEL_R_TO_CMPLX_TRANSPOSE, CS_KERNEL_TRANSPOSE_CMPLX_TO_R})
+            {
+                // r2c may have planar output, c2r may have planar input
+                auto inArrayType  = (scheme == CS_KERNEL_TRANSPOSE_CMPLX_TO_R && planar)
+                                        ? rocfft_array_type_complex_planar
+                                        : rocfft_array_type_complex_interleaved;
+                auto outArrayType = (scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE && planar)
+                                        ? rocfft_array_type_complex_planar
+                                        : rocfft_array_type_complex_interleaved;
+
+                RealComplexEvenTransposeSpecs specs{{scheme,
+                                                     static_cast<size_t>(1),
+                                                     precision,
+                                                     inArrayType,
+                                                     outArrayType,
+                                                     false,
+                                                     false}};
+                auto kernel_name = realcomplex_even_transpose_rtc_kernel_name(specs);
+                std::function<std::string(const std::string&)> generate_src
+                    = [=](const std::string& kernel_name) -> std::string {
+                    return realcomplex_even_transpose_rtc(kernel_name, specs);
+                };
+                queue.push({kernel_name, generate_src});
+            }
+        }
+    }
+}
+
 int main(int argc, char** argv)
 {
     if(argc < 5)
@@ -354,6 +416,7 @@ int main(int argc, char** argv)
     }
 
     build_stockham_function_pool(queue);
+    build_realcomplex(queue);
 
     // signal end of results with empty work items
     for(size_t i = 0; i < NUM_THREADS; ++i)

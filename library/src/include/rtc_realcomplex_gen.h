@@ -49,12 +49,37 @@ struct RealComplexEvenSpecs : public RealComplexSpecs
     bool Ndiv4;
 };
 
+struct RealComplexEvenTransposeSpecs : public RealComplexSpecs
+{
+    RealComplexEvenTransposeSpecs(RealComplexSpecs&& baseSpecs)
+        : RealComplexSpecs(baseSpecs)
+    {
+    }
+
+    static unsigned int TileX(ComputeScheme scheme)
+    {
+        // r2c uses 16x16 tiles, c2r uses 32x16
+        return scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE ? 16 : 32;
+    }
+    unsigned int TileX() const
+    {
+        return TileX(scheme);
+    }
+    static unsigned int TileY()
+    {
+        return 16;
+    }
+};
+
 // generate name for RTC realcomplex kernel
 std::string realcomplex_rtc_kernel_name(const RealComplexSpecs& specs);
 std::string realcomplex_even_rtc_kernel_name(const RealComplexEvenSpecs& specs);
+std::string realcomplex_even_transpose_rtc_kernel_name(const RealComplexEvenTransposeSpecs& specs);
 
 // generate source for RTC realcomplex kernel.
 std::string realcomplex_rtc(const std::string& kernel_name, const RealComplexSpecs& specs);
 std::string realcomplex_even_rtc(const std::string& kernel_name, const RealComplexEvenSpecs& specs);
+std::string realcomplex_even_transpose_rtc(const std::string&                   kernel_name,
+                                           const RealComplexEvenTransposeSpecs& specs);
 
 #endif

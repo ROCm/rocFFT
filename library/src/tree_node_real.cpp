@@ -1486,10 +1486,6 @@ void RealTransDataCopyNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam
  * CS_KERNEL_CMPLX_TO_R
  * CS_KERNEL_TRANSPOSE_CMPLX_TO_R
  *****************************************************/
-PrePostKernelNode::SchemeFnCall const PrePostKernelNode::FnCallMap
-    = {{CS_KERNEL_R_TO_CMPLX_TRANSPOSE, &r2c_1d_post_transpose},
-       {CS_KERNEL_TRANSPOSE_CMPLX_TO_R, &transpose_c2r_1d_pre}};
-
 size_t PrePostKernelNode::GetTwiddleTableLength()
 {
     if(scheme == CS_KERNEL_R_TO_CMPLX || scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE)
@@ -1507,12 +1503,4 @@ size_t PrePostKernelNode::GetTwiddleTableLengthLimit()
 {
     // The kernel only uses 1/4th of the real length twiddle table
     return DivRoundingUp<size_t>(GetTwiddleTableLength(), 4);
-}
-
-void PrePostKernelNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
-{
-    // RTC already sets everything up for supported schemes
-    if(scheme == CS_KERNEL_R_TO_CMPLX || scheme == CS_KERNEL_CMPLX_TO_R)
-        return;
-    fnPtr = FnCallMap.at(scheme);
 }

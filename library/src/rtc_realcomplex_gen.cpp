@@ -561,3 +561,423 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
     src += func.render();
     return src;
 }
+
+std::string realcomplex_even_transpose_rtc_kernel_name(const RealComplexEvenTransposeSpecs& specs)
+{
+    std::string kernel_name;
+
+    switch(specs.scheme)
+    {
+    case CS_KERNEL_R_TO_CMPLX_TRANSPOSE:
+        kernel_name += "r2c_even_post_transpose";
+        break;
+    case CS_KERNEL_TRANSPOSE_CMPLX_TO_R:
+        kernel_name += "transpose_c2r_even_pre";
+        break;
+    default:
+        throw std::runtime_error("invalid realcomplex even transpose rtc scheme");
+    }
+
+    kernel_name += "_tile" + std::to_string(specs.TileX()) + "x" + std::to_string(specs.TileY());
+
+    kernel_name += rtc_precision_name(specs.precision);
+    kernel_name += rtc_array_type_name(specs.inArrayType);
+    kernel_name += rtc_array_type_name(specs.outArrayType);
+
+    if(specs.enable_callbacks)
+        kernel_name += "_CB";
+    if(specs.enable_scaling)
+        kernel_name += "_scale";
+
+    return kernel_name;
+}
+
+std::string realcomplex_even_transpose_rtc(const std::string&                   kernel_name,
+                                           const RealComplexEvenTransposeSpecs& specs)
+{
+    const bool isR2C = specs.scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE;
+    auto       tileX = specs.TileX();
+    auto       tileY = specs.TileY();
+
+    std::string src;
+    // includes and declarations
+    src += common_h;
+    src += callback_h;
+
+    src += rtc_precision_type_decl(specs.precision);
+
+    src += rtc_const_cbtype_decl(specs.enable_callbacks);
+
+    // function arguments
+    Variable dim{"dim", "size_t"};
+    Variable input{"input", "scalar_type", true, true};
+    Variable idist{"idist", "size_t"};
+    Variable output{"output", "scalar_type", true, true};
+    Variable odist{"odist", "size_t"};
+    Variable twiddles{"twiddles", "scalar_type", true, true};
+    Variable lengths{"lengths", "size_t", true, true};
+    Variable inStride{"inStride", "size_t", true, true};
+    Variable outStride{"outStride", "size_t", true, true};
+
+    // r2c uses a device function helper to work out which dimension
+    // we're transposing to
+    if(isR2C)
+    {
+        // this helper doesn't need to have its AST transformed or
+        // anything, so just add it to source as a string
+        src += R"(
+	    __device__ size_t output_row_base(size_t        dim,
+	                                      size_t        output_batch_start,
+	                                      const size_t* outStride,
+	                                      const size_t  col)
+	    {
+	        if(dim == 2)
+	            return output_batch_start + outStride[1] * col;
+	        else if(dim == 3)
+	            return output_batch_start + outStride[2] * col;
+	        return 0;
+            }
+        )";
+    }
+
+    Function func{kernel_name};
+    func.launch_bounds = tileX * tileY;
+    func.qualifier     = "extern \"C\" __global__";
+
+    func.arguments.append(dim);
+    func.arguments.append(input);
+    func.arguments.append(idist);
+    func.arguments.append(output);
+    func.arguments.append(odist);
+    func.arguments.append(twiddles);
+    func.arguments.append(lengths);
+    func.arguments.append(inStride);
+    func.arguments.append(outStride);
+    for(const auto& arg : get_callback_args().arguments)
+        func.arguments.append(arg);
+
+    Variable input_batch_start{"input_batch_start", "size_t"};
+    Variable output_batch_start{"output_batch_start", "size_t"};
+    func.body += Declaration{input_batch_start, idist * Literal{"blockIdx.z"}};
+    func.body += Declaration{output_batch_start, odist * Literal{"blockIdx.z"}};
+
+    Variable leftTile{"leftTile", "__shared__ scalar_type", false, false, tileX};
+    leftTile.size2D = tileY;
+    Variable rightTile{"rightTile", "__shared__ scalar_type", false, false, tileX};
+    rightTile.size2D = tileY;
+    func.body += CommentLines{"post-processing reads rows and transposes them to columns.",
+                              "pre-processing reads columns and transposes them to rows."};
+
+    func.body += LineBreak{};
+
+    func.body += CommentLines{"allocate 2 tiles so we can butterfly the values together.",
+                              "left tile grabs values from towards the beginnings of the rows",
+                              "right tile grabs values from towards the ends"};
+    func.body += Declaration{leftTile};
+    func.body += Declaration{rightTile};
+
+    // r2c reads fastest dimension as a row, c2r reads higher dims
+    //
+    // generator code has r2c names for shared variables.  names in
+    // generated source are adjusted to suit both r2c and c2r.
+    Variable len_row{isR2C ? "len_row" : "len_col", "const size_t"};
+    Variable tile_size{"tile_size", "const size_t"};
+    Variable left_col_start{isR2C ? "left_col_start" : "left_row_start", "const size_t"};
+    Variable middle{"middle", "const size_t"};
+    Variable cols_to_read{isR2C ? "cols_to_read" : "rows_to_read", "size_t"};
+    Variable row_limit{isR2C ? "row_limit" : "col_limit", "const size_t"};
+    Variable row_start{isR2C ? "row_start" : "col_start", "const size_t"};
+    Variable row_end{isR2C ? "row_end" : "col_end", "size_t"};
+
+    // initial values for tile accounting variables.  initialize them
+    // to Literals, since the variant needs to be something
+    Expression len_row_init{""};
+    Expression tile_size_init{""};
+    Expression left_col_start_init{""};
+    Expression row_limit_init{""};
+    Expression row_start_init{""};
+    Expression row_end_init{""};
+    if(isR2C)
+    {
+        func.body += CommentLines{
+            "take fastest dimension and partition it into lengths that will go into each tile"};
+        len_row_init        = lengths[0];
+        tile_size_init      = Ternary{(len_row - 1) / 2 < tileX, (len_row - 1) / 2, tileX};
+        left_col_start_init = Literal{"blockIdx.x"} * tile_size + 1;
+        row_limit_init      = Ternary{dim == 2, lengths[1], lengths[1] * lengths[2]};
+        row_start_init      = Literal{"blockIdx.y"} * tileY;
+        row_end_init        = tileY + row_start;
+    }
+    else
+    {
+        func.body += CommentLines{
+            "take middle dimension and partition it into lengths that will go into each tile",
+            "note that last row effectively gets thrown away"};
+        len_row_init        = Ternary{dim == 2, lengths[1] - 1, lengths[2] - 1};
+        tile_size_init      = Ternary{(len_row - 1) / 2 < tileY, (len_row - 1) / 2, tileY};
+        left_col_start_init = Literal{"blockIdx.y"} * tile_size + 1;
+        row_limit_init      = Ternary{dim == 2, lengths[0], lengths[0] * lengths[1]};
+        row_start_init      = Literal{"blockIdx.x"} * tileX;
+        row_end_init        = tileX + row_start;
+    }
+
+    func.body += Declaration{len_row, len_row_init};
+    func.body += CommentLines{"size of a complete tile for this problem - ignore the first",
+                              "element and middle element (if there is one).  those are",
+                              "treated specially"};
+    func.body += Declaration{tile_size, tile_size_init};
+    func.body += CommentLines{"first column to read into the left tile, offset by one because",
+                              "first element is already handled"};
+    func.body += Declaration{left_col_start, left_col_start_init};
+    func.body += Declaration{middle, (len_row + 1) / 2};
+
+    func.body += CommentLines{"number of columns to actually read into the tile (can be less",
+                              "than tile size if we're out of data)"};
+    func.body += Declaration{cols_to_read, tile_size};
+
+    func.body += CommentLines{"maximum number of rows in the problem"};
+    func.body += Declaration{row_limit, row_limit_init};
+
+    func.body += CommentLines{"start+end of range this thread will work on"};
+    func.body += Declaration{row_start, row_start_init};
+    func.body += Declaration{row_end, row_end_init};
+    func.body += If{row_end > row_limit, {Assign{row_end, row_limit}}};
+
+    func.body += If{left_col_start + tile_size >= middle,
+                    {Assign{cols_to_read, middle - left_col_start}}};
+
+    Variable lds_row{"lds_row", "const size_t"};
+    Variable lds_col{"lds_col", "const size_t"};
+    Variable val{"val", "scalar_type"};
+    Variable first_elem{"first_elem", "scalar_type"};
+    Variable middle_elem{"middle_elem", "scalar_type"};
+    Variable last_elem{"last_elem", "scalar_type"};
+
+    Expression read_condition{""};
+    Expression read_left_idx{""};
+    Expression read_right_idx{""};
+    Expression read_first_condition{""};
+    Expression read_first_idx{""};
+    Expression read_middle_idx{""};
+    Expression read_last_idx{""};
+
+    Expression    write_condition{""};
+    StatementList compute_first_val;
+    Expression    write_first_idx{""};
+    StatementList compute_middle_val;
+    Expression    write_middle_idx{""};
+    StatementList compute_last_val;
+    Expression    write_last_idx{""};
+
+    // r2c-specific variables
+    Variable input_row_idx{"input_row_idx", "const size_t"};
+    Variable input_row_base{"input_row_base", "size_t"};
+
+    // c2r-specific variables
+    Variable input_col_base{"input_col_base", "const size_t"};
+    Variable input_col_stride{"input_col_stride", "const size_t"};
+    Variable output_row_base{"output_row_base", "const size_t"};
+    Variable output_row_stride{"output_row_stride", "const size_t"};
+
+    func.body += Declaration{lds_row, "threadIdx.y"};
+    func.body += Declaration{lds_col, "threadIdx.x"};
+
+    if(isR2C)
+    {
+        func.body += Declaration{input_row_idx, row_start + lds_row};
+        func.body += Declaration{input_row_base, input_row_idx % lengths[1] * inStride[1]};
+        func.body
+            += If{dim > 2, {AddAssign(input_row_base, input_row_idx / lengths[1] * inStride[2])}};
+
+        read_condition = row_start + lds_row < row_end && lds_col < cols_to_read;
+        read_left_idx  = input_batch_start + input_row_base + left_col_start + lds_col;
+        read_right_idx = input_batch_start + input_row_base
+                         + (len_row - (left_col_start + cols_to_read - 1)) + lds_col;
+        read_first_condition = Literal{"blockIdx.x"} == 0 && Literal{"threadIdx.x"} == 0
+                               && row_start + lds_row < row_end;
+        read_first_idx  = input_batch_start + input_row_base;
+        read_middle_idx = input_batch_start + input_row_base + len_row / 2;
+
+        write_condition = Literal{"blockIdx.x"} == 0 && Literal{"threadIdx.x"} == 0
+                          && row_start + lds_row < row_end;
+
+        compute_first_val += Assign{val.x, first_elem.x - first_elem.y};
+        compute_first_val += Assign{val.y, Literal{"0.0"}};
+        write_first_idx = CallExpr{"output_row_base", {dim, output_batch_start, outStride, len_row}}
+                          + row_start + lds_row;
+
+        compute_middle_val += Assign{val.x, middle_elem.x};
+        compute_middle_val += Assign{val.y, -middle_elem.y};
+        write_middle_idx = CallExpr{"output_row_base", {dim, output_batch_start, outStride, middle}}
+                           + row_start + lds_row;
+
+        compute_last_val += Assign{val.x, first_elem.x + first_elem.y};
+        compute_last_val += Assign{val.y, Literal{"0.0"}};
+        write_last_idx = CallExpr{"output_row_base", {dim, output_batch_start, outStride, 0}}
+                         + row_start + lds_row;
+    }
+    else
+    {
+        func.body += Declaration{input_col_base,
+                                 (row_start + lds_col) % lengths[0] * inStride[0]
+                                     + (row_start + lds_col) / lengths[0] * inStride[1]};
+        func.body += Declaration{input_col_stride, Ternary{dim == 2, inStride[1], inStride[2]}};
+
+        func.body += Declaration{output_row_base,
+                                 (row_start + lds_col) % lengths[0] * outStride[1]
+                                     + (row_start + lds_col) / lengths[0] * outStride[2]};
+        func.body += Declaration{output_row_stride, outStride[0]};
+
+        read_condition = row_start + lds_col < row_end && lds_row < cols_to_read;
+        read_left_idx
+            = input_batch_start + input_col_base + (left_col_start + lds_row) * input_col_stride;
+        read_right_idx = input_batch_start + input_col_base
+                         + (len_row - (left_col_start + lds_row)) * input_col_stride;
+        read_first_condition = Literal{"blockIdx.y"} == 0 && Literal{"threadIdx.y"} == 0
+                               && row_start + lds_col < row_end;
+        read_first_idx  = input_batch_start + input_col_base;
+        read_middle_idx = input_batch_start + input_col_base + middle * input_col_stride;
+        read_last_idx   = input_batch_start + input_col_base + len_row * input_col_stride;
+
+        write_condition = Literal{"blockIdx.y"} == 0 && Literal{"threadIdx.y"} == 0
+                          && row_start + lds_col < row_end;
+
+        compute_first_val += Assign{val.x, first_elem.x + last_elem.x};
+        compute_first_val += Assign{val.y, first_elem.x - last_elem.x};
+        write_first_idx = output_batch_start + output_row_base;
+
+        compute_middle_val += Assign{val.x, Literal{"2.0"} * middle_elem.x};
+        compute_middle_val += Assign{val.y, Literal{"-2.0"} * middle_elem.y};
+        write_middle_idx = output_batch_start + output_row_base + middle * output_row_stride;
+    }
+
+    func.body += CallbackDeclaration("scalar_type", "cbtype");
+
+    func.body += Declaration{val};
+
+    If read_block{read_condition, {}};
+    read_block.body += Assign{val, LoadGlobal{input, read_left_idx}};
+    read_block.body += Assign{leftTile.at(lds_col, lds_row), val};
+    read_block.body += Assign{val, LoadGlobal{input, read_right_idx}};
+    read_block.body += Assign{rightTile.at(lds_col, lds_row), val};
+    func.body += read_block;
+
+    func.body += Declaration{first_elem};
+    func.body += Declaration{middle_elem};
+    if(!isR2C)
+        func.body += Declaration{last_elem};
+
+    If read_first_block{read_first_condition, {}};
+    read_first_block.body += Assign{first_elem, LoadGlobal{input, read_first_idx}};
+    read_first_block.body
+        += If{len_row % 2 == 0, {Assign{middle_elem, LoadGlobal{input, read_middle_idx}}}};
+    if(!isR2C)
+        read_first_block.body += Assign{last_elem, LoadGlobal{input, read_last_idx}};
+
+    func.body += CommentLines{"handle first + middle element (if there is a middle),",
+                              "and last element (for c2r)"};
+    func.body += read_first_block;
+    func.body += SyncThreads{};
+
+    func.body += CommentLines{"write first + middle"};
+    If write_first_block{write_condition, {}};
+    write_first_block.body += compute_first_val;
+    write_first_block.body += StoreGlobal{output, write_first_idx, val};
+    // only r2c writes the "last" value
+    if(isR2C)
+    {
+        write_first_block.body += compute_last_val;
+        write_first_block.body += StoreGlobal{output, write_last_idx, val};
+    }
+
+    If write_middle_block{len_row % 2 == 0, {}};
+
+    write_middle_block.body += compute_middle_val;
+    write_middle_block.body += StoreGlobal{output, write_middle_idx, val};
+    write_first_block.body += write_middle_block;
+
+    func.body += write_first_block;
+
+    func.body += CommentLines{"butterfly the two tiles we've collected (offset col by one",
+                              "because first element is special)"};
+
+    Variable p{"p", "const scalar_type"};
+    Variable q{"q", "const scalar_type"};
+    Variable u{"u", "const scalar_type"};
+    Variable v{"v", "const scalar_type"};
+    Variable twd_p{"twd_p", "const auto"};
+    if(isR2C)
+    {
+        Variable col{"col", "size_t"};
+
+        If butterfly{row_start + lds_row < row_end && lds_col < cols_to_read, {}};
+        butterfly.body
+            += Declaration{col, Literal{"blockIdx.x"} * tile_size + 1 + Literal{"threadIdx.x"}};
+
+        butterfly.body += Declaration{p, leftTile.at(lds_col, lds_row)};
+        butterfly.body += Declaration{q, rightTile.at(cols_to_read - lds_col - 1, lds_row)};
+        butterfly.body += Declaration{u, Literal{"0.5"} * (p + q)};
+        butterfly.body += Declaration{v, Literal{"0.5"} * (p - q)};
+
+        butterfly.body += Declaration{twd_p, twiddles[col]};
+
+        butterfly.body += CommentLines{"NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y)"};
+
+        butterfly.body += CommentLines{"write left side"};
+        butterfly.body += Assign{val.x, u.x + v.x * twd_p.y + u.y * twd_p.x};
+        butterfly.body += Assign{val.y, v.y + u.y * twd_p.y - v.x * twd_p.x};
+        butterfly.body
+            += StoreGlobal{output,
+                           CallExpr{"output_row_base", {dim, output_batch_start, outStride, col}}
+                               + row_start + lds_row,
+                           val};
+
+        butterfly.body += CommentLines{"write right side"};
+        butterfly.body += Assign{val.x, u.x - v.x * twd_p.y - u.y * twd_p.x};
+        butterfly.body += Assign{val.y, -v.y + u.y * twd_p.y - v.x * twd_p.x};
+        butterfly.body += StoreGlobal{
+            output,
+            CallExpr{"output_row_base", {dim, output_batch_start, outStride, len_row - col}}
+                + row_start + lds_row,
+            val};
+
+        func.body += butterfly;
+    }
+    else
+    {
+        If butterfly{row_start + lds_col < row_end && lds_row < cols_to_read, {}};
+
+        butterfly.body += Declaration{p, leftTile.at(lds_col, lds_row)};
+        butterfly.body += Declaration{q, rightTile.at(lds_col, lds_row)};
+        butterfly.body += Declaration{u, p + q};
+        butterfly.body += Declaration{v, p - q};
+
+        butterfly.body += Declaration{twd_p, twiddles[left_col_start + lds_row]};
+
+        butterfly.body += CommentLines{"write top side"};
+        butterfly.body += Assign{val.x, u.x + v.x * twd_p.y - u.y * twd_p.x};
+        butterfly.body += Assign{val.y, v.y + u.y * twd_p.y + v.x * twd_p.x};
+        butterfly.body += StoreGlobal{output,
+                                      output_batch_start + output_row_base
+                                          + (left_col_start + lds_row) * output_row_stride,
+                                      val};
+
+        butterfly.body += CommentLines{"write bottom side"};
+        butterfly.body += Assign{val.x, u.x - v.x * twd_p.y + u.y * twd_p.x};
+        butterfly.body += Assign{val.y, -v.y + u.y * twd_p.y + v.x * twd_p.x};
+        butterfly.body
+            += StoreGlobal{output,
+                           output_batch_start + output_row_base
+                               + (len_row - (left_col_start + lds_row)) * output_row_stride,
+                           val};
+        func.body += butterfly;
+    }
+
+    if(array_type_is_planar(specs.inArrayType))
+        func = make_planar(func, "input");
+    if(array_type_is_planar(specs.outArrayType))
+        func = make_planar(func, "output");
+
+    src += func.render();
+    return src;
+}
