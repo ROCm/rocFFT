@@ -85,7 +85,20 @@ set( kgen_embed_files
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/callback.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/butterfly_constant.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/real2complex_device.h
-     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rocfft_butterfly_template.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/large_twiddles.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_2.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_3.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_4.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_5.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_6.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_7.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_8.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_9.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_10.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_11.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_13.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_16.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_17.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_workarounds.h
    )
 
