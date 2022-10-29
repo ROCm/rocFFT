@@ -47,6 +47,9 @@ static std::string rocfft_getenv(const char* var)
     {
         ret.resize(size);
         GetEnvironmentVariable(var, ret.data(), size);
+        // GetEnvironmentVariable counts the terminating null, so remove it
+        while(!ret.empty() && ret.back() == 0)
+            ret.pop_back();
     }
     return ret;
 }
@@ -69,3 +72,26 @@ static std::string rocfft_getenv(const char* var)
     return value ? value : "";
 }
 #endif
+
+// RAII object to set an environment variable and restore it to its
+// previous value on destruction
+struct EnvironmentSetTemp
+{
+    EnvironmentSetTemp(const char* _var, const char* val)
+        : var(_var)
+    {
+        auto val_ptr = rocfft_getenv(_var);
+        if(!val_ptr.empty())
+            oldvalue = val_ptr;
+        rocfft_setenv(_var, val);
+    }
+    ~EnvironmentSetTemp()
+    {
+        if(oldvalue.empty())
+            rocfft_unsetenv(var.c_str());
+        else
+            rocfft_setenv(var.c_str(), oldvalue.c_str());
+    }
+    std::string var;
+    std::string oldvalue;
+};

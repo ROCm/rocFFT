@@ -33,6 +33,7 @@ private:
     static const Map1DLength         map1DLengthDouble;
 
     static bool Large1DLengthsValid(const Map1DLength& map1DLength, rocfft_precision precision);
+    static bool CheckLarge1DMaps();
 
 public:
     // Create node (user level) using this function

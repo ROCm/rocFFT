@@ -235,9 +235,9 @@ std::vector<char> compile_subprocess(const std::string& kernel_src, const std::s
     stdout_read_ovl.hEvent              = stdout_read_event;
 
     HANDLE handles[3];
-    handles[0] = hProcess;
-    handles[1] = stdout_read_event;
-    handles[2] = stdin_write_event;
+    handles[0] = stdout_read_event;
+    handles[1] = stdin_write_event;
+    handles[2] = hProcess;
 
     size_t total_bytes_written = 0;
     size_t total_bytes_read    = 0;
@@ -259,11 +259,6 @@ std::vector<char> compile_subprocess(const std::string& kernel_src, const std::s
     {
         auto wait_result = WaitForMultipleObjects(wait_handle_count, handles, FALSE, INFINITE);
         if(wait_result == WAIT_OBJECT_0)
-        {
-            // process died unexpectedly - we should be able to finish I/O first
-            break;
-        }
-        else if(wait_result == WAIT_OBJECT_0 + 1)
         {
             // read handle is ready
             DWORD bytes_read = 0;
@@ -296,7 +291,7 @@ std::vector<char> compile_subprocess(const std::string& kernel_src, const std::s
                                              + std::to_string(GetLastError()));
             }
         }
-        else if(wait_result == WAIT_OBJECT_0 + 2)
+        else if(wait_result == WAIT_OBJECT_0 + 1)
         {
             // write handle is ready
             DWORD bytes_written = 0;
@@ -327,6 +322,12 @@ std::vector<char> compile_subprocess(const std::string& kernel_src, const std::s
                     throw std::runtime_error("failed to write input to child");
                 }
             }
+        }
+        else if(wait_result == WAIT_OBJECT_0 + 2)
+        {
+            // process died unexpectedly, but we should have been
+            // able to finish I/O first
+            break;
         }
     }
     child_stdout_read.close();
@@ -365,6 +366,7 @@ std::vector<char> compile_subprocess(const std::string& kernel_src, const std::s
 
     int spawn_result
         = posix_spawn(&pid, rtc_helper_exe.c_str(), &spawn_file_actions, nullptr, argv, envp);
+    posix_spawn_file_actions_destroy(&spawn_file_actions);
     if(spawn_result != 0)
     {
         throw std::runtime_error("failed to spawn child process");

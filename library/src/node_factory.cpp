@@ -288,11 +288,21 @@ bool NodeFactory::Large1DLengthsValid(const NodeFactory::Map1DLength& map1DLengt
     return true;
 }
 
+// helper to check 1d length maps at most once per process
+bool NodeFactory::CheckLarge1DMaps()
+{
+    static bool singleValid
+        = NodeFactory::Large1DLengthsValid(NodeFactory::map1DLengthSingle, rocfft_precision_single);
+    static bool doubleValid
+        = NodeFactory::Large1DLengthsValid(NodeFactory::map1DLengthDouble, rocfft_precision_double);
+    return singleValid && doubleValid;
+}
+
 // Checks whether the non-pow2 length input is supported for a Bluestein compute scheme
 bool NodeFactory::NonPow2LengthSupported(rocfft_precision precision, size_t length)
 {
     // Exceptions which have been found to perform poorly when compared to the next pow2 length
-    std::map<rocfft_precision, std::set<size_t>> length_exceptions
+    static const std::map<rocfft_precision, std::set<size_t>> length_exceptions
         = {{rocfft_precision_single,
             {224, 2160, 2430, 2880, 3456, 21504, 21952, 23232, 79860, 95832, 110592}},
            {rocfft_precision_double,
@@ -306,8 +316,7 @@ bool NodeFactory::NonPow2LengthSupported(rocfft_precision precision, size_t leng
     if(function_pool::has_function(fpkey(length, precision)))
         return true;
 
-    assert(Large1DLengthsValid(map1DLengthSingle, precision));
-    assert(Large1DLengthsValid(map1DLengthDouble, precision));
+    assert(CheckLarge1DMaps());
 
     // and for supported block CC + RC Stockham decompositions
     if(precision == rocfft_precision_single

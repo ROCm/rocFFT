@@ -158,29 +158,6 @@ TEST(rocfft_UnitTest, repo_twiddle)
     rocfft_plan_destroy(plan_inverse);
 }
 
-// RAII object to set an environment variable and restore it to its
-// previous value on destruction
-struct EnvironmentSetTemp
-{
-    EnvironmentSetTemp(const char* _var, const char* val)
-        : var(_var)
-    {
-        auto val_ptr = rocfft_getenv(_var);
-        if(!val_ptr.empty())
-            oldvalue = val_ptr;
-        rocfft_setenv(_var, val);
-    }
-    ~EnvironmentSetTemp()
-    {
-        if(oldvalue.empty())
-            rocfft_unsetenv(var.c_str());
-        else
-            rocfft_setenv(var.c_str(), oldvalue.c_str());
-    }
-    std::string var;
-    std::string oldvalue;
-};
-
 // Check whether logs can be emitted from multiple threads properly
 TEST(rocfft_UnitTest, log_multithreading)
 {

@@ -55,6 +55,9 @@ int main(int argc, const char* const* argv)
         // compile and write code object to stdout
         auto code = compile_inprocess(kernel_src, gpu_arch);
         std::cout.write(code.data(), code.size());
+        std::cout.flush();
+        if(!std::cout.good())
+            return 1;
         return 0;
     }
     catch(std::exception& e)

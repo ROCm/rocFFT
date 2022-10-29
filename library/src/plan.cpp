@@ -21,6 +21,7 @@
 #include "plan.h"
 #include "../../shared/arithmetic.h"
 #include "../../shared/array_predicate.h"
+#include "../../shared/environment.h"
 #include "../../shared/ptrdiff.h"
 #include "assignment_policy.h"
 #include "function_pool.h"
@@ -515,6 +516,10 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
                 PrintNode(*LogSingleton::GetInstance().GetPlanOS(), execPlan);
             throw;
         }
+
+        // plan is compiled, no need to alloc twiddles + kargs etc
+        if(rocfft_getenv("ROCFFT_INTERNAL_COMPILE_ONLY") == "1")
+            return rocfft_status_success;
 
         if(!PlanPowX(execPlan)) // PlanPowX enqueues the GPU kernels by function
         {

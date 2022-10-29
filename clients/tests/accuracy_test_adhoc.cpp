@@ -39,15 +39,6 @@ std::vector<std::vector<size_t>> adhoc_sizes = {
     // Failure with build_CS_3D_BLOCK_RC
     {680, 128, 128},
 
-    // Large 1D primes that fall above the block threshold (length 262144).
-    // Bluestein requires two forwards and one inverse FFTs, and the plan
-    // for these sizes breakdown these FFTs either as:
-    // L1D_TRTRT (T + STOCKHAM + T + STOCKHAM + T) for lengthBlue <= 4096^2
-    // or
-    // L1D_TRTRT (T + L1D_CC + STOCKHAM_BL_CC + STOCHMAM_BL_RC + T + STOCKHAM + T)
-    // for lengthBlue > 4096^2.
-    {196597, 25165813},
-
     // TILE_UNALIGNED type of SBRC 3D ERC
     {98, 98, 98},
 };

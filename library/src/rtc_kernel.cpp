@@ -20,6 +20,7 @@
 
 #include "rtc_kernel.h"
 #include "../../shared/array_predicate.h"
+#include "../../shared/environment.h"
 #include "device/generator/stockham_gen.h"
 
 #include "device/kernel-generator-embed.h"
@@ -39,6 +40,9 @@ RTCKernel::RTCKernel(const std::string&       kernel_name,
     : gridDim(gridDim)
     , blockDim(blockDim)
 {
+    // if we're only compiling, no need to actually load the code objects
+    if(rocfft_getenv("ROCFFT_INTERNAL_COMPILE_ONLY") == "1")
+        return;
     if(hipModuleLoadData(&module, code.data()) != hipSuccess)
         throw std::runtime_error("failed to load module for " + kernel_name);
 

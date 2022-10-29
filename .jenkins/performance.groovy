@@ -58,7 +58,6 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
 def runTestCommand (platform, project, boolean debug=false)
 {
     String sudo = auxiliary.sudo(platform.jenkinsLabel)
-    String testBinaryName = debug ? 'rocfft-test-d' : 'rocfft-test'
     String directory = debug ? 'debug' : 'release'
 
     def dataTypes = ['single', 'double']
