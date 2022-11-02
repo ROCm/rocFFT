@@ -134,7 +134,7 @@ def runCI =
     prj.defaults.ccache = true
     prj.timeout.compile = 600
     prj.timeout.test = 600
-    prj.libraryDependencies = ['rocFFT-internal', 'rocRAND']
+    prj.libraryDependencies = ['rocRAND']
 
     // Define test architectures, optional rocm version argument is available
     def nodes = new dockerNodes(nodeDetails, jobName, prj)
