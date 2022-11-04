@@ -351,10 +351,12 @@ int main(int argc, char** argv)
     for(int i = 4; i < argc; ++i)
         gpu_archs.push_back(argv[i]);
 
-    // default to using a persistent file in the temp dir if no cache
-    // file was given
+    // Default to using a persistent file in the current dir if no
+    // cache file was given
     if(temp_cache_file.empty())
-        temp_cache_file = (fs::temp_directory_path() / "rocfft_temp_cache.db").string();
+    {
+        temp_cache_file = "rocfft_temp_cache.db";
+    }
 
     // force RTC to use the temporary cache file
     rocfft_setenv("ROCFFT_RTC_CACHE_PATH", temp_cache_file.c_str());
