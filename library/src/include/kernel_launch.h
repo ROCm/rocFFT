@@ -116,10 +116,6 @@ bcc - block column column
 
 */
 
-ROCFFT_DEVICE_EXPORT void rocfft_internal_mul(const void* data_p, void* back_p);
-ROCFFT_DEVICE_EXPORT void rocfft_internal_chirp(const void* data_p, void* back_p);
-ROCFFT_DEVICE_EXPORT void rocfft_internal_transpose_var2(const void* data_p, void* back_p);
-
 /*
     TODO:
         - compress the below code

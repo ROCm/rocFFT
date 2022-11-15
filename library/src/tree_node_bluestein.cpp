@@ -170,15 +170,3 @@ void BluesteinNode::AssignParams_internal()
     resmulPlan->outStride = outStride;
     resmulPlan->oDist     = oDist;
 }
-
-/*****************************************************
- * Component of Bluestein
- * Chirp, XXXMul
- *****************************************************/
-void BluesteinComponentNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
-{
-    gp.wgs_x = 64;
-    fnPtr    = (scheme == CS_KERNEL_CHIRP) ? &FN_PRFX(chirp) : &FN_PRFX(mul);
-
-    return;
-}

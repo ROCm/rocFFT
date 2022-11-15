@@ -70,7 +70,7 @@ protected:
         }
     }
 
-    void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+    void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override{};
 };
 
 #endif // TREE_NODE_BLUE_H

@@ -53,6 +53,10 @@ public:
     {
         append(&i, sizeof(unsigned int));
     }
+    void append_int(int i)
+    {
+        append(&i, sizeof(int));
+    }
     void append_double(double d)
     {
         append(&d, sizeof(double));

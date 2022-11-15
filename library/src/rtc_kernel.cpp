@@ -27,6 +27,7 @@
 #include "kernel_launch.h"
 #include "logging.h"
 #include "plan.h"
+#include "rtc_bluestein_kernel.h"
 #include "rtc_cache.h"
 #include "rtc_realcomplex_kernel.h"
 #include "rtc_stockham_kernel.h"
@@ -133,6 +134,8 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
     if(!generator.valid())
         generator = RTCKernelRealComplexEvenTranspose::generate_from_node(
             node, gpu_arch, enable_callbacks);
+    if(!generator.valid())
+        generator = RTCKernelBluesteinMulti::generate_from_node(node, gpu_arch, enable_callbacks);
     if(generator.valid())
     {
         std::string kernel_name = generator.generate_name();

@@ -134,7 +134,6 @@ add_custom_target(gen_headers_target
 # The following is a list of implementation files defining the library
 set( rocfft_device_source
   apply_callback.cpp
-  bluestein.cpp
 )
 
 set_property(

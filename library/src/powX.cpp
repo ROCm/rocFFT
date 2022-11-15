@@ -506,7 +506,8 @@ void TransformPowX(const ExecPlan&       execPlan,
 
         data.gridParam = execPlan.gridParam[i];
 
-        if(emit_kernelio_log)
+        // chirp kernel has no input - it constructs the chirp buffer from nothing
+        if(emit_kernelio_log && data.node->scheme != CS_KERNEL_CHIRP)
         {
             kernelio_stream = LogSingleton::GetInstance().GetKernelIOOS();
             *kernelio_stream << "--- --- kernel " << i << " (" << PrintScheme(data.node->scheme)
@@ -638,7 +639,7 @@ void TransformPowX(const ExecPlan&       execPlan,
             rocfft_cout << "null ptr function call error\n";
         }
 
-        if(emit_kernelio_log)
+        if(emit_kernelio_log && data.node->scheme != CS_KERNEL_CHIRP)
         {
             hipError_t err = hipPeekAtLastError();
             if(err != hipSuccess)

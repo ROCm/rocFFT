@@ -138,7 +138,11 @@ set( kgen_logic_files
      # realcomplex generator code
      ${CMAKE_SOURCE_DIR}/library/src/include/rtc_realcomplex_gen.h
      ${CMAKE_SOURCE_DIR}/library/src/rtc_realcomplex_gen.cpp
-   )
+
+     # bluestein generator code
+     ${CMAKE_SOURCE_DIR}/library/src/include/rtc_bluestein_gen.h
+     ${CMAKE_SOURCE_DIR}/library/src/rtc_bluestein_gen.cpp
+)
 
 add_custom_command(
   OUTPUT ${kgen_embed_cpp}
@@ -228,6 +232,7 @@ add_library( rocfft-rtc-subprocess OBJECT
 )
 # generation of kernel source
 add_library( rocfft-rtc-gen OBJECT
+  rtc_bluestein_gen.cpp
   rtc_realcomplex_gen.cpp
   rtc_stockham_gen.cpp
   rtc_transpose_gen.cpp
@@ -239,6 +244,7 @@ add_library( rocfft-rtc-cache OBJECT
 # generating kernels from TreeNodes and launching them
 add_library( rocfft-rtc-launch OBJECT
   rtc_kernel.cpp
+  rtc_bluestein_kernel.cpp
   rtc_realcomplex_kernel.cpp
   rtc_stockham_kernel.cpp
   rtc_transpose_kernel.cpp
