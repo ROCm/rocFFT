@@ -394,7 +394,7 @@ std::vector<char> compile_subprocess(const std::string& kernel_src, const std::s
         {
             // write a page at a time to prevent the write from
             // blocking
-            size_t  bytes_to_write = std::min<size_t>(kernel_src.size(), 4096);
+            size_t bytes_to_write = std::min<size_t>(kernel_src.size() - total_bytes_written, 4096);
             ssize_t bytes_written
                 = write(child_stdin_write, kernel_src.data() + total_bytes_written, bytes_to_write);
             if(bytes_written <= 0)

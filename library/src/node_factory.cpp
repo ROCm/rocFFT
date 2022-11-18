@@ -233,7 +233,7 @@ inline size_t search_pool(rocfft_precision                   precision,
     // start search slightly smaller than sqrt(length)
     auto v     = (size_t)sqrt(length);
     auto lower = std::lower_bound(supported.cbegin(), supported.cend(), v, comparison);
-    if(*lower < sqrt(length))
+    if(*lower < sqrt(length) && lower != supported.cbegin())
         lower--;
 
     auto upper = supported.cend();
