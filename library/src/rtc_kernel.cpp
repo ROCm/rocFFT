@@ -122,6 +122,13 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
 {
 
 #ifdef ROCFFT_RUNTIME_COMPILE
+
+    int deviceId = 0;
+    if(hipGetDevice(&deviceId) != hipSuccess)
+    {
+        throw std::runtime_error("failed to get device");
+    }
+
     RTCGenerator generator;
     // try each type of generator until one is valid
     generator = RTCKernelStockham::generate_from_node(node, gpu_arch, enable_callbacks);
@@ -141,6 +148,10 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
         std::string kernel_name = generator.generate_name();
 
         auto compile = [=]() {
+            if(hipSetDevice(deviceId) != hipSuccess)
+            {
+                throw std::runtime_error("failed to set device");
+            }
             try
             {
                 std::vector<char> code = cached_compile(
