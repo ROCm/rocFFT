@@ -282,7 +282,7 @@ float run_plan(
     HIP_V_THROW(hipEventSynchronize(stop), "hipEventSynchronize failed");
 
     float time;
-    hipEventElapsedTime(&time, start, stop);
+    HIP_V_THROW(hipEventElapsedTime(&time, start, stop), "hipEventElapsedTime failed");
     return time;
 
     HIP_V_THROW(hipEventDestroy(start), "hipEventDestroy failed");
@@ -696,10 +696,11 @@ int main(int argc, char* argv[])
             auto output = allocate_host_buffer(params.precision, params.otype, params.osize);
             for(unsigned int iout = 0; iout < output.size(); ++iout)
             {
-                hipMemcpy(output[iout].data(),
-                          pobuffer[iout],
-                          output[iout].size(),
-                          hipMemcpyDeviceToHost);
+                HIP_V_THROW(hipMemcpy(output[iout].data(),
+                                      pobuffer[iout],
+                                      output[iout].size(),
+                                      hipMemcpyDeviceToHost),
+                            "hipMemcpy failed");
             }
             std::cout << "GPU output:\n";
             params.print_obuffer(output);
