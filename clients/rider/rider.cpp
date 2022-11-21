@@ -314,7 +314,7 @@ int main(int argc, char* argv[])
         HIP_V_THROW(hipEventSynchronize(stop), "hipEventSynchronize failed");
 
         float time;
-        hipEventElapsedTime(&time, start, stop);
+        HIP_V_THROW(hipEventElapsedTime(&time, start, stop), "hipEventElapsedTime failed");
         gpu_time[itrial] = time;
 
         if(verbose > 2)
@@ -322,8 +322,11 @@ int main(int argc, char* argv[])
             auto output = allocate_host_buffer(params.precision, params.otype, params.osize);
             for(unsigned int idx = 0; idx < output.size(); ++idx)
             {
-                hipMemcpy(
-                    output[idx].data(), pobuffer[idx], output[idx].size(), hipMemcpyDeviceToHost);
+                HIP_V_THROW(hipMemcpy(output[idx].data(),
+                                      pobuffer[idx],
+                                      output[idx].size(),
+                                      hipMemcpyDeviceToHost),
+                            "hipMemcpy failed");
             }
             std::cout << "GPU output:\n";
             params.print_obuffer(output);
