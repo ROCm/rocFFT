@@ -77,4 +77,21 @@ struct RTCKernelRealComplexEvenTranspose : public RTCKernel
     virtual RTCKernelArgs get_launch_args(DeviceCallIn& data) override;
 };
 
+struct RTCKernelApplyCallback : public RTCKernel
+{
+    RTCKernelApplyCallback(const std::string&       kernel_name,
+                           const std::vector<char>& code,
+                           dim3                     gridDim,
+                           dim3                     blockDim)
+        : RTCKernel(kernel_name, code, gridDim, blockDim)
+    {
+    }
+
+    static RTCKernel::RTCGenerator generate_from_node(const TreeNode&    node,
+                                                      const std::string& gpu_arch,
+                                                      bool               enable_callbacks);
+
+    virtual RTCKernelArgs get_launch_args(DeviceCallIn& data) override;
+};
+
 #endif

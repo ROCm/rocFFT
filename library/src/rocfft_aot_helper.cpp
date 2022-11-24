@@ -307,23 +307,34 @@ void build_realcomplex(CompileQueue& queue)
                 {
                     for(bool Ndiv4 : {true, false})
                     {
-                        // r2c may have planar output, c2r may have planar input
-                        auto inArrayType  = (scheme == CS_KERNEL_CMPLX_TO_R && planar)
-                                                ? rocfft_array_type_complex_planar
-                                                : rocfft_array_type_complex_interleaved;
-                        auto outArrayType = (scheme == CS_KERNEL_R_TO_CMPLX && planar)
-                                                ? rocfft_array_type_complex_planar
-                                                : rocfft_array_type_complex_interleaved;
+                        // standalone even-length kernels may be
+                        // first/last in the plan, so allow for
+                        // callbacks
+                        for(bool enable_callbacks : {true, false})
+                        {
+                            // r2c may have planar output, c2r may have planar input
+                            auto inArrayType  = (scheme == CS_KERNEL_CMPLX_TO_R && planar)
+                                                    ? rocfft_array_type_complex_planar
+                                                    : rocfft_array_type_complex_interleaved;
+                            auto outArrayType = (scheme == CS_KERNEL_R_TO_CMPLX && planar)
+                                                    ? rocfft_array_type_complex_planar
+                                                    : rocfft_array_type_complex_interleaved;
 
-                        RealComplexEvenSpecs specs{
-                            {scheme, dim, precision, inArrayType, outArrayType, false, false},
-                            Ndiv4};
-                        auto kernel_name = realcomplex_even_rtc_kernel_name(specs);
-                        std::function<std::string(const std::string&)> generate_src
-                            = [=](const std::string& kernel_name) -> std::string {
-                            return realcomplex_even_rtc(kernel_name, specs);
-                        };
-                        queue.push({kernel_name, generate_src});
+                            RealComplexEvenSpecs specs{{scheme,
+                                                        dim,
+                                                        precision,
+                                                        inArrayType,
+                                                        outArrayType,
+                                                        enable_callbacks,
+                                                        false},
+                                                       Ndiv4};
+                            auto kernel_name = realcomplex_even_rtc_kernel_name(specs);
+                            std::function<std::string(const std::string&)> generate_src
+                                = [=](const std::string& kernel_name) -> std::string {
+                                return realcomplex_even_rtc(kernel_name, specs);
+                            };
+                            queue.push({kernel_name, generate_src});
+                        }
                     }
                 }
             }
@@ -352,6 +363,19 @@ void build_realcomplex(CompileQueue& queue)
                 queue.push({kernel_name, generate_src});
             }
         }
+    }
+}
+
+void build_apply_callback(CompileQueue& queue)
+{
+    for(auto precision : {rocfft_precision_single, rocfft_precision_double})
+    {
+        auto kernel_name = apply_callback_rtc_kernel_name(precision);
+        std::function<std::string(const std::string&)> generate_src
+            = [=](const std::string& kernel_name) -> std::string {
+            return apply_callback_rtc(kernel_name, precision);
+        };
+        queue.push({kernel_name, generate_src});
     }
 }
 
@@ -413,6 +437,7 @@ int main(int argc, char** argv)
 
     build_stockham_function_pool(queue);
     build_realcomplex(queue);
+    build_apply_callback(queue);
 
     // signal end of results with empty work items
     for(size_t i = 0; i < NUM_THREADS; ++i)

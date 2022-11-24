@@ -1446,41 +1446,6 @@ void Real3DEvenNode::AssignParams_internal_TR_pairs()
 }
 
 /*****************************************************
- * CS_KERNEL_COPY_R_TO_CMPLX
- * CS_KERNEL_COPY_HERM_TO_CMPLX
- * CS_KERNEL_COPY_CMPLX_TO_HERM
- * CS_KERNEL_COPY_CMPLX_TO_R
- * CS_KERNEL_APPLY_CALLBACK
- * NOTE- Temp Complex Buffer implements interleaved only
- *****************************************************/
-RealTransDataCopyNode::SchemeFnCall const RealTransDataCopyNode::FnCallMap
-    = {{CS_KERNEL_APPLY_CALLBACK, &apply_real_callback}};
-
-void RealTransDataCopyNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
-{
-    // RTC already sets everything up for supported schemes
-    if(scheme == CS_KERNEL_COPY_R_TO_CMPLX || scheme == CS_KERNEL_COPY_CMPLX_TO_HERM
-       || scheme == CS_KERNEL_COPY_HERM_TO_CMPLX || scheme == CS_KERNEL_COPY_CMPLX_TO_R)
-        return;
-
-    fnPtr = FnCallMap.at(scheme);
-
-    if(scheme == CS_KERNEL_APPLY_CALLBACK)
-    {
-        gp.wgs_x = 64;
-    }
-    else
-    {
-        gp.b_x   = (length[0] - 1) / LAUNCH_BOUNDS_R2C_C2R_KERNEL + 1;
-        gp.b_y   = batch;
-        gp.wgs_x = LAUNCH_BOUNDS_R2C_C2R_KERNEL;
-        gp.wgs_y = 1;
-    }
-
-    return;
-}
-
-/*****************************************************
  * CS_KERNEL_R_TO_CMPLX
  * CS_KERNEL_R_TO_CMPLX_TRANSPOSE
  * CS_KERNEL_CMPLX_TO_R

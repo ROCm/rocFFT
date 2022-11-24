@@ -131,9 +131,8 @@ add_custom_target(gen_headers_target
   VERBATIM
 )
 
-# The following is a list of implementation files defining the library
+# device library starts empty and is built from generated files
 set( rocfft_device_source
-  apply_callback.cpp
 )
 
 set_property(

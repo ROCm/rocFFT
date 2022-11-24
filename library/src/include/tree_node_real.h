@@ -201,7 +201,7 @@ protected:
         }
     }
 
-    void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
+    void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override{};
 
 public:
     bool UseOutputLengthForPadding() override
