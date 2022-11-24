@@ -76,7 +76,12 @@ ArgumentList::operator bool() const
     return !arguments.empty();
 }
 
-void ArgumentList::append(Variable v)
+void ArgumentList::append(Variable&& v)
+{
+    arguments.push_back(std::move(v));
+}
+
+void ArgumentList::append(const Variable& v)
 {
     arguments.push_back(v);
 }
@@ -143,15 +148,13 @@ MAKE_UNARY_PREFIX_METHODS(Not);
 MAKE_UNARY_PREFIX_METHODS(PreIncrement);
 MAKE_UNARY_PREFIX_METHODS(PreDecrement);
 
-Ternary::Ternary(const Expression& cond,
-                 const Expression& true_result,
-                 const Expression& false_result)
-    : args{cond, true_result, false_result}
+Ternary::Ternary(Expression&& cond, Expression&& true_result, Expression&& false_result)
+    : args{std::move(cond), std::move(true_result), std::move(false_result)}
 {
 }
 
-Ternary::Ternary(const std::vector<Expression>& args)
-    : args(args)
+Ternary::Ternary(std::vector<Expression>&& args)
+    : args(std::move(args))
 {
 }
 
@@ -367,8 +370,18 @@ std::string TwiddleMultiplyConjugate::render() const
     return ComplexLiteral{a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y}.render();
 }
 
+Parens::Parens(Expression&& inside)
+    : args{std::move(inside)}
+{
+}
+
 Parens::Parens(const Expression& inside)
     : args{inside}
+{
+}
+
+Parens::Parens(std::vector<Expression>&& args)
+    : args(std::move(args))
 {
 }
 
@@ -432,7 +445,8 @@ IntrinsicLoad::IntrinsicLoad(const std::vector<Expression>& args)
 
 std::string IntrinsicLoad::render() const
 {
-    // intrinsic_load(const T* data, unsigned int voffset, unsigned int soffset, bool rw)
+    // intrinsic_load(const T* data, unsigned int voffset, unsigned int soffset,
+    // bool rw)
     return "intrinsic_load(" + vrender(args[0]) + "," + vrender(args[1]) + "," + vrender(args[2])
            + "," + vrender(args[3]) + ")";
 }

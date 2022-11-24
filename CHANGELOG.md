@@ -8,6 +8,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Optimized some strided large 1D plans.
 
 ### Added
+- Reduced time for generating code during plan creation.
 - Added rocfft_plan_description_set_scale_factor API to efficiently multiply each output element of a FFT by a given scaling factor.
 - Created a rocfft_kernel_cache.db file next to the installed library. SBCC/CR/RC kernels are moved to this file when built with the library, and are runtime-compiled for new GPU architectures.
 - Added gfx1100, gfx1101, and gfx1102 to default AMDGPU_TARGETS.

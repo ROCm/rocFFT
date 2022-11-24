@@ -160,6 +160,10 @@ class OptionalExpression
 
 public:
     OptionalExpression(){};
+    OptionalExpression(OptionalExpression&&)      = default;
+    OptionalExpression(const OptionalExpression&) = default;
+    OptionalExpression& operator=(OptionalExpression&&) = default;
+    OptionalExpression& operator=(const OptionalExpression&) = default;
     explicit OptionalExpression(const Expression& expr);
     OptionalExpression& operator=(const Expression& in_expr);
     Expression          operator*() const;
@@ -189,6 +193,10 @@ public:
         : value(val)
     {
     }
+    Literal(Literal&&)      = default;
+    Literal(const Literal&) = default;
+    Literal& operator=(Literal&&) = default;
+    Literal& operator=(const Literal&) = default;
 
     std::string value;
 
@@ -205,10 +213,16 @@ struct ScalarVariable
     Component                 component;
     OptionalExpression        index;
 
-    ScalarVariable(std::string name, std::string type, Component component = Component::BOTH)
+    ScalarVariable(const std::string& name,
+                   const std::string& type,
+                   Component          component = Component::BOTH)
         : name(name)
         , type(type)
         , component(component){};
+    ScalarVariable(ScalarVariable&&)      = default;
+    ScalarVariable(const ScalarVariable&) = default;
+    ScalarVariable& operator=(const ScalarVariable&) = default;
+    ScalarVariable& operator=(ScalarVariable&&) = default;
 
     std::string render() const;
 };
@@ -248,10 +262,12 @@ public:
         , y(v.name + ".y", v.type){};
 
     Variable(const Variable& v);
+    Variable(Variable&& v) = default;
     Variable(const Variable& v, const Expression& _index);
     Variable(const Variable& v, const Expression& _index, const Expression& _index2D);
 
     Variable& operator=(const Variable&) = default;
+    Variable& operator=(Variable&&) = default;
     Variable  operator[](const Expression& index) const;
     // do a 2D array access
     Variable       at(const Expression& index, const Expression& index2D) const;
@@ -268,12 +284,19 @@ public:
         : arguments(il){};
     ArgumentList(const std::vector<Variable>& arguments)
         : arguments(arguments){};
+    ArgumentList(std::vector<Variable>&& arguments)
+        : arguments(std::move(arguments)){};
+    ArgumentList(const ArgumentList&) = default;
+    ArgumentList(ArgumentList&&)      = default;
+    ArgumentList& operator=(const ArgumentList&) = default;
+    ArgumentList& operator=(ArgumentList&&) = default;
 
     std::vector<Variable> arguments;
     std::string           render() const;
     std::string           render_decl() const;
                           operator bool() const;
-    void                  append(Variable);
+    void                  append(Variable&&);
+    void                  append(const Variable&);
 
     // find an argument with the specified name and set it to the
     // supplied value
@@ -304,6 +327,10 @@ public:
     CallExpr(const std::string&             name,
              const TemplateList&            templates,
              const std::vector<Expression>& arguments);
+    CallExpr(CallExpr&&)      = default;
+    CallExpr(const CallExpr&) = default;
+    CallExpr& operator=(CallExpr&&) = default;
+    CallExpr& operator=(const CallExpr&) = default;
 
     std::string render() const;
 };
@@ -316,6 +343,10 @@ public:
         : args(args)
     {
     }
+    ComplexMultiply(ComplexMultiply&&)      = default;
+    ComplexMultiply(const ComplexMultiply&) = default;
+    ComplexMultiply& operator=(ComplexMultiply&&) = default;
+    ComplexMultiply& operator=(const ComplexMultiply&) = default;
 
     std::string render() const;
 
@@ -326,8 +357,12 @@ class Ternary
 {
 public:
     static const unsigned int precedence = 16;
-    Ternary(const Expression& cond, const Expression& true_result, const Expression& false_result);
-    explicit Ternary(const std::vector<Expression>& args);
+    Ternary(Expression&& cond, Expression&& true_result, Expression&& false_result);
+    explicit Ternary(std::vector<Expression>&& args);
+    Ternary(Ternary&&)      = default;
+    Ternary(const Ternary&) = default;
+    Ternary&    operator=(Ternary&&) = default;
+    Ternary&    operator=(const Ternary&) = default;
     std::string render() const;
 
     std::vector<Expression> args;
@@ -339,6 +374,10 @@ public:
     static const unsigned int precedence = 18;
     LoadGlobal(const Expression& ptr, const Expression& index);
     explicit LoadGlobal(const std::vector<Expression>& args);
+    LoadGlobal(LoadGlobal&&)      = default;
+    LoadGlobal(const LoadGlobal&) = default;
+    LoadGlobal& operator=(LoadGlobal&&) = default;
+    LoadGlobal& operator=(const LoadGlobal&) = default;
 
     std::string render() const;
 
@@ -354,9 +393,13 @@ public:
         , b(b)
     {
     }
-    Variable    a;
-    Variable    b;
-    std::string render() const;
+    TwiddleMultiply(TwiddleMultiply&&)      = default;
+    TwiddleMultiply(const TwiddleMultiply&) = default;
+    TwiddleMultiply& operator=(TwiddleMultiply&&) = default;
+    TwiddleMultiply& operator=(const TwiddleMultiply&) = default;
+    Variable         a;
+    Variable         b;
+    std::string      render() const;
 };
 
 class TwiddleMultiplyConjugate
@@ -368,17 +411,27 @@ public:
         , b(b)
     {
     }
-    Variable    a;
-    Variable    b;
-    std::string render() const;
+    TwiddleMultiplyConjugate(TwiddleMultiplyConjugate&&)      = default;
+    TwiddleMultiplyConjugate(const TwiddleMultiplyConjugate&) = default;
+    TwiddleMultiplyConjugate& operator=(TwiddleMultiplyConjugate&&) = default;
+    TwiddleMultiplyConjugate& operator=(const TwiddleMultiplyConjugate&) = default;
+    Variable                  a;
+    Variable                  b;
+    std::string               render() const;
 };
 
 class Parens
 {
 public:
     static const unsigned int precedence = 0;
+    explicit Parens(Expression&& inside);
     explicit Parens(const Expression& inside);
+    explicit Parens(std::vector<Expression>&& args);
     explicit Parens(const std::vector<Expression>& args);
+    Parens(Parens&&)      = default;
+    Parens(const Parens&) = default;
+    Parens& operator=(Parens&&) = default;
+    Parens& operator=(const Parens&) = default;
 
     std::vector<Expression> args;
     std::string             render() const;
@@ -389,6 +442,10 @@ class IntrinsicLoad
 public:
     static const unsigned int precedence = 18;
     explicit IntrinsicLoad(const std::vector<Expression>& args);
+    IntrinsicLoad(IntrinsicLoad&&)      = default;
+    IntrinsicLoad(const IntrinsicLoad&) = default;
+    IntrinsicLoad& operator=(IntrinsicLoad&&) = default;
+    IntrinsicLoad& operator=(const IntrinsicLoad&) = default;
 
     // data, voffset, soffset, rw
     std::vector<Expression> args;
@@ -405,6 +462,10 @@ public:
         std::vector<Expression>   args;                             \
         explicit NAME(const std::initializer_list<Expression>& il); \
         explicit NAME(const std::vector<Expression>& il);           \
+        NAME(NAME&&)        = default;                              \
+        NAME(const NAME&)   = default;                              \
+        NAME&       operator=(NAME&&) = default;                    \
+        NAME&       operator=(const NAME&) = default;               \
         std::string render() const;                                 \
     };
 
@@ -676,6 +737,9 @@ public:
     std::optional<Expression> value;
     explicit Declaration(const Variable& v)
         : var(v){};
+    Declaration(const Variable& v, Expression&& val)
+        : var(v)
+        , value(std::move(val)){};
     Declaration(const Variable& v, const Expression& val)
         : var(v)
         , value(val){};
@@ -950,12 +1014,26 @@ static void operator+=(StatementList& stmts, const Statement& s)
     stmts.statements.push_back(s);
 }
 
+static void operator+=(StatementList& stmts, Statement&& s)
+{
+    stmts.statements.push_back(std::move(s));
+}
+
 static void operator+=(StatementList& stmts, const StatementList& s)
 {
-    //    stmts.statements.insert(stmts.statements.end(), s.statements.cbegin(), s.statements.cend());
+    //    stmts.statements.insert(stmts.statements.end(), s.statements.cbegin(),
+    //    s.statements.cend());
     for(auto x : s.statements)
     {
         stmts += x;
+    }
+}
+
+static void operator+=(StatementList& stmts, StatementList&& s)
+{
+    for(auto&& x : s.statements)
+    {
+        stmts += std::move(x);
     }
 }
 
@@ -1104,7 +1182,7 @@ struct BaseVisitor
         std::vector<Expression> args;               \
         for(const auto& arg : x.args)               \
             args.push_back(std::visit(*this, arg)); \
-        return CLS{args};                           \
+        return CLS{std::move(args)};                \
     }
 
     MAKE_EXPR_VISIT(Add);
