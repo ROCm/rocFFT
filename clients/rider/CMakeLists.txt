@@ -44,6 +44,8 @@ endif()
 
 project( rocfft-clients-rider LANGUAGES CXX )
 
+set(CMAKE_CXX_STANDARD 17)
+
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
 if( NOT TARGET rocfft )
@@ -121,7 +123,6 @@ foreach( rider ${rider_list})
 
   set_target_properties( ${rider} PROPERTIES
     DEBUG_POSTFIX "-d"
-    CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON
   )
 
