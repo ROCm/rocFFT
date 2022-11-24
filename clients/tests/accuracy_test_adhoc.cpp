@@ -209,6 +209,8 @@ auto adhoc_tokens = {
     "1_ioffset_0_0_ooffset_0_0",
     "real_forward_len_1024_1024_1024_single_op_batch_1_istride_1048576_1024_1_R_ostride_525312_513_"
     "1_HI_idist_1073741824_odist_537919488_ioffset_0_0_ooffset_0_0",
+    "complex_forward_len_6144_single_ip_batch_34_istride_35_CI_ostride_35_CI_idist_1_odist_1_"
+    "ioffset_0_0_ooffset_0_0",
 };
 
 INSTANTIATE_TEST_SUITE_P(adhoc_token,

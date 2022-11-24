@@ -476,8 +476,8 @@ void CC1DNode::AssignParams_internal()
         // faster than the actual second dimension
         std::swap(col2colPlan->length.back(), col2colPlan->batch);
         col2colPlan->outputLength = {col2colPlan->length.back(), col2colPlan->length.front()};
-        col2colPlan->inStride     = {col2colPlan->length.back() * col2colPlan->batch, 1};
-        col2colPlan->iDist        = col2colPlan->length.back();
+        col2colPlan->iDist        = col2colPlan->inStride.back();
+        col2colPlan->inStride     = {col2colPlan->inStride.back() * col2colPlan->batch, 1};
         // make output the same shape as input (even though it's going to
         // a temp buffer), so both read+write are coalesced the same
         col2colPlan->outStride                     = col2colPlan->inStride;
@@ -487,10 +487,10 @@ void CC1DNode::AssignParams_internal()
         // again, make batch the second dimension
         std::swap(row2colPlan->length.back(), row2colPlan->batch);
         row2colPlan->outputLength = {row2colPlan->length.back(), row2colPlan->length.front()};
-        row2colPlan->inStride     = {row2colPlan->length.back(), 1};
-        row2colPlan->iDist        = row2colPlan->length.front() * row2colPlan->length.back();
-        row2colPlan->outStride    = {1, row2colPlan->batch * row2colPlan->length.back()};
-        row2colPlan->oDist        = row2colPlan->length.back();
+        row2colPlan->inStride     = {inStride.front(), 1};
+        row2colPlan->iDist        = row2colPlan->length.front() * inStride.front();
+        row2colPlan->oDist        = outStride.front();
+        row2colPlan->outStride    = {1, row2colPlan->batch * outStride.front()};
     }
 }
 
