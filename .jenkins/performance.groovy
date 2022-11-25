@@ -41,6 +41,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
                 set -x
                 cd ${project.paths.project_build_prefix}
                 ${getDependenciesCommand}
+                set -e
                 mkdir -p build/${buildTypeDir} && pushd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
                 ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc -DAMDGPU_TARGETS=\$gfx_arch -DSINGLELIB=on ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ${rtcBuildCache} ../..
@@ -64,7 +65,7 @@ def runTestCommand (platform, project, boolean debug=false)
     for (def dataType in dataTypes)
     {
         def command = """#!/usr/bin/env bash
-                    set -x
+                    set -ex
                     pwd
                     cd ${project.paths.project_build_prefix}
                     ./scripts/perf/rocfft-perf run --rider ./build/${directory}/clients/staging/dyna-rocfft-rider --lib ./ref-repo/build/${directory}/library/src/librocfft.so --lib ./build/${directory}/library/src/librocfft.so --out ./${dataType}_ref --out ./${dataType}_change --device 0 --precision ${dataType} --suite benchmarks
@@ -109,6 +110,7 @@ def runTestCommand (platform, project, boolean debug=false)
             text: libraryResource("com/amd/scripts/record_pts.py"))
         def setupBranch = env.CHANGE_ID ? "git branch \$BRANCH_NAME" : ""
         def command = """#!/usr/bin/env bash
+        set -ex
         cd ${project.paths.project_build_prefix}
         ${setupBranch}
         git checkout \$BRANCH_NAME

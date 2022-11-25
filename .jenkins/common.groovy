@@ -29,6 +29,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
                 set -x
                 cd ${project.paths.project_build_prefix}
                 ${getDependenciesCommand}
+                set -e
                 mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
                 ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..
@@ -58,7 +59,7 @@ def runCompileClientCommand(platform, project, jobName, boolean debug=false)
     String cmakePrefixPathArg = "-DCMAKE_PREFIX_PATH=${project.paths.project_build_prefix}"
 
     def command = """#!/usr/bin/env bash
-                set -x
+                set -ex
                 cd ${project.paths.project_build_prefix}/clients
                 mkdir -p build && cd build
                 ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArgClients} ${hipClangArgs} ${cmakePrefixPathArg} ../
@@ -74,7 +75,7 @@ def runTestCommand (platform, project, boolean debug=false)
     String directory = debug ? 'debug' : 'release'
 
     def command = """#!/usr/bin/env bash
-                set -x
+                set -ex
                 cd ${project.paths.project_build_prefix}/build/${directory}/clients/staging
                 ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --precompile --gtest_color=yes --R 80
             """
@@ -112,7 +113,7 @@ def runSubsetBuildCommand(platform, project, jobName, genPattern, genSmall, genL
     String rtcBuildCache = "-DROCFFT_BUILD_KERNEL_CACHE_PATH=\$JENKINS_HOME_DIR/rocfft_build_cache.db"
 
     def command = """#!/usr/bin/env bash
-                set -x
+                set -ex
 
                 cd ${project.paths.project_build_prefix}
                 rm -rf build/${buildTypeDir}
