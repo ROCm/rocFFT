@@ -73,9 +73,9 @@ set( rider_list rocfft-rider dyna-rocfft-rider )
 foreach( rider ${rider_list})
   
   if(${rider} STREQUAL "rocfft-rider")
-    add_executable( ${rider} rider.cpp rider.h )
+    add_executable( ${rider} ../../shared/array_validator.cpp rider.cpp rider.h )
   else()
-    add_executable( ${rider} dyna-rider.cpp rider.h )
+    add_executable( ${rider} ../../shared/array_validator.cpp dyna-rider.cpp rider.h )
   endif()
 
   target_compile_options( ${rider} PRIVATE ${WARNING_FLAGS} -Wno-cpp )

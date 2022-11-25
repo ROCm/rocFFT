@@ -82,6 +82,8 @@ set( rocfft-test_source
   default_callbacks_test.cpp
   unit_test.cpp
   misc/source/test_exception.cpp
+  validate_length_stride.cpp
+  ../../shared/array_validator.cpp
   )
 
 set( rocfft-test_includes
