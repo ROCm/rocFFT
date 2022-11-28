@@ -139,12 +139,13 @@ protected:
         auto total_length = attach_halfN ? table_sz + half_N : table_sz;
 
         auto table_bytes = total_length * sizeof(T);
-        if(output.alloc(table_bytes) != hipSuccess)
-            throw std::runtime_error("unable to allocate twiddle length "
-                                     + std::to_string(total_length));
 
         if(table_bytes == 0)
             return;
+
+        if(output.alloc(table_bytes) != hipSuccess)
+            throw std::runtime_error("unable to allocate twiddle length "
+                                     + std::to_string(total_length));
 
         auto num_radices = radices.size();
 
@@ -194,12 +195,12 @@ protected:
         auto total_length = attach_halfN ? length + half_N : length;
         auto table_bytes  = total_length * sizeof(T);
 
+        if(table_bytes == 0)
+            return;
+
         if(output.alloc(table_bytes) != hipSuccess)
             throw std::runtime_error("unable to allocate twiddle length "
                                      + std::to_string(total_length));
-
-        if(table_bytes == 0)
-            return;
 
         auto blockSize = TWIDDLES_THREADS;
         auto numBlocks = DivRoundingUp<size_t>(length, blockSize);
@@ -288,6 +289,10 @@ public:
 
         auto table_sz    = (table_sz_1 + table_sz_2);
         auto table_bytes = table_sz * sizeof(T);
+
+        if(table_bytes == 0)
+            return;
+
         if(output.alloc(table_bytes) != hipSuccess)
             throw std::runtime_error("unable to allocate twiddle length "
                                      + std::to_string(table_sz));
@@ -374,12 +379,13 @@ public:
     void GenerateTwiddleTable(hipStream_t& stream, gpubuf& output)
     {
         auto table_bytes = tableSize * sizeof(T);
-        if(output.alloc(table_bytes) != hipSuccess)
-            throw std::runtime_error("unable to allocate twiddle length "
-                                     + std::to_string(tableSize));
 
         if(table_bytes == 0)
             return;
+
+        if(output.alloc(table_bytes) != hipSuccess)
+            throw std::runtime_error("unable to allocate twiddle length "
+                                     + std::to_string(tableSize));
 
         auto blockSize = TWIDDLES_THREADS;
 

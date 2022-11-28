@@ -18,6 +18,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 on multi-node clusters with a shared filesystem.  rocFFT can still be told to use an on-disk cache by setting the 
 ROCFFT_RTC_CACHE_PATH environment variable.
 
+### Fixed
+- Removed zero-length twiddle table allocations, which fixes errors from hipMallocManaged.
+
 ## rocFFT 1.0.18 for ROCm 5.3.0
 
 ### Changed
