@@ -19,10 +19,117 @@
 // THE SOFTWARE.
 
 #include "rtc_bluestein_gen.h"
+#include "../../shared/arithmetic.h"
 #include "../../shared/array_predicate.h"
+#include "device/generator/fftgenerator.h"
 #include "device/generator/generator.h"
 #include "device/kernel-generator-embed.h"
 #include "rtc_kernel.h"
+
+std::string bluestein_single_rtc_kernel_name(const BluesteinSingleSpecs& specs)
+{
+    std::string kernel_name = "bluestein_single";
+
+    if(specs.direction == -1)
+        kernel_name += "_fwd";
+    else
+        kernel_name += "_back";
+
+    kernel_name += "_len";
+    kernel_name += std::to_string(specs.length);
+
+    kernel_name += "_dim";
+    kernel_name += std::to_string(specs.dim);
+
+    kernel_name += rtc_precision_name(specs.precision);
+
+    if(specs.placement == rocfft_placement_inplace)
+    {
+        kernel_name += "_ip";
+        kernel_name += rtc_array_type_name(specs.inArrayType);
+    }
+    else
+    {
+        kernel_name += "_op";
+        kernel_name += rtc_array_type_name(specs.inArrayType);
+        kernel_name += rtc_array_type_name(specs.outArrayType);
+    }
+
+    if(specs.enable_callbacks)
+        kernel_name += "_CB";
+    if(specs.enable_scaling)
+        kernel_name += "_scale";
+    return kernel_name;
+}
+
+std::string bluestein_single_rtc(const std::string& kernel_name, const BluesteinSingleSpecs& specs)
+{
+    auto length               = specs.length;
+    auto lengthBlue           = product(specs.factors.begin(), specs.factors.end());
+    auto transforms_per_block = specs.threads_per_block / specs.threads_per_transform;
+
+    std::string src;
+
+    // includes and declarations
+    src += common_h;
+    src += callback_h;
+
+    src += butterfly_constant_h;
+    append_radix_h(src, specs.factors);
+    src += rtc_precision_type_decl(specs.precision);
+
+    src += rtc_const_cbtype_decl(specs.enable_callbacks);
+
+    src += "static const unsigned int dim = " + std::to_string(specs.dim) + ";\n";
+
+    Function func{kernel_name};
+    func.launch_bounds = specs.threads_per_block;
+    func.qualifier     = "extern \"C\" __global__";
+
+    auto ctx        = std::make_shared<Context>();
+    auto bluestein  = BluesteinTransform{length,
+                                        lengthBlue,
+                                        specs.direction,
+                                        specs.factors,
+                                        specs.threads_per_block,
+                                        specs.threads_per_transform,
+                                        specs.enable_scaling,
+                                        ctx};
+    auto operations = bluestein.generate();
+
+    func.arguments = ctx->get_arguments();
+    for(auto& v : ctx->get_locals())
+        func.body += Declaration{v};
+
+    Variable lds{"lds", "__shared__ scalar_type", false, false, transforms_per_block * lengthBlue};
+
+    func.body += CallbackDeclaration("scalar_type", "cbtype");
+
+    func.body += Declaration{lds};
+    func.body += Assign{bluestein.a, bluestein.buf_temp};
+    func.body += Assign{bluestein.B, bluestein.buf_temp + lengthBlue};
+    func.body += Assign{bluestein.A, lds};
+
+    func.body += operations.lower();
+
+    if(specs.placement == rocfft_placement_notinplace)
+    {
+        func = make_outofplace(func, "X", false);
+
+        if(array_type_is_planar(specs.inArrayType))
+            func = make_planar(func, "X_in");
+        if(array_type_is_planar(specs.outArrayType))
+            func = make_planar(func, "X_out");
+    }
+    else
+    {
+        if(array_type_is_planar(specs.inArrayType))
+            func = make_planar(func, "X");
+    }
+
+    src += func.render();
+    return src;
+}
 
 std::string bluestein_multi_rtc_kernel_name(const BluesteinMultiSpecs& specs)
 {

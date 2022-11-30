@@ -62,6 +62,7 @@ static const std::map<ComputeScheme, const char*>& ComputeSchemetoStringMap()
            {ENUMSTR(CS_KERNEL_PAD_MUL)},
            {ENUMSTR(CS_KERNEL_FFT_MUL)},
            {ENUMSTR(CS_KERNEL_RES_MUL)},
+           {ENUMSTR(CS_KERNEL_BLUESTEIN_SINGLE)},
 
            {ENUMSTR(CS_L1D_TRTRT)},
            {ENUMSTR(CS_L1D_CC)},

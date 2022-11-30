@@ -67,6 +67,9 @@ struct DeviceCallIn
     void*     bufIn[2];
     void*     bufOut[2];
 
+    // some kernels require a temp buffer that's neither input nor output
+    void* bufTemp = nullptr;
+
     hipStream_t     rocfft_stream;
     GridParam       gridParam;
     hipDeviceProp_t deviceProp;

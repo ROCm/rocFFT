@@ -880,20 +880,24 @@ void TreeNode::SanityCheck()
     if(length.size() < dimension)
         throw std::runtime_error("not enough length[] for dimension");
 
-    for(unsigned int i = 0; i < childNodes.size(); ++i)
+    OperatingBuffer previousOut = obIn;
+    for(auto& child : childNodes)
     {
         // 1. Recursively check child
-        childNodes[i]->SanityCheck();
+        child->SanityCheck();
 
         // 2. Assert that the kernel chain is connected
-        // The Bluestein algorithm uses a separate buffer which is
-        // convoluted with the input; the chain assumption isn't true here.
-        // NB: we assume that the CS_KERNEL_CHIRP is first in the chain.
-        if((i > 0) && (childNodes[i - 1]->scheme != CS_KERNEL_CHIRP))
-        {
-            if(childNodes[i - 1]->obOut != childNodes[i]->obIn)
-                throw std::runtime_error("Sanity Check failed: buffers mismatch");
-        }
+        // Note: The Bluestein algorithm uses setup nodes that aren't
+        // connected in the chain.
+
+        if(child->IsBluesteinChirpSetup())
+            continue;
+        if(child->obIn != previousOut)
+            throw std::runtime_error("Sanity Check failed: " + PrintScheme(child->scheme)
+                                     + " input " + PrintOperatingBuffer(child->obIn)
+                                     + " does not match previous output "
+                                     + PrintOperatingBuffer(previousOut));
+        previousOut = child->obOut;
     }
 }
 
@@ -994,13 +998,16 @@ void TreeNode::RefreshTree()
     for(auto& child : childNodes)
         child->RefreshTree();
 
-    auto& first = childNodes.front();
-    auto& last  = childNodes.back();
+    // only modify nodes that work with user data, and skip Bluestein
+    // nodes that only set up the chirp buffer
+    auto first = std::find_if_not(
+                     childNodes.begin(),
+                     childNodes.end(),
+                     [](const std::unique_ptr<TreeNode>& n) { return n->IsBluesteinChirpSetup(); })
+                     ->get();
+    auto last = childNodes.back().get();
 
-    // the obIn of chirp is always set to S buffer, which is not really a input buffer
-    // the parent's obIn should be the next node's obIn, instead of the S buffer
-    // this avoid error when finding the callback-load-fn kernel
-    this->obIn         = (first->scheme == CS_KERNEL_CHIRP) ? childNodes[1]->obIn : first->obIn;
+    this->obIn         = first->obIn;
     this->obOut        = last->obOut;
     this->placement    = (obIn == obOut) ? rocfft_placement_inplace : rocfft_placement_notinplace;
     this->inArrayType  = first->inArrayType;
@@ -1345,25 +1352,6 @@ TreeNode* TreeNode::GetLastLeaf()
     return (nodeType == NT_LEAF) ? this : childNodes.back()->GetLastLeaf();
 }
 
-// if this is in one of the 7 bluestein "componenet nodes", return that component node
-TreeNode* TreeNode::GetBluesteinComponentParent()
-{
-    if(isRootNode())
-        return nullptr;
-
-    return (parent->scheme == CS_BLUESTEIN) ? this : parent->GetBluesteinComponentParent();
-}
-
-bool TreeNode::IsLastLeafNodeOfBluesteinComponent()
-{
-    // Note: blueComp is one of the 7 "component nodes", not bluestein node itself
-    TreeNode* blueComp = GetBluesteinComponentParent();
-
-    // if in bluestein tree, test if this is the last leaf, else return false
-    // for example, if this the last leaf of the FFT-scheme ?
-    return (blueComp) ? (blueComp->GetLastLeaf() == this) : false;
-}
-
 bool TreeNode::IsRootPlanC2CTransform()
 {
     auto root = GetPlanRoot();
@@ -1537,43 +1525,6 @@ void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan)
     os << "Work buffer size: " << execPlan.workBufSize << std::endl;
     os << "Work buffer ratio: " << (double)execPlan.workBufSize / (double)N << std::endl;
     os << "Assignment strategy: " << PrintOptimizeStrategy(execPlan.assignOptStrategy) << std::endl;
-
-    if(execPlan.execSeq.size() > 1)
-    {
-        std::vector<TreeNode*>::const_iterator prev_p = execPlan.execSeq.begin();
-        std::vector<TreeNode*>::const_iterator curr_p = prev_p + 1;
-        while(curr_p != execPlan.execSeq.end())
-        {
-            if((*curr_p)->placement == rocfft_placement_inplace)
-            {
-                for(size_t i = 0; i < (*curr_p)->inStride.size(); i++)
-                {
-                    const int infact  = (*curr_p)->inArrayType == rocfft_array_type_real ? 1 : 2;
-                    const int outfact = (*curr_p)->outArrayType == rocfft_array_type_real ? 1 : 2;
-                    if(outfact * (*curr_p)->inStride[i] != infact * (*curr_p)->outStride[i])
-                    {
-                        os << "error in stride assignments" << std::endl;
-                    }
-                    if(((*curr_p)->batch > 1)
-                       && (outfact * (*curr_p)->iDist != infact * (*curr_p)->oDist))
-                    {
-                        os << "error in dist assignments" << std::endl;
-                    }
-                }
-            }
-
-            if((*prev_p)->scheme != CS_KERNEL_CHIRP && (*curr_p)->scheme != CS_KERNEL_CHIRP)
-            {
-                if((*prev_p)->obOut != (*curr_p)->obIn)
-                {
-                    os << "error in buffer assignments" << std::endl;
-                }
-            }
-
-            prev_p = curr_p;
-            ++curr_p;
-        }
-    }
 
     execPlan.rootPlan->Print(os, 0);
 

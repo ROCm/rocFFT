@@ -453,8 +453,6 @@ public:
     TreeNode* GetPlanRoot();
     TreeNode* GetFirstLeaf();
     TreeNode* GetLastLeaf();
-    TreeNode* GetBluesteinComponentParent();
-    bool      IsLastLeafNodeOfBluesteinComponent();
     bool      IsRootPlanC2CTransform();
 
     // Set length of transpose kernel node, since those are easily
@@ -491,6 +489,11 @@ public:
 
     // Compute the large twd decomposition base
     void set_large_twd_base_steps(size_t largeTWDLength);
+
+    // return true if this node is setting up the Bluestein chirp
+    // buffer - those nodes aren't connected to the input/output chain
+    // of user data
+    bool IsBluesteinChirpSetup();
 
 protected:
     virtual void BuildTree_internal()    = 0;
@@ -544,6 +547,7 @@ protected:
         scheme   = s;
     }
 
+public:
     bool                externalKernel   = false;
     bool                need_twd_table   = false;
     bool                twd_no_radices   = false;
@@ -565,13 +569,12 @@ protected:
     }
     virtual void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) = 0;
 
-public:
     bool         KernelCheck() override;
     void         SanityCheck() override;
     virtual bool CreateDevKernelArgs() override;
     bool         CreateTwiddleTableResource() override;
     void         SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) override;
-    void         GetKernelFactors();
+    virtual void GetKernelFactors();
 };
 
 /*****************************************************

@@ -295,3 +295,19 @@ void TreeNode::CollapseContiguousDims()
     if(!outputLength.empty())
         outputLength = outputLengthTemp;
 }
+
+bool TreeNode::IsBluesteinChirpSetup()
+{
+    // setup nodes must be under a bluestein parent
+    if(parent == nullptr || parent->scheme != CS_BLUESTEIN)
+        return false;
+    // bluestein could either be 3-kernel plan, meaning the first two
+    // are setup kernels, or a 6 kernel plan where only the first is
+    // setup
+    if(parent->childNodes.size() == 3)
+        return this == parent->childNodes[0].get() || this == parent->childNodes[1].get();
+    else if(parent->childNodes.size() == 6)
+        return this == parent->childNodes[0].get();
+
+    throw std::runtime_error("unexpected bluestein plan shape");
+}

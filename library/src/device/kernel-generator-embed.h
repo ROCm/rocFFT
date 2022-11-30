@@ -21,7 +21,10 @@
 #ifndef ROCFFT_KERNEL_GENERATOR_EMBED_H
 #define ROCFFT_KERNEL_GENERATOR_EMBED_H
 
+#include <algorithm>
 #include <array>
+#include <unordered_map>
+#include <vector>
 
 extern const char* common_h;
 extern const char* memory_gfx_h;
@@ -46,4 +49,29 @@ extern const char* rtc_workarounds_h;
 
 const std::array<char, 32> generator_sum();
 
+// append the necessary radix headers to src, for the given factors
+static void append_radix_h(std::string& src, const std::vector<unsigned int>& factors)
+{
+    static const std::unordered_map<size_t, const char*> butterfly_funcs = {{2, radix_2_h},
+                                                                            {3, radix_3_h},
+                                                                            {4, radix_4_h},
+                                                                            {5, radix_5_h},
+                                                                            {6, radix_6_h},
+                                                                            {7, radix_7_h},
+                                                                            {8, radix_8_h},
+                                                                            {9, radix_9_h},
+                                                                            {10, radix_10_h},
+                                                                            {11, radix_11_h},
+                                                                            {13, radix_13_h},
+                                                                            {16, radix_16_h},
+                                                                            {17, radix_17_h}};
+
+    // factors may contain duplicates, so uniquify them
+    std::vector<unsigned int> factors_uniq = factors;
+    std::sort(factors_uniq.begin(), factors_uniq.end());
+    factors_uniq.erase(std::unique(factors_uniq.begin(), factors_uniq.end()), factors_uniq.end());
+
+    for(auto f : factors_uniq)
+        src += butterfly_funcs.at(f);
+}
 #endif

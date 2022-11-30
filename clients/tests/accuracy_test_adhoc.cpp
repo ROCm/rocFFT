@@ -49,6 +49,9 @@ std::vector<std::vector<size_t>> adhoc_sizes = {
     {196597},
     {25165813},
 
+    // 2D single-kernel bluestein size combined with multi-kernel bluestein
+    {19, 2053},
+
     // TILE_UNALIGNED type of SBRC 3D ERC
     {98, 98, 98},
 };

@@ -21,17 +21,10 @@
 // interface for generation of stockham kernels
 
 #pragma once
+#include "../../../../shared/arithmetic.h"
 #include "rocfft.h"
-#include <numeric>
 #include <string>
 #include <vector>
-
-template <typename Titer>
-typename Titer::value_type product(Titer begin, Titer end)
-{
-    return std::accumulate(
-        begin, end, typename Titer::value_type(1), std::multiplies<typename Titer::value_type>());
-}
 
 struct StockhamGeneratorSpecs
 {

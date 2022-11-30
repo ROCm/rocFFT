@@ -489,6 +489,13 @@ void TransformPowX(const ExecPlan&       execPlan,
             assert(false);
         }
 
+        // single-kernel bluestein requires a bluestein temp buffer separate from input and output
+        if(data.node->scheme == CS_KERNEL_BLUESTEIN_SINGLE)
+        {
+            data.bufTemp = ((char*)info->workBuffer
+                            + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize) * complexTSize);
+        }
+
         // if callbacks are enabled, make sure load_cb_fn and store_cb_fn are not nullptrs
         if((data.node->callbacks.load_cb_fn == nullptr
             && data.node->callbacks.store_cb_fn != nullptr))
@@ -522,7 +529,8 @@ void TransformPowX(const ExecPlan&       execPlan,
                              data.node->length,
                              data.node->inStride,
                              data.node->iDist,
-                             data.node->iOffset,
+                             // offset has already been added to bufIn
+                             0,
                              data.node->batch);
         }
 

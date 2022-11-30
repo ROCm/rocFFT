@@ -38,9 +38,6 @@ using namespace std::placeholders;
 
 #include "device/kernel-generator-embed.h"
 
-#include <unordered_map>
-#include <unordered_set>
-
 // generate name for RTC stockham kernel
 std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
                                      size_t                  length1D,
@@ -218,20 +215,6 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          bool                          enable_callbacks,
                          bool                          enable_scaling)
 {
-    static const std::unordered_map<size_t, std::string> butterfly_funcs = {{2, radix_2_h},
-                                                                            {3, radix_3_h},
-                                                                            {4, radix_4_h},
-                                                                            {5, radix_5_h},
-                                                                            {6, radix_6_h},
-                                                                            {7, radix_7_h},
-                                                                            {8, radix_8_h},
-                                                                            {9, radix_9_h},
-                                                                            {10, radix_10_h},
-                                                                            {11, radix_11_h},
-                                                                            {13, radix_13_h},
-                                                                            {16, radix_16_h},
-                                                                            {17, radix_17_h}};
-
     std::unique_ptr<Function> lds2reg, reg2lds, device;
     std::unique_ptr<Function> lds2reg1, reg2lds1, device1;
     std::unique_ptr<Function> global;
@@ -317,9 +300,6 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
             *global = make_planar(*global, "buf");
     }
 
-    // turn vector to set
-    std::unordered_set<unsigned int> factors_set(all_factors.begin(), all_factors.end());
-
     // start off with includes
     std::string src;
     src += common_h;
@@ -331,8 +311,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
         src += large_twiddles_h;
     // append the neccessary functions only
-    for(auto radix : factors_set)
-        src += butterfly_funcs.at(radix);
+    append_radix_h(src, all_factors);
     // SBCCs don't need this
     if(scheme != CS_KERNEL_STOCKHAM_BLOCK_CC)
         src += real2complex_device_h;

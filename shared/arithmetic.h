@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <numeric>
 #include <stddef.h>
 
 // arithmetic helper functions
@@ -50,4 +51,11 @@ template <typename T>
 static inline T DivRoundingUp(T a, T b)
 {
     return (a + (b - 1)) / b;
+}
+
+template <typename Titer>
+typename Titer::value_type product(Titer begin, Titer end)
+{
+    return std::accumulate(
+        begin, end, typename Titer::value_type(1), std::multiplies<typename Titer::value_type>());
 }

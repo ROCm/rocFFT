@@ -20,7 +20,6 @@
 
 #pragma once
 #include "../../device/kernels/bank_shift.h"
-#include "fftgenerator.h"
 #include "stockham_gen.h"
 #include <cmath>
 

@@ -20,7 +20,7 @@
 # THE SOFTWARE.
 # #############################################################################
 
-add_library( generator OBJECT generator.cpp )
+add_library( generator OBJECT generator.cpp fftgenerator.cpp )
 
 add_library( stockham_gen OBJECT stockham_gen.cpp )
 

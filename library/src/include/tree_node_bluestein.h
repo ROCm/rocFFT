@@ -41,6 +41,32 @@ protected:
 };
 
 /*****************************************************
+ * CS_KERNEL_BLUESTEIN_SINGLE
+ * fused mul, fft kernels for bluestein into one
+ *****************************************************/
+class BluesteinSingleNode : public LeafNode
+{
+    friend class NodeFactory;
+
+protected:
+    BluesteinSingleNode(TreeNode* p, ComputeScheme s);
+
+    void   SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override{};
+    size_t GetTwiddleTableLength() override;
+
+public:
+    // check if the specified 1D length fits into single-kernel Bluestein
+    static bool SizeFits(size_t length, rocfft_precision precision);
+
+    bool KernelCheck() override
+    {
+        GetKernelFactors();
+        return true;
+    }
+    void GetKernelFactors() override;
+};
+
+/*****************************************************
  * Component of Bluestein
  * Chirp, XXXMul
  *****************************************************/

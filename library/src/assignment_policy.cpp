@@ -112,12 +112,6 @@ void PlacementTrace::Backtracking(ExecPlan& execPlan, int execSeqID)
     // correct array type of callback, since it could be marked as CI during the process
     if(node->scheme == CS_KERNEL_APPLY_CALLBACK)
         node->outArrayType = node->inArrayType = rocfft_array_type_real;
-    // correct the obIn to S buffer, not really use the input buffer just for distinguishing
-    if(node->scheme == CS_KERNEL_CHIRP)
-    {
-        node->obIn      = OB_TEMP_BLUESTEIN;
-        node->placement = rocfft_placement_inplace;
-    }
 
     // for nodes that uses bluestein buffer
     auto setBluesteinOffset = [node](size_t& offset) {
@@ -140,15 +134,21 @@ void PlacementTrace::Backtracking(ExecPlan& execPlan, int execSeqID)
     if(node->obOut == OB_TEMP_BLUESTEIN)
         setBluesteinOffset(node->oOffset);
 
-    if(execSeqID > 0)
+    // keep going backward to next node, skipping over chirp setup nodes
+    int nextExecSeqID = execSeqID;
+    while(nextExecSeqID > 0)
     {
-        parent->Backtracking(execPlan, execSeqID - 1);
+        --nextExecSeqID;
+        auto nextNode = execSeq[nextExecSeqID];
+        if(!nextNode->IsBluesteinChirpSetup())
+        {
+            parent->Backtracking(execPlan, nextExecSeqID);
+            return;
+        }
     }
-    else
-    {
-        // first leaf node must match the root-input
-        node->inArrayType = execPlan.rootPlan->inArrayType;
-    }
+    // if we're here, then 'node' must have been the first node, or
+    // preceded only by chirp setup nodes.  use root input type.
+    node->inArrayType = execPlan.rootPlan->inArrayType;
 }
 
 // test if rootArrayType == testArrayType,
@@ -192,6 +192,44 @@ bool AssignmentPolicy::BufferIsUnitStride(const ExecPlan& execPlan, OperatingBuf
     //     since the dist is not used in single batch. But note that we still need
     //     to pass the above do-while to ensure all the previous strides are valid.
     return (execPlan.rootPlan->batch == 1) || (curStride == dist);
+}
+
+// return true if OB_TEMP_BLUESTEIN is a valid output buffer for the node
+static bool ValidOutBufferBluestein(TreeNode& node)
+{
+    // nodes may only write to bluestein if:
+    // - they are setting up the chirp buffer
+    // - they are the internal steps of multi-kernel bluestein, and
+    //   FFT steps may be further decomposed into separate kernels.
+
+    // go up the tree, looking for a bluestein parent node
+    for(auto n = &node; n != nullptr; n = n->parent)
+    {
+        auto p = n->parent;
+
+        if(p == nullptr)
+            break;
+
+        if(p->scheme != CS_BLUESTEIN)
+        {
+            // keep going, can't decide if we're under bluestein yet
+            continue;
+        }
+        // bluestein could have 3 children (in which case the first
+        // two are setup and the third only uses the chirp buffer but
+        // does not write to it)
+        if(p->childNodes.size() == 3)
+            return n->IsBluesteinChirpSetup();
+        // or it could have 6 children, in which case all but the
+        // last must write to bluestein
+        else if(p->childNodes.size() == 6)
+        {
+            return n != p->childNodes.back().get();
+        }
+    }
+    // if we're here, we must be at the root node, so we're not
+    // under bluestein and a bluestein write is invalid
+    return false;
 }
 
 bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
@@ -279,15 +317,9 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
         test_result = true;
     }
     // bluestein nodes must write to temp bluestein buffer
-    else if(node.scheme == CS_KERNEL_CHIRP || node.scheme == CS_KERNEL_PAD_MUL)
+    else if(buffer == OB_TEMP_BLUESTEIN)
     {
-        test_result = (buffer == OB_TEMP_BLUESTEIN);
-    }
-    // More requirement for Bluestein: the 7 component-nodes need to output to bluestein buffer
-    // except for the last RES_MUL
-    else if(node.IsLastLeafNodeOfBluesteinComponent() && node.scheme != CS_KERNEL_RES_MUL)
-    {
-        test_result = (buffer == OB_TEMP_BLUESTEIN);
+        test_result = ValidOutBufferBluestein(node);
     }
     // if output goes to a temp buffer, that will be dynamically sized
     // to be big enough so it's always ok but if output is in/out, we
@@ -371,6 +403,25 @@ bool AssignmentPolicy::CheckAssignmentValid(ExecPlan& execPlan)
                     return false;
                 }
             }
+        }
+
+        // assignment already respects allowInplace and
+        // allowOutofplace flags on leaf nodes.  now, check that
+        // internal nodes also respect those flags.
+        //
+        // we're only iterating over leaf nodes in execSeq.  to
+        // ensure we only check parent flags once, check the parent's
+        // flags for any node that's the last child of its parent.
+        auto isLastChildOfParent = [](TreeNode* node) {
+            return node->parent && node->parent->childNodes.back().get() == node;
+        };
+        auto ptr = curr;
+        while(isLastChildOfParent(ptr))
+        {
+            auto parent = ptr->parent;
+            if(!parent->isPlacementAllowed(parent->placement))
+                return false;
+            ptr = parent;
         }
     }
 
@@ -602,22 +653,30 @@ void AssignmentPolicy::Enumerate(PlacementTrace*   parent,
     // auto startBuf  = parent->outBuf;
     // auto startType = parent->oType;
 
-    if(curNode->scheme == CS_KERNEL_CHIRP)
+    if(curNode->IsBluesteinChirpSetup())
     {
-        // chirp kernel can output to bluestein buffer only,
-        // and it doesn't take input buffer, so pass the startBuf buffer to the next node
-        // note that input buffer and array type is irrelevant for chirp
-        // Create/Push a PlacementTrace for Chirp:
-        parent->branches.emplace_back(
-            std::make_unique<PlacementTrace>(curNode,
-                                             startBuf,
-                                             OB_TEMP_BLUESTEIN,
-                                             startType,
-                                             rocfft_array_type_complex_interleaved,
-                                             parent));
+        auto blueNode = curNode;
+        // bluestein setup kernels can input/output bluestein buffer only.
+        do
+        {
+            // chirp setup nodes must use bluestein buffer, not
+            // connected to other nodes, so just set their buffers
+            // directly and don't enumerate them with PlacementTraces
+            blueNode->obIn         = OB_TEMP_BLUESTEIN;
+            blueNode->inArrayType  = rocfft_array_type_complex_interleaved;
+            blueNode->obOut        = OB_TEMP_BLUESTEIN;
+            blueNode->outArrayType = rocfft_array_type_complex_interleaved;
+            blueNode->placement    = rocfft_placement_inplace;
+
+            ++curSeqID;
+            blueNode = execSeq[curSeqID];
+        } while(blueNode->IsBluesteinChirpSetup());
+
+        // blueNode is now no longer a bluestein setup node
+
         // advance to next
         // NOTE that it is important we propagate startBuf, startType to next node
-        Enumerate(parent->branches.back().get(), execPlan, curSeqID + 1, startBuf, startType);
+        Enumerate(parent, execPlan, curSeqID, startBuf, startType);
         return;
     }
 
@@ -1002,8 +1061,8 @@ void CollectTempBufOps(TreeNode&               node,
         // using the buffer
         for(auto& child : node.childNodes)
         {
-            // chirps don't connect to anything, so skip them
-            if(child->scheme == CS_KERNEL_CHIRP)
+            // chirp setup nodes don't connect to anything, so skip them
+            if(child->IsBluesteinChirpSetup())
                 continue;
 
             // Once a child stops using this temp buffer, stop
@@ -1134,7 +1193,8 @@ void AssignmentPolicy::PadPlan(ExecPlan& execPlan)
             for(const auto& u : users)
             {
                 // Padded Bluestein doesn't work in all cases
-                if(u.node.scheme == CS_BLUESTEIN)
+                if(u.node.scheme == CS_BLUESTEIN || u.node.scheme == CS_KERNEL_PAD_MUL
+                   || u.node.scheme == CS_KERNEL_FFT_MUL || u.node.scheme == CS_KERNEL_RES_MUL)
                     return;
                 // SBCR plans combine higher dimensions in ways that confuse padding
                 if(u.node.scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)

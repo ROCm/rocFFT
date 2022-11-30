@@ -1554,8 +1554,10 @@ static Function make_planar(const Function& f, const std::string& varname)
 struct MakeOutOfPlaceVisitor : public BaseVisitor
 {
     const std::vector<std::string> op_names;
-    MakeOutOfPlaceVisitor(std::vector<std::string>&& op_names)
+    bool                           rename_function;
+    MakeOutOfPlaceVisitor(std::vector<std::string>&& op_names, bool rename_function = true)
         : op_names(op_names)
+        , rename_function(rename_function)
     {
     }
 
@@ -1679,14 +1681,17 @@ struct MakeOutOfPlaceVisitor : public BaseVisitor
     Function visit_Function(const Function& x) override
     {
         Function y{x};
-        y.name = "op_" + y.name;
+        if(rename_function)
+            y.name = "op_" + y.name;
         return BaseVisitor::visit_Function(y);
     }
 };
 
-static Function make_outofplace(const Function& f)
+static Function make_outofplace(const Function&    f,
+                                const std::string& bufName         = "buf",
+                                bool               rename_function = true)
 {
-    auto visitor = MakeOutOfPlaceVisitor({"buf", "stride", "stride0", "offset"});
+    auto visitor = MakeOutOfPlaceVisitor({bufName, "stride", "stride0", "offset"}, rename_function);
     return visitor(f);
 }
 

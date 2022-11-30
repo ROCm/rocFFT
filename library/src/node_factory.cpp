@@ -459,6 +459,8 @@ std::unique_ptr<TreeNode> NodeFactory::CreateNodeFromScheme(ComputeScheme s, Tre
     case CS_KERNEL_FFT_MUL:
     case CS_KERNEL_RES_MUL:
         return std::unique_ptr<BluesteinComponentNode>(new BluesteinComponentNode(parent, s));
+    case CS_KERNEL_BLUESTEIN_SINGLE:
+        return std::unique_ptr<BluesteinSingleNode>(new BluesteinSingleNode(parent, s));
     default:
         throw std::runtime_error("Scheme assertion failed, node not implemented:" + PrintScheme(s));
         return nullptr;

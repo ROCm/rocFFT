@@ -142,6 +142,8 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
         generator = RTCKernelRealComplexEvenTranspose::generate_from_node(
             node, gpu_arch, enable_callbacks);
     if(!generator.valid())
+        generator = RTCKernelBluesteinSingle::generate_from_node(node, gpu_arch, enable_callbacks);
+    if(!generator.valid())
         generator = RTCKernelBluesteinMulti::generate_from_node(node, gpu_arch, enable_callbacks);
     if(!generator.valid())
         generator = RTCKernelApplyCallback::generate_from_node(node, gpu_arch, enable_callbacks);

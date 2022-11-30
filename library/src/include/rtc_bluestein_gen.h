@@ -23,6 +23,26 @@
 
 #include "compute_scheme.h"
 #include "rocfft.h"
+#include <vector>
+
+// single kernel bluestein
+struct BluesteinSingleSpecs
+{
+    unsigned int              length;
+    unsigned int              dim;
+    std::vector<unsigned int> factors;
+    unsigned int              threads_per_block;
+    unsigned int              threads_per_transform;
+    int                       direction;
+    rocfft_precision          precision;
+    rocfft_result_placement   placement;
+    rocfft_array_type         inArrayType;
+    rocfft_array_type         outArrayType;
+    bool                      enable_callbacks;
+    bool                      enable_scaling;
+};
+std::string bluestein_single_rtc_kernel_name(const BluesteinSingleSpecs& specs);
+std::string bluestein_single_rtc(const std::string& kernel_name, const BluesteinSingleSpecs& specs);
 
 static const unsigned int LAUNCH_BOUNDS_BLUESTEIN_MULTI_KERNEL = 64;
 

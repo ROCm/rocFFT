@@ -19,10 +19,106 @@
 // THE SOFTWARE.
 
 #include "rtc_bluestein_kernel.h"
+#include "../../shared/arithmetic.h"
 #include "../../shared/array_predicate.h"
+#include "function_pool.h"
 #include "kernel_launch.h"
 #include "rtc_bluestein_gen.h"
 #include "tree_node.h"
+
+RTCKernel::RTCGenerator RTCKernelBluesteinSingle::generate_from_node(const TreeNode&    node,
+                                                                     const std::string& gpu_arch,
+                                                                     bool enable_callbacks)
+{
+    RTCGenerator generator;
+
+    if(node.scheme != CS_KERNEL_BLUESTEIN_SINGLE)
+        return generator;
+
+    auto lengthBlue = node.lengthBlue;
+
+    // find kernel config from function pool
+    auto& pool   = function_pool::get_function_pool();
+    auto  config = pool.get_kernel(fpkey(lengthBlue, node.precision));
+
+    // get factors from the leaf node, which might have overridden what's in the pool
+    auto&                     leafNode = static_cast<const LeafNode&>(node);
+    std::vector<unsigned int> factors;
+    std::copy(
+        leafNode.kernelFactors.begin(), leafNode.kernelFactors.end(), std::back_inserter(factors));
+
+    // allocate enough blocks for all higher dims + batch
+    unsigned int batch_accum = product(node.length.begin() + 1, node.length.end()) * node.batch;
+    auto         bwd         = config.transforms_per_block;
+    generator.gridDim        = {DivRoundingUp(batch_accum, bwd)};
+    generator.blockDim       = config.workgroup_size;
+
+    BluesteinSingleSpecs specs{static_cast<unsigned int>(node.length[0]),
+                               static_cast<unsigned int>(node.length.size()),
+                               factors,
+                               static_cast<unsigned int>(config.threads_per_transform[0])
+                                   * config.transforms_per_block,
+                               static_cast<unsigned int>(config.threads_per_transform[0]),
+                               node.direction,
+                               node.precision,
+                               node.placement,
+                               node.inArrayType,
+                               node.outArrayType,
+                               enable_callbacks,
+                               node.IsScalingEnabled()};
+
+    generator.generate_name = [=]() { return bluestein_single_rtc_kernel_name(specs); };
+
+    generator.generate_src
+        = [=](const std::string& kernel_name) { return bluestein_single_rtc(kernel_name, specs); };
+
+    generator.construct_rtckernel = [=](const std::string&       kernel_name,
+                                        const std::vector<char>& code,
+                                        dim3                     gridDim,
+                                        dim3                     blockDim) {
+        return std::unique_ptr<RTCKernel>(
+            new RTCKernelBluesteinSingle(kernel_name, code, gridDim, blockDim));
+    };
+
+    return generator;
+}
+
+RTCKernelArgs RTCKernelBluesteinSingle::get_launch_args(DeviceCallIn& data)
+{
+    RTCKernelArgs kargs;
+    kargs.append_ptr(data.bufTemp);
+    kargs.append_ptr(data.node->twiddles);
+    kargs.append_ptr(kargs_lengths(data.node->devKernArg));
+    kargs.append_ptr(kargs_stride_in(data.node->devKernArg));
+    if(data.node->placement == rocfft_placement_notinplace)
+    {
+        kargs.append_ptr(kargs_stride_out(data.node->devKernArg));
+    }
+    kargs.append_size_t(data.node->batch);
+    kargs.append_unsigned_int(0);
+    kargs.append_ptr(data.bufIn[0]);
+    if(array_type_is_planar(data.node->inArrayType))
+        kargs.append_ptr(data.bufIn[1]);
+
+    if(data.node->placement == rocfft_placement_notinplace)
+    {
+        kargs.append_ptr(data.bufOut[0]);
+        if(array_type_is_planar(data.node->outArrayType))
+            kargs.append_ptr(data.bufOut[1]);
+    }
+    if(data.node->precision == rocfft_precision_single)
+        kargs.append_float(data.node->scale_factor);
+    else
+        kargs.append_double(data.node->scale_factor);
+
+    // callback params
+    kargs.append_ptr(data.callbacks.load_cb_fn);
+    kargs.append_ptr(data.callbacks.load_cb_data);
+    kargs.append_unsigned_int(data.callbacks.load_cb_lds_bytes);
+    kargs.append_ptr(data.callbacks.store_cb_fn);
+    kargs.append_ptr(data.callbacks.store_cb_data);
+    return kargs;
+}
 
 RTCKernel::RTCGenerator RTCKernelBluesteinMulti::generate_from_node(const TreeNode&    node,
                                                                     const std::string& gpu_arch,

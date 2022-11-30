@@ -6,6 +6,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Optimizations
 - Optimized some strided large 1D plans.
+- Improved performance of 1D lengths < 2048 that use Bluestein's algorithm.
 
 ### Added
 - Reduced time for generating code during plan creation.
