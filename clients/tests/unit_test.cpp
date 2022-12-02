@@ -95,69 +95,6 @@ TEST(rocfft_UnitTest, plan_description)
     ASSERT_TRUE(rocfft_status_success == rocfft_plan_destroy(plan));
 }
 
-// check that twiddles are reused between distinct plans
-//
-// NOTE: since we're observing twiddle creation indirectly by
-// checking free device memory, this test can be unstable if other
-// stuff is using the GPU
-TEST(rocfft_UnitTest, repo_twiddle)
-{
-    rocfft_plan plan_forward = NULL;
-    rocfft_plan plan_inverse = NULL;
-    // 16M elements
-    const size_t length = 1 << 24;
-
-    // r2c post-processing twiddle table is 1/4 real length
-    const auto R2C_TWIDDLE_SIZE = length / 4;
-
-    // forward plan should need the same twiddles as an inverse
-    // plan of the same size
-
-    // check device memory usage
-    size_t memFreeBefore = 0;
-    size_t memFreeTotal  = 0;
-    ASSERT_EQ(hipMemGetInfo(&memFreeBefore, &memFreeTotal), hipSuccess);
-
-    // create forward plan
-    ASSERT_EQ(rocfft_plan_create(&plan_forward,
-                                 rocfft_placement_inplace,
-                                 rocfft_transform_type_real_forward,
-                                 rocfft_precision_single,
-                                 1,
-                                 &length,
-                                 1,
-                                 nullptr),
-              rocfft_status_success);
-
-    // we'd expect at least a r2c twiddle's worth of memory to be used
-    size_t memFreeAfter1Plan = 0;
-    ASSERT_EQ(hipMemGetInfo(&memFreeAfter1Plan, &memFreeTotal), hipSuccess);
-
-    ASSERT_LT(memFreeAfter1Plan, memFreeBefore);
-    ASSERT_GE(memFreeBefore - memFreeAfter1Plan, R2C_TWIDDLE_SIZE);
-
-    // create inverse plan
-    ASSERT_EQ(rocfft_plan_create(&plan_inverse,
-                                 rocfft_placement_inplace,
-                                 rocfft_transform_type_real_inverse,
-                                 rocfft_precision_single,
-                                 1,
-                                 &length,
-                                 1,
-                                 nullptr),
-              rocfft_status_success);
-    size_t memFreeAfter2Plans = 0;
-    ASSERT_EQ(hipMemGetInfo(&memFreeAfter2Plans, &memFreeTotal), hipSuccess);
-
-    // the second plan should allocate some smaller buffers (e.g. for
-    // kernel args) but definitely not the large twiddle table
-    ASSERT_LE(memFreeAfter2Plans, memFreeAfter1Plan);
-    ASSERT_LE(memFreeAfter1Plan - memFreeAfter2Plans, R2C_TWIDDLE_SIZE);
-
-    rocfft_plan_destroy(plan_forward);
-    rocfft_plan_destroy(plan_inverse);
-}
-
 // Check whether logs can be emitted from multiple threads properly
 TEST(rocfft_UnitTest, log_multithreading)
 {
