@@ -2,25 +2,41 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
-## (Unreleased) rocFFT 1.0.19
+## (Unreleased) rocFFT 1.0.21
+
+### Optimizations
+- Improved performance of 1D lengths < 2048 that use Bluestein's algorithm.
+- Reduced time for generating code during plan creation.
+
+### Added
+- Added gfx1101 to default AMDGPU_TARGETS.
+
+### Changed
+- Moved client programs to C++17.
+- Moved planar kernels to be runtime-compiled.
+
+### Fixed
+- Removed zero-length twiddle table allocations, which fixes errors from hipMallocManaged.
+
+## rocFFT 1.0.20 for ROCm 5.4.1
+
+### Fixed
+- Fixed incorrect results on strided large 1D FFTs where batch size does not equal the stride.
+
+## rocFFT 1.0.19 for ROCm 5.4.0
 
 ### Optimizations
 - Optimized some strided large 1D plans.
-- Improved performance of 1D lengths < 2048 that use Bluestein's algorithm.
 
 ### Added
-- Reduced time for generating code during plan creation.
 - Added rocfft_plan_description_set_scale_factor API to efficiently multiply each output element of a FFT by a given scaling factor.
 - Created a rocfft_kernel_cache.db file next to the installed library. SBCC/CR/RC kernels are moved to this file when built with the library, and are runtime-compiled for new GPU architectures.
-- Added gfx1100, gfx1101, and gfx1102 to default AMDGPU_TARGETS.
+- Added gfx1100 and gfx1102 to default AMDGPU_TARGETS.
 
 ### Changed
 - Moved runtime compilation cache to in-memory by default.  A default on-disk cache can encounter contention problems 
 on multi-node clusters with a shared filesystem.  rocFFT can still be told to use an on-disk cache by setting the 
 ROCFFT_RTC_CACHE_PATH environment variable.
-
-### Fixed
-- Removed zero-length twiddle table allocations, which fixes errors from hipMallocManaged.
 
 ## rocFFT 1.0.18 for ROCm 5.3.0
 
