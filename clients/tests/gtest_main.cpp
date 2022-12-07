@@ -90,9 +90,9 @@ static size_t get_system_memory_GiB()
 #endif
 }
 
-void precompile_test_kernels()
+void precompile_test_kernels(const std::string& precompile_file)
 {
-    puts("precompiling test kernels...");
+    std::cout << "precompiling test kernels..." << std::endl;
     WorkQueue<std::string> tokenQueue;
 
     std::vector<std::string> tokens;
@@ -108,10 +108,22 @@ void precompile_test_kernels()
             const auto  ti   = ts->GetTestInfo(ti_index);
             std::string name = ti->name();
             // only care about accuracy tests
-            if(name.find("vs_fftw/") != std::string::npos
-               && name.find("_batch_1_") != std::string::npos)
+            if(name.find("vs_fftw/") != std::string::npos)
             {
                 name.erase(0, 8);
+
+                // change batch to 1, so we don't waste time creating
+                // multiple plans that differ only by batch
+                auto idx = name.find("_batch_");
+                if(idx == std::string::npos)
+                    continue;
+                // advance idx to batch number
+                idx += 7;
+                auto end = name.find('_', idx);
+                if(end == std::string::npos)
+                    continue;
+                name.replace(idx, end - idx, "1");
+
                 tokens.emplace_back(std::move(name));
             }
         }
@@ -121,12 +133,12 @@ void precompile_test_kernels()
     std::mt19937       dist(dev());
     std::shuffle(tokens.begin(), tokens.end(), dist);
     auto precompile_begin = std::chrono::steady_clock::now();
-    printf("precompiling %zu FFT plans...\n", tokens.size());
+    std::cout << "precompiling " << tokens.size() << " FFT plans..." << std::endl;
 
     for(auto&& t : tokens)
         tokenQueue.push(std::move(t));
 
-    EnvironmentSetTemp       env_twid{"ROCFFT_INTERNAL_COMPILE_ONLY", "1"};
+    EnvironmentSetTemp       env_compile_only{"ROCFFT_INTERNAL_COMPILE_ONLY", "1"};
     const size_t             NUM_THREADS = rocfft_concurrency();
     std::vector<std::thread> threads;
     for(size_t i = 0; i < NUM_THREADS; ++i)
@@ -151,7 +163,8 @@ void precompile_test_kernels()
 
     auto                                      precompile_end = std::chrono::steady_clock::now();
     std::chrono::duration<double, std::milli> precompile_ms  = precompile_end - precompile_begin;
-    printf("done precompiling FFT plans in %.2f ms\n", precompile_ms.count());
+    std::cout << "done precompiling FFT plans in " << static_cast<size_t>(precompile_ms.count())
+              << " ms" << std::endl;
 }
 
 int main(int argc, char* argv[])
@@ -166,6 +179,9 @@ int main(int argc, char* argv[])
 
     // Token string to fully specify fft params for the manual test.
     std::string test_token;
+
+    // Filename for precompiled kernels to be written to
+    std::string precompile_file;
 
     po::options_description opdesc(
         "\n"
@@ -237,7 +253,8 @@ int main(int argc, char* argv[])
          "FFTW3 wisdom filename")
         ("scalefactor", po::value<double>(&manual_params.scale_factor), "Scale factor to apply to output.")
         ("token", po::value<std::string>(&test_token)->default_value(""), "Test token name for manual test")
-        ("precompile", "Precompile kernels for all test cases before running tests");
+        ("precompile",  po::value<std::string>(&precompile_file), "Precompile kernels to a file for all test cases before running tests")
+      ;
     // clang-format on
 
     po::variables_map vm;
@@ -257,6 +274,18 @@ int main(int argc, char* argv[])
     if(vm.count("wise"))
     {
         use_fftw_wisdom = true;
+    }
+
+    // if precompiling, tell rocFFT to use the specified cache file
+    // to write kernels to
+    //
+    // but if our environment already has a cache file for RTC, then
+    // we should just use that
+    std::unique_ptr<EnvironmentSetTemp> env_precompile;
+    if(!precompile_file.empty() && rocfft_getenv("ROCFFT_RTC_CACHE_PATH").empty())
+    {
+        env_precompile = std::make_unique<EnvironmentSetTemp>("ROCFFT_RTC_CACHE_PATH",
+                                                              precompile_file.c_str());
     }
 
     rocfft_setup();
@@ -367,7 +396,7 @@ int main(int argc, char* argv[])
     }
 
     if(vm.count("precompile"))
-        precompile_test_kernels();
+        precompile_test_kernels(precompile_file);
 
     auto retval = RUN_ALL_TESTS();
 
