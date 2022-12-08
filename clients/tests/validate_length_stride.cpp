@@ -22,6 +22,7 @@
 #include "accuracy_test.h"
 #include <gtest/gtest.h>
 
+#include <random>
 #include <unordered_set>
 
 inline auto generate_valid_length_stride()
@@ -38,7 +39,10 @@ inline auto generate_valid_length_stride()
         {{8, 8, 8, 8, 8}, {4096, 512, 64, 8, 1}},
         {{8, 8, 8, 8, 8}, {4096, 512, 64, 7, 1}},
         {{8, 8, 8, 8, 8, 8}, {32768, 4096, 512, 64, 8, 1}},
+        {{299, 307, 495}, {1006, 50, 674}},
+
     };
+
     return vals;
 }
 

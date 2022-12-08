@@ -384,6 +384,7 @@ inline auto param_generator_base(const std::vector<fft_transform_type>&   type_r
                                                     continue;
                                                 }
                                             }
+                                            param.validate();
                                             if(param.valid(0))
                                             {
                                                 params.push_back(param);

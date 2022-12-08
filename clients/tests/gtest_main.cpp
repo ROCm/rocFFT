@@ -424,13 +424,17 @@ int main(int argc, char* argv[])
 TEST(manual, vs_fftw)
 {
     // Run an individual test using the provided command-line parameters.
+    manual_params.validate();
 
     std::cout << "Manual test:"
               << "\n\t" << manual_params.str("\n\t") << std::endl;
 
-    manual_params.validate();
-
     std::cout << "Token: " << manual_params.token() << std::endl;
+
+    if(!manual_params.valid(verbose + 2))
+    {
+        std::cout << "manual params are not valid\n";
+    }
 
     rocfft_params params(manual_params);
     fft_vs_reference(params);
