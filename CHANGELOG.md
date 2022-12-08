@@ -7,6 +7,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Optimizations
 - Improved performance of 1D lengths < 2048 that use Bluestein's algorithm.
 - Reduced time for generating code during plan creation.
+- Optimized 3D R2C/C2R lengths 32, 84, 128.
 
 ### Added
 - Added gfx1101 to default AMDGPU_TARGETS.
