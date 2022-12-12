@@ -37,13 +37,13 @@
 template <typename T>
 std::string vrender(const T& x)
 {
-    return std::visit([](const auto a) { return a.render(); }, x);
+    return std::visit([](const auto& a) { return a.render(); }, x);
 }
 
 template <typename T>
 unsigned int get_precedence(const T& x)
 {
-    return std::visit([](const auto a) { return a.precedence; }, x);
+    return std::visit([](const auto& a) { return a.precedence; }, x);
 }
 
 // We have a circular dependency here when trying to use std::variant
@@ -1011,12 +1011,12 @@ public:
 
 static void operator+=(StatementList& stmts, const Statement& s)
 {
-    stmts.statements.push_back(s);
+    stmts.statements.emplace_back(s);
 }
 
 static void operator+=(StatementList& stmts, Statement&& s)
 {
-    stmts.statements.push_back(std::move(s));
+    stmts.statements.emplace_back(std::move(s));
 }
 
 static void operator+=(StatementList& stmts, const StatementList& s)
@@ -1144,9 +1144,8 @@ struct BaseVisitor
         for(const auto& stmt : x.statements)
         {
             StatementList new_stmts = std::visit(*this, stmt);
-            std::copy(new_stmts.statements.begin(),
-                      new_stmts.statements.end(),
-                      std::back_inserter(ret.statements));
+            for(auto& s : new_stmts.statements)
+                ret.statements.emplace_back(std::move(s));
         }
         return ret;
     }
@@ -1176,13 +1175,13 @@ struct BaseVisitor
         return stmts;                               \
     }
 
-#define MAKE_EXPR_VISIT(CLS)                        \
-    virtual Expression visit_##CLS(const CLS& x)    \
-    {                                               \
-        std::vector<Expression> args;               \
-        for(const auto& arg : x.args)               \
-            args.push_back(std::visit(*this, arg)); \
-        return CLS{std::move(args)};                \
+#define MAKE_EXPR_VISIT(CLS)                           \
+    virtual Expression visit_##CLS(const CLS& x)       \
+    {                                                  \
+        std::vector<Expression> args;                  \
+        for(auto& arg : x.args)                        \
+            args.emplace_back(std::visit(*this, arg)); \
+        return CLS{std::move(args)};                   \
     }
 
     MAKE_EXPR_VISIT(Add);
@@ -1268,7 +1267,7 @@ struct BaseVisitor
         y.arguments.clear();
         y.arguments.reserve(x.arguments.size());
         for(const auto& arg : x.arguments)
-            y.arguments.push_back(std::visit(*this, arg));
+            y.arguments.emplace_back(std::visit(*this, arg));
         return y;
     }
 
@@ -1578,7 +1577,7 @@ struct MakeOutOfPlaceVisitor : public BaseVisitor
         mode = ExpressionVisitMode::INPUT;
         std::vector<Expression> args;
         for(const auto& arg : x.args)
-            args.push_back(std::visit(*this, arg));
+            args.emplace_back(std::visit(*this, arg));
         return LoadGlobal{args};
     }
     Expression visit_IntrinsicLoad(const IntrinsicLoad& x) override
@@ -1586,7 +1585,7 @@ struct MakeOutOfPlaceVisitor : public BaseVisitor
         mode = ExpressionVisitMode::INPUT;
         std::vector<Expression> args;
         for(const auto& arg : x.args)
-            args.push_back(std::visit(*this, arg));
+            args.emplace_back(std::visit(*this, arg));
         return IntrinsicLoad{args};
     }
     StatementList visit_StoreGlobal(const StoreGlobal& x) override

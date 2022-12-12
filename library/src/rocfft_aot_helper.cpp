@@ -89,6 +89,16 @@ void stockham_combo(ComputeScheme             scheme,
         placements.push_back(rocfft_placement_inplace);
         // SBCC is never unit stride
         unitstride_range = {false};
+
+        // if no dir-to-reg support, then we don't have intrinsic buffer RW,
+        // and only force_off_or_not_support for dir2reg. Else, we have all possibilities
+        // (even force_off_or_not_support is still included)
+        if(kernel.direct_to_from_reg)
+        {
+            dir_reg_types.push_back(DirectRegType::TRY_ENABLE_IF_SUPPORT);
+            intrinsic_modes.push_back(IntrinsicAccessType::ENABLE_BOTH);
+            intrinsic_modes.push_back(IntrinsicAccessType::ENABLE_LOAD_ONLY);
+        }
         break;
     }
     case CS_KERNEL_STOCKHAM_BLOCK_CR:
@@ -97,6 +107,16 @@ void stockham_combo(ComputeScheme             scheme,
         // SBCR is never unit stride
         unitstride_range = {false};
         ebtypes.push_back(EmbeddedType::C2Real_PRE);
+
+        // if no dir-to-reg support, then we don't have intrinsic
+        // buffer RW, and only force_off_or_not_support for
+        // dir2reg. Else, SBCR only allows "both" or "none" for
+        // intrinsic.
+        if(kernel.direct_to_from_reg)
+        {
+            dir_reg_types.push_back(DirectRegType::TRY_ENABLE_IF_SUPPORT);
+            intrinsic_modes.push_back(IntrinsicAccessType::ENABLE_BOTH);
+        }
         break;
     }
     case CS_KERNEL_STOCKHAM_BLOCK_RC:
@@ -104,6 +124,14 @@ void stockham_combo(ComputeScheme             scheme,
     case CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY:
     case CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY:
     {
+        // SBRC allows direct to/from reg but does not support
+        // intrinsic
+        if(kernel.direct_to_from_reg)
+            dir_reg_types.push_back(DirectRegType::TRY_ENABLE_IF_SUPPORT);
+
+        // SBRC is never unit stride
+        unitstride_range = {false};
+
         base_steps.resize(1);
         // All SBRCs have TILE_UNALIGNED
         sbrc_trans_types.push_back(SBRC_TRANSPOSE_TYPE::TILE_UNALIGNED);
@@ -118,6 +146,20 @@ void stockham_combo(ComputeScheme             scheme,
             break;
         // DIAGNAL Transpose
         sbrc_trans_types.push_back(SBRC_TRANSPOSE_TYPE::DIAGONAL);
+
+        break;
+    }
+    case CS_KERNEL_STOCKHAM:
+    {
+        base_steps.resize(1);
+        unitstride_range = {true, false};
+        placements.push_back(rocfft_placement_inplace);
+        ebtypes.push_back(EmbeddedType::Real2C_POST);
+        ebtypes.push_back(EmbeddedType::C2Real_PRE);
+
+        // SBRR always uses TRY_ENABLE_IF_SUPPORT, and does not
+        // support intrinsic parameter.
+        dir_reg_types = {DirectRegType::TRY_ENABLE_IF_SUPPORT};
         break;
     }
     default:
@@ -125,16 +167,6 @@ void stockham_combo(ComputeScheme             scheme,
         // since it is not possible that we are here,
         // so directly return is fine which means do nothing
         return;
-    }
-
-    // if no dir-to-reg support, then we don't have intrinsic buffer RW,
-    // and only force_off_or_not_support for dir2reg. Else, we have all possibilities
-    // (even force_off_or_not_support is still included)
-    if(kernel.direct_to_from_reg)
-    {
-        dir_reg_types.push_back(TRY_ENABLE_IF_SUPPORT);
-        intrinsic_modes.push_back(ENABLE_BOTH);
-        intrinsic_modes.push_back(ENABLE_LOAD_ONLY);
     }
 
     for(auto direction : {-1, 1})
@@ -195,14 +227,6 @@ void build_stockham_function_pool(CompileQueue& queue)
     // scaling Stockham kernels are always built at runtime
     const bool enable_scaling = false;
 
-    static const std::set<ComputeScheme> aot_rtc_supported
-        = {CS_KERNEL_STOCKHAM_BLOCK_CC,
-           CS_KERNEL_STOCKHAM_BLOCK_CR,
-           CS_KERNEL_STOCKHAM_BLOCK_RC,
-           CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z,
-           CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY,
-           CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY};
-
     for(const auto& i : fp.get_map())
     {
         // we only want to compile kernels explicitly marked for AOT RTC
@@ -216,81 +240,93 @@ void build_stockham_function_pool(CompileQueue& queue)
         std::vector<unsigned int> factors;
         std::copy(i.second.factors.begin(), i.second.factors.end(), std::back_inserter(factors));
 
-        if(aot_rtc_supported.count(scheme))
-        {
-            stockham_combo(scheme,
-                           i.second,
-                           [=, &queue](int                     direction,
-                                       rocfft_result_placement placement,
-                                       rocfft_array_type       inArrayType,
-                                       rocfft_array_type       outArrayType,
-                                       EmbeddedType            ebtype,
-                                       SBRC_TRANSPOSE_TYPE     sbrc_trans_type,
-                                       DirectRegType           dir_reg_type,
-                                       IntrinsicAccessType     intrinsic,
-                                       int                     ltwd_base,
-                                       int                     ltwd_step,
-                                       bool                    unitstride,
-                                       bool                    callbacks) {
-                               // intrinsic mode require non-callback and enable dir_reg
-                               if((callbacks || dir_reg_type == FORCE_OFF_OR_NOT_SUPPORT)
-                                  && (intrinsic != IntrinsicAccessType::DISABLE_BOTH))
-                                   return;
+        stockham_combo(scheme,
+                       i.second,
+                       [=, &queue](int                     direction,
+                                   rocfft_result_placement placement,
+                                   rocfft_array_type       inArrayType,
+                                   rocfft_array_type       outArrayType,
+                                   EmbeddedType            ebtype,
+                                   SBRC_TRANSPOSE_TYPE     sbrc_trans_type,
+                                   DirectRegType           dir_reg_type,
+                                   IntrinsicAccessType     intrinsic,
+                                   int                     ltwd_base,
+                                   int                     ltwd_step,
+                                   bool                    unitstride,
+                                   bool                    callbacks) {
+                           // intrinsic mode require non-callback and enable dir_reg
+                           if((callbacks || dir_reg_type == FORCE_OFF_OR_NOT_SUPPORT)
+                              && (intrinsic != IntrinsicAccessType::DISABLE_BOTH))
+                               return;
 
-                               auto kernel_name = stockham_rtc_kernel_name(scheme,
-                                                                           length1D,
-                                                                           0,
-                                                                           0,
-                                                                           direction,
-                                                                           precision,
-                                                                           placement,
-                                                                           inArrayType,
-                                                                           outArrayType,
-                                                                           unitstride,
-                                                                           ltwd_base,
-                                                                           ltwd_step,
-                                                                           false,
-                                                                           ebtype,
-                                                                           dir_reg_type,
-                                                                           intrinsic,
-                                                                           sbrc_trans_type,
-                                                                           callbacks,
-                                                                           enable_scaling);
-                               std::function<std::string(const std::string&)> generate_src
-                                   = [=](const std::string& kernel_name) -> std::string {
-                                   StockhamGeneratorSpecs specs{
-                                       factors,
-                                       {},
-                                       {static_cast<unsigned int>(precision)},
-                                       static_cast<unsigned int>(i.second.workgroup_size),
-                                       PrintScheme(scheme)};
-                                   specs.threads_per_transform = i.second.threads_per_transform[0];
-                                   specs.half_lds              = i.second.half_lds;
-                                   specs.direct_to_from_reg    = i.second.direct_to_from_reg;
-                                   return stockham_rtc(specs,
-                                                       specs,
-                                                       nullptr,
-                                                       kernel_name,
-                                                       scheme,
-                                                       direction,
-                                                       precision,
-                                                       placement,
-                                                       inArrayType,
-                                                       outArrayType,
-                                                       unitstride,
-                                                       ltwd_base,
-                                                       ltwd_step,
-                                                       false,
-                                                       ebtype,
-                                                       dir_reg_type,
-                                                       intrinsic,
-                                                       sbrc_trans_type,
-                                                       callbacks,
-                                                       enable_scaling);
-                               };
-                               queue.push({kernel_name, generate_src});
-                           });
-        }
+                           // for SBRR kernels, only do embedded pre/post processing for
+                           // unit-stride, since that's all we'd use it for.
+                           //
+                           // we currently also only do this processing for even lengths.
+                           //
+                           // callbacks are not expected to be needed either, since
+                           // either a higher dimension FFT or APPLY_CALLBACK would
+                           // be expected to run before/after.
+                           if(ebtype != EmbeddedType::NONE)
+                           {
+                               if((scheme == CS_KERNEL_STOCKHAM && !unitstride) || length1D % 2 != 0
+                                  || callbacks)
+                                   return;
+                           }
+
+                           auto kernel_name = stockham_rtc_kernel_name(scheme,
+                                                                       length1D,
+                                                                       0,
+                                                                       0,
+                                                                       direction,
+                                                                       precision,
+                                                                       placement,
+                                                                       inArrayType,
+                                                                       outArrayType,
+                                                                       unitstride,
+                                                                       ltwd_base,
+                                                                       ltwd_step,
+                                                                       false,
+                                                                       ebtype,
+                                                                       dir_reg_type,
+                                                                       intrinsic,
+                                                                       sbrc_trans_type,
+                                                                       callbacks,
+                                                                       enable_scaling);
+                           std::function<std::string(const std::string&)> generate_src
+                               = [=](const std::string& kernel_name) -> std::string {
+                               StockhamGeneratorSpecs specs{
+                                   factors,
+                                   {},
+                                   {static_cast<unsigned int>(precision)},
+                                   static_cast<unsigned int>(i.second.workgroup_size),
+                                   PrintScheme(scheme)};
+                               specs.threads_per_transform = i.second.threads_per_transform[0];
+                               specs.half_lds              = i.second.half_lds;
+                               specs.direct_to_from_reg    = i.second.direct_to_from_reg;
+                               return stockham_rtc(specs,
+                                                   specs,
+                                                   nullptr,
+                                                   kernel_name,
+                                                   scheme,
+                                                   direction,
+                                                   precision,
+                                                   placement,
+                                                   inArrayType,
+                                                   outArrayType,
+                                                   unitstride,
+                                                   ltwd_base,
+                                                   ltwd_step,
+                                                   false,
+                                                   ebtype,
+                                                   dir_reg_type,
+                                                   intrinsic,
+                                                   sbrc_trans_type,
+                                                   callbacks,
+                                                   enable_scaling);
+                           };
+                           queue.push({kernel_name, generate_src});
+                       });
     }
 }
 

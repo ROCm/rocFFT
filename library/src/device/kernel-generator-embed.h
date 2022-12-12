@@ -72,6 +72,12 @@ static void append_radix_h(std::string& src, const std::vector<unsigned int>& fa
     factors_uniq.erase(std::unique(factors_uniq.begin(), factors_uniq.end()), factors_uniq.end());
 
     for(auto f : factors_uniq)
+    {
+        // we can build a length-1 FFT kernel, which will ask for the
+        // no-op radix 1
+        if(f == 1)
+            continue;
         src += butterfly_funcs.at(f);
+    }
 }
 #endif

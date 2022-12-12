@@ -241,7 +241,7 @@ static void compare_data(const std::vector<float2>& original_host_data,
     EXPECT_LT(diff.l_inf / input_norm.l_inf, log2(original_host_data.size()) * MAX_TRANSFORM_ERROR);
 }
 
-TEST(rocfft_UnitTest, hipGraph_execution)
+TEST(rocfft_UnitTest, DISABLED_hipGraph_execution)
 {
     hipStream_t stream       = nullptr;
     hipStream_t other_stream = nullptr;

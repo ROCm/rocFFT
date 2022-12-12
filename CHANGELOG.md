@@ -14,7 +14,8 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Changed
 - Moved client programs to C++17.
-- Moved planar kernels to be runtime-compiled.
+- Moved planar kernels and infrequently used Stockham kernels to be runtime-compiled.
+- Moved transpose, real-complex, Bluestein, and Stockham kernels to library kernel cache.
 
 ### Fixed
 - Removed zero-length twiddle table allocations, which fixes errors from hipMallocManaged.
