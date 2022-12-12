@@ -354,8 +354,7 @@ inline auto
 
     std::vector<fft_params> params;
 
-    for(auto& transform_type :
-        {fft_transform_type_complex_forward, fft_transform_type_complex_inverse})
+    for(auto& transform_type : trans_type_range_complex)
     {
         for(const auto& lengths : v_lengths)
         {

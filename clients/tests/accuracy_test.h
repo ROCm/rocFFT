@@ -129,6 +129,10 @@ const static std::vector<fft_transform_type> trans_type_range = {fft_transform_t
                                                                  fft_transform_type_complex_inverse,
                                                                  fft_transform_type_real_forward,
                                                                  fft_transform_type_real_inverse};
+const static std::vector<fft_transform_type> trans_type_range_complex
+    = {fft_transform_type_complex_forward, fft_transform_type_complex_inverse};
+const static std::vector<fft_transform_type> trans_type_range_real
+    = {fft_transform_type_real_forward, fft_transform_type_real_inverse};
 
 // Given a vector of vector of lengths, generate all unique permutations.
 // Add an optional vector of ad-hoc lengths to the result.
@@ -415,10 +419,7 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&  v_lengths,
                             const bool                               planar,
                             const bool                               run_callbacks = false)
 {
-    return param_generator_base({fft_transform_type_complex_forward,
-                                 fft_transform_type_complex_inverse,
-                                 fft_transform_type_real_forward,
-                                 fft_transform_type_real_inverse},
+    return param_generator_base(trans_type_range,
                                 v_lengths,
                                 precision_range,
                                 batch_range,
@@ -444,19 +445,18 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&  v_l
                                     const bool                               planar,
                                     const bool                               run_callbacks = false)
 {
-    return param_generator_base(
-        {fft_transform_type_complex_forward, fft_transform_type_complex_inverse},
-        v_lengths,
-        precision_range,
-        batch_range,
-        generate_types,
-        istride,
-        ostride,
-        ioffset_range,
-        ooffset_range,
-        place_range,
-        planar,
-        run_callbacks);
+    return param_generator_base(trans_type_range_complex,
+                                v_lengths,
+                                precision_range,
+                                batch_range,
+                                generate_types,
+                                istride,
+                                ostride,
+                                ioffset_range,
+                                ooffset_range,
+                                place_range,
+                                planar,
+                                run_callbacks);
 }
 
 // Create an array of parameters to pass to gtest.
@@ -471,7 +471,7 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&  v_leng
                                  const bool                               planar,
                                  const bool                               run_callbacks = false)
 {
-    return param_generator_base({fft_transform_type_real_forward, fft_transform_type_real_inverse},
+    return param_generator_base(trans_type_range_complex,
                                 v_lengths,
                                 precision_range,
                                 batch_range,

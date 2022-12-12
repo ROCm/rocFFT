@@ -83,6 +83,7 @@ set( rocfft-test_source
   unit_test.cpp
   misc/source/test_exception.cpp
   validate_length_stride.cpp
+  random.cpp
   ../../shared/array_validator.cpp
   )
 

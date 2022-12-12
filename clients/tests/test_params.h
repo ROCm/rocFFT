@@ -27,6 +27,7 @@
 #include <stdexcept>
 
 extern int    verbose;
+extern size_t random_seed;
 extern size_t ramgb;
 extern double single_epsilon;
 extern double double_epsilon;

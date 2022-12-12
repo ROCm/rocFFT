@@ -26,6 +26,7 @@
 #include <fstream>
 #include <gtest/gtest.h>
 #include <iostream>
+#include <random>
 #include <streambuf>
 #include <string>
 #include <thread>
@@ -49,6 +50,9 @@ namespace po = boost::program_options;
 
 // Control output verbosity:
 int verbose;
+
+// User-defined random seed
+size_t random_seed;
 
 // Transform parameters for manual test:
 fft_params manual_params;
@@ -254,7 +258,7 @@ int main(int argc, char* argv[])
         ("scalefactor", po::value<double>(&manual_params.scale_factor), "Scale factor to apply to output.")
         ("token", po::value<std::string>(&test_token)->default_value(""), "Test token name for manual test")
         ("precompile",  po::value<std::string>(&precompile_file), "Precompile kernels to a file for all test cases before running tests")
-      ;
+        ("seed", po::value<size_t>(&random_seed), "Random seed; if unset, use an actual random seed.");
     // clang-format on
 
     po::variables_map vm;
@@ -270,6 +274,13 @@ int main(int argc, char* argv[])
 
     std::cout << "single epsilon: " << single_epsilon << "\tdouble epsilon: " << double_epsilon
               << std::endl;
+
+    if(!vm.count("seed"))
+    {
+        std::random_device dev;
+        random_seed = dev();
+    }
+    std::cout << "Random seed: " << random_seed << std::endl;
 
     if(vm.count("wise"))
     {
