@@ -32,7 +32,7 @@
 #include <thread>
 #include <vector>
 
-TEST(rocfft_UnitTest, 1D_hermitian)
+void run_1D_hermitian_test(size_t length)
 {
     // Run two 1D C2R transforms, on:
     // * random input
@@ -41,7 +41,7 @@ TEST(rocfft_UnitTest, 1D_hermitian)
     // and the Nyquist frequency (of the length is even).
 
     rocfft_params p;
-    p.length         = {8};
+    p.length         = {length};
     p.precision      = fft_precision_double;
     p.transform_type = fft_transform_type_real_inverse;
     p.placement      = fft_placement_notinplace;
@@ -162,6 +162,18 @@ TEST(rocfft_UnitTest, 1D_hermitian)
     EXPECT_TRUE(maxerr == 0.0);
 }
 
+// test a case that's small enough that it only needs one kernel
+TEST(rocfft_UnitTest, 1D_hermitian_single_small)
+{
+    run_1D_hermitian_test(8);
+}
+
+// test a case that's big enough that it needs multiple kernels
+TEST(rocfft_UnitTest, 1D_hermitian_single_large)
+{
+    run_1D_hermitian_test(8192);
+}
+
 template <typename T>
 std::string str(T begin, T end)
 {
@@ -178,7 +190,7 @@ std::string str(T begin, T end)
 }
 
 // Test that the GPU Hermitian symmetrizer code produces the correct results.
-TEST(rocfft_UnitTest, rtc_gpu_symmetrizer)
+TEST(rocfft_UnitTest, gpu_symmetrizer)
 {
     std::vector<std::vector<size_t>> lengths = {{4, 4, 3},
                                                 {5},

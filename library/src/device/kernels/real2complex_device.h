@@ -226,8 +226,8 @@ __device__ inline void real_pre_process_kernel_inplace(const size_t    idx_p,
         {
             // NB: multi-dimensional transforms may have non-zero
             // imaginary part at index 0 or at the Nyquist frequency.
-            inout[offset_base + idx_p].x = p.x - p.y + q.x + q.y;
-            inout[offset_base + idx_p].y = p.x + p.y - q.x + q.y;
+            inout[offset_base + idx_p].x = p.x + q.x;
+            inout[offset_base + idx_p].y = p.x - q.x;
 
             if(Ndiv4)
             {

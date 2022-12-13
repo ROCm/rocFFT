@@ -122,6 +122,27 @@ lengths = {
         43008,
     ],
 
+    'small1d': [
+        24,
+        48,
+        52,
+        60,
+        64,
+        68,
+        72,
+        80,
+        96,
+        100,
+        128,
+        168,
+        200,
+        256,
+        280,
+        330,
+        336,
+        512,
+    ],
+
     'mixed': [
         225, 240, 300, 486, 600, 900, 958, 1014, 1139,
         1250, 1427, 1463, 1480, 1500, 1568, 1608, 1616, 1638, 1656,
@@ -598,6 +619,15 @@ def batched_1d():
                     precision=precision,
                     real=real,
                     meta={'caption': 'Batched strided 1D ' + subcaption})
+
+
+def batched_1d_small_r2c():
+    """Small 1D sizes, large batch size."""
+
+    yield from default_length_params("small1d",
+                                     lengths['small1d'],
+                                     10000,
+                                     reals=[True])
 
 
 def benchmarks():

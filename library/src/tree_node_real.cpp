@@ -217,6 +217,17 @@ void RealTransEvenNode::BuildTree_internal()
         try_fuse_pre_post_processing = cfftPlan->isLeafNode();
     }
 
+    // Enable fusion for small simple 1D cases only.
+    // TODO: remove it after full solution done.
+    if((cfftPlan->scheme == CS_KERNEL_STOCKHAM) && // simple decomposition
+       (length.size() == 1) && // 1D
+       (length[0] < 512) && // < small case < 512
+       (inArrayType != rocfft_array_type_hermitian_planar) && // no planar
+       (outArrayType != rocfft_array_type_hermitian_planar))
+    {
+        try_fuse_pre_post_processing = true;
+    }
+
     switch(direction)
     {
     case -1:
