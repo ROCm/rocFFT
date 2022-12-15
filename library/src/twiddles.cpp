@@ -53,6 +53,13 @@ struct hipStream_wrapper_t
         if(stream)
             (void)hipStreamDestroy(stream);
     }
+    hipStream_wrapper_t(const hipStream_wrapper_t&) = delete;
+    hipStream_wrapper_t& operator=(const hipStream_wrapper_t&) = delete;
+    hipStream_wrapper_t(hipStream_wrapper_t&& other)
+        : stream(other.stream)
+    {
+        other.stream = nullptr;
+    }
 
 private:
     hipStream_t stream;

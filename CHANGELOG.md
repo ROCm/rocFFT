@@ -20,6 +20,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Fixed
 - Removed zero-length twiddle table allocations, which fixes errors from hipMallocManaged.
+- Fixed incorrect freeing of HIP stream handles during twiddle computation when multiple devices are present.
 
 ## rocFFT 1.0.20 for ROCm 5.4.1
 
