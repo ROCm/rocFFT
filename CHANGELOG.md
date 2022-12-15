@@ -2,7 +2,7 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
-## (Unreleased) rocFFT 1.0.21
+## rocFFT 1.0.21 for ROCm 5.5.0
 
 ### Optimizations
 - Improved performance of 1D lengths < 2048 that use Bluestein's algorithm.
