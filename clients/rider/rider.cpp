@@ -253,7 +253,7 @@ int main(int argc, char* argv[])
     }
 
     // Input data:
-    compute_input(params, ibuffer);
+    params.compute_input(ibuffer);
 
     if(verbose > 1)
     {
@@ -304,7 +304,7 @@ int main(int argc, char* argv[])
     HIP_V_THROW(hipEventCreate(&stop), "hipEventCreate failed");
     for(unsigned int itrial = 0; itrial < gpu_time.size(); ++itrial)
     {
-        compute_input(params, ibuffer);
+        params.compute_input(ibuffer);
 
         HIP_V_THROW(hipEventRecord(start), "hipEventRecord failed");
 

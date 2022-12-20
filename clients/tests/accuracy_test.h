@@ -973,7 +973,7 @@ inline void fft_vs_reference_impl(Tparams& params)
     if(run_fftw)
     {
         //generate the input directly on the gpu
-        compute_input(params, ibuffer);
+        params.compute_input(ibuffer);
 
         // Copy the input to CPU
         if(params.itype != contiguous_params.itype || params.istride != contiguous_params.istride

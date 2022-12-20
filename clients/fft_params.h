@@ -107,6 +107,124 @@ inline Tsize var_size(const fft_precision precision, const fft_array_type type)
     return var_size;
 }
 
+// count the number of total iterations for 1-, 2-, and 3-D dimensions
+template <typename T1>
+size_t count_iters(const T1& i)
+{
+    return i;
+}
+
+template <typename T1>
+size_t count_iters(const std::tuple<T1, T1>& i)
+{
+    return std::get<0>(i) * std::get<1>(i);
+}
+
+template <typename T1>
+size_t count_iters(const std::tuple<T1, T1, T1>& i)
+{
+    return std::get<0>(i) * std::get<1>(i) * std::get<2>(i);
+}
+
+// Given an array type and transform length, strides, etc, load random floats in [0,1]
+// into the input array of floats/doubles or complex floats/doubles gpu buffers.
+template <typename Tfloat, typename Tint1>
+inline void set_input(std::vector<gpubuf>&       input,
+                      const fft_array_type       itype,
+                      const std::vector<size_t>& length,
+                      const std::vector<size_t>& ilength,
+                      const std::vector<size_t>& stride,
+                      const Tint1&               whole_length,
+                      const Tint1&               istride,
+                      const size_t               idist,
+                      const size_t               nbatch)
+{
+    auto isize = count_iters(whole_length) * nbatch;
+
+    switch(itype)
+    {
+    case fft_array_type_complex_interleaved:
+    case fft_array_type_hermitian_interleaved:
+    {
+        auto ibuffer = (std::complex<Tfloat>*)input[0].data();
+
+        generate_interleaved_data(whole_length, idist, isize, istride, ibuffer);
+
+        if(itype == fft_array_type_hermitian_interleaved)
+            impose_hermitian_symmetry_interleaved(length, ilength, stride, idist, nbatch, ibuffer);
+
+        break;
+    }
+    case fft_array_type_complex_planar:
+    case fft_array_type_hermitian_planar:
+    {
+        auto ibuffer_real = (Tfloat*)input[0].data();
+        auto ibuffer_imag = (Tfloat*)input[1].data();
+
+        generate_planar_data(whole_length, idist, isize, istride, ibuffer_real, ibuffer_imag);
+
+        if(itype == fft_array_type_hermitian_planar)
+            impose_hermitian_symmetry_planar(
+                length, ilength, stride, idist, nbatch, ibuffer_real, ibuffer_imag);
+
+        break;
+    }
+    case fft_array_type_real:
+    {
+        auto ibuffer = (Tfloat*)input[0].data();
+
+        generate_real_data(whole_length, idist, isize, istride, ibuffer);
+
+        break;
+    }
+    default:
+        throw std::runtime_error("Input layout format not yet supported");
+    }
+}
+
+// unroll set_input for dimension 1, 2, 3
+template <typename Tfloat>
+inline void set_input(std::vector<gpubuf>&       input,
+                      const fft_array_type       itype,
+                      const std::vector<size_t>& length,
+                      const std::vector<size_t>& ilength,
+                      const std::vector<size_t>& istride,
+                      const size_t               idist,
+                      const size_t               nbatch)
+{
+    switch(length.size())
+    {
+    case 1:
+        set_input<Tfloat>(
+            input, itype, length, ilength, istride, ilength[0], istride[0], idist, nbatch);
+        break;
+    case 2:
+        set_input<Tfloat>(input,
+                          itype,
+                          length,
+                          ilength,
+                          istride,
+                          std::make_tuple(ilength[0], ilength[1]),
+                          std::make_tuple(istride[0], istride[1]),
+                          idist,
+                          nbatch);
+        break;
+    case 3:
+        set_input<Tfloat>(input,
+                          itype,
+                          length,
+                          ilength,
+                          istride,
+                          std::make_tuple(ilength[0], ilength[1], ilength[2]),
+                          std::make_tuple(istride[0], istride[1], istride[2]),
+                          idist,
+                          nbatch);
+        break;
+    default:
+        abort();
+    }
+}
+
 // Container class for test parameters.
 class fft_params
 {
@@ -1062,6 +1180,20 @@ public:
         return ostride_cm;
     }
 
+    // Given a data type and dimensions, fill the buffer, imposing Hermitian symmetry if necessary.
+    inline void compute_input(std::vector<gpubuf>& input)
+    {
+        switch(precision)
+        {
+        case fft_precision_double:
+            set_input<double>(input, itype, length, ilength(), istride, idist, nbatch);
+            break;
+        case fft_precision_single:
+            set_input<float>(input, itype, length, ilength(), istride, idist, nbatch);
+            break;
+        }
+    }
+
     template <typename Tallocator, typename Tstream = std::ostream>
     void print_ibuffer(const std::vector<std::vector<char, Tallocator>>& buf,
                        Tstream&                                          stream = std::cout) const
@@ -1331,25 +1463,6 @@ std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits
     stream >> tmp;
     ttype = fft_transform_type(tmp);
     return stream;
-}
-
-// count the number of total iterations for 1-, 2-, and 3-D dimensions
-template <typename T1>
-size_t count_iters(const T1& i)
-{
-    return i;
-}
-
-template <typename T1>
-size_t count_iters(const std::tuple<T1, T1>& i)
-{
-    return std::get<0>(i) * std::get<1>(i);
-}
-
-template <typename T1>
-size_t count_iters(const std::tuple<T1, T1, T1>& i)
-{
-    return std::get<0>(i) * std::get<1>(i) * std::get<2>(i);
 }
 
 // Work out how many partitions to break our iteration problem into
@@ -2540,105 +2653,6 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
     }
 }
 
-// Given an array type and transform length, strides, etc, load random floats in [0,1]
-// into the input array of floats/doubles or complex floats/doubles gpu buffers.
-template <typename Tfloat, typename Tint1>
-inline void set_input(std::vector<gpubuf>&       input,
-                      const fft_array_type       itype,
-                      const std::vector<size_t>& length,
-                      const std::vector<size_t>& ilength,
-                      const std::vector<size_t>& stride,
-                      const Tint1&               whole_length,
-                      const Tint1&               istride,
-                      const size_t               idist,
-                      const size_t               nbatch)
-{
-    auto isize = count_iters(whole_length) * nbatch;
-
-    switch(itype)
-    {
-    case fft_array_type_complex_interleaved:
-    case fft_array_type_hermitian_interleaved:
-    {
-        auto ibuffer = (std::complex<Tfloat>*)input[0].data();
-
-        generate_interleaved_data(whole_length, idist, isize, istride, ibuffer);
-
-        if(itype == fft_array_type_hermitian_interleaved)
-            impose_hermitian_symmetry_interleaved(length, ilength, stride, idist, nbatch, ibuffer);
-
-        break;
-    }
-    case fft_array_type_complex_planar:
-    case fft_array_type_hermitian_planar:
-    {
-        auto ibuffer_real = (Tfloat*)input[0].data();
-        auto ibuffer_imag = (Tfloat*)input[1].data();
-
-        generate_planar_data(whole_length, idist, isize, istride, ibuffer_real, ibuffer_imag);
-
-        if(itype == fft_array_type_hermitian_planar)
-            impose_hermitian_symmetry_planar(
-                length, ilength, stride, idist, nbatch, ibuffer_real, ibuffer_imag);
-
-        break;
-    }
-    case fft_array_type_real:
-    {
-        auto ibuffer = (Tfloat*)input[0].data();
-
-        generate_real_data(whole_length, idist, isize, istride, ibuffer);
-
-        break;
-    }
-    default:
-        throw std::runtime_error("Input layout format not yet supported");
-    }
-}
-
-// unroll set_input for dimension 1, 2, 3
-template <typename Tfloat>
-inline void set_input(std::vector<gpubuf>&       input,
-                      const fft_array_type       itype,
-                      const std::vector<size_t>& length,
-                      const std::vector<size_t>& ilength,
-                      const std::vector<size_t>& istride,
-                      const size_t               idist,
-                      const size_t               nbatch)
-{
-    switch(length.size())
-    {
-    case 1:
-        set_input<Tfloat>(
-            input, itype, length, ilength, istride, ilength[0], istride[0], idist, nbatch);
-        break;
-    case 2:
-        set_input<Tfloat>(input,
-                          itype,
-                          length,
-                          ilength,
-                          istride,
-                          std::make_tuple(ilength[0], ilength[1]),
-                          std::make_tuple(istride[0], istride[1]),
-                          idist,
-                          nbatch);
-        break;
-    case 3:
-        set_input<Tfloat>(input,
-                          itype,
-                          length,
-                          ilength,
-                          istride,
-                          std::make_tuple(ilength[0], ilength[1], ilength[2]),
-                          std::make_tuple(istride[0], istride[1], istride[2]),
-                          idist,
-                          nbatch);
-        break;
-    default:
-        abort();
-    }
-}
-
 // Given a data type and precision, the distance between batches, and
 // the batch size, allocate the required host buffer(s).
 template <typename Allocator = std::allocator<char>>
@@ -2651,33 +2665,6 @@ inline std::vector<std::vector<char, Allocator>> allocate_host_buffer(
         buffers[i].resize(size[i] * var_size<size_t>(precision, type));
     }
     return buffers;
-}
-
-// Given a data type and dimensions, fill the buffer, imposing Hermitian symmetry if
-// necessary.
-inline void compute_input(const fft_params& params, std::vector<gpubuf>& input)
-{
-    switch(params.precision)
-    {
-    case fft_precision_double:
-        set_input<double>(input,
-                          params.itype,
-                          params.length,
-                          params.ilength(),
-                          params.istride,
-                          params.idist,
-                          params.nbatch);
-        break;
-    case fft_precision_single:
-        set_input<float>(input,
-                         params.itype,
-                         params.length,
-                         params.ilength(),
-                         params.istride,
-                         params.idist,
-                         params.nbatch);
-        break;
-    }
 }
 
 // Check if the required buffers fit in the device vram.

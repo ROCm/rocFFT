@@ -618,7 +618,7 @@ int main(int argc, char* argv[])
     }
 
     // Input data:
-    compute_input(params, ibuffer);
+    params.compute_input(ibuffer);
 
     if(verbose > 1)
     {
@@ -685,7 +685,7 @@ int main(int argc, char* argv[])
         // if(ndone[idx] > ntrial)
         //     continue;
 
-        compute_input(params, ibuffer);
+        params.compute_input(ibuffer);
 
         // Run the plan using its associated rocFFT library:
         time[idx].push_back(
