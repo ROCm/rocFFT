@@ -90,7 +90,7 @@ class PDFFigure(BaseFigure):
         proc = subprocess.Popen(asycommand, cwd=top, stdout=fout, stderr=ferr)
 
         try:
-            proc.wait(timeout=3)
+            proc.wait(timeout=20)
         except subprocess.TimeoutExpired:
             logging.info("Asy command killed: " + sjoin(asycommand))
             proc.kill()
@@ -131,7 +131,7 @@ the efficiency is measured against the theoretical maximum bandwidth \
 for the device.'''
 
 
-def make_tex(figs, docdir, outdirs, label, secondtype=None):
+def make_tex(figs, docdir, outdirs, label, significance, secondtype=None):
     """Generate PDF containing performance figures."""
 
     docdir = Path(docdir)
@@ -143,6 +143,7 @@ def make_tex(figs, docdir, outdirs, label, secondtype=None):
 \\usepackage{url}
 \\usepackage{hyperref}
 \\usepackage{float}
+\\usepackage{longtable}
 \\begin{document}
 \\hypersetup{
   pdfborder={0,0,0},
@@ -221,7 +222,7 @@ def make_tex(figs, docdir, outdirs, label, secondtype=None):
             ncompare += len(df.index)
 
             # Significant results:
-            df_sig = df.loc[df['speedup_pval'] < 0.05]
+            df_sig = df.loc[df['speedup_pval'] <= significance]
 
             # Significant results that are good or bad:
             df_good = df_sig.loc[df_sig['speedup'] > 1]
@@ -231,9 +232,7 @@ def make_tex(figs, docdir, outdirs, label, secondtype=None):
 
                 df_all_good = pandas.concat([df_all_good, df_good])
 
-                figtex += "\\begin{table}[H]\n"
-                figtex += "\\centering\n"
-                figtex += "\\begin{tabular}{l|l|l|}\n"
+                figtex += "\\begin{longtable}{l|l|l|}\n"
                 figtex += "transform & speedup \% & significance\\\\ \n"
                 figtex += "\\hline\n"
                 for row in df_good.itertuples(index=False):
@@ -248,17 +247,14 @@ def make_tex(figs, docdir, outdirs, label, secondtype=None):
                     pval = '{0:.3f}'.format(row.speedup_pval)
                     figtex += " & " + str(speedup) + " & " + str(pval) + "\\\\"
                 figtex += "\\hline\n"
-                figtex += "\\end{tabular}\n"
                 figtex += "\\caption{Improvements for " + fig.caption + "}\n"
-                figtex += "\\end{table}\n"
+                figtex += "\\end{longtable}\n"
 
             if not df_bad.empty:
 
                 df_all_bad = pandas.concat([df_all_bad, df_bad])
 
-                figtex += "\\begin{table}[H]\n"
-                figtex += "\\centering\n"
-                figtex += "\\begin{tabular}{l|l|l|}\n"
+                figtex += "\\begin{longtable}{l|l|l|}\n"
                 figtex += "transform & slowdown \% & significance\\\\ \n"
                 figtex += "\\hline\n"
                 for row in df_bad.itertuples(index=False):
@@ -278,9 +274,8 @@ def make_tex(figs, docdir, outdirs, label, secondtype=None):
                     pval = '{0:.3f}'.format(row.speedup_pval)
                     figtex += " & " + str(speedup) + " & " + str(pval) + "\\\\"
                 figtex += "\\hline\n"
-                figtex += "\\end{tabular}\n"
                 figtex += "\\caption{Regressions for " + fig.caption + "}\n"
-                figtex += "\\end{table}\n"
+                figtex += "\\end{longtable}\n"
 
         figtex += "\\clearpage\n"
 
@@ -337,7 +332,7 @@ def make_tex(figs, docdir, outdirs, label, secondtype=None):
 
         asyproc = subprocess.Popen(asycmd, cwd=top, stdout=fout, stderr=ferr)
         try:
-            asyproc.wait(timeout=5)
+            asyproc.wait(timeout=20)
         except subprocess.TimeoutExpired:
             logging.info("asy command killed: " + sjoin(asycmd))
             asyproc.kill()

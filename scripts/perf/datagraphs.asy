@@ -63,11 +63,18 @@ string[] testlist = listfromcsv(filenames);
 // Data containers:
 datapoint[][] datapoints = new datapoint[testlist.length][];
 
+
 readfiles(testlist, datapoints);
+
+bool datapointless(datapoint a, datapoint b)
+{
+    return a.x < b.x;
+}
 
 pair[][] xyval = new real[testlist.length][];
 pair[][] ylowhigh = new real[testlist.length][];
 for(int n = 0; n < datapoints.length; ++n) {
+    datapoints[n] = sort(datapoints[n], datapointless);
     datapoints_to_xyvallowhigh(datapoints[n], xyval[n], ylowhigh[n]);
 }
 
@@ -134,7 +141,8 @@ if(secondary_filenames != "")
     pair[][] xyval = new real[second_list.length][];
     pair[][] ylowhigh = new real[second_list.length][];
     for(int n = 0; n < datapoints.length; ++n) {
-      datapoints_to_xyvallowhigh(datapoints[n], xyval[n], ylowhigh[n]);
+        datapoints[n] = sort(datapoints[n], datapointless);
+        datapoints_to_xyvallowhigh(datapoints[n], xyval[n], ylowhigh[n]);
     }
     
     bool interval = true;

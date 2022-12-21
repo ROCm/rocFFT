@@ -99,7 +99,7 @@ void readfiles(string[] filelist, datapoint[][] datapoints, bool pval = false)
     for(int n = 0; n < filelist.length; ++n)
     {
         string filename = filelist[n];
-        write("filename: ", filename);
+        //write("filename: ", filename);
         file fin = input(filename).line();
         
         string hdr = "";
@@ -118,7 +118,7 @@ void readfiles(string[] filelist, datapoint[][] datapoints, bool pval = false)
           // Separate the token from the data:
 	  int pos = find(line, '\t', 0);
 	  string token = substr(line, 0, pos);
-	  write("token: ", token);
+	  //write("token: ", token);
 	  string vals = substr(line, pos + 1, -1);
 	  //write("vals: ", vals);
 
@@ -150,25 +150,25 @@ void readfiles(string[] filelist, datapoint[][] datapoints, bool pval = false)
               ++lenidx;
           }
 
-	  write("length: ", length);
+	  //write("length: ", length);
 
           // Get the data:
 	  lastpos = 0;
 	  pos = find(vals, '\t', lastpos);
 	  string smedian = substr(vals, lastpos, pos - lastpos);
-	  write("median: ", smedian);
+	  //write("median: ", smedian);
 	  lastpos = pos > 0 ? pos + 1 : -1;
 
           string slow, shigh;
           
           pos = find(vals, '\t', lastpos);
           slow = substr(vals, lastpos, pos - lastpos);
-          write("median low: ", slow);
+          //write("median low: ", slow);
           lastpos = pos > 0 ? pos + 1 : -1;
           
           pos = find(vals, '\t', lastpos);
           shigh = substr(vals, lastpos, pos - lastpos);
-          write("median high: ", shigh);
+          //write("median high: ", shigh);
           lastpos = pos > 0 ? pos + 1 : -1;
 
                     
@@ -176,7 +176,7 @@ void readfiles(string[] filelist, datapoint[][] datapoints, bool pval = false)
 
           pos = find(vals, '\t', lastpos);
           string spval = substr(vals, lastpos, pos - lastpos);
-          write("pval: ", spval);
+          //write("pval: ", spval);
           lastpos = pos > 0 ? pos + 1 : -1;
           
           d.x = length[0];

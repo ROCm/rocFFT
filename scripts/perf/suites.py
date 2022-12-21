@@ -189,9 +189,9 @@ lengths = {
     ],
 
     'qa2d10b': [
+        (3125, 3125),
         (4096, 4096),
         (6561, 6561),
-        (3125, 3125),
     ],
 
     'qa3d10b': [
@@ -369,7 +369,7 @@ def qa():
     """AMD QA suite."""
 
     for length1 in [
-            8192, 10752, 18816, 21504, 32256, 43008, 16384, 19683, 15625, 16807
+            8192, 10752, 15625, 16384, 16807, 18816, 19683, 21504, 32256, 43008
     ]:
         for direction in [-1, 1]:
             yield Problem([length1],
@@ -406,7 +406,8 @@ def qa():
                           direction=direction,
                           inplace=False,
                           real=True,
-                          precision='single')
+                          precision='single',
+                          meta={'figtype': 'bargraph'})
 
     for length in lengths['qa1d10b']:
         yield Problem([length],
