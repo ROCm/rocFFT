@@ -60,8 +60,8 @@ if( NOT ROCM_FOUND )
   find_package( ROCM 0.7.3 REQUIRED )
 endif()
 
-if( NOT rocrand_FOUND )
-  find_package( rocrand REQUIRED )
+if( NOT hiprand_FOUND )
+  find_package( hiprand REQUIRED )
 endif()
 
 include( ROCMInstallTargets )
@@ -216,7 +216,7 @@ target_link_libraries( rocfft-test
   PRIVATE
   hip::device
   roc::rocfft
-  roc::rocrand
+  hip::hiprand
   ${rocfft-test_link_libs}
   )
 

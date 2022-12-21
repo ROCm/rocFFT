@@ -60,8 +60,8 @@ if( NOT ROCM_FOUND )
   find_package( ROCM 0.7.3 REQUIRED )
 endif()
 
-if( NOT rocrand_FOUND )
-  find_package( rocrand REQUIRED )
+if( NOT hiprand_FOUND )
+  find_package( hiprand REQUIRED )
 endif()
 
 include( ROCMInstallTargets )
@@ -96,7 +96,7 @@ foreach( rider ${rider_list})
       PRIVATE
       hip::device
       roc::rocfft
-      roc::rocrand
+      hip::hiprand
       Boost::program_options
       )
   else()
@@ -104,7 +104,7 @@ foreach( rider ${rider_list})
       PRIVATE
       ${CMAKE_DL_LIBS}
       hip::device
-      roc::rocrand
+      hip::hiprand
       ${Boost_LIBRARIES}      
       )
 

@@ -52,8 +52,8 @@ if( NOT HIP_FOUND )
   find_package( HIP REQUIRED )
 endif()
 
-if( NOT rocrand_FOUND )
-  find_package( rocrand REQUIRED )
+if( NOT hiprand_FOUND )
+  find_package( hiprand REQUIRED )
 endif()
 
 find_package( Boost COMPONENTS program_options REQUIRED)
@@ -82,7 +82,7 @@ foreach( sample ${sample_list} )
 target_link_libraries(
   ${sample}
   PRIVATE roc::rocfft
-  roc::rocrand
+  hip::hiprand
   ${Boost_LIBRARIES}
   )
 

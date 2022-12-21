@@ -27,8 +27,8 @@
 #include <hip/hip_runtime.h>
 #include <hip/hip_runtime_api.h>
 #include <hip/hip_vector_types.h>
-#include <rocrand/rocrand.h>
-#include <rocrand/rocrand_kernel.h>
+#include <hiprand/hiprand.h>
+#include <hiprand/hiprand_kernel.h>
 #include <vector>
 
 static const unsigned int DATA_GEN_THREADS = 32;
@@ -200,12 +200,10 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         auto seed = compute_index(zero_length, istride, i_base);
         auto idx  = compute_index(i_length, istride, i_base);
 
-        rocrand_state_philox4x32_10 gen_state;
-        rocrand_init(seed, idx, 0, &gen_state);
+        hiprandStatePhilox4_32_10 gen_state;
+        hiprand_init(seed, idx, 0, &gen_state);
 
-        auto item = rocrand_uniform2(&gen_state);
-
-        data[idx] = std::complex<float>(item.x, item.y);
+        data[idx] = std::complex<float>(hiprand_uniform(&gen_state), hiprand_uniform(&gen_state));
     }
 }
 
@@ -228,10 +226,10 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         auto seed = compute_index(zero_length, istride, i_base);
         auto idx  = compute_index(i_length, istride, i_base);
 
-        rocrand_state_philox4x32_10 gen_state;
-        rocrand_init(seed, idx, 0, &gen_state);
+        hiprandStatePhilox4_32_10 gen_state;
+        hiprand_init(seed, idx, 0, &gen_state);
 
-        auto item = rocrand_uniform_double2(&gen_state);
+        auto item = hiprand_uniform2_double(&gen_state);
 
         data[idx] = std::complex<double>(item.x, item.y);
     }
@@ -257,13 +255,11 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         auto seed = compute_index(zero_length, istride, i_base);
         auto idx  = compute_index(i_length, istride, i_base);
 
-        rocrand_state_philox4x32_10 gen_state;
-        rocrand_init(seed, idx, 0, &gen_state);
+        hiprandStatePhilox4_32_10 gen_state;
+        hiprand_init(seed, idx, 0, &gen_state);
 
-        auto item = rocrand_uniform2(&gen_state);
-
-        real_data[idx] = item.x;
-        imag_data[idx] = item.y;
+        real_data[idx] =  hiprand_uniform(&gen_state);
+        imag_data[idx] =  hiprand_uniform(&gen_state);
     }
 }
 
@@ -287,10 +283,10 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         auto seed = compute_index(zero_length, istride, i_base);
         auto idx  = compute_index(i_length, istride, i_base);
 
-        rocrand_state_philox4x32_10 gen_state;
-        rocrand_init(seed, idx, 0, &gen_state);
+        hiprandStatePhilox4_32_10 gen_state;
+        hiprand_init(seed, idx, 0, &gen_state);
 
-        auto item = rocrand_uniform_double2(&gen_state);
+        auto item = hiprand_uniform2_double(&gen_state);
 
         real_data[idx] = item.x;
         imag_data[idx] = item.y;
@@ -316,10 +312,10 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         auto seed = compute_index(zero_length, istride, i_base);
         auto idx  = compute_index(i_length, istride, i_base);
 
-        rocrand_state_philox4x32_10 gen_state;
-        rocrand_init(seed, idx, 0, &gen_state);
+        hiprandStatePhilox4_32_10 gen_state;
+        hiprand_init(seed, idx, 0, &gen_state);
 
-        data[idx] = rocrand_uniform(&gen_state);
+        data[idx] = hiprand_uniform(&gen_state);
     }
 }
 
@@ -342,10 +338,10 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         auto seed = compute_index(zero_length, istride, i_base);
         auto idx  = compute_index(i_length, istride, i_base);
 
-        rocrand_state_philox4x32_10 gen_state;
-        rocrand_init(seed, idx, 0, &gen_state);
+        hiprandStatePhilox4_32_10 gen_state;
+        hiprand_init(seed, idx, 0, &gen_state);
 
-        data[idx] = rocrand_uniform_double(&gen_state);
+        data[idx] = hiprand_uniform_double(&gen_state);
     }
 }
 
