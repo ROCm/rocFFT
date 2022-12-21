@@ -161,17 +161,14 @@ if( BUILD_FFTW OR NOT FFTW_FOUND )
 
   # FFTW we build is always threaded
   set( FFTW_MULTITHREAD TRUE )
-endif()
 
-if( BUILD_FFTW OR NOT FFTW_FOUND )
   add_dependencies( rocfft-test fftw_double fftw_single )
+  rocm_install(
+    FILES ${FFTW_LIBRARIES}
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/fftw
+    COMPONENT clients-common
+  )
 endif()
-
-rocm_install(
-  FILES ${FFTW_LIBRARIES}
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/fftw
-  COMPONENT clients-common
-)
 
 set( rocfft-test_include_dirs
   $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
