@@ -258,8 +258,8 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         hiprandStatePhilox4_32_10 gen_state;
         hiprand_init(seed, idx, 0, &gen_state);
 
-        real_data[idx] =  hiprand_uniform(&gen_state);
-        imag_data[idx] =  hiprand_uniform(&gen_state);
+        real_data[idx] = hiprand_uniform(&gen_state);
+        imag_data[idx] = hiprand_uniform(&gen_state);
     }
 }
 
