@@ -21,8 +21,8 @@
 #pragma once
 
 #include <algorithm>
-#include <any>
 #include <iostream>
+#include <memory>
 #include <numeric>
 #include <optional>
 #include <string.h>
@@ -77,7 +77,6 @@ enum class Component
 // Expressions
 //
 
-struct ScalarVariable;
 class Variable;
 class Literal;
 class ComplexLiteral;
@@ -121,8 +120,7 @@ class CallExpr;
 
 class IntrinsicLoad;
 
-using Expression = std::variant<ScalarVariable,
-                                Variable,
+using Expression = std::variant<Variable,
                                 Literal,
                                 ComplexLiteral,
                                 Add,
@@ -156,14 +154,14 @@ using Expression = std::variant<ScalarVariable,
 
 class OptionalExpression
 {
-    std::any expr;
+    std::unique_ptr<Expression> expr;
 
 public:
-    OptionalExpression(){};
-    OptionalExpression(OptionalExpression&&)      = default;
-    OptionalExpression(const OptionalExpression&) = default;
-    OptionalExpression& operator=(OptionalExpression&&) = default;
-    OptionalExpression& operator=(const OptionalExpression&) = default;
+    OptionalExpression();
+    OptionalExpression(OptionalExpression&&);
+    OptionalExpression(const OptionalExpression&);
+    OptionalExpression& operator=(OptionalExpression&&);
+    OptionalExpression& operator=(const OptionalExpression&);
     explicit OptionalExpression(const Expression& expr);
     OptionalExpression& operator=(const Expression& in_expr);
     Expression          operator*() const;
@@ -206,35 +204,13 @@ public:
     }
 };
 
-struct ScalarVariable
-{
-    static const unsigned int precedence = 0;
-    std::string               name, type;
-    Component                 component;
-    OptionalExpression        index;
-
-    ScalarVariable(const std::string& name,
-                   const std::string& type,
-                   Component          component = Component::BOTH)
-        : name(name)
-        , type(type)
-        , component(component){};
-    ScalarVariable(ScalarVariable&&)      = default;
-    ScalarVariable(const ScalarVariable&) = default;
-    ScalarVariable& operator=(const ScalarVariable&) = default;
-    ScalarVariable& operator=(ScalarVariable&&) = default;
-
-    std::string render() const;
-};
-
 class Variable
 {
 public:
     static const unsigned int precedence = 0;
     std::string               name, type;
     bool                      pointer = false, restrict = false;
-    ScalarVariable            x, y;
-    Component                 component;
+    Component                 component = Component::BOTH;
     // index2d + size2d are set if this is a 2D array variable
     OptionalExpression index;
     OptionalExpression index2D;
@@ -255,12 +231,6 @@ public:
              bool restrict,
              const Expression& _size);
 
-    Variable(const ScalarVariable& v)
-        : name(v.name)
-        , type(v.type)
-        , x(v.name + ".x", v.type)
-        , y(v.name + ".y", v.type){};
-
     Variable(const Variable& v);
     Variable(Variable&& v) = default;
     Variable(const Variable& v, const Expression& _index);
@@ -270,8 +240,12 @@ public:
     Variable& operator=(Variable&&) = default;
     Variable  operator[](const Expression& index) const;
     // do a 2D array access
-    Variable       at(const Expression& index, const Expression& index2D) const;
-    ScalarVariable address() const;
+    Variable at(const Expression& index, const Expression& index2D) const;
+    Variable address() const;
+
+    // assuming this is a complex value, access the x, y members
+    Variable x() const;
+    Variable y() const;
 
     std::string render() const;
 };
@@ -389,17 +363,15 @@ class TwiddleMultiply
 public:
     static const unsigned int precedence = 18;
     TwiddleMultiply(const Variable& a, const Variable& b)
-        : a(a)
-        , b(b)
+        : vars({a, b})
     {
     }
     TwiddleMultiply(TwiddleMultiply&&)      = default;
     TwiddleMultiply(const TwiddleMultiply&) = default;
-    TwiddleMultiply& operator=(TwiddleMultiply&&) = default;
-    TwiddleMultiply& operator=(const TwiddleMultiply&) = default;
-    Variable         a;
-    Variable         b;
-    std::string      render() const;
+    TwiddleMultiply&      operator=(TwiddleMultiply&&) = default;
+    TwiddleMultiply&      operator=(const TwiddleMultiply&) = default;
+    std::vector<Variable> vars;
+    std::string           render() const;
 };
 
 class TwiddleMultiplyConjugate
@@ -407,16 +379,14 @@ class TwiddleMultiplyConjugate
 public:
     static const unsigned int precedence = 18;
     TwiddleMultiplyConjugate(const Variable& a, const Variable& b)
-        : a(a)
-        , b(b)
+        : vars({a, b})
     {
     }
     TwiddleMultiplyConjugate(TwiddleMultiplyConjugate&&)      = default;
     TwiddleMultiplyConjugate(const TwiddleMultiplyConjugate&) = default;
     TwiddleMultiplyConjugate& operator=(TwiddleMultiplyConjugate&&) = default;
     TwiddleMultiplyConjugate& operator=(const TwiddleMultiplyConjugate&) = default;
-    Variable                  a;
-    Variable                  b;
+    std::vector<Variable>     vars;
     std::string               render() const;
 };
 
@@ -455,7 +425,7 @@ public:
 #define MAKE_OPER(NAME, OPER, PRECEDENCE)                           \
     class NAME                                                      \
     {                                                               \
-        std::string oper{OPER};                                     \
+        static constexpr const char* oper = {OPER};                 \
                                                                     \
     public:                                                         \
         static const unsigned int precedence = PRECEDENCE;          \
@@ -919,12 +889,12 @@ public:
     {
         // Output two assignments
         return Assign{realPtr[index],
-                      scale_factor ? Expression{value.x * scale_factor.value()}
-                                   : Expression{value.x}}
+                      scale_factor ? Expression{value.x() * scale_factor.value()}
+                                   : Expression{value.x()}}
                    .render()
                + Assign{imagPtr[index],
-                        scale_factor ? Expression{value.y * scale_factor.value()}
-                                     : Expression{value.y}}
+                        scale_factor ? Expression{value.y() * scale_factor.value()}
+                                     : Expression{value.y()}}
                      .render();
     }
 
@@ -1078,7 +1048,6 @@ struct BaseVisitor
         return visit_##CLS(x);          \
     }
 
-    MAKE_VISITOR_OPERATOR(Expression, ScalarVariable);
     MAKE_VISITOR_OPERATOR(Expression, Variable);
     MAKE_VISITOR_OPERATOR(Expression, Literal);
     MAKE_VISITOR_OPERATOR(Expression, ComplexLiteral);
@@ -1218,7 +1187,6 @@ struct BaseVisitor
     MAKE_EXPR_VISIT(Ternary);
     MAKE_EXPR_VISIT(ComplexLiteral)
 
-    MAKE_TRIVIAL_VISIT(Expression, ScalarVariable)
     MAKE_TRIVIAL_STATEMENT_VISIT(CallbackDeclaration)
     MAKE_TRIVIAL_STATEMENT_VISIT(LDSDeclaration)
 
@@ -1726,7 +1694,7 @@ struct MakeInverseVisitor : public BaseVisitor
 {
     Expression visit_TwiddleMultiply(const TwiddleMultiply& x) override
     {
-        return TwiddleMultiplyConjugate{x.a, x.b};
+        return TwiddleMultiplyConjugate{x.vars[0], x.vars[1]};
     }
 
     StatementList visit_Butterfly(const Butterfly& x) override

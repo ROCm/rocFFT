@@ -178,11 +178,6 @@ std::string LoadGlobal::render() const
     return "load_cb(" + vrender(args[0]) + "," + vrender(args[1]) + ", load_cb_data, nullptr)";
 }
 
-std::string ScalarVariable::render() const
-{
-    return name;
-}
-
 std::string ArgumentList::render_decl() const
 {
     std::string f;
@@ -214,9 +209,6 @@ Variable::Variable(const std::string& _name,
     , type(_type)
     , pointer(pointer)
     , restrict(restrict)
-    , x(_name + ".x", _type, Component::REAL)
-    , y(_name + ".y", _type, Component::IMAG)
-    , component(Component::BOTH)
 {
     if(size > 0)
         this->size = Expression{size};
@@ -231,9 +223,6 @@ Variable::Variable(const std::string& _name,
     , type(_type)
     , pointer(pointer)
     , restrict(restrict)
-    , x(_name + ".x", _type, Component::REAL)
-    , y(_name + ".y", _type, Component::IMAG)
-    , component(Component::BOTH)
     , size(_size)
 {
 }
@@ -247,8 +236,6 @@ Variable::Variable(const Variable& v)
     , type(v.type)
     , pointer(v.pointer)
     , restrict(v.restrict)
-    , x(v.x)
-    , y(v.y)
     , component(v.component)
     , index(v.index)
     , index2D(v.index2D)
@@ -256,11 +243,6 @@ Variable::Variable(const Variable& v)
     , size2D(v.size2D)
     , decl_default(v.decl_default)
 {
-    if(index)
-    {
-        x.name = v.name + "[" + vrender(*index) + "].x";
-        y.name = v.name + "[" + vrender(*index) + "].y";
-    }
 }
 
 Variable::Variable(const Variable& v, const Expression& _index)
@@ -268,16 +250,12 @@ Variable::Variable(const Variable& v, const Expression& _index)
     , type(v.type)
     , pointer(v.pointer)
     , restrict(v.restrict)
-    , x(v.x)
-    , y(v.y)
     , component(v.component)
     , index(_index)
 {
     size         = v.size;
     size2D       = v.size2D;
     decl_default = v.decl_default;
-    x.name       = v.name + "[" + vrender(*index) + "].x";
-    y.name       = v.name + "[" + vrender(*index) + "].y";
 }
 
 Variable::Variable(const Variable& v, const Expression& _index, const Expression& _index2D)
@@ -286,25 +264,46 @@ Variable::Variable(const Variable& v, const Expression& _index, const Expression
     index2D = _index2D;
 }
 
-ScalarVariable Variable::address() const
+Variable Variable::address() const
 {
     if(index)
     {
-        return ScalarVariable("&" + name + "[" + vrender(*index) + "]", type + "*");
+        return Variable("&" + name + "[" + vrender(*index) + "]", type + "*");
     }
-    return ScalarVariable("&" + name, type + "*");
+    return Variable("&" + name, type + "*");
+}
+
+Variable Variable::x() const
+{
+    Variable ret{*this};
+    ret.component = Component::REAL;
+    return ret;
+}
+
+Variable Variable::y() const
+{
+    Variable ret{*this};
+    ret.component = Component::IMAG;
+    return ret;
 }
 
 std::string Variable::render() const
 {
+    std::string output;
     if(index)
     {
-        std::string output = name + "[" + vrender(*index) + "]";
+        output = name + "[" + vrender(*index) + "]";
         if(index2D)
             output += "[" + vrender(*index2D) + "]";
-        return output;
     }
-    return name;
+    else
+        output = name;
+
+    if(component == Component::REAL)
+        output += ".x";
+    else if(component == Component::IMAG)
+        output += ".y";
+    return output;
 }
 
 Variable Variable::operator[](const Expression& index) const
@@ -317,23 +316,48 @@ Variable Variable::at(const Expression& index, const Expression& index2D) const
     return Variable(*this, index, index2D);
 }
 
+OptionalExpression::OptionalExpression() {}
+
+OptionalExpression::OptionalExpression(OptionalExpression&& o)
+    : expr(std::move(o.expr))
+{
+}
+OptionalExpression::OptionalExpression(const OptionalExpression& o)
+{
+    if(o.expr)
+        this->expr = std::make_unique<Expression>(*o.expr);
+}
+
+OptionalExpression& OptionalExpression::operator=(OptionalExpression&& o)
+{
+    std::swap(expr, o.expr);
+    return *this;
+}
+
+OptionalExpression& OptionalExpression::operator=(const OptionalExpression& o)
+{
+    if(o.expr)
+        this->expr = std::make_unique<Expression>(*o.expr);
+    return *this;
+}
+
 OptionalExpression::operator bool() const
 {
-    return expr.has_value();
+    return expr != nullptr;
 }
 
 Expression OptionalExpression::operator*() const
 {
-    return std::any_cast<Expression>(expr);
+    return *expr;
 }
 
 OptionalExpression::OptionalExpression(const Expression& expr)
 {
-    this->expr = expr;
+    this->expr = std::make_unique<Expression>(expr);
 }
 OptionalExpression& OptionalExpression::operator=(const Expression& in_expr)
 {
-    this->expr = in_expr;
+    this->expr = std::make_unique<Expression>(in_expr);
     return *this;
 }
 
@@ -346,7 +370,7 @@ std::string ComplexLiteral::render() const
         if(separator)
             ret += separator;
         ret += vrender(arg);
-        separator = oper.c_str();
+        separator = oper;
     }
     ret += "}";
     return ret;
@@ -354,20 +378,24 @@ std::string ComplexLiteral::render() const
 
 std::string ComplexMultiply::render() const
 {
-    auto a = std::get<Variable>(args[0]);
-    auto b = std::get<Variable>(args[1]);
-    auto r = ComplexLiteral{a.x * b.x - a.y * b.y, a.y * b.x + a.x * b.y};
+    auto& a = std::get<Variable>(args[0]);
+    auto& b = std::get<Variable>(args[1]);
+    auto  r = ComplexLiteral{a.x() * b.x() - a.y() * b.y(), a.y() * b.x() + a.x() * b.y()};
     return r.render();
 }
 
 std::string TwiddleMultiply::render() const
 {
-    return ComplexLiteral{a.x * b.x - a.y * b.y, a.y * b.x + a.x * b.y}.render();
+    auto& a = vars[0];
+    auto& b = vars[1];
+    return ComplexLiteral{a.x() * b.x() - a.y() * b.y(), a.y() * b.x() + a.x() * b.y()}.render();
 }
 
 std::string TwiddleMultiplyConjugate::render() const
 {
-    return ComplexLiteral{a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y}.render();
+    auto& a = vars[0];
+    auto& b = vars[1];
+    return ComplexLiteral{a.x() * b.x() + a.y() * b.y(), a.y() * b.x() - a.x() * b.y()}.render();
 }
 
 Parens::Parens(Expression&& inside)

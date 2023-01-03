@@ -182,7 +182,7 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
         write_conj.body += Declaration{elem};
         write_conj.body += Assign{elem, LoadGlobal{input, input_offset}};
         write_conj.body += Assign{outputs[0], elem};
-        write_conj.body += Assign{elem.y, UnaryMinus{elem.y}};
+        write_conj.body += Assign{elem.y(), UnaryMinus{elem.y()}};
         write_conj.body += Assign{outputc[0], elem};
         func.body += write_conj;
     }
@@ -269,7 +269,7 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
             guard.body += CallbackDeclaration("real_type_t<scalar_type>", "cbtype");
 
             Variable elem{"elem", "auto"};
-            guard.body += Declaration{elem, input[inputIdx].x};
+            guard.body += Declaration{elem, input[inputIdx].x()};
             if(specs.enable_scaling)
                 guard.body += MultiplyAssign(elem, scale_factor_var);
             guard.body += StoreGlobal{output, outputIdx, elem};
@@ -455,15 +455,15 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
     if(specs.scheme == CS_KERNEL_R_TO_CMPLX)
     {
         if_idx_p_zero.body
-            += Assign{outval.x, input[input_offset + 0].x - input[input_offset + 0].y};
-        if_idx_p_zero.body += Assign{outval.y, 0};
+            += Assign{outval.x(), input[input_offset + 0].x() - input[input_offset + 0].y()};
+        if_idx_p_zero.body += Assign{outval.y(), 0};
         if(specs.enable_scaling)
             if_idx_p_zero.body += MultiplyAssign(outval, scale_factor);
         if_idx_p_zero.body += StoreGlobal{output, output_offset + half_N, outval};
 
         if_idx_p_zero.body
-            += Assign{outval.x, input[input_offset + 0].x + input[input_offset + 0].y};
-        if_idx_p_zero.body += Assign{outval.y, 0};
+            += Assign{outval.x(), input[input_offset + 0].x() + input[input_offset + 0].y()};
+        if_idx_p_zero.body += Assign{outval.y(), 0};
         if(specs.enable_scaling)
             if_idx_p_zero.body += MultiplyAssign(outval, scale_factor);
         if_idx_p_zero.body += StoreGlobal{output, output_offset + 0, outval};
@@ -474,15 +474,15 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
         if_idx_p_zero.body += Assign{p, LoadGlobal{input, input_offset + idx_p}};
         if_idx_p_zero.body += Declaration{q};
         if_idx_p_zero.body += Assign{q, LoadGlobal{input, input_offset + idx_q}};
-        if_idx_p_zero.body += Assign{output[output_offset + idx_p].x, p.x + q.x};
-        if_idx_p_zero.body += Assign{output[output_offset + idx_p].y, p.x - q.x};
+        if_idx_p_zero.body += Assign{output[output_offset + idx_p].x(), p.x() + q.x()};
+        if_idx_p_zero.body += Assign{output[output_offset + idx_p].y(), p.x() - q.x()};
     }
 
     If if_Ndiv4{"Ndiv4", {}};
     if(specs.scheme == CS_KERNEL_R_TO_CMPLX)
     {
-        if_Ndiv4.body += Assign{outval.x, input[input_offset + quarter_N].x};
-        if_Ndiv4.body += Assign{outval.y, -input[input_offset + quarter_N].y};
+        if_Ndiv4.body += Assign{outval.x(), input[input_offset + quarter_N].x()};
+        if_Ndiv4.body += Assign{outval.y(), -input[input_offset + quarter_N].y()};
         if(specs.enable_scaling)
             if_Ndiv4.body += MultiplyAssign(outval, scale_factor);
         if_Ndiv4.body += StoreGlobal{output, output_offset + quarter_N, outval};
@@ -493,9 +493,9 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
         if_Ndiv4.body += Declaration{quarter_elem};
         if_Ndiv4.body += Assign{quarter_elem, LoadGlobal{input, input_offset + quarter_N}};
         if_Ndiv4.body
-            += Assign{output[output_offset + quarter_N].x, Literal{"2.0"} * quarter_elem.x};
+            += Assign{output[output_offset + quarter_N].x(), Literal{"2.0"} * quarter_elem.x()};
         if_Ndiv4.body
-            += Assign{output[output_offset + quarter_N].y, Literal{"-2.0"} * quarter_elem.y};
+            += Assign{output[output_offset + quarter_N].y(), Literal{"-2.0"} * quarter_elem.y()};
     }
 
     if_idx_p_zero.body += if_Ndiv4;
@@ -514,14 +514,18 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
         else_idx_p_nonzero.body += Declaration{twd_p, twiddles[idx_p]};
         else_idx_p_nonzero.body += CommentLines{"NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y);"};
 
-        else_idx_p_nonzero.body += Assign{outval.x, u.x + v.x * twd_p.y + u.y * twd_p.x};
-        else_idx_p_nonzero.body += Assign{outval.y, v.y + u.y * twd_p.y - v.x * twd_p.x};
+        else_idx_p_nonzero.body
+            += Assign{outval.x(), u.x() + v.x() * twd_p.y() + u.y() * twd_p.x()};
+        else_idx_p_nonzero.body
+            += Assign{outval.y(), v.y() + u.y() * twd_p.y() - v.x() * twd_p.x()};
         if(specs.enable_scaling)
             else_idx_p_nonzero.body += MultiplyAssign(outval, scale_factor);
         else_idx_p_nonzero.body += StoreGlobal{output, output_offset + idx_p, outval};
 
-        else_idx_p_nonzero.body += Assign{outval.x, u.x - v.x * twd_p.y - u.y * twd_p.x};
-        else_idx_p_nonzero.body += Assign{outval.y, -v.y + u.y * twd_p.y - v.x * twd_p.x};
+        else_idx_p_nonzero.body
+            += Assign{outval.x(), u.x() - v.x() * twd_p.y() - u.y() * twd_p.x()};
+        else_idx_p_nonzero.body
+            += Assign{outval.y(), -v.y() + u.y() * twd_p.y() - v.x() * twd_p.x()};
         if(specs.enable_scaling)
             else_idx_p_nonzero.body += MultiplyAssign(outval, scale_factor);
         else_idx_p_nonzero.body += StoreGlobal{output, output_offset + idx_q, outval};
@@ -538,15 +542,15 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
         else_idx_p_nonzero.body += Declaration{twd_p, twiddles[idx_p]};
         else_idx_p_nonzero.body += CommentLines{"NB: twd_q = -conj(twd_p);"};
 
-        else_idx_p_nonzero.body
-            += Assign{output[output_offset + idx_p].x, u.x + v.x * twd_p.y - u.y * twd_p.x};
-        else_idx_p_nonzero.body
-            += Assign{output[output_offset + idx_p].y, v.y + u.y * twd_p.y + v.x * twd_p.x};
+        else_idx_p_nonzero.body += Assign{output[output_offset + idx_p].x(),
+                                          u.x() + v.x() * twd_p.y() - u.y() * twd_p.x()};
+        else_idx_p_nonzero.body += Assign{output[output_offset + idx_p].y(),
+                                          v.y() + u.y() * twd_p.y() + v.x() * twd_p.x()};
 
-        else_idx_p_nonzero.body
-            += Assign{output[output_offset + idx_q].x, u.x - v.x * twd_p.y + u.y * twd_p.x};
-        else_idx_p_nonzero.body
-            += Assign{output[output_offset + idx_q].y, -v.y + u.y * twd_p.y + v.x * twd_p.x};
+        else_idx_p_nonzero.body += Assign{output[output_offset + idx_q].x(),
+                                          u.x() - v.x() * twd_p.y() + u.y() * twd_p.x()};
+        else_idx_p_nonzero.body += Assign{output[output_offset + idx_q].y(),
+                                          -v.y() + u.y() * twd_p.y() + v.x() * twd_p.x()};
     }
 
     guard.body += else_idx_p_nonzero;
@@ -801,18 +805,18 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
         write_condition = Literal{"blockIdx.x"} == 0 && Literal{"threadIdx.x"} == 0
                           && row_start + lds_row < row_end;
 
-        compute_first_val += Assign{val.x, first_elem.x - first_elem.y};
-        compute_first_val += Assign{val.y, Literal{"0.0"}};
+        compute_first_val += Assign{val.x(), first_elem.x() - first_elem.y()};
+        compute_first_val += Assign{val.y(), Literal{"0.0"}};
         write_first_idx = CallExpr{"output_row_base", {dim, output_batch_start, outStride, len_row}}
                           + row_start + lds_row;
 
-        compute_middle_val += Assign{val.x, middle_elem.x};
-        compute_middle_val += Assign{val.y, -middle_elem.y};
+        compute_middle_val += Assign{val.x(), middle_elem.x()};
+        compute_middle_val += Assign{val.y(), -middle_elem.y()};
         write_middle_idx = CallExpr{"output_row_base", {dim, output_batch_start, outStride, middle}}
                            + row_start + lds_row;
 
-        compute_last_val += Assign{val.x, first_elem.x + first_elem.y};
-        compute_last_val += Assign{val.y, Literal{"0.0"}};
+        compute_last_val += Assign{val.x(), first_elem.x() + first_elem.y()};
+        compute_last_val += Assign{val.y(), Literal{"0.0"}};
         write_last_idx = CallExpr{"output_row_base", {dim, output_batch_start, outStride, 0}}
                          + row_start + lds_row;
     }
@@ -842,12 +846,12 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
         write_condition = Literal{"blockIdx.y"} == 0 && Literal{"threadIdx.y"} == 0
                           && row_start + lds_col < row_end;
 
-        compute_first_val += Assign{val.x, first_elem.x + last_elem.x};
-        compute_first_val += Assign{val.y, first_elem.x - last_elem.x};
+        compute_first_val += Assign{val.x(), first_elem.x() + last_elem.x()};
+        compute_first_val += Assign{val.y(), first_elem.x() - last_elem.x()};
         write_first_idx = output_batch_start + output_row_base;
 
-        compute_middle_val += Assign{val.x, Literal{"2.0"} * middle_elem.x};
-        compute_middle_val += Assign{val.y, Literal{"-2.0"} * middle_elem.y};
+        compute_middle_val += Assign{val.x(), Literal{"2.0"} * middle_elem.x()};
+        compute_middle_val += Assign{val.y(), Literal{"-2.0"} * middle_elem.y()};
         write_middle_idx = output_batch_start + output_row_base + middle * output_row_stride;
     }
 
@@ -924,8 +928,8 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
         butterfly.body += CommentLines{"NB: twd_q = -conj(twd_p) = (-twd_p.x, twd_p.y)"};
 
         butterfly.body += CommentLines{"write left side"};
-        butterfly.body += Assign{val.x, u.x + v.x * twd_p.y + u.y * twd_p.x};
-        butterfly.body += Assign{val.y, v.y + u.y * twd_p.y - v.x * twd_p.x};
+        butterfly.body += Assign{val.x(), u.x() + v.x() * twd_p.y() + u.y() * twd_p.x()};
+        butterfly.body += Assign{val.y(), v.y() + u.y() * twd_p.y() - v.x() * twd_p.x()};
         butterfly.body
             += StoreGlobal{output,
                            CallExpr{"output_row_base", {dim, output_batch_start, outStride, col}}
@@ -933,8 +937,8 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
                            val};
 
         butterfly.body += CommentLines{"write right side"};
-        butterfly.body += Assign{val.x, u.x - v.x * twd_p.y - u.y * twd_p.x};
-        butterfly.body += Assign{val.y, -v.y + u.y * twd_p.y - v.x * twd_p.x};
+        butterfly.body += Assign{val.x(), u.x() - v.x() * twd_p.y() - u.y() * twd_p.x()};
+        butterfly.body += Assign{val.y(), -v.y() + u.y() * twd_p.y() - v.x() * twd_p.x()};
         butterfly.body += StoreGlobal{
             output,
             CallExpr{"output_row_base", {dim, output_batch_start, outStride, len_row - col}}
@@ -955,16 +959,16 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
         butterfly.body += Declaration{twd_p, twiddles[left_col_start + lds_row]};
 
         butterfly.body += CommentLines{"write top side"};
-        butterfly.body += Assign{val.x, u.x + v.x * twd_p.y - u.y * twd_p.x};
-        butterfly.body += Assign{val.y, v.y + u.y * twd_p.y + v.x * twd_p.x};
+        butterfly.body += Assign{val.x(), u.x() + v.x() * twd_p.y() - u.y() * twd_p.x()};
+        butterfly.body += Assign{val.y(), v.y() + u.y() * twd_p.y() + v.x() * twd_p.x()};
         butterfly.body += StoreGlobal{output,
                                       output_batch_start + output_row_base
                                           + (left_col_start + lds_row) * output_row_stride,
                                       val};
 
         butterfly.body += CommentLines{"write bottom side"};
-        butterfly.body += Assign{val.x, u.x - v.x * twd_p.y + u.y * twd_p.x};
-        butterfly.body += Assign{val.y, -v.y + u.y * twd_p.y + v.x * twd_p.x};
+        butterfly.body += Assign{val.x(), u.x() - v.x() * twd_p.y() + u.y() * twd_p.x()};
+        butterfly.body += Assign{val.y(), -v.y() + u.y() * twd_p.y() + v.x() * twd_p.x()};
         butterfly.body
             += StoreGlobal{output,
                            output_batch_start + output_row_base

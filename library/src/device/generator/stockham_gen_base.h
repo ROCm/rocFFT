@@ -349,10 +349,10 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             switch(component)
             {
             case Component::REAL:
-                work += Assign(R[hr * width + w].x, lds_real[l_offset]);
+                work += Assign(R[hr * width + w].x(), lds_real[l_offset]);
                 break;
             case Component::IMAG:
-                work += Assign(R[hr * width + w].y, lds_real[l_offset]);
+                work += Assign(R[hr * width + w].y(), lds_real[l_offset]);
                 break;
             case Component::BOTH:
                 work += Assign(R[hr * width + w], lds_complex[l_offset]);
@@ -391,10 +391,10 @@ struct StockhamKernel : public StockhamGeneratorSpecs
             switch(component)
             {
             case Component::REAL:
-                work += Assign(lds_real[l_offset], R[hr * width + w].x);
+                work += Assign(lds_real[l_offset], R[hr * width + w].x());
                 break;
             case Component::IMAG:
-                work += Assign(lds_real[l_offset], R[hr * width + w].y);
+                work += Assign(lds_real[l_offset], R[hr * width + w].y());
                 break;
             case Component::BOTH:
                 work += Assign(lds_complex[l_offset], R[hr * width + w]);

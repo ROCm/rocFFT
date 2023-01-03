@@ -199,7 +199,7 @@ static std::string bluestein_multi_chirp_rtc(const std::string&         kernel_n
     func.body += ElseIf{twl == 4,
                         {Assign{val, CallExpr{"TWLstep4", {twiddles_large, (tx * tx) % (2 * N)}}}}};
 
-    func.body += MultiplyAssign(val.y, CallExpr{"real_type_t<scalar_type>", {dir}});
+    func.body += MultiplyAssign(val.y(), CallExpr{"real_type_t<scalar_type>", {dir}});
 
     func.body += If{tx == 0,
                     {
@@ -328,9 +328,10 @@ std::string bluestein_multi_rtc(const std::string& kernel_name, const BluesteinM
         If       readBlock{tx < N, {}};
         readBlock.body += Declaration{in_elem};
         readBlock.body += Assign{in_elem, LoadGlobal{input, iIdx}};
-        readBlock.body += Assign{output[oIdx].x, in_elem.x * chirp[tx].x + in_elem.y * chirp[tx].y};
         readBlock.body
-            += Assign{output[oIdx].y, -in_elem.x * chirp[tx].y + in_elem.y * chirp[tx].x};
+            += Assign{output[oIdx].x(), in_elem.x() * chirp[tx].x() + in_elem.y() * chirp[tx].y()};
+        readBlock.body
+            += Assign{output[oIdx].y(), -in_elem.x() * chirp[tx].y() + in_elem.y() * chirp[tx].x()};
         func.body += readBlock;
         func.body
             += Else{{Assign{output[oIdx], CallExpr{"lib_make_vector2<scalar_type>", {0, 0}}}}};
@@ -343,10 +344,10 @@ std::string bluestein_multi_rtc(const std::string& kernel_name, const BluesteinM
                                   "don't need to run callbacks."};
         func.body += AddAssign(output, oOffset);
         func.body += Declaration{out_elem, output[oIdx]};
-        func.body
-            += Assign{output[oIdx].x, input[iIdx].x * out_elem.x - input[iIdx].y * out_elem.y};
-        func.body
-            += Assign{output[oIdx].y, input[iIdx].x * out_elem.y + input[iIdx].y * out_elem.x};
+        func.body += Assign{output[oIdx].x(),
+                            input[iIdx].x() * out_elem.x() - input[iIdx].y() * out_elem.y()};
+        func.body += Assign{output[oIdx].y(),
+                            input[iIdx].x() * out_elem.y() + input[iIdx].y() * out_elem.x()};
         break;
     }
     case CS_KERNEL_RES_MUL:
@@ -362,10 +363,11 @@ std::string bluestein_multi_rtc(const std::string& kernel_name, const BluesteinM
         Variable MI{"MI", "real_type_t<scalar_type>"};
         func.body += Declaration{MI, Literal{"1.0"} / CallExpr{"real_type_t<scalar_type>", {M}}};
         func.body += Declaration{out_elem};
+        func.body += Assign{
+            out_elem.x(), MI * (input[iIdx].x() * chirp[tx].x() + input[iIdx].y() * chirp[tx].y())};
         func.body
-            += Assign{out_elem.x, MI * (input[iIdx].x * chirp[tx].x + input[iIdx].y * chirp[tx].y)};
-        func.body += Assign{out_elem.y,
-                            MI * (-input[iIdx].x * chirp[tx].y + input[iIdx].y * chirp[tx].x)};
+            += Assign{out_elem.y(),
+                      MI * (-input[iIdx].x() * chirp[tx].y() + input[iIdx].y() * chirp[tx].x())};
         if(specs.enable_scaling)
             func.body += MultiplyAssign(out_elem, scale_factor);
         func.body += StoreGlobal{output, oIdx, out_elem};

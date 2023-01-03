@@ -543,7 +543,7 @@ struct FFTApplyTwiddleInline : public FFTGPUWork
             // auto tidx = params.nheight - 1 + w - 1 + (params.width - 1) * (tid % params.nheight);
             auto ridx  = h * params.width + w;
             auto theta = Literal(params.nheight); // XXX
-            stmts += Call("sincospi", {theta, t.y, t.x}); // XXX need address of
+            stmts += Call("sincospi", {theta, t.y(), t.x()}); // XXX need address of
             stmts += Assign(t, TwiddleMultiply(t, R[ridx]));
             stmts += Assign(R[ridx], t);
         }
@@ -675,9 +675,9 @@ struct FFTStoreStockham : public FFTGPUWork
             if(component == Component::BOTH)
                 stmts += Assign(dst[idx], src[h * params.width + w]);
             else if(component == Component::REAL)
-                stmts += Assign(dst[idx], src[h * params.width + w].x);
+                stmts += Assign(dst[idx], src[h * params.width + w].x());
             else if(component == Component::IMAG)
-                stmts += Assign(dst[idx], src[h * params.width + w].y);
+                stmts += Assign(dst[idx], src[h * params.width + w].y());
         }
 
         return stmts;
@@ -714,9 +714,9 @@ struct FFTLoadStockham : public FFTGPUWork
             if(component == Component::BOTH)
                 stmts += Assign(dst[h * params.width + w], src[idx]);
             else if(component == Component::REAL)
-                stmts += Assign(dst[h * params.width + w].x, src[idx]);
+                stmts += Assign(dst[h * params.width + w].x(), src[idx]);
             else if(component == Component::IMAG)
-                stmts += Assign(dst[h * params.width + w].y, src[idx]);
+                stmts += Assign(dst[h * params.width + w].y(), src[idx]);
         }
 
         return stmts;
@@ -752,9 +752,9 @@ struct FFTLoadStockhamDual : public FFTGPUWork
             if(component == Component::BOTH)
                 stmts += Assign(dst[h * params.width + w], src[idx]);
             else if(component == Component::REAL)
-                stmts += Assign(dst[h * params.width + w].x, src[idx]);
+                stmts += Assign(dst[h * params.width + w].x(), src[idx]);
             else if(component == Component::IMAG)
-                stmts += Assign(dst[h * params.width + w].y, src[idx]);
+                stmts += Assign(dst[h * params.width + w].y(), src[idx]);
         }
 
         return stmts;
@@ -891,14 +891,15 @@ struct FFTBluesteinPadMul : public FFTGPUWork
             auto tid = params.thread + h * params.threads_per_transform;
             auto idx = tid + w * (params.length / params.width);
 
-            stmts
-                += If{idx < length,
-                      {
-                          Declaration{in_elem},
-                          Assign{in_elem, src.load_global(idx)},
-                          Assign{dst[idx].x, in_elem.x * chirp[idx].x + in_elem.y * chirp[idx].y},
-                          Assign{dst[idx].y, -in_elem.x * chirp[idx].y + in_elem.y * chirp[idx].x},
-                      }};
+            stmts += If{idx < length,
+                        {
+                            Declaration{in_elem},
+                            Assign{in_elem, src.load_global(idx)},
+                            Assign{dst[idx].x(),
+                                   in_elem.x() * chirp[idx].x() + in_elem.y() * chirp[idx].y()},
+                            Assign{dst[idx].y(),
+                                   -in_elem.x() * chirp[idx].y() + in_elem.y() * chirp[idx].x()},
+                        }};
             stmts += Else{{
                 Assign{dst[idx], CallExpr{"lib_make_vector2<scalar_type>", {0, 0}}},
             }};
@@ -945,8 +946,8 @@ struct FFTBluesteinFFTMul : public FFTGPUWork
             auto idx = tid + w * (params.length / params.width);
 
             stmts += Assign{elem, srcA[idx]};
-            stmts += Assign{dst[idx].x, srcB[idx].x * elem.x - srcB[idx].y * elem.y};
-            stmts += Assign{dst[idx].y, srcB[idx].x * elem.y + srcB[idx].y * elem.x};
+            stmts += Assign{dst[idx].x(), srcB[idx].x() * elem.x() - srcB[idx].y() * elem.y()};
+            stmts += Assign{dst[idx].y(), srcB[idx].x() * elem.y() + srcB[idx].y() * elem.x()};
         }
         return stmts;
     }
@@ -1000,10 +1001,10 @@ struct FFTBluesteinResMul : public FFTGPUWork
             auto idx = tid + w * (params.length / params.width);
 
             If write_cond{idx < length, {}};
-            write_cond.body
-                += Assign{elem.x, MI * (src[idx].x * chirp[idx].x + src[idx].y * chirp[idx].y)};
-            write_cond.body
-                += Assign{elem.y, MI * (-src[idx].x * chirp[idx].y + src[idx].y * chirp[idx].x)};
+            write_cond.body += Assign{
+                elem.x(), MI * (src[idx].x() * chirp[idx].x() + src[idx].y() * chirp[idx].y())};
+            write_cond.body += Assign{
+                elem.y(), MI * (-src[idx].x() * chirp[idx].y() + src[idx].y() * chirp[idx].x())};
             if(enable_scaling)
                 write_cond.body += MultiplyAssign(elem, scale_factor);
             write_cond.body += dst.store_global(idx, elem);
