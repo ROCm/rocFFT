@@ -230,8 +230,9 @@ target_link_libraries( rocfft-test PRIVATE ${ROCFFT_CLIENTS_HOST_LINK_LIBS} ${RO
 option( BUILD_CLIENTS_TESTS_OPENMP "Build tests with OpenMP" ON )
 
 if( BUILD_CLIENTS_TESTS_OPENMP )
+  target_compile_options( rocfft-test PRIVATE -DBUILD_CLIENTS_TESTS_OPENMP )
   if( CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )  
-    target_compile_options( rocfft-test PRIVATE -fopenmp -DBUILD_CLIENTS_TESTS_OPENMP )
+    target_compile_options( rocfft-test PRIVATE -fopenmp )
     target_link_libraries( rocfft-test PRIVATE -fopenmp -L${HIP_CLANG_ROOT}/lib -Wl,-rpath=${HIP_CLANG_ROOT}/lib )
     target_include_directories( rocfft-test PRIVATE ${HIP_CLANG_ROOT}/include )
   else()
