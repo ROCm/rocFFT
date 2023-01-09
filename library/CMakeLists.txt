@@ -35,7 +35,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "-DDEBUG ${CMAKE_CXX_FLAGS_DEBUG}")
 if (BUILD_CPUREF)
   set(CMAKE_CXX_FLAGS_DEBUG "-DREF_DEBUG ${CMAKE_CXX_FLAGS_DEBUG}")
 endif()
-  
+
 # Print out compiler flags for viewing/debug
 if( BUILD_VERBOSE )
   message( STATUS "rocfft_VERSION: ${rocfft_VERSION}" )
@@ -67,7 +67,7 @@ configure_file( "${CMAKE_CURRENT_SOURCE_DIR}/include/rocfft-version.h.in" "${PRO
 configure_file( "${CMAKE_CURRENT_SOURCE_DIR}/include/rocfft.h" "${PROJECT_BINARY_DIR}/include/rocfft/rocfft.h" COPYONLY )
 
 set( rocfft_headers_public
-  include/rocfft.h
+  ${PROJECT_BINARY_DIR}/include/rocfft/rocfft.h
   ${PROJECT_BINARY_DIR}/include/rocfft/rocfft-version.h
 )
 
