@@ -222,13 +222,10 @@ if( BUILD_CLIENTS_SAMPLES
   if(CLIENTS_OS STREQUAL "sles")
     set(BOOST_RPM RPM "libboost_program_options${Boost_VERSION_MAJOR}_${Boost_VERSION_MINOR}_${Boost_VERSION_PATCH}-devel")
   endif()
-  rocm_package_setup_component(clients)
-  rocm_package_setup_client_component(clients-common)
   if(BUILD_CLIENTS_TESTS)
     rocm_package_setup_client_component(
       tests
       DEPENDS
-        COMPONENT clients-common
         DEB ${BOOST_DEB} ${OPENMP_DEB}
         RPM ${BOOST_RPM} ${OPENMP_RPM}
     )
@@ -237,7 +234,6 @@ if( BUILD_CLIENTS_SAMPLES
     rocm_package_setup_client_component(
       benchmarks
       DEPENDS
-        COMPONENT clients-common
         DEB ${BOOST_DEB}
         RPM ${BOOST_RPM}
     )
