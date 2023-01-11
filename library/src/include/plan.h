@@ -50,8 +50,8 @@ static inline bool IsPow(size_t u)
 
 struct rocfft_plan_description_t
 {
-    rocfft_array_type inArrayType  = rocfft_array_type_complex_interleaved;
-    rocfft_array_type outArrayType = rocfft_array_type_complex_interleaved;
+    rocfft_array_type inArrayType  = rocfft_array_type_unset;
+    rocfft_array_type outArrayType = rocfft_array_type_unset;
 
     std::array<size_t, 3> inStrides  = {0, 0, 0};
     std::array<size_t, 3> outStrides = {0, 0, 0};
@@ -65,6 +65,15 @@ struct rocfft_plan_description_t
     double scale_factor = 1.0;
 
     rocfft_plan_description_t() = default;
+
+    // A plan description is created in a vacuum and does not know what
+    // type of transform it will be for.  Once that's known, we can
+    // initialize default values for in/out type, stride, dist if they're
+    // unspecified.
+    void init_defaults(rocfft_transform_type        transformType,
+                       rocfft_result_placement      placement,
+                       size_t                       rank,
+                       const std::array<size_t, 3>& lengths);
 };
 
 struct rocfft_plan_t

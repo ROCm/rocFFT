@@ -118,6 +118,141 @@ static size_t offset_count(rocfft_array_type type)
                : 1;
 }
 
+void rocfft_plan_description_t::init_defaults(rocfft_transform_type        transformType,
+                                              rocfft_result_placement      placement,
+                                              size_t                       rank,
+                                              const std::array<size_t, 3>& lengths)
+{
+    // assume interleaved data
+    if(inArrayType == rocfft_array_type_unset)
+    {
+        switch(transformType)
+        {
+        case rocfft_transform_type_complex_forward:
+        case rocfft_transform_type_complex_inverse:
+            inArrayType = rocfft_array_type_complex_interleaved;
+            break;
+        case rocfft_transform_type_real_inverse:
+            inArrayType = rocfft_array_type_hermitian_interleaved;
+            break;
+        case rocfft_transform_type_real_forward:
+            inArrayType = rocfft_array_type_real;
+            break;
+        }
+    }
+    if(outArrayType == rocfft_array_type_unset)
+    {
+        switch(transformType)
+        {
+        case rocfft_transform_type_complex_forward:
+        case rocfft_transform_type_complex_inverse:
+            outArrayType = rocfft_array_type_complex_interleaved;
+            break;
+        case rocfft_transform_type_real_forward:
+            outArrayType = rocfft_array_type_hermitian_interleaved;
+            break;
+        case rocfft_transform_type_real_inverse:
+            outArrayType = rocfft_array_type_real;
+            break;
+        }
+    }
+
+    // Set inStrides, if not specified
+    if(inStrides[0] == 0)
+    {
+        inStrides[0] = 1;
+
+        if((transformType == rocfft_transform_type_real_forward)
+           && (placement == rocfft_placement_inplace))
+        {
+            // real-to-complex in-place
+            size_t dist = 2 * (1 + (lengths[0]) / 2);
+
+            for(size_t i = 1; i < rank; i++)
+            {
+                inStrides[i] = dist;
+                dist *= lengths[i];
+            }
+
+            if(inDist == 0)
+                inDist = dist;
+        }
+        else if(transformType == rocfft_transform_type_real_inverse)
+        {
+            // complex-to-real
+            size_t dist = 1 + (lengths[0]) / 2;
+
+            for(size_t i = 1; i < rank; i++)
+            {
+                inStrides[i] = dist;
+                dist *= lengths[i];
+            }
+
+            if(inDist == 0)
+                inDist = dist;
+        }
+
+        else
+        {
+            // Set the inStrides to deal with contiguous data
+            for(size_t i = 1; i < rank; i++)
+                inStrides[i] = lengths[i - 1] * inStrides[i - 1];
+        }
+    }
+
+    // Set outStrides, if not specified
+    if(outStrides[0] == 0)
+    {
+        outStrides[0] = 1;
+
+        if((transformType == rocfft_transform_type_real_inverse)
+           && (placement == rocfft_placement_inplace))
+        {
+            // complex-to-real in-place
+            size_t dist = 2 * (1 + (lengths[0]) / 2);
+
+            for(size_t i = 1; i < rank; i++)
+            {
+                outStrides[i] = dist;
+                dist *= lengths[i];
+            }
+
+            if(outDist == 0)
+                outDist = dist;
+        }
+        else if(transformType == rocfft_transform_type_real_forward)
+        {
+            // real-to-complex
+            size_t dist = 1 + (lengths[0]) / 2;
+
+            for(size_t i = 1; i < rank; i++)
+            {
+                outStrides[i] = dist;
+                dist *= lengths[i];
+            }
+
+            if(outDist == 0)
+                outDist = dist;
+        }
+        else
+        {
+            // Set the outStrides to deal with contiguous data
+            for(size_t i = 1; i < rank; i++)
+                outStrides[i] = lengths[i - 1] * outStrides[i - 1];
+        }
+    }
+
+    // Set in and out Distances, if not specified
+    if(inDist == 0)
+    {
+        inDist = lengths[rank - 1] * inStrides[rank - 1];
+    }
+    if(outDist == 0)
+    {
+        outDist = lengths[rank - 1] * outStrides[rank - 1];
+    }
+}
+
 rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description description,
                                                       const rocfft_array_type in_array_type,
                                                       const rocfft_array_type out_array_type,
@@ -248,58 +383,6 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
                                           const size_t                  number_of_transforms,
                                           const rocfft_plan_description description)
 {
-    // Check plan validity
-    if(description != nullptr)
-    {
-        switch(transform_type)
-        {
-        case rocfft_transform_type_complex_forward:
-        case rocfft_transform_type_complex_inverse:
-            // We need complex input data
-            if(!((description->inArrayType == rocfft_array_type_complex_interleaved)
-                 || (description->inArrayType == rocfft_array_type_complex_planar)))
-                return rocfft_status_invalid_array_type;
-            // We need complex output data
-            if(!((description->outArrayType == rocfft_array_type_complex_interleaved)
-                 || (description->outArrayType == rocfft_array_type_complex_planar)))
-                return rocfft_status_invalid_array_type;
-            // In-place transform requires that the input and output
-            // format be identical
-            if(placement == rocfft_placement_inplace)
-            {
-                if(description->inArrayType != description->outArrayType)
-                    return rocfft_status_invalid_array_type;
-            }
-            break;
-        case rocfft_transform_type_real_forward:
-            // Input must be real
-            if(description->inArrayType != rocfft_array_type_real)
-                return rocfft_status_invalid_array_type;
-            // Output must be Hermitian
-            if(!((description->outArrayType == rocfft_array_type_hermitian_interleaved)
-                 || (description->outArrayType == rocfft_array_type_hermitian_planar)))
-                return rocfft_status_invalid_array_type;
-            // In-place transform must output to interleaved format
-            if((placement == rocfft_placement_inplace)
-               && (description->outArrayType != rocfft_array_type_hermitian_interleaved))
-                return rocfft_status_invalid_array_type;
-            break;
-        case rocfft_transform_type_real_inverse:
-            // Output must be real
-            if(description->outArrayType != rocfft_array_type_real)
-                return rocfft_status_invalid_array_type;
-            // Intput must be Hermitian
-            if(!((description->inArrayType == rocfft_array_type_hermitian_interleaved)
-                 || (description->inArrayType == rocfft_array_type_hermitian_planar)))
-                return rocfft_status_invalid_array_type;
-            // In-place transform must have interleaved input
-            if((placement == rocfft_placement_inplace)
-               && (description->inArrayType != rocfft_array_type_hermitian_interleaved))
-                return rocfft_status_invalid_array_type;
-            break;
-        }
-    }
-
     if(dimensions > 3)
         return rocfft_status_invalid_dimensions;
 
@@ -322,119 +405,55 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     {
         p->desc = *description;
     }
-    else
+    p->desc.init_defaults(p->transformType, p->placement, p->rank, p->lengths);
+
+    // Check plan validity
+    switch(transform_type)
     {
-        switch(transform_type)
+    case rocfft_transform_type_complex_forward:
+    case rocfft_transform_type_complex_inverse:
+        // We need complex input data
+        if(!((p->desc.inArrayType == rocfft_array_type_complex_interleaved)
+             || (p->desc.inArrayType == rocfft_array_type_complex_planar)))
+            return rocfft_status_invalid_array_type;
+        // We need complex output data
+        if(!((p->desc.outArrayType == rocfft_array_type_complex_interleaved)
+             || (p->desc.outArrayType == rocfft_array_type_complex_planar)))
+            return rocfft_status_invalid_array_type;
+        // In-place transform requires that the input and output
+        // format be identical
+        if(placement == rocfft_placement_inplace)
         {
-        case rocfft_transform_type_complex_forward:
-        case rocfft_transform_type_complex_inverse:
-            p->desc.inArrayType  = rocfft_array_type_complex_interleaved;
-            p->desc.outArrayType = rocfft_array_type_complex_interleaved;
-            break;
-        case rocfft_transform_type_real_forward:
-            p->desc.inArrayType  = rocfft_array_type_real;
-            p->desc.outArrayType = rocfft_array_type_hermitian_interleaved;
-            break;
-        case rocfft_transform_type_real_inverse:
-            p->desc.inArrayType  = rocfft_array_type_hermitian_interleaved;
-            p->desc.outArrayType = rocfft_array_type_real;
-            break;
+            if(p->desc.inArrayType != p->desc.outArrayType)
+                return rocfft_status_invalid_array_type;
         }
-    }
-
-    // Set inStrides, if not specified
-    if(p->desc.inStrides[0] == 0)
-    {
-        p->desc.inStrides[0] = 1;
-
-        if((p->transformType == rocfft_transform_type_real_forward)
-           && (p->placement == rocfft_placement_inplace))
-        {
-            // real-to-complex in-place
-            size_t dist = 2 * (1 + (p->lengths[0]) / 2);
-
-            for(size_t i = 1; i < (p->rank); i++)
-            {
-                p->desc.inStrides[i] = dist;
-                dist *= p->lengths[i];
-            }
-
-            if(p->desc.inDist == 0)
-                p->desc.inDist = dist;
-        }
-        else if(p->transformType == rocfft_transform_type_real_inverse)
-        {
-            // complex-to-real
-            size_t dist = 1 + (p->lengths[0]) / 2;
-
-            for(size_t i = 1; i < (p->rank); i++)
-            {
-                p->desc.inStrides[i] = dist;
-                dist *= p->lengths[i];
-            }
-
-            if(p->desc.inDist == 0)
-                p->desc.inDist = dist;
-        }
-
-        else
-        {
-            // Set the inStrides to deal with contiguous data
-            for(size_t i = 1; i < (p->rank); i++)
-                p->desc.inStrides[i] = p->lengths[i - 1] * p->desc.inStrides[i - 1];
-        }
-    }
-
-    // Set outStrides, if not specified
-    if(p->desc.outStrides[0] == 0)
-    {
-        p->desc.outStrides[0] = 1;
-
-        if((p->transformType == rocfft_transform_type_real_inverse)
-           && (p->placement == rocfft_placement_inplace))
-        {
-            // complex-to-real in-place
-            size_t dist = 2 * (1 + (p->lengths[0]) / 2);
-
-            for(size_t i = 1; i < (p->rank); i++)
-            {
-                p->desc.outStrides[i] = dist;
-                dist *= p->lengths[i];
-            }
-
-            if(p->desc.outDist == 0)
-                p->desc.outDist = dist;
-        }
-        else if(p->transformType == rocfft_transform_type_real_forward)
-        {
-            // real-co-complex
-            size_t dist = 1 + (p->lengths[0]) / 2;
-
-            for(size_t i = 1; i < (p->rank); i++)
-            {
-                p->desc.outStrides[i] = dist;
-                dist *= p->lengths[i];
-            }
-
-            if(p->desc.outDist == 0)
-                p->desc.outDist = dist;
-        }
-        else
-        {
-            // Set the outStrides to deal with contiguous data
-            for(size_t i = 1; i < (p->rank); i++)
-                p->desc.outStrides[i] = p->lengths[i - 1] * p->desc.outStrides[i - 1];
-        }
-    }
-
-    // Set in and out Distances, if not specified
-    if(p->desc.inDist == 0)
-    {
-        p->desc.inDist = p->lengths[p->rank - 1] * p->desc.inStrides[p->rank - 1];
-    }
-    if(p->desc.outDist == 0)
-    {
-        p->desc.outDist = p->lengths[p->rank - 1] * p->desc.outStrides[p->rank - 1];
+        break;
+    case rocfft_transform_type_real_forward:
+        // Input must be real
+        if(p->desc.inArrayType != rocfft_array_type_real)
+            return rocfft_status_invalid_array_type;
+        // Output must be Hermitian
+        if(!((p->desc.outArrayType == rocfft_array_type_hermitian_interleaved)
+             || (p->desc.outArrayType == rocfft_array_type_hermitian_planar)))
+            return rocfft_status_invalid_array_type;
+        // In-place transform must output to interleaved format
+        if((placement == rocfft_placement_inplace)
+           && (p->desc.outArrayType != rocfft_array_type_hermitian_interleaved))
+            return rocfft_status_invalid_array_type;
+        break;
+    case rocfft_transform_type_real_inverse:
+        // Output must be real
+        if(p->desc.outArrayType != rocfft_array_type_real)
+            return rocfft_status_invalid_array_type;
+        // Input must be Hermitian
+        if(!((p->desc.inArrayType == rocfft_array_type_hermitian_interleaved)
+             || (p->desc.inArrayType == rocfft_array_type_hermitian_planar)))
+            return rocfft_status_invalid_array_type;
+        // In-place transform must have interleaved input
+        if((placement == rocfft_placement_inplace)
+           && (p->desc.inArrayType != rocfft_array_type_hermitian_interleaved))
+            return rocfft_status_invalid_array_type;
+        break;
     }
 
     log_bench(rocfft_rider_command(p));

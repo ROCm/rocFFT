@@ -914,62 +914,72 @@ public:
 
     // Compute the idist for a given transform based on the placeness, transform type, and data
     // layout.
-    void set_idist()
+    size_t compute_idist() const
     {
-        if(idist != 0)
-            return;
-
+        size_t dist = 0;
         // In-place 1D transforms need extra dist.
         if(transform_type == fft_transform_type_real_forward && dim() == 1
            && placement == fft_placement_inplace)
         {
-            idist = 2 * (length[0] / 2 + 1) * istride[0];
-            return;
+            dist = 2 * (length[0] / 2 + 1) * istride[0];
+            return dist;
         }
 
         if(transform_type == fft_transform_type_real_inverse && dim() == 1)
         {
-            idist = (length[0] / 2 + 1) * istride[0];
-            return;
+            dist = (length[0] / 2 + 1) * istride[0];
+            return dist;
         }
 
-        idist = (transform_type == fft_transform_type_real_inverse)
-                    ? (length[dim() - 1] / 2 + 1) * istride[dim() - 1]
-                    : length[dim() - 1] * istride[dim() - 1];
+        dist = (transform_type == fft_transform_type_real_inverse)
+                   ? (length[dim() - 1] / 2 + 1) * istride[dim() - 1]
+                   : length[dim() - 1] * istride[dim() - 1];
         for(unsigned int i = 0; i < dim() - 1; ++i)
         {
-            idist = std::max(length[i] * istride[i], idist);
+            dist = std::max(length[i] * istride[i], dist);
         }
+        return dist;
+    }
+    void set_idist()
+    {
+        if(idist != 0)
+            return;
+        idist = compute_idist();
     }
 
     // Compute the odist for a given transform based on the placeness, transform type, and data
     // layout.  Row-major.
-    void set_odist()
+    size_t compute_odist() const
     {
-        if(odist != 0)
-            return;
-
+        size_t dist = 0;
         // In-place 1D transforms need extra dist.
         if(transform_type == fft_transform_type_real_inverse && dim() == 1
            && placement == fft_placement_inplace)
         {
-            odist = 2 * (length[0] / 2 + 1) * ostride[0];
-            return;
+            dist = 2 * (length[0] / 2 + 1) * ostride[0];
+            return dist;
         }
 
         if(transform_type == fft_transform_type_real_forward && dim() == 1)
         {
-            odist = (length[0] / 2 + 1) * ostride[0];
-            return;
+            dist = (length[0] / 2 + 1) * ostride[0];
+            return dist;
         }
 
-        odist = (transform_type == fft_transform_type_real_forward)
-                    ? (length[dim() - 1] / 2 + 1) * ostride[dim() - 1]
-                    : length[dim() - 1] * ostride[dim() - 1];
+        dist = (transform_type == fft_transform_type_real_forward)
+                   ? (length[dim() - 1] / 2 + 1) * ostride[dim() - 1]
+                   : length[dim() - 1] * ostride[dim() - 1];
         for(unsigned int i = 0; i < dim() - 1; ++i)
         {
-            odist = std::max(length[i] * ostride[i], odist);
+            dist = std::max(length[i] * ostride[i], dist);
         }
+        return dist;
+    }
+    void set_odist()
+    {
+        if(odist != 0)
+            return;
+        odist = compute_odist();
     }
 
     // Put the length, stride, batch, and dist into a single length/stride array and pass off to the
