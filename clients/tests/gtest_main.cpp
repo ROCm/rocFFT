@@ -213,6 +213,7 @@ int main(int argc, char* argv[])
         ("help,h", "produces this help message")
         ("verbose,v",  po::value<int>()->default_value(0),
         "print out detailed information for the tests.")
+        ("version", "Print queryable version information from the rocfft library and exit")
         ("transformType,t", po::value<fft_transform_type>(&manual_params.transform_type)
          ->default_value(fft_transform_type_complex_forward),
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
@@ -270,6 +271,15 @@ int main(int argc, char* argv[])
         std::cout << opdesc << std::endl;
         return 0;
     }
+
+    if(vm.count("version"))
+    {
+        char v[256];
+        rocfft_get_version_string(v, 256);
+        std::cout << "version " << v << std::endl;
+        return EXIT_SUCCESS;
+    }
+
     verbose = vm["verbose"].as<int>();
 
     std::cout << "single epsilon: " << single_epsilon << "\tdouble epsilon: " << double_epsilon
