@@ -28,7 +28,9 @@
 #include <iostream>
 #include <mutex>
 #include <numeric>
+#ifdef BUILD_CLIENTS_TESTS_OPENMP
 #include <omp.h>
+#endif
 #include <random>
 #include <tuple>
 #include <unordered_set>
@@ -1654,7 +1656,9 @@ inline void copy_buffers_1to1(const Tval*                input,
     auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
+#ifdef BUILD_CLIENTS_TESTS_OPENMP
 #pragma omp parallel for num_threads(partitions.size())
+#endif
         for(size_t part = 0; part < partitions.size(); ++part)
         {
             auto       index  = partitions[part].first;
@@ -1691,7 +1695,9 @@ inline void copy_buffers_2to1(const Tval*                input0,
     auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
+#ifdef BUILD_CLIENTS_TESTS_OPENMP
 #pragma omp parallel for num_threads(partitions.size())
+#endif
         for(size_t part = 0; part < partitions.size(); ++part)
         {
             auto       index  = partitions[part].first;
@@ -1729,7 +1735,9 @@ inline void copy_buffers_1to2(const std::complex<Tval>*  input,
     auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
+#ifdef BUILD_CLIENTS_TESTS_OPENMP
 #pragma omp parallel for num_threads(partitions.size())
+#endif
         for(size_t part = 0; part < partitions.size(); ++part)
         {
             auto       index  = partitions[part].first;
@@ -2018,7 +2026,9 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
     auto       partitions     = partition_colmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
+#ifdef BUILD_CLIENTS_TESTS_OPENMP
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
+#endif
         for(size_t part = 0; part < partitions.size(); ++part)
         {
             double     cur_linf = 0.0;
@@ -2090,7 +2100,9 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
     auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
+#ifdef BUILD_CLIENTS_TESTS_OPENMP
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
+#endif
         for(size_t part = 0; part < partitions.size(); ++part)
         {
             double     cur_linf = 0.0;
@@ -2149,7 +2161,9 @@ inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
     auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
+#ifdef BUILD_CLIENTS_TESTS_OPENMP
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
+#endif
         for(size_t part = 0; part < partitions.size(); ++part)
         {
             double     cur_linf = 0.0;
@@ -2483,7 +2497,9 @@ inline VectorNorms norm_complex(const Tcomplex*            input,
     auto   partitions = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist)
     {
+#ifdef BUILD_CLIENTS_TESTS_OPENMP
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
+#endif
         for(size_t part = 0; part < partitions.size(); ++part)
         {
             double     cur_linf = 0.0;
@@ -2527,7 +2543,9 @@ inline VectorNorms norm_real(const Tfloat*              input,
     auto   partitions = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist)
     {
+#ifdef BUILD_CLIENTS_TESTS_OPENMP
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
+#endif
         for(size_t part = 0; part < partitions.size(); ++part)
         {
             double     cur_linf = 0.0;
