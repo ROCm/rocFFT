@@ -154,6 +154,7 @@ public:
             rocfft_plan_description_destroy(desc);
             desc = nullptr;
         }
+        wbuffer.free();
     }
 
     rocfft_precision get_rocfft_precision()

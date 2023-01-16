@@ -32,15 +32,15 @@
 #include "rocfft_accuracy_test.h"
 #include "rocfft_against_fftw.h"
 
-void fft_vs_reference(rocfft_params& params)
+void fft_vs_reference(rocfft_params& params, bool round_trip)
 {
     switch(params.precision)
     {
     case fft_precision_single:
-        fft_vs_reference_impl<float, rocfft_params>(params);
+        fft_vs_reference_impl<float, rocfft_params>(params, round_trip);
         break;
     case fft_precision_double:
-        fft_vs_reference_impl<double, rocfft_params>(params);
+        fft_vs_reference_impl<double, rocfft_params>(params, round_trip);
         break;
     }
 }
@@ -68,6 +68,6 @@ TEST_P(accuracy_test, vs_fftw)
         GTEST_SKIP();
     }
 
-    fft_vs_reference(params);
+    fft_vs_reference(params, true);
     SUCCEED();
 }

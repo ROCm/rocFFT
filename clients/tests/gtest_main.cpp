@@ -153,10 +153,17 @@ void precompile_test_kernels(const std::string& precompile_file)
                 std::string token{tokenQueue.pop()};
                 if(token.empty())
                     break;
-                rocfft_params params;
-                params.from_token(token);
-                params.validate();
-                params.setup_structs();
+                rocfft_params params_forward;
+                params_forward.from_token(token);
+                params_forward.validate();
+                params_forward.setup_structs();
+
+                params_forward.free();
+
+                rocfft_params params_inverse;
+                params_inverse.inverse_from_forward(params_forward);
+                params_inverse.validate();
+                params_inverse.setup_structs();
             }
         });
         // insert empty tokens to tell threads to stop
@@ -442,7 +449,7 @@ int main(int argc, char* argv[])
     return retval;
 }
 
-TEST(manual, vs_fftw)
+TEST(manual, vs_fftw) // MANUAL TESTS HERE
 {
     // Run an individual test using the provided command-line parameters.
     manual_params.validate();

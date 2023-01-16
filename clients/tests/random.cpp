@@ -93,7 +93,7 @@ TEST_P(random_params, vs_fftw)
         std::cout << "Params are not valid\n";
     }
 
-    fft_vs_reference(params);
+    fft_vs_reference(params, true);
 }
 
 INSTANTIATE_TEST_SUITE_P(random_complex_1d,

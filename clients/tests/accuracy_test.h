@@ -24,6 +24,7 @@
 #define ACCURACY_TEST
 
 #include <algorithm>
+#include <boost/scope_exit.hpp>
 #include <future>
 #include <iterator>
 #include <vector>
@@ -47,16 +48,16 @@ typedef std::tuple<fft_transform_type, fft_result_placement, fft_array_type, fft
 // Estimate the amount of host memory needed.
 inline size_t needed_ram(const fft_params& params, const int verbose)
 {
-    // We need at most 3 copies of the raw data: 2 are strictly
-    // required (input + output) but we keep a third copy around to
-    // save effort recomputing input for a smaller batch size or
-    // precision.
+    // We have at most 4 copies of the raw data at a given time: CPU input +
+    // output, cached CPU input + output (which are discarded), and the GPU
+    // input + output (allocated after discarding the cache). The GPU input +
+    // output buffers cannot be discarded as they are reused in the inverse
+    // transform.
     //
-    // This calculation is assuming contiguous data - noncontiguous
-    // temp buffers may be briefly required to mirror the data layout
-    // on the GPU, but they're assumed to require a close enough
-    // amount of space for the purposes of this estimate.
-    size_t needed_ram = 3
+    // This calculation is assuming contiguous data but noncontiguous buffers
+    // are assumed to require a close enough amount of space for the purposes
+    // of this estimate.
+    size_t needed_ram = 4
                         * std::accumulate(params.length.begin(),
                                           params.length.end(),
                                           static_cast<size_t>(1),
@@ -125,14 +126,12 @@ const static std::vector<fft_precision> precision_range
     = {fft_precision_double, fft_precision_single};
 const static std::vector<fft_result_placement> place_range
     = {fft_placement_inplace, fft_placement_notinplace};
-const static std::vector<fft_transform_type> trans_type_range = {fft_transform_type_complex_forward,
-                                                                 fft_transform_type_complex_inverse,
-                                                                 fft_transform_type_real_forward,
-                                                                 fft_transform_type_real_inverse};
+const static std::vector<fft_transform_type> trans_type_range
+    = {fft_transform_type_complex_forward, fft_transform_type_real_forward};
 const static std::vector<fft_transform_type> trans_type_range_complex
-    = {fft_transform_type_complex_forward, fft_transform_type_complex_inverse};
+    = {fft_transform_type_complex_forward};
 const static std::vector<fft_transform_type> trans_type_range_real
-    = {fft_transform_type_real_forward, fft_transform_type_real_inverse};
+    = {fft_transform_type_real_forward};
 
 // Given a vector of vector of lengths, generate all unique permutations.
 // Add an optional vector of ad-hoc lengths to the result.
@@ -471,7 +470,7 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&  v_leng
                                  const bool                               planar,
                                  const bool                               run_callbacks = false)
 {
-    return param_generator_base(trans_type_range_complex,
+    return param_generator_base(trans_type_range_real,
                                 v_lengths,
                                 precision_range,
                                 batch_range,
@@ -506,10 +505,14 @@ struct callback_test_data
     void* base;
 };
 
-void* get_load_callback_host(fft_array_type itype, fft_precision precision);
+void* get_load_callback_host(fft_array_type itype,
+                             fft_precision  precision,
+                             bool           round_trip_inverse);
 void  apply_load_callback(const fft_params& params, fftw_data_t& input);
 void  apply_store_callback(const fft_params& params, fftw_data_t& output);
-void* get_store_callback_host(fft_array_type otype, fft_precision precision);
+void* get_store_callback_host(fft_array_type otype,
+                              fft_precision  precision,
+                              bool           round_trip_inverse);
 
 template <typename Tfloat>
 inline void execute_cpu_fft(fft_params&                                  params,
@@ -553,17 +556,28 @@ template <class Tparams>
 inline void execute_gpu_fft(Tparams&            params,
                             std::vector<void*>& pibuffer,
                             std::vector<void*>& pobuffer,
-                            fftw_data_t&        gpu_output)
+                            fftw_data_t&        gpu_output,
+                            bool                round_trip_inverse = false)
 {
     gpubuf_t<callback_test_data> load_cb_data_dev;
     gpubuf_t<callback_test_data> store_cb_data_dev;
     if(params.run_callbacks)
     {
-        void* load_cb_host = get_load_callback_host(params.itype, params.precision);
+        void* load_cb_host
+            = get_load_callback_host(params.itype, params.precision, round_trip_inverse);
 
         callback_test_data load_cb_data_host;
-        load_cb_data_host.scalar = params.load_cb_scalar;
-        load_cb_data_host.base   = pibuffer.front();
+
+        if(round_trip_inverse)
+        {
+            load_cb_data_host.scalar = params.store_cb_scalar;
+        }
+        else
+        {
+            load_cb_data_host.scalar = params.load_cb_scalar;
+        }
+
+        load_cb_data_host.base = pibuffer.front();
 
         ASSERT_TRUE(hipSuccess == load_cb_data_dev.alloc(sizeof(callback_test_data)));
         ASSERT_TRUE(hipSuccess
@@ -572,11 +586,21 @@ inline void execute_gpu_fft(Tparams&            params,
                                  sizeof(callback_test_data),
                                  hipMemcpyHostToDevice));
 
-        void* store_cb_host = get_store_callback_host(params.otype, params.precision);
+        void* store_cb_host
+            = get_store_callback_host(params.otype, params.precision, round_trip_inverse);
 
         callback_test_data store_cb_data_host;
-        store_cb_data_host.scalar = params.store_cb_scalar;
-        store_cb_data_host.base   = pobuffer.front();
+
+        if(round_trip_inverse)
+        {
+            store_cb_data_host.scalar = params.load_cb_scalar;
+        }
+        else
+        {
+            store_cb_data_host.scalar = params.store_cb_scalar;
+        }
+
+        store_cb_data_host.base = pobuffer.front();
 
         ASSERT_TRUE(hipSuccess == store_cb_data_dev.alloc(sizeof(callback_test_data)));
         ASSERT_TRUE(hipSuccess
@@ -596,9 +620,6 @@ inline void execute_gpu_fft(Tparams&            params,
         throw std::runtime_error("rocFFT plan execution failure");
 
     // copy GPU output back
-    ASSERT_TRUE(!params.osize.empty()) << "Error: params osize is empty";
-    gpu_output
-        = allocate_host_buffer<fftwAllocator<char>>(params.precision, params.otype, params.osize);
     ASSERT_TRUE(!gpu_output.empty()) << "no output buffers";
     for(unsigned int idx = 0; idx < gpu_output.size(); ++idx)
     {
@@ -751,9 +772,159 @@ void check_output_strides(const fftw_data_t& output, Tparams& params)
     }
 }
 
+// run rocFFT inverse transform
+template <class Tparams>
+inline void run_round_trip_inverse(Tparams&             params,
+                                   std::vector<gpubuf>& obuffer,
+                                   std::vector<void*>&  pibuffer,
+                                   std::vector<void*>&  pobuffer,
+                                   fftw_data_t&         gpu_output)
+{
+    params.validate();
+
+    // Make sure that the parameters make sense:
+    ASSERT_TRUE(params.valid(verbose));
+
+    // Create FFT plan - this will also allocate work buffer, but will throw a
+    // specific exception if that step fails
+    try
+    {
+        ASSERT_EQ(params.create_plan(), fft_status_success);
+    }
+    catch(fft_params::work_buffer_alloc_failure& e)
+    {
+        GTEST_SKIP() << "Problem size with work buffer ("
+                     << params.vram_footprint() + params.workbuffersize << ") too large for device";
+    }
+
+    auto obuffer_sizes = params.obuffer_sizes();
+
+    if(params.placement != fft_placement_inplace)
+    {
+        for(unsigned int i = 0; i < obuffer_sizes.size(); ++i)
+        {
+            // If we're validating output strides, init the
+            // output buffer to a known pattern and we can check
+            // that the pattern is untouched in places that
+            // shouldn't have been touched.
+            if(params.check_output_strides)
+            {
+                auto hip_status
+                    = hipMemset(obuffer[i].data(), OUTPUT_INIT_PATTERN, obuffer_sizes[i]);
+                ASSERT_EQ(hip_status, hipSuccess) << "hipMemset failure";
+            }
+        }
+    }
+
+    // execute GPU transform
+    //
+    // limited scope for local variables
+
+    execute_gpu_fft(params, pibuffer, pobuffer, gpu_output, true);
+}
+
+// compare rocFFT inverse transform with forward transform input
+template <class Tparams>
+inline void compare_round_trip_inverse(Tparams&           params,
+                                       fft_params&        contiguous_params,
+                                       fftw_data_t&       gpu_output,
+                                       fftw_data_t&       cpu_input,
+                                       const VectorNorms& cpu_input_norm,
+                                       size_t             total_length)
+{
+    if(params.check_output_strides)
+    {
+        check_output_strides<Tparams>(gpu_output, params);
+    }
+
+    // compute GPU output norm
+    std::shared_future<VectorNorms> gpu_norm = std::async(std::launch::async, [&]() {
+        return norm(gpu_output,
+                    params.olength(),
+                    params.nbatch,
+                    params.precision,
+                    params.otype,
+                    params.ostride,
+                    params.odist,
+                    params.ooffset);
+    });
+
+    // compare GPU inverse output to CPU forward input
+    std::vector<std::pair<size_t, size_t>> linf_failures;
+    const double                           linf_cutoff
+        = type_epsilon(params.precision) * cpu_input_norm.l_inf * log(total_length);
+
+    VectorNorms diff = distance(cpu_input,
+                                gpu_output,
+                                params.olength(),
+                                params.nbatch,
+                                params.precision,
+                                contiguous_params.itype,
+                                contiguous_params.istride,
+                                contiguous_params.idist,
+                                params.otype,
+                                params.ostride,
+                                params.odist,
+                                linf_failures,
+                                linf_cutoff,
+                                {0},
+                                params.ooffset,
+                                1.0 / total_length);
+
+    if(verbose > 1)
+    {
+        std::cout << "GPU output Linf norm: " << gpu_norm.get().l_inf << "\n";
+        std::cout << "GPU output L2 norm:   " << gpu_norm.get().l_2 << "\n";
+        std::cout << "GPU linf norm failures:";
+        std::sort(linf_failures.begin(), linf_failures.end());
+        for(const auto& i : linf_failures)
+        {
+            std::cout << " (" << i.first << "," << i.second << ")";
+        }
+        std::cout << std::endl;
+    }
+
+    EXPECT_TRUE(std::isfinite(gpu_norm.get().l_inf)) << params.str();
+    EXPECT_TRUE(std::isfinite(gpu_norm.get().l_2)) << params.str();
+
+    switch(params.precision)
+    {
+    case fft_precision_single:
+        max_linf_eps_single
+            = std::max(max_linf_eps_single, diff.l_inf / cpu_input_norm.l_inf / log(total_length));
+        max_l2_eps_single
+            = std::max(max_l2_eps_single, diff.l_2 / cpu_input_norm.l_2 * sqrt(log2(total_length)));
+        break;
+    case fft_precision_double:
+        max_linf_eps_double
+            = std::max(max_linf_eps_double, diff.l_inf / cpu_input_norm.l_inf / log(total_length));
+        max_l2_eps_double
+            = std::max(max_l2_eps_double, diff.l_2 / cpu_input_norm.l_2 * sqrt(log2(total_length)));
+        break;
+    }
+
+    if(verbose > 1)
+    {
+        std::cout << "L2 diff: " << diff.l_2 << "\n";
+        std::cout << "Linf diff: " << diff.l_inf << "\n";
+    }
+
+    EXPECT_TRUE(diff.l_inf <= linf_cutoff)
+        << "Linf test failed.  Linf:" << diff.l_inf
+        << "\tnormalized Linf: " << diff.l_inf / cpu_input_norm.l_inf << "\tcutoff: " << linf_cutoff
+        << params.str();
+
+    EXPECT_TRUE(diff.l_2 / cpu_input_norm.l_2
+                < sqrt(log2(total_length)) * type_epsilon(params.precision))
+        << "L2 test failed. L2: " << diff.l_2
+        << "\tnormalized L2: " << diff.l_2 / cpu_input_norm.l_2
+        << "\tepsilon: " << sqrt(log2(total_length)) * type_epsilon(params.precision)
+        << params.str();
+}
+
 // run CPU + rocFFT transform with the given params and compare
 template <class Tfloat, class Tparams>
-inline void fft_vs_reference_impl(Tparams& params)
+inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
 {
     // Make sure that the parameters make sense:
     ASSERT_TRUE(params.valid(verbose));
@@ -853,7 +1024,7 @@ inline void fft_vs_reference_impl(Tparams& params)
 
     if(verbose > 3)
     {
-        std::cout << "CPU  params:\n";
+        std::cout << "CPU params:\n";
         std::cout << contiguous_params.str("\n\t") << std::endl;
     }
 
@@ -969,6 +1140,9 @@ inline void fft_vs_reference_impl(Tparams& params)
                                                 cpu_output);
     }
 
+    fftw_data_t gpu_input_data = allocate_host_buffer<fftwAllocator<char>>(
+        params.precision, params.itype, ibuffer_sizes_elems);
+
     // allocate and populate the input buffer (cpu/gpu)
     if(run_fftw)
     {
@@ -979,20 +1153,17 @@ inline void fft_vs_reference_impl(Tparams& params)
         if(params.itype != contiguous_params.itype || params.istride != contiguous_params.istride
            || params.idist != contiguous_params.idist || params.isize != contiguous_params.isize)
         {
-            auto tmp_cpu_input = allocate_host_buffer<fftwAllocator<char>>(
-                params.precision, params.itype, ibuffer_sizes_elems);
-
             // Copy input to CPU
             for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
             {
-                auto hip_status = hipMemcpy(tmp_cpu_input.at(idx).data(),
+                auto hip_status = hipMemcpy(gpu_input_data.at(idx).data(),
                                             ibuffer[idx].data(),
                                             ibuffer_sizes[idx],
                                             hipMemcpyDeviceToHost);
                 ASSERT_EQ(hip_status, hipSuccess) << "hipMemcpy failure with error " << hip_status;
             }
 
-            copy_buffers(tmp_cpu_input,
+            copy_buffers(gpu_input_data,
                          cpu_input,
                          params.ilength(),
                          params.nbatch,
@@ -1026,17 +1197,13 @@ inline void fft_vs_reference_impl(Tparams& params)
             convert_cpu_input_precision.get();
 
         // gets a pre-computed gpu input buffer from the cpu cache
-        fftw_data_t  temp_gpu_input;
         fftw_data_t* gpu_input = &cpu_input;
 
         if(params.itype != contiguous_params.itype || params.istride != contiguous_params.istride
            || params.idist != contiguous_params.idist || params.isize != contiguous_params.isize)
         {
-            temp_gpu_input = allocate_host_buffer<fftwAllocator<char>>(
-                params.precision, params.itype, ibuffer_sizes_elems);
-
             copy_buffers(cpu_input,
-                         temp_gpu_input,
+                         gpu_input_data,
                          params.ilength(),
                          params.nbatch,
                          params.precision,
@@ -1048,7 +1215,7 @@ inline void fft_vs_reference_impl(Tparams& params)
                          params.idist,
                          {0},
                          params.ioffset);
-            gpu_input = &temp_gpu_input;
+            gpu_input = &gpu_input_data;
         }
 
         // Copy input to GPU
@@ -1186,7 +1353,9 @@ inline void fft_vs_reference_impl(Tparams& params)
     // execute GPU transform
     //
     // limited scope for local variables
-    fftw_data_t gpu_output;
+    fftw_data_t gpu_output
+        = allocate_host_buffer<fftwAllocator<char>>(params.precision, params.otype, params.osize);
+
     execute_gpu_fft(params, pibuffer, pobuffer, gpu_output);
 
     if(params.check_output_strides)
@@ -1210,29 +1379,61 @@ inline void fft_vs_reference_impl(Tparams& params)
     //
     // Compute the l-infinity and l-2 distance between the CPU and GPU output:
     // wait for cpu FFT so we can compute cutoff
-    cpu_fft.get();
-    std::vector<std::pair<size_t, size_t>> linf_failures;
-    const auto                             total_length = std::accumulate(params.length.begin(),
+
+    const auto total_length = std::accumulate(params.length.begin(),
                                               params.length.end(),
                                               static_cast<size_t>(1),
                                               std::multiplies<size_t>());
-    const double                           linf_cutoff
-        = type_epsilon(params.precision) * cpu_output_norm.l_inf * log(total_length);
-    VectorNorms diff = distance(cpu_output,
-                                gpu_output,
-                                params.olength(),
-                                params.nbatch,
-                                params.precision,
-                                contiguous_params.otype,
-                                contiguous_params.ostride,
-                                contiguous_params.odist,
-                                params.otype,
-                                params.ostride,
-                                params.odist,
-                                linf_failures,
-                                linf_cutoff,
-                                {0},
-                                params.ooffset);
+
+    std::vector<std::pair<size_t, size_t>> linf_failures;
+    double                                 linf_cutoff;
+    VectorNorms                            diff;
+
+    std::shared_future<void> compare_output = std::async(std::launch::async, [&]() {
+        cpu_fft.get();
+        linf_cutoff = type_epsilon(params.precision) * cpu_output_norm.l_inf * log(total_length);
+
+        diff = distance(cpu_output,
+                        gpu_output,
+                        params.olength(),
+                        params.nbatch,
+                        params.precision,
+                        contiguous_params.otype,
+                        contiguous_params.ostride,
+                        contiguous_params.odist,
+                        params.otype,
+                        params.ostride,
+                        params.odist,
+                        linf_failures,
+                        linf_cutoff,
+                        {0},
+                        params.ooffset);
+    });
+
+    // store cpu output in cache
+    last_cpu_fft_data.length         = params.length;
+    last_cpu_fft_data.nbatch         = params.nbatch;
+    last_cpu_fft_data.transform_type = params.transform_type;
+    last_cpu_fft_data.run_callbacks  = params.run_callbacks;
+    last_cpu_fft_data.precision      = params.precision;
+
+    BOOST_SCOPE_EXIT_ALL(&)
+    {
+        last_cpu_fft_data.cpu_output.swap(cpu_output);
+        last_cpu_fft_data.cpu_input.swap(cpu_input);
+    };
+
+    Tparams params_inverse;
+
+    if(round_trip)
+    {
+        params_inverse.inverse_from_forward(params);
+
+        run_round_trip_inverse<Tparams>(
+            params_inverse, ibuffer, pobuffer, pibuffer, gpu_input_data);
+    }
+
+    compare_output.get();
 
     ASSERT_TRUE(std::isfinite(cpu_input_norm.get().l_2));
     ASSERT_TRUE(std::isfinite(cpu_input_norm.get().l_inf));
@@ -1290,14 +1491,15 @@ inline void fft_vs_reference_impl(Tparams& params)
         << "\tepsilon: " << sqrt(log2(total_length)) * type_epsilon(params.precision)
         << params.str();
 
-    // store cpu output in cache
-    last_cpu_fft_data.length         = params.length;
-    last_cpu_fft_data.nbatch         = params.nbatch;
-    last_cpu_fft_data.transform_type = params.transform_type;
-    last_cpu_fft_data.run_callbacks  = params.run_callbacks;
-    last_cpu_fft_data.precision      = params.precision;
-    last_cpu_fft_data.cpu_output.swap(cpu_output);
-    last_cpu_fft_data.cpu_input.swap(cpu_input);
+    if(round_trip)
+    {
+        compare_round_trip_inverse<Tparams>(params_inverse,
+                                            contiguous_params,
+                                            gpu_input_data,
+                                            cpu_input,
+                                            cpu_input_norm.get(),
+                                            total_length);
+    }
 }
 
 #endif

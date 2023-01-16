@@ -1452,6 +1452,41 @@ public:
     {
         return fft_status_success;
     }
+
+    // Change a forward transform to it's inverse
+    void inverse_from_forward(fft_params& params_forward)
+    {
+        switch(params_forward.transform_type)
+        {
+        case fft_transform_type_complex_forward:
+            transform_type = fft_transform_type_complex_inverse;
+            break;
+        case fft_transform_type_real_forward:
+            transform_type = fft_transform_type_real_inverse;
+            break;
+        default:
+            throw std::runtime_error("Transform type not forward.");
+        }
+
+        length    = params_forward.length;
+        istride   = params_forward.ostride;
+        ostride   = params_forward.istride;
+        nbatch    = params_forward.nbatch;
+        precision = params_forward.precision;
+        placement = params_forward.placement;
+        idist     = params_forward.odist;
+        odist     = params_forward.idist;
+        itype     = params_forward.otype;
+        otype     = params_forward.itype;
+        ioffset   = params_forward.ooffset;
+        ooffset   = params_forward.ioffset;
+
+        run_callbacks = params_forward.run_callbacks;
+
+        check_output_strides = params_forward.check_output_strides;
+
+        scale_factor = 1 / params_forward.scale_factor;
+    }
 };
 
 // This is used with the program_options class so that the user can type an integer on the
@@ -2013,7 +2048,8 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
                                          std::vector<std::pair<size_t, size_t>>& linf_failures,
                                          const double                            linf_cutoff,
                                          const std::vector<size_t>&              ioffset,
-                                         const std::vector<size_t>&              ooffset)
+                                         const std::vector<size_t>&              ooffset,
+                                         const double output_scalar = 1.0)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -2038,11 +2074,11 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
 
             do
             {
-                const auto   idx = compute_index(index, istride, idx_base);
-                const auto   odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
-                const double rdiff
-                    = std::abs(output[odx + ooffset[0]].real() - input[idx + ioffset[0]].real());
-                cur_linf = std::max(rdiff, cur_linf);
+                const auto   idx   = compute_index(index, istride, idx_base);
+                const auto   odx   = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const double rdiff = std::abs(output[odx + ooffset[0]].real() * output_scalar
+                                              - input[idx + ioffset[0]].real());
+                cur_linf           = std::max(rdiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
@@ -2052,9 +2088,9 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
                 }
                 cur_l2 += rdiff * rdiff;
 
-                const double idiff
-                    = std::abs(output[odx + ooffset[0]].imag() - input[idx + ioffset[0]].imag());
-                cur_linf = std::max(idiff, cur_linf);
+                const double idiff = std::abs(output[odx + ooffset[0]].imag() * output_scalar
+                                              - input[idx + ioffset[0]].imag());
+                cur_linf           = std::max(idiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
@@ -2087,7 +2123,8 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
                                       std::vector<std::pair<size_t, size_t>>& linf_failures,
                                       const double                            linf_cutoff,
                                       const std::vector<size_t>&              ioffset,
-                                      const std::vector<size_t>&              ooffset)
+                                      const std::vector<size_t>&              ooffset,
+                                      const double                            output_scalar = 1.0)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -2111,10 +2148,11 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
             const auto length   = partitions[part].second;
             do
             {
-                const auto   idx  = compute_index(index, istride, idx_base);
-                const auto   odx  = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
-                const double diff = std::abs(output[odx + ooffset[0]] - input[idx + ioffset[0]]);
-                cur_linf          = std::max(diff, cur_linf);
+                const auto   idx = compute_index(index, istride, idx_base);
+                const auto   odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const double diff
+                    = std::abs(output[odx + ooffset[0]] * output_scalar - input[idx + ioffset[0]]);
+                cur_linf = std::max(diff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
@@ -2148,7 +2186,8 @@ inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
                                  std::vector<std::pair<size_t, size_t>>& linf_failures,
                                  const double                            linf_cutoff,
                                  const std::vector<size_t>&              ioffset,
-                                 const std::vector<size_t>&              ooffset)
+                                 const std::vector<size_t>&              ooffset,
+                                 const double                            output_scalar = 1.0)
 {
     double linf = 0.0;
     double l2   = 0.0;
@@ -2172,11 +2211,11 @@ inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
             const auto length   = partitions[part].second;
             do
             {
-                const auto   idx = compute_index(index, istride, idx_base);
-                const auto   odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
-                const double rdiff
-                    = std::abs(output0[odx + ooffset[0]] - input[idx + ioffset[0]].real());
-                cur_linf = std::max(rdiff, cur_linf);
+                const auto   idx   = compute_index(index, istride, idx_base);
+                const auto   odx   = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const double rdiff = std::abs(output0[odx + ooffset[0]] * output_scalar
+                                              - input[idx + ioffset[0]].real());
+                cur_linf           = std::max(rdiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
@@ -2186,9 +2225,9 @@ inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
                 }
                 cur_l2 += rdiff * rdiff;
 
-                const double idiff
-                    = std::abs(output1[odx + ooffset[1]] - input[idx + ioffset[0]].imag());
-                cur_linf = std::max(idiff, cur_linf);
+                const double idiff = std::abs(output1[odx + ooffset[1]] * output_scalar
+                                              - input[idx + ioffset[0]].imag());
+                cur_linf           = std::max(idiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
@@ -2227,7 +2266,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                             std::vector<std::pair<size_t, size_t>>&            linf_failures,
                             const double                                       linf_cutoff,
                             const std::vector<size_t>&                         ioffset,
-                            const std::vector<size_t>&                         ooffset)
+                            const std::vector<size_t>&                         ooffset,
+                            const double                                       output_scalar = 1.0)
 {
     VectorNorms dist;
 
@@ -2252,7 +2292,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                     linf_failures,
                     linf_cutoff,
                     ioffset,
-                    ooffset);
+                    ooffset,
+                    output_scalar);
                 break;
             case fft_precision_double:
                 dist = distance_1to1_complex(
@@ -2267,7 +2308,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                     linf_failures,
                     linf_cutoff,
                     ioffset,
-                    ooffset);
+                    ooffset,
+                    output_scalar);
                 break;
             }
             dist.l_2 *= dist.l_2;
@@ -2292,7 +2334,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                            linf_failures,
                                            linf_cutoff,
                                            ioffset,
-                                           ooffset);
+                                           ooffset,
+                                           output_scalar);
                     break;
                 case fft_precision_double:
                     d = distance_1to1_real(reinterpret_cast<const double*>(input[idx].data()),
@@ -2306,7 +2349,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                            linf_failures,
                                            linf_cutoff,
                                            ioffset,
-                                           ooffset);
+                                           ooffset,
+                                           output_scalar);
                     break;
                 }
                 dist.l_inf = std::max(d.l_inf, dist.l_inf);
@@ -2336,7 +2380,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  linf_failures,
                                  linf_cutoff,
                                  ioffset,
-                                 ooffset);
+                                 ooffset,
+                                 output_scalar);
             break;
         case fft_precision_double:
             dist = distance_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
@@ -2351,7 +2396,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  linf_failures,
                                  linf_cutoff,
                                  ioffset,
-                                 ooffset);
+                                 ooffset,
+                                 output_scalar);
             break;
         }
         dist.l_2 *= dist.l_2;
@@ -2375,7 +2421,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  linf_failures,
                                  linf_cutoff,
                                  ioffset,
-                                 ooffset);
+                                 ooffset,
+                                 output_scalar);
             break;
         case fft_precision_double:
             dist = distance_1to2(reinterpret_cast<const std::complex<double>*>(output[0].data()),
@@ -2390,7 +2437,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  linf_failures,
                                  linf_cutoff,
                                  ioffset,
-                                 ooffset);
+                                 ooffset,
+                                 output_scalar);
             break;
         }
         dist.l_2 *= dist.l_2;
@@ -2423,7 +2471,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                             std::vector<std::pair<size_t, size_t>>&            linf_failures,
                             const double                                       linf_cutoff,
                             const std::vector<size_t>&                         ioffset,
-                            const std::vector<size_t>&                         ooffset)
+                            const std::vector<size_t>&                         ooffset,
+                            const double                                       output_scalar = 1.0)
 {
     switch(length.size())
     {
@@ -2442,7 +2491,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                         linf_failures,
                         linf_cutoff,
                         ioffset,
-                        ooffset);
+                        ooffset,
+                        output_scalar);
     case 2:
         return distance(input,
                         output,
@@ -2458,7 +2508,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                         linf_failures,
                         linf_cutoff,
                         ioffset,
-                        ooffset);
+                        ooffset,
+                        output_scalar);
     case 3:
         return distance(input,
                         output,
@@ -2474,7 +2525,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                         linf_failures,
                         linf_cutoff,
                         ioffset,
-                        ooffset);
+                        ooffset,
+                        output_scalar);
     default:
         abort();
     }
