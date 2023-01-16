@@ -441,6 +441,7 @@ int main(int argc, char* argv[])
 
     rocfft_cleanup();
 
+    std::cout << "Random seed: " << random_seed << std::endl;
     std::cout << "single precision max l-inf epsilon: " << max_linf_eps_single << std::endl;
     std::cout << "single precision max l2 epsilon:     " << max_l2_eps_single << std::endl;
     std::cout << "double precision max l-inf epsilon: " << max_linf_eps_double << std::endl;
