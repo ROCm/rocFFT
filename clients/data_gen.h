@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
 
 #include "../shared/arithmetic.h"
 #include "../shared/gpubuf.h"
+#include <hip/hip_complex.h>
 #include <hip/hip_fp16.h>
 #include <hip/hip_runtime.h>
 #include <hip/hip_runtime_api.h>
@@ -183,12 +184,12 @@ __device__ static size_t get_batch(const size_t i, const input_val_3D<T>& length
 
 template <typename T1>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    generate_float_interleaved_data_kernel(const T1             whole_length,
-                                           const T1             zero_length,
-                                           size_t               idist,
-                                           size_t               isize,
-                                           const T1             istride,
-                                           std::complex<float>* data)
+    generate_float_interleaved_data_kernel(const T1         whole_length,
+                                           const T1         zero_length,
+                                           size_t           idist,
+                                           size_t           isize,
+                                           const T1         istride,
+                                           hipFloatComplex* data)
 {
     auto const i = threadIdx.x + blockIdx.x * blockDim.x;
     if(i < isize)
@@ -203,18 +204,19 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         hiprandStatePhilox4_32_10 gen_state;
         hiprand_init(seed, idx, 0, &gen_state);
 
-        data[idx] = std::complex<float>(hiprand_uniform(&gen_state), hiprand_uniform(&gen_state));
+        data[idx].x = hiprand_uniform(&gen_state);
+        data[idx].y = hiprand_uniform(&gen_state);
     }
 }
 
 template <typename T1>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    generate_double_interleaved_data_kernel(const T1              whole_length,
-                                            const T1              zero_length,
-                                            size_t                idist,
-                                            size_t                isize,
-                                            const T1              istride,
-                                            std::complex<double>* data)
+    generate_double_interleaved_data_kernel(const T1          whole_length,
+                                            const T1          zero_length,
+                                            size_t            idist,
+                                            size_t            isize,
+                                            const T1          istride,
+                                            hipDoubleComplex* data)
 {
     auto const i = threadIdx.x + blockIdx.x * blockDim.x;
     if(i < isize)
@@ -231,7 +233,8 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
 
         auto item = hiprand_uniform2_double(&gen_state);
 
-        data[idx] = std::complex<double>(item.x, item.y);
+        data[idx].x = item.x;
+        data[idx].y = item.y;
     }
 }
 
@@ -359,14 +362,14 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
 // Kernels for imposing Hermitian symmetry on 1D
 // complex (interleaved/planar) data on the GPU.
 
-template <typename Tfloat>
+template <typename Tcomplex>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    impose_hermitian_symmetry_interleaved_1(std::complex<Tfloat>* x,
-                                            const size_t          Nx,
-                                            const size_t          xstride,
-                                            const size_t          dist,
-                                            const size_t          nbatch,
-                                            const bool            Nxeven)
+    impose_hermitian_symmetry_interleaved_1(Tcomplex*    x,
+                                            const size_t Nx,
+                                            const size_t xstride,
+                                            const size_t dist,
+                                            const size_t nbatch,
+                                            const bool   Nxeven)
 {
     auto idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -375,13 +378,13 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         idx *= dist;
 
         // The DC mode must be real-valued.
-        x[idx].imag(0);
+        x[idx].y = 0.0;
 
         if(Nxeven)
         {
             // Nyquist mode
             auto pos = idx + (Nx / 2) * xstride;
-            x[pos].imag(0);
+            x[pos].y = 0.0;
         }
     }
 }
@@ -417,17 +420,17 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
 // Kernels for imposing Hermitian symmetry on 2D
 // complex (interleaved/planar) data on the GPU.
 
-template <typename Tfloat>
+template <typename Tcomplex>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
-    impose_hermitian_symmetry_interleaved_2(std::complex<Tfloat>* x,
-                                            const size_t          Nx,
-                                            const size_t          Ny,
-                                            const size_t          xstride,
-                                            const size_t          ystride,
-                                            const size_t          dist,
-                                            const size_t          nbatch,
-                                            const bool            Nxeven,
-                                            const bool            Nyeven)
+    impose_hermitian_symmetry_interleaved_2(Tcomplex*    x,
+                                            const size_t Nx,
+                                            const size_t Ny,
+                                            const size_t xstride,
+                                            const size_t ystride,
+                                            const size_t dist,
+                                            const size_t nbatch,
+                                            const bool   Nxeven,
+                                            const bool   Nyeven)
 {
     auto       idx = blockIdx.y * blockDim.y + threadIdx.y;
     const auto idy = blockIdx.x * blockDim.x + threadIdx.x;
@@ -443,15 +446,15 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
 
         // DC mode:
         if(idy == 0)
-            val.imag(0);
+            val.y = 0.0;
 
         // Axes need to be symmetrized:
         if(idy > 0 && idy < (Ny + 1) / 2)
-            val = std::conj(val);
+            val.y = -val.y;
 
         // y-Nyquist
         if(Nyeven && idy == Ny / 2)
-            val.imag(0);
+            val.y = 0.0;
 
         x[cpos] = val;
 
@@ -464,15 +467,15 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
 
             // DC mode:
             if(idy == 0)
-                val.imag(0);
+                val.y = 0;
 
             // Axes need to be symmetrized:
             if(idy > 0 && idy < (Ny + 1) / 2)
-                val = std::conj(val);
+                val.y = -val.y;
 
             // y-Nyquist
             if(Nyeven && idy == Ny / 2)
-                val.imag(0);
+                val.y = 0;
 
             x[cpos] = val;
         }
@@ -549,20 +552,20 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
 // Kernels for imposing Hermitian symmetry on 3D
 // complex (interleaved/planar) data on the GPU.
 
-template <typename Tfloat>
+template <typename Tcomplex>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DATA_GEN_THREADS)
-    impose_hermitian_symmetry_interleaved_3(std::complex<Tfloat>* x,
-                                            const size_t          Nx,
-                                            const size_t          Ny,
-                                            const size_t          Nz,
-                                            const size_t          xstride,
-                                            const size_t          ystride,
-                                            const size_t          zstride,
-                                            const size_t          dist,
-                                            const size_t          nbatch,
-                                            const bool            Nxeven,
-                                            const bool            Nyeven,
-                                            const bool            Nzeven)
+    impose_hermitian_symmetry_interleaved_3(Tcomplex*    x,
+                                            const size_t Nx,
+                                            const size_t Ny,
+                                            const size_t Nz,
+                                            const size_t xstride,
+                                            const size_t ystride,
+                                            const size_t zstride,
+                                            const size_t dist,
+                                            const size_t nbatch,
+                                            const bool   Nxeven,
+                                            const bool   Nyeven,
+                                            const bool   Nzeven)
 {
     const auto idy = blockIdx.x * blockDim.x + threadIdx.x;
     const auto idz = blockIdx.y * blockDim.y + threadIdx.y;
@@ -578,46 +581,61 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DAT
         // Origin
         if(idy == 0 && idz == 0)
         {
-            x[pos].imag(0);
+            x[pos].y = 0.0;
         }
 
         // y-Nyquist
         if(Nyeven && idy == Ny / 2 && idz == 0)
         {
-            x[pos].imag(0);
+            x[pos].y = 0.0;
         }
 
         // z-Nyquist
         if(Nzeven && idz == Nz / 2 && idy == 0)
         {
-            x[pos].imag(0);
+            x[pos].y = 0.0;
         }
 
         // yz-Nyquist
         if(Nyeven && Nzeven && idy == Ny / 2 && idz == Nz / 2)
         {
-            x[pos].imag(0);
+            x[pos].y = 0.0;
         }
 
         // z-axis
         if(idy == 0 && idz > 0 && idz < (Nz + 1) / 2)
-            x[cpos] = std::conj(x[pos]);
+        {
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
+        }
 
         // y-Nyquist axis
         if(Nyeven && idy == Ny / 2 && idz > 0 && idz < (Nz + 1) / 2)
-            x[cpos] = std::conj(x[pos]);
+        {
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
+        }
 
         // y-axis
         if(idy > 0 && idy < (Ny + 1) / 2 && idz == 0)
-            x[cpos] = std::conj(x[pos]);
+        {
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
+        }
 
         // z-Nyquist axis
         if(Nzeven && idz == Nz / 2 && idy > 0 && idy < (Ny + 1) / 2)
-            x[cpos] = std::conj(x[pos]);
+        {
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
+        }
 
         // yz plane
         if(idy > 0 && idy < (Ny + 1) / 2 && idz > 0 && idz < Nz)
-            x[cpos] = std::conj(x[pos]);
+        {
+            x[cpos].x = x[pos].x;
+            x[cpos].y = -x[pos].y;
+        }
 
         if(Nxeven)
         {
@@ -625,39 +643,54 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DAT
             cpos += (Nx / 2) * xstride;
             // Origin
             if(idy == 0 && idz == 0)
-                x[pos].imag(0);
+                x[pos].y = 0.0;
 
             // y-Nyquist
             if(Nyeven && idy == Ny / 2 && idz == 0)
-                x[pos].imag(0);
+                x[pos].y = 0.0;
 
             // z-Nyquist
             if(Nzeven && idz == Nz / 2 && idy == 0)
-                x[pos].imag(0);
+                x[pos].y = 0.0;
 
             // yz-Nyquist
             if(Nyeven && Nzeven && idy == Ny / 2 && idz == Nz / 2)
-                x[pos].imag(0);
+                x[pos].y = 0.0;
 
             // z-axis
             if(idy == 0 && idz > 0 && idz < (Nz + 1) / 2)
-                x[cpos] = std::conj(x[pos]);
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
 
             // y-Nyquist axis
             if(Nyeven && idy == Ny / 2 && idz > 0 && idz < (Nz + 1) / 2)
-                x[cpos] = std::conj(x[pos]);
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
 
             // y-axis
             if(idy > 0 && idy < (Ny + 1) / 2 && idz == 0)
-                x[cpos] = std::conj(x[pos]);
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
 
             // z-Nyquist axis
             if(Nzeven && idz == Nz / 2 && idy > 0 && idy < (Ny + 1) / 2)
-                x[cpos] = std::conj(x[pos]);
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
 
             // yz plane
             if(idy > 0 && idy < (Ny + 1) / 2 && idz > 0 && idz < Nz)
-                x[cpos] = std::conj(x[pos]);
+            {
+                x[cpos].x = x[pos].x;
+                x[cpos].y = -x[pos].y;
+            }
         }
     }
 }
@@ -830,7 +863,7 @@ inline void generate_interleaved_data(const Tint&          whole_length,
                        idist,
                        isize,
                        input_stride,
-                       input_data);
+                       reinterpret_cast<hipFloatComplex*>(input_data));
 }
 
 template <typename Tint>
@@ -857,7 +890,7 @@ inline void generate_interleaved_data(const Tint&           whole_length,
                        idist,
                        isize,
                        input_stride,
-                       input_data);
+                       reinterpret_cast<hipDoubleComplex*>(input_data));
 }
 
 template <typename Tint>
@@ -972,13 +1005,13 @@ inline void generate_real_data(const Tint&  whole_length,
                        input_data);
 }
 
-template <typename Tfloat>
+template <typename Tcomplex>
 void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& length,
                                            const std::vector<size_t>& ilength,
                                            const std::vector<size_t>& stride,
                                            size_t                     dist,
                                            size_t                     batch,
-                                           std::complex<Tfloat>*      input_data)
+                                           Tcomplex*                  input_data)
 {
     auto blockSize = DATA_GEN_THREADS;
 
@@ -989,7 +1022,7 @@ void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& length,
         const auto gridDim  = dim3(blockSize);
         const auto blockDim = dim3(DivRoundingUp<size_t>(batch, blockSize));
 
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1<Tfloat>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1<Tcomplex>,
                            gridDim,
                            blockDim,
                            0,
@@ -1009,7 +1042,7 @@ void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& length,
         const auto blockDim = dim3(DivRoundingUp<size_t>(ilength[0], blockSize),
                                    DivRoundingUp<size_t>(batch, blockSize));
 
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2<Tfloat>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2<Tcomplex>,
                            gridDim,
                            blockDim,
                            0,
@@ -1033,7 +1066,7 @@ void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& length,
                                    DivRoundingUp<size_t>(ilength[1], blockSize),
                                    DivRoundingUp<size_t>(batch, blockSize));
 
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3<Tfloat>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3<Tcomplex>,
                            gridDim,
                            blockDim,
                            0,

@@ -1,4 +1,4 @@
-// Copyright (C) 2019 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2019 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -120,8 +120,8 @@ int main(int argc, char* argv[])
     hipSetDevice(deviceId);
 
     // Create HIP device object and copy data to device
-    double2* gpu_in = NULL;
-    hipMalloc(&gpu_in, isize * sizeof(std::complex<double>));
+    hipDoubleComplex* gpu_in = NULL;
+    hipMalloc(&gpu_in, isize * sizeof(hipDoubleComplex));
 
     // Inititalize the data on the device
     initcomplex_cm(length, istride, gpu_in);
@@ -131,8 +131,8 @@ int main(int argc, char* argv[])
         throw std::runtime_error("device error");
 
     std::cout << "input:\n";
-    std::vector<std::complex<double>> idata(isize);
-    hipMemcpy(idata.data(), gpu_in, isize * sizeof(std::complex<double>), hipMemcpyDefault);
+    std::vector<hipDoubleComplex> idata(isize);
+    hipMemcpy(idata.data(), gpu_in, isize * sizeof(hipDoubleComplex), hipMemcpyDefault);
     printbuffer_cm(idata, length, istride, 1, isize);
 
     // Create the a descrition struct to set data layout:
@@ -197,7 +197,7 @@ int main(int argc, char* argv[])
     double2* gpu_out = inplace ? gpu_in : NULL;
     if(!inplace)
     {
-        hip_status = hipMalloc(&gpu_out, osize * sizeof(std::complex<double>));
+        hip_status = hipMalloc(&gpu_out, osize * sizeof(hipDoubleComplex));
         if(hip_status != hipSuccess)
             throw std::runtime_error("hipMalloc failed");
     }
@@ -212,8 +212,8 @@ int main(int argc, char* argv[])
 
     // Get the output from the device and print to cout:
     std::cout << "output:\n";
-    std::vector<std::complex<double>> odata(osize);
-    hipMemcpy(odata.data(), gpu_out, osize * sizeof(std::complex<double>), hipMemcpyDeviceToHost);
+    std::vector<hipDoubleComplex> odata(osize);
+    hipMemcpy(odata.data(), gpu_out, osize * sizeof(hipDoubleComplex), hipMemcpyDeviceToHost);
     printbuffer_cm(odata, length, istride, 1, isize);
 
     // Clean up: free GPU memory:

@@ -1,4 +1,4 @@
-// Copyright (C) 2020 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2020 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -148,12 +148,25 @@ inline void set_input(std::vector<gpubuf>&       input,
     case fft_array_type_complex_interleaved:
     case fft_array_type_hermitian_interleaved:
     {
-        auto ibuffer = (std::complex<Tfloat>*)input[0].data();
 
+        auto ibuffer = (std::complex<Tfloat>*)input[0].data();
         generate_interleaved_data(whole_length, idist, isize, istride, ibuffer);
 
         if(itype == fft_array_type_hermitian_interleaved)
-            impose_hermitian_symmetry_interleaved(length, ilength, stride, idist, nbatch, ibuffer);
+        {
+            if(typeid(Tfloat) == typeid(float))
+            {
+                auto ibuffer_2 = (hipFloatComplex*)input[0].data();
+                impose_hermitian_symmetry_interleaved(
+                    length, ilength, stride, idist, nbatch, ibuffer_2);
+            }
+            else
+            {
+                auto ibuffer_2 = (hipDoubleComplex*)input[0].data();
+                impose_hermitian_symmetry_interleaved(
+                    length, ilength, stride, idist, nbatch, ibuffer_2);
+            }
+        }
 
         break;
     }

@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -44,7 +44,19 @@ __global__ void scale_data_kernel(float2* data, size_t length, float scale)
 }
 
 template <typename T>
-__global__ void offset_data_kernel(T* data, size_t length, T offset)
+__global__ void offset_data_kernel_complex(T* data, size_t length, T offset)
+{
+    const auto idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if(idx < length)
+    {
+        data[idx].x += offset.x;
+        data[idx].y += offset.y;
+    }
+}
+
+template <typename T>
+__global__ void offset_data_kernel_real(T* data, size_t length, T offset)
 {
     const auto idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -161,11 +173,26 @@ static void scale_device_data(hipStream_t stream, float scale, size_t N, float2*
 }
 
 template <typename T>
-static void offset_device_data(hipStream_t stream, T offset, size_t N, T* data)
+static void offset_device_data_real(hipStream_t stream, T offset, size_t N, T* data)
 {
     auto blockSize = KERNEL_THREADS;
     auto numBlocks = DivRoundingUp<size_t>(N, blockSize);
-    hipLaunchKernelGGL(offset_data_kernel<T>,
+    hipLaunchKernelGGL(offset_data_kernel_real<T>,
+                       dim3(numBlocks),
+                       dim3(blockSize),
+                       0, // sharedMemBytes
+                       stream, // stream
+                       data,
+                       N,
+                       offset);
+}
+
+template <typename T>
+static void offset_device_data_complex(hipStream_t stream, T offset, size_t N, T* data)
+{
+    auto blockSize = KERNEL_THREADS;
+    auto numBlocks = DivRoundingUp<size_t>(N, blockSize);
+    hipLaunchKernelGGL(offset_data_kernel_complex<T>,
                        dim3(numBlocks),
                        dim3(blockSize),
                        0, // sharedMemBytes
@@ -297,11 +324,11 @@ TEST(rocfft_UnitTest, DISABLED_hipGraph_execution)
 
     // add offset to device input data
     for(size_t i = 0; i < num_kernel_launches; ++i)
-        offset_device_data<float2>(stream, offset_1, N, in_ptr);
+        offset_device_data_complex<float2>(stream, offset_1, N, in_ptr);
 
     // back out the offsets
     for(size_t i = 0; i < num_kernel_launches; ++i)
-        offset_device_data<float2>(stream, offset_2, N, in_ptr);
+        offset_device_data_complex<float2>(stream, offset_2, N, in_ptr);
 
     // scale the device input data
     scale_device_data(stream, scale, N, in_ptr);
@@ -326,14 +353,14 @@ TEST(rocfft_UnitTest, DISABLED_hipGraph_execution)
 
     // add offset to device output data
     for(size_t i = 0; i < num_kernel_launches; ++i)
-        offset_device_data<float2>(stream, offset_1, N, out_ptr);
+        offset_device_data_complex<float2>(stream, offset_1, N, out_ptr);
 
     // back out the offsets
     for(size_t i = 0; i < num_kernel_launches; ++i)
-        offset_device_data<float2>(stream, offset_2, N, out_ptr);
+        offset_device_data_complex<float2>(stream, offset_2, N, out_ptr);
 
     // increment counter
-    offset_device_data<size_t>(stream, 1, N, counter_ptr);
+    offset_device_data_real<size_t>(stream, 1, N, counter_ptr);
 
     ASSERT_EQ(hipStreamEndCapture(stream, &graph), hipSuccess);
 

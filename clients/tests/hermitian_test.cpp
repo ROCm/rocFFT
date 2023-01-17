@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -54,14 +54,15 @@ void run_1D_hermitian_test(size_t length)
 
     ASSERT_TRUE(p.valid(verbose));
 
-    std::vector<std::complex<double>> h_input(p.isize[0]);
+    std::vector<hipDoubleComplex> h_input(p.isize[0]);
 
     std::random_device                     rd;
     std::mt19937                           gen(rd());
     std::uniform_real_distribution<double> dis(0.0, 1.0);
     for(auto& val : h_input)
     {
-        val = std::complex<double>(dis(gen), dis(gen));
+        val.x = dis(gen);
+        val.y = dis(gen);
     }
 
     if(verbose)
@@ -69,7 +70,8 @@ void run_1D_hermitian_test(size_t length)
         std::cout << "non-Hermitian input:";
         for(const auto& val : h_input)
         {
-            std::cout << " " << val;
+            std::cout << " "
+                      << "(" << val.x << ", " << val.y << ")";
         }
         std::cout << std::endl;
     }
@@ -104,20 +106,23 @@ void run_1D_hermitian_test(size_t length)
         std::cout << std::endl;
     }
 
-    std::vector<std::complex<double>> h_input1 = h_input;
+    std::vector<hipDoubleComplex> h_input1(p.isize[0]);
+    std::copy(h_input.begin(), h_input.end(), h_input1.begin());
 
     // Impose Hermitian symmetry on the input:
-    h_input1[0].imag(0.0);
+    h_input1[0].y = 0.0;
+
     if(p.length[0] % 2 == 0)
     {
-        h_input1.back().imag(0.0);
+        h_input1.back().y = 0.0;
     }
     if(verbose)
     {
         std::cout << "Hermitian input:";
         for(const auto& val : h_input1)
         {
-            std::cout << " " << val;
+            std::cout << " "
+                      << "(" << val.x << ", " << val.y << ")";
         }
         std::cout << std::endl;
     }
@@ -125,7 +130,8 @@ void run_1D_hermitian_test(size_t length)
     double maxdiff = 0.0;
     for(unsigned int i = 0; i < h_input.size(); ++i)
     {
-        auto val = std::abs(h_input[i] - h_input1[i]);
+        auto val = std::abs(
+            std::complex<double>(h_input[i].x - h_input1[i].x, h_input[i].y - h_input1[i].y));
         if(val > maxdiff)
             maxdiff = val;
     }
@@ -227,8 +233,8 @@ TEST(rocfft_UnitTest, gpu_symmetrizer)
 
         // Data buffers:
         gpubuf buf;
-        ASSERT_TRUE(buf.alloc(sizeof(std::complex<double>) * p.isize[0]) == hipSuccess);
-        std::vector<std::complex<double>> hbuf(p.isize[0]);
+        ASSERT_TRUE(buf.alloc(sizeof(hipDoubleComplex) * p.isize[0]) == hipSuccess);
+        std::vector<hipDoubleComplex> hbuf(p.isize[0]);
 
         // Initialize a Hermitian-symmetric array; it should be symmetric.
         init_hermitiancomplex_cm(p.length_cm(), p.ilength_cm(), p.istride_cm(), buf.data());
@@ -249,7 +255,8 @@ TEST(rocfft_UnitTest, gpu_symmetrizer)
         std::uniform_real_distribution<double> unif(0, 1);
         for(auto& v : hbuf)
         {
-            v = std::complex<double>(unif(rng), unif(rng));
+            v.x = unif(rng);
+            v.y = unif(rng);
         }
         if(verbose > 2)
         {
@@ -288,15 +295,18 @@ TEST(rocfft_UnitTest, gpu_symmetrizer)
 
         ASSERT_TRUE(p.execute(pibuf.data(), pobuf.data()) == fft_status_success);
 
-        std::vector<std::complex<double>> h_output(p.osize[0]);
-        std::fill(h_output.begin(), h_output.end(), 0.0);
+        std::vector<hipDoubleComplex> h_output(p.osize[0]);
+        std::fill(h_output.begin(), h_output.end(), hipDoubleComplex{0.0, 0.0});
+
         ASSERT_TRUE(
             hipMemcpy(h_output.data(), obuf.data(), p.obuffer_sizes()[0], hipMemcpyDeviceToHost)
             == hipSuccess);
 
         impose_hermitian_symmetry_cm(p.length_cm(), p.olength_cm(), p.ostride_cm(), obuf.data());
-        std::vector<std::complex<double>> h_output_resym(p.osize[0]);
-        std::fill(h_output_resym.begin(), h_output_resym.end(), 0.0);
+
+        std::vector<hipDoubleComplex> h_output_resym(p.osize[0]);
+        std::fill(h_output_resym.begin(), h_output_resym.end(), hipDoubleComplex{0.0, 0.0});
+
         ASSERT_TRUE(
             hipMemcpy(
                 h_output_resym.data(), obuf.data(), p.obuffer_sizes()[0], hipMemcpyDeviceToHost)
@@ -305,8 +315,8 @@ TEST(rocfft_UnitTest, gpu_symmetrizer)
         double maxdiff = 0;
         for(unsigned int i = 0; i < h_output.size(); ++i)
         {
-            auto rdiff = std::abs(h_output[i].real() - h_output_resym[i].real());
-            auto idiff = std::abs(h_output[i].imag() - h_output_resym[i].imag());
+            auto rdiff = std::abs(h_output[i].x - h_output_resym[i].x);
+            auto idiff = std::abs(h_output[i].y - h_output_resym[i].y);
             maxdiff    = std::max({maxdiff, rdiff, idiff});
         }
 

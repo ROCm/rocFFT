@@ -1,4 +1,4 @@
-// Copyright (C) 2019 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2019 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -97,16 +97,16 @@ int main(int argc, char* argv[])
         cstride.push_back(clength[i - 1] * cstride[i - 1]);
     }
     const size_t complex_size = clength[clength.size() - 1] * cstride[cstride.size() - 1];
-    std::vector<std::complex<double>> cdata(complex_size); // host storage
+    std::vector<hipDoubleComplex> cdata(complex_size); // host storage
 
     // Based on the direction, we set the input and output parameters appropriately.
     const size_t isize  = forward ? real_size : complex_size;
-    const size_t ibytes = isize * (forward ? sizeof(double) : sizeof(std::complex<double>));
+    const size_t ibytes = isize * (forward ? sizeof(double) : sizeof(hipDoubleComplex));
     const std::vector<size_t> ilength = forward ? length : clength;
     const std::vector<size_t> istride = forward ? rstride : cstride;
 
     const size_t osize  = forward ? complex_size : real_size;
-    const size_t obytes = osize * (forward ? sizeof(std::complex<double>) : sizeof(double));
+    const size_t obytes = osize * (forward ? sizeof(hipDoubleComplex) : sizeof(double));
     const std::vector<size_t> olength = forward ? clength : length;
     const std::vector<size_t> ostride = forward ? cstride : rstride;
 
