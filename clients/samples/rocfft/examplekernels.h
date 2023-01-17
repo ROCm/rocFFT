@@ -1,4 +1,4 @@
-// Copyright (C) 2019 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2019 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __EXAMPLEKERNELS_H__
-#define __EXAMPLEKERNELS_H__
+#ifndef EXAMPLEKERNELS_H
+#define EXAMPLEKERNELS_H
 
 #include "../../data_gen.h"
 #include <hip/hip_runtime.h>
@@ -423,4 +423,4 @@ void init_hermitiancomplex_cm(const std::vector<size_t>& length,
     impose_hermitian_symmetry_cm(length, ilength, stride, gpu_in);
 }
 
-#endif
+#endif /* EXAMPLEKERNELS_H */

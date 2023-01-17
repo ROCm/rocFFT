@@ -1,5 +1,5 @@
 /******************************************************************************
-* Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+* Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -24,8 +24,8 @@
  *  rocfft.h defines all the public interfaces and types
  *  */
 
-#ifndef __ROCFFT_H__
-#define __ROCFFT_H__
+#ifndef ROCFFT_H
+#define ROCFFT_H
 
 #ifdef rocfft_EXPORTS
 #include "rocfft-export.h"
@@ -512,4 +512,4 @@ ROCFFT_EXPORT rocfft_status rocfft_cache_deserialize(const void* buffer, size_t 
 }
 #endif /* __cplusplus */
 
-#endif /* __ROCFFT_H__ */
+#endif /* ROCFFT_H */

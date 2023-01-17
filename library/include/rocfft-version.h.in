@@ -1,5 +1,5 @@
 /******************************************************************************
-* Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+* Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -22,8 +22,8 @@
 
 /* the configured version and settings
  */
-#ifndef ROCFFT_VERSION_H_
-#define ROCFFT_VERSION_H_
+#ifndef ROCFFT_VERSION_H
+#define ROCFFT_VERSION_H
 
 // clang-format off
 #define rocfft_version_major      @rocfft_VERSION_MAJOR@
@@ -32,4 +32,4 @@
 #define rocfft_version_tweak      @rocfft_VERSION_TWEAK@
 // clang-format on
 
-#endif
+#endif /* ROCFFT_VERSION_H */

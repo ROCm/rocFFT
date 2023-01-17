@@ -1,4 +1,4 @@
-// Copyright (C) 2019 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2019 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef __EXAMPLEUTILS_H__
-#define __EXAMPLEUTILS_H__
+#ifndef EXAMPLEUTILS_H
+#define EXAMPLEUTILS_H
 
 // Increment the index (column-major) for looping over arbitrary dimensional loops with
 // dimensions length.
@@ -152,4 +152,4 @@ bool check_symmetry_cm(const std::vector<std::complex<Tfloat>>& data,
     return issymmetric;
 }
 
-#endif
+#endif /* EXAMPLEUTILS_H */
