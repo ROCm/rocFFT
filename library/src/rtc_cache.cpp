@@ -571,11 +571,14 @@ void RTCCache::write_aot_cache(const std::string&          output_path,
                                   ")"
                                   "SELECT kernel_name, arch, hip_version, generator_sum, code, 0 "
                                   "FROM cache_v1 "
-                                  "WHERE generator_sum = :generator_sum "
+                                  "WHERE "
+                                  "  generator_sum = :generator_sum "
+                                  "  AND hip_version = :hip_version "
                                   "ORDER BY kernel_name, arch, hip_version");
     if(sqlite3_bind_blob(
            copy_stmt.get(), 1, generator_sum.data(), generator_sum.size(), SQLITE_TRANSIENT)
-       != SQLITE_OK)
+           != SQLITE_OK
+       || sqlite3_bind_int64(copy_stmt.get(), 2, HIP_VERSION) != SQLITE_OK)
         throw std::runtime_error(std::string("write_aot_cache copy bind: ")
                                  + sqlite3_errmsg(db_user.get()));
 
