@@ -483,6 +483,7 @@ def command_autoperf(arguments):
     suite = arguments.suite
     format = arguments.format
     static = arguments.static
+    timeout = arguments.timeout
 
     # Use the short version of the hashes (default length: 7)
     if commit != None:
@@ -528,18 +529,21 @@ def command_autoperf(arguments):
         timer1.lib = None
         timer1.out = [build1]
         timer1.ntrial = 20
+        timer1.timeout = timeout
 
         timer2 = perflib.timer.GroupedTimer()
         timer2.rider = build2 / 'rocfft-rider'
         timer2.lib = None
         timer2.out = [build2]
         timer2.ntrial = 20
+        timer2.timeout = timeout
         timers = [timer1, timer2]
     else:
         timer = perflib.timer.GroupedTimer()
         timer.rider = build1 / 'dyna-rocfft-rider'
         timer.lib = [lib1, lib2]
         timer.out = [build1, build2]
+        timer.timeout = timeout
         timers = [timer]
 
     specs = perflib.specs.get_machine_specs(timers[0].device)
@@ -876,6 +880,12 @@ def main():
                                  help='Use static rider instead of dyna',
                                  action='store_true',
                                  default=False)
+    autoperf_parser.add_argument(
+        '-T',
+        '--timeout',
+        type=int,
+        help='test timeout in seconds (0 disables timeout)',
+        default=600)
 
     bweff_parser = subparsers.add_parser(
         'bweff', help='bandwidth efficiency collection')
