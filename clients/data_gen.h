@@ -23,6 +23,7 @@
 
 #include "../shared/arithmetic.h"
 #include "../shared/gpubuf.h"
+#include <complex>
 #include <hip/hip_complex.h>
 #include <hip/hip_fp16.h>
 #include <hip/hip_runtime.h>
