@@ -2,6 +2,11 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
+## (Unreleased) rocFFT 2.0.0
+
+### Changed
+- Replaced std::complex with hipComplex data types for data generator.
+
 ## rocFFT 1.0.21 for ROCm 5.5.0
 
 ### Optimizations
@@ -17,7 +22,6 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Moved client programs to C++17.
 - Moved planar kernels and infrequently used Stockham kernels to be runtime-compiled.
 - Moved transpose, real-complex, Bluestein, and Stockham kernels to library kernel cache.
-- Replaced std::complex with hipComplex data types for data generator.
 
 ### Fixed
 - Removed zero-length twiddle table allocations, which fixes errors from hipMallocManaged.
