@@ -179,6 +179,8 @@ foreach( pool rocfft-function-pool rocfft-function-pool-standalone )
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
   )
   set_target_properties( ${pool} PROPERTIES
+    CXX_VISIBILITY_PRESET "hidden"
+    VISIBILITY_INLINES_HIDDEN ON
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
     POSITION_INDEPENDENT_CODE ON

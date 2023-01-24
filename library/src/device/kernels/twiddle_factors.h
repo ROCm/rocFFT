@@ -35,7 +35,7 @@ struct radices_t
 };
 
 template <typename T>
-__global__ void __launch_bounds__(TWIDDLES_THREADS* TWIDDLES_THREADS)
+__global__ static void __launch_bounds__(TWIDDLES_THREADS* TWIDDLES_THREADS)
     GenerateTwiddleTableKernel(size_t    length_limit,
                                size_t    num_radices,
                                radices_t radices,
@@ -68,7 +68,7 @@ __global__ void __launch_bounds__(TWIDDLES_THREADS* TWIDDLES_THREADS)
 }
 
 template <typename T>
-__global__ void __launch_bounds__(TWIDDLES_THREADS)
+__global__ static void __launch_bounds__(TWIDDLES_THREADS)
     GenerateTwiddleTableKernel(size_t length_limit, size_t N, T* output)
 {
     auto i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -84,7 +84,7 @@ __global__ void __launch_bounds__(TWIDDLES_THREADS)
 }
 
 template <typename T>
-__global__ void __launch_bounds__(TWIDDLES_THREADS)
+__global__ static void __launch_bounds__(TWIDDLES_THREADS)
     GenerateHalfNTableKernel(size_t half_N, size_t N, T* output)
 {
     auto i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -100,7 +100,7 @@ __global__ void __launch_bounds__(TWIDDLES_THREADS)
 }
 
 template <typename T>
-__global__ void __launch_bounds__(TWIDDLES_THREADS* TWIDDLES_THREADS)
+__global__ static void __launch_bounds__(TWIDDLES_THREADS* TWIDDLES_THREADS)
     GenerateTwiddleTableLargeKernel(double phi, size_t base, size_t X, size_t Y, T* output)
 {
     auto iY = threadIdx.y + blockIdx.y * blockDim.y;
