@@ -147,7 +147,7 @@ endif( )
 
 # Use target ID syntax if supported for AMDGPU_TARGETS
 rocm_check_target_ids(DEFAULT_AMDGPU_TARGETS
-  TARGETS "gfx803;gfx900;gfx906:xnack-;gfx908:xnack-;gfx90a:xnack-;gfx90a:xnack+;gfx1030;gfx1100;gfx1101;gfx1102")
+  TARGETS "gfx803;gfx900;gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102")
 set(AMDGPU_TARGETS "${DEFAULT_AMDGPU_TARGETS}" CACHE STRING "List of specific machine types for library to target")
 list(LENGTH AMDGPU_TARGETS AMDGPU_TARGETS_LENGTH)
 

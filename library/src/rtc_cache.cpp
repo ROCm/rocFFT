@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -387,11 +387,26 @@ static RTCProcessType get_rtc_process_type()
     return RTCProcessType::DEFAULT;
 }
 
+static std::string gpu_arch_strip_flags(const std::string gpu_arch_with_flags)
+{
+    return gpu_arch_with_flags.substr(0, gpu_arch_with_flags.find(':'));
+}
+
 std::vector<char> cached_compile(const std::string&          kernel_name,
-                                 const std::string&          gpu_arch,
+                                 const std::string&          gpu_arch_with_flags,
                                  kernel_src_gen_t            generate_src,
                                  const std::array<char, 32>& generator_sum)
 {
+    // Supplied gpu arch may have extra flags on it
+    // (e.g. gfx90a:sramecc+:xnack-), Strip those from the arch name
+    // since omitting them will generate code that handles either
+    // case.
+    //
+    // As of this writing, there are no known performance benefits to
+    // including the flags.  If that changes, we may need to be more
+    // selective about which flags to strip.
+    std::string gpu_arch = gpu_arch_strip_flags(gpu_arch_with_flags);
+
     // check cache first
     std::vector<char> code;
     if(RTCCache::single)
@@ -534,8 +549,9 @@ void RTCCache::enable_write_mostly()
     sqlite3_step(wal_stmt.get());
 }
 
-void RTCCache::write_aot_cache(const std::string&          output_path,
-                               const std::array<char, 32>& generator_sum)
+void RTCCache::write_aot_cache(const std::string&              output_path,
+                               const std::array<char, 32>&     generator_sum,
+                               const std::vector<std::string>& gpu_archs)
 {
     // remove the path if it already exists, since we want to output a
     // cleanly created file
@@ -559,6 +575,31 @@ void RTCCache::write_aot_cache(const std::string&          output_path,
                                  + sqlite3_errmsg(db_user.get()));
     sqlite3_reset(attach_stmt.get());
 
+    // copy only the required arches, in case more are present in the
+    // cache than we need
+    auto create_temp_stmt = prepare_stmt(db_user,
+                                         "CREATE TABLE IF NOT EXISTS temp.aot_arch ("
+                                         "  arch TEXT NOT NULL )");
+    if(sqlite3_step(create_temp_stmt.get()) != SQLITE_DONE)
+        throw std::runtime_error(std::string("write_aot_cache create temp table: ")
+                                 + sqlite3_errmsg(db_user.get()));
+
+    auto insert_temp_stmt = prepare_stmt(db_user, "INSERT INTO temp.aot_arch VALUES ( ? )");
+    for(const auto& gpu_arch_with_flags : gpu_archs)
+    {
+        std::string gpu_arch = gpu_arch_strip_flags(gpu_arch_with_flags);
+
+        if(sqlite3_bind_text(
+               insert_temp_stmt.get(), 1, gpu_arch.c_str(), gpu_arch.size(), SQLITE_TRANSIENT)
+           != SQLITE_OK)
+            throw std::runtime_error(std::string("write_aot_cache temp bind: ")
+                                     + sqlite3_errmsg(db_user.get()));
+        if(sqlite3_step(insert_temp_stmt.get()) != SQLITE_DONE)
+            throw std::runtime_error(std::string("write_aot_cache temp step: ")
+                                     + sqlite3_errmsg(db_user.get()));
+        sqlite3_reset(insert_temp_stmt.get());
+    }
+
     // copy the kernels over in a consistent order and zero out the timestamps
     auto copy_stmt = prepare_stmt(db_user,
                                   "INSERT INTO out_db.cache_v1 ("
@@ -574,6 +615,9 @@ void RTCCache::write_aot_cache(const std::string&          output_path,
                                   "WHERE "
                                   "  generator_sum = :generator_sum "
                                   "  AND hip_version = :hip_version "
+                                  "  AND arch IN ("
+                                  "    SELECT arch FROM temp.aot_arch "
+                                  "  ) "
                                   "ORDER BY kernel_name, arch, hip_version");
     if(sqlite3_bind_blob(
            copy_stmt.get(), 1, generator_sum.data(), generator_sum.size(), SQLITE_TRANSIENT)

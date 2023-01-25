@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -90,7 +90,9 @@ struct RTCCache
     // this copies the kernels in a consistent order and clears out
     // the timestamp fields so that the resulting file is a
     // reproducible build artifact, suitable for use as an AOT cache.
-    void write_aot_cache(const std::string& output_path, const std::array<char, 32>& generator_sum);
+    void write_aot_cache(const std::string&              output_path,
+                         const std::array<char, 32>&     generator_sum,
+                         const std::vector<std::string>& gpu_archs);
 
     // remove kernels in the current cache to keep it roughly under a
     // target size - this counts just the kernel name and code
@@ -130,10 +132,10 @@ private:
 //
 // Otherwise, calls "generate_src" to generate the source, compiles
 // the source, and updates the cache before returning the compiled
-// kernel.  Tries in-process compile
-// first and falls back to subprocess if necessary.
+// kernel.  Tries in-process compile first and falls back to
+// subprocess if necessary.
 std::vector<char> cached_compile(const std::string&          kernel_name,
-                                 const std::string&          gpu_arch,
+                                 const std::string&          gpu_arch_with_flags,
                                  kernel_src_gen_t            generate_src,
                                  const std::array<char, 32>& generator_sum);
 
