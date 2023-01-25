@@ -391,9 +391,16 @@ endif()
 # to collect compiled kernels before writing them out as part of the
 # build.  any kernels that already exist in this file will be reused
 # between builds.
+
+# Only build kernels ahead-of-time for a more limited set of
+# architectures.  Less common architectures are filtered out from the
+# list and kernels for them are built at runtime instead.
+set( AMDGPU_TARGETS_AOT ${AMDGPU_TARGETS} )
+list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx803 )
+list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx900 )
 add_custom_command(
   OUTPUT rocfft_kernel_cache.db
-  COMMAND rocfft_aot_helper \"${ROCFFT_BUILD_KERNEL_CACHE_PATH}\" ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${AMDGPU_TARGETS}
+  COMMAND rocfft_aot_helper \"${ROCFFT_BUILD_KERNEL_CACHE_PATH}\" ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${AMDGPU_TARGETS_AOT}
   DEPENDS rocfft_aot_helper rocfft_rtc_helper
   COMMENT "Compile kernels into shipped cache file"
 )
