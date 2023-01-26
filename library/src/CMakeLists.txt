@@ -199,6 +199,7 @@ else()
   )
   FetchContent_MakeAvailable(sqlite_local)
   add_library( sqlite3 OBJECT ${sqlite_local_SOURCE_DIR}/sqlite3.c )
+  target_include_directories( sqlite3 PUBLIC ${sqlite_local_SOURCE_DIR} )
   set_target_properties( sqlite3 PROPERTIES
     C_VISIBILITY_PRESET "hidden"
     VISIBILITY_INLINES_HIDDEN ON
@@ -242,6 +243,7 @@ add_library( rocfft-rtc-gen OBJECT
 add_library( rocfft-rtc-cache OBJECT
   rtc_cache.cpp
 )
+target_link_libraries( rocfft-rtc-cache PUBLIC ${ROCFFT_SQLITE_LIB} )
 # generating kernels from TreeNodes and launching them
 add_library( rocfft-rtc-launch OBJECT
   rtc_kernel.cpp
@@ -250,6 +252,7 @@ add_library( rocfft-rtc-launch OBJECT
   rtc_stockham_kernel.cpp
   rtc_transpose_kernel.cpp
 )
+target_link_libraries( rocfft-rtc-launch PRIVATE rocfft-rtc-cache )
 
 foreach( target
   rocfft-rtc-common
@@ -263,7 +266,6 @@ foreach( target
     PRIVATE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
-    ${sqlite_local_SOURCE_DIR}
   )
   set_target_properties( ${target} PROPERTIES
     CXX_VISIBILITY_PRESET "hidden"
