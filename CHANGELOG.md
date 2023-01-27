@@ -7,7 +7,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Changed
 - Replaced std::complex with hipComplex data types for data generator.
 
-## rocFFT 1.0.21 for ROCm 5.5.0
+## rocFFT 1.0.22 for ROCm 5.5.0
 
 ### Optimizations
 - Improved performance of 1D lengths < 2048 that use Bluestein's algorithm.
@@ -26,6 +26,11 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 ### Fixed
 - Removed zero-length twiddle table allocations, which fixes errors from hipMallocManaged.
 - Fixed incorrect freeing of HIP stream handles during twiddle computation when multiple devices are present.
+
+## rocFFT 1.0.21 for ROCm 5.4.3
+
+### Fixed
+- Removed source directory from rocm_install_targets call to prevent installation of rocfft.h in an unintended location.
 
 ## rocFFT 1.0.20 for ROCm 5.4.1
 
