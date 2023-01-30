@@ -1,5 +1,5 @@
 /******************************************************************************
-* Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+* Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -62,7 +62,7 @@ rocfft_status rocfft_execution_info_set_work_buffer(rocfft_execution_info info,
     return rocfft_status_success;
 }
 
-rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info, void* stream)
+rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info, hipStream_t stream)
 {
     log_trace(__func__, "info", info, "stream", stream);
     info->rocfft_stream = (hipStream_t)stream;

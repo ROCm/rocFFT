@@ -1,4 +1,4 @@
-// Copyright (C) 2020 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2020 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -77,8 +77,6 @@ int main(int argc, char* argv[])
         CHECK_ROCFFT_ERR(rocfft_execution_info_create(&(it.info)));
 
         // set stream
-        // NOTE: The stream must be of type hipStream_t.
-        // It is an error to pass the address of a hipStream_t object.
         CHECK_ROCFFT_ERR(rocfft_execution_info_set_stream(it.info, it.stream));
 
         // create plan
